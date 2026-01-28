@@ -15,6 +15,13 @@ from haystack.document_stores.errors import DocumentStoreError, DuplicateDocumen
 from haystack.document_stores.types.policy import DuplicatePolicy
 
 import weaviate
+from weaviate.collections.classes.aggregate import (
+    GroupByAggregate,
+    Metrics,
+    _MetricsDate,
+    _MetricsInteger,
+    _MetricsNumber,
+)
 from weaviate.collections.classes.data import DataObject
 from weaviate.config import AdditionalConfig
 from weaviate.embedded import EmbeddedOptions
@@ -65,7 +72,9 @@ class WeaviateDocumentStore:
     ```python
     import os
     from haystack_integrations.document_stores.weaviate.auth import AuthApiKey
-    from haystack_integrations.document_stores.weaviate.document_store import WeaviateDocumentStore
+    from haystack_integrations.document_stores.weaviate.document_store import (
+        WeaviateDocumentStore,
+    )
 
     os.environ["WEAVIATE_API_KEY"] = "MY_API_KEY"
 
@@ -77,7 +86,9 @@ class WeaviateDocumentStore:
 
     Usage example with self-hosted Weaviate:
     ```python
-    from haystack_integrations.document_stores.weaviate.document_store import WeaviateDocumentStore
+    from haystack_integrations.document_stores.weaviate.document_store import (
+        WeaviateDocumentStore,
+    )
 
     document_store = WeaviateDocumentStore(url="http://localhost:8080")
     ```
@@ -326,6 +337,368 @@ class WeaviateDocumentStore:
         total = self.collection.aggregate.over_all(total_count=True).total_count
         return total if total else 0
 
+    def count_documents_by_filter(self, filters: dict[str, Any]) -> int:
+        """
+        Returns the number of documents that match the provided filters.
+
+        :param filters: The filters to apply to count documents.
+            For filter syntax, see
+            [Haystack metadata filtering](https://docs.haystack.deepset.ai/docs/metadata-filtering).
+        :returns: The number of documents that match the filters.
+        """
+        validate_filters(filters)
+        weaviate_filter = convert_filters(filters)
+        total = self.collection.aggregate.over_all(filters=weaviate_filter, total_count=True).total_count
+        return total if total else 0
+
+    async def count_documents_by_filter_async(self, filters: dict[str, Any]) -> int:
+        """
+        Asynchronously returns the number of documents that match the provided filters.
+
+        :param filters: The filters to apply to count documents.
+            For filter syntax, see
+            [Haystack metadata filtering](https://docs.haystack.deepset.ai/docs/metadata-filtering).
+        :returns: The number of documents that match the filters.
+        """
+        validate_filters(filters)
+        collection = await self.async_collection
+        weaviate_filter = convert_filters(filters)
+        result = await collection.aggregate.over_all(filters=weaviate_filter, total_count=True)
+        return result.total_count if result.total_count else 0
+
+    def get_metadata_fields_info(self) -> dict[str, dict[str, str]]:
+        """
+        Returns metadata field names and their types, excluding special fields.
+
+        Special fields (content, blob_data, blob_mime_type, _original_id, score) are excluded
+        as they are not user metadata fields.
+
+        :returns: A dictionary where keys are field names and values are dictionaries
+            containing type information, e.g.:
+            ```python
+            {
+                'number': {'type': 'int'},
+                'date': {'type': 'date'},
+                'category': {'type': 'text'},
+                'status': {'type': 'text'}
+            }
+            ```
+        """
+        config = self.collection.config.get()
+        special_fields = {prop["name"] for prop in DOCUMENT_COLLECTION_PROPERTIES}
+        fields_info = {}
+        for prop in config.properties:
+            if prop.name not in special_fields:
+                data_type = str(prop.data_type.value) if hasattr(prop.data_type, "value") else str(prop.data_type)
+                fields_info[prop.name] = {"type": data_type}
+        return fields_info
+
+    async def get_metadata_fields_info_async(self) -> dict[str, dict[str, str]]:
+        """
+        Asynchronously returns metadata field names and their types, excluding special fields.
+
+        Special fields (content, blob_data, blob_mime_type, _original_id, score) are excluded
+        as they are not user metadata fields.
+
+        :returns: A dictionary where keys are field names and values are dictionaries
+            containing type information, e.g.:
+            ```python
+            {
+                'number': {'type': 'int'},
+                'date': {'type': 'date'},
+                'category': {'type': 'text'},
+                'status': {'type': 'text'}
+            }
+            ```
+        """
+        collection = await self.async_collection
+        config = await collection.config.get()
+        special_fields = {prop["name"] for prop in DOCUMENT_COLLECTION_PROPERTIES}
+        fields_info = {}
+        for prop in config.properties:
+            if prop.name not in special_fields:
+                data_type = str(prop.data_type.value) if hasattr(prop.data_type, "value") else str(prop.data_type)
+                fields_info[prop.name] = {"type": data_type}
+        return fields_info
+
+    @staticmethod
+    def _normalize_metadata_field_name(metadata_field: str) -> str:
+        """
+        Removes 'meta.' prefix from field name if present.
+
+        :param metadata_field: The field name, possibly prefixed with 'meta.'.
+        :returns: The field name without the 'meta.' prefix.
+        """
+        return metadata_field[5:] if metadata_field.startswith("meta.") else metadata_field
+
+    def get_metadata_field_min_max(self, metadata_field: str) -> dict[str, Any]:
+        """
+        Returns the minimum and maximum values for a numeric or date metadata field.
+
+        :param metadata_field: The metadata field name to get min/max for.
+            Can be prefixed with 'meta.' (e.g., 'meta.year' or 'year').
+        :returns: A dictionary with 'min' and 'max' keys containing the respective values.
+        :raises ValueError: If the field is not found or doesn't support min/max operations.
+        """
+        field_name = self._normalize_metadata_field_name(metadata_field)
+
+        # Get field type from schema
+        config = self.collection.config.get()
+        field_type = None
+        for prop in config.properties:
+            if prop.name == field_name:
+                field_type = prop.data_type
+                break
+
+        if field_type is None:
+            msg = f"Field '{field_name}' not found in collection schema"
+            raise ValueError(msg)
+
+        data_type_str = str(field_type.value) if hasattr(field_type, "value") else str(field_type)
+
+        # Build metrics based on type.
+        # Explicit type annotation needed for mypy compatibility with Python 3.10,
+        # which infers the type from the first assignment and fails on reassignment.
+        metrics: _MetricsInteger | _MetricsNumber | _MetricsDate
+        if data_type_str.lower() == "int":
+            metrics = Metrics(field_name).integer(minimum=True, maximum=True)
+        elif data_type_str.lower() == "number":
+            metrics = Metrics(field_name).number(minimum=True, maximum=True)
+        elif data_type_str.lower() == "date":
+            metrics = Metrics(field_name).date_(minimum=True, maximum=True)
+        else:
+            msg = f"Field type '{data_type_str}' doesn't support min/max aggregation"
+            raise ValueError(msg)
+
+        result = self.collection.aggregate.over_all(return_metrics=metrics)
+        field_metrics = result.properties.get(field_name)
+
+        return {
+            "min": getattr(field_metrics, "minimum", None) if field_metrics else None,
+            "max": getattr(field_metrics, "maximum", None) if field_metrics else None,
+        }
+
+    async def get_metadata_field_min_max_async(self, metadata_field: str) -> dict[str, Any]:
+        """
+        Asynchronously returns the minimum and maximum values for a numeric or date metadata field.
+
+        :param metadata_field: The metadata field name to get min/max for.
+            Can be prefixed with 'meta.' (e.g., 'meta.year' or 'year').
+        :returns: A dictionary with 'min' and 'max' keys containing the respective values.
+        :raises ValueError: If the field is not found or doesn't support min/max operations.
+        """
+        field_name = self._normalize_metadata_field_name(metadata_field)
+
+        # Get field type from schema
+        collection = await self.async_collection
+        config = await collection.config.get()
+        field_type = None
+        for prop in config.properties:
+            if prop.name == field_name:
+                field_type = prop.data_type
+                break
+
+        if field_type is None:
+            msg = f"Field '{field_name}' not found in collection schema"
+            raise ValueError(msg)
+
+        data_type_str = str(field_type.value) if hasattr(field_type, "value") else str(field_type)
+
+        # Build metrics based on type.
+        # Explicit type annotation needed for mypy compatibility with Python 3.10,
+        # which infers the type from the first assignment and fails on reassignment.
+        metrics: _MetricsInteger | _MetricsNumber | _MetricsDate
+        if data_type_str.lower() == "int":
+            metrics = Metrics(field_name).integer(minimum=True, maximum=True)
+        elif data_type_str.lower() == "number":
+            metrics = Metrics(field_name).number(minimum=True, maximum=True)
+        elif data_type_str.lower() == "date":
+            metrics = Metrics(field_name).date_(minimum=True, maximum=True)
+        else:
+            msg = f"Field type '{data_type_str}' doesn't support min/max aggregation"
+            raise ValueError(msg)
+
+        result = await collection.aggregate.over_all(return_metrics=metrics)
+        field_metrics = result.properties.get(field_name)
+
+        return {
+            "min": getattr(field_metrics, "minimum", None) if field_metrics else None,
+            "max": getattr(field_metrics, "maximum", None) if field_metrics else None,
+        }
+
+    def count_unique_metadata_by_filter(self, filters: dict[str, Any], metadata_fields: list[str]) -> dict[str, int]:
+        """
+        Returns the count of unique values for each specified metadata field.
+
+        :param filters: The filters to apply when counting unique values.
+            For filter syntax, see
+            [Haystack metadata filtering](https://docs.haystack.deepset.ai/docs/metadata-filtering).
+        :param metadata_fields: List of metadata field names to count unique values for.
+            Field names can be prefixed with 'meta.' (e.g., 'meta.category' or 'category').
+        :returns: A dictionary mapping field names to counts of unique values.
+        :raises ValueError: If any of the requested fields don't exist in the collection schema.
+        """
+        validate_filters(filters)
+        weaviate_filter = convert_filters(filters)
+
+        normalized_fields = [self._normalize_metadata_field_name(f) for f in metadata_fields]
+
+        # Validate that all requested fields exist in the schema
+        config = self.collection.config.get()
+        schema_fields = {prop.name for prop in config.properties}
+        missing_fields = [f for f in normalized_fields if f not in schema_fields]
+        if missing_fields:
+            msg = f"Fields not found in collection schema: {missing_fields}"
+            raise ValueError(msg)
+
+        result = {}
+        for field in normalized_fields:
+            agg_result = self.collection.aggregate.over_all(
+                filters=weaviate_filter, group_by=GroupByAggregate(prop=field)
+            )
+            result[field] = len(agg_result.groups) if agg_result.groups else 0
+
+        return result
+
+    async def count_unique_metadata_by_filter_async(
+        self, filters: dict[str, Any], metadata_fields: list[str]
+    ) -> dict[str, int]:
+        """
+        Asynchronously returns the count of unique values for each specified metadata field.
+
+        :param filters: The filters to apply when counting unique values.
+            For filter syntax, see
+            [Haystack metadata filtering](https://docs.haystack.deepset.ai/docs/metadata-filtering).
+        :param metadata_fields: List of metadata field names to count unique values for.
+            Field names can be prefixed with 'meta.' (e.g., 'meta.category' or 'category').
+        :returns: A dictionary mapping field names to counts of unique values.
+        :raises ValueError: If any of the requested fields don't exist in the collection schema.
+        """
+        validate_filters(filters)
+        collection = await self.async_collection
+        weaviate_filter = convert_filters(filters)
+
+        normalized_fields = [self._normalize_metadata_field_name(f) for f in metadata_fields]
+
+        # Validate that all requested fields exist in the schema
+        config = await collection.config.get()
+        schema_fields = {prop.name for prop in config.properties}
+        missing_fields = [f for f in normalized_fields if f not in schema_fields]
+        if missing_fields:
+            msg = f"Fields not found in collection schema: {missing_fields}"
+            raise ValueError(msg)
+
+        result = {}
+        for field in normalized_fields:
+            agg_result = await collection.aggregate.over_all(
+                filters=weaviate_filter, group_by=GroupByAggregate(prop=field)
+            )
+            result[field] = len(agg_result.groups) if agg_result.groups else 0
+
+        return result
+
+    def get_metadata_field_unique_values(
+        self,
+        metadata_field: str,
+        search_term: str | None = None,
+        from_: int = 0,
+        size: int = 10000,
+    ) -> tuple[list[str], int]:
+        """
+        Returns unique values for a metadata field with pagination support.
+
+        :param metadata_field: The metadata field name to get unique values for.
+            Can be prefixed with 'meta.' (e.g., 'meta.category' or 'category').
+        :param search_term: Optional term to filter documents by content before
+            extracting unique values. If provided, only documents whose content
+            contains this term will be considered.
+            Note: Uses substring matching (case-sensitive, no stemming).
+        :param from_: The starting offset for pagination (0-indexed). Defaults to 0.
+        :param size: The maximum number of unique values to return. Defaults to 10000.
+        :returns: A tuple of (list of unique values, total count of unique values).
+        :raises ValueError: If the field is not found in the collection schema.
+        """
+        field_name = self._normalize_metadata_field_name(metadata_field)
+
+        config = self.collection.config.get()
+        schema_fields = {prop.name for prop in config.properties}
+        if field_name not in schema_fields:
+            msg = f"Field '{field_name}' not found in collection schema"
+            raise ValueError(msg)
+
+        weaviate_filter = None
+        if search_term:
+            weaviate_filter = convert_filters({"field": "content", "operator": "contains", "value": search_term})
+
+        # Weaviate's GroupByAggregate has a default limit of 100 groups.
+        # We use the document count as the limit to ensure all unique values are retrieved,
+        # since the number of unique values cannot exceed the number of documents.
+        doc_count = self.collection.aggregate.over_all(total_count=True).total_count or 0
+
+        agg_result = self.collection.aggregate.over_all(
+            filters=weaviate_filter, group_by=GroupByAggregate(prop=field_name, limit=doc_count)
+        )
+
+        all_values = [str(g.grouped_by.value) for g in agg_result.groups] if agg_result.groups else []
+        all_values.sort()  # Sort for consistent pagination
+        total_count = len(all_values)
+
+        paginated_values = all_values[from_ : from_ + size]
+
+        return paginated_values, total_count
+
+    async def get_metadata_field_unique_values_async(
+        self,
+        metadata_field: str,
+        search_term: str | None = None,
+        from_: int = 0,
+        size: int = 10000,
+    ) -> tuple[list[str], int]:
+        """
+        Asynchronously returns unique values for a metadata field with pagination support.
+
+        :param metadata_field: The metadata field name to get unique values for.
+            Can be prefixed with 'meta.' (e.g., 'meta.category' or 'category').
+        :param search_term: Optional term to filter documents by content before
+            extracting unique values. If provided, only documents whose content
+            contains this term will be considered.
+            Note: Uses substring matching (case-sensitive, no stemming).
+        :param from_: The starting offset for pagination (0-indexed). Defaults to 0.
+        :param size: The maximum number of unique values to return. Defaults to 10000.
+        :returns: A tuple of (list of unique values, total count of unique values).
+        :raises ValueError: If the field is not found in the collection schema.
+        """
+        field_name = self._normalize_metadata_field_name(metadata_field)
+
+        collection = await self.async_collection
+        config = await collection.config.get()
+        schema_fields = {prop.name for prop in config.properties}
+        if field_name not in schema_fields:
+            msg = f"Field '{field_name}' not found in collection schema"
+            raise ValueError(msg)
+
+        weaviate_filter = None
+        if search_term:
+            weaviate_filter = convert_filters({"field": "content", "operator": "contains", "value": search_term})
+
+        # Weaviate's GroupByAggregate has a default limit of 100 groups.
+        # We use the document count as the limit to ensure all unique values are retrieved,
+        # since the number of unique values cannot exceed the number of documents.
+        doc_count_result = await collection.aggregate.over_all(total_count=True)
+        doc_count = doc_count_result.total_count or 0
+
+        agg_result = await collection.aggregate.over_all(
+            filters=weaviate_filter, group_by=GroupByAggregate(prop=field_name, limit=doc_count)
+        )
+
+        all_values = [str(g.grouped_by.value) for g in agg_result.groups] if agg_result.groups else []
+        all_values.sort()  # Sort for consistent pagination
+        total_count = len(all_values)
+
+        paginated_values = all_values[from_ : from_ + size]
+
+        return paginated_values, total_count
+
     @staticmethod
     def _to_data_object(document: Document) -> dict[str, Any]:
         """
@@ -451,6 +824,10 @@ class WeaviateDocumentStore:
 
         For a detailed specification of the filters, refer to the
         DocumentStore.filter_documents() protocol documentation.
+
+        Note: The ``contains`` filter operator is case-sensitive (substring
+        matching). For case-insensitive matching, normalize the value before
+        building the filter.
 
         :param filters: The filters to apply to the document list.
         :returns: A list of Documents that match the given filters.
