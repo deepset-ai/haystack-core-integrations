@@ -976,7 +976,6 @@ class PineconeDocumentStore:
             {
                 'content': {'type': 'text'},
                 'category': {'type': 'keyword'},
-                'status': {'type': 'keyword'},
                 'priority': {'type': 'long'},
             }
             ```
