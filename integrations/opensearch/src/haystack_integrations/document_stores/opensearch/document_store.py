@@ -1130,28 +1130,26 @@ class OpenSearchDocumentStore:
 
     @staticmethod
     def _apply_metadata_search_filters(
-        os_query: dict[str, Any], filters: list[dict[str, Any]], mode: Literal["strict", "fuzzy"]
+        os_query: dict[str, Any], normalized_filters: list[dict[str, Any]], mode: Literal["strict", "fuzzy"]
     ) -> None:
         """
         Apply filters to a metadata search query.
 
         :param os_query: The OpenSearch query dictionary to modify.
-        :param filters: Normalized filters to apply.
+        :param normalized_filters: Normalized filters to apply.
         :param mode: Search mode to determine how to apply filters.
         """
         if mode == "strict":
             bool_query = os_query["script_score"]["query"]["bool"]
-            assert isinstance(bool_query, dict)
             filter_list = bool_query.get("filter", [])
-            assert isinstance(filter_list, list)
-            filter_list.extend(filters)
+            filter_list.extend(normalized_filters)
         else:
             # For fuzzy mode, wrap the dis_max query in a bool query to add filters
             original_query = os_query["script_score"]["query"]
             os_query["script_score"]["query"] = {
                 "bool": {
                     "must": [original_query],
-                    "filter": filters,
+                    "filter": normalized_filters,
                 }
             }
 
@@ -1296,7 +1294,8 @@ class OpenSearchDocumentStore:
                 hits = response["hits"]["hits"]
 
                 # Boost exact matches
-                self._boost_exact_matches(hits, query_part_clean, fields, exact_match_weight)
+                if exact_match_weight > 0:
+                    self._boost_exact_matches(hits, query_part_clean, fields, exact_match_weight)
 
                 hit_list.extend(hits)
             except Exception as e:
@@ -1304,7 +1303,8 @@ class OpenSearchDocumentStore:
                 raise DocumentStoreError(msg) from e
 
         # Add multi-field exact match boosting
-        self._apply_multi_field_boosting(hit_list, query, fields, exact_match_weight)
+        if exact_match_weight > 0:
+            self._apply_multi_field_boosting(hit_list, query, fields, exact_match_weight)
 
         # Process and return results
         return self._process_metadata_search_results(hit_list, fields, top_k)
