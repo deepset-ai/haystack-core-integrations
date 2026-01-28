@@ -809,6 +809,10 @@ class WeaviateDocumentStore:
         For a detailed specification of the filters, refer to the
         DocumentStore.filter_documents() protocol documentation.
 
+        Note: The ``contains`` filter operator is case-sensitive (substring
+        matching). For case-insensitive matching, normalize the value before
+        building the filter.
+
         :param filters: The filters to apply to the document list.
         :returns: A list of Documents that match the given filters.
         """
