@@ -24,8 +24,8 @@ classifiers = [
 ]
 dependencies = [
   "haystack-ai>=2.22.0",
-  "paddleocr>=3.3.2",
-  "paddlex[serving]>=3.3.10",
+  "paddleocr>=3.4.0",
+  "paddlex[serving]>=3.4.0",
   "requests>=2.25.0",
 ]
 
