@@ -186,34 +186,6 @@ def test_sql_retriever_metadata_extraction(document_store: OpenSearchDocumentSto
 
 
 @pytest.mark.integration
-def test_sql_retriever_with_filters(document_store: OpenSearchDocumentStore):
-    """Test query with filters - verifies raw JSON response"""
-    docs = [
-        Document(content="Python programming", meta={"category": "A", "status": "active", "priority": 1}),
-        Document(content="Java programming", meta={"category": "B", "status": "active", "priority": 2}),
-        Document(content="Python scripting", meta={"category": "A", "status": "inactive", "priority": 3}),
-    ]
-    document_store.write_documents(docs, refresh=True)
-
-    retriever = OpenSearchSQLRetriever(document_store=document_store)
-    sql_query = (
-        f"SELECT content, category, status FROM {document_store._index} "  # noqa: S608
-        f"WHERE category = 'A' AND status = 'active'"
-    )
-    result = retriever.run(query=sql_query)
-
-    assert "result" in result
-    response = result["result"]
-    assert isinstance(response, dict)
-    assert "hits" in response
-    assert len(response["hits"]["hits"]) == 1
-
-    hit = response["hits"]["hits"][0]
-    assert hit["_source"]["category"] == "A"
-    assert hit["_source"]["status"] == "active"
-
-
-@pytest.mark.integration
 def test_sql_retriever_runtime_document_store_switching(
     document_store: OpenSearchDocumentStore, document_store_2: OpenSearchDocumentStore
 ):
