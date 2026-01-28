@@ -997,7 +997,14 @@ class PineconeDocumentStore:
         - 'boolean': Boolean metadata values
 
         :returns: Dictionary mapping field names to type information.
-            Example: {'content': {'type': 'text'}, 'category': {'type': 'keyword'}, 'priority': {'type': 'long'}}
+            Example:
+            ```python
+            {
+                'content': {'type': 'text'},
+                'category': {'type': 'keyword'},
+                'priority': {'type': 'long'},
+            }
+            ```
         """
         documents = await self.filter_documents_async(filters=None)
         return self._get_metadata_fields_info_impl(documents)
