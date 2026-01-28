@@ -78,7 +78,7 @@ class OpenSearchSQLRetriever:
         )
         return default_from_dict(cls, data)
 
-    @component.output_types(result=Any)
+    @component.output_types(result=dict[str, Any])
     def run(
         self,
         query: str,
