@@ -11,6 +11,7 @@ from haystack.utils.base_serialization import deserialize_class_instance, serial
 from langfuse import Langfuse
 
 from haystack_integrations.tracing.langfuse import LangfuseTracer, SpanHandler
+from haystack_integrations.tracing.langfuse.tracer import tracing_context_var
 
 logger = logging.getLogger(__name__)
 
@@ -177,9 +178,14 @@ class LangfuseConnector:
         Runs the LangfuseConnector component.
 
         :param invocation_context: A dictionary with additional context for the invocation. This parameter
-            is useful when users want to mark this particular invocation with additional information, e.g.
-            a run id from their own execution framework, user id, etc. These key-value pairs are then visible
-            in the Langfuse traces.
+            is useful when users want to mark this particular invocation with additional information.
+            The following keys are applied to the Langfuse trace metadata:
+            - `user_id`: User identifier for the trace
+            - `session_id`: Session identifier for the trace
+            - `trace_id`: Custom trace ID (useful for distributed tracing)
+            - `tags`: List of tags for the trace
+            - `version`: Version string for the trace
+            Any other keys are logged but not applied to trace metadata.
         :returns: A dictionary with the following keys:
             - `name`: The name of the tracing component.
             - `trace_url`: The URL to the tracing data.
@@ -189,6 +195,17 @@ class LangfuseConnector:
             "Langfuse tracer invoked with the following context: '{invocation_context}'",
             invocation_context=invocation_context,
         )
+
+        # Apply invocation_context to tracing_context_var for trace metadata
+        if invocation_context:
+            current_ctx = tracing_context_var.get({})
+            new_ctx = current_ctx.copy()
+            # Only apply known Langfuse trace metadata keys
+            for key in ("trace_id", "user_id", "session_id", "tags", "version"):
+                if key in invocation_context:
+                    new_ctx[key] = invocation_context[key]
+            tracing_context_var.set(new_ctx)
+
         return {"name": self.name, "trace_url": self.tracer.get_trace_url(), "trace_id": self.tracer.get_trace_id()}
 
     def to_dict(self) -> dict[str, Any]:

@@ -15,6 +15,7 @@ from haystack.utils import Secret
 
 from haystack_integrations.components.connectors.langfuse import LangfuseConnector
 from haystack_integrations.tracing.langfuse import DefaultSpanHandler
+from haystack_integrations.tracing.langfuse.tracer import tracing_context_var
 
 
 class CustomSpanHandler(DefaultSpanHandler):
@@ -43,6 +44,42 @@ class TestLangfuseConnector:
         assert response["name"] == "Chat example - OpenAI"
         assert response["trace_url"] == "https://example.com/trace"
         assert response["trace_id"] == "12345"
+
+    def test_run_sets_tracing_context(self, monkeypatch):
+        """Test that invocation_context populates tracing_context_var with supported keys."""
+        monkeypatch.setenv("LANGFUSE_SECRET_KEY", "secret")
+        monkeypatch.setenv("LANGFUSE_PUBLIC_KEY", "public")
+
+        langfuse_connector = LangfuseConnector(name="Test")
+
+        mock_tracer = Mock()
+        mock_tracer.get_trace_url.return_value = "https://example.com/trace"
+        mock_tracer.get_trace_id.return_value = "12345"
+        langfuse_connector.tracer = mock_tracer
+
+        # Clear any existing context
+        tracing_context_var.set({})
+
+        # Run with invocation_context containing supported keys
+        langfuse_connector.run(
+            invocation_context={
+                "user_id": "user-123",
+                "session_id": "session-456",
+                "trace_id": "custom-trace-789",
+                "tags": ["production", "v1"],
+                "version": "1.0.0",
+                "unsupported_key": "should_be_ignored",
+            }
+        )
+
+        # Verify context was set with supported keys only
+        ctx = tracing_context_var.get({})
+        assert ctx["user_id"] == "user-123"
+        assert ctx["session_id"] == "session-456"
+        assert ctx["trace_id"] == "custom-trace-789"
+        assert ctx["tags"] == ["production", "v1"]
+        assert ctx["version"] == "1.0.0"
+        assert "unsupported_key" not in ctx
 
     def test_to_dict(self, monkeypatch):
         monkeypatch.setenv("LANGFUSE_SECRET_KEY", "secret")
