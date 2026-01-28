@@ -913,8 +913,8 @@ class TestValkeyDocumentStoreConverters:
         document_store = ValkeyDocumentStore(
             nodes_list=[{"host": "localhost", "port": 6379}],
             cluster_mode=False,
-            username=Secret.from_token("test_user"),
-            password=Secret.from_token("test_pass"),
+            username=Secret.from_env_var("TEST_USER", strict=False),
+            password=Secret.from_env_var("TEST_PASS", strict=False),
             request_timeout=30,
             index_name="test_index",
             distance_metric="cosine",
