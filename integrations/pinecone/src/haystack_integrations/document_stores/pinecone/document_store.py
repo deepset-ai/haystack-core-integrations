@@ -980,7 +980,6 @@ class PineconeDocumentStore:
                 'priority': {'type': 'long'},
             }
             ```
-
         """
         documents = self.filter_documents(filters=None)
         return self._get_metadata_fields_info_impl(documents)
