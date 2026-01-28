@@ -4,6 +4,7 @@
 
 import pytest
 from haystack.dataclasses import Document
+from haystack.document_stores.errors import DocumentStoreError
 from haystack.document_stores.types import DuplicatePolicy
 
 from haystack_integrations.document_stores.opensearch.document_store import OpenSearchDocumentStore
@@ -806,3 +807,96 @@ class TestDocumentStoreAsync:
             row_tuple = tuple(sorted(row.items()))
             assert row_tuple not in seen, "Duplicate metadata found"
             seen.append(row_tuple)
+
+    @pytest.mark.asyncio
+    async def test_query_sql(self, document_store: OpenSearchDocumentStore):
+        docs = [
+            Document(content="Python programming", meta={"category": "A", "status": "active", "priority": 1}),
+            Document(content="Java programming", meta={"category": "B", "status": "active", "priority": 2}),
+            Document(content="Python scripting", meta={"category": "A", "status": "inactive", "priority": 3}),
+            Document(content="JavaScript development", meta={"category": "C", "status": "active", "priority": 1}),
+        ]
+        await document_store.write_documents_async(docs, refresh=True)
+
+        # SQL query returns raw JSON response from OpenSearch SQL API
+        sql_query = (
+            f"SELECT content, category, status, priority FROM {document_store._index} "  # noqa: S608
+            f"WHERE category = 'A' ORDER BY priority"
+        )
+        result = await document_store._query_sql_async(sql_query)
+
+        # Verify raw JSON response structure
+        assert isinstance(result, dict)
+        assert "hits" in result
+        assert "hits" in result["hits"]
+        assert len(result["hits"]["hits"]) == 2  # Two documents with category A
+
+        # Extract _source from each hit
+        hits = result["hits"]["hits"]
+        assert all(isinstance(hit, dict) and "_source" in hit for hit in hits)
+
+        categories = [hit["_source"].get("category") for hit in hits]
+        assert all(cat == "A" for cat in categories)
+
+        # verify all expected fields are present in _source
+        for hit in hits:
+            source = hit["_source"]
+            assert "content" in source
+            assert "category" in source
+            assert "status" in source
+            assert "priority" in source
+
+        # error handling for invalid SQL query
+        invalid_query = "SELECT * FROM non_existent_index"
+        with pytest.raises(DocumentStoreError, match="Failed to execute SQL query"):
+            await document_store._query_sql_async(invalid_query)
+
+    @pytest.mark.integration
+    @pytest.mark.asyncio
+    async def test_query_sql_async_with_fetch_size(self, document_store: OpenSearchDocumentStore):
+        """Test async SQL query with fetch_size parameter"""
+        # Create multiple documents to test pagination
+        docs = [Document(content=f"Document {i}", meta={"category": "A", "index": i}) for i in range(15)]
+        await document_store.write_documents_async(docs, refresh=True)
+
+        sql_query = (
+            f"SELECT content, category, index FROM {document_store._index} "  # noqa: S608
+            f"WHERE category = 'A' ORDER BY index"
+        )
+
+        # Test with fetch_size
+        result = await document_store._query_sql_async(sql_query, fetch_size=5)
+
+        # Should return raw JSON response (exact count depends on OpenSearch behavior)
+        assert isinstance(result, dict)
+        assert "hits" in result
+        assert "hits" in result["hits"]
+        assert all(isinstance(hit, dict) and "_source" in hit for hit in result["hits"]["hits"])
+
+    @pytest.mark.integration
+    @pytest.mark.asyncio
+    async def test_query_sql_async_pagination_flow(self, document_store: OpenSearchDocumentStore):
+        """Test async pagination flow with fetch_size"""
+        # Create enough documents to require pagination
+        docs = [Document(content=f"Document {i}", meta={"category": "A", "index": i}) for i in range(20)]
+        await document_store.write_documents_async(docs, refresh=True)
+
+        sql_query = (
+            f"SELECT content, category, index FROM {document_store._index} "  # noqa: S608
+            f"WHERE category = 'A' ORDER BY index"
+        )
+
+        # Query with small fetch_size to test pagination
+        result = await document_store._query_sql_async(sql_query, fetch_size=10)
+        assert isinstance(result, dict)
+        assert "hits" in result
+        assert "hits" in result["hits"]
+        assert len(result["hits"]["hits"]) > 0
+
+        # Verify all results have expected fields in _source
+        for hit in result["hits"]["hits"]:
+            source = hit["_source"]
+            assert "content" in source
+            assert "category" in source
+            assert "index" in source
+

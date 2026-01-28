@@ -1928,3 +1928,75 @@ class OpenSearchDocumentStore:
             after_key = None
 
         return unique_values, after_key
+
+    def _query_sql(self, query: str, fetch_size: int | None = None) -> dict[str, Any]:
+        """
+        Execute a raw OpenSearch SQL query against the index.
+
+        This method is not meant to be part of the public interface of
+        `OpenSearchDocumentStore` nor called directly.
+        `OpenSearchSQLRetriever` uses this method directly and is the public interface for it.
+
+        See `OpenSearchSQLRetriever` for more information.
+
+        :param query: The OpenSearch SQL query to execute
+        :param fetch_size: Optional number of results to fetch per page.
+        :returns: The raw JSON response from OpenSearch SQL API (OpenSearch DSL format).
+        """
+        self._ensure_initialized()
+        assert self._client is not None
+
+        try:
+            body: dict[str, Any] = {"query": query}
+            if fetch_size is not None:
+                body["fetch_size"] = fetch_size
+
+            params = {"format": "json"}
+
+            response_data = self._client.transport.perform_request(
+                method="POST",
+                url="/_plugins/_sql",
+                params=params,
+                body=body,
+            )
+
+            return response_data
+        except Exception as e:
+            msg = f"Failed to execute SQL query in OpenSearch: {e!s}"
+            raise DocumentStoreError(msg) from e
+
+    async def _query_sql_async(self, query: str, fetch_size: int | None = None) -> dict[str, Any]:
+        """
+        Asynchronously execute a raw OpenSearch SQL query against the index.
+
+        This method is not meant to be part of the public interface of
+        `OpenSearchDocumentStore` nor called directly.
+        `OpenSearchSQLRetriever` uses this method directly and is the public interface for it.
+
+        See `OpenSearchSQLRetriever` for more information.
+
+        :param query: The OpenSearch SQL query to execute
+        :param fetch_size: Optional number of results to fetch per page.
+        :returns: The raw JSON response from OpenSearch SQL API (OpenSearch DSL format).
+        """
+        await self._ensure_initialized_async()
+        assert self._async_client is not None
+
+        try:
+            body: dict[str, Any] = {"query": query}
+            if fetch_size is not None:
+                body["fetch_size"] = fetch_size
+
+            params = {"format": "json"}
+
+            response_data = await self._async_client.transport.perform_request(
+                method="POST",
+                url="/_plugins/_sql",
+                params=params,
+                body=body,
+            )
+
+            return response_data
+        except Exception as e:
+            msg = f"Failed to execute SQL query in OpenSearch: {e!s}"
+            raise DocumentStoreError(msg) from e

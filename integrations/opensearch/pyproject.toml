@@ -22,6 +22,7 @@ classifiers = [
   "Programming Language :: Python :: Implementation :: CPython",
   "Programming Language :: Python :: Implementation :: PyPy",
 ]
+
 dependencies = [
   "haystack-ai>=2.22.0",
   "opensearch-py[async]>=3.0.0"
