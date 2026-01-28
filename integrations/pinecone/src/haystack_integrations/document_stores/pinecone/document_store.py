@@ -979,7 +979,7 @@ class PineconeDocumentStore:
                 'status': {'type': 'keyword'},
                 'priority': {'type': 'long'},
             }
-        ```
+            ```
 
         """
         documents = self.filter_documents(filters=None)
