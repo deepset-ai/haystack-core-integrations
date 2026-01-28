@@ -1018,11 +1018,16 @@ class OpenSearchDocumentStore:
         """
         Build an OpenSearch query for metadata search.
 
+        The query uses a script_score query with a Jaccard similarity script (n-gram based, n=3)
+        to score results in both "strict" and "fuzzy" modes. The mode only affects the query
+        structure used to find matching documents, while the Jaccard similarity script is used
+        to rank/score all results.
+
         :param query_part: The cleaned query part to search for.
         :param fields: List of metadata field names to search within.
         :param mode: Search mode. "strict" uses prefix and wildcard matching,
             "fuzzy" uses fuzzy matching with dis_max queries.
-        :returns: OpenSearch query dictionary.
+        :returns: OpenSearch query dictionary with script_score using Jaccard similarity.
         """
         if mode == "strict":
             # Strict mode: prefix and wildcard matching with Jaccard similarity
@@ -1200,16 +1205,22 @@ class OpenSearchDocumentStore:
         Search across multiple metadata fields with custom scoring and ranking.
 
         This method searches specified metadata fields for matches to a given query, ranks the results based on
-        relevance using Jaccard similarity, and returns the top-k results containing only the specified metadata fields.
+        relevance using Jaccard similarity (n-gram based, n=3), and returns the top-k results containing only
+        the specified metadata fields.
+
+        The Jaccard similarity is computed server-side via a Painless script in both "strict" and "fuzzy" modes.
+        The mode parameter only affects the query structure (prefix/wildcard vs fuzzy matching), while the
+        Jaccard similarity script is used to score all results regardless of mode.
 
         :param query: The search query string, which can contain multiple comma-separated parts.
             Each part will be searched across all specified fields.
         :param fields: List of metadata field names to search within.
         :param mode: Search mode. "strict" uses prefix and wildcard matching,
             "fuzzy" uses fuzzy matching with dis_max queries. Default is "fuzzy".
+            Both modes use Jaccard similarity for scoring results.
         :param top_k: Maximum number of top results to return based on relevance. Default is 20.
         :param exact_match_weight: Weight to boost the score of exact matches in metadata fields.
-            Default is 0.6.
+            Default is 0.6. Applied after the search executes, in addition to Jaccard similarity scoring.
         :param filters: Additional filters to apply to the search query.
         :returns: List of dictionaries containing only the specified metadata fields,
             ranked by relevance score.
@@ -1285,17 +1296,22 @@ class OpenSearchDocumentStore:
         Asynchronously search across multiple metadata fields with custom scoring and ranking.
 
         This method searches specified metadata fields for matches to a given query,
-        ranks the results based on relevance using Jaccard similarity, and returns
-        the top-k results containing only the specified metadata fields.
+        ranks the results based on relevance using Jaccard similarity (n-gram based, n=3),
+        and returns the top-k results containing only the specified metadata fields.
+
+        The Jaccard similarity is computed server-side via a Painless script in both "strict" and "fuzzy" modes.
+        The mode parameter only affects the query structure (prefix/wildcard vs fuzzy matching), while the
+        Jaccard similarity script is used to score all results regardless of mode.
 
         :param query: The search query string, which can contain multiple comma-separated parts.
             Each part will be searched across all specified fields.
         :param fields: List of metadata field names to search within.
         :param mode: Search mode. "strict" uses prefix and wildcard matching,
             "fuzzy" uses fuzzy matching with dis_max queries. Default is "fuzzy".
+            Both modes use Jaccard similarity for scoring results.
         :param top_k: Maximum number of top results to return based on relevance. Default is 20.
         :param exact_match_weight: Weight to boost the score of exact matches in metadata fields.
-            Default is 0.6.
+            Default is 0.6. Applied after the search executes, in addition to Jaccard similarity scoring.
         :param filters: Additional filters to apply to the search query.
         :returns: List of dictionaries containing only the specified metadata fields,
             ranked by relevance score.

@@ -28,7 +28,7 @@ class OpenSearchMetadataRetriever:
         self,
         *,
         document_store: OpenSearchDocumentStore,
-        fields: list[str],
+        metadata_fields: list[str],
         top_k: int = 20,
         exact_match_weight: float = 0.6,
         mode: Literal["strict", "fuzzy"] = "fuzzy",
@@ -38,12 +38,14 @@ class OpenSearchMetadataRetriever:
         Create the OpenSearchMetadataRetriever component.
 
         :param document_store: An instance of OpenSearchDocumentStore to use with the Retriever.
-        :param fields: List of metadata field names to search within each document's metadata.
+        :param metadata_fields: List of metadata field names to search within each document's metadata.
         :param top_k: Maximum number of top results to return based on relevance. Default is 20.
         :param exact_match_weight: Weight to boost the score of exact matches in metadata fields.
-            Default is 0.6.
+            Default is 0.6. It's used on both "strict" and "fuzzy" modes and applied after the search executes.
         :param mode: Search mode. "strict" uses prefix and wildcard matching,
             "fuzzy" uses fuzzy matching with dis_max queries. Default is "fuzzy".
+            In both modes, results are scored using Jaccard similarity (n-gram based, n=3)
+            computed server-side via a Painless script.
         :param raise_on_failure:
             If `True`, raises an exception if the API call fails.
             If `False`, logs a warning and returns an empty list.
@@ -54,12 +56,12 @@ class OpenSearchMetadataRetriever:
             msg = "document_store must be an instance of OpenSearchDocumentStore"
             raise ValueError(msg)
 
-        if not fields:
+        if not metadata_fields:
             msg = "fields must be a non-empty list of metadata field names"
             raise ValueError(msg)
 
         self._document_store = document_store
-        self._fields = fields
+        self._fields = metadata_fields
         self._top_k = top_k
         self._exact_match_weight = exact_match_weight
         self._mode = mode
@@ -104,7 +106,7 @@ class OpenSearchMetadataRetriever:
         query: str,
         *,
         document_store: OpenSearchDocumentStore | None = None,
-        fields: list[str] | None = None,
+        metadata_fields: list[str] | None = None,
         top_k: int | None = None,
         exact_match_weight: float | None = None,
         mode: Literal["strict", "fuzzy"] | None = None,
@@ -117,7 +119,7 @@ class OpenSearchMetadataRetriever:
             Each part will be searched across all specified fields.
         :param document_store: The Document Store to run the query against.
             If not provided, the one provided in `__init__` is used.
-        :param fields: List of metadata field names to search within.
+        :param metadata_fields: List of metadata field names to search within.
             If not provided, the fields provided in `__init__` are used.
         :param top_k: Maximum number of top results to return based on relevance.
             If not provided, the top_k provided in `__init__` is used.
@@ -125,18 +127,30 @@ class OpenSearchMetadataRetriever:
             If not provided, the exact_match_weight provided in `__init__` is used.
         :param mode: Search mode. "strict" uses prefix and wildcard matching,
             "fuzzy" uses fuzzy matching with dis_max queries.
+            In both modes, results are scored using Jaccard similarity (n-gram based, n=3)
+            computed server-side via a Painless script.
             If not provided, the mode provided in `__init__` is used.
         :param filters: Additional filters to apply to the search query.
         :returns: A dictionary containing the top-k retrieved metadata results.
 
         Example:
             ```python
+            from haystack import Document
+
+            # First, add a document with matching metadata to the store
+            store.write_documents([
+                Document(
+                    content="Python programming guide",
+                    meta={"category": "Python", "status": "active", "priority": 1}
+                )
+            ])
+
             retriever = OpenSearchMetadataRetriever(
                 document_store=store,
                 fields=["category", "status", "priority"]
             )
             result = retriever.run(query="Python, active")
-            # Returns: {"metadata": [{"category": "Python", "status": "active", ...}, ...]}
+            # Returns: {"metadata": [{"category": "Python", "status": "active", "priority": 1}]}
             ```
         """
         doc_store = document_store or self._document_store
@@ -144,7 +158,7 @@ class OpenSearchMetadataRetriever:
             msg = "document_store must be an instance of OpenSearchDocumentStore"
             raise ValueError(msg)
 
-        fields_to_use = fields if fields is not None else self._fields
+        fields_to_use = metadata_fields if metadata_fields is not None else self._fields
         top_k_to_use = top_k if top_k is not None else self._top_k
         exact_match_weight_to_use = exact_match_weight if exact_match_weight is not None else self._exact_match_weight
         mode_to_use = mode if mode is not None else self._mode
@@ -178,7 +192,7 @@ class OpenSearchMetadataRetriever:
         self,
         query: str,
         document_store: OpenSearchDocumentStore | None = None,
-        fields: list[str] | None = None,
+        metadata_fields: list[str] | None = None,
         top_k: int | None = None,
         exact_match_weight: float | None = None,
         mode: Literal["strict", "fuzzy"] | None = None,
@@ -191,7 +205,7 @@ class OpenSearchMetadataRetriever:
             Each part will be searched across all specified fields.
         :param document_store: The Document Store to run the query against.
             If not provided, the one provided in `__init__` is used.
-        :param fields: List of metadata field names to search within.
+        :param metadata_fields: List of metadata field names to search within.
             If not provided, the fields provided in `__init__` are used.
         :param top_k: Maximum number of top results to return based on relevance.
             If not provided, the top_k provided in `__init__` is used.
@@ -199,18 +213,30 @@ class OpenSearchMetadataRetriever:
             If not provided, the exact_match_weight provided in `__init__` is used.
         :param mode: Search mode. "strict" uses prefix and wildcard matching,
             "fuzzy" uses fuzzy matching with dis_max queries.
+            In both modes, results are scored using Jaccard similarity (n-gram based, n=3)
+            computed server-side via a Painless script.
             If not provided, the mode provided in `__init__` is used.
         :param filters: Additional filters to apply to the search query.
         :returns: A dictionary containing the top-k retrieved metadata results.
 
         Example:
             ```python
+            from haystack import Document
+
+            # First, add a document with matching metadata to the store
+            await store.write_documents_async([
+                Document(
+                    content="Python programming guide",
+                    meta={"category": "Python", "status": "active", "priority": 1}
+                )
+            ])
+
             retriever = OpenSearchMetadataRetriever(
                 document_store=store,
                 fields=["category", "status", "priority"]
             )
             result = await retriever.run_async(query="Python, active")
-            # Returns: {"metadata": [{"category": "Python", "status": "active", ...}, ...]}
+            # Returns: {"metadata": [{"category": "Python", "status": "active", "priority": 1}]}
             ```
         """
         doc_store = document_store or self._document_store
@@ -218,7 +244,7 @@ class OpenSearchMetadataRetriever:
             msg = "document_store must be an instance of OpenSearchDocumentStore"
             raise ValueError(msg)
 
-        fields_to_use = fields if fields is not None else self._fields
+        fields_to_use = metadata_fields if metadata_fields is not None else self._fields
         top_k_to_use = top_k if top_k is not None else self._top_k
         exact_match_weight_to_use = exact_match_weight if exact_match_weight is not None else self._exact_match_weight
         mode_to_use = mode if mode is not None else self._mode
