@@ -19,7 +19,7 @@ class OpenSearchSQLRetriever:
     This component allows you to execute SQL queries directly against the OpenSearch index,
     which is useful for fetching metadata, aggregations, and other structured data at runtime.
 
-    Returns query results as a list of dictionaries (the _source from each hit).
+    Returns the raw JSON response from the OpenSearch SQL API.
     """
 
     def __init__(
@@ -84,7 +84,7 @@ class OpenSearchSQLRetriever:
         query: str,
         document_store: OpenSearchDocumentStore | None = None,
         fetch_size: int | None = None,
-    ) -> dict[str, list[dict[str, Any]]]:
+    ) -> dict[str, dict[str, Any] | None]:
         """
         Execute a raw OpenSearch SQL query against the index.
 
@@ -94,8 +94,8 @@ class OpenSearchSQLRetriever:
             specified during initialization, or the default fetch size set in OpenSearch.
 
         :returns:
-            A dictionary containing the query results with the following structure:
-            - result: The query results as a list of dictionaries (the _source from each hit).
+            A dictionary containing the raw JSON response from OpenSearch SQL API:
+            - result: The raw JSON response from OpenSearch (dict) or None on error.
 
         Example:
             ```python
@@ -103,7 +103,9 @@ class OpenSearchSQLRetriever:
             result = retriever.run(
                 query="SELECT content, category FROM my_index WHERE category = 'A'"
             )
-            # result["result"] contains a list of dictionaries with the query results
+            # result["result"] contains the raw OpenSearch JSON response
+            # For regular queries: result["result"]["hits"]["hits"] contains documents
+            # For aggregate queries: result["result"]["aggregations"] contains aggregations
             ```
         """
         if document_store is not None:
@@ -127,7 +129,7 @@ class OpenSearchSQLRetriever:
                     error=str(e),
                     exc_info=True,
                 )
-                result = []
+                result = None
 
         return {"result": result}
 
@@ -137,7 +139,7 @@ class OpenSearchSQLRetriever:
         query: str,
         document_store: OpenSearchDocumentStore | None = None,
         fetch_size: int | None = None,
-    ) -> dict[str, list[dict[str, Any]]]:
+    ) -> dict[str, dict[str, Any] | None]:
         """
         Asynchronously execute a raw OpenSearch SQL query against the index.
 
@@ -147,8 +149,8 @@ class OpenSearchSQLRetriever:
             specified during initialization, or the default fetch size set in OpenSearch.
 
         :returns:
-            A dictionary containing the query results with the following structure:
-            - result: The query results as a list of dictionaries (the _source from each hit).
+            A dictionary containing the raw JSON response from OpenSearch SQL API:
+            - result: The raw JSON response from OpenSearch (dict) or None on error.
 
         Example:
             ```python
@@ -156,7 +158,9 @@ class OpenSearchSQLRetriever:
             result = await retriever.run_async(
                 query="SELECT content, category FROM my_index WHERE category = 'A'"
             )
-            # result["result"] contains a list of dictionaries with the query results
+            # result["result"] contains the raw OpenSearch JSON response
+            # For regular queries: result["result"]["hits"]["hits"] contains documents
+            # For aggregate queries: result["result"]["aggregations"] contains aggregations
             ```
         """
         if document_store is not None:
@@ -180,6 +184,6 @@ class OpenSearchSQLRetriever:
                     error=str(e),
                     exc_info=True,
                 )
-                result = []
+                result = None
 
         return {"result": result}

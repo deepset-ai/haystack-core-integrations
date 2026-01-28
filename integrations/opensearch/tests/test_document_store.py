@@ -857,32 +857,33 @@ class TestDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocumentsT
         ]
         document_store.write_documents(docs, refresh=True)
 
-        # SQL query returns a list of dictionaries (the _source from each hit)
+        # SQL query returns raw JSON response from OpenSearch SQL API
         sql_query = (
             f"SELECT content, category, status, priority FROM {document_store._index} "  # noqa: S608
             f"WHERE category = 'A' ORDER BY priority"
         )
         result = document_store._query_sql(sql_query)
 
-        assert len(result) == 2  # Two documents with category A
-        assert isinstance(result, list)
-        assert all(isinstance(row, dict) for row in result)
+        # Verify raw JSON response structure
+        assert isinstance(result, dict)
+        assert "hits" in result
+        assert "hits" in result["hits"]
+        assert len(result["hits"]["hits"]) == 2  # Two documents with category A
 
-        categories = [row.get("category") for row in result]
+        # Extract _source from each hit
+        hits = result["hits"]["hits"]
+        assert all(isinstance(hit, dict) and "_source" in hit for hit in hits)
+
+        categories = [hit["_source"].get("category") for hit in hits]
         assert all(cat == "A" for cat in categories)
 
-        # verify all expected fields are present
-        for row in result:
-            assert "content" in row
-            assert "category" in row
-            assert "status" in row
-            assert "priority" in row
-
-        # COUNT query
-        count_query = f"SELECT COUNT(*) as total FROM {document_store._index}"  # noqa: S608
-        count_result = document_store._query_sql(count_query)
-        # COUNT query may return different format, check it's a valid response
-        assert count_result is not None
+        # verify all expected fields are present in _source
+        for hit in hits:
+            source = hit["_source"]
+            assert "content" in source
+            assert "category" in source
+            assert "status" in source
+            assert "priority" in source
 
         # error handling for invalid SQL query
         invalid_query = "SELECT * FROM non_existent_index"

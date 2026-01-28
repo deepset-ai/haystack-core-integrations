@@ -1582,37 +1582,7 @@ class OpenSearchDocumentStore:
 
         return unique_values, after_key
 
-    @staticmethod
-    def _process_sql_response(response_data: Any) -> list[dict[str, Any]]:
-        """
-        Processes the SQL query response data.
-
-        Extracts the _source from each hit and returns a list of dictionaries.
-        Handles both OpenSearch DSL format with results in "hits" and aggregate queries (COUNT, SUM, etc.) which return
-        results in "aggregations".
-        """
-        if isinstance(response_data, dict):
-            # Handle aggregate queries (COUNT, SUM, AVG, etc.) - results are in aggregations
-            if "aggregations" in response_data:
-                aggregations = response_data.get("aggregations", {})
-                # Convert aggregations to list of dicts (one row per aggregation)
-                result = []
-                for agg_name, agg_data in aggregations.items():
-                    if isinstance(agg_data, dict) and "value" in agg_data:
-                        result.append({agg_name: agg_data["value"]})
-                    else:
-                        result.append({agg_name: agg_data})
-                return result if result else []
-
-            # OpenSearch DSL format (format=json) - regular queries with hits
-            elif "hits" in response_data:
-                hits = response_data.get("hits", {}).get("hits", [])
-                # extract _source from each hit, which contains the actual document data
-                return [hit.get("_source", {}) for hit in hits]
-
-        return response_data if isinstance(response_data, list) else []
-
-    def _query_sql(self, query: str, fetch_size: int | None = None) -> list[dict[str, Any]]:
+    def _query_sql(self, query: str, fetch_size: int | None = None) -> dict[str, Any]:
         """
         Execute a raw OpenSearch SQL query against the index.
 
@@ -1624,7 +1594,7 @@ class OpenSearchDocumentStore:
 
         :param query: The OpenSearch SQL query to execute
         :param fetch_size: Optional number of results to fetch per page.
-        :returns: The query results as a list of dictionaries (the _source from each hit).
+        :returns: The raw JSON response from OpenSearch SQL API (OpenSearch DSL format).
         """
         self._ensure_initialized()
         assert self._client is not None
@@ -1643,12 +1613,12 @@ class OpenSearchDocumentStore:
                 body=body,
             )
 
-            return self._process_sql_response(response_data)
+            return response_data
         except Exception as e:
             msg = f"Failed to execute SQL query in OpenSearch: {e!s}"
             raise DocumentStoreError(msg) from e
 
-    async def _query_sql_async(self, query: str, fetch_size: int | None = None) -> list[dict[str, Any]]:
+    async def _query_sql_async(self, query: str, fetch_size: int | None = None) -> dict[str, Any]:
         """
         Asynchronously execute a raw OpenSearch SQL query against the index.
 
@@ -1660,7 +1630,7 @@ class OpenSearchDocumentStore:
 
         :param query: The OpenSearch SQL query to execute
         :param fetch_size: Optional number of results to fetch per page.
-        :returns: The query results as a list of dictionaries (the _source from each hit).
+        :returns: The raw JSON response from OpenSearch SQL API (OpenSearch DSL format).
         """
         await self._ensure_initialized_async()
         assert self._async_client is not None
@@ -1679,7 +1649,7 @@ class OpenSearchDocumentStore:
                 body=body,
             )
 
-            return self._process_sql_response(response_data)
+            return response_data
         except Exception as e:
             msg = f"Failed to execute SQL query in OpenSearch: {e!s}"
             raise DocumentStoreError(msg) from e
