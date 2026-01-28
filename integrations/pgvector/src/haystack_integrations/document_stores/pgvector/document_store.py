@@ -1438,3 +1438,597 @@ class PgvectorDocumentStore:
         records = await result.fetchall()
         docs = _from_pg_to_haystack_documents(records)
         return docs
+
+    def _prepare_filters_count_documents(self, filters):
+        _validate_filters(filters)
+        sql_count = SQL("SELECT COUNT(*) FROM {schema_name}.{table_name}").format(
+            schema_name=Identifier(self.schema_name), table_name=Identifier(self.table_name)
+        )
+        params = ()
+        if filters:
+            sql_where_clause, params = _convert_filters_to_where_clause_and_params(filters)
+            sql_count += sql_where_clause
+        return params, sql_count
+
+    def count_documents_by_filter(self, filters: dict[str, Any]) -> int:
+        """
+        Returns the number of documents that match the provided filters.
+
+        :param filters: The filters to apply to count documents.
+            For filter syntax, see [Haystack metadata filtering](https://docs.haystack.deepset.ai/docs/metadata-filtering)
+        :returns: The number of documents that match the filters.
+        """
+        params, sql_count = self._prepare_filters_count_documents(filters)
+
+        self._ensure_db_setup()
+        assert self._cursor is not None
+        result = self._execute_sql(
+            cursor=self._cursor,
+            sql_query=sql_count,
+            params=params,
+            error_msg="Could not count documents by filter in PgvectorDocumentStore",
+        ).fetchone()
+
+        if result is not None:
+            return result[0]
+        return 0
+
+    async def count_documents_by_filter_async(self, filters: dict[str, Any]) -> int:
+        """
+        Asynchronously returns the number of documents that match the provided filters.
+
+        :param filters: The filters to apply to count documents.
+            For filter syntax, see [Haystack metadata filtering](https://docs.haystack.deepset.ai/docs/metadata-filtering)
+        :returns: The number of documents that match the filters.
+        """
+        params, sql_count = self._prepare_filters_count_documents(filters)
+
+        await self._ensure_db_setup_async()
+        assert self._async_cursor is not None
+        result = await (
+            await self._execute_sql_async(
+                cursor=self._async_cursor,
+                sql_query=sql_count,
+                params=params,
+                error_msg="Could not count documents by filter in PgvectorDocumentStore",
+            )
+        ).fetchone()
+
+        if result is not None:
+            return result[0]
+        return 0
+
+    @staticmethod
+    def _normalize_metadata_field_name(field_name: str) -> str:
+        """
+        Normalizes metadata field names by removing 'meta.' prefix if present.
+
+        :param field_name: The field name to normalize.
+        :returns: The normalized field name.
+        """
+        if field_name.startswith("meta."):
+            field_name = field_name[5:]  # Remove "meta." prefix
+
+        # Validate field name to prevent SQL injection
+        # Only allow alphanumeric characters, underscores, and hyphens
+        if not all(c.isalnum() or c in ("_", "-") for c in field_name):
+            msg = (
+                f"Invalid metadata field name: '{field_name}'. Field names can only contain alphanumeric "
+                f"characters, underscores, and hyphens."
+            )
+            raise ValueError(msg)
+
+        return field_name
+
+    def _build_count_unique_metadata_query(
+        self, normalized_fields: list[str], filters: dict[str, Any]
+    ) -> tuple[Composed, tuple]:
+        """
+        Builds the SQL query for counting unique metadata values.
+
+        :param normalized_fields: List of normalized metadata field names.
+        :param filters: The filters to apply to select documents.
+        :returns: A tuple containing (sql_query, params).
+        """
+        # Build SELECT clause with COUNT(DISTINCT ...) for each field
+        count_expressions = []
+        for field in normalized_fields:
+            # Use SQLLiteral for the JSONB key (validated field name)
+            count_expressions.append(
+                SQL("COUNT(DISTINCT meta->>{} ) AS {}").format(SQLLiteral(field), Identifier(field))
+            )
+
+        sql_select = SQL("SELECT ") + SQL(", ").join(count_expressions)
+        sql_from = SQL(" FROM {schema_name}.{table_name}").format(
+            schema_name=Identifier(self.schema_name), table_name=Identifier(self.table_name)
+        )
+
+        sql_query = sql_select + sql_from
+
+        params = ()
+        if filters:
+            sql_where_clause, params = _convert_filters_to_where_clause_and_params(filters)
+            sql_query += sql_where_clause
+
+        return sql_query, params
+
+    @staticmethod
+    def _process_count_unique_metadata_result(
+        result: dict[str, Any] | None, normalized_fields: list[str]
+    ) -> dict[str, int]:
+        """
+        Processes the result from counting unique metadata values.
+
+        :param result: The database result row, or None if no results.
+        :param normalized_fields: List of normalized metadata field names.
+        :returns: A dictionary mapping field names to their unique value counts.
+        """
+        if result is None:
+            return dict.fromkeys(normalized_fields, 0)
+
+        # Return dictionary with normalized field names
+        return {field: result.get(field, 0) for field in normalized_fields}
+
+    def count_unique_metadata_by_filter(self, filters: dict[str, Any], metadata_fields: list[str]) -> dict[str, int]:
+        """
+        Returns the count of unique values for each specified metadata field,
+        considering only documents that match the provided filters.
+
+        :param filters: The filters to apply to select documents.
+            For filter syntax, see [Haystack metadata filtering](https://docs.haystack.deepset.ai/docs/metadata-filtering)
+        :param metadata_fields: List of metadata field names to count unique values for.
+            Field names can include or omit the "meta." prefix.
+        :returns: A dictionary mapping field names to their unique value counts.
+        """
+        _validate_filters(filters)
+
+        if not metadata_fields:
+            msg = "metadata_fields must be a non-empty list"
+            raise ValueError(msg)
+
+        normalized_fields = [PgvectorDocumentStore._normalize_metadata_field_name(field) for field in metadata_fields]
+        sql_query, params = self._build_count_unique_metadata_query(normalized_fields, filters)
+
+        self._ensure_db_setup()
+        assert self._dict_cursor is not None
+        result = self._execute_sql(
+            cursor=self._dict_cursor,
+            sql_query=sql_query,
+            params=params,
+            error_msg="Could not count unique metadata values in PgvectorDocumentStore",
+        ).fetchone()
+
+        return PgvectorDocumentStore._process_count_unique_metadata_result(result, normalized_fields)
+
+    async def count_unique_metadata_by_filter_async(
+        self, filters: dict[str, Any], metadata_fields: list[str]
+    ) -> dict[str, int]:
+        """
+        Asynchronously returns the count of unique values for each specified metadata field,
+        considering only documents that match the provided filters.
+
+        :param filters: The filters to apply to select documents.
+            For filter syntax, see [Haystack metadata filtering](https://docs.haystack.deepset.ai/docs/metadata-filtering)
+        :param metadata_fields: List of metadata field names to count unique values for.
+            Field names can include or omit the "meta." prefix.
+        :returns: A dictionary mapping field names to their unique value counts.
+        """
+        _validate_filters(filters)
+
+        if not metadata_fields:
+            msg = "metadata_fields must be a non-empty list"
+            raise ValueError(msg)
+
+        normalized_fields = [PgvectorDocumentStore._normalize_metadata_field_name(field) for field in metadata_fields]
+        sql_query, params = self._build_count_unique_metadata_query(normalized_fields, filters)
+
+        await self._ensure_db_setup_async()
+        assert self._async_dict_cursor is not None
+        result = await (
+            await self._execute_sql_async(
+                cursor=self._async_dict_cursor,
+                sql_query=sql_query,
+                params=params,
+                error_msg="Could not count unique metadata values in PgvectorDocumentStore",
+            )
+        ).fetchone()
+
+        return PgvectorDocumentStore._process_count_unique_metadata_result(result, normalized_fields)
+
+    @staticmethod
+    def _infer_metadata_field_type(value: Any) -> str:
+        """
+        Infers the PostgreSQL/JSONB type from a Python value.
+
+        :param value: The value to infer the type from.
+        :returns: The inferred type name (text, integer, real, boolean).
+        """
+        if isinstance(value, bool):
+            return "boolean"
+        if isinstance(value, int):
+            return "integer"
+        if isinstance(value, float):
+            return "real"
+        if isinstance(value, str):
+            return "text"
+        return "text"  # Default fallback
+
+    @staticmethod
+    def _analyze_metadata_fields_from_records(records: list[dict[str, Any]]) -> dict[str, dict[str, str]]:
+        """
+        Analyzes metadata fields from database records and infers their types.
+
+        :param records: List of database records containing 'meta' field.
+        :returns: A dictionary mapping field names to their type information.
+        """
+        fields_info: dict[str, dict[str, str]] = {"content": {"type": "text"}}
+
+        # Analyze metadata from all documents
+        for record in records:
+            meta = record.get("meta")
+            if not isinstance(meta, dict):
+                continue
+
+            for field_name, field_value in meta.items():
+                if field_name not in fields_info:
+                    # Infer type from first non-null value encountered
+                    if field_value is not None:
+                        inferred_type = PgvectorDocumentStore._infer_metadata_field_type(field_value)
+                        fields_info[field_name] = {"type": inferred_type}
+                    else:
+                        # Default to text for null values
+                        fields_info[field_name] = {"type": "text"}
+
+        return fields_info
+
+    def _analyze_metadata_from_docs_query(self):
+        # query all documents to analyze metadata structure
+        sql_query = SQL("SELECT meta FROM {schema_name}.{table_name} WHERE meta IS NOT NULL").format(
+            schema_name=Identifier(self.schema_name), table_name=Identifier(self.table_name)
+        )
+        return sql_query
+
+    def get_metadata_fields_info(self) -> dict[str, dict[str, str]]:
+        """
+        Returns the information about the metadata fields in the document store.
+
+        Since metadata is stored in a JSONB field, this method analyzes actual data
+        to infer field types.
+
+        Example return:
+        ```python
+        {
+            'content': {'type': 'text'},
+            'category': {'type': 'text'},
+            'status': {'type': 'text'},
+            'priority': {'type': 'integer'},
+        }
+        ```
+
+        :returns: A dictionary mapping field names to their type information.
+        """
+        self._ensure_db_setup()
+        assert self._dict_cursor is not None
+
+        sql_query = self._analyze_metadata_from_docs_query()
+
+        result = self._execute_sql(
+            cursor=self._dict_cursor,
+            sql_query=sql_query,
+            error_msg="Could not retrieve metadata fields info from PgvectorDocumentStore",
+        )
+
+        records = result.fetchall()
+        return PgvectorDocumentStore._analyze_metadata_fields_from_records(records)
+
+    async def get_metadata_fields_info_async(self) -> dict[str, dict[str, str]]:
+        """
+        Asynchronously returns the information about the metadata fields in the document store.
+
+        Since metadata is stored in a JSONB field, this method analyzes actual data
+        to infer field types.
+
+        :returns: A dictionary mapping field names to their type information.
+        """
+        await self._ensure_db_setup_async()
+        assert self._async_dict_cursor is not None
+
+        sql_query = self._analyze_metadata_from_docs_query()
+
+        result = await self._execute_sql_async(
+            cursor=self._async_dict_cursor,
+            sql_query=sql_query,
+            error_msg="Could not retrieve metadata fields info from PgvectorDocumentStore",
+        )
+
+        records = await result.fetchall()
+        return PgvectorDocumentStore._analyze_metadata_fields_from_records(records)
+
+    def _build_min_max_query(self, normalized_field: str, field_type: str) -> Composed:
+        """
+        Builds the SQL query for getting min/max values based on the field type.
+
+        :param normalized_field: The normalized metadata field name.
+        :param field_type: The type of the field (integer, real, text, or boolean).
+        :returns: The SQL query for min/max calculation.
+        """
+        field_literal = SQLLiteral(normalized_field)
+
+        if field_type == "integer":
+            # For integer fields, cast directly to integer
+            sql_query = SQL(
+                """
+                SELECT 
+                    MIN((meta->>{} )::integer) AS min_value,
+                    MAX((meta->>{} )::integer) AS max_value
+                FROM {}.{}
+                WHERE meta->>{} IS NOT NULL
+                """  # noqa: W291
+            ).format(
+                field_literal,
+                field_literal,
+                Identifier(self.schema_name),
+                Identifier(self.table_name),
+                field_literal,
+            )
+        elif field_type == "real":
+            # For real (float) fields, cast directly to real
+            sql_query = SQL(
+                """
+                SELECT 
+                    MIN((meta->>{} )::real) AS min_value,
+                    MAX((meta->>{} )::real) AS max_value
+                FROM {}.{}
+                WHERE meta->>{} IS NOT NULL
+                """  # noqa: W291
+            ).format(
+                field_literal,
+                field_literal,
+                Identifier(self.schema_name),
+                Identifier(self.table_name),
+                field_literal,
+            )
+        else:
+            # For text and other non-numeric fields, use text comparison
+            # Use COLLATE "C" for case-sensitive comparison (byte-order comparison)
+            # This ensures uppercase and lowercase letters are treated differently
+            sql_query = SQL(
+                """
+                SELECT 
+                    MIN(meta->>{} COLLATE "C") AS min_value,
+                    MAX(meta->>{} COLLATE "C") AS max_value
+                FROM {}.{}
+                WHERE meta->>{} IS NOT NULL
+                """  # noqa: W291
+            ).format(
+                field_literal,
+                field_literal,
+                Identifier(self.schema_name),
+                Identifier(self.table_name),
+                field_literal,
+            )
+
+        return sql_query
+
+    @staticmethod
+    def _process_min_max_result(metadata_field: str, result: dict[str, Any] | None) -> tuple[Any, Any]:
+        """
+        Processes the result from min/max query.
+
+        :param metadata_field: The metadata field name (for error messages).
+        :param result: The database result row, or None if no results.
+        :returns: A tuple containing (max_value, min_value).
+        :raises ValueError: If the field has no values.
+        """
+        if result is None:
+            msg = f"Metadata field '{metadata_field}' has no values"
+            raise ValueError(msg)
+        min_value = result.get("min_value")
+        max_value = result.get("max_value")
+        if min_value is None and max_value is None:
+            msg = f"Metadata field '{metadata_field}' has no values"
+            raise ValueError(msg)
+        return max_value, min_value
+
+    def get_metadata_field_min_max(self, metadata_field: str) -> dict[str, Any]:
+        """
+        Returns the minimum and maximum values for a given metadata field.
+
+        :param metadata_field: The name of the metadata field. Can include or omit the "meta." prefix.
+        :returns: A dictionary with 'min' and 'max' keys containing the minimum and maximum values.
+            For numeric fields (integer, real), returns numeric min/max.
+            For text fields, returns lexicographic min/max based on database collation.
+        :raises ValueError: If the field doesn't exist or has no values.
+        """
+        normalized_field = PgvectorDocumentStore._normalize_metadata_field_name(metadata_field)
+
+        # Get field type information from metadata fields info
+        fields_info = self.get_metadata_fields_info()
+        if normalized_field not in fields_info:
+            msg = f"Metadata field '{metadata_field}' not found in document store"
+            raise ValueError(msg)
+
+        field_type = fields_info[normalized_field]["type"]
+        sql_query = self._build_min_max_query(normalized_field, field_type)
+
+        self._ensure_db_setup()
+        assert self._dict_cursor is not None
+        result = self._execute_sql(
+            cursor=self._dict_cursor,
+            sql_query=sql_query,
+            error_msg=f"Could not get min/max for metadata field '{metadata_field}' in PgvectorDocumentStore",
+        ).fetchone()
+
+        max_value, min_value = PgvectorDocumentStore._process_min_max_result(metadata_field, result)
+
+        return {"min": min_value, "max": max_value}
+
+    async def get_metadata_field_min_max_async(self, metadata_field: str) -> dict[str, Any]:
+        """
+        Asynchronously returns the minimum and maximum values for a given metadata field.
+
+        :param metadata_field: The name of the metadata field. Can include or omit the "meta." prefix.
+        :returns: A dictionary with 'min' and 'max' keys containing the minimum and maximum values.
+            For numeric fields (integer, real), returns numeric min/max.
+            For text fields, returns lexicographic min/max based on database collation.
+        :raises ValueError: If the field doesn't exist or has no values.
+        """
+        normalized_field = PgvectorDocumentStore._normalize_metadata_field_name(metadata_field)
+
+        # Get field type information from metadata fields info
+        fields_info = await self.get_metadata_fields_info_async()
+        if normalized_field not in fields_info:
+            msg = f"Metadata field '{metadata_field}' not found in document store"
+            raise ValueError(msg)
+
+        field_type = fields_info[normalized_field]["type"]
+        sql_query = self._build_min_max_query(normalized_field, field_type)
+
+        await self._ensure_db_setup_async()
+        assert self._async_dict_cursor is not None
+        result = await (
+            await self._execute_sql_async(
+                cursor=self._async_dict_cursor,
+                sql_query=sql_query,
+                error_msg=f"Could not get min/max for metadata field '{metadata_field}' in PgvectorDocumentStore",
+            )
+        ).fetchone()
+
+        max_value, min_value = PgvectorDocumentStore._process_min_max_result(metadata_field, result)
+
+        return {"min": min_value, "max": max_value}
+
+    def _build_unique_values_queries(
+        self, normalized_field: str, search_term: str | None, from_: int, size: int
+    ) -> tuple[Composed, Composed, tuple]:
+        """
+        Builds SQL queries for getting unique metadata field values.
+
+        :param normalized_field: The normalized metadata field name.
+        :param search_term: Optional search term to filter documents by content.
+        :param from_: The offset for pagination (0-based).
+        :param size: The number of unique values to return.
+        :returns: A tuple containing (count_query, select_query, params).
+        """
+        field_literal = SQLLiteral(normalized_field)
+
+        # base query components
+        sql_select = SQL("SELECT DISTINCT meta->>{} AS value").format(field_literal)
+        sql_from = SQL(" FROM {schema_name}.{table_name}").format(
+            schema_name=Identifier(self.schema_name), table_name=Identifier(self.table_name)
+        )
+        sql_where = SQL(" WHERE meta->>{} IS NOT NULL").format(field_literal)
+
+        params: tuple = ()
+        if search_term:
+            # Use full-text search with word boundaries (similar to keyword retrieval)
+            sql_where += SQL(" AND to_tsvector({language}, content) @@ plainto_tsquery({language}, %s)").format(
+                language=SQLLiteral(self.language)
+            )
+            params = (search_term,)
+
+        # count query
+        sql_count = SQL("SELECT COUNT(DISTINCT meta->>{} ) AS total").format(field_literal)
+        sql_count += sql_from + sql_where
+
+        # paginated select query
+        sql_query = sql_select + sql_from + sql_where
+        sql_query += SQL(" ORDER BY value LIMIT {size} OFFSET {from_}").format(
+            size=SQLLiteral(size), from_=SQLLiteral(from_)
+        )
+
+        return sql_count, sql_query, params
+
+    @staticmethod
+    def _process_unique_values_result(
+        count_result: dict[str, Any] | None, records: list[dict[str, Any]]
+    ) -> tuple[list[str], int]:
+        """
+        Processes the results from unique values queries.
+
+        :param count_result: The count query result row, or None if no results.
+        :param records: The list of records from the select query.
+        :returns: A tuple containing (unique_values, total_count).
+        """
+        total_count = count_result.get("total", 0) if count_result else 0
+        unique_values = [str(record.get("value", "")) for record in records if record.get("value") is not None]
+        return unique_values, total_count
+
+    def get_metadata_field_unique_values(
+        self, metadata_field: str, search_term: str | None, from_: int, size: int
+    ) -> tuple[list[str], int]:
+        """
+        Returns unique values for a given metadata field, optionally filtered by a search term.
+
+        :param metadata_field: The name of the metadata field. Can include or omit the "meta." prefix.
+        :param search_term: Optional search term to filter documents by content before extracting unique values.
+            If None, all documents are considered.
+        :param from_: The offset for pagination (0-based).
+        :param size: The number of unique values to return.
+        :returns: A tuple containing:
+            - A list of unique values (as strings)
+            - The total count of unique values
+        """
+        normalized_field = PgvectorDocumentStore._normalize_metadata_field_name(metadata_field)
+        sql_count, sql_query, params = self._build_unique_values_queries(normalized_field, search_term, from_, size)
+
+        self._ensure_db_setup()
+        assert self._dict_cursor is not None
+
+        count_result = self._execute_sql(
+            cursor=self._dict_cursor,
+            sql_query=sql_count,
+            params=params,
+            error_msg=f"Could not count unique values for metadata field '{metadata_field}' in PgvectorDocumentStore",
+        ).fetchone()
+
+        result = self._execute_sql(
+            cursor=self._dict_cursor,
+            sql_query=sql_query,
+            params=params,
+            error_msg=f"Could not get unique values for metadata field '{metadata_field}' in PgvectorDocumentStore",
+        )
+
+        records = result.fetchall()
+        return PgvectorDocumentStore._process_unique_values_result(count_result, records)
+
+    async def get_metadata_field_unique_values_async(
+        self, metadata_field: str, search_term: str | None, from_: int, size: int
+    ) -> tuple[list[str], int]:
+        """
+        Asynchronously returns unique values for a given metadata field, optionally filtered by a search term.
+
+        :param metadata_field: The name of the metadata field. Can include or omit the "meta." prefix.
+        :param search_term: Optional search term to filter documents by content before extracting unique values.
+            If None, all documents are considered.
+        :param from_: The offset for pagination (0-based).
+        :param size: The number of unique values to return.
+        :returns: A tuple containing:
+            - A list of unique values (as strings)
+            - The total count of unique values
+        """
+        normalized_field = PgvectorDocumentStore._normalize_metadata_field_name(metadata_field)
+        sql_count, sql_query, params = self._build_unique_values_queries(normalized_field, search_term, from_, size)
+
+        await self._ensure_db_setup_async()
+        assert self._async_dict_cursor is not None
+
+        count_result = await (
+            await self._execute_sql_async(
+                cursor=self._async_dict_cursor,
+                sql_query=sql_count,
+                params=params,
+                error_msg=f"Could not count unique values for metadata field '{metadata_field}' in "
+                f"PgvectorDocumentStore",
+            )
+        ).fetchone()
+
+        result = await self._execute_sql_async(
+            cursor=self._async_dict_cursor,
+            sql_query=sql_query,
+            params=params,
+            error_msg=f"Could not get unique values for metadata field '{metadata_field}' in PgvectorDocumentStore",
+        )
+
+        records = await result.fetchall()
+        return PgvectorDocumentStore._process_unique_values_result(count_result, records)

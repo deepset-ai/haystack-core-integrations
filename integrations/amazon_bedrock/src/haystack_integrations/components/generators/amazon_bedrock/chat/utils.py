@@ -60,6 +60,24 @@ def _format_tools(tools: list[Tool] | None = None) -> dict[str, Any] | None:
     return {"tools": tool_specs} if tool_specs else None
 
 
+def _convert_image_content_to_bedrock_format(image_content: ImageContent) -> dict[str, Any]:
+    """
+    Convert a Haystack ImageContent to Bedrock format.
+    """
+
+    image_format = image_content.mime_type.split("/")[-1] if image_content.mime_type else None
+    if image_format not in IMAGE_SUPPORTED_FORMATS:
+        err_msg = (
+            f"Unsupported image format: {image_format}. "
+            f"Bedrock supports the following image formats: {IMAGE_SUPPORTED_FORMATS}"
+        )
+        raise ValueError(err_msg)
+
+    source = {"bytes": base64.b64decode(image_content.base64_image)}
+
+    return {"image": {"format": image_format, "source": source}}
+
+
 def _format_tool_call_message(tool_call_message: ChatMessage) -> dict[str, Any]:
     """
     Format a Haystack ChatMessage containing tool calls into Bedrock format.
@@ -94,19 +112,30 @@ def _format_tool_result_message(tool_call_result_message: ChatMessage) -> dict[s
     """
     # Assuming tool call result messages will only contain tool results
     tool_results = []
-    for result in tool_call_result_message.tool_call_results:
-        try:
-            json_result = json.loads(result.result)
-            content = [{"json": json_result}]
-        except json.JSONDecodeError:
-            content = [{"text": result.result}]
+    for tool_call_result in tool_call_result_message.tool_call_results:
+        if isinstance(tool_call_result.result, str):
+            try:
+                json_result = json.loads(tool_call_result.result)
+                content = [{"json": json_result}]
+            except json.JSONDecodeError:
+                content = [{"text": tool_call_result.result}]
+        elif isinstance(tool_call_result.result, list):
+            content = []
+            for item in tool_call_result.result:
+                if isinstance(item, TextContent):
+                    content.append({"text": item.text})
+                elif isinstance(item, ImageContent):
+                    content.append(_convert_image_content_to_bedrock_format(item))
+        else:
+            err_msg = "Unsupported content type in tool call result"
+            raise ValueError(err_msg)
 
         tool_results.append(
             {
                 "toolResult": {
-                    "toolUseId": result.origin.id,
+                    "toolUseId": tool_call_result.origin.id,
                     "content": content,
-                    **({"status": "error"} if result.error else {}),
+                    **({"status": "error"} if tool_call_result.error else {}),
                 }
             }
         )
@@ -217,16 +246,7 @@ def _format_text_image_message(message: ChatMessage) -> dict[str, Any]:
             if message.is_from(ChatRole.ASSISTANT):
                 err_msg = "Image content is not supported for assistant messages"
                 raise ValueError(err_msg)
-
-            image_format = part.mime_type.split("/")[-1] if part.mime_type else None
-            if image_format not in IMAGE_SUPPORTED_FORMATS:
-                err_msg = (
-                    f"Unsupported image format: {image_format}. "
-                    f"Bedrock supports the following image formats: {IMAGE_SUPPORTED_FORMATS}"
-                )
-                raise ValueError(err_msg)
-            source = {"bytes": base64.b64decode(part.base64_image)}
-            bedrock_content_blocks.append({"image": {"format": image_format, "source": source}})
+            bedrock_content_blocks.append(_convert_image_content_to_bedrock_format(part))
 
     return {"role": message.role.value, "content": bedrock_content_blocks}
 

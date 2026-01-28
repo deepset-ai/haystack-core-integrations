@@ -1,5 +1,18 @@
 # Changelog
 
+## [integrations/amazon_bedrock-v6.3.0] - 2026-01-28
+
+### 🌀 Miscellaneous
+
+- Feat: Bedrock - support images in tool results (#2783)
+
+## [integrations/amazon_bedrock-v6.2.1] - 2026-01-15
+
+### 🐛 Bug Fixes
+
+- None value handling of flattened generation kwargs for AmazonBedrockChatGenerator (#2752)
+
+
 ## [integrations/amazon_bedrock-v6.2.0] - 2026-01-13
 
 ### 🚀 Features
