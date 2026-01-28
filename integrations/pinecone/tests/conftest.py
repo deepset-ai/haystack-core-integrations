@@ -10,7 +10,7 @@ from pinecone.exceptions import NotFoundException
 from haystack_integrations.document_stores.pinecone import PineconeDocumentStore
 
 # This is the approximate time in seconds it takes for the documents to be available
-SLEEP_TIME_IN_SECONDS = 25
+SLEEP_TIME_IN_SECONDS = 30
 
 
 @pytest.fixture()
