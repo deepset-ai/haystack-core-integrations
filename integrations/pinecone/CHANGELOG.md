@@ -1,5 +1,16 @@
 # Changelog
 
+## [integrations/pinecone-v6.1.0] - 2026-01-28
+
+### 🚀 Features
+
+- Add operations to PineConeDocumentStore (#2772)
+
+### 🧪 Testing
+
+- Pinecone - improve flaky tests (#2787)
+
+
 ## [integrations/pinecone-v6.0.0] - 2026-01-13
 
 ### 🧹 Chores
