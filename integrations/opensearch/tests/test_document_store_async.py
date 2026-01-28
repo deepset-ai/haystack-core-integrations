@@ -899,4 +899,3 @@ class TestDocumentStoreAsync:
             assert "content" in source
             assert "category" in source
             assert "index" in source
-
