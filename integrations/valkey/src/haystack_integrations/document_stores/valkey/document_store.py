@@ -155,7 +155,7 @@ class ValkeyDocumentStore(DocumentStore):
         # Document store operation configuration
         batch_size: int = 100,
         # Index and vector configuration
-        index_name: str = "haystack_document",
+        index_name: str = "default",
         distance_metric: Literal["l2", "cosine", "ip"] = "cosine",
         embedding_dim: int = 768,
         metadata_fields: dict[str, type[str] | type[int]] | None = None,
