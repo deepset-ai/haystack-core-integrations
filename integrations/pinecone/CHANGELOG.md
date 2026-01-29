@@ -1,5 +1,30 @@
 # Changelog
 
+## [integrations/pinecone-v6.1.2] - 2026-01-28
+
+### 🐛 Bug Fixes
+
+- Docs: fixing docstring parsing error for `PineConeDocumentStore` (#2790)
+
+
+## [integrations/pinecone-v6.1.1] - 2026-01-28
+
+### 📚 Documentation
+
+- Fixing docstring parsing error on `PineConeDocumentStore` (#2788)
+
+
+## [integrations/pinecone-v6.1.0] - 2026-01-28
+
+### 🚀 Features
+
+- Add operations to PineConeDocumentStore (#2772)
+
+### 🧪 Testing
+
+- Pinecone - improve flaky tests (#2787)
+
+
 ## [integrations/pinecone-v6.0.0] - 2026-01-13
 
 ### 🧹 Chores
