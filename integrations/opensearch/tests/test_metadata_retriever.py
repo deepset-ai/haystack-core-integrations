@@ -362,3 +362,58 @@ def test_metadata_retriever_deduplication(document_store: OpenSearchDocumentStor
         row_tuple = tuple(sorted(row.items()))
         assert row_tuple not in seen, "Duplicate metadata found"
         seen.append(row_tuple)
+
+
+@pytest.mark.integration
+def test_metadata_retriever_list_metadata(document_store: OpenSearchDocumentStore):
+    """Integration test for OpenSearchMetadataRetriever with list metadata fields."""
+    # Use only list-of-strings for searchable fields; avoid mixed-type lists (e.g. [str, int, bool])
+    # as OpenSearch dynamic mapping does not allow one field to have conflicting types.
+    docs = [
+        Document(
+            content="Doc 1",
+            meta={
+                "tags": ["python", "programming", "tutorial"],
+                "categories": ["tech", "coding"],
+                "numbers": [1, 2, 3],
+            },
+        ),
+        Document(
+            content="Doc 2",
+            meta={
+                "tags": ["java", "programming"],
+                "categories": ["tech"],
+                "numbers": [4, 5, 6],
+            },
+        ),
+        Document(
+            content="Doc 3",
+            meta={
+                "tags": ["python", "advanced"],
+                "categories": ["tech", "coding", "advanced"],
+                "numbers": [1, 2, 3],
+            },
+        ),
+    ]
+    document_store.write_documents(docs, refresh=True)
+
+    retriever = OpenSearchMetadataRetriever(
+        document_store=document_store,
+        metadata_fields=["tags", "categories"],
+        top_k=10,
+    )
+
+    # Search for values that appear in list-of-string fields (query "python" matches tags)
+    result = retriever.run(query="python")
+    assert "metadata" in result
+    assert isinstance(result["metadata"], list)
+    assert len(result["metadata"]) > 0
+
+    # Verify list fields are returned correctly
+    for entry in result["metadata"]:
+        if "tags" in entry:
+            assert isinstance(entry["tags"], list)
+        if "categories" in entry:
+            assert isinstance(entry["categories"], list)
+        if "numbers" in entry:
+            assert isinstance(entry["numbers"], list)

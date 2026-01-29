@@ -1135,25 +1135,6 @@ class OpenSearchDocumentStore:
             }
 
     @staticmethod
-    def _boost_exact_matches(
-        hits: list[dict[str, Any]], query_part: str, fields: list[str], exact_match_weight: float
-    ) -> None:
-        """
-        Boost scores for exact matches in hits.
-
-        :param hits: List of search hits to modify.
-        :param query_part: The query part to match against.
-        :param fields: List of metadata fields to check.
-        :param exact_match_weight: Weight to add for exact matches.
-        """
-        for hit in hits:
-            hit_source = hit["_source"]
-            for field in fields:
-                if field in hit_source:
-                    if query_part.lower() in str(hit_source[field]).lower():
-                        hit["_score"] = hit["_score"] + exact_match_weight
-
-    @staticmethod
     def _apply_multi_field_boosting(
         hit_list: list[dict[str, Any]], query: str, fields: list[str], exact_match_weight: float
     ) -> None:
@@ -1293,11 +1274,6 @@ class OpenSearchDocumentStore:
             try:
                 response = self._client.search(index=self._index, body=body)
                 hits = response["hits"]["hits"]
-
-                # Boost exact matches
-                # if exact_match_weight > 0:
-                #    self._boost_exact_matches(hits, query_part_clean, fields, exact_match_weight)
-
                 hit_list.extend(hits)
             except Exception as e:
                 msg = f"Failed to execute metadata search in OpenSearch: {e!s}"
@@ -1398,11 +1374,6 @@ class OpenSearchDocumentStore:
             try:
                 response = await self._async_client.search(index=self._index, body=body)
                 hits = response["hits"]["hits"]
-
-                # Boost exact matches
-                # if exact_match_weight > 0:
-                #    self._boost_exact_matches(hits, query_part_clean, fields, exact_match_weight)
-
                 hit_list.extend(hits)
             except Exception as e:
                 msg = f"Failed to execute metadata search in OpenSearch: {e!s}"

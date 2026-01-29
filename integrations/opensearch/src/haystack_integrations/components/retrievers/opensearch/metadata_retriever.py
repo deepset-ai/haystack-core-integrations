@@ -21,7 +21,64 @@ class OpenSearchMetadataRetriever:
     based on relevance using Jaccard similarity, and returns the top-k results containing
     only the specified metadata fields.
 
+    The search is designed for metadata fields whose values are **text** (strings). It uses
+    prefix, wildcard and fuzzy matching to find candidate documents; these query
+    types operate only on text/keyword fields in OpenSearch.
+
+    Metadata fields with **non-string types** (integers, floats, booleans, lists of non-strings)
+    are indexed by OpenSearch as numeric, boolean, or array types. Those field types do not
+    support prefix, wildcard, or full-text match queries, so documents are typically not
+    found when you search only by such fields.
+
+    **Mixed types** in the same metadata field (e.g. a list containing both strings and
+    numbers) are not supported.
+
     Must be connected to the OpenSearchDocumentStore to run.
+
+    Example:
+        ```python
+        from haystack import Document
+        from haystack_integrations.document_stores.opensearch import OpenSearchDocumentStore
+        from haystack_integrations.components.retrievers.opensearch import OpenSearchMetadataRetriever
+
+        # Create documents with metadata
+        docs = [
+            Document(
+                content="Python programming guide",
+                meta={"category": "Python", "status": "active", "priority": 1, "author": "John Doe"}
+            ),
+            Document(
+                content="Java tutorial",
+                meta={"category": "Java", "status": "active", "priority": 2, "author": "Jane Smith"}
+            ),
+            Document(
+                content="Python advanced topics",
+                meta={"category": "Python", "status": "inactive", "priority": 3, "author": "John Doe"}
+            ),
+        ]
+        document_store.write_documents(docs, refresh=True)
+
+        # Create retriever specifying which metadata fields to search and return
+        retriever = OpenSearchMetadataRetriever(
+            document_store=document_store,
+            metadata_fields=["category", "status", "priority"],
+            top_k=10,
+        )
+
+        # Search for metadata
+        result = retriever.run(query="Python")
+
+        # Result structure:
+        # {
+        #     "metadata": [
+        #         {"category": "Python", "status": "active", "priority": 1},
+        #         {"category": "Python", "status": "inactive", "priority": 3},
+        #     ]
+        # }
+        #
+        # Note: Only the specified metadata_fields are returned in the results.
+        # Other metadata fields (like "author") and document content are excluded.
+        ```
     """
 
     def __init__(
@@ -159,7 +216,10 @@ class OpenSearchMetadataRetriever:
         :param max_expansions: Maximum number of term variations the fuzzy query can generate.
             Only applies when mode is "fuzzy". If not provided, the max_expansions provided in `__init__` is used.
         :param filters: Additional filters to apply to the search query.
-        :returns: A dictionary containing the top-k retrieved metadata results.
+
+        :returns:
+            A dictionary containing the top-k retrieved metadata results.
+
 
         Example:
             ```python
