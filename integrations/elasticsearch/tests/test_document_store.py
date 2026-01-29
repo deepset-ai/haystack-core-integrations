@@ -92,7 +92,9 @@ def test_to_dict_with_api_keys_env_vars():
     res = document_store.to_dict()
     assert res["init_parameters"]["api_key"] == {"type": "env_var", "env_vars": ["ELASTIC_API_KEY"], "strict": False}
     assert res["init_parameters"]["api_key_id"] == {
-        "type": "env_var", "env_vars": ["ELASTIC_API_KEY_ID"], "strict": False
+        "type": "env_var",
+        "env_vars": ["ELASTIC_API_KEY_ID"],
+        "strict": False,
     }
 
 
