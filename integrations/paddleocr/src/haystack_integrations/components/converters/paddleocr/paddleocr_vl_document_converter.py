@@ -220,7 +220,8 @@ class PaddleOCRVLDocumentConverter:
         :param layout_shape_mode:
             Layout shape mode.
         :param prompt_label:
-            Prompt type for the VLM.
+            Prompt type for the VLM. Possible values are "ocr", "formula",
+            "table", "chart", "seal", and "spotting".
         :param format_block_content:
             Whether to format block content.
         :param repetition_penalty:
