@@ -1236,6 +1236,8 @@ class OpenSearchDocumentStore:
             "fuzzy" uses fuzzy matching with dis_max queries. Default is "fuzzy".
             Both modes use Jaccard similarity for scoring results.
         :param top_k: Maximum number of top results to return based on relevance. Default is 20.
+            The search retrieves up to 1000 hits from OpenSearch, then applies boosting and filters
+            the results to the top_k most relevant matches.
         :param exact_match_weight: Weight to boost the score of exact matches in metadata fields.
             Default is 0.6. Applied after the search executes, in addition to Jaccard similarity scoring.
         :param fuzziness: Maximum allowed Damerau-Levenshtein distance (edit distance) for fuzzy matching.
@@ -1339,6 +1341,8 @@ class OpenSearchDocumentStore:
             "fuzzy" uses fuzzy matching with dis_max queries. Default is "fuzzy".
             Both modes use Jaccard similarity for scoring results.
         :param top_k: Maximum number of top results to return based on relevance. Default is 20.
+            The search retrieves up to 1000 hits from OpenSearch, then applies boosting and filters
+            the results to the top_k most relevant matches.
         :param exact_match_weight: Weight to boost the score of exact matches in metadata fields.
             Default is 0.6. Applied after the search executes, in addition to Jaccard similarity scoring.
         :param fuzziness: Maximum allowed Damerau-Levenshtein distance (edit distance) for fuzzy matching.

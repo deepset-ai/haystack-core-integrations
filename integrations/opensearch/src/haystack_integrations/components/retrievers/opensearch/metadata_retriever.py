@@ -141,6 +141,8 @@ class OpenSearchMetadataRetriever:
         :param metadata_fields: List of metadata field names to search within.
             If not provided, the fields provided in `__init__` are used.
         :param top_k: Maximum number of top results to return based on relevance.
+            The search retrieves up to 1000 hits from OpenSearch, then applies boosting and filters
+            the results to the top_k most relevant matches.
             If not provided, the top_k provided in `__init__` is used.
         :param exact_match_weight: Weight to boost the score of exact matches in metadata fields.
             If not provided, the exact_match_weight provided in `__init__` is used.
@@ -244,6 +246,8 @@ class OpenSearchMetadataRetriever:
         :param metadata_fields: List of metadata field names to search within.
             If not provided, the fields provided in `__init__` are used.
         :param top_k: Maximum number of top results to return based on relevance.
+            The search retrieves up to 1000 hits from OpenSearch, then applies boosting and filters
+            the results to the top_k most relevant matches.
             If not provided, the top_k provided in `__init__` is used.
         :param exact_match_weight: Weight to boost the score of exact matches in metadata fields.
             If not provided, the exact_match_weight provided in `__init__` is used.
