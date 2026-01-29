@@ -430,7 +430,14 @@ class TestAmazonBedrockChatGeneratorUtils:
         assert replies[0].meta == {
             "model": model,
             "finish_reason": "stop",
-            "usage": {"prompt_tokens": 10, "completion_tokens": 20, "total_tokens": 30},
+            "usage": {
+                "prompt_tokens": 10,
+                "completion_tokens": 20,
+                "total_tokens": 30,
+                "cache_read_input_tokens": 0,
+                "cache_write_input_tokens": 0,
+                "cache_details": {},
+            },
             "index": 0,
         }
 
@@ -457,7 +464,14 @@ class TestAmazonBedrockChatGeneratorUtils:
         assert replies[0].meta == {
             "model": model,
             "finish_reason": "tool_calls",
-            "usage": {"prompt_tokens": 15, "completion_tokens": 25, "total_tokens": 40},
+            "usage": {
+                "prompt_tokens": 15,
+                "completion_tokens": 25,
+                "total_tokens": 40,
+                "cache_read_input_tokens": 0,
+                "cache_write_input_tokens": 0,
+                "cache_details": {},
+            },
             "index": 0,
         }
 
@@ -488,7 +502,14 @@ class TestAmazonBedrockChatGeneratorUtils:
         assert replies[0].meta == {
             "model": model,
             "finish_reason": "stop",
-            "usage": {"prompt_tokens": 25, "completion_tokens": 35, "total_tokens": 60},
+            "usage": {
+                "prompt_tokens": 25,
+                "completion_tokens": 35,
+                "total_tokens": 60,
+                "cache_read_input_tokens": 0,
+                "cache_write_input_tokens": 0,
+                "cache_details": {},
+            },
             "index": 0,
         }
 
@@ -556,7 +577,14 @@ class TestAmazonBedrockChatGeneratorUtils:
                 "model": "anthropic.claude-3-5-sonnet-20240620-v1:0",
                 "index": 0,
                 "finish_reason": "tool_calls",
-                "usage": {"prompt_tokens": 366, "completion_tokens": 134, "total_tokens": 500},
+                "usage": {
+                    "prompt_tokens": 366,
+                    "completion_tokens": 134,
+                    "total_tokens": 500,
+                    "cache_read_input_tokens": 0,
+                    "cache_write_input_tokens": 0,
+                    "cache_details": {},
+                },
             },
         )
         assert replies[0] == expected_message
@@ -646,7 +674,14 @@ class TestAmazonBedrockChatGeneratorUtils:
                 "model": "arn:aws:bedrock:us-east-1::inference-profile/us.anthropic.claude-3-7-sonnet-20250219-v1:0",
                 "index": 0,
                 "finish_reason": "tool_calls",
-                "usage": {"prompt_tokens": 412, "completion_tokens": 146, "total_tokens": 558},
+                "usage": {
+                    "prompt_tokens": 412,
+                    "completion_tokens": 146,
+                    "total_tokens": 558,
+                    "cache_read_input_tokens": 0,
+                    "cache_write_input_tokens": 0,
+                    "cache_details": {},
+                },
             },
         )
         assert replies[0] == expected_message
@@ -712,7 +747,14 @@ class TestAmazonBedrockChatGeneratorUtils:
             "model": model,
             "finish_reason": "content_filter",
             "index": 0,
-            "usage": {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0},
+            "usage": {
+                "prompt_tokens": 0,
+                "completion_tokens": 0,
+                "total_tokens": 0,
+                "cache_read_input_tokens": 0,
+                "cache_write_input_tokens": 0,
+                "cache_details": {},
+            },
             "trace": trace,
         }
 
@@ -784,7 +826,13 @@ class TestAmazonBedrockChatGeneratorUtils:
                     "model": model,
                     "index": 0,
                     "finish_reason": "tool_calls",
-                    "usage": {"prompt_tokens": 364, "completion_tokens": 71, "total_tokens": 435},
+                    "usage": {
+                        "prompt_tokens": 364,
+                        "completion_tokens": 71,
+                        "total_tokens": 435,
+                        "cache_read_input_tokens": 0,
+                        "cache_write_input_tokens": 0,
+                    },
                 },
             )
         ]
@@ -852,7 +900,13 @@ class TestAmazonBedrockChatGeneratorUtils:
                 meta={
                     "model": model,
                     "received_at": ANY,
-                    "usage": {"prompt_tokens": 364, "completion_tokens": 71, "total_tokens": 435},
+                    "usage": {
+                        "prompt_tokens": 364,
+                        "completion_tokens": 71,
+                        "total_tokens": 435,
+                        "cache_read_input_tokens": 0,
+                        "cache_write_input_tokens": 0,
+                    },
                 },
                 component_info=c_info,
             ),
@@ -976,7 +1030,13 @@ class TestAmazonBedrockChatGeneratorUtils:
                     "model": "arn:aws:bedrock:us-east-1::inference-profile/us.anthropic.claude-sonnet-4-20250514-v1:0",
                     "index": 0,
                     "finish_reason": "tool_calls",
-                    "usage": {"prompt_tokens": 412, "completion_tokens": 104, "total_tokens": 516},
+                    "usage": {
+                        "prompt_tokens": 412,
+                        "completion_tokens": 104,
+                        "total_tokens": 516,
+                        "cache_read_input_tokens": 0,
+                        "cache_write_input_tokens": 0,
+                    },
                     "completion_start_time": ANY,
                 },
             )
@@ -1062,7 +1122,13 @@ class TestAmazonBedrockChatGeneratorUtils:
                     "model": model,
                     "index": 0,
                     "finish_reason": "stop",
-                    "usage": {"prompt_tokens": 461, "completion_tokens": 138, "total_tokens": 599},
+                    "usage": {
+                        "prompt_tokens": 461,
+                        "completion_tokens": 138,
+                        "total_tokens": 599,
+                        "cache_read_input_tokens": 0,
+                        "cache_write_input_tokens": 0,
+                    },
                     "completion_start_time": ANY,
                 },
             )
@@ -1140,7 +1206,13 @@ class TestAmazonBedrockChatGeneratorUtils:
                     "model": "anthropic.claude-3-5-sonnet-20240620-v1:0",
                     "index": 0,
                     "finish_reason": "tool_calls",
-                    "usage": {"prompt_tokens": 366, "completion_tokens": 83, "total_tokens": 449},
+                    "usage": {
+                        "prompt_tokens": 366,
+                        "completion_tokens": 83,
+                        "total_tokens": 449,
+                        "cache_read_input_tokens": 0,
+                        "cache_write_input_tokens": 0,
+                    },
                     "completion_start_time": ANY,
                 },
             )
@@ -1216,7 +1288,13 @@ class TestAmazonBedrockChatGeneratorUtils:
                     "model": model,
                     "index": 0,
                     "finish_reason": "content_filter",
-                    "usage": {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0},
+                    "usage": {
+                        "prompt_tokens": 0,
+                        "completion_tokens": 0,
+                        "total_tokens": 0,
+                        "cache_read_input_tokens": 0,
+                        "cache_write_input_tokens": 0,
+                    },
                     "trace": trace,
                 },
             )
