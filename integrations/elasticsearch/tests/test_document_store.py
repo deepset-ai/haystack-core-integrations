@@ -35,12 +35,10 @@ def test_headers_are_supported(_mock_es_client):
     headers_found = kwargs["headers"]
     assert headers_found["header1"] == "value1"
     assert headers_found["header2"] == "value2"
-
     assert headers_found["user-agent"].startswith("haystack-py-ds/")
 
 
-@patch("haystack_integrations.document_stores.elasticsearch.document_store.Elasticsearch")
-def test_to_dict(_mock_elasticsearch_client):
+def test_to_dict():
     document_store = ElasticsearchDocumentStore(hosts="some hosts")
     res = document_store.to_dict()
     assert res == {
@@ -68,8 +66,7 @@ def test_to_dict(_mock_elasticsearch_client):
     }
 
 
-@patch("haystack_integrations.document_stores.elasticsearch.document_store.Elasticsearch")
-def test_from_dict(_mock_elasticsearch_client):
+def test_from_dict():
     data = {
         "type": "haystack_integrations.document_stores.elasticsearch.document_store.ElasticsearchDocumentStore",
         "init_parameters": {
@@ -90,37 +87,26 @@ def test_from_dict(_mock_elasticsearch_client):
     assert document_store._embedding_similarity_function == "cosine"
 
 
-@patch("haystack_integrations.document_stores.elasticsearch.document_store.Elasticsearch")
-def test_to_dict_with_api_keys_env_vars(_mock_elasticsearch_client, monkeypatch):
-    monkeypatch.setenv("ELASTIC_API_KEY", "test-api-key")
-    monkeypatch.setenv("ELASTIC_API_KEY_ID", "test-api-key-id")
+def test_to_dict_with_api_keys_env_vars():
     document_store = ElasticsearchDocumentStore(hosts="https://localhost:9200")
-    document_store.client()
     res = document_store.to_dict()
     assert res["init_parameters"]["api_key"] == {"type": "env_var", "env_vars": ["ELASTIC_API_KEY"], "strict": False}
     assert res["init_parameters"]["api_key_id"] == {
-        "type": "env_var",
-        "env_vars": ["ELASTIC_API_KEY_ID"],
-        "strict": False,
+        "type": "env_var", "env_vars": ["ELASTIC_API_KEY_ID"], "strict": False
     }
 
 
-@patch("haystack_integrations.document_stores.elasticsearch.document_store.Elasticsearch")
-def test_to_dict_with_api_keys_as_secret(_mock_elasticsearch_client, monkeypatch):
-    monkeypatch.setenv("ELASTIC_API_KEY", "test-api-key")
-    monkeypatch.setenv("ELASTIC_API_KEY_ID", "test-api-key-id")
-    with pytest.raises(ValueError):
+def test_to_dict_with_api_keys_as_secret():
+    with pytest.raises(ValueError, match="Cannot serialize token-based secret."):
         document_store = ElasticsearchDocumentStore(
             hosts="https://localhost:9200",
             api_key=TokenSecret(_token="test-api-key"),
             api_key_id=TokenSecret(_token="test-api-key-id"),
         )
-        document_store.client()
         _ = document_store.to_dict()
 
 
-@patch("haystack_integrations.document_stores.elasticsearch.document_store.Elasticsearch")
-def test_from_dict_with_api_keys_env_vars(_mock_elasticsearch_client):
+def test_from_dict_with_api_keys_env_vars():
     data = {
         "type": "haystack_integrations.document_stores.elasticsearch.document_store.ElasticsearchDocumentStore",
         "init_parameters": {
@@ -134,18 +120,14 @@ def test_from_dict_with_api_keys_env_vars(_mock_elasticsearch_client):
     }
 
     document_store = ElasticsearchDocumentStore.from_dict(data)
-    assert document_store._api_key == {"type": "env_var", "env_vars": ["ELASTIC_API_KEY"], "strict": False}
-    assert document_store._api_key_id == {"type": "env_var", "env_vars": ["ELASTIC_API_KEY_ID"], "strict": False}
+    assert document_store._api_key == Secret.from_env_var("ELASTIC_API_KEY", strict=False)
+    assert document_store._api_key_id == Secret.from_env_var("ELASTIC_API_KEY_ID", strict=False)
 
 
-@patch("haystack_integrations.document_stores.elasticsearch.document_store.Elasticsearch")
-def test_api_key_validation_only_api_key(_mock_elasticsearch_client):
+def test_api_key_validation_only_api_key():
     api_key = Secret.from_token("test_api_key")
-
     document_store = ElasticsearchDocumentStore(hosts="https://localhost:9200", api_key=api_key)
-    document_store.client()
     assert document_store._api_key == api_key
-    # not passing the api_key_id makes it default to reading from env var
     assert document_store._api_key_id == Secret.from_env_var("ELASTIC_API_KEY_ID", strict=False)
 
 
