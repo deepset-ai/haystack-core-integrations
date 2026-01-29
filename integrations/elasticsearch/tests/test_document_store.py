@@ -97,7 +97,7 @@ def test_to_dict_with_api_keys_env_vars():
 
 
 def test_to_dict_with_api_keys_as_secret():
-    with pytest.raises(ValueError, match="Cannot serialize token-based secret\."):
+    with pytest.raises(ValueError, match="Cannot serialize token-based secret"):
         document_store = ElasticsearchDocumentStore(
             hosts="https://localhost:9200",
             api_key=TokenSecret(_token="test-api-key"),
