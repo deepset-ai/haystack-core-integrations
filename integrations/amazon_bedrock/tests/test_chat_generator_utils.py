@@ -693,6 +693,7 @@ class TestAmazonBedrockChatGeneratorUtils:
                 "totalTokens": 558,
                 "cacheReadInputTokens": 0,
                 "cacheWriteInputTokens": 0,
+                "cacheDetails": {},
             },
             "metrics": {"latencyMs": 4811},
         }
@@ -887,6 +888,7 @@ class TestAmazonBedrockChatGeneratorUtils:
                         "total_tokens": 435,
                         "cache_read_input_tokens": 0,
                         "cache_write_input_tokens": 0,
+                        "cache_details": {},
                     },
                 },
             )
@@ -961,6 +963,7 @@ class TestAmazonBedrockChatGeneratorUtils:
                         "total_tokens": 435,
                         "cache_read_input_tokens": 0,
                         "cache_write_input_tokens": 0,
+                        "cache_details": {},
                     },
                 },
                 component_info=c_info,
@@ -1091,6 +1094,7 @@ class TestAmazonBedrockChatGeneratorUtils:
                         "total_tokens": 516,
                         "cache_read_input_tokens": 0,
                         "cache_write_input_tokens": 0,
+                        "cache_details": {},
                     },
                     "completion_start_time": ANY,
                 },
@@ -1183,6 +1187,7 @@ class TestAmazonBedrockChatGeneratorUtils:
                         "total_tokens": 599,
                         "cache_read_input_tokens": 0,
                         "cache_write_input_tokens": 0,
+                        "cache_details": {},
                     },
                     "completion_start_time": ANY,
                 },
@@ -1267,6 +1272,7 @@ class TestAmazonBedrockChatGeneratorUtils:
                         "total_tokens": 449,
                         "cache_read_input_tokens": 0,
                         "cache_write_input_tokens": 0,
+                        "cache_details": {},
                     },
                     "completion_start_time": ANY,
                 },
@@ -1349,6 +1355,7 @@ class TestAmazonBedrockChatGeneratorUtils:
                         "total_tokens": 0,
                         "cache_read_input_tokens": 0,
                         "cache_write_input_tokens": 0,
+                        "cache_details": {},
                     },
                     "trace": trace,
                 },
@@ -1585,17 +1592,17 @@ class TestAmazonBedrockChatGeneratorUtils:
             )
 
     def test_validate_and_format_cache_point(self):
-        check_point = _validate_and_format_cache_point(None)
-        assert check_point is None
+        cache_point = _validate_and_format_cache_point(None)
+        assert cache_point is None
 
-        check_point = _validate_and_format_cache_point({})
-        assert check_point is None
+        cache_point = _validate_and_format_cache_point({})
+        assert cache_point is None
 
-        check_point = _validate_and_format_cache_point({"type": "default"})
-        assert check_point == {"cachePoint": {"type": "default"}}
+        cache_point = _validate_and_format_cache_point({"type": "default"})
+        assert cache_point == {"cachePoint": {"type": "default"}}
 
-        check_point = _validate_and_format_cache_point({"type": "default", "ttl": 1000})
-        assert check_point == {"cachePoint": {"type": "default", "ttl": 1000}}
+        cache_point = _validate_and_format_cache_point({"type": "default", "ttl": "5m"})
+        assert cache_point == {"cachePoint": {"type": "default", "ttl": "5m"}}
 
         with pytest.raises(ValueError, match=r"Cache point must have a 'type' key with value 'default'."):
             _validate_and_format_cache_point({"invalid": "config"})

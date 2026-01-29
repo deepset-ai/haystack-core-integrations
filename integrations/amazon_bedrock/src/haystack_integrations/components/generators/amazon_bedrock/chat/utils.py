@@ -262,6 +262,12 @@ def _format_text_image_message(message: ChatMessage) -> dict[str, Any]:
 def _validate_and_format_cache_point(cache_point: dict[str, str] | None) -> dict[str, Any] | None:
     """
     Validate and format a cache point dictionary.
+
+    Schema available at https://docs.aws.amazon.com/bedrock/latest/APIReference/API_runtime_CachePointBlock.html
+
+    :param cache_point: Cache point dictionary to validate and format.
+    :returns: Dictionary in Bedrock cachePoint format or None if no cache point is provided.
+    :raises ValueError: If cache point is not valid.
     """
     if not cache_point:
         return None
@@ -500,6 +506,7 @@ def _convert_event_to_streaming_chunk(
                 "total_tokens": usage.get("totalTokens", 0),
                 "cache_read_input_tokens": usage.get("cacheReadInputTokens", 0),
                 "cache_write_input_tokens": usage.get("cacheWriteInputTokens", 0),
+                "cache_details": usage.get("cacheDetails", {}),
             }
         if "trace" in event_meta:
             chunk_meta["trace"] = event_meta["trace"]
