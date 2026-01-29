@@ -181,7 +181,7 @@ class ValkeyDocumentStore(DocumentStore):
         :param embedding_dim: Dimension of document embeddings. Defaults to 768.
         :param metadata_fields: Dictionary mapping metadata field names to Python types for filtering.
             Supported types: str (for exact matching), int (for numeric comparisons).
-            Example: {"category": str, "priority": int}.
+            Example: `{"category": str, "priority": int}`.
             If not provided, no metadata fields will be indexed for filtering.
         """
         self._index_name = index_name
@@ -1037,7 +1037,7 @@ class ValkeyDocumentStore(DocumentStore):
 
         :param raw: Raw search results from Valkey FT.SEARCH command. Expected format is a list where
             raw[0] is the total count (int) and raw[1] is a dict mapping document keys to field dictionaries
-            containing b"payload", b"vector", and b"__vector_score" as byte keys.
+            containing `b"payload"`, `b"vector"`, and `b"__vector_score"` as byte keys.
         :param with_embedding: Whether to include embeddings in parsed documents.
         :return: List of Document objects with scores and optional embeddings.
         """
