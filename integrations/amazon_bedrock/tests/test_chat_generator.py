@@ -3,10 +3,11 @@ from typing import Any
 
 import pytest
 from haystack import Pipeline
+from haystack.components.agents import Agent
 from haystack.components.generators.utils import print_streaming_chunk
 from haystack.components.tools import ToolInvoker
-from haystack.dataclasses import ChatMessage, ChatRole, ImageContent, StreamingChunk, ToolCall
-from haystack.tools import Tool, Toolset
+from haystack.dataclasses import ChatMessage, ChatRole, ImageContent, StreamingChunk, TextContent, ToolCall
+from haystack.tools import Tool, Toolset, create_tool_from_function
 
 from haystack_integrations.components.generators.amazon_bedrock import AmazonBedrockChatGenerator
 
@@ -513,6 +514,30 @@ class TestAmazonBedrockChatGeneratorInference:
         assert ChatMessage.is_from(first_reply, ChatRole.ASSISTANT)
         assert first_reply.text
         assert "apple" in first_reply.text.lower()
+
+    @pytest.mark.parametrize("model_name", MODELS_TO_TEST_WITH_IMAGE_INPUT)
+    def test_live_run_agent_with_images_in_tool_result(self, model_name, test_files_path):
+        def retrieve_image():
+            return [
+                TextContent("Here is the retrieved image."),
+                ImageContent.from_file_path(test_files_path / "apple.jpg", size=(100, 100)),
+            ]
+
+        image_retriever_tool = create_tool_from_function(
+            name="retrieve_image", description="Tool to retrieve an image", function=retrieve_image
+        )
+        image_retriever_tool.outputs_to_string = {"raw_result": True}
+
+        agent = Agent(
+            chat_generator=AmazonBedrockChatGenerator(model=model_name),
+            system_prompt="You are an Agent that can retrieve images and describe them.",
+            tools=[image_retriever_tool],
+        )
+
+        user_message = ChatMessage.from_user("Retrieve the image and describe it in max 5 words.")
+        result = agent.run(messages=[user_message])
+
+        assert "apple" in result["last_message"].text.lower()
 
     @pytest.mark.parametrize("model_name", MODELS_TO_TEST)
     def test_default_inference_with_streaming(self, model_name, chat_messages):

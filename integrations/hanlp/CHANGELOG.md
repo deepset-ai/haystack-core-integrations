@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/hanlp-v2.1.1] - 2026-01-27
+
+### 🧹 Chores
+
+- Pin transformers<5 for HanLP integration (#2785)
+
+
 ## [integrations/hanlp-v2.1.0] - 2026-01-14
 
 ### 🚀 Features

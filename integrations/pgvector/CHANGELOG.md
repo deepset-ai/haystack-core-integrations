@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/pgvector-v6.1.0] - 2026-01-28
+
+### 🚀 Features
+
+- Adding count, filtering and metadata related operations to `PGVectorDocumentStore` (#2768)
+
+
 ## [integrations/pgvector-v6.0.0] - 2026-01-12
 
 ### 🧹 Chores

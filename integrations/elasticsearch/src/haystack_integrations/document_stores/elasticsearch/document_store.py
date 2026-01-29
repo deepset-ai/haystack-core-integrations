@@ -287,7 +287,7 @@ class ElasticsearchDocumentStore:
         :returns:
             Deserialized component.
         """
-        deserialize_secrets_inplace(data, keys=["api_key", "api_key_id"])
+        deserialize_secrets_inplace(data, keys=["api_key", "api_key_id"], recursive=True)
         return default_from_dict(cls, data)
 
     def count_documents(self) -> int:

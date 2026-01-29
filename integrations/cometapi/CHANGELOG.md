@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/cometapi-v2.1.0] - 2026-01-28
+
+### 🧹 Chores
+
+- CometAPI - upgrade to Haystack 2.23 and remove special delta handling (#2786)
+
+
 ## [integrations/cometapi-v2.0.1] - 2026-01-19
 
 ### 🐛 Bug Fixes

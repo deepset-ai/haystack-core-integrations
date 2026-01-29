@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/langfuse-v4.0.1] - 2026-01-27
+
+### 🐛 Bug Fixes
+
+- *(langfuse)* Apply trace_id from tracing context to Langfuse traces (#2781)
+
+
 ## [integrations/langfuse-v4.0.0] - 2026-01-12
 
 ### 🧹 Chores

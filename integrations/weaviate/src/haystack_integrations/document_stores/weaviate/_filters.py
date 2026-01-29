@@ -26,6 +26,13 @@ def validate_filters(filters: dict[str, Any] | None) -> None:
 def convert_filters(filters: dict[str, Any]) -> FilterReturn:
     """
     Convert filters from Haystack format to Weaviate format.
+
+    Supported comparison operators: ``==``, ``!=``, ``>``, ``>=``, ``<``, ``<=``,
+    ``in``, ``not in``, ``contains``.
+
+    Note: The ``contains`` operator performs substring matching and is
+    **case-sensitive**. For case-insensitive matching, normalize the value
+    (e.g., lowercase) before building the filter.
     """
     if not isinstance(filters, dict):
         msg = "Filters must be a dictionary"
@@ -228,6 +235,19 @@ def _not_in(field: str, value: Any) -> FilterReturn:
     return Filter.all_of(operands)
 
 
+def _contains(field: str, value: Any) -> FilterReturn:
+    """
+    Creates a filter for substring matching using Weaviate's 'like' operator.
+
+    The matching is case-sensitive. For case-insensitive matching, consider
+    normalizing the value before passing it to this function.
+    """
+    if not isinstance(value, str):
+        msg = "Filter value must be a string when using 'contains' comparator"
+        raise FilterError(msg)
+    return weaviate.classes.query.Filter.by_property(field).like(f"*{value}*")
+
+
 COMPARISON_OPERATORS = {
     "==": _equal,
     "!=": _not_equal,
@@ -237,6 +257,7 @@ COMPARISON_OPERATORS = {
     "<=": _less_than_equal,
     "in": _in,
     "not in": _not_in,
+    "contains": _contains,
 }
 
 
