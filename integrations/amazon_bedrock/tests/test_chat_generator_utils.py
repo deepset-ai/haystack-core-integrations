@@ -22,6 +22,7 @@ from haystack_integrations.components.generators.amazon_bedrock.chat.utils impor
     _format_tools,
     _parse_completion_response,
     _parse_streaming_response,
+    _validate_and_format_cache_point,
     _validate_guardrail_config,
 )
 
@@ -59,7 +60,7 @@ def tools():
 
 class TestAmazonBedrockChatGeneratorUtils:
     def test_format_tools(self, tools):
-        formatted_tool = _format_tools(tools)
+        formatted_tool = _format_tools(tools, tools_cachepoint_config={"type": "default"})
         assert formatted_tool == {
             "tools": [
                 {
@@ -84,7 +85,8 @@ class TestAmazonBedrockChatGeneratorUtils:
                         },
                     }
                 },
-            ]
+                {"cachePoint": {"type": "default"}},
+            ],
         }
 
     def test_format_messages(self):
@@ -119,6 +121,52 @@ class TestAmazonBedrockChatGeneratorUtils:
                 "content": [{"toolResult": {"toolUseId": "123", "content": [{"text": "Sunny and 25°C"}]}}],
             },
             {"role": "assistant", "content": [{"text": "The weather in Paris is sunny and 25°C."}]},
+        ]
+
+    def test_format_messages_with_cache_point(self):
+        meta = {"cachePoint": {"type": "default"}}
+
+        messages = [
+            ChatMessage.from_system("\\nYou are a helpful assistant, be super brief in your responses.", meta=meta),
+            ChatMessage.from_user("What is the weather in Paris?", meta=meta),
+            ChatMessage.from_assistant(
+                tool_calls=[ToolCall(id="123", tool_name="weather", arguments={"city": "Paris"})], meta=meta
+            ),
+            ChatMessage.from_tool(
+                tool_result="Sunny and 25°C",
+                origin=ToolCall(id="123", tool_name="weather", arguments={"city": "Paris"}),
+                meta=meta,
+            ),
+            ChatMessage.from_assistant("The weather in Paris is sunny and 25°C.", meta=meta),
+        ]
+        formatted_system_prompts, formatted_messages = _format_messages(messages)
+        assert formatted_system_prompts == [
+            {"text": "\\nYou are a helpful assistant, be super brief in your responses."},
+            {"cachePoint": {"type": "default"}},
+        ]
+        assert formatted_messages == [
+            {
+                "role": "user",
+                "content": [{"text": "What is the weather in Paris?"}, {"cachePoint": {"type": "default"}}],
+            },
+            {
+                "role": "assistant",
+                "content": [
+                    {"toolUse": {"toolUseId": "123", "name": "weather", "input": {"city": "Paris"}}},
+                    {"cachePoint": {"type": "default"}},
+                ],
+            },
+            {
+                "role": "user",
+                "content": [
+                    {"toolResult": {"toolUseId": "123", "content": [{"text": "Sunny and 25°C"}]}},
+                    {"cachePoint": {"type": "default"}},
+                ],
+            },
+            {
+                "role": "assistant",
+                "content": [{"text": "The weather in Paris is sunny and 25°C."}, {"cachePoint": {"type": "default"}}],
+            },
         ]
 
     def test_format_messages_tool_result_with_image(self):
@@ -420,7 +468,14 @@ class TestAmazonBedrockChatGeneratorUtils:
         text_response = {
             "output": {"message": {"role": "assistant", "content": [{"text": "This is a test response"}]}},
             "stopReason": "end_turn",
-            "usage": {"inputTokens": 10, "outputTokens": 20, "totalTokens": 30},
+            "usage": {
+                "inputTokens": 10,
+                "outputTokens": 20,
+                "totalTokens": 30,
+                "cacheReadInputTokens": 1000,
+                "cacheWriteInputTokens": 0,
+                "cacheDetails": {},
+            },
         }
 
         replies = _parse_completion_response(text_response, model)
@@ -434,7 +489,7 @@ class TestAmazonBedrockChatGeneratorUtils:
                 "prompt_tokens": 10,
                 "completion_tokens": 20,
                 "total_tokens": 30,
-                "cache_read_input_tokens": 0,
+                "cache_read_input_tokens": 1000,
                 "cache_write_input_tokens": 0,
                 "cache_details": {},
             },
@@ -1528,3 +1583,25 @@ class TestAmazonBedrockChatGeneratorUtils:
                 },
                 streaming=False,
             )
+
+    def test_validate_and_format_cache_point(self):
+        check_point = _validate_and_format_cache_point(None)
+        assert check_point is None
+
+        check_point = _validate_and_format_cache_point({})
+        assert check_point is None
+
+        check_point = _validate_and_format_cache_point({"type": "default"})
+        assert check_point == {"cachePoint": {"type": "default"}}
+
+        check_point = _validate_and_format_cache_point({"type": "default", "ttl": 1000})
+        assert check_point == {"cachePoint": {"type": "default", "ttl": 1000}}
+
+        with pytest.raises(ValueError, match=r"Cache point must have a 'type' key with value 'default'."):
+            _validate_and_format_cache_point({"invalid": "config"})
+
+        with pytest.raises(ValueError, match=r"Cache point must have a 'type' key with value 'default'."):
+            _validate_and_format_cache_point({"type": "invalid"})
+
+        with pytest.raises(ValueError, match=r"Cache point can only contain 'type' and 'ttl' keys."):
+            _validate_and_format_cache_point({"type": "default", "invalid": "config"})

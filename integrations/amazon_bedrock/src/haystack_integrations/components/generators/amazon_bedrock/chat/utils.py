@@ -116,7 +116,7 @@ def _format_tool_result_message(tool_call_result_message: ChatMessage) -> dict[s
     :returns: Dictionary representing the tool result message in Bedrock's expected format
     """
     # Assuming tool call result messages will only contain tool results
-    message_content = []
+    tool_results = []
     for tool_call_result in tool_call_result_message.tool_call_results:
         if isinstance(tool_call_result.result, str):
             try:
@@ -135,7 +135,7 @@ def _format_tool_result_message(tool_call_result_message: ChatMessage) -> dict[s
             err_msg = "Unsupported content type in tool call result"
             raise ValueError(err_msg)
 
-        message_content.append(
+        tool_results.append(
             {
                 "toolResult": {
                     "toolUseId": tool_call_result.origin.id,
@@ -145,7 +145,7 @@ def _format_tool_result_message(tool_call_result_message: ChatMessage) -> dict[s
             }
         )
     # role must be user
-    return {"role": "user", "content": message_content}
+    return {"role": "user", "content": tool_results}
 
 
 def _repair_tool_result_messages(bedrock_formatted_messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -259,7 +259,7 @@ def _format_text_image_message(message: ChatMessage) -> dict[str, Any]:
     return {"role": message.role.value, "content": bedrock_content_blocks}
 
 
-def _validate_and_format_check_point(cache_point: dict[str, Any] | None) -> dict[str, Any] | None:
+def _validate_and_format_cache_point(cache_point: dict[str, str] | None) -> dict[str, Any] | None:
     """
     Validate and format a cache point dictionary.
     """
@@ -292,26 +292,27 @@ def _format_messages(messages: list[ChatMessage]) -> tuple[list[dict[str, Any]],
     system_prompts = []
     bedrock_formatted_messages = []
     for msg in messages:
-        cache_point = _validate_and_format_check_point(msg.meta.get("cachePoint"))
+        cache_point = _validate_and_format_cache_point(msg.meta.get("cachePoint"))
         if msg.is_from(ChatRole.SYSTEM):
             # Assuming system messages can only contain text
             # Don't need to track idx since system_messages are handled separately
             system_prompts.append({"text": msg.text})
             if cache_point:
                 system_prompts.append(cache_point)
-        else:
-            if msg.tool_calls:
-                formatted_msg = _format_tool_call_message(msg)
-            elif msg.tool_call_results:
-                formatted_msg = _format_tool_result_message(msg)
-            else:
-                formatted_msg = _format_text_image_message(msg)
+            continue
 
-            if cache_point:
-                formatted_msg["content"].append(cache_point)
-            bedrock_formatted_messages.append(formatted_msg)
+        if msg.tool_calls:
+            formatted_msg = _format_tool_call_message(msg)
+        elif msg.tool_call_results:
+            formatted_msg = _format_tool_result_message(msg)
+        else:
+            formatted_msg = _format_text_image_message(msg)
+        if cache_point:
+            formatted_msg["content"].append(cache_point)
+        bedrock_formatted_messages.append(formatted_msg)
 
     repaired_bedrock_formatted_messages = _repair_tool_result_messages(bedrock_formatted_messages)
+
     return system_prompts, repaired_bedrock_formatted_messages
 
 
