@@ -1,5 +1,11 @@
 # Changelog
 
+## [integrations/valkey-v0.1.1] - 2026-01-29
+
+### 🌀 Miscellaneous
+
+- Fix: Fix docstrings in valkey integration (#2794)
+
 ## [integrations/valkey-v0.1.0] - 2026-01-29
 
 ### 🌀 Miscellaneous
