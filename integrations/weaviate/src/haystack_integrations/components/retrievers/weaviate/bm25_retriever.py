@@ -18,8 +18,12 @@ class WeaviateBM25Retriever:
 
     Example usage:
     ```python
-    from haystack_integrations.document_stores.weaviate.document_store import WeaviateDocumentStore
-    from haystack_integrations.components.retrievers.weaviate.bm25_retriever import WeaviateBM25Retriever
+    from haystack_integrations.document_stores.weaviate.document_store import (
+        WeaviateDocumentStore,
+    )
+    from haystack_integrations.components.retrievers.weaviate.bm25_retriever import (
+        WeaviateBM25Retriever,
+    )
 
     document_store = WeaviateDocumentStore(url="http://localhost:8080")
     retriever = WeaviateBM25Retriever(document_store=document_store)

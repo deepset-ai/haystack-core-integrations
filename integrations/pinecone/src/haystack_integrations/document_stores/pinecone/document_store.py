@@ -740,3 +740,345 @@ class PineconeDocumentStore:
             )
 
         return self._convert_documents_to_pinecone_format(documents)
+
+    @staticmethod
+    def _count_documents_impl(documents: list[Document]) -> int:
+        """Helper method to count documents and log warning if at TOP_K_LIMIT."""
+        count = len(documents)
+        if count == TOP_K_LIMIT:
+            logger.warning(
+                f"Count reached Pinecone's limit of {TOP_K_LIMIT} documents. "
+                f"The actual number of matching documents may be higher."
+            )
+        return count
+
+    @staticmethod
+    def _count_unique_metadata_impl(documents: list[Document], metadata_fields: list[str]) -> dict[str, int]:
+        """Helper method to count unique metadata values across specified fields."""
+        result = {}
+        for field in metadata_fields:
+            unique_values = set()
+            for doc in documents:
+                if doc.meta and field in doc.meta:
+                    value = doc.meta[field]
+                    # Handle list values
+                    if isinstance(value, list):
+                        unique_values.update(value)
+                    else:
+                        unique_values.add(value)
+            result[field] = len(unique_values)
+
+        if len(documents) == TOP_K_LIMIT:
+            logger.warning(
+                f"Analysis limited to {TOP_K_LIMIT} documents due to Pinecone's limits. "
+                f"Unique value counts may be incomplete."
+            )
+        return result
+
+    @staticmethod
+    def _get_metadata_fields_info_impl(documents: list[Document]) -> dict[str, dict[str, str]]:
+        """Helper method to infer metadata field types from documents."""
+        if not documents:
+            return {}
+
+        field_types: dict[str, dict[str, str]] = {}
+
+        # Check if any document has content
+        if any(doc.content is not None for doc in documents):
+            field_types["content"] = {"type": "text"}
+
+        # Collect all field values to infer types accurately
+        field_samples: dict[str, set[str]] = {}
+
+        for doc in documents:
+            if doc.meta:
+                for field, value in doc.meta.items():
+                    if field not in field_samples:
+                        field_samples[field] = set()
+
+                    # Note: bool check MUST come before int/float because bool is a subclass of int in Python
+                    if isinstance(value, bool):
+                        field_samples[field].add("boolean")
+                    elif isinstance(value, (int, float)):
+                        field_samples[field].add("long")
+                    elif isinstance(value, str):
+                        field_samples[field].add("keyword")
+                    elif isinstance(value, list):
+                        # For lists, check the type of elements if list is non-empty
+                        if value:
+                            # Sample first element to determine list type
+                            if isinstance(value[0], str):
+                                field_samples[field].add("keyword")
+                            elif isinstance(value[0], (int, float)):
+                                field_samples[field].add("long")
+                            elif isinstance(value[0], bool):
+                                field_samples[field].add("boolean")
+                        else:
+                            # Empty list, default to keyword
+                            field_samples[field].add("keyword")
+
+        # Assign types based on collected samples
+        for field, types_seen in field_samples.items():
+            if len(types_seen) == 1:
+                # Consistent type across all documents
+                field_types[field] = {"type": types_seen.pop()}
+            else:
+                # Mixed types - default to keyword and log warning
+                logger.warning(
+                    f"Field '{field}' has mixed types {types_seen} across documents. "
+                    f"Defaulting to 'keyword' type. Consider using consistent types for better query performance."
+                )
+                field_types[field] = {"type": "keyword"}
+
+        if len(documents) == TOP_K_LIMIT:
+            logger.info(
+                f"Schema inference based on {TOP_K_LIMIT} documents (Pinecone's query limit). "
+                f"If you have more documents with different metadata fields, they won't be reflected here."
+            )
+
+        return field_types
+
+    @staticmethod
+    def _get_metadata_field_min_max_impl(documents: list[Document], metadata_field: str) -> dict[str, Any]:
+        """Helper method to get min/max values for a metadata field (supports numeric, boolean, and string types)."""
+        values: list[bool | int | float | str] = []
+        for doc in documents:
+            if doc.meta and metadata_field in doc.meta:
+                value = doc.meta[metadata_field]
+                # Note: bool check must come before numeric because bool is subclass of int
+                if isinstance(value, bool):
+                    values.append(value)
+                elif isinstance(value, (int, float)):
+                    values.append(value)
+                elif isinstance(value, str):
+                    values.append(value)
+
+        if not values:
+            msg = f"No values found for metadata field '{metadata_field}'"
+            raise ValueError(msg)
+
+        result = {"min": min(values), "max": max(values)}
+
+        if len(documents) == TOP_K_LIMIT:
+            logger.warning(
+                f"Min/max calculation limited to {TOP_K_LIMIT} documents. "
+                f"Results may not reflect the true min/max across all documents."
+            )
+
+        return result
+
+    @staticmethod
+    def _get_metadata_field_unique_values_impl(
+        documents: list[Document], metadata_field: str, search_term: str | None, from_: int, size: int
+    ) -> tuple[list[str], int]:
+        """Helper method to get unique values for a metadata field with search and pagination."""
+        unique_values: set[str] = set()
+        for doc in documents:
+            if doc.meta and metadata_field in doc.meta:
+                value = doc.meta[metadata_field]
+                # Handle list values
+                if isinstance(value, list):
+                    unique_values.update(str(v) for v in value)
+                else:
+                    unique_values.add(str(value))
+
+        # Convert to sorted list
+        unique_values_list = sorted(unique_values)
+
+        # Apply search term filter if provided
+        if search_term:
+            search_term_lower = search_term.lower()
+            unique_values_list = [v for v in unique_values_list if search_term_lower in v.lower()]
+
+        total_count = len(unique_values_list)
+
+        # Apply pagination
+        paginated_values = unique_values_list[from_ : from_ + size]
+
+        if len(documents) == TOP_K_LIMIT:
+            logger.warning(f"Unique values extraction limited to {TOP_K_LIMIT} documents. Results may be incomplete.")
+
+        return paginated_values, total_count
+
+    def count_documents_by_filter(self, filters: dict[str, Any]) -> int:
+        """
+        Returns the count of documents that match the provided filters.
+
+        Note: Due to Pinecone's limitations, this method fetches documents and counts them.
+        For large result sets, this is subject to Pinecone's TOP_K_LIMIT of 1000 documents.
+
+        :param filters: The filters to apply to the document list.
+            For filter syntax, see [Haystack metadata filtering](https://docs.haystack.deepset.ai/docs/metadata-filtering)
+        :returns: The number of documents that match the filters.
+        """
+        documents = self.filter_documents(filters=filters)
+        return self._count_documents_impl(documents)
+
+    async def count_documents_by_filter_async(self, filters: dict[str, Any]) -> int:
+        """
+        Asynchronously returns the count of documents that match the provided filters.
+
+        Note: Due to Pinecone's limitations, this method fetches documents and counts them.
+        For large result sets, this is subject to Pinecone's TOP_K_LIMIT of 1000 documents.
+
+        :param filters: The filters to apply to the document list.
+        :returns: The number of documents that match the filters.
+        """
+        documents = await self.filter_documents_async(filters=filters)
+        return self._count_documents_impl(documents)
+
+    def count_unique_metadata_by_filter(self, filters: dict[str, Any], metadata_fields: list[str]) -> dict[str, int]:
+        """
+        Counts unique values for each specified metadata field in documents matching the filters.
+
+        Note: Due to Pinecone's limitations, this method fetches documents and aggregates in Python.
+        Subject to Pinecone's TOP_K_LIMIT of 1000 documents.
+
+        :param filters: The filters to apply to select documents.
+        :param metadata_fields: List of metadata field names to count unique values for.
+        :returns: Dictionary mapping field names to counts of unique values.
+        """
+        documents = self.filter_documents(filters=filters)
+        return self._count_unique_metadata_impl(documents, metadata_fields)
+
+    async def count_unique_metadata_by_filter_async(
+        self, filters: dict[str, Any], metadata_fields: list[str]
+    ) -> dict[str, int]:
+        """
+        Asynchronously counts unique values for each specified metadata field in documents matching the filters.
+
+        Note: Due to Pinecone's limitations, this method fetches documents and aggregates in Python.
+        Subject to Pinecone's TOP_K_LIMIT of 1000 documents.
+
+        :param filters: The filters to apply to select documents.
+        :param metadata_fields: List of metadata field names to count unique values for.
+        :returns: Dictionary mapping field names to counts of unique values.
+        """
+        documents = await self.filter_documents_async(filters=filters)
+        return self._count_unique_metadata_impl(documents, metadata_fields)
+
+    def get_metadata_fields_info(self) -> dict[str, dict[str, str]]:
+        """
+        Returns information about metadata fields and their types by sampling documents.
+
+        Note: Pinecone doesn't provide a schema introspection API, so this method infers field types
+        by examining the metadata of documents stored in the index (up to 1000 documents).
+
+        Type mappings:
+        - 'text': Document content field
+        - 'keyword': String metadata values
+        - 'long': Numeric metadata values (int or float)
+        - 'boolean': Boolean metadata values
+
+        :returns: Dictionary mapping field names to type information.
+            Example:
+            ```python
+            {
+                'content': {'type': 'text'},
+                'category': {'type': 'keyword'},
+                'priority': {'type': 'long'},
+            }
+            ```
+        """
+        documents = self.filter_documents(filters=None)
+        return self._get_metadata_fields_info_impl(documents)
+
+    async def get_metadata_fields_info_async(self) -> dict[str, dict[str, str]]:
+        """
+        Asynchronously returns information about metadata fields and their types by sampling documents.
+
+        Note: Pinecone doesn't provide a schema introspection API, so this method infers field types
+        by examining the metadata of documents stored in the index (up to 1000 documents).
+
+        Type mappings:
+        - 'text': Document content field
+        - 'keyword': String metadata values
+        - 'long': Numeric metadata values (int or float)
+        - 'boolean': Boolean metadata values
+
+        :returns: Dictionary mapping field names to type information.
+            Example:
+            ```python
+            {
+                'content': {'type': 'text'},
+                'category': {'type': 'keyword'},
+                'priority': {'type': 'long'},
+            }
+            ```
+        """
+        documents = await self.filter_documents_async(filters=None)
+        return self._get_metadata_fields_info_impl(documents)
+
+    def get_metadata_field_min_max(self, metadata_field: str) -> dict[str, Any]:
+        """
+        Returns the minimum and maximum values for a metadata field.
+
+        Supports numeric (int, float), boolean, and string (keyword) types:
+        - Numeric: Returns min/max based on numeric value
+        - Boolean: Returns False as min, True as max
+        - String: Returns min/max based on alphabetical ordering
+
+        Note: This method fetches all documents and computes min/max in Python.
+        Subject to Pinecone's TOP_K_LIMIT of 1000 documents.
+
+        :param metadata_field: The metadata field name to analyze.
+        :returns: Dictionary with 'min' and 'max' keys.
+        :raises ValueError: If the field doesn't exist or has no values.
+        """
+        documents = self.filter_documents(filters=None)
+        return self._get_metadata_field_min_max_impl(documents, metadata_field)
+
+    async def get_metadata_field_min_max_async(self, metadata_field: str) -> dict[str, Any]:
+        """
+        Asynchronously returns the minimum and maximum values for a metadata field.
+
+        Supports numeric (int, float), boolean, and string (keyword) types:
+        - Numeric: Returns min/max based on numeric value
+        - Boolean: Returns False as min, True as max
+        - String: Returns min/max based on alphabetical ordering
+
+        Note: This method fetches all documents and computes min/max in Python.
+        Subject to Pinecone's TOP_K_LIMIT of 1000 documents.
+
+        :param metadata_field: The metadata field name to analyze.
+        :returns: Dictionary with 'min' and 'max' keys.
+        :raises ValueError: If the field doesn't exist or has no values.
+        """
+        documents = await self.filter_documents_async(filters=None)
+        return self._get_metadata_field_min_max_impl(documents, metadata_field)
+
+    def get_metadata_field_unique_values(
+        self, metadata_field: str, search_term: str | None = None, from_: int = 0, size: int = 10
+    ) -> tuple[list[str], int]:
+        """
+        Retrieves unique values for a metadata field with optional search and pagination.
+
+        Note: This method fetches documents and extracts unique values in Python.
+        Subject to Pinecone's TOP_K_LIMIT of 1000 documents.
+
+        :param metadata_field: The metadata field name to get unique values for.
+        :param search_term: Optional search term to filter values (case-insensitive substring match).
+        :param from_: Starting offset for pagination (default: 0).
+        :param size: Number of values to return (default: 10).
+        :returns: Tuple of (list of unique values, total count of matching values).
+        """
+        documents = self.filter_documents(filters=None)
+        return self._get_metadata_field_unique_values_impl(documents, metadata_field, search_term, from_, size)
+
+    async def get_metadata_field_unique_values_async(
+        self, metadata_field: str, search_term: str | None = None, from_: int = 0, size: int = 10
+    ) -> tuple[list[str], int]:
+        """
+        Asynchronously retrieves unique values for a metadata field with optional search and pagination.
+
+        Note: This method fetches documents and extracts unique values in Python.
+        Subject to Pinecone's TOP_K_LIMIT of 1000 documents.
+
+        :param metadata_field: The metadata field name to get unique values for.
+        :param search_term: Optional search term to filter values (case-insensitive substring match).
+        :param from_: Starting offset for pagination (default: 0).
+        :param size: Number of values to return (default: 10).
+        :returns: Tuple of (list of unique values, total count of matching values).
+        """
+        documents = await self.filter_documents_async(filters=None)
+        return self._get_metadata_field_unique_values_impl(documents, metadata_field, search_term, from_, size)

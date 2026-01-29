@@ -71,7 +71,7 @@ all = 'pytest {args:tests}'
 
 # Pinecone tests are slow (require HTTP requests), so we run them in parallel
 # with pytest-xdist (https://pytest-xdist.readthedocs.io/en/stable/distribution.html)
-cov-retry = 'pytest -n auto --maxprocesses=2 --cov=haystack_integrations --reruns 3 --reruns-delay 30 -x {args:tests}'
+cov-retry = 'pytest -n auto --cov=haystack_integrations --reruns 3 --reruns-delay 30 -x {args:tests}'
 
 types = """mypy -p haystack_integrations.components.retrievers.pinecone \
 -p haystack_integrations.document_stores.pinecone {args}"""
