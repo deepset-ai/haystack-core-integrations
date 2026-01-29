@@ -27,6 +27,7 @@ from haystack_integrations.components.generators.amazon_bedrock.chat.utils impor
     _parse_completion_response,
     _parse_streaming_response,
     _parse_streaming_response_async,
+    _validate_cache_point_inner,
     _validate_guardrail_config,
 )
 
@@ -160,6 +161,7 @@ class AmazonBedrockChatGenerator:
         tools: ToolsType | None = None,
         *,
         guardrail_config: dict[str, str] | None = None,
+        tools_cachepoint_config: dict[str, Any] | None = None,
     ) -> None:
         """
         Initializes the `AmazonBedrockChatGenerator` with the provided parameters. The parameters are passed to the
@@ -201,6 +203,9 @@ class AmazonBedrockChatGenerator:
             See the
             [Guardrails Streaming documentation](https://docs.aws.amazon.com/bedrock/latest/userguide/guardrails-streaming.html)
             for more information.
+        :param tools_cachepoint_config: Optional configuration to use prompt caching for tools.
+            This must be provided as a dictionary matching 
+            [CachePointBlock schema](https://docs.aws.amazon.com/bedrock/latest/APIReference/API_runtime_CachePointBlock.html).
 
 
         :raises ValueError: If the model name is empty or None.
@@ -224,6 +229,10 @@ class AmazonBedrockChatGenerator:
 
         _validate_guardrail_config(guardrail_config=guardrail_config, streaming=streaming_callback is not None)
         self.guardrail_config = guardrail_config
+
+        if tools_cachepoint_config:
+            _validate_cache_point_inner(tools_cachepoint_config)
+        self.tools_cachepoint_config = tools_cachepoint_config
 
         def resolve_secret(secret: Secret | None) -> str | None:
             return secret.resolve_value() if secret else None
@@ -389,7 +398,7 @@ class AmazonBedrockChatGenerator:
         tool_config = merged_kwargs.pop("toolConfig", None)
         if flattened_tools:
             # Format Haystack tools to Bedrock format
-            tool_config = _format_tools(flattened_tools)
+            tool_config = _format_tools(flattened_tools, tools_cachepoint_config=self.tools_cachepoint_config)
 
         # Any remaining kwargs go to additionalModelRequestFields
         additional_fields = merged_kwargs if merged_kwargs else None
