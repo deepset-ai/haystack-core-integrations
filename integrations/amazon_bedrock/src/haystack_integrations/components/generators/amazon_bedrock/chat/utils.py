@@ -78,11 +78,12 @@ def _convert_image_content_to_bedrock_format(image_content: ImageContent) -> dic
     return {"image": {"format": image_format, "source": source}}
 
 
-def _format_tool_call_message(tool_call_message: ChatMessage) -> dict[str, Any]:
+def _format_tool_call_message(tool_call_message: ChatMessage, cache_point: dict[str, Any]) -> dict[str, Any]:
     """
     Format a Haystack ChatMessage containing tool calls into Bedrock format.
 
     :param tool_call_message: ChatMessage object containing tool calls to be formatted.
+    :param cache_point: Optional cache point to be added to the message.
     :returns:
         Dictionary representing the tool call message in Bedrock's expected format
     """
@@ -100,14 +101,15 @@ def _format_tool_call_message(tool_call_message: ChatMessage) -> dict[str, Any]:
         content.append(
             {"toolUse": {"toolUseId": tool_call.id, "name": tool_call.tool_name, "input": tool_call.arguments}}
         )
-    return {"role": tool_call_message.role.value, "content": content}
+    return {"role": tool_call_message.role.value, "content": content, **cache_point}
 
 
-def _format_tool_result_message(tool_call_result_message: ChatMessage) -> dict[str, Any]:
+def _format_tool_result_message(tool_call_result_message: ChatMessage, cache_point: dict[str, Any]) -> dict[str, Any]:
     """
     Format a Haystack ChatMessage containing tool call results into Bedrock format.
 
     :param tool_call_result_message: ChatMessage object containing tool call results to be formatted.
+    :param cache_point: Optional cache point to be added to the message.
     :returns: Dictionary representing the tool result message in Bedrock's expected format
     """
     # Assuming tool call result messages will only contain tool results
@@ -140,7 +142,7 @@ def _format_tool_result_message(tool_call_result_message: ChatMessage) -> dict[s
             }
         )
     # role must be user
-    return {"role": "user", "content": tool_results}
+    return {"role": "user", "content": tool_results, **cache_point}
 
 
 def _repair_tool_result_messages(bedrock_formatted_messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -223,11 +225,12 @@ def _format_reasoning_content(reasoning_content: ReasoningContent) -> list[dict[
     return formatted_contents
 
 
-def _format_text_image_message(message: ChatMessage) -> dict[str, Any]:
+def _format_text_image_message(message: ChatMessage, cache_point: dict[str, Any]) -> dict[str, Any]:
     """
     Format a Haystack ChatMessage containing text and optional image content into Bedrock format.
 
     :param message: Haystack ChatMessage.
+    :param cache_point: Optional cache point to be added to the message.
     :returns: Dictionary representing the message in Bedrock's expected format.
     :raises ValueError: If image content is found in an assistant message or an unsupported image format is used.
     """
@@ -248,8 +251,22 @@ def _format_text_image_message(message: ChatMessage) -> dict[str, Any]:
                 raise ValueError(err_msg)
             bedrock_content_blocks.append(_convert_image_content_to_bedrock_format(part))
 
-    return {"role": message.role.value, "content": bedrock_content_blocks}
+    return {"role": message.role.value, "content": bedrock_content_blocks, **cache_point}
 
+
+def _validate_cache_point_inner(cache_point_inner: dict[str, str]) -> None:
+    """
+    Validate a cache point inner dictionary.
+    """
+    if not cache_point_inner:
+        err_msg = "Cache point inner is empty. It must contain at least a 'type' key with value 'default'."
+        raise ValueError(err_msg)
+    if "type" not in cache_point_inner or cache_point_inner["type"] != "default":
+        err_msg = "Cache point must have a 'type' key with value 'default'."
+        raise ValueError(err_msg)
+    if not set(cache_point_inner).issubset({"type", "ttl"}):
+        err_msg = "Cache point can only contain 'type' and 'ttl' keys."
+        raise ValueError(err_msg)
 
 def _format_messages(messages: list[ChatMessage]) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     """
@@ -267,16 +284,21 @@ def _format_messages(messages: list[ChatMessage]) -> tuple[list[dict[str, Any]],
     system_prompts = []
     bedrock_formatted_messages = []
     for msg in messages:
+        cache_point = {}
+        cache_point_inner = msg.meta.get("cachePoint")
+        if cache_point_inner:
+            _validate_cache_point_inner(cache_point_inner)
+            cache_point = {"cachePoint": cache_point_inner}
         if msg.is_from(ChatRole.SYSTEM):
             # Assuming system messages can only contain text
             # Don't need to track idx since system_messages are handled separately
-            system_prompts.append({"text": msg.text})
+            system_prompts.append({"text": msg.text, **cache_point})
         elif msg.tool_calls:
-            bedrock_formatted_messages.append(_format_tool_call_message(msg))
+            bedrock_formatted_messages.append(_format_tool_call_message(msg, cache_point=cache_point))
         elif msg.tool_call_results:
-            bedrock_formatted_messages.append(_format_tool_result_message(msg))
+            bedrock_formatted_messages.append(_format_tool_result_message(msg, cache_point=cache_point))
         else:
-            bedrock_formatted_messages.append(_format_text_image_message(msg))
+            bedrock_formatted_messages.append(_format_text_image_message(msg, cache_point=cache_point))
 
     repaired_bedrock_formatted_messages = _repair_tool_result_messages(bedrock_formatted_messages)
     return system_prompts, repaired_bedrock_formatted_messages
