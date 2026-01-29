@@ -61,7 +61,7 @@ class OpenSearchMetadataRetriever:
             raise ValueError(msg)
 
         self._document_store = document_store
-        self._fields = metadata_fields
+        self._metadata_fields = metadata_fields
         self._top_k = top_k
         self._exact_match_weight = exact_match_weight
         self._mode = mode
@@ -77,7 +77,7 @@ class OpenSearchMetadataRetriever:
         return default_to_dict(
             self,
             document_store=self._document_store.to_dict(),
-            fields=self._fields,
+            metadata_fields=self._metadata_fields,
             top_k=self._top_k,
             exact_match_weight=self._exact_match_weight,
             mode=self._mode,
@@ -158,7 +158,7 @@ class OpenSearchMetadataRetriever:
             msg = "document_store must be an instance of OpenSearchDocumentStore"
             raise ValueError(msg)
 
-        fields_to_use = metadata_fields if metadata_fields is not None else self._fields
+        fields_to_use = metadata_fields if metadata_fields is not None else self._metadata_fields
         top_k_to_use = top_k if top_k is not None else self._top_k
         exact_match_weight_to_use = exact_match_weight if exact_match_weight is not None else self._exact_match_weight
         mode_to_use = mode if mode is not None else self._mode
@@ -191,6 +191,7 @@ class OpenSearchMetadataRetriever:
     async def run_async(
         self,
         query: str,
+        *,
         document_store: OpenSearchDocumentStore | None = None,
         metadata_fields: list[str] | None = None,
         top_k: int | None = None,
@@ -244,7 +245,7 @@ class OpenSearchMetadataRetriever:
             msg = "document_store must be an instance of OpenSearchDocumentStore"
             raise ValueError(msg)
 
-        fields_to_use = metadata_fields if metadata_fields is not None else self._fields
+        fields_to_use = metadata_fields if metadata_fields is not None else self._metadata_fields
         top_k_to_use = top_k if top_k is not None else self._top_k
         exact_match_weight_to_use = exact_match_weight if exact_match_weight is not None else self._exact_match_weight
         mode_to_use = mode if mode is not None else self._mode

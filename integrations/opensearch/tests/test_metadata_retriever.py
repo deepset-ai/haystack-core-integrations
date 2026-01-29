@@ -13,9 +13,9 @@ from haystack_integrations.document_stores.opensearch import OpenSearchDocumentS
 
 def test_init_default():
     mock_store = Mock(spec=OpenSearchDocumentStore)
-    retriever = OpenSearchMetadataRetriever(document_store=mock_store, fields=["category", "status"])
+    retriever = OpenSearchMetadataRetriever(document_store=mock_store, metadata_fields=["category", "status"])
     assert retriever._document_store == mock_store
-    assert retriever._fields == ["category", "status"]
+    assert retriever._metadata_fields == ["category", "status"]
     assert retriever._top_k == 20
     assert retriever._exact_match_weight == 0.6
     assert retriever._mode == "fuzzy"
@@ -26,7 +26,7 @@ def test_init_custom():
     mock_store = Mock(spec=OpenSearchDocumentStore)
     retriever = OpenSearchMetadataRetriever(
         document_store=mock_store,
-        fields=["category"],
+        metadata_fields=["category"],
         top_k=10,
         exact_match_weight=0.8,
         mode="strict",
@@ -40,13 +40,13 @@ def test_init_custom():
 
 def test_init_invalid_document_store():
     with pytest.raises(ValueError, match="document_store must be an instance of OpenSearchDocumentStore"):
-        OpenSearchMetadataRetriever(document_store="not a document store", fields=["category"])
+        OpenSearchMetadataRetriever(document_store="not a document store", metadata_fields=["category"])
 
 
 def test_init_empty_fields():
     mock_store = Mock(spec=OpenSearchDocumentStore)
     with pytest.raises(ValueError, match="fields must be a non-empty list"):
-        OpenSearchMetadataRetriever(document_store=mock_store, fields=[])
+        OpenSearchMetadataRetriever(document_store=mock_store, metadata_fields=[])
 
 
 @patch("haystack_integrations.document_stores.opensearch.document_store.OpenSearch")
@@ -54,7 +54,7 @@ def test_to_dict(_mock_opensearch_client):
     document_store = OpenSearchDocumentStore(hosts="some fake host")
     retriever = OpenSearchMetadataRetriever(
         document_store=document_store,
-        fields=["category", "status"],
+        metadata_fields=["category", "status"],
         top_k=15,
         exact_match_weight=0.7,
         mode="strict",
@@ -64,7 +64,7 @@ def test_to_dict(_mock_opensearch_client):
         res["type"]
         == "haystack_integrations.components.retrievers.opensearch.metadata_retriever.OpenSearchMetadataRetriever"
     )
-    assert res["init_parameters"]["fields"] == ["category", "status"]
+    assert res["init_parameters"]["metadata_fields"] == ["category", "status"]
     assert res["init_parameters"]["top_k"] == 15
     assert res["init_parameters"]["exact_match_weight"] == 0.7
     assert res["init_parameters"]["mode"] == "strict"
@@ -74,10 +74,12 @@ def test_to_dict(_mock_opensearch_client):
 @patch("haystack_integrations.document_stores.opensearch.document_store.OpenSearch")
 def test_from_dict(_mock_opensearch_client):
     document_store = OpenSearchDocumentStore(hosts="some fake host")
-    retriever = OpenSearchMetadataRetriever(document_store=document_store, fields=["category", "status"], top_k=10)
+    retriever = OpenSearchMetadataRetriever(
+        document_store=document_store, metadata_fields=["category", "status"], top_k=10
+    )
     data = retriever.to_dict()
     retriever_from_dict = OpenSearchMetadataRetriever.from_dict(data)
-    assert retriever_from_dict._fields == ["category", "status"]
+    assert retriever_from_dict._metadata_fields == ["category", "status"]
     assert retriever_from_dict._top_k == 10
     assert retriever_from_dict._mode == "fuzzy"
 
@@ -86,7 +88,7 @@ def test_run_with_runtime_document_store():
     mock_store1 = Mock(spec=OpenSearchDocumentStore)
     mock_store2 = Mock(spec=OpenSearchDocumentStore)
     mock_store2._metadata_search = Mock(return_value=[{"category": "Java"}])
-    retriever = OpenSearchMetadataRetriever(document_store=mock_store1, fields=["category"])
+    retriever = OpenSearchMetadataRetriever(document_store=mock_store1, metadata_fields=["category"])
 
     result = retriever.run(query="Java", document_store=mock_store2)
 
@@ -100,7 +102,7 @@ async def test_run_async_with_runtime_document_store():
     mock_store1 = Mock(spec=OpenSearchDocumentStore)
     mock_store2 = Mock(spec=OpenSearchDocumentStore)
     mock_store2._metadata_search_async = AsyncMock(return_value=[{"category": "Java"}])
-    retriever = OpenSearchMetadataRetriever(document_store=mock_store1, fields=["category"])
+    retriever = OpenSearchMetadataRetriever(document_store=mock_store1, metadata_fields=["category"])
 
     result = await retriever.run_async(query="Java", document_store=mock_store2)
 
@@ -111,7 +113,7 @@ async def test_run_async_with_runtime_document_store():
 
 def test_run_with_invalid_mode():
     mock_store = Mock(spec=OpenSearchDocumentStore)
-    retriever = OpenSearchMetadataRetriever(document_store=mock_store, fields=["category"])
+    retriever = OpenSearchMetadataRetriever(document_store=mock_store, metadata_fields=["category"])
 
     with pytest.raises(ValueError, match="mode must be either 'strict' or 'fuzzy'"):
         retriever.run(query="test", mode="invalid")
@@ -120,7 +122,7 @@ def test_run_with_invalid_mode():
 @pytest.mark.asyncio
 async def test_run_async_with_invalid_mode():
     mock_store = Mock(spec=OpenSearchDocumentStore)
-    retriever = OpenSearchMetadataRetriever(document_store=mock_store, fields=["category"])
+    retriever = OpenSearchMetadataRetriever(document_store=mock_store, metadata_fields=["category"])
 
     with pytest.raises(ValueError, match="mode must be either 'strict' or 'fuzzy'"):
         await retriever.run_async(query="test", mode="invalid")
@@ -129,7 +131,9 @@ async def test_run_async_with_invalid_mode():
 def test_run_with_failure_raises():
     mock_store = Mock(spec=OpenSearchDocumentStore)
     mock_store._metadata_search = Mock(side_effect=Exception("Search failed"))
-    retriever = OpenSearchMetadataRetriever(document_store=mock_store, fields=["category"], raise_on_failure=True)
+    retriever = OpenSearchMetadataRetriever(
+        document_store=mock_store, metadata_fields=["category"], raise_on_failure=True
+    )
 
     with pytest.raises(Exception, match="Search failed"):
         retriever.run(query="test")
@@ -138,7 +142,9 @@ def test_run_with_failure_raises():
 def test_run_with_failure_no_raise():
     mock_store = Mock(spec=OpenSearchDocumentStore)
     mock_store._metadata_search = Mock(side_effect=Exception("Search failed"))
-    retriever = OpenSearchMetadataRetriever(document_store=mock_store, fields=["category"], raise_on_failure=False)
+    retriever = OpenSearchMetadataRetriever(
+        document_store=mock_store, metadata_fields=["category"], raise_on_failure=False
+    )
 
     result = retriever.run(query="test")
 
@@ -149,7 +155,9 @@ def test_run_with_failure_no_raise():
 async def test_run_async_with_failure_raises():
     mock_store = Mock(spec=OpenSearchDocumentStore)
     mock_store._metadata_search_async = AsyncMock(side_effect=Exception("Search failed"))
-    retriever = OpenSearchMetadataRetriever(document_store=mock_store, fields=["category"], raise_on_failure=True)
+    retriever = OpenSearchMetadataRetriever(
+        document_store=mock_store, metadata_fields=["category"], raise_on_failure=True
+    )
 
     with pytest.raises(Exception, match="Search failed"):
         await retriever.run_async(query="test")
@@ -159,7 +167,9 @@ async def test_run_async_with_failure_raises():
 async def test_run_async_with_failure_no_raise():
     mock_store = Mock(spec=OpenSearchDocumentStore)
     mock_store._metadata_search_async = AsyncMock(side_effect=Exception("Search failed"))
-    retriever = OpenSearchMetadataRetriever(document_store=mock_store, fields=["category"], raise_on_failure=False)
+    retriever = OpenSearchMetadataRetriever(
+        document_store=mock_store, metadata_fields=["category"], raise_on_failure=False
+    )
 
     result = await retriever.run_async(query="test")
 
@@ -178,7 +188,7 @@ def test_metadata_retriever_integration(document_store: OpenSearchDocumentStore)
 
     retriever = OpenSearchMetadataRetriever(
         document_store=document_store,
-        fields=["category", "status"],
+        metadata_fields=["category", "status"],
         top_k=10,
     )
 
@@ -204,7 +214,7 @@ def test_metadata_retriever_with_filters(document_store: OpenSearchDocumentStore
 
     retriever = OpenSearchMetadataRetriever(
         document_store=document_store,
-        fields=["category", "status"],
+        metadata_fields=["category", "status"],
         top_k=10,
     )
 
@@ -227,7 +237,7 @@ def test_metadata_retriever_strict_mode(document_store: OpenSearchDocumentStore)
 
     retriever = OpenSearchMetadataRetriever(
         document_store=document_store,
-        fields=["category", "status"],
+        metadata_fields=["category", "status"],
         top_k=10,
         mode="strict",
     )
@@ -252,7 +262,7 @@ def test_metadata_retriever_comma_separated_query(document_store: OpenSearchDocu
 
     retriever = OpenSearchMetadataRetriever(
         document_store=document_store,
-        fields=["category", "status"],
+        metadata_fields=["category", "status"],
         top_k=10,
     )
 
@@ -272,7 +282,7 @@ def test_metadata_retriever_top_k(document_store: OpenSearchDocumentStore):
 
     retriever = OpenSearchMetadataRetriever(
         document_store=document_store,
-        fields=["category"],
+        metadata_fields=["category"],
         top_k=5,
     )
 
@@ -293,7 +303,7 @@ def test_metadata_retriever_empty_fields(document_store: OpenSearchDocumentStore
 
     retriever = OpenSearchMetadataRetriever(
         document_store=document_store,
-        fields=["category"],
+        metadata_fields=["category"],
         top_k=10,
     )
 
@@ -315,7 +325,7 @@ def test_metadata_retriever_deduplication(document_store: OpenSearchDocumentStor
 
     retriever = OpenSearchMetadataRetriever(
         document_store=document_store,
-        fields=["category", "status"],
+        metadata_fields=["category", "status"],
         top_k=10,
     )
 
@@ -343,7 +353,7 @@ async def test_metadata_retriever_async_integration(document_store: OpenSearchDo
 
     retriever = OpenSearchMetadataRetriever(
         document_store=document_store,
-        fields=["category", "status"],
+        metadata_fields=["category", "status"],
         top_k=10,
     )
 
@@ -367,7 +377,7 @@ async def test_metadata_retriever_async_with_filters(document_store: OpenSearchD
 
     retriever = OpenSearchMetadataRetriever(
         document_store=document_store,
-        fields=["category", "status"],
+        metadata_fields=["category", "status"],
         top_k=10,
     )
 
@@ -391,7 +401,7 @@ async def test_metadata_retriever_async_strict_mode(document_store: OpenSearchDo
 
     retriever = OpenSearchMetadataRetriever(
         document_store=document_store,
-        fields=["category", "status"],
+        metadata_fields=["category", "status"],
         top_k=10,
         mode="strict",
     )
@@ -417,7 +427,7 @@ async def test_metadata_retriever_async_comma_separated_query(document_store: Op
 
     retriever = OpenSearchMetadataRetriever(
         document_store=document_store,
-        fields=["category", "status"],
+        metadata_fields=["category", "status"],
         top_k=10,
     )
 
@@ -438,7 +448,7 @@ async def test_metadata_retriever_async_top_k(document_store: OpenSearchDocument
 
     retriever = OpenSearchMetadataRetriever(
         document_store=document_store,
-        fields=["category"],
+        metadata_fields=["category"],
         top_k=5,
     )
 
@@ -460,11 +470,11 @@ async def test_metadata_retriever_async_empty_fields(document_store: OpenSearchD
 
     retriever = OpenSearchMetadataRetriever(
         document_store=document_store,
-        fields=["category"],
+        metadata_fields=["category"],
         top_k=10,
     )
 
-    result = await retriever.run_async(query="Python", fields=[])
+    result = await retriever.run_async(query="Python", metadata_fields=[])
 
     assert "metadata" in result
     assert isinstance(result["metadata"], list)
@@ -483,7 +493,7 @@ async def test_metadata_retriever_async_deduplication(document_store: OpenSearch
 
     retriever = OpenSearchMetadataRetriever(
         document_store=document_store,
-        fields=["category", "status"],
+        metadata_fields=["category", "status"],
         top_k=10,
     )
 
