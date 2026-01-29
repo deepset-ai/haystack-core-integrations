@@ -19,6 +19,9 @@ def test_init_default():
     assert retriever._top_k == 20
     assert retriever._exact_match_weight == 0.6
     assert retriever._mode == "fuzzy"
+    assert retriever._fuzziness == 2
+    assert retriever._prefix_length == 0
+    assert retriever._max_expansions == 200
     assert retriever._raise_on_failure is True
 
 
@@ -30,11 +33,17 @@ def test_init_custom():
         top_k=10,
         exact_match_weight=0.8,
         mode="strict",
+        fuzziness=1,
+        prefix_length=2,
+        max_expansions=100,
         raise_on_failure=False,
     )
     assert retriever._top_k == 10
     assert retriever._exact_match_weight == 0.8
     assert retriever._mode == "strict"
+    assert retriever._fuzziness == 1
+    assert retriever._prefix_length == 2
+    assert retriever._max_expansions == 100
     assert retriever._raise_on_failure is False
 
 
@@ -58,6 +67,9 @@ def test_to_dict(_mock_opensearch_client):
         top_k=15,
         exact_match_weight=0.7,
         mode="strict",
+        fuzziness=1,
+        prefix_length=2,
+        max_expansions=100,
     )
     res = retriever.to_dict()
     assert (
@@ -68,6 +80,9 @@ def test_to_dict(_mock_opensearch_client):
     assert res["init_parameters"]["top_k"] == 15
     assert res["init_parameters"]["exact_match_weight"] == 0.7
     assert res["init_parameters"]["mode"] == "strict"
+    assert res["init_parameters"]["fuzziness"] == 1
+    assert res["init_parameters"]["prefix_length"] == 2
+    assert res["init_parameters"]["max_expansions"] == 100
     assert "document_store" in res["init_parameters"]
 
 
@@ -75,13 +90,21 @@ def test_to_dict(_mock_opensearch_client):
 def test_from_dict(_mock_opensearch_client):
     document_store = OpenSearchDocumentStore(hosts="some fake host")
     retriever = OpenSearchMetadataRetriever(
-        document_store=document_store, metadata_fields=["category", "status"], top_k=10
+        document_store=document_store,
+        metadata_fields=["category", "status"],
+        top_k=10,
+        fuzziness="AUTO",
+        prefix_length=1,
+        max_expansions=50,
     )
     data = retriever.to_dict()
     retriever_from_dict = OpenSearchMetadataRetriever.from_dict(data)
     assert retriever_from_dict._metadata_fields == ["category", "status"]
     assert retriever_from_dict._top_k == 10
     assert retriever_from_dict._mode == "fuzzy"
+    assert retriever_from_dict._fuzziness == "AUTO"
+    assert retriever_from_dict._prefix_length == 1
+    assert retriever_from_dict._max_expansions == 50
 
 
 def test_run_with_runtime_document_store():
@@ -94,6 +117,11 @@ def test_run_with_runtime_document_store():
 
     assert result == {"metadata": [{"category": "Java"}]}
     mock_store2._metadata_search.assert_called_once()
+    # Check that the call includes the new parameters with default values
+    call_args = mock_store2._metadata_search.call_args
+    assert call_args.kwargs["fuzziness"] == 2
+    assert call_args.kwargs["prefix_length"] == 0
+    assert call_args.kwargs["max_expansions"] == 200
     mock_store1._metadata_search.assert_not_called()
 
 
@@ -108,6 +136,11 @@ async def test_run_async_with_runtime_document_store():
 
     assert result == {"metadata": [{"category": "Java"}]}
     mock_store2._metadata_search_async.assert_called_once()
+    # Check that the call includes the new parameters with default values
+    call_args = mock_store2._metadata_search_async.call_args
+    assert call_args.kwargs["fuzziness"] == 2
+    assert call_args.kwargs["prefix_length"] == 0
+    assert call_args.kwargs["max_expansions"] == 200
     mock_store1._metadata_search_async.assert_not_called()
 
 
@@ -119,6 +152,21 @@ def test_run_with_invalid_mode():
         retriever.run(query="test", mode="invalid")
 
 
+def test_run_with_fuzzy_parameters():
+    mock_store = Mock(spec=OpenSearchDocumentStore)
+    mock_store._metadata_search = Mock(return_value=[{"category": "Python"}])
+    retriever = OpenSearchMetadataRetriever(document_store=mock_store, metadata_fields=["category"])
+
+    result = retriever.run(query="Python", fuzziness="AUTO", prefix_length=1, max_expansions=50, mode="fuzzy")
+
+    assert result == {"metadata": [{"category": "Python"}]}
+    call_args = mock_store._metadata_search.call_args
+    assert call_args.kwargs["fuzziness"] == "AUTO"
+    assert call_args.kwargs["prefix_length"] == 1
+    assert call_args.kwargs["max_expansions"] == 50
+    assert call_args.kwargs["mode"] == "fuzzy"
+
+
 @pytest.mark.asyncio
 async def test_run_async_with_invalid_mode():
     mock_store = Mock(spec=OpenSearchDocumentStore)
@@ -126,6 +174,22 @@ async def test_run_async_with_invalid_mode():
 
     with pytest.raises(ValueError, match="mode must be either 'strict' or 'fuzzy'"):
         await retriever.run_async(query="test", mode="invalid")
+
+
+@pytest.mark.asyncio
+async def test_run_async_with_fuzzy_parameters():
+    mock_store = Mock(spec=OpenSearchDocumentStore)
+    mock_store._metadata_search_async = AsyncMock(return_value=[{"category": "Python"}])
+    retriever = OpenSearchMetadataRetriever(document_store=mock_store, metadata_fields=["category"])
+
+    result = await retriever.run_async(query="Python", fuzziness=1, prefix_length=2, max_expansions=100, mode="fuzzy")
+
+    assert result == {"metadata": [{"category": "Python"}]}
+    call_args = mock_store._metadata_search_async.call_args
+    assert call_args.kwargs["fuzziness"] == 1
+    assert call_args.kwargs["prefix_length"] == 2
+    assert call_args.kwargs["max_expansions"] == 100
+    assert call_args.kwargs["mode"] == "fuzzy"
 
 
 def test_run_with_failure_raises():
@@ -251,6 +315,34 @@ def test_metadata_retriever_strict_mode(document_store: OpenSearchDocumentStore)
 
 
 @pytest.mark.integration
+def test_metadata_retriever_fuzzy_parameters(document_store: OpenSearchDocumentStore):
+    """Integration test for OpenSearchMetadataRetriever with custom fuzzy parameters."""
+    docs = [
+        Document(content="Python programming", meta={"category": "Python", "status": "active", "priority": 1}),
+        Document(content="Java programming", meta={"category": "Java", "status": "active", "priority": 2}),
+        Document(content="Python scripting", meta={"category": "Python", "status": "inactive", "priority": 3}),
+    ]
+    document_store.write_documents(docs, refresh=True)
+
+    retriever = OpenSearchMetadataRetriever(
+        document_store=document_store,
+        metadata_fields=["category", "status"],
+        top_k=10,
+        mode="fuzzy",
+        fuzziness=1,
+        prefix_length=1,
+        max_expansions=50,
+    )
+
+    result = retriever.run(query="Python")
+
+    assert "metadata" in result
+    assert isinstance(result["metadata"], list)
+    assert len(result["metadata"]) > 0
+    assert all(isinstance(row, dict) for row in result["metadata"])
+
+
+@pytest.mark.integration
 def test_metadata_retriever_comma_separated_query(document_store: OpenSearchDocumentStore):
     """Integration test for OpenSearchMetadataRetriever with comma-separated query."""
     docs = [
@@ -307,7 +399,7 @@ def test_metadata_retriever_empty_fields(document_store: OpenSearchDocumentStore
         top_k=10,
     )
 
-    result = retriever.run(query="Python", fields=[])
+    result = retriever.run(query="Python", metadata_fields=[])
 
     assert "metadata" in result
     assert isinstance(result["metadata"], list)
@@ -404,6 +496,35 @@ async def test_metadata_retriever_async_strict_mode(document_store: OpenSearchDo
         metadata_fields=["category", "status"],
         top_k=10,
         mode="strict",
+    )
+
+    result = await retriever.run_async(query="Python")
+
+    assert "metadata" in result
+    assert isinstance(result["metadata"], list)
+    assert len(result["metadata"]) > 0
+    assert all(isinstance(row, dict) for row in result["metadata"])
+
+
+@pytest.mark.integration
+@pytest.mark.asyncio
+async def test_metadata_retriever_async_fuzzy_parameters(document_store: OpenSearchDocumentStore):
+    """Async integration test for OpenSearchMetadataRetriever with custom fuzzy parameters."""
+    docs = [
+        Document(content="Python programming", meta={"category": "Python", "status": "active", "priority": 1}),
+        Document(content="Java programming", meta={"category": "Java", "status": "active", "priority": 2}),
+        Document(content="Python scripting", meta={"category": "Python", "status": "inactive", "priority": 3}),
+    ]
+    document_store.write_documents(docs, refresh=True)
+
+    retriever = OpenSearchMetadataRetriever(
+        document_store=document_store,
+        metadata_fields=["category", "status"],
+        top_k=10,
+        mode="fuzzy",
+        fuzziness="AUTO",
+        prefix_length=2,
+        max_expansions=100,
     )
 
     result = await retriever.run_async(query="Python")

@@ -1013,7 +1013,12 @@ class OpenSearchDocumentStore:
 
     @staticmethod
     def _build_metadata_search_query(
-        query_part: str, fields: list[str], mode: Literal["strict", "fuzzy"]
+        query_part: str,
+        fields: list[str],
+        mode: Literal["strict", "fuzzy"],
+        fuzziness: int | Literal["AUTO"] = 2,
+        prefix_length: int = 0,
+        max_expansions: int = 200,
     ) -> dict[str, Any]:
         """
         Build an OpenSearch query for metadata search.
@@ -1027,6 +1032,13 @@ class OpenSearchDocumentStore:
         :param fields: List of metadata field names to search within.
         :param mode: Search mode. "strict" uses prefix and wildcard matching,
             "fuzzy" uses fuzzy matching with dis_max queries.
+        :param fuzziness: Maximum allowed Damerau-Levenshtein distance (edit distance) for fuzzy matching.
+            Accepts an integer (e.g., 0, 1, 2) or "AUTO" which chooses based on term length.
+            Default is 2. Only applies when mode is "fuzzy".
+        :param prefix_length: Number of leading characters that must match exactly before fuzzy matching applies.
+            Default is 0 (no prefix requirement). Only applies when mode is "fuzzy".
+        :param max_expansions: Maximum number of term variations the fuzzy query can generate.
+            Default is 200. Only applies when mode is "fuzzy".
         :returns: OpenSearch query dictionary with script_score using Jaccard similarity.
         """
         if mode == "strict":
@@ -1061,19 +1073,21 @@ class OpenSearchDocumentStore:
                         "match": {
                             field: {
                                 "query": query_part,
-                                "fuzziness": 2,
-                                "prefix_length": 0,
-                                "max_expansions": 200,
+                                "fuzziness": fuzziness,
+                                "prefix_length": prefix_length,
+                                "max_expansions": max_expansions,
                             }
                         }
                     }
                 )
                 dis_max_queries.append({"wildcard": {f"{field}.keyword": {"value": f"*{query_part}*"}}})
+                # Use fuzziness value for query_string if it's an integer, otherwise default to 2
+                fuzziness_value = fuzziness if isinstance(fuzziness, int) else 2
                 dis_max_queries.append(
                     {
                         "query_string": {
                             "fields": [field],
-                            "query": f"*{query_part}~2*",
+                            "query": f"*{query_part}~{fuzziness_value}*",
                             "analyze_wildcard": True,
                         }
                     }
@@ -1162,7 +1176,7 @@ class OpenSearchDocumentStore:
                         if query_part_clean.lower() in str(hit["_source"][field]).lower():
                             matched += 1
             if matched > 1:
-                hit["_score"] = hit["_score"] + exact_match_weight * (matched - 1)
+                hit["_score"] = hit["_score"] + exact_match_weight * matched
 
     @staticmethod
     def _process_metadata_search_results(
@@ -1199,6 +1213,9 @@ class OpenSearchDocumentStore:
         mode: Literal["strict", "fuzzy"] = "fuzzy",
         top_k: int = 20,
         exact_match_weight: float = 0.6,
+        fuzziness: int | Literal["AUTO"] = 2,
+        prefix_length: int = 0,
+        max_expansions: int = 200,
         filters: dict[str, Any] | None = None,
     ) -> list[dict[str, Any]]:
         """
@@ -1221,6 +1238,13 @@ class OpenSearchDocumentStore:
         :param top_k: Maximum number of top results to return based on relevance. Default is 20.
         :param exact_match_weight: Weight to boost the score of exact matches in metadata fields.
             Default is 0.6. Applied after the search executes, in addition to Jaccard similarity scoring.
+        :param fuzziness: Maximum allowed Damerau-Levenshtein distance (edit distance) for fuzzy matching.
+            Accepts an integer (e.g., 0, 1, 2) or "AUTO" which chooses based on term length.
+            Default is 2. Only applies when mode is "fuzzy".
+        :param prefix_length: Number of leading characters that must match exactly before fuzzy matching applies.
+            Default is 0 (no prefix requirement). Only applies when mode is "fuzzy".
+        :param max_expansions: Maximum number of term variations the fuzzy query can generate.
+            Default is 200. Only applies when mode is "fuzzy".
         :param filters: Additional filters to apply to the search query.
         :returns: List of dictionaries containing only the specified metadata fields,
             ranked by relevance score.
@@ -1252,7 +1276,9 @@ class OpenSearchDocumentStore:
                 continue
 
             # Build query
-            os_query = self._build_metadata_search_query(query_part_clean, fields, mode)
+            os_query = self._build_metadata_search_query(
+                query_part_clean, fields, mode, fuzziness, prefix_length, max_expansions
+            )
 
             # Add filters if provided
             if filters:
@@ -1267,8 +1293,8 @@ class OpenSearchDocumentStore:
                 hits = response["hits"]["hits"]
 
                 # Boost exact matches
-                if exact_match_weight > 0:
-                    self._boost_exact_matches(hits, query_part_clean, fields, exact_match_weight)
+                # if exact_match_weight > 0:
+                #    self._boost_exact_matches(hits, query_part_clean, fields, exact_match_weight)
 
                 hit_list.extend(hits)
             except Exception as e:
@@ -1290,6 +1316,9 @@ class OpenSearchDocumentStore:
         mode: Literal["strict", "fuzzy"] = "fuzzy",
         top_k: int = 20,
         exact_match_weight: float = 0.6,
+        fuzziness: int | Literal["AUTO"] = 2,
+        prefix_length: int = 0,
+        max_expansions: int = 200,
         filters: dict[str, Any] | None = None,
     ) -> list[dict[str, Any]]:
         """
@@ -1312,6 +1341,13 @@ class OpenSearchDocumentStore:
         :param top_k: Maximum number of top results to return based on relevance. Default is 20.
         :param exact_match_weight: Weight to boost the score of exact matches in metadata fields.
             Default is 0.6. Applied after the search executes, in addition to Jaccard similarity scoring.
+        :param fuzziness: Maximum allowed Damerau-Levenshtein distance (edit distance) for fuzzy matching.
+            Accepts an integer (e.g., 0, 1, 2) or "AUTO" which chooses based on term length.
+            Default is 2. Only applies when mode is "fuzzy".
+        :param prefix_length: Number of leading characters that must match exactly before fuzzy matching applies.
+            Default is 0 (no prefix requirement). Only applies when mode is "fuzzy".
+        :param max_expansions: Maximum number of term variations the fuzzy query can generate.
+            Default is 200. Only applies when mode is "fuzzy".
         :param filters: Additional filters to apply to the search query.
         :returns: List of dictionaries containing only the specified metadata fields,
             ranked by relevance score.
@@ -1343,7 +1379,9 @@ class OpenSearchDocumentStore:
                 continue
 
             # Build query
-            os_query = self._build_metadata_search_query(query_part_clean, fields, mode)
+            os_query = self._build_metadata_search_query(
+                query_part_clean, fields, mode, fuzziness, prefix_length, max_expansions
+            )
 
             # Add filters if provided
             if filters:
@@ -1358,8 +1396,8 @@ class OpenSearchDocumentStore:
                 hits = response["hits"]["hits"]
 
                 # Boost exact matches
-                if exact_match_weight > 0:
-                    self._boost_exact_matches(hits, query_part_clean, fields, exact_match_weight)
+                # if exact_match_weight > 0:
+                #    self._boost_exact_matches(hits, query_part_clean, fields, exact_match_weight)
 
                 hit_list.extend(hits)
             except Exception as e:

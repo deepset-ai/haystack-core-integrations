@@ -32,6 +32,9 @@ class OpenSearchMetadataRetriever:
         top_k: int = 20,
         exact_match_weight: float = 0.6,
         mode: Literal["strict", "fuzzy"] = "fuzzy",
+        fuzziness: int | Literal["AUTO"] = 2,
+        prefix_length: int = 0,
+        max_expansions: int = 200,
         raise_on_failure: bool = True,
     ):
         """
@@ -46,6 +49,13 @@ class OpenSearchMetadataRetriever:
             "fuzzy" uses fuzzy matching with dis_max queries. Default is "fuzzy".
             In both modes, results are scored using Jaccard similarity (n-gram based, n=3)
             computed server-side via a Painless script.
+        :param fuzziness: Maximum allowed Damerau-Levenshtein distance (edit distance) for fuzzy matching.
+            Accepts an integer (e.g., 0, 1, 2) or "AUTO" which chooses based on term length.
+            Default is 2. Only applies when mode is "fuzzy".
+        :param prefix_length: Number of leading characters that must match exactly before fuzzy matching applies.
+            Default is 0 (no prefix requirement). Only applies when mode is "fuzzy".
+        :param max_expansions: Maximum number of term variations the fuzzy query can generate.
+            Default is 200. Only applies when mode is "fuzzy".
         :param raise_on_failure:
             If `True`, raises an exception if the API call fails.
             If `False`, logs a warning and returns an empty list.
@@ -65,6 +75,9 @@ class OpenSearchMetadataRetriever:
         self._top_k = top_k
         self._exact_match_weight = exact_match_weight
         self._mode = mode
+        self._fuzziness = fuzziness
+        self._prefix_length = prefix_length
+        self._max_expansions = max_expansions
         self._raise_on_failure = raise_on_failure
 
     def to_dict(self) -> dict[str, Any]:
@@ -81,6 +94,9 @@ class OpenSearchMetadataRetriever:
             top_k=self._top_k,
             exact_match_weight=self._exact_match_weight,
             mode=self._mode,
+            fuzziness=self._fuzziness,
+            prefix_length=self._prefix_length,
+            max_expansions=self._max_expansions,
             raise_on_failure=self._raise_on_failure,
         )
 
@@ -110,6 +126,9 @@ class OpenSearchMetadataRetriever:
         top_k: int | None = None,
         exact_match_weight: float | None = None,
         mode: Literal["strict", "fuzzy"] | None = None,
+        fuzziness: int | Literal["AUTO"] | None = None,
+        prefix_length: int | None = None,
+        max_expansions: int | None = None,
         filters: dict[str, Any] | None = None,
     ) -> dict[str, list[dict[str, Any]]]:
         """
@@ -130,6 +149,13 @@ class OpenSearchMetadataRetriever:
             In both modes, results are scored using Jaccard similarity (n-gram based, n=3)
             computed server-side via a Painless script.
             If not provided, the mode provided in `__init__` is used.
+        :param fuzziness: Maximum allowed Damerau-Levenshtein distance (edit distance) for fuzzy matching.
+            Accepts an integer (e.g., 0, 1, 2) or "AUTO" which chooses based on term length.
+            Only applies when mode is "fuzzy". If not provided, the fuzziness provided in `__init__` is used.
+        :param prefix_length: Number of leading characters that must match exactly before fuzzy matching applies.
+            Only applies when mode is "fuzzy". If not provided, the prefix_length provided in `__init__` is used.
+        :param max_expansions: Maximum number of term variations the fuzzy query can generate.
+            Only applies when mode is "fuzzy". If not provided, the max_expansions provided in `__init__` is used.
         :param filters: Additional filters to apply to the search query.
         :returns: A dictionary containing the top-k retrieved metadata results.
 
@@ -147,7 +173,7 @@ class OpenSearchMetadataRetriever:
 
             retriever = OpenSearchMetadataRetriever(
                 document_store=store,
-                fields=["category", "status", "priority"]
+                metadata_fields=["category", "status", "priority"]
             )
             result = retriever.run(query="Python, active")
             # Returns: {"metadata": [{"category": "Python", "status": "active", "priority": 1}]}
@@ -162,6 +188,9 @@ class OpenSearchMetadataRetriever:
         top_k_to_use = top_k if top_k is not None else self._top_k
         exact_match_weight_to_use = exact_match_weight if exact_match_weight is not None else self._exact_match_weight
         mode_to_use = mode if mode is not None else self._mode
+        fuzziness_to_use = fuzziness if fuzziness is not None else self._fuzziness
+        prefix_length_to_use = prefix_length if prefix_length is not None else self._prefix_length
+        max_expansions_to_use = max_expansions if max_expansions is not None else self._max_expansions
 
         if mode_to_use not in ["strict", "fuzzy"]:
             msg = "mode must be either 'strict' or 'fuzzy'"
@@ -174,6 +203,9 @@ class OpenSearchMetadataRetriever:
                 mode=mode_to_use,
                 top_k=top_k_to_use,
                 exact_match_weight=exact_match_weight_to_use,
+                fuzziness=fuzziness_to_use,
+                prefix_length=prefix_length_to_use,
+                max_expansions=max_expansions_to_use,
                 filters=filters,
             )
             return {"metadata": result}
@@ -197,6 +229,9 @@ class OpenSearchMetadataRetriever:
         top_k: int | None = None,
         exact_match_weight: float | None = None,
         mode: Literal["strict", "fuzzy"] | None = None,
+        fuzziness: int | Literal["AUTO"] | None = None,
+        prefix_length: int | None = None,
+        max_expansions: int | None = None,
         filters: dict[str, Any] | None = None,
     ) -> dict[str, list[dict[str, Any]]]:
         """
@@ -217,6 +252,13 @@ class OpenSearchMetadataRetriever:
             In both modes, results are scored using Jaccard similarity (n-gram based, n=3)
             computed server-side via a Painless script.
             If not provided, the mode provided in `__init__` is used.
+        :param fuzziness: Maximum allowed Damerau-Levenshtein distance (edit distance) for fuzzy matching.
+            Accepts an integer (e.g., 0, 1, 2) or "AUTO" which chooses based on term length.
+            Only applies when mode is "fuzzy". If not provided, the fuzziness provided in `__init__` is used.
+        :param prefix_length: Number of leading characters that must match exactly before fuzzy matching applies.
+            Only applies when mode is "fuzzy". If not provided, the prefix_length provided in `__init__` is used.
+        :param max_expansions: Maximum number of term variations the fuzzy query can generate.
+            Only applies when mode is "fuzzy". If not provided, the max_expansions provided in `__init__` is used.
         :param filters: Additional filters to apply to the search query.
         :returns: A dictionary containing the top-k retrieved metadata results.
 
@@ -234,7 +276,7 @@ class OpenSearchMetadataRetriever:
 
             retriever = OpenSearchMetadataRetriever(
                 document_store=store,
-                fields=["category", "status", "priority"]
+                metadata_fields=["category", "status", "priority"]
             )
             result = await retriever.run_async(query="Python, active")
             # Returns: {"metadata": [{"category": "Python", "status": "active", "priority": 1}]}
@@ -249,6 +291,9 @@ class OpenSearchMetadataRetriever:
         top_k_to_use = top_k if top_k is not None else self._top_k
         exact_match_weight_to_use = exact_match_weight if exact_match_weight is not None else self._exact_match_weight
         mode_to_use = mode if mode is not None else self._mode
+        fuzziness_to_use = fuzziness if fuzziness is not None else self._fuzziness
+        prefix_length_to_use = prefix_length if prefix_length is not None else self._prefix_length
+        max_expansions_to_use = max_expansions if max_expansions is not None else self._max_expansions
 
         if mode_to_use not in ["strict", "fuzzy"]:
             msg = "mode must be either 'strict' or 'fuzzy'"
@@ -261,6 +306,9 @@ class OpenSearchMetadataRetriever:
                 mode=mode_to_use,
                 top_k=top_k_to_use,
                 exact_match_weight=exact_match_weight_to_use,
+                fuzziness=fuzziness_to_use,
+                prefix_length=prefix_length_to_use,
+                max_expansions=max_expansions_to_use,
                 filters=filters,
             )
             return {"metadata": result}
