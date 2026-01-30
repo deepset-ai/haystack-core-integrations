@@ -53,13 +53,6 @@ class TestDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocumentsT
             same_connection = document_store._connection
             assert same_connection is document_store._connection
 
-    def test_delete_all_documents(self, document_store: PgvectorDocumentStore) -> None:
-        document_store.write_documents([Document(id=str(i)) for i in range(10)])
-        document_store.delete_all_documents()
-        assert document_store.count_documents() == 0
-        document_store.write_documents([Document(id="1")])
-        assert document_store.count_documents() == 1
-
     def test_invalid_connection_string(self, monkeypatch):
         monkeypatch.setenv("PG_CONN_STR", "invalid_connection_string")
         document_store = PgvectorDocumentStore()
