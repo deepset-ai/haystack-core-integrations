@@ -1,6 +1,7 @@
 # SPDX-FileCopyrightText: 2023-present deepset GmbH <info@deepset.ai>
 #
 # SPDX-License-Identifier: Apache-2.0
+
 from unittest.mock import Mock, patch
 
 import pytest
@@ -54,6 +55,7 @@ def test_to_dict(mock_pinecone, monkeypatch):
                     },
                     "index": "default",
                     "namespace": "test-namespace",
+                    "show_progress": False,
                     "batch_size": 50,
                     "dimension": 512,
                     "spec": {"serverless": {"region": "us-east-1", "cloud": "aws"}},
