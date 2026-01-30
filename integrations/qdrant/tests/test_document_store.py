@@ -31,6 +31,7 @@ class TestQdrantDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocu
             return_embedding=True,
             wait_result_from_api=True,
             use_sparse_embeddings=False,
+            progress_bar=False,
         )
 
     def test_init_is_lazy(self):
@@ -146,7 +147,9 @@ class TestQdrantDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocu
         assert sparse_config[SPARSE_VECTORS_NAME].modifier == rest.Modifier.IDF
 
     def test_query_hybrid(self, generate_sparse_embedding):
-        document_store = QdrantDocumentStore(location=":memory:", use_sparse_embeddings=True)
+        document_store = QdrantDocumentStore(
+            location=":memory:", use_sparse_embeddings=True, progress_bar=False
+        )
 
         docs = []
         for i in range(20):
@@ -171,7 +174,9 @@ class TestQdrantDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocu
             assert document.embedding
 
     def test_query_hybrid_with_group_by(self, generate_sparse_embedding):
-        document_store = QdrantDocumentStore(location=":memory:", use_sparse_embeddings=True)
+        document_store = QdrantDocumentStore(
+            location=":memory:", use_sparse_embeddings=True, progress_bar=False
+        )
 
         docs = []
         for i in range(20):
