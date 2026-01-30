@@ -568,7 +568,7 @@ class TestLangfuseTracer:
         assert tracer._public
 
     def test_create_new_span(self):
-        mock_raw_span = MagicMock()
+        mock_raw_span = Mock()
         mock_raw_span.operation_name = "operation_name"
         mock_raw_span.metadata = {"tag1": "value1", "tag2": "value2"}
 
@@ -586,7 +586,7 @@ class TestLangfuseTracer:
             mock_span_instance.get_data.return_value = {}
             mock_span_instance._context_manager = mock_context_manager
 
-            mock_tracer = MagicMock()
+            mock_tracer = Mock()
             mock_tracer.start_as_current_span.return_value = mock_context_manager
             mock_tracer.start_as_current_observation.return_value = mock_context_manager
 
