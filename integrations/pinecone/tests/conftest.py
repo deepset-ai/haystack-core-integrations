@@ -34,6 +34,7 @@ def document_store(request):
         index=index,
         namespace=namespace,
         dimension=dimension,
+        show_progress=False,
     )
 
     # Override some methods to wait for the documents to be available
@@ -75,6 +76,7 @@ async def document_store_async(request):
         index=index,
         namespace=namespace,
         dimension=dimension,
+        show_progress=False,
     )
 
     # Override some methods to wait for the documents to be available
