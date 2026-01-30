@@ -27,6 +27,8 @@ async def test_run_async_with_runtime_document_store():
     assert call_args.kwargs["fuzziness"] == 2
     assert call_args.kwargs["prefix_length"] == 0
     assert call_args.kwargs["max_expansions"] == 200
+    assert call_args.kwargs["tie_breaker"] == 0.7
+    assert call_args.kwargs["jaccard_n"] == 3
     mock_store1._metadata_search_async.assert_not_called()
 
 
@@ -45,13 +47,17 @@ async def test_run_async_with_fuzzy_parameters():
     mock_store._metadata_search_async = AsyncMock(return_value=[{"category": "Python"}])
     retriever = OpenSearchMetadataRetriever(document_store=mock_store, metadata_fields=["category"])
 
-    result = await retriever.run_async(query="Python", fuzziness=1, prefix_length=2, max_expansions=100, mode="fuzzy")
+    result = await retriever.run_async(
+        query="Python", fuzziness=1, prefix_length=2, max_expansions=100, tie_breaker=0.5, jaccard_n=5, mode="fuzzy"
+    )
 
     assert result == {"metadata": [{"category": "Python"}]}
     call_args = mock_store._metadata_search_async.call_args
     assert call_args.kwargs["fuzziness"] == 1
     assert call_args.kwargs["prefix_length"] == 2
     assert call_args.kwargs["max_expansions"] == 100
+    assert call_args.kwargs["tie_breaker"] == 0.5
+    assert call_args.kwargs["jaccard_n"] == 5
     assert call_args.kwargs["mode"] == "fuzzy"
 
 

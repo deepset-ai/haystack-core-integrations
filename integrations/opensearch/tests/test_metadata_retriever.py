@@ -22,6 +22,8 @@ def test_init_default():
     assert retriever._fuzziness == 2
     assert retriever._prefix_length == 0
     assert retriever._max_expansions == 200
+    assert retriever._tie_breaker == 0.7
+    assert retriever._jaccard_n == 3
     assert retriever._raise_on_failure is True
 
 
@@ -36,6 +38,8 @@ def test_init_custom():
         fuzziness=1,
         prefix_length=2,
         max_expansions=100,
+        tie_breaker=0.5,
+        jaccard_n=5,
         raise_on_failure=False,
     )
     assert retriever._top_k == 10
@@ -44,6 +48,8 @@ def test_init_custom():
     assert retriever._fuzziness == 1
     assert retriever._prefix_length == 2
     assert retriever._max_expansions == 100
+    assert retriever._tie_breaker == 0.5
+    assert retriever._jaccard_n == 5
     assert retriever._raise_on_failure is False
 
 
@@ -70,6 +76,8 @@ def test_to_dict(_mock_opensearch_client):
         fuzziness=1,
         prefix_length=2,
         max_expansions=100,
+        tie_breaker=0.5,
+        jaccard_n=4,
     )
     res = retriever.to_dict()
     assert (
@@ -83,6 +91,8 @@ def test_to_dict(_mock_opensearch_client):
     assert res["init_parameters"]["fuzziness"] == 1
     assert res["init_parameters"]["prefix_length"] == 2
     assert res["init_parameters"]["max_expansions"] == 100
+    assert res["init_parameters"]["tie_breaker"] == 0.5
+    assert res["init_parameters"]["jaccard_n"] == 4
     assert "document_store" in res["init_parameters"]
 
 
@@ -96,6 +106,7 @@ def test_from_dict(_mock_opensearch_client):
         fuzziness="AUTO",
         prefix_length=1,
         max_expansions=50,
+        jaccard_n=5,
     )
     data = retriever.to_dict()
     retriever_from_dict = OpenSearchMetadataRetriever.from_dict(data)
@@ -105,6 +116,7 @@ def test_from_dict(_mock_opensearch_client):
     assert retriever_from_dict._fuzziness == "AUTO"
     assert retriever_from_dict._prefix_length == 1
     assert retriever_from_dict._max_expansions == 50
+    assert retriever_from_dict._jaccard_n == 5
 
 
 def test_run_with_runtime_document_store():
@@ -122,6 +134,8 @@ def test_run_with_runtime_document_store():
     assert call_args.kwargs["fuzziness"] == 2
     assert call_args.kwargs["prefix_length"] == 0
     assert call_args.kwargs["max_expansions"] == 200
+    assert call_args.kwargs["tie_breaker"] == 0.7
+    assert call_args.kwargs["jaccard_n"] == 3
     mock_store1._metadata_search.assert_not_called()
 
 
@@ -138,13 +152,17 @@ def test_run_with_fuzzy_parameters():
     mock_store._metadata_search = Mock(return_value=[{"category": "Python"}])
     retriever = OpenSearchMetadataRetriever(document_store=mock_store, metadata_fields=["category"])
 
-    result = retriever.run(query="Python", fuzziness="AUTO", prefix_length=1, max_expansions=50, mode="fuzzy")
+    result = retriever.run(
+        query="Python", fuzziness="AUTO", prefix_length=1, max_expansions=50, tie_breaker=0.6, jaccard_n=4, mode="fuzzy"
+    )
 
     assert result == {"metadata": [{"category": "Python"}]}
     call_args = mock_store._metadata_search.call_args
     assert call_args.kwargs["fuzziness"] == "AUTO"
     assert call_args.kwargs["prefix_length"] == 1
     assert call_args.kwargs["max_expansions"] == 50
+    assert call_args.kwargs["tie_breaker"] == 0.6
+    assert call_args.kwargs["jaccard_n"] == 4
     assert call_args.kwargs["mode"] == "fuzzy"
 
 

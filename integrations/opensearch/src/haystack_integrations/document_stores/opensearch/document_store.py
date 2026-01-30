@@ -1019,14 +1019,16 @@ class OpenSearchDocumentStore:
         fuzziness: int | Literal["AUTO"] = 2,
         prefix_length: int = 0,
         max_expansions: int = 200,
+        tie_breaker: float = 0.7,
+        jaccard_n: int = 3,
     ) -> dict[str, Any]:
         """
         Build an OpenSearch query for metadata search.
 
-        The query uses a script_score query with a Jaccard similarity script (n-gram based, n=3)
+        The query uses a script_score query with a Jaccard similarity script (n-gram based)
         to score results in both "strict" and "fuzzy" modes. The mode only affects the query
         structure used to find matching documents, while the Jaccard similarity script is used
-        to rank/score all results.
+        to rank/score all results. The n-gram size is controlled by jaccard_n.
 
         :param query_part: The cleaned query part to search for.
         :param fields: List of metadata field names to search within.
@@ -1039,6 +1041,9 @@ class OpenSearchDocumentStore:
             Default is 0 (no prefix requirement). Only applies when mode is "fuzzy".
         :param max_expansions: Maximum number of term variations the fuzzy query can generate.
             Default is 200. Only applies when mode is "fuzzy".
+        :param tie_breaker: Weight (0..1) for other matching clauses in dis_max; boosts docs matching multiple clauses.
+            Default 0.7. Only applies when mode is "fuzzy".
+        :param jaccard_n: N-gram size for Jaccard similarity scoring. Default 3; larger n favors longer token matches.
         :returns: OpenSearch query dictionary with script_score using Jaccard similarity.
         """
         if mode == "strict":
@@ -1060,7 +1065,7 @@ class OpenSearchDocumentStore:
                     "script": {
                         "lang": "painless",
                         "source": METADATA_SEARCH_JACCARD_SCRIPT,
-                        "params": {"field": fields[0], "q": query_part, "n": 3},
+                        "params": {"field": fields[0], "q": query_part, "n": jaccard_n},
                     },
                 }
             }
@@ -1097,14 +1102,14 @@ class OpenSearchDocumentStore:
                 "script_score": {
                     "query": {
                         "dis_max": {
-                            "tie_breaker": 0.7,
+                            "tie_breaker": tie_breaker,
                             "queries": dis_max_queries,
                         }
                     },
                     "script": {
                         "lang": "painless",
                         "source": METADATA_SEARCH_JACCARD_SCRIPT,
-                        "params": {"field": fields[0], "q": query_part, "n": 3},
+                        "params": {"field": fields[0], "q": query_part, "n": jaccard_n},
                     },
                 }
             }
@@ -1197,13 +1202,15 @@ class OpenSearchDocumentStore:
         fuzziness: int | Literal["AUTO"] = 2,
         prefix_length: int = 0,
         max_expansions: int = 200,
+        tie_breaker: float = 0.7,
+        jaccard_n: int = 3,
         filters: dict[str, Any] | None = None,
     ) -> list[dict[str, Any]]:
         """
         Search across multiple metadata fields with custom scoring and ranking.
 
         This method searches specified metadata fields for matches to a given query, ranks the results based on
-        relevance using Jaccard similarity (n-gram based, n=3), and returns the top-k results containing only
+        relevance using Jaccard similarity (n-gram based, see jaccard_n), and returns the top-k results containing only
         the specified metadata fields.
 
         The Jaccard similarity is computed server-side via a Painless script in both "strict" and "fuzzy" modes.
@@ -1228,6 +1235,9 @@ class OpenSearchDocumentStore:
             Default is 0 (no prefix requirement). Only applies when mode is "fuzzy".
         :param max_expansions: Maximum number of term variations the fuzzy query can generate.
             Default is 200. Only applies when mode is "fuzzy".
+        :param tie_breaker: Weight (0..1) for other matching clauses; boosts docs matching multiple clauses.
+            Default 0.7. Only applies when mode is "fuzzy".
+        :param jaccard_n: N-gram size for Jaccard similarity scoring. Default 3; larger n favors longer token matches.
         :param filters: Additional filters to apply to the search query.
         :returns: List of dictionaries containing only the specified metadata fields,
             ranked by relevance score.
@@ -1260,7 +1270,7 @@ class OpenSearchDocumentStore:
 
             # Build query
             os_query = self._build_metadata_search_query(
-                query_part_clean, fields, mode, fuzziness, prefix_length, max_expansions
+                query_part_clean, fields, mode, fuzziness, prefix_length, max_expansions, tie_breaker, jaccard_n
             )
 
             # Add filters if provided
@@ -1297,13 +1307,15 @@ class OpenSearchDocumentStore:
         fuzziness: int | Literal["AUTO"] = 2,
         prefix_length: int = 0,
         max_expansions: int = 200,
+        tie_breaker: float = 0.7,
+        jaccard_n: int = 3,
         filters: dict[str, Any] | None = None,
     ) -> list[dict[str, Any]]:
         """
         Asynchronously search across multiple metadata fields with custom scoring and ranking.
 
         This method searches specified metadata fields for matches to a given query,
-        ranks the results based on relevance using Jaccard similarity (n-gram based, n=3),
+        ranks the results based on relevance using Jaccard similarity (n-gram based, see jaccard_n),
         and returns the top-k results containing only the specified metadata fields.
 
         The Jaccard similarity is computed server-side via a Painless script in both "strict" and "fuzzy" modes.
@@ -1328,6 +1340,9 @@ class OpenSearchDocumentStore:
             Default is 0 (no prefix requirement). Only applies when mode is "fuzzy".
         :param max_expansions: Maximum number of term variations the fuzzy query can generate.
             Default is 200. Only applies when mode is "fuzzy".
+        :param tie_breaker: Weight (0..1) for other matching clauses; boosts docs matching multiple clauses.
+            Default 0.7. Only applies when mode is "fuzzy".
+        :param jaccard_n: N-gram size for Jaccard similarity scoring. Default 3; larger n favors longer token matches.
         :param filters: Additional filters to apply to the search query.
         :returns: List of dictionaries containing only the specified metadata fields,
             ranked by relevance score.
@@ -1360,7 +1375,7 @@ class OpenSearchDocumentStore:
 
             # Build query
             os_query = self._build_metadata_search_query(
-                query_part_clean, fields, mode, fuzziness, prefix_length, max_expansions
+                query_part_clean, fields, mode, fuzziness, prefix_length, max_expansions, tie_breaker, jaccard_n
             )
 
             # Add filters if provided

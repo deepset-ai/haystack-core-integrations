@@ -17,21 +17,18 @@ class OpenSearchMetadataRetriever:
     """
     Retrieves and ranks metadata from documents stored in an OpenSearchDocumentStore.
 
-    It searches specified metadata fields for matches to a given query, ranks the results
-    based on relevance using Jaccard similarity, and returns the top-k results containing
-    only the specified metadata fields.
+    It searches specified metadata fields for matches to a given query, ranks the results based on relevance using
+    Jaccard similarity, and returns the top-k results containing only the specified metadata fields. Additionally, it
+    adds a boost to the score of exact matches.
 
-    The search is designed for metadata fields whose values are **text** (strings). It uses
-    prefix, wildcard and fuzzy matching to find candidate documents; these query
-    types operate only on text/keyword fields in OpenSearch.
+    The search is designed for metadata fields whose values are **text** (strings). It uses prefix, wildcard and fuzzy
+    matching to find candidate documents; these query types operate only on text/keyword fields in OpenSearch.
 
-    Metadata fields with **non-string types** (integers, floats, booleans, lists of non-strings)
-    are indexed by OpenSearch as numeric, boolean, or array types. Those field types do not
-    support prefix, wildcard, or full-text match queries, so documents are typically not
-    found when you search only by such fields.
+    Metadata fields with **non-string types** (integers, floats, booleans, lists of non-strings) are indexed by
+    OpenSearch as numeric, boolean, or array types. Those field types do not support prefix, wildcard, or full-text
+    match queries, so documents are typically not found when you search only by such fields.
 
-    **Mixed types** in the same metadata field (e.g. a list containing both strings and
-    numbers) are not supported.
+    **Mixed types** in the same metadata field (e.g. a list containing both strings and numbers) are not supported.
 
     Must be connected to the OpenSearchDocumentStore to run.
 
@@ -92,6 +89,8 @@ class OpenSearchMetadataRetriever:
         fuzziness: int | Literal["AUTO"] = 2,
         prefix_length: int = 0,
         max_expansions: int = 200,
+        tie_breaker: float = 0.7,
+        jaccard_n: int = 3,
         raise_on_failure: bool = True,
     ):
         """
@@ -104,8 +103,8 @@ class OpenSearchMetadataRetriever:
             Default is 0.6. It's used on both "strict" and "fuzzy" modes and applied after the search executes.
         :param mode: Search mode. "strict" uses prefix and wildcard matching,
             "fuzzy" uses fuzzy matching with dis_max queries. Default is "fuzzy".
-            In both modes, results are scored using Jaccard similarity (n-gram based, n=3)
-            computed server-side via a Painless script.
+            In both modes, results are scored using Jaccard similarity (n-gram based)
+            computed server-side via a Painless script; n is controlled by jaccard_n.
         :param fuzziness: Maximum allowed Damerau-Levenshtein distance (edit distance) for fuzzy matching.
             Accepts an integer (e.g., 0, 1, 2) or "AUTO" which chooses based on term length.
             Default is 2. Only applies when mode is "fuzzy".
@@ -113,6 +112,9 @@ class OpenSearchMetadataRetriever:
             Default is 0 (no prefix requirement). Only applies when mode is "fuzzy".
         :param max_expansions: Maximum number of term variations the fuzzy query can generate.
             Default is 200. Only applies when mode is "fuzzy".
+        :param tie_breaker: Weight (0..1) for other matching clauses in the dis_max query.
+            Boosts documents that match multiple clauses. Default is 0.7. Only applies when mode is "fuzzy".
+        :param jaccard_n: N-gram size for Jaccard similarity scoring. Default 3; larger n favors longer token matches.
         :param raise_on_failure:
             If `True`, raises an exception if the API call fails.
             If `False`, logs a warning and returns an empty list.
@@ -135,6 +137,8 @@ class OpenSearchMetadataRetriever:
         self._fuzziness = fuzziness
         self._prefix_length = prefix_length
         self._max_expansions = max_expansions
+        self._tie_breaker = tie_breaker
+        self._jaccard_n = jaccard_n
         self._raise_on_failure = raise_on_failure
 
     def to_dict(self) -> dict[str, Any]:
@@ -154,6 +158,8 @@ class OpenSearchMetadataRetriever:
             fuzziness=self._fuzziness,
             prefix_length=self._prefix_length,
             max_expansions=self._max_expansions,
+            tie_breaker=self._tie_breaker,
+            jaccard_n=self._jaccard_n,
             raise_on_failure=self._raise_on_failure,
         )
 
@@ -186,6 +192,8 @@ class OpenSearchMetadataRetriever:
         fuzziness: int | Literal["AUTO"] | None = None,
         prefix_length: int | None = None,
         max_expansions: int | None = None,
+        tie_breaker: float | None = None,
+        jaccard_n: int | None = None,
         filters: dict[str, Any] | None = None,
     ) -> dict[str, list[dict[str, Any]]]:
         """
@@ -205,8 +213,7 @@ class OpenSearchMetadataRetriever:
             If not provided, the exact_match_weight provided in `__init__` is used.
         :param mode: Search mode. "strict" uses prefix and wildcard matching,
             "fuzzy" uses fuzzy matching with dis_max queries.
-            In both modes, results are scored using Jaccard similarity (n-gram based, n=3)
-            computed server-side via a Painless script.
+            In both modes, results are scored using Jaccard similarity (n-gram based) via a Painless script.
             If not provided, the mode provided in `__init__` is used.
         :param fuzziness: Maximum allowed Damerau-Levenshtein distance (edit distance) for fuzzy matching.
             Accepts an integer (e.g., 0, 1, 2) or "AUTO" which chooses based on term length.
@@ -215,6 +222,10 @@ class OpenSearchMetadataRetriever:
             Only applies when mode is "fuzzy". If not provided, the prefix_length provided in `__init__` is used.
         :param max_expansions: Maximum number of term variations the fuzzy query can generate.
             Only applies when mode is "fuzzy". If not provided, the max_expansions provided in `__init__` is used.
+        :param tie_breaker: Weight (0..1) for other matching clauses; boosts docs matching multiple
+            clauses. Only applies when mode is "fuzzy". If not provided, the tie_breaker provided in `__init__` is used.
+        :param jaccard_n: N-gram size for Jaccard similarity scoring. If not provided, the jaccard_n from `__init__`
+            is used.
         :param filters: Additional filters to apply to the search query.
 
         :returns:
@@ -253,6 +264,8 @@ class OpenSearchMetadataRetriever:
         fuzziness_to_use = fuzziness if fuzziness is not None else self._fuzziness
         prefix_length_to_use = prefix_length if prefix_length is not None else self._prefix_length
         max_expansions_to_use = max_expansions if max_expansions is not None else self._max_expansions
+        tie_breaker_to_use = tie_breaker if tie_breaker is not None else self._tie_breaker
+        jaccard_n_to_use = jaccard_n if jaccard_n is not None else self._jaccard_n
 
         if mode_to_use not in ["strict", "fuzzy"]:
             msg = "mode must be either 'strict' or 'fuzzy'"
@@ -268,6 +281,8 @@ class OpenSearchMetadataRetriever:
                 fuzziness=fuzziness_to_use,
                 prefix_length=prefix_length_to_use,
                 max_expansions=max_expansions_to_use,
+                tie_breaker=tie_breaker_to_use,
+                jaccard_n=jaccard_n_to_use,
                 filters=filters,
             )
             return {"metadata": result}
@@ -294,6 +309,8 @@ class OpenSearchMetadataRetriever:
         fuzziness: int | Literal["AUTO"] | None = None,
         prefix_length: int | None = None,
         max_expansions: int | None = None,
+        tie_breaker: float | None = None,
+        jaccard_n: int | None = None,
         filters: dict[str, Any] | None = None,
     ) -> dict[str, list[dict[str, Any]]]:
         """
@@ -313,8 +330,7 @@ class OpenSearchMetadataRetriever:
             If not provided, the exact_match_weight provided in `__init__` is used.
         :param mode: Search mode. "strict" uses prefix and wildcard matching,
             "fuzzy" uses fuzzy matching with dis_max queries.
-            In both modes, results are scored using Jaccard similarity (n-gram based, n=3)
-            computed server-side via a Painless script.
+            In both modes, results are scored using Jaccard similarity (n-gram based) via a Painless script.
             If not provided, the mode provided in `__init__` is used.
         :param fuzziness: Maximum allowed Damerau-Levenshtein distance (edit distance) for fuzzy matching.
             Accepts an integer (e.g., 0, 1, 2) or "AUTO" which chooses based on term length.
@@ -323,6 +339,10 @@ class OpenSearchMetadataRetriever:
             Only applies when mode is "fuzzy". If not provided, the prefix_length provided in `__init__` is used.
         :param max_expansions: Maximum number of term variations the fuzzy query can generate.
             Only applies when mode is "fuzzy". If not provided, the max_expansions provided in `__init__` is used.
+        :param tie_breaker: Weight (0..1) for other matching clauses; boosts docs matching multiple clauses.
+            Only applies when mode is "fuzzy". If not provided, the tie_breaker provided in `__init__` is used.
+        :param jaccard_n: N-gram size for Jaccard similarity scoring. If not provided, the jaccard_n from `__init__`
+            is used.
         :param filters: Additional filters to apply to the search query.
         :returns: A dictionary containing the top-k retrieved metadata results.
 
@@ -358,6 +378,8 @@ class OpenSearchMetadataRetriever:
         fuzziness_to_use = fuzziness if fuzziness is not None else self._fuzziness
         prefix_length_to_use = prefix_length if prefix_length is not None else self._prefix_length
         max_expansions_to_use = max_expansions if max_expansions is not None else self._max_expansions
+        tie_breaker_to_use = tie_breaker if tie_breaker is not None else self._tie_breaker
+        jaccard_n_to_use = jaccard_n if jaccard_n is not None else self._jaccard_n
 
         if mode_to_use not in ["strict", "fuzzy"]:
             msg = "mode must be either 'strict' or 'fuzzy'"
@@ -373,6 +395,8 @@ class OpenSearchMetadataRetriever:
                 fuzziness=fuzziness_to_use,
                 prefix_length=prefix_length_to_use,
                 max_expansions=max_expansions_to_use,
+                tie_breaker=tie_breaker_to_use,
+                jaccard_n=jaccard_n_to_use,
                 filters=filters,
             )
             return {"metadata": result}
