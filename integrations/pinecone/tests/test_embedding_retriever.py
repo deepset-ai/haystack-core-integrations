@@ -36,6 +36,7 @@ def test_to_dict(mock_pinecone, monkeypatch):
         namespace="test-namespace",
         batch_size=50,
         dimension=512,
+        show_progress=False,
     )
     retriever = PineconeEmbeddingRetriever(document_store=document_store)
     res = retriever.to_dict()
