@@ -1,5 +1,13 @@
 # Changelog
 
+## [integrations/opensearch-v6.3.0] - 2026-01-30
+
+### 🚀 Features
+
+- Add an `SQLRetriever` to `OpenSearchDocumentStore` (#2746)
+- Adding a `MetadataRetriever` to `OpenSearchDocumentStore` (#2771)
+
+
 ## [integrations/opensearch-v6.2.0] - 2026-01-19
 
 ### 🚀 Features
