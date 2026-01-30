@@ -39,6 +39,10 @@ MODELS_TO_TEST_WITH_THINKING = [
     "us.anthropic.claude-sonnet-4-20250514-v1:0",
 ]
 
+MODELS_TO_TEST_WITH_PROMPT_CACHING = [
+    "amazon.nova-micro-v1:0"  # cheap, fast model
+]
+
 
 def hello_world():
     return "Hello, World!"
@@ -164,6 +168,7 @@ class TestAmazonBedrockChatGenerator:
                 "boto3_config": boto3_config,
                 "tools": None,
                 "guardrail_config": {"guardrailIdentifier": "test", "guardrailVersion": "test"},
+                "tools_cachepoint_config": None,
             },
         }
 
@@ -298,6 +303,7 @@ class TestAmazonBedrockChatGenerator:
                             }
                         ],
                         "guardrail_config": None,
+                        "tools_cachepoint_config": None,
                     },
                 }
             },
@@ -944,6 +950,28 @@ class TestAmazonBedrockChatGeneratorInference:
         assert results["replies"][0].text == "Sorry, the model cannot answer this question."
         assert "trace" in results["replies"][0].meta
         assert "guardrail" in results["replies"][0].meta["trace"]
+
+    @pytest.mark.parametrize("streaming_callback", [None, print_streaming_chunk])
+    @pytest.mark.parametrize("model_name", MODELS_TO_TEST_WITH_PROMPT_CACHING)
+    def test_prompt_caching_live_run_with_user_message(self, model_name, streaming_callback):
+        generator = AmazonBedrockChatGenerator(model=model_name, streaming_callback=streaming_callback)
+
+        system_message = ChatMessage.from_system("Always respond with: 'Life is beatiful' (and nothing else).")
+
+        user_message = ChatMessage.from_user(
+            "User message that should be long enough to cache. " * 100, meta={"cachePoint": {"type": "default"}}
+        )
+        messages = [system_message, user_message]
+        result = generator.run(messages=messages)
+
+        assert "replies" in result
+        assert len(result["replies"]) == 1
+        usage = result["replies"][0].meta["usage"]
+
+        # tests run in parallel based on the workflow matrix, so this request should either hit the cache (read tokens)
+        # or populate it (write tokens)
+        assert usage["cache_read_input_tokens"] > 1000 or usage["cache_write_input_tokens"] > 1000
+        assert "cache_details" in usage
 
     @pytest.mark.parametrize("model_name", [MODELS_TO_TEST_WITH_TOOLS[0]])  # just one model is enough
     def test_pipeline_with_amazon_bedrock_chat_generator(self, model_name, tools):

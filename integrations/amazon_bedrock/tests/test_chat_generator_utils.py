@@ -22,6 +22,7 @@ from haystack_integrations.components.generators.amazon_bedrock.chat.utils impor
     _format_tools,
     _parse_completion_response,
     _parse_streaming_response,
+    _validate_and_format_cache_point,
     _validate_guardrail_config,
 )
 
@@ -59,7 +60,7 @@ def tools():
 
 class TestAmazonBedrockChatGeneratorUtils:
     def test_format_tools(self, tools):
-        formatted_tool = _format_tools(tools)
+        formatted_tool = _format_tools(tools, tools_cachepoint_config={"type": "default"})
         assert formatted_tool == {
             "tools": [
                 {
@@ -84,7 +85,8 @@ class TestAmazonBedrockChatGeneratorUtils:
                         },
                     }
                 },
-            ]
+                {"cachePoint": {"type": "default"}},
+            ],
         }
 
     def test_format_messages(self):
@@ -119,6 +121,52 @@ class TestAmazonBedrockChatGeneratorUtils:
                 "content": [{"toolResult": {"toolUseId": "123", "content": [{"text": "Sunny and 25°C"}]}}],
             },
             {"role": "assistant", "content": [{"text": "The weather in Paris is sunny and 25°C."}]},
+        ]
+
+    def test_format_messages_with_cache_point(self):
+        meta = {"cachePoint": {"type": "default"}}
+
+        messages = [
+            ChatMessage.from_system("\\nYou are a helpful assistant, be super brief in your responses.", meta=meta),
+            ChatMessage.from_user("What is the weather in Paris?", meta=meta),
+            ChatMessage.from_assistant(
+                tool_calls=[ToolCall(id="123", tool_name="weather", arguments={"city": "Paris"})], meta=meta
+            ),
+            ChatMessage.from_tool(
+                tool_result="Sunny and 25°C",
+                origin=ToolCall(id="123", tool_name="weather", arguments={"city": "Paris"}),
+                meta=meta,
+            ),
+            ChatMessage.from_assistant("The weather in Paris is sunny and 25°C.", meta=meta),
+        ]
+        formatted_system_prompts, formatted_messages = _format_messages(messages)
+        assert formatted_system_prompts == [
+            {"text": "\\nYou are a helpful assistant, be super brief in your responses."},
+            {"cachePoint": {"type": "default"}},
+        ]
+        assert formatted_messages == [
+            {
+                "role": "user",
+                "content": [{"text": "What is the weather in Paris?"}, {"cachePoint": {"type": "default"}}],
+            },
+            {
+                "role": "assistant",
+                "content": [
+                    {"toolUse": {"toolUseId": "123", "name": "weather", "input": {"city": "Paris"}}},
+                    {"cachePoint": {"type": "default"}},
+                ],
+            },
+            {
+                "role": "user",
+                "content": [
+                    {"toolResult": {"toolUseId": "123", "content": [{"text": "Sunny and 25°C"}]}},
+                    {"cachePoint": {"type": "default"}},
+                ],
+            },
+            {
+                "role": "assistant",
+                "content": [{"text": "The weather in Paris is sunny and 25°C."}, {"cachePoint": {"type": "default"}}],
+            },
         ]
 
     def test_format_messages_tool_result_with_image(self):
@@ -420,7 +468,14 @@ class TestAmazonBedrockChatGeneratorUtils:
         text_response = {
             "output": {"message": {"role": "assistant", "content": [{"text": "This is a test response"}]}},
             "stopReason": "end_turn",
-            "usage": {"inputTokens": 10, "outputTokens": 20, "totalTokens": 30},
+            "usage": {
+                "inputTokens": 10,
+                "outputTokens": 20,
+                "totalTokens": 30,
+                "cacheReadInputTokens": 1000,
+                "cacheWriteInputTokens": 0,
+                "cacheDetails": {},
+            },
         }
 
         replies = _parse_completion_response(text_response, model)
@@ -430,7 +485,14 @@ class TestAmazonBedrockChatGeneratorUtils:
         assert replies[0].meta == {
             "model": model,
             "finish_reason": "stop",
-            "usage": {"prompt_tokens": 10, "completion_tokens": 20, "total_tokens": 30},
+            "usage": {
+                "prompt_tokens": 10,
+                "completion_tokens": 20,
+                "total_tokens": 30,
+                "cache_read_input_tokens": 1000,
+                "cache_write_input_tokens": 0,
+                "cache_details": {},
+            },
             "index": 0,
         }
 
@@ -457,7 +519,14 @@ class TestAmazonBedrockChatGeneratorUtils:
         assert replies[0].meta == {
             "model": model,
             "finish_reason": "tool_calls",
-            "usage": {"prompt_tokens": 15, "completion_tokens": 25, "total_tokens": 40},
+            "usage": {
+                "prompt_tokens": 15,
+                "completion_tokens": 25,
+                "total_tokens": 40,
+                "cache_read_input_tokens": 0,
+                "cache_write_input_tokens": 0,
+                "cache_details": {},
+            },
             "index": 0,
         }
 
@@ -488,7 +557,14 @@ class TestAmazonBedrockChatGeneratorUtils:
         assert replies[0].meta == {
             "model": model,
             "finish_reason": "stop",
-            "usage": {"prompt_tokens": 25, "completion_tokens": 35, "total_tokens": 60},
+            "usage": {
+                "prompt_tokens": 25,
+                "completion_tokens": 35,
+                "total_tokens": 60,
+                "cache_read_input_tokens": 0,
+                "cache_write_input_tokens": 0,
+                "cache_details": {},
+            },
             "index": 0,
         }
 
@@ -556,7 +632,14 @@ class TestAmazonBedrockChatGeneratorUtils:
                 "model": "anthropic.claude-3-5-sonnet-20240620-v1:0",
                 "index": 0,
                 "finish_reason": "tool_calls",
-                "usage": {"prompt_tokens": 366, "completion_tokens": 134, "total_tokens": 500},
+                "usage": {
+                    "prompt_tokens": 366,
+                    "completion_tokens": 134,
+                    "total_tokens": 500,
+                    "cache_read_input_tokens": 0,
+                    "cache_write_input_tokens": 0,
+                    "cache_details": {},
+                },
             },
         )
         assert replies[0] == expected_message
@@ -610,6 +693,7 @@ class TestAmazonBedrockChatGeneratorUtils:
                 "totalTokens": 558,
                 "cacheReadInputTokens": 0,
                 "cacheWriteInputTokens": 0,
+                "cacheDetails": {},
             },
             "metrics": {"latencyMs": 4811},
         }
@@ -646,7 +730,14 @@ class TestAmazonBedrockChatGeneratorUtils:
                 "model": "arn:aws:bedrock:us-east-1::inference-profile/us.anthropic.claude-3-7-sonnet-20250219-v1:0",
                 "index": 0,
                 "finish_reason": "tool_calls",
-                "usage": {"prompt_tokens": 412, "completion_tokens": 146, "total_tokens": 558},
+                "usage": {
+                    "prompt_tokens": 412,
+                    "completion_tokens": 146,
+                    "total_tokens": 558,
+                    "cache_read_input_tokens": 0,
+                    "cache_write_input_tokens": 0,
+                    "cache_details": {},
+                },
             },
         )
         assert replies[0] == expected_message
@@ -712,7 +803,14 @@ class TestAmazonBedrockChatGeneratorUtils:
             "model": model,
             "finish_reason": "content_filter",
             "index": 0,
-            "usage": {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0},
+            "usage": {
+                "prompt_tokens": 0,
+                "completion_tokens": 0,
+                "total_tokens": 0,
+                "cache_read_input_tokens": 0,
+                "cache_write_input_tokens": 0,
+                "cache_details": {},
+            },
             "trace": trace,
         }
 
@@ -784,7 +882,14 @@ class TestAmazonBedrockChatGeneratorUtils:
                     "model": model,
                     "index": 0,
                     "finish_reason": "tool_calls",
-                    "usage": {"prompt_tokens": 364, "completion_tokens": 71, "total_tokens": 435},
+                    "usage": {
+                        "prompt_tokens": 364,
+                        "completion_tokens": 71,
+                        "total_tokens": 435,
+                        "cache_read_input_tokens": 0,
+                        "cache_write_input_tokens": 0,
+                        "cache_details": {},
+                    },
                 },
             )
         ]
@@ -852,7 +957,14 @@ class TestAmazonBedrockChatGeneratorUtils:
                 meta={
                     "model": model,
                     "received_at": ANY,
-                    "usage": {"prompt_tokens": 364, "completion_tokens": 71, "total_tokens": 435},
+                    "usage": {
+                        "prompt_tokens": 364,
+                        "completion_tokens": 71,
+                        "total_tokens": 435,
+                        "cache_read_input_tokens": 0,
+                        "cache_write_input_tokens": 0,
+                        "cache_details": {},
+                    },
                 },
                 component_info=c_info,
             ),
@@ -976,7 +1088,14 @@ class TestAmazonBedrockChatGeneratorUtils:
                     "model": "arn:aws:bedrock:us-east-1::inference-profile/us.anthropic.claude-sonnet-4-20250514-v1:0",
                     "index": 0,
                     "finish_reason": "tool_calls",
-                    "usage": {"prompt_tokens": 412, "completion_tokens": 104, "total_tokens": 516},
+                    "usage": {
+                        "prompt_tokens": 412,
+                        "completion_tokens": 104,
+                        "total_tokens": 516,
+                        "cache_read_input_tokens": 0,
+                        "cache_write_input_tokens": 0,
+                        "cache_details": {},
+                    },
                     "completion_start_time": ANY,
                 },
             )
@@ -1062,7 +1181,14 @@ class TestAmazonBedrockChatGeneratorUtils:
                     "model": model,
                     "index": 0,
                     "finish_reason": "stop",
-                    "usage": {"prompt_tokens": 461, "completion_tokens": 138, "total_tokens": 599},
+                    "usage": {
+                        "prompt_tokens": 461,
+                        "completion_tokens": 138,
+                        "total_tokens": 599,
+                        "cache_read_input_tokens": 0,
+                        "cache_write_input_tokens": 0,
+                        "cache_details": {},
+                    },
                     "completion_start_time": ANY,
                 },
             )
@@ -1140,7 +1266,14 @@ class TestAmazonBedrockChatGeneratorUtils:
                     "model": "anthropic.claude-3-5-sonnet-20240620-v1:0",
                     "index": 0,
                     "finish_reason": "tool_calls",
-                    "usage": {"prompt_tokens": 366, "completion_tokens": 83, "total_tokens": 449},
+                    "usage": {
+                        "prompt_tokens": 366,
+                        "completion_tokens": 83,
+                        "total_tokens": 449,
+                        "cache_read_input_tokens": 0,
+                        "cache_write_input_tokens": 0,
+                        "cache_details": {},
+                    },
                     "completion_start_time": ANY,
                 },
             )
@@ -1216,7 +1349,14 @@ class TestAmazonBedrockChatGeneratorUtils:
                     "model": model,
                     "index": 0,
                     "finish_reason": "content_filter",
-                    "usage": {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0},
+                    "usage": {
+                        "prompt_tokens": 0,
+                        "completion_tokens": 0,
+                        "total_tokens": 0,
+                        "cache_read_input_tokens": 0,
+                        "cache_write_input_tokens": 0,
+                        "cache_details": {},
+                    },
                     "trace": trace,
                 },
             )
@@ -1450,3 +1590,25 @@ class TestAmazonBedrockChatGeneratorUtils:
                 },
                 streaming=False,
             )
+
+    def test_validate_and_format_cache_point(self):
+        cache_point = _validate_and_format_cache_point(None)
+        assert cache_point is None
+
+        cache_point = _validate_and_format_cache_point({})
+        assert cache_point is None
+
+        cache_point = _validate_and_format_cache_point({"type": "default"})
+        assert cache_point == {"cachePoint": {"type": "default"}}
+
+        cache_point = _validate_and_format_cache_point({"type": "default", "ttl": "5m"})
+        assert cache_point == {"cachePoint": {"type": "default", "ttl": "5m"}}
+
+        with pytest.raises(ValueError, match=r"Cache point must have a 'type' key with value 'default'."):
+            _validate_and_format_cache_point({"invalid": "config"})
+
+        with pytest.raises(ValueError, match=r"Cache point must have a 'type' key with value 'default'."):
+            _validate_and_format_cache_point({"type": "invalid"})
+
+        with pytest.raises(ValueError, match=r"Cache point can only contain 'type' and 'ttl' keys."):
+            _validate_and_format_cache_point({"type": "default", "invalid": "config"})
