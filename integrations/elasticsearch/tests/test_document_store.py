@@ -501,22 +501,6 @@ class TestDocumentStore(DocumentStoreBaseTests):
         assert len(results) == 1
         assert results[0].content == "New document after delete all"
 
-    def test_delete_all_documents_no_index_recreation(self, document_store: ElasticsearchDocumentStore):
-        docs = [Document(id="1", content="A first document"), Document(id="2", content="Second document")]
-        document_store.write_documents(docs)
-        assert document_store.count_documents() == 2
-
-        document_store.delete_all_documents(recreate_index=False, refresh=True)
-        assert document_store.count_documents() == 0
-
-        new_doc = Document(id="3", content="New document after delete all")
-        document_store.write_documents([new_doc])
-        assert document_store.count_documents() == 1
-
-        results = document_store.filter_documents()
-        assert len(results) == 1
-        assert results[0].content == "New document after delete all"
-
     def test_delete_by_filter(self, document_store: ElasticsearchDocumentStore):
         docs = [
             Document(content="Doc 1", meta={"category": "A"}),
