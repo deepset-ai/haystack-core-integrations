@@ -60,9 +60,7 @@ class TestQdrantDocumentStore:
 
     @pytest.mark.asyncio
     async def test_query_hybrid_async(self, generate_sparse_embedding):
-        document_store = QdrantDocumentStore(
-            location=":memory:", use_sparse_embeddings=True, progress_bar=False
-        )
+        document_store = QdrantDocumentStore(location=":memory:", use_sparse_embeddings=True, progress_bar=False)
 
         docs = []
         for i in range(20):
@@ -87,9 +85,7 @@ class TestQdrantDocumentStore:
 
     @pytest.mark.asyncio
     async def test_query_hybrid_with_group_by_async(self, generate_sparse_embedding):
-        document_store = QdrantDocumentStore(
-            location=":memory:", use_sparse_embeddings=True, progress_bar=False
-        )
+        document_store = QdrantDocumentStore(location=":memory:", use_sparse_embeddings=True, progress_bar=False)
 
         docs = []
         for i in range(20):
