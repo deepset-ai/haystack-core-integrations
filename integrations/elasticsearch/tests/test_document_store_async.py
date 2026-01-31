@@ -522,3 +522,61 @@ class TestElasticsearchDocumentStoreAsync:
             "meta.priority", "Doc 1", 10
         )
         assert set(unique_priorities_filtered) == {"1"}
+
+    @pytest.mark.asyncio
+    async def test_query_sql_async(self, document_store: ElasticsearchDocumentStore):
+        docs = [
+            Document(content="Python programming", meta={"category": "A", "status": "active", "priority": 1}),
+            Document(content="Java programming", meta={"category": "B", "status": "active", "priority": 2}),
+            Document(content="Python scripting", meta={"category": "A", "status": "inactive", "priority": 3}),
+            Document(content="JavaScript development", meta={"category": "C", "status": "active", "priority": 1}),
+        ]
+        await document_store.write_documents_async(docs)
+
+        # SQL query returns raw JSON response from Elasticsearch SQL API
+        sql_query = (
+            f'SELECT content, category, status, priority FROM "{document_store._index}" '  # noqa: S608
+            f"WHERE category = 'A' ORDER BY priority"
+        )
+        result = await document_store._query_sql_async(sql_query)
+
+        # Verify raw JSON response structure
+        assert isinstance(result, dict)
+        assert "columns" in result
+        assert "rows" in result
+
+        # Verify we got 2 rows (documents with category A)
+        assert len(result["rows"]) == 2
+
+        # Verify column structure
+        column_names = [col["name"] for col in result["columns"]]
+        assert "content" in column_names
+        assert "category" in column_names
+
+    @pytest.mark.asyncio
+    async def test_query_sql_async_with_fetch_size(self, document_store: ElasticsearchDocumentStore):
+        """Test async SQL query with fetch_size parameter"""
+        docs = [Document(content=f"Document {i}", meta={"category": "A", "index": i}) for i in range(15)]
+        await document_store.write_documents_async(docs)
+
+        sql_query = (
+            f'SELECT content, category FROM "{document_store._index}" '  # noqa: S608
+            f"WHERE category = 'A'"
+        )
+
+        # Test with fetch_size
+        result = await document_store._query_sql_async(sql_query, fetch_size=5)
+
+        # Should return raw JSON response
+        assert isinstance(result, dict)
+        assert "columns" in result
+        assert "rows" in result
+
+    @pytest.mark.asyncio
+    async def test_query_sql_async_error_handling(self, document_store: ElasticsearchDocumentStore):
+        """Test error handling for invalid SQL queries"""
+        from haystack.document_stores.errors import DocumentStoreError
+
+        invalid_query = "SELECT * FROM non_existent_index"
+        with pytest.raises(DocumentStoreError, match="Failed to execute SQL query"):
+            await document_store._query_sql_async(invalid_query)
