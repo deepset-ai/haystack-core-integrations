@@ -4,6 +4,7 @@ loaders:
   modules:
   - haystack_integrations.components.retrievers.elasticsearch.bm25_retriever
   - haystack_integrations.components.retrievers.elasticsearch.embedding_retriever
+  - haystack_integrations.components.retrievers.elasticsearch.sql_retriever
   - haystack_integrations.document_stores.elasticsearch.document_store
   - haystack_integrations.document_stores.elasticsearch.filters
   search_path:

@@ -1475,3 +1475,61 @@ class ElasticsearchDocumentStore:
             after_key = None
 
         return unique_values, after_key
+
+    def _query_sql(self, query: str, fetch_size: int | None = None) -> dict[str, Any]:
+        """
+        Execute a raw Elasticsearch SQL query against the index.
+
+        This method is not meant to be part of the public interface of
+        `ElasticsearchDocumentStore` nor called directly.
+        `ElasticsearchSQLRetriever` uses this method directly and is the public interface for it.
+
+        See `ElasticsearchSQLRetriever` for more information.
+
+        :param query: The Elasticsearch SQL query to execute
+        :param fetch_size: Optional number of results to fetch per page.
+        :returns: The raw JSON response from Elasticsearch SQL API.
+        """
+        self._ensure_initialized()
+        assert self._client is not None
+
+        try:
+            body: dict[str, Any] = {"query": query}
+            if fetch_size is not None:
+                body["fetch_size"] = fetch_size
+
+            response = self._client.sql.query(body=body)
+
+            return dict(response)
+        except Exception as e:
+            msg = f"Failed to execute SQL query in Elasticsearch: {e!s}"
+            raise DocumentStoreError(msg) from e
+
+    async def _query_sql_async(self, query: str, fetch_size: int | None = None) -> dict[str, Any]:
+        """
+        Asynchronously execute a raw Elasticsearch SQL query against the index.
+
+        This method is not meant to be part of the public interface of
+        `ElasticsearchDocumentStore` nor called directly.
+        `ElasticsearchSQLRetriever` uses this method directly and is the public interface for it.
+
+        See `ElasticsearchSQLRetriever` for more information.
+
+        :param query: The Elasticsearch SQL query to execute
+        :param fetch_size: Optional number of results to fetch per page.
+        :returns: The raw JSON response from Elasticsearch SQL API.
+        """
+        self._ensure_initialized()
+        assert self._async_client is not None
+
+        try:
+            body: dict[str, Any] = {"query": query}
+            if fetch_size is not None:
+                body["fetch_size"] = fetch_size
+
+            response = await self._async_client.sql.query(body=body)
+
+            return dict(response)
+        except Exception as e:
+            msg = f"Failed to execute SQL query in Elasticsearch: {e!s}"
+            raise DocumentStoreError(msg) from e
