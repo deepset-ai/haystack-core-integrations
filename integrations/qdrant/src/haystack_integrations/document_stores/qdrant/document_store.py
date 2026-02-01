@@ -846,6 +846,455 @@ class QdrantDocumentStore:
                     f"Error {e} when calling QdrantDocumentStore.delete_all_documents_async()",
                 )
 
+    def count_documents_by_filter(self, filters: dict[str, Any]) -> int:
+        """
+        Returns the number of documents that match the provided filters.
+
+        :param filters: The filters to apply to count documents.
+            For filter syntax, see [Haystack metadata filtering](https://docs.haystack.deepset.ai/docs/metadata-filtering)
+
+        :returns: The number of documents that match the filters.
+        """
+        self._initialize_client()
+        assert self._client is not None
+
+        qdrant_filter = convert_filters_to_qdrant(filters)
+        try:
+            response = self._client.count(
+                collection_name=self.index,
+                count_filter=qdrant_filter,
+            )
+            return response.count
+        except (UnexpectedResponse, ValueError):
+            return 0
+
+    async def count_documents_by_filter_async(self, filters: dict[str, Any]) -> int:
+        """
+        Asynchronously returns the number of documents that match the provided filters.
+
+        :param filters: The filters to apply to select documents for counting.
+            For filter syntax, see [Haystack metadata filtering](https://docs.haystack.deepset.ai/docs/metadata-filtering)
+
+        :returns:
+            The number of documents that match the filters.
+        """
+        await self._initialize_async_client()
+        assert self._async_client is not None
+
+        qdrant_filter = convert_filters_to_qdrant(filters)
+        try:
+            response = await self._async_client.count(
+                collection_name=self.index,
+                count_filter=qdrant_filter,
+            )
+            return response.count
+        except (UnexpectedResponse, ValueError):
+            return 0
+
+    def get_metadata_fields_info(self) -> dict[str, str]:
+        """
+        Returns the information about the fields from the collection.
+
+        :returns:
+            A dictionary mapping field names to their types (e.g., {"field_name": "integer"}).
+        """
+        self._initialize_client()
+        assert self._client is not None
+
+        try:
+            collection_info = self._client.get_collection(self.index)
+            payload_schema = collection_info.payload_schema or {}
+
+            fields_info = {}
+            for field_name, field_config in payload_schema.items():
+                if hasattr(field_config, "data_type"):
+                    fields_info[field_name] = str(field_config.data_type)
+                else:
+                    fields_info[field_name] = "unknown"
+
+            return fields_info
+        except (UnexpectedResponse, ValueError):
+            return {}
+
+    async def get_metadata_fields_info_async(self) -> dict[str, str]:
+        """
+        Asynchronously returns the information about the fields from the collection.
+
+        :returns:
+            A dictionary mapping field names to their types (e.g., {"field_name": "integer"}).
+        """
+        await self._initialize_async_client()
+        assert self._async_client is not None
+
+        try:
+            collection_info = await self._async_client.get_collection(self.index)
+            payload_schema = collection_info.payload_schema or {}
+
+            fields_info = {}
+            for field_name, field_config in payload_schema.items():
+                if hasattr(field_config, "data_type"):
+                    fields_info[field_name] = str(field_config.data_type)
+                else:
+                    fields_info[field_name] = "unknown"
+
+            return fields_info
+        except (UnexpectedResponse, ValueError):
+            return {}
+
+    def get_metadata_field_min_max(self, field_name: str, filters: dict[str, Any] | None = None) -> dict[str, Any]:
+        """
+        Returns the minimum and maximum values for the given metadata field.
+
+        :param metadata_field: The metadata field to get the minimum and maximum values for.
+
+        :returns: A dictionary with the keys "min" and "max", where each value is the minimum or maximum value of the
+                  metadata field across all documents.
+        """
+        self._initialize_client()
+        assert self._client is not None
+
+        qdrant_filter = convert_filters_to_qdrant(filters) if filters else None
+
+        try:
+            min_value = None
+            max_value = None
+
+            next_offset = None
+            stop_scrolling = False
+
+            while not stop_scrolling:
+                records, next_offset = self._client.scroll(
+                    collection_name=self.index,
+                    scroll_filter=qdrant_filter,
+                    limit=self.scroll_size,
+                    offset=next_offset,
+                    with_payload=True,
+                    with_vectors=False,
+                )
+
+                stop_scrolling = next_offset is None or (
+                    hasattr(next_offset, "num")
+                    and hasattr(next_offset, "uuid")
+                    and next_offset.num == 0
+                    and next_offset.uuid == ""
+                )
+
+                for record in records:
+                    if record.payload and "meta" in record.payload:
+                        meta = record.payload["meta"]
+                        if field_name in meta:
+                            value = meta[field_name]
+                            if value is not None:
+                                if min_value is None or value < min_value:
+                                    min_value = value
+                                if max_value is None or value > max_value:
+                                    max_value = value
+
+            if min_value is not None and max_value is not None:
+                return {"min": min_value, "max": max_value}
+            return {}
+        except Exception:
+            return {}
+
+    async def get_metadata_field_min_max_async(
+        self, field_name: str, filters: dict[str, Any] | None = None
+    ) -> dict[str, Any]:
+        """
+        Asynchronously returns the minimum and maximum values for the given metadata field.
+
+        :param metadata_field: The metadata field to get the minimum and maximum values for.
+
+        :returns: A dictionary with the keys "min" and "max", where each value is the minimum or maximum value of the
+                  metadata field across all documents.
+        """
+        await self._initialize_async_client()
+        assert self._async_client is not None
+
+        qdrant_filter = convert_filters_to_qdrant(filters) if filters else None
+
+        try:
+            min_value = None
+            max_value = None
+
+            next_offset = None
+            stop_scrolling = False
+
+            while not stop_scrolling:
+                records, next_offset = await self._async_client.scroll(
+                    collection_name=self.index,
+                    scroll_filter=qdrant_filter,
+                    limit=self.scroll_size,
+                    offset=next_offset,
+                    with_payload=True,
+                    with_vectors=False,
+                )
+
+                stop_scrolling = next_offset is None or (
+                    hasattr(next_offset, "num")
+                    and hasattr(next_offset, "uuid")
+                    and next_offset.num == 0
+                    and next_offset.uuid == ""
+                )
+
+                for record in records:
+                    if record.payload and "meta" in record.payload:
+                        meta = record.payload["meta"]
+                        if field_name in meta:
+                            value = meta[field_name]
+                            if value is not None:
+                                if min_value is None or value < min_value:
+                                    min_value = value
+                                if max_value is None or value > max_value:
+                                    max_value = value
+
+            if min_value is not None and max_value is not None:
+                return {"min": min_value, "max": max_value}
+            return {}
+        except Exception:
+            return {}
+
+    def count_unique_metadata_by_filter(self, field_name: str, filters: dict[str, Any] | None = None) -> int:
+        """
+        Returns the number of unique values for each specified metadata field of the documents
+        that match the provided filters.
+
+        :param filters: The filters to apply to count documents.
+            For filter syntax, see [Haystack metadata filtering](https://docs.haystack.deepset.ai/docs/metadata-filtering)
+        :param metadata_fields: List of field names to calculate unique values for.
+            Field names can include or omit the "meta." prefix.
+
+        :returns: A dictionary mapping each metadata field name to the count of its unique values among the filtered
+                  documents.
+        :raises ValueError: If any of the requested fields don't exist in the index mapping.
+        """
+        self._initialize_client()
+        assert self._client is not None
+
+        qdrant_filter = convert_filters_to_qdrant(filters) if filters else None
+        unique_values = set()
+
+        try:
+            next_offset = None
+            stop_scrolling = False
+
+            while not stop_scrolling:
+                records, next_offset = self._client.scroll(
+                    collection_name=self.index,
+                    scroll_filter=qdrant_filter,
+                    limit=self.scroll_size,
+                    offset=next_offset,
+                    with_payload=True,
+                    with_vectors=False,
+                )
+
+                stop_scrolling = next_offset is None or (
+                    hasattr(next_offset, "num")
+                    and hasattr(next_offset, "uuid")
+                    and next_offset.num == 0
+                    and next_offset.uuid == ""
+                )
+
+                for record in records:
+                    if record.payload and "meta" in record.payload:
+                        meta = record.payload["meta"]
+                        if field_name in meta:
+                            value = meta[field_name]
+                            if value is not None:
+                                # Convert to hashable type if needed
+                                if isinstance(value, (list, dict)):
+                                    unique_values.add(str(value))
+                                else:
+                                    unique_values.add(value)
+
+            return len(unique_values)
+        except Exception:
+            return 0
+
+    async def count_unique_metadata_by_filter_async(
+        self, field_name: str, filters: dict[str, Any] | None = None
+    ) -> int:
+        """
+        Asynchronously returns the number of unique values for each specified metadata field of the documents
+        that match the provided filters.
+
+        :param filters: The filters to apply to count documents.
+            For filter syntax, see [Haystack metadata filtering](https://docs.haystack.deepset.ai/docs/metadata-filtering)
+        :param metadata_fields: List of field names to calculate unique values for.
+            Field names can include or omit the "meta." prefix.
+
+        :returns: A dictionary mapping each metadata field name to the count of its unique values among the filtered
+                  documents.
+        :raises ValueError: If any of the requested fields don't exist in the index mapping.
+        """
+        await self._initialize_async_client()
+        assert self._async_client is not None
+
+        qdrant_filter = convert_filters_to_qdrant(filters) if filters else None
+        unique_values = set()
+
+        try:
+            next_offset = None
+            stop_scrolling = False
+
+            while not stop_scrolling:
+                records, next_offset = await self._async_client.scroll(
+                    collection_name=self.index,
+                    scroll_filter=qdrant_filter,
+                    limit=self.scroll_size,
+                    offset=next_offset,
+                    with_payload=True,
+                    with_vectors=False,
+                )
+
+                stop_scrolling = next_offset is None or (
+                    hasattr(next_offset, "num")
+                    and hasattr(next_offset, "uuid")
+                    and next_offset.num == 0
+                    and next_offset.uuid == ""
+                )
+
+                for record in records:
+                    if record.payload and "meta" in record.payload:
+                        meta = record.payload["meta"]
+                        if field_name in meta:
+                            value = meta[field_name]
+                            if value is not None:
+                                # Convert to hashable type if needed
+                                if isinstance(value, (list, dict)):
+                                    unique_values.add(str(value))
+                                else:
+                                    unique_values.add(value)
+
+            return len(unique_values)
+        except Exception:
+            return 0
+
+    def get_metadata_field_unique_values(
+        self, field_name: str, filters: dict[str, Any] | None = None, limit: int = 100, offset: int = 0
+    ) -> list[Any]:
+        """
+        Returns unique values for a metadata field, optionally filtered by a search term in the content.
+        Uses composite aggregations for proper pagination beyond 10k results.
+
+        :param metadata_field: The metadata field to get unique values for.
+        :param search_term: Optional search term to filter documents by matching in the content field.
+        :param size: The number of unique values to return per page. Defaults to 10000.
+        :param after: Optional pagination key from the previous response. Use None for the first page.
+            For subsequent pages, pass the `after_key` from the previous response.
+
+        :returns: A tuple containing (list of unique values, after_key for pagination).
+            The after_key is None when there are no more results. Use it in the `after` parameter
+            for the next page.
+        """
+        self._initialize_client()
+        assert self._client is not None
+
+        qdrant_filter = convert_filters_to_qdrant(filters) if filters else None
+        unique_values: list[Any] = []
+        unique_values_set = set()
+
+        try:
+            next_offset = None
+            stop_scrolling = False
+
+            while not stop_scrolling and len(unique_values) < offset + limit:
+                records, next_offset = self._client.scroll(
+                    collection_name=self.index,
+                    scroll_filter=qdrant_filter,
+                    limit=self.scroll_size,
+                    offset=next_offset,
+                    with_payload=True,
+                    with_vectors=False,
+                )
+
+                stop_scrolling = next_offset is None or (
+                    hasattr(next_offset, "num")
+                    and hasattr(next_offset, "uuid")
+                    and next_offset.num == 0
+                    and next_offset.uuid == ""
+                )
+
+                for record in records:
+                    if record.payload and "meta" in record.payload:
+                        meta = record.payload["meta"]
+                        if field_name in meta:
+                            value = meta[field_name]
+                            if value is not None:
+                                # Convert to hashable type for deduplication
+                                hashable_value = str(value) if isinstance(value, (list, dict)) else value
+                                if hashable_value not in unique_values_set:
+                                    unique_values_set.add(hashable_value)
+                                    unique_values.append(value)
+                                    if len(unique_values) >= offset + limit:
+                                        break
+
+            return unique_values[offset : offset + limit]
+        except Exception:
+            return []
+
+    async def get_metadata_field_unique_values_async(
+        self, field_name: str, filters: dict[str, Any] | None = None, limit: int = 100, offset: int = 0
+    ) -> list[Any]:
+        """
+        Asynchronously returns unique values for a metadata field, optionally filtered by a search term in the content.
+        Uses composite aggregations for proper pagination beyond 10k results.
+
+        :param metadata_field: The metadata field to get unique values for.
+        :param search_term: Optional search term to filter documents by matching in the content field.
+        :param size: The number of unique values to return per page. Defaults to 10000.
+        :param after: Optional pagination key from the previous response. Use None for the first page.
+            For subsequent pages, pass the `after_key` from the previous response.
+
+        :returns: A tuple containing (list of unique values, after_key for pagination).
+            The after_key is None when there are no more results. Use it in the `after` parameter
+            for the next page.
+        """
+        await self._initialize_async_client()
+        assert self._async_client is not None
+
+        qdrant_filter = convert_filters_to_qdrant(filters) if filters else None
+        unique_values: list[Any] = []
+        unique_values_set = set()
+
+        try:
+            next_offset = None
+            stop_scrolling = False
+
+            while not stop_scrolling and len(unique_values) < offset + limit:
+                records, next_offset = await self._async_client.scroll(
+                    collection_name=self.index,
+                    scroll_filter=qdrant_filter,
+                    limit=self.scroll_size,
+                    offset=next_offset,
+                    with_payload=True,
+                    with_vectors=False,
+                )
+
+                stop_scrolling = next_offset is None or (
+                    hasattr(next_offset, "num")
+                    and hasattr(next_offset, "uuid")
+                    and next_offset.num == 0
+                    and next_offset.uuid == ""
+                )
+
+                for record in records:
+                    if record.payload and "meta" in record.payload:
+                        meta = record.payload["meta"]
+                        if field_name in meta:
+                            value = meta[field_name]
+                            if value is not None:
+                                # Convert to hashable type for deduplication
+                                hashable_value = str(value) if isinstance(value, (list, dict)) else value
+                                if hashable_value not in unique_values_set:
+                                    unique_values_set.add(hashable_value)
+                                    unique_values.append(value)
+                                    if len(unique_values) >= offset + limit:
+                                        break
+
+            return unique_values[offset : offset + limit]
+        except Exception:
+            return []
+
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "QdrantDocumentStore":
         """

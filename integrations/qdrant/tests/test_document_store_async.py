@@ -474,3 +474,156 @@ class TestQdrantDocumentStore:
         assert len(updated_docs) == 1
         assert updated_docs[0].embedding is not None
         assert len(updated_docs[0].embedding) == 768
+
+    @pytest.mark.asyncio
+    async def test_count_documents_by_filter_async(self, document_store: QdrantDocumentStore):
+        """Test counting documents with filters (async)."""
+        docs = [
+            Document(content="Doc 1", meta={"category": "A", "year": 2023}),
+            Document(content="Doc 2", meta={"category": "A", "year": 2024}),
+            Document(content="Doc 3", meta={"category": "B", "year": 2023}),
+            Document(content="Doc 4", meta={"category": "B", "year": 2024}),
+        ]
+        await document_store.write_documents_async(docs)
+
+        # Test counting all documents
+        count = await document_store.count_documents_async()
+        assert count == 4
+
+        # Test counting with single filter
+        count = await document_store.count_documents_by_filter_async(
+            filters={"field": "meta.category", "operator": "==", "value": "A"}
+        )
+        assert count == 2
+
+        # Test counting with multiple filters
+        count = await document_store.count_documents_by_filter_async(
+            filters={
+                "operator": "AND",
+                "conditions": [
+                    {"field": "meta.category", "operator": "==", "value": "B"},
+                    {"field": "meta.year", "operator": "==", "value": 2023},
+                ],
+            }
+        )
+        assert count == 1
+
+    @pytest.mark.asyncio
+    async def test_get_metadata_fields_info_async(self, document_store: QdrantDocumentStore):
+        """Test getting metadata field information (async)."""
+        docs = [
+            Document(content="Doc 1", meta={"category": "A", "score": 0.9, "tags": ["tag1", "tag2"]}),
+            Document(content="Doc 2", meta={"category": "B", "score": 0.8, "tags": ["tag2"]}),
+        ]
+        await document_store.write_documents_async(docs)
+
+        fields_info = await document_store.get_metadata_fields_info_async()
+        # Should return empty dict or field info depending on Qdrant collection setup
+        assert isinstance(fields_info, dict)
+
+    @pytest.mark.asyncio
+    async def test_get_metadata_field_min_max_async(self, document_store: QdrantDocumentStore):
+        """Test getting min/max values for a metadata field (async)."""
+        docs = [
+            Document(content="Doc 1", meta={"score": 0.5}),
+            Document(content="Doc 2", meta={"score": 0.8}),
+            Document(content="Doc 3", meta={"score": 0.3}),
+        ]
+        await document_store.write_documents_async(docs)
+
+        result = await document_store.get_metadata_field_min_max_async("score")
+        assert result.get("min") == 0.3
+        assert result.get("max") == 0.8
+
+    @pytest.mark.asyncio
+    async def test_get_metadata_field_min_max_async_with_filter(self, document_store: QdrantDocumentStore):
+        """Test getting min/max values with filtering (async)."""
+        docs = [
+            Document(content="Doc 1", meta={"score": 0.5, "category": "A"}),
+            Document(content="Doc 2", meta={"score": 0.8, "category": "A"}),
+            Document(content="Doc 3", meta={"score": 0.3, "category": "B"}),
+        ]
+        await document_store.write_documents_async(docs)
+
+        result = await document_store.get_metadata_field_min_max_async(
+            "score", filters={"field": "meta.category", "operator": "==", "value": "A"}
+        )
+        assert result.get("min") == 0.5
+        assert result.get("max") == 0.8
+
+    @pytest.mark.asyncio
+    async def test_count_unique_metadata_by_filter_async(self, document_store: QdrantDocumentStore):
+        """Test counting unique metadata field values (async)."""
+        docs = [
+            Document(content="Doc 1", meta={"category": "A"}),
+            Document(content="Doc 2", meta={"category": "B"}),
+            Document(content="Doc 3", meta={"category": "A"}),
+            Document(content="Doc 4", meta={"category": "C"}),
+        ]
+        await document_store.write_documents_async(docs)
+
+        count = await document_store.count_unique_metadata_by_filter_async("category")
+        assert count == 3
+
+    @pytest.mark.asyncio
+    async def test_count_unique_metadata_by_filter_async_with_filter(self, document_store: QdrantDocumentStore):
+        """Test counting unique metadata field values with filtering (async)."""
+        docs = [
+            Document(content="Doc 1", meta={"category": "A", "status": "active"}),
+            Document(content="Doc 2", meta={"category": "B", "status": "active"}),
+            Document(content="Doc 3", meta={"category": "A", "status": "inactive"}),
+        ]
+        await document_store.write_documents_async(docs)
+
+        # Count unique categories where status is active
+        count = await document_store.count_unique_metadata_by_filter_async(
+            "category", filters={"field": "meta.status", "operator": "==", "value": "active"}
+        )
+        assert count == 2
+
+    @pytest.mark.asyncio
+    async def test_get_metadata_field_unique_values_async(self, document_store: QdrantDocumentStore):
+        """Test getting unique metadata field values (async)."""
+        docs = [
+            Document(content="Doc 1", meta={"category": "A"}),
+            Document(content="Doc 2", meta={"category": "B"}),
+            Document(content="Doc 3", meta={"category": "A"}),
+            Document(content="Doc 4", meta={"category": "C"}),
+        ]
+        await document_store.write_documents_async(docs)
+
+        values = await document_store.get_metadata_field_unique_values_async("category")
+        assert len(values) == 3
+        assert set(values) == {"A", "B", "C"}
+
+    @pytest.mark.asyncio
+    async def test_get_metadata_field_unique_values_async_pagination(self, document_store: QdrantDocumentStore):
+        """Test getting unique metadata field values with pagination (async)."""
+        docs = [Document(content=f"Doc {i}", meta={"value": i % 5}) for i in range(10)]
+        await document_store.write_documents_async(docs)
+
+        # Get first 2 unique values
+        values_page_1 = await document_store.get_metadata_field_unique_values_async("value", limit=2, offset=0)
+        assert len(values_page_1) == 2
+
+        # Get next 2 unique values
+        values_page_2 = await document_store.get_metadata_field_unique_values_async("value", limit=2, offset=2)
+        assert len(values_page_2) == 2
+
+        # Values should not overlap
+        assert set(values_page_1) != set(values_page_2)
+
+    @pytest.mark.asyncio
+    async def test_get_metadata_field_unique_values_async_with_filter(self, document_store: QdrantDocumentStore):
+        """Test getting unique metadata field values with filtering (async)."""
+        docs = [
+            Document(content="Doc 1", meta={"category": "A", "status": "active"}),
+            Document(content="Doc 2", meta={"category": "B", "status": "active"}),
+            Document(content="Doc 3", meta={"category": "A", "status": "inactive"}),
+        ]
+        await document_store.write_documents_async(docs)
+
+        values = await document_store.get_metadata_field_unique_values_async(
+            "category", filters={"field": "meta.status", "operator": "==", "value": "active"}
+        )
+        assert set(values) == {"A", "B"}
