@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/weaviate-v7.1.0] - 2026-01-29
+
+### 🚀 Features
+
+- Adding count with filtering operations to `WeaviateDocumentStore` (#2767)
+
+
 ## [integrations/weaviate-v7.0.0] - 2026-01-13
 
 ### 🐛 Bug Fixes

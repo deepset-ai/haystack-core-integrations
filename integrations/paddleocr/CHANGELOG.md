@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/paddleocr-v1.1.0] - 2026-01-29
+
+### 🚀 Features
+
+- Update for PaddleOCR-VL-1.5 interface (#2782)
+
+
 ## [integrations/paddleocr-v1.0.0] - 2026-01-12
 
 ### 🧹 Chores

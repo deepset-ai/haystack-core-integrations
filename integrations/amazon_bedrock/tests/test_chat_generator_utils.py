@@ -9,6 +9,7 @@ from haystack.dataclasses import (
     ImageContent,
     ReasoningContent,
     StreamingChunk,
+    TextContent,
     ToolCall,
     ToolCallDelta,
 )
@@ -118,6 +119,52 @@ class TestAmazonBedrockChatGeneratorUtils:
                 "content": [{"toolResult": {"toolUseId": "123", "content": [{"text": "Sunny and 25°C"}]}}],
             },
             {"role": "assistant", "content": [{"text": "The weather in Paris is sunny and 25°C."}]},
+        ]
+
+    def test_format_messages_tool_result_with_image(self):
+        base64_image = (
+            "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg=="
+        )
+
+        messages = [
+            ChatMessage.from_user("Retrieve the image and describe it in max 5 words."),
+            ChatMessage.from_assistant(
+                tool_calls=[ToolCall(id="123", tool_name="image_retriever", arguments={"query": "random query"})]
+            ),
+            ChatMessage.from_tool(
+                tool_result=[
+                    TextContent("Here's the retrieved image"),
+                    ImageContent(base64_image=base64_image, mime_type="image/png"),
+                ],
+                origin=ToolCall(id="123", tool_name="image_retriever", arguments={"query": "random query"}),
+            ),
+            ChatMessage.from_assistant("Beautiful landscape with mountains"),
+        ]
+        formatted_system_prompts, formatted_messages = _format_messages(messages)
+        assert formatted_system_prompts == []
+        assert formatted_messages == [
+            {"role": "user", "content": [{"text": "Retrieve the image and describe it in max 5 words."}]},
+            {
+                "role": "assistant",
+                "content": [
+                    {"toolUse": {"toolUseId": "123", "name": "image_retriever", "input": {"query": "random query"}}}
+                ],
+            },
+            {
+                "role": "user",
+                "content": [
+                    {
+                        "toolResult": {
+                            "toolUseId": "123",
+                            "content": [
+                                {"text": "Here's the retrieved image"},
+                                {"image": {"format": "png", "source": {"bytes": base64.b64decode(base64_image)}}},
+                            ],
+                        }
+                    }
+                ],
+            },
+            {"role": "assistant", "content": [{"text": "Beautiful landscape with mountains"}]},
         ]
 
     def test_format_message_thinking(self):

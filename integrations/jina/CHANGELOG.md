@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/jina-v1.1.0] - 2026-01-19
+
+### 🐛 Bug Fixes
+
+- *(jina)* Use dataclass replace to avoid modifying input documents (#2765)
+
+
 ## [integrations/jina-v1.0.0] - 2026-01-12
 
 ### 📚 Documentation

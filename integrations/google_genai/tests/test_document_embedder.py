@@ -201,6 +201,61 @@ class TestGoogleGenAIDocumentEmbedder:
         assert result["documents"] is not None
         assert not result["documents"]  # empty list
 
+    def test_run_does_not_modify_original_documents(self, monkeypatch):
+        monkeypatch.setenv("GOOGLE_API_KEY", "fake-api-key")
+        embedder = GoogleGenAIDocumentEmbedder()
+
+        docs = [
+            Document(content="I love cheese", meta={"topic": "Cuisine"}),
+            Document(content="A transformer is a deep learning architecture", meta={"topic": "ML"}),
+        ]
+
+        # Mock the _embed_batch method to return fake embeddings
+        def mock_embed_batch(texts_to_embed, batch_size):
+            embeddings = [[0.1, 0.2, 0.3] for _ in texts_to_embed]
+            meta = {"model": "text-embedding-004"}
+            return embeddings, meta
+
+        embedder._embed_batch = mock_embed_batch
+
+        result = embedder.run(documents=docs)
+
+        # Check that the original documents are not modified
+        for doc in docs:
+            assert doc.embedding is None
+
+        # Check that the returned documents have embeddings
+        for doc_with_embedding in result["documents"]:
+            assert doc_with_embedding.embedding == [0.1, 0.2, 0.3]
+
+    @pytest.mark.asyncio
+    async def test_run_async_does_not_modify_original_documents(self, monkeypatch):
+        monkeypatch.setenv("GOOGLE_API_KEY", "fake-api-key")
+        embedder = GoogleGenAIDocumentEmbedder()
+
+        docs = [
+            Document(content="I love cheese", meta={"topic": "Cuisine"}),
+            Document(content="A transformer is a deep learning architecture", meta={"topic": "ML"}),
+        ]
+
+        # Mock the _embed_batch_async method to return fake embeddings
+        async def mock_embed_batch_async(texts_to_embed, batch_size):
+            embeddings = [[0.1, 0.2, 0.3] for _ in texts_to_embed]
+            meta = {"model": "text-embedding-004"}
+            return embeddings, meta
+
+        embedder._embed_batch_async = mock_embed_batch_async
+
+        result = await embedder.run_async(documents=docs)
+
+        # Check that the original documents are not modified
+        for doc in docs:
+            assert doc.embedding is None
+
+        # Check that the returned documents have embeddings
+        for doc_with_embedding in result["documents"]:
+            assert doc_with_embedding.embedding == [0.1, 0.2, 0.3]
+
     @pytest.mark.skipif(
         not os.environ.get("GOOGLE_API_KEY", None),
         reason="Export an env var called GOOGLE_API_KEY containing the Google API key to run this test.",

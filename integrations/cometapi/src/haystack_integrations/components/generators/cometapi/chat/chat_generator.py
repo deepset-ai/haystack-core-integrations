@@ -1,8 +1,13 @@
 from typing import Any
 
 from haystack.components.generators.chat import OpenAIChatGenerator
-from haystack.dataclasses import StreamingCallbackT
-from haystack.tools import Tool, Toolset
+from haystack.dataclasses import (
+    StreamingCallbackT,
+)
+from haystack.tools import (
+    Tool,
+    Toolset,
+)
 from haystack.utils import Secret
 
 

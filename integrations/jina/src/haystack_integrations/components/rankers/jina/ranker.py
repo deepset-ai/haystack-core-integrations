@@ -1,6 +1,7 @@
 # SPDX-FileCopyrightText: 2023-present deepset GmbH <info@deepset.ai>
 #
 # SPDX-License-Identifier: Apache-2.0
+from dataclasses import replace
 from typing import Any
 
 import requests
@@ -161,12 +162,12 @@ class JinaRanker:
             relevance_score = result["relevance_score"]
             doc = documents[index]
             if top_k is None or len(ranked_docs) < top_k:
-                doc.score = relevance_score
+                scored_doc = replace(doc, score=relevance_score)
                 if score_threshold is not None:
                     if relevance_score >= score_threshold:
-                        ranked_docs.append(doc)
+                        ranked_docs.append(scored_doc)
                 else:
-                    ranked_docs.append(doc)
+                    ranked_docs.append(scored_doc)
             else:
                 break
 

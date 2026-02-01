@@ -1,5 +1,19 @@
 # Changelog
 
+## [integrations/elasticsearch-v5.1.1] - 2026-01-29
+
+### 🐛 Bug Fixes
+
+- Fix bug in deserialization of secrets in ElasticSearchDocumentStore (#2791)
+
+
+## [integrations/elasticsearch-v5.1.0] - 2026-01-20
+
+### 🚀 Features
+
+- Adding new operations to `ElasticSearchDocumentStore` (#2761)
+
+
 ## [integrations/elasticsearch-v5.0.0] - 2026-01-13
 
 ### 🧹 Chores

@@ -847,3 +847,227 @@ class TestDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocumentsT
         document_store.delete_documents(["1", "2"], routing=routing_map)
 
         assert document_store.count_documents() == 1
+
+    @pytest.mark.integration
+    def test_metadata_search_fuzzy_mode(self, document_store: OpenSearchDocumentStore):
+        """Test metadata search in fuzzy mode."""
+        docs = [
+            Document(content="Python programming", meta={"category": "Python", "status": "active", "priority": 1}),
+            Document(content="Java programming", meta={"category": "Java", "status": "active", "priority": 2}),
+            Document(content="Python scripting", meta={"category": "Python", "status": "inactive", "priority": 3}),
+            Document(
+                content="JavaScript development", meta={"category": "JavaScript", "status": "active", "priority": 1}
+            ),
+        ]
+        document_store.write_documents(docs, refresh=True)
+
+        # Search for "Python" in category field
+        result = document_store._metadata_search(
+            query="Python",
+            fields=["category"],
+            mode="fuzzy",
+            top_k=10,
+        )
+
+        assert isinstance(result, list)
+        assert len(result) >= 2  # At least 2 documents with category "Python"
+        assert all(isinstance(row, dict) for row in result)
+        assert all("category" in row for row in result)
+        # Verify all results contain "Python" in category (fuzzy match might include variations)
+        categories = [row.get("category", "").lower() for row in result]
+        assert any("python" in cat for cat in categories)
+
+    @pytest.mark.integration
+    def test_metadata_search_strict_mode(self, document_store: OpenSearchDocumentStore):
+        """Test metadata search in strict mode."""
+        docs = [
+            Document(content="Python programming", meta={"category": "Python", "status": "active", "priority": 1}),
+            Document(content="Java programming", meta={"category": "Java", "status": "active", "priority": 2}),
+            Document(content="Python scripting", meta={"category": "Python", "status": "inactive", "priority": 3}),
+        ]
+        document_store.write_documents(docs, refresh=True)
+
+        # Search for "Python" in category field with strict mode
+        result = document_store._metadata_search(
+            query="Python",
+            fields=["category"],
+            mode="strict",
+            top_k=10,
+        )
+
+        assert isinstance(result, list)
+        assert len(result) == 1  # At least 1 document with category "Python" due to metadat deduplication
+        assert all(isinstance(row, dict) for row in result)
+        assert all("category" in row for row in result)
+
+    @pytest.mark.integration
+    def test_metadata_search_multiple_fields(self, document_store: OpenSearchDocumentStore):
+        """Test metadata search across multiple fields."""
+        docs = [
+            Document(content="Doc 1", meta={"category": "Python", "status": "active", "priority": 1}),
+            Document(content="Doc 2", meta={"category": "Java", "status": "active", "priority": 2}),
+            Document(content="Doc 3", meta={"category": "Python", "status": "inactive", "priority": 3}),
+        ]
+        document_store.write_documents(docs, refresh=True)
+
+        # Search for "active" across both category and status fields
+        result = document_store._metadata_search(
+            query="active",
+            fields=["category", "status"],
+            mode="fuzzy",
+            top_k=10,
+        )
+
+        assert isinstance(result, list)
+        assert len(result) > 0
+        assert all(isinstance(row, dict) for row in result)
+        # Results should only contain the specified fields
+        for row in result:
+            assert all(key in ["category", "status"] for key in row.keys())
+
+    @pytest.mark.integration
+    def test_metadata_search_comma_separated_query(self, document_store: OpenSearchDocumentStore):
+        """Test metadata search with comma-separated query parts."""
+        docs = [
+            Document(content="Doc 1", meta={"category": "Python", "status": "active", "priority": 1}),
+            Document(content="Doc 2", meta={"category": "Java", "status": "active", "priority": 2}),
+            Document(content="Doc 3", meta={"category": "Python", "status": "inactive", "priority": 3}),
+        ]
+        document_store.write_documents(docs, refresh=True)
+
+        # Search for "Python, active" - should match documents with both
+        result = document_store._metadata_search(
+            query="Python, active",
+            fields=["category", "status"],
+            mode="fuzzy",
+            top_k=10,
+        )
+
+        assert isinstance(result, list)
+        assert len(result) > 0
+        assert all(isinstance(row, dict) for row in result)
+
+    @pytest.mark.integration
+    def test_metadata_search_top_k(self, document_store: OpenSearchDocumentStore):
+        """Test metadata search respects top_k parameter."""
+        docs = [Document(content=f"Doc {i}", meta={"category": "Python", "index": i}) for i in range(15)]
+        document_store.write_documents(docs, refresh=True)
+
+        # Request top 5 results
+        result = document_store._metadata_search(
+            query="Python",
+            fields=["category"],
+            mode="fuzzy",
+            top_k=5,
+        )
+
+        assert isinstance(result, list)
+        assert len(result) <= 5
+
+    @pytest.mark.integration
+    def test_metadata_search_with_filters(self, document_store: OpenSearchDocumentStore):
+        """Test metadata search with additional filters."""
+        docs = [
+            Document(content="Doc 1", meta={"category": "Python", "status": "active", "priority": 1}),
+            Document(content="Doc 2", meta={"category": "Python", "status": "inactive", "priority": 2}),
+            Document(content="Doc 3", meta={"category": "Java", "status": "active", "priority": 1}),
+        ]
+        document_store.write_documents(docs, refresh=True)
+
+        # Search with filter for priority == 1
+        filters = {"field": "priority", "operator": "==", "value": 1}
+        result = document_store._metadata_search(
+            query="Python",
+            fields=["category"],
+            mode="fuzzy",
+            top_k=10,
+            filters=filters,
+        )
+
+        assert isinstance(result, list)
+        # Should only return documents with priority == 1
+        assert len(result) >= 1
+
+    @pytest.mark.integration
+    def test_metadata_search_empty_fields(self, document_store: OpenSearchDocumentStore):
+        """Test metadata search with empty fields list returns empty result."""
+        docs = [
+            Document(content="Doc 1", meta={"category": "Python"}),
+        ]
+        document_store.write_documents(docs, refresh=True)
+
+        result = document_store._metadata_search(
+            query="Python",
+            fields=[],
+            mode="fuzzy",
+            top_k=10,
+        )
+
+        assert isinstance(result, list)
+        assert len(result) == 0
+
+    @pytest.mark.integration
+    def test_metadata_search_deduplication(self, document_store: OpenSearchDocumentStore):
+        """Test that metadata search deduplicates results."""
+        docs = [
+            Document(content="Doc 1", meta={"category": "Python", "status": "active"}),
+            Document(content="Doc 2", meta={"category": "Python", "status": "active"}),
+        ]
+        document_store.write_documents(docs, refresh=True)
+
+        result = document_store._metadata_search(
+            query="Python",
+            fields=["category", "status"],
+            mode="fuzzy",
+            top_k=10,
+        )
+
+        assert isinstance(result, list)
+        # Check for deduplication - same metadata should appear only once
+        seen = []
+        for row in result:
+            row_tuple = tuple(sorted(row.items()))
+            assert row_tuple not in seen, "Duplicate metadata found"
+            seen.append(row_tuple)
+
+    def test_query_sql(self, document_store: OpenSearchDocumentStore):
+        docs = [
+            Document(content="Python programming", meta={"category": "A", "status": "active", "priority": 1}),
+            Document(content="Java programming", meta={"category": "B", "status": "active", "priority": 2}),
+            Document(content="Python scripting", meta={"category": "A", "status": "inactive", "priority": 3}),
+            Document(content="JavaScript development", meta={"category": "C", "status": "active", "priority": 1}),
+        ]
+        document_store.write_documents(docs, refresh=True)
+
+        # SQL query returns raw JSON response from OpenSearch SQL API
+        sql_query = (
+            f"SELECT content, category, status, priority FROM {document_store._index} "  # noqa: S608
+            f"WHERE category = 'A' ORDER BY priority"
+        )
+        result = document_store._query_sql(sql_query)
+
+        # Verify raw JSON response structure
+        assert isinstance(result, dict)
+        assert "hits" in result
+        assert "hits" in result["hits"]
+        assert len(result["hits"]["hits"]) == 2  # Two documents with category A
+
+        # Extract _source from each hit
+        hits = result["hits"]["hits"]
+        assert all(isinstance(hit, dict) and "_source" in hit for hit in hits)
+
+        categories = [hit["_source"].get("category") for hit in hits]
+        assert all(cat == "A" for cat in categories)
+
+        # verify all expected fields are present in _source
+        for hit in hits:
+            source = hit["_source"]
+            assert "content" in source
+            assert "category" in source
+            assert "status" in source
+            assert "priority" in source
+
+        # error handling for invalid SQL query
+        invalid_query = "SELECT * FROM non_existent_index"
+        with pytest.raises(DocumentStoreError, match="Failed to execute SQL query"):
+            document_store._query_sql(invalid_query)
