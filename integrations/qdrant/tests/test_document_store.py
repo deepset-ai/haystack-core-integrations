@@ -348,7 +348,11 @@ class TestQdrantDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocu
         ]
         document_store.write_documents(docs)
         assert document_store.count_documents() == 3
-        document_store.delete_by_filter(filters={"field": "meta.category", "operator": "==", "value": "A"})
+
+        deleted_count = document_store.delete_by_filter(
+            filters={"field": "meta.category", "operator": "==", "value": "A"}
+        )
+        assert deleted_count == 2
 
         # Verify only category B remains
         remaining_docs = document_store.filter_documents()
@@ -356,7 +360,8 @@ class TestQdrantDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocu
         assert remaining_docs[0].meta["category"] == "B"
 
         # Delete remaining document by year
-        document_store.delete_by_filter(filters={"field": "meta.year", "operator": "==", "value": 2023})
+        deleted_count = document_store.delete_by_filter(filters={"field": "meta.year", "operator": "==", "value": 2023})
+        assert deleted_count == 1
         assert document_store.count_documents() == 0
 
     def test_delete_by_filter_no_matches(self, document_store: QdrantDocumentStore):
@@ -368,7 +373,10 @@ class TestQdrantDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocu
         assert document_store.count_documents() == 2
 
         # try to delete documents with category="C" (no matches)
-        document_store.delete_by_filter(filters={"field": "meta.category", "operator": "==", "value": "C"})
+        deleted_count = document_store.delete_by_filter(
+            filters={"field": "meta.category", "operator": "==", "value": "C"}
+        )
+        assert deleted_count == 0
         assert document_store.count_documents() == 2
 
     def test_delete_by_filter_advanced_filters(self, document_store: QdrantDocumentStore):
@@ -380,8 +388,8 @@ class TestQdrantDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocu
         document_store.write_documents(docs)
         assert document_store.count_documents() == 3
 
-        # AND condition
-        document_store.delete_by_filter(
+        # AND condition (matches only Doc 1)
+        deleted_count = document_store.delete_by_filter(
             filters={
                 "operator": "AND",
                 "conditions": [
@@ -390,10 +398,11 @@ class TestQdrantDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocu
                 ],
             }
         )
+        assert deleted_count == 1
         assert document_store.count_documents() == 2
 
-        # OR condition
-        document_store.delete_by_filter(
+        # OR condition (matches Doc 2 and Doc 3)
+        deleted_count = document_store.delete_by_filter(
             filters={
                 "operator": "OR",
                 "conditions": [
@@ -402,6 +411,7 @@ class TestQdrantDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocu
                 ],
             }
         )
+        assert deleted_count == 2
         assert document_store.count_documents() == 0
 
     def test_update_by_filter(self, document_store: QdrantDocumentStore):

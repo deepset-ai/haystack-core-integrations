@@ -275,7 +275,10 @@ class TestQdrantDocumentStore:
         assert await document_store.count_documents_async() == 3
 
         # Delete documents with category="A"
-        await document_store.delete_by_filter_async(filters={"field": "meta.category", "operator": "==", "value": "A"})
+        deleted_count = await document_store.delete_by_filter_async(
+            filters={"field": "meta.category", "operator": "==", "value": "A"}
+        )
+        assert deleted_count == 2
         assert await document_store.count_documents_async() == 1
 
         # Verify only category B remains
@@ -286,7 +289,10 @@ class TestQdrantDocumentStore:
         assert remaining_docs[0].meta["category"] == "B"
 
         # Delete remaining document by year
-        await document_store.delete_by_filter_async(filters={"field": "meta.year", "operator": "==", "value": 2023})
+        deleted_count = await document_store.delete_by_filter_async(
+            filters={"field": "meta.year", "operator": "==", "value": 2023}
+        )
+        assert deleted_count == 1
         assert await document_store.count_documents_async() == 0
 
     @pytest.mark.asyncio
@@ -299,7 +305,10 @@ class TestQdrantDocumentStore:
         assert await document_store.count_documents_async() == 2
 
         # Try to delete documents with category="C" (no matches)
-        await document_store.delete_by_filter_async(filters={"field": "meta.category", "operator": "==", "value": "C"})
+        deleted_count = await document_store.delete_by_filter_async(
+            filters={"field": "meta.category", "operator": "==", "value": "C"}
+        )
+        assert deleted_count == 0
         assert await document_store.count_documents_async() == 2
 
     @pytest.mark.asyncio
@@ -312,8 +321,8 @@ class TestQdrantDocumentStore:
         await document_store.write_documents_async(docs)
         assert await document_store.count_documents_async() == 3
 
-        # AND condition
-        await document_store.delete_by_filter_async(
+        # AND condition (matches only Doc 1)
+        deleted_count = await document_store.delete_by_filter_async(
             filters={
                 "operator": "AND",
                 "conditions": [
@@ -322,10 +331,11 @@ class TestQdrantDocumentStore:
                 ],
             }
         )
+        assert deleted_count == 1
         assert await document_store.count_documents_async() == 2
 
-        # OR condition
-        await document_store.delete_by_filter_async(
+        # OR condition (matches Doc 2 and Doc 3)
+        deleted_count = await document_store.delete_by_filter_async(
             filters={
                 "operator": "OR",
                 "conditions": [
@@ -334,6 +344,7 @@ class TestQdrantDocumentStore:
                 ],
             }
         )
+        assert deleted_count == 2
         assert await document_store.count_documents_async() == 0
 
     @pytest.mark.asyncio
