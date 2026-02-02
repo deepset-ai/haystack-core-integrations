@@ -865,7 +865,8 @@ class QdrantDocumentStore:
                 count_filter=qdrant_filter,
             )
             return response.count
-        except (UnexpectedResponse, ValueError):
+        except (UnexpectedResponse, ValueError) as e:
+            logger.warning(f"Error {e} when calling QdrantDocumentStore.count_documents_by_filter()")
             return 0
 
     async def count_documents_by_filter_async(self, filters: dict[str, Any]) -> int:
@@ -888,7 +889,8 @@ class QdrantDocumentStore:
                 count_filter=qdrant_filter,
             )
             return response.count
-        except (UnexpectedResponse, ValueError):
+        except (UnexpectedResponse, ValueError) as e:
+            logger.warning(f"Error {e} when calling QdrantDocumentStore.count_documents_by_filter_async()")
             return 0
 
     def get_metadata_fields_info(self) -> dict[str, str]:
@@ -913,7 +915,8 @@ class QdrantDocumentStore:
                     fields_info[field_name] = "unknown"
 
             return fields_info
-        except (UnexpectedResponse, ValueError):
+        except (UnexpectedResponse, ValueError) as e:
+            logger.warning(f"Error {e} when calling QdrantDocumentStore.get_metadata_fields_info()")
             return {}
 
     async def get_metadata_fields_info_async(self) -> dict[str, str]:
@@ -991,8 +994,10 @@ class QdrantDocumentStore:
             if min_value is not None and max_value is not None:
                 return {"min": min_value, "max": max_value}
             return {}
-        except Exception:
+        except Exception as e:
+            logger.warning(f"Error {e} when calling QdrantDocumentStore.get_metadata_field_min_max()")
             return {}
+
 
     async def get_metadata_field_min_max_async(self, metadata_field: str) -> dict[str, Any]:
         """
@@ -1044,7 +1049,8 @@ class QdrantDocumentStore:
             if min_value is not None and max_value is not None:
                 return {"min": min_value, "max": max_value}
             return {}
-        except Exception:
+        except Exception as e:
+            logger.warning(f"Error {e} when calling QdrantDocumentStore.get_metadata_field_min_max_async()")
             return {}
 
     def count_unique_metadata_by_filter(self, filters: dict[str, Any], metadata_fields: list[str]) -> dict[str, int]:
@@ -1098,7 +1104,8 @@ class QdrantDocumentStore:
                                         unique_values_by_field[field].add(value)
 
             return {field: len(unique_values_by_field[field]) for field in metadata_fields}
-        except Exception:
+        except Exception as e:
+            logger.warning(f"Error {e} when calling QdrantDocumentStore.count_unique_metadata_by_filter()")
             return dict.fromkeys(metadata_fields, 0)
 
     async def count_unique_metadata_by_filter_async(
@@ -1155,7 +1162,8 @@ class QdrantDocumentStore:
                                         unique_values_by_field[field].add(value)
 
             return {field: len(unique_values_by_field[field]) for field in metadata_fields}
-        except Exception:
+        except Exception as e:
+            logger.warning(f"Error {e} when calling QdrantDocumentStore.count_unique_metadata_by_filter_async()")
             return dict.fromkeys(metadata_fields, 0)
 
     def get_metadata_field_unique_values(
@@ -1217,7 +1225,8 @@ class QdrantDocumentStore:
                                         break
 
             return unique_values[offset : offset + limit]
-        except Exception:
+        except Exception as e:
+            logger.warning(f"Error {e} when calling QdrantDocumentStore.get_metadata_field_unique_values()")
             return []
 
     async def get_metadata_field_unique_values_async(
@@ -1279,7 +1288,8 @@ class QdrantDocumentStore:
                                         break
 
             return unique_values[offset : offset + limit]
-        except Exception:
+        except Exception as e:
+            logger.warning(f"Error {e} when calling QdrantDocumentStore.get_metadata_field_unique_values_async()")
             return []
 
     @classmethod
