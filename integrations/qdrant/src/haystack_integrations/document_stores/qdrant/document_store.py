@@ -983,7 +983,10 @@ class QdrantDocumentStore:
         Returns the information about the fields from the collection.
 
         :returns:
-            A dictionary mapping field names to their types (e.g., {"field_name": "integer"}).
+            A dictionary mapping field names to their types e.g.:
+            ```python
+            {"field_name": "integer"}
+            ```
         """
         self._initialize_client()
         assert self._client is not None
@@ -1001,7 +1004,10 @@ class QdrantDocumentStore:
         Asynchronously returns the information about the fields from the collection.
 
         :returns:
-            A dictionary mapping field names to their types (e.g., {"field_name": "integer"}).
+            A dictionary mapping field names to their types e.g.:
+            ```python
+            {"field_name": "integer"}
+            ```
         """
         await self._initialize_async_client()
         assert self._async_client is not None
