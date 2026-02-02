@@ -547,8 +547,23 @@ class TestQdrantDocumentStore:
         ]
         await document_store.write_documents_async(docs)
 
-        count = await document_store.count_unique_metadata_by_filter_async("category")
-        assert count == 3
+        result = await document_store.count_unique_metadata_by_filter_async(filters={}, metadata_fields=["category"])
+        assert result == {"category": 3}
+
+    @pytest.mark.asyncio
+    async def test_count_unique_metadata_by_filter_async_multiple_fields(self, document_store: QdrantDocumentStore):
+        """Test counting unique values for multiple metadata fields (async)."""
+        docs = [
+            Document(content="Doc 1", meta={"category": "A", "status": "active"}),
+            Document(content="Doc 2", meta={"category": "B", "status": "active"}),
+            Document(content="Doc 3", meta={"category": "A", "status": "inactive"}),
+        ]
+        await document_store.write_documents_async(docs)
+
+        result = await document_store.count_unique_metadata_by_filter_async(
+            filters={}, metadata_fields=["category", "status"]
+        )
+        assert result == {"category": 2, "status": 2}
 
     @pytest.mark.asyncio
     async def test_count_unique_metadata_by_filter_async_with_filter(self, document_store: QdrantDocumentStore):
@@ -560,11 +575,11 @@ class TestQdrantDocumentStore:
         ]
         await document_store.write_documents_async(docs)
 
-        # Count unique categories where status is active
-        count = await document_store.count_unique_metadata_by_filter_async(
-            "category", filters={"field": "meta.status", "operator": "==", "value": "active"}
+        result = await document_store.count_unique_metadata_by_filter_async(
+            filters={"field": "meta.status", "operator": "==", "value": "active"},
+            metadata_fields=["category"],
         )
-        assert count == 2
+        assert result == {"category": 2}
 
     @pytest.mark.asyncio
     async def test_get_metadata_field_unique_values_async(self, document_store: QdrantDocumentStore):

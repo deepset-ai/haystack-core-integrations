@@ -1047,21 +1047,22 @@ class QdrantDocumentStore:
         except Exception:
             return {}
 
-    def count_unique_metadata_by_filter(self, metadata_field: str, filters: dict[str, Any] | None = None) -> int:
+    def count_unique_metadata_by_filter(self, filters: dict[str, Any], metadata_fields: list[str]) -> dict[str, int]:
         """
-        Returns the number of unique values for the given metadata field among documents that match the filters.
+        Returns the number of unique values for each specified metadata field among documents that match the filters.
 
-        :param metadata_field: The metadata field key (inside ``meta``) to count unique values for.
-        :param filters: Optional filters to restrict the documents considered.
+        :param filters: The filters to restrict the documents considered.
             For filter syntax, see [Haystack metadata filtering](https://docs.haystack.deepset.ai/docs/metadata-filtering)
+        :param metadata_fields: List of metadata field keys (inside ``meta``) to count unique values for.
 
-        :returns: The number of unique values for the field among the filtered documents.
+        :returns: A dictionary mapping each metadata field name to the count of its unique values among the filtered
+                  documents.
         """
         self._initialize_client()
         assert self._client is not None
 
         qdrant_filter = convert_filters_to_qdrant(filters) if filters else None
-        unique_values = set()
+        unique_values_by_field: dict[str, set[Any]] = {field: set() for field in metadata_fields}
 
         try:
             next_offset = None
@@ -1087,37 +1088,38 @@ class QdrantDocumentStore:
                 for record in records:
                     if record.payload and "meta" in record.payload:
                         meta = record.payload["meta"]
-                        if metadata_field in meta:
-                            value = meta[metadata_field]
-                            if value is not None:
-                                # Convert to hashable type if needed
-                                if isinstance(value, (list, dict)):
-                                    unique_values.add(str(value))
-                                else:
-                                    unique_values.add(value)
+                        for field in metadata_fields:
+                            if field in meta:
+                                value = meta[field]
+                                if value is not None:
+                                    if isinstance(value, (list, dict)):
+                                        unique_values_by_field[field].add(str(value))
+                                    else:
+                                        unique_values_by_field[field].add(value)
 
-            return len(unique_values)
+            return {field: len(unique_values_by_field[field]) for field in metadata_fields}
         except Exception:
-            return 0
+            return dict.fromkeys(metadata_fields, 0)
 
     async def count_unique_metadata_by_filter_async(
-        self, metadata_field: str, filters: dict[str, Any] | None = None
-    ) -> int:
+        self, filters: dict[str, Any], metadata_fields: list[str]
+    ) -> dict[str, int]:
         """
-        Asynchronously returns the number of unique values for the given metadata field among documents that match
-        the filters.
+        Asynchronously returns the number of unique values for each specified metadata field among documents that
+        match the filters.
 
-        :param metadata_field: The metadata field key (inside ``meta``) to count unique values for.
-        :param filters: Optional filters to restrict the documents considered.
+        :param filters: The filters to restrict the documents considered.
             For filter syntax, see [Haystack metadata filtering](https://docs.haystack.deepset.ai/docs/metadata-filtering)
+        :param metadata_fields: List of metadata field keys (inside ``meta``) to count unique values for.
 
-        :returns: The number of unique values for the field among the filtered documents.
+        :returns: A dictionary mapping each metadata field name to the count of its unique values among the filtered
+                  documents.
         """
         await self._initialize_async_client()
         assert self._async_client is not None
 
         qdrant_filter = convert_filters_to_qdrant(filters) if filters else None
-        unique_values = set()
+        unique_values_by_field: dict[str, set[Any]] = {field: set() for field in metadata_fields}
 
         try:
             next_offset = None
@@ -1143,18 +1145,18 @@ class QdrantDocumentStore:
                 for record in records:
                     if record.payload and "meta" in record.payload:
                         meta = record.payload["meta"]
-                        if metadata_field in meta:
-                            value = meta[metadata_field]
-                            if value is not None:
-                                # Convert to hashable type if needed
-                                if isinstance(value, (list, dict)):
-                                    unique_values.add(str(value))
-                                else:
-                                    unique_values.add(value)
+                        for field in metadata_fields:
+                            if field in meta:
+                                value = meta[field]
+                                if value is not None:
+                                    if isinstance(value, (list, dict)):
+                                        unique_values_by_field[field].add(str(value))
+                                    else:
+                                        unique_values_by_field[field].add(value)
 
-            return len(unique_values)
+            return {field: len(unique_values_by_field[field]) for field in metadata_fields}
         except Exception:
-            return 0
+            return dict.fromkeys(metadata_fields, 0)
 
     def get_metadata_field_unique_values(
         self, metadata_field: str, filters: dict[str, Any] | None = None, limit: int = 100, offset: int = 0

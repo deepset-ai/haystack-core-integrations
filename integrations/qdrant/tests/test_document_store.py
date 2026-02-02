@@ -595,8 +595,20 @@ class TestQdrantDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocu
         ]
         document_store.write_documents(docs)
 
-        count = document_store.count_unique_metadata_by_filter("category")
-        assert count == 3
+        result = document_store.count_unique_metadata_by_filter(filters={}, metadata_fields=["category"])
+        assert result == {"category": 3}
+
+    def test_count_unique_metadata_by_filter_multiple_fields(self, document_store: QdrantDocumentStore):
+        """Test counting unique values for multiple metadata fields."""
+        docs = [
+            Document(content="Doc 1", meta={"category": "A", "status": "active"}),
+            Document(content="Doc 2", meta={"category": "B", "status": "active"}),
+            Document(content="Doc 3", meta={"category": "A", "status": "inactive"}),
+        ]
+        document_store.write_documents(docs)
+
+        result = document_store.count_unique_metadata_by_filter(filters={}, metadata_fields=["category", "status"])
+        assert result == {"category": 2, "status": 2}
 
     def test_count_unique_metadata_by_filter_with_filter(self, document_store: QdrantDocumentStore):
         """Test counting unique metadata field values with filtering."""
@@ -607,11 +619,11 @@ class TestQdrantDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocu
         ]
         document_store.write_documents(docs)
 
-        # Count unique categories where status is active
-        count = document_store.count_unique_metadata_by_filter(
-            "category", filters={"field": "meta.status", "operator": "==", "value": "active"}
+        result = document_store.count_unique_metadata_by_filter(
+            filters={"field": "meta.status", "operator": "==", "value": "active"},
+            metadata_fields=["category"],
         )
-        assert count == 2
+        assert result == {"category": 2}
 
     def test_get_metadata_field_unique_values(self, document_store: QdrantDocumentStore):
         """Test getting unique metadata field values."""
