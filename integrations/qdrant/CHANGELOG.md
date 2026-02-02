@@ -1,11 +1,18 @@
 # Changelog
 
-## [unreleased]
+## [integrations/qdrant-v9.6.0] - 2026-02-02
+
+### 🚀 Features
+
+- Adding count with filtering operations to`QdrantDocumentStore` (#2803)
 
 ### 🧹 Chores
 
 - Make fmt command more forgiving (#2671)
 - [**breaking**] Qdrant - drop Python 3.9 and use X|Y typing (#2726)
+- Disabling progress bar in `QdrantDocumentStore` tests (#2797)
+
+### 🌀 Miscellaneous
 
 
 ## [integrations/qdrant-v9.5.0] - 2026-01-07
