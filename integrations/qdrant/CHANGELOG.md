@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/qdrant-v10.2.1] - 2026-02-02
+
+### 📚 Documentation
+
+- Fixing `QdrantDocumentStore` docstring parsing error (#2806)
+
+
 ## [integrations/qdrant-v10.2.0] - 2026-02-02
 
 ### 🌀 Miscellaneous
