@@ -517,7 +517,7 @@ class QdrantDocumentStore:
                 "Called QdrantDocumentStore.delete_documents_async() on a non-existing ID",
             )
 
-    def delete_by_filter(self, filters: dict[str, Any]) -> None:
+    def delete_by_filter(self, filters: dict[str, Any]) -> int:
         """
         Deletes all documents that match the provided filters.
 
@@ -533,20 +533,26 @@ class QdrantDocumentStore:
         try:
             qdrant_filter = convert_filters_to_qdrant(filters)
             if qdrant_filter is None:
-                return
+                return 0
 
-            # perform deletion using FilterSelector
+            count_response = self._client.count(
+                collection_name=self.index,
+                count_filter=qdrant_filter,
+            )
+            deleted_count = count_response.count
+
             self._client.delete(
                 collection_name=self.index,
                 points_selector=rest.FilterSelector(filter=qdrant_filter),
                 wait=self.wait_result_from_api,
             )
+            return deleted_count
 
         except Exception as e:
             msg = f"Failed to delete documents by filter from Qdrant: {e!s}"
             raise QdrantStoreError(msg) from e
 
-    async def delete_by_filter_async(self, filters: dict[str, Any]) -> None:
+    async def delete_by_filter_async(self, filters: dict[str, Any]) -> int:
         """
         Asynchronously deletes all documents that match the provided filters.
 
@@ -562,14 +568,20 @@ class QdrantDocumentStore:
         try:
             qdrant_filter = convert_filters_to_qdrant(filters)
             if qdrant_filter is None:
-                return
+                return 0
 
-            # perform deletion using FilterSelector
+            count_response = await self._async_client.count(
+                collection_name=self.index,
+                count_filter=qdrant_filter,
+            )
+            deleted_count = count_response.count
+
             await self._async_client.delete(
                 collection_name=self.index,
                 points_selector=rest.FilterSelector(filter=qdrant_filter),
                 wait=self.wait_result_from_api,
             )
+            return deleted_count
 
         except Exception as e:
             msg = f"Failed to delete documents by filter from Qdrant: {e!s}"
