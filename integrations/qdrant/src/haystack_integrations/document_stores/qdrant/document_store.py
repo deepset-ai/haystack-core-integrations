@@ -591,6 +591,79 @@ class QdrantDocumentStore:
         )
 
     @staticmethod
+    def _metadata_fields_info_from_schema(payload_schema: dict[str, Any]) -> dict[str, str]:
+        """Build field name -> type dict from Qdrant payload_schema. Used by get_metadata_fields_info (sync/async)."""
+        fields_info: dict[str, str] = {}
+        for field_name, field_config in payload_schema.items():
+            if hasattr(field_config, "data_type"):
+                fields_info[field_name] = str(field_config.data_type)
+            else:
+                fields_info[field_name] = "unknown"
+        return fields_info
+
+    @staticmethod
+    def _process_records_min_max(
+        records: list[Any], metadata_field: str, min_value: Any, max_value: Any
+    ) -> tuple[Any, Any]:
+        """Update min/max from a batch of Qdrant records. Used by get_metadata_field_min_max (sync/async)."""
+        for record in records:
+            if record.payload and "meta" in record.payload:
+                meta = record.payload["meta"]
+                if metadata_field in meta:
+                    value = meta[metadata_field]
+                    if value is not None:
+                        if min_value is None or value < min_value:
+                            min_value = value
+                        if max_value is None or value > max_value:
+                            max_value = value
+        return min_value, max_value
+
+    @staticmethod
+    def _process_records_count_unique(
+        records: list[Any], metadata_fields: list[str], unique_values_by_field: dict[str, set[Any]]
+    ) -> None:
+        """
+        Update unique_values_by_field from a batch of Qdrant records.
+
+        Used by count_unique_metadata_by_filter (sync/async).
+        """
+        for record in records:
+            if record.payload and "meta" in record.payload:
+                meta = record.payload["meta"]
+                for field in metadata_fields:
+                    if field in meta:
+                        value = meta[field]
+                        if value is not None:
+                            if isinstance(value, (list, dict)):
+                                unique_values_by_field[field].add(str(value))
+                            else:
+                                unique_values_by_field[field].add(value)
+
+    @staticmethod
+    def _process_records_unique_values(
+        records: list[Any],
+        metadata_field: str,
+        unique_values: list[Any],
+        unique_values_set: set[Any],
+        offset: int,
+        limit: int,
+    ) -> bool:
+        """Collect unique values from a batch of records. Returns True when len(unique_values) >= offset + limit."""
+        for record in records:
+            if record.payload and "meta" in record.payload:
+                meta = record.payload["meta"]
+                if metadata_field in meta:
+                    value = meta[metadata_field]
+                    if value is not None:
+                        hashable_value = str(value) if isinstance(value, (list, dict)) else value
+                        if hashable_value not in unique_values_set:
+                            unique_values_set.add(hashable_value)
+                            unique_values.append(value)
+                            if len(unique_values) >= offset + limit:
+                                return True
+        return False
+
+    @staticmethod
     def _create_updated_point_from_record(record: Any, meta: dict[str, Any]) -> rest.PointStruct:
         """
         Creates an updated PointStruct from a Qdrant record with merged metadata.
@@ -906,15 +979,7 @@ class QdrantDocumentStore:
         try:
             collection_info = self._client.get_collection(self.index)
             payload_schema = collection_info.payload_schema or {}
-
-            fields_info = {}
-            for field_name, field_config in payload_schema.items():
-                if hasattr(field_config, "data_type"):
-                    fields_info[field_name] = str(field_config.data_type)
-                else:
-                    fields_info[field_name] = "unknown"
-
-            return fields_info
+            return self._metadata_fields_info_from_schema(payload_schema)
         except (UnexpectedResponse, ValueError) as e:
             logger.warning(f"Error {e} when calling QdrantDocumentStore.get_metadata_fields_info()")
             return {}
@@ -932,16 +997,9 @@ class QdrantDocumentStore:
         try:
             collection_info = await self._async_client.get_collection(self.index)
             payload_schema = collection_info.payload_schema or {}
-
-            fields_info = {}
-            for field_name, field_config in payload_schema.items():
-                if hasattr(field_config, "data_type"):
-                    fields_info[field_name] = str(field_config.data_type)
-                else:
-                    fields_info[field_name] = "unknown"
-
-            return fields_info
-        except (UnexpectedResponse, ValueError):
+            return self._metadata_fields_info_from_schema(payload_schema)
+        except (UnexpectedResponse, ValueError) as e:
+            logger.warning(f"Error {e} when calling QdrantDocumentStore.get_metadata_fields_info_async()")
             return {}
 
     def get_metadata_field_min_max(self, metadata_field: str) -> dict[str, Any]:
@@ -957,13 +1015,11 @@ class QdrantDocumentStore:
         assert self._client is not None
 
         try:
-            min_value = None
-            max_value = None
-
+            min_value: Any = None
+            max_value: Any = None
             next_offset = None
-            stop_scrolling = False
 
-            while not stop_scrolling:
+            while True:
                 records, next_offset = self._client.scroll(
                     collection_name=self.index,
                     scroll_filter=None,
@@ -972,24 +1028,9 @@ class QdrantDocumentStore:
                     with_payload=True,
                     with_vectors=False,
                 )
-
-                stop_scrolling = next_offset is None or (
-                    hasattr(next_offset, "num")
-                    and hasattr(next_offset, "uuid")
-                    and next_offset.num == 0
-                    and next_offset.uuid == ""
-                )
-
-                for record in records:
-                    if record.payload and "meta" in record.payload:
-                        meta = record.payload["meta"]
-                        if metadata_field in meta:
-                            value = meta[metadata_field]
-                            if value is not None:
-                                if min_value is None or value < min_value:
-                                    min_value = value
-                                if max_value is None or value > max_value:
-                                    max_value = value
+                min_value, max_value = self._process_records_min_max(records, metadata_field, min_value, max_value)
+                if self._check_stop_scrolling(next_offset):
+                    break
 
             if min_value is not None and max_value is not None:
                 return {"min": min_value, "max": max_value}
@@ -997,7 +1038,6 @@ class QdrantDocumentStore:
         except Exception as e:
             logger.warning(f"Error {e} when calling QdrantDocumentStore.get_metadata_field_min_max()")
             return {}
-
 
     async def get_metadata_field_min_max_async(self, metadata_field: str) -> dict[str, Any]:
         """
@@ -1012,13 +1052,11 @@ class QdrantDocumentStore:
         assert self._async_client is not None
 
         try:
-            min_value = None
-            max_value = None
-
+            min_value: Any = None
+            max_value: Any = None
             next_offset = None
-            stop_scrolling = False
 
-            while not stop_scrolling:
+            while True:
                 records, next_offset = await self._async_client.scroll(
                     collection_name=self.index,
                     scroll_filter=None,
@@ -1027,24 +1065,9 @@ class QdrantDocumentStore:
                     with_payload=True,
                     with_vectors=False,
                 )
-
-                stop_scrolling = next_offset is None or (
-                    hasattr(next_offset, "num")
-                    and hasattr(next_offset, "uuid")
-                    and next_offset.num == 0
-                    and next_offset.uuid == ""
-                )
-
-                for record in records:
-                    if record.payload and "meta" in record.payload:
-                        meta = record.payload["meta"]
-                        if metadata_field in meta:
-                            value = meta[metadata_field]
-                            if value is not None:
-                                if min_value is None or value < min_value:
-                                    min_value = value
-                                if max_value is None or value > max_value:
-                                    max_value = value
+                min_value, max_value = self._process_records_min_max(records, metadata_field, min_value, max_value)
+                if self._check_stop_scrolling(next_offset):
+                    break
 
             if min_value is not None and max_value is not None:
                 return {"min": min_value, "max": max_value}
@@ -1072,9 +1095,7 @@ class QdrantDocumentStore:
 
         try:
             next_offset = None
-            stop_scrolling = False
-
-            while not stop_scrolling:
+            while True:
                 records, next_offset = self._client.scroll(
                     collection_name=self.index,
                     scroll_filter=qdrant_filter,
@@ -1083,25 +1104,9 @@ class QdrantDocumentStore:
                     with_payload=True,
                     with_vectors=False,
                 )
-
-                stop_scrolling = next_offset is None or (
-                    hasattr(next_offset, "num")
-                    and hasattr(next_offset, "uuid")
-                    and next_offset.num == 0
-                    and next_offset.uuid == ""
-                )
-
-                for record in records:
-                    if record.payload and "meta" in record.payload:
-                        meta = record.payload["meta"]
-                        for field in metadata_fields:
-                            if field in meta:
-                                value = meta[field]
-                                if value is not None:
-                                    if isinstance(value, (list, dict)):
-                                        unique_values_by_field[field].add(str(value))
-                                    else:
-                                        unique_values_by_field[field].add(value)
+                self._process_records_count_unique(records, metadata_fields, unique_values_by_field)
+                if self._check_stop_scrolling(next_offset):
+                    break
 
             return {field: len(unique_values_by_field[field]) for field in metadata_fields}
         except Exception as e:
@@ -1130,9 +1135,7 @@ class QdrantDocumentStore:
 
         try:
             next_offset = None
-            stop_scrolling = False
-
-            while not stop_scrolling:
+            while True:
                 records, next_offset = await self._async_client.scroll(
                     collection_name=self.index,
                     scroll_filter=qdrant_filter,
@@ -1141,25 +1144,9 @@ class QdrantDocumentStore:
                     with_payload=True,
                     with_vectors=False,
                 )
-
-                stop_scrolling = next_offset is None or (
-                    hasattr(next_offset, "num")
-                    and hasattr(next_offset, "uuid")
-                    and next_offset.num == 0
-                    and next_offset.uuid == ""
-                )
-
-                for record in records:
-                    if record.payload and "meta" in record.payload:
-                        meta = record.payload["meta"]
-                        for field in metadata_fields:
-                            if field in meta:
-                                value = meta[field]
-                                if value is not None:
-                                    if isinstance(value, (list, dict)):
-                                        unique_values_by_field[field].add(str(value))
-                                    else:
-                                        unique_values_by_field[field].add(value)
+                self._process_records_count_unique(records, metadata_fields, unique_values_by_field)
+                if self._check_stop_scrolling(next_offset):
+                    break
 
             return {field: len(unique_values_by_field[field]) for field in metadata_fields}
         except Exception as e:
@@ -1187,13 +1174,11 @@ class QdrantDocumentStore:
 
         qdrant_filter = convert_filters_to_qdrant(filters) if filters else None
         unique_values: list[Any] = []
-        unique_values_set = set()
+        unique_values_set: set[Any] = set()
 
         try:
             next_offset = None
-            stop_scrolling = False
-
-            while not stop_scrolling and len(unique_values) < offset + limit:
+            while len(unique_values) < offset + limit:
                 records, next_offset = self._client.scroll(
                     collection_name=self.index,
                     scroll_filter=qdrant_filter,
@@ -1202,27 +1187,12 @@ class QdrantDocumentStore:
                     with_payload=True,
                     with_vectors=False,
                 )
-
-                stop_scrolling = next_offset is None or (
-                    hasattr(next_offset, "num")
-                    and hasattr(next_offset, "uuid")
-                    and next_offset.num == 0
-                    and next_offset.uuid == ""
-                )
-
-                for record in records:
-                    if record.payload and "meta" in record.payload:
-                        meta = record.payload["meta"]
-                        if metadata_field in meta:
-                            value = meta[metadata_field]
-                            if value is not None:
-                                # Convert to hashable type for deduplication
-                                hashable_value = str(value) if isinstance(value, (list, dict)) else value
-                                if hashable_value not in unique_values_set:
-                                    unique_values_set.add(hashable_value)
-                                    unique_values.append(value)
-                                    if len(unique_values) >= offset + limit:
-                                        break
+                if self._process_records_unique_values(
+                    records, metadata_field, unique_values, unique_values_set, offset, limit
+                ):
+                    break
+                if self._check_stop_scrolling(next_offset):
+                    break
 
             return unique_values[offset : offset + limit]
         except Exception as e:
@@ -1250,13 +1220,11 @@ class QdrantDocumentStore:
 
         qdrant_filter = convert_filters_to_qdrant(filters) if filters else None
         unique_values: list[Any] = []
-        unique_values_set = set()
+        unique_values_set: set[Any] = set()
 
         try:
             next_offset = None
-            stop_scrolling = False
-
-            while not stop_scrolling and len(unique_values) < offset + limit:
+            while len(unique_values) < offset + limit:
                 records, next_offset = await self._async_client.scroll(
                     collection_name=self.index,
                     scroll_filter=qdrant_filter,
@@ -1265,27 +1233,12 @@ class QdrantDocumentStore:
                     with_payload=True,
                     with_vectors=False,
                 )
-
-                stop_scrolling = next_offset is None or (
-                    hasattr(next_offset, "num")
-                    and hasattr(next_offset, "uuid")
-                    and next_offset.num == 0
-                    and next_offset.uuid == ""
-                )
-
-                for record in records:
-                    if record.payload and "meta" in record.payload:
-                        meta = record.payload["meta"]
-                        if metadata_field in meta:
-                            value = meta[metadata_field]
-                            if value is not None:
-                                # Convert to hashable type for deduplication
-                                hashable_value = str(value) if isinstance(value, (list, dict)) else value
-                                if hashable_value not in unique_values_set:
-                                    unique_values_set.add(hashable_value)
-                                    unique_values.append(value)
-                                    if len(unique_values) >= offset + limit:
-                                        break
+                if self._process_records_unique_values(
+                    records, metadata_field, unique_values, unique_values_set, offset, limit
+                ):
+                    break
+                if self._check_stop_scrolling(next_offset):
+                    break
 
             return unique_values[offset : offset + limit]
         except Exception as e:
