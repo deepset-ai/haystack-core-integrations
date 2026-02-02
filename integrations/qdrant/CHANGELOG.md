@@ -1,5 +1,11 @@
 # Changelog
 
+## [integrations/qdrant-v10.2.0] - 2026-02-02
+
+### 🌀 Miscellaneous
+
+- Feat: `QdrantDocumentStore` return number deleted docs on `delete_by_filter` (#2807)
+
 ## [integrations/qdrant-v9.6.0] - 2026-02-02
 
 ### 🚀 Features
