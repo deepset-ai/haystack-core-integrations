@@ -575,7 +575,6 @@ class TestElasticsearchDocumentStoreAsync:
     @pytest.mark.asyncio
     async def test_query_sql_async_error_handling(self, document_store: ElasticsearchDocumentStore):
         """Test error handling for invalid SQL queries"""
-        from haystack.document_stores.errors import DocumentStoreError
 
         invalid_query = "SELECT * FROM non_existent_index"
         with pytest.raises(DocumentStoreError, match="Failed to execute SQL query"):

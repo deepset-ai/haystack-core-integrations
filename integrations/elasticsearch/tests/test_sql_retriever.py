@@ -5,7 +5,6 @@
 from unittest.mock import Mock, patch
 
 import pytest
-from haystack.dataclasses import Document
 
 from haystack_integrations.components.retrievers.elasticsearch import ElasticsearchSQLRetriever
 from haystack_integrations.document_stores.elasticsearch import ElasticsearchDocumentStore
@@ -35,7 +34,10 @@ def test_to_dict(_mock_elasticsearch_client):
     document_store = ElasticsearchDocumentStore(hosts="some fake host")
     retriever = ElasticsearchSQLRetriever(document_store=document_store, fetch_size=100)
     res = retriever.to_dict()
-    assert res["type"] == "haystack_integrations.components.retrievers.elasticsearch.sql_retriever.ElasticsearchSQLRetriever"
+    assert (
+        res["type"]
+        == "haystack_integrations.components.retrievers.elasticsearch.sql_retriever.ElasticsearchSQLRetriever"
+    )
     assert res["init_parameters"]["raise_on_failure"] is True
     assert res["init_parameters"]["fetch_size"] == 100
     assert "document_store" in res["init_parameters"]
