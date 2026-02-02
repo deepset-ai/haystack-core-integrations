@@ -974,7 +974,7 @@ class QdrantDocumentStore:
             A dictionary mapping field names to their types e.g.:
             ```python
             {"field_name": "integer"}
-            ```python
+            ```
         """
         self._initialize_client()
         assert self._client is not None
@@ -995,7 +995,7 @@ class QdrantDocumentStore:
             A dictionary mapping field names to their types e.g.:
             ```python
             {"field_name": "integer"}
-            ```python
+            ```
         """
         await self._initialize_async_client()
         assert self._async_client is not None
