@@ -585,21 +585,6 @@ class TestQdrantDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocu
         assert result.get("min") == 0.3
         assert result.get("max") == 0.8
 
-    def test_get_metadata_field_min_max_with_filter(self, document_store: QdrantDocumentStore):
-        """Test getting min/max values with filtering."""
-        docs = [
-            Document(content="Doc 1", meta={"score": 0.5, "category": "A"}),
-            Document(content="Doc 2", meta={"score": 0.8, "category": "A"}),
-            Document(content="Doc 3", meta={"score": 0.3, "category": "B"}),
-        ]
-        document_store.write_documents(docs)
-
-        result = document_store.get_metadata_field_min_max(
-            "score", filters={"field": "meta.category", "operator": "==", "value": "A"}
-        )
-        assert result.get("min") == 0.5
-        assert result.get("max") == 0.8
-
     def test_count_unique_metadata_by_filter(self, document_store: QdrantDocumentStore):
         """Test counting unique metadata field values."""
         docs = [
