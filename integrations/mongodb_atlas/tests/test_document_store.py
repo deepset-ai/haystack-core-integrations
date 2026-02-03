@@ -1,6 +1,7 @@
 # SPDX-FileCopyrightText: 2023-present deepset GmbH <info@deepset.ai>
 #
 # SPDX-License-Identifier: Apache-2.0
+
 import os
 from unittest.mock import patch
 from uuid import uuid4
@@ -385,18 +386,6 @@ class TestDocumentStore(DocumentStoreBaseTests):
         )
         assert len(unpublished_docs) == 1
         assert "status" not in unpublished_docs[0].meta
-
-    def test_delete_all_documents(self, document_store: MongoDBAtlasDocumentStore):
-        docs = [Document(id="1", content="first doc"), Document(id="2", content="second doc")]
-        document_store.write_documents(docs)
-        assert document_store.count_documents() == 2
-        document_store.delete_all_documents()
-        assert document_store.count_documents() == 0
-
-    def test_delete_all_documents_empty_collection(self, document_store: MongoDBAtlasDocumentStore):
-        assert document_store.count_documents() == 0
-        document_store.delete_all_documents()
-        assert document_store.count_documents() == 0
 
     def test_delete_all_documents_with_recreate_collection(self, document_store: MongoDBAtlasDocumentStore):
         docs = [Document(id="1", content="first doc"), Document(id="2", content="second doc")]
