@@ -797,13 +797,6 @@ class TestWeaviateDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDo
         document_store = WeaviateDocumentStore(embedded_options=EmbeddedOptions())
         assert document_store.client
 
-    def test_delete_all_documents(self, document_store):
-        docs = [Document(content="test doc 1"), Document(content="test doc 2")]
-        assert document_store.write_documents(docs) == 2
-        assert document_store.count_documents() == 2
-        document_store.delete_all_documents()
-        assert document_store.count_documents() == 0
-
     def test_delete_all_documents_recreate(self, document_store):
         docs = [Document(content="test doc 1"), Document(content="test doc 2")]
         assert document_store.write_documents(docs) == 2
