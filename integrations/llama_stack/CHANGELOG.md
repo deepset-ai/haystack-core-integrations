@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/llama_stack-v3.0.0] - 2026-02-03
+
+### 🐛 Bug Fixes
+
+- *(llama_stack)* Support llama-stack>=0.4.0 (#2805)
+
+
 ## [integrations/llama_stack-v2.0.0] - 2026-01-12
 
 
