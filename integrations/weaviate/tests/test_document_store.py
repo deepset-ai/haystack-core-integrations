@@ -828,21 +828,6 @@ class TestWeaviateDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDo
         assert document_store.count_documents() == 5
         assert "Not all documents have been deleted." in caplog.text
 
-    def test_delete_by_filter(self, document_store):
-        docs = [
-            Document(content="Doc 1", meta={"category": "TypeA"}),
-            Document(content="Doc 2", meta={"category": "TypeB"}),
-            Document(content="Doc 3", meta={"category": "TypeA"}),
-        ]
-        document_store.write_documents(docs)
-        assert document_store.count_documents() == 3
-
-        deleted_count = document_store.delete_by_filter(
-            filters={"field": "meta.category", "operator": "==", "value": "TypeA"}
-        )
-        assert deleted_count == 2
-        assert document_store.count_documents() == 1
-
     def test_update_by_filter_with_pagination(self, document_store, monkeypatch):
         # Reduce DEFAULT_QUERY_LIMIT to test pagination without creating 10000+ documents
         monkeypatch.setattr("haystack_integrations.document_stores.weaviate.document_store.DEFAULT_QUERY_LIMIT", 100)
