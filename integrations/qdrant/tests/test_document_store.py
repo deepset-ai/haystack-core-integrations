@@ -8,6 +8,7 @@ from haystack.document_stores.types import DuplicatePolicy
 from haystack.testing.document_store import (
     CountDocumentsTest,
     DeleteDocumentsTest,
+    UpdateByFilterTest,
     WriteDocumentsTest,
     _random_embeddings,
 )
@@ -22,7 +23,7 @@ from haystack_integrations.document_stores.qdrant.document_store import (
 )
 
 
-class TestQdrantDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocumentsTest):
+class TestQdrantDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocumentsTest, UpdateByFilterTest):
     @pytest.fixture
     def document_store(self) -> QdrantDocumentStore:
         return QdrantDocumentStore(
@@ -325,184 +326,7 @@ class TestQdrantDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocu
         # ensure the collection still exists by writing documents again
         document_store.write_documents(docs)
         assert document_store.count_documents() == 5
-
-    def test_delete_by_filter(self, document_store: QdrantDocumentStore):
-        docs = [
-            Document(content="Doc 1", meta={"category": "A", "year": 2023}),
-            Document(content="Doc 2", meta={"category": "B", "year": 2023}),
-            Document(content="Doc 3", meta={"category": "A", "year": 2024}),
-        ]
-        document_store.write_documents(docs)
-        assert document_store.count_documents() == 3
-
-        deleted_count = document_store.delete_by_filter(
-            filters={"field": "meta.category", "operator": "==", "value": "A"}
-        )
-        assert deleted_count == 2
-
-        # Verify only category B remains
-        remaining_docs = document_store.filter_documents()
-        assert len(remaining_docs) == 1
-        assert remaining_docs[0].meta["category"] == "B"
-
-        # Delete remaining document by year
-        deleted_count = document_store.delete_by_filter(filters={"field": "meta.year", "operator": "==", "value": 2023})
-        assert deleted_count == 1
-        assert document_store.count_documents() == 0
-
-    def test_delete_by_filter_no_matches(self, document_store: QdrantDocumentStore):
-        docs = [
-            Document(content="Doc 1", meta={"category": "A"}),
-            Document(content="Doc 2", meta={"category": "B"}),
-        ]
-        document_store.write_documents(docs)
-        assert document_store.count_documents() == 2
-
-        # try to delete documents with category="C" (no matches)
-        deleted_count = document_store.delete_by_filter(
-            filters={"field": "meta.category", "operator": "==", "value": "C"}
-        )
-        assert deleted_count == 0
-        assert document_store.count_documents() == 2
-
-    def test_delete_by_filter_advanced_filters(self, document_store: QdrantDocumentStore):
-        docs = [
-            Document(content="Doc 1", meta={"category": "A", "year": 2023, "status": "draft"}),
-            Document(content="Doc 2", meta={"category": "A", "year": 2024, "status": "published"}),
-            Document(content="Doc 3", meta={"category": "B", "year": 2023, "status": "draft"}),
-        ]
-        document_store.write_documents(docs)
-        assert document_store.count_documents() == 3
-
-        # AND condition (matches only Doc 1)
-        deleted_count = document_store.delete_by_filter(
-            filters={
-                "operator": "AND",
-                "conditions": [
-                    {"field": "meta.category", "operator": "==", "value": "A"},
-                    {"field": "meta.year", "operator": "==", "value": 2023},
-                ],
-            }
-        )
-        assert deleted_count == 1
-        assert document_store.count_documents() == 2
-
-        # OR condition (matches Doc 2 and Doc 3)
-        deleted_count = document_store.delete_by_filter(
-            filters={
-                "operator": "OR",
-                "conditions": [
-                    {"field": "meta.category", "operator": "==", "value": "B"},
-                    {"field": "meta.status", "operator": "==", "value": "published"},
-                ],
-            }
-        )
-        assert deleted_count == 2
-        assert document_store.count_documents() == 0
-
-    def test_update_by_filter(self, document_store: QdrantDocumentStore):
-        docs = [
-            Document(content="Doc 1", meta={"category": "A", "status": "draft"}),
-            Document(content="Doc 2", meta={"category": "B", "status": "draft"}),
-            Document(content="Doc 3", meta={"category": "A", "status": "draft"}),
-        ]
-        document_store.write_documents(docs)
-        assert document_store.count_documents() == 3
-
-        # Update status for category="A" documents
-        updated_count = document_store.update_by_filter(
-            filters={"field": "meta.category", "operator": "==", "value": "A"}, meta={"status": "published"}
-        )
-        assert updated_count == 2
-
-        # Verify the updated documents have the new metadata
-        published_docs = document_store.filter_documents(
-            filters={"field": "meta.status", "operator": "==", "value": "published"}
-        )
-        assert len(published_docs) == 2
-        for doc in published_docs:
-            assert doc.meta["status"] == "published"
-            assert doc.meta["category"] == "A"
-
-        # Verify documents with category="B" were not updated
-        draft_docs = document_store.filter_documents(
-            filters={"field": "meta.status", "operator": "==", "value": "draft"}
-        )
-        assert len(draft_docs) == 1
-        assert draft_docs[0].meta["category"] == "B"
-
-    def test_update_by_filter_multiple_fields(self, document_store: QdrantDocumentStore):
-        docs = [
-            Document(content="Doc 1", meta={"category": "A", "year": 2023}),
-            Document(content="Doc 2", meta={"category": "A", "year": 2023}),
-            Document(content="Doc 3", meta={"category": "B", "year": 2024}),
-        ]
-        document_store.write_documents(docs)
-        assert document_store.count_documents() == 3
-
-        # Update multiple fields for category="A" documents
-        updated_count = document_store.update_by_filter(
-            filters={"field": "meta.category", "operator": "==", "value": "A"},
-            meta={"status": "published", "reviewed": True},
-        )
-        assert updated_count == 2
-
-        # Verify updates
-        published_docs = document_store.filter_documents(
-            filters={"field": "meta.status", "operator": "==", "value": "published"}
-        )
-        assert len(published_docs) == 2
-        for doc in published_docs:
-            assert doc.meta["status"] == "published"
-            assert doc.meta["reviewed"] is True
-            assert doc.meta["category"] == "A"
-            assert doc.meta["year"] == 2023  # Existing field preserved
-
-    def test_update_by_filter_no_matches(self, document_store: QdrantDocumentStore):
-        docs = [
-            Document(content="Doc 1", meta={"category": "A"}),
-            Document(content="Doc 2", meta={"category": "B"}),
-        ]
-        document_store.write_documents(docs)
-        assert document_store.count_documents() == 2
-
-        # Try to update documents with category="C" (no matches)
-        updated_count = document_store.update_by_filter(
-            filters={"field": "meta.category", "operator": "==", "value": "C"}, meta={"status": "published"}
-        )
-        assert updated_count == 0
-        assert document_store.count_documents() == 2
-
-    def test_update_by_filter_advanced_filters(self, document_store: QdrantDocumentStore):
-        docs = [
-            Document(content="Doc 1", meta={"category": "A", "year": 2023, "status": "draft"}),
-            Document(content="Doc 2", meta={"category": "A", "year": 2024, "status": "draft"}),
-            Document(content="Doc 3", meta={"category": "B", "year": 2023, "status": "draft"}),
-        ]
-        document_store.write_documents(docs)
-        assert document_store.count_documents() == 3
-
-        # Update with AND condition
-        updated_count = document_store.update_by_filter(
-            filters={
-                "operator": "AND",
-                "conditions": [
-                    {"field": "meta.category", "operator": "==", "value": "A"},
-                    {"field": "meta.year", "operator": "==", "value": 2023},
-                ],
-            },
-            meta={"status": "published"},
-        )
-        assert updated_count == 1
-
-        # Verify only one document was updated
-        published_docs = document_store.filter_documents(
-            filters={"field": "meta.status", "operator": "==", "value": "published"}
-        )
-        assert len(published_docs) == 1
-        assert published_docs[0].meta["category"] == "A"
-        assert published_docs[0].meta["year"] == 2023
-
+        
     def test_update_by_filter_preserves_vectors(self, document_store: QdrantDocumentStore):
         """Test that update_by_filter preserves document embeddings."""
         docs = [
