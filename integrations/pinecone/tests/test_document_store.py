@@ -279,19 +279,6 @@ class TestDocumentStore(CountDocumentsTest, DeleteDocumentsTest, WriteDocumentsT
     @pytest.mark.skip(reason="Pinecone creates a namespace only when the first document is written")
     def test_delete_documents_empty_document_store(self, document_store: PineconeDocumentStore): ...
 
-    def test_delete_all_documents(self, document_store: PineconeDocumentStore):
-        docs = [Document(content="first doc"), Document(content="second doc")]
-        document_store.write_documents(docs)
-        assert document_store.count_documents() == 2
-
-        document_store.delete_all_documents()
-        assert document_store.count_documents() == 0
-
-    def test_delete_all_documents_empty_collection(self, document_store: PineconeDocumentStore):
-        assert document_store.count_documents() == 0
-        document_store.delete_all_documents()
-        assert document_store.count_documents() == 0
-
     def test_embedding_retrieval(self, document_store: PineconeDocumentStore):
         query_embedding = [0.1] * 768
         most_similar_embedding = [0.8] * 768
