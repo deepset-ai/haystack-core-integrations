@@ -290,18 +290,6 @@ class TestDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocumentsT
     @pytest.mark.skip(reason="Azure AI search index overwrites duplicate documents by default")
     def test_write_documents_duplicate_skip(self, document_store: AzureAISearchDocumentStore): ...
 
-    def test_delete_all_documents(self, document_store: AzureAISearchDocumentStore):
-        docs = [Document(content="first doc"), Document(content="second doc")]
-        document_store.write_documents(docs)
-        assert document_store.count_documents() == 2
-        document_store.delete_all_documents()
-        assert document_store.count_documents() == 0
-
-    def test_delete_all_documents_empty_index(self, document_store: AzureAISearchDocumentStore):
-        assert document_store.count_documents() == 0
-        document_store.delete_all_documents()
-        assert document_store.count_documents() == 0
-
     @pytest.mark.parametrize(
         "document_store",
         [{"metadata_fields": {"category": str}}],
