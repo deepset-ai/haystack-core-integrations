@@ -744,12 +744,6 @@ class TestMessagesConversion:
         assert google_content.parts[0].function_response.response == {"result": "22° C"}
         assert google_content.parts[0].function_response.parts is None
 
-    def test_convert_message_to_google_genai_format_invalid_tool_result_type(self):
-        tool_call = ToolCall(id="123", tool_name="weather", arguments={"city": "Paris"})
-        message = ChatMessage.from_tool(tool_result=256, origin=tool_call)
-        with pytest.raises(ValueError, match="Unsupported content type in tool call result"):
-            _convert_message_to_google_genai_format(message)
-
     def test_convert_message_to_google_genai_format_image_in_tool_result(self):
         tool_call = ToolCall(id="123", tool_name="image_retriever", arguments={})
 
@@ -762,9 +756,32 @@ class TestMessagesConversion:
         assert len(google_content.parts) == 1
         assert isinstance(google_content.parts[0].function_response, types.FunctionResponse)
         assert google_content.parts[0].function_response.id == "123"
-        assert google_content.parts[0].function_response.name == "weather"
-        assert google_content.parts[0].function_response.response == {"result": "22° C"}
+        assert google_content.parts[0].function_response.name == "image_retriever"
+        assert google_content.parts[0].function_response.response == {"result": ""}
+        assert len(google_content.parts[0].function_response.parts) == 2
+        assert isinstance(google_content.parts[0].function_response.parts[0], types.FunctionResponsePart)
+        assert google_content.parts[0].function_response.parts[0].inline_data.mime_type == "text/plain"
+        assert google_content.parts[0].function_response.parts[0].inline_data.data == b"Here is the image"
+        assert isinstance(google_content.parts[0].function_response.parts[1], types.FunctionResponsePart)
+        assert google_content.parts[0].function_response.parts[1].inline_data.mime_type == "image/jpeg"
+        assert google_content.parts[0].function_response.parts[1].inline_data.data == base64.b64decode(base64_str)
+        assert len(google_content.parts[0].function_response.parts[1].inline_data.data) > 0
 
+    def test_convert_message_to_google_genai_format_invalid_tool_result_type(self):
+        tool_call = ToolCall(id="123", tool_name="weather", arguments={"city": "Paris"})
+        message = ChatMessage.from_tool(tool_result=256, origin=tool_call)
+        with pytest.raises(ValueError, match="Unsupported content type in tool call result"):
+            _convert_message_to_google_genai_format(message)
+
+        message = ChatMessage.from_tool(tool_result=[TextContent("This is supported"), 256], origin=tool_call)
+        with pytest.raises(
+            ValueError,
+            match=(
+                r"Unsupported content type in tool call result list. "
+                "Only TextContent and ImageContent are supported."
+            ),
+        ):
+            _convert_message_to_google_genai_format(message)
 
     @pytest.mark.skipif(
         not os.environ.get("GOOGLE_API_KEY", None),

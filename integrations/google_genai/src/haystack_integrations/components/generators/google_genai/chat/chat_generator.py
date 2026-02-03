@@ -202,12 +202,19 @@ def _convert_message_to_google_genai_format(message: ChatMessage) -> types.Conte
                                 ),
                             )
                         )
+                    else:
+                        msg = (
+                            "Unsupported content type in tool call result list. "
+                            "Only TextContent and ImageContent are supported."
+                        )
+                        raise ValueError(msg)
                 parts.append(
                     types.Part(
                         function_response=types.FunctionResponse(
                             id=content_part.origin.id,
                             name=content_part.origin.tool_name,
                             parts=tool_call_result_parts,
+                            # the response field is mandatory, but in this case the LLM just needs multimodal parts
                             response={"result": ""},
                         )
                     )
