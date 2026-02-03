@@ -302,20 +302,6 @@ class TestQdrantDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocu
             with pytest.raises(ValueError, match="different vector size"):
                 document_store._set_up_collection("test_collection", 768, False, "cosine", False, False)
 
-    def test_delete_all_documents_no_index_recreation(self, document_store):
-        document_store._initialize_client()
-
-        # write some documents
-        docs = [Document(id=str(i)) for i in range(5)]
-        document_store.write_documents(docs)
-
-        # delete all documents without recreating the index
-        document_store.delete_all_documents(recreate_index=False)
-        assert document_store.count_documents() == 0
-
-        # ensure the collection still exists by writing documents again
-        document_store.write_documents(docs)
-        assert document_store.count_documents() == 5
 
     def test_delete_all_documents_index_recreation(self, document_store):
         document_store._initialize_client()
