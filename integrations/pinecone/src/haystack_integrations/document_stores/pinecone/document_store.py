@@ -43,6 +43,7 @@ class PineconeDocumentStore:
         dimension: int = 768,
         spec: dict[str, Any] | None = None,
         metric: Literal["cosine", "euclidean", "dotproduct"] = "cosine",
+        show_progress: bool = True,
     ):
         """
         Creates a new PineconeDocumentStore instance.
@@ -62,6 +63,8 @@ class PineconeDocumentStore:
             If not provided, a default spec with serverless deployment in the `us-east-1` region will be used
             (compatible with the free tier).
         :param metric: The metric to use for similarity search. This parameter is only used when creating a new index.
+        :param show_progress: Whether to show a progress bar when upserting documents. Set to False to disable
+            (e.g. in tests or scripts where quiet output is preferred).
 
         """
         self.api_key = api_key
@@ -72,6 +75,7 @@ class PineconeDocumentStore:
         self.spec = spec
         self.dimension = dimension
         self.index_name = index
+        self.show_progress = show_progress
 
         self._index: _Index | None = None
         self._async_index: _IndexAsyncio | None = None
@@ -199,6 +203,7 @@ class PineconeDocumentStore:
             namespace=self.namespace,
             batch_size=self.batch_size,
             metric=self.metric,
+            show_progress=self.show_progress,
         )
 
     def count_documents(self) -> int:
@@ -244,7 +249,10 @@ class PineconeDocumentStore:
         documents_for_pinecone = self._prepare_documents_for_writing(documents, policy)
 
         result = self._index.upsert(
-            vectors=documents_for_pinecone, namespace=self.namespace, batch_size=self.batch_size
+            vectors=documents_for_pinecone,
+            namespace=self.namespace,
+            batch_size=self.batch_size,
+            show_progress=self.show_progress,
         )
 
         # if the operation is successful, result will have the upserted_count attribute
@@ -268,7 +276,10 @@ class PineconeDocumentStore:
         documents_for_pinecone = self._prepare_documents_for_writing(documents, policy)
 
         result = await self._async_index.upsert(
-            vectors=documents_for_pinecone, namespace=self.namespace, batch_size=self.batch_size
+            vectors=documents_for_pinecone,
+            namespace=self.namespace,
+            batch_size=self.batch_size,
+            show_progress=self.show_progress,
         )
 
         # if the operation is successful, result will have the upserted_count attribute

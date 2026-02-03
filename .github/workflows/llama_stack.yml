@@ -79,7 +79,9 @@ jobs:
       - name: Test Llama Stack Server
         env:
           OLLAMA_INFERENCE_MODEL: llama3.2:3b
-          OLLAMA_URL: http://localhost:11434
+          # Llama Stack's Ollama provider expects an OpenAI-compatible base URL.
+          # Ollama serves OpenAI-compatible endpoints under `/v1`, so include it here.
+          OLLAMA_URL: http://localhost:11434/v1
         shell: bash
         run: |
           set -euo pipefail

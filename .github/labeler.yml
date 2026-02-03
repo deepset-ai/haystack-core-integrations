@@ -72,7 +72,6 @@ integration:github:
 integration:google-ai:
   - changed-files:
       - any-glob-to-any-file: "integrations/google_ai/**/*"
-      - any-glob-to-any-file: ".github/workflows/google_ai.yml"
 
 integration:google-genai:
   - changed-files:
@@ -82,7 +81,6 @@ integration:google-genai:
 integration:google-vertex:
   - changed-files:
       - any-glob-to-any-file: "integrations/google_vertex/**/*"
-      - any-glob-to-any-file: ".github/workflows/google_vertex.yml"
 
 integration:hanlp:
   - changed-files:

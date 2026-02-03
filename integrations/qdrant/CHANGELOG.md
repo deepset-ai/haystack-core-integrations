@@ -1,11 +1,31 @@
 # Changelog
 
-## [unreleased]
+## [integrations/qdrant-v10.2.1] - 2026-02-02
+
+### 📚 Documentation
+
+- Fixing `QdrantDocumentStore` docstring parsing error (#2806)
+
+
+## [integrations/qdrant-v10.2.0] - 2026-02-02
+
+### 🌀 Miscellaneous
+
+- Feat: `QdrantDocumentStore` return number deleted docs on `delete_by_filter` (#2807)
+
+## [integrations/qdrant-v9.6.0] - 2026-02-02
+
+### 🚀 Features
+
+- Adding count with filtering operations to`QdrantDocumentStore` (#2803)
 
 ### 🧹 Chores
 
 - Make fmt command more forgiving (#2671)
 - [**breaking**] Qdrant - drop Python 3.9 and use X|Y typing (#2726)
+- Disabling progress bar in `QdrantDocumentStore` tests (#2797)
+
+### 🌀 Miscellaneous
 
 
 ## [integrations/qdrant-v9.5.0] - 2026-01-07
