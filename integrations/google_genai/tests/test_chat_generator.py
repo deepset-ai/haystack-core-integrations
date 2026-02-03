@@ -1,5 +1,3 @@
-#!/usr/bin/env python3
-
 import asyncio
 import base64
 import os
@@ -528,6 +526,8 @@ class TestGoogleGenAIChatGenerator:
         assert restored._tools[0].name == "tool1"
         assert len(restored._tools[1]) == 1
 
+
+class TestMessagesConversion:
     def test_convert_message_to_google_genai_format_complex(self):
         """
         Test that the GoogleGenAIChatGenerator can convert a complex sequence of ChatMessages to Google GenAI format.
@@ -731,6 +731,40 @@ class TestGoogleGenAIChatGenerator:
         assert google_content.parts[0].text == "Forty-two"
         # Verify no thought part was created (reasoning is not sent to API)
         assert not hasattr(google_content.parts[0], "thought") or not google_content.parts[0].thought
+
+    def test_convert_message_to_google_genai_format_tool_message(self):
+        tool_call = ToolCall(id="123", tool_name="weather", arguments={"city": "Paris"})
+        message = ChatMessage.from_tool(tool_result="22° C", origin=tool_call)
+        google_content = _convert_message_to_google_genai_format(message)
+        assert google_content.role == "user"
+        assert len(google_content.parts) == 1
+        assert isinstance(google_content.parts[0].function_response, types.FunctionResponse)
+        assert google_content.parts[0].function_response.id == "123"
+        assert google_content.parts[0].function_response.name == "weather"
+        assert google_content.parts[0].function_response.response == {"result": "22° C"}
+        assert google_content.parts[0].function_response.parts is None
+
+    def test_convert_message_to_google_genai_format_invalid_tool_result_type(self):
+        tool_call = ToolCall(id="123", tool_name="weather", arguments={"city": "Paris"})
+        message = ChatMessage.from_tool(tool_result=256, origin=tool_call)
+        with pytest.raises(ValueError, match="Unsupported content type in tool call result"):
+            _convert_message_to_google_genai_format(message)
+
+    def test_convert_message_to_google_genai_format_image_in_tool_result(self):
+        tool_call = ToolCall(id="123", tool_name="image_retriever", arguments={})
+
+        base64_str = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+ip1sAAAAASUVORK5CYII="
+        tool_result = [TextContent("Here is the image"), ImageContent(base64_image=base64_str, mime_type="image/jpeg")]
+
+        message = ChatMessage.from_tool(tool_result=tool_result, origin=tool_call)
+        google_content = _convert_message_to_google_genai_format(message)
+        assert google_content.role == "user"
+        assert len(google_content.parts) == 1
+        assert isinstance(google_content.parts[0].function_response, types.FunctionResponse)
+        assert google_content.parts[0].function_response.id == "123"
+        assert google_content.parts[0].function_response.name == "weather"
+        assert google_content.parts[0].function_response.response == {"result": "22° C"}
+
 
     @pytest.mark.skipif(
         not os.environ.get("GOOGLE_API_KEY", None),
