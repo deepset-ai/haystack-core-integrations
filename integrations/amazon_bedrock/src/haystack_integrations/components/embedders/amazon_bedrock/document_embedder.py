@@ -6,7 +6,7 @@ from botocore.config import Config
 from botocore.exceptions import ClientError
 from haystack import component, default_from_dict, default_to_dict, logging
 from haystack.dataclasses import Document
-from haystack.utils.auth import Secret, deserialize_secrets_inplace
+from haystack.utils.auth import Secret
 from tqdm import tqdm
 
 from haystack_integrations.common.amazon_bedrock.errors import (
@@ -257,11 +257,11 @@ class AmazonBedrockDocumentEmbedder:
         """
         return default_to_dict(
             self,
-            aws_access_key_id=self.aws_access_key_id.to_dict() if self.aws_access_key_id else None,
-            aws_secret_access_key=self.aws_secret_access_key.to_dict() if self.aws_secret_access_key else None,
-            aws_session_token=self.aws_session_token.to_dict() if self.aws_session_token else None,
-            aws_region_name=self.aws_region_name.to_dict() if self.aws_region_name else None,
-            aws_profile_name=self.aws_profile_name.to_dict() if self.aws_profile_name else None,
+            aws_access_key_id=self.aws_access_key_id,
+            aws_secret_access_key=self.aws_secret_access_key,
+            aws_session_token=self.aws_session_token,
+            aws_region_name=self.aws_region_name,
+            aws_profile_name=self.aws_profile_name,
             model=self.model,
             batch_size=self.batch_size,
             progress_bar=self.progress_bar,
@@ -281,8 +281,4 @@ class AmazonBedrockDocumentEmbedder:
         :returns:
             Deserialized component.
         """
-        deserialize_secrets_inplace(
-            data["init_parameters"],
-            ["aws_access_key_id", "aws_secret_access_key", "aws_session_token", "aws_region_name", "aws_profile_name"],
-        )
         return default_from_dict(cls, data)

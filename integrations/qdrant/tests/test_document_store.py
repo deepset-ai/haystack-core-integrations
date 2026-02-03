@@ -31,6 +31,7 @@ class TestQdrantDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocu
             return_embedding=True,
             wait_result_from_api=True,
             use_sparse_embeddings=False,
+            progress_bar=False,
         )
 
     def test_init_is_lazy(self):
@@ -146,7 +147,7 @@ class TestQdrantDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocu
         assert sparse_config[SPARSE_VECTORS_NAME].modifier == rest.Modifier.IDF
 
     def test_query_hybrid(self, generate_sparse_embedding):
-        document_store = QdrantDocumentStore(location=":memory:", use_sparse_embeddings=True)
+        document_store = QdrantDocumentStore(location=":memory:", use_sparse_embeddings=True, progress_bar=False)
 
         docs = []
         for i in range(20):
@@ -171,7 +172,7 @@ class TestQdrantDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocu
             assert document.embedding
 
     def test_query_hybrid_with_group_by(self, generate_sparse_embedding):
-        document_store = QdrantDocumentStore(location=":memory:", use_sparse_embeddings=True)
+        document_store = QdrantDocumentStore(location=":memory:", use_sparse_embeddings=True, progress_bar=False)
 
         docs = []
         for i in range(20):
@@ -347,7 +348,11 @@ class TestQdrantDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocu
         ]
         document_store.write_documents(docs)
         assert document_store.count_documents() == 3
-        document_store.delete_by_filter(filters={"field": "meta.category", "operator": "==", "value": "A"})
+
+        deleted_count = document_store.delete_by_filter(
+            filters={"field": "meta.category", "operator": "==", "value": "A"}
+        )
+        assert deleted_count == 2
 
         # Verify only category B remains
         remaining_docs = document_store.filter_documents()
@@ -355,7 +360,8 @@ class TestQdrantDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocu
         assert remaining_docs[0].meta["category"] == "B"
 
         # Delete remaining document by year
-        document_store.delete_by_filter(filters={"field": "meta.year", "operator": "==", "value": 2023})
+        deleted_count = document_store.delete_by_filter(filters={"field": "meta.year", "operator": "==", "value": 2023})
+        assert deleted_count == 1
         assert document_store.count_documents() == 0
 
     def test_delete_by_filter_no_matches(self, document_store: QdrantDocumentStore):
@@ -367,7 +373,10 @@ class TestQdrantDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocu
         assert document_store.count_documents() == 2
 
         # try to delete documents with category="C" (no matches)
-        document_store.delete_by_filter(filters={"field": "meta.category", "operator": "==", "value": "C"})
+        deleted_count = document_store.delete_by_filter(
+            filters={"field": "meta.category", "operator": "==", "value": "C"}
+        )
+        assert deleted_count == 0
         assert document_store.count_documents() == 2
 
     def test_delete_by_filter_advanced_filters(self, document_store: QdrantDocumentStore):
@@ -379,8 +388,8 @@ class TestQdrantDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocu
         document_store.write_documents(docs)
         assert document_store.count_documents() == 3
 
-        # AND condition
-        document_store.delete_by_filter(
+        # AND condition (matches only Doc 1)
+        deleted_count = document_store.delete_by_filter(
             filters={
                 "operator": "AND",
                 "conditions": [
@@ -389,10 +398,11 @@ class TestQdrantDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocu
                 ],
             }
         )
+        assert deleted_count == 1
         assert document_store.count_documents() == 2
 
-        # OR condition
-        document_store.delete_by_filter(
+        # OR condition (matches Doc 2 and Doc 3)
+        deleted_count = document_store.delete_by_filter(
             filters={
                 "operator": "OR",
                 "conditions": [
@@ -401,6 +411,7 @@ class TestQdrantDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocu
                 ],
             }
         )
+        assert deleted_count == 2
         assert document_store.count_documents() == 0
 
     def test_update_by_filter(self, document_store: QdrantDocumentStore):
@@ -527,3 +538,143 @@ class TestQdrantDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocu
         assert len(updated_docs) == 1
         assert updated_docs[0].embedding is not None
         assert len(updated_docs[0].embedding) == 768
+
+    def test_count_documents_by_filter(self, document_store: QdrantDocumentStore):
+        """Test counting documents with filters."""
+        docs = [
+            Document(content="Doc 1", meta={"category": "A", "year": 2023}),
+            Document(content="Doc 2", meta={"category": "A", "year": 2024}),
+            Document(content="Doc 3", meta={"category": "B", "year": 2023}),
+            Document(content="Doc 4", meta={"category": "B", "year": 2024}),
+        ]
+        document_store.write_documents(docs)
+
+        # Test counting all documents
+        assert document_store.count_documents() == 4
+
+        # Test counting with single filter
+        count = document_store.count_documents_by_filter(
+            filters={"field": "meta.category", "operator": "==", "value": "A"}
+        )
+        assert count == 2
+
+        # Test counting with multiple filters
+        count = document_store.count_documents_by_filter(
+            filters={
+                "operator": "AND",
+                "conditions": [
+                    {"field": "meta.category", "operator": "==", "value": "B"},
+                    {"field": "meta.year", "operator": "==", "value": 2023},
+                ],
+            }
+        )
+        assert count == 1
+
+    def test_get_metadata_fields_info(self, document_store: QdrantDocumentStore):
+        """Test getting metadata field information."""
+        docs = [
+            Document(content="Doc 1", meta={"category": "A", "score": 0.9, "tags": ["tag1", "tag2"]}),
+            Document(content="Doc 2", meta={"category": "B", "score": 0.8, "tags": ["tag2"]}),
+        ]
+        document_store.write_documents(docs)
+
+        fields_info = document_store.get_metadata_fields_info()
+        # Should return empty dict or field info depending on Qdrant collection setup
+        assert isinstance(fields_info, dict)
+
+    def test_get_metadata_field_min_max(self, document_store: QdrantDocumentStore):
+        """Test getting min/max values for a metadata field."""
+        docs = [
+            Document(content="Doc 1", meta={"score": 0.5}),
+            Document(content="Doc 2", meta={"score": 0.8}),
+            Document(content="Doc 3", meta={"score": 0.3}),
+        ]
+        document_store.write_documents(docs)
+
+        result = document_store.get_metadata_field_min_max("score")
+        assert result.get("min") == 0.3
+        assert result.get("max") == 0.8
+
+    def test_count_unique_metadata_by_filter(self, document_store: QdrantDocumentStore):
+        """Test counting unique metadata field values."""
+        docs = [
+            Document(content="Doc 1", meta={"category": "A"}),
+            Document(content="Doc 2", meta={"category": "B"}),
+            Document(content="Doc 3", meta={"category": "A"}),
+            Document(content="Doc 4", meta={"category": "C"}),
+        ]
+        document_store.write_documents(docs)
+
+        result = document_store.count_unique_metadata_by_filter(filters={}, metadata_fields=["category"])
+        assert result == {"category": 3}
+
+    def test_count_unique_metadata_by_filter_multiple_fields(self, document_store: QdrantDocumentStore):
+        """Test counting unique values for multiple metadata fields."""
+        docs = [
+            Document(content="Doc 1", meta={"category": "A", "status": "active"}),
+            Document(content="Doc 2", meta={"category": "B", "status": "active"}),
+            Document(content="Doc 3", meta={"category": "A", "status": "inactive"}),
+        ]
+        document_store.write_documents(docs)
+
+        result = document_store.count_unique_metadata_by_filter(filters={}, metadata_fields=["category", "status"])
+        assert result == {"category": 2, "status": 2}
+
+    def test_count_unique_metadata_by_filter_with_filter(self, document_store: QdrantDocumentStore):
+        """Test counting unique metadata field values with filtering."""
+        docs = [
+            Document(content="Doc 1", meta={"category": "A", "status": "active"}),
+            Document(content="Doc 2", meta={"category": "B", "status": "active"}),
+            Document(content="Doc 3", meta={"category": "A", "status": "inactive"}),
+        ]
+        document_store.write_documents(docs)
+
+        result = document_store.count_unique_metadata_by_filter(
+            filters={"field": "meta.status", "operator": "==", "value": "active"},
+            metadata_fields=["category"],
+        )
+        assert result == {"category": 2}
+
+    def test_get_metadata_field_unique_values(self, document_store: QdrantDocumentStore):
+        """Test getting unique metadata field values."""
+        docs = [
+            Document(content="Doc 1", meta={"category": "A"}),
+            Document(content="Doc 2", meta={"category": "B"}),
+            Document(content="Doc 3", meta={"category": "A"}),
+            Document(content="Doc 4", meta={"category": "C"}),
+        ]
+        document_store.write_documents(docs)
+
+        values = document_store.get_metadata_field_unique_values("category")
+        assert len(values) == 3
+        assert set(values) == {"A", "B", "C"}
+
+    def test_get_metadata_field_unique_values_pagination(self, document_store: QdrantDocumentStore):
+        """Test getting unique metadata field values with pagination."""
+        docs = [Document(content=f"Doc {i}", meta={"value": i % 5}) for i in range(10)]
+        document_store.write_documents(docs)
+
+        # Get first 2 unique values
+        values_page_1 = document_store.get_metadata_field_unique_values("value", limit=2, offset=0)
+        assert len(values_page_1) == 2
+
+        # Get next 2 unique values
+        values_page_2 = document_store.get_metadata_field_unique_values("value", limit=2, offset=2)
+        assert len(values_page_2) == 2
+
+        # Values should not overlap
+        assert set(values_page_1) != set(values_page_2)
+
+    def test_get_metadata_field_unique_values_with_filter(self, document_store: QdrantDocumentStore):
+        """Test getting unique metadata field values with filtering."""
+        docs = [
+            Document(content="Doc 1", meta={"category": "A", "status": "active"}),
+            Document(content="Doc 2", meta={"category": "B", "status": "active"}),
+            Document(content="Doc 3", meta={"category": "A", "status": "inactive"}),
+        ]
+        document_store.write_documents(docs)
+
+        values = document_store.get_metadata_field_unique_values(
+            "category", filters={"field": "meta.status", "operator": "==", "value": "active"}
+        )
+        assert set(values) == {"A", "B"}

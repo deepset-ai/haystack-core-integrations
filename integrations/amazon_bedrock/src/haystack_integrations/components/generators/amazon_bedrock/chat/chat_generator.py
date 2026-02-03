@@ -13,7 +13,7 @@ from haystack.tools import (
     flatten_tools_or_toolsets,
     serialize_tools_or_toolset,
 )
-from haystack.utils.auth import Secret, deserialize_secrets_inplace
+from haystack.utils.auth import Secret
 from haystack.utils.callable_serialization import deserialize_callable, serialize_callable
 
 from haystack_integrations.common.amazon_bedrock.errors import (
@@ -299,11 +299,11 @@ class AmazonBedrockChatGenerator:
         callback_name = serialize_callable(self.streaming_callback) if self.streaming_callback else None
         return default_to_dict(
             self,
-            aws_access_key_id=self.aws_access_key_id.to_dict() if self.aws_access_key_id else None,
-            aws_secret_access_key=self.aws_secret_access_key.to_dict() if self.aws_secret_access_key else None,
-            aws_session_token=self.aws_session_token.to_dict() if self.aws_session_token else None,
-            aws_region_name=self.aws_region_name.to_dict() if self.aws_region_name else None,
-            aws_profile_name=self.aws_profile_name.to_dict() if self.aws_profile_name else None,
+            aws_access_key_id=self.aws_access_key_id,
+            aws_secret_access_key=self.aws_secret_access_key,
+            aws_session_token=self.aws_session_token,
+            aws_region_name=self.aws_region_name,
+            aws_profile_name=self.aws_profile_name,
             model=self.model,
             generation_kwargs=self.generation_kwargs,
             streaming_callback=callback_name,
@@ -331,10 +331,6 @@ class AmazonBedrockChatGenerator:
         serialized_callback_handler = init_params.get("streaming_callback")
         if serialized_callback_handler:
             data["init_parameters"]["streaming_callback"] = deserialize_callable(serialized_callback_handler)
-        deserialize_secrets_inplace(
-            data["init_parameters"],
-            ["aws_access_key_id", "aws_secret_access_key", "aws_session_token", "aws_region_name", "aws_profile_name"],
-        )
         deserialize_tools_or_toolset_inplace(data["init_parameters"], key="tools")
         return default_from_dict(cls, data)
 

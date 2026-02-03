@@ -99,6 +99,7 @@ def test_to_from_dict(mock_pinecone, monkeypatch):
             "batch_size": 50,
             "metric": "euclidean",
             "spec": {"serverless": {"region": "us-east-1", "cloud": "aws"}},
+            "show_progress": True,
         },
     }
     assert document_store.to_dict() == dict_output
@@ -111,6 +112,7 @@ def test_to_from_dict(mock_pinecone, monkeypatch):
     assert document_store.dimension == 60
     assert document_store.metric == "euclidean"
     assert document_store.spec == {"serverless": {"region": "us-east-1", "cloud": "aws"}}
+    assert document_store.show_progress is True
 
 
 def test_init_fails_wo_api_key(monkeypatch):
@@ -238,6 +240,7 @@ def test_serverless_index_creation_from_scratch(delete_sleep_time):
         dimension=30,
         metric="euclidean",
         spec={"serverless": {"region": "us-east-1", "cloud": "aws"}},
+        show_progress=False,
     )
     # Trigger the connection
     _ = ds._initialize_index()

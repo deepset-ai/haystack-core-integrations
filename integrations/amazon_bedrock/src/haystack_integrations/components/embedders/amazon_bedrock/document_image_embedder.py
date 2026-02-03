@@ -16,7 +16,7 @@ from haystack.components.converters.image.image_utils import (
     _PDFPageInfo,
 )
 from haystack.dataclasses import ByteStream
-from haystack.utils.auth import Secret, deserialize_secrets_inplace
+from haystack.utils.auth import Secret
 from tqdm import tqdm
 
 from haystack_integrations.common.amazon_bedrock.errors import (
@@ -178,11 +178,11 @@ class AmazonBedrockDocumentImageEmbedder:
             file_path_meta_field=self.file_path_meta_field,
             root_path=self.root_path,
             model=self.model,
-            aws_access_key_id=self.aws_access_key_id.to_dict() if self.aws_access_key_id else None,
-            aws_secret_access_key=self.aws_secret_access_key.to_dict() if self.aws_secret_access_key else None,
-            aws_session_token=self.aws_session_token.to_dict() if self.aws_session_token else None,
-            aws_region_name=self.aws_region_name.to_dict() if self.aws_region_name else None,
-            aws_profile_name=self.aws_profile_name.to_dict() if self.aws_profile_name else None,
+            aws_access_key_id=self.aws_access_key_id,
+            aws_secret_access_key=self.aws_secret_access_key,
+            aws_session_token=self.aws_session_token,
+            aws_region_name=self.aws_region_name,
+            aws_profile_name=self.aws_profile_name,
             progress_bar=self.progress_bar,
             boto3_config=self.boto3_config,
             image_size=self.image_size,
@@ -200,17 +200,6 @@ class AmazonBedrockDocumentImageEmbedder:
         :returns:
             Deserialized component.
         """
-        init_params = data["init_parameters"]
-        deserialize_secrets_inplace(
-            init_params,
-            keys=[
-                "aws_access_key_id",
-                "aws_secret_access_key",
-                "aws_session_token",
-                "aws_region_name",
-                "aws_profile_name",
-            ],
-        )
         return default_from_dict(cls, data)
 
     @component.output_types(documents=list[Document])
