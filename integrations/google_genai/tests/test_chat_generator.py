@@ -7,6 +7,7 @@ from unittest.mock import Mock
 
 import pytest
 from google.genai import types
+from haystack.components.agents import Agent
 from haystack.components.generators.utils import print_streaming_chunk
 from haystack.dataclasses import (
     ChatMessage,
@@ -15,9 +16,10 @@ from haystack.dataclasses import (
     ImageContent,
     ReasoningContent,
     StreamingChunk,
+    TextContent,
     ToolCall,
 )
-from haystack.tools import Tool, Toolset
+from haystack.tools import Tool, Toolset, create_tool_from_function
 from haystack.utils.auth import Secret
 
 from haystack_integrations.components.generators.google_genai.chat.chat_generator import (
@@ -1160,6 +1162,34 @@ class TestGoogleGenAIChatGenerator:
         assert "gemini-2.0" in error_message
         assert "thinking_budget" in error_message or "thinking features" in error_message
         assert "Try removing" in error_message or "use a different model" in error_message
+
+    @pytest.mark.integration
+    @pytest.mark.skipif(
+        not os.environ.get("GOOGLE_API_KEY", None),
+        reason="Export an env var called GOOGLE_API_KEY containing the Google API key to run this test.",
+    )
+    def test_live_run_agent_with_images_in_tool_result(self, test_files_path):
+        def retrieve_image():
+            return [
+                TextContent("Here is the retrieved image."),
+                ImageContent.from_file_path(test_files_path / "apple.jpg", size=(100, 100)),
+            ]
+
+        image_retriever_tool = create_tool_from_function(
+            name="retrieve_image", description="Tool to retrieve an image", function=retrieve_image
+        )
+        image_retriever_tool.outputs_to_string = {"raw_result": True}
+
+        agent = Agent(
+            chat_generator=GoogleGenAIChatGenerator(model="gemini-3-flash-preview"),
+            system_prompt="You are an Agent that can retrieve images and describe them.",
+            tools=[image_retriever_tool],
+        )
+
+        user_message = ChatMessage.from_user("Retrieve the image and describe it in max 5 words.")
+        result = agent.run(messages=[user_message])
+
+        assert "apple" in result["last_message"].text.lower()
 
 
 @pytest.mark.skipif(
