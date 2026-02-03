@@ -956,7 +956,7 @@ class TestAmazonBedrockChatGeneratorInference:
     def test_prompt_caching_live_run_with_user_message(self, model_name, streaming_callback):
         generator = AmazonBedrockChatGenerator(model=model_name, streaming_callback=streaming_callback)
 
-        system_message = ChatMessage.from_system("Always respond with: 'Life is beatiful' (and nothing else).")
+        system_message = ChatMessage.from_system("Always respond with: 'Life is beautiful' (and nothing else).")
 
         user_message = ChatMessage.from_user(
             "User message that should be long enough to cache. " * 100, meta={"cachePoint": {"type": "default"}}

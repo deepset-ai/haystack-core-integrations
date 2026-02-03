@@ -41,7 +41,7 @@ FINISH_REASON_MAPPING: dict[str, FinishReason] = {
 
 # Haystack to Bedrock util methods
 def _format_tools(
-    tools: list[Tool] | None = None, tools_cachepoint_config: dict[str, Any] | None = None
+    tools: list[Tool] | None = None, tools_cachepoint_config: dict[str, str] | None = None
 ) -> dict[str, Any] | None:
     """
     Format Haystack Tool(s) to Amazon Bedrock toolConfig format.
@@ -259,7 +259,7 @@ def _format_text_image_message(message: ChatMessage) -> dict[str, Any]:
     return {"role": message.role.value, "content": bedrock_content_blocks}
 
 
-def _validate_and_format_cache_point(cache_point: dict[str, str] | None) -> dict[str, Any] | None:
+def _validate_and_format_cache_point(cache_point: dict[str, str] | None) -> dict[str, dict[str, str]] | None:
     """
     Validate and format a cache point dictionary.
 
@@ -278,6 +278,8 @@ def _validate_and_format_cache_point(cache_point: dict[str, str] | None) -> dict
     if not set(cache_point).issubset({"type", "ttl"}):
         err_msg = "Cache point can only contain 'type' and 'ttl' keys."
         raise ValueError(err_msg)
+    if "ttl" in cache_point and cache_point["ttl"] not in ("5m", "1h"):
+        raise ValueError("Cache point 'ttl' must be one of '5m', '1h'.")
 
     return {"cachePoint": cache_point}
 
