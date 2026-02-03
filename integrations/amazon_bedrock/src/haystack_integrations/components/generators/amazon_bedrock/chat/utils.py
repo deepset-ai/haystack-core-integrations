@@ -41,7 +41,7 @@ FINISH_REASON_MAPPING: dict[str, FinishReason] = {
 
 # Haystack to Bedrock util methods
 def _format_tools(
-    tools: list[Tool] | None = None, tools_cachepoint_config: dict[str, str] | None = None
+    tools: list[Tool] | None = None, tools_cachepoint_config: dict[str, dict[str, str]] | None = None
 ) -> dict[str, Any] | None:
     """
     Format Haystack Tool(s) to Amazon Bedrock toolConfig format.
@@ -53,7 +53,7 @@ def _format_tools(
     if not tools:
         return None
 
-    tool_specs = []
+    tool_specs: list[dict[str, Any]] = []
     for tool in tools:
         tool_specs.append(
             {"toolSpec": {"name": tool.name, "description": tool.description, "inputSchema": {"json": tool.parameters}}}
@@ -279,7 +279,8 @@ def _validate_and_format_cache_point(cache_point: dict[str, str] | None) -> dict
         err_msg = "Cache point can only contain 'type' and 'ttl' keys."
         raise ValueError(err_msg)
     if "ttl" in cache_point and cache_point["ttl"] not in ("5m", "1h"):
-        raise ValueError("Cache point 'ttl' must be one of '5m', '1h'.")
+        err_msg = "Cache point 'ttl' must be one of '5m', '1h'."
+        raise ValueError(err_msg)
 
     return {"cachePoint": cache_point}
 
@@ -297,7 +298,7 @@ def _format_messages(messages: list[ChatMessage]) -> tuple[list[dict[str, Any]],
               non_system_messages is a list of properly formatted message dictionaries.
     """
     # Separate system messages, tool calls, and tool results
-    system_prompts = []
+    system_prompts: list[dict[str, Any]] = []
     bedrock_formatted_messages = []
     for msg in messages:
         cache_point = _validate_and_format_cache_point(msg.meta.get("cachePoint"))
