@@ -1,5 +1,3 @@
-#!/usr/bin/env python3
-
 import asyncio
 import base64
 import os
@@ -7,6 +5,7 @@ from unittest.mock import Mock
 
 import pytest
 from google.genai import types
+from haystack.components.agents import Agent
 from haystack.components.generators.utils import print_streaming_chunk
 from haystack.dataclasses import (
     ChatMessage,
@@ -15,9 +14,10 @@ from haystack.dataclasses import (
     ImageContent,
     ReasoningContent,
     StreamingChunk,
+    TextContent,
     ToolCall,
 )
-from haystack.tools import Tool, Toolset
+from haystack.tools import Tool, Toolset, create_tool_from_function
 from haystack.utils.auth import Secret
 
 from haystack_integrations.components.generators.google_genai.chat.chat_generator import (
@@ -526,6 +526,8 @@ class TestGoogleGenAIChatGenerator:
         assert restored._tools[0].name == "tool1"
         assert len(restored._tools[1]) == 1
 
+
+class TestMessagesConversion:
     def test_convert_message_to_google_genai_format_complex(self):
         """
         Test that the GoogleGenAIChatGenerator can convert a complex sequence of ChatMessages to Google GenAI format.
@@ -729,6 +731,57 @@ class TestGoogleGenAIChatGenerator:
         assert google_content.parts[0].text == "Forty-two"
         # Verify no thought part was created (reasoning is not sent to API)
         assert not hasattr(google_content.parts[0], "thought") or not google_content.parts[0].thought
+
+    def test_convert_message_to_google_genai_format_tool_message(self):
+        tool_call = ToolCall(id="123", tool_name="weather", arguments={"city": "Paris"})
+        message = ChatMessage.from_tool(tool_result="22° C", origin=tool_call)
+        google_content = _convert_message_to_google_genai_format(message)
+        assert google_content.role == "user"
+        assert len(google_content.parts) == 1
+        assert isinstance(google_content.parts[0].function_response, types.FunctionResponse)
+        assert google_content.parts[0].function_response.id == "123"
+        assert google_content.parts[0].function_response.name == "weather"
+        assert google_content.parts[0].function_response.response == {"result": "22° C"}
+        assert google_content.parts[0].function_response.parts is None
+
+    def test_convert_message_to_google_genai_format_image_in_tool_result(self):
+        tool_call = ToolCall(id="123", tool_name="image_retriever", arguments={})
+
+        base64_str = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+ip1sAAAAASUVORK5CYII="
+        tool_result = [TextContent("Here is the image"), ImageContent(base64_image=base64_str, mime_type="image/jpeg")]
+
+        message = ChatMessage.from_tool(tool_result=tool_result, origin=tool_call)
+        google_content = _convert_message_to_google_genai_format(message)
+        assert google_content.role == "user"
+        assert len(google_content.parts) == 1
+        assert isinstance(google_content.parts[0].function_response, types.FunctionResponse)
+        assert google_content.parts[0].function_response.id == "123"
+        assert google_content.parts[0].function_response.name == "image_retriever"
+        assert google_content.parts[0].function_response.response == {"result": ""}
+        assert len(google_content.parts[0].function_response.parts) == 2
+        assert isinstance(google_content.parts[0].function_response.parts[0], types.FunctionResponsePart)
+        assert google_content.parts[0].function_response.parts[0].inline_data.mime_type == "text/plain"
+        assert google_content.parts[0].function_response.parts[0].inline_data.data == b"Here is the image"
+        assert isinstance(google_content.parts[0].function_response.parts[1], types.FunctionResponsePart)
+        assert google_content.parts[0].function_response.parts[1].inline_data.mime_type == "image/jpeg"
+        assert google_content.parts[0].function_response.parts[1].inline_data.data == base64.b64decode(base64_str)
+        assert len(google_content.parts[0].function_response.parts[1].inline_data.data) > 0
+
+    def test_convert_message_to_google_genai_format_invalid_tool_result_type(self):
+        tool_call = ToolCall(id="123", tool_name="weather", arguments={"city": "Paris"})
+        message = ChatMessage.from_tool(tool_result=256, origin=tool_call)
+        with pytest.raises(ValueError, match="Unsupported content type in tool call result"):
+            _convert_message_to_google_genai_format(message)
+
+        message = ChatMessage.from_tool(tool_result=[TextContent("This is supported"), 256], origin=tool_call)
+        with pytest.raises(
+            ValueError,
+            match=(
+                r"Unsupported content type in tool call result list. "
+                "Only TextContent and ImageContent are supported."
+            ),
+        ):
+            _convert_message_to_google_genai_format(message)
 
     @pytest.mark.skipif(
         not os.environ.get("GOOGLE_API_KEY", None),
@@ -1160,6 +1213,34 @@ class TestGoogleGenAIChatGenerator:
         assert "gemini-2.0" in error_message
         assert "thinking_budget" in error_message or "thinking features" in error_message
         assert "Try removing" in error_message or "use a different model" in error_message
+
+    @pytest.mark.integration
+    @pytest.mark.skipif(
+        not os.environ.get("GOOGLE_API_KEY", None),
+        reason="Export an env var called GOOGLE_API_KEY containing the Google API key to run this test.",
+    )
+    def test_live_run_agent_with_images_in_tool_result(self, test_files_path):
+        def retrieve_image():
+            return [
+                TextContent("Here is the retrieved image."),
+                ImageContent.from_file_path(test_files_path / "apple.jpg", size=(100, 100)),
+            ]
+
+        image_retriever_tool = create_tool_from_function(
+            name="retrieve_image", description="Tool to retrieve an image", function=retrieve_image
+        )
+        image_retriever_tool.outputs_to_string = {"raw_result": True}
+
+        agent = Agent(
+            chat_generator=GoogleGenAIChatGenerator(model="gemini-3-flash-preview"),
+            system_prompt="You are an Agent that can retrieve images and describe them.",
+            tools=[image_retriever_tool],
+        )
+
+        user_message = ChatMessage.from_user("Retrieve the image and describe it in max 5 words.")
+        result = agent.run(messages=[user_message])
+
+        assert "apple" in result["last_message"].text.lower()
 
 
 @pytest.mark.skipif(
