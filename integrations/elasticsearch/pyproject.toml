@@ -23,7 +23,7 @@ classifiers = [
   "Programming Language :: Python :: Implementation :: PyPy",
 ]
 dependencies = [
-  "haystack-ai>=2.22.0",
+  "haystack-ai @ git+https://github.com/deepset-ai/haystack.git@feat/add-delete-all-documents-tests",
   "elasticsearch>=8,<9",
   "aiohttp>=3.9.0" # for async support https://elasticsearch-py.readthedocs.io/en/latest/async.html#valueerror-when-initializing-asyncelasticsearch
 ]
