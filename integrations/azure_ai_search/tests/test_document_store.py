@@ -319,7 +319,7 @@ class TestDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocumentsT
         DeleteDocumentsTest.test_delete_by_filter_advanced_filters(document_store)
 
     # Metadata fields required by haystack UpdateByFilterTest filterable_docs (chapter, name, page, number, date, etc.)
-    _FILTERABLE_DOCS_METADATA = {   # noqa: RUF012
+    _FILTERABLE_DOCS_METADATA = {  # noqa: RUF012
         "name": str,
         "page": str,
         "chapter": str,
