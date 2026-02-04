@@ -9,7 +9,12 @@ import pytest
 from haystack.dataclasses.document import Document
 from haystack.document_stores.errors import DocumentStoreError, DuplicateDocumentError
 from haystack.document_stores.types import DuplicatePolicy
-from haystack.testing.document_store import CountDocumentsTest, DeleteDocumentsTest, WriteDocumentsTest, UpdateByFilterTest
+from haystack.testing.document_store import (
+    CountDocumentsTest,
+    DeleteDocumentsTest,
+    UpdateByFilterTest,
+    WriteDocumentsTest,
+)
 from opensearchpy.exceptions import RequestError
 
 from haystack_integrations.document_stores.opensearch import OpenSearchDocumentStore
@@ -522,7 +527,6 @@ class TestDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocumentsT
         results = document_store.filter_documents()
         assert len(results) == 1
         assert results[0].content == "New document after delete all"
-
 
     def test_count_documents_by_filter(self, document_store: OpenSearchDocumentStore):
         docs = [
