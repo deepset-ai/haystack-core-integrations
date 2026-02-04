@@ -730,7 +730,7 @@ class OpenSearchDocumentStore:
             msg = f"Failed to delete all documents from OpenSearch: {e!s}"
             raise DocumentStoreError(msg) from e
 
-    def delete_by_filter(self, filters: dict[str, Any], refresh: bool = True) -> int:
+    def delete_by_filter(self, filters: dict[str, Any], refresh: bool = False) -> int:
         """
         Deletes all documents that match the provided filters.
 
@@ -761,7 +761,7 @@ class OpenSearchDocumentStore:
             msg = f"Failed to delete documents by filter from OpenSearch: {e!s}"
             raise DocumentStoreError(msg) from e
 
-    async def delete_by_filter_async(self, filters: dict[str, Any], refresh: bool = True) -> int:
+    async def delete_by_filter_async(self, filters: dict[str, Any], refresh: bool = False) -> int:
         """
         Asynchronously deletes all documents that match the provided filters.
 
@@ -790,7 +790,7 @@ class OpenSearchDocumentStore:
             msg = f"Failed to delete documents by filter from OpenSearch: {e!s}"
             raise DocumentStoreError(msg) from e
 
-    def update_by_filter(self, filters: dict[str, Any], meta: dict[str, Any], refresh: bool = True) -> int:
+    def update_by_filter(self, filters: dict[str, Any], meta: dict[str, Any], refresh: bool = False) -> int:
         """
         Updates the metadata of all documents that match the provided filters.
 
