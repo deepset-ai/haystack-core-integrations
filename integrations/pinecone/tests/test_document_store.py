@@ -12,10 +12,10 @@ from haystack import Document
 from haystack.components.preprocessors import DocumentSplitter
 from haystack.components.retrievers import SentenceWindowRetriever
 from haystack.testing.document_store import (
-    CountDocumentsTest, 
-    DeleteDocumentsTest, 
-    WriteDocumentsTest, 
+    CountDocumentsTest,
+    DeleteDocumentsTest,
     UpdateByFilterTest,
+    WriteDocumentsTest,
 )
 from haystack.utils import Secret
 from pinecone import Pinecone, PodSpec, ServerlessSpec

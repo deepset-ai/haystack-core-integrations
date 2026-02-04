@@ -12,8 +12,8 @@ from haystack.document_stores.types import DuplicatePolicy
 from haystack.testing.document_store import (
     CountDocumentsTest,
     DeleteDocumentsTest,
-    WriteDocumentsTest,
     UpdateByFilterTest,
+    WriteDocumentsTest,
 )
 from haystack.utils import Secret
 

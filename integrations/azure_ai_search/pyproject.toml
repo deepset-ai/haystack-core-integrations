@@ -22,7 +22,7 @@ classifiers = [
   "Programming Language :: Python :: Implementation :: CPython",
   "Programming Language :: Python :: Implementation :: PyPy",
 ]
-dependencies = [""haystack-ai @ git+https://github.com/deepset-ai/haystack.git@feat/add-delete-all-documents-tests"", "azure-search-documents>=11.5", "azure-identity"]
+dependencies = ["haystack-ai @ git+https://github.com/deepset-ai/haystack.git@feat/add-delete-all-documents-tests", "azure-search-documents>=11.5", "azure-identity"]
 
 [project.urls]
 Documentation = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/azure_ai_search#readme"

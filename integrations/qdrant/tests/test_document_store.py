@@ -303,7 +303,6 @@ class TestQdrantDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocu
             with pytest.raises(ValueError, match="different vector size"):
                 document_store._set_up_collection("test_collection", 768, False, "cosine", False, False)
 
-
     def test_delete_all_documents_index_recreation(self, document_store):
         document_store._initialize_client()
 
@@ -326,7 +325,7 @@ class TestQdrantDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocu
         # ensure the collection still exists by writing documents again
         document_store.write_documents(docs)
         assert document_store.count_documents() == 5
-        
+
     def test_update_by_filter_preserves_vectors(self, document_store: QdrantDocumentStore):
         """Test that update_by_filter preserves document embeddings."""
         docs = [

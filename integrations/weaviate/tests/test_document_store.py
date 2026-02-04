@@ -48,7 +48,13 @@ def test_init_is_lazy(_mock_client):
 
 
 @pytest.mark.integration
-class TestWeaviateDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocumentsTest, FilterDocumentsTest, UpdateByFilterTest):
+class TestWeaviateDocumentStore(
+    CountDocumentsTest,
+    WriteDocumentsTest,
+    DeleteDocumentsTest,
+    FilterDocumentsTest,
+    UpdateByFilterTest
+):
     @pytest.fixture
     def document_store(self, request) -> WeaviateDocumentStore:
         # Use a different index for each test so we can run them in parallel

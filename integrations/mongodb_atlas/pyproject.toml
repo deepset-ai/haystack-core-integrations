@@ -23,7 +23,7 @@ classifiers = [
   "Programming Language :: Python :: Implementation :: PyPy",
 ]
 dependencies = [
-  "haystack-ai>=2.22.0",
+  "haystack-ai @ git+https://github.com/deepset-ai/haystack.git@feat/add-delete-all-documents-tests",
   "pymongo[srv]>=4.13.0"
 ]
 
@@ -34,6 +34,10 @@ Issues = "https://github.com/deepset-ai/haystack-core-integrations/issues"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/haystack_integrations"]
+
+[tool.hatch.metadata]
+allow-direct-references = true
+
 
 [tool.hatch.version]
 source = "vcs"

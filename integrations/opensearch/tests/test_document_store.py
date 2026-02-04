@@ -17,9 +17,8 @@ from haystack.testing.document_store import (
 )
 from opensearchpy.exceptions import RequestError
 
-from haystack_integrations.document_stores.opensearch.document_store import DEFAULT_MAX_CHUNK_BYTES
 from haystack_integrations.document_stores.opensearch import OpenSearchDocumentStore
-
+from haystack_integrations.document_stores.opensearch.document_store import DEFAULT_MAX_CHUNK_BYTES
 
 
 @patch("haystack_integrations.document_stores.opensearch.document_store.OpenSearch")
