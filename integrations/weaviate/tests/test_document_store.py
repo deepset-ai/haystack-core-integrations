@@ -49,11 +49,7 @@ def test_init_is_lazy(_mock_client):
 
 @pytest.mark.integration
 class TestWeaviateDocumentStore(
-    CountDocumentsTest,
-    WriteDocumentsTest,
-    DeleteDocumentsTest,
-    FilterDocumentsTest,
-    UpdateByFilterTest
+    CountDocumentsTest, WriteDocumentsTest, DeleteDocumentsTest, FilterDocumentsTest, UpdateByFilterTest
 ):
     @pytest.fixture
     def document_store(self, request) -> WeaviateDocumentStore:
