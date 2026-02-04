@@ -173,15 +173,55 @@ def _convert_message_to_google_genai_format(message: ChatMessage) -> types.Conte
             )
 
         elif isinstance(content_part, ToolCallResult):
-            parts.append(
-                types.Part(
-                    function_response=types.FunctionResponse(
-                        id=content_part.origin.id,
-                        name=content_part.origin.tool_name,
-                        response={"result": content_part.result},
+            if isinstance(content_part.result, str):
+                parts.append(
+                    types.Part(
+                        function_response=types.FunctionResponse(
+                            id=content_part.origin.id,
+                            name=content_part.origin.tool_name,
+                            response={"result": content_part.result},
+                        )
                     )
                 )
-            )
+            elif isinstance(content_part.result, list):
+                tool_call_result_parts: list[types.FunctionResponsePart] = []
+                for item in content_part.result:
+                    if isinstance(item, TextContent):
+                        tool_call_result_parts.append(
+                            types.FunctionResponsePart(
+                                inline_data=types.FunctionResponseBlob(
+                                    data=item.text.encode("utf-8"), mime_type="text/plain"
+                                ),
+                            )
+                        )
+                    elif isinstance(item, ImageContent):
+                        tool_call_result_parts.append(
+                            types.FunctionResponsePart(
+                                inline_data=types.FunctionResponseBlob(
+                                    data=base64.b64decode(item.base64_image), mime_type=item.mime_type
+                                ),
+                            )
+                        )
+                    else:
+                        msg = (
+                            "Unsupported content type in tool call result list. "
+                            "Only TextContent and ImageContent are supported."
+                        )
+                        raise ValueError(msg)
+                parts.append(
+                    types.Part(
+                        function_response=types.FunctionResponse(
+                            id=content_part.origin.id,
+                            name=content_part.origin.tool_name,
+                            parts=tool_call_result_parts,
+                            # the response field is mandatory, but in this case the LLM just needs multimodal parts
+                            response={"result": ""},
+                        )
+                    )
+                )
+            else:
+                msg = "Unsupported content type in tool call result"
+                raise ValueError(msg)
         elif isinstance(content_part, ReasoningContent):
             # Reasoning content is for human transparency only, not for maintaining LLM context
             # Thought signatures (stored in message.meta) handle context preservation

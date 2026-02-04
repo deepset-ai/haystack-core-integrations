@@ -1,5 +1,16 @@
 # Changelog
 
+## [integrations/google_genai-v3.3.0] - 2026-02-03
+
+### 🚀 Features
+
+- Google GenAI - support images in tool results (#2809)
+
+### 🧪 Testing
+
+- Google GenAI - make test_live_run_with_parallel_tools more robust (#2779)
+
+
 ## [integrations/google_genai-v3.2.0] - 2026-01-19
 
 ### 🐛 Bug Fixes
