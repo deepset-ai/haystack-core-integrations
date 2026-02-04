@@ -70,8 +70,9 @@ def document_store(request):
         time.sleep(SLEEP_TIME_IN_SECONDS)
         return deleted_count
 
-    def update_by_filter_and_wait(filters, fields):
-        updated_count = original_update_by_filter(filters, fields)
+    def update_by_filter_and_wait(filters, meta=None, fields=None, **kwargs):
+        updates = meta if meta is not None else fields or {}
+        updated_count = original_update_by_filter(filters, updates)
         time.sleep(SLEEP_TIME_IN_SECONDS)
         return updated_count
 
