@@ -790,7 +790,7 @@ class OpenSearchDocumentStore:
             msg = f"Failed to delete documents by filter from OpenSearch: {e!s}"
             raise DocumentStoreError(msg) from e
 
-    def update_by_filter(self, filters: dict[str, Any], meta: dict[str, Any], refresh: bool = False) -> int:
+    def update_by_filter(self, filters: dict[str, Any], meta: dict[str, Any], refresh: bool = True) -> int:
         """
         Updates the metadata of all documents that match the provided filters.
 
