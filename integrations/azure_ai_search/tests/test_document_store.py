@@ -19,6 +19,7 @@ from haystack.testing.document_store import (
     FilterDocumentsTest,
     UpdateByFilterTest,
     WriteDocumentsTest,
+    FilterableDocsFixtureMixin,
 )
 from haystack.utils.auth import EnvVarSecret, Secret
 
@@ -264,6 +265,7 @@ class TestDocumentStore(
     DeleteDocumentsTest,
     DeleteAllTest,
     DeleteByFilterTest,
+    FilterableDocsFixtureMixin,
     WriteDocumentsTest,
     UpdateByFilterTest,
 ):
