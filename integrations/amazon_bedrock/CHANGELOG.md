@@ -1,5 +1,16 @@
 # Changelog
 
+## [integrations/amazon_bedrock-v6.4.0] - 2026-02-05
+
+### 🚀 Features
+
+- Bedrock - support prompt caching (#2796)
+
+### 🧹 Chores
+
+- *(amazon_bedrock)* Simplify Secret (de-)serialization (#2808)
+
+
 ## [integrations/amazon_bedrock-v6.3.0] - 2026-01-28
 
 ### 🌀 Miscellaneous
