@@ -206,7 +206,7 @@ class TestDocumentStore(DocumentStoreBaseExtendedTests):
     """
 
     @pytest.fixture
-    def document_store(self, request, document_store):
+    def document_store(self, request, document_store):  # noqa: ARG002
         """
         This is the most basic requirement for the child class: provide
         an instance of this document store so the base class can use it.

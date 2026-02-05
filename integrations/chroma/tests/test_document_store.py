@@ -38,7 +38,15 @@ def clear_chroma_system_cache():
     SharedSystemClient.clear_system_cache()
 
 
-class TestDocumentStore(CountDocumentsTest, DeleteDocumentsTest, FilterDocumentsTest, FilterableDocsFixtureMixin, UpdateByFilterTest, DeleteAllTest, DeleteByFilterTest):
+class TestDocumentStore(
+    CountDocumentsTest, 
+    DeleteDocumentsTest, 
+    FilterDocumentsTest, 
+    FilterableDocsFixtureMixin, 
+    UpdateByFilterTest, 
+    DeleteAllTest, 
+    DeleteByFilterTest,
+):
     """
     Common test cases will be provided by `DocumentStoreBaseTests` but
     you can add more to this class.
