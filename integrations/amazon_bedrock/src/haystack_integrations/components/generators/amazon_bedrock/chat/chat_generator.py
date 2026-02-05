@@ -134,7 +134,7 @@ class AmazonBedrockChatGenerator:
     > Based on the information I've received, I can tell you that the weather in Paris is
     > currently sunny with a temperature of 32°C (which is about 90°F).
     ```
-    
+
     **Prompt caching**
 
     This component supports prompt caching. You can use the `tools_cachepoint_config` parameter to configure the cache
