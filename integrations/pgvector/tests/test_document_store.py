@@ -11,9 +11,9 @@ from haystack.document_stores.errors import DocumentStoreError, DuplicateDocumen
 from haystack.document_stores.types import DuplicatePolicy
 from haystack.testing.document_store import (
     CountDocumentsTest,
-    DeleteDocumentsTest,
     DeleteAllTest,
     DeleteByFilterTest,
+    DeleteDocumentsTest,
     FilterableDocsFixtureMixin,
     UpdateByFilterTest,
     WriteDocumentsTest,
@@ -25,7 +25,7 @@ from haystack_integrations.document_stores.pgvector import PgvectorDocumentStore
 
 @pytest.mark.integration
 class TestDocumentStore(
-    CountDocumentsTest, 
+    CountDocumentsTest,
     DeleteAllTest,
     DeleteByFilterTest,
     DeleteDocumentsTest,

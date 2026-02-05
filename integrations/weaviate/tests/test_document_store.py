@@ -13,11 +13,7 @@ from haystack.dataclasses.byte_stream import ByteStream
 from haystack.dataclasses.document import Document
 from haystack.document_stores.errors import DocumentStoreError
 from haystack.testing.document_store import (
-    CountDocumentsTest,
-    DeleteDocumentsTest,
     DocumentStoreBaseExtendedTests,
-    FilterDocumentsTest,
-    WriteDocumentsTest,
     create_filterable_docs,
 )
 from haystack.utils.auth import Secret
