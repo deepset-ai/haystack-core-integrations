@@ -27,6 +27,7 @@ from haystack_integrations.components.generators.amazon_bedrock.chat.utils impor
     _parse_completion_response,
     _parse_streaming_response,
     _parse_streaming_response_async,
+    _validate_and_format_cache_point,
     _validate_guardrail_config,
 )
 
@@ -142,6 +143,12 @@ class AmazonBedrockChatGenerator:
       and `aws_region_name` as environment variables or pass them as
      [Secret](https://docs.haystack.deepset.ai/docs/secret-management) arguments. Make sure the region you set
     supports Amazon Bedrock.
+
+    This component supports prompt caching. You can use the `tools_cachepoint_config` parameter to configure the cache
+    point for tools.
+    To cache messages, you can use the `cachePoint` key in `ChatMessage.meta` attribute.
+    Example: `ChatMessage.from_user("Long message...", meta={"cachePoint": {"type": "default"}})`
+    For more information, see the [Amazon Bedrock documentation](https://docs.aws.amazon.com/bedrock/latest/userguide/prompt-caching.html).
     """
 
     def __init__(
@@ -160,6 +167,7 @@ class AmazonBedrockChatGenerator:
         tools: ToolsType | None = None,
         *,
         guardrail_config: dict[str, str] | None = None,
+        tools_cachepoint_config: dict[str, str] | None = None,
     ) -> None:
         """
         Initializes the `AmazonBedrockChatGenerator` with the provided parameters. The parameters are passed to the
@@ -201,6 +209,10 @@ class AmazonBedrockChatGenerator:
             See the
             [Guardrails Streaming documentation](https://docs.aws.amazon.com/bedrock/latest/userguide/guardrails-streaming.html)
             for more information.
+        :param tools_cachepoint_config: Optional configuration to use prompt caching for tools.
+            The dictionary must match the
+            [CachePointBlock schema](https://docs.aws.amazon.com/bedrock/latest/APIReference/API_runtime_CachePointBlock.html).
+            Example: `{"type": "default", "ttl": "5m"}`
 
 
         :raises ValueError: If the model name is empty or None.
@@ -224,6 +236,10 @@ class AmazonBedrockChatGenerator:
 
         _validate_guardrail_config(guardrail_config=guardrail_config, streaming=streaming_callback is not None)
         self.guardrail_config = guardrail_config
+
+        self.tools_cachepoint_config = (
+            _validate_and_format_cache_point(tools_cachepoint_config) if tools_cachepoint_config else None
+        )
 
         def resolve_secret(secret: Secret | None) -> str | None:
             return secret.resolve_value() if secret else None
@@ -310,6 +326,7 @@ class AmazonBedrockChatGenerator:
             boto3_config=self.boto3_config,
             tools=serialize_tools_or_toolset(self.tools),
             guardrail_config=self.guardrail_config,
+            tools_cachepoint_config=self.tools_cachepoint_config,
         )
 
     @classmethod
@@ -385,7 +402,7 @@ class AmazonBedrockChatGenerator:
         tool_config = merged_kwargs.pop("toolConfig", None)
         if flattened_tools:
             # Format Haystack tools to Bedrock format
-            tool_config = _format_tools(flattened_tools)
+            tool_config = _format_tools(flattened_tools, tools_cachepoint_config=self.tools_cachepoint_config)
 
         # Any remaining kwargs go to additionalModelRequestFields
         additional_fields = merged_kwargs if merged_kwargs else None
