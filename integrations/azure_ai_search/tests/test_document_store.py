@@ -266,7 +266,6 @@ class TestDocumentStore(
     DeleteByFilterTest,
     WriteDocumentsTest,
     UpdateByFilterTest,
-
 ):
     def assert_documents_are_equal(self, received: list[Document], expected: list[Document]):
         _assert_documents_are_equal(received, expected)
