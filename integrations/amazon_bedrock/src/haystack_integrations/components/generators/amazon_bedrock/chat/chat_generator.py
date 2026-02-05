@@ -42,7 +42,7 @@ class AmazonBedrockChatGenerator:
     For example, to use the Anthropic Claude 3 Sonnet model, initialize this component with the
     'anthropic.claude-3-5-sonnet-20240620-v1:0' model name.
 
-    ### Usage example
+    **Usage example**
 
     ```python
     from haystack_integrations.components.generators.amazon_bedrock import AmazonBedrockChatGenerator
@@ -58,7 +58,8 @@ class AmazonBedrockChatGenerator:
     client.run(messages, generation_kwargs={"max_tokens": 512})
     ```
 
-    ### Multimodal example
+    **Multimodal example**
+
     ```python
     from haystack.dataclasses import ChatMessage, ImageContent
     from haystack_integrations.components.generators.amazon_bedrock import AmazonBedrockChatGenerator
@@ -73,11 +74,13 @@ class AmazonBedrockChatGenerator:
 
     print(response)
     > The image shows a red apple.
+    ```
 
-    ### Tool usage example
-    # AmazonBedrockChatGenerator supports Haystack's unified tool architecture, allowing tools to be used
-    # across different chat generators. The same tool definitions and usage patterns work consistently
-    # whether using Amazon Bedrock, OpenAI, Ollama, or any other supported LLM providers.
+    **Tool usage example**
+
+    AmazonBedrockChatGenerator supports Haystack's unified tool architecture, allowing tools to be used
+    across different chat generators. The same tool definitions and usage patterns work consistently
+    whether using Amazon Bedrock, OpenAI, Ollama, or any other supported LLM providers.
 
     ```python
     from haystack.dataclasses import ChatMessage
@@ -130,8 +133,21 @@ class AmazonBedrockChatGenerator:
 
     > Based on the information I've received, I can tell you that the weather in Paris is
     > currently sunny with a temperature of 32°C (which is about 90°F).
-
     ```
+    
+    **Prompt caching**
+
+    This component supports prompt caching. You can use the `tools_cachepoint_config` parameter to configure the cache
+    point for tools.
+    To cache messages, you can use the `cachePoint` key in `ChatMessage.meta` attribute.
+
+    ```python
+    ChatMessage.from_user("Long message...", meta={"cachePoint": {"type": "default"}})
+    ```
+
+    For more information, see the [Amazon Bedrock documentation](https://docs.aws.amazon.com/bedrock/latest/userguide/prompt-caching.html).
+
+    **Authentication**
 
     AmazonBedrockChatGenerator uses AWS for authentication. You can use the AWS CLI to authenticate through your IAM.
     For more information on setting up an IAM identity-based policy, see [Amazon Bedrock documentation]
@@ -140,15 +156,9 @@ class AmazonBedrockChatGenerator:
     If the AWS environment is configured correctly, the AWS credentials are not required as they're loaded
     automatically from the environment or the AWS configuration file.
     If the AWS environment is not configured, set `aws_access_key_id`, `aws_secret_access_key`,
-      and `aws_region_name` as environment variables or pass them as
-     [Secret](https://docs.haystack.deepset.ai/docs/secret-management) arguments. Make sure the region you set
+    and `aws_region_name` as environment variables or pass them as
+    [Secret](https://docs.haystack.deepset.ai/docs/secret-management) arguments. Make sure the region you set
     supports Amazon Bedrock.
-
-    This component supports prompt caching. You can use the `tools_cachepoint_config` parameter to configure the cache
-    point for tools.
-    To cache messages, you can use the `cachePoint` key in `ChatMessage.meta` attribute.
-    Example: `ChatMessage.from_user("Long message...", meta={"cachePoint": {"type": "default"}})`
-    For more information, see the [Amazon Bedrock documentation](https://docs.aws.amazon.com/bedrock/latest/userguide/prompt-caching.html).
     """
 
     def __init__(
