@@ -156,7 +156,7 @@ class TestDocumentStore(DocumentStoreBaseExtendedTests):
     Common test cases will be provided by `DocumentStoreBaseExtendedTests` but
     you can add more to this class.
     """
-    
+
     @pytest.fixture
     def document_store(self, document_store):
         """Override base class fixture to provide OpenSearch document store."""
