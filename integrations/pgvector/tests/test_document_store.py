@@ -12,7 +12,10 @@ from haystack.document_stores.types import DuplicatePolicy
 from haystack.testing.document_store import (
     CountDocumentsTest,
     DeleteDocumentsTest,
-    DocumentStoreBaseExtendedTests,
+    DeleteAllTest,
+    DeleteByFilterTest,
+    FilterableDocsFixtureMixin,
+    UpdateByFilterTest,
     WriteDocumentsTest,
 )
 from haystack.utils import Secret
@@ -21,7 +24,15 @@ from haystack_integrations.document_stores.pgvector import PgvectorDocumentStore
 
 
 @pytest.mark.integration
-class TestDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocumentsTest, DocumentStoreBaseExtendedTests):
+class TestDocumentStore(
+    CountDocumentsTest, 
+    DeleteAllTest,
+    DeleteByFilterTest,
+    DeleteDocumentsTest,
+    FilterableDocsFixtureMixin,
+    UpdateByFilterTest,
+    WriteDocumentsTest,
+):
     def test_write_documents(self, document_store: PgvectorDocumentStore):
         docs = [Document(id="1")]
         assert document_store.write_documents(docs) == 1
