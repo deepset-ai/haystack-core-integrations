@@ -14,11 +14,11 @@ from haystack.dataclasses import ByteStream, Document
 from haystack.testing.document_store import (
     TEST_EMBEDDING_1,
     CountDocumentsTest,
-    DeleteDocumentsTest,
     DeleteAllTest,
     DeleteByFilterTest,
-    FilterDocumentsTest,
+    DeleteDocumentsTest,
     FilterableDocsFixtureMixin,
+    FilterDocumentsTest,
     UpdateByFilterTest,
 )
 
@@ -39,12 +39,12 @@ def clear_chroma_system_cache():
 
 
 class TestDocumentStore(
-    CountDocumentsTest, 
-    DeleteDocumentsTest, 
-    FilterDocumentsTest, 
-    FilterableDocsFixtureMixin, 
-    UpdateByFilterTest, 
-    DeleteAllTest, 
+    CountDocumentsTest,
+    DeleteDocumentsTest,
+    FilterDocumentsTest,
+    FilterableDocsFixtureMixin,
+    UpdateByFilterTest,
+    DeleteAllTest,
     DeleteByFilterTest,
 ):
     """
