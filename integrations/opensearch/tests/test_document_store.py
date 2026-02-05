@@ -9,12 +9,7 @@ import pytest
 from haystack.dataclasses.document import Document
 from haystack.document_stores.errors import DocumentStoreError, DuplicateDocumentError
 from haystack.document_stores.types import DuplicatePolicy
-from haystack.testing.document_store import (
-    CountDocumentsTest,
-    DeleteDocumentsTest,
-    DocumentStoreBaseExtendedTests,
-    WriteDocumentsTest,
-)
+from haystack.testing.document_store import DocumentStoreBaseExtendedTests
 from opensearchpy.exceptions import RequestError
 
 from haystack_integrations.document_stores.opensearch import OpenSearchDocumentStore
@@ -156,11 +151,16 @@ def test_routing_in_delete(mock_bulk, document_store):
 
 
 @pytest.mark.integration
-class TestDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocumentsTest, DocumentStoreBaseExtendedTests):
+class TestDocumentStore(DocumentStoreBaseExtendedTests):
     """
-    Common test cases will be provided by `DocumentStoreBaseTests` but
+    Common test cases will be provided by `DocumentStoreBaseExtendedTests` but
     you can add more to this class.
     """
+
+    @pytest.fixture
+    def document_store(self, opensearch_document_store):
+        """Override base class fixture to provide OpenSearch document store."""
+        yield opensearch_document_store
 
     def assert_documents_are_equal(self, received: list[Document], expected: list[Document]):
         """
