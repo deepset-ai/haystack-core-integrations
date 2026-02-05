@@ -13,9 +13,11 @@ from haystack.dataclasses.document import Document
 from haystack.errors import FilterError
 from haystack.testing.document_store import (
     CountDocumentsTest,
+    DeleteAllTest,
+    DeleteByFilterTest,
     DeleteDocumentsTest,
-    DocumentStoreBaseExtendedTests,
     FilterDocumentsTest,
+    UpdateByFilterTest,
     WriteDocumentsTest,
 )
 from haystack.utils.auth import EnvVarSecret, Secret
@@ -257,7 +259,15 @@ def _assert_documents_are_equal(received: list[Document], expected: list[Documen
     not os.environ.get("AZURE_AI_SEARCH_ENDPOINT", None) and not os.environ.get("AZURE_AI_SEARCH_API_KEY", None),
     reason="Missing AZURE_AI_SEARCH_ENDPOINT or AZURE_AI_SEARCH_API_KEY.",
 )
-class TestDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocumentsTest, DocumentStoreBaseExtendedTests):
+class TestDocumentStore(
+    CountDocumentsTest,
+    DeleteDocumentsTest,
+    DeleteAllTest,
+    DeleteByFilterTest,
+    WriteDocumentsTest,
+    UpdateByFilterTest,
+
+):
     def assert_documents_are_equal(self, received: list[Document], expected: list[Document]):
         _assert_documents_are_equal(received, expected)
 
@@ -298,7 +308,7 @@ class TestDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocumentsT
     )
     def test_delete_by_filter(self, document_store: AzureAISearchDocumentStore):
         """Override to use a document_store with category metadata field."""
-        DeleteDocumentsTest.test_delete_by_filter(document_store)
+        DeleteByFilterTest.test_delete_by_filter(document_store)
 
     @pytest.mark.parametrize(
         "document_store",
@@ -307,7 +317,7 @@ class TestDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocumentsT
     )
     def test_delete_by_filter_no_matches(self, document_store: AzureAISearchDocumentStore):
         """Override to use a document_store with category metadata field."""
-        DeleteDocumentsTest.test_delete_by_filter_no_matches(document_store)
+        DeleteByFilterTest.test_delete_by_filter_no_matches(document_store)
 
     @pytest.mark.parametrize(
         "document_store",
@@ -316,7 +326,7 @@ class TestDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocumentsT
     )
     def test_delete_by_filter_advanced_filters(self, document_store: AzureAISearchDocumentStore):
         """Override to use a document_store with category, year, status metadata fields."""
-        DeleteDocumentsTest.test_delete_by_filter_advanced_filters(document_store)
+        DeleteByFilterTest.test_delete_by_filter_advanced_filters(document_store)
 
     # Metadata fields required by haystack UpdateByFilterTest filterable_docs (chapter, name, page, number, date, etc.)
     _FILTERABLE_DOCS_METADATA = {  # noqa: RUF012
