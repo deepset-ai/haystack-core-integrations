@@ -15,8 +15,11 @@ from haystack.testing.document_store import (
     TEST_EMBEDDING_1,
     CountDocumentsTest,
     DeleteDocumentsTest,
-    DocumentStoreBaseExtendedTests,
+    DeleteAllTest,
+    DeleteByFilterTest,
     FilterDocumentsTest,
+    FilterableDocsFixtureMixin,
+    UpdateByFilterTest,
 )
 
 from haystack_integrations.document_stores.chroma import ChromaDocumentStore
@@ -35,7 +38,7 @@ def clear_chroma_system_cache():
     SharedSystemClient.clear_system_cache()
 
 
-class TestDocumentStore(CountDocumentsTest, DeleteDocumentsTest, FilterDocumentsTest, DocumentStoreBaseExtendedTests):
+class TestDocumentStore(CountDocumentsTest, DeleteDocumentsTest, FilterDocumentsTest, FilterableDocsFixtureMixin, UpdateByFilterTest, DeleteAllTest, DeleteByFilterTest):
     """
     Common test cases will be provided by `DocumentStoreBaseTests` but
     you can add more to this class.
