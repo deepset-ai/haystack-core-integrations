@@ -10,7 +10,7 @@ import pytest
 from haystack.dataclasses.document import ByteStream, Document
 from haystack.document_stores.errors import DuplicateDocumentError
 from haystack.document_stores.types import DuplicatePolicy
-from haystack.testing.document_store import DocumentStoreBaseTests, DocumentStoreBaseExtendedTests
+from haystack.testing.document_store import DocumentStoreBaseExtendedTests, DocumentStoreBaseTests
 from haystack.utils import Secret
 from pymongo import MongoClient
 from pymongo.driver_info import DriverInfo

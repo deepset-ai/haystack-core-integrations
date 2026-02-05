@@ -10,7 +10,7 @@ from elasticsearch.exceptions import BadRequestError  # type: ignore[import-not-
 from haystack.dataclasses.document import Document
 from haystack.document_stores.errors import DocumentStoreError, DuplicateDocumentError
 from haystack.document_stores.types import DuplicatePolicy
-from haystack.testing.document_store import DocumentStoreBaseTests, DocumentStoreBaseExtendedTests
+from haystack.testing.document_store import DocumentStoreBaseExtendedTests, DocumentStoreBaseTests
 from haystack.utils import Secret
 from haystack.utils.auth import TokenSecret
 

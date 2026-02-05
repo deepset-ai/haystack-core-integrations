@@ -15,8 +15,8 @@ from haystack.testing.document_store import (
     TEST_EMBEDDING_1,
     CountDocumentsTest,
     DeleteDocumentsTest,
-    FilterDocumentsTest,
     DocumentStoreBaseExtendedTests,
+    FilterDocumentsTest,
 )
 
 from haystack_integrations.document_stores.chroma import ChromaDocumentStore

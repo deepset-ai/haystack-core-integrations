@@ -23,7 +23,9 @@ from haystack_integrations.document_stores.qdrant.document_store import (
 )
 
 
-class TestQdrantDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocumentsTest, DocumentStoreBaseExtendedTests):
+class TestQdrantDocumentStore(
+    CountDocumentsTest, WriteDocumentsTest, DeleteDocumentsTest, DocumentStoreBaseExtendedTests
+    ):
     @pytest.fixture
     def document_store(self) -> QdrantDocumentStore:
         return QdrantDocumentStore(

@@ -342,7 +342,6 @@ class TestDocumentStore(CountDocumentsTest, DeleteDocumentsTest, WriteDocumentsT
 
         assert len(result["context_windows"]) == 1
 
-
     def test_count_documents_by_filter(self, document_store: PineconeDocumentStore):
         docs = [
             Document(content="Doc 1", meta={"category": "A", "status": "draft"}),
