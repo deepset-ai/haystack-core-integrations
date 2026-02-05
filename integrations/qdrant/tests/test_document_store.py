@@ -7,8 +7,11 @@ from haystack.document_stores.errors import DuplicateDocumentError
 from haystack.document_stores.types import DuplicatePolicy
 from haystack.testing.document_store import (
     CountDocumentsTest,
+    DeleteAllTest,
+    DeleteByFilterTest,
     DeleteDocumentsTest,
-    DocumentStoreBaseExtendedTests,
+    FilterableDocsFixtureMixin,
+    UpdateByFilterTest,
     WriteDocumentsTest,
     _random_embeddings,
 )
@@ -24,7 +27,13 @@ from haystack_integrations.document_stores.qdrant.document_store import (
 
 
 class TestQdrantDocumentStore(
-    CountDocumentsTest, WriteDocumentsTest, DeleteDocumentsTest, DocumentStoreBaseExtendedTests
+    CountDocumentsTest,
+    DeleteAllTest,
+    DeleteByFilterTest,
+    DeleteDocumentsTest,
+    FilterableDocsFixtureMixin,
+    UpdateByFilterTest,
+    WriteDocumentsTest,
 ):
     @pytest.fixture
     def document_store(self) -> QdrantDocumentStore:
