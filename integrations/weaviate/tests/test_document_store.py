@@ -15,8 +15,8 @@ from haystack.document_stores.errors import DocumentStoreError
 from haystack.testing.document_store import (
     CountDocumentsTest,
     DeleteDocumentsTest,
-    FilterDocumentsTest,
     DocumentStoreBaseExtendedTests,
+    FilterDocumentsTest,
     WriteDocumentsTest,
     create_filterable_docs,
 )
