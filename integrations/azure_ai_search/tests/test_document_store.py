@@ -16,10 +16,10 @@ from haystack.testing.document_store import (
     DeleteAllTest,
     DeleteByFilterTest,
     DeleteDocumentsTest,
+    FilterableDocsFixtureMixin,
     FilterDocumentsTest,
     UpdateByFilterTest,
     WriteDocumentsTest,
-    FilterableDocsFixtureMixin,
 )
 from haystack.utils.auth import EnvVarSecret, Secret
 
