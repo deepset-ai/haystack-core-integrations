@@ -24,7 +24,7 @@ classifiers = [
 ]
 
 dependencies = [
-  "haystack-ai @ git+https://github.com/deepset-ai/haystack.git@feat/add-delete-all-documents-tests",
+  "haystack-ai @ git+https://github.com/deepset-ai/haystack.git@main",
   "opensearch-py[async]>=3.0.0"
 ]
 
