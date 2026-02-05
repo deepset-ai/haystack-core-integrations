@@ -12,7 +12,7 @@ from haystack.document_stores.types import DuplicatePolicy
 from haystack.testing.document_store import (
     CountDocumentsTest,
     DeleteDocumentsTest,
-    UpdateByFilterTest,
+    DocumentStoreBaseExtendedTests,
     WriteDocumentsTest,
 )
 from opensearchpy.exceptions import RequestError
@@ -156,7 +156,7 @@ def test_routing_in_delete(mock_bulk, document_store):
 
 
 @pytest.mark.integration
-class TestDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocumentsTest, UpdateByFilterTest):
+class TestDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocumentsTest, DocumentStoreBaseExtendedTests):
     """
     Common test cases will be provided by `DocumentStoreBaseTests` but
     you can add more to this class.

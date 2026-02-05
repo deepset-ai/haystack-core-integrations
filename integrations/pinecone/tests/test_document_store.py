@@ -14,7 +14,7 @@ from haystack.components.retrievers import SentenceWindowRetriever
 from haystack.testing.document_store import (
     CountDocumentsTest,
     DeleteDocumentsTest,
-    UpdateByFilterTest,
+    DocumentStoreBaseExtendedTests,
     WriteDocumentsTest,
 )
 from haystack.utils import Secret
@@ -265,7 +265,7 @@ def test_serverless_index_creation_from_scratch(delete_sleep_time):
 
 @pytest.mark.integration
 @pytest.mark.skipif(not os.environ.get("PINECONE_API_KEY"), reason="PINECONE_API_KEY not set")
-class TestDocumentStore(CountDocumentsTest, DeleteDocumentsTest, WriteDocumentsTest, UpdateByFilterTest):
+class TestDocumentStore(CountDocumentsTest, DeleteDocumentsTest, WriteDocumentsTest, DocumentStoreBaseExtendedTests):
     def test_write_documents(self, document_store: PineconeDocumentStore):
         docs = [Document(id="1")]
         assert document_store.write_documents(docs) == 1

@@ -14,8 +14,8 @@ from haystack.errors import FilterError
 from haystack.testing.document_store import (
     CountDocumentsTest,
     DeleteDocumentsTest,
+    DocumentStoreBaseExtendedTests,
     FilterDocumentsTest,
-    UpdateByFilterTest,
     WriteDocumentsTest,
 )
 from haystack.utils.auth import EnvVarSecret, Secret
@@ -257,7 +257,7 @@ def _assert_documents_are_equal(received: list[Document], expected: list[Documen
     not os.environ.get("AZURE_AI_SEARCH_ENDPOINT", None) and not os.environ.get("AZURE_AI_SEARCH_API_KEY", None),
     reason="Missing AZURE_AI_SEARCH_ENDPOINT or AZURE_AI_SEARCH_API_KEY.",
 )
-class TestDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocumentsTest, UpdateByFilterTest):
+class TestDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocumentsTest, DocumentStoreBaseExtendedTests):
     def assert_documents_are_equal(self, received: list[Document], expected: list[Document]):
         _assert_documents_are_equal(received, expected)
 

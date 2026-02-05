@@ -16,7 +16,7 @@ from haystack.testing.document_store import (
     CountDocumentsTest,
     DeleteDocumentsTest,
     FilterDocumentsTest,
-    UpdateByFilterTest,
+    DocumentStoreBaseExtendedTests,
     WriteDocumentsTest,
     create_filterable_docs,
 )
@@ -49,7 +49,7 @@ def test_init_is_lazy(_mock_client):
 
 @pytest.mark.integration
 class TestWeaviateDocumentStore(
-    CountDocumentsTest, WriteDocumentsTest, DeleteDocumentsTest, FilterDocumentsTest, UpdateByFilterTest
+    CountDocumentsTest, WriteDocumentsTest, DeleteDocumentsTest, FilterDocumentsTest, DocumentStoreBaseExtendedTests
 ):
     @pytest.fixture
     def document_store(self, request) -> WeaviateDocumentStore:

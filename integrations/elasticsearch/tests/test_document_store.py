@@ -10,7 +10,7 @@ from elasticsearch.exceptions import BadRequestError  # type: ignore[import-not-
 from haystack.dataclasses.document import Document
 from haystack.document_stores.errors import DocumentStoreError, DuplicateDocumentError
 from haystack.document_stores.types import DuplicatePolicy
-from haystack.testing.document_store import DocumentStoreBaseTests
+from haystack.testing.document_store import DocumentStoreBaseTests, DocumentStoreBaseExtendedTests
 from haystack.utils import Secret
 from haystack.utils.auth import TokenSecret
 
@@ -199,7 +199,7 @@ def test_client_initialization_with_api_key_string(_mock_async_es, _mock_es):
 
 
 @pytest.mark.integration
-class TestDocumentStore(DocumentStoreBaseTests):
+class TestDocumentStore(DocumentStoreBaseTests, DocumentStoreBaseExtendedTests):
     """
     Common test cases will be provided by `DocumentStoreBaseTests` but
     you can add more to this class.
