@@ -1141,12 +1141,13 @@ class ChromaDocumentStore:
         if not metadatas:
             return {"min": None, "max": None}
 
-        # Collect all values for this field (excluding None)
-        values = [
-            meta.get(field_name)
-            for meta in metadatas
-            if meta and field_name in meta and meta.get(field_name) is not None
-        ]
+        # Collect all comparable values for this field (excluding None and non-comparable types)
+        values: list[str | int | float] = []
+        for meta in metadatas:
+            if meta and field_name in meta:
+                val = meta.get(field_name)
+                if isinstance(val, (str, int, float)):
+                    values.append(val)
 
         if not values:
             return {"min": None, "max": None}
@@ -1177,12 +1178,13 @@ class ChromaDocumentStore:
         if not metadatas:
             return {"min": None, "max": None}
 
-        # Collect all values for this field (excluding None)
-        values = [
-            meta.get(field_name)
-            for meta in metadatas
-            if meta and field_name in meta and meta.get(field_name) is not None
-        ]
+        # Collect all comparable values for this field (excluding None and non-comparable types)
+        values: list[str | int | float] = []
+        for meta in metadatas:
+            if meta and field_name in meta:
+                val = meta.get(field_name)
+                if isinstance(val, (str, int, float)):
+                    values.append(val)
 
         if not values:
             return {"min": None, "max": None}
@@ -1231,7 +1233,9 @@ class ChromaDocumentStore:
 
         # If search_term is provided, filter documents by content
         if search_term:
-            documents = result.get("documents", [])
+            documents = result.get("documents")
+            if documents is None:
+                documents = []
             filtered_metadatas = [
                 metadatas[i] for i in range(len(documents)) if documents[i] and search_term in documents[i]
             ]
@@ -1303,7 +1307,9 @@ class ChromaDocumentStore:
 
         # If search_term is provided, filter documents by content
         if search_term:
-            documents = result.get("documents", [])
+            documents = result.get("documents")
+            if documents is None:
+                documents = []
             filtered_metadatas = [
                 metadatas[i] for i in range(len(documents)) if documents[i] and search_term in documents[i]
             ]
