@@ -10,7 +10,7 @@ from elasticsearch.exceptions import BadRequestError  # type: ignore[import-not-
 from haystack.dataclasses.document import Document
 from haystack.document_stores.errors import DocumentStoreError, DuplicateDocumentError
 from haystack.document_stores.types import DuplicatePolicy
-from haystack.testing.document_store import DocumentStoreBaseTests
+from haystack.testing.document_store import DocumentStoreBaseExtendedTests
 from haystack.utils import Secret
 from haystack.utils.auth import TokenSecret
 
@@ -199,9 +199,9 @@ def test_client_initialization_with_api_key_string(_mock_async_es, _mock_es):
 
 
 @pytest.mark.integration
-class TestDocumentStore(DocumentStoreBaseTests):
+class TestDocumentStore(DocumentStoreBaseExtendedTests):
     """
-    Common test cases will be provided by `DocumentStoreBaseTests` but
+    Common test cases will be provided by `DocumentStoreBaseExtendedTests` but
     you can add more to this class.
     """
 
@@ -500,74 +500,6 @@ class TestDocumentStore(DocumentStoreBaseTests):
         results = document_store.filter_documents()
         assert len(results) == 1
         assert results[0].content == "New document after delete all"
-
-    def test_delete_all_documents_no_index_recreation(self, document_store: ElasticsearchDocumentStore):
-        docs = [Document(id="1", content="A first document"), Document(id="2", content="Second document")]
-        document_store.write_documents(docs)
-        assert document_store.count_documents() == 2
-
-        document_store.delete_all_documents(recreate_index=False, refresh=True)
-        assert document_store.count_documents() == 0
-
-        new_doc = Document(id="3", content="New document after delete all")
-        document_store.write_documents([new_doc])
-        assert document_store.count_documents() == 1
-
-        results = document_store.filter_documents()
-        assert len(results) == 1
-        assert results[0].content == "New document after delete all"
-
-    def test_delete_by_filter(self, document_store: ElasticsearchDocumentStore):
-        docs = [
-            Document(content="Doc 1", meta={"category": "A"}),
-            Document(content="Doc 2", meta={"category": "B"}),
-            Document(content="Doc 3", meta={"category": "A"}),
-        ]
-        document_store.write_documents(docs)
-        assert document_store.count_documents() == 3
-
-        # Delete documents with category="A"
-        deleted_count = document_store.delete_by_filter(
-            filters={"field": "category", "operator": "==", "value": "A"}, refresh=True
-        )
-        assert deleted_count == 2
-        assert document_store.count_documents() == 1
-
-        # Verify only category B remains
-        remaining_docs = document_store.filter_documents()
-        assert len(remaining_docs) == 1
-        assert remaining_docs[0].meta["category"] == "B"
-
-    def test_update_by_filter(self, document_store: ElasticsearchDocumentStore):
-        docs = [
-            Document(content="Doc 1", meta={"category": "A", "status": "draft"}),
-            Document(content="Doc 2", meta={"category": "B", "status": "draft"}),
-            Document(content="Doc 3", meta={"category": "A", "status": "draft"}),
-        ]
-        document_store.write_documents(docs)
-        assert document_store.count_documents() == 3
-
-        # Update status for category="A" documents
-        updated_count = document_store.update_by_filter(
-            filters={"field": "category", "operator": "==", "value": "A"},
-            meta={"status": "published"},
-            refresh=True,
-        )
-        assert updated_count == 2
-
-        # Verify the updates
-        published_docs = document_store.filter_documents(
-            filters={"field": "status", "operator": "==", "value": "published"}
-        )
-        assert len(published_docs) == 2
-        for doc in published_docs:
-            assert doc.meta["category"] == "A"
-            assert doc.meta["status"] == "published"
-
-        # Verify category B still has draft status
-        draft_docs = document_store.filter_documents(filters={"field": "status", "operator": "==", "value": "draft"})
-        assert len(draft_docs) == 1
-        assert draft_docs[0].meta["category"] == "B"
 
     def test_count_documents_by_filter(self, document_store: ElasticsearchDocumentStore):
         docs = [

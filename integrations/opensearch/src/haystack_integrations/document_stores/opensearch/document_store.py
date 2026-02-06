@@ -737,7 +737,8 @@ class OpenSearchDocumentStore:
         :param filters: The filters to apply to select documents for deletion.
             For filter syntax, see [Haystack metadata filtering](https://docs.haystack.deepset.ai/docs/metadata-filtering)
         :param refresh: If True, OpenSearch refreshes all shards involved in the delete by query after the request
-            completes. If False, no refresh is performed. For more details, see the
+            completes so that subsequent reads (e.g. count_documents) see the update. If False, no refresh is
+            performed (better for bulk deletes). For more details, see the
             [OpenSearch delete_by_query refresh documentation](https://opensearch.org/docs/latest/api-reference/document-apis/delete-by-query/).
         :returns: The number of documents deleted.
         """
@@ -747,6 +748,7 @@ class OpenSearchDocumentStore:
         try:
             normalized_filters = normalize_filters(filters)
             body = {"query": {"bool": {"filter": normalized_filters}}}
+
             result = self._client.delete_by_query(index=self._index, body=body, refresh=refresh)
             deleted_count = result.get("deleted", 0)
             logger.info(
@@ -766,8 +768,8 @@ class OpenSearchDocumentStore:
         :param filters: The filters to apply to select documents for deletion.
             For filter syntax, see [Haystack metadata filtering](https://docs.haystack.deepset.ai/docs/metadata-filtering)
         :param refresh: If True, OpenSearch refreshes all shards involved in the delete by query after the request
-            completes. If False, no refresh is performed. For more details, see the
-            [OpenSearch delete_by_query refresh documentation](https://opensearch.org/docs/latest/api-reference/document-apis/delete-by-query/).
+            completes so that subsequent reads see the update. If False, no refresh is performed. For more details,
+            see the [OpenSearch delete_by_query refresh documentation](https://opensearch.org/docs/latest/api-reference/document-apis/delete-by-query/).
         :returns: The number of documents deleted.
         """
         await self._ensure_initialized_async()
