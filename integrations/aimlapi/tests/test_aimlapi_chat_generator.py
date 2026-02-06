@@ -258,13 +258,13 @@ class TestAIMLAPIChatGenerator:
     @pytest.mark.integration
     def test_live_run(self):
         chat_messages = [ChatMessage.from_user("What's the capital of France")]
-        component = AIMLAPIChatGenerator(model="openai/gpt-5-nano-2025-08-07")
+        component = AIMLAPIChatGenerator(model="openai/gpt-5-nano")
         results = component.run(chat_messages)
         assert len(results["replies"]) == 1
         message: ChatMessage = results["replies"][0]
         assert message.text
         assert "Paris" in message.text
-        assert "gpt-5-nano-2025-08-07" in message.meta["model"]
+        assert "gpt-5-nano" in message.meta["model"]
         assert message.meta["finish_reason"] == "stop"
 
     @pytest.mark.skipif(
@@ -293,7 +293,7 @@ class TestAIMLAPIChatGenerator:
                 self.responses += chunk.content if chunk.content else ""
 
         callback = Callback()
-        component = AIMLAPIChatGenerator(streaming_callback=callback, model="openai/gpt-5-nano-2025-08-07")
+        component = AIMLAPIChatGenerator(streaming_callback=callback, model="openai/gpt-5-nano")
         results = component.run([ChatMessage.from_user("What's the capital of France?")])
 
         assert len(results["replies"]) == 1
@@ -301,7 +301,7 @@ class TestAIMLAPIChatGenerator:
         assert message.text
         assert "Paris" in message.text
 
-        assert "gpt-5-nano-2025-08-07" in message.meta["model"]
+        assert "gpt-5-nano" in message.meta["model"]
         assert message.meta["finish_reason"] == "stop"
 
         assert callback.counter > 1
@@ -314,7 +314,7 @@ class TestAIMLAPIChatGenerator:
     @pytest.mark.integration
     def test_live_run_with_tools(self, tools):
         chat_messages = [ChatMessage.from_user("What's the weather like in Paris?")]
-        component = AIMLAPIChatGenerator(model="openai/gpt-5-nano-2025-08-07", tools=tools)
+        component = AIMLAPIChatGenerator(model="openai/gpt-5-nano", tools=tools)
         results = component.run(chat_messages)
         assert len(results["replies"]) == 1
         message = results["replies"][0]
@@ -337,7 +337,7 @@ class TestAIMLAPIChatGenerator:
         Integration test that the AIMLAPIChatGenerator component can run with tools and get a response.
         """
         initial_messages = [ChatMessage.from_user("What's the weather like in Paris and Berlin?")]
-        component = AIMLAPIChatGenerator(tools=tools, model="openai/gpt-5-nano-2025-08-07")
+        component = AIMLAPIChatGenerator(tools=tools, model="openai/gpt-5-nano")
         results = component.run(messages=initial_messages, generation_kwargs={"tool_choice": "auto"})
 
         assert len(results["replies"]) == 1
@@ -384,7 +384,7 @@ class TestAIMLAPIChatGenerator:
         Integration test that the AIMLAPIChatGenerator component can run with tools and streaming.
         """
         component = AIMLAPIChatGenerator(
-            tools=tools, streaming_callback=print_streaming_chunk, model="openai/gpt-5-nano-2025-08-07"
+            tools=tools, streaming_callback=print_streaming_chunk, model="openai/gpt-5-nano"
         )
         results = component.run(
             [ChatMessage.from_user("What's the weather like in Paris and Berlin?")],

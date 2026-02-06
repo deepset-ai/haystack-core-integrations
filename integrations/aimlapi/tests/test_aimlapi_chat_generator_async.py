@@ -95,7 +95,7 @@ class TestAIMLAPIChatGeneratorAsync:
     @pytest.mark.asyncio
     async def test_run_async(self, chat_messages, mock_async_chat_completion, monkeypatch):  # noqa: ARG002
         monkeypatch.setenv("AIMLAPI_API_KEY", "fake-api-key")
-        component = AIMLAPIChatGenerator(model="openai/gpt-5-nano-2025-08-07")
+        component = AIMLAPIChatGenerator(model="openai/gpt-5-nano")
         response = await component.run_async(chat_messages)
 
         # check that the component returns the correct ChatMessage response
@@ -109,7 +109,7 @@ class TestAIMLAPIChatGeneratorAsync:
     async def test_run_async_with_params(self, chat_messages, mock_async_chat_completion, monkeypatch):
         monkeypatch.setenv("AIMLAPI_API_KEY", "fake-api-key")
         component = AIMLAPIChatGenerator(
-            model="openai/gpt-5-nano-2025-08-07", generation_kwargs={"max_tokens": 10, "temperature": 0.5}
+            model="openai/gpt-5-nano", generation_kwargs={"max_tokens": 10, "temperature": 0.5}
         )
         response = await component.run_async(chat_messages)
 
@@ -133,12 +133,12 @@ class TestAIMLAPIChatGeneratorAsync:
     @pytest.mark.asyncio
     async def test_live_run_async(self):
         chat_messages = [ChatMessage.from_user("What's the capital of France")]
-        component = AIMLAPIChatGenerator(model="openai/gpt-5-nano-2025-08-07")
+        component = AIMLAPIChatGenerator(model="openai/gpt-5-nano")
         results = await component.run_async(chat_messages)
         assert len(results["replies"]) == 1
         message: ChatMessage = results["replies"][0]
         assert "Paris" in message.text
-        assert "gpt-5-nano-2025-08-07" in message.meta["model"]
+        assert "gpt-5-nano" in message.meta["model"]
         assert message.meta["finish_reason"] == "stop"
 
     @pytest.mark.skipif(
@@ -157,14 +157,14 @@ class TestAIMLAPIChatGeneratorAsync:
             counter += 1
             responses += chunk.content if chunk.content else ""
 
-        component = AIMLAPIChatGenerator(streaming_callback=callback, model="openai/gpt-5-nano-2025-08-07")
+        component = AIMLAPIChatGenerator(streaming_callback=callback, model="openai/gpt-5-nano")
         results = await component.run_async([ChatMessage.from_user("What's the capital of France?")])
 
         assert len(results["replies"]) == 1
         message: ChatMessage = results["replies"][0]
         assert "Paris" in message.text
 
-        assert "gpt-5-nano-2025-08-07" in message.meta["model"]
+        assert "gpt-5-nano" in message.meta["model"]
         assert message.meta["finish_reason"] == "stop"
 
         assert counter > 1
@@ -181,7 +181,7 @@ class TestAIMLAPIChatGeneratorAsync:
         Integration test that the AIMLAPIChatGenerator component can run with tools and get a response.
         """
         initial_messages = [ChatMessage.from_user("What's the weather like in Paris?")]
-        component = AIMLAPIChatGenerator(tools=tools, model="openai/gpt-5-nano-2025-08-07")
+        component = AIMLAPIChatGenerator(tools=tools, model="openai/gpt-5-nano")
         results = await component.run_async(messages=initial_messages, generation_kwargs={"tool_choice": "auto"})
 
         assert len(results["replies"]) > 0, "No replies received"
@@ -238,7 +238,7 @@ class TestAIMLAPIChatGeneratorAsync:
             if chunk.meta.get("tool_calls"):
                 tool_calls.extend(chunk.meta["tool_calls"])
 
-        component = AIMLAPIChatGenerator(tools=tools, streaming_callback=callback, model="openai/gpt-5-nano-2025-08-07")
+        component = AIMLAPIChatGenerator(tools=tools, streaming_callback=callback, model="openai/gpt-5-nano")
         results = await component.run_async(
             [ChatMessage.from_user("What's the weather like in Paris?")],
             generation_kwargs={"tool_choice": "auto"},
