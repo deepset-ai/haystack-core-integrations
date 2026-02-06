@@ -967,7 +967,7 @@ class ChromaDocumentStore:
         metadatas = result.get("metadatas", [])
 
         if not metadatas:
-            return {field: 0 for field in normalized_fields}
+            return dict.fromkeys(normalized_fields, 0)
 
         # Count unique values for each field
         unique_counts = {}
@@ -1010,7 +1010,7 @@ class ChromaDocumentStore:
         metadatas = result.get("metadatas", [])
 
         if not metadatas:
-            return {field: 0 for field in normalized_fields}
+            return dict.fromkeys(normalized_fields, 0)
 
         # Count unique values for each field
         unique_counts = {}

@@ -575,6 +575,14 @@ class TestMetadataOperations:
     """Test new metadata query operations for ChromaDocumentStore"""
 
     @pytest.fixture
+    def document_store(self, embedding_function) -> ChromaDocumentStore:
+        with mock.patch(
+            "haystack_integrations.document_stores.chroma.document_store.get_embedding_function"
+        ) as get_func:
+            get_func.return_value = embedding_function
+            return ChromaDocumentStore(embedding_function="test_function", collection_name=str(uuid.uuid1()))
+
+    @pytest.fixture
     def populated_store(self, document_store: ChromaDocumentStore) -> ChromaDocumentStore:
         """Fixture with pre-populated test documents with diverse metadata"""
         docs = [
