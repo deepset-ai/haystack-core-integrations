@@ -138,7 +138,7 @@ class TestAIMLAPIChatGeneratorAsync:
         assert len(results["replies"]) == 1
         message: ChatMessage = results["replies"][0]
         assert "Paris" in message.text
-        assert "gpt-5-nano-2025-08-07" in message.meta["model"]
+        assert "gpt-5-nano" in message.meta["model"]
         assert message.meta["finish_reason"] == "stop"
 
     @pytest.mark.skipif(
@@ -164,7 +164,7 @@ class TestAIMLAPIChatGeneratorAsync:
         message: ChatMessage = results["replies"][0]
         assert "Paris" in message.text
 
-        assert "gpt-5-nano-2025-08-07" in message.meta["model"]
+        assert "gpt-5-nano" in message.meta["model"]
         assert message.meta["finish_reason"] == "stop"
 
         assert counter > 1
