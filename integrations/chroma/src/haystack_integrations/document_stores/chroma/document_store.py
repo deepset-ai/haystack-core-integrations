@@ -240,6 +240,41 @@ class ChromaDocumentStore:
             "include": ["embeddings", "documents", "metadatas", "distances"],
         }
 
+    @staticmethod
+    def _normalize_metadata_field_name(metadata_field: str) -> str:
+        """
+        Normalizes a metadata field name by removing the "meta." prefix if present.
+
+        :param metadata_field: The metadata field name to normalize.
+        :returns: The normalized field name without "meta." prefix.
+        """
+        return metadata_field[5:] if metadata_field.startswith("meta.") else metadata_field
+
+    @staticmethod
+    def _infer_type_from_value(value: Any) -> str:
+        """
+        Infers the Chroma/OpenSearch-compatible type from a metadata value.
+
+        Returns types matching OpenSearch format for consistency:
+        - 'keyword' for strings
+        - 'long' for integers
+        - 'float' for floats
+        - 'boolean' for booleans
+
+        :param value: The value to infer the type from.
+        :returns: The inferred type as a string.
+        """
+        if isinstance(value, bool):
+            return "boolean"
+        elif isinstance(value, int):
+            return "long"
+        elif isinstance(value, float):
+            return "float"
+        elif isinstance(value, str):
+            return "keyword"
+        else:
+            return "keyword"  # fallback
+
     def count_documents(self) -> int:
         """
         Returns how many documents are present in the document store.
@@ -863,6 +898,444 @@ class ChromaDocumentStore:
         )
 
         return self._query_result_to_documents(results)
+
+    def count_documents_by_filter(self, filters: dict[str, Any]) -> int:
+        """
+        Returns the number of documents that match the provided filters.
+
+        :param filters: The filters to apply to count documents.
+            For filter syntax, see [Haystack metadata filtering](https://docs.haystack.deepset.ai/docs/metadata-filtering)
+        :returns: The number of documents that match the filters.
+        """
+        self._ensure_initialized()
+        assert self._collection is not None
+
+        # Use existing filter infrastructure with minimal data transfer
+        kwargs = ChromaDocumentStore._prepare_get_kwargs(filters)
+        # Only retrieve IDs to minimize data transfer
+        kwargs["include"] = []
+
+        result = self._collection.get(**kwargs)
+        return len(result["ids"])
+
+    async def count_documents_by_filter_async(self, filters: dict[str, Any]) -> int:
+        """
+        Asynchronously returns the number of documents that match the provided filters.
+
+        Asynchronous methods are only supported for HTTP connections.
+
+        :param filters: The filters to apply to count documents.
+            For filter syntax, see [Haystack metadata filtering](https://docs.haystack.deepset.ai/docs/metadata-filtering)
+        :returns: The number of documents that match the filters.
+        """
+        await self._ensure_initialized_async()
+        assert self._async_collection is not None
+
+        # Use existing filter infrastructure with minimal data transfer
+        kwargs = ChromaDocumentStore._prepare_get_kwargs(filters)
+        # Only retrieve IDs to minimize data transfer
+        kwargs["include"] = []
+
+        result = await self._async_collection.get(**kwargs)
+        return len(result["ids"])
+
+    def count_unique_metadata_by_filter(
+        self, filters: dict[str, Any], metadata_fields: list[str]
+    ) -> dict[str, int]:
+        """
+        Returns the number of unique values for each specified metadata field
+        of the documents that match the provided filters.
+
+        :param filters: The filters to apply to count documents.
+            For filter syntax, see [Haystack metadata filtering](https://docs.haystack.deepset.ai/docs/metadata-filtering)
+        :param metadata_fields: List of field names to calculate unique values for.
+            Field names can include or omit the "meta." prefix.
+        :returns: A dictionary mapping each metadata field name to the count of
+                  its unique values among the filtered documents.
+        """
+        self._ensure_initialized()
+        assert self._collection is not None
+
+        # Normalize field names (remove "meta." prefix if present)
+        normalized_fields = [self._normalize_metadata_field_name(field) for field in metadata_fields]
+
+        # Fetch filtered documents with metadata only
+        kwargs = ChromaDocumentStore._prepare_get_kwargs(filters)
+        kwargs["include"] = ["metadatas"]
+
+        result = self._collection.get(**kwargs)
+        metadatas = result.get("metadatas", [])
+
+        if not metadatas:
+            return {field: 0 for field in normalized_fields}
+
+        # Count unique values for each field
+        unique_counts = {}
+        for field in normalized_fields:
+            # Collect all values for this field (skip None values)
+            values = {
+                meta.get(field) for meta in metadatas if meta and field in meta and meta.get(field) is not None
+            }
+            unique_counts[field] = len(values)
+
+        return unique_counts
+
+    async def count_unique_metadata_by_filter_async(
+        self, filters: dict[str, Any], metadata_fields: list[str]
+    ) -> dict[str, int]:
+        """
+        Asynchronously returns the number of unique values for each specified metadata field
+        of the documents that match the provided filters.
+
+        Asynchronous methods are only supported for HTTP connections.
+
+        :param filters: The filters to apply to count documents.
+            For filter syntax, see [Haystack metadata filtering](https://docs.haystack.deepset.ai/docs/metadata-filtering)
+        :param metadata_fields: List of field names to calculate unique values for.
+            Field names can include or omit the "meta." prefix.
+        :returns: A dictionary mapping each metadata field name to the count of
+                  its unique values among the filtered documents.
+        """
+        await self._ensure_initialized_async()
+        assert self._async_collection is not None
+
+        # Normalize field names (remove "meta." prefix if present)
+        normalized_fields = [self._normalize_metadata_field_name(field) for field in metadata_fields]
+
+        # Fetch filtered documents with metadata only
+        kwargs = ChromaDocumentStore._prepare_get_kwargs(filters)
+        kwargs["include"] = ["metadatas"]
+
+        result = await self._async_collection.get(**kwargs)
+        metadatas = result.get("metadatas", [])
+
+        if not metadatas:
+            return {field: 0 for field in normalized_fields}
+
+        # Count unique values for each field
+        unique_counts = {}
+        for field in normalized_fields:
+            # Collect all values for this field (skip None values)
+            values = {
+                meta.get(field) for meta in metadatas if meta and field in meta and meta.get(field) is not None
+            }
+            unique_counts[field] = len(values)
+
+        return unique_counts
+
+    def get_metadata_fields_info(self) -> dict[str, dict[str, str]]:
+        """
+        Returns information about the metadata fields in the collection.
+
+        Since ChromaDB doesn't maintain a schema, this method samples documents
+        to infer field types.
+
+        If we populated the collection with documents like:
+
+        ```python
+        Document(content="Doc 1", meta={"category": "A", "status": "active", "priority": 1})
+        Document(content="Doc 2", meta={"category": "B", "status": "inactive"})
+        ```
+
+        This method would return:
+
+        ```python
+        {
+            'category': {'type': 'keyword'},
+            'status': {'type': 'keyword'},
+            'priority': {'type': 'long'},
+        }
+        ```
+
+        :returns: Dictionary mapping field names to their type information.
+        """
+        self._ensure_initialized()
+        assert self._collection is not None
+
+        # Fetch sample of documents with metadata
+        # Use limit to avoid loading entire collection
+        result = self._collection.get(include=["metadatas"], limit=10000)
+        metadatas = result.get("metadatas", [])
+
+        if not metadatas:
+            return {}
+
+        # Collect all field names and infer types
+        field_info: dict[str, dict[str, str]] = {}
+
+        for meta in metadatas:
+            if not meta:
+                continue
+
+            for field_name, value in meta.items():
+                if value is not None and field_name not in field_info:
+                    field_info[field_name] = {"type": self._infer_type_from_value(value)}
+
+        return field_info
+
+    async def get_metadata_fields_info_async(self) -> dict[str, dict[str, str]]:
+        """
+        Asynchronously returns information about the metadata fields in the collection.
+
+        Asynchronous methods are only supported for HTTP connections.
+
+        Since ChromaDB doesn't maintain a schema, this method samples documents
+        to infer field types.
+
+        If we populated the collection with documents like:
+
+        ```python
+        Document(content="Doc 1", meta={"category": "A", "status": "active", "priority": 1})
+        Document(content="Doc 2", meta={"category": "B", "status": "inactive"})
+        ```
+
+        This method would return:
+
+        ```python
+        {
+            'category': {'type': 'keyword'},
+            'status': {'type': 'keyword'},
+            'priority': {'type': 'long'},
+        }
+        ```
+
+        :returns: Dictionary mapping field names to their type information.
+        """
+        await self._ensure_initialized_async()
+        assert self._async_collection is not None
+
+        # Fetch sample of documents with metadata
+        # Use limit to avoid loading entire collection
+        result = await self._async_collection.get(include=["metadatas"], limit=10000)
+        metadatas = result.get("metadatas", [])
+
+        if not metadatas:
+            return {}
+
+        # Collect all field names and infer types
+        field_info: dict[str, dict[str, str]] = {}
+
+        for meta in metadatas:
+            if not meta:
+                continue
+
+            for field_name, value in meta.items():
+                if value is not None and field_name not in field_info:
+                    field_info[field_name] = {"type": self._infer_type_from_value(value)}
+
+        return field_info
+
+    def get_metadata_field_min_max(self, metadata_field: str) -> dict[str, Any]:
+        """
+        Returns the minimum and maximum values for the given metadata field.
+
+        :param metadata_field: The metadata field to get the minimum and maximum values for.
+            Can include or omit the "meta." prefix.
+        :returns: A dictionary with the keys "min" and "max", where each value is
+                  the minimum or maximum value of the metadata field across all documents.
+                  Returns {"min": None, "max": None} if field doesn't exist or has no values.
+        """
+        self._ensure_initialized()
+        assert self._collection is not None
+
+        field_name = self._normalize_metadata_field_name(metadata_field)
+
+        # Fetch all documents with metadata
+        result = self._collection.get(include=["metadatas"])
+        metadatas = result.get("metadatas", [])
+
+        if not metadatas:
+            return {"min": None, "max": None}
+
+        # Collect all values for this field (excluding None)
+        values = [
+            meta.get(field_name)
+            for meta in metadatas
+            if meta and field_name in meta and meta.get(field_name) is not None
+        ]
+
+        if not values:
+            return {"min": None, "max": None}
+
+        return {"min": min(values), "max": max(values)}
+
+    async def get_metadata_field_min_max_async(self, metadata_field: str) -> dict[str, Any]:
+        """
+        Asynchronously returns the minimum and maximum values for the given metadata field.
+
+        Asynchronous methods are only supported for HTTP connections.
+
+        :param metadata_field: The metadata field to get the minimum and maximum values for.
+            Can include or omit the "meta." prefix.
+        :returns: A dictionary with the keys "min" and "max", where each value is
+                  the minimum or maximum value of the metadata field across all documents.
+                  Returns {"min": None, "max": None} if field doesn't exist or has no values.
+        """
+        await self._ensure_initialized_async()
+        assert self._async_collection is not None
+
+        field_name = self._normalize_metadata_field_name(metadata_field)
+
+        # Fetch all documents with metadata
+        result = await self._async_collection.get(include=["metadatas"])
+        metadatas = result.get("metadatas", [])
+
+        if not metadatas:
+            return {"min": None, "max": None}
+
+        # Collect all values for this field (excluding None)
+        values = [
+            meta.get(field_name)
+            for meta in metadatas
+            if meta and field_name in meta and meta.get(field_name) is not None
+        ]
+
+        if not values:
+            return {"min": None, "max": None}
+
+        return {"min": min(values), "max": max(values)}
+
+    def get_metadata_field_unique_values(
+        self,
+        metadata_field: str,
+        search_term: str | None = None,
+        from_: int = 0,
+        size: int = 10,
+    ) -> tuple[list[str], int]:
+        """
+        Returns unique values for a metadata field, optionally filtered by
+        a search term in the content field, with pagination support.
+
+        :param metadata_field: The metadata field to get unique values for.
+            Can include or omit the "meta." prefix.
+        :param search_term: Optional search term to filter documents by matching
+            in the content field.
+        :param from_: The offset to start returning values from (for pagination).
+        :param size: The maximum number of unique values to return.
+        :returns: A tuple containing (list of unique values, total count of unique values).
+        """
+        self._ensure_initialized()
+        assert self._collection is not None
+
+        field_name = self._normalize_metadata_field_name(metadata_field)
+
+        # Build query kwargs
+        kwargs: dict[str, Any] = {"include": ["metadatas"]}
+
+        # If search_term provided, filter by content
+        if search_term:
+            # Note: ChromaDB's where_document uses $contains operator
+            # We'll need to fetch documents and filter manually
+            kwargs["include"] = ["metadatas", "documents"]
+
+        # Fetch documents
+        result = self._collection.get(**kwargs)
+        metadatas = result.get("metadatas", [])
+
+        if not metadatas:
+            return ([], 0)
+
+        # If search_term is provided, filter documents by content
+        if search_term:
+            documents = result.get("documents", [])
+            filtered_metadatas = [
+                metadatas[i] for i in range(len(documents)) if documents[i] and search_term in documents[i]
+            ]
+            metadatas = filtered_metadatas
+
+        if not metadatas:
+            return ([], 0)
+
+        # Collect unique values for the field
+        unique_values = {
+            str(meta.get(field_name))
+            for meta in metadatas
+            if meta and field_name in meta and meta.get(field_name) is not None
+        }
+
+        # Sort for consistent ordering
+        sorted_values = sorted(unique_values)
+
+        # Get total count
+        total_count = len(sorted_values)
+
+        # Apply pagination
+        end = from_ + size
+        paginated_values = sorted_values[from_:end]
+
+        return (paginated_values, total_count)
+
+    async def get_metadata_field_unique_values_async(
+        self,
+        metadata_field: str,
+        search_term: str | None = None,
+        from_: int = 0,
+        size: int = 10,
+    ) -> tuple[list[str], int]:
+        """
+        Asynchronously returns unique values for a metadata field, optionally filtered by
+        a search term in the content field, with pagination support.
+
+        Asynchronous methods are only supported for HTTP connections.
+
+        :param metadata_field: The metadata field to get unique values for.
+            Can include or omit the "meta." prefix.
+        :param search_term: Optional search term to filter documents by matching
+            in the content field.
+        :param from_: The offset to start returning values from (for pagination).
+        :param size: The maximum number of unique values to return.
+        :returns: A tuple containing (list of unique values, total count of unique values).
+        """
+        await self._ensure_initialized_async()
+        assert self._async_collection is not None
+
+        field_name = self._normalize_metadata_field_name(metadata_field)
+
+        # Build query kwargs
+        kwargs: dict[str, Any] = {"include": ["metadatas"]}
+
+        # If search_term provided, filter by content
+        if search_term:
+            # Note: ChromaDB's where_document uses $contains operator
+            # We'll need to fetch documents and filter manually
+            kwargs["include"] = ["metadatas", "documents"]
+
+        # Fetch documents
+        result = await self._async_collection.get(**kwargs)
+        metadatas = result.get("metadatas", [])
+
+        if not metadatas:
+            return ([], 0)
+
+        # If search_term is provided, filter documents by content
+        if search_term:
+            documents = result.get("documents", [])
+            filtered_metadatas = [
+                metadatas[i] for i in range(len(documents)) if documents[i] and search_term in documents[i]
+            ]
+            metadatas = filtered_metadatas
+
+        if not metadatas:
+            return ([], 0)
+
+        # Collect unique values for the field
+        unique_values = {
+            str(meta.get(field_name))
+            for meta in metadatas
+            if meta and field_name in meta and meta.get(field_name) is not None
+        }
+
+        # Sort for consistent ordering
+        sorted_values = sorted(unique_values)
+
+        # Get total count
+        total_count = len(sorted_values)
+
+        # Apply pagination
+        end = from_ + size
+        paginated_values = sorted_values[from_:end]
+
+        return (paginated_values, total_count)
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "ChromaDocumentStore":
