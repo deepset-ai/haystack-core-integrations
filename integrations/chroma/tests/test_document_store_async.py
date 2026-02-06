@@ -324,8 +324,11 @@ class TestMetadataOperationsAsync:
             )
 
     @pytest.fixture
-    async def populated_store(self, document_store: ChromaDocumentStore) -> ChromaDocumentStore:
-        """Fixture with pre-populated test documents with diverse metadata"""
+    def populated_store(self, document_store: ChromaDocumentStore) -> ChromaDocumentStore:
+        """Fixture with pre-populated test documents with diverse metadata.
+        Uses sync write since pytest does not natively support async fixtures.
+        Data is accessible via async methods as both clients share the same Chroma server.
+        """
         docs = [
             Document(content="Doc 1", meta={"category": "A", "status": "active", "priority": 1, "score": 0.9}),
             Document(content="Doc 2", meta={"category": "B", "status": "active", "priority": 2, "score": 0.8}),
@@ -334,7 +337,7 @@ class TestMetadataOperationsAsync:
             Document(content="Doc 5", meta={"category": "C", "status": "active", "priority": 2, "score": 0.6}),
             Document(content="Doc 6", meta={"category": "B", "status": "inactive", "priority": 1}),
         ]
-        await document_store.write_documents_async(docs)
+        document_store.write_documents(docs)
         return document_store
 
     async def test_count_documents_by_filter_async_simple(self, populated_store):

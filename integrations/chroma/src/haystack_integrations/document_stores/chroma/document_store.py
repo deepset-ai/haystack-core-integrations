@@ -939,9 +939,7 @@ class ChromaDocumentStore:
         result = await self._async_collection.get(**kwargs)
         return len(result["ids"])
 
-    def count_unique_metadata_by_filter(
-        self, filters: dict[str, Any], metadata_fields: list[str]
-    ) -> dict[str, int]:
+    def count_unique_metadata_by_filter(self, filters: dict[str, Any], metadata_fields: list[str]) -> dict[str, int]:
         """
         Returns the number of unique values for each specified metadata field
         of the documents that match the provided filters.
@@ -973,9 +971,7 @@ class ChromaDocumentStore:
         unique_counts = {}
         for field in normalized_fields:
             # Collect all values for this field (skip None values)
-            values = {
-                meta.get(field) for meta in metadatas if meta and field in meta and meta.get(field) is not None
-            }
+            values = {meta.get(field) for meta in metadatas if meta and field in meta and meta.get(field) is not None}
             unique_counts[field] = len(values)
 
         return unique_counts
@@ -1016,9 +1012,7 @@ class ChromaDocumentStore:
         unique_counts = {}
         for field in normalized_fields:
             # Collect all values for this field (skip None values)
-            values = {
-                meta.get(field) for meta in metadatas if meta and field in meta and meta.get(field) is not None
-            }
+            values = {meta.get(field) for meta in metadatas if meta and field in meta and meta.get(field) is not None}
             unique_counts[field] = len(values)
 
         return unique_counts
