@@ -278,6 +278,219 @@ class MongoDBAtlasDocumentStore:
         assert self._collection_async is not None
         return await self._collection_async.count_documents({})
 
+    def count_documents_by_filter(self, filter: dict[str, Any]) -> int:
+        """
+        Applies a filter and counts the documents that matched it.
+
+        :param filter: The filters to apply to the document list.
+        :returns: The number of documents that match the filter.
+        """
+        self._ensure_connection_setup()
+        assert self._collection is not None
+        normalized_filters = _normalize_filters(filter)
+        return self._collection.count_documents(normalized_filters)
+
+    async def count_documents_by_filter_async(self, filter: dict[str, Any]) -> int:
+        """
+        Asynchronously applies a filter and counts the documents that matched it.
+
+        :param filter: The filters to apply to the document list.
+        :returns: The number of documents that match the filter.
+        """
+        await self._ensure_connection_setup_async()
+        assert self._collection_async is not None
+        normalized_filters = _normalize_filters(filter)
+        return await self._collection_async.count_documents(normalized_filters)
+
+    def count_unique_metadata_by_filter(self, filters: dict[str, Any], metadata_fields: list[str]) -> dict[str, int]:
+        """
+        Applies a filter selecting documents and counts the unique values for each meta field of the matched documents.
+
+        :param filters: The filters to apply to the document list.
+        :param metadata_fields: The metadata fields to count unique values for.
+        :returns: A dictionary where the keys are the metadata field names and the values are the count of unique values.
+        """
+        self._ensure_connection_setup()
+        assert self._collection is not None
+        normalized_filters = _normalize_filters(filters)
+        
+        pipeline = [{"$match": normalized_filters}]
+        facet_stages = {}
+        for field in metadata_fields:
+            # metadata fields are stored in "meta" field in MongoDB
+            mongo_field = f"meta.{field}"
+            facet_stages[field] = [
+                {"$group": {"_id": f"${mongo_field}"}},
+                {"$count": "count"}
+            ]
+        
+        pipeline.append({"$facet": facet_stages})
+        
+        try:
+            result = list(self._collection.aggregate(pipeline))
+            if not result:
+                return {field: 0 for field in metadata_fields}
+            
+            counts = {}
+            for field in metadata_fields:
+                field_result = result[0].get(field, [])
+                counts[field] = field_result[0]["count"] if field_result else 0
+            return counts
+        except Exception as e:
+            msg = f"Failed to count unique metadata values in MongoDB Atlas: {e}"
+            raise DocumentStoreError(msg) from e
+
+    async def count_unique_metadata_by_filter_async(self, filters: dict[str, Any], metadata_fields: list[str]) -> dict[str, int]:
+        """
+        Asynchronously applies a filter selecting documents and counts the unique values for each meta field of the matched documents.
+
+        :param filters: The filters to apply to the document list.
+        :param metadata_fields: The metadata fields to count unique values for.
+        :returns: A dictionary where the keys are the metadata field names and the values are the count of unique values.
+        """
+        await self._ensure_connection_setup_async()
+        assert self._collection_async is not None
+        normalized_filters = _normalize_filters(filters)
+
+        pipeline = [{"$match": normalized_filters}]
+        facet_stages = {}
+        for field in metadata_fields:
+            # metadata fields are stored in "meta" field in MongoDB
+            mongo_field = f"meta.{field}"
+            facet_stages[field] = [
+                {"$group": {"_id": f"${mongo_field}"}},
+                {"$count": "count"}
+            ]
+        
+        pipeline.append({"$facet": facet_stages})
+        
+        try:
+            cursor = await self._collection_async.aggregate(pipeline)
+            result = await cursor.to_list(length=1)
+            
+            if not result:
+                return {field: 0 for field in metadata_fields}
+            
+            counts = {}
+            for field in metadata_fields:
+                field_result = result[0].get(field, [])
+                counts[field] = field_result[0]["count"] if field_result else 0
+            return counts
+        except Exception as e:
+            msg = f"Failed to count unique metadata values in MongoDB Atlas: {e}"
+            raise DocumentStoreError(msg) from e
+
+    def get_metadata_fields_info(self) -> dict[str, dict]:
+        """
+        Returns the metadata fields and their corresponding types.
+        
+        Since MongoDB is schemaless, this method samples the latest 50 documents to infer the fields and their types.
+        
+        :returns: A dictionary where the keys are the metadata field names and the values are dictionary with 'type'.
+        """
+        self._ensure_connection_setup()
+        assert self._collection is not None
+        
+        # We start with the content field
+        fields_info = {self.content_field: {"type": "text"}}
+        
+        try:
+            # Sample latest 50 documents
+            cursor = self._collection.find({}, {"meta": 1}).sort("_id", -1).limit(50)
+            
+            type_mapping = {
+                str: "keyword",
+                int: "long",
+                float: "float",
+                bool: "boolean",
+                list: "list",
+                dict: "object"
+            }
+            
+            for doc in cursor:
+                if "meta" not in doc:
+                    continue
+                for key, value in doc["meta"].items():
+                    if key not in fields_info:
+                        fields_info[key] = {"type": type_mapping.get(type(value), "string")}
+                        
+            return fields_info
+        except Exception as e:
+            msg = f"Failed to get metadata fields info from MongoDB Atlas: {e}"
+            raise DocumentStoreError(msg) from e
+
+    def get_metadata_field_min_max(self, metadata_field: str) -> dict[str, Any]:
+        """
+        For a given metadata field, find its max and min value.
+
+        :param metadata_field: The metadata field to get the min and max values for.
+        :returns: A dictionary with 'min' and 'max' keys.
+        """
+        self._ensure_connection_setup()
+        assert self._collection is not None
+        
+        pipeline = [
+            {"$group": {
+                "_id": None,
+                "min": {"$min": f"$meta.{metadata_field}"},
+                "max": {"$max": f"$meta.{metadata_field}"}
+            }}
+        ]
+        
+        try:
+            result = list(self._collection.aggregate(pipeline))
+            if not result:
+                return {"min": None, "max": None}
+            
+            return {"min": result[0]["min"], "max": result[0]["max"]}
+        except Exception as e:
+            msg = f"Failed to get min/max for field '{metadata_field}' in MongoDB Atlas: {e}"
+            raise DocumentStoreError(msg) from e
+
+    def get_metadata_field_unique_values(self, metadata_field: str, search_term: str | None = None, from_: int = 0, size: int = 10) -> tuple[list[str], int]:
+        """
+        Retrieves unique values for a field matching a search_term or all possible values if no search term is given.
+
+        :param metadata_field: The metadata field to retrieve unique values for.
+        :param search_term: The search term to filter values. Matches as a case-insensitive substring.
+        :param from_: The starting index for pagination.
+        :param size: The number of values to return.
+        :returns: A tuple containing a list of unique values and the total count of unique values matching the search term.
+        """
+        self._ensure_connection_setup()
+        assert self._collection is not None
+        
+        pipeline = [
+            {"$group": {"_id": f"$meta.{metadata_field}"}},
+        ]
+        
+        if search_term:
+            pipeline.append({"$match": {"_id": {"$regex": re.escape(search_term), "$options": "i"}}})
+            
+        pipeline.append({
+            "$facet": {
+                "count": [{"$count": "count"}],
+                "values": [
+                    {"$sort": {"_id": 1}},
+                    {"$skip": from_},
+                    {"$limit": size}
+                ]
+            }
+        })
+        
+        try:
+            result = list(self._collection.aggregate(pipeline))
+            if not result or not result[0]["values"]:
+                return [], 0
+            
+            values = [doc["_id"] for doc in result[0]["values"]]
+            total_count = result[0]["count"][0]["count"] if result[0]["count"] else 0
+            
+            return values, total_count
+        except Exception as e:
+            msg = f"Failed to get unique values for field '{metadata_field}' in MongoDB Atlas: {e}"
+            raise DocumentStoreError(msg) from e
+
     def filter_documents(self, filters: dict[str, Any] | None = None) -> list[Document]:
         """
         Returns the documents that match the filters provided.
