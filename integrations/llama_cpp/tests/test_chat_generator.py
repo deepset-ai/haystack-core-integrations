@@ -1155,6 +1155,100 @@ class TestLlamaCppChatGenerator:
         assert llamacpp_message["content"][1]["type"] == "image_url"
 
 
+class TestLlamaCppChatGeneratorAsync:
+    @pytest.fixture
+    def generator_mock(self):
+        mock_model = MagicMock()
+        generator = LlamaCppChatGenerator(model="test_model.gguf", n_ctx=2048, n_batch=512)
+        generator._model = mock_model
+        return generator, mock_model
+
+    async def test_run_async(self, generator_mock):
+        """Test that run_async returns the correct ChatMessage response."""
+        generator, mock_model = generator_mock
+        mock_output = {
+            "id": "unique-id-123",
+            "model": "Test Model Path",
+            "created": 1715226164,
+            "choices": [
+                {"index": 0, "message": {"content": "Generated text", "role": "assistant"}, "finish_reason": "stop"}
+            ],
+            "usage": {"prompt_tokens": 14, "completion_tokens": 57, "total_tokens": 71},
+        }
+        mock_model.create_chat_completion.return_value = mock_output
+
+        response = await generator.run_async(messages=[ChatMessage.from_system("Test")])
+
+        assert isinstance(response, dict)
+        assert "replies" in response
+        assert isinstance(response["replies"], list)
+        assert len(response["replies"]) == 1
+        assert isinstance(response["replies"][0], ChatMessage)
+        assert response["replies"][0].text == "Generated text"
+        assert response["replies"][0].role == ChatRole.ASSISTANT
+
+    async def test_run_async_with_empty_message(self, generator_mock):
+        """Test that run_async with empty messages returns an empty list of replies."""
+        generator, _ = generator_mock
+
+        response = await generator.run_async(messages=[])
+
+        assert isinstance(response["replies"], list)
+        assert len(response["replies"]) == 0
+
+    async def test_run_async_with_params(self, generator_mock):
+        """Test that run_async passes generation_kwargs correctly."""
+        generator, mock_model = generator_mock
+        mock_output = {
+            "id": "unique-id-123",
+            "model": "Test Model Path",
+            "created": 1715226164,
+            "choices": [
+                {"index": 0, "message": {"content": "Generated text", "role": "assistant"}, "finish_reason": "length"}
+            ],
+            "usage": {"prompt_tokens": 14, "completion_tokens": 57, "total_tokens": 71},
+        }
+        mock_model.create_chat_completion.return_value = mock_output
+
+        response = await generator.run_async(
+            messages=[ChatMessage.from_system("Write a 200 word paragraph.")],
+            generation_kwargs={"max_tokens": 128, "temperature": 0.5},
+        )
+
+        assert response["replies"][0].text == "Generated text"
+        assert response["replies"][0].meta["finish_reason"] == "length"
+        mock_model.create_chat_completion.assert_called_once()
+        call_kwargs = mock_model.create_chat_completion.call_args[1]
+        assert call_kwargs["max_tokens"] == 128
+        assert call_kwargs["temperature"] == 0.5
+
+    @pytest.fixture
+    def generator(self, model_path, capsys):
+        gguf_model_path = (
+            "https://huggingface.co/bartowski/Qwen_Qwen3-0.6B-GGUF/resolve/main/Qwen_Qwen3-0.6B-Q5_K_S.gguf"
+        )
+        filename = "Qwen_Qwen3-0.6B-Q5_K_S.gguf"
+
+        download_file(gguf_model_path, str(model_path / filename), capsys)
+
+        model_path = str(model_path / filename)
+        generator = LlamaCppChatGenerator(model=model_path, n_ctx=8192, n_batch=512)
+        return generator
+
+    @pytest.mark.integration
+    async def test_live_run_async(self, generator):
+        """Integration test that run_async works with a real model."""
+        results = await generator.run_async(
+            messages=[ChatMessage.from_system(
+                "GPT4 Correct User: Answer in a single word. What's the capital of France? <|end_of_turn|>\n GPT4 Correct Assistant:"
+            )]
+        )
+
+        assert len(results["replies"]) == 1
+        message = results["replies"][0]
+        assert "Paris" in message.text
+
+
 class TestLlamaCppChatGeneratorFunctionary:
     @pytest.fixture
     def generator(self, model_path, capsys):
