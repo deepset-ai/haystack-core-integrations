@@ -31,7 +31,7 @@ class OptimumDocumentEmbedder:
     doc = Document(content="I love pizza!")
 
     document_embedder = OptimumDocumentEmbedder(model="sentence-transformers/all-mpnet-base-v2")
-    document_embedder.warm_up()
+    # Components warm up automatically on first run.
 
     result = document_embedder.run([doc])
     print(result["documents"][0].embedding)
