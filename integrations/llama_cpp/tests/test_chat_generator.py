@@ -1241,11 +1241,9 @@ class TestLlamaCppChatGeneratorAsync:
         results = await generator.run_async(
             messages=[
                 ChatMessage.from_system(
-                    (
-                        "GPT4 Correct User: Answer in a single word. "
-                        "What's the capital of France? <|end_of_turn|>\n"
-                        " GPT4 Correct Assistant:"
-                    )
+                    "GPT4 Correct User: Answer in a single word. "
+                    "What's the capital of France? <|end_of_turn|>\n"
+                    " GPT4 Correct Assistant:"
                 )
             ]
         )
