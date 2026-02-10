@@ -27,7 +27,7 @@ class OptimumTextEmbedder:
     text_to_embed = "I love pizza!"
 
     text_embedder = OptimumTextEmbedder(model="sentence-transformers/all-mpnet-base-v2")
-    text_embedder.warm_up()
+    # Components warm up automatically on first run.
 
     print(text_embedder.run(text_to_embed))
 
