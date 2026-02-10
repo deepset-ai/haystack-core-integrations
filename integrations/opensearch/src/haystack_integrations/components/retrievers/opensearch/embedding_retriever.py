@@ -91,7 +91,7 @@ class OpenSearchEmbeddingRetriever:
             If `False`, logs a warning and returns an empty list.
         :param efficient_filtering: If `True`, the filter will be applied during the approximate kNN search.
             This is only supported for knn engines "faiss" and "lucene" and does not work with the default "nmslib".
-        :param search_kwargs: Additional keyword arguments for finetuning the embedding search. 
+        :param search_kwargs: Additional keyword arguments for finetuning the embedding search.
             E.g., to specify `k` and `ef_search`
             ```python
             {
@@ -224,7 +224,7 @@ class OpenSearchEmbeddingRetriever:
         :param efficient_filtering: If `True`, the filter will be applied during the approximate kNN search.
             This is only supported for knn engines "faiss" and "lucene" and does not work with the default "nmslib".
         :param document_store: Optional instance of OpenSearchDocumentStore to use with the Retriever.
-        :param search_kwargs: Additional keyword arguments for finetuning the embedding search. 
+        :param search_kwargs: Additional keyword arguments for finetuning the embedding search.
             E.g., to specify `k` and `ef_search`
             ```python
             {
@@ -349,7 +349,7 @@ class OpenSearchEmbeddingRetriever:
         :param efficient_filtering: If `True`, the filter will be applied during the approximate kNN search.
             This is only supported for knn engines "faiss" and "lucene" and does not work with the default "nmslib".
         :param document_store: Optional instance of OpenSearchDocumentStore to use with the Retriever.
-        :param search_kwargs: Additional keyword arguments for finetuning the embedding search. 
+        :param search_kwargs: Additional keyword arguments for finetuning the embedding search.
             E.g., to specify `k` and `ef_search`
             ```python
             {
