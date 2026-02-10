@@ -104,6 +104,7 @@ class OpenSearchHybridRetriever:
         top_k_embedding: int = 10,
         filter_policy_embedding: str | FilterPolicy = FilterPolicy.REPLACE,
         custom_query_embedding: dict[str, Any] | None = None,
+        search_kwargs_embedding: dict[str, Any] | None = None,
         # DocumentJoiner
         join_mode: str | JoinMode = JoinMode.RECIPROCAL_RANK_FUSION,
         weights: list[float] | None = None,
@@ -185,6 +186,7 @@ class OpenSearchHybridRetriever:
         self.top_k_embedding = top_k_embedding
         self.filter_policy_embedding = filter_policy_embedding
         self.custom_query_embedding = custom_query_embedding
+        self.search_kwargs_embedding = search_kwargs_embedding
 
         # DocumentJoiner
         self.join_mode = join_mode
@@ -209,6 +211,7 @@ class OpenSearchHybridRetriever:
                 "top_k": self.top_k_embedding,
                 "filter_policy": self.filter_policy_embedding,
                 "custom_query": self.custom_query_embedding,
+                "search_kwargs": self.search_kwargs_embedding,
             },
             "document_joiner": {
                 "join_mode": self.join_mode,
@@ -311,6 +314,7 @@ class OpenSearchHybridRetriever:
                 else self.filter_policy_embedding
             ),
             custom_query_embedding=self.custom_query_embedding,
+            search_kwargs_embedding=self.search_kwargs_embedding,
             # DocumentJoiner
             join_mode=(self.join_mode.value if isinstance(self.join_mode, JoinMode) else self.join_mode),
             weights=self.weights,
