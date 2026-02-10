@@ -85,6 +85,7 @@ def test_to_dict(_mock_opensearch_client):
             "custom_query": {"some": "custom query"},
             "raise_on_failure": True,
             "efficient_filtering": False,
+            "search_kwargs": None,
         },
     }
 
