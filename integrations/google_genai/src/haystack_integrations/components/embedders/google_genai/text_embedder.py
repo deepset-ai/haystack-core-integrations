@@ -27,7 +27,7 @@ class GoogleGenAITextEmbedder:
     from haystack_integrations.components.embedders.google_genai import GoogleGenAITextEmbedder
 
     # export the environment variable (GOOGLE_API_KEY or GEMINI_API_KEY)
-    text_embedder = GoogleGenAITextEmbedder(model="text-embedding-004")
+    text_embedder = GoogleGenAITextEmbedder(model="gemini-embedding-001")
 
     **2. Vertex AI (Application Default Credentials)**
     ```python
@@ -38,7 +38,7 @@ class GoogleGenAITextEmbedder:
         api="vertex",
         vertex_ai_project="my-project",
         vertex_ai_location="us-central1",
-        model="text-embedding-004"
+        model="gemini-embedding-001"
     )
     ```
 
@@ -49,7 +49,7 @@ class GoogleGenAITextEmbedder:
     # export the environment variable (GOOGLE_API_KEY or GEMINI_API_KEY)
     text_embedder = GoogleGenAITextEmbedder(
         api="vertex",
-        model="text-embedding-004"
+        model="gemini-embedding-001"
     )
     ```
 
@@ -66,7 +66,7 @@ class GoogleGenAITextEmbedder:
     print(text_embedder.run(text_to_embed))
 
     # {'embedding': [0.017020374536514282, -0.023255806416273117, ...],
-    # 'meta': {'model': 'text-embedding-004-v2',
+    # 'meta': {'model': 'gemini-embedding-001-v2',
     #          'usage': {'prompt_tokens': 4, 'total_tokens': 4}}}
     ```
     """
@@ -78,7 +78,7 @@ class GoogleGenAITextEmbedder:
         api: Literal["gemini", "vertex"] = "gemini",
         vertex_ai_project: str | None = None,
         vertex_ai_location: str | None = None,
-        model: str = "text-embedding-004",
+        model: str = "gemini-embedding-001",
         prefix: str = "",
         suffix: str = "",
         config: dict[str, Any] | None = None,
@@ -97,7 +97,7 @@ class GoogleGenAITextEmbedder:
             Required when using Vertex AI with Application Default Credentials.
         :param model:
             The name of the model to use for calculating embeddings.
-            The default model is `text-embedding-004`.
+            The default model is `gemini-embedding-001`.
         :param prefix:
             A string to add at the beginning of each text to embed.
         :param suffix:
