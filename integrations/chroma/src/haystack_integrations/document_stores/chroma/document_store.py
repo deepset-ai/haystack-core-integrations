@@ -280,6 +280,13 @@ class ChromaDocumentStore:
         metadatas: list[Metadata] | None,
         normalized_fields: list[str],
     ) -> dict[str, int]:
+        """
+        Counts unique values for each specified metadata field.
+
+        :param metadatas: List of metadata mappings from a Chroma get result.
+        :param normalized_fields: List of field names to count unique values for.
+        :returns: A dictionary mapping each field name to the count of its unique values.
+        """
         if not metadatas:
             return dict.fromkeys(normalized_fields, 0)
 
@@ -292,6 +299,12 @@ class ChromaDocumentStore:
 
     @staticmethod
     def _build_fields_info(metadatas: list[Metadata] | None) -> dict[str, dict[str, str]]:
+        """
+        Builds field type information by inferring types from metadata values.
+
+        :param metadatas: List of metadata mappings from a Chroma get result.
+        :returns: A dictionary mapping field names to their inferred type information.
+        """
         if not metadatas:
             return {}
 
@@ -312,6 +325,13 @@ class ChromaDocumentStore:
         metadatas: list[Metadata] | None,
         field_name: str,
     ) -> dict[str, Any]:
+        """
+        Computes the minimum and maximum values for a metadata field.
+
+        :param metadatas: List of metadata mappings from a Chroma get result.
+        :param field_name: The metadata field name to compute min/max for.
+        :returns: A dictionary with "min" and "max" keys.
+        """
         if not metadatas:
             return {"min": None, "max": None}
 
@@ -335,6 +355,16 @@ class ChromaDocumentStore:
         from_: int,
         size: int,
     ) -> tuple[list[str], int]:
+        """
+        Computes paginated unique values for a metadata field from a Chroma get result.
+
+        :param result: The full GetResult from a Chroma collection get operation.
+        :param field_name: The metadata field name to collect unique values for.
+        :param search_term: Optional search term to filter documents by content.
+        :param from_: The offset to start returning values from.
+        :param size: The maximum number of unique values to return.
+        :returns: A tuple of the paginated unique values list and the total count.
+        """
         metadatas = result.get("metadatas", [])
 
         if not metadatas:
