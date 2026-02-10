@@ -1,5 +1,11 @@
 # Changelog
 
+## [integrations/chroma-v4.1.0] - 2026-02-10
+
+### 🌀 Miscellaneous
+
+- Add metadata query operations to ChromaDocumentStore (#2819)
+
 ## [integrations/chroma-v4.0.0] - 2026-01-12
 
 ### 🚀 Features
