@@ -1183,7 +1183,11 @@ class ChromaDocumentStore:
             Can include or omit the "meta." prefix.
         :returns: A dictionary with the keys "min" and "max", where each value is
                   the minimum or maximum value of the metadata field across all documents.
-                  Returns {"min": None, "max": None} if field doesn't exist or has no values.
+                  Returns:
+                  ```python
+                    {"min": None, "max": None}
+                  ```
+                  if field doesn't exist or has no values.
         """
         self._ensure_initialized()
         assert self._collection is not None
@@ -1203,7 +1207,11 @@ class ChromaDocumentStore:
             Can include or omit the "meta." prefix.
         :returns: A dictionary with the keys "min" and "max", where each value is
                   the minimum or maximum value of the metadata field across all documents.
-                  Returns {"min": None, "max": None} if field doesn't exist or has no values.
+                  Returns:
+                  ```python
+                    {"min": None, "max": None}
+                  ```
+                  if field doesn't exist or has no values.
         """
         await self._ensure_initialized_async()
         assert self._async_collection is not None
