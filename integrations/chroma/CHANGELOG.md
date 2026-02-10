@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/chroma-v4.1.1] - 2026-02-10
+
+### 📚 Documentation
+
+- Fixing curly brackets (#2824)
+
+
 ## [integrations/chroma-v4.1.0] - 2026-02-10
 
 ### 🌀 Miscellaneous
