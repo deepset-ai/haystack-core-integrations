@@ -277,7 +277,7 @@ class ChromaDocumentStore:
 
     @staticmethod
     def _count_unique_metadata(
-        metadatas: list[Metadata | None] | None,
+        metadatas: list[Metadata] | None,
         normalized_fields: list[str],
     ) -> dict[str, int]:
         if not metadatas:
@@ -291,7 +291,7 @@ class ChromaDocumentStore:
         return unique_counts
 
     @staticmethod
-    def _build_fields_info(metadatas: list[Metadata | None] | None) -> dict[str, dict[str, str]]:
+    def _build_fields_info(metadatas: list[Metadata] | None) -> dict[str, dict[str, str]]:
         if not metadatas:
             return {}
 
@@ -309,7 +309,7 @@ class ChromaDocumentStore:
 
     @staticmethod
     def _compute_field_min_max(
-        metadatas: list[Metadata | None] | None,
+        metadatas: list[Metadata] | None,
         field_name: str,
     ) -> dict[str, Any]:
         if not metadatas:
