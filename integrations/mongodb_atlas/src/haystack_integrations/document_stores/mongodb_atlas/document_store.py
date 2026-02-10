@@ -302,6 +302,30 @@ class MongoDBAtlasDocumentStore:
         normalized_filters = _normalize_filters(filters)
         return await self._collection_async.count_documents(normalized_filters)
 
+    def _create_count_unique_metadata_pipeline(
+        self, filters: dict[str, Any], metadata_fields: list[str]
+    ) -> list[dict[str, Any]]:
+        normalized_filters = _normalize_filters(filters)
+        pipeline = [{"$match": normalized_filters}]
+        facet_stages = {}
+        for field in metadata_fields:
+            # metadata fields are stored in "meta" field in MongoDB
+            mongo_field = f"meta.{field}"
+            facet_stages[field] = [{"$group": {"_id": f"${mongo_field}"}}, {"$count": "count"}]
+
+        pipeline.append({"$facet": facet_stages})
+        return pipeline
+
+    def _process_count_unique_metadata_result(self, result: list[Any], metadata_fields: list[str]) -> dict[str, int]:
+        if not result:
+            return dict.fromkeys(metadata_fields, 0)
+
+        counts = {}
+        for field in metadata_fields:
+            field_result = result[0].get(field, [])
+            counts[field] = field_result[0]["count"] if field_result else 0
+        return counts
+
     def count_unique_metadata_by_filter(self, filters: dict[str, Any], metadata_fields: list[str]) -> dict[str, int]:
         """
         Applies a filter selecting documents and counts the unique values for each meta field of the matched documents.
@@ -313,27 +337,12 @@ class MongoDBAtlasDocumentStore:
         """
         self._ensure_connection_setup()
         assert self._collection is not None
-        normalized_filters = _normalize_filters(filters)
 
-        pipeline = [{"$match": normalized_filters}]
-        facet_stages = {}
-        for field in metadata_fields:
-            # metadata fields are stored in "meta" field in MongoDB
-            mongo_field = f"meta.{field}"
-            facet_stages[field] = [{"$group": {"_id": f"${mongo_field}"}}, {"$count": "count"}]
-
-        pipeline.append({"$facet": facet_stages})
+        pipeline = self._create_count_unique_metadata_pipeline(filters, metadata_fields)
 
         try:
             result = list(self._collection.aggregate(pipeline))
-            if not result:
-                return dict.fromkeys(metadata_fields, 0)
-
-            counts = {}
-            for field in metadata_fields:
-                field_result = result[0].get(field, [])
-                counts[field] = field_result[0]["count"] if field_result else 0
-            return counts
+            return self._process_count_unique_metadata_result(result, metadata_fields)
         except Exception as e:
             msg = f"Failed to count unique metadata values in MongoDB Atlas: {e}"
             raise DocumentStoreError(msg) from e
@@ -352,29 +361,13 @@ class MongoDBAtlasDocumentStore:
         """
         await self._ensure_connection_setup_async()
         assert self._collection_async is not None
-        normalized_filters = _normalize_filters(filters)
 
-        pipeline = [{"$match": normalized_filters}]
-        facet_stages = {}
-        for field in metadata_fields:
-            # metadata fields are stored in "meta" field in MongoDB
-            mongo_field = f"meta.{field}"
-            facet_stages[field] = [{"$group": {"_id": f"${mongo_field}"}}, {"$count": "count"}]
-
-        pipeline.append({"$facet": facet_stages})
+        pipeline = self._create_count_unique_metadata_pipeline(filters, metadata_fields)
 
         try:
             cursor = await self._collection_async.aggregate(pipeline)
             result = await cursor.to_list(length=1)
-
-            if not result:
-                return dict.fromkeys(metadata_fields, 0)
-
-            counts = {}
-            for field in metadata_fields:
-                field_result = result[0].get(field, [])
-                counts[field] = field_result[0]["count"] if field_result else 0
-            return counts
+            return self._process_count_unique_metadata_result(result, metadata_fields)
         except Exception as e:
             msg = f"Failed to count unique metadata values in MongoDB Atlas: {e}"
             raise DocumentStoreError(msg) from e
@@ -457,7 +450,7 @@ class MongoDBAtlasDocumentStore:
         self._ensure_connection_setup()
         assert self._collection is not None
 
-        pipeline = [
+        pipeline: list[dict[str, Any]] = [
             {"$group": {"_id": f"$meta.{metadata_field}"}},
         ]
 
