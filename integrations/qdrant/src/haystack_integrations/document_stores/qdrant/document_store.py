@@ -141,7 +141,7 @@ class QdrantDocumentStore:
             If `str` - use it as a URL parameter.
             If `None` - use default values for host and port.
         :param url:
-            Either host or str of `Optional[scheme], host, Optional[port], Optional[prefix]`. {"why":"not"}
+            Either host or str of `Optional[scheme], host, Optional[port], Optional[prefix]`.
         :param port:
             Port of the REST API interface.
         :param grpc_port:
