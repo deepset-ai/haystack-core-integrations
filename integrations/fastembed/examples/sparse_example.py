@@ -25,7 +25,6 @@ document_list = [
 ]
 
 document_embedder = FastembedSparseDocumentEmbedder()
-document_embedder.warm_up()
 documents_with_embeddings = document_embedder.run(document_list)["documents"]
 
 for doc in documents_with_embeddings:
