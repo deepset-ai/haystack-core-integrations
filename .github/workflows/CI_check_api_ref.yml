@@ -133,4 +133,8 @@ jobs:
           BEFORE=$(git rev-parse HEAD)
           git add -A
           git -c user.name=ci -c user.email=ci@ci commit -m "temp"
-          npx docusaurus-mdx-checker-diff -r ${BEFORE}..HEAD -v
+          npx docusaurus-mdx-checker-diff -r ${BEFORE}..HEAD -v || {
+            echo ""
+            echo "For common MDX problems, see https://docusaurus.io/blog/preparing-your-site-for-docusaurus-v3#common-mdx-problems"
+            exit 1
+          }
