@@ -16,13 +16,69 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Extract changed integrations
+      - name: Set up Python 3.13
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+
+      - name: Detect integrations with API reference changes
         id: changed
+        shell: python
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          RUNNER_TEMP: ${{ runner.temp }}
         run: |
-          CHANGED=$(git diff --name-only ${{ github.event.pull_request.base.sha }}...HEAD \
-            -- 'integrations/**/*.py' 'integrations/**/config_docusaurus.yml' \
-            | cut -d/ -f2 | sort -u | jq -Rc . | jq -sc .)
-          echo "integrations=$CHANGED" >> "$GITHUB_OUTPUT"
+          import json
+          import os
+          import subprocess
+          import sys
+          from pathlib import Path
+
+          sys.path.insert(0, ".github/utils")
+          from docstrings_checksum import docstrings_checksum
+
+          base_sha = os.environ["BASE_SHA"]
+          runner_temp = os.environ["RUNNER_TEMP"]
+
+          def git(*args):
+              result = subprocess.run(["git", *args], capture_output=True, text=True)
+              return result.stdout.strip(), result.returncode
+
+          # Find integrations with changed .py or config files
+          diff_output, _ = git("diff", "--name-only", f"{base_sha}...HEAD",
+                               "--", "integrations/**/*.py", "integrations/**/config_docusaurus.yml")
+          candidates = sorted({Path(p).parts[1] for p in diff_output.splitlines() if p.startswith("integrations/")})
+
+          # Create base worktree once for docstring comparison
+          base_worktree = os.path.join(runner_temp, "base")
+          _, rc = git("worktree", "add", base_worktree, base_sha)
+          has_worktree = rc == 0
+
+          result = []
+          for integration in candidates:
+              # If pydoc config changed, always include
+              config_diff, _ = git("diff", "--name-only", f"{base_sha}...HEAD",
+                                   "--", f"integrations/{integration}/pydoc/config_docusaurus.yml")
+              if config_diff:
+                  result.append(integration)
+                  continue
+
+              # Otherwise, check if docstrings changed
+              pr_checksum = docstrings_checksum(Path(".").glob(f"integrations/{integration}/**/*.py"))
+              if has_worktree:
+                  base_checksum = docstrings_checksum(Path(base_worktree).glob(f"integrations/{integration}/**/*.py"))
+              else:
+                  # Integration doesn't exist on the base branch (new integration)
+                  base_checksum = ""
+
+              if base_checksum != pr_checksum:
+                  result.append(integration)
+
+          if has_worktree:
+              git("worktree", "remove", base_worktree)
+
+          with open(os.environ["GITHUB_OUTPUT"], "a") as f:
+              f.write(f"integrations={json.dumps(result)}\n")
 
   generate-docs:
     needs: detect-changes
@@ -34,46 +90,16 @@ jobs:
         integration: ${{ fromJson(needs.detect-changes.outputs.integrations) }}
     steps:
       - uses: actions/checkout@v6
-        with:
-          fetch-depth: 0
 
       - name: Set up Python 3.13
         uses: actions/setup-python@v6
         with:
           python-version: "3.13"
 
-      - name: Check for Pydoc config changes
-        id: config
-        run: |
-          if git diff --name-only ${{ github.event.pull_request.base.sha }}...HEAD -- "integrations/${{ matrix.integration }}/pydoc/config_docusaurus.yml" | grep -q .; then
-            echo "changed=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "changed=false" >> "$GITHUB_OUTPUT"
-          fi
-
-      - name: Check for docstring changes
-        if: steps.config.outputs.changed != 'true'
-        id: docstrings
-        run: |
-          # Compute docstring checksum for the PR version
-          PR_DOCSTRINGS_CHECKSUM=$(python .github/utils/docstrings_checksum.py --root . --integration ${{ matrix.integration }})
-
-          # Create a temporary worktree at the base SHA to compute the base checksum
-          if git worktree add "${{ runner.temp }}/base" ${{ github.event.pull_request.base.sha }} 2>/dev/null; then
-            BASE_DOCSTRINGS_CHECKSUM=$(python .github/utils/docstrings_checksum.py --root "${{ runner.temp }}/base" --integration ${{ matrix.integration }})
-            git worktree remove "${{ runner.temp }}/base"
-          else
-            # Integration doesn't exist on the base branch (new integration)
-            BASE_DOCSTRINGS_CHECKSUM=""
-          fi
-          echo "changed=$([[ "$BASE_DOCSTRINGS_CHECKSUM" != "$PR_DOCSTRINGS_CHECKSUM" ]] && echo true || echo false)" >> "$GITHUB_OUTPUT"
-
       - name: Install Hatch
-        if: steps.config.outputs.changed == 'true' || steps.docstrings.outputs.changed == 'true'
         run: pip install --upgrade hatch
 
       - name: Generate API reference
-        if: steps.config.outputs.changed == 'true' || steps.docstrings.outputs.changed == 'true'
         working-directory: integrations/${{ matrix.integration }}
         run: |
           hatch run docs
@@ -81,14 +107,13 @@ jobs:
           cp ${{ matrix.integration }}.md "${{ runner.temp }}/${{ matrix.integration }}.md"
 
       - name: Checkout Haystack repo
-        if: steps.config.outputs.changed == 'true' || steps.docstrings.outputs.changed == 'true'
         uses: actions/checkout@v6
         with:
           repository: deepset-ai/haystack
           ref: main
+          sparse-checkout: docs-website
 
       - name: Sync API reference
-        if: steps.config.outputs.changed == 'true' || steps.docstrings.outputs.changed == 'true'
         shell: python
         env:
           INTEGRATION_API_REFERENCE: ${{ runner.temp }}/${{ matrix.integration }}.md
@@ -108,14 +133,12 @@ jobs:
                   integrations_api_ref_dir = os.path.join(version_dir.path, "integrations-api")
                   shutil.copy(api_ref_file, integrations_api_ref_dir)
 
-      - name: install Node.js
-        if: steps.config.outputs.changed == 'true' || steps.docstrings.outputs.changed == 'true'
+      - name: Install Node.js
         uses: actions/setup-node@v6
         with:
           node-version: "22"
 
-      - name: Install Docusaurus and build docs-website
-        if: steps.config.outputs.changed == 'true' || steps.docstrings.outputs.changed == 'true'
+      - name: Build docs-website
         working-directory: docs-website
         run: |
           npm install
