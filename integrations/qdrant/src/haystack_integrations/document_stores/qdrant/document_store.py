@@ -142,7 +142,6 @@ class QdrantDocumentStore:
             If `None` - use default values for host and port.
         :param url:
             Either host or str of `Optional[scheme], host, Optional[port], Optional[prefix]`.
-            I like to use curly braces: {"key": "this will make Docusaurus build fail"}
         :param port:
             Port of the REST API interface.
         :param grpc_port:
