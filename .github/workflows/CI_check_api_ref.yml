@@ -128,4 +128,7 @@ jobs:
       - name: Run Docusaurus md/mdx checker
         working-directory: docs-website
         run: |
-          npx docusaurus-mdx-checker
+          BEFORE=$(git rev-parse HEAD)
+          git add -A
+          git -c user.name=ci -c user.email=ci@ci commit -m "temp"
+          npx docusaurus-mdx-checker-diff -r ${BEFORE}..HEAD
