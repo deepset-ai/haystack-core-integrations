@@ -77,6 +77,8 @@ jobs:
           if has_worktree:
               git("worktree", "remove", base_worktree)
 
+          print(f"Integrations with API reference changes: {json.dumps(result)}")
+
           with open(os.environ["GITHUB_OUTPUT"], "a") as f:
               f.write(f"integrations={json.dumps(result)}\n")
 
