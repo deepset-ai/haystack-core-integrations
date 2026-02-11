@@ -75,7 +75,11 @@ jobs:
       - name: Generate API reference
         if: steps.config.outputs.changed == 'true' || steps.docstrings.outputs.changed == 'true'
         working-directory: integrations/${{ matrix.integration }}
-        run: hatch run docs
+        run: |
+          hatch run docs
+          # save the generated API reference content to a variable
+          INTEGRATION_API_REFERENCE=$(cat integrations/${{ matrix.integration }}/${{ matrix.integration }}.md)
+          echo "INTEGRATION_API_REFERENCE=$INTEGRATION_API_REFERENCE" >> "$GITHUB_OUTPUT"
 
       - name: Checkout Haystack repo
         uses: actions/checkout@v6
@@ -86,12 +90,15 @@ jobs:
       - name: Sync API reference
         shell: python
         env:
-          INTEGRATION_API_REFERENCE: integrations/${{ matrix.integration }}/${{ matrix.integration }}.md
+          INTEGRATION_API_REFERENCE_FILENAME: ${{ matrix.integration }}.md
         run: |
           import os
           import shutil
 
           integration_api_reference = os.environ['INTEGRATION_API_REFERENCE']
+          integration_api_reference_filename = os.environ['INTEGRATION_API_REFERENCE_FILENAME']
+          with open(integration_api_reference_filename, 'w') as f:
+            f.write(integration_api_reference)
 
           # Copy to main API reference
           shutil.copy(integration_api_reference, "docs-website/reference/integrations-api/")
@@ -103,7 +110,7 @@ jobs:
                   integrations_api_ref_dir = os.path.join(version_dir.path, "integrations-api")
                   shutil.copy(integration_api_reference, integrations_api_ref_dir)
 
-          # os.remove(artifact_filename)
+          os.remove(integration_api_reference_filename)
 
       - name: Print git status on docs
         working-directory: docs-website
