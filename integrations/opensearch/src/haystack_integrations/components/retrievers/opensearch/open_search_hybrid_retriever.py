@@ -154,6 +154,8 @@ class OpenSearchHybridRetriever:
             The filter policy for the embedding retriever.
         :param custom_query_embedding:
             A custom query for the embedding retriever.
+        :param search_kwargs_embedding:
+            Additional search kwargs for the embedding retriever.
         :param join_mode:
             The mode to use for joining the results from the BM25 and embedding retrievers.
         :param weights:
