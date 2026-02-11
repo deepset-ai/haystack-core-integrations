@@ -64,7 +64,8 @@ class DSPyChatGenerator(DSPyGenerator):
         :param input_mapping: Maps DSPy signature input field names to run kwarg names.
         :param streaming_callback: Callback for streaming responses.
         """
-        super().__init__(
+        DSPyGenerator.__init__(
+            self,
             signature=signature,
             model=model,
             api_key=api_key,
