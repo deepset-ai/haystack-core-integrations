@@ -78,7 +78,7 @@ jobs:
         run: |
           hatch run docs
           # save the generated API reference content to a variable
-          INTEGRATION_API_REFERENCE=$(cat integrations/${{ matrix.integration }}/${{ matrix.integration }}.md)
+          INTEGRATION_API_REFERENCE=$(cat ${{ matrix.integration }}.md)
           echo "INTEGRATION_API_REFERENCE=$INTEGRATION_API_REFERENCE" >> "$GITHUB_OUTPUT"
 
       - name: Checkout Haystack repo
