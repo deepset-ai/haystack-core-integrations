@@ -1,0 +1,87 @@
+name: Core / Check API reference changes
+
+on:
+  pull_request:
+    paths:
+      - "integrations/**/*.py"
+      - "integrations/**/config_docusaurus.yml"
+
+jobs:
+  detect-changes:
+    runs-on: ubuntu-latest
+    outputs:
+      integrations: ${{ steps.changed.outputs.integrations }}
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: dorny/paths-filter@v3
+        id: changes
+        with:
+          list-files: json
+          filters: |
+            integrations:
+              - "integrations/**/*.py"
+              - "integrations/**/config_docusaurus.yml"
+
+      - name: Extract changed integrations
+        id: changed
+        run: |
+          CHANGED=$(echo '${{ steps.changes.outputs.integrations_files }}' \
+            | jq -c '[.[] | split("/")[1]] | unique')
+          echo "integrations=$CHANGED" >> "$GITHUB_OUTPUT"
+
+  generate-docs:
+    needs: detect-changes
+    if: needs.detect-changes.outputs.integrations != '[]'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        integration: ${{ fromJson(needs.detect-changes.outputs.integrations) }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Check for config changes
+        id: config
+        run: |
+          if git diff --name-only ${{ github.event.pull_request.base.sha }}...HEAD -- "integrations/${{ matrix.integration }}/pydoc/config_docusaurus.yml" | grep -q .; then
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Check for docstring changes
+        if: steps.config.outputs.changed != 'true'
+        id: docstrings
+        run: |
+          cp .github/utils/docstrings_checksum.py "${{ runner.temp }}/docstrings_checksum.py"
+          HEAD=$(python "${{ runner.temp }}/docstrings_checksum.py" --root . --integration ${{ matrix.integration }})
+          if git checkout ${{ github.event.pull_request.base.sha }} -- "integrations/${{ matrix.integration }}" 2>/dev/null; then
+            BASE=$(python "${{ runner.temp }}/docstrings_checksum.py" --root . --integration ${{ matrix.integration }})
+            git checkout HEAD -- "integrations/${{ matrix.integration }}"
+          else
+            BASE=""
+          fi
+          echo "changed=$([[ "$BASE" != "$HEAD" ]] && echo true || echo false)" >> "$GITHUB_OUTPUT"
+
+      - name: Add documentation label
+        if: steps.docstrings.outputs.changed == 'true'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh pr edit ${{ github.event.pull_request.number }} --add-label "type:documentation"
+
+      - name: Install Hatch
+        if: steps.config.outputs.changed == 'true' || steps.docstrings.outputs.changed == 'true'
+        run: pip install --upgrade hatch
+
+      - name: Generate docs
+        if: steps.config.outputs.changed == 'true' || steps.docstrings.outputs.changed == 'true'
+        working-directory: integrations/${{ matrix.integration }}
+        run: hatch run docs
