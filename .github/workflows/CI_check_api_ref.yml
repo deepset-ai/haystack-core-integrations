@@ -131,4 +131,4 @@ jobs:
           BEFORE=$(git rev-parse HEAD)
           git add -A
           git -c user.name=ci -c user.email=ci@ci commit -m "temp"
-          npx docusaurus-mdx-checker-diff -r ${BEFORE}..HEAD
+          npx docusaurus-mdx-checker-diff -r ${BEFORE}..HEAD -v
