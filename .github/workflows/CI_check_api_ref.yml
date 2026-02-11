@@ -13,21 +13,15 @@ jobs:
       integrations: ${{ steps.changed.outputs.integrations }}
     steps:
       - uses: actions/checkout@v6
-
-      - uses: dorny/paths-filter@v3
-        id: changes
         with:
-          list-files: json
-          filters: |
-            integrations:
-              - "integrations/**/*.py"
-              - "integrations/**/config_docusaurus.yml"
+          fetch-depth: 0
 
       - name: Extract changed integrations
         id: changed
         run: |
-          CHANGED=$(echo '${{ steps.changes.outputs.integrations_files }}' \
-            | jq -c '[.[] | split("/")[1]] | unique')
+          CHANGED=$(git diff --name-only ${{ github.event.pull_request.base.sha }}...HEAD \
+            -- 'integrations/**/*.py' 'integrations/**/config_docusaurus.yml' \
+            | cut -d/ -f2 | sort -u | jq -Rc . | jq -sc .)
           echo "integrations=$CHANGED" >> "$GITHUB_OUTPUT"
 
   generate-docs:
@@ -43,12 +37,12 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Set up Python 3.12
+      - name: Set up Python 3.13
         uses: actions/setup-python@v6
         with:
-          python-version: "3.12"
+          python-version: "3.13"
 
-      - name: Check for config changes
+      - name: Check for Pydoc config changes
         id: config
         run: |
           if git diff --name-only ${{ github.event.pull_request.base.sha }}...HEAD -- "integrations/${{ matrix.integration }}/pydoc/config_docusaurus.yml" | grep -q .; then
@@ -61,27 +55,56 @@ jobs:
         if: steps.config.outputs.changed != 'true'
         id: docstrings
         run: |
-          cp .github/utils/docstrings_checksum.py "${{ runner.temp }}/docstrings_checksum.py"
-          HEAD=$(python "${{ runner.temp }}/docstrings_checksum.py" --root . --integration ${{ matrix.integration }})
-          if git checkout ${{ github.event.pull_request.base.sha }} -- "integrations/${{ matrix.integration }}" 2>/dev/null; then
-            BASE=$(python "${{ runner.temp }}/docstrings_checksum.py" --root . --integration ${{ matrix.integration }})
-            git checkout HEAD -- "integrations/${{ matrix.integration }}"
-          else
-            BASE=""
-          fi
-          echo "changed=$([[ "$BASE" != "$HEAD" ]] && echo true || echo false)" >> "$GITHUB_OUTPUT"
+          # Compute docstring checksum for the PR version
+          PR_DOCSTRINGS_CHECKSUM=$(python .github/utils/docstrings_checksum.py --root . --integration ${{ matrix.integration }})
 
-      # - name: Add documentation label
-      #   if: steps.docstrings.outputs.changed == 'true'
-      #   env:
-      #     GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      #   run: gh pr edit ${{ github.event.pull_request.number }} --add-label "type:documentation"
+          # Create a temporary worktree at the base SHA to compute the base checksum
+          if git worktree add "${{ runner.temp }}/base" ${{ github.event.pull_request.base.sha }} 2>/dev/null; then
+            BASE_DOCSTRINGS_CHECKSUM=$(python .github/utils/docstrings_checksum.py --root "${{ runner.temp }}/base" --integration ${{ matrix.integration }})
+            git worktree remove "${{ runner.temp }}/base"
+          else
+            # Integration doesn't exist on the base branch (new integration)
+            BASE_DOCSTRINGS_CHECKSUM=""
+          fi
+          echo "changed=$([[ "$BASE_DOCSTRINGS_CHECKSUM" != "$PR_DOCSTRINGS_CHECKSUM" ]] && echo true || echo false)" >> "$GITHUB_OUTPUT"
 
       - name: Install Hatch
         if: steps.config.outputs.changed == 'true' || steps.docstrings.outputs.changed == 'true'
         run: pip install --upgrade hatch
 
-      - name: Generate docs
+      - name: Generate API reference
         if: steps.config.outputs.changed == 'true' || steps.docstrings.outputs.changed == 'true'
         working-directory: integrations/${{ matrix.integration }}
         run: hatch run docs
+
+      - name: Checkout Haystack repo
+        uses: actions/checkout@v6
+        with:
+          repository: deepset-ai/haystack
+          ref: main
+ 
+      - name: Sync API reference
+        shell: python
+        env:
+          INTEGRATION_API_REFERENCE: integrations/${{ matrix.integration }}/${{ matrix.integration }}.md
+        run: |
+          import os
+          import shutil
+
+          integration_api_reference = os.environ['INTEGRATION_API_REFERENCE']
+
+          # Copy to main API reference
+          shutil.copy(integration_api_reference, "docs-website/reference/integrations-api/")
+
+          # Copy to versioned API reference
+          for version_dir in os.scandir("docs-website/reference_versioned_docs"):
+              if version_dir.is_dir():
+                  # example: docs-website/reference_versioned_docs/version-2.17/integrations-api
+                  integrations_api_ref_dir = os.path.join(version_dir.path, "integrations-api")
+                  shutil.copy(integration_api_reference, integrations_api_ref_dir)
+
+          # os.remove(artifact_filename)
+
+      - name: Print git status on docs
+        working-directory: docs-website
+        run: git status
