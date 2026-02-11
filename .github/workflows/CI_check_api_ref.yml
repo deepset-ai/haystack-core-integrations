@@ -86,7 +86,7 @@ jobs:
   test-api-reference-build:
     needs: detect-changes
     if: needs.detect-changes.outputs.integrations != '[]'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-slim
     strategy:
       fail-fast: false
       matrix:
@@ -125,8 +125,7 @@ jobs:
         with:
           node-version: "22"
 
-      - name: Build docs-website
+      - name: Run Docusaurus md/mdx checker
         working-directory: docs-website
         run: |
-          npm install
-          npm run build
+          npx docusaurus-mdx-checker
