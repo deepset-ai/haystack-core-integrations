@@ -112,7 +112,7 @@ jobs:
           # Save the generated file before the Haystack checkout overwrites the working tree
           cp ${{ matrix.integration }}.md "${{ runner.temp }}/${{ matrix.integration }}.md"
           # Also copy the Copy script to the temp directory
-          cp .github/utils/copy_file_to_api_reference.py "${{ runner.temp }}/copy_file_to_api_reference.py"
+          cp ../../.github/utils/copy_file_to_api_reference.py "${{ runner.temp }}/copy_file_to_api_reference.py"
 
       - name: Checkout Haystack Docs Website
         uses: actions/checkout@v6
