@@ -72,10 +72,17 @@ jobs:
           ref: main
           token: ${{ secrets.HAYSTACK_BOT_TOKEN }}
 
+      - name: Checkout this repo for the script
+        uses: actions/checkout@v6
+        with:
+          path: core-integrations
+          sparse-checkout: |
+            .github/utils/copy_file_to_api_reference.py
+
       - name: Set up Python
         uses: actions/setup-python@v6
         with:
-          python-version: "3.10"          
+          python-version: "3.10"
 
       - name: Download API reference artifact
         uses: actions/download-artifact@v7
@@ -83,26 +90,12 @@ jobs:
           name: ${{ needs.generate-api-reference.outputs.integration_name }}
 
       - name: Sync API reference
-        shell: python
         env:
           INTEGRATION_NAME: ${{ needs.generate-api-reference.outputs.integration_name }}
         run: |
-          import os
-          import shutil
-
-          artifact_filename = os.environ['INTEGRATION_NAME']+'.md'
-
-          # Copy to main API reference
-          shutil.copy(artifact_filename, "docs-website/reference/integrations-api/")
-
-          # Copy to versioned API reference
-          for version_dir in os.scandir("docs-website/reference_versioned_docs"):
-              if version_dir.is_dir():
-                  # example: docs-website/reference_versioned_docs/version-2.17/integrations-api
-                  integrations_api_ref_dir = os.path.join(version_dir.path, "integrations-api")
-                  shutil.copy(artifact_filename, integrations_api_ref_dir)
-
-          os.remove(artifact_filename)
+          artifact_filename="${INTEGRATION_NAME}.md"
+          python core-integrations/.github/utils/copy_file_to_api_reference.py "$artifact_filename"
+          rm "$artifact_filename"
 
       - name: Create Pull Request
         uses: peter-evans/create-pull-request@v8

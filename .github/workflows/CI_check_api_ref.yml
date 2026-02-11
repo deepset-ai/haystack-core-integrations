@@ -8,7 +8,7 @@ on:
 
 jobs:
   detect-changes:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-slim
     outputs:
       integrations: ${{ steps.changed.outputs.integrations }}
     steps:
@@ -16,7 +16,7 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Set up Python 3.13
+      - name: Set up Python
         uses: actions/setup-python@v6
         with:
           python-version: "3.13"
@@ -26,7 +26,6 @@ jobs:
         shell: python
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
-          RUNNER_TEMP: ${{ runner.temp }}
         run: |
           import json
           import os
@@ -44,45 +43,50 @@ jobs:
               result = subprocess.run(["git", *args], capture_output=True, text=True)
               return result.stdout.strip(), result.returncode
 
-          # Find integrations with changed .py or config files
-          diff_output, _ = git("diff", "--name-only", f"{base_sha}...HEAD",
-                               "--", "integrations/**/*.py", "integrations/**/config_docusaurus.yml")
-          candidates = sorted({Path(p).parts[1] for p in diff_output.splitlines() if p.startswith("integrations/")})
+          # Get all changed files
+          diff_output, _ = git(
+              "diff", "--name-only", f"{base_sha}...HEAD", "--", "integrations"
+          )
+          changed_files = set(diff_output.splitlines())
 
-          # Create base worktree once for docstring comparison
+          # Extract integration names
+          candidates = sorted({
+              Path(p).parts[1]
+              for p in changed_files
+              if p.startswith("integrations/") and len(Path(p).parts) > 1
+          })
+
+          # Create base worktree for docstring comparison
           base_worktree = os.path.join(runner_temp, "base")
-          _, rc = git("worktree", "add", base_worktree, base_sha)
-          has_worktree = rc == 0
+          _, return_code = git("worktree", "add", base_worktree, base_sha)
+          has_worktree = return_code == 0
 
-          result = []
+          changed_integrations = []
+          
           for integration in candidates:
               # If pydoc config changed, always include
-              config_diff, _ = git("diff", "--name-only", f"{base_sha}...HEAD",
-                                   "--", f"integrations/{integration}/pydoc/config_docusaurus.yml")
-              if config_diff:
-                  result.append(integration)
+              if f"integrations/{integration}/pydoc/config_docusaurus.yml" in changed_files:
+                  changed_integrations.append(integration)
                   continue
 
               # Otherwise, check if docstrings changed
-              pr_checksum = docstrings_checksum(Path(".").glob(f"integrations/{integration}/**/*.py"))
+              pr_docstrings_checksum = docstrings_checksum(Path(".").glob(f"integrations/{integration}/**/*.py"))
+              base_docstrings_checksum = ""
               if has_worktree:
-                  base_checksum = docstrings_checksum(Path(base_worktree).glob(f"integrations/{integration}/**/*.py"))
-              else:
-                  # Integration doesn't exist on the base branch (new integration)
-                  base_checksum = ""
+                  base_docstrings_checksum = docstrings_checksum(Path(base_worktree).glob(f"integrations/{integration}/**/*.py"))
 
-              if base_checksum != pr_checksum:
-                  result.append(integration)
+              if base_docstrings_checksum != pr_docstrings_checksum:
+                  changed_integrations.append(integration)
 
           if has_worktree:
               git("worktree", "remove", base_worktree)
 
-          print(f"Integrations with API reference changes: {json.dumps(result)}")
+          print(f"Integrations with API reference changes: {json.dumps(changed_integrations)}")
 
           with open(os.environ["GITHUB_OUTPUT"], "a") as f:
-              f.write(f"integrations={json.dumps(result)}\n")
+              f.write(f"integrations={json.dumps(changed_integrations)}\n")
 
-  generate-docs:
+  test-api-reference-build:
     needs: detect-changes
     if: needs.detect-changes.outputs.integrations != '[]'
     runs-on: ubuntu-latest
@@ -107,34 +111,18 @@ jobs:
           hatch run docs
           # Save the generated file before the Haystack checkout overwrites the working tree
           cp ${{ matrix.integration }}.md "${{ runner.temp }}/${{ matrix.integration }}.md"
+          # Also copy the Copy script to the temp directory
+          cp .github/utils/copy_file_to_api_reference.py "${{ runner.temp }}/copy_file_to_api_reference.py"
 
-      - name: Checkout Haystack repo
+      - name: Checkout Haystack Docs Website
         uses: actions/checkout@v6
         with:
           repository: deepset-ai/haystack
           ref: main
           sparse-checkout: docs-website
 
-      - name: Sync API reference
-        shell: python
-        env:
-          INTEGRATION_API_REFERENCE: ${{ runner.temp }}/${{ matrix.integration }}.md
-        run: |
-          import os
-          import shutil
-
-          api_ref_file = os.environ['INTEGRATION_API_REFERENCE']
-
-          # Copy to main API reference
-          shutil.copy(api_ref_file, "docs-website/reference/integrations-api/")
-
-          # Copy to versioned API reference
-          for version_dir in os.scandir("docs-website/reference_versioned_docs"):
-              if version_dir.is_dir():
-                  # example: docs-website/reference_versioned_docs/version-2.17/integrations-api
-                  integrations_api_ref_dir = os.path.join(version_dir.path, "integrations-api")
-                  shutil.copy(api_ref_file, integrations_api_ref_dir)
-
+      - name: Copy file to API reference
+        run: python ${{ runner.temp }}/copy_file_to_api_reference.py ${{ runner.temp }}/${{ matrix.integration }}.md
       - name: Install Node.js
         uses: actions/setup-node@v6
         with:
