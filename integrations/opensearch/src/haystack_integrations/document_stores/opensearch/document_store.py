@@ -1409,6 +1409,7 @@ class OpenSearchDocumentStore:
         top_k: int,
         custom_query: dict[str, Any] | None,
         efficient_filtering: bool = False,
+        search_kwargs: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         if not query_embedding:
             msg = "query_embedding must be a non-empty list of floats"
@@ -1434,6 +1435,7 @@ class OpenSearchDocumentStore:
                                     "embedding": {
                                         "vector": query_embedding,
                                         "k": top_k,
+                                        **(search_kwargs or {}),
                                     }
                                 }
                             }
@@ -1465,6 +1467,7 @@ class OpenSearchDocumentStore:
         top_k: int = 10,
         custom_query: dict[str, Any] | None = None,
         efficient_filtering: bool = False,
+        search_kwargs: dict[str, Any] | None = None,
     ) -> list[Document]:
         """
         Retrieves documents that are most similar to the query embedding using a vector similarity metric.
@@ -1484,6 +1487,7 @@ class OpenSearchDocumentStore:
             top_k=top_k,
             custom_query=custom_query,
             efficient_filtering=efficient_filtering,
+            search_kwargs=search_kwargs,
         )
         return self._search_documents(search_params)
 
@@ -1495,6 +1499,7 @@ class OpenSearchDocumentStore:
         top_k: int = 10,
         custom_query: dict[str, Any] | None = None,
         efficient_filtering: bool = False,
+        search_kwargs: dict[str, Any] | None = None,
     ) -> list[Document]:
         """
         Asynchronously retrieves documents that are most similar to the query embedding using a vector similarity
@@ -1515,6 +1520,7 @@ class OpenSearchDocumentStore:
             top_k=top_k,
             custom_query=custom_query,
             efficient_filtering=efficient_filtering,
+            search_kwargs=search_kwargs,
         )
         return await self._search_documents_async(search_params)
 
