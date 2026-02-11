@@ -133,7 +133,7 @@ class QdrantDocumentStore:
         scroll_size: int = 10_000,
         payload_fields_to_index: list[dict] | None = None,
     ) -> None:
-        f"""
+        """
         Initializes a QdrantDocumentStore.
 
         :param location:
