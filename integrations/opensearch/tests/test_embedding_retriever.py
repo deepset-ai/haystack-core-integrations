@@ -229,8 +229,12 @@ async def test_run_async_init_params():
 def test_run_time_params():
     mock_store = Mock(spec=OpenSearchDocumentStore)
     mock_store._embedding_retrieval.return_value = [Document(content="Test doc", embedding=[0.1, 0.2])]
-    retriever = OpenSearchEmbeddingRetriever(document_store=mock_store, filters={"from": "init"}, top_k=11, search_kwargs={"k": 10})
-    res = retriever.run(query_embedding=[0.5, 0.7], filters={"from": "run"}, top_k=9, efficient_filtering=True, search_kwargs={"k": 9})
+    retriever = OpenSearchEmbeddingRetriever(
+        document_store=mock_store, filters={"from": "init"}, top_k=11, search_kwargs={"k": 10}
+    )
+    res = retriever.run(
+        query_embedding=[0.5, 0.7], filters={"from": "run"}, top_k=9, efficient_filtering=True, search_kwargs={"k": 9}
+    )
     mock_store._embedding_retrieval.assert_called_once_with(
         query_embedding=[0.5, 0.7],
         filters={"from": "run"},
