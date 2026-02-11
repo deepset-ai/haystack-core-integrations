@@ -140,7 +140,7 @@ class QdrantDocumentStore:
             If `":memory:"` - use in-memory Qdrant instance.
             If `str` - use it as a URL parameter.
             If `None` - use default values for host and port.
-            {"key": "something that should fail"}
+            This is legit instead.
         :param url:
             Either host or str of `Optional[scheme], host, Optional[port], Optional[prefix]`.
         :param port:
