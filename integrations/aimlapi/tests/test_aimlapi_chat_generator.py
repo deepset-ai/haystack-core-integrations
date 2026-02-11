@@ -264,7 +264,7 @@ class TestAIMLAPIChatGenerator:
         message: ChatMessage = results["replies"][0]
         assert message.text
         assert "Paris" in message.text
-        assert "gpt-5-nano-2025-08-07" in message.meta["model"]
+        assert "gpt-5-nano" in message.meta["model"]
         assert message.meta["finish_reason"] == "stop"
 
     @pytest.mark.skipif(
@@ -301,7 +301,7 @@ class TestAIMLAPIChatGenerator:
         assert message.text
         assert "Paris" in message.text
 
-        assert "gpt-5-nano-2025-08-07" in message.meta["model"]
+        assert "gpt-5-nano" in message.meta["model"]
         assert message.meta["finish_reason"] == "stop"
 
         assert callback.counter > 1

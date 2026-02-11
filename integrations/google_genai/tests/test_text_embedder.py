@@ -17,7 +17,7 @@ class TestGoogleGenAITextEmbedder:
         embedder = GoogleGenAITextEmbedder()
 
         assert embedder._api_key.resolve_value() == "fake-api-key"
-        assert embedder._model_name == "text-embedding-004"
+        assert embedder._model_name == "gemini-embedding-001"
         assert embedder._prefix == ""
         assert embedder._suffix == ""
         assert embedder._config == {"task_type": "SEMANTIC_SIMILARITY"}
@@ -47,7 +47,7 @@ class TestGoogleGenAITextEmbedder:
             "type": "haystack_integrations.components.embedders.google_genai.text_embedder.GoogleGenAITextEmbedder",
             "init_parameters": {
                 "api_key": {"type": "env_var", "env_vars": ["GOOGLE_API_KEY", "GEMINI_API_KEY"], "strict": False},
-                "model": "text-embedding-004",
+                "model": "gemini-embedding-001",
                 "prefix": "",
                 "suffix": "",
                 "config": {"task_type": "SEMANTIC_SIMILARITY"},
@@ -87,7 +87,7 @@ class TestGoogleGenAITextEmbedder:
             "type": "haystack_integrations.components.embedders.google_genai.text_embedder.GoogleGenAITextEmbedder",
             "init_parameters": {
                 "api_key": {"type": "env_var", "env_vars": ["GOOGLE_API_KEY", "GEMINI_API_KEY"], "strict": False},
-                "model": "text-embedding-004",
+                "model": "gemini-embedding-001",
                 "prefix": "",
                 "suffix": "",
                 "config": {"task_type": "CLASSIFICATION"},
@@ -98,7 +98,7 @@ class TestGoogleGenAITextEmbedder:
         }
         component = GoogleGenAITextEmbedder.from_dict(data)
         assert component._api_key.resolve_value() == "fake-api-key"
-        assert component._model_name == "text-embedding-004"
+        assert component._model_name == "gemini-embedding-001"
         assert component._prefix == ""
         assert component._suffix == ""
         assert component._config == {"task_type": "CLASSIFICATION"}
@@ -110,7 +110,7 @@ class TestGoogleGenAITextEmbedder:
         contents = "The food was delicious"
         prepared_input = embedder._prepare_input(contents)
         assert prepared_input == {
-            "model": "text-embedding-004",
+            "model": "gemini-embedding-001",
             "contents": "The food was delicious",
             "config": EmbedContentConfig(
                 http_options=None,
@@ -133,7 +133,7 @@ class TestGoogleGenAITextEmbedder:
         result = embedder._prepare_output(result=response)
         assert result == {
             "embedding": [0.1, 0.2, 0.3],
-            "meta": {"model": "text-embedding-004"},
+            "meta": {"model": "gemini-embedding-001"},
         }
 
     def test_run_wrong_input_format(self):
@@ -150,17 +150,15 @@ class TestGoogleGenAITextEmbedder:
     )
     @pytest.mark.integration
     def test_run(self):
-        model = "text-embedding-004"
+        model = "gemini-embedding-001"
 
         embedder = GoogleGenAITextEmbedder(model=model)
         result = embedder.run(text="The food was delicious")
 
-        assert len(result["embedding"]) == 768
+        assert len(result["embedding"]) == 3072
         assert all(isinstance(x, float) for x in result["embedding"])
 
-        assert "text" in result["meta"]["model"] and "004" in result["meta"]["model"], (
-            "The model name does not contain 'text' and '004'"
-        )
+        assert result["meta"]["model"] == model
 
     @pytest.mark.asyncio
     @pytest.mark.skipif(
@@ -169,15 +167,12 @@ class TestGoogleGenAITextEmbedder:
     )
     @pytest.mark.integration
     async def test_run_async(self):
-        model = "text-embedding-004"
+        model = "gemini-embedding-001"
 
         embedder = GoogleGenAITextEmbedder(model=model)
         result = await embedder.run_async(text="The food was delicious")
 
-        assert len(result["embedding"]) == 768
+        assert len(result["embedding"]) == 3072
         assert all(isinstance(x, float) for x in result["embedding"])
 
-        assert "text" in result["meta"]["model"] and "004" in result["meta"]["model"], (
-            "The model name does not contain 'text' and '004'"
-        )
-        assert result["meta"] == {"model": model}
+        assert result["meta"]["model"] == model

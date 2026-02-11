@@ -299,3 +299,159 @@ class TestDocumentStoreAsync:
         result_empty_filters = await document_store.search_embeddings_async([query_embedding], filters={}, top_k=2)
         assert len(result_empty_filters) == 1
         assert len(result_empty_filters[0]) == 2
+
+
+@pytest.mark.skipif(
+    sys.platform == "win32",
+    reason="We do not run the Chroma server on Windows and async is only supported with HTTP connections",
+)
+@pytest.mark.integration
+@pytest.mark.asyncio
+class TestMetadataOperationsAsync:
+    """Test async metadata query operations for ChromaDocumentStore"""
+
+    @pytest.fixture
+    def document_store(self, embedding_function) -> ChromaDocumentStore:
+        with mock.patch(
+            "haystack_integrations.document_stores.chroma.document_store.get_embedding_function"
+        ) as get_func:
+            get_func.return_value = embedding_function
+            return ChromaDocumentStore(
+                embedding_function="test_function",
+                collection_name=f"{uuid.uuid1()}-async",
+                host="localhost",
+                port=8000,
+            )
+
+    @pytest.fixture
+    def populated_store(self, document_store: ChromaDocumentStore) -> ChromaDocumentStore:
+        """Fixture with pre-populated test documents with diverse metadata.
+        Uses sync write since pytest does not natively support async fixtures.
+        Data is accessible via async methods as both clients share the same Chroma server.
+        """
+        docs = [
+            Document(content="Doc 1", meta={"category": "A", "status": "active", "priority": 1, "score": 0.9}),
+            Document(content="Doc 2", meta={"category": "B", "status": "active", "priority": 2, "score": 0.8}),
+            Document(content="Doc 3", meta={"category": "A", "status": "inactive", "priority": 1, "score": 0.7}),
+            Document(content="Doc 4", meta={"category": "A", "status": "active", "priority": 3, "score": 0.95}),
+            Document(content="Doc 5", meta={"category": "C", "status": "active", "priority": 2, "score": 0.6}),
+            Document(content="Doc 6", meta={"category": "B", "status": "inactive", "priority": 1}),
+        ]
+        document_store.write_documents(docs)
+        return document_store
+
+    async def test_count_documents_by_filter_async_simple(self, populated_store):
+        """Test counting documents with simple filter"""
+        count = await populated_store.count_documents_by_filter_async(
+            filters={"field": "meta.category", "operator": "==", "value": "A"}
+        )
+        assert count == 3
+
+    async def test_count_documents_by_filter_async_compound(self, populated_store):
+        """Test counting documents with compound filter"""
+        count = await populated_store.count_documents_by_filter_async(
+            filters={
+                "operator": "AND",
+                "conditions": [
+                    {"field": "meta.category", "operator": "==", "value": "A"},
+                    {"field": "meta.status", "operator": "==", "value": "active"},
+                ],
+            }
+        )
+        assert count == 2
+
+    async def test_count_unique_metadata_by_filter_async(self, populated_store):
+        """Test counting unique metadata values"""
+        counts = await populated_store.count_unique_metadata_by_filter_async({}, ["category", "status"])
+        assert counts["category"] == 3  # A, B, C
+        assert counts["status"] == 2  # active, inactive
+
+    async def test_count_unique_metadata_by_filter_async_with_filter(self, populated_store):
+        """Test counting unique metadata values with filter"""
+        counts = await populated_store.count_unique_metadata_by_filter_async(
+            filters={"field": "meta.category", "operator": "==", "value": "A"}, metadata_fields=["status"]
+        )
+        assert counts["status"] == 2  # active, inactive
+
+    async def test_get_metadata_fields_info_async(self, populated_store):
+        """Test getting metadata field information"""
+        fields_info = await populated_store.get_metadata_fields_info_async()
+
+        assert "category" in fields_info
+        assert "status" in fields_info
+        assert "priority" in fields_info
+        assert "score" in fields_info
+
+        # Check types
+        assert fields_info["category"]["type"] == "keyword"
+        assert fields_info["status"]["type"] == "keyword"
+        assert fields_info["priority"]["type"] == "long"
+        assert fields_info["score"]["type"] == "float"
+
+    async def test_get_metadata_fields_info_async_empty_collection(self, document_store):
+        """Test getting metadata field info from empty collection"""
+        fields_info = await document_store.get_metadata_fields_info_async()
+        assert fields_info == {}
+
+    async def test_get_metadata_field_min_max_async_numeric(self, populated_store):
+        """Test getting min/max values for numeric field"""
+        min_max = await populated_store.get_metadata_field_min_max_async("priority")
+        assert min_max["min"] == 1
+        assert min_max["max"] == 3
+
+    async def test_get_metadata_field_min_max_async_float(self, populated_store):
+        """Test getting min/max values for float field"""
+        min_max = await populated_store.get_metadata_field_min_max_async("score")
+        assert min_max["min"] == 0.6
+        assert min_max["max"] == 0.95
+
+    async def test_get_metadata_field_min_max_async_string(self, populated_store):
+        """Test getting min/max values for string field (alphabetical)"""
+        min_max = await populated_store.get_metadata_field_min_max_async("category")
+        assert min_max["min"] == "A"
+        assert min_max["max"] == "C"
+
+    async def test_get_metadata_field_min_max_async_missing_field(self, populated_store):
+        """Test getting min/max for non-existent field"""
+        min_max = await populated_store.get_metadata_field_min_max_async("nonexistent_field")
+        assert min_max["min"] is None
+        assert min_max["max"] is None
+
+    async def test_get_metadata_field_unique_values_async_basic(self, populated_store):
+        """Test getting unique values for metadata field"""
+        values, total = await populated_store.get_metadata_field_unique_values_async("category", from_=0, size=10)
+        assert sorted(values) == ["A", "B", "C"]
+        assert total == 3
+
+    async def test_get_metadata_field_unique_values_async_pagination(self, populated_store):
+        """Test pagination of unique values"""
+        # First page
+        values_page1, total = await populated_store.get_metadata_field_unique_values_async("category", from_=0, size=2)
+        assert len(values_page1) == 2
+        assert total == 3
+
+        # Second page
+        values_page2, total = await populated_store.get_metadata_field_unique_values_async("category", from_=2, size=2)
+        assert len(values_page2) == 1
+        assert total == 3
+
+        # Check all values are returned across pages
+        all_values = values_page1 + values_page2
+        assert sorted(all_values) == ["A", "B", "C"]
+
+    async def test_get_metadata_field_unique_values_async_with_search_term(self, populated_store):
+        """Test getting unique values filtered by search term"""
+        # Search for documents containing "Doc 1"
+        values, total = await populated_store.get_metadata_field_unique_values_async(
+            "category", search_term="Doc 1", from_=0, size=10
+        )
+        assert values == ["A"]  # Only Doc 1 has category A
+        assert total == 1
+
+    async def test_get_metadata_field_unique_values_async_missing_field(self, populated_store):
+        """Test getting unique values for non-existent field"""
+        values, total = await populated_store.get_metadata_field_unique_values_async(
+            "nonexistent_field", from_=0, size=10
+        )
+        assert values == []
+        assert total == 0

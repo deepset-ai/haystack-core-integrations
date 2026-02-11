@@ -12,10 +12,10 @@ from haystack.utils.auth import Secret
 from haystack_integrations.components.embedders.google_genai import GoogleGenAIDocumentEmbedder
 
 
-def mock_google_response(contents: list[str], model: str = "text-embedding-004", **kwargs) -> dict:
+def mock_google_response(contents: list[str], model: str = "gemini-embedding-001", **kwargs) -> dict:
     secure_random = random.SystemRandom()
     dict_response = {
-        "embedding": [[secure_random.random() for _ in range(768)] for _ in contents],
+        "embedding": [[secure_random.random() for _ in range(3072)] for _ in contents],
         "meta": {"model": model},
     }
 
@@ -30,7 +30,7 @@ class TestGoogleGenAIDocumentEmbedder:
         assert embedder._api == "gemini"
         assert embedder._vertex_ai_project is None
         assert embedder._vertex_ai_location is None
-        assert embedder._model == "text-embedding-004"
+        assert embedder._model == "gemini-embedding-001"
         assert embedder._prefix == ""
         assert embedder._suffix == ""
         assert embedder._batch_size == 32
@@ -76,7 +76,7 @@ class TestGoogleGenAIDocumentEmbedder:
                 "haystack_integrations.components.embedders.google_genai.document_embedder.GoogleGenAIDocumentEmbedder"
             ),
             "init_parameters": {
-                "model": "text-embedding-004",
+                "model": "gemini-embedding-001",
                 "prefix": "",
                 "suffix": "",
                 "batch_size": 32,
@@ -131,7 +131,7 @@ class TestGoogleGenAIDocumentEmbedder:
                 "haystack_integrations.components.embedders.google_genai.document_embedder.GoogleGenAIDocumentEmbedder"
             ),
             "init_parameters": {
-                "model": "text-embedding-004",
+                "model": "gemini-embedding-001",
                 "prefix": "",
                 "suffix": "",
                 "batch_size": 32,
@@ -148,7 +148,7 @@ class TestGoogleGenAIDocumentEmbedder:
         monkeypatch.setenv("GOOGLE_API_KEY", "fake-api-key")
         embedder = GoogleGenAIDocumentEmbedder.from_dict(data)
         assert embedder._api_key.resolve_value() == "fake-api-key"
-        assert embedder._model == "text-embedding-004"
+        assert embedder._model == "gemini-embedding-001"
         assert embedder._prefix == ""
         assert embedder._suffix == ""
         assert embedder._batch_size == 32
@@ -213,7 +213,7 @@ class TestGoogleGenAIDocumentEmbedder:
         # Mock the _embed_batch method to return fake embeddings
         def mock_embed_batch(texts_to_embed, batch_size):
             embeddings = [[0.1, 0.2, 0.3] for _ in texts_to_embed]
-            meta = {"model": "text-embedding-004"}
+            meta = {"model": "gemini-embedding-001"}
             return embeddings, meta
 
         embedder._embed_batch = mock_embed_batch
@@ -241,7 +241,7 @@ class TestGoogleGenAIDocumentEmbedder:
         # Mock the _embed_batch_async method to return fake embeddings
         async def mock_embed_batch_async(texts_to_embed, batch_size):
             embeddings = [[0.1, 0.2, 0.3] for _ in texts_to_embed]
-            meta = {"model": "text-embedding-004"}
+            meta = {"model": "gemini-embedding-001"}
             return embeddings, meta
 
         embedder._embed_batch_async = mock_embed_batch_async
@@ -267,7 +267,7 @@ class TestGoogleGenAIDocumentEmbedder:
             Document(content="A transformer is a deep learning architecture", meta={"topic": "ML"}),
         ]
 
-        model = "text-embedding-004"
+        model = "gemini-embedding-001"
 
         embedder = GoogleGenAIDocumentEmbedder(model=model, meta_fields_to_embed=["topic"], embedding_separator=" | ")
 
@@ -278,12 +278,10 @@ class TestGoogleGenAIDocumentEmbedder:
         for doc in documents_with_embeddings:
             assert isinstance(doc, Document)
             assert isinstance(doc.embedding, list)
-            assert len(doc.embedding) == 768
+            assert len(doc.embedding) == 3072
             assert all(isinstance(x, float) for x in doc.embedding)
 
-        assert "text" in result["meta"]["model"] and "004" in result["meta"]["model"], (
-            "The model name does not contain 'text' and '004'"
-        )
+        assert result["meta"]["model"] == model
 
     @pytest.mark.asyncio
     @pytest.mark.skipif(
@@ -297,7 +295,7 @@ class TestGoogleGenAIDocumentEmbedder:
             Document(content="A transformer is a deep learning architecture", meta={"topic": "ML"}),
         ]
 
-        model = "text-embedding-004"
+        model = "gemini-embedding-001"
 
         embedder = GoogleGenAIDocumentEmbedder(model=model, meta_fields_to_embed=["topic"], embedding_separator=" | ")
 
@@ -308,12 +306,9 @@ class TestGoogleGenAIDocumentEmbedder:
         for doc in documents_with_embeddings:
             assert isinstance(doc, Document)
             assert isinstance(doc.embedding, list)
-            assert len(doc.embedding) == 768
+            assert len(doc.embedding) == 3072
             assert all(isinstance(x, float) for x in doc.embedding)
 
-        assert "text" in result["meta"]["model"] and "004" in result["meta"]["model"], (
-            "The model name does not contain 'text' and '004'"
-        )
+        assert result["meta"]["model"] == model
         assert result["documents"][0].meta == {"topic": "Cuisine"}
         assert result["documents"][1].meta == {"topic": "ML"}
-        assert result["meta"] == {"model": model}
