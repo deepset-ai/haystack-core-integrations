@@ -1,6 +1,7 @@
 # SPDX-FileCopyrightText: 2023-present deepset GmbH <info@deepset.ai>
 #
 # SPDX-License-Identifier: Apache-2.0
+
 import os
 from unittest.mock import patch
 from uuid import uuid4
@@ -205,3 +206,101 @@ class TestDocumentStoreAsync(FilterableDocsFixtureMixin):
         new_docs = [Document(id="3", content="third doc")]
         await document_store.write_documents_async(new_docs)
         assert await document_store.count_documents_async() == 1
+
+    async def test_count_documents_by_filter_async(self, document_store: MongoDBAtlasDocumentStore):
+        docs = [
+            Document(content="Doc 1", meta={"category": "A", "status": "active"}),
+            Document(content="Doc 2", meta={"category": "B", "status": "active"}),
+            Document(content="Doc 3", meta={"category": "A", "status": "inactive"}),
+            Document(content="Doc 4", meta={"category": "A", "status": "active"}),
+        ]
+        await document_store.write_documents_async(docs)
+        assert await document_store.count_documents_async() == 4
+
+        count_a = await document_store.count_documents_by_filter_async(
+            filters={"field": "meta.category", "operator": "==", "value": "A"}
+        )
+        assert count_a == 3
+
+        count_active = await document_store.count_documents_by_filter_async(
+            filters={"field": "meta.status", "operator": "==", "value": "active"}
+        )
+        assert count_active == 3
+
+    async def test_count_unique_metadata_by_filter_async(self, document_store: MongoDBAtlasDocumentStore):
+        docs = [
+            Document(content="Doc 1", meta={"category": "A", "status": "active", "priority": 1}),
+            Document(content="Doc 2", meta={"category": "B", "status": "active", "priority": 2}),
+            Document(content="Doc 3", meta={"category": "A", "status": "inactive", "priority": 1}),
+            Document(content="Doc 4", meta={"category": "A", "status": "active", "priority": 3}),
+            Document(content="Doc 5", meta={"category": "C", "status": "active", "priority": 2}),
+        ]
+        await document_store.write_documents_async(docs)
+        assert await document_store.count_documents_async() == 5
+
+        distinct_counts_a = await document_store.count_unique_metadata_by_filter_async(
+            filters={"field": "meta.category", "operator": "==", "value": "A"},
+            metadata_fields=["category", "status", "priority"],
+        )
+        assert distinct_counts_a["category"] == 1
+        assert distinct_counts_a["status"] == 2
+        # Category A docs have priorities 1, 1, 3 -> 2 unique values
+        assert distinct_counts_a["priority"] == 2
+
+    async def test_get_metadata_fields_info_async(self, document_store: MongoDBAtlasDocumentStore):
+        docs = [
+            Document(content="Doc 1", meta={"category": "A", "number": 1, "ratio": 0.5}),
+            Document(content="Doc 2", meta={"category": "B", "is_valid": True}),
+        ]
+        await document_store.write_documents_async(docs)
+
+        fields_info = await document_store.get_metadata_fields_info_async()
+
+        assert "content" in fields_info
+        assert fields_info["content"]["type"] == "text"
+        assert "category" in fields_info
+        assert fields_info["category"]["type"] == "keyword"
+        assert "number" in fields_info
+        assert fields_info["number"]["type"] == "long"
+        assert "ratio" in fields_info
+        assert fields_info["ratio"]["type"] == "float"
+        assert "is_valid" in fields_info
+        assert fields_info["is_valid"]["type"] == "boolean"
+
+    async def test_get_metadata_field_min_max_async(self, document_store: MongoDBAtlasDocumentStore):
+        docs = [
+            Document(content="Doc 1", meta={"score": 10}),
+            Document(content="Doc 2", meta={"score": 100}),
+            Document(content="Doc 3", meta={"score": 20}),
+        ]
+        await document_store.write_documents_async(docs)
+
+        result = await document_store.get_metadata_field_min_max_async("score")
+        assert result["min"] == 10
+        assert result["max"] == 100
+
+    async def test_get_metadata_field_unique_values_async(self, document_store: MongoDBAtlasDocumentStore):
+        docs = [
+            Document(content="Doc 1", meta={"tag": "alpha"}),
+            Document(content="Doc 2", meta={"tag": "beta"}),
+            Document(content="Doc 3", meta={"tag": "gamma"}),
+            Document(content="Doc 4", meta={"tag": "alpha"}),
+        ]
+        await document_store.write_documents_async(docs)
+
+        values, total_count = await document_store.get_metadata_field_unique_values_async("tag")
+        assert total_count == 3
+        assert sorted(values) == ["alpha", "beta", "gamma"]
+
+        values_subset, count_subset = await document_store.get_metadata_field_unique_values_async(
+            "tag", search_term="a", from_=0, size=10
+        )
+        assert count_subset == 2
+        assert sorted(values_subset) == ["alpha", "gamma"]
+
+        values_page, count_page = await document_store.get_metadata_field_unique_values_async(
+            "tag", from_=1, size=1
+        )
+        assert count_page == 3
+        assert len(values_page) == 1
+        assert values_page[0] in ["alpha", "beta", "gamma"]
