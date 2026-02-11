@@ -81,12 +81,14 @@ jobs:
           cp ${{ matrix.integration }}.md "${{ runner.temp }}/${{ matrix.integration }}.md"
 
       - name: Checkout Haystack repo
+        if: steps.config.outputs.changed == 'true' || steps.docstrings.outputs.changed == 'true'
         uses: actions/checkout@v6
         with:
           repository: deepset-ai/haystack
           ref: main
 
       - name: Sync API reference
+        if: steps.config.outputs.changed == 'true' || steps.docstrings.outputs.changed == 'true'
         shell: python
         env:
           INTEGRATION_API_REFERENCE: ${{ runner.temp }}/${{ matrix.integration }}.md
@@ -106,6 +108,15 @@ jobs:
                   integrations_api_ref_dir = os.path.join(version_dir.path, "integrations-api")
                   shutil.copy(api_ref_file, integrations_api_ref_dir)
 
-      - name: Print git status on docs
+      - name: install Node.js
+        if: steps.config.outputs.changed == 'true' || steps.docstrings.outputs.changed == 'true'
+        uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+
+      - name: Install Docusaurus and build docs-website
+        if: steps.config.outputs.changed == 'true' || steps.docstrings.outputs.changed == 'true'
         working-directory: docs-website
-        run: git status
+        run: |
+          npm install
+          npm run build

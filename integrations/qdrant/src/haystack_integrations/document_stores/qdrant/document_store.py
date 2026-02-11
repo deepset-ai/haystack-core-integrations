@@ -54,7 +54,7 @@ def get_batches_from_generator(iterable: list, n: int) -> Generator:
 class QdrantDocumentStore:
     """
     A QdrantDocumentStore implementation that you can use with any Qdrant instance: in-memory, disk-persisted,
-    Docker-based, and Qdrant Cloud Cluster deployments. trigger!!!
+    Docker-based, and Qdrant Cloud Cluster deployments.
 
     Usage example by creating an in-memory instance:
 
@@ -133,7 +133,7 @@ class QdrantDocumentStore:
         scroll_size: int = 10_000,
         payload_fields_to_index: list[dict] | None = None,
     ) -> None:
-        """
+        f"""
         Initializes a QdrantDocumentStore.
 
         :param location:
@@ -142,6 +142,7 @@ class QdrantDocumentStore:
             If `None` - use default values for host and port.
         :param url:
             Either host or str of `Optional[scheme], host, Optional[port], Optional[prefix]`.
+            I like to use curly braces: {"key": "this will make Docusaurus build fail"}
         :param port:
             Port of the REST API interface.
         :param grpc_port:
