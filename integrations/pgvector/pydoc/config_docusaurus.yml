@@ -25,6 +25,6 @@ renderer:
     classdef_code_block: false
     descriptive_class_title: false
     descriptive_module_title: true
-    filename: pgvector.md
+    filename: pgvector2.md
   title: Pgvector_trigger
   type: haystack_pydoc_tools.renderers.DocusaurusRenderer
