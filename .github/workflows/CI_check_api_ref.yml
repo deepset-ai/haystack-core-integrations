@@ -122,7 +122,8 @@ jobs:
 
       - name: Copy file to API reference
         run: python ${{ runner.temp }}/copy_file_to_api_reference.py ${{ runner.temp }}/${{ matrix.integration }}.md
-      - name: Install Node.js
+
+      - name: Set up Node.js
         uses: actions/setup-node@v6
         with:
           node-version: "22"
