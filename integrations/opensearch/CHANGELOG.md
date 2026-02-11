@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/opensearch-v6.4.0] - 2026-02-11
+
+### 🚀 Features
+
+- Support additional `search_kwargs` with `OpenSearchEmbeddingRetriever` (#2825)
+
+
 ## [integrations/opensearch-v6.3.0] - 2026-01-30
 
 ### 🚀 Features
