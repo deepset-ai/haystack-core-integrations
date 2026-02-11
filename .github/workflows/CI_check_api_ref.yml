@@ -78,9 +78,6 @@ jobs:
               if base_docstrings_checksum != pr_docstrings_checksum:
                   changed_integrations.append(integration)
 
-          if has_worktree:
-              git("worktree", "remove", base_worktree)
-
           print(f"Integrations with API reference changes: {json.dumps(changed_integrations)}")
 
           with open(os.environ["GITHUB_OUTPUT"], "a") as f:
