@@ -71,11 +71,11 @@ jobs:
           fi
           echo "changed=$([[ "$BASE" != "$HEAD" ]] && echo true || echo false)" >> "$GITHUB_OUTPUT"
 
-      - name: Add documentation label
-        if: steps.docstrings.outputs.changed == 'true'
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: gh pr edit ${{ github.event.pull_request.number }} --add-label "type:documentation"
+      # - name: Add documentation label
+      #   if: steps.docstrings.outputs.changed == 'true'
+      #   env:
+      #     GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      #   run: gh pr edit ${{ github.event.pull_request.number }} --add-label "type:documentation"
 
       - name: Install Hatch
         if: steps.config.outputs.changed == 'true' || steps.docstrings.outputs.changed == 'true'

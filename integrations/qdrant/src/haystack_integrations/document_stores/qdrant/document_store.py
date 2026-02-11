@@ -54,7 +54,7 @@ def get_batches_from_generator(iterable: list, n: int) -> Generator:
 class QdrantDocumentStore:
     """
     A QdrantDocumentStore implementation that you can use with any Qdrant instance: in-memory, disk-persisted,
-    Docker-based, and Qdrant Cloud Cluster deployments.
+    Docker-based, and Qdrant Cloud Cluster deployments. trigger!!!
 
     Usage example by creating an in-memory instance:
 
