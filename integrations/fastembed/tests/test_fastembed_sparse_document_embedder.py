@@ -304,6 +304,19 @@ class TestFastembedSparseDocumentEmbedderDoc:
 
         assert embedder.model_kwargs == bm25_config
 
+    def test_run_calls_warm_up(self):
+        embedder = FastembedSparseDocumentEmbedder()
+
+        mock_backend = MagicMock()
+        mock_backend.embed.return_value = [{"indices": [0], "values": [0.5]}]
+
+        with patch.object(
+            embedder, "warm_up", side_effect=lambda: setattr(embedder, "embedding_backend", mock_backend)
+        ) as mock_warm_up:
+            embedder.run(documents=[Document(content="test document")])
+
+        mock_warm_up.assert_called_once()
+
     @pytest.mark.integration
     def test_run_with_model_kwargs(self):
         """
