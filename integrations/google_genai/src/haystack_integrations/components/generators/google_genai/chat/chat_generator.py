@@ -381,6 +381,8 @@ def _convert_google_genai_response_to_chatmessage(response: types.GenerateConten
     # Create ChatMessage
     message = ChatMessage.from_assistant(text=text, tool_calls=tool_calls, meta=meta, reasoning=reasoning_content)
 
+    print(message)
+
     return message
 
 
@@ -824,7 +826,8 @@ class GoogleGenAIChatGenerator:
             msg = f"Error in async streaming response: {e}"
             raise RuntimeError(msg) from e
 
-    def _process_thinking_config(self, generation_kwargs: dict[str, Any]) -> dict[str, Any]:
+    @staticmethod
+    def _process_thinking_config(generation_kwargs: dict[str, Any]) -> dict[str, Any]:
         """
         Process thinking configuration from generation_kwargs.
 
@@ -913,7 +916,7 @@ class GoogleGenAIChatGenerator:
         tools = tools or self._tools
 
         # Process thinking configuration
-        generation_kwargs = self._process_thinking_config(generation_kwargs)
+        generation_kwargs = GoogleGenAIChatGenerator._process_thinking_config(generation_kwargs)
 
         # Select appropriate streaming callback
         streaming_callback = select_streaming_callback(
@@ -969,6 +972,20 @@ class GoogleGenAIChatGenerator:
                     contents=contents,
                     config=config,
                 )
+
+                # ToDo: extract 'usage_metadata' here
+                print("Full response from Google Gen AI:", response)  # Debugging line to inspect the full response
+                """
+                 # Access usage metadata
+                if hasattr(response, 'usage_metadata'):
+                    usage = response.usage_metadata
+                    print("=== Basic Usage ===")
+                    print(f"Prompt tokens: {usage.prompt_token_count}")
+                    print(f"Candidates tokens: {usage.candidates_token_count}")
+                    print(f"Total tokens: {usage.total_token_count}")
+                    print()
+                """
+
                 reply = _convert_google_genai_response_to_chatmessage(response, self._model)
                 return {"replies": [reply]}
 
@@ -1022,7 +1039,7 @@ class GoogleGenAIChatGenerator:
         tools = tools or self._tools
 
         # Process thinking configuration
-        generation_kwargs = self._process_thinking_config(generation_kwargs)
+        generation_kwargs = GoogleGenAIChatGenerator._process_thinking_config(generation_kwargs)
 
         # Select appropriate streaming callback
         streaming_callback = select_streaming_callback(

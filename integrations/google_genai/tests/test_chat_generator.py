@@ -1147,7 +1147,7 @@ class TestMessagesConversion:
             generation_kwargs={"thinking_budget": -1},  # Dynamic allocation
         )
 
-        # First turn: Ask about weather
+        # First turn: Ask about the weather
         messages = [ChatMessage.from_user("What's the weather in Paris?")]
         result = component.run(messages)
 
@@ -1427,7 +1427,7 @@ def test_process_thinking_budget(monkeypatch):
 
     # Test valid thinking_budget values
     generation_kwargs = {"thinking_budget": 1024, "temperature": 0.7}
-    result = component._process_thinking_config(generation_kwargs.copy())
+    result = GoogleGenAIChatGenerator._process_thinking_config(generation_kwargs.copy())
 
     # thinking_budget should be moved to thinking_config
     assert "thinking_budget" not in result
@@ -1438,27 +1438,27 @@ def test_process_thinking_budget(monkeypatch):
 
     # Test dynamic allocation (-1)
     generation_kwargs = {"thinking_budget": -1}
-    result = component._process_thinking_config(generation_kwargs.copy())
+    result = GoogleGenAIChatGenerator._process_thinking_config(generation_kwargs.copy())
     assert result["thinking_config"].thinking_budget == -1
 
     # Test zero (disable thinking)
     generation_kwargs = {"thinking_budget": 0}
-    result = component._process_thinking_config(generation_kwargs.copy())
+    result = GoogleGenAIChatGenerator._process_thinking_config(generation_kwargs.copy())
     assert result["thinking_config"].thinking_budget == 0
 
     # Test large value
     generation_kwargs = {"thinking_budget": 24576}
-    result = component._process_thinking_config(generation_kwargs.copy())
+    result = GoogleGenAIChatGenerator._process_thinking_config(generation_kwargs.copy())
     assert result["thinking_config"].thinking_budget == 24576
 
     # Test when thinking_budget is not present
     generation_kwargs = {"temperature": 0.5}
-    result = component._process_thinking_config(generation_kwargs.copy())
+    result = GoogleGenAIChatGenerator._process_thinking_config(generation_kwargs.copy())
     assert result == generation_kwargs  # No changes
 
     # Test invalid type (should fall back to dynamic)
     generation_kwargs = {"thinking_budget": "invalid", "temperature": 0.5}
-    result = component._process_thinking_config(generation_kwargs.copy())
+    result = GoogleGenAIChatGenerator._process_thinking_config(generation_kwargs.copy())
     assert result["thinking_config"].thinking_budget == -1  # Dynamic allocation
     assert result["temperature"] == 0.5
 
@@ -1481,21 +1481,21 @@ def test_process_thinking_level(monkeypatch):
 
     # Test THINKING_LEVEL_LOW in upper case
     generation_kwargs = {"thinking_level": "LOW"}
-    result = component._process_thinking_config(generation_kwargs.copy())
+    result = GoogleGenAIChatGenerator._process_thinking_config(generation_kwargs.copy())
     assert result["thinking_config"].thinking_level == types.ThinkingLevel.LOW
 
     # Test THINKING_LEVEL_UNSPECIFIED
     generation_kwargs = {"thinking_level": "test"}
-    result = component._process_thinking_config(generation_kwargs.copy())
+    result = GoogleGenAIChatGenerator._process_thinking_config(generation_kwargs.copy())
     assert result["thinking_config"].thinking_level == types.ThinkingLevel.THINKING_LEVEL_UNSPECIFIED
 
     # Test when thinking_level is not present
     generation_kwargs = {"temperature": 0.5}
-    result = component._process_thinking_config(generation_kwargs.copy())
+    result = GoogleGenAIChatGenerator._process_thinking_config(generation_kwargs.copy())
     assert result == generation_kwargs  # No changes
 
     # Test invalid type (should fall back to THINKING_LEVEL_UNSPECIFIED)
     generation_kwargs = {"thinking_level": 123, "temperature": 0.5}
-    result = component._process_thinking_config(generation_kwargs.copy())
+    result = GoogleGenAIChatGenerator._process_thinking_config(generation_kwargs.copy())
     assert result["thinking_config"].thinking_level == types.ThinkingLevel.THINKING_LEVEL_UNSPECIFIED
     assert result["temperature"] == 0.5
