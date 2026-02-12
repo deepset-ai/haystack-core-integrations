@@ -7,10 +7,8 @@ on:
       - "integrations/**/config_docusaurus.yml"
 
 jobs:
-  detect-changes:
+  test-api-reference-build:
     runs-on: ubuntu-slim
-    outputs:
-      integrations: ${{ steps.changed.outputs.integrations }}
     steps:
       - uses: actions/checkout@v6
         with:
@@ -62,7 +60,7 @@ jobs:
           has_worktree = return_code == 0
 
           changed_integrations = []
-          
+
           for integration in candidates:
               # If pydoc config changed, always include
               if f"integrations/{integration}/pydoc/config_docusaurus.yml" in changed_files:
@@ -83,41 +81,34 @@ jobs:
           with open(os.environ["GITHUB_OUTPUT"], "a") as f:
               f.write(f"integrations={json.dumps(changed_integrations)}\n")
 
-  test-api-reference-build:
-    needs: detect-changes
-    if: needs.detect-changes.outputs.integrations != '[]'
-    runs-on: ubuntu-slim
-    strategy:
-      fail-fast: false
-      matrix:
-        integration: ${{ fromJson(needs.detect-changes.outputs.integrations) }}
-    steps:
-      - uses: actions/checkout@v6
-
-      - name: Set up Python
-        uses: actions/setup-python@v6
-        with:
-          python-version: "3.13"
-
       - name: Install Hatch
+        if: steps.changed.outputs.integrations != '[]'
         run: pip install --upgrade hatch
 
-      - name: Generate API reference
-        working-directory: integrations/${{ matrix.integration }}
+      - name: Generate API references
+        if: steps.changed.outputs.integrations != '[]'
+        env:
+          INTEGRATIONS: ${{ steps.changed.outputs.integrations }}
         run: |
-          hatch run docs
-          # Print the generated file for debug purposes
-          cat ${{ matrix.integration }}.md
-          # Move the generated file to a 'website' folder for testing
-          mkdir ../../website 
-          mv ${{ matrix.integration }}.md ../../website/
+          mkdir -p website
+          for integration in $(echo "$INTEGRATIONS" | jq -r '.[]'); do
+            echo ""
+            echo "--- Generating API reference for $integration ---"
+            cd "integrations/$integration"
+            hatch run docs
+            # Move the generated file to a 'website' folder for testing
+            mv "$integration.md" ../../website/
+            cd ../..
+          done
 
       - name: Set up Node.js
+        if: steps.changed.outputs.integrations != '[]'
         uses: actions/setup-node@v6
         with:
           node-version: "22"
 
       - name: Run Docusaurus md/mdx checker
+        if: steps.changed.outputs.integrations != '[]'
         working-directory: website
         run: |
           npx docusaurus-mdx-checker -v || {
