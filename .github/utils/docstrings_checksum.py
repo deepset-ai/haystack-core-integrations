@@ -35,11 +35,13 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
     parser.add_argument("--root", help="Project root folder", required=True, type=Path)
+    parser.add_argument("--integration", help="Integration folder relative path", required=False, type=str)
     args = parser.parse_args()
 
     # Get all Python files
     root: Path = args.root.absolute()
     python_files = root.glob("integrations/**/*.py")
-
+    if args.integration:
+        python_files = root.glob(f"integrations/{args.integration}/**/*.py")
     md5 = docstrings_checksum(python_files)
     print(md5)
