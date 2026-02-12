@@ -22,7 +22,11 @@ classifiers = [
   "Programming Language :: Python :: Implementation :: CPython",
   "Programming Language :: Python :: Implementation :: PyPy",
 ]
-dependencies = ["haystack-ai>=2.22.0", "pgvector>=0.3.0", "psycopg[binary]"]
+dependencies = [
+  "haystack-ai>=2.24.0",
+  "pgvector>=0.3.0",
+  "psycopg[binary]"
+]
 
 [project.urls]
 Source = "https://github.com/deepset-ai/haystack-core-integrations"
