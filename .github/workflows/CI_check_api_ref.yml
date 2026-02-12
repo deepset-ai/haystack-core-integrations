@@ -119,8 +119,9 @@ jobs:
 
       - name: Run Docusaurus md/mdx checker
         working-directory: website
-        run: npx docusaurus-mdx-checker -v || {
-            echo ""
-            echo "For common MDX problems, see https://docusaurus.io/blog/preparing-your-site-for-docusaurus-v3#common-mdx-problems"
-            exit 1
-          }
+        run: |
+          npx docusaurus-mdx-checker -v || {
+              echo ""
+              echo "For common MDX problems, see https://docusaurus.io/blog/preparing-your-site-for-docusaurus-v3#common-mdx-problems"
+              exit 1
+            }
