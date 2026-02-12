@@ -25,26 +25,7 @@ from haystack.tools import (
 from haystack.utils import Secret, deserialize_secrets_inplace
 from haystack.utils.callable_serialization import deserialize_callable, serialize_callable
 
-from cohere import (
-    AssistantChatMessageV2,
-    AsyncClientV2,
-    ChatResponse,
-    ClientV2,
-    ImageUrl,
-    ImageUrlContent,
-    StreamedChatResponseV2,
-    SystemChatMessageV2,
-    TextAssistantMessageV2ContentItem,
-    TextSystemMessageV2ContentItem,
-    ToolCallV2,
-    ToolCallV2Function,
-    ToolChatMessageV2,
-    Usage,
-    UserChatMessageV2,
-)
-from cohere import (
-    TextContent as CohereTextContent,
-)
+from cohere import AsyncClientV2, ChatResponse, ClientV2, StreamedChatResponseV2
 
 logger = logging.getLogger(__name__)
 
@@ -77,7 +58,7 @@ def _format_tool(tool: Tool) -> dict[str, Any]:
 
 def _format_message(
     message: ChatMessage,
-) -> UserChatMessageV2 | AssistantChatMessageV2 | SystemChatMessageV2 | ToolChatMessageV2:
+) -> dict[str, Any]:
     """
     Formats a Haystack ChatMessage into Cohere's chat format.
 
@@ -88,7 +69,7 @@ def _format_message(
     - Tool call results
 
     :param message: Haystack ChatMessage to format.
-    :return: A Cohere message object.
+    :return: A dict representing a Cohere message.
     """
     if not message.texts and not message.tool_calls and not message.tool_call_results and not message.images:
         msg = (
@@ -106,7 +87,7 @@ def _format_message(
         if result.origin.id is None:
             msg = "`ToolCall` must have a non-null `id` attribute to be used with Cohere."
             raise ValueError(msg)
-        return ToolChatMessageV2(tool_call_id=result.origin.id, content=json.dumps({"result": result.result}))
+        return {"role": "tool", "tool_call_id": result.origin.id, "content": json.dumps({"result": result.result})}
 
     if message.tool_calls:
         tool_calls = []
@@ -115,19 +96,20 @@ def _format_message(
                 msg = "`ToolCall` must have a non-null `id` attribute to be used with Cohere."
                 raise ValueError(msg)
             tool_calls.append(
-                ToolCallV2(
-                    id=tool_call.id,
-                    type="function",
-                    function=ToolCallV2Function(
-                        name=tool_call.tool_name,
-                        arguments=json.dumps(tool_call.arguments),
-                    ),
-                )
+                {
+                    "id": tool_call.id,
+                    "type": "function",
+                    "function": {
+                        "name": tool_call.tool_name,
+                        "arguments": json.dumps(tool_call.arguments),
+                    },
+                }
             )
-        return AssistantChatMessageV2(
-            tool_calls=tool_calls,
-            tool_plan=message.text if message.text else "",
-        )
+        return {
+            "role": "assistant",
+            "tool_calls": tool_calls,
+            "tool_plan": message.text if message.text else "",
+        }
 
     if message.role.value == "user":
         if not message.images and not message.text:
@@ -147,31 +129,29 @@ def _format_message(
                     raise ValueError(msg)
 
         # Build multimodal content following Cohere's API specification
-        content_parts: list[CohereTextContent | ImageUrlContent] = []
+        content_parts: list[dict[str, Any]] = []
         for part in message._content:
             if isinstance(part, TextContent) and part.text:
-                text_content = CohereTextContent(text=part.text)
-                content_parts.append(text_content)
+                content_parts.append({"type": "text", "text": part.text})
             elif isinstance(part, ImageContent):
                 # Cohere expects base64 data URI format
                 # See: https://docs.cohere.com/docs/image-inputs
                 image_url = f"data:{part.mime_type};base64,{part.base64_image}"
-                image_content = ImageUrlContent(image_url=ImageUrl(url=image_url))
-                content_parts.append(image_content)
+                content_parts.append({"type": "image_url", "image_url": {"url": image_url}})
 
-        return UserChatMessageV2(content=content_parts)
+        return {"role": "user", "content": content_parts}
 
     if message.role.value == "assistant":
         if not message.text:
             msg = "A `ChatMessage` from assistant without tool calls must contain a non-empty `TextContent`."
             raise ValueError(msg)
-        return AssistantChatMessageV2(content=[TextAssistantMessageV2ContentItem(text=message.text)])
+        return {"role": "assistant", "content": [{"type": "text", "text": message.text}]}
 
     if message.role.value == "system":
         if not message.text:
             msg = "A `ChatMessage` from system calls must contain a non-empty `TextContent`."
             raise ValueError(msg)
-        return SystemChatMessageV2(content=[TextSystemMessageV2ContentItem(text=message.text)])
+        return {"role": "system", "content": [{"type": "text", "text": message.text}]}
 
     msg = f"Unsupported message role: {message.role.value}"
     raise ValueError(msg)
@@ -328,7 +308,7 @@ def _convert_cohere_chunk_to_streaming_chunk(
                 pass
         elif (
             usage_data is not None
-            and isinstance(usage_data, Usage)
+            and hasattr(usage_data, "billed_units")
             and usage_data.billed_units
             and usage_data.billed_units.input_tokens is not None
             and usage_data.billed_units.output_tokens is not None
@@ -662,7 +642,7 @@ class CohereChatGenerator:
             component_info = ComponentInfo.from_component(self)
             streamed_response = self.client.chat_stream(
                 model=self.model,
-                messages=formatted_messages,
+                messages=formatted_messages,  # type: ignore[arg-type]
                 **generation_kwargs,
             )
             chat_message = _parse_streaming_response(
@@ -674,7 +654,7 @@ class CohereChatGenerator:
         else:
             response = self.client.chat(
                 model=self.model,
-                messages=formatted_messages,
+                messages=formatted_messages,  # type: ignore[arg-type]
                 **generation_kwargs,
             )
             chat_message = _parse_response(response, self.model)
@@ -727,7 +707,7 @@ class CohereChatGenerator:
             component_info = ComponentInfo.from_component(self)
             streamed_response = self.async_client.chat_stream(
                 model=self.model,
-                messages=formatted_messages,
+                messages=formatted_messages,  # type: ignore[arg-type]
                 **generation_kwargs,
             )
             chat_message = await _parse_async_streaming_response(
@@ -739,7 +719,7 @@ class CohereChatGenerator:
         else:
             response = await self.async_client.chat(
                 model=self.model,
-                messages=formatted_messages,
+                messages=formatted_messages,  # type: ignore[arg-type]
                 **generation_kwargs,
             )
             chat_message = _parse_response(response, self.model)
