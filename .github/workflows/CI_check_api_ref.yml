@@ -109,8 +109,9 @@ jobs:
           # Print the generated file for debug purposes
           cat ${{ matrix.integration }}.md
           # Move the generated file to a 'website' folder for testing
-          mkdir website 
-          mv ${{ matrix.integration }}.md website/
+          mkdir ../../website 
+          mv ${{ matrix.integration }}.md ../../website/
+
       - name: Set up Node.js
         uses: actions/setup-node@v6
         with:
