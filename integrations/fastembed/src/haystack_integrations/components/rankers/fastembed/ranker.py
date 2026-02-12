@@ -178,8 +178,7 @@ class FastembedRanker:
 
         if self._model is None:
             self.warm_up()
-        assert self._model is not None  
-        
+
         fastembed_input_docs = self._prepare_fastembed_input_docs(documents)
 
         scores = list(
