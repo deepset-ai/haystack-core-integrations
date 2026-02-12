@@ -1,5 +1,18 @@
 # Changelog
 
+## [integrations/cohere-v7.0.2] - 2026-02-12
+
+### 🐛 Bug Fixes
+
+- Cohere - use dictionaries for Chat Message representation (#2832)
+
+## [integrations/cohere-v7.0.1] - 2026-01-16
+
+### 🐛 Bug Fixes
+
+- *(cohere)* Use dataclass replace to avoid modifying input documents (#2755)
+
+
 ## [integrations/cohere-v7.0.0] - 2026-01-12
 
 ### 🧹 Chores
