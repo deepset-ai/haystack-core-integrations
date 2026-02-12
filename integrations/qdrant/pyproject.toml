@@ -26,7 +26,7 @@ classifiers = [
   "Programming Language :: Python :: Implementation :: PyPy",
 ]
 dependencies = [
-  "haystack-ai @ git+https://github.com/deepset-ai/haystack.git@main", 
+  "haystack-ai>=2.22.0",
   "qdrant-client>=1.12.0"
 ]
 

@@ -24,7 +24,7 @@ classifiers = [
 ]
 
 dependencies = [
-  "haystack-ai @ git+https://github.com/deepset-ai/haystack.git@main",
+  "haystack-ai>=2.22.0",
   "opensearch-py[async]>=3.0.0"
 ]
 
