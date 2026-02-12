@@ -298,9 +298,7 @@ class TestDocumentStoreAsync(FilterableDocsFixtureMixin):
         assert count_subset == 1
         assert sorted(values_subset) == ["beta"]
 
-        values_page, count_page = await document_store.get_metadata_field_unique_values_async(
-            "tag", from_=1, size=1
-        )
+        values_page, count_page = await document_store.get_metadata_field_unique_values_async("tag", from_=1, size=1)
         assert count_page == 3
         assert len(values_page) == 1
         assert values_page[0] in ["alpha", "beta", "gamma"]
