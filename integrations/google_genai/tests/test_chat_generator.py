@@ -1407,7 +1407,7 @@ def test_aggregate_streaming_chunks_with_reasoning(monkeypatch):
     final_chunk.meta["reasoning_deltas"] = [{"type": "reasoning", "content": "I should greet the user politely"}]
 
     # Test aggregation
-    result = component._aggregate_streaming_chunks_with_reasoning([chunk1, chunk2, final_chunk])
+    result = GoogleGenAIChatGenerator._aggregate_streaming_chunks_with_reasoning([chunk1, chunk2, final_chunk])
 
     # Verify the aggregated message
     assert result.text == "Hello world"

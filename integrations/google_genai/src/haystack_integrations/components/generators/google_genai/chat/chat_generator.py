@@ -694,7 +694,8 @@ class GoogleGenAIChatGenerator:
             meta=meta,
         )
 
-    def _aggregate_streaming_chunks_with_reasoning(self, chunks: list[StreamingChunk]) -> ChatMessage:
+    @staticmethod
+    def _aggregate_streaming_chunks_with_reasoning(chunks: list[StreamingChunk]) -> ChatMessage:
         """
         Aggregate streaming chunks into a final ChatMessage with reasoning content and thought signatures.
 
@@ -781,7 +782,7 @@ class GoogleGenAIChatGenerator:
                 streaming_callback(streaming_chunk)
 
             # Use custom aggregation that supports reasoning content
-            message = self._aggregate_streaming_chunks_with_reasoning(chunks)
+            message = GoogleGenAIChatGenerator._aggregate_streaming_chunks_with_reasoning(chunks)
             return {"replies": [message]}
 
         except Exception as e:
@@ -816,7 +817,7 @@ class GoogleGenAIChatGenerator:
                 await streaming_callback(streaming_chunk)
 
             # Use custom aggregation that supports reasoning content
-            message = self._aggregate_streaming_chunks_with_reasoning(chunks)
+            message = GoogleGenAIChatGenerator._aggregate_streaming_chunks_with_reasoning(chunks)
             return {"replies": [message]}
 
         except Exception as e:
