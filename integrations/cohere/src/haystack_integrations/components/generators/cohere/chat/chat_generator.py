@@ -642,6 +642,7 @@ class CohereChatGenerator:
             component_info = ComponentInfo.from_component(self)
             streamed_response = self.client.chat_stream(
                 model=self.model,
+                # Cohere frequently updates their message type definitions, so we use dicts and ignore mypy here
                 messages=formatted_messages,  # type: ignore[arg-type]
                 **generation_kwargs,
             )
@@ -654,6 +655,7 @@ class CohereChatGenerator:
         else:
             response = self.client.chat(
                 model=self.model,
+                # Cohere frequently updates their message type definitions, so we use dicts and ignore mypy here
                 messages=formatted_messages,  # type: ignore[arg-type]
                 **generation_kwargs,
             )
@@ -707,6 +709,7 @@ class CohereChatGenerator:
             component_info = ComponentInfo.from_component(self)
             streamed_response = self.async_client.chat_stream(
                 model=self.model,
+                # Cohere frequently updates their message type definitions, so we use dicts and ignore mypy here
                 messages=formatted_messages,  # type: ignore[arg-type]
                 **generation_kwargs,
             )
@@ -719,6 +722,7 @@ class CohereChatGenerator:
         else:
             response = await self.async_client.chat(
                 model=self.model,
+                # Cohere frequently updates their message type definitions, so we use dicts and ignore mypy here
                 messages=formatted_messages,  # type: ignore[arg-type]
                 **generation_kwargs,
             )
