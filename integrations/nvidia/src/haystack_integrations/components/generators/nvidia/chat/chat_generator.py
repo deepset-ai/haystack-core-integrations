@@ -92,12 +92,9 @@ class NvidiaChatGenerator(OpenAIChatGenerator):
                 To pass the JSON schema to the model, use the `guided_json` parameter in `extra_body`.
                 For example:
                 ```python
-                generation_kwargs={
+                generation_kwargs = {
                     "extra_body": {
-                        "nvext": {
-                            "guided_json": {
-                                json_schema
-                        }
+                        "guided_json": json_schema
                     }
                 }
                 ```
