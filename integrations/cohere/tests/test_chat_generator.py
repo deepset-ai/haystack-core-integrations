@@ -2,7 +2,6 @@ import os
 from unittest.mock import MagicMock
 
 import pytest
-from cohere import UserChatMessageV2
 from cohere.core import ApiError
 from haystack import Pipeline
 from haystack.components.generators.utils import print_streaming_chunk
@@ -63,20 +62,18 @@ class TestFormatMessage:
 
         formatted_message = _format_message(message)
 
-        assert isinstance(formatted_message, UserChatMessageV2)
-        assert formatted_message.role == "user"
-        assert isinstance(formatted_message.content, list)
-        assert len(formatted_message.content) == 2
+        assert isinstance(formatted_message, dict)
+        assert formatted_message["role"] == "user"
+        assert isinstance(formatted_message["content"], list)
+        assert len(formatted_message["content"]) == 2
 
         # Check text content
-        assert formatted_message.content[0].type == "text"
-        assert formatted_message.content[0].text == "What's in this image?"
+        assert formatted_message["content"][0]["type"] == "text"
+        assert formatted_message["content"][0]["text"] == "What's in this image?"
 
         # Check image content
-        assert formatted_message.content[1].type == "image_url"
-        assert hasattr(formatted_message.content[1], "image_url")
-        assert hasattr(formatted_message.content[1].image_url, "url")
-        assert formatted_message.content[1].image_url.url == f"data:image/png;base64,{base64_image}"
+        assert formatted_message["content"][1]["type"] == "image_url"
+        assert formatted_message["content"][1]["image_url"]["url"] == f"data:image/png;base64,{base64_image}"
 
     def test_format_message_with_unsupported_mime_type(self):
         """Test that a ChatMessage with unsupported mime type raises ValueError."""
@@ -129,7 +126,7 @@ class TestFormatMessage:
             # Should not raise any exception
             formatted_message = _format_message(message)
             assert formatted_message is not None
-            assert isinstance(formatted_message, UserChatMessageV2)
+            assert isinstance(formatted_message, dict)
 
     def test_multiple_images_in_single_message(self):
         """Test handling multiple images in a single message."""
@@ -143,11 +140,11 @@ class TestFormatMessage:
 
         formatted_message = _format_message(message)
 
-        assert isinstance(formatted_message, UserChatMessageV2)
-        assert len(formatted_message.content) == 3  # 1 text + 2 images
-        assert formatted_message.content[0].type == "text"
-        assert formatted_message.content[1].type == "image_url"
-        assert formatted_message.content[2].type == "image_url"
+        assert isinstance(formatted_message, dict)
+        assert len(formatted_message["content"]) == 3  # 1 text + 2 images
+        assert formatted_message["content"][0]["type"] == "text"
+        assert formatted_message["content"][1]["type"] == "image_url"
+        assert formatted_message["content"][2]["type"] == "image_url"
 
 
 class TestCohereChatGenerator:
@@ -466,14 +463,14 @@ class TestCohereChatGenerator:
         formatted_messages = call_args[1]["messages"]
 
         assert len(formatted_messages) == 1
-        # The multimodal message should be passed as a Cohere object
+        # The multimodal message should be passed as a dict
         multimodal_msg = formatted_messages[0]
 
-        assert isinstance(multimodal_msg, UserChatMessageV2)
-        assert multimodal_msg.role == "user"
-        assert len(multimodal_msg.content) == 2
-        assert multimodal_msg.content[0].type == "text"
-        assert multimodal_msg.content[1].type == "image_url"
+        assert isinstance(multimodal_msg, dict)
+        assert multimodal_msg["role"] == "user"
+        assert len(multimodal_msg["content"]) == 2
+        assert multimodal_msg["content"][0]["type"] == "text"
+        assert multimodal_msg["content"][1]["type"] == "image_url"
 
 
 @pytest.mark.skipif(
