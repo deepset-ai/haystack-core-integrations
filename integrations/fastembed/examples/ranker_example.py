@@ -11,7 +11,6 @@ documents = [
 ]
 
 ranker = FastembedRanker(model_name="Xenova/ms-marco-MiniLM-L-6-v2")
-ranker.warm_up()
 reranked_documents = ranker.run(query=query, documents=documents)["documents"]
 
 
