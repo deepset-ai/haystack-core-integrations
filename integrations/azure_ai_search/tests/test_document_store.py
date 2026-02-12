@@ -13,8 +13,12 @@ from haystack.dataclasses.document import Document
 from haystack.errors import FilterError
 from haystack.testing.document_store import (
     CountDocumentsTest,
+    DeleteAllTest,
+    DeleteByFilterTest,
     DeleteDocumentsTest,
+    FilterableDocsFixtureMixin,
     FilterDocumentsTest,
+    UpdateByFilterTest,
     WriteDocumentsTest,
 )
 from haystack.utils.auth import EnvVarSecret, Secret
@@ -256,7 +260,15 @@ def _assert_documents_are_equal(received: list[Document], expected: list[Documen
     not os.environ.get("AZURE_AI_SEARCH_ENDPOINT", None) and not os.environ.get("AZURE_AI_SEARCH_API_KEY", None),
     reason="Missing AZURE_AI_SEARCH_ENDPOINT or AZURE_AI_SEARCH_API_KEY.",
 )
-class TestDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocumentsTest):
+class TestDocumentStore(
+    CountDocumentsTest,
+    DeleteDocumentsTest,
+    DeleteAllTest,
+    DeleteByFilterTest,
+    FilterableDocsFixtureMixin,
+    WriteDocumentsTest,
+    UpdateByFilterTest,
+):
     def assert_documents_are_equal(self, received: list[Document], expected: list[Document]):
         _assert_documents_are_equal(received, expected)
 
@@ -290,43 +302,14 @@ class TestDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocumentsT
     @pytest.mark.skip(reason="Azure AI search index overwrites duplicate documents by default")
     def test_write_documents_duplicate_skip(self, document_store: AzureAISearchDocumentStore): ...
 
-    def test_delete_all_documents(self, document_store: AzureAISearchDocumentStore):
-        docs = [Document(content="first doc"), Document(content="second doc")]
-        document_store.write_documents(docs)
-        assert document_store.count_documents() == 2
-        document_store.delete_all_documents()
-        assert document_store.count_documents() == 0
-
-    def test_delete_all_documents_empty_index(self, document_store: AzureAISearchDocumentStore):
-        assert document_store.count_documents() == 0
-        document_store.delete_all_documents()
-        assert document_store.count_documents() == 0
-
     @pytest.mark.parametrize(
         "document_store",
         [{"metadata_fields": {"category": str}}],
         indirect=True,
     )
     def test_delete_by_filter(self, document_store: AzureAISearchDocumentStore):
-        docs = [
-            Document(content="Doc 1", meta={"category": "A"}),
-            Document(content="Doc 2", meta={"category": "B"}),
-            Document(content="Doc 3", meta={"category": "A"}),
-        ]
-        document_store.write_documents(docs)
-        assert document_store.count_documents() == 3
-
-        # Delete documents with category="A"
-        deleted_count = document_store.delete_by_filter(
-            filters={"field": "meta.category", "operator": "==", "value": "A"}
-        )
-        assert deleted_count == 2
-        assert document_store.count_documents() == 1
-
-        # Verify only category B remains
-        remaining_docs = document_store.filter_documents()
-        assert len(remaining_docs) == 1
-        assert remaining_docs[0].meta["category"] == "B"
+        """Override to use a document_store with category metadata field."""
+        DeleteByFilterTest.test_delete_by_filter(document_store)
 
     @pytest.mark.parametrize(
         "document_store",
@@ -334,76 +317,65 @@ class TestDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocumentsT
         indirect=True,
     )
     def test_delete_by_filter_no_matches(self, document_store: AzureAISearchDocumentStore):
-        docs = [
-            Document(content="Doc 1", meta={"category": "A"}),
-            Document(content="Doc 2", meta={"category": "B"}),
-        ]
-        document_store.write_documents(docs)
-        assert document_store.count_documents() == 2
-
-        # Try to delete documents with category="C" (no matches)
-        deleted_count = document_store.delete_by_filter(
-            filters={"field": "meta.category", "operator": "==", "value": "C"}
-        )
-        assert deleted_count == 0
-        assert document_store.count_documents() == 2
+        """Override to use a document_store with category metadata field."""
+        DeleteByFilterTest.test_delete_by_filter_no_matches(document_store)
 
     @pytest.mark.parametrize(
         "document_store",
-        [{"metadata_fields": {"category": str, "status": str}}],
+        [{"metadata_fields": {"category": str, "year": int, "status": str}}],
         indirect=True,
     )
-    def test_update_by_filter(self, document_store: AzureAISearchDocumentStore):
-        docs = [
-            Document(content="Doc 1", meta={"category": "A", "status": "draft"}),
-            Document(content="Doc 2", meta={"category": "B", "status": "draft"}),
-            Document(content="Doc 3", meta={"category": "A", "status": "draft"}),
-        ]
-        document_store.write_documents(docs)
-        assert document_store.count_documents() == 3
+    def test_delete_by_filter_advanced_filters(self, document_store: AzureAISearchDocumentStore):
+        """Override to use a document_store with category, year, status metadata fields."""
+        DeleteByFilterTest.test_delete_by_filter_advanced_filters(document_store)
 
-        # Update status for category="A" documents
-        updated_count = document_store.update_by_filter(
-            filters={"field": "meta.category", "operator": "==", "value": "A"},
-            fields={"status": "published"},
-        )
-        assert updated_count == 2
-
-        # Verify the updates
-        published_docs = document_store.filter_documents(
-            filters={"field": "meta.status", "operator": "==", "value": "published"}
-        )
-        assert len(published_docs) == 2
-        for doc in published_docs:
-            assert doc.meta["category"] == "A"
-            assert doc.meta["status"] == "published"
-
-        # Verify category B still has draft status
-        draft_docs = document_store.filter_documents(
-            filters={"field": "meta.status", "operator": "==", "value": "draft"}
-        )
-        assert len(draft_docs) == 1
-        assert draft_docs[0].meta["category"] == "B"
+    # Metadata fields required by haystack UpdateByFilterTest filterable_docs (chapter, name, page, number, date, etc.)
+    _FILTERABLE_DOCS_METADATA = {  # noqa: RUF012
+        "name": str,
+        "page": str,
+        "chapter": str,
+        "number": int,
+        "date": str,
+        "no_embedding": bool,
+        "updated": bool,
+        "extra_field": str,
+    }
 
     @pytest.mark.parametrize(
         "document_store",
-        [{"metadata_fields": {"category": str, "status": str}}],
+        [{"metadata_fields": _FILTERABLE_DOCS_METADATA}],
         indirect=True,
     )
-    def test_update_by_filter_no_matches(self, document_store: AzureAISearchDocumentStore):
-        docs = [
-            Document(content="Doc 1", meta={"category": "A", "status": "draft"}),
-            Document(content="Doc 2", meta={"category": "B", "status": "draft"}),
-        ]
-        document_store.write_documents(docs)
-        assert document_store.count_documents() == 2
+    def test_update_by_filter(self, document_store: AzureAISearchDocumentStore, filterable_docs):
+        """Override to use a document_store with metadata fields for filterable_docs."""
+        UpdateByFilterTest.test_update_by_filter(document_store, filterable_docs)
 
-        # Try to update documents with category="C" (no matches)
-        updated_count = document_store.update_by_filter(
-            filters={"field": "meta.category", "operator": "==", "value": "C"},
-            fields={"status": "published"},
-        )
-        assert updated_count == 0
+    @pytest.mark.parametrize(
+        "document_store",
+        [{"metadata_fields": _FILTERABLE_DOCS_METADATA}],
+        indirect=True,
+    )
+    def test_update_by_filter_no_matches(self, document_store: AzureAISearchDocumentStore, filterable_docs):
+        """Override to use a document_store with metadata fields for filterable_docs."""
+        UpdateByFilterTest.test_update_by_filter_no_matches(document_store, filterable_docs)
+
+    @pytest.mark.parametrize(
+        "document_store",
+        [{"metadata_fields": _FILTERABLE_DOCS_METADATA}],
+        indirect=True,
+    )
+    def test_update_by_filter_multiple_fields(self, document_store: AzureAISearchDocumentStore, filterable_docs):
+        """Override to use a document_store with metadata fields for filterable_docs."""
+        UpdateByFilterTest.test_update_by_filter_multiple_fields(document_store, filterable_docs)
+
+    @pytest.mark.parametrize(
+        "document_store",
+        [{"metadata_fields": {"category": str, "year": int, "status": str, "featured": bool}}],
+        indirect=True,
+    )
+    def test_update_by_filter_advanced_filters(self, document_store: AzureAISearchDocumentStore):
+        """Override to use a document_store with category, year, status, featured metadata fields."""
+        UpdateByFilterTest.test_update_by_filter_advanced_filters(document_store)
 
     @pytest.mark.parametrize(
         "document_store",

@@ -856,12 +856,13 @@ class ChromaDocumentStore:
             else:
                 collection = self._collection.get()
                 ids = collection.get("ids", [])
-                self._collection.delete(ids=ids)  # type: ignore
-                logger.info(
-                    "Deleted all the {n_docs} documents from the collection '{name}'.",
-                    name=self._collection_name,
-                    n_docs=len(ids),
-                )
+                if ids:
+                    self._collection.delete(ids=ids)  # type: ignore
+                    logger.info(
+                        "Deleted all the {n_docs} documents from the collection '{name}'.",
+                        name=self._collection_name,
+                        n_docs=len(ids),
+                    )
         except Exception as e:
             msg = f"Failed to delete all documents from ChromaDB: {e!s}"
             raise DocumentStoreError(msg) from e
@@ -895,12 +896,13 @@ class ChromaDocumentStore:
             else:
                 collection = await self._async_collection.get()
                 ids = collection.get("ids", [])
-                await self._async_collection.delete(ids=ids)  # type: ignore
-                logger.info(
-                    "Deleted all the {n_docs} documents from the collection '{name}'.",
-                    name=self._collection_name,
-                    n_docs=len(ids),
-                )
+                if ids:
+                    await self._async_collection.delete(ids=ids)  # type: ignore
+                    logger.info(
+                        "Deleted all the {n_docs} documents from the collection '{name}'.",
+                        name=self._collection_name,
+                        n_docs=len(ids),
+                    )
 
         except Exception as e:
             msg = f"Failed to delete all documents from ChromaDB: {e!s}"

@@ -10,7 +10,7 @@ import pytest
 from haystack import Document
 from haystack.document_stores.errors import MissingDocumentError
 from haystack.document_stores.types import DuplicatePolicy
-from haystack.testing.document_store import DocumentStoreBaseTests
+from haystack.testing.document_store import DocumentStoreBaseExtendedTests
 
 from haystack_integrations.document_stores.astra import AstraDocumentStore
 
@@ -48,9 +48,9 @@ def test_to_dict(mock_auth):  # noqa
     os.environ.get("ASTRA_DB_APPLICATION_TOKEN", "") == "", reason="ASTRA_DB_APPLICATION_TOKEN env var not set"
 )
 @pytest.mark.skipif(os.environ.get("ASTRA_DB_API_ENDPOINT", "") == "", reason="ASTRA_DB_API_ENDPOINT env var not set")
-class TestDocumentStore(DocumentStoreBaseTests):
+class TestDocumentStore(DocumentStoreBaseExtendedTests):
     """
-    Common test cases will be provided by `DocumentStoreBaseTests` but
+    Common test cases will be provided by `DocumentStoreBaseExtendedTests` but
     you can add more to this class.
     """
 
@@ -203,74 +203,6 @@ class TestDocumentStore(DocumentStoreBaseTests):
 
         self.assert_documents_are_equal([result[0]], [docs[0]])
         self.assert_documents_are_equal([result[1]], [docs[1]])
-
-    def test_delete_all_documents(self, document_store: AstraDocumentStore):
-        """
-        Test delete_all_documents() on an Astra.
-        """
-        document_store.delete_all_documents()
-        assert document_store.count_documents() == 0
-
-    def test_delete_by_filter(self, document_store: AstraDocumentStore, filterable_docs):
-        document_store.write_documents(filterable_docs)
-        initial_count = document_store.count_documents()
-        assert initial_count > 0
-
-        # count documents that match the filter before deletion
-        matching_docs = [d for d in filterable_docs if d.meta.get("chapter") == "intro"]
-        expected_deleted_count = len(matching_docs)
-
-        # delete all documents with chapter="intro"
-        deleted_count = document_store.delete_by_filter(
-            filters={"field": "meta.chapter", "operator": "==", "value": "intro"}
-        )
-
-        assert deleted_count == expected_deleted_count
-        assert document_store.count_documents() == initial_count - deleted_count
-
-        # remaining documents don't have chapter="intro"
-        remaining_docs = document_store.filter_documents()
-        for doc in remaining_docs:
-            assert doc.meta.get("chapter") != "intro"
-
-        # all documents with chapter="intro" were deleted
-        intro_docs = document_store.filter_documents(
-            filters={"field": "meta.chapter", "operator": "==", "value": "intro"}
-        )
-        assert len(intro_docs) == 0
-
-    def test_update_by_filter(self, document_store: AstraDocumentStore, filterable_docs):
-        document_store.write_documents(filterable_docs)
-        initial_count = document_store.count_documents()
-        assert initial_count > 0
-
-        # count documents that match the filter before update
-        matching_docs = [d for d in filterable_docs if d.meta.get("chapter") == "intro"]
-        expected_updated_count = len(matching_docs)
-
-        # update all documents with chapter="intro" to have status="updated"
-        updated_count = document_store.update_by_filter(
-            filters={"field": "meta.chapter", "operator": "==", "value": "intro"},
-            meta={"status": "updated"},
-        )
-
-        assert updated_count == expected_updated_count
-        assert document_store.count_documents() == initial_count
-
-        # verify the updated documents have the new metadata
-        updated_docs = document_store.filter_documents(
-            filters={"field": "meta.status", "operator": "==", "value": "updated"}
-        )
-        assert len(updated_docs) == expected_updated_count
-        for doc in updated_docs:
-            assert doc.meta.get("chapter") == "intro"
-            assert doc.meta.get("status") == "updated"
-
-        # verify other documents weren't affected
-        all_docs = document_store.filter_documents()
-        for doc in all_docs:
-            if doc.meta.get("chapter") != "intro":
-                assert doc.meta.get("status") != "updated"
 
     @pytest.mark.skip(reason="Unsupported filter operator not.")
     def test_not_operator(self, document_store, filterable_docs):

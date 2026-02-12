@@ -22,7 +22,12 @@ classifiers = [
   "Programming Language :: Python :: Implementation :: CPython",
   "Programming Language :: Python :: Implementation :: PyPy",
 ]
-dependencies = ["haystack-ai>=2.22.0", "pydantic", "typing_extensions", "astrapy>=1.5.0,<2.0"]
+dependencies = [
+  "astrapy>=1.5.0,<2.0",
+  "haystack-ai>=2.24.0",
+  "pydantic",
+  "typing_extensions",
+]
 
 [project.urls]
 Documentation = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/astra#readme"
