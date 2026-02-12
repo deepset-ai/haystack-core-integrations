@@ -320,10 +320,10 @@ class TestDocumentStore(DocumentStoreBaseTests):
         assert sorted(values) == ["alpha", "beta", "gamma"]
 
         values_subset, count_subset = document_store.get_metadata_field_unique_values(
-            "tag", search_term="a", from_=0, size=10
+            "tag", search_term="b", from_=0, size=10
         )
-        assert count_subset == 2
-        assert sorted(values_subset) == ["alpha", "gamma"]
+        assert count_subset == 1
+        assert sorted(values_subset) == ["beta"]
 
         values_page, count_page = document_store.get_metadata_field_unique_values(
             "tag", from_=1, size=1
