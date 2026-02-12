@@ -23,7 +23,7 @@ classifiers = [
   "Programming Language :: Python :: Implementation :: PyPy",
 ]
 dependencies = [
-  "haystack-ai>=2.22.0",
+  "haystack-ai>=2.24.0",
   "weaviate-client>=4.9",
   "python-dateutil",
 ]

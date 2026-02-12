@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/mongodb_atlas-v4.1.0] - 2026-02-12
+
+### 🚀 Features
+
+- Add metadata exploration methods to MongoDBAtlasDocumentStore (#2820)
+
+
 ## [integrations/mongodb_atlas-v4.0.0] - 2026-01-12
 
 ### 🧹 Chores
