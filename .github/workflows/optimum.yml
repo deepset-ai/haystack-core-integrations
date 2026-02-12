@@ -55,10 +55,6 @@ jobs:
         if: matrix.python-version == '3.13' && runner.os == 'Linux'
         run: hatch run fmt-check && hatch run test:types
 
-      - name: Generate docs
-        if: matrix.python-version == '3.10' && runner.os == 'Linux'
-        run: hatch run docs
-
       - name: Run tests
         run: hatch run test:cov-retry
 

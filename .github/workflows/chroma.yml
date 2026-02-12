@@ -53,10 +53,6 @@ jobs:
         if: matrix.python-version == '3.10' && runner.os == 'Linux'
         run: hatch run fmt-check && hatch run test:types
 
-      - name: Generate docs
-        if: matrix.python-version == '3.10' && runner.os == 'Linux'
-        run: hatch run docs
-
       - name: Run Chroma server on Linux/macOS
         if: matrix.os != 'windows-latest'
         run: hatch run chroma run &
