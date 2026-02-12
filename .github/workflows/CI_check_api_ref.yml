@@ -22,8 +22,6 @@ jobs:
       - name: Detect integrations with API reference changes
         id: changed
         shell: python
-        env:
-          BASE_SHA: ${{ github.event.pull_request.base.sha }}
         run: |
           import json
           import os
@@ -34,12 +32,12 @@ jobs:
           sys.path.insert(0, ".github/utils")
           from docstrings_checksum import docstrings_checksum
 
-          base_sha = os.environ["BASE_SHA"]
-          runner_temp = os.environ["RUNNER_TEMP"]
-
           def git(*args):
               result = subprocess.run(["git", *args], capture_output=True, text=True)
               return result.stdout.strip(), result.returncode
+
+          runner_temp = os.environ["RUNNER_TEMP"]
+          base_sha, _ = git("rev-parse", "HEAD^1")
 
           # Get all changed files
           diff_output, _ = git(
