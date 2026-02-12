@@ -35,10 +35,6 @@ Issues = "https://github.com/deepset-ai/haystack-core-integrations/issues"
 [tool.hatch.build.targets.wheel]
 packages = ["src/haystack_integrations"]
 
-[tool.hatch.metadata]
-allow-direct-references = true
-
-
 [tool.hatch.version]
 source = "vcs"
 tag-pattern = 'integrations\/mongodb_atlas-v(?P<version>.*)'
