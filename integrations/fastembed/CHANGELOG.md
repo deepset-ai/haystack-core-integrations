@@ -1,5 +1,21 @@
 # Changelog
 
+## [integrations/fastembed-v2.1.0] - 2026-02-13
+
+### 📚 Documentation
+
+- *(fastembed)* Remove explicit warm_up from examples (#2830)
+
+### 🌀 Miscellaneous
+
+- Automatically call warm_up() if model is not loaded in FastembedRanker
+- Remove explicit call to warm_up() in ranker_example.py
+- Add unit tests
+- Fix typing issue
+- Fix tying
+- Update docstrings
+- Remove explicit warm_up calls from integration tests
+
 ## [integrations/fastembed-v2.0.0] - 2026-01-12
 
 ### 🧹 Chores
