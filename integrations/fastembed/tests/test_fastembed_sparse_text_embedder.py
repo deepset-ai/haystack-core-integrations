@@ -272,7 +272,6 @@ class TestFastembedSparseTextEmbedder:
         embedder = FastembedSparseTextEmbedder(
             model="prithivida/Splade_PP_en_v1",
         )
-        embedder.warm_up()
 
         text = "Parton energy loss in QCD matter"
 

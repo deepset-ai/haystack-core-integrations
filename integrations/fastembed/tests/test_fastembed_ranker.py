@@ -274,7 +274,6 @@ class TestFastembedRanker:
     @pytest.mark.integration
     def test_run(self):
         ranker = FastembedRanker(model_name="Xenova/ms-marco-MiniLM-L-6-v2", top_k=2)
-        ranker.warm_up()
 
         query = "Who is maintaining Qdrant?"
         documents = [

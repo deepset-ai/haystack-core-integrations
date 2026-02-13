@@ -300,7 +300,6 @@ class TestFastembedDocumentEmbedder:
         embedder = FastembedDocumentEmbedder(
             model="BAAI/bge-small-en-v1.5",
         )
-        embedder.warm_up()
 
         doc = Document(content="Parton energy loss in QCD matter")
 

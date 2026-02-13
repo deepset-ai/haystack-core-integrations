@@ -221,7 +221,6 @@ class TestFastembedTextEmbedder:
         embedder = FastembedTextEmbedder(
             model="BAAI/bge-small-en-v1.5",
         )
-        embedder.warm_up()
 
         text = "Parton energy loss in QCD matter"
 

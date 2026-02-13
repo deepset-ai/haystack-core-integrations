@@ -330,7 +330,6 @@ class TestFastembedSparseDocumentEmbedderDoc:
             model="Qdrant/bm42-all-minilm-l6-v2-attentions",
             model_kwargs=bm42_config,
         )
-        embedder.warm_up()
 
         doc = Document(content="Example content using BM42")
 
@@ -349,7 +348,6 @@ class TestFastembedSparseDocumentEmbedderDoc:
         embedder = FastembedSparseDocumentEmbedder(
             model="prithivida/Splade_PP_en_v1",
         )
-        embedder.warm_up()
 
         doc = Document(content="Parton energy loss in QCD matter")
 
