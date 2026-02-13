@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import numpy as np
 import pytest
@@ -257,10 +257,23 @@ class TestFastembedRanker:
             parallel=None,
         )
 
+    def test_run_calls_warm_up(self):
+        """
+        Unit test to check that warm_up is called when run is called for the first time.
+        """
+        ranker = FastembedRanker()
+
+        mock_model = MagicMock()
+        mock_model.rerank.return_value = [0.5]
+
+        with patch.object(ranker, "warm_up", side_effect=lambda: setattr(ranker, "_model", mock_model)) as mock_warm_up:
+            ranker.run(query="test query", documents=[Document(content="test document")])
+
+        mock_warm_up.assert_called_once()
+
     @pytest.mark.integration
     def test_run(self):
         ranker = FastembedRanker(model_name="Xenova/ms-marco-MiniLM-L-6-v2", top_k=2)
-        ranker.warm_up()
 
         query = "Who is maintaining Qdrant?"
         documents = [

@@ -24,7 +24,6 @@ class FastembedTextEmbedder:
     text_embedder = FastembedTextEmbedder(
         model="BAAI/bge-small-en-v1.5"
     )
-    text_embedder.warm_up()
 
     embedding = text_embedder.run(text)["embedding"]
     ```

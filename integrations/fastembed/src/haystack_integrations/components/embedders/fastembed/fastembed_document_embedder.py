@@ -29,8 +29,6 @@ class FastembedDocumentEmbedder:
         batch_size=256,
     )
 
-    doc_embedder.warm_up()
-
     # Text taken from PubMed QA Dataset (https://huggingface.co/datasets/pubmed_qa)
     document_list = [
         Document(
