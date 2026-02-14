@@ -2,10 +2,6 @@
 
 ## [Unreleased]
 
-### 🚀 Features
-
-- Add `run_async` to `LlamaCppChatGenerator` for AsyncPipeline support
-
 ## [integrations/llama_cpp-v2.1.0] - 2026-01-14
 
 ### 🚀 Features

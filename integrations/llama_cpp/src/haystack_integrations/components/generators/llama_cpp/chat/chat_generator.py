@@ -271,6 +271,8 @@ class LlamaCppChatGenerator:
         self.chat_handler_name = chat_handler_name
         self.model_clip_path = model_clip_path
         self._handler = handler
+        # llama-cpp-python is not thread-safe, so async calls must be serialized.
+        self._inference_lock = asyncio.Lock()
 
     def warm_up(self) -> None:
         if self._model is not None:
@@ -444,13 +446,14 @@ class LlamaCppChatGenerator:
         :returns: A dictionary with the following keys:
             - `replies`: The responses from the model
         """
-        return await asyncio.to_thread(
-            self.run,
-            messages=messages,
-            generation_kwargs=generation_kwargs,
-            tools=tools,
-            streaming_callback=streaming_callback,
-        )
+        async with self._inference_lock:
+            return await asyncio.to_thread(
+                self.run,
+                messages=messages,
+                generation_kwargs=generation_kwargs,
+                tools=tools,
+                streaming_callback=streaming_callback,
+            )
 
     @staticmethod
     def _handle_streaming_response(

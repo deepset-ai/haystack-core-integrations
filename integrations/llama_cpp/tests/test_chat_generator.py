@@ -1236,7 +1236,8 @@ class TestLlamaCppChatGeneratorAsync:
         return generator
 
     @pytest.mark.integration
-    async def test_live_run_async(self, generator):
+    @pytest.mark.parametrize("streaming_callback", [None, print_streaming_chunk])
+    async def test_live_run_async(self, generator, streaming_callback):
         """Integration test that run_async works with a real model."""
         results = await generator.run_async(
             messages=[
@@ -1245,7 +1246,8 @@ class TestLlamaCppChatGeneratorAsync:
                     "What's the capital of France? <|end_of_turn|>\n"
                     " GPT4 Correct Assistant:"
                 )
-            ]
+            ],
+            streaming_callback=streaming_callback,
         )
 
         assert len(results["replies"]) == 1
