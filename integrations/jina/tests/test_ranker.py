@@ -2,6 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 import json
+import os
 from unittest.mock import patch
 
 import pytest
@@ -145,3 +146,27 @@ class TestJinaRanker:
 
         assert result["documents"] is not None
         assert not result["documents"]  # empty list
+
+    @pytest.mark.skipif(not os.environ.get("JINA_API_KEY", None), reason="JINA_API_KEY env var not set")
+    @pytest.mark.integration
+    def test_run_integration(self):
+        ranker = JinaRanker(model="jina-reranker-v1-base-en")
+        docs = [
+            Document(content="Paris is the capital of France."),
+            Document(content="Bananas are yellow fruits."),
+            Document(content="Berlin is the capital of Germany."),
+        ]
+
+        result = ranker.run(query="What is the capital of France?", documents=docs, top_k=2)
+
+        assert "documents" in result
+        ranked_docs = result["documents"]
+        assert len(ranked_docs) == 2
+        assert all(isinstance(doc, Document) for doc in ranked_docs)
+        assert all(doc.score is not None for doc in ranked_docs)
+        assert ranked_docs[0].score >= ranked_docs[1].score
+
+        assert "meta" in result
+        assert isinstance(result["meta"], dict)
+        assert "model" in result["meta"]
+        assert "usage" in result["meta"]
