@@ -1241,11 +1241,7 @@ class TestLlamaCppChatGeneratorAsync:
         """Integration test that run_async works with a real model."""
         results = await generator.run_async(
             messages=[
-                ChatMessage.from_system(
-                    "GPT4 Correct User: Answer in a single word. "
-                    "What's the capital of France? <|end_of_turn|>\n"
-                    " GPT4 Correct Assistant:"
-                )
+                ChatMessage.from_user("What's the capital of France?)
             ],
             streaming_callback=streaming_callback,
         )
