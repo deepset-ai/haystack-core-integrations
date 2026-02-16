@@ -1240,9 +1240,7 @@ class TestLlamaCppChatGeneratorAsync:
     async def test_live_run_async(self, generator, streaming_callback):
         """Integration test that run_async works with a real model."""
         results = await generator.run_async(
-            messages=[
-                ChatMessage.from_user("What's the capital of France?")
-            ],
+            messages=[ChatMessage.from_user("What's the capital of France?")],
             streaming_callback=streaming_callback,
         )
 
