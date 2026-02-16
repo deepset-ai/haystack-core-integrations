@@ -165,6 +165,7 @@ class TestJinaRanker:
         assert all(isinstance(doc, Document) for doc in ranked_docs)
         assert all(doc.score is not None for doc in ranked_docs)
         assert ranked_docs[0].score >= ranked_docs[1].score
+        assert "Paris" in ranked_docs[0].content 
 
         assert "meta" in result
         assert isinstance(result["meta"], dict)
