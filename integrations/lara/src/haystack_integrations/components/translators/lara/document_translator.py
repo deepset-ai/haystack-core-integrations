@@ -40,6 +40,7 @@ class LaraDocumentTranslator:
     print(result["documents"][0].content)
     ```
     """
+
     def __init__(
         self,
         access_key_id: Secret = Secret.from_env_var("LARA_ACCESS_KEY_ID"),
@@ -119,7 +120,8 @@ class LaraDocumentTranslator:
         self._translator: Translator | None = None
 
     @component.output_types(documents=list[Document])
-    def run(self,
+    def run(
+        self,
         documents: list[Document],
         source_lang: str | list[str | None] | None = None,
         target_lang: str | list[str] | None = None,
@@ -246,7 +248,7 @@ class LaraDocumentTranslator:
                     style=cur_style,
                     adapt_to=cur_adapt,
                     glossaries=cur_gloss,
-                    reasoning=cur_reason
+                    reasoning=cur_reason,
                 )
                 translation = translation_response.translation[0].text
             else:
@@ -354,11 +356,12 @@ class LaraDocumentTranslator:
             raise ValueError(error_msg.format(param="reasoning"))
         validated_params["reasoning"] = [reasoning] * num_documents if not isinstance(reasoning, list) else reasoning
 
-        if (isinstance(adapt_to, list)
+        if (
+            isinstance(adapt_to, list)
             and len(adapt_to) > 0
             and isinstance(adapt_to[0], list)
-            and len(adapt_to) != num_documents):
-
+            and len(adapt_to) != num_documents
+        ):
             error_msg = "If adapt to is a list of lists, it must be the same length as the number of documents."
             raise ValueError(error_msg)
         validated_params["adapt_to"] = (

@@ -13,7 +13,6 @@ from haystack_integrations.components.translators.lara import LaraDocumentTransl
 
 
 class TestLaraDocumentTranslator:
-
     @pytest.fixture
     def mock_translation_response(self):
         mock_block = MagicMock()
