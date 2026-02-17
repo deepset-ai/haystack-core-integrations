@@ -216,8 +216,10 @@ class GoogleGenAICacheCreator:
         try:
             cache = self._client.caches.create(model=self._model, config=config)
         except Exception as e:
-            msg = (f"Failed to create Google GenAI cache for model {self._model} with config {config_kwargs}. "
-                   f"Exception: {e}")
+            msg = (
+                f"Failed to create Google GenAI cache for model {self._model} with config {config_kwargs}. "
+                f"Exception: {e}"
+            )
             logger.error(msg, exc_info=True)
             raise
 
