@@ -38,6 +38,7 @@ jobs:
         working-directory: .
         run: |
           sudo docker image prune --all --force
+          sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/share/boost /usr/local/lib/android /opt/hostedtoolcache/CodeQL
 
       - name: Run Unstructured API (docker)
         working-directory: .
@@ -64,10 +65,6 @@ jobs:
       - name: Lint
         if: matrix.python-version == '3.10' && runner.os == 'Linux'
         run: hatch run fmt-check && hatch run test:types
-
-      - name: Generate docs
-        if: matrix.python-version == '3.10' && runner.os == 'Linux'
-        run: hatch run docs
 
       - name: Run tests
         run: hatch run test:cov-retry

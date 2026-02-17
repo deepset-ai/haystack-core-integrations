@@ -1238,7 +1238,7 @@ class MCPTool(Tool):
 
         :param data: Dictionary containing serialized tool data
         :returns: A fully initialized MCPTool instance
-        :raises: Various exceptions if connection fails
+        :raises Exception if connection fails
         """
         # Extract the tool parameters from the data dictionary
         inner_data = data["data"]

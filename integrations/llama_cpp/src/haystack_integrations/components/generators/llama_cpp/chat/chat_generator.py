@@ -2,6 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+import asyncio
 import json
 from collections.abc import Iterator
 from datetime import datetime, timezone
@@ -270,6 +271,8 @@ class LlamaCppChatGenerator:
         self.chat_handler_name = chat_handler_name
         self.model_clip_path = model_clip_path
         self._handler = handler
+        # llama-cpp-python is not thread-safe, so async calls must be serialized.
+        self._inference_lock = asyncio.Lock()
 
     def warm_up(self) -> None:
         if self._model is not None:
@@ -413,6 +416,44 @@ class LlamaCppChatGenerator:
             )
             replies.append(chat_message)
         return {"replies": replies}
+
+    @component.output_types(replies=list[ChatMessage])
+    async def run_async(
+        self,
+        messages: list[ChatMessage],
+        generation_kwargs: dict[str, Any] | None = None,
+        *,
+        tools: ToolsType | None = None,
+        streaming_callback: StreamingCallbackT | None = None,
+    ) -> dict[str, list[ChatMessage]]:
+        """
+        Async version of run. Runs the text generation model on the given list of ChatMessages.
+
+        Uses a thread pool to avoid blocking the event loop, since llama-cpp-python provides
+        only synchronous inference.
+
+        :param messages:
+            A list of ChatMessage instances representing the input messages.
+        :param generation_kwargs:  A dictionary containing keyword arguments to customize text generation.
+            For more information on the available kwargs, see
+            [llama.cpp documentation](https://llama-cpp-python.readthedocs.io/en/latest/api-reference/#llama_cpp.Llama.create_chat_completion).
+        :param tools:
+            A list of Tool and/or Toolset objects, or a single Toolset for which the model can prepare calls.
+            Each tool should have a unique name. If set, it will override the `tools` parameter set during
+            component initialization.
+        :param streaming_callback: A callback function that is called when a new token is received from the stream.
+            If set, it will override the `streaming_callback` parameter set during component initialization.
+        :returns: A dictionary with the following keys:
+            - `replies`: The responses from the model
+        """
+        async with self._inference_lock:
+            return await asyncio.to_thread(
+                self.run,
+                messages=messages,
+                generation_kwargs=generation_kwargs,
+                tools=tools,
+                streaming_callback=streaming_callback,
+            )
 
     @staticmethod
     def _handle_streaming_response(

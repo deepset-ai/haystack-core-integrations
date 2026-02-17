@@ -231,7 +231,7 @@ class OllamaChatGenerator:
             [Ollama docs](https://github.com/jmorganca/ollama/blob/main/docs/modelfile.md#valid-parameters-and-values).
         :param timeout:
             The number of seconds before throwing a timeout error from the Ollama API.
-        :param think
+        :param think:
             If True, the model will "think" before producing a response.
             Only [thinking models](https://ollama.com/search?c=thinking) support this feature.
             Some models like gpt-oss support different levels of thinking: "low", "medium", "high".

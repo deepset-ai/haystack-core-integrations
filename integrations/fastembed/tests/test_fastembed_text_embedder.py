@@ -202,12 +202,25 @@ class TestFastembedTextEmbedder:
         with pytest.raises(TypeError, match="FastembedTextEmbedder expects a string as input"):
             embedder.run(text=list_integers_input)
 
+    def test_run_calls_warm_up(self):
+        embedder = FastembedTextEmbedder()
+        assert embedder.embedding_backend is None
+
+        mock_backend = MagicMock()
+        mock_backend.embed.return_value = [[0.1, 0.2, 0.3]]
+
+        with patch.object(
+            embedder, "warm_up", side_effect=lambda: setattr(embedder, "embedding_backend", mock_backend)
+        ) as mock_warm_up:
+            embedder.run(text="test text")
+
+        mock_warm_up.assert_called_once()
+
     @pytest.mark.integration
     def test_run(self):
         embedder = FastembedTextEmbedder(
             model="BAAI/bge-small-en-v1.5",
         )
-        embedder.warm_up()
 
         text = "Parton energy loss in QCD matter"
 

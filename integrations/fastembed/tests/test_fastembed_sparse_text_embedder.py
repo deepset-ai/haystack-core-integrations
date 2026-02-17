@@ -224,6 +224,20 @@ class TestFastembedSparseTextEmbedder:
 
         assert embedder.model_kwargs == bm25_config
 
+    def test_run_calls_warm_up(self):
+        embedder = FastembedSparseTextEmbedder()
+        assert embedder.embedding_backend is None
+
+        mock_backend = MagicMock()
+        mock_backend.embed.return_value = [[0.1, 0.2, 0.3]]
+
+        with patch.object(
+            embedder, "warm_up", side_effect=lambda: setattr(embedder, "embedding_backend", mock_backend)
+        ) as mock_warm_up:
+            embedder.run(text="test text")
+
+        mock_warm_up.assert_called_once()
+
     @pytest.mark.integration
     def test_run_with_model_kwargs(self):
         """
@@ -258,7 +272,6 @@ class TestFastembedSparseTextEmbedder:
         embedder = FastembedSparseTextEmbedder(
             model="prithivida/Splade_PP_en_v1",
         )
-        embedder.warm_up()
 
         text = "Parton energy loss in QCD matter"
 
