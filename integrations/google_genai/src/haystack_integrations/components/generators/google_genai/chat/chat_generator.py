@@ -1012,20 +1012,6 @@ class GoogleGenAIChatGenerator:
                     config=config,
                 )
 
-                # ToDo: extract 'usage_metadata' here
-                print("Full response from Google Gen AI:", response)  # Debugging line to inspect the full response
-                
-                 # Access usage metadata
-                if hasattr(response, 'usage_metadata'):
-                    print("Usage metadata found in response")
-                    print(response.usage_metadata)
-                    usage = response.usage_metadata
-                    print("=== Basic Usage ===")
-                    print(f"Prompt tokens: {usage.prompt_token_count}")
-                    print(f"Candidates tokens: {usage.candidates_token_count}")
-                    print(f"Total tokens: {usage.total_token_count}")
-                    print()
-
                 reply = _convert_google_genai_response_to_chatmessage(response, self._model)
                 return {"replies": [reply]}
 
