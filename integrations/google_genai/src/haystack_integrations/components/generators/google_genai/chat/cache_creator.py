@@ -113,7 +113,7 @@ class GoogleGenAICacheCreator:
         _meta={
             'model': 'gemini-2.5-flash', 'finish_reason': 'stop',
             'usage': {
-                prompt_tokens': 1175, 'completion_tokens': 68, 'total_tokens': 1504, 'thoughts_token_count': 261,
+                'prompt_tokens': 1175, 'completion_tokens': 68, 'total_tokens': 1504, 'thoughts_token_count': 261,
                 'cached_content_token_count': 1161, 'prompt_token_count': 1175, 'candidates_token_count': 68,
                 'total_token_count': 1504,
                 'cache_tokens_details': [{'modality': 'TEXT', 'token_count': 1161}],
