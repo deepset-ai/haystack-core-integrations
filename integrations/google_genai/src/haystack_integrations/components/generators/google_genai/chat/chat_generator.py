@@ -297,6 +297,25 @@ def _convert_tools_to_google_genai_format(tools: ToolsType) -> list[types.Tool]:
     return [types.Tool(function_declarations=function_declarations)]
 
 
+def _usage_metadata_value_to_serializable(val: Any) -> Any:
+    """Convert a usage_metadata field value to a JSON-serializable form (same key names as response)."""
+    if val is None:
+        return None
+    if isinstance(val, (str, int, float, bool)):
+        return val
+    if isinstance(val, list):
+        return [_usage_metadata_value_to_serializable(item) for item in val]
+    if hasattr(val, "modality") and hasattr(val, "token_count"):
+        mod = getattr(val, "modality", None)
+        mod_str = getattr(mod, "name", getattr(mod, "value", str(mod))) if mod is not None else None
+        return {"modality": mod_str, "token_count": getattr(val, "token_count", None)}
+    if hasattr(val, "name"):
+        return getattr(val, "value", val.name)
+    if hasattr(val, "__dict__"):
+        return {k: _usage_metadata_value_to_serializable(getattr(val, k)) for k in vars(val)}
+    return val
+
+
 def _convert_google_genai_response_to_chatmessage(response: types.GenerateContentResponse, model: str) -> ChatMessage:
     """
     Converts a Google Gen AI response to a Haystack ChatMessage.
@@ -361,7 +380,29 @@ def _convert_google_genai_response_to_chatmessage(response: types.GenerateConten
     if usage_metadata and hasattr(usage_metadata, "thoughts_token_count") and usage_metadata.thoughts_token_count:
         usage["thoughts_token_count"] = usage_metadata.thoughts_token_count
 
-        # Create meta with reasoning content and thought signatures if available
+    # Add cached content token count if available (implicit or explicit context caching)
+    if usage_metadata and hasattr(usage_metadata, "cached_content_token_count") and usage_metadata.cached_content_token_count:
+        usage["cached_content_token_count"] = usage_metadata.cached_content_token_count
+
+    # Include all other usage_metadata fields using the same key names as the response
+    if usage_metadata:
+        _usage_attr_names = (
+            "prompt_token_count",
+            "candidates_token_count",
+            "total_token_count",
+            "cache_tokens_details",
+            "candidates_tokens_details",
+            "prompt_tokens_details",
+            "tool_use_prompt_token_count",
+            "tool_use_prompt_tokens_details",
+            "traffic_type",
+        )
+        for attr in _usage_attr_names:
+            val = getattr(usage_metadata, attr, None)
+            if val is not None:
+                usage[attr] = _usage_metadata_value_to_serializable(val)
+
+    # Create meta with reasoning content and thought signatures if available
     meta: dict[str, Any] = {
         "model": model,
         "finish_reason": FINISH_REASON_MAPPING.get(finish_reason or ""),
@@ -975,16 +1016,17 @@ class GoogleGenAIChatGenerator:
 
                 # ToDo: extract 'usage_metadata' here
                 print("Full response from Google Gen AI:", response)  # Debugging line to inspect the full response
-                """
+                
                  # Access usage metadata
                 if hasattr(response, 'usage_metadata'):
+                    print("Usage metadata found in response")
+                    print(response.usage_metadata)
                     usage = response.usage_metadata
                     print("=== Basic Usage ===")
                     print(f"Prompt tokens: {usage.prompt_token_count}")
                     print(f"Candidates tokens: {usage.candidates_token_count}")
                     print(f"Total tokens: {usage.total_token_count}")
                     print()
-                """
 
                 reply = _convert_google_genai_response_to_chatmessage(response, self._model)
                 return {"replies": [reply]}
