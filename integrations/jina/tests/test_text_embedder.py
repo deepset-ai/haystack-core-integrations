@@ -2,6 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 import json
+import os
 from unittest.mock import patch
 
 import pytest
@@ -145,3 +146,19 @@ class TestJinaTextEmbedder:
             "model": "jina-embeddings-v3",
             "usage": {"prompt_tokens": 6, "total_tokens": 6},
         }
+
+    @pytest.mark.skipif(not os.environ.get("JINA_API_KEY", None), reason="JINA_API_KEY env var not set")
+    @pytest.mark.integration
+    def test_run_integration(self):
+        embedder = JinaTextEmbedder(task="retrieval.query")
+        result = embedder.run(text="What is the capital of France?")
+
+        assert "embedding" in result
+        assert isinstance(result["embedding"], list)
+        assert len(result["embedding"]) > 0
+        assert all(isinstance(x, (int, float)) for x in result["embedding"])
+
+        assert "meta" in result
+        assert isinstance(result["meta"], dict)
+        assert "model" in result["meta"]
+        assert "usage" in result["meta"]
