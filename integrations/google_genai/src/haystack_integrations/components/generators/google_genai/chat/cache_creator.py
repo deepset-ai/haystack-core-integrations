@@ -149,7 +149,7 @@ class GoogleGenAICacheCreator:
         return default_from_dict(cls, data)
 
     @staticmethod
-    def _contents_to_config_parts(contents: list[str]):
+    def _contents_to_config_parts(contents: list[str]) -> list[types.Content]:
         """Build Google GenAI Content list from a list of text strings."""
         if not contents:
             return []
@@ -216,7 +216,9 @@ class GoogleGenAICacheCreator:
         try:
             cache = self._client.caches.create(model=self._model, config=config)
         except Exception as e:
-            logger.error("Google GenAI cache creation failed: %s", e, exc_info=True)
+            msg = (f"Failed to create Google GenAI cache for model {self._model} with config {config_kwargs}. "
+                   f"Exception: {e}")
+            logger.error(msg, exc_info=True)
             raise
 
         cache_name = getattr(cache, "name", None) or str(cache.name)
