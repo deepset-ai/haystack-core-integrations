@@ -6,7 +6,7 @@ from typing import Any, Literal
 
 from haystack import Document, component, default_from_dict, default_to_dict, logging
 from haystack.utils import Secret, deserialize_secrets_inplace
-from lara_sdk import Credentials, TextBlock, Translator
+from lara_sdk import Credentials, TextBlock, Translator  # type: ignore[import-untyped]
 
 logger = logging.getLogger(__name__)
 
@@ -303,7 +303,7 @@ class LaraDocumentTranslator:
         adapt_to: list[str] | list[list[str]] | None,
         glossaries: list[str] | list[list[str]] | None,
         reasoning: bool | list[bool] | None,
-    ) -> dict[str, list]:
+    ) -> dict[str, list[Any]]:
         """
         Validates translation parameters and normalizes them to per-document lists.
 
@@ -321,7 +321,7 @@ class LaraDocumentTranslator:
         :raises ValueError: If any list-valued parameter has length != num_documents.
         """
         error_msg = "If {param} is a list, it must be the same length as the number of documents."
-        validated_params = {}
+        validated_params: dict[str, list[Any]] = {}
 
         if isinstance(source_lang, list) and len(source_lang) != num_documents:
             raise ValueError(error_msg.format(param="source language"))
