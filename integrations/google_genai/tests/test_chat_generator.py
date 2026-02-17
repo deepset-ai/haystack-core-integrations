@@ -1423,7 +1423,6 @@ def test_aggregate_streaming_chunks_with_reasoning(monkeypatch):
 def test_process_thinking_budget(monkeypatch):
     """Test the _process_thinking_config method with different thinking_budget values."""
     monkeypatch.setenv("GOOGLE_API_KEY", "test-api-key")
-    component = GoogleGenAIChatGenerator()
 
     # Test valid thinking_budget values
     generation_kwargs = {"thinking_budget": 1024, "temperature": 0.7}
