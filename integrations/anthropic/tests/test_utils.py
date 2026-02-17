@@ -149,6 +149,8 @@ class TestUtils:
         assert streaming_chunk.index == 0
         assert streaming_chunk.tool_calls is None
         assert streaming_chunk.content == ""
+        assert streaming_chunk.reasoning is not None
+        assert streaming_chunk.reasoning.reasoning_text == ""
 
         # Test content_block_delta for reasoning
         reasoning_delta_chunk = RawContentBlockDeltaEvent(
@@ -167,6 +169,8 @@ class TestUtils:
         assert streaming_chunk.index == 0
         assert streaming_chunk.tool_calls is None
         assert not streaming_chunk.start
+        assert streaming_chunk.reasoning is not None
+        assert streaming_chunk.reasoning.reasoning_text == "The user is asking 2 questions."
 
         # Test content_block_delta for reasoning signature
         reasoning_signature_delta_chunk = RawContentBlockDeltaEvent(
@@ -181,6 +185,8 @@ class TestUtils:
         assert streaming_chunk.component_info == component_info
         assert streaming_chunk.meta == reasoning_signature_delta_chunk.model_dump()
         assert streaming_chunk.content == ""
+        assert streaming_chunk.reasoning is not None
+        assert streaming_chunk.reasoning.extra.get("signature") == "1234567890"
 
         # Test content_block_start for text
         text_block_start_chunk = RawContentBlockStartEvent(

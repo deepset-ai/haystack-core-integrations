@@ -329,6 +329,7 @@ def _convert_anthropic_chunk_to_streaming_chunk(
     """
     content = ""
     tool_calls = []
+    reasoning = None
     start = False
     finish_reason = None
     index = getattr(chunk, "index", None)
@@ -348,6 +349,12 @@ def _convert_anthropic_chunk_to_streaming_chunk(
                     tool_name=chunk.content_block.name,
                 )
             )
+        elif chunk.content_block.type == "thinking":
+            reasoning = ReasoningContent(reasoning_text="")
+        elif chunk.content_block.type == "redacted_thinking":
+            reasoning = ReasoningContent(
+                reasoning_text="", extra={"redacted_thinking": getattr(chunk.content_block, "data", "")}
+            )
 
     # delta of a content block
     elif chunk.type == "content_block_delta":
@@ -355,6 +362,10 @@ def _convert_anthropic_chunk_to_streaming_chunk(
             content = chunk.delta.text
         elif chunk.delta.type == "input_json_delta":
             tool_calls.append(ToolCallDelta(index=tool_call_index, arguments=chunk.delta.partial_json))
+        elif chunk.delta.type == "thinking_delta":
+            reasoning = ReasoningContent(reasoning_text=chunk.delta.thinking)
+        elif chunk.delta.type == "signature_delta":
+            reasoning = ReasoningContent(reasoning_text="", extra={"signature": chunk.delta.signature})
 
     # end of streaming message
     elif chunk.type == "message_delta":
@@ -369,6 +380,7 @@ def _convert_anthropic_chunk_to_streaming_chunk(
         start=start,
         finish_reason=finish_reason,
         tool_calls=tool_calls if tool_calls else None,
+        reasoning=reasoning,
         meta=meta,
     )
 
@@ -377,79 +389,56 @@ def _process_reasoning_contents(chunks: list[StreamingChunk]) -> ReasoningConten
     """
     Process reasoning contents from a list of StreamingChunk objects into the Anthropic expected format.
 
-    :param chunks: List of StreamingChunk objects potentially containing reasoning contents.
+    Reads reasoning data from the dedicated StreamingChunk.reasoning field.
 
-    :returns: List of Anthropic formatted reasoning content dictionaries
+    :param chunks: List of StreamingChunk objects potentially containing reasoning contents.
+    :returns: A ReasoningContent object combining all reasoning chunks, or None if no reasoning was found.
     """
-    formatted_reasoning_contents = []
+    formatted_reasoning_contents: list[dict[str, Any]] = []
     current_index = None
     content_block_text = ""
     content_block_signature = None
     content_block_redacted_thinking = None
-    content_block_index = None
 
     for chunk in chunks:
-        if (delta := chunk.meta.get("delta")) is not None:
-            if delta.get("type") == "thinking_delta" and delta.get("thinking") is not None:
-                content_block_index = chunk.meta.get("index", None)
-        if (content_block := chunk.meta.get("content_block")) is not None and content_block.get(
-            "type"
-        ) == "redacted_thinking":
-            content_block_index = chunk.meta.get("index", None)
+        if chunk.reasoning is None:
+            continue
 
         # Start new group when index changes
-        if current_index is not None and content_block_index != current_index:
-            # Finalize current group
-            if content_block_text:
-                formatted_reasoning_contents.append(
-                    {
-                        "reasoning_content": {
-                            "reasoning_text": {"text": content_block_text, "signature": content_block_signature},
-                        }
-                    }
-                )
-            if content_block_redacted_thinking:
-                formatted_reasoning_contents.append(
-                    {"reasoning_content": {"redacted_thinking": content_block_redacted_thinking}}
-                )
-
-            # Reset accumulators for new group
+        if current_index is not None and chunk.index != current_index:
+            _finalize_reasoning_group(
+                formatted_reasoning_contents,
+                content_block_text,
+                content_block_signature,
+                content_block_redacted_thinking,
+            )
             content_block_text = ""
             content_block_signature = None
             content_block_redacted_thinking = None
 
-        # Accumulate content for current index
-        current_index = content_block_index
-        if (delta := chunk.meta.get("delta")) is not None:
-            if delta.get("type") == "thinking_delta" and delta.get("thinking") is not None:
-                content_block_text += delta.get("thinking", "")
-            if delta.get("type") == "signature_delta" and delta.get("signature") is not None:
-                content_block_signature = delta.get("signature", "")
-        if (content_block := chunk.meta.get("content_block")) is not None and content_block.get(
-            "type"
-        ) == "redacted_thinking":
-            content_block_redacted_thinking = content_block.get("data", "")
+        current_index = chunk.index
+
+        # Accumulate reasoning content
+        if chunk.reasoning.reasoning_text:
+            content_block_text += chunk.reasoning.reasoning_text
+        if chunk.reasoning.extra.get("signature") is not None:
+            content_block_signature = chunk.reasoning.extra["signature"]
+        if chunk.reasoning.extra.get("redacted_thinking") is not None:
+            content_block_redacted_thinking = chunk.reasoning.extra["redacted_thinking"]
 
     # Finalize the last group
     if current_index is not None:
-        if content_block_text:
-            formatted_reasoning_contents.append(
-                {
-                    "reasoning_content": {
-                        "reasoning_text": {"text": content_block_text, "signature": content_block_signature},
-                    }
-                }
-            )
-        if content_block_redacted_thinking:
-            formatted_reasoning_contents.append(
-                {"reasoning_content": {"redacted_thinking": content_block_redacted_thinking}}
-            )
+        _finalize_reasoning_group(
+            formatted_reasoning_contents,
+            content_block_text,
+            content_block_signature,
+            content_block_redacted_thinking,
+        )
 
-    # Combine all reasoning texts into a single string for the main reasoning_text field
+    # Combine all reasoning texts
     final_reasoning_text = ""
     for content in formatted_reasoning_contents:
         if "reasoning_text" in content["reasoning_content"]:
-            # mypy somehow thinks that content["reasoning_content"]["reasoning_text"]["text"] can be of type None
             final_reasoning_text += content["reasoning_content"]["reasoning_text"]["text"]  # type: ignore[operator]
         elif "redacted_thinking" in content["reasoning_content"]:
             final_reasoning_text += "[REDACTED]"
@@ -461,3 +450,24 @@ def _process_reasoning_contents(chunks: list[StreamingChunk]) -> ReasoningConten
         if formatted_reasoning_contents
         else None
     )
+
+
+def _finalize_reasoning_group(
+    formatted_reasoning_contents: list[dict[str, Any]],
+    content_block_text: str,
+    content_block_signature: str | None,
+    content_block_redacted_thinking: str | None,
+) -> None:
+    """Finalize a reasoning content group and append it to the formatted list."""
+    if content_block_text:
+        formatted_reasoning_contents.append(
+            {
+                "reasoning_content": {
+                    "reasoning_text": {"text": content_block_text, "signature": content_block_signature},
+                }
+            }
+        )
+    if content_block_redacted_thinking:
+        formatted_reasoning_contents.append(
+            {"reasoning_content": {"redacted_thinking": content_block_redacted_thinking}}
+        )
