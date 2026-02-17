@@ -107,16 +107,16 @@ class GoogleGenAICacheCreator:
     )
     print(response)
     > {'replies': [
-        ChatMessage(_role=<ChatRole.ASSISTANT: 'assistant'>, 
-        _content=[TextContent(text='A dominant 7th chord (V7) is a major triad with an added minor 7th. For example, G7 is a dominant 7th chord.\n\nIt commonly resolves to the tonic (V→I) in an authentic cadence, or to the submediant (V→vi) in a deceptive cadence.')], 
-        _name=None, 
+        ChatMessage(_role=<ChatRole.ASSISTANT: 'assistant'>,
+        _content=[TextContent(text='A dominant 7th chord (V7) is a major triad with an added minor 7th. For example, G7 is a dominant 7th chord.\n\nIt commonly resolves to the tonic (V→I) in an authentic cadence, or to the submediant (V→vi) in a deceptive cadence.')],
+        _name=None,
         _meta={
-            'model': 'gemini-2.5-flash', 'finish_reason': 'stop', 
+            'model': 'gemini-2.5-flash', 'finish_reason': 'stop',
             'usage': {
-                prompt_tokens': 1175, 'completion_tokens': 68, 'total_tokens': 1504, 'thoughts_token_count': 261, 
-                'cached_content_token_count': 1161, 'prompt_token_count': 1175, 'candidates_token_count': 68, 
-                'total_token_count': 1504, 
-                'cache_tokens_details': [{'modality': 'TEXT', 'token_count': 1161}], 
+                prompt_tokens': 1175, 'completion_tokens': 68, 'total_tokens': 1504, 'thoughts_token_count': 261,
+                'cached_content_token_count': 1161, 'prompt_token_count': 1175, 'candidates_token_count': 68,
+                'total_token_count': 1504,
+                'cache_tokens_details': [{'modality': 'TEXT', 'token_count': 1161}],
                 'prompt_tokens_details': [{'modality': 'TEXT', 'token_count': 1175}]}
             })]
         }

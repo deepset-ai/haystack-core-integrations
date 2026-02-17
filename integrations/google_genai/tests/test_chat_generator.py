@@ -819,7 +819,9 @@ class TestMessagesConversion:
         message = results["replies"][0]
         assert message.text, f"Expected non-empty reply text, got: {message.text!r}"
         assert "gemini-2.5-flash" in message.meta["model"], f"Unexpected model in meta: {message.meta.get('model')}"
-        assert message.meta["finish_reason"] == "stop", f"Expected finish_reason 'stop', got: {message.meta.get('finish_reason')}"
+        assert message.meta["finish_reason"] == "stop", (
+            f"Expected finish_reason 'stop', got: {message.meta.get('finish_reason')}"
+        )
         usage = message.meta.get("usage")
         assert usage is not None, "Expected 'usage' in reply meta"
         assert "prompt_tokens" in usage, f"Expected 'prompt_tokens' in usage, keys: {list(usage.keys())}"
