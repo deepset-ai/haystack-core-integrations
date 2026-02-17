@@ -461,8 +461,7 @@ class AstraDocumentStore:
         :returns:
             The number of documents updated.
 
-        :raises:
-            AstraDocumentStoreFilterError: if the filter is invalid or not supported.
+        :raises AstraDocumentStoreFilterError: if the filter is invalid or not supported.
         """
         if not isinstance(filters, dict):
             msg = "Filters must be a dictionary"
