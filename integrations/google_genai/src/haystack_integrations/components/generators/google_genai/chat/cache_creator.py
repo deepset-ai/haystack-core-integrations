@@ -2,7 +2,6 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-import re
 from typing import Any, Literal
 
 from google.genai import types
@@ -173,7 +172,6 @@ class GoogleGenAICacheCreator:
         system_instruction: str | None = None,
         display_name: str | None = None,
         ttl: str = "3600s",
-        validate_min_tokens: bool = True,
     ) -> dict[str, Any]:
         """
         Create a context cache with the given text contents.
@@ -196,28 +194,6 @@ class GoogleGenAICacheCreator:
             raise ValueError("contents produced no valid text parts to cache.")
 
         min_required = _min_cache_tokens_for_model(self._model)
-        if validate_min_tokens:
-            try:
-                count_response = self._client.models.count_tokens(
-                    model=self._model,
-                    contents=config_contents,
-                )
-                total = getattr(count_response, "total_tokens", None) or getattr(
-                    count_response, "total_token_count", None
-                )
-                if total is not None and system_instruction and system_instruction.strip():
-                    total = total + max(0, len(system_instruction.strip()) // 4)
-                if total is not None and total < min_required:
-                    raise ValueError(
-                        f"Cached content is too small: your content has approximately {total} tokens, "
-                        f"but this model requires at least {min_required} for context caching. "
-                        f"Add more text to 'contents', or use a Flash model (e.g. gemini-2.5-flash, "
-                        f"gemini-2.0-flash-001) which has a {MIN_CACHE_TOKENS_FLASH} token minimum."
-                    )
-            except Exception as e:
-                if isinstance(e, ValueError):
-                    raise
-                logger.debug("Pre-validation count_tokens failed, proceeding with create: %s", e)
 
         config_kwargs: dict[str, Any] = {
             "contents": config_contents,
@@ -230,31 +206,17 @@ class GoogleGenAICacheCreator:
         config = types.CreateCachedContentConfig(**config_kwargs)
         try:
             cache = self._client.caches.create(model=self._model, config=config)
-        except Exception as api_error:
-            err_msg = str(api_error).lower()
-            if "400" in err_msg or "invalid_argument" in err_msg:
-                if "too small" in err_msg or "min_total_token_count" in err_msg or "total_token_count" in err_msg:
-                    total_match = re.search(r"total_token_count[=:]?\s*(\d+)", str(api_error), re.IGNORECASE)
-                    min_match = re.search(r"min_total_token_count[=:]?\s*(\d+)", str(api_error), re.IGNORECASE)
-                    total_str = total_match.group(1) if total_match else "?"
-                    min_str = min_match.group(1) if min_match else str(min_required)
-                    raise ValueError(
-                        f"Cached content is too small: your content has {total_str} tokens, "
-                        f"but this model requires at least {min_str} for context caching. "
-                        f"Add more text to 'contents' (e.g. a longer document or multiple chunks). "
-                        f"For a lower minimum, use a Flash model (e.g. gemini-2.5-flash) which requires "
-                        f"only {MIN_CACHE_TOKENS_FLASH} tokens."
-                    ) from api_error
+        except Exception as e:
+            logger.error("Google GenAI cache creation failed: %s", e, exc_info=True)
             raise
-
         cache_name = getattr(cache, "name", None) or str(cache.name)
         expire_time = getattr(cache, "expire_time", None)
+
         if expire_time is not None and hasattr(expire_time, "isoformat"):
             expire_time = expire_time.isoformat()
+
         usage = getattr(cache, "usage_metadata", None)
-        total_token_count = (
-            getattr(usage, "total_token_count", None) if usage is not None else None
-        )
+        total_token_count = getattr(usage, "total_token_count", None) if usage is not None else None
 
         return {
             "cache_name": cache_name,

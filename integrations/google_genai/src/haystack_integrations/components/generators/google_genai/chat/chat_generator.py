@@ -422,8 +422,6 @@ def _convert_google_genai_response_to_chatmessage(response: types.GenerateConten
     # Create ChatMessage
     message = ChatMessage.from_assistant(text=text, tool_calls=tool_calls, meta=meta, reasoning=reasoning_content)
 
-    print(message)
-
     return message
 
 
