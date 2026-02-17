@@ -20,6 +20,7 @@ from haystack.dataclasses import (
 from haystack.tools import Tool, Toolset, create_tool_from_function
 from haystack.utils.auth import Secret
 
+from haystack_integrations.components.generators.google_genai.chat.cache_creator import GoogleGenAICacheCreator
 from haystack_integrations.components.generators.google_genai.chat.chat_generator import (
     GoogleGenAIChatGenerator,
     _convert_message_to_google_genai_format,
@@ -797,6 +798,35 @@ class TestMessagesConversion:
         assert message.text and "paris" in message.text.lower(), "Response does not contain Paris"
         assert "gemini-2.5-flash" in message.meta["model"]
         assert message.meta["finish_reason"] == "stop"
+
+    @pytest.mark.skipif(
+        not os.environ.get("GOOGLE_API_KEY", None),
+        reason="Export an env var called GOOGLE_API_KEY containing the Google API key to run this test.",
+    )
+    @pytest.mark.integration
+    def test_live_run_with_cache(self) -> None:
+        """Create a cache with GoogleGenAICacheCreator, then run chat generator with cached_content."""
+        long_content = "The quick brown fox jumps over the lazy dog. " * 120  # ~1024+ tokens for Flash
+        cache_creator = GoogleGenAICacheCreator(model="gemini-2.5-flash")
+        cache_result = cache_creator.run(contents=[long_content], display_name="test-cache", ttl="300s")
+        cache_name = cache_result["cache_name"]
+        chat = GoogleGenAIChatGenerator(model="gemini-2.5-flash")
+        results = chat.run(
+            [ChatMessage.from_user("Reply with exactly: OK")],
+            generation_kwargs={"cached_content": cache_name},
+        )
+        assert len(results["replies"]) == 1, "Expected exactly one reply"
+        message = results["replies"][0]
+        assert message.text, f"Expected non-empty reply text, got: {message.text!r}"
+        assert "gemini-2.5-flash" in message.meta["model"], f"Unexpected model in meta: {message.meta.get('model')}"
+        assert message.meta["finish_reason"] == "stop", f"Expected finish_reason 'stop', got: {message.meta.get('finish_reason')}"
+        usage = message.meta.get("usage")
+        assert usage is not None, "Expected 'usage' in reply meta"
+        assert "prompt_tokens" in usage, f"Expected 'prompt_tokens' in usage, keys: {list(usage.keys())}"
+        assert "total_tokens" in usage, f"Expected 'total_tokens' in usage, keys: {list(usage.keys())}"
+        assert usage.get("cached_content_token_count") is not None, (
+            "Expected cached_content_token_count in usage when using cached_content (cache was used)"
+        )
 
     @pytest.mark.skipif(
         not os.environ.get("GOOGLE_API_KEY", None),
