@@ -11,6 +11,7 @@ from haystack.dataclasses import (
     ToolCall,
     select_streaming_callback,
 )
+from haystack.dataclasses.chat_message import ReasoningContent
 from haystack.dataclasses.streaming_chunk import ComponentInfo, FinishReason, StreamingChunk, ToolCallDelta
 from haystack.tools import (
     ToolsType,
@@ -165,8 +166,8 @@ def _build_chunk(
     meta = {key: value for key, value in chunk_response_dict.items() if key != "message"}
     meta["role"] = chunk_response_dict["message"]["role"]
 
-    # until a specific field in StreamingChunk is available, we store the thinking in the meta
-    meta["reasoning"] = chunk_response_dict["message"].get("thinking", None)
+    thinking = chunk_response_dict["message"].get("thinking", None)
+    reasoning = ReasoningContent(reasoning_text=thinking) if thinking else None
 
     if tool_calls := chunk_response_dict["message"].get("tool_calls"):
         for tool_call in tool_calls:
@@ -187,6 +188,7 @@ def _build_chunk(
         finish_reason=finish_reason,
         component_info=component_info,
         tool_calls=tool_calls_list,
+        reasoning=reasoning,
     )
 
 
@@ -378,7 +380,7 @@ class OllamaChatGenerator:
         reasoning = ""
         for c in chunks:
             text += c.content
-            reasoning += c.meta.get("reasoning", None) or ""
+            reasoning += c.reasoning.reasoning_text if c.reasoning else ""
 
         tool_calls = []
         for tool_call_id in id_order:
@@ -449,7 +451,7 @@ class OllamaChatGenerator:
         reasoning = ""
         for c in chunks:
             text += c.content
-            reasoning += c.meta.get("reasoning", None) or ""
+            reasoning += c.reasoning.reasoning_text if c.reasoning else ""
 
         tool_calls = []
         for tool_call_id in id_order:
