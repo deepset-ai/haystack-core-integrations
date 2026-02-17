@@ -381,7 +381,11 @@ def _convert_google_genai_response_to_chatmessage(response: types.GenerateConten
         usage["thoughts_token_count"] = usage_metadata.thoughts_token_count
 
     # Add cached content token count if available (implicit or explicit context caching)
-    if usage_metadata and hasattr(usage_metadata, "cached_content_token_count") and usage_metadata.cached_content_token_count:
+    if (
+        usage_metadata
+        and hasattr(usage_metadata, "cached_content_token_count")
+        and usage_metadata.cached_content_token_count
+    ):
         usage["cached_content_token_count"] = usage_metadata.cached_content_token_count
 
     # Include all other usage_metadata fields using the same key names as the response

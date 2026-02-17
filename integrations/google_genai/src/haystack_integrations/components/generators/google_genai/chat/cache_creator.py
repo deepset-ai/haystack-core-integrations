@@ -106,9 +106,10 @@ class GoogleGenAICacheCreator:
         generation_kwargs={"cached_content": cache_name},
     )
     print(response["replies"][0].text)
-    """
+    """  # noqa: E501, RUF002
 
-    def __init__(self,
+    def __init__(
+        self,
         api_key: Secret = Secret.from_env_var(["GOOGLE_API_KEY", "GEMINI_API_KEY"], strict=False),
         api: Literal["gemini", "vertex"] = "gemini",
         vertex_ai_project: str | None = None,
@@ -134,12 +135,12 @@ class GoogleGenAICacheCreator:
 
     def to_dict(self) -> dict[str, Any]:
         return default_to_dict(
-        self,
-        api_key=self._api_key.to_dict(),
-        api=self._api,
-        vertex_ai_project=self._vertex_ai_project,
-        vertex_ai_location=self._vertex_ai_location,
-        model=self._model,
+            self,
+            api_key=self._api_key.to_dict(),
+            api=self._api,
+            vertex_ai_project=self._vertex_ai_project,
+            vertex_ai_location=self._vertex_ai_location,
+            model=self._model,
         )
 
     @classmethod
@@ -192,18 +193,21 @@ class GoogleGenAICacheCreator:
             "total_token_count" is the total number of tokens in the cached content,
         """
         if not contents:
-            raise ValueError("contents must contain at least one non-empty string.")
+            msg = "contents must be a non-empty list of strings. Received empty list."
+            raise ValueError(msg)
 
         config_contents = GoogleGenAICacheCreator._contents_to_config_parts(contents)
 
         if not config_contents:
-            raise ValueError("contents produced no valid text parts to cache.")
+            msg = "contents produced no valid text parts to cache. Ensure contents is a list of non-empty strings."
+            raise ValueError(msg)
 
         config_kwargs: dict[str, Any] = {
             "contents": config_contents,
             "display_name": display_name or "haystack-cache",
-            "system_instruction":
-                system_instruction.strip() if system_instruction and system_instruction.strip() else None,
+            "system_instruction": system_instruction.strip()
+            if system_instruction and system_instruction.strip()
+            else None,
             "ttl": ttl,
         }
 

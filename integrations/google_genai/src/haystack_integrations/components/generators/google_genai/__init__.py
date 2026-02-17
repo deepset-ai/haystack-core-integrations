@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from .chat.chat_generator import GoogleGenAIChatGenerator
 from .chat.cache_creator import GoogleGenAICacheCreator
+from .chat.chat_generator import GoogleGenAIChatGenerator
 
-__all__ = ["GoogleGenAIChatGenerator", "GoogleGenAICacheCreator"]
+__all__ = ["GoogleGenAICacheCreator", "GoogleGenAIChatGenerator"]
