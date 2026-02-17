@@ -14,31 +14,25 @@ from haystack_integrations.components.common.google_genai.utils import _get_clie
 
 logger = logging.getLogger(__name__)
 
-# Minimum token counts for context caching (see https://ai.google.dev/gemini-api/docs/caching)
-# Flash models: 1024; Pro (and most others): 4096.
-MIN_CACHE_TOKENS_FLASH = 1024
-MIN_CACHE_TOKENS_DEFAULT = 4096
-
-
-def _min_cache_tokens_for_model(model: str) -> int:
-    """Return the minimum token count required for context caching for this model."""
-    model_lower = model.lower()
-    return MIN_CACHE_TOKENS_FLASH if "flash" in model_lower else MIN_CACHE_TOKENS_DEFAULT
-
 
 @component
 class GoogleGenAICacheCreator:
     """
     Creates a Gemini context cache so that repeated `GoogleGenAIChatGenerator` requests can reuse cached tokens.
 
-    The returned `cache_name` can be passed to the `GoogleGenAIChatGenerator` via:
+    This context is stored server-side by Google and can be reused across multiple `GoogleGenAIChatGenerator`
+    calls until it expires. The returned `cache_name` is the reference to be passed to the `GoogleGenAIChatGenerator`
+    via:
 
         `generation_kwargs={"cached_content": cache_name}`
 
-    **Minimum token requirement:** Context caching has a minimum input size per model (see
-    https://ai.google.dev/gemini-api/docs/caching). Typical minimums: **1024** tokens for Flash models
-    (e.g. gemini-2.5-flash, gemini-2.0-flash-001), **4096** for Pro models. If your content is too small,
-    the API returns INVALID_ARGUMENT; this component can validate before creating and raise a clear error.
+    Context caching has a minimum input size per model, see https://ai.google.dev/gemini-api/docs/caching
+
+    Typical minimums:
+        1024 tokens for Flash models
+        4096 for Pro models.
+
+    If your content is too small, the API returns INVALID_ARGUMENT
 
     This component uses the same authentication as `GoogleGenAIChatGenerator`: set `GOOGLE_API_KEY` or
     `GEMINI_API_KEY`, or use `api="vertex"` with Application Default Credentials or API key.
@@ -158,7 +152,6 @@ class GoogleGenAICacheCreator:
         """Build Google GenAI Content list from a list of text strings."""
         if not contents:
             return []
-        # Single Content with one or more text parts
         parts = [types.Part(text=text) for text in contents if text.strip()]
         if not parts:
             return []
@@ -176,39 +169,52 @@ class GoogleGenAICacheCreator:
         """
         Create a context cache with the given text contents.
 
-        :param contents: List of text strings to cache (e.g. one or more document chunks). Must be
-            large enough for the model's minimum (typically 1024 tokens for Flash, 4096 for Pro).
+        :param contents: List of text strings to cache. Must be large enough for the model's minimum, typically 1024
+            tokens for Flash, 4096 for Pro.
         :param system_instruction: Optional system instruction to cache with the content.
         :param display_name: Optional human-readable name for the cache.
         :param ttl: Time-to-live, e.g. "3600s" (1 hour) or "86400s" (24 hours).
-        :param validate_min_tokens: If True (default), count tokens before creating and raise
-            ValueError if below the model's minimum, with a hint to add content or use a Flash model.
-        :returns: Dict with "cache_name" (use in generation_kwargs={"cached_content": cache_name}),
-            "expire_time" (ISO string if available), "total_token_count" (if available).
+        :returns:
+
+            A dict, with the following keys:
+
+            ```python
+            {
+                "cache_name": "example_cache_name",
+                "expire_time": "2023-12-31T23:59:59Z",  # ISO string format
+                "total_token_count": 2048
+            }
+            ```
+
+            "cache_name" is the value to be passed to `GoogleGenAIChatGenerator` for cache reuse, in
+                `generation_kwargs={"cached_content": cache_name}`
+            "expire_time" is the time when the cache will expire, in ISO string format.
+            "total_token_count" is the total number of tokens in the cached content,
         """
         if not contents:
             raise ValueError("contents must contain at least one non-empty string.")
 
         config_contents = GoogleGenAICacheCreator._contents_to_config_parts(contents)
+
         if not config_contents:
             raise ValueError("contents produced no valid text parts to cache.")
-
-        min_required = _min_cache_tokens_for_model(self._model)
 
         config_kwargs: dict[str, Any] = {
             "contents": config_contents,
             "display_name": display_name or "haystack-cache",
+            "system_instruction":
+                system_instruction.strip() if system_instruction and system_instruction.strip() else None,
             "ttl": ttl,
         }
-        if system_instruction and system_instruction.strip():
-            config_kwargs["system_instruction"] = system_instruction.strip()
 
         config = types.CreateCachedContentConfig(**config_kwargs)
+
         try:
             cache = self._client.caches.create(model=self._model, config=config)
         except Exception as e:
             logger.error("Google GenAI cache creation failed: %s", e, exc_info=True)
             raise
+
         cache_name = getattr(cache, "name", None) or str(cache.name)
         expire_time = getattr(cache, "expire_time", None)
 
