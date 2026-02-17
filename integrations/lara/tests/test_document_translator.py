@@ -61,19 +61,6 @@ class TestLaraDocumentTranslator:
         assert translator.adapt_to == ["tm-1"]
         assert translator.glossaries == ["glossary-1"]
         assert translator.reasoning is True
-    
-    def test_to_dict(self):
-        translator = LaraDocumentTranslator(
-            source_lang="en-US",
-            target_lang="de-DE",
-        )
-        data = translator.to_dict()
-        assert data["type"] == "haystack_integrations.components.translators.lara.document_translator.LaraDocumentTranslator"
-        init_params = data["init_parameters"]
-        assert init_params["source_lang"] == "en-US"
-        assert init_params["target_lang"] == "de-DE"
-        assert "access_key_id" in init_params
-        assert "access_key_secret" in init_params
 
     def test_from_dict(self, monkeypatch):
         monkeypatch.setenv("LARA_ACCESS_KEY_ID", "from-env-id")
@@ -94,14 +81,16 @@ class TestLaraDocumentTranslator:
         assert translator.style == "creative"
         assert translator.access_key_id.resolve_value() == "from-env-id"
         assert translator.access_key_secret.resolve_value() == "from-env-secret"
-    
+
     def test_to_dict(self):
         translator = LaraDocumentTranslator(
             source_lang="en-US",
             target_lang="de-DE",
         )
         data = translator.to_dict()
-        assert data["type"] == "haystack_integrations.components.translators.lara.document_translator.LaraDocumentTranslator"
+        assert data["type"] == (
+            "haystack_integrations.components.translators.lara.document_translator.LaraDocumentTranslator"
+        )
         init_params = data["init_parameters"]
         assert init_params["source_lang"] == "en-US"
         assert init_params["target_lang"] == "de-DE"
@@ -117,7 +106,9 @@ class TestLaraDocumentTranslator:
         )
         doc = Document(content="Hello, world!", meta={"source": "test"})
 
-        with patch("haystack_integrations.components.translators.lara.document_translator.Translator") as mock_translator_cls:
+        with patch(
+            "haystack_integrations.components.translators.lara.document_translator.Translator"
+        ) as mock_translator_cls:
             mock_translator = MagicMock()
             mock_translator.translate.return_value = mock_translation_response
             mock_translator_cls.return_value = mock_translator
@@ -143,7 +134,9 @@ class TestLaraDocumentTranslator:
         doc1 = Document(content="First")
         doc2 = Document(content="Second")
 
-        with patch("haystack_integrations.components.translators.lara.document_translator.Translator") as mock_translator_cls:
+        with patch(
+            "haystack_integrations.components.translators.lara.document_translator.Translator"
+        ) as mock_translator_cls:
             mock_translator = MagicMock()
             mock_translator.translate.return_value = mock_translation_response
             mock_translator_cls.return_value = mock_translator
@@ -166,7 +159,9 @@ class TestLaraDocumentTranslator:
         )
         doc = Document(content="Translate this.")
 
-        with patch("haystack_integrations.components.translators.lara.document_translator.Translator") as mock_translator_cls:
+        with patch(
+            "haystack_integrations.components.translators.lara.document_translator.Translator"
+        ) as mock_translator_cls:
             mock_translator = MagicMock()
             mock_translator.translate.return_value = mock_translation_response
             mock_translator_cls.return_value = mock_translator
@@ -191,7 +186,9 @@ class TestLaraDocumentTranslator:
         )
         doc = Document(content="Hi")
 
-        with patch("haystack_integrations.components.translators.lara.document_translator.Translator") as mock_translator_cls:
+        with patch(
+            "haystack_integrations.components.translators.lara.document_translator.Translator"
+        ) as mock_translator_cls:
             mock_translator = MagicMock()
             mock_translator.translate.return_value = mock_translation_response
             mock_translator_cls.return_value = mock_translator
@@ -214,21 +211,25 @@ class TestLaraDocumentTranslator:
             access_key_secret=Secret.from_token("key-secret"),
             target_lang="de-DE",
         )
-        with patch("haystack_integrations.components.translators.lara.document_translator.Translator") as mock_translator_cls:
+        with patch(
+            "haystack_integrations.components.translators.lara.document_translator.Translator"
+        ) as mock_translator_cls:
             mock_translator = MagicMock()
             mock_translator_cls.return_value = mock_translator
             result = translator.run(documents=[])
         assert result["documents"] == []
         mock_translator.translate.assert_not_called()
 
-    def test_run_with_no_content_document(self, mock_translation_response):
+    def test_run_with_no_content_document(self):
         translator = LaraDocumentTranslator(
             access_key_id=Secret.from_token("key-id"),
             access_key_secret=Secret.from_token("key-secret"),
             target_lang="de-DE",
         )
         doc = Document(content="")
-        with patch("haystack_integrations.components.translators.lara.document_translator.Translator") as mock_translator_cls:
+        with patch(
+            "haystack_integrations.components.translators.lara.document_translator.Translator"
+        ) as mock_translator_cls:
             mock_translator = MagicMock()
             mock_translator_cls.return_value = mock_translator
             result = translator.run(documents=[doc])
@@ -421,7 +422,9 @@ class TestLaraDocumentTranslator:
             MagicMock(translation=[MagicMock(text="Zwei")]),
         ]
 
-        with patch("haystack_integrations.components.translators.lara.document_translator.Translator") as mock_translator_cls:
+        with patch(
+            "haystack_integrations.components.translators.lara.document_translator.Translator"
+        ) as mock_translator_cls:
             mock_translator = MagicMock()
             mock_translator.translate.side_effect = responses
             mock_translator_cls.return_value = mock_translator
