@@ -238,10 +238,10 @@ class TestStreamingChunkConversion:
         assert streaming_chunk1.index == 0
         assert "received_at" in streaming_chunk1.meta
         assert streaming_chunk1.meta["model"] == "gemini-2.5-flash"
-        assert "meta" in streaming_chunk1.meta and "usage" in streaming_chunk1.meta["meta"]
-        assert streaming_chunk1.meta["meta"]["usage"]["prompt_tokens"] == 217
-        assert streaming_chunk1.meta["meta"]["usage"]["completion_tokens"] is None
-        assert streaming_chunk1.meta["meta"]["usage"]["total_tokens"] == 217
+        assert "usage" in streaming_chunk1.meta
+        assert streaming_chunk1.meta["usage"]["prompt_tokens"] == 217
+        assert streaming_chunk1.meta["usage"]["completion_tokens"] is None
+        assert streaming_chunk1.meta["usage"]["total_tokens"] == 217
         assert streaming_chunk1.component_info == component_info
 
         # Chunk 2: Text only
@@ -285,10 +285,10 @@ class TestStreamingChunkConversion:
         assert streaming_chunk2.index == 1
         assert "received_at" in streaming_chunk2.meta
         assert streaming_chunk2.meta["model"] == "gemini-2.5-flash"
-        assert "meta" in streaming_chunk2.meta and "usage" in streaming_chunk2.meta["meta"]
-        assert streaming_chunk2.meta["meta"]["usage"]["prompt_tokens"] == 217
-        assert streaming_chunk2.meta["meta"]["usage"]["completion_tokens"] is None
-        assert streaming_chunk2.meta["meta"]["usage"]["total_tokens"] == 217
+        assert "usage" in streaming_chunk2.meta
+        assert streaming_chunk2.meta["usage"]["prompt_tokens"] == 217
+        assert streaming_chunk2.meta["usage"]["completion_tokens"] is None
+        assert streaming_chunk2.meta["usage"]["total_tokens"] == 217
         assert streaming_chunk2.component_info == component_info
 
         # Chunk 3: Multiple tool calls (6 function calls) for 2 cities with 3 tools each
@@ -348,10 +348,10 @@ class TestStreamingChunkConversion:
         assert "received_at" in streaming_chunk.meta
         assert streaming_chunk.meta["model"] == "gemini-2.5-flash"
         assert streaming_chunk.component_info == component_info
-        assert "meta" in streaming_chunk.meta and "usage" in streaming_chunk.meta["meta"]
-        assert streaming_chunk.meta["meta"]["usage"]["prompt_tokens"] == 144
-        assert streaming_chunk.meta["meta"]["usage"]["completion_tokens"] == 121
-        assert streaming_chunk.meta["meta"]["usage"]["total_tokens"] == 265
+        assert "usage" in streaming_chunk.meta
+        assert streaming_chunk.meta["usage"]["prompt_tokens"] == 144
+        assert streaming_chunk.meta["usage"]["completion_tokens"] == 121
+        assert streaming_chunk.meta["usage"]["total_tokens"] == 265
 
         assert streaming_chunk.tool_calls[0].tool_name == "get_weather"
         assert streaming_chunk.tool_calls[0].arguments == '{"city": "Paris"}'
@@ -819,13 +819,13 @@ class TestMessagesConversion:
         # First request – fills the cache
         out1 = chat_generator.run(messages=messages)
         reply1 = out1["replies"][0]
-        usage1 = reply1.meta.get("meta", {}).get("usage") or {}
+        usage1 = reply1.meta.get("usage") or {}
         assert "prompt_tokens" in usage1 or "total_tokens" in usage1, "First request should have usage"
 
         # Second request – same prefix, may hit implicit cache
         out2 = chat_generator.run(messages=messages)
         reply2 = out2["replies"][0]
-        usage2 = reply2.meta.get("meta", {}).get("usage") or {}
+        usage2 = reply2.meta.get("usage") or {}
         assert "prompt_tokens" in usage2 or "total_tokens" in usage2, "Second request should have usage"
         # When implicit cache hits, cached_content_token_count may be non-zero (best-effort, not guaranteed)
 
@@ -1155,11 +1155,11 @@ class TestMessagesConversion:
         assert len(message.reasonings) > 0
         assert all(isinstance(r, ReasoningContent) for r in message.reasonings)
 
-        # Check for thinking token usage (usage is inside meta.meta.usage)
-        assert "meta" in message.meta and "usage" in message.meta["meta"]
-        assert "thoughts_token_count" in message.meta["meta"]["usage"]
-        assert message.meta["meta"]["usage"]["thoughts_token_count"] is not None
-        assert message.meta["meta"]["usage"]["thoughts_token_count"] > 0
+        # Check for thinking token usage
+        assert "usage" in message.meta
+        assert "thoughts_token_count" in message.meta["usage"]
+        assert message.meta["usage"]["thoughts_token_count"] is not None
+        assert message.meta["usage"]["thoughts_token_count"] > 0
 
     @pytest.mark.skipif(
         not os.environ.get("GOOGLE_API_KEY", None),
@@ -1353,11 +1353,11 @@ class TestAsyncGoogleGenAIChatGenerator:
         assert len(message.reasonings) > 0
         assert all(isinstance(r, ReasoningContent) for r in message.reasonings)
 
-        # Check for thinking token usage (usage is inside meta.meta.usage)
-        assert "meta" in message.meta and "usage" in message.meta["meta"]
-        assert "thoughts_token_count" in message.meta["meta"]["usage"]
-        assert message.meta["meta"]["usage"]["thoughts_token_count"] is not None
-        assert message.meta["meta"]["usage"]["thoughts_token_count"] > 0
+        # Check for thinking token usage
+        assert "usage" in message.meta
+        assert "thoughts_token_count" in message.meta["usage"]
+        assert message.meta["usage"]["thoughts_token_count"] is not None
+        assert message.meta["usage"]["thoughts_token_count"] > 0
 
     async def test_live_run_async_with_thinking_unsupported_model_fails_fast(self):
         """
@@ -1412,14 +1412,14 @@ def test_aggregate_streaming_chunks_with_reasoning(monkeypatch):
     chunk1 = Mock()
     chunk1.content = "Hello"
     chunk1.tool_calls = []
-    chunk1.meta = {"meta": {"usage": {"prompt_tokens": 10, "completion_tokens": 5}}}
+    chunk1.meta = {"usage": {"prompt_tokens": 10, "completion_tokens": 5}}
     chunk1.component_info = component_info
     chunk1.reasoning = None
 
     chunk2 = Mock()
     chunk2.content = " world"
     chunk2.tool_calls = []
-    chunk2.meta = {"meta": {"usage": {"prompt_tokens": 10, "completion_tokens": 8}}}
+    chunk2.meta = {"usage": {"prompt_tokens": 10, "completion_tokens": 8}}
     chunk2.component_info = component_info
     chunk2.reasoning = None
 
@@ -1428,7 +1428,7 @@ def test_aggregate_streaming_chunks_with_reasoning(monkeypatch):
     final_chunk.content = ""
     final_chunk.tool_calls = []
     final_chunk.meta = {
-        "meta": {"usage": {"prompt_tokens": 10, "completion_tokens": 13, "thoughts_token_count": 5}},
+        "usage": {"prompt_tokens": 10, "completion_tokens": 13, "thoughts_token_count": 5},
         "model": "gemini-2.5-pro",
     }
     final_chunk.component_info = component_info
@@ -1445,9 +1445,9 @@ def test_aggregate_streaming_chunks_with_reasoning(monkeypatch):
     assert result.tool_calls == []
     assert result.reasoning is not None
     assert result.reasoning.reasoning_text == "I should greet the user politely"
-    assert result.meta["meta"]["usage"]["prompt_tokens"] == 10
-    assert result.meta["meta"]["usage"]["completion_tokens"] == 13
-    assert result.meta["meta"]["usage"]["thoughts_token_count"] == 5
+    assert result.meta["usage"]["prompt_tokens"] == 10
+    assert result.meta["usage"]["completion_tokens"] == 13
+    assert result.meta["usage"]["thoughts_token_count"] == 5
     assert result.meta["model"] == "gemini-2.5-pro"
 
 
