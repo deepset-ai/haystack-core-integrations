@@ -24,6 +24,7 @@ from haystack_integrations.components.generators.google_genai.chat.chat_generato
     GoogleGenAIChatGenerator,
     _convert_google_genai_response_to_chatmessage,
     _convert_message_to_google_genai_format,
+    _usage_metadata_value_to_serializable,
 )
 
 
@@ -422,6 +423,63 @@ def test_convert_google_genai_response_to_chatmessage_parses_cached_tokens(monke
     assert usage["completion_tokens"] == 5
     assert usage["total_tokens"] == 1005
     assert usage["cached_content_token_count"] == 800
+
+
+def test_usage_metadata_value_to_serializable():
+    """_usage_metadata_value_to_serializable handles only UsageMetadata value types"""
+    # None
+    assert _usage_metadata_value_to_serializable(None) is None
+
+    # primitive types
+    assert _usage_metadata_value_to_serializable(42) == 42
+    assert _usage_metadata_value_to_serializable(0) == 0
+    assert _usage_metadata_value_to_serializable("TEXT") == "TEXT"
+    assert _usage_metadata_value_to_serializable(1.5) == 1.5
+    assert _usage_metadata_value_to_serializable(True) is True
+
+    # list of primitives
+    assert _usage_metadata_value_to_serializable([1, 2, 3]) == [1, 2, 3]
+
+    # ModalityTokenCount-like
+    class ModalityTokenCount:
+        def __init__(self, modality, token_count):
+            self.modality = modality
+            self.token_count = token_count
+
+    mod_enum = type("Modality", (), {"name": "TEXT", "value": "TEXT"})()
+    obj = ModalityTokenCount(mod_enum, 100)
+    result = _usage_metadata_value_to_serializable(obj)
+    assert result == {"modality": "TEXT", "token_count": 100}
+
+    # ModalityTokenCount with tokenCount
+    class ModalityTokenCountCamel:
+        def __init__(self, modality, tokenCount):
+            self.modality = modality
+            self.tokenCount = tokenCount
+
+    obj_camel = ModalityTokenCountCamel(mod_enum, 200)
+    result_camel = _usage_metadata_value_to_serializable(obj_camel)
+    assert result_camel == {"modality": "TEXT", "token_count": 200}
+
+    # list of ModalityTokenCount
+    list_result = _usage_metadata_value_to_serializable([obj, obj_camel])
+    assert list_result == [
+        {"modality": "TEXT", "token_count": 100},
+        {"modality": "TEXT", "token_count": 200},
+    ]
+
+    # enum-like
+    class EnumWithValue:
+        name = "TEXT"
+        value = "TEXT"
+
+    assert _usage_metadata_value_to_serializable(EnumWithValue) == "TEXT"
+
+    # enum-like with only name
+    class EnumNameOnly:
+        name = "AUDIO"
+
+    assert _usage_metadata_value_to_serializable(EnumNameOnly) == "AUDIO"
 
 
 class TestGoogleGenAIChatGenerator:

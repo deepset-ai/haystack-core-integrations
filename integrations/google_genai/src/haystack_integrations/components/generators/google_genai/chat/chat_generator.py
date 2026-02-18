@@ -9,6 +9,7 @@ from datetime import datetime, timezone
 from typing import Any, Literal
 
 from google.genai import types
+from google.genai.types import UsageMetadata
 from haystack import logging
 from haystack.components.generators.utils import _convert_streaming_chunks_to_chat_message
 from haystack.core.component import component
@@ -297,22 +298,35 @@ def _convert_tools_to_google_genai_format(tools: ToolsType) -> list[types.Tool]:
     return [types.Tool(function_declarations=function_declarations)]
 
 
-def _usage_metadata_value_to_serializable(val: Any) -> Any:
-    """Convert a usage_metadata field value to a JSON-serializable form (same key names as response)."""
+def _usage_metadata_value_to_serializable(val: UsageMetadata) -> Any:
+    """Convert a UsageMetadata field value to a JSON-serializable form.
+
+    Handles only the value types defined in the Gemini API UsageMetadata:
+    https://ai.google.dev/api/generate-content#UsageMetadata
+
+    - Primitives: int, float, bool, str (e.g. token counts, traffic_type as string).
+    - Lists: lists of ModalityTokenCount (e.g. prompt_tokens_details, cache_tokens_details).
+    - ModalityTokenCount: object with modality (enum) and token_count / tokenCount.
+    - Enums: objects with name or value (e.g. modality, traffic_type).
+    """
+
     if val is None:
         return None
     if isinstance(val, (str, int, float, bool)):
         return val
     if isinstance(val, list):
         return [_usage_metadata_value_to_serializable(item) for item in val]
-    if hasattr(val, "modality") and hasattr(val, "token_count"):
+    
+    # ModalityTokenCount
+    token_count = getattr(val, "token_count", None) or getattr(val, "tokenCount", None)
+    if hasattr(val, "modality") and token_count is not None:
         mod = getattr(val, "modality", None)
-        mod_str = getattr(mod, "name", getattr(mod, "value", str(mod))) if mod is not None else None
-        return {"modality": mod_str, "token_count": getattr(val, "token_count", None)}
+        mod_str = getattr(mod, "value", getattr(mod, "name", str(mod))) if mod is not None else None
+        return {"modality": mod_str, "token_count": token_count}
+    
+    # Enum-like
     if hasattr(val, "name"):
-        return getattr(val, "value", val.name)
-    if hasattr(val, "__dict__"):
-        return {k: _usage_metadata_value_to_serializable(getattr(val, k)) for k in vars(val)}
+        return getattr(val, "value", getattr(val, "name", val))
     return val
 
 
@@ -388,9 +402,8 @@ def _convert_google_genai_response_to_chatmessage(response: types.GenerateConten
     ):
         usage["cached_content_token_count"] = usage_metadata.cached_content_token_count
 
-    # Include all other usage_metadata fields using the same key names as the response
-    # see the full list of usage_metadata fields in the documentation:
-    # https://docs.cloud.google.com/vertex-ai/generative-ai/docs/reference/rest/v1beta1/GenerateContentResponse#UsageMetadata # noqa: E501
+    # Include all other usage_metadata fields using the same key names as the response.
+    # Full list of UsageMetadata fields: https://ai.google.dev/api/generate-content#UsageMetadata
     if usage_metadata:
         _usage_attr_names = (
             "prompt_token_count",
