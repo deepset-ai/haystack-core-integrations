@@ -299,7 +299,7 @@ def _convert_tools_to_google_genai_format(tools: ToolsType) -> list[types.Tool]:
 
 
 def _convert_usage_metadata_to_serializable(
-        usage_metadata: UsageMetadata|GenerateContentResponseUsageMetadata|None
+    usage_metadata: UsageMetadata | GenerateContentResponseUsageMetadata | None,
 ) -> dict[str, Any]:
     """Build a JSON-serializable usage dict from a UsageMetadata object.
 
