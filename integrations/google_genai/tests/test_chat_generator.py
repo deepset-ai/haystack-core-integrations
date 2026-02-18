@@ -22,6 +22,7 @@ from haystack.utils.auth import Secret
 
 from haystack_integrations.components.generators.google_genai.chat.chat_generator import (
     GoogleGenAIChatGenerator,
+    _convert_google_genai_response_to_chatmessage,
     _convert_message_to_google_genai_format,
 )
 
@@ -382,6 +383,45 @@ class TestStreamingChunkConversion:
         assert streaming_chunk.tool_calls[5].arguments == '{"city": "Berlin"}'
         assert streaming_chunk.tool_calls[5].id is None
         assert streaming_chunk.tool_calls[5].index == 5
+
+
+def test_convert_google_genai_response_to_chatmessage_parses_cached_tokens(monkeypatch):
+    """When the API response includes cached_content_token_count in usage_metadata, it is parsed into meta['usage']."""
+    monkeypatch.setenv("GOOGLE_API_KEY", "test-api-key")
+
+    # Minimal candidate with one text part
+    mock_part = Mock()
+    mock_part.text = "Four."
+    mock_part.function_call = None
+    mock_part.thought = False
+    mock_part.thought_signature = None
+    mock_content = Mock()
+    mock_content.parts = [mock_part]
+    mock_candidate = Mock()
+    mock_candidate.content = mock_content
+    mock_candidate.finish_reason = "STOP"
+
+    # Usage metadata including cached tokens (as returned by API when cache is used)
+    mock_usage = Mock()
+    mock_usage.prompt_token_count = 1000
+    mock_usage.candidates_token_count = 5
+    mock_usage.total_token_count = 1005
+    mock_usage.cached_content_token_count = 800
+    mock_usage.thoughts_token_count = None
+
+    mock_response = Mock()
+    mock_response.candidates = [mock_candidate]
+    mock_response.usage_metadata = mock_usage
+
+    message = _convert_google_genai_response_to_chatmessage(mock_response, "gemini-2.5-flash")
+
+    assert message.meta is not None
+    assert "usage" in message.meta
+    usage = message.meta["usage"]
+    assert usage["prompt_tokens"] == 1000
+    assert usage["completion_tokens"] == 5
+    assert usage["total_tokens"] == 1005
+    assert usage["cached_content_token_count"] == 800
 
 
 class TestGoogleGenAIChatGenerator:
@@ -828,6 +868,88 @@ class TestMessagesConversion:
         usage2 = reply2.meta.get("usage") or {}
         assert "prompt_tokens" in usage2 or "total_tokens" in usage2, "Second request should have usage"
         # When implicit cache hits, cached_content_token_count may be non-zero (best-effort, not guaranteed)
+
+    @pytest.mark.skipif(
+        not os.environ.get("GOOGLE_API_KEY", None),
+        reason="Export an env var called GOOGLE_API_KEY containing the Google API key to run this test.",
+    )
+    @pytest.mark.integration
+    def test_live_run_implicit_cache_usage_returned(self) -> None:
+        """Send 10+ questions with a long music-theory system prompt; assert cached tokens appear in at least one reply."""
+        MUSIC_THEORY_CONTEXT = """
+You are a patient and precise music theory teacher. You answer only from this reference. Be concise but accurate.
+
+## Core concepts
+
+**Pitch and intervals**
+- Notes are named A–G; with sharps/flats we get 12 distinct pitches per octave (chromatic scale).
+- An *interval* is the distance between two notes. *Semitone* = 1 half step (e.g. C–C♯). *Tone* = 2 half steps (e.g. C–D).
+- Common intervals: unison (0), minor 2nd (1 semitone), major 2nd (2), minor 3rd (3), major 3rd (4), perfect 4th (5), tritone (6), perfect 5th (7), minor 6th (8), major 6th (9), minor 7th (10), major 7th (11), octave (12).
+- *Inversion*: flip the interval (e.g. 4th up → 5th down). Inversion pairs: 2nd↔7th, 3rd↔6th, 4th↔5th; major↔minor, perfect stays perfect; dim↔aug.
+
+**Scales**
+- *Major scale*: W–W–H–W–W–W–H (e.g. C major: C D E F G A B C). Tonic, supertonic, mediant, subdominant, dominant, submediant, leading tone.
+- *Natural minor*: same notes as major from the 6th degree (e.g. A minor relative to C major): W–H–W–W–H–W–W.
+- *Harmonic minor*: natural minor with raised 7th (e.g. A B C D E F G♯ A). Creates a leading tone and an augmented 2nd between ♭6 and ♯7.
+- *Melodic minor*: ascending raises 6 and 7; descending often reverts to natural minor.
+- *Circle of fifths*: key signatures. Moving clockwise (C→G→D→A…): add a sharp (or remove a flat). Counter-clockwise: add a flat (or remove a sharp). Order of sharps: F C G D A E B. Order of flats: B E A D G C F.
+
+**Chords**
+- *Triads*: root, 3rd, 5th. Major (M3 + m3), minor (m3 + M3), diminished (m3 + m3), augmented (M3 + M3).
+- In *roman numerals*, uppercase = major, lowercase = minor, ° = diminished, + = augmented. In C: I = C, ii = Dm, iii = Em, IV = F, V = G, vi = Am, vii° = Bdim.
+- *Seventh chords*: add a 7th. Dominant 7 (V7): major triad + minor 7th (e.g. G7). Major 7 (e.g. Cmaj7): major triad + major 7th. Minor 7 (e.g. Dm7): minor triad + minor 7th. Half-diminished (e.g. Bm7♭5): dim triad + minor 7th.
+- *Cadences*: authentic (V→I), plagal (IV→I), half (any→V), deceptive (V→vi).
+
+**Rhythm and meter**
+- *Beat*: steady pulse. *Meter*: grouping of beats (e.g. 4/4 = four quarter notes per bar).
+- *Note values*: whole, half, quarter, eighth, sixteenth (and dotted variants = 1.5× duration).
+- *Time signatures*: top = beats per bar, bottom = note value that gets one beat (4 = quarter, 8 = eighth). Common: 4/4, 3/4, 6/8 (two groups of three eighths).
+- *Syncopation*: emphasis on off-beats or weak beats.
+
+**Modes and colour**
+- *Modes* are scales that use the same seven notes as major but start on a different degree. Ionian = major (C to C); Dorian (D to D in C major, ♭3 ♭7); Phrygian (E to E, ♭2 ♭3 ♭6 ♭7); Lydian (F to F, ♯4); Mixolydian (G to G, ♭7); Aeolian = natural minor (A to A); Locrian (B to B, ♭2 ♭3 ♭5 ♭6 ♭7).
+- *Transposition*: moving a phrase or piece to another key; keep the same intervals. *Modulation*: changing key within a piece; common pivot chords link the old and new keys.
+
+**Form and texture**
+- *Phrase*: short unit (often 4 or 8 bars). *Period*: two phrases (e.g. antecedent–consequent).
+- *Texture*: monophonic (one line), homophonic (melody + chords), polyphonic (several independent lines).
+
+Answer only from this reference. If the question is outside it, say so and suggest rephrasing.
+"""
+        chat_generator = GoogleGenAIChatGenerator(model="gemini-2.5-flash")
+        chord_questions = [
+            "What is a triad? Name the four types.",
+            "What is a dominant 7th chord? Give an example in C.",
+            "What is an authentic cadence?",
+            "What is a minor triad made of?",
+            "What does vii° mean in roman numerals in C major?",
+            "What is a plagal cadence?",
+            "What is a major 7th chord? Example in C.",
+            "What is a half-diminished seventh chord?",
+            "What is a deceptive cadence?",
+            "What is the difference between major and minor triads?",
+            "Name the chord tones in a dominant 7th in G.",
+        ]
+        replies = []
+        usages = []
+        for question in chord_questions:
+            messages = [
+                ChatMessage.from_system(MUSIC_THEORY_CONTEXT),
+                ChatMessage.from_user(question),
+            ]
+            out = chat_generator.run(messages=messages)
+            reply = out["replies"][0]
+            replies.append(reply)
+            usage = reply.meta.get("usage") or {}
+            usages.append(usage)
+            assert "prompt_tokens" in usage or "total_tokens" in usage, f"Usage should contain token counts: {usage}"
+
+        # Implicit cache: same long system prefix across requests can yield cached_content_token_count in at least one
+        any_cached = any((u.get("cached_content_token_count") or 0) > 0 for u in usages)
+        assert any_cached, (
+            "Expected cached_content_token_count > 0 in at least one reply (implicit cache). "
+            f"Usages: {usages}"
+        )
 
     @pytest.mark.skipif(
         not os.environ.get("GOOGLE_API_KEY", None),
