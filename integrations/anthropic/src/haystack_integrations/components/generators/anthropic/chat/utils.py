@@ -404,12 +404,14 @@ def _process_reasoning_contents(chunks: list[StreamingChunk]) -> ReasoningConten
         if chunk.reasoning is None:
             continue
 
-        # Skip chunks with empty reasoning content
-        if (
-            not chunk.reasoning.reasoning_text
-            and not chunk.reasoning.extra.get("signature")
-            and not chunk.reasoning.extra.get("redacted_thinking")
-        ):
+        # Only thinking text or redacted thinking trigger grouping. Signatures are metadata only
+        has_thinking_text = bool(chunk.reasoning.reasoning_text)
+        has_redacted_thinking = chunk.reasoning.extra.get("redacted_thinking") is not None
+
+        if not (has_thinking_text or has_redacted_thinking):
+            # This is a signature-only chunk. Accumulate it but don't start a new group.
+            if chunk.reasoning.extra.get("signature") is not None:
+                content_block_signature = chunk.reasoning.extra["signature"]
             continue
 
         # Start new group when index changes
