@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2022-present deepset GmbH <info@deepset.ai>
+#
+# SPDX-License-Identifier: Apache-2.0
+
 import asyncio
 import base64
 import os
@@ -24,7 +28,7 @@ from haystack_integrations.components.generators.google_genai.chat.chat_generato
     GoogleGenAIChatGenerator,
     _convert_google_genai_response_to_chatmessage,
     _convert_message_to_google_genai_format,
-    _usage_metadata_value_to_serializable,
+    _convert_usage_metadata_to_serializable,
 )
 
 
@@ -425,61 +429,42 @@ def test_convert_google_genai_response_to_chatmessage_parses_cached_tokens(monke
     assert usage["cached_content_token_count"] == 800
 
 
-def test_usage_metadata_value_to_serializable():
-    """_usage_metadata_value_to_serializable handles only UsageMetadata value types"""
-    # None
-    assert _usage_metadata_value_to_serializable(None) is None
+def test_convert_usage_metadata_to_serializable():
+    """_convert_usage_metadata_to_serializable builds a serializable dict from a UsageMetadata object."""
+    assert _convert_usage_metadata_to_serializable(None) == {}
+    assert _convert_usage_metadata_to_serializable(False) == {}
 
-    # primitive types
-    assert _usage_metadata_value_to_serializable(42) == 42
-    assert _usage_metadata_value_to_serializable(0) == 0
-    assert _usage_metadata_value_to_serializable("TEXT") == "TEXT"
-    assert _usage_metadata_value_to_serializable(1.5) == 1.5
-    assert _usage_metadata_value_to_serializable(True) is True
+    mock_usage = Mock()
+    mock_usage.prompt_token_count = 100
+    mock_usage.candidates_token_count = 5
+    mock_usage.total_token_count = 105
+    mock_usage.cache_tokens_details = None
+    mock_usage.candidates_tokens_details = None
+    mock_usage.prompt_tokens_details = None
+    mock_usage.tool_use_prompt_token_count = None
+    mock_usage.tool_use_prompt_tokens_details = None
 
-    # list of primitives
-    assert _usage_metadata_value_to_serializable([1, 2, 3]) == [1, 2, 3]
+    result = _convert_usage_metadata_to_serializable(mock_usage)
+    assert result["prompt_token_count"] == 100
+    assert result["candidates_token_count"] == 5
+    assert result["total_token_count"] == 105
+    assert len(result) == 3
 
-    # ModalityTokenCount-like
-    class ModalityTokenCount:
-        def __init__(self, modality, token_count):
-            self.modality = modality
-            self.token_count = token_count
+    # Serialization of zero and composite types (ModalityTokenCount, lists)
+    obj = types.ModalityTokenCount(modality=types.Modality.TEXT, tokenCount=100)
+    mock_with_details = Mock()
+    mock_with_details.prompt_token_count = 0
+    mock_with_details.candidates_token_count = None
+    mock_with_details.total_token_count = None
+    mock_with_details.cache_tokens_details = None
+    mock_with_details.candidates_tokens_details = [obj]
+    mock_with_details.prompt_tokens_details = None
+    mock_with_details.tool_use_prompt_token_count = None
+    mock_with_details.tool_use_prompt_tokens_details = None
 
-    mod_enum = type("Modality", (), {"name": "TEXT", "value": "TEXT"})()
-    obj = ModalityTokenCount(mod_enum, 100)
-    result = _usage_metadata_value_to_serializable(obj)
-    assert result == {"modality": "TEXT", "token_count": 100}
-
-    # ModalityTokenCount with tokenCount
-    class ModalityTokenCountCamel:
-        def __init__(self, modality, token_count):
-            self.modality = modality
-            self.tokenCount = token_count
-
-    obj_camel = ModalityTokenCountCamel(mod_enum, 200)
-    result_camel = _usage_metadata_value_to_serializable(obj_camel)
-    assert result_camel == {"modality": "TEXT", "token_count": 200}
-
-    # list of ModalityTokenCount
-    list_result = _usage_metadata_value_to_serializable([obj, obj_camel])
-    assert list_result == [
-        {"modality": "TEXT", "token_count": 100},
-        {"modality": "TEXT", "token_count": 200},
-    ]
-
-    # enum-like
-    class EnumWithValue:
-        name = "TEXT"
-        value = "TEXT"
-
-    assert _usage_metadata_value_to_serializable(EnumWithValue) == "TEXT"
-
-    # enum-like with only name
-    class EnumNameOnly:
-        name = "AUDIO"
-
-    assert _usage_metadata_value_to_serializable(EnumNameOnly) == "AUDIO"
+    result2 = _convert_usage_metadata_to_serializable(mock_with_details)
+    assert result2["prompt_token_count"] == 0
+    assert result2["candidates_tokens_details"] == [{"modality": "TEXT", "token_count": 100}]
 
 
 class TestGoogleGenAIChatGenerator:

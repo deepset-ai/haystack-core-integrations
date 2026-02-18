@@ -9,7 +9,6 @@ from datetime import datetime, timezone
 from typing import Any, Literal
 
 from google.genai import types
-from google.genai.types import UsageMetadata
 from haystack import logging
 from haystack.components.generators.utils import _convert_streaming_chunks_to_chat_message
 from haystack.core.component import component
@@ -298,36 +297,48 @@ def _convert_tools_to_google_genai_format(tools: ToolsType) -> list[types.Tool]:
     return [types.Tool(function_declarations=function_declarations)]
 
 
-def _usage_metadata_value_to_serializable(val: UsageMetadata) -> Any:
-    """Convert a UsageMetadata field value to a JSON-serializable form.
+def _convert_usage_metadata_to_serializable(usage_metadata: Any) -> dict[str, Any]:
+    """Build a JSON-serializable usage dict from a UsageMetadata object.
 
-    Handles only the value types defined in the Gemini API UsageMetadata:
-    https://ai.google.dev/api/generate-content#UsageMetadata
-
-    - Primitives: int, float, bool, str (e.g. token counts, traffic_type as string).
-    - Lists: lists of ModalityTokenCount (e.g. prompt_tokens_details, cache_tokens_details).
-    - ModalityTokenCount: object with modality (enum) and token_count / tokenCount.
-    - Enums: objects with name or value (e.g. modality, traffic_type).
+    Iterates over known UsageMetadata attribute names and adds each non-None value
+    in serialized form. Full list of fields: https://ai.google.dev/api/generate-content#UsageMetadata
     """
 
-    if val is None:
-        return None
-    if isinstance(val, (str, int, float, bool)):
+    def serialize(val: Any) -> Any:
+        if val is None:
+            return None
+        if isinstance(val, (str, int, float, bool)):
+            return val
+        if isinstance(val, list):
+            return [serialize(item) for item in val]
+        token_count = getattr(val, "token_count", None) or getattr(val, "tokenCount", None)
+        if hasattr(val, "modality") and token_count is not None:
+            mod = getattr(val, "modality", None)
+            mod_str = getattr(mod, "value", getattr(mod, "name", str(mod))) if mod is not None else None
+            return {"modality": mod_str, "token_count": token_count}
+        if hasattr(val, "name"):
+            return getattr(val, "value", getattr(val, "name", val))
         return val
-    if isinstance(val, list):
-        return [_usage_metadata_value_to_serializable(item) for item in val]
 
-    # ModalityTokenCount
-    token_count = getattr(val, "token_count", None) or getattr(val, "tokenCount", None)
-    if hasattr(val, "modality") and token_count is not None:
-        mod = getattr(val, "modality", None)
-        mod_str = getattr(mod, "value", getattr(mod, "name", str(mod))) if mod is not None else None
-        return {"modality": mod_str, "token_count": token_count}
+    if not usage_metadata:
+        return {}
 
-    # Enum-like
-    if hasattr(val, "name"):
-        return getattr(val, "value", getattr(val, "name", val))
-    return val
+    _usage_attr_names = (
+        "prompt_token_count",
+        "candidates_token_count",
+        "total_token_count",
+        "cache_tokens_details",
+        "candidates_tokens_details",
+        "prompt_tokens_details",
+        "tool_use_prompt_token_count",
+        "tool_use_prompt_tokens_details",
+    )
+    result: dict[str, Any] = {}
+    for attr in _usage_attr_names:
+        val = getattr(usage_metadata, attr, None)
+        if val is not None:
+            result[attr] = serialize(val)
+    return result
 
 
 def _convert_google_genai_response_to_chatmessage(response: types.GenerateContentResponse, model: str) -> ChatMessage:
@@ -402,23 +413,7 @@ def _convert_google_genai_response_to_chatmessage(response: types.GenerateConten
     ):
         usage["cached_content_token_count"] = usage_metadata.cached_content_token_count
 
-    # Include all other usage_metadata fields using the same key names as the response.
-    # Full list of UsageMetadata fields: https://ai.google.dev/api/generate-content#UsageMetadata
-    if usage_metadata:
-        _usage_attr_names = (
-            "prompt_token_count",
-            "candidates_token_count",
-            "total_token_count",
-            "cache_tokens_details",
-            "candidates_tokens_details",
-            "prompt_tokens_details",
-            "tool_use_prompt_token_count",
-            "tool_use_prompt_tokens_details",
-        )
-        for attr in _usage_attr_names:
-            val = getattr(usage_metadata, attr, None)
-            if val is not None:
-                usage[attr] = _usage_metadata_value_to_serializable(val)
+    usage.update(_convert_usage_metadata_to_serializable(usage_metadata))
 
     # Create meta with reasoning content and thought signatures if available
     meta: dict[str, Any] = {
