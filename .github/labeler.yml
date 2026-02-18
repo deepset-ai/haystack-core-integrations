@@ -97,6 +97,11 @@ integration:langfuse:
       - any-glob-to-any-file: "integrations/langfuse/**/*"
       - any-glob-to-any-file: ".github/workflows/langfuse.yml"
 
+integration:lara:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/lara/**/*"
+      - any-glob-to-any-file: ".github/workflows/lara.yml"
+
 integration:llama_cpp:
   - changed-files:
       - any-glob-to-any-file: "integrations/llama_cpp/**/*"
