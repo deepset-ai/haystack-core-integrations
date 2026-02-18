@@ -1508,6 +1508,7 @@ def test_process_thinking_budget(monkeypatch):
     assert "thinking_budget" not in result
     assert "thinking_config" in result
     assert result["thinking_config"].thinking_budget == 1024
+    assert result["thinking_config"].include_thoughts is True
     # Other kwargs should be preserved
     assert result["temperature"] == 0.7
 
@@ -1515,16 +1516,19 @@ def test_process_thinking_budget(monkeypatch):
     generation_kwargs = {"thinking_budget": -1}
     result = GoogleGenAIChatGenerator._process_thinking_config(generation_kwargs.copy())
     assert result["thinking_config"].thinking_budget == -1
+    assert result["thinking_config"].include_thoughts is True
 
     # Test zero (disable thinking)
     generation_kwargs = {"thinking_budget": 0}
     result = GoogleGenAIChatGenerator._process_thinking_config(generation_kwargs.copy())
     assert result["thinking_config"].thinking_budget == 0
+    assert result["thinking_config"].include_thoughts is False
 
     # Test large value
     generation_kwargs = {"thinking_budget": 24576}
     result = GoogleGenAIChatGenerator._process_thinking_config(generation_kwargs.copy())
     assert result["thinking_config"].thinking_budget == 24576
+    assert result["thinking_config"].include_thoughts is True
 
     # Test when thinking_budget is not present
     generation_kwargs = {"temperature": 0.5}
