@@ -404,6 +404,14 @@ def _process_reasoning_contents(chunks: list[StreamingChunk]) -> ReasoningConten
         if chunk.reasoning is None:
             continue
 
+        # Skip chunks with empty reasoning content
+        if (
+            not chunk.reasoning.reasoning_text
+            and not chunk.reasoning.extra.get("signature")
+            and not chunk.reasoning.extra.get("redacted_thinking")
+        ):
+            continue
+
         # Start new group when index changes
         if current_index is not None and chunk.index != current_index:
             _finalize_reasoning_group(
@@ -439,6 +447,7 @@ def _process_reasoning_contents(chunks: list[StreamingChunk]) -> ReasoningConten
     final_reasoning_text = ""
     for content in formatted_reasoning_contents:
         if "reasoning_text" in content["reasoning_content"]:
+            # mypy somehow thinks that content["reasoning_content"]["reasoning_text"]["text"] can be of type None
             final_reasoning_text += content["reasoning_content"]["reasoning_text"]["text"]  # type: ignore[operator]
         elif "redacted_thinking" in content["reasoning_content"]:
             final_reasoning_text += "[REDACTED]"
@@ -458,7 +467,14 @@ def _finalize_reasoning_group(
     content_block_signature: str | None,
     content_block_redacted_thinking: str | None,
 ) -> None:
-    """Finalize a reasoning content group and append it to the formatted list."""
+    """
+    Finalize a reasoning content group and append it to the formatted list.
+
+    :param formatted_reasoning_contents: The list to append the finalized reasoning content to.
+    :param content_block_text: The accumulated reasoning text for the current group.
+    :param content_block_signature: The signature for the current reasoning group, if any.
+    :param content_block_redacted_thinking: The redacted thinking data for the current group, if any.
+    """
     if content_block_text:
         formatted_reasoning_contents.append(
             {

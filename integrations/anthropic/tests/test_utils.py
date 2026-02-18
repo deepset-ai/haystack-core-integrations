@@ -40,6 +40,7 @@ from haystack_integrations.components.generators.anthropic.chat.utils import (
     _convert_chat_completion_to_chat_message,
     _convert_image_content_to_anthropic_format,
     _convert_messages_to_anthropic_format,
+    _finalize_reasoning_group,
 )
 
 
@@ -935,3 +936,39 @@ class TestUtils:
         message = ChatMessage.from_tool(tool_result="result", origin=tool_call_null_id)
         with pytest.raises(ValueError):
             _convert_messages_to_anthropic_format([message])
+
+    def test_finalize_reasoning_group_with_thinking_text(self):
+        """Test that _finalize_reasoning_group appends a reasoning_text entry."""
+        formatted: list = []
+        _finalize_reasoning_group(formatted, "The user is asking about weather.", "sig123", None)
+        assert len(formatted) == 1
+        assert formatted[0] == {
+            "reasoning_content": {
+                "reasoning_text": {"text": "The user is asking about weather.", "signature": "sig123"},
+            }
+        }
+
+    def test_finalize_reasoning_group_with_redacted_thinking(self):
+        """Test that _finalize_reasoning_group appends a redacted_thinking entry."""
+        formatted: list = []
+        _finalize_reasoning_group(formatted, "", None, "redacted_data_abc")
+        assert len(formatted) == 1
+        assert formatted[0] == {"reasoning_content": {"redacted_thinking": "redacted_data_abc"}}
+
+    def test_finalize_reasoning_group_with_both(self):
+        """Test that _finalize_reasoning_group appends both reasoning_text and redacted_thinking entries."""
+        formatted: list = []
+        _finalize_reasoning_group(formatted, "Some thinking.", "sig456", "redacted_xyz")
+        assert len(formatted) == 2
+        assert formatted[0] == {
+            "reasoning_content": {
+                "reasoning_text": {"text": "Some thinking.", "signature": "sig456"},
+            }
+        }
+        assert formatted[1] == {"reasoning_content": {"redacted_thinking": "redacted_xyz"}}
+
+    def test_finalize_reasoning_group_with_empty_inputs(self):
+        """Test that _finalize_reasoning_group does nothing when all inputs are empty."""
+        formatted: list = []
+        _finalize_reasoning_group(formatted, "", None, None)
+        assert len(formatted) == 0
