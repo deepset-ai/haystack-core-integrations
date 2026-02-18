@@ -316,14 +316,14 @@ def _usage_metadata_value_to_serializable(val: UsageMetadata) -> Any:
         return val
     if isinstance(val, list):
         return [_usage_metadata_value_to_serializable(item) for item in val]
-    
+
     # ModalityTokenCount
     token_count = getattr(val, "token_count", None) or getattr(val, "tokenCount", None)
     if hasattr(val, "modality") and token_count is not None:
         mod = getattr(val, "modality", None)
         mod_str = getattr(mod, "value", getattr(mod, "name", str(mod))) if mod is not None else None
         return {"modality": mod_str, "token_count": token_count}
-    
+
     # Enum-like
     if hasattr(val, "name"):
         return getattr(val, "value", getattr(val, "name", val))

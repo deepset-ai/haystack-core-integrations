@@ -453,9 +453,9 @@ def test_usage_metadata_value_to_serializable():
 
     # ModalityTokenCount with tokenCount
     class ModalityTokenCountCamel:
-        def __init__(self, modality, tokenCount):
+        def __init__(self, modality, token_count):
             self.modality = modality
-            self.tokenCount = tokenCount
+            self.tokenCount = token_count
 
     obj_camel = ModalityTokenCountCamel(mod_enum, 200)
     result_camel = _usage_metadata_value_to_serializable(obj_camel)
@@ -900,7 +900,6 @@ class TestMessagesConversion:
         not os.environ.get("GOOGLE_API_KEY", None),
         reason="Export an env var called GOOGLE_API_KEY containing the Google API key to run this test.",
     )
-
     @pytest.mark.skipif(
         not os.environ.get("GOOGLE_API_KEY", None),
         reason="Export an env var called GOOGLE_API_KEY containing the Google API key to run this test.",
