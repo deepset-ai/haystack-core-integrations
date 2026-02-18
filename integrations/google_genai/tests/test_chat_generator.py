@@ -843,37 +843,6 @@ class TestMessagesConversion:
         reason="Export an env var called GOOGLE_API_KEY containing the Google API key to run this test.",
     )
     @pytest.mark.integration
-    def test_live_run_with_cache(self) -> None:
-        """Two runs with same prefix to exercise implicit caching; second run may show cache hit in usage."""
-        # Long-ish system + user message to increase chance of caching (min 1024 tokens for Gemini 2.5 Flash)
-        system_text = "You are a helpful assistant. " + "Repeat this padding to reach token count. " * 80
-        user_text = "What is 2+2? Reply in one sentence."
-
-        chat_generator = GoogleGenAIChatGenerator(model="gemini-2.5-flash")
-
-        messages = [
-            ChatMessage.from_system(system_text),
-            ChatMessage.from_user(user_text),
-        ]
-
-        # First request – fills the cache
-        out1 = chat_generator.run(messages=messages)
-        reply1 = out1["replies"][0]
-        usage1 = reply1.meta.get("usage") or {}
-        assert "prompt_tokens" in usage1 or "total_tokens" in usage1, "First request should have usage"
-
-        # Second request – same prefix, may hit implicit cache
-        out2 = chat_generator.run(messages=messages)
-        reply2 = out2["replies"][0]
-        usage2 = reply2.meta.get("usage") or {}
-        assert "prompt_tokens" in usage2 or "total_tokens" in usage2, "Second request should have usage"
-        # When implicit cache hits, cached_content_token_count may be non-zero (best-effort, not guaranteed)
-
-    @pytest.mark.skipif(
-        not os.environ.get("GOOGLE_API_KEY", None),
-        reason="Export an env var called GOOGLE_API_KEY containing the Google API key to run this test.",
-    )
-    @pytest.mark.integration
     def test_live_run_implicit_cache_usage_returned(self) -> None:
         """Send 10+ questions with a long music-theory system prompt; assert cached tokens appear in at least one reply."""
         MUSIC_THEORY_CONTEXT = """
