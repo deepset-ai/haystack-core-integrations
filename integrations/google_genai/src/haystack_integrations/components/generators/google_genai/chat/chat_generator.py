@@ -297,7 +297,7 @@ def _convert_tools_to_google_genai_format(tools: ToolsType) -> list[types.Tool]:
     return [types.Tool(function_declarations=function_declarations)]
 
 
-def _convert_usage_metadata_to_serializable(usage_metadata: Any) -> dict[str, Any]:
+def _convert_usage_metadata_to_serializable(usage_metadata: UsageMetadata) -> dict[str, Any]:
     """Build a JSON-serializable usage dict from a UsageMetadata object.
 
     Iterates over known UsageMetadata attribute names and adds each non-None value
