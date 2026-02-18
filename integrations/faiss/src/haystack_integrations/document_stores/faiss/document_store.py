@@ -25,16 +25,9 @@ class FAISSDocumentStore:
 
     def __init__(
         self,
-        sql_url: str = "sqlite:///:memory:",  # Kept for compatibility but unused
         index_path: str | None = None,
         index_string: str = "Flat",
         embedding_dim: int = 768,
-        faiss_index_factory_str: str | None = None,  # Legacy parameter support
-        similarity: str = "dot_product",  # Legacy parameter
-        isolation_level: str | None = None,  # Legacy parameter
-        duplicate_documents: str = "overwrite",  # Legacy parameter
-        return_embedding: bool = True,
-        progress_bar: bool = True,  # Legacy parameter
     ):
         """
         Initializes the FAISSDocumentStore.
