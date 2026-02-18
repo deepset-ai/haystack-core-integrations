@@ -406,11 +406,12 @@ def _convert_google_genai_response_to_chatmessage(response: types.GenerateConten
             if val is not None:
                 usage[attr] = _usage_metadata_value_to_serializable(val)
 
-    # Create meta with reasoning content and thought signatures if available
+    # Create meta with reasoning content and thought signatures if available.
+    # Store usage inside the "meta" key so that ChatMessage usage is at meta["meta"]["usage"].
     meta: dict[str, Any] = {
         "model": model,
         "finish_reason": FINISH_REASON_MAPPING.get(finish_reason or ""),
-        "usage": usage,
+        "meta": {"usage": usage},
     }
 
     # Add thought signatures to meta if present (for multi-turn context preservation)
@@ -714,11 +715,12 @@ class GoogleGenAIChatGenerator:
         # a problem if we change it in the future.
         start = index == 0 or len(tool_calls) > 0
 
-        # Create meta with reasoning deltas and thought signatures if available
+        # Create meta with reasoning deltas and thought signatures if available.
+        # Store usage inside the "meta" key so that ChatMessage usage is at meta["meta"]["usage"].
         meta: dict[str, Any] = {
             "received_at": datetime.now(timezone.utc).isoformat(),
             "model": self._model,
-            "usage": usage,
+            "meta": {"usage": usage},
         }
 
         # Add reasoning deltas to meta if available
@@ -754,6 +756,12 @@ class GoogleGenAIChatGenerator:
         # Use the generic aggregator for standard content (text, tool calls, basic meta)
         message = _convert_streaming_chunks_to_chat_message(chunks)
 
+        # Ensure usage is inside meta["meta"]["usage"] (aggregator may have put it at message.meta["usage"])
+        if message.meta and "usage" in message.meta and "meta" not in message.meta:
+            message.meta["meta"] = {"usage": message.meta.pop("usage")}
+        elif message.meta and "usage" in message.meta and "meta" in message.meta:
+            message.meta["meta"]["usage"] = message.meta.pop("usage")
+
         # Now enhance with Google-specific features: reasoning content, thinking token usage, and thought signatures
         reasoning_text_parts: list[str] = []
         thought_signatures: list[dict[str, Any]] = []
@@ -777,16 +785,17 @@ class GoogleGenAIChatGenerator:
                     thought_signatures = signature_deltas
 
             # Extract thinking token usage (from the last chunk that has it)
-            if chunk.meta and "usage" in chunk.meta:
-                chunk_usage = chunk.meta["usage"]
+            if chunk.meta and "meta" in chunk.meta and "usage" in chunk.meta["meta"]:
+                chunk_usage = chunk.meta["meta"]["usage"]
                 if "thoughts_token_count" in chunk_usage:
                     thoughts_token_count = chunk_usage["thoughts_token_count"]
 
-        # Add thinking token count to usage if present
-        if thoughts_token_count is not None and "usage" in message.meta:
-            if message.meta["usage"] is None:
-                message.meta["usage"] = {}
-            message.meta["usage"]["thoughts_token_count"] = thoughts_token_count
+        # Add thinking token count to usage if present (usage lives at meta["meta"]["usage"])
+        if thoughts_token_count is not None:
+            inner_meta = message.meta.setdefault("meta", {})
+            if inner_meta.get("usage") is None:
+                inner_meta["usage"] = {}
+            message.meta["meta"]["usage"]["thoughts_token_count"] = thoughts_token_count
 
         # Add thought signatures to meta if present (for multi-turn context preservation)
         if thought_signatures:
