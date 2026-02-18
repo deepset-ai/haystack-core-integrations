@@ -9,7 +9,7 @@ from datetime import datetime, timezone
 from typing import Any, Literal
 
 from google.genai import types
-from google.genai.types import UsageMetadata
+from google.genai.types import GenerateContentResponseUsageMetadata, UsageMetadata
 from haystack import logging
 from haystack.components.generators.utils import _convert_streaming_chunks_to_chat_message
 from haystack.core.component import component
@@ -298,7 +298,9 @@ def _convert_tools_to_google_genai_format(tools: ToolsType) -> list[types.Tool]:
     return [types.Tool(function_declarations=function_declarations)]
 
 
-def _convert_usage_metadata_to_serializable(usage_metadata: UsageMetadata) -> dict[str, Any]:  # type: ignore[type-arg]
+def _convert_usage_metadata_to_serializable(
+        usage_metadata: UsageMetadata|GenerateContentResponseUsageMetadata|None
+) -> dict[str, Any]:
     """Build a JSON-serializable usage dict from a UsageMetadata object.
 
     Iterates over known UsageMetadata attribute names and adds each non-None value
