@@ -9,6 +9,7 @@ from datetime import datetime, timezone
 from typing import Any, Literal
 
 from google.genai import types
+from google.genai.types import UsageMetadata
 from haystack import logging
 from haystack.components.generators.utils import _convert_streaming_chunks_to_chat_message
 from haystack.core.component import component

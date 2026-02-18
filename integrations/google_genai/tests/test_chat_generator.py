@@ -434,35 +434,24 @@ def test_convert_usage_metadata_to_serializable():
     assert _convert_usage_metadata_to_serializable(None) == {}
     assert _convert_usage_metadata_to_serializable(False) == {}
 
-    mock_usage = Mock()
-    mock_usage.prompt_token_count = 100
-    mock_usage.candidates_token_count = 5
-    mock_usage.total_token_count = 105
-    mock_usage.cache_tokens_details = None
-    mock_usage.candidates_tokens_details = None
-    mock_usage.prompt_tokens_details = None
-    mock_usage.tool_use_prompt_token_count = None
-    mock_usage.tool_use_prompt_tokens_details = None
-
-    result = _convert_usage_metadata_to_serializable(mock_usage)
+    usage_metadata = types.GenerateContentResponseUsageMetadata(
+        prompt_token_count=100,
+        candidates_token_count=5,
+        total_token_count=105,
+    )
+    result = _convert_usage_metadata_to_serializable(usage_metadata)
     assert result["prompt_token_count"] == 100
     assert result["candidates_token_count"] == 5
     assert result["total_token_count"] == 105
     assert len(result) == 3
 
     # Serialization of zero and composite types (ModalityTokenCount, lists)
-    obj = types.ModalityTokenCount(modality=types.Modality.TEXT, tokenCount=100)
-    mock_with_details = Mock()
-    mock_with_details.prompt_token_count = 0
-    mock_with_details.candidates_token_count = None
-    mock_with_details.total_token_count = None
-    mock_with_details.cache_tokens_details = None
-    mock_with_details.candidates_tokens_details = [obj]
-    mock_with_details.prompt_tokens_details = None
-    mock_with_details.tool_use_prompt_token_count = None
-    mock_with_details.tool_use_prompt_tokens_details = None
-
-    result2 = _convert_usage_metadata_to_serializable(mock_with_details)
+    modality_token_count = types.ModalityTokenCount(modality=types.Modality.TEXT, tokenCount=100)
+    usage_with_details = types.GenerateContentResponseUsageMetadata(
+        prompt_token_count=0,
+        candidates_tokens_details=[modality_token_count],
+    )
+    result2 = _convert_usage_metadata_to_serializable(usage_with_details)
     assert result2["prompt_token_count"] == 0
     assert result2["candidates_tokens_details"] == [{"modality": "TEXT", "token_count": 100}]
 
