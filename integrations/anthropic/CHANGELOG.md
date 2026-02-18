@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/anthropic-v5.3.0] - 2026-02-18
+
+### 🚀 Features
+
+- Use StreamingChunk.reasoning field for Anthropic thinking content (#2849)
+
+
 ## [integrations/anthropic-v5.2.0] - 2026-01-27
 
 ### 🚀 Features

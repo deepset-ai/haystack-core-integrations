@@ -9,6 +9,7 @@ from datetime import datetime, timezone
 from typing import Any, Literal
 
 from google.genai import types
+from google.genai.types import GenerateContentResponseUsageMetadata, UsageMetadata
 from haystack import logging
 from haystack.components.generators.utils import _convert_streaming_chunks_to_chat_message
 from haystack.core.component import component
@@ -297,6 +298,52 @@ def _convert_tools_to_google_genai_format(tools: ToolsType) -> list[types.Tool]:
     return [types.Tool(function_declarations=function_declarations)]
 
 
+def _convert_usage_metadata_to_serializable(
+    usage_metadata: UsageMetadata | GenerateContentResponseUsageMetadata | None,
+) -> dict[str, Any]:
+    """Build a JSON-serializable usage dict from a UsageMetadata object.
+
+    Iterates over known UsageMetadata attribute names and adds each non-None value
+    in serialized form. Full list of fields: https://ai.google.dev/api/generate-content#UsageMetadata
+    """
+
+    def serialize(val: Any) -> Any:
+        if val is None:
+            return None
+        if isinstance(val, (str, int, float, bool)):
+            return val
+        if isinstance(val, list):
+            return [serialize(item) for item in val]
+        token_count = getattr(val, "token_count", None) or getattr(val, "tokenCount", None)
+        if hasattr(val, "modality") and token_count is not None:
+            mod = getattr(val, "modality", None)
+            mod_str = getattr(mod, "value", getattr(mod, "name", str(mod))) if mod is not None else None
+            return {"modality": mod_str, "token_count": token_count}
+        if hasattr(val, "name"):
+            return getattr(val, "value", getattr(val, "name", val))
+        return val
+
+    if not usage_metadata:
+        return {}
+
+    _usage_attr_names = (
+        "prompt_token_count",
+        "candidates_token_count",
+        "total_token_count",
+        "cache_tokens_details",
+        "candidates_tokens_details",
+        "prompt_tokens_details",
+        "tool_use_prompt_token_count",
+        "tool_use_prompt_tokens_details",
+    )
+    result: dict[str, Any] = {}
+    for attr in _usage_attr_names:
+        val = getattr(usage_metadata, attr, None)
+        if val is not None:
+            result[attr] = serialize(val)
+    return result
+
+
 def _convert_google_genai_response_to_chatmessage(response: types.GenerateContentResponse, model: str) -> ChatMessage:
     """
     Converts a Google Gen AI response to a Haystack ChatMessage.
@@ -361,7 +408,17 @@ def _convert_google_genai_response_to_chatmessage(response: types.GenerateConten
     if usage_metadata and hasattr(usage_metadata, "thoughts_token_count") and usage_metadata.thoughts_token_count:
         usage["thoughts_token_count"] = usage_metadata.thoughts_token_count
 
-        # Create meta with reasoning content and thought signatures if available
+    # Add cached content token count if available (implicit or explicit context caching)
+    if (
+        usage_metadata
+        and hasattr(usage_metadata, "cached_content_token_count")
+        and usage_metadata.cached_content_token_count
+    ):
+        usage["cached_content_token_count"] = usage_metadata.cached_content_token_count
+
+    usage.update(_convert_usage_metadata_to_serializable(usage_metadata))
+
+    # Create meta with reasoning content and thought signatures if available
     meta: dict[str, Any] = {
         "model": model,
         "finish_reason": FINISH_REASON_MAPPING.get(finish_reason or ""),
@@ -694,7 +751,8 @@ class GoogleGenAIChatGenerator:
             meta=meta,
         )
 
-    def _aggregate_streaming_chunks_with_reasoning(self, chunks: list[StreamingChunk]) -> ChatMessage:
+    @staticmethod
+    def _aggregate_streaming_chunks_with_reasoning(chunks: list[StreamingChunk]) -> ChatMessage:
         """
         Aggregate streaming chunks into a final ChatMessage with reasoning content and thought signatures.
 
@@ -781,7 +839,7 @@ class GoogleGenAIChatGenerator:
                 streaming_callback(streaming_chunk)
 
             # Use custom aggregation that supports reasoning content
-            message = self._aggregate_streaming_chunks_with_reasoning(chunks)
+            message = GoogleGenAIChatGenerator._aggregate_streaming_chunks_with_reasoning(chunks)
             return {"replies": [message]}
 
         except Exception as e:
@@ -816,14 +874,15 @@ class GoogleGenAIChatGenerator:
                 await streaming_callback(streaming_chunk)
 
             # Use custom aggregation that supports reasoning content
-            message = self._aggregate_streaming_chunks_with_reasoning(chunks)
+            message = GoogleGenAIChatGenerator._aggregate_streaming_chunks_with_reasoning(chunks)
             return {"replies": [message]}
 
         except Exception as e:
             msg = f"Error in async streaming response: {e}"
             raise RuntimeError(msg) from e
 
-    def _process_thinking_config(self, generation_kwargs: dict[str, Any]) -> dict[str, Any]:
+    @staticmethod
+    def _process_thinking_config(generation_kwargs: dict[str, Any]) -> dict[str, Any]:
         """
         Process thinking configuration from generation_kwargs.
 
@@ -912,7 +971,7 @@ class GoogleGenAIChatGenerator:
         tools = tools or self._tools
 
         # Process thinking configuration
-        generation_kwargs = self._process_thinking_config(generation_kwargs)
+        generation_kwargs = GoogleGenAIChatGenerator._process_thinking_config(generation_kwargs)
 
         # Select appropriate streaming callback
         streaming_callback = select_streaming_callback(
@@ -968,6 +1027,7 @@ class GoogleGenAIChatGenerator:
                     contents=contents,
                     config=config,
                 )
+
                 reply = _convert_google_genai_response_to_chatmessage(response, self._model)
                 return {"replies": [reply]}
 
@@ -1021,7 +1081,7 @@ class GoogleGenAIChatGenerator:
         tools = tools or self._tools
 
         # Process thinking configuration
-        generation_kwargs = self._process_thinking_config(generation_kwargs)
+        generation_kwargs = GoogleGenAIChatGenerator._process_thinking_config(generation_kwargs)
 
         # Select appropriate streaming callback
         streaming_callback = select_streaming_callback(
