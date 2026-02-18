@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2022-present deepset GmbH <info@deepset.ai>
+#
+# SPDX-License-Identifier: Apache-2.0
+
 import asyncio
 import base64
 import os
@@ -22,7 +26,9 @@ from haystack.utils.auth import Secret
 
 from haystack_integrations.components.generators.google_genai.chat.chat_generator import (
     GoogleGenAIChatGenerator,
+    _convert_google_genai_response_to_chatmessage,
     _convert_message_to_google_genai_format,
+    _convert_usage_metadata_to_serializable,
 )
 
 
@@ -382,6 +388,72 @@ class TestStreamingChunkConversion:
         assert streaming_chunk.tool_calls[5].arguments == '{"city": "Berlin"}'
         assert streaming_chunk.tool_calls[5].id is None
         assert streaming_chunk.tool_calls[5].index == 5
+
+
+def test_convert_google_genai_response_to_chatmessage_parses_cached_tokens(monkeypatch):
+    """When the API response includes cached_content_token_count in usage_metadata, it is parsed into meta['usage']."""
+    monkeypatch.setenv("GOOGLE_API_KEY", "test-api-key")
+
+    # Minimal candidate with one text part
+    mock_part = Mock()
+    mock_part.text = "Four."
+    mock_part.function_call = None
+    mock_part.thought = False
+    mock_part.thought_signature = None
+    mock_content = Mock()
+    mock_content.parts = [mock_part]
+    mock_candidate = Mock()
+    mock_candidate.content = mock_content
+    mock_candidate.finish_reason = "STOP"
+
+    # Usage metadata including cached tokens (as returned by API when cache is used)
+    mock_usage = Mock()
+    mock_usage.prompt_token_count = 1000
+    mock_usage.candidates_token_count = 5
+    mock_usage.total_token_count = 1005
+    mock_usage.cached_content_token_count = 800
+    mock_usage.thoughts_token_count = None
+
+    mock_response = Mock()
+    mock_response.candidates = [mock_candidate]
+    mock_response.usage_metadata = mock_usage
+
+    message = _convert_google_genai_response_to_chatmessage(mock_response, "gemini-2.5-flash")
+
+    assert message.meta is not None
+    assert "usage" in message.meta
+    usage = message.meta["usage"]
+    assert usage["prompt_tokens"] == 1000
+    assert usage["completion_tokens"] == 5
+    assert usage["total_tokens"] == 1005
+    assert usage["cached_content_token_count"] == 800
+
+
+def test_convert_usage_metadata_to_serializable():
+    """_convert_usage_metadata_to_serializable builds a serializable dict from a UsageMetadata object."""
+    assert _convert_usage_metadata_to_serializable(None) == {}
+    assert _convert_usage_metadata_to_serializable(False) == {}
+
+    usage_metadata = types.GenerateContentResponseUsageMetadata(
+        prompt_token_count=100,
+        candidates_token_count=5,
+        total_token_count=105,
+    )
+    result = _convert_usage_metadata_to_serializable(usage_metadata)
+    assert result["prompt_token_count"] == 100
+    assert result["candidates_token_count"] == 5
+    assert result["total_token_count"] == 105
+    assert len(result) == 3
+
+    # Serialization of zero and composite types (ModalityTokenCount, lists)
+    modality_token_count = types.ModalityTokenCount(modality=types.Modality.TEXT, tokenCount=100)
+    usage_with_details = types.GenerateContentResponseUsageMetadata(
+        prompt_token_count=0,
+        candidates_tokens_details=[modality_token_count],
+    )
+    result2 = _convert_usage_metadata_to_serializable(usage_with_details)
+    assert result2["prompt_token_count"] == 0
+    assert result2["candidates_tokens_details"] == [{"modality": "TEXT", "token_count": 100}]
 
 
 class TestGoogleGenAIChatGenerator:
@@ -802,6 +874,10 @@ class TestMessagesConversion:
         not os.environ.get("GOOGLE_API_KEY", None),
         reason="Export an env var called GOOGLE_API_KEY containing the Google API key to run this test.",
     )
+    @pytest.mark.skipif(
+        not os.environ.get("GOOGLE_API_KEY", None),
+        reason="Export an env var called GOOGLE_API_KEY containing the Google API key to run this test.",
+    )
     @pytest.mark.integration
     def test_run_with_multiple_images_mixed_content(self, test_files_path):
         """Test that multiple images with interleaved text maintain proper ordering."""
@@ -1147,7 +1223,7 @@ class TestMessagesConversion:
             generation_kwargs={"thinking_budget": -1},  # Dynamic allocation
         )
 
-        # First turn: Ask about weather
+        # First turn: Ask about the weather
         messages = [ChatMessage.from_user("What's the weather in Paris?")]
         result = component.run(messages)
 
@@ -1407,7 +1483,7 @@ def test_aggregate_streaming_chunks_with_reasoning(monkeypatch):
     final_chunk.meta["reasoning_deltas"] = [{"type": "reasoning", "content": "I should greet the user politely"}]
 
     # Test aggregation
-    result = component._aggregate_streaming_chunks_with_reasoning([chunk1, chunk2, final_chunk])
+    result = GoogleGenAIChatGenerator._aggregate_streaming_chunks_with_reasoning([chunk1, chunk2, final_chunk])
 
     # Verify the aggregated message
     assert result.text == "Hello world"
@@ -1423,11 +1499,10 @@ def test_aggregate_streaming_chunks_with_reasoning(monkeypatch):
 def test_process_thinking_budget(monkeypatch):
     """Test the _process_thinking_config method with different thinking_budget values."""
     monkeypatch.setenv("GOOGLE_API_KEY", "test-api-key")
-    component = GoogleGenAIChatGenerator()
 
     # Test valid thinking_budget values
     generation_kwargs = {"thinking_budget": 1024, "temperature": 0.7}
-    result = component._process_thinking_config(generation_kwargs.copy())
+    result = GoogleGenAIChatGenerator._process_thinking_config(generation_kwargs.copy())
 
     # thinking_budget should be moved to thinking_config
     assert "thinking_budget" not in result
@@ -1438,27 +1513,27 @@ def test_process_thinking_budget(monkeypatch):
 
     # Test dynamic allocation (-1)
     generation_kwargs = {"thinking_budget": -1}
-    result = component._process_thinking_config(generation_kwargs.copy())
+    result = GoogleGenAIChatGenerator._process_thinking_config(generation_kwargs.copy())
     assert result["thinking_config"].thinking_budget == -1
 
     # Test zero (disable thinking)
     generation_kwargs = {"thinking_budget": 0}
-    result = component._process_thinking_config(generation_kwargs.copy())
+    result = GoogleGenAIChatGenerator._process_thinking_config(generation_kwargs.copy())
     assert result["thinking_config"].thinking_budget == 0
 
     # Test large value
     generation_kwargs = {"thinking_budget": 24576}
-    result = component._process_thinking_config(generation_kwargs.copy())
+    result = GoogleGenAIChatGenerator._process_thinking_config(generation_kwargs.copy())
     assert result["thinking_config"].thinking_budget == 24576
 
     # Test when thinking_budget is not present
     generation_kwargs = {"temperature": 0.5}
-    result = component._process_thinking_config(generation_kwargs.copy())
+    result = GoogleGenAIChatGenerator._process_thinking_config(generation_kwargs.copy())
     assert result == generation_kwargs  # No changes
 
     # Test invalid type (should fall back to dynamic)
     generation_kwargs = {"thinking_budget": "invalid", "temperature": 0.5}
-    result = component._process_thinking_config(generation_kwargs.copy())
+    result = GoogleGenAIChatGenerator._process_thinking_config(generation_kwargs.copy())
     assert result["thinking_config"].thinking_budget == -1  # Dynamic allocation
     assert result["temperature"] == 0.5
 
@@ -1481,21 +1556,21 @@ def test_process_thinking_level(monkeypatch):
 
     # Test THINKING_LEVEL_LOW in upper case
     generation_kwargs = {"thinking_level": "LOW"}
-    result = component._process_thinking_config(generation_kwargs.copy())
+    result = GoogleGenAIChatGenerator._process_thinking_config(generation_kwargs.copy())
     assert result["thinking_config"].thinking_level == types.ThinkingLevel.LOW
 
     # Test THINKING_LEVEL_UNSPECIFIED
     generation_kwargs = {"thinking_level": "test"}
-    result = component._process_thinking_config(generation_kwargs.copy())
+    result = GoogleGenAIChatGenerator._process_thinking_config(generation_kwargs.copy())
     assert result["thinking_config"].thinking_level == types.ThinkingLevel.THINKING_LEVEL_UNSPECIFIED
 
     # Test when thinking_level is not present
     generation_kwargs = {"temperature": 0.5}
-    result = component._process_thinking_config(generation_kwargs.copy())
+    result = GoogleGenAIChatGenerator._process_thinking_config(generation_kwargs.copy())
     assert result == generation_kwargs  # No changes
 
     # Test invalid type (should fall back to THINKING_LEVEL_UNSPECIFIED)
     generation_kwargs = {"thinking_level": 123, "temperature": 0.5}
-    result = component._process_thinking_config(generation_kwargs.copy())
+    result = GoogleGenAIChatGenerator._process_thinking_config(generation_kwargs.copy())
     assert result["thinking_config"].thinking_level == types.ThinkingLevel.THINKING_LEVEL_UNSPECIFIED
     assert result["temperature"] == 0.5
