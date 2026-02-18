@@ -389,6 +389,8 @@ def _convert_google_genai_response_to_chatmessage(response: types.GenerateConten
         usage["cached_content_token_count"] = usage_metadata.cached_content_token_count
 
     # Include all other usage_metadata fields using the same key names as the response
+    # see the full list of usage_metadata fields in the documentation:
+    # https://docs.cloud.google.com/vertex-ai/generative-ai/docs/reference/rest/v1beta1/GenerateContentResponse#UsageMetadata # noqa: E501
     if usage_metadata:
         _usage_attr_names = (
             "prompt_token_count",
@@ -399,7 +401,6 @@ def _convert_google_genai_response_to_chatmessage(response: types.GenerateConten
             "prompt_tokens_details",
             "tool_use_prompt_token_count",
             "tool_use_prompt_tokens_details",
-            "traffic_type",
         )
         for attr in _usage_attr_names:
             val = getattr(usage_metadata, attr, None)
