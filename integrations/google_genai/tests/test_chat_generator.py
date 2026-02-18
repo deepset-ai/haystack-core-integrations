@@ -844,8 +844,10 @@ class TestMessagesConversion:
     )
     @pytest.mark.integration
     def test_live_run_implicit_cache_usage_returned(self) -> None:
-        """Send 10+ questions with a long music-theory system prompt; assert cached tokens appear in at least one reply."""
-        MUSIC_THEORY_CONTEXT = """
+        """
+        Send 10+ questions with a long music-theory system prompt, assert cached tokens appear in at least one reply.
+        """
+        music_theory_context = """
 You are a patient and precise music theory teacher. You answer only from this reference. Be concise but accurate.
 
 ## Core concepts
@@ -884,7 +886,7 @@ You are a patient and precise music theory teacher. You answer only from this re
 - *Texture*: monophonic (one line), homophonic (melody + chords), polyphonic (several independent lines).
 
 Answer only from this reference. If the question is outside it, say so and suggest rephrasing.
-"""
+"""  # noqa: E501, RUF001
         chat_generator = GoogleGenAIChatGenerator(model="gemini-2.5-flash")
         chord_questions = [
             "What is a triad? Name the four types.",
@@ -903,7 +905,7 @@ Answer only from this reference. If the question is outside it, say so and sugge
         usages = []
         for question in chord_questions:
             messages = [
-                ChatMessage.from_system(MUSIC_THEORY_CONTEXT),
+                ChatMessage.from_system(music_theory_context),
                 ChatMessage.from_user(question),
             ]
             out = chat_generator.run(messages=messages)
@@ -916,8 +918,7 @@ Answer only from this reference. If the question is outside it, say so and sugge
         # Implicit cache: same long system prefix across requests can yield cached_content_token_count in at least one
         any_cached = any((u.get("cached_content_token_count") or 0) > 0 for u in usages)
         assert any_cached, (
-            "Expected cached_content_token_count > 0 in at least one reply (implicit cache). "
-            f"Usages: {usages}"
+            f"Expected cached_content_token_count > 0 in at least one reply (implicit cache). Usages: {usages}"
         )
 
     @pytest.mark.skipif(
