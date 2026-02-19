@@ -20,21 +20,42 @@ logger = logging.getLogger(__name__)
 
 @component
 class PyversityReranker:
-    """Rerank documents using pyversity's diversification algorithms.
+    """
+    Reranks documents using [pyversity](https://github.com/Pringled/pyversity)'s diversification algorithms.
 
     Balances relevance and diversity in a ranked list of documents. Documents
-    must have both ``score`` and ``embedding`` populated (e.g. as returned by
-    a dense retriever with ``return_embedding=True``).
+    must have both `score` and `embedding` populated (e.g. as returned by
+    a dense retriever with `return_embedding=True`).
 
-    Args:
-        k: Number of documents to return after diversification.
-        strategy: Pyversity diversification strategy (e.g. ``Strategy.MMR``).
-        diversity: Trade-off between relevance and diversity in [0, 1].
-            ``0.0`` keeps only the most relevant documents; ``1.0`` maximises
-            diversity regardless of relevance. Defaults to ``0.5``.
+    Usage example:
+    ```python
+    from haystack import Document
+    from haystack_integrations.components.rankers.pyversity import PyversityReranker
+    from pyversity import Strategy
+
+    ranker = PyversityReranker(k=5, strategy=Strategy.MMR, diversity=0.5)
+
+    docs = [
+        Document(content="Paris", score=0.9, embedding=[0.1, 0.2]),
+        Document(content="Berlin", score=0.8, embedding=[0.3, 0.4]),
+    ]
+    output = ranker.run(documents=docs)
+    docs = output["documents"]
+    ```
     """
 
     def __init__(self, k: int, *, strategy: Strategy = Strategy.DPP, diversity: float = 0.5) -> None:
+        """
+        Creates an instance of PyversityReranker.
+
+        :param k: Number of documents to return after diversification.
+        :param strategy: Pyversity diversification strategy (e.g. `Strategy.MMR`). Defaults to `Strategy.DPP`.
+        :param diversity: Trade-off between relevance and diversity in [0, 1].
+            `0.0` keeps only the most relevant documents; `1.0` maximises
+            diversity regardless of relevance. Defaults to `0.5`.
+
+        :raises ValueError: If `k` is not a positive integer or `diversity` is not in [0, 1].
+        """
         if k <= 0:
             msg = f"k must be a positive integer, got {k}"
             raise ValueError(msg)
@@ -47,6 +68,16 @@ class PyversityReranker:
 
     @component.output_types(documents=list[Document])
     def run(self, documents: list[Document]) -> dict:
+        """
+        Rerank the list of documents using pyversity's diversification algorithm.
+
+        Documents missing `score` or `embedding` are skipped with a warning.
+
+        :param documents: List of Documents to rerank. Each document must have `score` and `embedding` set.
+        :returns:
+            A dictionary with the following keys:
+            - `documents`: List of up to `k` reranked Documents, ordered by the diversification algorithm.
+        """
         if not documents:
             return {"documents": []}
 
