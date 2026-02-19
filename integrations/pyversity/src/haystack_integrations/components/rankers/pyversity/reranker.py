@@ -36,9 +36,11 @@ class PyversityReranker:
 
     def __init__(self, k: int, *, strategy: Strategy = Strategy.DPP, diversity: float = 0.5) -> None:
         if k <= 0:
-            raise ValueError(f"k must be a positive integer, got {k}")
+            msg = f"k must be a positive integer, got {k}"
+            raise ValueError(msg)
         if not 0.0 <= diversity <= 1.0:
-            raise ValueError(f"diversity must be in [0, 1], got {diversity}")
+            msg = f"diversity must be in [0, 1], got {diversity}"
+            raise ValueError(msg)
         self._k = k
         self._strategy = strategy
         self._diversity = diversity
