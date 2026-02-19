@@ -10,7 +10,7 @@ from pyversity import Strategy
 
 from haystack_integrations.components.rankers.pyversity import PyversityReranker
 
-# --- Index documents ---
+# Index documents
 document_store = InMemoryDocumentStore()
 
 raw_documents = [
@@ -25,11 +25,10 @@ raw_documents = [
 ]
 
 doc_embedder = SentenceTransformersDocumentEmbedder()
-doc_embedder.warm_up()
 documents_with_embeddings = doc_embedder.run(raw_documents)["documents"]
 document_store.write_documents(documents_with_embeddings)
 
-# --- Build pipeline ---
+# Build pipeline
 pipeline = Pipeline()
 pipeline.add_component("text_embedder", SentenceTransformersTextEmbedder())
 pipeline.add_component(
@@ -41,7 +40,7 @@ pipeline.add_component("reranker", PyversityReranker(k=3, strategy=Strategy.MMR,
 pipeline.connect("text_embedder.embedding", "retriever.query_embedding")
 pipeline.connect("retriever.documents", "reranker.documents")
 
-# --- Run ---
+# Run
 result = pipeline.run({"text_embedder": {"text": "What are the famous landmarks in France?"}})
 
 for doc in result["reranker"]["documents"]:
