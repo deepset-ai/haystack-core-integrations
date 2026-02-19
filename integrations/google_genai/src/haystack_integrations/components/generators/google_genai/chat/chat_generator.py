@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Iterator
 from typing import Any, Literal
 
 from google.genai import types
@@ -22,6 +22,8 @@ from haystack.utils import Secret, deserialize_callable, deserialize_secrets_inp
 
 from haystack_integrations.components.common.google_genai.utils import _get_client
 from haystack_integrations.components.generators.google_genai.chat.utils import (
+    _aggregate_streaming_chunks_with_reasoning,
+    _convert_google_chunk_to_streaming_chunk,
     _convert_google_genai_response_to_chatmessage,
     _convert_message_to_google_genai_format,
     _convert_tools_to_google_genai_format,
@@ -239,6 +241,38 @@ class GoogleGenAIChatGenerator:
             init_params["streaming_callback"] = deserialize_callable(init_params["streaming_callback"])
         return default_from_dict(cls, data)
 
+    def _handle_streaming_response(
+        self, response_stream: Iterator[types.GenerateContentResponse], streaming_callback: StreamingCallbackT
+    ) -> dict[str, list[ChatMessage]]:
+        """
+        Handle streaming response from Google Gen AI generate_content_stream.
+        :param response_stream: The streaming response from generate_content_stream.
+        :param streaming_callback: The callback function for streaming chunks.
+        :returns: A dictionary with the replies.
+        """
+        component_info = ComponentInfo.from_component(self)
+
+        try:
+            chunks = []
+
+            chunk = None
+            for i, chunk in enumerate(response_stream):
+                streaming_chunk = _convert_google_chunk_to_streaming_chunk(
+                    chunk=chunk, index=i, component_info=component_info, model=self._model
+                )
+                chunks.append(streaming_chunk)
+
+                # Stream the chunk
+                streaming_callback(streaming_chunk)
+
+            # Use custom aggregation that supports reasoning content
+            message = _aggregate_streaming_chunks_with_reasoning(chunks)
+            return {"replies": [message]}
+
+        except Exception as e:
+            msg = f"Error in streaming response: {e}"
+            raise RuntimeError(msg) from e
+
     async def _handle_streaming_response_async(
         self, response_stream: AsyncIterator[types.GenerateContentResponse], streaming_callback: AsyncStreamingCallbackT
     ) -> dict[str, list[ChatMessage]]:
@@ -258,8 +292,8 @@ class GoogleGenAIChatGenerator:
             async for chunk in response_stream:
                 i += 1
 
-                streaming_chunk = self._convert_google_chunk_to_streaming_chunk(
-                    chunk=chunk, index=i, component_info=component_info
+                streaming_chunk = _convert_google_chunk_to_streaming_chunk(
+                    chunk=chunk, index=i, component_info=component_info, model=self._model
                 )
                 chunks.append(streaming_chunk)
 
@@ -267,67 +301,12 @@ class GoogleGenAIChatGenerator:
                 await streaming_callback(streaming_chunk)
 
             # Use custom aggregation that supports reasoning content
-            message = GoogleGenAIChatGenerator._aggregate_streaming_chunks_with_reasoning(chunks)
+            message = _aggregate_streaming_chunks_with_reasoning(chunks)
             return {"replies": [message]}
 
         except Exception as e:
             msg = f"Error in async streaming response: {e}"
             raise RuntimeError(msg) from e
-
-    @staticmethod
-    def _process_thinking_config(generation_kwargs: dict[str, Any]) -> dict[str, Any]:
-        """
-        Process thinking configuration from generation_kwargs.
-        :param generation_kwargs: The generation configuration dictionary.
-        :returns: Updated generation_kwargs with thinking_config if applicable.
-        """
-        if "thinking_budget" in generation_kwargs:
-            thinking_budget = generation_kwargs.pop("thinking_budget")
-
-            # Basic type validation
-            if not isinstance(thinking_budget, int):
-                logger.warning(
-                    f"Invalid thinking_budget type: {type(thinking_budget)}. Expected int, using dynamic allocation."
-                )
-                # fall back to default: dynamic thinking budget allocation
-                thinking_budget = -1
-
-            # Create thinking config
-            thinking_config = types.ThinkingConfig(thinking_budget=thinking_budget, include_thoughts=True)
-            generation_kwargs["thinking_config"] = thinking_config
-
-        if "thinking_level" in generation_kwargs:
-            thinking_level = generation_kwargs.pop("thinking_level")
-
-            # Basic type validation
-            if not isinstance(thinking_level, str):
-                logger.warning(
-                    f"Invalid thinking_level type: {type(thinking_level).__name__}. Expected str, "
-                    f"falling back to THINKING_LEVEL_UNSPECIFIED."
-                )
-                thinking_level = types.ThinkingLevel.THINKING_LEVEL_UNSPECIFIED
-            else:
-                # Convert to uppercase for case-insensitive matching
-                thinking_level_upper = thinking_level.upper()
-
-                # Check if the uppercase value is a valid ThinkingLevel enum member
-                valid_levels = [level.value for level in types.ThinkingLevel]
-                if thinking_level_upper not in valid_levels:
-                    logger.warning(
-                        f"Invalid thinking_level value: '{thinking_level}'. "
-                        f"Must be one of: {valid_levels} (case-insensitive). "
-                        "Falling back to THINKING_LEVEL_UNSPECIFIED."
-                    )
-                    thinking_level = types.ThinkingLevel.THINKING_LEVEL_UNSPECIFIED
-                else:
-                    # Parse valid string to ThinkingLevel enum
-                    thinking_level = types.ThinkingLevel(thinking_level_upper)
-
-            # Create thinking config with level
-            thinking_config = types.ThinkingConfig(thinking_level=thinking_level, include_thoughts=True)
-            generation_kwargs["thinking_config"] = thinking_config
-
-        return generation_kwargs
 
     @component.output_types(replies=list[ChatMessage])
     def run(
