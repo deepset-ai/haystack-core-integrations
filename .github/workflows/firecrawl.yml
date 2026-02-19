@@ -1,6 +1,6 @@
 # This workflow comes from https://github.com/ofek/hatch-mypyc
 # https://github.com/ofek/hatch-mypyc/blob/5a198c0ba8660494d02716cfc9d79ce4adfb1442/.github/workflows/test.yml
-name: Test / azure_doc_intelligence
+name: Test / firecrawl
 
 on:
   schedule:
