@@ -1,6 +1,5 @@
 loaders:
   - modules:
-      - haystack_integrations.components.websearch.firecrawl
       - haystack_integrations.components.fetchers.firecrawl
     search_path: [../src]
 processors:
