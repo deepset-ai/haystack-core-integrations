@@ -1,5 +1,17 @@
 # Changelog
 
+## [integrations/ollama-v6.1.0] - 2026-02-19
+
+### 🚀 Features
+
+- Use StreamingChunk.reasoning field in Ollama chat generator (#2850)
+
+### 📚 Documentation
+
+- Fix some invalid raises directives (#2847)
+- Simplify pydoc configs (#2855)
+
+
 ## [integrations/ollama-v6.0.0] - 2026-01-12
 
 ### 🐛 Bug Fixes
