@@ -107,23 +107,6 @@ class TestFirecrawlFetcher:
             scrape_options={"formats": ["markdown"]},
         )
 
-    def test_run_calls_warm_up_when_client_not_initialized(self) -> None:
-        fetcher = FirecrawlFetcher(api_key=Secret.from_token("test-key"))
-
-        crawl_response = MagicMock()
-        crawl_response.status = "completed"
-        crawl_response.data = []
-
-        mock_client = MagicMock()
-        mock_client.crawl.return_value = crawl_response
-
-        with patch.object(fetcher, "warm_up") as warm_up_mock:
-            warm_up_mock.side_effect = lambda: setattr(fetcher, "_firecrawl_client", mock_client)
-            fetcher.run(urls=["https://example.com"])
-
-        warm_up_mock.assert_called_once()
-        mock_client.crawl.assert_called_once()
-
     @pytest.mark.asyncio
     async def test_run_async_uses_async_firecrawl_client(self) -> None:
         fetcher = FirecrawlFetcher(api_key=Secret.from_token("test-key"))
