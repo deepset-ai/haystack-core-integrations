@@ -27,14 +27,6 @@ from haystack_integrations.components.generators.google_genai.chat.chat_generato
 )
 
 
-@pytest.fixture
-def chat_messages():
-    return [
-        ChatMessage.from_system("You are a helpful assistant"),
-        ChatMessage.from_user("What's the capital of France"),
-    ]
-
-
 def weather(city: str):
     """Get weather information for a city."""
     return f"Weather in {city}: 22°C, sunny"

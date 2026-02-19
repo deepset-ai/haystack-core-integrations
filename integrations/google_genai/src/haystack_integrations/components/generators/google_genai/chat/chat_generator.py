@@ -2,12 +2,14 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+from collections.abc import AsyncIterator
 from typing import Any, Literal
 
 from google.genai import types
+from haystack import logging
 from haystack.core.component import component
 from haystack.core.serialization import default_from_dict, default_to_dict
-from haystack.dataclasses import ComponentInfo, StreamingCallbackT, select_streaming_callback
+from haystack.dataclasses import AsyncStreamingCallbackT, ComponentInfo, StreamingCallbackT, select_streaming_callback
 from haystack.dataclasses.chat_message import ChatMessage, ChatRole
 from haystack.tools import (
     ToolsType,
@@ -23,10 +25,10 @@ from haystack_integrations.components.generators.google_genai.chat.utils import 
     _convert_google_genai_response_to_chatmessage,
     _convert_message_to_google_genai_format,
     _convert_tools_to_google_genai_format,
-    _handle_streaming_response,
-    _handle_streaming_response_async,
     _process_thinking_config,
 )
+
+logger = logging.getLogger(__name__)
 
 
 @component
@@ -237,6 +239,96 @@ class GoogleGenAIChatGenerator:
             init_params["streaming_callback"] = deserialize_callable(init_params["streaming_callback"])
         return default_from_dict(cls, data)
 
+    async def _handle_streaming_response_async(
+        self, response_stream: AsyncIterator[types.GenerateContentResponse], streaming_callback: AsyncStreamingCallbackT
+    ) -> dict[str, list[ChatMessage]]:
+        """
+        Handle async streaming response from Google Gen AI generate_content_stream.
+        :param response_stream: The async streaming response from generate_content_stream.
+        :param streaming_callback: The async callback function for streaming chunks.
+        :returns: A dictionary with the replies.
+        """
+        component_info = ComponentInfo.from_component(self)
+
+        try:
+            chunks = []
+
+            i = 0
+            chunk = None
+            async for chunk in response_stream:
+                i += 1
+
+                streaming_chunk = self._convert_google_chunk_to_streaming_chunk(
+                    chunk=chunk, index=i, component_info=component_info
+                )
+                chunks.append(streaming_chunk)
+
+                # Stream the chunk
+                await streaming_callback(streaming_chunk)
+
+            # Use custom aggregation that supports reasoning content
+            message = GoogleGenAIChatGenerator._aggregate_streaming_chunks_with_reasoning(chunks)
+            return {"replies": [message]}
+
+        except Exception as e:
+            msg = f"Error in async streaming response: {e}"
+            raise RuntimeError(msg) from e
+
+    @staticmethod
+    def _process_thinking_config(generation_kwargs: dict[str, Any]) -> dict[str, Any]:
+        """
+        Process thinking configuration from generation_kwargs.
+        :param generation_kwargs: The generation configuration dictionary.
+        :returns: Updated generation_kwargs with thinking_config if applicable.
+        """
+        if "thinking_budget" in generation_kwargs:
+            thinking_budget = generation_kwargs.pop("thinking_budget")
+
+            # Basic type validation
+            if not isinstance(thinking_budget, int):
+                logger.warning(
+                    f"Invalid thinking_budget type: {type(thinking_budget)}. Expected int, using dynamic allocation."
+                )
+                # fall back to default: dynamic thinking budget allocation
+                thinking_budget = -1
+
+            # Create thinking config
+            thinking_config = types.ThinkingConfig(thinking_budget=thinking_budget, include_thoughts=True)
+            generation_kwargs["thinking_config"] = thinking_config
+
+        if "thinking_level" in generation_kwargs:
+            thinking_level = generation_kwargs.pop("thinking_level")
+
+            # Basic type validation
+            if not isinstance(thinking_level, str):
+                logger.warning(
+                    f"Invalid thinking_level type: {type(thinking_level).__name__}. Expected str, "
+                    f"falling back to THINKING_LEVEL_UNSPECIFIED."
+                )
+                thinking_level = types.ThinkingLevel.THINKING_LEVEL_UNSPECIFIED
+            else:
+                # Convert to uppercase for case-insensitive matching
+                thinking_level_upper = thinking_level.upper()
+
+                # Check if the uppercase value is a valid ThinkingLevel enum member
+                valid_levels = [level.value for level in types.ThinkingLevel]
+                if thinking_level_upper not in valid_levels:
+                    logger.warning(
+                        f"Invalid thinking_level value: '{thinking_level}'. "
+                        f"Must be one of: {valid_levels} (case-insensitive). "
+                        "Falling back to THINKING_LEVEL_UNSPECIFIED."
+                    )
+                    thinking_level = types.ThinkingLevel.THINKING_LEVEL_UNSPECIFIED
+                else:
+                    # Parse valid string to ThinkingLevel enum
+                    thinking_level = types.ThinkingLevel(thinking_level_upper)
+
+            # Create thinking config with level
+            thinking_config = types.ThinkingConfig(thinking_level=thinking_level, include_thoughts=True)
+            generation_kwargs["thinking_config"] = thinking_config
+
+        return generation_kwargs
+
     @component.output_types(replies=list[ChatMessage])
     def run(
         self,
@@ -319,13 +411,7 @@ class GoogleGenAIChatGenerator:
                     contents=contents,
                     config=config,
                 )
-                component_info = ComponentInfo.from_component(self)
-                return _handle_streaming_response(
-                    component_info=component_info,
-                    response_stream=response_stream,
-                    streaming_callback=streaming_callback,
-                    model=self._model,
-                )
+                return self._handle_streaming_response(response_stream, streaming_callback)
             else:
                 # Use non-streaming
                 response = self._client.models.generate_content(
@@ -435,13 +521,7 @@ class GoogleGenAIChatGenerator:
                     contents=contents,
                     config=config,
                 )
-                component_info = ComponentInfo.from_component(self)
-                return await _handle_streaming_response_async(
-                    component_info=component_info,
-                    response_stream=response_stream,
-                    streaming_callback=streaming_callback,
-                    model=self._model,
-                )
+                return await self._handle_streaming_response_async(response_stream, streaming_callback)
             else:
                 # Use non-streaming
                 response = await self._client.aio.models.generate_content(

@@ -4,7 +4,6 @@
 
 import base64
 import json
-from collections.abc import AsyncIterator, Iterator
 from datetime import datetime, timezone
 from typing import Any
 
@@ -13,12 +12,10 @@ from google.genai.types import GenerateContentResponseUsageMetadata, UsageMetada
 from haystack import logging
 from haystack.components.generators.utils import _convert_streaming_chunks_to_chat_message
 from haystack.dataclasses import (
-    AsyncStreamingCallbackT,
     ComponentInfo,
     FileContent,
     FinishReason,
     ImageContent,
-    StreamingCallbackT,
     StreamingChunk,
     TextContent,
     ToolCall,
@@ -686,80 +683,3 @@ def _aggregate_streaming_chunks_with_reasoning(chunks: list[StreamingChunk]) -> 
         )
 
     return message
-
-
-def _handle_streaming_response(
-    component_info: ComponentInfo,
-    response_stream: Iterator[types.GenerateContentResponse],
-    streaming_callback: StreamingCallbackT,
-    model: str,
-) -> dict[str, list[ChatMessage]]:
-    """
-    Handle streaming response from Google Gen AI generate_content_stream.
-    :param component_info: The component info.
-    :param response_stream: The streaming response from generate_content_stream.
-    :param streaming_callback: The callback function for streaming chunks.
-    :param model: The model name.
-    :returns: A dictionary with the replies.
-    """
-
-    try:
-        chunks = []
-
-        chunk = None
-        for i, chunk in enumerate(response_stream):
-            streaming_chunk = _convert_google_chunk_to_streaming_chunk(
-                chunk=chunk, index=i, component_info=component_info, model=model
-            )
-            chunks.append(streaming_chunk)
-
-            # Stream the chunk
-            streaming_callback(streaming_chunk)
-
-        # Use custom aggregation that supports reasoning content
-        message = _aggregate_streaming_chunks_with_reasoning(chunks)
-        return {"replies": [message]}
-
-    except Exception as e:
-        msg = f"Error in streaming response: {e}"
-        raise RuntimeError(msg) from e
-
-
-async def _handle_streaming_response_async(
-    component_info: ComponentInfo,
-    response_stream: AsyncIterator[types.GenerateContentResponse],
-    streaming_callback: AsyncStreamingCallbackT,
-    model: str,
-) -> dict[str, list[ChatMessage]]:
-    """
-    Handle async streaming response from Google Gen AI generate_content_stream.
-    :param component_info: The component info.
-    :param response_stream: The async streaming response from generate_content_stream.
-    :param streaming_callback: The async callback function for streaming chunks.
-    :param model: The model name.
-    :returns: A dictionary with the replies.
-    """
-
-    try:
-        chunks = []
-
-        i = 0
-        chunk = None
-        async for chunk in response_stream:
-            i += 1
-
-            streaming_chunk = _convert_google_chunk_to_streaming_chunk(
-                chunk=chunk, index=i, component_info=component_info, model=model
-            )
-            chunks.append(streaming_chunk)
-
-            # Stream the chunk
-            await streaming_callback(streaming_chunk)
-
-        # Use custom aggregation that supports reasoning content
-        message = _aggregate_streaming_chunks_with_reasoning(chunks)
-        return {"replies": [message]}
-
-    except Exception as e:
-        msg = f"Error in async streaming response: {e}"
-        raise RuntimeError(msg) from e

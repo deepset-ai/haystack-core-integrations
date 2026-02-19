@@ -21,7 +21,6 @@ from haystack.dataclasses import (
 from haystack_integrations.components.generators.google_genai.chat.chat_generator import (
     GoogleGenAIChatGenerator,
 )
-
 from haystack_integrations.components.generators.google_genai.chat.utils import (
     _aggregate_streaming_chunks_with_reasoning,
     _convert_google_chunk_to_streaming_chunk,
