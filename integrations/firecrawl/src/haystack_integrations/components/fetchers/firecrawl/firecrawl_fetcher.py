@@ -5,9 +5,10 @@
 from datetime import datetime, timezone
 from typing import Any
 
-from firecrawl import AsyncFirecrawl, Firecrawl
 from haystack import Document, component, default_from_dict, default_to_dict, logging
 from haystack.utils import Secret, deserialize_secrets_inplace
+
+from firecrawl import AsyncFirecrawl, Firecrawl  # type: ignore[import-untyped]
 
 logger = logging.getLogger(__name__)
 
@@ -44,11 +45,11 @@ class FirecrawlFetcher:
         """
         Initialize the FirecrawlFetcher.
 
-        :param api_key: 
+        :param api_key:
             API key for Firecrawl.
             Defaults to the `FIRECRAWL_API_KEY` environment variable.
-        :param params: 
-            Parameters for the crawl request. See the 
+        :param params:
+            Parameters for the crawl request. See the
             [Firecrawl API reference](https://docs.firecrawl.dev/api-reference/endpoint/crawl-post)
             for available parameters.
             Defaults to `{"limit": 1, "scrape_options": {"formats": ["markdown"]}}`.
@@ -61,13 +62,6 @@ class FirecrawlFetcher:
         self._params.setdefault("scrape_options", {"formats": ["markdown"]})
         self._firecrawl_client: Firecrawl | None = None
         self._async_firecrawl_client: AsyncFirecrawl | None = None
-
-    def warm_up(self) -> None:
-        """Initialize the Firecrawl client. Call this before the first `run` (or rely on lazy init in `run`)."""
-        if self._firecrawl_client is None:
-            self._firecrawl_client = Firecrawl(api_key=self.api_key.resolve_value())
-        if self._async_firecrawl_client is None:
-            self._async_firecrawl_client = AsyncFirecrawl(api_key=self.api_key.resolve_value())
 
     def to_dict(self) -> dict[str, Any]:
         """
@@ -102,15 +96,12 @@ class FirecrawlFetcher:
         """
         Crawls the given URLs and returns the extracted content as Documents.
 
-        :param urls: 
+        :param urls:
             List of URLs to crawl.
         :param params:
             Optional override of crawl parameters for this run.
         :returns: A dictionary with key `documents` containing a list of Haystack `Document` instances.
         """
-        if self._firecrawl_client is None:
-            self.warm_up()
-
         current_params = dict(self._params, **(params or {}))
         documents: list[Document] = []
         for url in urls:
@@ -134,9 +125,6 @@ class FirecrawlFetcher:
             Optional override of crawl parameters for this run.
         :returns: A dictionary with key `documents` containing a list of Haystack `Document` instances.
         """
-        if self._async_firecrawl_client is None:
-            self.warm_up()
-
         current_params = dict(self._params, **(params or {}))
         documents: list[Document] = []
         for url in urls:
@@ -153,6 +141,8 @@ class FirecrawlFetcher:
         :param params: Crawl request parameters.
         :return: List of Documents from the crawl result.
         """
+        if self._firecrawl_client is None:
+            self._firecrawl_client = Firecrawl(api_key=self.api_key.resolve_value())
 
         try:
             crawl_response = self._firecrawl_client.crawl(
@@ -160,7 +150,7 @@ class FirecrawlFetcher:
                 **params,
             )
         except Exception as error:
-            logger.error("Failed to crawl website %s: %s", url, error)
+            logger.error(f"Failed to crawl website {url}: {error}")
             return []
 
         return self._documents_from_crawl_response(url=url, crawl_response=crawl_response)
@@ -173,13 +163,16 @@ class FirecrawlFetcher:
         :param params: Crawl request parameters.
         :return: List of Documents from the crawl result.
         """
+        if self._async_firecrawl_client is None:
+            self._async_firecrawl_client = AsyncFirecrawl(api_key=self.api_key.resolve_value())
+
         try:
             crawl_response = await self._async_firecrawl_client.crawl(
                 url=url,
                 **params,
             )
         except Exception as error:
-            logger.error("Failed to crawl website %s: %s", url, error)
+            logger.error(f"Failed to crawl website {url}: {error}")
             return []
 
         return self._documents_from_crawl_response(url=url, crawl_response=crawl_response)
@@ -193,7 +186,7 @@ class FirecrawlFetcher:
         :return: List of documents built from crawled pages.
         """
         if crawl_response.status != "completed":
-            logger.error("Failed to crawl website %s: %s", url, crawl_response.status)
+            logger.error(f"Failed to crawl website {url}: {crawl_response.status}")
 
         documents: list[Document] = []
         for page in crawl_response.data:
