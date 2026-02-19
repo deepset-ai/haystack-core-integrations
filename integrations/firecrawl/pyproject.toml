@@ -73,7 +73,7 @@ unit = 'pytest -m "not integration" {args:tests}'
 integration = 'pytest -m "integration" {args:tests}'
 all = 'pytest {args:tests}'
 cov-retry = 'pytest --cov=haystack_integrations --reruns 3 --reruns-delay 30 -x {args:tests}'
-types = "mypy -p haystack_integrations.components.websearch.firecrawl -p haystack_integrations.components.fetchers.firecrawl.adapters {args}"
+types = "mypy -p haystack_integrations.components.fetchers.firecrawl {args}"
 
 [tool.mypy]
 install_types = true
