@@ -1,0 +1,13 @@
+loaders:
+  - modules:
+      - haystack_integrations.components.fetchers.firecrawl
+    search_path: [../src]
+processors:
+  - type: filter
+    documented_only: true
+    skip_empty_modules: true
+renderer:
+  description: Firecrawl integration for Haystack
+  id: integrations-firecrawl
+  filename: firecrawl.md
+  title: Firecrawl

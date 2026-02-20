@@ -64,6 +64,11 @@ integration:fastembed:
       - any-glob-to-any-file: "integrations/fastembed/**/*"
       - any-glob-to-any-file: ".github/workflows/fastembed.yml"
 
+integration:firecrawl:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/firecrawl/**/*"
+      - any-glob-to-any-file: ".github/workflows/firecrawl.yml"
+
 integration:github:
   - changed-files:
       - any-glob-to-any-file: "integrations/github/**/*"
