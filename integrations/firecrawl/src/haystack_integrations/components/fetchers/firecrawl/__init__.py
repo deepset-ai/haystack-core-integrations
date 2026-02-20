@@ -2,6 +2,6 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from haystack_integrations.components.fetchers.firecrawl.firecrawl_fetcher import FirecrawlFetcher
+from haystack_integrations.components.fetchers.firecrawl.firecrawl_crawler import FirecrawlCrawler
 
-__all__ = ["FirecrawlFetcher"]
+__all__ = ["FirecrawlCrawler"]

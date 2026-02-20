@@ -5,8 +5,8 @@
 from datetime import datetime, timezone
 from typing import Any
 
-from haystack import Document, component, default_from_dict, default_to_dict, logging
-from haystack.utils import Secret, deserialize_secrets_inplace
+from haystack import Document, component, logging
+from haystack.utils import Secret
 
 from firecrawl import AsyncFirecrawl, Firecrawl  # type: ignore[import-untyped]
 
@@ -14,9 +14,12 @@ logger = logging.getLogger(__name__)
 
 
 @component
-class FirecrawlFetcher:
+class FirecrawlCrawler:
     """
     A component that uses Firecrawl to crawl one or more URLs and return the content as Haystack Documents.
+
+    Crawling starts from each given URL and follows links to discover subpages, up to a configurable limit.
+    This is useful for ingesting entire websites or documentation sites, not just single pages.
 
     Firecrawl is a service that crawls websites and returns content in a structured format (e.g. Markdown)
     suitable for LLMs. You need a Firecrawl API key from [firecrawl.dev](https://firecrawl.dev).
@@ -63,30 +66,6 @@ class FirecrawlFetcher:
         self._firecrawl_client: Firecrawl | None = None
         self._async_firecrawl_client: AsyncFirecrawl | None = None
 
-    def to_dict(self) -> dict[str, Any]:
-        """
-        Serializes a FirecrawlFetcher instance to a dictionary.
-
-        :returns: Dictionary with serialized data.
-        """
-        return default_to_dict(
-            self,
-            api_key=self.api_key.to_dict(),
-            params=self.params,
-        )
-
-    @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "FirecrawlFetcher":
-        """
-        Deserializes a FirecrawlFetcher instance from a dictionary.
-
-        :param data: Dictionary to deserialize from.
-        :returns: Deserialized FirecrawlFetcher instance.
-        """
-        init_params = data.get("init_parameters", {})
-        deserialize_secrets_inplace(init_params, keys=["api_key"])
-        return default_from_dict(cls, data)
-
     @component.output_types(documents=list[Document])
     def run(
         self,
@@ -100,9 +79,14 @@ class FirecrawlFetcher:
             List of URLs to crawl.
         :param params:
             Optional override of crawl parameters for this run.
-        :returns: A dictionary with key `documents` containing a list of Haystack `Document` instances.
+            If provided, fully replaces the init-time params.
+        :returns: A dictionary with the following keys:
+            - `documents`: List of documents, one for each URL crawled.
         """
-        current_params = dict(self._params, **(params or {}))
+        if self._firecrawl_client is None:
+            self.warm_up()
+
+        current_params = params if params is not None else self._params
         documents: list[Document] = []
         for url in urls:
             docs = self._crawl_url(url=url, params=current_params)
@@ -123,15 +107,30 @@ class FirecrawlFetcher:
             List of URLs to crawl.
         :param params:
             Optional override of crawl parameters for this run.
-        :returns: A dictionary with key `documents` containing a list of Haystack `Document` instances.
+            If provided, fully replaces the init-time params.
+        :returns: A dictionary with the following keys:
+            - `documents`: List of documents, one for each URL crawled.
         """
-        current_params = dict(self._params, **(params or {}))
+        if self._async_firecrawl_client is None:
+            self.warm_up()
+
+        current_params = params if params is not None else self._params
         documents: list[Document] = []
         for url in urls:
             docs = await self._crawl_url_async(url=url, params=current_params)
             documents.extend(docs)
 
         return {"documents": documents}
+
+    def warm_up(self) -> None:
+        """
+        Warm up the Firecrawl client by initializing the clients.
+        This is useful to avoid cold start delays when crawling many URLs.
+        """
+        if self._firecrawl_client is None:
+            self._firecrawl_client = Firecrawl(api_key=self.api_key.resolve_value())
+        if self._async_firecrawl_client is None:
+            self._async_firecrawl_client = AsyncFirecrawl(api_key=self.api_key.resolve_value())
 
     def _crawl_url(self, url: str, params: dict[str, Any]) -> list[Document]:
         """
@@ -141,11 +140,8 @@ class FirecrawlFetcher:
         :param params: Crawl request parameters.
         :return: List of Documents from the crawl result.
         """
-        if self._firecrawl_client is None:
-            self._firecrawl_client = Firecrawl(api_key=self.api_key.resolve_value())
-
         try:
-            crawl_response = self._firecrawl_client.crawl(
+            crawl_response = self._firecrawl_client.crawl(  # type: ignore[union-attr]
                 url=url,
                 **params,
             )
@@ -163,11 +159,8 @@ class FirecrawlFetcher:
         :param params: Crawl request parameters.
         :return: List of Documents from the crawl result.
         """
-        if self._async_firecrawl_client is None:
-            self._async_firecrawl_client = AsyncFirecrawl(api_key=self.api_key.resolve_value())
-
         try:
-            crawl_response = await self._async_firecrawl_client.crawl(
+            crawl_response = await self._async_firecrawl_client.crawl(  # type: ignore[union-attr]
                 url=url,
                 **params,
             )
