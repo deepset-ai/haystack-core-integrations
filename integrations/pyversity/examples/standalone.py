@@ -15,7 +15,7 @@ documents = [
     Document(content="France borders Spain to the south.", score=0.75, embedding=[0.5, 0.5, 0.0, 0.0]),
 ]
 
-reranker = PyversityReranker(k=3, strategy=Strategy.MMR, diversity=0.7)
+reranker = PyversityReranker(top_k=3, strategy=Strategy.MMR, diversity=0.7)
 result = reranker.run(documents=documents)
 
 for doc in result["documents"]:

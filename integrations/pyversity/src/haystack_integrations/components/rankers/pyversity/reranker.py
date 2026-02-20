@@ -33,7 +33,7 @@ class PyversityReranker:
     from haystack_integrations.components.rankers.pyversity import PyversityReranker
     from pyversity import Strategy
 
-    ranker = PyversityReranker(k=5, strategy=Strategy.MMR, diversity=0.5)
+    ranker = PyversityReranker(top_k=5, strategy=Strategy.MMR, diversity=0.5)
 
     docs = [
         Document(content="Paris", score=0.9, embedding=[0.1, 0.2]),
@@ -44,25 +44,25 @@ class PyversityReranker:
     ```
     """
 
-    def __init__(self, k: int, *, strategy: Strategy = Strategy.DPP, diversity: float = 0.5) -> None:
+    def __init__(self, top_k: int, *, strategy: Strategy = Strategy.DPP, diversity: float = 0.5) -> None:
         """
         Creates an instance of PyversityReranker.
 
-        :param k: Number of documents to return after diversification.
+        :param top_k: Number of documents to return after diversification.
         :param strategy: Pyversity diversification strategy (e.g. `Strategy.MMR`). Defaults to `Strategy.DPP`.
         :param diversity: Trade-off between relevance and diversity in [0, 1].
             `0.0` keeps only the most relevant documents; `1.0` maximises
             diversity regardless of relevance. Defaults to `0.5`.
 
-        :raises ValueError: If `k` is not a positive integer or `diversity` is not in [0, 1].
+        :raises ValueError: If `top_k` is not a positive integer or `diversity` is not in [0, 1].
         """
-        if k <= 0:
-            msg = f"k must be a positive integer, got {k}"
+        if top_k <= 0:
+            msg = f"top_k must be a positive integer, got {top_k}"
             raise ValueError(msg)
         if not 0.0 <= diversity <= 1.0:
             msg = f"diversity must be in [0, 1], got {diversity}"
             raise ValueError(msg)
-        self._k = k
+        self._top_k = top_k
         self._strategy = strategy
         self._diversity = diversity
 
@@ -76,7 +76,7 @@ class PyversityReranker:
         :param documents: List of Documents to rerank. Each document must have `score` and `embedding` set.
         :returns:
             A dictionary with the following keys:
-            - `documents`: List of up to `k` reranked Documents, ordered by the diversification algorithm.
+            - `documents`: List of up to `top_k` reranked Documents, ordered by the diversification algorithm.
         """
         if not documents:
             return {"documents": []}
@@ -98,7 +98,7 @@ class PyversityReranker:
         result = diversify(
             embeddings=embeddings,
             scores=scores,
-            k=min(self._k, len(valid_docs)),
+            k=min(self._top_k, len(valid_docs)),
             strategy=self._strategy,
             diversity=self._diversity,
         )

@@ -42,42 +42,42 @@ def pipeline(documents, request):
         "retriever",
         InMemoryEmbeddingRetriever(document_store=store, top_k=15, return_embedding=True),
     )
-    p.add_component("reranker", PyversityReranker(k=5, strategy=strategy, diversity=0.7))
+    p.add_component("reranker", PyversityReranker(top_k=5, strategy=strategy, diversity=0.7))
     p.connect("retriever.documents", "reranker.documents")
     return p
 
 
 class TestPyversityReranker:
     def test_init_defaults(self):
-        reranker = PyversityReranker(k=5)
-        assert reranker._k == 5
+        reranker = PyversityReranker(top_k=5)
+        assert reranker._top_k == 5
         assert reranker._strategy == Strategy.DPP
         assert reranker._diversity == 0.5
 
     def test_init_custom_params(self):
-        reranker = PyversityReranker(k=10, strategy=Strategy.MMR, diversity=0.3)
-        assert reranker._k == 10
+        reranker = PyversityReranker(top_k=10, strategy=Strategy.MMR, diversity=0.3)
+        assert reranker._top_k == 10
         assert reranker._strategy == Strategy.MMR
         assert reranker._diversity == 0.3
 
     def test_init_invalid_k_zero(self):
-        with pytest.raises(ValueError, match="k must be a positive integer"):
-            PyversityReranker(k=0)
+        with pytest.raises(ValueError, match="top_k must be a positive integer"):
+            PyversityReranker(top_k=0)
 
     def test_init_invalid_k_negative(self):
-        with pytest.raises(ValueError, match="k must be a positive integer"):
-            PyversityReranker(k=-1)
+        with pytest.raises(ValueError, match="top_k must be a positive integer"):
+            PyversityReranker(top_k=-1)
 
     def test_init_invalid_diversity_above_one(self):
         with pytest.raises(ValueError, match="diversity must be in"):
-            PyversityReranker(k=5, diversity=1.1)
+            PyversityReranker(top_k=5, diversity=1.1)
 
     def test_init_invalid_diversity_below_zero(self):
         with pytest.raises(ValueError, match="diversity must be in"):
-            PyversityReranker(k=5, diversity=-0.1)
+            PyversityReranker(top_k=5, diversity=-0.1)
 
     def test_run_empty_documents(self):
-        reranker = PyversityReranker(k=5)
+        reranker = PyversityReranker(top_k=5)
         result = reranker.run(documents=[])
         assert result == {"documents": []}
 
@@ -87,7 +87,7 @@ class TestPyversityReranker:
             Document(content="has score and embedding", score=0.9, embedding=rng.standard_normal(4).tolist()),
             Document(content="missing score", embedding=rng.standard_normal(4).tolist()),
         ]
-        reranker = PyversityReranker(k=5)
+        reranker = PyversityReranker(top_k=5)
         result = reranker.run(documents=docs)
         assert len(result["documents"]) == 1
 
@@ -96,7 +96,7 @@ class TestPyversityReranker:
             Document(content="has score and embedding", score=0.9, embedding=[0.1, 0.2, 0.3, 0.4]),
             Document(content="missing embedding", score=0.5),
         ]
-        reranker = PyversityReranker(k=5)
+        reranker = PyversityReranker(top_k=5)
         result = reranker.run(documents=docs)
         assert len(result["documents"]) == 1
 
@@ -105,7 +105,7 @@ class TestPyversityReranker:
             Document(content="no score", embedding=[0.1, 0.2]),
             Document(content="no embedding", score=0.5),
         ]
-        reranker = PyversityReranker(k=5)
+        reranker = PyversityReranker(top_k=5)
         result = reranker.run(documents=docs)
         assert result == {"documents": []}
 
@@ -115,7 +115,7 @@ class TestPyversityReranker:
             Document(content=f"doc {i}", score=float(i) / 10, embedding=rng.standard_normal(8).tolist())
             for i in range(10)
         ]
-        reranker = PyversityReranker(k=3)
+        reranker = PyversityReranker(top_k=3)
         result = reranker.run(documents=docs)
         assert len(result["documents"]) <= 3
 
@@ -125,7 +125,7 @@ class TestPyversityReranker:
             Document(content=f"doc {i}", score=float(i) / 10, embedding=rng.standard_normal(8).tolist())
             for i in range(2)
         ]
-        reranker = PyversityReranker(k=5)
+        reranker = PyversityReranker(top_k=5)
         result = reranker.run(documents=docs)
         assert len(result["documents"]) == 2
 
