@@ -62,9 +62,9 @@ class PyversityReranker:
         if not 0.0 <= diversity <= 1.0:
             msg = f"diversity must be in [0, 1], got {diversity}"
             raise ValueError(msg)
-        self._top_k = top_k
-        self._strategy = strategy
-        self._diversity = diversity
+        self.top_k = top_k
+        self.strategy = strategy
+        self.diversity = diversity
 
     @component.output_types(documents=list[Document])
     def run(self, documents: list[Document]) -> dict:
@@ -98,9 +98,9 @@ class PyversityReranker:
         result = diversify(
             embeddings=embeddings,
             scores=scores,
-            k=min(self._top_k, len(valid_docs)),
-            strategy=self._strategy,
-            diversity=self._diversity,
+            k=min(self.top_k, len(valid_docs)),
+            strategy=self.strategy,
+            diversity=self.diversity,
         )
 
         return {"documents": [valid_docs[i] for i in result.indices]}

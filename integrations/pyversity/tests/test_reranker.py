@@ -50,15 +50,15 @@ def pipeline(documents, request):
 class TestPyversityReranker:
     def test_init_defaults(self):
         reranker = PyversityReranker(top_k=5)
-        assert reranker._top_k == 5
-        assert reranker._strategy == Strategy.DPP
-        assert reranker._diversity == 0.5
+        assert reranker.top_k == 5
+        assert reranker.strategy == Strategy.DPP
+        assert reranker.diversity == 0.5
 
     def test_init_custom_params(self):
         reranker = PyversityReranker(top_k=10, strategy=Strategy.MMR, diversity=0.3)
-        assert reranker._top_k == 10
-        assert reranker._strategy == Strategy.MMR
-        assert reranker._diversity == 0.3
+        assert reranker.top_k == 10
+        assert reranker.strategy == Strategy.MMR
+        assert reranker.diversity == 0.3
 
     def test_init_invalid_k_zero(self):
         with pytest.raises(ValueError, match="top_k must be a positive integer"):
