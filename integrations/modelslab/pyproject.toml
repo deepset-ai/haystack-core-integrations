@@ -1,0 +1,49 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "modelslab-haystack"
+version = "0.1.0"
+description = "ModelsLab integration for Haystack — uncensored Llama 3.1 models"
+readme = "README.md"
+license = "Apache-2.0"
+requires-python = ">=3.9"
+keywords = ["modelslab", "haystack", "llm", "generative-ai", "uncensored", "llama"]
+authors = [
+    {name = "Your Name", email = "you@example.com"},
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: Apache Software License",
+    "Programming Language :: Python :: 3",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+dependencies = [
+    "haystack-ai>=2.9.0",
+]
+
+[project.urls]
+Source = "https://github.com/deepset-ai/haystack-core-integrations"
+Documentation = "https://docs.modelslab.com"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/modelslab_haystack"]
+
+[tool.hatch.envs.default]
+dependencies = [
+    "pytest",
+    "pytest-cov",
+    "pytest-mock",
+]
+
+[tool.hatch.envs.default.scripts]
+test = "pytest {args:tests/}"
+cov = "pytest --cov=modelslab_haystack --cov-report=term-missing {args:tests/}"
+
+[tool.pytest.ini_options]
+addopts = "-v"
+
+[tool.ruff]
+line-length = 120
