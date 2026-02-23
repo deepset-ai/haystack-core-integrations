@@ -141,7 +141,7 @@ class FirecrawlCrawler:
         :return: List of Documents from the crawl result.
         """
         try:
-            # Ignoring type is due to the fact that the firecrawl sdk is not shipped with py.typed
+            # Ignoring type because the firecrawl client is initialized as None and only set during warm_up
             crawl_response = self._firecrawl_client.crawl(  # type: ignore[union-attr]
                 url=url,
                 **params,
@@ -161,7 +161,7 @@ class FirecrawlCrawler:
         :return: List of Documents from the crawl result.
         """
         try:
-            # Ignoring type is due to the fact that the firecrawl sdk is not shipped with py.typed
+            # Ignoring type because the firecrawl client is initialized as None and only set during warm_up
             crawl_response = await self._async_firecrawl_client.crawl(  # type: ignore[union-attr]
                 url=url,
                 **params,
