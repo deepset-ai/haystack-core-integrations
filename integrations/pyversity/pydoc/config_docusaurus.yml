@@ -1,6 +1,6 @@
 loaders:
   - modules:
-      - haystack_integrations.components.rankers.pyversity.reranker
+      - haystack_integrations.components.rankers.pyversity.ranker
     search_path: [../src]
 processors:
   - type: filter
