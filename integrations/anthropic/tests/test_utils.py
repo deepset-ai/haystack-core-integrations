@@ -715,13 +715,6 @@ class TestUtils:
         with pytest.raises(ValueError, match="Unsupported file format: image/png"):
             _convert_file_content_to_anthropic_format(file_content)
 
-    def test_convert_file_content_to_anthropic_format_unsupported_(self):
-        base64_data = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg=="
-        file_content = FileContent(base64_data=base64_data, mime_type="image/png")
-
-        with pytest.raises(ValueError, match="Unsupported file format: image/png"):
-            _convert_file_content_to_anthropic_format(file_content)
-
     def test_convert_message_to_anthropic_format_from_system(self):
         messages = [ChatMessage.from_system("You are good assistant")]
         assert _convert_messages_to_anthropic_format(messages) == (
@@ -977,6 +970,13 @@ class TestUtils:
 
         message = ChatMessage.from_tool(tool_result="result", origin=tool_call_null_id)
         with pytest.raises(ValueError):
+            _convert_messages_to_anthropic_format([message])
+
+        base64_data = "JVBERi0xLjEKMSAwIG9iago8PC9UeXBlL0NhdGFsb2c+PgplbmRvYmoKdHJhaWxlcgo8PC9Sb290IDEgMCBSPj4KJSVFT0Y="
+        file_content = FileContent(base64_data=base64_data, mime_type="application/pdf")
+        message = ChatMessage.from_assistant()
+        message._content = [file_content]
+        with pytest.raises(ValueError, match="File content is only supported for user messages"):
             _convert_messages_to_anthropic_format([message])
 
     def test_finalize_reasoning_group_with_thinking_text(self):
