@@ -244,6 +244,112 @@ class TestPyversityRanker:
         restored = PyversityRanker.from_dict(original.to_dict())
         assert restored.top_k is None
 
+    def test_run_top_k_runtime_overrides_init(self):
+        rng = np.random.default_rng(10)
+        docs = [
+            Document(content=f"doc {i}", score=float(i) / 10, embedding=rng.standard_normal(8).tolist())
+            for i in range(10)
+        ]
+        reranker = PyversityRanker(top_k=10)
+        result = reranker.run(documents=docs, top_k=3)
+        assert len(result["documents"]) == 3
+
+    def test_run_top_k_runtime_none_falls_back_to_init(self):
+        rng = np.random.default_rng(11)
+        docs = [
+            Document(content=f"doc {i}", score=float(i) / 10, embedding=rng.standard_normal(8).tolist())
+            for i in range(10)
+        ]
+        reranker = PyversityRanker(top_k=3)
+        result = reranker.run(documents=docs, top_k=None)
+        assert len(result["documents"]) == 3
+
+    def test_run_top_k_runtime_invalid_zero(self):
+        reranker = PyversityRanker()
+        docs = [Document(content="doc", score=0.5, embedding=[0.1, 0.2, 0.3, 0.4])]
+        with pytest.raises(ValueError, match="top_k must be a positive integer"):
+            reranker.run(documents=docs, top_k=0)
+
+    def test_run_top_k_runtime_invalid_negative(self):
+        reranker = PyversityRanker()
+        docs = [Document(content="doc", score=0.5, embedding=[0.1, 0.2, 0.3, 0.4])]
+        with pytest.raises(ValueError, match="top_k must be a positive integer"):
+            reranker.run(documents=docs, top_k=-1)
+
+    def test_run_top_k_runtime_with_init_top_k_none(self):
+        rng = np.random.default_rng(12)
+        docs = [
+            Document(content=f"doc {i}", score=float(i) / 10, embedding=rng.standard_normal(8).tolist())
+            for i in range(10)
+        ]
+        reranker = PyversityRanker(top_k=None)
+        result = reranker.run(documents=docs, top_k=5)
+        assert len(result["documents"]) == 5
+
+    def test_run_diversity_runtime_none_falls_back_to_init(self):
+        rng = np.random.default_rng(13)
+        docs = [
+            Document(content=f"doc {i}", score=float(i) / 10, embedding=rng.standard_normal(8).tolist())
+            for i in range(5)
+        ]
+        reranker = PyversityRanker(diversity=0.9)
+        result_default = reranker.run(documents=docs)
+        result_none = reranker.run(documents=docs, diversity=None)
+        assert [d.score for d in result_default["documents"]] == [d.score for d in result_none["documents"]]
+
+    def test_run_diversity_runtime_invalid_above_one(self):
+        reranker = PyversityRanker()
+        docs = [Document(content="doc", score=0.5, embedding=[0.1, 0.2, 0.3, 0.4])]
+        with pytest.raises(ValueError, match="diversity must be in"):
+            reranker.run(documents=docs, diversity=1.1)
+
+    def test_run_diversity_runtime_invalid_below_zero(self):
+        reranker = PyversityRanker()
+        docs = [Document(content="doc", score=0.5, embedding=[0.1, 0.2, 0.3, 0.4])]
+        with pytest.raises(ValueError, match="diversity must be in"):
+            reranker.run(documents=docs, diversity=-0.1)
+
+    def test_run_both_params_overridden_at_runtime(self):
+        rng = np.random.default_rng(14)
+        docs = [
+            Document(content=f"doc {i}", score=float(i) / 10, embedding=rng.standard_normal(8).tolist())
+            for i in range(10)
+        ]
+        reranker = PyversityRanker(top_k=10, diversity=0.9)
+        result = reranker.run(documents=docs, top_k=4, diversity=0.1)
+        assert len(result["documents"]) == 4
+
+    def test_run_strategy_runtime_overrides_init(self):
+        rng = np.random.default_rng(15)
+        docs = [
+            Document(content=f"doc {i}", score=float(i) / 10, embedding=rng.standard_normal(8).tolist())
+            for i in range(5)
+        ]
+        reranker = PyversityRanker(strategy=Strategy.DPP)
+        result = reranker.run(documents=docs, strategy=Strategy.MMR)
+        assert len(result["documents"]) == 5
+
+    def test_run_strategy_runtime_none_falls_back_to_init(self):
+        rng = np.random.default_rng(16)
+        docs = [
+            Document(content=f"doc {i}", score=float(i) / 10, embedding=rng.standard_normal(8).tolist())
+            for i in range(5)
+        ]
+        reranker = PyversityRanker(strategy=Strategy.MMR)
+        result_default = reranker.run(documents=docs)
+        result_none = reranker.run(documents=docs, strategy=None)
+        assert [d.score for d in result_default["documents"]] == [d.score for d in result_none["documents"]]
+
+    def test_run_all_params_overridden_at_runtime(self):
+        rng = np.random.default_rng(17)
+        docs = [
+            Document(content=f"doc {i}", score=float(i) / 10, embedding=rng.standard_normal(8).tolist())
+            for i in range(10)
+        ]
+        reranker = PyversityRanker(top_k=10, strategy=Strategy.DPP, diversity=0.9)
+        result = reranker.run(documents=docs, top_k=4, strategy=Strategy.MMR, diversity=0.1)
+        assert len(result["documents"]) == 4
+
 
 @pytest.mark.parametrize(
     "pipeline",

@@ -97,17 +97,39 @@ class PyversityRanker:
         return default_from_dict(cls, data)
 
     @component.output_types(documents=list[Document])
-    def run(self, documents: list[Document]) -> dict[str, list[Document]]:
+    def run(
+        self,
+        documents: list[Document],
+        top_k: int | None = None,
+        strategy: Strategy | None = None,
+        diversity: float | None = None,
+    ) -> dict[str, list[Document]]:
         """
         Rerank the list of documents using pyversity's diversification algorithm.
 
         Documents missing `score` or `embedding` are skipped with a warning.
 
         :param documents: List of Documents to rerank. Each document must have `score` and `embedding` set.
+        :param top_k: Overrides the initialized `top_k` for this call. `None` falls back to the initialized value.
+        :param strategy: Overrides the initialized `strategy` for this call. `None` falls back to the initialized value.
+        :param diversity: Overrides the initialized `diversity` for this call.
+            `None` falls back to the initialized value.
         :returns:
             A dictionary with the following keys:
             - `documents`: List of up to `top_k` reranked Documents, ordered by the diversification algorithm.
+        :raises ValueError: If `top_k` is not a positive integer or `diversity` is not in [0, 1].
         """
+        if top_k is not None and top_k <= 0:
+            msg = f"top_k must be a positive integer, got {top_k}"
+            raise ValueError(msg)
+        if diversity is not None and not 0.0 <= diversity <= 1.0:
+            msg = f"diversity must be in [0, 1], got {diversity}"
+            raise ValueError(msg)
+
+        effective_top_k = top_k if top_k is not None else self.top_k
+        effective_strategy = strategy if strategy is not None else self.strategy
+        effective_diversity = diversity if diversity is not None else self.diversity
+
         if not documents:
             return {"documents": []}
 
@@ -125,16 +147,16 @@ class PyversityRanker:
         embeddings = np.array([doc.embedding for doc in valid_docs])
         scores = np.array([doc.score for doc in valid_docs])
 
-        if self.top_k is not None:
-            k = min(self.top_k, len(valid_docs))
+        if effective_top_k is not None:
+            k = min(effective_top_k, len(valid_docs))
         else:
             k = len(valid_docs)
         result = diversify(
             embeddings=embeddings,
             scores=scores,
             k=k,
-            strategy=self.strategy,
-            diversity=self.diversity,
+            strategy=effective_strategy,
+            diversity=effective_diversity,
         )
 
         return {
