@@ -2,6 +2,6 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from haystack_integrations.components.rankers.pyversity.reranker import PyversityReranker
+from haystack_integrations.components.rankers.pyversity.reranker import PyversityRanker
 
-__all__ = ["PyversityReranker"]
+__all__ = ["PyversityRanker"]

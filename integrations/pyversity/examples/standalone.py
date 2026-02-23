@@ -5,7 +5,7 @@
 from haystack import Document
 from pyversity import Strategy
 
-from haystack_integrations.components.rankers.pyversity import PyversityReranker
+from haystack_integrations.components.rankers.pyversity import PyversityRanker
 
 documents = [
     Document(content="Paris is the capital of France.", score=0.95, embedding=[0.9, 0.1, 0.0, 0.0]),
@@ -15,7 +15,7 @@ documents = [
     Document(content="France borders Spain to the south.", score=0.75, embedding=[0.5, 0.5, 0.0, 0.0]),
 ]
 
-reranker = PyversityReranker(top_k=3, strategy=Strategy.MMR, diversity=0.7)
+reranker = PyversityRanker(top_k=3, strategy=Strategy.MMR, diversity=0.7)
 result = reranker.run(documents=documents)
 
 for doc in result["documents"]:

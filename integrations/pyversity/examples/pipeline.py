@@ -8,7 +8,7 @@ from haystack.components.retrievers import InMemoryEmbeddingRetriever
 from haystack.document_stores.in_memory import InMemoryDocumentStore
 from pyversity import Strategy
 
-from haystack_integrations.components.rankers.pyversity import PyversityReranker
+from haystack_integrations.components.rankers.pyversity import PyversityRanker
 
 # Index documents
 document_store = InMemoryDocumentStore()
@@ -35,7 +35,7 @@ pipeline.add_component(
     "retriever",
     InMemoryEmbeddingRetriever(document_store=document_store, top_k=6, return_embedding=True),
 )
-pipeline.add_component("reranker", PyversityReranker(top_k=3, strategy=Strategy.MMR, diversity=0.7))
+pipeline.add_component("reranker", PyversityRanker(top_k=3, strategy=Strategy.MMR, diversity=0.7))
 
 pipeline.connect("text_embedder.embedding", "retriever.query_embedding")
 pipeline.connect("retriever.documents", "reranker.documents")

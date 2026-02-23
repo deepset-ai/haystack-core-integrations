@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 
 
 @component
-class PyversityReranker:
+class PyversityRanker:
     """
     Reranks documents using [pyversity](https://github.com/Pringled/pyversity)'s diversification algorithms.
 
@@ -30,10 +30,10 @@ class PyversityReranker:
     Usage example:
     ```python
     from haystack import Document
-    from haystack_integrations.components.rankers.pyversity import PyversityReranker
+    from haystack_integrations.components.rankers.pyversity import PyversityRanker
     from pyversity import Strategy
 
-    ranker = PyversityReranker(top_k=5, strategy=Strategy.MMR, diversity=0.5)
+    ranker = PyversityRanker(top_k=5, strategy=Strategy.MMR, diversity=0.5)
 
     docs = [
         Document(content="Paris", score=0.9, embedding=[0.1, 0.2]),
@@ -46,7 +46,7 @@ class PyversityReranker:
 
     def __init__(self, top_k: int, *, strategy: Strategy = Strategy.DPP, diversity: float = 0.5) -> None:
         """
-        Creates an instance of PyversityReranker.
+        Creates an instance of PyversityRanker.
 
         :param top_k: Number of documents to return after diversification.
         :param strategy: Pyversity diversification strategy (e.g. `Strategy.MMR`). Defaults to `Strategy.DPP`.
