@@ -1,3 +1,4 @@
+import base64
 import json
 
 import pytest
@@ -23,6 +24,7 @@ from haystack.dataclasses import (
     ChatMessage,
     ChatRole,
     ComponentInfo,
+    FileContent,
     ImageContent,
     StreamingChunk,
     TextContent,
@@ -38,6 +40,7 @@ from haystack_integrations.components.generators.anthropic.chat.utils import (
     FINISH_REASON_MAPPING,
     _convert_anthropic_chunk_to_streaming_chunk,
     _convert_chat_completion_to_chat_message,
+    _convert_file_content_to_anthropic_format,
     _convert_image_content_to_anthropic_format,
     _convert_messages_to_anthropic_format,
     _finalize_reasoning_group,
@@ -705,6 +708,20 @@ class TestUtils:
         with pytest.raises(ValueError, match="Unsupported image format: None"):
             _convert_image_content_to_anthropic_format(image_content)
 
+    def test_convert_file_content_to_anthropic_format_with_unsupported_mime_type(self):
+        base64_data = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg=="
+        file_content = FileContent(base64_data=base64_data, mime_type="image/png")
+
+        with pytest.raises(ValueError, match="Unsupported file format: image/png"):
+            _convert_file_content_to_anthropic_format(file_content)
+
+    def test_convert_file_content_to_anthropic_format_unsupported_(self):
+        base64_data = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg=="
+        file_content = FileContent(base64_data=base64_data, mime_type="image/png")
+
+        with pytest.raises(ValueError, match="Unsupported file format: image/png"):
+            _convert_file_content_to_anthropic_format(file_content)
+
     def test_convert_message_to_anthropic_format_from_system(self):
         messages = [ChatMessage.from_system("You are good assistant")]
         assert _convert_messages_to_anthropic_format(messages) == (
@@ -919,6 +936,31 @@ class TestUtils:
         assert anthropic_message["content"][1]["source"]["type"] == "base64"
         assert anthropic_message["content"][1]["source"]["media_type"] == "image/png"
         assert anthropic_message["content"][1]["source"]["data"] == base64_image
+
+    def test_convert_message_to_anthropic_format_with_file_content(self, test_files_path):
+        pdf_path = test_files_path / "sample_pdf_3.pdf"
+        with open(pdf_path, "rb") as f:
+            base64_data = base64.b64encode(f.read()).decode("utf-8")
+
+        extra = {"context": "This document contains a table", "title": "A nice PDF"}
+        file_content = FileContent(base64_data=base64_data, mime_type="application/pdf", extra=extra)
+        message = ChatMessage.from_user(content_parts=["Describe this document", file_content])
+
+        _, non_system_messages = _convert_messages_to_anthropic_format([message])
+        assert non_system_messages == [
+            {
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": "Describe this document"},
+                    {
+                        "type": "document",
+                        "source": {"type": "base64", "media_type": "application/pdf", "data": base64_data},
+                        "context": "This document contains a table",
+                        "title": "A nice PDF",
+                    },
+                ],
+            }
+        ]
 
     def test_convert_message_to_anthropic_invalid(self):
         """

@@ -94,6 +94,8 @@ def _convert_file_content_to_anthropic_format(file_content: FileContent) -> Docu
     return DocumentBlockParam(
         type="document",
         source=source,
+        context=file_content.extra.get("context", None),
+        title=file_content.extra.get("title", None),
     )
 
 

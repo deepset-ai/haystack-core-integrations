@@ -1274,7 +1274,9 @@ class TestAnthropicChatGenerator:
     def test_live_run_with_file_content(self, test_files_path):
         pdf_path = test_files_path / "sample_pdf_3.pdf"
 
-        file_content = FileContent.from_file_path(file_path=pdf_path)
+        file_content = FileContent.from_file_path(
+            file_path=pdf_path, extra={"context": "This document contains a table", "title": "A nice PDF"}
+        )
 
         chat_messages = [
             ChatMessage.from_user(
