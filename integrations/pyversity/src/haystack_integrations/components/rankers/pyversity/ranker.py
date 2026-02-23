@@ -8,12 +8,11 @@ Wraps pyversity's diversification algorithms as a Haystack ``@component``,
 making it easy to drop result diversification into any Haystack pipeline.
 """
 
-import logging
 from dataclasses import replace
 from typing import Any
 
 import numpy as np
-from haystack import Document, component, default_from_dict, default_to_dict
+from haystack import Document, component, default_from_dict, default_to_dict, logging
 
 from pyversity import Strategy, diversify
 
@@ -98,7 +97,7 @@ class PyversityRanker:
         return default_from_dict(cls, data)
 
     @component.output_types(documents=list[Document])
-    def run(self, documents: list[Document]) -> dict:
+    def run(self, documents: list[Document]) -> dict[str, list[Document]]:
         """
         Rerank the list of documents using pyversity's diversification algorithm.
 
@@ -116,8 +115,8 @@ class PyversityRanker:
         skipped = len(documents) - len(valid_docs)
         if skipped:
             logger.warning(
-                "%d document(s) are missing 'score' or 'embedding' and will be skipped.",
-                skipped,
+                "{skipped} document(s) are missing 'score' or 'embedding' and will be skipped.",
+                skipped=skipped,
             )
 
         if not valid_docs:
