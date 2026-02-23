@@ -147,6 +147,31 @@ class TestPyversityRanker:
         result = reranker.run(documents=docs)
         assert len(result["documents"]) == 2
 
+    def test_run_sets_selection_scores_on_output(self):
+        rng = np.random.default_rng(7)
+        original_scores = [float(i) / 10 for i in range(1, 6)]
+        docs = [
+            Document(content=f"doc {i}", score=s, embedding=rng.standard_normal(8).tolist())
+            for i, s in enumerate(original_scores)
+        ]
+        reranker = PyversityRanker(top_k=3)
+        result = reranker.run(documents=docs)
+        for doc in result["documents"]:
+            assert doc.score is not None
+            assert isinstance(doc.score, float)
+
+    def test_run_does_not_mutate_input_documents(self):
+        rng = np.random.default_rng(8)
+        original_scores = [float(i) / 10 for i in range(1, 6)]
+        docs = [
+            Document(content=f"doc {i}", score=s, embedding=rng.standard_normal(8).tolist())
+            for i, s in enumerate(original_scores)
+        ]
+        reranker = PyversityRanker(top_k=3)
+        reranker.run(documents=docs)
+        for doc, original_score in zip(docs, original_scores, strict=False):  # type: ignore[call-overload]
+            assert doc.score == original_score
+
     def test_to_dict_top_k_none(self):
         reranker = PyversityRanker(top_k=None)
         data = reranker.to_dict()

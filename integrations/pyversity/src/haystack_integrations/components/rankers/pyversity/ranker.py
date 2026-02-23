@@ -9,6 +9,7 @@ making it easy to drop result diversification into any Haystack pipeline.
 """
 
 import logging
+from dataclasses import replace
 from typing import Any
 
 import numpy as np
@@ -137,4 +138,9 @@ class PyversityRanker:
             diversity=self.diversity,
         )
 
-        return {"documents": [valid_docs[i] for i in result.indices]}
+        return {
+            "documents": [
+                replace(valid_docs[i], score=float(score))
+                for i, score in zip(result.indices, result.selection_scores, strict=True)  # type: ignore[call-overload]
+            ]
+        }

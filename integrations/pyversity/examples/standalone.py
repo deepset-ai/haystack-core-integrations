@@ -21,6 +21,6 @@ result = reranker.run(documents=documents)
 for doc in result["documents"]:
     print(f"{doc.score:.2f}  {doc.content}")
 
-# 0.95  Paris is the capital of France.
-# 0.85  Berlin is the capital of Germany.
-# 0.75  France borders Spain to the south.
+# 0.28  Paris is the capital of France.
+# 0.26  Berlin is the capital of Germany.
+# -0.32  France borders Spain to the south.

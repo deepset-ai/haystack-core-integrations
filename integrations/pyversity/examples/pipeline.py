@@ -46,6 +46,6 @@ result = pipeline.run({"text_embedder": {"text": "What are the famous landmarks 
 for doc in result["reranker"]["documents"]:
     print(f"{doc.score:.4f}  {doc.content}")
 
-# 0.xxxx  Paris is the capital of France.
-# 0.xxxx  The Eiffel Tower is located in Paris.
-# 0.xxxx  France borders Spain to the south.
+# 0.1846  Paris is the capital of France.
+# -0.1647  The Rhine river flows through Germany and France.
+# -0.1775  The Brandenburg Gate is in Berlin.
