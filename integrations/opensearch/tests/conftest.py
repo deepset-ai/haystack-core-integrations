@@ -19,8 +19,8 @@ def _get_unique_index_name() -> str:
 @pytest.fixture
 def document_store():
     """
-    We use this document store for basic tests and for testing filters.
-    `return_embedding` is set to True because in filters tests we compare embeddings.
+    OpenSearch document store instance.
+    Used by document_store and by TestDocumentStore to override the base test class fixture.
     """
     hosts = ["https://localhost:9200"]
     index = _get_unique_index_name()

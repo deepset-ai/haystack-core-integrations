@@ -737,7 +737,8 @@ class OpenSearchDocumentStore:
         :param filters: The filters to apply to select documents for deletion.
             For filter syntax, see [Haystack metadata filtering](https://docs.haystack.deepset.ai/docs/metadata-filtering)
         :param refresh: If True, OpenSearch refreshes all shards involved in the delete by query after the request
-            completes. If False, no refresh is performed. For more details, see the
+            completes so that subsequent reads (e.g. count_documents) see the update. If False, no refresh is
+            performed (better for bulk deletes). For more details, see the
             [OpenSearch delete_by_query refresh documentation](https://opensearch.org/docs/latest/api-reference/document-apis/delete-by-query/).
         :returns: The number of documents deleted.
         """
@@ -747,6 +748,7 @@ class OpenSearchDocumentStore:
         try:
             normalized_filters = normalize_filters(filters)
             body = {"query": {"bool": {"filter": normalized_filters}}}
+
             result = self._client.delete_by_query(index=self._index, body=body, refresh=refresh)
             deleted_count = result.get("deleted", 0)
             logger.info(
@@ -766,8 +768,8 @@ class OpenSearchDocumentStore:
         :param filters: The filters to apply to select documents for deletion.
             For filter syntax, see [Haystack metadata filtering](https://docs.haystack.deepset.ai/docs/metadata-filtering)
         :param refresh: If True, OpenSearch refreshes all shards involved in the delete by query after the request
-            completes. If False, no refresh is performed. For more details, see the
-            [OpenSearch delete_by_query refresh documentation](https://opensearch.org/docs/latest/api-reference/document-apis/delete-by-query/).
+            completes so that subsequent reads see the update. If False, no refresh is performed. For more details,
+            see the [OpenSearch delete_by_query refresh documentation](https://opensearch.org/docs/latest/api-reference/document-apis/delete-by-query/).
         :returns: The number of documents deleted.
         """
         await self._ensure_initialized_async()
@@ -1409,6 +1411,7 @@ class OpenSearchDocumentStore:
         top_k: int,
         custom_query: dict[str, Any] | None,
         efficient_filtering: bool = False,
+        search_kwargs: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         if not query_embedding:
             msg = "query_embedding must be a non-empty list of floats"
@@ -1434,6 +1437,7 @@ class OpenSearchDocumentStore:
                                     "embedding": {
                                         "vector": query_embedding,
                                         "k": top_k,
+                                        **(search_kwargs or {}),
                                     }
                                 }
                             }
@@ -1465,6 +1469,7 @@ class OpenSearchDocumentStore:
         top_k: int = 10,
         custom_query: dict[str, Any] | None = None,
         efficient_filtering: bool = False,
+        search_kwargs: dict[str, Any] | None = None,
     ) -> list[Document]:
         """
         Retrieves documents that are most similar to the query embedding using a vector similarity metric.
@@ -1484,6 +1489,7 @@ class OpenSearchDocumentStore:
             top_k=top_k,
             custom_query=custom_query,
             efficient_filtering=efficient_filtering,
+            search_kwargs=search_kwargs,
         )
         return self._search_documents(search_params)
 
@@ -1495,6 +1501,7 @@ class OpenSearchDocumentStore:
         top_k: int = 10,
         custom_query: dict[str, Any] | None = None,
         efficient_filtering: bool = False,
+        search_kwargs: dict[str, Any] | None = None,
     ) -> list[Document]:
         """
         Asynchronously retrieves documents that are most similar to the query embedding using a vector similarity
@@ -1515,6 +1522,7 @@ class OpenSearchDocumentStore:
             top_k=top_k,
             custom_query=custom_query,
             efficient_filtering=efficient_filtering,
+            search_kwargs=search_kwargs,
         )
         return await self._search_documents_async(search_params)
 

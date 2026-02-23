@@ -1,0 +1,116 @@
+name: Core / Check API reference changes
+
+on:
+  pull_request:
+    paths:
+      - "integrations/**/*.py"
+      - "integrations/**/config_docusaurus.yml"
+
+jobs:
+  test-api-reference-build:
+    runs-on: ubuntu-slim
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+
+      - name: Detect integrations with API reference changes
+        id: changed
+        shell: python
+        run: |
+          import json
+          import os
+          import subprocess
+          import sys
+          from pathlib import Path
+
+          sys.path.insert(0, ".github/utils")
+          from docstrings_checksum import docstrings_checksum
+
+          def git(*args):
+              result = subprocess.run(["git", *args], capture_output=True, text=True)
+              return result.stdout.strip(), result.returncode
+
+          runner_temp = os.environ["RUNNER_TEMP"]
+          base_sha, _ = git("rev-parse", "HEAD^1")
+
+          # Get all changed files
+          diff_output, _ = git(
+              "diff", "--name-only", f"{base_sha}...HEAD", "--", "integrations"
+          )
+          changed_files = set(diff_output.splitlines())
+
+          # Extract integration names
+          candidates = sorted({
+              Path(p).parts[1]
+              for p in changed_files
+              if p.startswith("integrations/") and len(Path(p).parts) > 1
+          })
+
+          # Create base worktree for docstring comparison
+          base_worktree = os.path.join(runner_temp, "base")
+          _, return_code = git("worktree", "add", base_worktree, base_sha)
+          has_worktree = return_code == 0
+
+          changed_integrations = []
+
+          for integration in candidates:
+              # If pydoc config changed, always include
+              if f"integrations/{integration}/pydoc/config_docusaurus.yml" in changed_files:
+                  changed_integrations.append(integration)
+                  continue
+
+              # Otherwise, check if docstrings changed
+              pr_docstrings_checksum = docstrings_checksum(Path(".").glob(f"integrations/{integration}/**/*.py"))
+              base_docstrings_checksum = ""
+              if has_worktree:
+                  base_docstrings_checksum = docstrings_checksum(Path(base_worktree).glob(f"integrations/{integration}/**/*.py"))
+
+              if base_docstrings_checksum != pr_docstrings_checksum:
+                  changed_integrations.append(integration)
+
+          print(f"Integrations with API reference changes: {json.dumps(changed_integrations)}")
+
+          with open(os.environ["GITHUB_OUTPUT"], "a") as f:
+              f.write(f"integrations={json.dumps(changed_integrations)}\n")
+
+      - name: Install Hatch
+        if: steps.changed.outputs.integrations != '[]'
+        run: pip install --upgrade hatch
+
+      - name: Generate API references
+        if: steps.changed.outputs.integrations != '[]'
+        env:
+          INTEGRATIONS: ${{ steps.changed.outputs.integrations }}
+        run: |
+          mkdir -p website
+          for integration in $(echo "$INTEGRATIONS" | jq -r '.[]'); do
+            echo ""
+            echo "--- Generating API reference for $integration ---"
+            cd "integrations/$integration"
+            hatch run docs
+            # Move the generated file to a 'website' folder for testing
+            mv "$integration.md" ../../website/
+            cd ../..
+          done
+
+      - name: Set up Node.js
+        if: steps.changed.outputs.integrations != '[]'
+        uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+
+      - name: Run Docusaurus md/mdx checker
+        if: steps.changed.outputs.integrations != '[]'
+        working-directory: website
+        run: |
+          npx docusaurus-mdx-checker -v || {
+              echo ""
+              echo "For common MDX problems, see https://docusaurus.io/blog/preparing-your-site-for-docusaurus-v3#common-mdx-problems"
+              exit 1
+            }

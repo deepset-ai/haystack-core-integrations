@@ -10,7 +10,6 @@ on:
       - "integrations/jina/**"
       - "!integrations/jina/*.md"
       - ".github/workflows/jina.yml"
-
 defaults:
   run:
     working-directory: integrations/jina
@@ -20,6 +19,7 @@ concurrency:
   cancel-in-progress: true
 
 env:
+  JINA_API_KEY: ${{ secrets.JINA_API_KEY }}
   PYTHONUNBUFFERED: "1"
   FORCE_COLOR: "1"
 
@@ -52,10 +52,6 @@ jobs:
       - name: Lint
         if: matrix.python-version == '3.10' && runner.os == 'Linux'
         run: hatch run fmt-check && hatch run test:types
-
-      - name: Generate docs
-        if: matrix.python-version == '3.10' && runner.os == 'Linux'
-        run: hatch run docs
 
       - name: Run tests
         run: hatch run test:cov-retry

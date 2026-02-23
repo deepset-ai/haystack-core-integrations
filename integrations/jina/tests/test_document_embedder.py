@@ -2,6 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 import json
+import os
 from unittest.mock import patch
 
 import pytest
@@ -311,3 +312,27 @@ class TestJinaDocumentEmbedder:
             assert len(doc.embedding) == 3
             assert all(isinstance(x, float) for x in doc.embedding)
         assert metadata == {"model": model, "usage": {"prompt_tokens": 2 * 4, "total_tokens": 2 * 4}}
+
+    @pytest.mark.skipif(not os.environ.get("JINA_API_KEY", None), reason="JINA_API_KEY env var not set")
+    @pytest.mark.integration
+    def test_run_integration(self):
+        embedder = JinaDocumentEmbedder(model="jina-embeddings-v3", task="retrieval.passage")
+        docs = [
+            Document(content="Paris is the capital of France."),
+            Document(content="Berlin is the capital of Germany."),
+        ]
+
+        result = embedder.run(documents=docs)
+
+        assert "documents" in result
+        assert len(result["documents"]) == 2
+        for doc in result["documents"]:
+            assert isinstance(doc, Document)
+            assert isinstance(doc.embedding, list)
+            assert len(doc.embedding) > 0
+            assert all(isinstance(x, (int, float)) for x in doc.embedding)
+
+        assert "meta" in result
+        assert isinstance(result["meta"], dict)
+        assert "model" in result["meta"]
+        assert "usage" in result["meta"]

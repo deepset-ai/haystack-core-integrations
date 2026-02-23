@@ -88,6 +88,7 @@ class TestOpenSearchHybridRetriever:
             "weights": None,
             "top_k": None,
             "sort_by_score": True,
+            "search_kwargs_embedding": None,
         },
     }
 
@@ -224,6 +225,7 @@ class TestOpenSearchHybridRetriever:
             top_k=1,
             custom_query=None,
             efficient_filtering=False,
+            search_kwargs=None,
         )
 
     def test_run_in_pipeline(self, mock_embedder):
@@ -256,4 +258,5 @@ class TestOpenSearchHybridRetriever:
             top_k=10,
             custom_query=None,
             efficient_filtering=False,
+            search_kwargs=None,
         )

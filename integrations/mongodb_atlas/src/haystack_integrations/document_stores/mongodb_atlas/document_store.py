@@ -1,6 +1,7 @@
 # SPDX-FileCopyrightText: 2023-present deepset GmbH <info@deepset.ai>
 #
 # SPDX-License-Identifier: Apache-2.0
+
 import re
 from typing import Any, Literal
 
@@ -88,7 +89,7 @@ class MongoDBAtlasDocumentStore:
             [documentation](https://www.mongodb.com/docs/atlas/atlas-search/create-index/).
         :param embedding_field: The name of the field containing document embeddings. Default is "embedding".
         :param content_field: The name of the field containing the document content. Default is "content".
-            This field is allows defining which field to load into the Haystack Document object as content.
+            This field allows defining which field to load into the Haystack Document object as content.
             It can be particularly useful when integrating with an existing collection for retrieval. We discourage
             using this parameter when working with collections created by Haystack.
         :raises ValueError: If the collection name contains invalid characters.
@@ -277,6 +278,288 @@ class MongoDBAtlasDocumentStore:
         await self._ensure_connection_setup_async()
         assert self._collection_async is not None
         return await self._collection_async.count_documents({})
+
+    def count_documents_by_filter(self, filters: dict[str, Any]) -> int:
+        """
+        Applies a filter and counts the documents that matched it.
+
+        :param filters: The filters to apply to the document list.
+        :returns: The number of documents that match the filter.
+        """
+        self._ensure_connection_setup()
+        assert self._collection is not None
+        normalized_filters = _normalize_filters(filters)
+        return self._collection.count_documents(normalized_filters)
+
+    async def count_documents_by_filter_async(self, filters: dict[str, Any]) -> int:
+        """
+        Asynchronously applies a filter and counts the documents that matched it.
+
+        :param filters: The filters to apply to the document list.
+        :returns: The number of documents that match the filter.
+        """
+        await self._ensure_connection_setup_async()
+        assert self._collection_async is not None
+        normalized_filters = _normalize_filters(filters)
+        return await self._collection_async.count_documents(normalized_filters)
+
+    def _create_count_unique_metadata_pipeline(
+        self, filters: dict[str, Any], metadata_fields: list[str]
+    ) -> list[dict[str, Any]]:
+        normalized_filters = _normalize_filters(filters)
+        pipeline = [{"$match": normalized_filters}]
+        facet_stages = {}
+        for field in metadata_fields:
+            # metadata fields are stored in "meta" field in MongoDB
+            mongo_field = f"meta.{field}"
+            facet_stages[field] = [{"$group": {"_id": f"${mongo_field}"}}, {"$count": "count"}]
+
+        pipeline.append({"$facet": facet_stages})
+        return pipeline
+
+    def _process_count_unique_metadata_result(self, result: list[Any], metadata_fields: list[str]) -> dict[str, int]:
+        if not result:
+            return dict.fromkeys(metadata_fields, 0)
+
+        counts = {}
+        for field in metadata_fields:
+            field_result = result[0].get(field, [])
+            counts[field] = field_result[0]["count"] if field_result else 0
+        return counts
+
+    def count_unique_metadata_by_filter(self, filters: dict[str, Any], metadata_fields: list[str]) -> dict[str, int]:
+        """
+        Applies a filter selecting documents and counts the unique values for each meta field of the matched documents.
+
+        :param filters: The filters to apply to the document list.
+        :param metadata_fields: The metadata fields to count unique values for.
+        :returns: A dictionary where the keys are the metadata field names and the values are the count of unique
+        values.
+        """
+        self._ensure_connection_setup()
+        assert self._collection is not None
+
+        pipeline = self._create_count_unique_metadata_pipeline(filters, metadata_fields)
+
+        try:
+            result = list(self._collection.aggregate(pipeline))
+            return self._process_count_unique_metadata_result(result, metadata_fields)
+        except Exception as e:
+            msg = f"Failed to count unique metadata values in MongoDB Atlas: {e}"
+            raise DocumentStoreError(msg) from e
+
+    async def count_unique_metadata_by_filter_async(
+        self, filters: dict[str, Any], metadata_fields: list[str]
+    ) -> dict[str, int]:
+        """
+        Asynchronously applies a filter selecting documents and counts the unique values for each meta field of the
+        matched documents.
+
+        :param filters: The filters to apply to the document list.
+        :param metadata_fields: The metadata fields to count unique values for.
+        :returns: A dictionary where the keys are the metadata field names and the values are the count of unique
+        values.
+        """
+        await self._ensure_connection_setup_async()
+        assert self._collection_async is not None
+
+        pipeline = self._create_count_unique_metadata_pipeline(filters, metadata_fields)
+
+        try:
+            cursor = await self._collection_async.aggregate(pipeline)
+            result = await cursor.to_list(length=1)
+            return self._process_count_unique_metadata_result(result, metadata_fields)
+        except Exception as e:
+            msg = f"Failed to count unique metadata values in MongoDB Atlas: {e}"
+            raise DocumentStoreError(msg) from e
+
+    def _compute_metadata_fields_info(self, docs: list[Any]) -> dict[str, dict]:
+        # We start with the content field
+        fields_info = {self.content_field: {"type": "text"}}
+        type_mapping = {str: "keyword", int: "long", float: "float", bool: "boolean", list: "list", dict: "object"}
+
+        for doc in docs:
+            if "meta" not in doc:
+                continue
+            for key, value in doc["meta"].items():
+                if key not in fields_info:
+                    fields_info[key] = {"type": type_mapping.get(type(value), "string")}
+        return fields_info
+
+    def get_metadata_fields_info(self) -> dict[str, dict]:
+        """
+        Returns the metadata fields and their corresponding types.
+
+        Since MongoDB is schemaless, this method samples the latest 50 documents to infer the fields and their types.
+
+        :returns: A dictionary where the keys are the metadata field names and the values are dictionary with 'type'.
+        """
+        self._ensure_connection_setup()
+        assert self._collection is not None
+
+        try:
+            # Sample latest 50 documents
+            cursor = self._collection.find({}, {"meta": 1}).sort("_id", -1).limit(50)
+            return self._compute_metadata_fields_info(list(cursor))
+        except Exception as e:
+            msg = f"Failed to get metadata fields info from MongoDB Atlas: {e}"
+            raise DocumentStoreError(msg) from e
+
+    async def get_metadata_fields_info_async(self) -> dict[str, dict]:
+        """
+        Asynchronously returns the metadata fields and their corresponding types.
+
+        Since MongoDB is schemaless, this method samples the latest 50 documents to infer the fields and their types.
+
+        :returns: A dictionary where the keys are the metadata field names and the values are dictionary with 'type'.
+        """
+        await self._ensure_connection_setup_async()
+        assert self._collection_async is not None
+
+        try:
+            # Sample latest 50 documents
+            cursor = self._collection_async.find({}, {"meta": 1}).sort("_id", -1).limit(50)
+            docs = await cursor.to_list(length=50)
+            return self._compute_metadata_fields_info(docs)
+        except Exception as e:
+            msg = f"Failed to get metadata fields info from MongoDB Atlas: {e}"
+            raise DocumentStoreError(msg) from e
+
+    def _create_min_max_pipeline(self, metadata_field: str) -> list[dict[str, Any]]:
+        return [
+            {
+                "$group": {
+                    "_id": None,
+                    "min": {"$min": f"$meta.{metadata_field}"},
+                    "max": {"$max": f"$meta.{metadata_field}"},
+                }
+            }
+        ]
+
+    def _process_min_max_result(self, result: list[Any]) -> dict[str, Any]:
+        if not result:
+            return {"min": None, "max": None}
+        return {"min": result[0]["min"], "max": result[0]["max"]}
+
+    def get_metadata_field_min_max(self, metadata_field: str) -> dict[str, Any]:
+        """
+        For a given metadata field, find its max and min value.
+
+        :param metadata_field: The metadata field to get the min and max values for.
+        :returns: A dictionary with 'min' and 'max' keys.
+        """
+        self._ensure_connection_setup()
+        assert self._collection is not None
+
+        pipeline = self._create_min_max_pipeline(metadata_field)
+
+        try:
+            result = list(self._collection.aggregate(pipeline))
+            return self._process_min_max_result(result)
+        except Exception as e:
+            msg = f"Failed to get min/max for field '{metadata_field}' in MongoDB Atlas: {e}"
+            raise DocumentStoreError(msg) from e
+
+    async def get_metadata_field_min_max_async(self, metadata_field: str) -> dict[str, Any]:
+        """
+        Asynchronously for a given metadata field, find its max and min value.
+
+        :param metadata_field: The metadata field to get the min and max values for.
+        :returns: A dictionary with 'min' and 'max' keys.
+        """
+        await self._ensure_connection_setup_async()
+        assert self._collection_async is not None
+
+        pipeline = self._create_min_max_pipeline(metadata_field)
+
+        try:
+            cursor = await self._collection_async.aggregate(pipeline)
+            result = await cursor.to_list(length=1)
+            return self._process_min_max_result(result)
+        except Exception as e:
+            msg = f"Failed to get min/max for field '{metadata_field}' in MongoDB Atlas: {e}"
+            raise DocumentStoreError(msg) from e
+
+    def _create_unique_values_pipeline(
+        self, metadata_field: str, search_term: str | None, from_: int, size: int
+    ) -> list[dict[str, Any]]:
+        pipeline: list[dict[str, Any]] = [
+            {"$group": {"_id": f"$meta.{metadata_field}"}},
+        ]
+
+        if search_term:
+            pipeline.append({"$match": {"_id": {"$regex": re.escape(search_term), "$options": "i"}}})
+
+        pipeline.append(
+            {
+                "$facet": {
+                    "count": [{"$count": "count"}],
+                    "values": [{"$sort": {"_id": 1}}, {"$skip": from_}, {"$limit": size}],
+                }
+            }
+        )
+        return pipeline
+
+    def _process_unique_values_result(self, result: list[Any]) -> tuple[list[str], int]:
+        if not result or not result[0]["values"]:
+            return [], 0
+
+        values = [doc["_id"] for doc in result[0]["values"]]
+        total_count = result[0]["count"][0]["count"] if result[0]["count"] else 0
+
+        return values, total_count
+
+    def get_metadata_field_unique_values(
+        self, metadata_field: str, search_term: str | None = None, from_: int = 0, size: int = 10
+    ) -> tuple[list[str], int]:
+        """
+        Retrieves unique values for a field matching a search_term or all possible values if no search term is given.
+
+        :param metadata_field: The metadata field to retrieve unique values for.
+        :param search_term: The search term to filter values. Matches as a case-insensitive substring.
+        :param from_: The starting index for pagination.
+        :param size: The number of values to return.
+        :returns: A tuple containing a list of unique values and the total count of unique values matching the
+        search term.
+        """
+        self._ensure_connection_setup()
+        assert self._collection is not None
+
+        pipeline = self._create_unique_values_pipeline(metadata_field, search_term, from_, size)
+
+        try:
+            result = list(self._collection.aggregate(pipeline))
+            return self._process_unique_values_result(result)
+        except Exception as e:
+            msg = f"Failed to get unique values for field '{metadata_field}' in MongoDB Atlas: {e}"
+            raise DocumentStoreError(msg) from e
+
+    async def get_metadata_field_unique_values_async(
+        self, metadata_field: str, search_term: str | None = None, from_: int = 0, size: int = 10
+    ) -> tuple[list[str], int]:
+        """
+        Asynchronously retrieves unique values for a field matching a search_term or all possible values if no search
+        term is given.
+
+        :param metadata_field: The metadata field to retrieve unique values for.
+        :param search_term: The search term to filter values. Matches as a case-insensitive substring.
+        :param from_: The starting index for pagination.
+        :param size: The number of values to return.
+        :returns: A tuple containing a list of unique values and the total count of unique values matching the
+        search term.
+        """
+        await self._ensure_connection_setup_async()
+        assert self._collection_async is not None
+
+        pipeline = self._create_unique_values_pipeline(metadata_field, search_term, from_, size)
+
+        try:
+            cursor = await self._collection_async.aggregate(pipeline)
+            result = await cursor.to_list(length=1)
+            return self._process_unique_values_result(result)
+        except Exception as e:
+            msg = f"Failed to get unique values for field '{metadata_field}' in MongoDB Atlas: {e}"
+            raise DocumentStoreError(msg) from e
 
     def filter_documents(self, filters: dict[str, Any] | None = None) -> list[Document]:
         """

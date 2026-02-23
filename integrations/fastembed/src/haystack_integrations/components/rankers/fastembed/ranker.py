@@ -177,13 +177,12 @@ class FastembedRanker:
             raise ValueError(msg)
 
         if self._model is None:
-            msg = "The ranker model has not been loaded. Please call warm_up() before running."
-            raise RuntimeError(msg)
+            self.warm_up()
 
         fastembed_input_docs = self._prepare_fastembed_input_docs(documents)
 
         scores = list(
-            self._model.rerank(
+            self._model.rerank(  # type: ignore[union-attr]
                 query=query,
                 documents=fastembed_input_docs,
                 batch_size=self.batch_size,

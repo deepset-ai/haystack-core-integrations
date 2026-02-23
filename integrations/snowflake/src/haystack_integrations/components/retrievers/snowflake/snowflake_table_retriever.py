@@ -39,7 +39,7 @@ class SnowflakeTableRetriever:
         db_schema="<SCHEMA-NAME>",
         warehouse="<WAREHOUSE-NAME>",
     )
-    executor.warm_up()
+    # Components warm up automatically on first run.
     ```
 
     #### Key-pair Authentication (MFA):
@@ -54,7 +54,7 @@ class SnowflakeTableRetriever:
         db_schema="<SCHEMA-NAME>",
         warehouse="<WAREHOUSE-NAME>",
     )
-    executor.warm_up()
+    # Components warm up automatically on first run.
     ```
 
     #### OAuth Authentication (MFA):
@@ -70,7 +70,7 @@ class SnowflakeTableRetriever:
         db_schema="<SCHEMA-NAME>",
         warehouse="<WAREHOUSE-NAME>",
     )
-    executor.warm_up()
+    # Components warm up automatically on first run.
     ```
 
     #### Running queries:

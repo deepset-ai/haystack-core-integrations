@@ -273,17 +273,15 @@ change the code to also change relevant comments and docstrings. This type of do
 developers, but it can be handy for users at times. You can browse it on the dedicated section in the
 [documentation website](https://docs.haystack.deepset.ai/reference/integrations-chroma).
 
-We use `pydoc-markdown` to convert docstrings into properly formatted Markdown files, and while the CI takes care of
-generating and publishing the updated documentation at every merge on the `main` branch, you can generate the docs
+We use [`haystack-pydoc-tools`](https://github.com/deepset-ai/haystack-pydoc-tools) to convert docstrings into properly formatted Markdown files, and while the CI takes care of
+generating and publishing the updated documentation once a new version is released, you can generate the docs
 locally using Hatch. From an integration folder:
 
 ```console
 $ hatch run docs
 ```
 
-If you see a warning referring to a missing `README_API_KEY` env var, that's expected.
-
-If you want to customise the conversion process, the `pydoc-markdown` config files are stored in a `pydoc/` folder
+If you want to customise the conversion process, the `haystack-pydoc-tools` config files are stored in a `pydoc/` folder
 for each integration.
 
 #### Documentation pages

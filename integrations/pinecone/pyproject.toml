@@ -23,7 +23,7 @@ classifiers = [
   "Programming Language :: Python :: Implementation :: PyPy",
 ]
 dependencies = [
-  "haystack-ai>=2.22.0",
+  "haystack-ai>=2.24.0",
   "pinecone[asyncio]>=7.0.0",
 ]
 
@@ -48,7 +48,7 @@ installer = "uv"
 dependencies = ["haystack-pydoc-tools", "ruff"]
 
 [tool.hatch.envs.default.scripts]
-docs = ["pydoc-markdown pydoc/config_docusaurus.yml"]
+docs = ["haystack-pydoc pydoc/config_docusaurus.yml"]
 fmt = "ruff check --fix {args}; ruff format {args}"
 fmt-check = "ruff check {args} && ruff format --check {args}"
 

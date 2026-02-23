@@ -28,7 +28,6 @@ class FastembedSparseTextEmbedder:
     sparse_text_embedder = FastembedSparseTextEmbedder(
         model="prithivida/Splade_PP_en_v1"
     )
-    sparse_text_embedder.warm_up()
 
     sparse_embedding = sparse_text_embedder.run(text)["sparse_embedding"]
     ```

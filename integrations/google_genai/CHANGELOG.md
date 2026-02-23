@@ -1,5 +1,23 @@
 # Changelog
 
+## [integrations/google_genai-v3.5.0] - 2026-02-18
+
+### 🚀 Features
+
+- Include token usage count in `GoogleGenAIChatGenerator` response metadata (#2851)
+
+### 📚 Documentation
+
+- Simplify pydoc configs (#2855)
+
+
+## [integrations/google_genai-v3.4.0] - 2026-02-09
+
+### 🧹 Chores
+
+- Google GenAI - switch default embedding model to gemini-embedding-001 (#2823)
+
+
 ## [integrations/google_genai-v3.3.0] - 2026-02-03
 
 ### 🚀 Features

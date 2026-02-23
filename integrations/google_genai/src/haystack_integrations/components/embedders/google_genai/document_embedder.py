@@ -28,7 +28,7 @@ class GoogleGenAIDocumentEmbedder:
     from haystack_integrations.components.embedders.google_genai import GoogleGenAIDocumentEmbedder
 
     # export the environment variable (GOOGLE_API_KEY or GEMINI_API_KEY)
-    document_embedder = GoogleGenAIDocumentEmbedder(model="text-embedding-004")
+    document_embedder = GoogleGenAIDocumentEmbedder(model="gemini-embedding-001")
 
     **2. Vertex AI (Application Default Credentials)**
     ```python
@@ -39,7 +39,7 @@ class GoogleGenAIDocumentEmbedder:
         api="vertex",
         vertex_ai_project="my-project",
         vertex_ai_location="us-central1",
-        model="text-embedding-004"
+        model="gemini-embedding-001"
     )
     ```
 
@@ -50,7 +50,7 @@ class GoogleGenAIDocumentEmbedder:
     # export the environment variable (GOOGLE_API_KEY or GEMINI_API_KEY)
     document_embedder = GoogleGenAIDocumentEmbedder(
         api="vertex",
-        model="text-embedding-004"
+        model="gemini-embedding-001"
     )
     ```
 
@@ -78,7 +78,7 @@ class GoogleGenAIDocumentEmbedder:
         api: Literal["gemini", "vertex"] = "gemini",
         vertex_ai_project: str | None = None,
         vertex_ai_location: str | None = None,
-        model: str = "text-embedding-004",
+        model: str = "gemini-embedding-001",
         prefix: str = "",
         suffix: str = "",
         batch_size: int = 32,

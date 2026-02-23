@@ -14,7 +14,6 @@ documents = [
 ]
 
 document_embedder = FastembedDocumentEmbedder()
-document_embedder.warm_up()
 documents_with_embeddings = document_embedder.run(documents)["documents"]
 document_store.write_documents(documents_with_embeddings)
 

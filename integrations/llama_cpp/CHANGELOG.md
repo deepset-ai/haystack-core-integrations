@@ -1,5 +1,16 @@
 # Changelog
 
+## [integrations/llama_cpp-v2.2.0] - 2026-02-16
+
+### 🚀 Features
+
+- Add run_async to LlamaCppChatGenerator (#2821)
+
+### 🧹 Chores
+
+- Llama.cpp - pin transformers test dependency; fix type error (#2784)
+
+
 ## [integrations/llama_cpp-v2.1.0] - 2026-01-14
 
 ### 🚀 Features

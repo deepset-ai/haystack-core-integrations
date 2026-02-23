@@ -30,7 +30,7 @@ class NvidiaDocumentEmbedder:
     doc = Document(content="I love pizza!")
 
     text_embedder = NvidiaDocumentEmbedder(model="nvidia/nv-embedqa-e5-v5", api_url="https://integrate.api.nvidia.com/v1")
-    text_embedder.warm_up()
+    # Components warm up automatically on first run.
 
     result = document_embedder.run([doc])
     print(result["documents"][0].embedding)

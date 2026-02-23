@@ -11,7 +11,15 @@ import pytest
 from haystack import Document
 from haystack.components.preprocessors import DocumentSplitter
 from haystack.components.retrievers import SentenceWindowRetriever
-from haystack.testing.document_store import CountDocumentsTest, DeleteDocumentsTest, WriteDocumentsTest
+from haystack.testing.document_store import (
+    CountDocumentsTest,
+    DeleteAllTest,
+    DeleteByFilterTest,
+    DeleteDocumentsTest,
+    FilterableDocsFixtureMixin,
+    UpdateByFilterTest,
+    WriteDocumentsTest,
+)
 from haystack.utils import Secret
 from pinecone import Pinecone, PodSpec, ServerlessSpec
 
@@ -260,7 +268,15 @@ def test_serverless_index_creation_from_scratch(delete_sleep_time):
 
 @pytest.mark.integration
 @pytest.mark.skipif(not os.environ.get("PINECONE_API_KEY"), reason="PINECONE_API_KEY not set")
-class TestDocumentStore(CountDocumentsTest, DeleteDocumentsTest, WriteDocumentsTest):
+class TestDocumentStore(
+    CountDocumentsTest,
+    DeleteDocumentsTest,
+    WriteDocumentsTest,
+    FilterableDocsFixtureMixin,
+    UpdateByFilterTest,
+    DeleteAllTest,
+    DeleteByFilterTest,
+):
     def test_write_documents(self, document_store: PineconeDocumentStore):
         docs = [Document(id="1")]
         assert document_store.write_documents(docs) == 1
@@ -278,19 +294,6 @@ class TestDocumentStore(CountDocumentsTest, DeleteDocumentsTest, WriteDocumentsT
 
     @pytest.mark.skip(reason="Pinecone creates a namespace only when the first document is written")
     def test_delete_documents_empty_document_store(self, document_store: PineconeDocumentStore): ...
-
-    def test_delete_all_documents(self, document_store: PineconeDocumentStore):
-        docs = [Document(content="first doc"), Document(content="second doc")]
-        document_store.write_documents(docs)
-        assert document_store.count_documents() == 2
-
-        document_store.delete_all_documents()
-        assert document_store.count_documents() == 0
-
-    def test_delete_all_documents_empty_collection(self, document_store: PineconeDocumentStore):
-        assert document_store.count_documents() == 0
-        document_store.delete_all_documents()
-        assert document_store.count_documents() == 0
 
     def test_embedding_retrieval(self, document_store: PineconeDocumentStore):
         query_embedding = [0.1] * 768
@@ -349,103 +352,6 @@ class TestDocumentStore(CountDocumentsTest, DeleteDocumentsTest, WriteDocumentsT
         result = sentence_window_retriever.run(retrieved_documents=[retrieved_doc["documents"][0]])
 
         assert len(result["context_windows"]) == 1
-
-    def test_delete_by_filter(self, document_store: PineconeDocumentStore):
-        docs = [
-            Document(content="Doc 1", meta={"category": "A"}),
-            Document(content="Doc 2", meta={"category": "B"}),
-            Document(content="Doc 3", meta={"category": "A"}),
-        ]
-        document_store.write_documents(docs)
-
-        # delete documents with category="A"
-        deleted_count = document_store.delete_by_filter(
-            filters={"field": "meta.category", "operator": "==", "value": "A"}
-        )
-        assert deleted_count == 2
-        assert document_store.count_documents() == 1
-
-        # verify only category B remains
-        remaining_docs = document_store.filter_documents()
-        assert len(remaining_docs) == 1
-        assert remaining_docs[0].meta["category"] == "B"
-
-    def test_delete_by_filter_no_matches(self, document_store: PineconeDocumentStore):
-        docs = [
-            Document(content="Doc 1", meta={"category": "A"}),
-            Document(content="Doc 2", meta={"category": "B"}),
-        ]
-        document_store.write_documents(docs)
-
-        # try to delete documents with category="C" (no matches)
-        deleted_count = document_store.delete_by_filter(
-            filters={"field": "meta.category", "operator": "==", "value": "C"}
-        )
-        assert deleted_count == 0
-        assert document_store.count_documents() == 2
-
-    def test_update_by_filter(self, document_store: PineconeDocumentStore):
-        docs = [
-            Document(content="Doc 1", meta={"category": "A", "status": "draft"}),
-            Document(content="Doc 2", meta={"category": "B", "status": "draft"}),
-            Document(content="Doc 3", meta={"category": "A", "status": "draft"}),
-        ]
-        document_store.write_documents(docs)
-
-        # update status for category="A" documents
-        updated_count = document_store.update_by_filter(
-            filters={"field": "meta.category", "operator": "==", "value": "A"}, meta={"status": "published"}
-        )
-        assert updated_count == 2
-
-        published_docs = document_store.filter_documents(
-            filters={"field": "meta.status", "operator": "==", "value": "published"}
-        )
-        assert len(published_docs) == 2
-        for doc in published_docs:
-            assert doc.meta["category"] == "A"
-            assert doc.meta["status"] == "published"
-
-    def test_update_by_filter_multiple_fields(self, document_store: PineconeDocumentStore):
-        docs = [
-            Document(content="Doc 1", meta={"category": "A", "status": "draft", "priority": "low"}),
-            Document(content="Doc 2", meta={"category": "B", "status": "draft", "priority": "low"}),
-            Document(content="Doc 3", meta={"category": "A", "status": "draft", "priority": "low"}),
-        ]
-        document_store.write_documents(docs)
-        assert document_store.count_documents() == 3
-
-        # Update multiple fields for category="A" documents
-        updated_count = document_store.update_by_filter(
-            filters={"field": "meta.category", "operator": "==", "value": "A"},
-            meta={"status": "published", "priority": "high"},
-        )
-        assert updated_count == 2
-
-        # Verify the updates
-        published_docs = document_store.filter_documents(
-            filters={"field": "meta.status", "operator": "==", "value": "published"}
-        )
-        assert len(published_docs) == 2
-        for doc in published_docs:
-            assert doc.meta["category"] == "A"
-            assert doc.meta["status"] == "published"
-            assert doc.meta["priority"] == "high"
-
-    def test_update_by_filter_no_matches(self, document_store: PineconeDocumentStore):
-        docs = [
-            Document(content="Doc 1", meta={"category": "A"}),
-            Document(content="Doc 2", meta={"category": "B"}),
-        ]
-        document_store.write_documents(docs)
-        assert document_store.count_documents() == 2
-
-        # Try to update documents with category="C" (no matches)
-        updated_count = document_store.update_by_filter(
-            filters={"field": "meta.category", "operator": "==", "value": "C"}, meta={"status": "published"}
-        )
-        assert updated_count == 0
-        assert document_store.count_documents() == 2
 
     def test_count_documents_by_filter(self, document_store: PineconeDocumentStore):
         docs = [
