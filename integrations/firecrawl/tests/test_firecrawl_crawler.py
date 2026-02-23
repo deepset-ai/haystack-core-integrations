@@ -195,7 +195,7 @@ class TestFirecrawlCrawler:
         assert result["documents"] == []
         mock_async_client.crawl.assert_awaited_once()
 
-    def test_run_logs_error_on_failed_crawl_status(self, mock_client, page) -> None:
+    def test_run_logs_error_on_failed_crawl_status(self, mock_client, page, caplog) -> None:
         failed_response = MagicMock()
         failed_response.status = "failed"
         failed_response.data = [page]
@@ -204,13 +204,12 @@ class TestFirecrawlCrawler:
         fetcher = FirecrawlCrawler(api_key=Secret.from_token("test-key"))
         fetcher._firecrawl_client = mock_client
 
-        with patch("haystack_integrations.components.fetchers.firecrawl.firecrawl_crawler.logger") as mock_logger:
-            fetcher.run(urls=["https://example.com"])
+        fetcher.run(urls=["https://example.com"])
 
-        mock_logger.error.assert_called_once_with("Failed to crawl website https://example.com: failed")
+        assert "Failed to crawl website https://example.com: failed" in caplog.text
 
     @pytest.mark.asyncio
-    async def test_run_async_logs_error_on_failed_crawl_status(self, mock_async_client, page) -> None:
+    async def test_run_async_logs_error_on_failed_crawl_status(self, mock_async_client, page, caplog) -> None:
         failed_response = MagicMock()
         failed_response.status = "failed"
         failed_response.data = [page]
@@ -219,10 +218,9 @@ class TestFirecrawlCrawler:
         fetcher = FirecrawlCrawler(api_key=Secret.from_token("test-key"))
         fetcher._async_firecrawl_client = mock_async_client
 
-        with patch("haystack_integrations.components.fetchers.firecrawl.firecrawl_crawler.logger") as mock_logger:
-            await fetcher.run_async(urls=["https://example.com"])
+        await fetcher.run_async(urls=["https://example.com"])
 
-        mock_logger.error.assert_called_once_with("Failed to crawl website https://example.com: failed")
+        assert "Failed to crawl website https://example.com: failed" in caplog.text
 
     def test_warm_up_initializes_clients(self) -> None:
         fetcher = FirecrawlCrawler(api_key=Secret.from_token("test-key"))

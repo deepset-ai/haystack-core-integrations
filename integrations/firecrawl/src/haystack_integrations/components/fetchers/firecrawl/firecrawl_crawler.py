@@ -141,12 +141,13 @@ class FirecrawlCrawler:
         :return: List of Documents from the crawl result.
         """
         try:
+            # Ignoring type is due to the fact that the firecrawl sdk is not shipped with py.typed
             crawl_response = self._firecrawl_client.crawl(  # type: ignore[union-attr]
                 url=url,
                 **params,
             )
         except Exception as error:
-            logger.error(f"Failed to crawl website {url}: {error}")
+            logger.exception(f"Failed to crawl website {url}: {error}")
             return []
 
         return self._documents_from_crawl_response(url=url, crawl_response=crawl_response)
@@ -160,12 +161,13 @@ class FirecrawlCrawler:
         :return: List of Documents from the crawl result.
         """
         try:
+            # Ignoring type is due to the fact that the firecrawl sdk is not shipped with py.typed
             crawl_response = await self._async_firecrawl_client.crawl(  # type: ignore[union-attr]
                 url=url,
                 **params,
             )
         except Exception as error:
-            logger.error(f"Failed to crawl website {url}: {error}")
+            logger.exception(f"Failed to crawl website {url}: {error}")
             return []
 
         return self._documents_from_crawl_response(url=url, crawl_response=crawl_response)
@@ -179,7 +181,7 @@ class FirecrawlCrawler:
         :return: List of documents built from crawled pages.
         """
         if crawl_response.status != "completed":
-            logger.error(f"Failed to crawl website {url}: {crawl_response.status}")
+            logger.exception(f"Failed to crawl website {url}: {crawl_response.status}")
 
         documents: list[Document] = []
         for page in crawl_response.data:
