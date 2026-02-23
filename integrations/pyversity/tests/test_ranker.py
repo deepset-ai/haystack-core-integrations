@@ -133,7 +133,7 @@ class TestPyversityRanker:
         reranker = PyversityRanker(top_k=5)
         data = reranker.to_dict()
         assert data == {
-            "type": "haystack_integrations.components.rankers.pyversity.reranker.PyversityRanker",
+            "type": "haystack_integrations.components.rankers.pyversity.ranker.PyversityRanker",
             "init_parameters": {
                 "top_k": 5,
                 "strategy": "dpp",
@@ -145,7 +145,7 @@ class TestPyversityRanker:
         reranker = PyversityRanker(top_k=10, strategy=Strategy.MMR, diversity=0.3)
         data = reranker.to_dict()
         assert data == {
-            "type": "haystack_integrations.components.rankers.pyversity.reranker.PyversityRanker",
+            "type": "haystack_integrations.components.rankers.pyversity.ranker.PyversityRanker",
             "init_parameters": {
                 "top_k": 10,
                 "strategy": "mmr",
@@ -155,7 +155,7 @@ class TestPyversityRanker:
 
     def test_from_dict(self):
         data = {
-            "type": "haystack_integrations.components.rankers.pyversity.reranker.PyversityRanker",
+            "type": "haystack_integrations.components.rankers.pyversity.ranker.PyversityRanker",
             "init_parameters": {
                 "top_k": 7,
                 "strategy": "mmr",
@@ -169,7 +169,7 @@ class TestPyversityRanker:
 
     def test_from_dict_defaults(self):
         data = {
-            "type": "haystack_integrations.components.rankers.pyversity.reranker.PyversityRanker",
+            "type": "haystack_integrations.components.rankers.pyversity.ranker.PyversityRanker",
             "init_parameters": {"top_k": 3},
         }
         reranker = PyversityRanker.from_dict(data)
