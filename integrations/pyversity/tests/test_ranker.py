@@ -49,10 +49,18 @@ def pipeline(documents, request):
 
 class TestPyversityRanker:
     def test_init_defaults(self):
-        reranker = PyversityRanker(top_k=5)
-        assert reranker.top_k == 5
+        reranker = PyversityRanker()
+        assert reranker.top_k is None
         assert reranker.strategy == Strategy.DPP
         assert reranker.diversity == 0.5
+
+    def test_init_top_k_none(self):
+        reranker = PyversityRanker(top_k=None)
+        assert reranker.top_k is None
+
+    def test_init_explicit_top_k(self):
+        reranker = PyversityRanker(top_k=5)
+        assert reranker.top_k == 5
 
     def test_init_custom_params(self):
         reranker = PyversityRanker(top_k=10, strategy=Strategy.MMR, diversity=0.3)
@@ -119,6 +127,16 @@ class TestPyversityRanker:
         result = reranker.run(documents=docs)
         assert len(result["documents"]) <= 3
 
+    def test_run_returns_all_documents_when_top_k_is_none(self):
+        rng = np.random.default_rng(3)
+        docs = [
+            Document(content=f"doc {i}", score=float(i) / 10, embedding=rng.standard_normal(8).tolist())
+            for i in range(10)
+        ]
+        reranker = PyversityRanker(top_k=None)
+        result = reranker.run(documents=docs)
+        assert len(result["documents"]) == 10
+
     def test_run_returns_fewer_than_k_if_not_enough_valid(self):
         rng = np.random.default_rng(2)
         docs = [
@@ -128,6 +146,18 @@ class TestPyversityRanker:
         reranker = PyversityRanker(top_k=5)
         result = reranker.run(documents=docs)
         assert len(result["documents"]) == 2
+
+    def test_to_dict_top_k_none(self):
+        reranker = PyversityRanker(top_k=None)
+        data = reranker.to_dict()
+        assert data == {
+            "type": "haystack_integrations.components.rankers.pyversity.ranker.PyversityRanker",
+            "init_parameters": {
+                "top_k": None,
+                "strategy": "dpp",
+                "diversity": 0.5,
+            },
+        }
 
     def test_to_dict_defaults(self):
         reranker = PyversityRanker(top_k=5)
@@ -183,6 +213,11 @@ class TestPyversityRanker:
         assert restored.top_k == original.top_k
         assert restored.strategy == original.strategy
         assert restored.diversity == original.diversity
+
+    def test_to_dict_from_dict_roundtrip_top_k_none(self):
+        original = PyversityRanker(top_k=None)
+        restored = PyversityRanker.from_dict(original.to_dict())
+        assert restored.top_k is None
 
 
 @pytest.mark.parametrize(

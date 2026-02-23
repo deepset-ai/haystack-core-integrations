@@ -45,11 +45,12 @@ class PyversityRanker:
     ```
     """
 
-    def __init__(self, top_k: int, *, strategy: Strategy = Strategy.DPP, diversity: float = 0.5) -> None:
+    def __init__(self, top_k: int | None = None, *, strategy: Strategy = Strategy.DPP, diversity: float = 0.5) -> None:
         """
         Creates an instance of PyversityRanker.
 
         :param top_k: Number of documents to return after diversification.
+            If `None`, all documents are returned in diversified order.
         :param strategy: Pyversity diversification strategy (e.g. `Strategy.MMR`). Defaults to `Strategy.DPP`.
         :param diversity: Trade-off between relevance and diversity in [0, 1].
             `0.0` keeps only the most relevant documents; `1.0` maximises
@@ -57,7 +58,7 @@ class PyversityRanker:
 
         :raises ValueError: If `top_k` is not a positive integer or `diversity` is not in [0, 1].
         """
-        if top_k <= 0:
+        if top_k is not None and top_k <= 0:
             msg = f"top_k must be a positive integer, got {top_k}"
             raise ValueError(msg)
         if not 0.0 <= diversity <= 1.0:
@@ -124,10 +125,14 @@ class PyversityRanker:
         embeddings = np.array([doc.embedding for doc in valid_docs])
         scores = np.array([doc.score for doc in valid_docs])
 
+        if self.top_k is not None:
+            k = min(self.top_k, len(valid_docs))
+        else:
+            k = len(valid_docs)
         result = diversify(
             embeddings=embeddings,
             scores=scores,
-            k=min(self.top_k, len(valid_docs)),
+            k=k,
             strategy=self.strategy,
             diversity=self.diversity,
         )
