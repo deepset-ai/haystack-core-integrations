@@ -7,6 +7,7 @@ from haystack.dataclasses.chat_message import (
     TextContent,
     ToolCall,
     ToolCallResult,
+    FileContent,
 )
 from haystack.dataclasses.image_content import ImageContent
 from haystack.dataclasses.streaming_chunk import (
@@ -25,11 +26,16 @@ from anthropic.types import (
     ThinkingBlockParam,
     ToolResultBlockParam,
     ToolUseBlockParam,
+    DocumentBlockParam,
 )
 
 # See https://docs.anthropic.com/en/api/messages for supported formats
 ImageFormat = Literal["image/jpeg", "image/png", "image/gif", "image/webp"]
 IMAGE_SUPPORTED_FORMATS: list[ImageFormat] = list(get_args(ImageFormat))
+
+FILE_SUPPORTED_FORMATS = [
+    "application/pdf",
+]
 
 
 # Mapping from Anthropic stop reasons to Haystack FinishReason values
@@ -65,6 +71,27 @@ def _convert_image_content_to_anthropic_format(image_content: ImageContent) -> I
     )
 
 
+def _convert_file_content_to_anthropic_format(file_content: FileContent) -> DocumentBlockParam:
+    """
+    Convert a FileContent to the format expected by Anthropic Chat API.
+    """
+    if file_content.mime_type not in FILE_SUPPORTED_FORMATS:
+        supported_formats = ", ".join(FILE_SUPPORTED_FORMATS)
+        msg = (
+            f"Unsupported file format: {file_content.mime_type}. "
+            f"Anthropic supports the following formats: {supported_formats}"
+        )
+        raise ValueError(msg)
+
+    return DocumentBlockParam(
+        type="document",
+        source={
+            "type": "base64",
+            "media_type": cast(FileFormat, file_content.mime_type),
+            "data": file_content.base64_file,
+        }
+    )
+    
 def _update_anthropic_message_with_tool_call_results(
     tool_call_results: list[ToolCallResult],
     content: list[
@@ -204,6 +231,21 @@ def _convert_messages_to_anthropic_format(
                 if cache_control:
                     image_block["cache_control"] = cache_control
                 content.append(image_block)
+            elif isinstance(part, FileContent):
+                if not message.is_from(ChatRole.USER):
+                    msg = "File content is only supported for user messages"
+                    raise ValueError(msg)
+                if part.mime_type not in FILE_SUPPORTED_FORMATS:
+                    supported_formats = ", ".join(FILE_SUPPORTED_FORMATS)
+                    msg = (
+                        f"Unsupported file format: {part.mime_type}. "
+                        f"Anthropic supports the following formats: {supported_formats}"
+                    )
+                    raise ValueError(msg)
+                file_block = _convert_image_content_to_anthropic_format(part)
+                if cache_control:
+                    file_block["cache_control"] = cache_control
+                content.append(file_block)
 
         if message.tool_calls:
             tool_use_blocks = _convert_tool_calls_to_anthropic_format(message.tool_calls)
