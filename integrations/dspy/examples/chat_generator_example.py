@@ -15,7 +15,7 @@ def basic_qa_example():
     """Simple question-answering with Chain-of-Thought reasoning."""
 
     generator = DSPyChatGenerator(
-        model="openai/gpt-4o-mini",
+        model="openai/gpt-5-mini",
         signature=QASignature,
         module_type="ChainOfThought",
         output_field="answer",
@@ -34,7 +34,7 @@ def basic_qa_example():
 def string_signature_example():
     """Using a simple string signature instead of a class."""
     generator = DSPyChatGenerator(
-        model="openai/gpt-4o-mini",
+        model="openai/gpt-5-mini",
         signature="question -> answer",
         module_type="Predict",
         output_field="answer",

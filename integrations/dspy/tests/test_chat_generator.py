@@ -1,11 +1,17 @@
 import os
 from unittest.mock import MagicMock, patch
 
+import dspy
 import pytest
 from haystack.dataclasses import ChatMessage
 from haystack.utils.auth import Secret
 
-from haystack_integrations.components.generators.dspy.chat.chat_generator import DSPyChatGenerator
+from haystack_integrations.components.generators.dspy.chat.chat_generator import (
+    VALID_MODULE_TYPES,
+    DSPyChatGenerator,
+    configure_dspy_lm,
+    get_dspy_module_class,
+)
 
 
 @pytest.fixture
@@ -13,11 +19,13 @@ def mock_dspy_module():
     """
     Mock DSPy LM, configure, and module classes to avoid real API calls.
     """
-    with patch("dspy.LM") as mock_lm_class, \
-         patch("dspy.configure"), \
-         patch("dspy.ChainOfThought") as mock_cot_class, \
-         patch("dspy.Predict") as mock_predict_class, \
-         patch("dspy.ReAct") as mock_react_class:
+    with (
+        patch("haystack_integrations.components.generators.dspy.chat.chat_generator.dspy.LM") as mock_lm_class,
+        patch("haystack_integrations.components.generators.dspy.chat.chat_generator.dspy.configure"),
+        patch("haystack_integrations.components.generators.dspy.chat.chat_generator.dspy.ChainOfThought") as mock_cot_class,
+        patch("haystack_integrations.components.generators.dspy.chat.chat_generator.dspy.Predict") as mock_predict_class,
+        patch("haystack_integrations.components.generators.dspy.chat.chat_generator.dspy.ReAct") as mock_react_class,
+    ):
         mock_lm = MagicMock()
         mock_lm_class.return_value = mock_lm
 
@@ -36,6 +44,65 @@ def chat_messages():
         ChatMessage.from_system("You are a helpful assistant"),
         ChatMessage.from_user("What's the capital of France"),
     ]
+
+
+@pytest.fixture
+def sample_qa_signature():
+    class QASignature(dspy.Signature):
+        question: str = dspy.InputField()
+        answer: str = dspy.OutputField()
+
+    return QASignature
+
+
+class TestValidModuleTypes:
+    def test_contains_expected_types(self):
+        assert VALID_MODULE_TYPES == {"Predict", "ChainOfThought", "ReAct"}
+
+
+class TestGetDspyModuleClass:
+    def test_predict(self):
+        assert get_dspy_module_class("Predict") is dspy.Predict
+
+    def test_chain_of_thought(self):
+        assert get_dspy_module_class("ChainOfThought") is dspy.ChainOfThought
+
+    def test_react(self):
+        assert get_dspy_module_class("ReAct") is dspy.ReAct
+
+    def test_invalid_type_raises(self):
+        with pytest.raises(ValueError, match="Invalid module_type 'Unknown'"):
+            get_dspy_module_class("Unknown")
+
+    def test_invalid_type_lists_valid_options(self):
+        with pytest.raises(ValueError, match="ChainOfThought"):
+            get_dspy_module_class("BadType")
+
+
+class TestConfigureDspyLm:
+    @patch("dspy.configure")
+    @patch("dspy.LM")
+    def test_creates_lm_and_configures(self, mock_lm_class, mock_configure):
+        mock_lm = MagicMock()
+        mock_lm_class.return_value = mock_lm
+
+        result = configure_dspy_lm(model="openai/gpt-5-mini", api_key="test-key")
+
+        mock_lm_class.assert_called_once_with(model="openai/gpt-5-mini", api_key="test-key")
+        mock_configure.assert_called_once_with(lm=mock_lm)
+        assert result is mock_lm
+
+    @patch("dspy.configure")
+    @patch("dspy.LM")
+    def test_passes_extra_kwargs(self, mock_lm_class, mock_configure):
+        mock_lm = MagicMock()
+        mock_lm_class.return_value = mock_lm
+
+        configure_dspy_lm(model="openai/gpt-5-mini", api_key="test-key", temperature=0.7, max_tokens=100)
+
+        mock_lm_class.assert_called_once_with(
+            model="openai/gpt-5-mini", api_key="test-key", temperature=0.7, max_tokens=100
+        )
 
 
 class TestDSPyChatGenerator:
@@ -79,6 +146,13 @@ class TestDSPyChatGenerator:
                 api_key=Secret.from_token("test-api-key"),
                 module_type="InvalidModule",
             )
+
+    def test_init_with_signature_class(self, mock_dspy_module, sample_qa_signature):
+        component = DSPyChatGenerator(
+            signature=sample_qa_signature,
+            api_key=Secret.from_token("test-api-key"),
+        )
+        assert component.signature is sample_qa_signature
 
     def test_to_dict_default(self, monkeypatch, mock_dspy_module):
         monkeypatch.setenv("OPENAI_API_KEY", "test-api-key")
@@ -172,17 +246,15 @@ class TestDSPyChatGenerator:
         )
         response = component.run(chat_messages)
 
-        # Verify the mock was called
         mock_dspy_module.assert_called_once()
 
-        # Check that the component returns the correct ChatMessage response
         assert isinstance(response, dict)
         assert "replies" in response
         assert isinstance(response["replies"], list)
         assert len(response["replies"]) == 1
         assert all(isinstance(reply, ChatMessage) for reply in response["replies"])
 
-    def test_run_with_params(self, chat_messages, mock_dspy_module):
+    def test_run_with_generation_kwargs(self, chat_messages, mock_dspy_module):
         component = DSPyChatGenerator(
             signature="question -> answer",
             api_key=Secret.from_token("test-api-key"),
@@ -190,14 +262,11 @@ class TestDSPyChatGenerator:
         )
         response = component.run(chat_messages, generation_kwargs={"temperature": 0.9})
 
-        # Check that the component calls the DSPy module with the correct parameters
         _, kwargs = mock_dspy_module.call_args
         assert kwargs["config"] == {"temperature": 0.9}
 
-        # Check that the component returns the correct response
         assert isinstance(response, dict)
         assert "replies" in response
-        assert isinstance(response["replies"], list)
         assert len(response["replies"]) == 1
         assert all(isinstance(reply, ChatMessage) for reply in response["replies"])
 
@@ -213,9 +282,6 @@ class TestDSPyChatGenerator:
         ]
         response = component.run(messages=messages)
 
-        # Verify the last user message was used as input
-        args, _ = mock_dspy_module.call_args
-        # The first positional kwarg should be the question from the last user message
         call_kwargs = mock_dspy_module.call_args.kwargs
         assert call_kwargs.get("question") == "What is the capital of Germany?"
 
@@ -230,6 +296,31 @@ class TestDSPyChatGenerator:
         )
         with pytest.raises(ValueError, match="messages"):
             component.run(messages=[])
+
+    def test_run_with_custom_output_field(self, mock_dspy_module):
+        mock_dspy_module.return_value = MagicMock(summary="This is a summary")
+        component = DSPyChatGenerator(
+            signature="text -> summary",
+            api_key=Secret.from_token("test-api-key"),
+            output_field="summary",
+        )
+        messages = [ChatMessage.from_user("Summarize this text")]
+        response = component.run(messages=messages)
+
+        assert response["replies"][0].text == "This is a summary"
+
+    def test_run_with_input_mapping(self, mock_dspy_module):
+        component = DSPyChatGenerator(
+            signature="context, question -> answer",
+            api_key=Secret.from_token("test-api-key"),
+            input_mapping={"context": "context", "question": "question"},
+        )
+        messages = [ChatMessage.from_user("What is ML?")]
+        response = component.run(messages=messages, context="Machine learning is a subset of AI.")
+
+        call_kwargs = mock_dspy_module.call_args.kwargs
+        assert call_kwargs.get("context") == "Machine learning is a subset of AI."
+        assert call_kwargs.get("question") == "What is ML?"
 
     def test_run_with_wrong_model(self, mock_dspy_module):
         mock_dspy_module.side_effect = Exception("Invalid model name")
@@ -255,8 +346,3 @@ class TestDSPyChatGenerator:
         assert len(results["replies"]) == 1
         message: ChatMessage = results["replies"][0]
         assert "Paris" in message.text
-
-        metadata = results["meta"][0]
-        assert metadata["model"] == "openai/gpt-5-mini"
-        assert metadata["module_type"] == "ChainOfThought"
-

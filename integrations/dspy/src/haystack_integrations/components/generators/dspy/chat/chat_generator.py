@@ -1,15 +1,48 @@
 from typing import Any, Callable, Dict, List, Optional, Type, Union
 
 import dspy
-from haystack import component
+from haystack import component, default_from_dict, default_to_dict
 from haystack.dataclasses import ChatMessage, ChatRole
-from haystack.utils import Secret
+from haystack.utils import Secret, deserialize_secrets_inplace
 
-from haystack_integrations.components.generators.dspy.generator import DSPyGenerator
+VALID_MODULE_TYPES = {"Predict", "ChainOfThought", "ReAct"}
+
+
+def configure_dspy_lm(model: str, api_key: str, **kwargs: Any) -> dspy.LM:
+    """
+    Create and configure a DSPy language model.
+
+    :param model: Model identifier (e.g. ``"openai/gpt-5-mini"``).
+    :param api_key: Resolved API key string.
+    :param kwargs: Additional keyword arguments passed to ``dspy.LM``.
+    :returns: The configured ``dspy.LM`` instance.
+    """
+    lm = dspy.LM(model=model, api_key=api_key, **kwargs)
+    dspy.configure(lm=lm)
+    return lm
+
+
+def get_dspy_module_class(module_type: str):
+    """
+    Map a module type string to the corresponding DSPy module class.
+
+    :param module_type: One of ``"Predict"``, ``"ChainOfThought"``, or ``"ReAct"``.
+    :returns: The DSPy module class.
+    :raises ValueError: If the module type is not recognized.
+    """
+    mapping = {
+        "Predict": dspy.Predict,
+        "ChainOfThought": dspy.ChainOfThought,
+        "ReAct": dspy.ReAct,
+    }
+    if module_type not in mapping:
+        msg = f"Invalid module_type '{module_type}'. Must be one of {sorted(VALID_MODULE_TYPES)}"
+        raise ValueError(msg)
+    return mapping[module_type]
 
 
 @component
-class DSPyChatGenerator(DSPyGenerator):
+class DSPyChatGenerator:
     """
     A Haystack chat generator component that uses DSPy signatures and modules
     for structured generation.
@@ -64,17 +97,93 @@ class DSPyChatGenerator(DSPyGenerator):
         :param input_mapping: Maps DSPy signature input field names to run kwarg names.
         :param streaming_callback: Callback for streaming responses.
         """
-        DSPyGenerator.__init__(
-            self,
-            signature=signature,
-            model=model,
-            api_key=api_key,
-            module_type=module_type,
-            output_field=output_field,
-            generation_kwargs=generation_kwargs,
-            input_mapping=input_mapping,
-            streaming_callback=streaming_callback,
+        if module_type not in VALID_MODULE_TYPES:
+            msg = f"Invalid module_type '{module_type}'. Must be one of {sorted(VALID_MODULE_TYPES)}"
+            raise ValueError(msg)
+
+        self.signature = signature
+        self.model = model
+        self.api_key = api_key
+        self.module_type = module_type
+        self.output_field = output_field
+        self.generation_kwargs = generation_kwargs or {}
+        self.input_mapping = input_mapping
+        self.streaming_callback = streaming_callback
+
+        self._lm = configure_dspy_lm(
+            model=self.model,
+            api_key=self.api_key.resolve_value(),
+            **self.generation_kwargs,
         )
+
+        module_class = get_dspy_module_class(self.module_type)
+        self._module = module_class(self.signature)
+
+    def _build_dspy_inputs(self, prompt: str, **kwargs) -> Dict[str, Any]:
+        """Build the input dict for the DSPy module call."""
+        if self.input_mapping:
+            dspy_inputs = {}
+            for sig_field, source in self.input_mapping.items():
+                if source in kwargs:
+                    dspy_inputs[sig_field] = kwargs[source]
+                else:
+                    dspy_inputs[sig_field] = prompt
+            return dspy_inputs
+
+        input_fields = self._get_input_field_names()
+        dspy_inputs = {input_fields[0]: prompt}
+
+        for field in input_fields[1:]:
+            if field in kwargs:
+                dspy_inputs[field] = kwargs[field]
+
+        return dspy_inputs
+
+    def _get_input_field_names(self) -> List[str]:
+        """Get input field names from the signature."""
+        if isinstance(self.signature, str):
+            input_part = self.signature.split("->")[0].strip()
+            return [f.strip() for f in input_part.split(",")]
+        return list(self.signature.input_fields.keys())
+
+    @staticmethod
+    def _extract_last_user_message(messages: List[ChatMessage]) -> str:
+        """Extract the text of the last user message from a list of chat messages."""
+        for msg in reversed(messages):
+            if msg.role == ChatRole.USER:
+                return msg.text
+        return messages[-1].text
+
+    def _signature_to_string(self) -> str:
+        """Convert the signature to a string representation for serialization."""
+        if isinstance(self.signature, str):
+            return self.signature
+        input_names = list(self.signature.input_fields.keys())
+        output_names = list(self.signature.output_fields.keys())
+        return ", ".join(input_names) + " -> " + ", ".join(output_names)
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Serialize this component to a dictionary."""
+        kwargs: Dict[str, Any] = {
+            "signature": self._signature_to_string(),
+            "model": self.model,
+            "module_type": self.module_type,
+            "output_field": self.output_field,
+            "generation_kwargs": self.generation_kwargs,
+            "input_mapping": self.input_mapping,
+        }
+        try:
+            kwargs["api_key"] = self.api_key.to_dict()
+        except ValueError:
+            pass
+        return default_to_dict(self, **kwargs)
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "DSPyChatGenerator":
+        """Deserialize a component from a dictionary."""
+        init_params = data.get("init_parameters", {})
+        deserialize_secrets_inplace(init_params, ["api_key"])
+        return default_from_dict(cls, data)
 
     @component.output_types(replies=List[ChatMessage])
     def run(
@@ -96,11 +205,17 @@ class DSPyChatGenerator(DSPyGenerator):
             raise ValueError(msg)
 
         prompt = self._extract_last_user_message(messages)
-        result = DSPyGenerator.run(self, prompt=prompt, generation_kwargs=generation_kwargs, **kwargs)
+        dspy_inputs = self._build_dspy_inputs(prompt, **kwargs)
 
-        replies = [ChatMessage.from_assistant(text=text) for text in result["replies"]]
+        if generation_kwargs:
+            prediction = self._module(**dspy_inputs, config=generation_kwargs)
+        else:
+            prediction = self._module(**dspy_inputs)
 
-        return {"replies": replies, "meta": result["meta"]}
+        output_text = getattr(prediction, self.output_field, str(prediction))
+
+        replies = [ChatMessage.from_assistant(text=output_text)]
+        return {"replies": replies}
 
     @component.output_types(replies=List[ChatMessage])
     async def run_async(
@@ -124,18 +239,14 @@ class DSPyChatGenerator(DSPyGenerator):
             raise ValueError(msg)
 
         prompt = self._extract_last_user_message(messages)
-        result = await DSPyGenerator.run_async(self, prompt=prompt, generation_kwargs=generation_kwargs, **kwargs)
+        dspy_inputs = self._build_dspy_inputs(prompt, **kwargs)
 
-        replies = [ChatMessage.from_assistant(text=text) for text in result["replies"]]
+        if generation_kwargs:
+            prediction = await self._module.acall(**dspy_inputs, config=generation_kwargs)
+        else:
+            prediction = await self._module.acall(**dspy_inputs)
 
-        return {"replies": replies, "meta": result["meta"]}
+        output_text = getattr(prediction, self.output_field, str(prediction))
 
-    @staticmethod
-    def _extract_last_user_message(messages: List[ChatMessage]) -> str:
-        """Extract the text of the last user message from a list of chat messages."""
-        for msg in reversed(messages):
-            if msg.role == ChatRole.USER:
-                return msg.text
-
-        # Fallback to last message if no user message found
-        return messages[-1].text
+        replies = [ChatMessage.from_assistant(text=output_text)]
+        return {"replies": replies}

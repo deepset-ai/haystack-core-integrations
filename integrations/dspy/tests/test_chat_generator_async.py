@@ -12,11 +12,13 @@ def mock_dspy_module():
     """
     Mock DSPy LM, configure, and module classes to avoid real API calls.
     """
-    with patch("dspy.LM") as mock_lm_class, \
-         patch("dspy.configure"), \
-         patch("dspy.ChainOfThought") as mock_cot_class, \
-         patch("dspy.Predict") as mock_predict_class, \
-         patch("dspy.ReAct") as mock_react_class:
+    with (
+        patch("haystack_integrations.components.generators.dspy.chat.chat_generator.dspy.LM") as mock_lm_class,
+        patch("haystack_integrations.components.generators.dspy.chat.chat_generator.dspy.configure"),
+        patch("haystack_integrations.components.generators.dspy.chat.chat_generator.dspy.ChainOfThought") as mock_cot_class,
+        patch("haystack_integrations.components.generators.dspy.chat.chat_generator.dspy.Predict") as mock_predict_class,
+        patch("haystack_integrations.components.generators.dspy.chat.chat_generator.dspy.ReAct") as mock_react_class,
+    ):
         mock_lm = MagicMock()
         mock_lm_class.return_value = mock_lm
 
@@ -48,10 +50,8 @@ class TestDSPyChatGeneratorAsync:
         )
         response = await component.run_async(messages=chat_messages)
 
-        # Verify the async mock was called
         mock_dspy_module.acall.assert_called_once()
 
-        # Check that the component returns the correct ChatMessage response
         assert isinstance(response, dict)
         assert "replies" in response
         assert isinstance(response["replies"], list)
@@ -69,11 +69,9 @@ class TestDSPyChatGeneratorAsync:
             generation_kwargs={"temperature": 0.9},
         )
 
-        # Check that acall was called with the correct parameters
         _, kwargs = mock_dspy_module.acall.call_args
         assert kwargs["config"] == {"temperature": 0.9}
 
-        # Check that the component returns the correct response
         assert isinstance(response, dict)
         assert "replies" in response
         assert len(response["replies"]) == 1
