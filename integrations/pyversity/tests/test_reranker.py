@@ -129,6 +129,61 @@ class TestPyversityRanker:
         result = reranker.run(documents=docs)
         assert len(result["documents"]) == 2
 
+    def test_to_dict_defaults(self):
+        reranker = PyversityRanker(top_k=5)
+        data = reranker.to_dict()
+        assert data == {
+            "type": "haystack_integrations.components.rankers.pyversity.reranker.PyversityRanker",
+            "init_parameters": {
+                "top_k": 5,
+                "strategy": "dpp",
+                "diversity": 0.5,
+            },
+        }
+
+    def test_to_dict_custom_params(self):
+        reranker = PyversityRanker(top_k=10, strategy=Strategy.MMR, diversity=0.3)
+        data = reranker.to_dict()
+        assert data == {
+            "type": "haystack_integrations.components.rankers.pyversity.reranker.PyversityRanker",
+            "init_parameters": {
+                "top_k": 10,
+                "strategy": "mmr",
+                "diversity": 0.3,
+            },
+        }
+
+    def test_from_dict(self):
+        data = {
+            "type": "haystack_integrations.components.rankers.pyversity.reranker.PyversityRanker",
+            "init_parameters": {
+                "top_k": 7,
+                "strategy": "mmr",
+                "diversity": 0.8,
+            },
+        }
+        reranker = PyversityRanker.from_dict(data)
+        assert reranker.top_k == 7
+        assert reranker.strategy == Strategy.MMR
+        assert reranker.diversity == 0.8
+
+    def test_from_dict_defaults(self):
+        data = {
+            "type": "haystack_integrations.components.rankers.pyversity.reranker.PyversityRanker",
+            "init_parameters": {"top_k": 3},
+        }
+        reranker = PyversityRanker.from_dict(data)
+        assert reranker.top_k == 3
+        assert reranker.strategy == Strategy.DPP
+        assert reranker.diversity == 0.5
+
+    def test_to_dict_from_dict_roundtrip(self):
+        original = PyversityRanker(top_k=4, strategy=Strategy.SSD, diversity=0.2)
+        restored = PyversityRanker.from_dict(original.to_dict())
+        assert restored.top_k == original.top_k
+        assert restored.strategy == original.strategy
+        assert restored.diversity == original.diversity
+
 
 @pytest.mark.parametrize(
     "pipeline",

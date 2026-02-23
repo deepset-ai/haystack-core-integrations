@@ -9,9 +9,10 @@ making it easy to drop result diversification into any Haystack pipeline.
 """
 
 import logging
+from typing import Any
 
 import numpy as np
-from haystack import Document, component
+from haystack import Document, component, default_from_dict, default_to_dict
 
 from pyversity import Strategy, diversify
 
@@ -65,6 +66,34 @@ class PyversityRanker:
         self.top_k = top_k
         self.strategy = strategy
         self.diversity = diversity
+
+    def to_dict(self) -> dict[str, Any]:
+        """
+        Serializes the component to a dictionary.
+
+        :returns:
+            Dictionary with serialized data.
+        """
+        return default_to_dict(
+            self,
+            top_k=self.top_k,
+            strategy=self.strategy.value,
+            diversity=self.diversity,
+        )
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "PyversityRanker":
+        """
+        Deserializes the component from a dictionary.
+
+        :param data:
+            The dictionary to deserialize from.
+        :returns:
+            The deserialized component instance.
+        """
+        if strategy := data.get("init_parameters", {}).get("strategy"):
+            data["init_parameters"]["strategy"] = Strategy(strategy)
+        return default_from_dict(cls, data)
 
     @component.output_types(documents=list[Document])
     def run(self, documents: list[Document]) -> dict:
