@@ -1,6 +1,7 @@
 import dspy
 from haystack import Pipeline
 from haystack.dataclasses import ChatMessage
+
 from haystack_integrations.components.generators.dspy import DSPyChatGenerator
 
 

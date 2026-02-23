@@ -1,4 +1,5 @@
-from typing import Any, Callable, Dict, List, Optional, Type, Union
+from collections.abc import Callable
+from typing import Any
 
 import dspy
 from haystack import component, default_from_dict, default_to_dict
@@ -75,14 +76,14 @@ class DSPyChatGenerator:
 
     def __init__(
         self,
-        signature: Union[str, Type[dspy.Signature]],
+        signature: str | type[dspy.Signature],
         model: str = "openai/gpt-5-mini",
         api_key: Secret = Secret.from_env_var("OPENAI_API_KEY"),
         module_type: str = "ChainOfThought",
         output_field: str = "answer",
-        generation_kwargs: Optional[Dict[str, Any]] = None,
-        input_mapping: Optional[Dict[str, str]] = None,
-        streaming_callback: Optional[Callable] = None,
+        generation_kwargs: dict[str, Any] | None = None,
+        input_mapping: dict[str, str] | None = None,
+        streaming_callback: Callable | None = None,
     ):
         """
         Initialize the DSPyChatGenerator.
@@ -119,7 +120,7 @@ class DSPyChatGenerator:
         module_class = get_dspy_module_class(self.module_type)
         self._module = module_class(self.signature)
 
-    def _build_dspy_inputs(self, prompt: str, **kwargs) -> Dict[str, Any]:
+    def _build_dspy_inputs(self, prompt: str, **kwargs) -> dict[str, Any]:
         """Build the input dict for the DSPy module call."""
         if self.input_mapping:
             dspy_inputs = {}
@@ -139,7 +140,7 @@ class DSPyChatGenerator:
 
         return dspy_inputs
 
-    def _get_input_field_names(self) -> List[str]:
+    def _get_input_field_names(self) -> list[str]:
         """Get input field names from the signature."""
         if isinstance(self.signature, str):
             input_part = self.signature.split("->")[0].strip()
@@ -147,7 +148,7 @@ class DSPyChatGenerator:
         return list(self.signature.input_fields.keys())
 
     @staticmethod
-    def _extract_last_user_message(messages: List[ChatMessage]) -> str:
+    def _extract_last_user_message(messages: list[ChatMessage]) -> str:
         """Extract the text of the last user message from a list of chat messages."""
         for msg in reversed(messages):
             if msg.role == ChatRole.USER:
@@ -162,9 +163,9 @@ class DSPyChatGenerator:
         output_names = list(self.signature.output_fields.keys())
         return ", ".join(input_names) + " -> " + ", ".join(output_names)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Serialize this component to a dictionary."""
-        kwargs: Dict[str, Any] = {
+        kwargs: dict[str, Any] = {
             "signature": self._signature_to_string(),
             "model": self.model,
             "module_type": self.module_type,
@@ -179,19 +180,19 @@ class DSPyChatGenerator:
         return default_to_dict(self, **kwargs)
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "DSPyChatGenerator":
+    def from_dict(cls, data: dict[str, Any]) -> "DSPyChatGenerator":
         """Deserialize a component from a dictionary."""
         init_params = data.get("init_parameters", {})
         deserialize_secrets_inplace(init_params, ["api_key"])
         return default_from_dict(cls, data)
 
-    @component.output_types(replies=List[ChatMessage])
+    @component.output_types(replies=list[ChatMessage])
     def run(
         self,
-        messages: List[ChatMessage],
-        generation_kwargs: Optional[Dict[str, Any]] = None,
+        messages: list[ChatMessage],
+        generation_kwargs: dict[str, Any] | None = None,
         **kwargs,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Run the DSPy module on the given messages.
 
@@ -217,13 +218,13 @@ class DSPyChatGenerator:
         replies = [ChatMessage.from_assistant(text=output_text)]
         return {"replies": replies}
 
-    @component.output_types(replies=List[ChatMessage])
+    @component.output_types(replies=list[ChatMessage])
     async def run_async(
         self,
-        messages: List[ChatMessage],
-        generation_kwargs: Optional[Dict[str, Any]] = None,
+        messages: list[ChatMessage],
+        generation_kwargs: dict[str, Any] | None = None,
         **kwargs,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Asynchronously run the DSPy module on the given messages.
 
