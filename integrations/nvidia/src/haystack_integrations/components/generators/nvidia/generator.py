@@ -31,7 +31,7 @@ class NvidiaGenerator:
             "max_tokens": 1024,
         },
     )
-    generator.warm_up()
+    # Components warm up automatically on first run.
 
     result = generator.run(prompt="What is the answer?")
     print(result["replies"])

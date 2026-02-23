@@ -263,6 +263,3 @@ class TestJinaDocumentImageEmbedder:
             assert len(doc.embedding) > 0  # Should have embedding dimensions
             assert all(isinstance(x, (int, float)) for x in doc.embedding)
             assert doc.meta["embedding_source"]["type"] == "image"
-
-            # Clean up
-            os.unlink(tmp_file.name)
