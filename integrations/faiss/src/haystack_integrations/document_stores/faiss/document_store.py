@@ -404,7 +404,8 @@ class FAISSDocumentStore:
         """
         Infers and returns the types of all metadata fields from the stored documents.
 
-        :returns: A dictionary mapping field names to dictionaries with a "type" key (e.g. {"field": {"type": "long"}}).
+        :returns: A dictionary mapping field names to dictionaries with a "type" key
+            (e.g. `{"field": {"type": "long"}}`).
         """
         fields_idx = {}
         for doc in self.documents.values():
