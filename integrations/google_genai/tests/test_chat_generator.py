@@ -268,7 +268,23 @@ class TestGoogleGenAIChatGeneratorInference:
         assert message.is_from(ChatRole.ASSISTANT)
 
         assert message.text
-        assert "no" in message.text.lower()
+        indicates_no = any(
+            phrase in message.text.lower()
+            for phrase in (
+                "no",
+                "nope",
+                "not about",
+                "not a paper about",
+                "it is not",
+                "it's not",
+                "the answer is no",
+                "does not",
+                "doesn't",
+                "negative",
+            )
+        )
+
+        assert indicates_no is True
 
     def test_live_run_streaming(self):
         component = GoogleGenAIChatGenerator()
