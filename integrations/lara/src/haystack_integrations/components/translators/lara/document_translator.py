@@ -4,9 +4,9 @@
 
 from typing import Any, Literal
 
-from haystack import Document, component, default_from_dict, default_to_dict, logging
-from haystack.utils import Secret, deserialize_secrets_inplace
-from lara_sdk import Credentials, TextBlock, Translator  # type: ignore[import-untyped]
+from haystack import Document, component, logging
+from haystack.utils import Secret
+from lara_sdk import Credentials, TextBlock, Translator
 
 logger = logging.getLogger(__name__)
 
@@ -49,7 +49,7 @@ class LaraDocumentTranslator:
         target_lang: str | None = None,
         context: str | None = None,
         instructions: str | None = None,
-        style: Literal["faithful", "fluid", "creative"] | None = None,
+        style: Literal["faithful", "fluid", "creative"] = "faithful",
         adapt_to: list[str] | None = None,
         glossaries: list[str] | None = None,
         reasoning: bool = False,
@@ -81,7 +81,7 @@ class LaraDocumentTranslator:
             [Lara documentation](https://developers.laratranslate.com/docs/adapt-to-instructions).
         :param style:
             One of `"faithful"`, `"fluid"`, or `"creative"`.
-            If `None`, the default style is `"faithful"`.
+            Default is `"faithful"`.
             Style description:
             - `"faithful"`: For accuracy and precision. Keeps original structure and meaning.
                 Ideal for manuals, legal documents.
@@ -92,18 +92,18 @@ class LaraDocumentTranslator:
             [Lara documentation](https://support.laratranslate.com/en/translation-styles).
         :param adapt_to:
             Optional list of translation memory IDs. Lara adapts to the style and terminology of these memories
-            at inference time. Domain adaptation is available on Team and Enterprise plans. You can find more
+            at inference time. Domain adaptation is available depending on your plan. You can find more
             detailed information in the
             [Lara documentation](https://developers.laratranslate.com/docs/adapt-to-translation-memories).
         :param glossaries:
             Optional list of glossary IDs. Lara applies these glossaries at inference time to enforce
             consistent terminology (e.g. brand names, product terms, legal or technical phrases) across translations.
-            Glossary management and availability depend on your plan.
+            Glossary management and availability depends on your plan.
             You can find more detailed information in the
             [Lara documentation](https://developers.laratranslate.com/docs/manage-glossaries).
         :param reasoning:
             If `True`, uses the Lara Think model for higher-quality translation (multi-step linguistic analysis).
-            Increases latency and cost. Available on Pro and Team plans. You can find more detailed information in the
+            Increases latency and cost. Availability depends on your plan. You can find more detailed information in the
             [Lara documentation](https://developers.laratranslate.com/docs/translate-text#reasoning-lara-think).
         """
 
@@ -118,6 +118,17 @@ class LaraDocumentTranslator:
         self.glossaries = glossaries
         self.reasoning = reasoning
         self._translator: Translator | None = None
+
+    def warm_up(self) -> None:
+        """
+        Warm up the Lara translator by initializing the client.
+        """
+        if self._translator is None:
+            credentials = Credentials(
+                access_key_id=self.access_key_id.resolve_value(),
+                access_key_secret=self.access_key_secret.resolve_value(),
+            )
+            self._translator = Translator(credentials=credentials)
 
     @component.output_types(documents=list[Document])
     def run(
@@ -163,7 +174,6 @@ class LaraDocumentTranslator:
             [Lara documentation](https://developers.laratranslate.com/docs/adapt-to-instructions).
         :param style:
             One of `"faithful"`, `"fluid"`, or `"creative"`.
-            If `None`, the default style is `"faithful"`.
             Style description:
             - `"faithful"`: For accuracy and precision. Keeps original structure and meaning.
                 Ideal for manuals, legal documents.
@@ -174,18 +184,18 @@ class LaraDocumentTranslator:
             [Lara documentation](https://support.laratranslate.com/en/translation-styles).
         :param adapt_to:
             Optional list of translation memory IDs. Lara adapts to the style and terminology
-            of these memories at inference time. Domain adaptation is available on Team and Enterprise plans.
+            of these memories at inference time. Domain adaptation is available depending on your plan.
             You can find more detailed information in the
             [Lara documentation](https://developers.laratranslate.com/docs/adapt-to-translation-memories).
         :param glossaries:
             Optional list of glossary IDs. Lara applies these glossaries at inference time to enforce
             consistent terminology (e.g. brand names, product terms, legal or technical phrases) across translations.
-            Glossary management and availability depend on your plan.
+            Glossary management and availability depends on your plan.
             You can find more detailed information in the
             [Lara documentation](https://developers.laratranslate.com/docs/manage-glossaries).
         :param reasoning:
             If `True`, uses the Lara Think model for higher-quality translation (multi-step linguistic analysis).
-            Increases latency and cost. Available on Pro and Team plans. You can find more detailed information in the
+            Increases latency and cost. Availability depends on your plan. You can find more detailed information in the
             [Lara documentation](https://developers.laratranslate.com/docs/translate-text#reasoning-lara-think).
         :return:
             A dictionary with the following keys:
@@ -197,11 +207,7 @@ class LaraDocumentTranslator:
             return {"documents": []}
 
         if self._translator is None:
-            credentials = Credentials(
-                access_key_id=self.access_key_id.resolve_value(),
-                access_key_secret=self.access_key_secret.resolve_value(),
-            )
-            self._translator = Translator(credentials=credentials)
+            self.warm_up()
 
         source_lang = source_lang or self.source_lang
         target_lang = target_lang or self.target_lang
@@ -226,34 +232,27 @@ class LaraDocumentTranslator:
 
         translated_documents = []
         for idx, cur_doc in enumerate(documents):
-            if cur_doc.content:
-                cur_source = validated_params["source_lang"][idx]
-                cur_target = validated_params["target_lang"][idx]
-                cur_ctx = validated_params["context"][idx]
-                cur_instr = validated_params["instructions"][idx]
-                cur_style = validated_params["style"][idx]
-                cur_adapt = validated_params["adapt_to"][idx]
-                cur_gloss = validated_params["glossaries"][idx]
-                cur_reason = validated_params["reasoning"][idx]
-
-                text_blocks = [TextBlock(text=cur_doc.content, translatable=True)]
-                if cur_ctx is not None:
-                    text_blocks.append(TextBlock(text=cur_ctx, translatable=False))
-
-                translation_response = self._translator.translate(
-                    text=text_blocks,
-                    source=cur_source,
-                    target=cur_target,
-                    instructions=cur_instr,
-                    style=cur_style,
-                    adapt_to=cur_adapt,
-                    glossaries=cur_gloss,
-                    reasoning=cur_reason,
-                )
-                translation = translation_response.translation[0].text
-            else:
+            if not cur_doc.content:
                 logger.warning(f"Document {cur_doc.id} has no content, skipping translation.")
                 translation = cur_doc.content
+            else:
+                params = {key: value[idx] for key, value in validated_params.items()}
+                text_blocks = [TextBlock(text=cur_doc.content, translatable=True)]
+                if params["context"] is not None:
+                    text_blocks.append(TextBlock(text=params["context"], translatable=False))
+
+                # Ignoring type because the lara client is only initialized after warm_up and None before
+                translation_response = self._translator.translate(  # type: ignore[union-attr]
+                    text=text_blocks,
+                    source=params["source_lang"],
+                    target=params["target_lang"],
+                    instructions=params["instructions"],
+                    style=params["style"],
+                    adapt_to=params["adapt_to"],
+                    glossaries=params["glossaries"],
+                    reasoning=params["reasoning"],
+                )
+                translation = translation_response.translation[0].text
 
             meta = {"original_document_id": cur_doc.id, **cur_doc.meta}
             translated_doc = Document(content=translation, meta=meta)
@@ -261,39 +260,48 @@ class LaraDocumentTranslator:
 
         return {"documents": translated_documents}
 
-    @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "LaraDocumentTranslator":
-        """
-        Deserializes a LaraDocumentTranslator from a dictionary.
-
-        :param data: Dictionary containing the LaraDocumentTranslator configuration.
-        :return: LaraDocumentTranslator instance.
-        """
-        deserialize_secrets_inplace(data["init_parameters"], keys=["access_key_id", "access_key_secret"])
-        return default_from_dict(cls, data)
-
-    def to_dict(self) -> dict[str, Any]:
-        """
-        Serializes a LaraDocumentTranslator to a dictionary.
-
-        :return: Dictionary containing the LaraDocumentTranslator configuration.
-        """
-        return default_to_dict(
-            self,
-            access_key_id=self.access_key_id.to_dict(),
-            access_key_secret=self.access_key_secret.to_dict(),
-            source_lang=self.source_lang,
-            target_lang=self.target_lang,
-            context=self.context,
-            instructions=self.instructions,
-            style=self.style,
-            adapt_to=self.adapt_to,
-            glossaries=self.glossaries,
-            reasoning=self.reasoning,
-        )
-
     @staticmethod
+    def _normalize_parameter(
+        name: str,
+        value: Any,
+        num_documents: int,
+        allow_list_of_lists: bool = False,
+        wrap_scalar: bool = False,
+    ) -> list[Any]:
+        """
+        Validate a single translation parameter and broadcast it to a per-document list.
+
+        :param name: Human-readable parameter name used in error messages.
+        :param value: The raw parameter value (scalar, list, or list-of-lists).
+        :param num_documents: Expected number of documents.
+        :param allow_list_of_lists: If True, treat a list whose first element is
+            itself a list as already per-document (used for adapt_to / glossaries).
+        :param wrap_scalar: If True and value is a non-None scalar, wrap it in a
+            single-element list before replicating (used for instructions).
+        :return: A list of length `num_documents`.
+        :raises ValueError: If a list-valued parameter has the wrong length.
+        """
+        if allow_list_of_lists:
+            is_per_doc = isinstance(value, list) and len(value) > 0 and isinstance(value[0], list)
+            if is_per_doc:
+                if len(value) != num_documents:
+                    msg = f"If {name} is a list of lists, it must be the same length as the number of documents."
+                    raise ValueError(msg)
+                return value
+            return [value] * num_documents
+
+        if isinstance(value, list):
+            if len(value) != num_documents:
+                msg = f"If {name} is a list, it must be the same length as the number of documents."
+                raise ValueError(msg)
+            return value
+
+        if wrap_scalar and value is not None:
+            value = [value]
+        return [value] * num_documents
+
     def _validate_params(
+        self,
         num_documents: int,
         source_lang: str | list[str | None] | None,
         target_lang: str | list[str] | None,
@@ -320,67 +328,13 @@ class LaraDocumentTranslator:
             `num_documents`.
         :raises ValueError: If any list-valued parameter has length != num_documents.
         """
-        error_msg = "If {param} is a list, it must be the same length as the number of documents."
-        validated_params: dict[str, list[Any]] = {}
-
-        if isinstance(source_lang, list) and len(source_lang) != num_documents:
-            raise ValueError(error_msg.format(param="source language"))
-        validated_params["source_lang"] = (
-            [source_lang] * num_documents if not isinstance(source_lang, list) else source_lang
-        )
-
-        if isinstance(target_lang, list) and len(target_lang) != num_documents:
-            raise ValueError(error_msg.format(param="target language"))
-        validated_params["target_lang"] = (
-            [target_lang] * num_documents if not isinstance(target_lang, list) else target_lang
-        )
-
-        if isinstance(context, list) and len(context) != num_documents:
-            raise ValueError(error_msg.format(param="context"))
-        validated_params["context"] = [context] * num_documents if not isinstance(context, list) else context
-
-        if isinstance(style, list) and len(style) != num_documents:
-            raise ValueError(error_msg.format(param="style"))
-        validated_params["style"] = [style] * num_documents if not isinstance(style, list) else style
-
-        if isinstance(instructions, list) and len(instructions) != num_documents:
-            raise ValueError(error_msg.format(param="instructions"))
-        if instructions is not None:
-            validated_params["instructions"] = (
-                [[instructions]] * num_documents if not isinstance(instructions, list) else instructions
-            )
-        else:
-            validated_params["instructions"] = [None] * num_documents
-
-        if isinstance(reasoning, list) and len(reasoning) != num_documents:
-            raise ValueError(error_msg.format(param="reasoning"))
-        validated_params["reasoning"] = [reasoning] * num_documents if not isinstance(reasoning, list) else reasoning
-
-        if (
-            isinstance(adapt_to, list)
-            and len(adapt_to) > 0
-            and isinstance(adapt_to[0], list)
-            and len(adapt_to) != num_documents
-        ):
-            error_msg = "If adapt to is a list of lists, it must be the same length as the number of documents."
-            raise ValueError(error_msg)
-        validated_params["adapt_to"] = (
-            [adapt_to] * num_documents
-            if not (isinstance(adapt_to, list) and len(adapt_to) > 0 and isinstance(adapt_to[0], list))
-            else adapt_to
-        )
-
-        if (
-            isinstance(glossaries, list)
-            and len(glossaries) > 0
-            and isinstance(glossaries[0], list)
-            and len(glossaries) != num_documents
-        ):
-            error_msg = "If glossaries is a list of lists, it must be the same length as the number of documents."
-            raise ValueError(error_msg)
-        validated_params["glossaries"] = (
-            [glossaries] * num_documents
-            if not (isinstance(glossaries, list) and len(glossaries) > 0 and isinstance(glossaries[0], list))
-            else glossaries
-        )
-        return validated_params
+        return {
+            "source_lang": self._normalize_parameter("source language", source_lang, num_documents),
+            "target_lang": self._normalize_parameter("target language", target_lang, num_documents),
+            "context": self._normalize_parameter("context", context, num_documents),
+            "style": self._normalize_parameter("style", style, num_documents),
+            "instructions": self._normalize_parameter("instructions", instructions, num_documents, wrap_scalar=True),
+            "reasoning": self._normalize_parameter("reasoning", reasoning, num_documents),
+            "adapt_to": self._normalize_parameter("adapt to", adapt_to, num_documents, allow_list_of_lists=True),
+            "glossaries": self._normalize_parameter("glossaries", glossaries, num_documents, allow_list_of_lists=True),
+        }

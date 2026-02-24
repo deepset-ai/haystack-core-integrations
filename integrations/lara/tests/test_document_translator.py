@@ -8,6 +8,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 from haystack import Document
 from haystack.utils import Secret
+from haystack.core.serialization import component_from_dict, component_to_dict
 
 from haystack_integrations.components.translators.lara import LaraDocumentTranslator
 
@@ -31,7 +32,7 @@ class TestLaraDocumentTranslator:
         assert translator.target_lang is None
         assert translator.context is None
         assert translator.instructions is None
-        assert translator.style is None
+        assert translator.style == "faithful"
         assert translator.adapt_to is None
         assert translator.glossaries is None
         assert translator.reasoning is False
@@ -74,7 +75,7 @@ class TestLaraDocumentTranslator:
                 "style": "creative",
             },
         }
-        translator = LaraDocumentTranslator.from_dict(data)
+        translator = component_from_dict(LaraDocumentTranslator, data, "document_translator")
         assert translator.source_lang == "en"
         assert translator.target_lang == "fr"
         assert translator.style == "creative"
@@ -86,7 +87,7 @@ class TestLaraDocumentTranslator:
             source_lang="en-US",
             target_lang="de-DE",
         )
-        data = translator.to_dict()
+        data = component_to_dict(translator, "document_translator")
         assert data["type"] == (
             "haystack_integrations.components.translators.lara.document_translator.LaraDocumentTranslator"
         )
@@ -238,7 +239,8 @@ class TestLaraDocumentTranslator:
         mock_translator.translate.assert_not_called()
 
     def test_validate_params_scalar_expanded_to_list(self):
-        result = LaraDocumentTranslator._validate_params(
+        translator = LaraDocumentTranslator()
+        result = translator._validate_params(
             num_documents=3,
             source_lang="en-US",
             target_lang="de-DE",
@@ -259,7 +261,8 @@ class TestLaraDocumentTranslator:
         assert len(result["glossaries"]) == 3
 
     def test_validate_params_list_per_document(self):
-        result = LaraDocumentTranslator._validate_params(
+        translator = LaraDocumentTranslator()
+        result = translator._validate_params(
             num_documents=2,
             source_lang=["en-US", "fr-FR"],
             target_lang=["de-DE", "es-ES"],
@@ -280,7 +283,8 @@ class TestLaraDocumentTranslator:
 
     def test_validate_params_source_lang_list_wrong_length_raises(self):
         with pytest.raises(ValueError, match="source language is a list, it must be the same length"):
-            LaraDocumentTranslator._validate_params(
+            translator = LaraDocumentTranslator()
+            translator._validate_params(
                 num_documents=2,
                 source_lang=["en-US", "fr-FR", "es-ES"],
                 target_lang="de-DE",
@@ -294,7 +298,8 @@ class TestLaraDocumentTranslator:
 
     def test_validate_params_target_lang_list_wrong_length_raises(self):
         with pytest.raises(ValueError, match="target language is a list, it must be the same length"):
-            LaraDocumentTranslator._validate_params(
+            translator = LaraDocumentTranslator()
+            translator._validate_params(
                 num_documents=2,
                 source_lang=None,
                 target_lang=["de-DE"],
@@ -308,7 +313,8 @@ class TestLaraDocumentTranslator:
 
     def test_validate_params_context_list_wrong_length_raises(self):
         with pytest.raises(ValueError, match="context is a list, it must be the same length"):
-            LaraDocumentTranslator._validate_params(
+            translator = LaraDocumentTranslator()
+            translator._validate_params(
                 num_documents=2,
                 source_lang=None,
                 target_lang="de-DE",
@@ -322,7 +328,8 @@ class TestLaraDocumentTranslator:
 
     def test_validate_params_style_list_wrong_length_raises(self):
         with pytest.raises(ValueError, match="style is a list, it must be the same length"):
-            LaraDocumentTranslator._validate_params(
+            translator = LaraDocumentTranslator()
+            translator._validate_params(
                 num_documents=2,
                 source_lang=None,
                 target_lang="de-DE",
@@ -336,7 +343,8 @@ class TestLaraDocumentTranslator:
 
     def test_validate_params_instructions_list_wrong_length_raises(self):
         with pytest.raises(ValueError, match="instructions is a list, it must be the same length"):
-            LaraDocumentTranslator._validate_params(
+            translator = LaraDocumentTranslator()
+            translator._validate_params(
                 num_documents=2,
                 source_lang=None,
                 target_lang="de-DE",
@@ -350,7 +358,8 @@ class TestLaraDocumentTranslator:
 
     def test_validate_params_reasoning_list_wrong_length_raises(self):
         with pytest.raises(ValueError, match="reasoning is a list, it must be the same length"):
-            LaraDocumentTranslator._validate_params(
+            translator = LaraDocumentTranslator()
+            translator._validate_params(
                 num_documents=2,
                 source_lang=None,
                 target_lang="de-DE",
@@ -364,7 +373,8 @@ class TestLaraDocumentTranslator:
 
     def test_validate_params_adapt_to_list_of_lists_wrong_length_raises(self):
         with pytest.raises(ValueError, match="adapt to is a list of lists, it must be the same length"):
-            LaraDocumentTranslator._validate_params(
+            translator = LaraDocumentTranslator()
+            translator._validate_params(
                 num_documents=2,
                 source_lang=None,
                 target_lang="de-DE",
@@ -378,7 +388,8 @@ class TestLaraDocumentTranslator:
 
     def test_validate_params_glossaries_list_of_lists_wrong_length_raises(self):
         with pytest.raises(ValueError, match="glossaries is a list of lists, it must be the same length"):
-            LaraDocumentTranslator._validate_params(
+            translator = LaraDocumentTranslator()
+            translator._validate_params(
                 num_documents=2,
                 source_lang=None,
                 target_lang="de-DE",

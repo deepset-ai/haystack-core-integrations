@@ -2,8 +2,6 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from haystack_integrations.components.translators.lara.document_translator import (
-    LaraDocumentTranslator,
-)
+from .document_translator import LaraDocumentTranslator
 
 __all__ = ["LaraDocumentTranslator"]

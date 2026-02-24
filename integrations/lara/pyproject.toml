@@ -7,7 +7,7 @@ name = "lara-haystack"
 dynamic = ["version"]
 description = "Haystack integration for Lara, translated's AI translator"
 readme = "README.md"
-requires-python = ">=3.10,<3.14"
+requires-python = ">=3.10"
 license = "Apache-2.0"
 keywords = [
   "Haystack",
@@ -51,7 +51,7 @@ installer = "uv"
 dependencies = ["haystack-pydoc-tools", "ruff"]
 
 [tool.hatch.envs.default.scripts]
-docs = ["pydoc-markdown pydoc/config_docusaurus.yml"]
+docs = ["haystack-pydoc pydoc/config_docusaurus.yml"]
 fmt = "ruff check --fix {args}; ruff format {args}"
 fmt-check = "ruff check {args} && ruff format --check {args}"
 
@@ -77,6 +77,12 @@ install_types = true
 non_interactive = true
 check_untyped_defs = true
 disallow_incomplete_defs = true
+
+[[tool.mypy.overrides]]
+module = [
+  "lara_sdk.*"
+]
+ignore_missing_imports = true
 
 [tool.ruff]
 line-length = 120
@@ -155,7 +161,6 @@ exclude_lines = ["no cov", "if __name__ == .__main__.:", "if TYPE_CHECKING:"]
 testpaths = ["tests"]
 addopts = "--strict-markers"
 markers = [
-    "unit: unit tests",
     "integration: integration tests",
 ]
 log_cli = true
