@@ -31,7 +31,7 @@ class NvidiaRanker:
         model="nvidia/nv-rerankqa-mistral-4b-v3",
         api_key=Secret.from_env_var("NVIDIA_API_KEY"),
     )
-    ranker.warm_up()
+    # Components warm up automatically on first run.
 
     query = "What is the capital of Germany?"
     documents = [

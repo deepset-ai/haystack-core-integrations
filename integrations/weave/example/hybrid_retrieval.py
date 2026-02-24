@@ -20,7 +20,7 @@ def index():
     ]
 
     embedder = SentenceTransformersDocumentEmbedder()
-    embedder.warm_up()
+    # Components warm up automatically on first run.
     embed_docs = embedder.run(documents)
 
     document_store.write_documents(embed_docs["documents"])

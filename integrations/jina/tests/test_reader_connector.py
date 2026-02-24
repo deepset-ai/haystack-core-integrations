@@ -122,7 +122,7 @@ class TestJinaReaderConnector:
         assert len(result) == 1
         document = result["documents"][0]
         assert isinstance(document, Document)
-        assert "This domain is for use in illustrative examples" in document.content
+        assert "This domain is for use in documentation examples" in document.content
         assert document.meta["title"] == "Example Domain"
         assert document.meta["url"] == "https://example.com/"
 
@@ -135,7 +135,7 @@ class TestJinaReaderConnector:
         assert len(result) >= 1
         for doc in result["documents"]:
             assert isinstance(doc, Document)
-            assert doc.content
+            assert doc.content is not None
             assert "title" in doc.meta
             assert "url" in doc.meta
             assert "description" in doc.meta

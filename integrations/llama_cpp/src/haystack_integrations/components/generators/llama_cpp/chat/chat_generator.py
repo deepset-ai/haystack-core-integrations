@@ -191,7 +191,6 @@ class LlamaCppChatGenerator:
         model_clip_path="mmproj-model-f16.gguf",  # CLIP model
         n_ctx=4096  # Larger context for image processing
     )
-    generator.warm_up()
 
     result = generator.run(messages)
     print(result)
