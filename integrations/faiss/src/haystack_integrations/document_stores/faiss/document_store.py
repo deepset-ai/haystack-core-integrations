@@ -92,11 +92,13 @@ class FAISSDocumentStore:
     def _matches_filters(self, doc: Document, filters: dict[str, Any]) -> bool:
         """
         Checks if a document matches the given filters.
-        Currently supports simple equality and comparison checks.
+
+        Currently, supports simple equality and comparison checks.
         """
         return self._check_condition(doc, filters)
 
-    def _get_doc_value(self, doc: Document, field: str) -> Any:
+    @staticmethod
+    def _get_doc_value(doc: Document, field: str) -> Any:
         """Helper to get value from doc, handling 'meta.' prefix."""
         if field == "content":
             return doc.content
@@ -304,7 +306,7 @@ class FAISSDocumentStore:
             raise FilterError(msg)
         value = condition.get("value")
 
-        doc_val = self._get_doc_value(doc, field)
+        doc_val = FAISSDocumentStore._get_doc_value(doc, field)
 
         # Type check for comparison operators
         if operator in [">", ">=", "<", "<="]:
@@ -431,7 +433,7 @@ class FAISSDocumentStore:
         values = []
         for doc in self.documents.values():
             val = (
-                self._get_doc_value(doc, field_name)
+                FAISSDocumentStore._get_doc_value(doc, field_name)
                 if not field_name.startswith("meta.")
                 else doc.meta.get(field_name[5:])
             )
@@ -453,7 +455,7 @@ class FAISSDocumentStore:
         values = set()
         for doc in self.documents.values():
             val = (
-                self._get_doc_value(doc, field_name)
+                FAISSDocumentStore._get_doc_value(doc, field_name)
                 if not field_name.startswith("meta.")
                 else doc.meta.get(field_name[5:])
             )
@@ -475,7 +477,7 @@ class FAISSDocumentStore:
         for field in fields:
             unique_vals = set()
             for doc in filtered_docs:
-                val = self._get_doc_value(doc, field)
+                val = FAISSDocumentStore._get_doc_value(doc, field)
                 if val is not None:
                     unique_vals.add(val)
             counts[field] = len(unique_vals)
