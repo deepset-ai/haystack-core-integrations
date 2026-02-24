@@ -4,7 +4,7 @@
 
 import json
 import logging
-from collections import defaultdict
+from collections.abc import Iterable
 from pathlib import Path
 from typing import Any
 
@@ -64,8 +64,8 @@ class FAISSDocumentStore:
             base_index = faiss.index_factory(self.embedding_dim, self.index_string)
             self.index = faiss.IndexIDMap(base_index)
         except RuntimeError as e:
-            error_msg = f"Could not create FAISS index with factory string '{self.index_string}': {e}"
-            raise DocumentStoreError(error_msg) from e
+            msg = f"Could not create FAISS index with factory string '{self.index_string}': {e}"
+            raise DocumentStoreError(msg) from e
 
     def count_documents(self) -> int:
         """
@@ -92,18 +92,8 @@ class FAISSDocumentStore:
     def _matches_filters(self, doc: Document, filters: dict[str, Any]) -> bool:
         """
         Checks if a document matches the given filters.
-        Currently supports simple equality check for 'field' == 'value'.
-        Logical operators AND/OR/NOT are NOT fully implemented in this MVP helper.
-        Wait, Haystack 2.x filters are complex. We should use a proper filter parser
-        or a simple recusive check if we want to support full syntax.
-        For MVP, let's implement basic filtering logic.
+        Currently supports simple equality and comparison checks.
         """
-        if "operator" not in filters:
-            # Simple legacy style or simple dict: {"field": "value"} - NOT standard 2.x but often used in tests?
-            # Standard 2.x filters usually have an operator at the top level (AND/OR) or a comparison.
-            # If it's a leaf node {field, operator, value}:
-            pass
-
         return self._check_condition(doc, filters)
 
     def _get_doc_value(self, doc: Document, field: str) -> Any:
@@ -128,6 +118,14 @@ class FAISSDocumentStore:
         :param policy: The policy to handle duplicate documents.
         :return: The number of documents written.
         """
+        if not isinstance(documents, Iterable) or isinstance(documents, (str, bytes)):
+            msg = "param 'documents' must contain an iterable of objects of type Document."
+            raise ValueError(msg)
+
+        if any(not isinstance(doc, Document) for doc in documents):
+            msg = "param 'documents' must contain an iterable of objects of type Document."
+            raise ValueError(msg)
+
         if not documents:
             return 0
 
@@ -365,12 +363,24 @@ class FAISSDocumentStore:
     # Mixin implementations
 
     def delete_by_filter(self, filters: dict[str, Any]) -> int:
+        """
+        Deletes documents that match the provided filters from the store.
+
+        :param filters: A dictionary of filters to apply to find documents to delete.
+        :returns: The number of documents deleted.
+        """
         docs_to_delete = self.filter_documents(filters)
         ids = [doc.id for doc in docs_to_delete]
         self.delete_documents(ids)
         return len(ids)
 
     def count_documents_by_filter(self, filters: dict[str, Any]) -> int:
+        """
+        Returns the number of documents that match the provided filters.
+
+        :param filters: A dictionary of filters to apply.
+        :returns: The number of matching documents.
+        """
         return len(self.filter_documents(filters))
 
     def update_by_filter(self, filters: dict[str, Any], meta: dict[str, Any]) -> int:
@@ -387,11 +397,15 @@ class FAISSDocumentStore:
         docs_to_update = self.filter_documents(filters)
         for doc in docs_to_update:
             doc.meta.update(meta)
-            # Re-write to ensure persistence if we had auto-save (we don't yet)
             # In this dict implementation, it's updated in place in memory.
         return len(docs_to_update)
 
-    def get_metadata_fields_info(self) -> dict[str, dict[str, str]]:
+    def get_metadata_fields_info(self) -> dict[str, dict[str, Any]]:
+        """
+        Infers and returns the types of all metadata fields from the stored documents.
+
+        :returns: A dictionary mapping field names to dictionaries with a "type" key (e.g. {"field": {"type": "long"}}).
+        """
         fields_idx = {}
         for doc in self.documents.values():
             for key, value in doc.meta.items():
@@ -455,9 +469,7 @@ class FAISSDocumentStore:
         :returns: A dictionary mapping each field name to the count of its unique values.
         """
         filtered_docs = self.filter_documents(filters)
-        counts = defaultdict(int)
-        # Wait, the return type is Dict[str, int] mapping field -> unique_count?
-        # Specification says: "Returns a dictionary mapping each field name to the count of its unique values."
+        counts = {}
 
         for field in fields:
             unique_vals = set()
@@ -502,7 +514,7 @@ class FAISSDocumentStore:
             "next_id": self._next_id,
         }
 
-        with open(path.with_suffix(".json"), "w") as f:
+        with open(path.with_suffix(".json"), "w", encoding="utf-8") as f:
             json.dump(data, f)
 
     def load(self, index_path: str | Path) -> None:
@@ -516,7 +528,7 @@ class FAISSDocumentStore:
 
         self.index = faiss.read_index(str(path.with_suffix(".faiss")))
 
-        with open(path.with_suffix(".json")) as f:
+        with open(path.with_suffix(".json"), encoding="utf-8") as f:
             data = json.load(f)
 
         self.documents = {doc_dict["id"]: Document.from_dict(doc_dict) for doc_dict in data["documents"]}
@@ -529,5 +541,6 @@ class FAISSDocumentStore:
         if len(self.documents) != len(self.id_map):
             logger.warning(
                 "Loaded %d documents but %d ID mappings. Index might be out of sync.",
-                len(self.documents), len(self.id_map)
+                len(self.documents),
+                len(self.id_map),
             )
