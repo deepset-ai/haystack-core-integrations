@@ -204,10 +204,13 @@ class TestGitHubFileEditorTool:
             "connections": [],
             "connection_type_validation": True,
         }
-        if "confirmation_strategies" in pipeline_dict["components"]["agent"]["init_parameters"]:
-            expected_dict["components"]["agent"]["init_parameters"]["confirmation_strategies"] = pipeline_dict[
-                "components"
-            ]["agent"]["init_parameters"]["confirmation_strategies"]
+
+        # Compatibility with newer versions of Haystack that include these parameters
+        for key in ["confirmation_strategies", "required_variables", "user_prompt"]:
+            if key in pipeline_dict["components"]["agent"]["init_parameters"]:
+                expected_dict["components"]["agent"]["init_parameters"][key] = pipeline_dict["components"]["agent"][
+                    "init_parameters"
+                ][key]
 
         assert pipeline_dict == expected_dict
 

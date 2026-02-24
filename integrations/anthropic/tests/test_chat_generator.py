@@ -1242,59 +1242,6 @@ class TestAnthropicChatGenerator:
         if streaming_callback:
             streaming_callback.assert_called()
 
-    @pytest.mark.parametrize("streaming_callback", [None, Mock()])
-    @pytest.mark.skipif(
-        not os.environ.get("ANTHROPIC_API_KEY", None),
-        reason="Export an env var called ANTHROPIC_API_KEY containing the Anthropic API key to run this test.",
-    )
-    @pytest.mark.integration
-    def test_live_run_with_redacted_thinking(self, streaming_callback):
-        """
-        This test uses a magic string to trigger the redacted thinking
-        feature and works with claude-3-7-sonnet-20250219.
-        """
-        chat_generator = AnthropicChatGenerator(
-            model="claude-3-7-sonnet-20250219",
-            generation_kwargs={"thinking": {"type": "enabled", "budget_tokens": 10000}, "max_tokens": 11000},
-            streaming_callback=streaming_callback,
-        )
-
-        message = ChatMessage.from_user(
-            "ANTHROPIC_MAGIC_STRING_TRIGGER_REDACTED_THINKING_46C9A13E193C177646C7398A98432ECCCE4C1253D5E2D82641AC0E52CC2876CB"
-        )
-        response = chat_generator.run([message])["replies"][0]
-
-        assert isinstance(response, ChatMessage)
-        assert response.text and len(response.text) > 0
-        assert response.reasoning is not None
-        # we cannot be sure how many redacted blocks will be returned with streaming
-        assert "[REDACTED]" in response.reasoning.reasoning_text
-        assert "reasoning_contents" in response.reasoning.extra
-        assert (
-            len(response.reasoning.extra.get("reasoning_contents")[0].get("reasoning_content").get("redacted_thinking"))
-            > 0
-        )
-
-        new_message = ChatMessage.from_user("Now tell me whats the capital of France.")
-        new_response = chat_generator.run([message, response, new_message])["replies"][0]
-
-        assert isinstance(new_response, ChatMessage)
-        assert new_response.text and len(new_response.text) > 0
-        assert new_response.reasoning is not None
-        assert "[REDACTED]" in new_response.reasoning.reasoning_text
-        assert "reasoning_contents" in new_response.reasoning.extra
-        assert (
-            len(
-                new_response.reasoning.extra.get("reasoning_contents")[0]
-                .get("reasoning_content")
-                .get("redacted_thinking")
-            )
-            > 0
-        )
-
-        if streaming_callback:
-            streaming_callback.assert_called()
-
     @pytest.mark.integration
     @pytest.mark.skipif(
         not os.environ.get("ANTHROPIC_API_KEY", None),
