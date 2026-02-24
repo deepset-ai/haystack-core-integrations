@@ -9,7 +9,7 @@ from haystack.utils import Secret, deserialize_secrets_inplace
 VALID_MODULE_TYPES = {"Predict", "ChainOfThought", "ReAct"}
 
 
-def configure_dspy_lm(model: str, api_key: str, **kwargs: Any) -> dspy.LM:
+def _configure_dspy_lm(model: str, api_key: str, **kwargs: Any) -> dspy.LM:
     """
     Create and configure a DSPy language model.
 
@@ -23,7 +23,7 @@ def configure_dspy_lm(model: str, api_key: str, **kwargs: Any) -> dspy.LM:
     return lm
 
 
-def get_dspy_module_class(module_type: str):
+def _get_dspy_module_class(module_type: str):
     """
     Map a module type string to the corresponding DSPy module class.
 
@@ -111,13 +111,13 @@ class DSPyChatGenerator:
         self.input_mapping = input_mapping
         self.streaming_callback = streaming_callback
 
-        self._lm = configure_dspy_lm(
+        self._lm = _configure_dspy_lm(
             model=self.model,
             api_key=self.api_key.resolve_value(),
             **self.generation_kwargs,
         )
 
-        module_class = get_dspy_module_class(self.module_type)
+        module_class = _get_dspy_module_class(self.module_type)
         self._module = module_class(self.signature)
 
     def _build_dspy_inputs(self, prompt: str, **kwargs) -> dict[str, Any]:

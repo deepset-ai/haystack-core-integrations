@@ -9,8 +9,8 @@ from haystack.utils.auth import Secret
 from haystack_integrations.components.generators.dspy.chat.chat_generator import (
     VALID_MODULE_TYPES,
     DSPyChatGenerator,
-    configure_dspy_lm,
-    get_dspy_module_class,
+    _configure_dspy_lm,
+    _get_dspy_module_class,
 )
 
 
@@ -66,21 +66,21 @@ class TestValidModuleTypes:
 
 class TestGetDspyModuleClass:
     def test_predict(self):
-        assert get_dspy_module_class("Predict") is dspy.Predict
+        assert _get_dspy_module_class("Predict") is dspy.Predict
 
     def test_chain_of_thought(self):
-        assert get_dspy_module_class("ChainOfThought") is dspy.ChainOfThought
+        assert _get_dspy_module_class("ChainOfThought") is dspy.ChainOfThought
 
     def test_react(self):
-        assert get_dspy_module_class("ReAct") is dspy.ReAct
+        assert _get_dspy_module_class("ReAct") is dspy.ReAct
 
     def test_invalid_type_raises(self):
         with pytest.raises(ValueError, match="Invalid module_type 'Unknown'"):
-            get_dspy_module_class("Unknown")
+            _get_dspy_module_class("Unknown")
 
     def test_invalid_type_lists_valid_options(self):
         with pytest.raises(ValueError, match="ChainOfThought"):
-            get_dspy_module_class("BadType")
+            _get_dspy_module_class("BadType")
 
 
 class TestConfigureDspyLm:
@@ -90,7 +90,7 @@ class TestConfigureDspyLm:
         mock_lm = MagicMock()
         mock_lm_class.return_value = mock_lm
 
-        result = configure_dspy_lm(model="openai/gpt-5-mini", api_key="test-key")
+        result = _configure_dspy_lm(model="openai/gpt-5-mini", api_key="test-key")
 
         mock_lm_class.assert_called_once_with(model="openai/gpt-5-mini", api_key="test-key")
         mock_configure.assert_called_once_with(lm=mock_lm)
@@ -102,7 +102,7 @@ class TestConfigureDspyLm:
         mock_lm = MagicMock()
         mock_lm_class.return_value = mock_lm
 
-        configure_dspy_lm(model="openai/gpt-5-mini", api_key="test-key", temperature=0.7, max_tokens=100)
+        _configure_dspy_lm(model="openai/gpt-5-mini", api_key="test-key", temperature=0.7, max_tokens=100)
 
         mock_lm_class.assert_called_once_with(
             model="openai/gpt-5-mini", api_key="test-key", temperature=0.7, max_tokens=100
@@ -350,3 +350,62 @@ class TestDSPyChatGenerator:
         assert len(results["replies"]) == 1
         message: ChatMessage = results["replies"][0]
         assert "Paris" in message.text
+
+    @pytest.mark.skipif(
+        not os.environ.get("OPENAI_API_KEY", None),
+        reason="Export an env var called OPENAI_API_KEY containing the OpenAI API key to run this test.",
+    )
+    @pytest.mark.integration
+    def test_live_run_with_predict_module(self):
+        """Test using the Predict module type with a string signature."""
+        chat_messages = [ChatMessage.from_user("What is 2 + 2?")]
+        component = DSPyChatGenerator(
+            signature="question -> answer",
+            module_type="Predict",
+        )
+        results = component.run(chat_messages)
+        assert len(results["replies"]) == 1
+        assert "4" in results["replies"][0].text
+
+    @pytest.mark.skipif(
+        not os.environ.get("OPENAI_API_KEY", None),
+        reason="Export an env var called OPENAI_API_KEY containing the OpenAI API key to run this test.",
+    )
+    @pytest.mark.integration
+    def test_live_run_with_signature_class(self):
+        """Test using a dspy.Signature class instead of a string signature."""
+
+        class QASignature(dspy.Signature):
+            """Answer questions accurately and concisely."""
+
+            question = dspy.InputField(desc="The user's question")
+            answer = dspy.OutputField(desc="A clear, concise answer")
+
+        chat_messages = [ChatMessage.from_user("What language is spoken in Brazil?")]
+        component = DSPyChatGenerator(
+            signature=QASignature,
+            module_type="ChainOfThought",
+        )
+        results = component.run(chat_messages)
+        assert len(results["replies"]) == 1
+        assert "Portuguese" in results["replies"][0].text
+
+    @pytest.mark.skipif(
+        not os.environ.get("OPENAI_API_KEY", None),
+        reason="Export an env var called OPENAI_API_KEY containing the OpenAI API key to run this test.",
+    )
+    @pytest.mark.integration
+    def test_live_run_with_multi_field_signature(self):
+        """Test using a multi-input signature with input_mapping."""
+        chat_messages = [ChatMessage.from_user("What is the main topic?")]
+        component = DSPyChatGenerator(
+            signature="context, question -> answer",
+            module_type="Predict",
+            input_mapping={"context": "context", "question": "question"},
+        )
+        results = component.run(
+            chat_messages,
+            context="Python is a popular programming language created by Guido van Rossum.",
+        )
+        assert len(results["replies"]) == 1
+        assert results["replies"][0].text

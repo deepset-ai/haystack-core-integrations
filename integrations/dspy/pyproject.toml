@@ -45,7 +45,7 @@ installer = "uv"
 dependencies = ["haystack-pydoc-tools", "ruff"]
 
 [tool.hatch.envs.default.scripts]
-docs = ["pydoc-markdown pydoc/config_docusaurus.yml"]
+docs = ["haystack-pydoc pydoc/config_docusaurus.yml"]
 fmt = "ruff check --fix {args}; ruff format {args}"
 fmt-check = "ruff check {args} && ruff format --check {args}"
 
@@ -146,6 +146,6 @@ exclude_lines = ["no cov", "if __name__ == .__main__.:", "if TYPE_CHECKING:"]
 [tool.pytest.ini_options]
 markers = ["integration: integration tests"]
 log_cli = true
-addopts = ["--import-mode=importlib"]
+addopts = ["--strict-markers"]
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "class"
