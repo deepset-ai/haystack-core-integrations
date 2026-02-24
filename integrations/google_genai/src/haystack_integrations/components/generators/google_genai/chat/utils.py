@@ -233,9 +233,9 @@ def _convert_message_to_google_genai_format(message: ChatMessage) -> types.Conte
                 msg = f"{cls_name} is only supported for user messages"
                 raise ValueError(msg)
 
-            # Validate image MIME type and format
+            # MIME type validation: must be provided and, for images, one of the supported types
             if not content_part.mime_type:
-                msg = f"Mime type is required to use {cls_name} with GoogleGenAIChatGenerator"
+                msg = f"MIME type is required to use {cls_name} with GoogleGenAIChatGenerator"
                 raise ValueError(msg)
 
             if (
@@ -256,7 +256,6 @@ def _convert_message_to_google_genai_format(message: ChatMessage) -> types.Conte
                 )
                 bytes_data = base64.b64decode(base64_data)
 
-                # Create Part using from_bytes method
                 file_part = types.Part.from_bytes(data=bytes_data, mime_type=content_part.mime_type)
                 parts.append(file_part)
 
