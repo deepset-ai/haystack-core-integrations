@@ -18,6 +18,7 @@ from haystack.components.generators.utils import print_streaming_chunk
 from haystack.dataclasses import (
     ChatMessage,
     ChatRole,
+    FileContent,
     ImageContent,
     StreamingChunk,
     TextContent,
@@ -1264,6 +1265,35 @@ class TestAnthropicChatGenerator:
         assert message.text
         assert len(message.text) > 0
         assert any(word in message.text.lower() for word in ["apple", "fruit", "red"])
+
+    @pytest.mark.integration
+    @pytest.mark.skipif(
+        not os.environ.get("ANTHROPIC_API_KEY", None),
+        reason="Export an env var called ANTHROPIC_API_KEY containing the Anthropic token to run this test.",
+    )
+    def test_live_run_with_file_content(self, test_files_path):
+        pdf_path = test_files_path / "sample_pdf_3.pdf"
+
+        file_content = FileContent.from_file_path(
+            file_path=pdf_path, extra={"context": "This document contains a table", "title": "A nice PDF"}
+        )
+
+        chat_messages = [
+            ChatMessage.from_user(
+                content_parts=[file_content, "Is this document a paper about LLMs? Respond with 'yes' or 'no' only."]
+            )
+        ]
+
+        generator = AnthropicChatGenerator(model="claude-haiku-4-5")
+        results = generator.run(chat_messages)
+
+        assert len(results["replies"]) == 1
+        message: ChatMessage = results["replies"][0]
+
+        assert message.is_from(ChatRole.ASSISTANT)
+
+        assert message.text
+        assert "no" in message.text.lower()
 
     @pytest.mark.integration
     @pytest.mark.skipif(

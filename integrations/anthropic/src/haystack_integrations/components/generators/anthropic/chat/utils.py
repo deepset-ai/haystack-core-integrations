@@ -1,8 +1,9 @@
-from typing import Any, Literal, cast, get_args
+from typing import Any, Literal, TypeAlias, cast, get_args
 
 from haystack.dataclasses.chat_message import (
     ChatMessage,
     ChatRole,
+    FileContent,
     ReasoningContent,
     TextContent,
     ToolCall,
@@ -18,6 +19,8 @@ from haystack.dataclasses.streaming_chunk import (
 
 from anthropic.resources.messages.messages import RawMessageStreamEvent
 from anthropic.types import (
+    Base64PDFSourceParam,
+    DocumentBlockParam,
     ImageBlockParam,
     MessageParam,
     RedactedThinkingBlockParam,
@@ -31,7 +34,6 @@ from anthropic.types import (
 ImageFormat = Literal["image/jpeg", "image/png", "image/gif", "image/webp"]
 IMAGE_SUPPORTED_FORMATS: list[ImageFormat] = list(get_args(ImageFormat))
 
-
 # Mapping from Anthropic stop reasons to Haystack FinishReason values
 FINISH_REASON_MAPPING: dict[str, FinishReason] = {
     "end_turn": "stop",
@@ -41,6 +43,16 @@ FINISH_REASON_MAPPING: dict[str, FinishReason] = {
     "pause_turn": "stop",
     "tool_use": "tool_calls",
 }
+
+AnthropicContentBlocks: TypeAlias = list[
+    ImageBlockParam
+    | DocumentBlockParam
+    | ThinkingBlockParam
+    | RedactedThinkingBlockParam
+    | ToolUseBlockParam
+    | ToolResultBlockParam
+    | TextBlockParam
+]
 
 
 def _convert_image_content_to_anthropic_format(image_content: ImageContent) -> ImageBlockParam:
@@ -65,16 +77,31 @@ def _convert_image_content_to_anthropic_format(image_content: ImageContent) -> I
     )
 
 
+def _convert_file_content_to_anthropic_format(file_content: FileContent) -> DocumentBlockParam:
+    """
+    Convert a FileContent to the format expected by Anthropic Chat API.
+    """
+    if file_content.mime_type != "application/pdf":
+        msg = f"Unsupported file format: {file_content.mime_type}. Anthropic supports only PDF files."
+        raise ValueError(msg)
+
+    source = Base64PDFSourceParam(
+        type="base64",
+        media_type="application/pdf",
+        data=file_content.base64_data,
+    )
+
+    return DocumentBlockParam(
+        type="document",
+        source=source,
+        context=file_content.extra.get("context", None),
+        title=file_content.extra.get("title", None),
+    )
+
+
 def _update_anthropic_message_with_tool_call_results(
     tool_call_results: list[ToolCallResult],
-    content: list[
-        TextBlockParam
-        | ToolUseBlockParam
-        | ToolResultBlockParam
-        | ImageBlockParam
-        | ThinkingBlockParam
-        | RedactedThinkingBlockParam
-    ],
+    content: AnthropicContentBlocks,
 ) -> None:
     """
     Update an Anthropic message content list with tool call results.
@@ -161,14 +188,7 @@ def _convert_messages_to_anthropic_format(
             i += 1
             continue
 
-        content: list[
-            TextBlockParam
-            | ToolUseBlockParam
-            | ToolResultBlockParam
-            | ImageBlockParam
-            | ThinkingBlockParam
-            | RedactedThinkingBlockParam
-        ] = []
+        content: AnthropicContentBlocks = []
 
         # Handle multimodal content (text and images) preserving order
         for part in message._content:
@@ -204,6 +224,14 @@ def _convert_messages_to_anthropic_format(
                 if cache_control:
                     image_block["cache_control"] = cache_control
                 content.append(image_block)
+            elif isinstance(part, FileContent):
+                if not message.is_from(ChatRole.USER):
+                    msg = "File content is only supported for user messages"
+                    raise ValueError(msg)
+                document_block = _convert_file_content_to_anthropic_format(part)
+                if cache_control:
+                    document_block["cache_control"] = cache_control
+                content.append(document_block)
 
         if message.tool_calls:
             tool_use_blocks = _convert_tool_calls_to_anthropic_format(message.tool_calls)
