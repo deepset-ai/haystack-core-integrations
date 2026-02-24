@@ -1,5 +1,20 @@
 # Changelog
 
+## [integrations/anthropic-v5.4.0] - 2026-02-24
+
+### 🚀 Features
+
+- Anthropic - support `FileContent` (#2867)
+
+### 📚 Documentation
+
+- Simplify pydoc configs (#2855)
+
+### 🧪 Testing
+
+- Remove redacted thinking test due Claude 3.7 Sonnet retirement (#2863)
+
+
 ## [integrations/anthropic-v5.3.0] - 2026-02-18
 
 ### 🚀 Features

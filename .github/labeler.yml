@@ -64,6 +64,11 @@ integration:fastembed:
       - any-glob-to-any-file: "integrations/fastembed/**/*"
       - any-glob-to-any-file: ".github/workflows/fastembed.yml"
 
+integration:firecrawl:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/firecrawl/**/*"
+      - any-glob-to-any-file: ".github/workflows/firecrawl.yml"
+
 integration:github:
   - changed-files:
       - any-glob-to-any-file: "integrations/github/**/*"
@@ -96,6 +101,11 @@ integration:langfuse:
   - changed-files:
       - any-glob-to-any-file: "integrations/langfuse/**/*"
       - any-glob-to-any-file: ".github/workflows/langfuse.yml"
+
+integration:lara:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/lara/**/*"
+      - any-glob-to-any-file: ".github/workflows/lara.yml"
 
 integration:llama_cpp:
   - changed-files:
