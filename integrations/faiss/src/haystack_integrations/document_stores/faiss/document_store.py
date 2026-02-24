@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2023-present deepset GmbH <info@deepset.ai>
+#
+# SPDX-License-Identifier: Apache-2.0
+
 import json
 import logging
 from collections import defaultdict
@@ -60,9 +64,8 @@ class FAISSDocumentStore:
             base_index = faiss.index_factory(self.embedding_dim, self.index_string)
             self.index = faiss.IndexIDMap(base_index)
         except RuntimeError as e:
-            raise DocumentStoreError(
-                f"Could not create FAISS index with factory string '{self.index_string}': {e}"
-            ) from e
+            error_msg = f"Could not create FAISS index with factory string '{self.index_string}': {e}"
+            raise DocumentStoreError(error_msg) from e
 
     def count_documents(self) -> int:
         """
@@ -89,8 +92,10 @@ class FAISSDocumentStore:
     def _matches_filters(self, doc: Document, filters: dict[str, Any]) -> bool:
         """
         Checks if a document matches the given filters.
-        Currently supports simple equality check for 'field' == 'value', and logical operators AND/OR/NOT are NOT fully implemented in this MVP helper.
-        Wait, Haystack 2.x filters are complex. We should use a proper filter parser or a simple recusive check if we want to support full syntax.
+        Currently supports simple equality check for 'field' == 'value'.
+        Logical operators AND/OR/NOT are NOT fully implemented in this MVP helper.
+        Wait, Haystack 2.x filters are complex. We should use a proper filter parser
+        or a simple recusive check if we want to support full syntax.
         For MVP, let's implement basic filtering logic.
         """
         if "operator" not in filters:
@@ -130,7 +135,8 @@ class FAISSDocumentStore:
         if policy == DuplicatePolicy.FAIL:
             for doc in documents:
                 if doc.id in self.documents:
-                    raise DuplicateDocumentError(f"Document with id '{doc.id}' already exists.")
+                    msg = f"Document with id '{doc.id}' already exists."
+                    raise DuplicateDocumentError(msg)
 
         # Process documents
         ids_to_add_to_index = []
@@ -223,8 +229,8 @@ class FAISSDocumentStore:
 
         # Search in FAISS
         # Valid strategy for pre-filtering vs post-filtering:
-        # Since FAISS `IndexIDMap` doesn't support pre-filtering natively comfortably without `RangeSearch` or specialized impls,
-        # we usually fetch more (k * scale_factor) and filter post-retrieval.
+        # Since FAISS `IndexIDMap` doesn't support pre-filtering natively comfortably
+        # without `RangeSearch` or specialized impls, we fetch more and filter post-retrieval.
 
         fetch_k = top_k
         if filters:
@@ -233,7 +239,7 @@ class FAISSDocumentStore:
         distances, indices = self.index.search(query_vec, fetch_k)
 
         results = []
-        for dist, int_id in zip(distances[0], indices[0]):
+        for dist, int_id in zip(distances[0], indices[0], strict=False):
             if int_id == -1:
                 continue
 
@@ -262,10 +268,6 @@ class FAISSDocumentStore:
 
         return results
 
-    def _get_result_to_documents(self, result) -> list[Document]:
-        # Compatibility/Helper if matching Chroma approach
-        return []
-
     def _check_condition(self, doc: Document, condition: dict[str, Any]) -> bool:
         if "operator" not in condition and "conditions" not in condition:
             # This might be a legacy or malformed filter from tests like test_missing_top_level_operator_key
@@ -273,29 +275,35 @@ class FAISSDocumentStore:
             # On failure to parse standard structure, we should raise FilterError as per tests?
             # Actually, looking at the tests (e.g. TestFAISSDocumentStore.test_missing_top_level_operator_key),
             # they expect FilterError if "operator" is missing from a condition block.
-            raise FilterError("Filter condition missing 'operator'")
+            msg = "Filter condition missing 'operator'"
+            raise FilterError(msg)
 
         operator = condition.get("operator", "==")
 
         if operator == "AND":
             if "conditions" not in condition:
-                raise FilterError("Missing 'conditions' for AND operator")
+                msg = "Missing 'conditions' for AND operator"
+                raise FilterError(msg)
             return all(self._check_condition(doc, cond) for cond in condition.get("conditions", []))
         elif operator == "OR":
             if "conditions" not in condition:
-                raise FilterError("Missing 'conditions' for OR operator")
+                msg = "Missing 'conditions' for OR operator"
+                raise FilterError(msg)
             return any(self._check_condition(doc, cond) for cond in condition.get("conditions", []))
         elif operator == "NOT":
             if "conditions" not in condition:
-                raise FilterError("Missing 'conditions' for NOT operator")
+                msg = "Missing 'conditions' for NOT operator"
+                raise FilterError(msg)
             return not self._check_condition(doc, condition.get("conditions", [])[0])
 
         # Leaf condition
         if "field" not in condition:
-            raise FilterError("Missing 'field' in filter condition")
+            msg = "Missing 'field' in filter condition"
+            raise FilterError(msg)
         field = condition.get("field")
         if "value" not in condition:
-            raise FilterError("Missing 'value' in filter condition")
+            msg = "Missing 'value' in filter condition"
+            raise FilterError(msg)
         value = condition.get("value")
 
         doc_val = self._get_doc_value(doc, field)
@@ -307,7 +315,8 @@ class FAISSDocumentStore:
                 return False
 
             if value is None:
-                # Comparing anything with None using inequalities is invalid, but tests expect efficient handling (no match)
+                # Comparing anything with None using inequalities is invalid,
+                # but tests expect efficient handling (no match)
                 return False
 
             # Check for compatibility
@@ -318,9 +327,10 @@ class FAISSDocumentStore:
             if is_number_doc and is_number_val:
                 # Compatible
                 pass
-            elif type(doc_val) != type(value):
+            elif type(doc_val) is not type(value):
                 # Incompatible types for inequality implementation (like str vs int, or list vs int)
-                raise FilterError(f"Type mismatch: cannot compare {type(doc_val)} with {type(value)}")
+                msg = f"Type mismatch: cannot compare {type(doc_val)} with {type(value)}"
+                raise FilterError(msg)
 
             try:
                 if operator == ">":
@@ -332,7 +342,8 @@ class FAISSDocumentStore:
                 if operator == "<=":
                     return doc_val <= value
             except TypeError as e:
-                raise FilterError(f"Type mismatch in filter: {e}") from e
+                msg = f"Type mismatch in filter: {e}"
+                raise FilterError(msg) from e
 
         if operator == "==":
             return doc_val == value
@@ -340,11 +351,13 @@ class FAISSDocumentStore:
             return doc_val != value
         elif operator == "in":
             if not isinstance(value, list):
-                raise FilterError("Value for 'in' must be a list")
+                msg = "Value for 'in' must be a list"
+                raise FilterError(msg)
             return doc_val in value
         elif operator == "not in":
             if not isinstance(value, list):
-                raise FilterError("Value for 'not in' must be a list")
+                msg = "Value for 'not in' must be a list"
+                raise FilterError(msg)
             return doc_val not in value
 
         return False
@@ -361,6 +374,16 @@ class FAISSDocumentStore:
         return len(self.filter_documents(filters))
 
     def update_by_filter(self, filters: dict[str, Any], meta: dict[str, Any]) -> int:
+        """
+        Updates documents that match the provided filters with the new metadata.
+
+        Note: Updates are performed in-memory only. To persist these changes,
+        you must explicitly call `save()` after updating.
+
+        :param filters: A dictionary of filters to apply to find documents to update.
+        :param meta: A dictionary of metadata key-value pairs to update in the matching documents.
+        :returns: The number of documents updated.
+        """
         docs_to_update = self.filter_documents(filters)
         for doc in docs_to_update:
             doc.meta.update(meta)
@@ -384,6 +407,12 @@ class FAISSDocumentStore:
         return fields_idx
 
     def get_metadata_field_min_max(self, field_name: str) -> dict[str, Any]:
+        """
+        Returns the minimum and maximum values for a specific metadata field.
+
+        :param field_name: The name of the metadata field.
+        :returns: A dictionary with keys "min" and "max" containing the respective min and max values.
+        """
         values = []
         for doc in self.documents.values():
             val = (
@@ -400,6 +429,12 @@ class FAISSDocumentStore:
         return {"min": min(values), "max": max(values)}
 
     def get_metadata_field_unique_values(self, field_name: str) -> list[Any]:
+        """
+        Returns all unique values for a specific metadata field.
+
+        :param field_name: The name of the metadata field.
+        :returns: A list of unique values for the specified field.
+        """
         values = set()
         for doc in self.documents.values():
             val = (
@@ -412,6 +447,13 @@ class FAISSDocumentStore:
         return list(values)
 
     def count_unique_metadata_by_filter(self, filters: dict[str, Any], fields: list[str]) -> dict[str, int]:
+        """
+        Returns a count of unique values for multiple metadata fields, optionally scoped by a filter.
+
+        :param filters: A dictionary of filters to apply.
+        :param fields: A list of metadata field names to count unique values for.
+        :returns: A dictionary mapping each field name to the count of its unique values.
+        """
         filtered_docs = self.filter_documents(filters)
         counts = defaultdict(int)
         # Wait, the return type is Dict[str, int] mapping field -> unique_count?
@@ -469,7 +511,8 @@ class FAISSDocumentStore:
         """
         path = Path(index_path)
         if not path.with_suffix(".faiss").exists():
-            raise ValueError(f"File not found: {path.with_suffix('.faiss')}")
+            msg = f"File not found: {path.with_suffix('.faiss')}"
+            raise ValueError(msg)
 
         self.index = faiss.read_index(str(path.with_suffix(".faiss")))
 
@@ -485,5 +528,6 @@ class FAISSDocumentStore:
         # Verify sync
         if len(self.documents) != len(self.id_map):
             logger.warning(
-                f"Loaded {len(self.documents)} documents but {len(self.id_map)} ID mappings. Index might be out of sync."
+                "Loaded %d documents but %d ID mappings. Index might be out of sync.",
+                len(self.documents), len(self.id_map)
             )
