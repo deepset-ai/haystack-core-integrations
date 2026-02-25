@@ -700,7 +700,7 @@ class TestGoogleGenAIChatGeneratorInference:
 
         # Test valid thinking_budget values
         generation_kwargs = {"thinking_budget": 1024, "temperature": 0.7}
-        result = _process_thinking_config(generation_kwargs.copy())
+        result = _process_thinking_config(generation_kwargs)
 
         # thinking_budget should be moved to thinking_config
         assert "thinking_budget" not in result
@@ -712,30 +712,30 @@ class TestGoogleGenAIChatGeneratorInference:
 
         # Test dynamic allocation (-1)
         generation_kwargs = {"thinking_budget": -1}
-        result = _process_thinking_config(generation_kwargs.copy())
+        result = _process_thinking_config(generation_kwargs)
         assert result["thinking_config"].thinking_budget == -1
         assert result["thinking_config"].include_thoughts is True
 
         # Test zero (disable thinking)
         generation_kwargs = {"thinking_budget": 0}
-        result = _process_thinking_config(generation_kwargs.copy())
+        result = _process_thinking_config(generation_kwargs)
         assert result["thinking_config"].thinking_budget == 0
         assert result["thinking_config"].include_thoughts is False
 
         # Test large value
         generation_kwargs = {"thinking_budget": 24576}
-        result = _process_thinking_config(generation_kwargs.copy())
+        result = _process_thinking_config(generation_kwargs)
         assert result["thinking_config"].thinking_budget == 24576
         assert result["thinking_config"].include_thoughts is True
 
         # Test when thinking_budget is not present
         generation_kwargs = {"temperature": 0.5}
-        result = _process_thinking_config(generation_kwargs.copy())
+        result = _process_thinking_config(generation_kwargs)
         assert result == generation_kwargs  # No changes
 
         # Test invalid type (should fall back to dynamic)
         generation_kwargs = {"thinking_budget": "invalid", "temperature": 0.5}
-        result = _process_thinking_config(generation_kwargs.copy())
+        result = _process_thinking_config(generation_kwargs)
         assert result["thinking_config"].thinking_budget == -1  # Dynamic allocation
         assert result["temperature"] == 0.5
 
@@ -745,7 +745,7 @@ class TestGoogleGenAIChatGeneratorInference:
 
         # Test valid thinking_level values
         generation_kwargs = {"thinking_level": "high", "temperature": 0.7}
-        result = _process_thinking_config(generation_kwargs.copy())
+        result = _process_thinking_config(generation_kwargs)
 
         # thinking_level should be moved to thinking_config
         assert "thinking_level" not in result
@@ -757,30 +757,30 @@ class TestGoogleGenAIChatGeneratorInference:
 
         # Test THINKING_LEVEL_LOW in upper case
         generation_kwargs = {"thinking_level": "LOW"}
-        result = _process_thinking_config(generation_kwargs.copy())
+        result = _process_thinking_config(generation_kwargs)
         assert result["thinking_config"].thinking_level == types.ThinkingLevel.LOW
         assert result["thinking_config"].include_thoughts is True
 
         # Test MINIMAL (should disable include_thoughts)
         generation_kwargs = {"thinking_level": "MINIMAL"}
-        result = _process_thinking_config(generation_kwargs.copy())
+        result = _process_thinking_config(generation_kwargs)
         assert result["thinking_config"].thinking_level == types.ThinkingLevel.MINIMAL
         assert result["thinking_config"].include_thoughts is False
 
         # Test THINKING_LEVEL_UNSPECIFIED (invalid value falls back)
         generation_kwargs = {"thinking_level": "test"}
-        result = _process_thinking_config(generation_kwargs.copy())
+        result = _process_thinking_config(generation_kwargs)
         assert result["thinking_config"].thinking_level == types.ThinkingLevel.THINKING_LEVEL_UNSPECIFIED
         assert result["thinking_config"].include_thoughts is True
 
         # Test when thinking_level is not present
         generation_kwargs = {"temperature": 0.5}
-        result = _process_thinking_config(generation_kwargs.copy())
+        result = _process_thinking_config(generation_kwargs)
         assert result == generation_kwargs  # No changes
 
         # Test invalid type (should fall back to THINKING_LEVEL_UNSPECIFIED)
         generation_kwargs = {"thinking_level": 123, "temperature": 0.5}
-        result = _process_thinking_config(generation_kwargs.copy())
+        result = _process_thinking_config(generation_kwargs)
         assert result["thinking_config"].thinking_level == types.ThinkingLevel.THINKING_LEVEL_UNSPECIFIED
         assert result["thinking_config"].include_thoughts is True
         assert result["temperature"] == 0.5
@@ -791,35 +791,35 @@ class TestGoogleGenAIChatGeneratorInference:
 
         # thinking_budget=0 normally means include_thoughts=False, but user explicitly sets True
         generation_kwargs = {"thinking_budget": 0, "include_thoughts": True}
-        result = _process_thinking_config(generation_kwargs.copy())
+        result = _process_thinking_config(generation_kwargs)
         assert result["thinking_config"].thinking_budget == 0
         assert result["thinking_config"].include_thoughts is True
         assert "include_thoughts" not in result  # should be popped from top-level kwargs
 
         # thinking_budget=1024 normally means include_thoughts=True, but user explicitly sets False
         generation_kwargs = {"thinking_budget": 1024, "include_thoughts": False}
-        result = _process_thinking_config(generation_kwargs.copy())
+        result = _process_thinking_config(generation_kwargs)
         assert result["thinking_config"].thinking_budget == 1024
         assert result["thinking_config"].include_thoughts is False
         assert "include_thoughts" not in result
 
         # thinking_level="high" normally means include_thoughts=True, but user explicitly sets False
         generation_kwargs = {"thinking_level": "high", "include_thoughts": False}
-        result = _process_thinking_config(generation_kwargs.copy())
+        result = _process_thinking_config(generation_kwargs)
         assert result["thinking_config"].thinking_level == types.ThinkingLevel.HIGH
         assert result["thinking_config"].include_thoughts is False
         assert "include_thoughts" not in result
 
         # thinking_level="minimal" normally means include_thoughts=False, but user explicitly sets True
         generation_kwargs = {"thinking_level": "minimal", "include_thoughts": True}
-        result = _process_thinking_config(generation_kwargs.copy())
+        result = _process_thinking_config(generation_kwargs)
         assert result["thinking_config"].thinking_level == types.ThinkingLevel.MINIMAL
         assert result["thinking_config"].include_thoughts is True
         assert "include_thoughts" not in result
 
         # include_thoughts alone (no thinking_budget or thinking_level) should just be popped and ignored
         generation_kwargs = {"include_thoughts": True, "temperature": 0.5}
-        result = _process_thinking_config(generation_kwargs.copy())
+        result = _process_thinking_config(generation_kwargs)
         assert "include_thoughts" not in result
         assert "thinking_config" not in result
         assert result == {"temperature": 0.5}

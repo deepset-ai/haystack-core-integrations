@@ -36,7 +36,7 @@ def test_process_thinking_budget():
 
     # Test valid thinking_budget values
     generation_kwargs = {"thinking_budget": 1024, "temperature": 0.7}
-    result = _process_thinking_config(generation_kwargs.copy())
+    result = _process_thinking_config(generation_kwargs)
 
     # thinking_budget should be moved to thinking_config
     assert "thinking_budget" not in result
@@ -47,27 +47,27 @@ def test_process_thinking_budget():
 
     # Test dynamic allocation (-1)
     generation_kwargs = {"thinking_budget": -1}
-    result = _process_thinking_config(generation_kwargs.copy())
+    result = _process_thinking_config(generation_kwargs)
     assert result["thinking_config"].thinking_budget == -1
 
     # Test zero (disable thinking)
     generation_kwargs = {"thinking_budget": 0}
-    result = _process_thinking_config(generation_kwargs.copy())
+    result = _process_thinking_config(generation_kwargs)
     assert result["thinking_config"].thinking_budget == 0
 
     # Test large value
     generation_kwargs = {"thinking_budget": 24576}
-    result = _process_thinking_config(generation_kwargs.copy())
+    result = _process_thinking_config(generation_kwargs)
     assert result["thinking_config"].thinking_budget == 24576
 
     # Test when thinking_budget is not present
     generation_kwargs = {"temperature": 0.5}
-    result = _process_thinking_config(generation_kwargs.copy())
+    result = _process_thinking_config(generation_kwargs)
     assert result == generation_kwargs  # No changes
 
     # Test invalid type (should fall back to dynamic)
     generation_kwargs = {"thinking_budget": "invalid", "temperature": 0.5}
-    result = _process_thinking_config(generation_kwargs.copy())
+    result = _process_thinking_config(generation_kwargs)
     assert result["thinking_config"].thinking_budget == -1  # Dynamic allocation
     assert result["temperature"] == 0.5
 
@@ -77,7 +77,7 @@ def test_process_thinking_level():
 
     # Test valid thinking_level values
     generation_kwargs = {"thinking_level": "high", "temperature": 0.7}
-    result = _process_thinking_config(generation_kwargs.copy())
+    result = _process_thinking_config(generation_kwargs)
 
     # thinking_level should be moved to thinking_config
     assert "thinking_level" not in result
@@ -88,22 +88,22 @@ def test_process_thinking_level():
 
     # Test THINKING_LEVEL_LOW in upper case
     generation_kwargs = {"thinking_level": "LOW"}
-    result = _process_thinking_config(generation_kwargs.copy())
+    result = _process_thinking_config(generation_kwargs)
     assert result["thinking_config"].thinking_level == types.ThinkingLevel.LOW
 
     # Test THINKING_LEVEL_UNSPECIFIED
     generation_kwargs = {"thinking_level": "test"}
-    result = _process_thinking_config(generation_kwargs.copy())
+    result = _process_thinking_config(generation_kwargs)
     assert result["thinking_config"].thinking_level == types.ThinkingLevel.THINKING_LEVEL_UNSPECIFIED
 
     # Test when thinking_level is not present
     generation_kwargs = {"temperature": 0.5}
-    result = _process_thinking_config(generation_kwargs.copy())
+    result = _process_thinking_config(generation_kwargs)
     assert result == generation_kwargs  # No changes
 
     # Test invalid type (should fall back to THINKING_LEVEL_UNSPECIFIED)
     generation_kwargs = {"thinking_level": 123, "temperature": 0.5}
-    result = _process_thinking_config(generation_kwargs.copy())
+    result = _process_thinking_config(generation_kwargs)
     assert result["thinking_config"].thinking_level == types.ThinkingLevel.THINKING_LEVEL_UNSPECIFIED
     assert result["temperature"] == 0.5
 
