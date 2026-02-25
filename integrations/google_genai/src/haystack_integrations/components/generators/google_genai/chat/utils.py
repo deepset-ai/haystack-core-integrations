@@ -123,8 +123,7 @@ def _process_thinking_config(generation_kwargs: dict[str, Any]) -> dict[str, Any
         if explicit_include_thoughts is not None:
             include_thoughts = explicit_include_thoughts
         else:
-            # When thinking_level is MINIMAL, thinking output is minimal so include_thoughts should be False
-            include_thoughts = thinking_level != types.ThinkingLevel.MINIMAL
+            include_thoughts = getattr(thinking_level, "value", str(thinking_level)) != "MINIMAL"
 
         thinking_config = types.ThinkingConfig(thinking_level=thinking_level, include_thoughts=include_thoughts)
         generation_kwargs["thinking_config"] = thinking_config
