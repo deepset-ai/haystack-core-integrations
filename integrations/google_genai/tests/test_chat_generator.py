@@ -761,12 +761,11 @@ class TestGoogleGenAIChatGeneratorInference:
         assert result["thinking_config"].thinking_level == types.ThinkingLevel.LOW
         assert result["thinking_config"].include_thoughts is True
 
-        minimal_level = getattr(types.ThinkingLevel, "MINIMAL", None)
-        if minimal_level is not None:
-            generation_kwargs = {"thinking_level": "MINIMAL"}
-            result = _process_thinking_config(generation_kwargs)
-            assert result["thinking_config"].thinking_level == minimal_level
-            assert result["thinking_config"].include_thoughts is False
+        # Test MINIMAL (should disable include_thoughts)
+        generation_kwargs = {"thinking_level": "MINIMAL"}
+        result = _process_thinking_config(generation_kwargs)
+        assert result["thinking_config"].thinking_level == types.ThinkingLevel.MINIMAL
+        assert result["thinking_config"].include_thoughts is False
 
         # Test THINKING_LEVEL_UNSPECIFIED (invalid value falls back)
         generation_kwargs = {"thinking_level": "test"}
@@ -812,13 +811,11 @@ class TestGoogleGenAIChatGeneratorInference:
         assert "include_thoughts" not in result
 
         # thinking_level="minimal" normally means include_thoughts=False, but user explicitly sets True
-        minimal_level = getattr(types.ThinkingLevel, "MINIMAL", None)
-        if minimal_level is not None:
-            generation_kwargs = {"thinking_level": "minimal", "include_thoughts": True}
-            result = _process_thinking_config(generation_kwargs)
-            assert result["thinking_config"].thinking_level == minimal_level
-            assert result["thinking_config"].include_thoughts is True
-            assert "include_thoughts" not in result
+        generation_kwargs = {"thinking_level": "minimal", "include_thoughts": True}
+        result = _process_thinking_config(generation_kwargs)
+        assert result["thinking_config"].thinking_level == types.ThinkingLevel.MINIMAL
+        assert result["thinking_config"].include_thoughts is True
+        assert "include_thoughts" not in result
 
         # include_thoughts alone (no thinking_budget or thinking_level) should just be popped and ignored
         generation_kwargs = {"include_thoughts": True, "temperature": 0.5}
