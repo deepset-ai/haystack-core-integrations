@@ -4,8 +4,10 @@
 
 import asyncio
 import os
+from unittest.mock import Mock
 
 import pytest
+from google.genai import types
 from haystack.components.agents import Agent
 from haystack.components.generators.utils import print_streaming_chunk
 from haystack.dataclasses import (
@@ -641,7 +643,6 @@ class TestGoogleGenAIChatGeneratorInference:
 
         assert "apple" in result["last_message"].text.lower()
 
-
     def test_aggregate_streaming_chunks_with_reasoning(self, monkeypatch):
         """Test the _aggregate_streaming_chunks_with_reasoning method for reasoning content aggregation."""
         monkeypatch.setenv("GOOGLE_API_KEY", "test-api-key")
@@ -690,7 +691,6 @@ class TestGoogleGenAIChatGeneratorInference:
         assert result.meta["usage"]["thoughts_token_count"] == 5
         assert result.meta["model"] == "gemini-2.5-pro"
 
-
     def test_process_thinking_budget(self, monkeypatch):
         """Test the _process_thinking_config method with different thinking_budget values."""
         monkeypatch.setenv("GOOGLE_API_KEY", "test-api-key")
@@ -735,7 +735,6 @@ class TestGoogleGenAIChatGeneratorInference:
         result = GoogleGenAIChatGenerator._process_thinking_config(generation_kwargs.copy())
         assert result["thinking_config"].thinking_budget == -1  # Dynamic allocation
         assert result["temperature"] == 0.5
-
 
     def test_process_thinking_level(self, monkeypatch):
         """Test the _process_thinking_config method with different thinking_level values."""
@@ -783,7 +782,6 @@ class TestGoogleGenAIChatGeneratorInference:
         assert result["thinking_config"].thinking_level == types.ThinkingLevel.THINKING_LEVEL_UNSPECIFIED
         assert result["thinking_config"].include_thoughts is True
         assert result["temperature"] == 0.5
-
 
     def test_process_thinking_config_explicit_include_thoughts(self, monkeypatch):
         """Test that explicit include_thoughts in generation_kwargs overrides the auto-derived value."""

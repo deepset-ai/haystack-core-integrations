@@ -349,9 +349,7 @@ class GoogleGenAIChatGenerator:
                 # When thinking_budget is 0, thinking is disabled so include_thoughts must be False
                 include_thoughts = thinking_budget != 0
 
-            thinking_config = types.ThinkingConfig(
-                thinking_budget=thinking_budget, include_thoughts=include_thoughts
-            )
+            thinking_config = types.ThinkingConfig(thinking_budget=thinking_budget, include_thoughts=include_thoughts)
             generation_kwargs["thinking_config"] = thinking_config
 
         if "thinking_level" in generation_kwargs:
