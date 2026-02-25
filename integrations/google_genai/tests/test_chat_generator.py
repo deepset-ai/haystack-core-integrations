@@ -1555,6 +1555,7 @@ def test_process_thinking_level(monkeypatch):
     assert "thinking_level" not in result
     assert "thinking_config" in result
     assert result["thinking_config"].thinking_level == types.ThinkingLevel.HIGH
+    assert result["thinking_config"].include_thoughts is True
     # Other kwargs should be preserved
     assert result["temperature"] == 0.7
 
@@ -1562,11 +1563,19 @@ def test_process_thinking_level(monkeypatch):
     generation_kwargs = {"thinking_level": "LOW"}
     result = GoogleGenAIChatGenerator._process_thinking_config(generation_kwargs.copy())
     assert result["thinking_config"].thinking_level == types.ThinkingLevel.LOW
+    assert result["thinking_config"].include_thoughts is True
 
-    # Test THINKING_LEVEL_UNSPECIFIED
+    # Test MINIMAL (should disable include_thoughts)
+    generation_kwargs = {"thinking_level": "MINIMAL"}
+    result = GoogleGenAIChatGenerator._process_thinking_config(generation_kwargs.copy())
+    assert result["thinking_config"].thinking_level == types.ThinkingLevel.MINIMAL
+    assert result["thinking_config"].include_thoughts is False
+
+    # Test THINKING_LEVEL_UNSPECIFIED (invalid value falls back)
     generation_kwargs = {"thinking_level": "test"}
     result = GoogleGenAIChatGenerator._process_thinking_config(generation_kwargs.copy())
     assert result["thinking_config"].thinking_level == types.ThinkingLevel.THINKING_LEVEL_UNSPECIFIED
+    assert result["thinking_config"].include_thoughts is True
 
     # Test when thinking_level is not present
     generation_kwargs = {"temperature": 0.5}
@@ -1577,4 +1586,45 @@ def test_process_thinking_level(monkeypatch):
     generation_kwargs = {"thinking_level": 123, "temperature": 0.5}
     result = GoogleGenAIChatGenerator._process_thinking_config(generation_kwargs.copy())
     assert result["thinking_config"].thinking_level == types.ThinkingLevel.THINKING_LEVEL_UNSPECIFIED
+    assert result["thinking_config"].include_thoughts is True
     assert result["temperature"] == 0.5
+
+
+def test_process_thinking_config_explicit_include_thoughts(monkeypatch):
+    """Test that explicit include_thoughts in generation_kwargs overrides the auto-derived value."""
+    monkeypatch.setenv("GOOGLE_API_KEY", "test-api-key")
+
+    # thinking_budget=0 normally means include_thoughts=False, but user explicitly sets True
+    generation_kwargs = {"thinking_budget": 0, "include_thoughts": True}
+    result = GoogleGenAIChatGenerator._process_thinking_config(generation_kwargs.copy())
+    assert result["thinking_config"].thinking_budget == 0
+    assert result["thinking_config"].include_thoughts is True
+    assert "include_thoughts" not in result  # should be popped from top-level kwargs
+
+    # thinking_budget=1024 normally means include_thoughts=True, but user explicitly sets False
+    generation_kwargs = {"thinking_budget": 1024, "include_thoughts": False}
+    result = GoogleGenAIChatGenerator._process_thinking_config(generation_kwargs.copy())
+    assert result["thinking_config"].thinking_budget == 1024
+    assert result["thinking_config"].include_thoughts is False
+    assert "include_thoughts" not in result
+
+    # thinking_level="high" normally means include_thoughts=True, but user explicitly sets False
+    generation_kwargs = {"thinking_level": "high", "include_thoughts": False}
+    result = GoogleGenAIChatGenerator._process_thinking_config(generation_kwargs.copy())
+    assert result["thinking_config"].thinking_level == types.ThinkingLevel.HIGH
+    assert result["thinking_config"].include_thoughts is False
+    assert "include_thoughts" not in result
+
+    # thinking_level="minimal" normally means include_thoughts=False, but user explicitly sets True
+    generation_kwargs = {"thinking_level": "minimal", "include_thoughts": True}
+    result = GoogleGenAIChatGenerator._process_thinking_config(generation_kwargs.copy())
+    assert result["thinking_config"].thinking_level == types.ThinkingLevel.MINIMAL
+    assert result["thinking_config"].include_thoughts is True
+    assert "include_thoughts" not in result
+
+    # include_thoughts alone (no thinking_budget or thinking_level) should just be popped and ignored
+    generation_kwargs = {"include_thoughts": True, "temperature": 0.5}
+    result = GoogleGenAIChatGenerator._process_thinking_config(generation_kwargs.copy())
+    assert "include_thoughts" not in result
+    assert "thinking_config" not in result
+    assert result == {"temperature": 0.5}

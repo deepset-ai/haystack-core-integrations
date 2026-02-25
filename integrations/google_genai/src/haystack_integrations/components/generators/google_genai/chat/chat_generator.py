@@ -889,6 +889,10 @@ class GoogleGenAIChatGenerator:
         :param generation_kwargs: The generation configuration dictionary.
         :returns: Updated generation_kwargs with thinking_config if applicable.
         """
+        # Extract include_thoughts from generation_kwargs if explicitly set by the user.
+        # This must be popped before creating ThinkingConfig so it doesn't leak as an unknown kwarg.
+        explicit_include_thoughts = generation_kwargs.pop("include_thoughts", None)
+
         if "thinking_budget" in generation_kwargs:
             thinking_budget = generation_kwargs.pop("thinking_budget")
 
@@ -900,10 +904,15 @@ class GoogleGenAIChatGenerator:
                 # fall back to default: dynamic thinking budget allocation
                 thinking_budget = -1
 
-            # Create thinking config
-            # When thinking_budget is 0, thinking is disabled so include_thoughts must be False
+            # Determine include_thoughts: respect explicit user override, otherwise auto-derive
+            if explicit_include_thoughts is not None:
+                include_thoughts = explicit_include_thoughts
+            else:
+                # When thinking_budget is 0, thinking is disabled so include_thoughts must be False
+                include_thoughts = thinking_budget != 0
+
             thinking_config = types.ThinkingConfig(
-                thinking_budget=thinking_budget, include_thoughts=thinking_budget != 0
+                thinking_budget=thinking_budget, include_thoughts=include_thoughts
             )
             generation_kwargs["thinking_config"] = thinking_config
 
@@ -934,8 +943,14 @@ class GoogleGenAIChatGenerator:
                     # Parse valid string to ThinkingLevel enum
                     thinking_level = types.ThinkingLevel(thinking_level_upper)
 
-            # Create thinking config with level
-            thinking_config = types.ThinkingConfig(thinking_level=thinking_level, include_thoughts=True)
+            # Determine include_thoughts: respect explicit user override, otherwise auto-derive
+            if explicit_include_thoughts is not None:
+                include_thoughts = explicit_include_thoughts
+            else:
+                # When thinking_level is MINIMAL, thinking output is minimal so include_thoughts should be False
+                include_thoughts = thinking_level != types.ThinkingLevel.MINIMAL
+
+            thinking_config = types.ThinkingConfig(thinking_level=thinking_level, include_thoughts=include_thoughts)
             generation_kwargs["thinking_config"] = thinking_config
 
         return generation_kwargs
