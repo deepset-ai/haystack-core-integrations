@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/google_genai-v3.6.0] - 2026-02-24
+
+### 🚀 Features
+
+- Google GenAI - add FileContent support + refactoring (#2860)
+
+
 ## [integrations/google_genai-v3.5.0] - 2026-02-18
 
 ### 🚀 Features
