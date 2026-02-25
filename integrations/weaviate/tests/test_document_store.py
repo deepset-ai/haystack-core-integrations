@@ -212,6 +212,7 @@ class TestWeaviateDocumentStore(DocumentStoreBaseExtendedTests):
                         "session_pool_max_retries": 3,
                         "session_pool_timeout": 5,
                     },
+                    "grpc_config": None,
                     "proxies": {"http": "http://proxy:1234", "https": None, "grpc": None},
                     "timeout": [30, 90],
                     "trust_env": False,

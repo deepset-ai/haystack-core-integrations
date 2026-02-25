@@ -477,18 +477,19 @@ class TestUtils:
         assert result["replies"][0].meta["model"] == "qwen3:0.6b"
 
         assert len(streaming_chunks) == 14
-        assert streaming_chunks[0].meta["reasoning"] == "Okay"
-        assert streaming_chunks[1].meta["reasoning"] == ","
-        assert streaming_chunks[2].meta["reasoning"] == " the"
-        assert streaming_chunks[3].meta["reasoning"] == " user"
-        assert streaming_chunks[4].meta["reasoning"] == " is"
-        assert streaming_chunks[5].meta["reasoning"] == " asking"
-        assert streaming_chunks[6].meta["reasoning"] == " "
-        assert streaming_chunks[7].meta["reasoning"] == "2"
-        assert streaming_chunks[8].meta["reasoning"] == " plus"
-        assert streaming_chunks[9].meta["reasoning"] == " "
-        assert streaming_chunks[10].meta["reasoning"] == "2"
-        assert streaming_chunks[11].meta["reasoning"] == "."
+        assert streaming_chunks[0].reasoning is not None
+        assert streaming_chunks[0].reasoning.reasoning_text == "Okay"
+        assert streaming_chunks[1].reasoning.reasoning_text == ","
+        assert streaming_chunks[2].reasoning.reasoning_text == " the"
+        assert streaming_chunks[3].reasoning.reasoning_text == " user"
+        assert streaming_chunks[4].reasoning.reasoning_text == " is"
+        assert streaming_chunks[5].reasoning.reasoning_text == " asking"
+        assert streaming_chunks[6].reasoning.reasoning_text == " "
+        assert streaming_chunks[7].reasoning.reasoning_text == "2"
+        assert streaming_chunks[8].reasoning.reasoning_text == " plus"
+        assert streaming_chunks[9].reasoning.reasoning_text == " "
+        assert streaming_chunks[10].reasoning.reasoning_text == "2"
+        assert streaming_chunks[11].reasoning.reasoning_text == "."
 
         for i, chunk in enumerate(streaming_chunks):
             if i in [0, 12]:

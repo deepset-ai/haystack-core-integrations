@@ -75,8 +75,6 @@ non_interactive = true
 check_untyped_defs = true
 disallow_incomplete_defs = true
 
-[tool.hatch.metadata]
-allow-direct-references = true
 
 [tool.ruff.lint.isort]
 known-first-party = ["haystack_integrations"]

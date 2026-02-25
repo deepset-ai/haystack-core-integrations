@@ -40,8 +40,6 @@ tag-pattern = 'integrations\/watsonx-v(?P<version>.*)'
 root = "../.."
 git_describe_command = 'git describe --tags --match="integrations/watsonx-v[0-9]*"'
 
-[tool.hatch.metadata]
-allow-direct-references = true
 
 [tool.hatch.envs.default]
 installer = "uv"

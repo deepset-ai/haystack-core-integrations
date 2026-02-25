@@ -25,7 +25,7 @@ classifiers = [
   "Programming Language :: Python :: Implementation :: CPython",
   "Programming Language :: Python :: Implementation :: PyPy",
 ]
-dependencies = ["haystack-ai>=2.23.0", "google-genai[aiohttp]>=1.51.0", "jsonref>=1.0.0"]
+dependencies = ["haystack-ai>=2.24.1", "google-genai[aiohttp]>=1.51.0", "jsonref>=1.0.0"]
 
 [project.urls]
 Documentation = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/google_genai#readme"
