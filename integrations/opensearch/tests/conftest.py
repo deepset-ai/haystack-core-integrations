@@ -28,11 +28,11 @@ def document_store():
     store = OpenSearchDocumentStore(
         hosts=hosts,
         index=index,
-        http_auth=("admin", "admin"),
+        http_auth=("admin", "SecureHaystack!2026"),
         verify_certs=False,
         embedding_dim=768,
         return_embedding=True,
-        method={"space_type": "cosinesimil", "engine": "nmslib", "name": "hnsw"},
+        method={"space_type": "cosinesimil", "engine": "lucene", "name": "hnsw"},
     )
     store._ensure_initialized()
     yield store
@@ -52,11 +52,11 @@ def document_store_2():
     store = OpenSearchDocumentStore(
         hosts=hosts,
         index=index,
-        http_auth=("admin", "admin"),
+        http_auth=("admin", "SecureHaystack!2026"),
         verify_certs=False,
         embedding_dim=768,
         return_embedding=False,
-        method={"space_type": "cosinesimil", "engine": "nmslib", "name": "hnsw"},
+        method={"space_type": "cosinesimil", "engine": "lucene", "name": "hnsw"},
     )
     yield store
 
@@ -81,10 +81,10 @@ def document_store_readonly():
     store = OpenSearchDocumentStore(
         hosts=hosts,
         index=index,
-        http_auth=("admin", "admin"),
+        http_auth=("admin", "SecureHaystack!2026"),
         verify_certs=False,
         embedding_dim=768,
-        method={"space_type": "cosinesimil", "engine": "nmslib", "name": "hnsw"},
+        method={"space_type": "cosinesimil", "engine": "lucene", "name": "hnsw"},
         create_index=False,
     )
     store._ensure_initialized()
@@ -109,11 +109,11 @@ def document_store_embedding_dim_4_no_emb_returned():
     store = OpenSearchDocumentStore(
         hosts=hosts,
         index=index,
-        http_auth=("admin", "admin"),
+        http_auth=("admin", "SecureHaystack!2026"),
         verify_certs=False,
         embedding_dim=4,
         return_embedding=False,
-        method={"space_type": "cosinesimil", "engine": "nmslib", "name": "hnsw"},
+        method={"space_type": "cosinesimil", "engine": "lucene", "name": "hnsw"},
     )
     yield store
 
@@ -133,7 +133,7 @@ def document_store_embedding_dim_4_no_emb_returned_faiss():
     store = OpenSearchDocumentStore(
         hosts=hosts,
         index=index,
-        http_auth=("admin", "admin"),
+        http_auth=("admin", "SecureHaystack!2026"),
         verify_certs=False,
         embedding_dim=4,
         method={"space_type": "innerproduct", "engine": "faiss", "name": "hnsw"},

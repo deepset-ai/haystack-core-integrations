@@ -1,6 +1,6 @@
 services:
   opensearch:
-    image: "opensearchproject/opensearch:2.11.0"
+    image: "opensearchproject/opensearch:3.5.0"
     ports:
       - 9200:9200
       - 9600:9600
@@ -8,6 +8,7 @@ services:
     environment:
       - discovery.type=single-node
       - "ES_JAVA_OPTS=-Xms1024m -Xmx1024m"
+      - "OPENSEARCH_INITIAL_ADMIN_PASSWORD=SecureHaystack!2026"
     healthcheck:
         test: curl --fail https://localhost:9200/_cat/health -ku admin:admin || exit 1
         interval: 10s
