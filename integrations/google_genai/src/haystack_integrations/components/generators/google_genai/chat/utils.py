@@ -89,9 +89,7 @@ def _process_thinking_config(generation_kwargs: dict[str, Any]) -> dict[str, Any
             # When thinking_budget is 0, thinking is disabled so include_thoughts must be False
             include_thoughts = thinking_budget != 0
 
-        thinking_config = types.ThinkingConfig(
-            thinking_budget=thinking_budget, include_thoughts=include_thoughts
-        )
+        thinking_config = types.ThinkingConfig(thinking_budget=thinking_budget, include_thoughts=include_thoughts)
         generation_kwargs["thinking_config"] = thinking_config
 
     if "thinking_level" in generation_kwargs:
@@ -128,9 +126,7 @@ def _process_thinking_config(generation_kwargs: dict[str, Any]) -> dict[str, Any
             # When thinking_level is MINIMAL, thinking output is minimal so include_thoughts should be False
             include_thoughts = thinking_level != types.ThinkingLevel.MINIMAL
 
-        thinking_config = types.ThinkingConfig(
-            thinking_level=thinking_level, include_thoughts=include_thoughts
-        )
+        thinking_config = types.ThinkingConfig(thinking_level=thinking_level, include_thoughts=include_thoughts)
         generation_kwargs["thinking_config"] = thinking_config
 
     return generation_kwargs
