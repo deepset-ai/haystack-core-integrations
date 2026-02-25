@@ -171,6 +171,4 @@ markers = [
 ]
 log_cli = true
 asyncio_default_fixture_loop_scope = "function"
-
-[tool.hatch.metadata]
-allow-direct-references = true 
+ 

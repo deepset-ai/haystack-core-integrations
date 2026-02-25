@@ -78,8 +78,6 @@ non_interactive = true
 check_untyped_defs = true
 disallow_incomplete_defs = true
 
-[tool.hatch.metadata]
-allow-direct-references = true
 
 [tool.ruff]
 line-length = 120
