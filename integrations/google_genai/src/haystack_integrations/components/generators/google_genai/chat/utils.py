@@ -58,9 +58,13 @@ def _process_thinking_config(generation_kwargs: dict[str, Any]) -> dict[str, Any
     """
     Process thinking configuration from generation_kwargs.
 
+    Does not mutate the input dict; returns a new dict with thinking_config
+    applied when applicable.
+
     :param generation_kwargs: The generation configuration dictionary.
-    :returns: Updated generation_kwargs with thinking_config if applicable.
+    :returns: A new dict with thinking_config if applicable; caller's dict is unchanged.
     """
+    generation_kwargs = dict(generation_kwargs)
     if "thinking_budget" in generation_kwargs:
         thinking_budget = generation_kwargs.pop("thinking_budget")
 
