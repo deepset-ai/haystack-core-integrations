@@ -50,7 +50,7 @@ jobs:
           python-version: ${{ matrix.python-version }}
 
       - name: Install Hatch
-        run: pip install --upgrade hatch
+        uses: pypa/hatch@install
 
       # TODO: Once this integration is properly typed, use hatch run test:types
       # https://github.com/deepset-ai/haystack-core-integrations/issues/1771

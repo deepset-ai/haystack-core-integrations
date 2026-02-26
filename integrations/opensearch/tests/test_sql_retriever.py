@@ -52,7 +52,7 @@ def test_from_dict(_mock_opensearch_client):
 
 @pytest.mark.integration
 def test_sql_retriever_basic_query_hits_format(document_store: OpenSearchDocumentStore):
-    """Test regular SELECT query - verifies raw JSON response with hits structure"""
+    """Test regular SELECT query - verifies raw response"""
     docs = [
         Document(content="Python programming", meta={"category": "A", "status": "active", "priority": 1}),
         Document(content="Java programming", meta={"category": "B", "status": "active", "priority": 2}),
@@ -72,31 +72,23 @@ def test_sql_retriever_basic_query_hits_format(document_store: OpenSearchDocumen
     response = result["result"]
     assert isinstance(response, dict)
 
-    # Verify raw OpenSearch JSON response structure
-    assert "_shards" in response
-    assert "hits" in response
-    assert "took" in response
-    assert "timed_out" in response
-
     # Verify hits structure
-    hits = response["hits"]
-    assert "total" in hits
-    assert "hits" in hits
-    assert len(hits["hits"]) == 2
+    assert "total" in response
+    assert "size" in response
+    assert "status" in response
 
-    # Verify each hit contains _source with selected fields
-    for hit in hits["hits"]:
-        assert "_source" in hit
-        assert "_index" in hit
-        source = hit["_source"]
-        assert "content" in source
-        assert "category" in source
-        assert source["category"] == "A"
+    # Verify the schema contains all the selected fields
+    assert all(
+        field in [entry["name"] for entry in response["schema"]]
+        for field in ["content", "category", "status", "priority"]
+    )
+    # Verify datarows contain the expected number of rows and columns
+    assert len(response["datarows"]) == 2
 
 
 @pytest.mark.integration
 def test_sql_retriever_count_query_aggregations_format(document_store: OpenSearchDocumentStore):
-    """Test aggregate query (COUNT) - verifies raw JSON response with aggregations structure"""
+    """Test aggregate query (COUNT) - verifies tabular SQL response format."""
     docs = [
         Document(content="Doc 1", meta={"category": "A"}),
         Document(content="Doc 2", meta={"category": "B"}),
@@ -112,27 +104,25 @@ def test_sql_retriever_count_query_aggregations_format(document_store: OpenSearc
     response = result["result"]
     assert isinstance(response, dict)
 
-    # Verify raw OpenSearch JSON response structure
-    assert "_shards" in response
-    assert "aggregations" in response
-    assert "hits" in response
-    assert "took" in response
-    assert "timed_out" in response
+    # Verify tabular SQL response structure
+    assert "schema" in response
+    assert "datarows" in response
+    assert "size" in response
+    assert "status" in response
 
-    # Verify aggregations structure
-    aggregations = response["aggregations"]
-    assert "total" in aggregations
-    assert aggregations["total"]["value"] == 3
+    # Verify COUNT schema and value
+    assert len(response["schema"]) == 1
+    assert response["schema"][0]["name"] == "COUNT(*)"
+    assert response["schema"][0].get("alias") == "total"
+    assert response["schema"][0]["type"] == "long"
 
-    # Verify hits structure (should be empty for aggregate queries)
-    hits = response["hits"]
-    assert "total" in hits
-    assert len(hits.get("hits", [])) == 0
+    assert len(response["datarows"]) == 1
+    assert response["datarows"][0] == [3]
 
 
 @pytest.mark.integration
 def test_sql_retriever_metadata_extraction(document_store: OpenSearchDocumentStore):
-    """Test extracting metadata fields - verifies raw JSON response structure"""
+    """Test extracting metadata fields - verifies tabular SQL response structure."""
     docs = [
         Document(
             content="Python tutorial",
@@ -162,34 +152,36 @@ def test_sql_retriever_metadata_extraction(document_store: OpenSearchDocumentSto
     response = result["result"]
     assert isinstance(response, dict)
 
-    # Verify raw response structure
-    assert "hits" in response
-    hits = response["hits"]
-    assert len(hits["hits"]) == 2
+    # Verify tabular SQL response structure
+    assert "schema" in response
+    assert "datarows" in response
+    assert "size" in response
+    assert "status" in response
 
-    # Verify _source contains only selected metadata fields
-    authors = []
-    for hit in hits["hits"]:
-        source = hit["_source"]
-        assert "author" in source
-        assert "year" in source
-        assert "rating" in source
-        assert "content" not in source
-        assert source["year"] >= 2023
-        authors.append(source["author"])
+    # Verify schema contains only selected metadata fields in query order
+    assert [entry["name"] for entry in response["schema"]] == ["author", "year", "rating"]
+
+    # Verify returned rows
+    rows = response["datarows"]
+    assert len(rows) == 2
+
+    authors = [row[0] for row in rows]
+    years = [row[1] for row in rows]
+    ratings = [row[2] for row in rows]
 
     assert "Jane Smith" in authors
     assert "John Doe" in authors
+    assert all(year >= 2023 for year in years)
 
     # Verify ordering by rating DESC
-    assert hits["hits"][0]["_source"]["rating"] >= hits["hits"][1]["_source"]["rating"]
+    assert ratings[0] >= ratings[1]
 
 
 @pytest.mark.integration
 def test_sql_retriever_runtime_document_store_switching(
     document_store: OpenSearchDocumentStore, document_store_2: OpenSearchDocumentStore
 ):
-    """Test switching document stores at runtime"""
+    """Test switching document stores at runtime with tabular SQL responses."""
     docs1 = [
         Document(content="Python programming", meta={"category": "A"}),
         Document(content="Java programming", meta={"category": "B"}),
@@ -207,20 +199,21 @@ def test_sql_retriever_runtime_document_store_switching(
     # Query first store
     sql_query1 = f"SELECT content, category FROM {document_store._index} WHERE category = 'A'"  # noqa: S608
     result1 = retriever.run(query=sql_query1)
-    assert len(result1["result"]["hits"]["hits"]) == 1
-    assert "Python" in result1["result"]["hits"]["hits"][0]["_source"]["content"]
+    response1 = result1["result"]
+    assert [entry["name"] for entry in response1["schema"]] == ["content", "category"]
+    assert len(response1["datarows"]) == 1
+    assert "Python" in response1["datarows"][0][0]
 
     # Query second store at runtime
     sql_query2 = f"SELECT content, category FROM {document_store_2._index} WHERE category = 'C'"  # noqa: S608
     result2 = retriever.run(query=sql_query2, document_store=document_store_2)
-    assert len(result2["result"]["hits"]["hits"]) == 1
-    assert "JavaScript" in result2["result"]["hits"]["hits"][0]["_source"]["content"]
+    response2 = result2["result"]
+    assert [entry["name"] for entry in response2["schema"]] == ["content", "category"]
+    assert len(response2["datarows"]) == 1
+    assert "JavaScript" in response2["datarows"][0][0]
 
     # Verify results are different
-    assert (
-        result1["result"]["hits"]["hits"][0]["_source"]["content"]
-        != result2["result"]["hits"]["hits"][0]["_source"]["content"]
-    )
+    assert response1["datarows"][0][0] != response2["datarows"][0][0]
 
 
 @pytest.mark.integration
@@ -240,7 +233,7 @@ def test_sql_retriever_error_handling(document_store: OpenSearchDocumentStore):
 
 @pytest.mark.integration
 def test_sql_retriever_with_fetch_size(document_store: OpenSearchDocumentStore):
-    """Test SQL retriever with fetch_size parameter"""
+    """Test SQL retriever with fetch_size parameter and tabular response format."""
     docs = [Document(content=f"Document {i}", meta={"category": "A", "index": i}) for i in range(15)]
     document_store.write_documents(docs, refresh=True)
 
@@ -254,21 +247,34 @@ def test_sql_retriever_with_fetch_size(document_store: OpenSearchDocumentStore):
     result = retriever.run(query=sql_query)
     assert "result" in result
     assert isinstance(result["result"], dict)
-    assert "hits" in result["result"]
-    assert len(result["result"]["hits"]["hits"]) > 0
+    response = result["result"]
+    assert "schema" in response
+    assert "datarows" in response
+    assert "size" in response
+    assert "status" in response
+    assert [entry["name"] for entry in response["schema"]] == ["content", "category", "index"]
+    assert len(response["datarows"]) > 0
+    assert len(response["datarows"]) <= 5
+    assert response.get("cursor") is not None
 
     # Test with runtime fetch_size override
     result2 = retriever.run(query=sql_query, fetch_size=10)
     assert "result" in result2
     assert isinstance(result2["result"], dict)
-    assert "hits" in result2["result"]
-    assert len(result2["result"]["hits"]["hits"]) > 0
+    response2 = result2["result"]
+    assert "schema" in response2
+    assert "datarows" in response2
+    assert "size" in response2
+    assert "status" in response2
+    assert [entry["name"] for entry in response2["schema"]] == ["content", "category", "index"]
+    assert len(response2["datarows"]) > 0
+    assert len(response2["datarows"]) <= 10
 
 
 @pytest.mark.integration
 @pytest.mark.asyncio
 async def test_sql_retriever_async_basic_query(document_store: OpenSearchDocumentStore):
-    """Test basic async SQL query execution"""
+    """Test basic async SQL query execution with tabular SQL response."""
     docs = [
         Document(content="Python programming", meta={"category": "A", "status": "active", "priority": 1}),
         Document(content="Java programming", meta={"category": "B", "status": "active", "priority": 2}),
@@ -286,11 +292,15 @@ async def test_sql_retriever_async_basic_query(document_store: OpenSearchDocumen
     assert "result" in result
     response = result["result"]
     assert isinstance(response, dict)
-    assert "hits" in response
-    assert len(response["hits"]["hits"]) == 2
+    assert "schema" in response
+    assert "datarows" in response
+    assert "size" in response
+    assert "status" in response
+    assert [entry["name"] for entry in response["schema"]] == ["content", "category", "status"]
+    assert len(response["datarows"]) == 2
 
-    categories = [hit["_source"]["category"] for hit in response["hits"]["hits"]]
-    assert all(cat == "A" for cat in categories)
+    categories = [row[1] for row in response["datarows"]]
+    assert all(category == "A" for category in categories)
 
 
 @pytest.mark.integration
@@ -298,7 +308,7 @@ async def test_sql_retriever_async_basic_query(document_store: OpenSearchDocumen
 async def test_sql_retriever_async_runtime_document_store_switching(
     document_store: OpenSearchDocumentStore, document_store_2: OpenSearchDocumentStore
 ):
-    """Test async switching document stores at runtime"""
+    """Test async switching document stores at runtime with tabular SQL responses."""
     docs1 = [
         Document(content="Python programming", meta={"category": "A"}),
         Document(content="Java programming", meta={"category": "B"}),
@@ -316,20 +326,21 @@ async def test_sql_retriever_async_runtime_document_store_switching(
     # Query first store
     sql_query1 = f"SELECT content, category FROM {document_store._index} WHERE category = 'A'"  # noqa: S608
     result1 = await retriever.run_async(query=sql_query1)
-    assert len(result1["result"]["hits"]["hits"]) == 1
-    assert "Python" in result1["result"]["hits"]["hits"][0]["_source"]["content"]
+    response1 = result1["result"]
+    assert [entry["name"] for entry in response1["schema"]] == ["content", "category"]
+    assert len(response1["datarows"]) == 1
+    assert "Python" in response1["datarows"][0][0]
 
     # Query second store at runtime
     sql_query2 = f"SELECT content, category FROM {document_store_2._index} WHERE category = 'C'"  # noqa: S608
     result2 = await retriever.run_async(query=sql_query2, document_store=document_store_2)
-    assert len(result2["result"]["hits"]["hits"]) == 1
-    assert "JavaScript" in result2["result"]["hits"]["hits"][0]["_source"]["content"]
+    response2 = result2["result"]
+    assert [entry["name"] for entry in response2["schema"]] == ["content", "category"]
+    assert len(response2["datarows"]) == 1
+    assert "JavaScript" in response2["datarows"][0][0]
 
     # Verify results are different
-    assert (
-        result1["result"]["hits"]["hits"][0]["_source"]["content"]
-        != result2["result"]["hits"]["hits"][0]["_source"]["content"]
-    )
+    assert response1["datarows"][0][0] != response2["datarows"][0][0]
 
 
 @pytest.mark.integration
@@ -351,7 +362,7 @@ async def test_sql_retriever_async_error_handling(document_store: OpenSearchDocu
 @pytest.mark.integration
 @pytest.mark.asyncio
 async def test_sql_retriever_async_with_fetch_size(document_store: OpenSearchDocumentStore):
-    """Test async SQL retriever with fetch_size parameter"""
+    """Test async SQL retriever with fetch_size using tabular SQL responses."""
     docs = [Document(content=f"Document {i}", meta={"category": "A", "index": i}) for i in range(15)]
     await document_store.write_documents_async(docs, refresh=True)
 
@@ -365,12 +376,25 @@ async def test_sql_retriever_async_with_fetch_size(document_store: OpenSearchDoc
     result = await retriever.run_async(query=sql_query)
     assert "result" in result
     assert isinstance(result["result"], dict)
-    assert "hits" in result["result"]
-    assert len(result["result"]["hits"]["hits"]) > 0
+    response = result["result"]
+    assert "schema" in response
+    assert "datarows" in response
+    assert "size" in response
+    assert "status" in response
+    assert [entry["name"] for entry in response["schema"]] == ["content", "category", "index"]
+    assert len(response["datarows"]) > 0
+    assert len(response["datarows"]) <= 5
+    assert response.get("cursor") is not None
 
     # Test with runtime fetch_size override
     result2 = await retriever.run_async(query=sql_query, fetch_size=10)
     assert "result" in result2
     assert isinstance(result2["result"], dict)
-    assert "hits" in result2["result"]
-    assert len(result2["result"]["hits"]["hits"]) > 0
+    response2 = result2["result"]
+    assert "schema" in response2
+    assert "datarows" in response2
+    assert "size" in response2
+    assert "status" in response2
+    assert [entry["name"] for entry in response2["schema"]] == ["content", "category", "index"]
+    assert len(response2["datarows"]) > 0
+    assert len(response2["datarows"]) <= 10

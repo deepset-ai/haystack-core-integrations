@@ -229,9 +229,19 @@ def test_normalize_ranges():
 class TestFilters(FilterDocumentsTest):
     def assert_documents_are_equal(self, received: list[Document], expected: list[Document]):
         """
-        The OpenSearchDocumentStore.filter_documents() method returns a Documents with their score set.
-        We don't want to compare the score, so we set it to None before comparing the documents.
+        The OpenSearchDocumentStore.filter_documents() method returns documents with their score set.
+        We don't want to compare the score, so we set it to None before comparing.
+        Embeddings are not exactly the same when retrieved from OpenSearch (float round-trip),
+        so we compare them approximately and then set both to None for the final equality check.
         """
-        for doc in received:
-            doc.score = None
-        assert received == expected
+        assert len(received) == len(expected)
+        received = sorted(received, key=lambda x: x.id)
+        expected = sorted(expected, key=lambda x: x.id)
+        for received_doc, expected_doc in zip(received, expected, strict=True):
+            received_doc.score = None
+            if received_doc.embedding is None:
+                assert expected_doc.embedding is None
+            else:
+                assert received_doc.embedding == pytest.approx(expected_doc.embedding)
+            received_doc.embedding, expected_doc.embedding = None, None
+            assert received_doc == expected_doc

@@ -1,5 +1,24 @@
 # Changelog
 
+## [integrations/opensearch-v6.5.0] - 2026-02-26
+
+### 🐛 Bug Fixes
+
+- OpenSearch-3.x SQL stopped supporting DSL-format SQL JSON (#2876)
+
+### 📚 Documentation
+
+- Simplify pydoc configs (#2855)
+
+### 🧪 Testing
+
+- Replacing each `DocumentStore` specific tests and used the generalised ones from `haystack.testing.document_store` (#2812)
+
+### 🧹 Chores
+
+- Remove unused allow-direct-references (#2866)
+
+
 ## [integrations/opensearch-v6.4.0] - 2026-02-11
 
 ### 🚀 Features
