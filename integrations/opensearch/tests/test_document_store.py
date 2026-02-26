@@ -174,7 +174,7 @@ class TestDocumentStore(DocumentStoreBaseExtendedTests):
         assert len(received) == len(expected)
         received = sorted(received, key=lambda x: x.id)
         expected = sorted(expected, key=lambda x: x.id)
-        for received_doc, expected_doc in zip(received, expected):
+        for received_doc, expected_doc in zip(received, expected, strict=True):
             received_doc.score = None
             if received_doc.embedding is None:
                 assert expected_doc.embedding is None
