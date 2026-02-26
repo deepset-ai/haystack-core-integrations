@@ -290,7 +290,11 @@ class FAISSDocumentStore:
             if "conditions" not in condition:
                 msg = "Missing 'conditions' for NOT operator"
                 raise FilterError(msg)
-            return not self._check_condition(doc, condition.get("conditions", [])[0])
+            conditions = condition.get("conditions")
+            if not isinstance(conditions, list) or not conditions:
+                msg = "NOT operator expects at least one condition"
+                raise FilterError(msg)
+            return not all(self._check_condition(doc, cond) for cond in conditions)
 
         # Leaf condition
         if "field" not in condition:

@@ -4,6 +4,7 @@
 
 import pytest
 from haystack.dataclasses import Document
+from haystack.errors import FilterError
 from haystack.testing.document_store import (
     CountDocumentsTest,
     DeleteAllTest,
@@ -149,3 +150,9 @@ class TestFAISSDocumentStore(
         )
         assert "meta.status" in counts
         assert counts["meta.status"] == 1  # Only "active" status for category A
+
+    def test_not_filter_with_empty_conditions_raises_filter_error(self, document_store):
+        document_store.write_documents([Document(content="test", meta={"category": "A"})])
+
+        with pytest.raises(FilterError, match="NOT operator expects at least one condition"):
+            document_store.filter_documents(filters={"operator": "NOT", "conditions": []})
