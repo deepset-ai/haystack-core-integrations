@@ -5,6 +5,7 @@
 import json
 import logging
 from collections.abc import Iterable
+from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
@@ -252,14 +253,9 @@ class FAISSDocumentStore:
             if filters and not self._matches_filters(doc, filters):
                 continue
 
-            # Set score. Calculate from distance if needed.
-            # For FlatL2, distance is L2 distance. score = 1 / (1 + distance) is common in Haystack.
-            # But the Protocol expects the Document to be returned, user can inspect score.
-            # We should probably clone the document to avoid modifying the stored one.
-            result_doc = Document.from_dict(doc.to_dict())
-            result_doc.score = (
-                float(1 / (1 + dist)) if self.index_string == "Flat" else float(dist)
-            )  # Simplified score handling
+            # Build a new instance instead of mutating score in place.
+            score = float(1 / (1 + dist)) if self.index_string == "Flat" else float(dist)
+            result_doc = replace(doc, score=score)
 
             results.append(result_doc)
 
