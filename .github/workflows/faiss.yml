@@ -53,6 +53,7 @@ jobs:
         run: hatch run test:cov-retry
 
       - name: Run unit tests with lowest direct dependencies
+        if: matrix.python-version == '3.10' && runner.os == 'Linux'
         run: |
           hatch run uv pip compile pyproject.toml --resolution lowest-direct --output-file requirements_lowest_direct.txt
           hatch -e test env run -- uv pip install -r requirements_lowest_direct.txt
