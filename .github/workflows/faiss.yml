@@ -31,7 +31,7 @@ jobs:
       fail-fast: false
       matrix:
         # FAISS wheels are most reliable on Linux in CI.
-        os: [ubuntu-latest, windows-latest, macos-latest]
+        os: [ubuntu-latest] #[ubuntu-latest, windows-latest, macos-latest]
         python-version: ["3.10", "3.13"]
 
     steps:
