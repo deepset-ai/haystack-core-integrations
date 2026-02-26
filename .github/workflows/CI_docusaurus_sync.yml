@@ -32,7 +32,7 @@ jobs:
           python-version: "3.10"
 
       - name: Install Hatch
-        run: pip install --upgrade hatch
+        uses: pypa/hatch@install
 
       - name: Get project folder
         id: pathfinder

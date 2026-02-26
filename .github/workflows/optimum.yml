@@ -47,7 +47,7 @@ jobs:
           python-version: ${{ matrix.python-version }}
 
       - name: Install Hatch
-        run: pip install --upgrade hatch
+        uses: pypa/hatch@install
 
       - name: Lint
         # we check types with python 3.13 because with 3.9, the installation of some type stubs fails

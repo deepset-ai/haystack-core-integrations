@@ -34,8 +34,11 @@ jobs:
         with:
           python-version: "3.12"
 
+      - name: Install Hatch
+        uses: pypa/hatch@install          
+
       - name: Install dependencies
-        run: pip install hatch requests
+        run: pip install requests
 
       - name: Validate version number
         run: python .github/utils/validate_version.py --tag ${{ github.ref_name }}
