@@ -9,7 +9,7 @@ from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
-import faiss
+import faiss  # type: ignore[import-untyped]
 import numpy as np
 from haystack import default_from_dict, default_to_dict
 from haystack.dataclasses import Document
@@ -67,6 +67,13 @@ class FAISSDocumentStore:
         except RuntimeError as e:
             msg = f"Could not create FAISS index with factory string '{self.index_string}': {e}"
             raise DocumentStoreError(msg) from e
+
+    def _get_index_or_raise(self) -> Any:
+        """Return the FAISS index or raise if it is unexpectedly missing."""
+        if self.index is None:
+            msg = "FAISS index has not been initialized."
+            raise DocumentStoreError(msg)
+        return self.index
 
     def count_documents(self) -> int:
         """
@@ -175,7 +182,8 @@ class FAISSDocumentStore:
         if vectors_to_add:
             vectors = np.array(vectors_to_add, dtype="float32")
             ids = np.array(ids_to_add_to_index, dtype="int64")
-            self.index.add_with_ids(vectors, ids)
+            index = self._get_index_or_raise()
+            index.add_with_ids(vectors, ids)
 
         return docs_written
 
@@ -197,9 +205,10 @@ class FAISSDocumentStore:
                     del self.id_map[int_id]
                     ids_to_remove_from_index.append(int_id)
 
-        if ids_to_remove_from_index and self.index.ntotal > 0:
+        index = self._get_index_or_raise()
+        if ids_to_remove_from_index and index.ntotal > 0:
             ids_array = np.array(ids_to_remove_from_index, dtype="int64")
-            self.index.remove_ids(ids_array)
+            index.remove_ids(ids_array)
 
     def delete_all_documents(self) -> None:
         """
@@ -301,6 +310,9 @@ class FAISSDocumentStore:
             msg = "Missing 'field' in filter condition"
             raise FilterError(msg)
         field = condition.get("field")
+        if not isinstance(field, str):
+            msg = "'field' in filter condition must be a string"
+            raise FilterError(msg)
         if "value" not in condition:
             msg = "Missing 'value' in filter condition"
             raise FilterError(msg)
@@ -507,7 +519,7 @@ class FAISSDocumentStore:
         Saves the index and documents to disk.
         """
         path = Path(index_path)
-        faiss.write_index(self.index, str(path.with_suffix(".faiss")))
+        faiss.write_index(self._get_index_or_raise(), str(path.with_suffix(".faiss")))
 
         # Save documents and ID mapping
         data = {
