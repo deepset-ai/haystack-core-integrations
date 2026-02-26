@@ -1,6 +1,7 @@
 # SPDX-FileCopyrightText: 2023-present deepset GmbH <info@deepset.ai>
 #
 # SPDX-License-Identifier: Apache-2.0
+
 from typing import Any
 
 from haystack import component, default_from_dict, default_to_dict
@@ -49,7 +50,7 @@ class FAISSEmbeddingRetriever:
 
     assert res["retriever"]["documents"][0].content == "There are over 7,000 languages spoken around the world today."
     ```
-    """
+    """ # noqa: E501
 
     def __init__(
         self,
@@ -103,10 +104,6 @@ class FAISSEmbeddingRetriever:
         """
         doc_store_params = data["init_parameters"]["document_store"]
         data["init_parameters"]["document_store"] = FAISSDocumentStore.from_dict(doc_store_params)
-        # Pipelines serialized with old versions of the component might not
-        # have the filter_policy field.
-        if filter_policy := data["init_parameters"].get("filter_policy"):
-            data["init_parameters"]["filter_policy"] = FilterPolicy.from_str(filter_policy)
         return default_from_dict(cls, data)
 
     @component.output_types(documents=list[Document])
