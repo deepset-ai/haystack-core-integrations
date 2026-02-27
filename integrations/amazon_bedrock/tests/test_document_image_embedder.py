@@ -22,7 +22,7 @@ TYPE = (
 
 @pytest.fixture
 def image_paths(test_files_path):
-    return [test_files_path / "apple.jpg", test_files_path / "haystack-logo.png"]
+    return [test_files_path / "apple.jpg", test_files_path / "haystack-logo.png", test_files_path / "sample_pdf_1.pdf"]
 
 
 class TestAmazonBedrockDocumentImageEmbedder:
@@ -235,7 +235,7 @@ class TestAmazonBedrockDocumentImageEmbedder:
         documents = []
         for i, path in enumerate(image_paths):
             document = Document(content=f"document number {i}", meta={"file_path": path})
-            if path.endswith(".pdf"):
+            if str(path).endswith(".pdf"):
                 document.meta["page_number"] = 1
             documents.append(document)
 
@@ -267,7 +267,7 @@ class TestAmazonBedrockDocumentImageEmbedder:
         documents = []
         for i, path in enumerate(image_paths):
             document = Document(content=f"document number {i}", meta={"file_path": path})
-            if path.endswith(".pdf"):
+            if str(path).endswith(".pdf"):
                 document.meta["page_number"] = 1
             documents.append(document)
 
