@@ -1,5 +1,6 @@
 import base64
 import json
+import os
 import re
 from datetime import datetime, timezone
 from typing import Any
@@ -116,14 +117,14 @@ def _convert_file_content_to_bedrock_format(file_content: FileContent) -> dict[s
     """
 
     if file_content.mime_type is None:
-        err_msg = "FileContent mime type is required"
+        err_msg = "MIME type is required to use FileContent in Bedrock."
         raise ValueError(err_msg)
 
     mime_format = file_content.mime_type.split("/")[-1]
 
     if mime_format in DOCUMENT_SUPPORTED_FORMATS:
         source = {"bytes": base64.b64decode(file_content.base64_data)}
-        raw_name = file_content.filename or "filename"
+        raw_name = os.path.splitext(file_content.filename)[0] if file_content.filename else "filename"
         # Bedrock requires name to be present but is very strict about the format.
         # See https://docs.aws.amazon.com/bedrock/latest/APIReference/API_runtime_DocumentBlock.html
         sanitized_name = re.sub(r"\s+", " ", re.sub(r"[^a-zA-Z0-9\s\-\[\]()]", "", raw_name)).strip()
@@ -144,10 +145,10 @@ def _convert_file_content_to_bedrock_format(file_content: FileContent) -> dict[s
         return video_block
 
     err_msg = (
-            f"Unsupported file content MIME type: {file_content.mime_type}\n"
-            f"Bedrock supports the following MIME types: \n - Documents: {DOCUMENT_SUPPORTED_FORMATS}\n"
-            f"- Videos: {VIDEO_SUPPORTED_FORMATS}"
-        )
+        f"Unsupported file content MIME type: {file_content.mime_type}\n"
+        f"Bedrock supports the following MIME types: \n - Documents: {DOCUMENT_SUPPORTED_FORMATS}\n"
+        f"- Videos: {VIDEO_SUPPORTED_FORMATS}"
+    )
     raise ValueError(err_msg)
 
 
@@ -322,6 +323,7 @@ def _format_user_message(message: ChatMessage) -> dict[str, Any]:
 
     return {"role": message.role.value, "content": bedrock_content_blocks}
 
+
 def _format_textual_assistant_message(message: ChatMessage) -> dict[str, Any]:
     """
     Format a Haystack assistant ChatMessage containing text and optionally reasoning into Bedrock format.
@@ -340,7 +342,7 @@ def _format_textual_assistant_message(message: ChatMessage) -> dict[str, Any]:
         if isinstance(part, TextContent):
             bedrock_content_blocks.append({"text": part.text})
 
-    return {"role": message.role.value, "content": bedrock_content_blocks}    
+    return {"role": message.role.value, "content": bedrock_content_blocks}
 
 
 def _validate_and_format_cache_point(cache_point: dict[str, str] | None) -> dict[str, dict[str, str]] | None:
