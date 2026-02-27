@@ -1,5 +1,6 @@
 import base64
 import json
+import re
 from datetime import datetime, timezone
 from typing import Any
 
@@ -11,6 +12,7 @@ from haystack.dataclasses import (
     ChatMessage,
     ChatRole,
     ComponentInfo,
+    FileContent,
     FinishReason,
     ImageContent,
     ReasoningContent,
@@ -27,6 +29,49 @@ logger = logging.getLogger(__name__)
 
 # see https://docs.aws.amazon.com/bedrock/latest/APIReference/API_runtime_ImageBlock.html for supported formats
 IMAGE_SUPPORTED_FORMATS = ["png", "jpeg", "gif", "webp"]
+
+# https://docs.aws.amazon.com/cli/latest/reference/bedrock-runtime/converse.html
+DOCUMENT_SUPPORTED_FORMATS = [
+    "pdf",
+    "csv",
+    "doc",
+    "docx",
+    "xls",
+    "xlsx",
+    "html",
+    "txt",
+    "md",
+]
+
+VIDEO_SUPPORTED_FORMATS = [
+    "mkv",
+    "mov",
+    "mp4",
+    "webm",
+    "flv",
+    "mpeg",
+    "mpg",
+    "wmv",
+    "three_gp",
+]
+
+AUDIO_SUPPORTED_FORMATS = [
+    "mp3",
+    "opus",
+    "wav",
+    "aac",
+    "flac",
+    "mp4",
+    "ogg",
+    "mkv",
+    "mka",
+    "x-aac",
+    "m4a",
+    "mpeg",
+    "mpga",
+    "pcm",
+    "webm",
+]
 
 # see https://docs.aws.amazon.com/bedrock/latest/APIReference/API_runtime_MessageStopEvent.html
 FINISH_REASON_MAPPING: dict[str, FinishReason] = {
@@ -81,6 +126,51 @@ def _convert_image_content_to_bedrock_format(image_content: ImageContent) -> dic
     source = {"bytes": base64.b64decode(image_content.base64_image)}
 
     return {"image": {"format": image_format, "source": source}}
+
+
+def _convert_file_content_to_bedrock_format(file_content: FileContent) -> dict[str, Any]:
+    """
+    Convert a Haystack FileContent to Bedrock format.
+    """
+
+    if file_content.mime_type is None:
+        err_msg = "FileContent mime type is required"
+        raise ValueError(err_msg)
+
+    mime_category, mime_format = file_content.mime_type.split("/")
+    is_doc = mime_format in DOCUMENT_SUPPORTED_FORMATS
+    if is_doc:
+        source = {"bytes": base64.b64decode(file_content.base64_data)}
+        raw_name = file_content.filename or "filename"
+        # Bedrock requires name to be present but is very strict about the format.
+        # See https://docs.aws.amazon.com/bedrock/latest/APIReference/API_runtime_DocumentBlock.html
+        sanitized_name = re.sub(r"\s+", " ", re.sub(r"[^a-zA-Z0-9\s\-\[\]()]", "", raw_name)).strip()
+        # CITATIONS???
+        doc_block = {
+            "document": {
+                "format": mime_format,
+                "source": source,
+                "name": sanitized_name,
+                **({"context": file_content.extra["context"]} if file_content.extra.get("context") else {}),
+                **({"citations": file_content.extra["citations"]} if file_content.extra.get("citations") else {}),
+            }
+        }
+        print(doc_block)
+        return doc_block
+
+    is_video = mime_category == "video" and mime_format in VIDEO_SUPPORTED_FORMATS
+    if is_video:
+        source = {"bytes": base64.b64decode(file_content.base64_data)}
+        video_block = {"video": {"format": mime_format, "source": source}}
+        return video_block
+
+    if not any([is_doc, is_video]):
+        err_msg = (
+            f"Unsupported file content MIME type: {file_content.mime_type}\n"
+            f"Bedrock supports the following MIME types: \n - Documents: {DOCUMENT_SUPPORTED_FORMATS}\n"
+            f"- Videos: {VIDEO_SUPPORTED_FORMATS} \n - Audio: {AUDIO_SUPPORTED_FORMATS}"
+        )
+        raise ValueError(err_msg)
 
 
 def _format_tool_call_message(tool_call_message: ChatMessage) -> dict[str, Any]:
@@ -256,6 +346,12 @@ def _format_text_image_message(message: ChatMessage) -> dict[str, Any]:
                 raise ValueError(err_msg)
             bedrock_content_blocks.append(_convert_image_content_to_bedrock_format(part))
 
+        elif isinstance(part, FileContent):
+            if message.is_from(ChatRole.ASSISTANT):
+                err_msg = "File content is not supported for assistant messages"
+                raise ValueError(err_msg)
+            bedrock_content_blocks.append(_convert_file_content_to_bedrock_format(part))
+
     return {"role": message.role.value, "content": bedrock_content_blocks}
 
 
@@ -340,6 +436,7 @@ def _parse_completion_response(response_body: dict[str, Any], model: str) -> lis
     replies = []
     if "output" in response_body and "message" in response_body["output"]:
         message = response_body["output"]["message"]
+        print(message)
         if message["role"] == "assistant":
             content_blocks = message["content"]
 
@@ -386,6 +483,13 @@ def _parse_completion_response(response_body: dict[str, Any], model: str) -> lis
                     if "redactedContent" in reasoning_content:
                         reasoning_content["redacted_content"] = reasoning_content.pop("redactedContent")
                     reasoning_contents.append({"reasoning_content": reasoning_content})
+                elif "citationsContent" in content_block:
+                    citations_content = content_block["citationsContent"]
+                    meta["citations"] = citations_content
+                    if "content" in citations_content:
+                        for entry in citations_content["content"]:
+                            if entry.get("text") is not None and entry.get("text").strip():
+                                text_content.append(entry["text"].strip())
 
             reasoning_text = ""
             for content in reasoning_contents:
