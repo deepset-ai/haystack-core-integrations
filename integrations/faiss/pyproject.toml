@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "faiss-haystack"
 dynamic = ["version"]
-description = ''
+description = 'An integration of FAISS (library for efficient similarity search of dense vectors) with Haystack'
 readme = "README.md"
 requires-python = ">=3.10"
 license = "Apache-2.0"
@@ -48,7 +48,7 @@ installer = "uv"
 dependencies = ["haystack-pydoc-tools", "ruff"]
 
 [tool.hatch.envs.default.scripts]
-docs = ["pydoc-markdown pydoc/config_docusaurus.yml"]
+docs = ["haystack-pydoc pydoc/config_docusaurus.yml"]
 fmt = "ruff check --fix {args}; ruff format {args}"
 fmt-check = "ruff check {args} && ruff format --check {args}"
 
@@ -59,6 +59,7 @@ dependencies = [
     "pytest-rerunfailures",
     "mypy",
     "pandas",
+    "pip",    # needed for mypy to install type stubs
 ]
 
 [tool.hatch.envs.test.scripts]
@@ -75,8 +76,12 @@ non_interactive = true
 check_untyped_defs = true
 disallow_incomplete_defs = true
 
-[tool.hatch.metadata]
-allow-direct-references = true
+[[tool.mypy.overrides]]
+module = [
+  # faiss does not provide types
+  "faiss.*",
+]
+ignore_missing_imports = true
 
 [tool.ruff]
 line-length = 120
@@ -156,4 +161,5 @@ exclude_lines = ["no cov", "if __name__ == .__main__.:", "if TYPE_CHECKING:"]
 
 [tool.pytest.ini_options]
 minversion = "6.0"
+addopts = "--strict-markers"
 markers = ["integration: integration tests"]
