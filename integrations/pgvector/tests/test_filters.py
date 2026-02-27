@@ -144,6 +144,11 @@ def test_treat_meta_field():
     assert _treat_meta_field(field="meta.name", value=None) == "meta->>'name'"
 
 
+def test_treat_meta_field_rejects_unsafe_metadata_key():
+    with pytest.raises(FilterError, match="Invalid metadata field name"):
+        _treat_meta_field(field="meta.name' OR 1=1 --", value="x")
+
+
 def test_comparison_condition_missing_operator():
     condition = {"field": "meta.type", "value": "article"}
     with pytest.raises(FilterError):

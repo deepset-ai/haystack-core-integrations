@@ -62,6 +62,8 @@ class MetaLlamaChatGenerator(OpenAIChatGenerator):
         streaming_callback: StreamingCallbackT | None = None,
         api_base_url: str | None = "https://api.llama.com/compat/v1/",
         generation_kwargs: dict[str, Any] | None = None,
+        timeout: float | None = None,
+        max_retries: int | None = None,
         tools: ToolsType | None = None,
     ):
         """
@@ -99,6 +101,10 @@ class MetaLlamaChatGenerator(OpenAIChatGenerator):
                 For details, see the [OpenAI Structured Outputs documentation](https://platform.openai.com/docs/guides/structured-outputs).
                 For structured outputs with streaming, the `response_format` must be a JSON
                 schema and not a Pydantic model.
+        :param timeout:
+            Timeout for Llama API client calls.
+        :param max_retries:
+            Maximum number of retries to attempt for failed requests.
         :param tools:
             A list of Tool and/or Toolset objects, or a single Toolset for which the model can prepare calls.
             Each tool should have a unique name.
@@ -110,6 +116,8 @@ class MetaLlamaChatGenerator(OpenAIChatGenerator):
             api_base_url=api_base_url,
             organization=None,
             generation_kwargs=generation_kwargs,
+            timeout=timeout,
+            max_retries=max_retries,
             tools=tools,
         )
 
@@ -166,5 +174,7 @@ class MetaLlamaChatGenerator(OpenAIChatGenerator):
             api_base_url=self.api_base_url,
             generation_kwargs=generation_kwargs,
             api_key=self.api_key.to_dict(),
+            timeout=self.timeout,
+            max_retries=self.max_retries,
             tools=serialize_tools_or_toolset(self.tools),
         )

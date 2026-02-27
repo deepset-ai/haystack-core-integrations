@@ -1,0 +1,13 @@
+loaders:
+  - modules:
+      - haystack_integrations.components.rankers.pyversity.ranker
+    search_path: [../src]
+processors:
+  - type: filter
+    documented_only: true
+    skip_empty_modules: true
+renderer:
+  description: pyversity integration for Haystack
+  id: integrations-pyversity
+  filename: pyversity.md
+  title: pyversity

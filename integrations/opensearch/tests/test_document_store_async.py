@@ -827,24 +827,15 @@ class TestDocumentStoreAsync:
 
         # Verify raw JSON response structure
         assert isinstance(result, dict)
-        assert "hits" in result
-        assert "hits" in result["hits"]
-        assert len(result["hits"]["hits"]) == 2  # Two documents with category A
+        assert "schema" in result
+        assert "datarows" in result
+        assert "size" in result
+        assert "status" in result
+        assert [entry["name"] for entry in result["schema"]] == ["content", "category", "status", "priority"]
+        assert len(result["datarows"]) == 2  # Two documents with category A
 
-        # Extract _source from each hit
-        hits = result["hits"]["hits"]
-        assert all(isinstance(hit, dict) and "_source" in hit for hit in hits)
-
-        categories = [hit["_source"].get("category") for hit in hits]
-        assert all(cat == "A" for cat in categories)
-
-        # verify all expected fields are present in _source
-        for hit in hits:
-            source = hit["_source"]
-            assert "content" in source
-            assert "category" in source
-            assert "status" in source
-            assert "priority" in source
+        categories = [row[1] for row in result["datarows"]]
+        assert all(category == "A" for category in categories)
 
         # error handling for invalid SQL query
         invalid_query = "SELECT * FROM non_existent_index"
@@ -869,9 +860,14 @@ class TestDocumentStoreAsync:
 
         # Should return raw JSON response (exact count depends on OpenSearch behavior)
         assert isinstance(result, dict)
-        assert "hits" in result
-        assert "hits" in result["hits"]
-        assert all(isinstance(hit, dict) and "_source" in hit for hit in result["hits"]["hits"])
+        assert "schema" in result
+        assert "datarows" in result
+        assert "size" in result
+        assert "status" in result
+        assert [entry["name"] for entry in result["schema"]] == ["content", "category", "index"]
+        assert len(result["datarows"]) > 0
+        assert len(result["datarows"]) <= 5
+        assert result.get("cursor") is not None
 
     @pytest.mark.integration
     @pytest.mark.asyncio
@@ -889,13 +885,14 @@ class TestDocumentStoreAsync:
         # Query with small fetch_size to test pagination
         result = await document_store._query_sql_async(sql_query, fetch_size=10)
         assert isinstance(result, dict)
-        assert "hits" in result
-        assert "hits" in result["hits"]
-        assert len(result["hits"]["hits"]) > 0
+        assert "schema" in result
+        assert "datarows" in result
+        assert "size" in result
+        assert "status" in result
+        assert [entry["name"] for entry in result["schema"]] == ["content", "category", "index"]
+        assert len(result["datarows"]) > 0
+        assert len(result["datarows"]) <= 10
 
-        # Verify all results have expected fields in _source
-        for hit in result["hits"]["hits"]:
-            source = hit["_source"]
-            assert "content" in source
-            assert "category" in source
-            assert "index" in source
+        # Verify all results contain expected row columns
+        for row in result["datarows"]:
+            assert len(row) == 3

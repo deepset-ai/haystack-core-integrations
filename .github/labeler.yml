@@ -177,6 +177,11 @@ integration:pinecone:
       - any-glob-to-any-file: "integrations/pinecone/**/*"
       - any-glob-to-any-file: ".github/workflows/pinecone.yml"
 
+integration:pyversity:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/pyversity/**/*"
+      - any-glob-to-any-file: ".github/workflows/pyversity.yml"
+
 integration:qdrant:
   - changed-files:
       - any-glob-to-any-file: "integrations/qdrant/**/*"
