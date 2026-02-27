@@ -29,32 +29,37 @@ logger = logging.getLogger(__name__)
 
 
 # see https://docs.aws.amazon.com/bedrock/latest/APIReference/API_runtime_ImageBlock.html for supported formats
-IMAGE_SUPPORTED_FORMATS = ["png", "jpeg", "gif", "webp"]
+IMAGE_MIME_TYPE_TO_FORMAT: dict[str, str] = {
+    "image/png": "png",
+    "image/jpeg": "jpeg",
+    "image/jpg": "jpeg",
+    "image/gif": "gif",
+    "image/webp": "webp",
+}
 
 # https://docs.aws.amazon.com/cli/latest/reference/bedrock-runtime/converse.html
-DOCUMENT_SUPPORTED_FORMATS = [
-    "pdf",
-    "csv",
-    "doc",
-    "docx",
-    "xls",
-    "xlsx",
-    "html",
-    "txt",
-    "md",
-]
+DOCUMENT_MIME_TYPE_TO_FORMAT: dict[str, str] = {
+    "application/pdf": "pdf",
+    "text/csv": "csv",
+    "application/msword": "doc",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document": "docx",
+    "application/vnd.ms-excel": "xls",
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": "xlsx",
+    "text/html": "html",
+    "text/plain": "txt",
+    "text/markdown": "md",
+}
 
-VIDEO_SUPPORTED_FORMATS = [
-    "mkv",
-    "mov",
-    "mp4",
-    "webm",
-    "flv",
-    "mpeg",
-    "mpg",
-    "wmv",
-    "three_gp",
-]
+VIDEO_MIME_TYPE_TO_FORMAT: dict[str, str] = {
+    "video/x-matroska": "mkv",
+    "video/quicktime": "mov",
+    "video/mp4": "mp4",
+    "video/webm": "webm",
+    "video/x-flv": "flv",
+    "video/mpeg": "mpeg",
+    "video/x-ms-wmv": "wmv",
+    "video/3gpp": "three_gp",
+}
 
 # see https://docs.aws.amazon.com/bedrock/latest/APIReference/API_runtime_MessageStopEvent.html
 FINISH_REASON_MAPPING: dict[str, FinishReason] = {
@@ -98,11 +103,11 @@ def _convert_image_content_to_bedrock_format(image_content: ImageContent) -> dic
     Convert a Haystack ImageContent to Bedrock format.
     """
 
-    image_format = image_content.mime_type.split("/")[-1] if image_content.mime_type else None
-    if image_format not in IMAGE_SUPPORTED_FORMATS:
+    image_format = IMAGE_MIME_TYPE_TO_FORMAT.get(image_content.mime_type or "")
+    if image_format is None:
         err_msg = (
-            f"Unsupported image format: {image_format}. "
-            f"Bedrock supports the following image formats: {IMAGE_SUPPORTED_FORMATS}"
+            f"Unsupported image MIME type: {image_content.mime_type}. "
+            f"Bedrock supports the following image MIME types: {list(IMAGE_MIME_TYPE_TO_FORMAT)}"
         )
         raise ValueError(err_msg)
 
@@ -120,9 +125,7 @@ def _convert_file_content_to_bedrock_format(file_content: FileContent) -> dict[s
         err_msg = "MIME type is required to use FileContent in Bedrock."
         raise ValueError(err_msg)
 
-    mime_format = file_content.mime_type.split("/")[-1]
-
-    if mime_format in DOCUMENT_SUPPORTED_FORMATS:
+    if doc_format := DOCUMENT_MIME_TYPE_TO_FORMAT.get(file_content.mime_type):
         source = {"bytes": base64.b64decode(file_content.base64_data)}
         raw_name = os.path.splitext(file_content.filename)[0] if file_content.filename else "filename"
         # Bedrock requires name to be present but is very strict about the format.
@@ -130,7 +133,7 @@ def _convert_file_content_to_bedrock_format(file_content: FileContent) -> dict[s
         sanitized_name = re.sub(r"\s+", " ", re.sub(r"[^a-zA-Z0-9\s\-\[\]()]", "", raw_name)).strip()
         doc_block = {
             "document": {
-                "format": mime_format,
+                "format": doc_format,
                 "source": source,
                 "name": sanitized_name,
                 **({"context": file_content.extra["context"]} if file_content.extra.get("context") else {}),
@@ -139,15 +142,15 @@ def _convert_file_content_to_bedrock_format(file_content: FileContent) -> dict[s
         }
         return doc_block
 
-    if mime_format in VIDEO_SUPPORTED_FORMATS:
+    if video_format := VIDEO_MIME_TYPE_TO_FORMAT.get(file_content.mime_type):
         source = {"bytes": base64.b64decode(file_content.base64_data)}
-        video_block = {"video": {"format": mime_format, "source": source}}
+        video_block = {"video": {"format": video_format, "source": source}}
         return video_block
 
     err_msg = (
         f"Unsupported file content MIME type: {file_content.mime_type}\n"
-        f"Bedrock supports the following MIME types: \n - Documents: {DOCUMENT_SUPPORTED_FORMATS}\n"
-        f"- Videos: {VIDEO_SUPPORTED_FORMATS}"
+        f"Bedrock supports the following MIME types: \n - Documents: {list(DOCUMENT_MIME_TYPE_TO_FORMAT)}\n"
+        f"- Videos: {list(VIDEO_MIME_TYPE_TO_FORMAT)}"
     )
     raise ValueError(err_msg)
 
@@ -492,7 +495,7 @@ def _parse_completion_response(response_body: dict[str, Any], model: str) -> lis
             # Create a single ChatMessage with combined text and tool calls
             replies.append(
                 ChatMessage.from_assistant(
-                    " ".join(text_content),
+                    "".join(text_content),
                     tool_calls=tool_calls,
                     meta=meta,
                     reasoning=ReasoningContent(

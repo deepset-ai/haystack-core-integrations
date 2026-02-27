@@ -935,7 +935,7 @@ class TestAmazonBedrockChatGeneratorUtils:
         replies = _parse_completion_response(response_body, model)
         assert len(replies) == 1
         assert replies[0].text == (
-            "No, this is not a paper on Large Language Models.  It is a sample PDF file covering the history and "
+            "No, this is not a paper on Large Language Models. It is a sample PDF file covering the history and "
             "standardization of the PDF format by Adobe Systems."
         )
         assert replies[0].role == ChatRole.ASSISTANT

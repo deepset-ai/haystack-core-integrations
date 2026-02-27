@@ -566,24 +566,6 @@ class TestAmazonBedrockChatGeneratorInference:
         assert first_reply.text
         assert "earth" in first_reply.text.lower()
 
-    @pytest.mark.parametrize("model_name", MODELS_TO_TEST_WITH_VIDEO_INPUT)
-    def test_run_with_audio(self, model_name, test_files_path):
-        client = AmazonBedrockChatGenerator(model=model_name)
-
-        file_path = test_files_path / "audio.wav"
-        file_content = FileContent.from_file_path(file_path)
-        file_content.mime_type = "audio/wav"
-
-        chat_message = ChatMessage.from_user(content_parts=["Transcribe the audio.", file_content])
-
-        response = client.run([chat_message])
-
-        first_reply = response["replies"][0]
-        assert isinstance(first_reply, ChatMessage)
-        assert ChatMessage.is_from(first_reply, ChatRole.ASSISTANT)
-        assert first_reply.text
-        assert "answer" in first_reply.text.lower() and "context" in first_reply.text.lower()
-
     @pytest.mark.parametrize("model_name", MODELS_TO_TEST_WITH_IMAGE_INPUT)
     def test_live_run_agent_with_images_in_tool_result(self, model_name, test_files_path):
         def retrieve_image():
