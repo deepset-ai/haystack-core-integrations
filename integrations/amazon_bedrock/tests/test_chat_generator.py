@@ -537,7 +537,7 @@ class TestAmazonBedrockChatGeneratorInference:
         file_content = FileContent.from_file_path(file_path, extra={"citations": {"enabled": True}})
 
         chat_message = ChatMessage.from_user(
-            content_parts=["Is this document a paper on Large Language Models?", file_content]
+            content_parts=["Is this document a paper on Large Language Models? Respond briefly", file_content]
         )
 
         response = client.run([chat_message])

@@ -879,6 +879,92 @@ class TestAmazonBedrockChatGeneratorUtils:
             "trace": trace,
         }
 
+    def test_parse_completion_response_with_citations(self, mock_boto3_session):
+        model = "anthropic.claude-4-6-sonnet"
+
+        response_body = {
+            "ResponseMetadata": {
+                "RequestId": "7f2b43ef-fb52-40e4-ab14-8cc1edaf5013",
+                "HTTPStatusCode": 200,
+                "HTTPHeaders": {
+                    "date": "Thu, 18 Sep 2025 09:14:48 GMT",
+                    "content-type": "application/json",
+                    "content-length": "835",
+                    "connection": "keep-alive",
+                    "x-amzn-requestid": "7f2b43ef-fb52-40e4-ab14-8cc1edaf5013",
+                },
+                "RetryAttempts": 0,
+            },
+            "output": {
+                "message": {
+                    "role": "assistant",
+                    "content": [
+                        {"text": "No, this is not a paper on Large Language Models. "},
+                        {
+                            "citationsContent": {
+                                "content": [
+                                    {
+                                        "text": (
+                                            "It is a sample PDF file covering the history and standardization of "
+                                            "the PDF format by Adobe Systems."
+                                        )
+                                    }
+                                ],
+                                "citations": [
+                                    {
+                                        "title": "samplepdf1",
+                                        "sourceContent": [
+                                            {
+                                                "text": (
+                                                    "A sample PDF file \r\nHistory and standardization\r\nFormat (PDF) "
+                                                    "Adobe Systems made the PDF specification available free of \r\n"
+                                                    "charge in 1993. "
+                                                )
+                                            }
+                                        ],
+                                        "location": {"documentPage": {"documentIndex": 0, "start": 1, "end": 2}},
+                                    }
+                                ],
+                            }
+                        },
+                    ],
+                }
+            },
+        }
+
+        replies = _parse_completion_response(response_body, model)
+        print(replies)
+        assert len(replies) == 1
+        assert replies[0].text == (
+            "No, this is not a paper on Large Language Models.  It is a sample PDF file covering the history and "
+            "standardization of the PDF format by Adobe Systems."
+        )
+        assert replies[0].role == ChatRole.ASSISTANT
+        assert replies[0].meta["citations"] == {
+            "content": [
+                {
+                    "text": (
+                        "It is a sample PDF file covering the history and standardization of the PDF format by "
+                        "Adobe Systems."
+                    )
+                }
+            ],
+            "citations": [
+                {
+                    "title": "samplepdf1",
+                    "sourceContent": [
+                        {
+                            "text": (
+                                "A sample PDF file \r\nHistory and standardization\r\nFormat (PDF) Adobe Systems "
+                                "made the PDF specification available free of \r\ncharge in 1993. "
+                            )
+                        }
+                    ],
+                    "location": {"documentPage": {"documentIndex": 0, "start": 1, "end": 2}},
+                }
+            ],
+        }
+
     def test_process_streaming_response_one_tool_call(self, mock_boto3_session):
         """
         Test that process_streaming_response correctly handles streaming events and accumulates responses
