@@ -933,7 +933,6 @@ class TestAmazonBedrockChatGeneratorUtils:
         }
 
         replies = _parse_completion_response(response_body, model)
-        print(replies)
         assert len(replies) == 1
         assert replies[0].text == (
             "No, this is not a paper on Large Language Models.  It is a sample PDF file covering the history and "

@@ -543,11 +543,9 @@ class TestAmazonBedrockChatGeneratorInference:
         response = client.run([chat_message])
 
         first_reply = response["replies"][0]
-        print(first_reply)
         assert isinstance(first_reply, ChatMessage)
         assert ChatMessage.is_from(first_reply, ChatRole.ASSISTANT)
         assert first_reply.text
-        print(first_reply.text)
         assert "no" in first_reply.text.lower()
         assert "citations" in first_reply.meta
 
@@ -566,7 +564,6 @@ class TestAmazonBedrockChatGeneratorInference:
         assert isinstance(first_reply, ChatMessage)
         assert ChatMessage.is_from(first_reply, ChatRole.ASSISTANT)
         assert first_reply.text
-        print(first_reply.text)
         assert "earth" in first_reply.text.lower()
 
     @pytest.mark.parametrize("model_name", MODELS_TO_TEST_WITH_VIDEO_INPUT)
@@ -585,7 +582,6 @@ class TestAmazonBedrockChatGeneratorInference:
         assert isinstance(first_reply, ChatMessage)
         assert ChatMessage.is_from(first_reply, ChatRole.ASSISTANT)
         assert first_reply.text
-        print(first_reply.text)
         assert "answer" in first_reply.text.lower() and "context" in first_reply.text.lower()
 
     @pytest.mark.parametrize("model_name", MODELS_TO_TEST_WITH_IMAGE_INPUT)

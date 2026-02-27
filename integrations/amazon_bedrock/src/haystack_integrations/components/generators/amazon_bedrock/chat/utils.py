@@ -428,7 +428,6 @@ def _parse_completion_response(response_body: dict[str, Any], model: str) -> lis
     replies = []
     if "output" in response_body and "message" in response_body["output"]:
         message = response_body["output"]["message"]
-        print(message)
         if message["role"] == "assistant":
             content_blocks = message["content"]
 
