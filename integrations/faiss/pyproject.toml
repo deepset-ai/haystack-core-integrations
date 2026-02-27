@@ -24,7 +24,7 @@ classifiers = [
 dependencies = [
   "haystack-ai>=2.24.0",
   "faiss-cpu>=1.8.0",
-  "numpy<2; python_version < '3.13'",
+  "numpy>=1.21.6,<2; python_version < '3.13'",
 ]
 
 [project.urls]
