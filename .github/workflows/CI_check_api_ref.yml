@@ -81,7 +81,7 @@ jobs:
 
       - name: Install Hatch
         if: steps.changed.outputs.integrations != '[]'
-        uses: pypa/hatch@install
+        run: pip install --upgrade hatch
 
       - name: Generate API references
         if: steps.changed.outputs.integrations != '[]'
