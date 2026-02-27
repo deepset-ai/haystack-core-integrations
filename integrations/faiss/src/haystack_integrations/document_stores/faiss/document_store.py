@@ -40,6 +40,8 @@ class FAISSDocumentStore:
         :param index_path: Path to save/load the index and documents. If None, the store is in-memory only.
         :param index_string: The FAISS index factory string. Default is "Flat".
         :param embedding_dim: The dimension of the embeddings. Default is 768.
+        :raises DocumentStoreError: If the FAISS index cannot be initialized.
+        :raises ValueError: If `index_path` points to a missing `.faiss` file when loading persisted data.
         """
         self.index_path = index_path
         self.embedding_dim = embedding_dim
@@ -87,6 +89,7 @@ class FAISSDocumentStore:
 
         :param filters: A dictionary of filters to apply.
         :return: A list of matching Documents.
+        :raises FilterError: If the filter structure is invalid.
         """
         if not filters:
             return list(self.documents.values())
@@ -127,6 +130,9 @@ class FAISSDocumentStore:
         :param documents: The list of documents to write.
         :param policy: The policy to handle duplicate documents.
         :return: The number of documents written.
+        :raises ValueError: If `documents` is not an iterable of `Document` objects.
+        :raises DuplicateDocumentError: If a duplicate document is found and `policy` is `DuplicatePolicy.FAIL`.
+        :raises DocumentStoreError: If the FAISS index is unexpectedly unavailable when adding embeddings.
         """
         if not isinstance(documents, Iterable) or isinstance(documents, (str, bytes)):
             msg = "param 'documents' must contain an iterable of objects of type Document."
@@ -190,6 +196,8 @@ class FAISSDocumentStore:
     def delete_documents(self, document_ids: list[str]) -> None:
         """
         Deletes documents from the store.
+
+        :raises DocumentStoreError: If the FAISS index is unexpectedly unavailable when removing embeddings.
         """
         if not document_ids:
             return
@@ -230,6 +238,7 @@ class FAISSDocumentStore:
         :param top_k: The number of results to return.
         :param filters: Filters to apply.
         :return: A list of matching Documents.
+        :raises FilterError: If the filter structure is invalid.
         """
         if not self.index or self.index.ntotal == 0:
             return []
@@ -382,6 +391,8 @@ class FAISSDocumentStore:
 
         :param filters: A dictionary of filters to apply to find documents to delete.
         :returns: The number of documents deleted.
+        :raises FilterError: If the filter structure is invalid.
+        :raises DocumentStoreError: If the FAISS index is unexpectedly unavailable when removing embeddings.
         """
         docs_to_delete = self.filter_documents(filters)
         ids = [doc.id for doc in docs_to_delete]
@@ -394,6 +405,7 @@ class FAISSDocumentStore:
 
         :param filters: A dictionary of filters to apply.
         :returns: The number of matching documents.
+        :raises FilterError: If the filter structure is invalid.
         """
         return len(self.filter_documents(filters))
 
@@ -407,6 +419,7 @@ class FAISSDocumentStore:
         :param filters: A dictionary of filters to apply to find documents to update.
         :param meta: A dictionary of metadata key-value pairs to update in the matching documents.
         :returns: The number of documents updated.
+        :raises FilterError: If the filter structure is invalid.
         """
         docs_to_update = self.filter_documents(filters)
         for doc in docs_to_update:
@@ -517,6 +530,8 @@ class FAISSDocumentStore:
     def save(self, index_path: str | Path) -> None:
         """
         Saves the index and documents to disk.
+
+        :raises DocumentStoreError: If the FAISS index is unexpectedly unavailable.
         """
         path = Path(index_path)
         faiss.write_index(self._get_index_or_raise(), str(path.with_suffix(".faiss")))
@@ -535,6 +550,8 @@ class FAISSDocumentStore:
     def load(self, index_path: str | Path) -> None:
         """
         Loads the index and documents from disk.
+
+        :raises ValueError: If the `.faiss` file does not exist.
         """
         path = Path(index_path)
         if not path.with_suffix(".faiss").exists():
