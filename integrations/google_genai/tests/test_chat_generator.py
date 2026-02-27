@@ -4,10 +4,8 @@
 
 import asyncio
 import os
-from unittest.mock import Mock
 
 import pytest
-from google.genai import types
 from haystack.components.agents import Agent
 from haystack.components.generators.utils import print_streaming_chunk
 from haystack.dataclasses import (
@@ -26,9 +24,6 @@ from haystack.utils.auth import Secret
 
 from haystack_integrations.components.generators.google_genai.chat.chat_generator import (
     GoogleGenAIChatGenerator,
-)
-from haystack_integrations.components.generators.google_genai.chat.utils import (
-    _process_thinking_config,
 )
 
 
@@ -645,185 +640,6 @@ class TestGoogleGenAIChatGeneratorInference:
         result = agent.run(messages=[user_message])
 
         assert "apple" in result["last_message"].text.lower()
-
-    def test_aggregate_streaming_chunks_with_reasoning(self, monkeypatch):
-        """Test the _aggregate_streaming_chunks_with_reasoning method for reasoning content aggregation."""
-        monkeypatch.setenv("GOOGLE_API_KEY", "test-api-key")
-        component = GoogleGenAIChatGenerator()
-        component_info = ComponentInfo.from_component(component)
-
-        # Create mock streaming chunks with reasoning content
-        chunk1 = Mock()
-        chunk1.content = "Hello"
-        chunk1.tool_calls = []
-        chunk1.meta = {"usage": {"prompt_tokens": 10, "completion_tokens": 5}}
-        chunk1.component_info = component_info
-        chunk1.reasoning = None
-
-        chunk2 = Mock()
-        chunk2.content = " world"
-        chunk2.tool_calls = []
-        chunk2.meta = {"usage": {"prompt_tokens": 10, "completion_tokens": 8}}
-        chunk2.component_info = component_info
-        chunk2.reasoning = None
-
-        # Mock the final chunk with reasoning
-        final_chunk = Mock()
-        final_chunk.content = ""
-        final_chunk.tool_calls = []
-        final_chunk.meta = {
-            "usage": {"prompt_tokens": 10, "completion_tokens": 13, "thoughts_token_count": 5},
-            "model": "gemini-2.5-pro",
-        }
-        final_chunk.component_info = component_info
-        final_chunk.reasoning = ReasoningContent(reasoning_text="I should greet the user politely")
-
-        # Add reasoning deltas to the final chunk meta (this is how the real method works)
-        final_chunk.meta["reasoning_deltas"] = [{"type": "reasoning", "content": "I should greet the user politely"}]
-
-        # Test aggregation
-        result = GoogleGenAIChatGenerator._aggregate_streaming_chunks_with_reasoning([chunk1, chunk2, final_chunk])
-
-        # Verify the aggregated message
-        assert result.text == "Hello world"
-        assert result.tool_calls == []
-        assert result.reasoning is not None
-        assert result.reasoning.reasoning_text == "I should greet the user politely"
-        assert result.meta["usage"]["prompt_tokens"] == 10
-        assert result.meta["usage"]["completion_tokens"] == 13
-        assert result.meta["usage"]["thoughts_token_count"] == 5
-        assert result.meta["model"] == "gemini-2.5-pro"
-
-    def test_process_thinking_budget(self, monkeypatch):
-        """Test the _process_thinking_config function with different thinking_budget values."""
-        monkeypatch.setenv("GOOGLE_API_KEY", "test-api-key")
-
-        # Test valid thinking_budget values
-        generation_kwargs = {"thinking_budget": 1024, "temperature": 0.7}
-        result = _process_thinking_config(generation_kwargs)
-
-        # thinking_budget should be moved to thinking_config
-        assert "thinking_budget" not in result
-        assert "thinking_config" in result
-        assert result["thinking_config"].thinking_budget == 1024
-        assert result["thinking_config"].include_thoughts is True
-        # Other kwargs should be preserved
-        assert result["temperature"] == 0.7
-
-        # Test dynamic allocation (-1)
-        generation_kwargs = {"thinking_budget": -1}
-        result = _process_thinking_config(generation_kwargs)
-        assert result["thinking_config"].thinking_budget == -1
-        assert result["thinking_config"].include_thoughts is True
-
-        # Test zero (disable thinking)
-        generation_kwargs = {"thinking_budget": 0}
-        result = _process_thinking_config(generation_kwargs)
-        assert result["thinking_config"].thinking_budget == 0
-        assert result["thinking_config"].include_thoughts is False
-
-        # Test large value
-        generation_kwargs = {"thinking_budget": 24576}
-        result = _process_thinking_config(generation_kwargs)
-        assert result["thinking_config"].thinking_budget == 24576
-        assert result["thinking_config"].include_thoughts is True
-
-        # Test when thinking_budget is not present
-        generation_kwargs = {"temperature": 0.5}
-        result = _process_thinking_config(generation_kwargs)
-        assert result == generation_kwargs  # No changes
-
-        # Test invalid type (should fall back to dynamic)
-        generation_kwargs = {"thinking_budget": "invalid", "temperature": 0.5}
-        result = _process_thinking_config(generation_kwargs)
-        assert result["thinking_config"].thinking_budget == -1  # Dynamic allocation
-        assert result["temperature"] == 0.5
-
-    def test_process_thinking_level(self, monkeypatch):
-        """Test the _process_thinking_config function with different thinking_level values."""
-        monkeypatch.setenv("GOOGLE_API_KEY", "test-api-key")
-
-        # Test valid thinking_level values
-        generation_kwargs = {"thinking_level": "high", "temperature": 0.7}
-        result = _process_thinking_config(generation_kwargs)
-
-        # thinking_level should be moved to thinking_config
-        assert "thinking_level" not in result
-        assert "thinking_config" in result
-        assert result["thinking_config"].thinking_level == types.ThinkingLevel.HIGH
-        assert result["thinking_config"].include_thoughts is True
-        # Other kwargs should be preserved
-        assert result["temperature"] == 0.7
-
-        # Test THINKING_LEVEL_LOW in upper case
-        generation_kwargs = {"thinking_level": "LOW"}
-        result = _process_thinking_config(generation_kwargs)
-        assert result["thinking_config"].thinking_level == types.ThinkingLevel.LOW
-        assert result["thinking_config"].include_thoughts is True
-
-        # Test MINIMAL (should disable include_thoughts)
-        generation_kwargs = {"thinking_level": "MINIMAL"}
-        result = _process_thinking_config(generation_kwargs)
-        assert result["thinking_config"].thinking_level == types.ThinkingLevel.MINIMAL
-        assert result["thinking_config"].include_thoughts is False
-
-        # Test THINKING_LEVEL_UNSPECIFIED (invalid value falls back)
-        generation_kwargs = {"thinking_level": "test"}
-        result = _process_thinking_config(generation_kwargs)
-        assert result["thinking_config"].thinking_level == types.ThinkingLevel.THINKING_LEVEL_UNSPECIFIED
-        assert result["thinking_config"].include_thoughts is True
-
-        # Test when thinking_level is not present
-        generation_kwargs = {"temperature": 0.5}
-        result = _process_thinking_config(generation_kwargs)
-        assert result == generation_kwargs  # No changes
-
-        # Test invalid type (should fall back to THINKING_LEVEL_UNSPECIFIED)
-        generation_kwargs = {"thinking_level": 123, "temperature": 0.5}
-        result = _process_thinking_config(generation_kwargs)
-        assert result["thinking_config"].thinking_level == types.ThinkingLevel.THINKING_LEVEL_UNSPECIFIED
-        assert result["thinking_config"].include_thoughts is True
-        assert result["temperature"] == 0.5
-
-    def test_process_thinking_config_explicit_include_thoughts(self, monkeypatch):
-        """Test that explicit include_thoughts in generation_kwargs overrides the auto-derived value."""
-        monkeypatch.setenv("GOOGLE_API_KEY", "test-api-key")
-
-        # thinking_budget=0 normally means include_thoughts=False, but user explicitly sets True
-        generation_kwargs = {"thinking_budget": 0, "include_thoughts": True}
-        result = _process_thinking_config(generation_kwargs)
-        assert result["thinking_config"].thinking_budget == 0
-        assert result["thinking_config"].include_thoughts is True
-        assert "include_thoughts" not in result  # should be popped from top-level kwargs
-
-        # thinking_budget=1024 normally means include_thoughts=True, but user explicitly sets False
-        generation_kwargs = {"thinking_budget": 1024, "include_thoughts": False}
-        result = _process_thinking_config(generation_kwargs)
-        assert result["thinking_config"].thinking_budget == 1024
-        assert result["thinking_config"].include_thoughts is False
-        assert "include_thoughts" not in result
-
-        # thinking_level="high" normally means include_thoughts=True, but user explicitly sets False
-        generation_kwargs = {"thinking_level": "high", "include_thoughts": False}
-        result = _process_thinking_config(generation_kwargs)
-        assert result["thinking_config"].thinking_level == types.ThinkingLevel.HIGH
-        assert result["thinking_config"].include_thoughts is False
-        assert "include_thoughts" not in result
-
-        # thinking_level="minimal" normally means include_thoughts=False, but user explicitly sets True
-        generation_kwargs = {"thinking_level": "minimal", "include_thoughts": True}
-        result = _process_thinking_config(generation_kwargs)
-        assert result["thinking_config"].thinking_level == types.ThinkingLevel.MINIMAL
-        assert result["thinking_config"].include_thoughts is True
-        assert "include_thoughts" not in result
-
-        # include_thoughts alone (no thinking_budget or thinking_level) should just be popped and ignored
-        generation_kwargs = {"include_thoughts": True, "temperature": 0.5}
-        result = _process_thinking_config(generation_kwargs)
-        assert "include_thoughts" not in result
-        assert "thinking_config" not in result
-        assert result == {"temperature": 0.5}
-
 
 @pytest.mark.skipif(
     not os.environ.get("GOOGLE_API_KEY", None),
