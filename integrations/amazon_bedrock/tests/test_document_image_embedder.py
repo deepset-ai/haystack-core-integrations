@@ -1,4 +1,3 @@
-import glob
 import io
 import os
 from typing import Any
@@ -19,6 +18,11 @@ TYPE = (
     "haystack_integrations.components.embedders.amazon_bedrock."
     "document_image_embedder.AmazonBedrockDocumentImageEmbedder"
 )
+
+
+@pytest.fixture
+def image_paths(test_files_path):
+    return [test_files_path / "apple.jpg", test_files_path / "haystack-logo.png"]
 
 
 class TestAmazonBedrockDocumentImageEmbedder:
@@ -127,9 +131,8 @@ class TestAmazonBedrockDocumentImageEmbedder:
         with pytest.raises(TypeError):
             embedder.run(documents="some string")
 
-    def test_run_invocation_error(self, mock_boto3_session, test_files_path):
+    def test_run_invocation_error(self, mock_boto3_session, image_paths):
         embedder = AmazonBedrockDocumentImageEmbedder(model="cohere.embed-english-v3")
-        image_paths = glob.glob(str(test_files_path / "*.jpg"))
 
         with patch.object(embedder._client, "invoke_model") as mock_invoke_model:
             mock_invoke_model.side_effect = ClientError(
@@ -152,9 +155,8 @@ class TestAmazonBedrockDocumentImageEmbedder:
             '{"embeddings": {"float": [[0.1, 0.2, 0.3]]}}',  # dict with embedding type as key
         ],
     )
-    def test_embed_cohere(self, mock_boto3_session, test_files_path, response_body):
+    def test_embed_cohere(self, mock_boto3_session, image_paths, response_body):
         embedder = AmazonBedrockDocumentImageEmbedder(model="cohere.embed-english-v3", embedding_types=["float"])
-        image_paths = glob.glob(str(test_files_path / "*.*"))
 
         with patch.object(embedder, "_client") as mock_client:
             mock_client.invoke_model.return_value = {
@@ -178,9 +180,8 @@ class TestAmazonBedrockDocumentImageEmbedder:
 
         assert result[0] == [0.1, 0.2, 0.3]
 
-    def test_embed_titan(self, mock_boto3_session, test_files_path):
+    def test_embed_titan(self, mock_boto3_session, image_paths):
         embedder = AmazonBedrockDocumentImageEmbedder(model="amazon.titan-embed-image-v1")
-        image_paths = glob.glob(str(test_files_path / "*.*"))
 
         mock_response = {
             "body": io.StringIO('{"embedding": [0.1, 0.2, 0.3]}'),
@@ -228,10 +229,9 @@ class TestAmazonBedrockDocumentImageEmbedder:
         reason="AWS credentials are not set",
     )
     @pytest.mark.parametrize("model", ["cohere.embed-v4:0", "cohere.embed-english-v3"])
-    def test_live_run_with_cohere(self, test_files_path, model):
+    def test_live_run_with_cohere(self, image_paths, model):
         embedder = AmazonBedrockDocumentImageEmbedder(model=model, embedding_types=["int8"])
 
-        image_paths = glob.glob(str(test_files_path / "*.*"))
         documents = []
         for i, path in enumerate(image_paths):
             document = Document(content=f"document number {i}", meta={"file_path": path})
@@ -261,10 +261,9 @@ class TestAmazonBedrockDocumentImageEmbedder:
         or not os.getenv("AWS_DEFAULT_REGION"),
         reason="AWS credentials are not set",
     )
-    def test_live_run_with_titan(self, test_files_path):
+    def test_live_run_with_titan(self, image_paths):
         embedder = AmazonBedrockDocumentImageEmbedder(model="amazon.titan-embed-image-v1", image_size=(100, 100))
 
-        image_paths = glob.glob(str(test_files_path / "*.*"))
         documents = []
         for i, path in enumerate(image_paths):
             document = Document(content=f"document number {i}", meta={"file_path": path})

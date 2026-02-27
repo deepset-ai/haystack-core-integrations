@@ -107,7 +107,7 @@ def _convert_image_content_to_bedrock_format(image_content: ImageContent) -> dic
     if image_format is None:
         err_msg = (
             f"Unsupported image MIME type: {image_content.mime_type}. "
-            f"Bedrock supports the following image MIME types: {list(IMAGE_MIME_TYPE_TO_FORMAT)}"
+            f"Bedrock supports the following image formats: {list(set(IMAGE_MIME_TYPE_TO_FORMAT.values()))}"
         )
         raise ValueError(err_msg)
 
@@ -149,8 +149,8 @@ def _convert_file_content_to_bedrock_format(file_content: FileContent) -> dict[s
 
     err_msg = (
         f"Unsupported file content MIME type: {file_content.mime_type}\n"
-        f"Bedrock supports the following MIME types: \n - Documents: {list(DOCUMENT_MIME_TYPE_TO_FORMAT)}\n"
-        f"- Videos: {list(VIDEO_MIME_TYPE_TO_FORMAT)}"
+        f"Bedrock supports the following formats:\n - Documents: {list(DOCUMENT_MIME_TYPE_TO_FORMAT.values())}\n"
+        f" - Videos: {list(VIDEO_MIME_TYPE_TO_FORMAT.values())}"
     )
     raise ValueError(err_msg)
 
