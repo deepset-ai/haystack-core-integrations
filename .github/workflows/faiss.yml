@@ -18,6 +18,7 @@ concurrency:
 env:
   PYTHONUNBUFFERED: "1"
   FORCE_COLOR: "1"
+  HATCH_PYTHON: "python"
 
 defaults:
   run:
