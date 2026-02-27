@@ -51,7 +51,7 @@ jobs:
         run: hatch run docs
 
       - name: Upload API reference artifact
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: ${{ steps.pathfinder.outputs.integration_name }}
           path: ${{ steps.pathfinder.outputs.project_path }}/${{ steps.pathfinder.outputs.integration_name }}.md
