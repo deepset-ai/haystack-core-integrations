@@ -55,24 +55,6 @@ VIDEO_SUPPORTED_FORMATS = [
     "three_gp",
 ]
 
-AUDIO_SUPPORTED_FORMATS = [
-    "mp3",
-    "opus",
-    "wav",
-    "aac",
-    "flac",
-    "mp4",
-    "ogg",
-    "mkv",
-    "mka",
-    "x-aac",
-    "m4a",
-    "mpeg",
-    "mpga",
-    "pcm",
-    "webm",
-]
-
 # see https://docs.aws.amazon.com/bedrock/latest/APIReference/API_runtime_MessageStopEvent.html
 FINISH_REASON_MAPPING: dict[str, FinishReason] = {
     "end_turn": "stop",
@@ -137,15 +119,14 @@ def _convert_file_content_to_bedrock_format(file_content: FileContent) -> dict[s
         err_msg = "FileContent mime type is required"
         raise ValueError(err_msg)
 
-    mime_category, mime_format = file_content.mime_type.split("/")
-    is_doc = mime_format in DOCUMENT_SUPPORTED_FORMATS
-    if is_doc:
+    mime_format = file_content.mime_type.split("/")[-1]
+
+    if mime_format in DOCUMENT_SUPPORTED_FORMATS:
         source = {"bytes": base64.b64decode(file_content.base64_data)}
         raw_name = file_content.filename or "filename"
         # Bedrock requires name to be present but is very strict about the format.
         # See https://docs.aws.amazon.com/bedrock/latest/APIReference/API_runtime_DocumentBlock.html
         sanitized_name = re.sub(r"\s+", " ", re.sub(r"[^a-zA-Z0-9\s\-\[\]()]", "", raw_name)).strip()
-        # CITATIONS???
         doc_block = {
             "document": {
                 "format": mime_format,
@@ -155,22 +136,19 @@ def _convert_file_content_to_bedrock_format(file_content: FileContent) -> dict[s
                 **({"citations": file_content.extra["citations"]} if file_content.extra.get("citations") else {}),
             }
         }
-        print(doc_block)
         return doc_block
 
-    is_video = mime_category == "video" and mime_format in VIDEO_SUPPORTED_FORMATS
-    if is_video:
+    if mime_format in VIDEO_SUPPORTED_FORMATS:
         source = {"bytes": base64.b64decode(file_content.base64_data)}
         video_block = {"video": {"format": mime_format, "source": source}}
         return video_block
 
-    if not any([is_doc, is_video]):
-        err_msg = (
+    err_msg = (
             f"Unsupported file content MIME type: {file_content.mime_type}\n"
             f"Bedrock supports the following MIME types: \n - Documents: {DOCUMENT_SUPPORTED_FORMATS}\n"
-            f"- Videos: {VIDEO_SUPPORTED_FORMATS} \n - Audio: {AUDIO_SUPPORTED_FORMATS}"
+            f"- Videos: {VIDEO_SUPPORTED_FORMATS}"
         )
-        raise ValueError(err_msg)
+    raise ValueError(err_msg)
 
 
 def _format_tool_call_message(tool_call_message: ChatMessage) -> dict[str, Any]:
@@ -321,13 +299,35 @@ def _format_reasoning_content(reasoning_content: ReasoningContent) -> list[dict[
     return formatted_contents
 
 
-def _format_text_image_message(message: ChatMessage) -> dict[str, Any]:
+def _format_user_message(message: ChatMessage) -> dict[str, Any]:
     """
-    Format a Haystack ChatMessage containing text and optional image content into Bedrock format.
+    Format a Haystack user ChatMessage into Bedrock format.
 
     :param message: Haystack ChatMessage.
     :returns: Dictionary representing the message in Bedrock's expected format.
-    :raises ValueError: If image content is found in an assistant message or an unsupported image format is used.
+    """
+    content_parts = message._content
+
+    bedrock_content_blocks: list[dict[str, Any]] = []
+
+    for part in content_parts:
+        if isinstance(part, TextContent):
+            bedrock_content_blocks.append({"text": part.text})
+
+        elif isinstance(part, ImageContent):
+            bedrock_content_blocks.append(_convert_image_content_to_bedrock_format(part))
+
+        elif isinstance(part, FileContent):
+            bedrock_content_blocks.append(_convert_file_content_to_bedrock_format(part))
+
+    return {"role": message.role.value, "content": bedrock_content_blocks}
+
+def _format_textual_assistant_message(message: ChatMessage) -> dict[str, Any]:
+    """
+    Format a Haystack assistant ChatMessage containing text and optionally reasoning into Bedrock format.
+
+    :param message: Haystack ChatMessage.
+    :returns: Dictionary representing the message in Bedrock's expected format.
     """
     content_parts = message._content
 
@@ -340,19 +340,7 @@ def _format_text_image_message(message: ChatMessage) -> dict[str, Any]:
         if isinstance(part, TextContent):
             bedrock_content_blocks.append({"text": part.text})
 
-        elif isinstance(part, ImageContent):
-            if message.is_from(ChatRole.ASSISTANT):
-                err_msg = "Image content is not supported for assistant messages"
-                raise ValueError(err_msg)
-            bedrock_content_blocks.append(_convert_image_content_to_bedrock_format(part))
-
-        elif isinstance(part, FileContent):
-            if message.is_from(ChatRole.ASSISTANT):
-                err_msg = "File content is not supported for assistant messages"
-                raise ValueError(err_msg)
-            bedrock_content_blocks.append(_convert_file_content_to_bedrock_format(part))
-
-    return {"role": message.role.value, "content": bedrock_content_blocks}
+    return {"role": message.role.value, "content": bedrock_content_blocks}    
 
 
 def _validate_and_format_cache_point(cache_point: dict[str, str] | None) -> dict[str, dict[str, str]] | None:
@@ -410,8 +398,10 @@ def _format_messages(messages: list[ChatMessage]) -> tuple[list[dict[str, Any]],
             formatted_msg = _format_tool_call_message(msg)
         elif msg.tool_call_results:
             formatted_msg = _format_tool_result_message(msg)
-        else:
-            formatted_msg = _format_text_image_message(msg)
+        elif msg.is_from(ChatRole.USER):
+            formatted_msg = _format_user_message(msg)
+        elif msg.is_from(ChatRole.ASSISTANT):
+            formatted_msg = _format_textual_assistant_message(msg)
         if cache_point:
             formatted_msg["content"].append(cache_point)
         bedrock_formatted_messages.append(formatted_msg)
