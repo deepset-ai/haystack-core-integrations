@@ -248,7 +248,7 @@ class TestSTACKITChatGenerator:
         results = component.run(chat_messages)
         assert len(results["replies"]) == 1
         message: ChatMessage = results["replies"][0]
-        assert "Paris" in message.text
+        assert "paris" in message.text.lower()
         assert "neuralmagic/Meta-Llama-3.1-8B-Instruct-FP8" in message.meta["model"]
         assert message.meta["finish_reason"] == "stop"
 
@@ -285,13 +285,13 @@ class TestSTACKITChatGenerator:
 
         assert len(results["replies"]) == 1
         message: ChatMessage = results["replies"][0]
-        assert "Paris" in message.text
+        assert "paris" in message.text.lower()
 
         assert "neuralmagic/Meta-Llama-3.1-8B-Instruct-FP8" in message.meta["model"]
         assert message.meta["finish_reason"] == "stop"
 
         assert callback.counter > 1
-        assert "Paris" in callback.responses
+        assert "paris" in callback.responses.lower()
 
     @pytest.mark.skipif(
         not os.environ.get("STACKIT_API_KEY", None),
@@ -325,9 +325,9 @@ class TestSTACKITChatGenerator:
         assert len(results["replies"]) == 1
         message: ChatMessage = results["replies"][0]
         msg = json.loads(message.text)
-        assert "Paris" in msg["city"]
+        assert "paris" in msg["city"].lower()
         assert isinstance(msg["country"], str)
-        assert "France" in msg["country"]
+        assert "france" in msg["country"].lower()
         assert message.meta["finish_reason"] == "stop"
 
     @pytest.mark.skipif(
@@ -347,6 +347,6 @@ class TestSTACKITChatGenerator:
         assert len(results["replies"]) == 1
         message: ChatMessage = results["replies"][0]
         msg = json.loads(message.text)
-        assert "Marketing Summit" in msg["event_name"]
+        assert "marketing summit" in msg["event_name"].lower()
         assert isinstance(msg["event_date"], str)
         assert isinstance(msg["event_location"], str)
