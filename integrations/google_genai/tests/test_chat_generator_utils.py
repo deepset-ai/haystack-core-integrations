@@ -490,7 +490,7 @@ class TestStreamingChunkConversion:
         assert streaming_chunk.tool_calls[5].index == 5
 
     def test_aggregate_streaming_chunks_with_reasoning(self):
-        """Test the _aggregate_streaming_chunks_with_reasoning method for reasoning content aggregation."""
+        """Test the _aggregate_streaming_chunks_with_reasoning function for reasoning content aggregation."""
 
         # Create mock streaming chunks with reasoning content
         chunk1 = Mock()

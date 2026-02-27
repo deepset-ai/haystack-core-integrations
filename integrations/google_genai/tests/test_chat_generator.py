@@ -641,6 +641,7 @@ class TestGoogleGenAIChatGeneratorInference:
 
         assert "apple" in result["last_message"].text.lower()
 
+
 @pytest.mark.skipif(
     not os.environ.get("GOOGLE_API_KEY", None),
     reason="Export an env var called GOOGLE_API_KEY containing the Google API key to run this test.",
