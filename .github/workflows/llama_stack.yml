@@ -110,7 +110,7 @@ jobs:
           curl -fsS http://localhost:8321/v1/models || { echo "Health check failed. Logs:"; cat server.log; exit 1; }
 
       - name: Install Hatch
-        run: pip install --upgrade hatch
+        run: pip install hatch "virtualenv<21.0.0"
 
       - name: Lint
         if: matrix.python-version == '3.12' && runner.os == 'Linux'
