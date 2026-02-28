@@ -75,12 +75,14 @@ for doc in result["retriever"]["documents"]:
     print(f"  score={doc.score:.4f}  category={doc.meta.get('category')}  content={doc.content[:80]}...")
 
 # --- 5. Filter retrieval (only 'database' category) ---
-result_filtered = pipeline.run({
-    "retriever": {
-        "query_embedding": query_embedding,
-        "filters": {"field": "meta.category", "operator": "==", "value": "database"},
+result_filtered = pipeline.run(
+    {
+        "retriever": {
+            "query_embedding": query_embedding,
+            "filters": {"field": "meta.category", "operator": "==", "value": "database"},
+        }
     }
-})
+)
 
 print("\n--- Filtered (category=database) ---")
 for doc in result_filtered["retriever"]["documents"]:

@@ -120,18 +120,14 @@ class TestArcadeDBDocumentStoreIntegration:
         docs = _sample_docs(3)
         document_store.write_documents(docs, policy=DuplicatePolicy.OVERWRITE)
 
-        result = document_store.filter_documents(
-            filters={"field": "meta.category", "operator": "==", "value": "test"}
-        )
+        result = document_store.filter_documents(filters={"field": "meta.category", "operator": "==", "value": "test"})
         assert len(result) == 3
 
     def test_filter_comparison(self, document_store):
         docs = _sample_docs(5)
         document_store.write_documents(docs, policy=DuplicatePolicy.OVERWRITE)
 
-        result = document_store.filter_documents(
-            filters={"field": "meta.priority", "operator": ">", "value": 2}
-        )
+        result = document_store.filter_documents(filters={"field": "meta.priority", "operator": ">", "value": 2})
         assert len(result) == 2  # priority 3 and 4
 
     def test_filter_and(self, document_store):
@@ -153,8 +149,6 @@ class TestArcadeDBDocumentStoreIntegration:
         docs = _sample_docs(5, dim=4)
         document_store.write_documents(docs, policy=DuplicatePolicy.OVERWRITE)
 
-        results = document_store._embedding_retrieval(
-            query_embedding=[4.0, 4.0, 4.0, 4.0], top_k=3
-        )
+        results = document_store._embedding_retrieval(query_embedding=[4.0, 4.0, 4.0, 4.0], top_k=3)
         assert len(results) <= 3
         assert results[0].score is not None

@@ -42,48 +42,56 @@ class TestFilterConversion:
         assert result == "meta.tag NOT IN ['x']"
 
     def test_and(self):
-        result = _convert_filters({
-            "operator": "AND",
-            "conditions": [
-                {"field": "meta.a", "operator": "==", "value": 1},
-                {"field": "meta.b", "operator": ">", "value": 2},
-            ],
-        })
+        result = _convert_filters(
+            {
+                "operator": "AND",
+                "conditions": [
+                    {"field": "meta.a", "operator": "==", "value": 1},
+                    {"field": "meta.b", "operator": ">", "value": 2},
+                ],
+            }
+        )
         assert result == "(meta.a = 1 AND meta.b > 2)"
 
     def test_or(self):
-        result = _convert_filters({
-            "operator": "OR",
-            "conditions": [
-                {"field": "meta.x", "operator": "==", "value": "yes"},
-                {"field": "meta.y", "operator": "==", "value": "no"},
-            ],
-        })
+        result = _convert_filters(
+            {
+                "operator": "OR",
+                "conditions": [
+                    {"field": "meta.x", "operator": "==", "value": "yes"},
+                    {"field": "meta.y", "operator": "==", "value": "no"},
+                ],
+            }
+        )
         assert result == "(meta.x = 'yes' OR meta.y = 'no')"
 
     def test_not(self):
-        result = _convert_filters({
-            "operator": "NOT",
-            "conditions": [
-                {"field": "meta.deleted", "operator": "==", "value": True},
-            ],
-        })
+        result = _convert_filters(
+            {
+                "operator": "NOT",
+                "conditions": [
+                    {"field": "meta.deleted", "operator": "==", "value": True},
+                ],
+            }
+        )
         assert result == "NOT (meta.deleted = true)"
 
     def test_nested(self):
-        result = _convert_filters({
-            "operator": "AND",
-            "conditions": [
-                {"field": "meta.a", "operator": "==", "value": 1},
-                {
-                    "operator": "OR",
-                    "conditions": [
-                        {"field": "meta.b", "operator": "==", "value": 2},
-                        {"field": "meta.c", "operator": "==", "value": 3},
-                    ],
-                },
-            ],
-        })
+        result = _convert_filters(
+            {
+                "operator": "AND",
+                "conditions": [
+                    {"field": "meta.a", "operator": "==", "value": 1},
+                    {
+                        "operator": "OR",
+                        "conditions": [
+                            {"field": "meta.b", "operator": "==", "value": 2},
+                            {"field": "meta.c", "operator": "==", "value": 3},
+                        ],
+                    },
+                ],
+            }
+        )
         assert result == "(meta.a = 1 AND (meta.b = 2 OR meta.c = 3))"
 
     def test_missing_operator_raises(self):

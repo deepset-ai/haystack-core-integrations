@@ -271,9 +271,7 @@ class ArcadeDBDocumentStore:
                 written += 1
 
             elif policy == DuplicatePolicy.SKIP:
-                existing = self._command(
-                    f"SELECT id FROM `{self._type_name}` WHERE id = {_sql_str(record['id'])}"
-                )
+                existing = self._command(f"SELECT id FROM `{self._type_name}` WHERE id = {_sql_str(record['id'])}")
                 if existing:
                     continue
                 self._insert_record(record, embedding_str, meta_str)
@@ -281,9 +279,7 @@ class ArcadeDBDocumentStore:
 
             else:
                 # DuplicatePolicy.NONE — raise on duplicate
-                existing = self._command(
-                    f"SELECT id FROM `{self._type_name}` WHERE id = {_sql_str(record['id'])}"
-                )
+                existing = self._command(f"SELECT id FROM `{self._type_name}` WHERE id = {_sql_str(record['id'])}")
                 if existing:
                     msg = f"Document with id '{record['id']}' already exists."
                     raise DuplicateDocumentError(msg)
@@ -337,10 +333,7 @@ class ArcadeDBDocumentStore:
         embedding_str = str(query_embedding)
 
         # vectorNeighbors returns a single row with a "neighbors" list of {record, distance}
-        sql = (
-            f"SELECT vectorNeighbors('{self._type_name}[embedding]', "
-            f"{embedding_str}, {top_k}) AS neighbors"
-        )
+        sql = f"SELECT vectorNeighbors('{self._type_name}[embedding]', {embedding_str}, {top_k}) AS neighbors"
         rows = self._command(sql)
         if not rows or not rows[0].get("neighbors"):
             return []
@@ -364,9 +357,7 @@ class ArcadeDBDocumentStore:
 
         # Post-filter by metadata if specified
         if where and filters:
-            filtered_ids = {
-                r["id"] for r in self._command(f"SELECT id FROM `{self._type_name}` WHERE {where}")
-            }
+            filtered_ids = {r["id"] for r in self._command(f"SELECT id FROM `{self._type_name}` WHERE {where}")}
             documents = [d for d in documents if d.id in filtered_ids]
 
         return documents
