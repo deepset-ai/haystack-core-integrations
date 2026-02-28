@@ -66,6 +66,7 @@ class ArcadeDBEmbeddingRetriever:
         """
         effective_top_k = top_k if top_k is not None else self._top_k
 
+        effective_filters: dict[str, Any] | None
         if self._filter_policy == FilterPolicy.REPLACE and filters is not None:
             effective_filters = filters
         elif self._filter_policy == FilterPolicy.MERGE and filters is not None and self._filters is not None:
