@@ -5,6 +5,7 @@
 """ArcadeDB DocumentStore for Haystack 2.x — document storage + vector search via HTTP/JSON API."""
 
 import logging
+from http import HTTPStatus
 from typing import Any, ClassVar
 
 import requests
@@ -54,8 +55,8 @@ class ArcadeDBDocumentStore:
         *,
         url: str = "http://localhost:2480",
         database: str = "haystack",
-        username: Secret = Secret.from_env_var("ARCADEDB_USERNAME", strict=False),  # noqa: B008
-        password: Secret = Secret.from_env_var("ARCADEDB_PASSWORD", strict=False),  # noqa: B008
+        username: Secret = Secret.from_env_var("ARCADEDB_USERNAME", strict=False),
+        password: Secret = Secret.from_env_var("ARCADEDB_PASSWORD", strict=False),
         type_name: str = "Document",
         embedding_dimension: int = 768,
         similarity_function: str = "cosine",
@@ -135,7 +136,7 @@ class ArcadeDBDocumentStore:
             payload["params"] = positional_params
 
         resp = self._session.post(url, json=payload, auth=self._auth())
-        if resp.status_code >= 400:
+        if resp.status_code >= HTTPStatus.BAD_REQUEST:
             msg = f"ArcadeDB command failed ({resp.status_code}): {resp.text}"
             raise RuntimeError(msg)
 
@@ -146,7 +147,7 @@ class ArcadeDBDocumentStore:
         """Execute a server-level command (e.g. CREATE DATABASE)."""
         url = f"{self._url}/api/v1/server"
         resp = self._session.post(url, json={"command": command}, auth=self._auth())
-        if resp.status_code >= 400:
+        if resp.status_code >= HTTPStatus.BAD_REQUEST:
             msg = f"ArcadeDB server command failed ({resp.status_code}): {resp.text}"
             raise RuntimeError(msg)
         return resp.json()
