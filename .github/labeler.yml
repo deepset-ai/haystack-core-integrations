@@ -4,6 +4,11 @@ integration:aimlapi:
       - any-glob-to-any-file: "integrations/aimlapi/**/*"
       - any-glob-to-any-file: ".github/workflows/aimlapi.yml"
 
+integration:arcadedb:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/arcadedb/**/*"
+      - any-glob-to-any-file: ".github/workflows/arcadedb.yml"
+
 integration:amazon-bedrock:
   - changed-files:
       - any-glob-to-any-file: "integrations/amazon_bedrock/**/*"

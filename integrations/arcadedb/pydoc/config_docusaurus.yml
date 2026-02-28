@@ -1,0 +1,14 @@
+loaders:
+  - modules:
+      - haystack_integrations.components.retrievers.arcadedb.embedding_retriever
+      - haystack_integrations.document_stores.arcadedb.document_store
+    search_path: [../src]
+processors:
+  - type: filter
+    documented_only: true
+    skip_empty_modules: true
+renderer:
+  description: ArcadeDB integration for Haystack
+  id: integrations-arcadedb
+  filename: arcadedb.md
+  title: ArcadeDB
