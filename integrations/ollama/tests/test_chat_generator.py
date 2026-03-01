@@ -518,6 +518,7 @@ class TestOllamaChatGeneratorInitSerializeDeserialize:
         assert component.url == "http://localhost:11434"
         assert component.generation_kwargs == {}
         assert component.timeout == 120
+        assert component.max_retries == 0
         assert component.streaming_callback is None
         assert component.tools is None
         assert component.keep_alive is None
@@ -529,6 +530,7 @@ class TestOllamaChatGeneratorInitSerializeDeserialize:
             url="http://my-custom-endpoint:11434",
             generation_kwargs={"temperature": 0.5},
             timeout=5,
+            max_retries=2,
             keep_alive="10m",
             streaming_callback=print_streaming_chunk,
             tools=tools,
@@ -539,6 +541,7 @@ class TestOllamaChatGeneratorInitSerializeDeserialize:
         assert component.url == "http://my-custom-endpoint:11434"
         assert component.generation_kwargs == {"temperature": 0.5}
         assert component.timeout == 5
+        assert component.max_retries == 2
         assert component.keep_alive == "10m"
         assert component.streaming_callback is print_streaming_chunk
         assert component.tools == tools
@@ -603,6 +606,7 @@ class TestOllamaChatGeneratorInitSerializeDeserialize:
             "type": "haystack_integrations.components.generators.ollama.chat.chat_generator.OllamaChatGenerator",
             "init_parameters": {
                 "timeout": 120,
+                "max_retries": 0,
                 "model": "llama2",
                 "url": "custom_url",
                 "streaming_callback": "haystack.components.generators.utils.print_streaming_chunk",
@@ -650,6 +654,7 @@ class TestOllamaChatGeneratorInitSerializeDeserialize:
             "type": "haystack_integrations.components.generators.ollama.chat.chat_generator.OllamaChatGenerator",
             "init_parameters": {
                 "timeout": 120,
+                "max_retries": 0,
                 "model": "llama2",
                 "url": "custom_url",
                 "keep_alive": "5m",
@@ -689,6 +694,7 @@ class TestOllamaChatGeneratorInitSerializeDeserialize:
             "some_test_param": "test-params",
         }
         assert component.timeout == 120
+        assert component.max_retries == 0
         assert component.tools == [tool]
         assert component.response_format == {
             "type": "object",
@@ -789,6 +795,38 @@ class TestOllamaChatGeneratorRun:
         assert len(result["replies"]) == 1
         assert result["replies"][0].text == "Fine. How can I help you today?"
         assert result["replies"][0].role == "assistant"
+
+    @patch("haystack_integrations.components.generators.ollama.chat.chat_generator.Client")
+    def test_run_retries_after_failure(self, mock_client):
+        generator = OllamaChatGenerator(max_retries=1)
+
+        mock_response = ChatResponse(
+            model="qwen3:0.6b",
+            created_at="2023-12-12T14:13:43.416799Z",
+            message={"role": "assistant", "content": "Recovered after retry"},
+            done=True,
+            prompt_eval_count=1,
+            eval_count=2,
+        )
+
+        mock_client_instance = mock_client.return_value
+        mock_client_instance.chat.side_effect = [RuntimeError("temporary failure"), mock_response]
+
+        result = generator.run(messages=[ChatMessage.from_user("Hello!")])
+
+        assert mock_client_instance.chat.call_count == 2
+        assert result["replies"][0].text == "Recovered after retry"
+
+    @patch("haystack_integrations.components.generators.ollama.chat.chat_generator.Client")
+    def test_run_raises_after_retry_exhausted(self, mock_client):
+        generator = OllamaChatGenerator(max_retries=1)
+        mock_client_instance = mock_client.return_value
+        mock_client_instance.chat.side_effect = RuntimeError("persistent failure")
+
+        with pytest.raises(RuntimeError, match="persistent failure"):
+            generator.run(messages=[ChatMessage.from_user("Hello!")])
+
+        assert mock_client_instance.chat.call_count == 2
 
     @patch("haystack_integrations.components.generators.ollama.chat.chat_generator.Client")
     def test_run_streaming(self, mock_client):
