@@ -489,6 +489,38 @@ class TestStreamingChunkConversion:
         assert streaming_chunk.tool_calls[5].id is None
         assert streaming_chunk.tool_calls[5].index == 5
 
+    def test_convert_google_chunk_to_streaming_chunk_with_thought(self, monkeypatch):
+        """Test that thought parts populate StreamingChunk.reasoning instead of meta."""
+        monkeypatch.setenv("GOOGLE_API_KEY", "test-api-key")
+        component = GoogleGenAIChatGenerator()
+        component_info = ComponentInfo.from_component(component)
+
+        # Simulate a chunk with a thought part (reasoning-only chunk)
+        mock_thought_part = Mock()
+        mock_thought_part.text = "Let me think about this..."
+        mock_thought_part.thought = True
+        mock_thought_part.function_call = None
+
+        mock_content = Mock()
+        mock_content.parts = [mock_thought_part]
+        mock_candidate = Mock()
+        mock_candidate.content = mock_content
+        mock_candidate.finish_reason = None
+
+        mock_chunk = Mock()
+        mock_chunk.candidates = [mock_candidate]
+        mock_chunk.usage_metadata = None
+
+        streaming_chunk = _convert_google_chunk_to_streaming_chunk(
+            chunk=mock_chunk, index=0, component_info=component_info, model="gemini-2.5-flash"
+        )
+
+        # Reasoning should be in the reasoning field, not in meta
+        assert streaming_chunk.reasoning is not None
+        assert streaming_chunk.reasoning.reasoning_text == "Let me think about this..."
+        assert "reasoning_deltas" not in streaming_chunk.meta
+        assert streaming_chunk.content == ""
+
     def test_aggregate_streaming_chunks_with_reasoning(self):
         """Test the _aggregate_streaming_chunks_with_reasoning function for reasoning content aggregation."""
 
@@ -514,9 +546,6 @@ class TestStreamingChunkConversion:
             "model": "gemini-2.5-pro",
         }
         final_chunk.reasoning = ReasoningContent(reasoning_text="I should greet the user politely")
-
-        # Add reasoning deltas to the final chunk meta (this is how the real method works)
-        final_chunk.meta["reasoning_deltas"] = [{"type": "reasoning", "content": "I should greet the user politely"}]
 
         # Test aggregation
         result = _aggregate_streaming_chunks_with_reasoning([chunk1, chunk2, final_chunk])
