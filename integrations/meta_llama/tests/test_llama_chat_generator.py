@@ -111,6 +111,8 @@ class TestLlamaChatGenerator:
         assert component.api_base_url == "https://api.llama.com/compat/v1/"
         assert component.streaming_callback is None
         assert not component.generation_kwargs
+        assert component.timeout is None
+        assert component.max_retries is None
 
     def test_init_fail_wo_api_key(self, monkeypatch):
         monkeypatch.delenv("LLAMA_API_KEY", raising=False)
@@ -124,6 +126,8 @@ class TestLlamaChatGenerator:
             streaming_callback=print_streaming_chunk,
             api_base_url="test-base-url",
             generation_kwargs={"max_tokens": 10, "some_test_param": "test-params"},
+            timeout=15.0,
+            max_retries=3,
         )
         assert component.client.api_key == "test-api-key"
         assert component.model == "Llama-4-Scout-17B-16E-Instruct-FP8"
@@ -132,6 +136,8 @@ class TestLlamaChatGenerator:
             "max_tokens": 10,
             "some_test_param": "test-params",
         }
+        assert component.timeout == 15.0
+        assert component.max_retries == 3
 
     def test_to_dict_default(self, monkeypatch):
         monkeypatch.setenv("LLAMA_API_KEY", "test-api-key")
@@ -153,6 +159,8 @@ class TestLlamaChatGenerator:
             "streaming_callback": None,
             "api_base_url": "https://api.llama.com/compat/v1/",
             "generation_kwargs": {},
+            "timeout": None,
+            "max_retries": None,
         }
 
         for key, value in expected_params.items():
@@ -212,6 +220,8 @@ class TestLlamaChatGenerator:
             "api_base_url": "test-base-url",
             "streaming_callback": "haystack.components.generators.utils.print_streaming_chunk",
             "generation_kwargs": {"max_tokens": 10, "some_test_param": "test-params", "response_format": schema},
+            "timeout": None,
+            "max_retries": None,
         }
 
         for key, value in expected_params.items():
@@ -234,6 +244,8 @@ class TestLlamaChatGenerator:
                     "max_tokens": 10,
                     "some_test_param": "test-params",
                 },
+                "timeout": 30.0,
+                "max_retries": 5,
             },
         }
         component = MetaLlamaChatGenerator.from_dict(data)
@@ -245,6 +257,8 @@ class TestLlamaChatGenerator:
             "some_test_param": "test-params",
         }
         assert component.api_key == Secret.from_env_var("LLAMA_API_KEY")
+        assert component.timeout == 30.0
+        assert component.max_retries == 5
 
     def test_from_dict_fail_wo_env_var(self, monkeypatch):
         monkeypatch.delenv("LLAMA_API_KEY", raising=False)
@@ -263,6 +277,8 @@ class TestLlamaChatGenerator:
                     "max_tokens": 10,
                     "some_test_param": "test-params",
                 },
+                "timeout": 30.0,
+                "max_retries": 5,
             },
         }
         with pytest.raises(ValueError, match=r"None of the .* environment variables are set"):
@@ -561,6 +577,8 @@ class TestLlamaChatGenerator:
                         "streaming_callback": "haystack.components.generators.utils.print_streaming_chunk",
                         "api_base_url": "https://api.llama.com/compat/v1/",
                         "generation_kwargs": {"temperature": 0.7},
+                        "timeout": None,
+                        "max_retries": None,
                         "tools": [
                             {
                                 "type": "haystack.tools.tool.Tool",
