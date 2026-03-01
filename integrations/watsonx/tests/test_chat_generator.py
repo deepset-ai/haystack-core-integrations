@@ -84,9 +84,7 @@ class TestWatsonxChatGenerator:
                             }
                         elif self._count == 2:
                             return {
-                                "choices": [
-                                    {"delta": {"content": " response"}, "finish_reason": "stop", "index": 0}
-                                ]
+                                "choices": [{"delta": {"content": " response"}, "finish_reason": "stop", "index": 0}]
                             }
                         else:
                             raise StopAsyncIteration
