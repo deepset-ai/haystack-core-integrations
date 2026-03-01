@@ -6,10 +6,12 @@ from datetime import datetime, timezone
 from typing import Any, Literal, get_args
 
 from haystack import component, default_from_dict, default_to_dict, logging
+from haystack.components.generators.utils import _convert_streaming_chunks_to_chat_message
 from haystack.dataclasses import (
     AsyncStreamingCallbackT,
     ChatMessage,
     ChatRole,
+    FinishReason,
     ImageContent,
     StreamingCallbackT,
     StreamingChunk,
@@ -28,6 +30,17 @@ logger = logging.getLogger(__name__)
 # for supported formats
 ImageFormat = Literal["image/jpeg", "image/png"]
 IMAGE_SUPPORTED_FORMATS: list[ImageFormat] = list(get_args(ImageFormat))
+
+# See https://ibm.github.io/watsonx-ai-node-sdk/enums/1_6_x.WatsonXAI.TextChatResultChoiceStream.Constants.FinishReason.html
+# for possible finish reasons
+FINISH_REASON_MAPPING: dict[str, FinishReason] = {
+    "cancelled": "stop",
+    "error": "stop",
+    "length": "length",
+    "stop": "stop",
+    "time_limit": "stop",
+    "tool_calls": "tool_calls",
+}
 
 
 @component
@@ -327,6 +340,22 @@ class WatsonxChatGenerator:
 
         return {"messages": watsonx_messages, "params": merged_kwargs}
 
+    def _convert_chunk_to_streaming_chunk(self, content: str, chunk: dict[str, Any]) -> StreamingChunk:
+        """
+        Convert one Watsonx AI stream-chunk to Haystack StreamingChunk.
+        """
+        chunk_meta = {
+            "model": self.model,
+            "received_at": datetime.now(timezone.utc).isoformat(),
+        }
+        streaming_chunk = StreamingChunk(
+            content=content,
+            meta=chunk_meta,
+            index=chunk["choices"][0].get("index", 0),
+            finish_reason=FINISH_REASON_MAPPING.get(chunk["choices"][0].get("finish_reason")),
+        )
+        return streaming_chunk
+
     def _handle_streaming(
         self,
         *,
@@ -350,17 +379,11 @@ class WatsonxChatGenerator:
 
             content = chunk["choices"][0].get("delta", {}).get("content", "")
             if content:
-                chunk_meta = {
-                    "model": self.model,
-                    "index": chunk["choices"][0].get("index", 0),
-                    "finish_reason": chunk["choices"][0].get("finish_reason"),
-                    "received_at": datetime.now(timezone.utc).isoformat(),
-                }
-                streaming_chunk = StreamingChunk(content=content, meta=chunk_meta)
+                streaming_chunk = self._convert_chunk_to_streaming_chunk(content, chunk)
                 chunks.append(streaming_chunk)
                 callback(streaming_chunk)
 
-        return {"replies": [self._convert_streaming_chunks_to_chat_message(chunks)]}
+        return {"replies": [_convert_streaming_chunks_to_chat_message(chunks)]}
 
     def _handle_standard(self, api_args: dict[str, Any]) -> dict[str, list[ChatMessage]]:
         """Handle synchronous standard response."""
@@ -383,35 +406,11 @@ class WatsonxChatGenerator:
 
             content = chunk["choices"][0].get("delta", {}).get("content", "")
             if content:
-                chunk_meta = {
-                    "model": self.model,
-                    "index": chunk["choices"][0].get("index", 0),
-                    "finish_reason": chunk["choices"][0].get("finish_reason"),
-                    "received_at": datetime.now(timezone.utc).isoformat(),
-                }
-                streaming_chunk = StreamingChunk(content=content, meta=chunk_meta)
+                streaming_chunk = self._convert_chunk_to_streaming_chunk(content, chunk)
                 chunks.append(streaming_chunk)
                 await callback(streaming_chunk)
 
-        return {"replies": [self._convert_streaming_chunks_to_chat_message(chunks)]}
-
-    def _convert_streaming_chunks_to_chat_message(self, chunks: list[StreamingChunk]) -> ChatMessage:
-        """Convert list of streaming chunks to a single ChatMessage."""
-        if not chunks:
-            return ChatMessage.from_assistant("")
-
-        content = "".join(chunk.content for chunk in chunks)
-        last_chunk_meta = chunks[-1].meta if chunks else {}
-
-        return ChatMessage.from_assistant(
-            text=content,
-            meta={
-                "model": self.model,
-                "finish_reason": last_chunk_meta.get("finish_reason"),
-                "usage": last_chunk_meta.get("usage", {}),
-                "chunks_count": len(chunks),
-            },
-        )
+        return {"replies": [_convert_streaming_chunks_to_chat_message(chunks)]}
 
     async def _handle_async_standard(self, api_args: dict[str, Any]) -> dict[str, list[ChatMessage]]:
         """Handle asynchronous standard response."""

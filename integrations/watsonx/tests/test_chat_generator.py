@@ -41,7 +41,7 @@ class TestWatsonxChatGenerator:
                         {
                             "message": {"content": "This is a generated response", "role": "assistant"},
                             "index": 0,
-                            "finish_reason": "completed",
+                            "finish_reason": "stop",
                         }
                     ],
                     "usage": {"prompt_tokens": 10, "completion_tokens": 20, "total_tokens": 30},
@@ -53,7 +53,7 @@ class TestWatsonxChatGenerator:
                         {
                             "message": {"content": "Async generated response", "role": "assistant"},
                             "index": 0,
-                            "finish_reason": "completed",
+                            "finish_reason": "stop",
                         }
                     ],
                     "usage": {"prompt_tokens": 10, "completion_tokens": 20, "total_tokens": 30},
@@ -62,7 +62,7 @@ class TestWatsonxChatGenerator:
             mock_model_instance.chat_stream = MagicMock(
                 return_value=[
                     {"choices": [{"delta": {"content": "Streaming"}, "index": 0, "finish_reason": None}]},
-                    {"choices": [{"delta": {"content": " response"}, "index": 0, "finish_reason": "completed"}]},
+                    {"choices": [{"delta": {"content": " response"}, "index": 0, "finish_reason": "stop"}]},
                 ]
             )
 
@@ -85,7 +85,7 @@ class TestWatsonxChatGenerator:
                         elif self._count == 2:
                             return {
                                 "choices": [
-                                    {"delta": {"content": " response"}, "finish_reason": "completed", "index": 0}
+                                    {"delta": {"content": " response"}, "finish_reason": "stop", "index": 0}
                                 ]
                             }
                         else:
@@ -227,7 +227,7 @@ class TestWatsonxChatGenerator:
 
         assert len(result["replies"]) == 1
         assert result["replies"][0].text == "This is a generated response"
-        assert result["replies"][0].meta["finish_reason"] == "completed"
+        assert result["replies"][0].meta["finish_reason"] == "stop"
 
         mock_watsonx["model_instance"].chat.assert_called_once_with(
             messages=[{"role": "user", "content": "Test prompt"}], params={}
@@ -273,7 +273,7 @@ class TestWatsonxChatGenerator:
 
         assert len(result["replies"]) == 1
         assert result["replies"][0].text == "Streaming response"
-        assert result["replies"][0].meta["finish_reason"] == "completed"
+        assert result["replies"][0].meta["finish_reason"] == "stop"
 
     def test_run_with_empty_messages(self, mock_watsonx):
         generator = WatsonxChatGenerator(
@@ -338,7 +338,7 @@ class TestWatsonxChatGenerator:
 
         assert len(result["replies"]) == 1
         assert result["replies"][0].text == "Async generated response"
-        assert result["replies"][0].meta["finish_reason"] == "completed"
+        assert result["replies"][0].meta["finish_reason"] == "stop"
 
     @pytest.mark.asyncio
     async def test_run_async_streaming(self, mock_watsonx):
