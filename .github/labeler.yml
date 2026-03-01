@@ -59,6 +59,12 @@ integration:elasticsearch:
       - any-glob-to-any-file: "integrations/elasticsearch/**/*"
       - any-glob-to-any-file: ".github/workflows/elasticsearch.yml"
 
+integration:faiss:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/faiss/**/*"
+      - any-glob-to-any-file: ".github/workflows/faiss.yml"
+
+
 integration:fastembed:
   - changed-files:
       - any-glob-to-any-file: "integrations/fastembed/**/*"
@@ -176,6 +182,11 @@ integration:pinecone:
   - changed-files:
       - any-glob-to-any-file: "integrations/pinecone/**/*"
       - any-glob-to-any-file: ".github/workflows/pinecone.yml"
+
+integration:pyversity:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/pyversity/**/*"
+      - any-glob-to-any-file: ".github/workflows/pyversity.yml"
 
 integration:qdrant:
   - changed-files:

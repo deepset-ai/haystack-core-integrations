@@ -58,9 +58,19 @@ def _process_thinking_config(generation_kwargs: dict[str, Any]) -> dict[str, Any
     """
     Process thinking configuration from generation_kwargs.
 
+    Does not mutate the input dict; returns a new dict with thinking_config
+    applied when applicable. Supports explicit ``include_thoughts`` in
+    generation_kwargs to override the default derived from thinking_budget
+    or thinking_level.
+
     :param generation_kwargs: The generation configuration dictionary.
-    :returns: Updated generation_kwargs with thinking_config if applicable.
+    :returns: A new dict with thinking_config if applicable; caller's dict is unchanged.
     """
+    generation_kwargs = dict(generation_kwargs)
+    # Extract include_thoughts from generation_kwargs if explicitly set by the user.
+    # This must be popped before creating ThinkingConfig so it doesn't leak as an unknown kwarg.
+    explicit_include_thoughts = generation_kwargs.pop("include_thoughts", None)
+
     if "thinking_budget" in generation_kwargs:
         thinking_budget = generation_kwargs.pop("thinking_budget")
 
@@ -72,8 +82,14 @@ def _process_thinking_config(generation_kwargs: dict[str, Any]) -> dict[str, Any
             # fall back to default: dynamic thinking budget allocation
             thinking_budget = -1
 
-        # Create thinking config
-        thinking_config = types.ThinkingConfig(thinking_budget=thinking_budget, include_thoughts=True)
+        # Determine include_thoughts: respect explicit user override, otherwise auto-derive
+        if explicit_include_thoughts is not None:
+            include_thoughts = explicit_include_thoughts
+        else:
+            # When thinking_budget is 0, thinking is disabled so include_thoughts must be False
+            include_thoughts = thinking_budget != 0
+
+        thinking_config = types.ThinkingConfig(thinking_budget=thinking_budget, include_thoughts=include_thoughts)
         generation_kwargs["thinking_config"] = thinking_config
 
     if "thinking_level" in generation_kwargs:
@@ -103,8 +119,13 @@ def _process_thinking_config(generation_kwargs: dict[str, Any]) -> dict[str, Any
                 # Parse valid string to ThinkingLevel enum
                 thinking_level = types.ThinkingLevel(thinking_level_upper)
 
-        # Create thinking config with level
-        thinking_config = types.ThinkingConfig(thinking_level=thinking_level, include_thoughts=True)
+        # Determine include_thoughts: respect explicit user override, otherwise auto-derive
+        if explicit_include_thoughts is not None:
+            include_thoughts = explicit_include_thoughts
+        else:
+            include_thoughts = thinking_level != types.ThinkingLevel.MINIMAL
+
+        thinking_config = types.ThinkingConfig(thinking_level=thinking_level, include_thoughts=include_thoughts)
         generation_kwargs["thinking_config"] = thinking_config
 
     return generation_kwargs
