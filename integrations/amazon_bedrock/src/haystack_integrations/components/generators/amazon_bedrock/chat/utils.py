@@ -488,7 +488,8 @@ def _parse_completion_response(response_body: dict[str, Any], model: str) -> lis
                     meta["citations"] = citations_content
                     if "content" in citations_content:
                         for entry in citations_content["content"]:
-                            if text := entry.get("text", "").strip():
+                            text = entry.get("text", "")
+                            if text.strip():
                                 text_content.append(text)
 
             reasoning_text = ""
