@@ -94,10 +94,6 @@ class ArcadeDBDocumentStore:
         self._session = requests.Session()
         self._initialized = False
 
-    # ------------------------------------------------------------------
-    # Serialization (Haystack pipeline export/import)
-    # ------------------------------------------------------------------
-
     def to_dict(self) -> dict[str, Any]:
         """
         Serializes the DocumentStore to a dictionary.
