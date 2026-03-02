@@ -10,7 +10,7 @@ readme = "README.md"
 requires-python = ">=3.10"
 license = "Apache-2.0"
 keywords = []
-authors = [{ name = "deepset", email = "info@deepset.ai" }]
+authors = [{ name = "deepset GmbH", email = "info@deepset.ai" }]
 classifiers = [
   "License :: OSI Approved :: Apache Software License",
   "Development Status :: 4 - Beta",
