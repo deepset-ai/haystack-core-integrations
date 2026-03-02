@@ -1,3 +1,4 @@
+from dataclasses import replace
 from typing import Any
 
 from haystack import logging
@@ -22,6 +23,9 @@ def _from_haystack_to_pg_documents(documents: list[Document]) -> list[dict[str, 
         db_document["blob_meta"] = Jsonb(blob.meta) if blob and blob.meta else None
         db_document["blob_mime_type"] = blob.mime_type if blob and blob.mime_type else None
         db_document["meta"] = Jsonb(db_document["meta"])
+        # PostgreSQL text fields cannot contain NUL (0x00) bytes, removing NUL bytes
+        if content := db_document["content"]:
+            db_document["content"] = content.replace("\x00", "")
 
         if "sparse_embedding" in db_document:
             sparse_embedding = db_document.pop("sparse_embedding", None)
@@ -65,7 +69,7 @@ def _from_pg_to_haystack_documents(documents: list[dict[str, Any]]) -> list[Docu
 
         if blob_data:
             blob = ByteStream(data=blob_data, meta=blob_meta, mime_type=blob_mime_type)
-            haystack_document.blob = blob
+            haystack_document = replace(haystack_document, blob=blob)
 
         haystack_documents.append(haystack_document)
 
