@@ -29,11 +29,6 @@ def _sample_docs(n: int = 3, dim: int = 4) -> list[Document]:
     return docs
 
 
-# ---------------------------------------------------------------------------
-# Unit tests (no ArcadeDB required)
-# ---------------------------------------------------------------------------
-
-
 class TestSerialization:
     def test_to_dict_from_dict(self):
         store = ArcadeDBDocumentStore(
@@ -48,11 +43,10 @@ class TestSerialization:
         assert restored._url == store._url
 
 
-# ---------------------------------------------------------------------------
-# Integration tests (require a running ArcadeDB instance)
-# ---------------------------------------------------------------------------
-
-
+@pytest.mark.skipif(
+    not os.environ.get("ARCADEDB_PASSWORD"),
+    reason="Set ARCADEDB_PASSWORD (e.g. via repo secret in CI) to run integration tests.",
+)
 @pytest.mark.integration
 class TestArcadeDBDocumentStore(DocumentStoreBaseTests):
     """

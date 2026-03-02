@@ -19,6 +19,7 @@ env:
   PYTHONUNBUFFERED: "1"
   FORCE_COLOR: "1"
   ARCADEDB_USERNAME: "root"
+  # Only set in main repo (secrets not passed to fork workflows); integration tests skip when unset
   ARCADEDB_PASSWORD: ${{ secrets.ARCADEDB_PASSWORD }}
 
 defaults:
@@ -38,7 +39,8 @@ jobs:
       arcadedb:
         image: arcadedata/arcadedb:latest
         env:
-          JAVA_OPTS: "-Darcadedb.server.rootPassword=${{ secrets.ARCADEDB_PASSWORD }}"
+          # Default password so container starts in forks; main repo uses secret
+          JAVA_OPTS: "-Darcadedb.server.rootPassword=${{ secrets.ARCADEDB_PASSWORD || 'arcadedb' }}"
         ports:
           - 2480:2480
 
@@ -52,20 +54,6 @@ jobs:
 
       - name: Install Hatch
         run: pip install hatch "virtualenv<21.0.0"
-
-      - name: Wait for ArcadeDB
-        run: |
-          timeout=60
-          until [ $timeout -le 0 ] || curl -sSf -u "$ARCADEDB_USERNAME:$ARCADEDB_PASSWORD" http://localhost:2480/api/v1/server > /dev/null; do
-            echo "Waiting for ArcadeDB service to start... ($timeout s left)"
-            sleep 5
-            timeout=$((timeout - 5))
-          done
-          if [ $timeout -le 0 ]; then
-            echo "Timed out waiting for ArcadeDB service to start."
-            exit 1
-          fi
-          echo "ArcadeDB is ready."
 
       - name: Lint
         if: matrix.python-version == '3.10' && runner.os == 'Linux'
