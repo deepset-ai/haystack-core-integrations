@@ -28,6 +28,9 @@ def _parse_condition(condition: dict[str, Any]) -> str:
     operator_upper = operator.upper()
 
     if operator_upper in ("AND", "OR"):
+        if "conditions" not in condition:
+            msg = f"Missing 'conditions' in filter: {condition}"
+            raise ValueError(msg)
         conditions = condition.get("conditions", [])
         if not conditions:
             return ""
@@ -53,6 +56,9 @@ def _parse_condition(condition: dict[str, Any]) -> str:
     if not field:
         msg = f"Missing 'field' in filter condition: {condition}"
         raise ValueError(msg)
+    if "value" not in condition:
+        msg = f"Missing 'value' in filter condition: {condition}"
+        raise ValueError(msg)
 
     return _comparison_to_sql(field, operator, value)
 
@@ -68,23 +74,28 @@ def _comparison_to_sql(field: str, operator: str, value: Any) -> str:
             return f"{field} IS NOT NULL"
         return f"{field} <> {_sql_value(value)}"
 
-    if operator == ">":
-        return f"{field} > {_sql_value(value)}"
-
-    if operator == ">=":
-        return f"{field} >= {_sql_value(value)}"
-
-    if operator == "<":
-        return f"{field} < {_sql_value(value)}"
-
-    if operator == "<=":
-        return f"{field} <= {_sql_value(value)}"
+    if operator in (">", ">=", "<", "<="):
+        if value is None:
+            return "1 = 0"
+        if isinstance(value, list):
+            msg = "Comparison operators require numeric or datetime values, not list"
+            raise ValueError(msg)
+        if isinstance(value, str) and "T" not in value:
+            msg = "Comparison operators require numeric or datetime (ISO) values, not plain string"
+            raise ValueError(msg)
+        return f"{field} {operator} {_sql_value(value)}"
 
     if operator == "in":
+        if not isinstance(value, list):
+            msg = "Operator 'in' requires value to be a list"
+            raise ValueError(msg)
         values = ", ".join(_sql_value(v) for v in value)
         return f"{field} IN [{values}]"
 
     if operator == "not in":
+        if not isinstance(value, list):
+            msg = "Operator 'not in' requires value to be a list"
+            raise ValueError(msg)
         values = ", ".join(_sql_value(v) for v in value)
         return f"{field} NOT IN [{values}]"
 

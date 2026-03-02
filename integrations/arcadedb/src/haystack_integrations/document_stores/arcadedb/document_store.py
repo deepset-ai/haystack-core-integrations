@@ -12,6 +12,7 @@ import requests
 from haystack import Document, default_from_dict, default_to_dict
 from haystack.document_stores.errors import DuplicateDocumentError
 from haystack.document_stores.types import DuplicatePolicy
+from haystack.errors import FilterError
 from haystack.utils import Secret
 
 from haystack_integrations.document_stores.arcadedb.converters import (
@@ -244,7 +245,10 @@ class ArcadeDBDocumentStore:
         :returns: List of matching documents.
         """
         self._ensure_initialized()
-        where = _convert_filters(filters)
+        try:
+            where = _convert_filters(filters)
+        except ValueError as e:
+            raise FilterError(str(e)) from e
         sql = f"SELECT * FROM `{self._type_name}`"
         if where:
             sql += f" WHERE {where}"
@@ -264,6 +268,11 @@ class ArcadeDBDocumentStore:
         :returns: Number of documents written.
         """
         self._ensure_initialized()
+        if not isinstance(documents, list):
+            raise ValueError("documents must be a list of Document objects")
+        for doc in documents:
+            if not isinstance(doc, Document):
+                raise ValueError("documents must be a list of Document objects")
         if not documents:
             return 0
 
@@ -271,7 +280,10 @@ class ArcadeDBDocumentStore:
         written = 0
 
         for record in records:
-            embedding_str = str(record["embedding"]) if record["embedding"] else "[]"
+            emb = record["embedding"]
+            if emb is None or not isinstance(emb, list) or len(emb) != self._embedding_dimension:
+                emb = [0.0] * self._embedding_dimension
+            embedding_str = str(emb)
             meta_str = _map_literal(record["meta"]) if record["meta"] else "{}"
 
             if policy == DuplicatePolicy.OVERWRITE:

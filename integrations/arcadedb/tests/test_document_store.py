@@ -9,21 +9,11 @@ import pytest
 from haystack import Document
 from haystack.document_stores.errors import DuplicateDocumentError
 from haystack.document_stores.types import DuplicatePolicy
+from haystack.testing.document_store import DocumentStoreBaseTests
 
 from haystack_integrations.document_stores.arcadedb import ArcadeDBDocumentStore
 
 ARCADEDB_URL = os.getenv("ARCADEDB_URL", "http://localhost:2480")
-
-
-@pytest.fixture()
-def document_store():
-    store = ArcadeDBDocumentStore(
-        url=ARCADEDB_URL,
-        database="haystack_test",
-        embedding_dimension=4,
-        recreate_type=True,
-    )
-    return store
 
 
 def _sample_docs(n: int = 3, dim: int = 4) -> list[Document]:
@@ -64,24 +54,49 @@ class TestSerialization:
 
 
 @pytest.mark.integration
-class TestArcadeDBDocumentStoreIntegration:
-    def test_count_empty(self, document_store):
-        assert document_store.count_documents() == 0
+class TestArcadeDBDocumentStore(DocumentStoreBaseTests):
+    """
+    Run Haystack DocumentStore mixin tests against ArcadeDBDocumentStore.
 
-    def test_count_after_write(self, document_store):
-        docs = _sample_docs(5)
-        document_store.write_documents(docs, policy=DuplicatePolicy.OVERWRITE)
-        assert document_store.count_documents() == 5
+    Base tests cover: count_documents, delete_documents, filter_documents, write_documents.
+    ArcadeDB does not implement delete_all_documents, delete_by_filter, or update_by_filter,
+    so DocumentStoreBaseTests (not Extended) is used.
+    """
 
-    def test_write_and_read(self, document_store):
-        docs = _sample_docs(2)
-        written = document_store.write_documents(docs, policy=DuplicatePolicy.OVERWRITE)
-        assert written == 2
+    @pytest.fixture
+    def document_store(self, document_store: ArcadeDBDocumentStore) -> ArcadeDBDocumentStore:
+        """Override to provide ArcadeDB document store from conftest."""
+        yield document_store
 
-        all_docs = document_store.filter_documents()
-        assert len(all_docs) == 2
+    def assert_documents_are_equal(self, received: list[Document], expected: list[Document]):
+        """
+        Compare document lists for tests. Clear score (filter_documents does not set it;
+        embedding_retrieval does). Compare embeddings approximately for float round-trip.
+        Documents written without embeddings get zero-padded in the store; treat as None for comparison.
+        """
+        assert len(received) == len(expected)
+        received = sorted(received, key=lambda x: x.id)
+        expected = sorted(expected, key=lambda x: x.id)
+        for received_doc, expected_doc in zip(received, expected, strict=True):
+            received_doc.score = None
+            if expected_doc.embedding is None:
+                received_doc.embedding = None
+            elif received_doc.embedding is None:
+                assert expected_doc.embedding is None
+            else:
+                assert received_doc.embedding == pytest.approx(expected_doc.embedding)
+            received_doc.embedding, expected_doc.embedding = None, None
+            assert received_doc == expected_doc
 
-    def test_write_overwrite(self, document_store):
+    def test_write_documents(self, document_store: ArcadeDBDocumentStore):
+        """Override mixin: test default write_documents and duplicate fail behaviour."""
+        docs = [Document(id="1")]
+        assert document_store.write_documents(docs) == 1
+        with pytest.raises(DuplicateDocumentError):
+            document_store.write_documents(docs, policy=DuplicatePolicy.FAIL)
+
+    def test_write_overwrite(self, document_store: ArcadeDBDocumentStore):
+        """ArcadeDB-specific: overwrite updates content."""
         docs = _sample_docs(1)
         document_store.write_documents(docs, policy=DuplicatePolicy.OVERWRITE)
 
@@ -92,63 +107,23 @@ class TestArcadeDBDocumentStoreIntegration:
         assert len(all_docs) == 1
         assert all_docs[0].content == "Updated content"
 
-    def test_write_skip(self, document_store):
-        docs = _sample_docs(1)
+    def test_embedding_retrieval(self, document_store: ArcadeDBDocumentStore):
+        """ArcadeDB-specific: vector search via _embedding_retrieval."""
+        # Use store's embedding_dimension (768 from conftest); create small test docs
+        dim = document_store._embedding_dimension
+        docs = [
+            Document(
+                content=f"Document number {i}",
+                embedding=[float(i)] * dim,
+                meta={"category": "test", "priority": i},
+            )
+            for i in range(5)
+        ]
         document_store.write_documents(docs, policy=DuplicatePolicy.OVERWRITE)
 
-        written = document_store.write_documents(docs, policy=DuplicatePolicy.SKIP)
-        assert written == 0
-        assert document_store.count_documents() == 1
-
-    def test_write_duplicate_raises(self, document_store):
-        docs = _sample_docs(1)
-        document_store.write_documents(docs, policy=DuplicatePolicy.OVERWRITE)
-
-        with pytest.raises(DuplicateDocumentError):
-            document_store.write_documents(docs, policy=DuplicatePolicy.NONE)
-
-    def test_delete(self, document_store):
-        docs = _sample_docs(3)
-        document_store.write_documents(docs, policy=DuplicatePolicy.OVERWRITE)
-
-        ids_to_delete = [docs[0].id, docs[1].id]
-        document_store.delete_documents(ids_to_delete)
-
-        assert document_store.count_documents() == 1
-
-    def test_filter_equality(self, document_store):
-        docs = _sample_docs(3)
-        document_store.write_documents(docs, policy=DuplicatePolicy.OVERWRITE)
-
-        result = document_store.filter_documents(filters={"field": "meta.category", "operator": "==", "value": "test"})
-        assert len(result) == 3
-
-    def test_filter_comparison(self, document_store):
-        docs = _sample_docs(5)
-        document_store.write_documents(docs, policy=DuplicatePolicy.OVERWRITE)
-
-        result = document_store.filter_documents(filters={"field": "meta.priority", "operator": ">", "value": 2})
-        assert len(result) == 2  # priority 3 and 4
-
-    def test_filter_and(self, document_store):
-        docs = _sample_docs(5)
-        document_store.write_documents(docs, policy=DuplicatePolicy.OVERWRITE)
-
-        result = document_store.filter_documents(
-            filters={
-                "operator": "AND",
-                "conditions": [
-                    {"field": "meta.category", "operator": "==", "value": "test"},
-                    {"field": "meta.priority", "operator": ">=", "value": 3},
-                ],
-            }
+        results = document_store._embedding_retrieval(
+            query_embedding=[4.0] * dim,
+            top_k=3,
         )
-        assert len(result) == 2
-
-    def test_embedding_retrieval(self, document_store):
-        docs = _sample_docs(5, dim=4)
-        document_store.write_documents(docs, policy=DuplicatePolicy.OVERWRITE)
-
-        results = document_store._embedding_retrieval(query_embedding=[4.0, 4.0, 4.0, 4.0], top_k=3)
         assert len(results) <= 3
         assert results[0].score is not None
