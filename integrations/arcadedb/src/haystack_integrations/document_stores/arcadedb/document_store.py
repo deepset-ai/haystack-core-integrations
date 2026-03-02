@@ -268,11 +268,12 @@ class ArcadeDBDocumentStore:
         :returns: Number of documents written.
         """
         self._ensure_initialized()
+        msg = "documents must be a list of Document objects"
         if not isinstance(documents, list):
-            raise ValueError("documents must be a list of Document objects")
+            raise ValueError(msg)
         for doc in documents:
             if not isinstance(doc, Document):
-                raise ValueError("documents must be a list of Document objects")
+                raise ValueError(msg)
         if not documents:
             return 0
 
