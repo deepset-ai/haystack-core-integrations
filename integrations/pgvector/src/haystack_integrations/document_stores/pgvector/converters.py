@@ -23,8 +23,8 @@ def _from_haystack_to_pg_documents(documents: list[Document]) -> list[dict[str, 
         db_document["blob_mime_type"] = blob.mime_type if blob and blob.mime_type else None
         db_document["meta"] = Jsonb(db_document["meta"])
         # PostgreSQL text fields cannot contain NUL (0x00) bytes, removing NUL bytes
-        if db_document["content"]:
-            db_document["content"] = db_document["content"].replace("\x00", "")
+        if (content := db_document["content"]):
+            db_document["content"] = content.replace("\x00", "")
 
         if "sparse_embedding" in db_document:
             sparse_embedding = db_document.pop("sparse_embedding", None)
