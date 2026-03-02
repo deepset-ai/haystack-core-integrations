@@ -9,13 +9,14 @@ from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
-import faiss  # type: ignore[import-untyped]
 import numpy as np
 from haystack import default_from_dict, default_to_dict
 from haystack.dataclasses import Document
 from haystack.document_stores.errors import DocumentStoreError, DuplicateDocumentError
 from haystack.document_stores.types import DuplicatePolicy
 from haystack.errors import FilterError
+
+import faiss
 
 logger = logging.getLogger(__name__)
 

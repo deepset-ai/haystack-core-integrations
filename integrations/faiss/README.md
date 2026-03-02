@@ -1,17 +1,11 @@
 # faiss-haystack
 
-This package provides a [FAISS](https://github.com/facebookresearch/faiss) document store for [Haystack](https://github.com/deepset-ai/haystack).
+[![PyPI - Version](https://img.shields.io/pypi/v/faiss-haystack.svg)](https://pypi.org/project/faiss-haystack)
+[![PyPI - Python Version](https://img.shields.io/pypi/pyversions/faiss-haystack.svg)](https://pypi.org/project/faiss-haystack)
 
-## Installation
+- [Integration page](https://haystack.deepset.ai/integrations/faiss-documentstore)
+- [Changelog](https://github.com/deepset-ai/haystack-core-integrations/blob/main/integrations/faiss/CHANGELOG.md)
 
-```bash
-pip install faiss-haystack
-```
+---
 
-## Usage
-
-```python
-from haystack_integrations.document_stores.faiss import FAISSDocumentStore
-
-document_store = FAISSDocumentStore(index_path="my_index")
-```
+Refer to the general [Contribution Guidelines](https://github.com/deepset-ai/haystack-core-integrations/blob/main/CONTRIBUTING.md).
