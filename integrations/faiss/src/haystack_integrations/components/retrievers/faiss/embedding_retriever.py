@@ -50,7 +50,7 @@ class FAISSEmbeddingRetriever:
 
     assert res["retriever"]["documents"][0].content == "There are over 7,000 languages spoken around the world today."
     ```
-    """ # noqa: E501
+    """  # noqa: E501
 
     def __init__(
         self,
