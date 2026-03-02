@@ -608,22 +608,31 @@ def _convert_google_chunk_to_streaming_chunk(
             elif hasattr(part, "thought") and part.thought:
                 reasoning_deltas.append(part.text if part.text else "")
 
-    # Combine reasoning deltas into a single ReasoningContent
-    reasoning = ReasoningContent(reasoning_text="".join(reasoning_deltas)) if reasoning_deltas else None
+    # Combine reasoning deltas and thought signatures into a single ReasoningContent.
+    # Thought signature deltas are stored in ReasoningContent.extra when reasoning content
+    # is present (consistent with the Anthropic approach in PR #2849).
+    # When there's no reasoning content, signatures go in meta to avoid the StreamingChunk
+    # mutual exclusivity constraint (content and reasoning cannot both be set).
+    if reasoning_deltas:
+        reasoning_extra: dict[str, Any] = {}
+        if thought_signature_deltas:
+            reasoning_extra["thought_signature_deltas"] = thought_signature_deltas
+        reasoning = ReasoningContent(reasoning_text="".join(reasoning_deltas), extra=reasoning_extra)
+    else:
+        reasoning = None
 
     # start is only used by print_streaming_chunk. We try to make a reasonable assumption here but it should not be
     # a problem if we change it in the future.
     start = index == 0 or len(tool_calls) > 0
 
-    # Create meta with thought signatures if available
     meta: dict[str, Any] = {
         "received_at": datetime.now(timezone.utc).isoformat(),
         "model": model,
         "usage": usage,
     }
 
-    # Add thought signature deltas to meta if available (for multi-turn context)
-    if thought_signature_deltas:
+    # Thought signatures go in meta when there's no reasoning content (e.g. text-only or tool-call chunks)
+    if thought_signature_deltas and not reasoning_deltas:
         meta["thought_signature_deltas"] = thought_signature_deltas
 
     # StreamingChunk allows only one of content/tool_calls/reasoning to be set.
@@ -666,13 +675,17 @@ def _aggregate_streaming_chunks_with_reasoning(chunks: list[StreamingChunk]) -> 
         if chunk.reasoning and chunk.reasoning.reasoning_text:
             reasoning_text_parts.append(chunk.reasoning.reasoning_text)
 
-        # Extract thought signature deltas (for multi-turn context preservation)
-        if chunk.meta and "thought_signature_deltas" in chunk.meta:
+        # Extract thought signature deltas from reasoning.extra or meta
+        # (signatures are in reasoning.extra for reasoning chunks, in meta for text/tool-call chunks)
+        signature_deltas = None
+        if chunk.reasoning and chunk.reasoning.extra.get("thought_signature_deltas"):
+            signature_deltas = chunk.reasoning.extra["thought_signature_deltas"]
+        elif chunk.meta and "thought_signature_deltas" in chunk.meta:
             signature_deltas = chunk.meta["thought_signature_deltas"]
-            if isinstance(signature_deltas, list):
-                # Aggregate thought signatures - they should come from the final chunks
-                # We'll keep the last set of signatures as they represent the complete state
-                thought_signatures = signature_deltas
+        if signature_deltas and isinstance(signature_deltas, list):
+            # Aggregate thought signatures - they should come from the final chunks
+            # We'll keep the last set of signatures as they represent the complete state
+            thought_signatures = signature_deltas
 
         # Extract thinking token usage (from the last chunk that has it)
         if chunk.meta and "usage" in chunk.meta:
