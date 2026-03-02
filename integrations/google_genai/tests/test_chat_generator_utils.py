@@ -495,24 +495,35 @@ class TestStreamingChunkConversion:
         component = GoogleGenAIChatGenerator()
         component_info = ComponentInfo.from_component(component)
 
-        # Simulate a chunk with a thought part (reasoning-only chunk)
-        mock_thought_part = Mock()
-        mock_thought_part.text = "Let me think about this..."
-        mock_thought_part.thought = True
-        mock_thought_part.function_call = None
-
-        mock_content = Mock()
-        mock_content.parts = [mock_thought_part]
-        mock_candidate = Mock()
-        mock_candidate.content = mock_content
-        mock_candidate.finish_reason = None
-
-        mock_chunk = Mock()
-        mock_chunk.candidates = [mock_candidate]
-        mock_chunk.usage_metadata = None
+        # Build a chunk with a thought part using actual Google API objects
+        thought_part = types.Part(text="Let me think about this...", thought=True, function_call=None)
+        content = types.Content(role="model", parts=[thought_part])
+        candidate = types.Candidate(
+            content=content,
+            finish_reason=None,
+            index=None,
+            safety_ratings=None,
+            citation_metadata=None,
+            grounding_metadata=None,
+            finish_message=None,
+            token_count=None,
+            logprobs_result=None,
+            avg_logprobs=None,
+            url_context_metadata=None,
+        )
+        chunk = types.GenerateContentResponse(
+            candidates=[candidate],
+            usage_metadata=None,
+            model_version="gemini-2.5-flash",
+            response_id=None,
+            create_time=None,
+            prompt_feedback=None,
+            automatic_function_calling_history=None,
+            parsed=None,
+        )
 
         streaming_chunk = _convert_google_chunk_to_streaming_chunk(
-            chunk=mock_chunk, index=0, component_info=component_info, model="gemini-2.5-flash"
+            chunk=chunk, index=0, component_info=component_info, model="gemini-2.5-flash"
         )
 
         # Reasoning should be in the reasoning field, not in meta
