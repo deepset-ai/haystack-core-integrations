@@ -33,13 +33,18 @@ class ArcadeDBDocumentStore:
     Usage example:
 
     ```python
+    from haystack.dataclasses.document import Document
     from haystack_integrations.document_stores.arcadedb import ArcadeDBDocumentStore
 
-    store = ArcadeDBDocumentStore(
+    document_store = ArcadeDBDocumentStore(
         url="http://localhost:2480",
         database="haystack",
         embedding_dimension=768,
     )
+    document_store.write_documents([
+        Document(content="This is first", embedding=[0.0]*5),
+        Document(content="This is second", embedding=[0.1, 0.2, 0.3, 0.4, 0.5])
+    ])
     ```
     """
 
@@ -94,7 +99,11 @@ class ArcadeDBDocumentStore:
     # ------------------------------------------------------------------
 
     def to_dict(self) -> dict[str, Any]:
-        """Serialize this store to a dictionary."""
+        """
+        Serializes the DocumentStore to a dictionary.
+
+        :returns:
+            Dictionary with serialized data.
         return default_to_dict(
             self,
             url=self._url,
@@ -110,7 +119,13 @@ class ArcadeDBDocumentStore:
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "ArcadeDBDocumentStore":
-        """Deserialize an ArcadeDBDocumentStore from a dictionary."""
+        """
+        Deserializes the DocumentStore from a dictionary.
+
+        :param data:
+            The dictionary to deserialize from.
+        :returns:
+            The deserialized DocumentStore.
         init_params = data.get("init_parameters", {})
         for key in ("username", "password"):
             if init_params.get(key) is not None:
@@ -208,7 +223,10 @@ class ArcadeDBDocumentStore:
     # ------------------------------------------------------------------
 
     def count_documents(self) -> int:
-        """Return the number of documents stored."""
+        Returns how many documents are present in the document store.
+
+        :returns:
+            Number of documents in the document store.
         self._ensure_initialized()
         rows = self._command(f"SELECT count(*) AS cnt FROM `{self._type_name}`")
         if rows:

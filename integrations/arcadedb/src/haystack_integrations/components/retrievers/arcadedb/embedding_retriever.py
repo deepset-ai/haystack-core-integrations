@@ -20,11 +20,29 @@ class ArcadeDBEmbeddingRetriever:
     Usage example:
 
     ```python
+    from haystack import Document
+    from haystack.components.embedders import SentenceTransformersTextEmbedder
     from haystack_integrations.components.retrievers.arcadedb import ArcadeDBEmbeddingRetriever
     from haystack_integrations.document_stores.arcadedb import ArcadeDBDocumentStore
 
     store = ArcadeDBDocumentStore(database="mydb")
     retriever = ArcadeDBEmbeddingRetriever(document_store=store, top_k=5)
+    
+    # Add documents to DocumentStore
+    documents = [
+        Document(text="My name is Carla and I live in Berlin"),
+        Document(text="My name is Paul and I live in New York"),
+        Document(text="My name is Silvano and I live in Matera"),
+        Document(text="My name is Usagi Tsukino and I live in Tokyo"),
+    ]
+    document_store.write_documents(documents)
+    
+    embedder = SentenceTransformersTextEmbedder()
+    query_embeddings = embedder.run("Who lives in Berlin?")["embedding"]
+
+    result = retriever.run(query=query_embeddings)
+    for doc in result["documents"]:
+        print(doc.content)
     ```
     """
 
@@ -62,7 +80,8 @@ class ArcadeDBEmbeddingRetriever:
         :param query_embedding: The embedding vector to search with.
         :param filters: Optional filters to narrow results.
         :param top_k: Maximum number of documents to return.
-        :returns: A dict with key ``"documents"`` containing the retrieved documents.
+        :returns: A dictionary with the following keys:
+            - `documents`: List of `Document`s most similar to the given `query_embedding`
         """
         effective_top_k = top_k if top_k is not None else self._top_k
 
@@ -85,7 +104,12 @@ class ArcadeDBEmbeddingRetriever:
         return {"documents": documents}
 
     def to_dict(self) -> dict[str, Any]:
-        """Serialize this retriever to a dictionary."""
+        """
+        Serializes the component to a dictionary.
+
+        :returns:
+            Dictionary with serialized data.
+        """
         return default_to_dict(
             self,
             document_store=self._document_store.to_dict(),
@@ -96,7 +120,14 @@ class ArcadeDBEmbeddingRetriever:
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "ArcadeDBEmbeddingRetriever":
-        """Deserialize an ArcadeDBEmbeddingRetriever from a dictionary."""
+        """
+        Deserializes the component from a dictionary.
+
+        :param data:
+            Dictionary to deserialize from.
+        :returns:
+            Deserialized component.
+        """
         init_params = data.get("init_parameters", {})
         if "document_store" in init_params:
             init_params["document_store"] = ArcadeDBDocumentStore.from_dict(init_params["document_store"])

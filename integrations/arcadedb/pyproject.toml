@@ -10,7 +10,7 @@ readme = "README.md"
 requires-python = ">=3.10"
 license = "Apache-2.0"
 keywords = ["arcadedb", "haystack", "vector-search", "document-store", "rag"]
-authors = [{ name = "ArcadeData Ltd", email = "info@arcadedb.com" }]
+authors = [{ name = "deepset GmbH", email = "info@deepset.ai" }, { name = "ArcadeData Ltd", email = "info@arcadedb.com" }]
 classifiers = [
   "License :: OSI Approved :: Apache Software License",
   "Development Status :: 4 - Beta",
