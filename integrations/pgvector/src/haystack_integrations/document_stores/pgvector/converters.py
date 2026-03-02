@@ -1,3 +1,4 @@
+from dataclasses import replace
 from typing import Any
 
 from haystack import logging
@@ -68,7 +69,7 @@ def _from_pg_to_haystack_documents(documents: list[dict[str, Any]]) -> list[Docu
 
         if blob_data:
             blob = ByteStream(data=blob_data, meta=blob_meta, mime_type=blob_mime_type)
-            haystack_document.blob = blob
+            haystack_document = replace(haystack_document, blob=blob)
 
         haystack_documents.append(haystack_document)
 
