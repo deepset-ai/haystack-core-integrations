@@ -236,30 +236,30 @@ $ hatch run test:integration
 > Core integrations follow the naming convention `PREFIX-haystack`, where `PREFIX` can be the name of the technology
 > you're integrating Haystack with. For example, a deepset integration would be named as `deepset-haystack`.
 
-To create a new integration, from the root of the repo change directory into `integrations`:
+To create a new integration, run the scaffold script from the root of the repository:
 
 ```sh
-cd integrations
+python scripts/create_new_integration.py
 ```
 
-From there, use `hatch` to create the scaffold of the new integration:
+The script will interactively ask you for the integration **name** (e.g. `opensearch`, `amazon_bedrock`) and
+**component type** (e.g. `document_stores`, `generators`, `embedders`). You can also pass these as command-line
+arguments to skip the prompts:
 
 ```sh
-$ hatch --config hatch.toml new -i
-Project name: deepset-haystack
-Description []: An example integration, this text can be edited later
-
-deepset-haystack
-├── src
-│   └── deepset_haystack
-│       ├── __about__.py
-│       └── __init__.py
-├── tests
-│   └── __init__.py
-├── LICENSE.txt
-├── README.md
-└── pyproject.toml
+python scripts/create_new_integration.py --name deepset --type generators
 ```
+
+The script takes care of the full setup in one step:
+
+- Scaffolds the integration folder under `integrations/` with the correct project structure (`pyproject.toml`,
+  source package, tests, pydoc config, example components, and a README).
+- Creates a GitHub Actions CI workflow at `.github/workflows/<name>.yml`.
+- Adds label rules to `.github/labeler.yml`.
+- Adds the new integration to the table in the root `README.md`.
+
+Once the script finishes, follow the printed next-steps to fill in your component code, add dependencies, and
+write tests.
 
 ### Improving The Documentation
 
