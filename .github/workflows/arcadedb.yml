@@ -19,7 +19,7 @@ env:
   PYTHONUNBUFFERED: "1"
   FORCE_COLOR: "1"
   ARCADEDB_USERNAME: "root"
-  ARCADEDB_PASSWORD: "arcadedb"
+  ARCADEDB_PASSWORD: ${{ secrets.ARCADEDB_PASSWORD }}
 
 defaults:
   run:
@@ -38,7 +38,7 @@ jobs:
       arcadedb:
         image: arcadedata/arcadedb:latest
         env:
-          JAVA_OPTS: "-Darcadedb.server.rootPassword=arcadedb"
+          JAVA_OPTS: "-Darcadedb.server.rootPassword=${{ secrets.ARCADEDB_PASSWORD }}"
         ports:
           - 2480:2480
 
