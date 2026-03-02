@@ -2,8 +2,6 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""ArcadeDB Embedding Retriever for Haystack 2.x pipelines."""
-
 from typing import Any
 
 from haystack import Document, component, default_from_dict, default_to_dict
