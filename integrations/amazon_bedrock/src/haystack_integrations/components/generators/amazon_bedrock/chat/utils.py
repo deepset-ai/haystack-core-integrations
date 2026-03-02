@@ -127,15 +127,21 @@ def _convert_file_content_to_bedrock_format(file_content: FileContent) -> dict[s
 
     if doc_format := DOCUMENT_MIME_TYPE_TO_FORMAT.get(file_content.mime_type):
         source = {"bytes": base64.b64decode(file_content.base64_data)}
-        raw_name = os.path.splitext(file_content.filename)[0] if file_content.filename else "filename"
-        # Bedrock requires name to be present but is very strict about the format.
-        # See https://docs.aws.amazon.com/bedrock/latest/APIReference/API_runtime_DocumentBlock.html
-        sanitized_name = re.sub(r"\s+", " ", re.sub(r"[^a-zA-Z0-9\s\-\[\]()]", "", raw_name)).strip()
+
+        name = "filename"
+        if file_content.filename:
+            raw_name = os.path.splitext(file_content.filename)[0]
+            # Bedrock requires name to be present but is very strict about the format.
+            # See https://docs.aws.amazon.com/bedrock/latest/APIReference/API_runtime_DocumentBlock.html
+            sanitized_name = re.sub(r"\s+", " ", re.sub(r"[^a-zA-Z0-9\s\-\[\]()]", "", raw_name)).strip()
+            if sanitized_name:
+                name = sanitized_name
+
         doc_block = {
             "document": {
                 "format": doc_format,
                 "source": source,
-                "name": sanitized_name,
+                "name": name,
                 **({"context": file_content.extra["context"]} if file_content.extra.get("context") else {}),
                 **({"citations": file_content.extra["citations"]} if file_content.extra.get("citations") else {}),
             }

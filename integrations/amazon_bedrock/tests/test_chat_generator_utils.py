@@ -127,6 +127,23 @@ class TestAmazonBedrockChatGeneratorUtils:
             }
         }
 
+    def test_convert_file_content_to_bedrock_format_document_empty_sanitized_name(self, test_files_path):
+        file_content = FileContent(
+            base64_data=base64.b64encode(b"This is a test file content."),
+            mime_type="application/pdf",
+            validation=False,
+            filename=",.?<>@.pdf",
+        )
+
+        formatted_file_content = _convert_file_content_to_bedrock_format(file_content)
+        assert formatted_file_content == {
+            "document": {
+                "format": "pdf",
+                "source": {"bytes": base64.b64decode(file_content.base64_data)},
+                "name": "filename",  # empty sanitized name is replaced with a placeholder
+            }
+        }
+
     def test_convert_file_content_to_bedrock_format_video(self, test_files_path):
         file_path = test_files_path / "video.mp4"
         file_content = FileContent.from_file_path(file_path)
