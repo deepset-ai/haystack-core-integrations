@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/google_genai-v3.8.0] - 2026-03-02
+
+### 🚀 Features
+
+- Use reasoning field in StreamingChunk for Google GenAI (#2900)
+
+
 ## [integrations/google_genai-v3.7.0] - 2026-02-27
 
 ### 🐛 Bug Fixes
