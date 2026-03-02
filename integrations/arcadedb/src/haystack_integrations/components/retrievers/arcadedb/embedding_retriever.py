@@ -27,7 +27,7 @@ class ArcadeDBEmbeddingRetriever:
 
     store = ArcadeDBDocumentStore(database="mydb")
     retriever = ArcadeDBEmbeddingRetriever(document_store=store, top_k=5)
-    
+
     # Add documents to DocumentStore
     documents = [
         Document(text="My name is Carla and I live in Berlin"),
@@ -36,7 +36,7 @@ class ArcadeDBEmbeddingRetriever:
         Document(text="My name is Usagi Tsukino and I live in Tokyo"),
     ]
     document_store.write_documents(documents)
-    
+
     embedder = SentenceTransformersTextEmbedder()
     query_embeddings = embedder.run("Who lives in Berlin?")["embedding"]
 

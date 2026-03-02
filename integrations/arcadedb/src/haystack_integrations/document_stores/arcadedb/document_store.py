@@ -104,6 +104,7 @@ class ArcadeDBDocumentStore:
 
         :returns:
             Dictionary with serialized data.
+        """
         return default_to_dict(
             self,
             url=self._url,
@@ -126,6 +127,7 @@ class ArcadeDBDocumentStore:
             The dictionary to deserialize from.
         :returns:
             The deserialized DocumentStore.
+        """
         init_params = data.get("init_parameters", {})
         for key in ("username", "password"):
             if init_params.get(key) is not None:
@@ -223,10 +225,12 @@ class ArcadeDBDocumentStore:
     # ------------------------------------------------------------------
 
     def count_documents(self) -> int:
+        """
         Returns how many documents are present in the document store.
 
         :returns:
             Number of documents in the document store.
+        """
         self._ensure_initialized()
         rows = self._command(f"SELECT count(*) AS cnt FROM `{self._type_name}`")
         if rows:
