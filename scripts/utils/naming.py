@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2022-present deepset GmbH <info@deepset.ai>
+#
+# SPDX-License-Identifier: Apache-2.0
 """Pure string helpers for integration names and paths."""
 
 import re
@@ -31,6 +34,20 @@ def folder_to_label(folder_name: str) -> str:
     amazon_bedrock -> integration:amazon-bedrock
     """
     return "integration:" + folder_name.replace("_", "-")
+
+
+_SINGULAR_OVERRIDES: dict[str, str] = {
+    "tracing": "tracing",
+}
+
+
+def singularize_type(component_type: str) -> str:
+    """Return the singular form of a component type for use in module names.
+
+    Falls back to stripping the trailing character, which works for regular
+    plural forms (e.g. ``connectors`` -> ``connector``).
+    """
+    return _SINGULAR_OVERRIDES.get(component_type, component_type[:-1])
 
 
 def get_module_path(folder_name: str, component_type: str) -> str:

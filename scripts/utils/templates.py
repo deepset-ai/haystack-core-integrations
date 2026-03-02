@@ -1,8 +1,11 @@
+# SPDX-FileCopyrightText: 2022-present deepset GmbH <info@deepset.ai>
+#
+# SPDX-License-Identifier: Apache-2.0
 """Template strings for scaffolded integration files."""
 
 import textwrap
 
-from .naming import folder_to_label, folder_to_package, get_module_path
+from .naming import folder_to_label, folder_to_package, get_module_path, singularize_type
 
 
 def workflow_yml(name: str) -> str:
@@ -276,7 +279,7 @@ def pydoc_config(name: str, component_type: str) -> str:
     return textwrap.dedent(f"""\
         loaders:
           - modules:
-              - {mod}.{component_type[:-1]}
+              - {mod}.{singularize_type(component_type)}
             search_path: [../src]
         processors:
           - type: filter
@@ -304,7 +307,7 @@ def labeler_entry(name: str) -> str:
 def readme_table_row(name: str, component_type: str, type_labels: dict[str, str]) -> str:
     """Return the markdown table row for the root README inventory."""
     pkg = folder_to_package(name)
-    type_label = type_labels.get(component_type, "")
+    type_label = type_labels.get(component_type, component_type.replace("_", " ").title())
     return (
         f"| [{pkg}](integrations/{name}/)"
         f" | {type_label}"

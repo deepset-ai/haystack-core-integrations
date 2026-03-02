@@ -247,7 +247,7 @@ The script will interactively ask you for the integration **name** (e.g. `opense
 arguments to skip the prompts:
 
 ```sh
-python scripts/create_new_integration.py --name deepset --type generators
+python scripts/create_new_integration.py --name YOUR_INTEGRATION_NAME --type YOUR_COMPONENT_TYPE
 ```
 
 The script takes care of the full setup in one step:

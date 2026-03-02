@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2022-present deepset GmbH <info@deepset.ai>
+#
+# SPDX-License-Identifier: Apache-2.0
 """Scaffold a new integration with all required boilerplate."""
 
 import argparse
@@ -29,6 +32,7 @@ COMPONENT_TYPES = [
     "retrievers",
     "tools",
     "tracing",
+    "translators",
 ]
 
 TYPE_LABELS = {
@@ -45,6 +49,7 @@ TYPE_LABELS = {
     "retrievers": "Retriever",
     "tools": "Tool",
     "tracing": "Tracer",
+    "translators": "Translator",
 }
 
 LICENSE_HEADER = """\
@@ -68,16 +73,23 @@ def prompt_component_type() -> str:
     print("Component type:")
     for i, t in enumerate(COMPONENT_TYPES, 1):
         print(f"  {i}. {t}")
+    print(f"  {len(COMPONENT_TYPES) + 1}. (custom)")
     while True:
-        choice = input(f"Choose [1-{len(COMPONENT_TYPES)}]: ").strip()
+        choice = input(f"Choose [1-{len(COMPONENT_TYPES) + 1}]: ").strip()
         try:
             idx = int(choice) - 1
             if 0 <= idx < len(COMPONENT_TYPES):
                 return COMPONENT_TYPES[idx]
+            if idx == len(COMPONENT_TYPES):
+                custom = input("  Enter custom component type: ").strip().lower()
+                if custom:
+                    return custom
+                print("  Component type cannot be empty.")
+                continue
         except ValueError:
             if choice.lower() in COMPONENT_TYPES:
                 return choice.lower()
-        print(f"  Invalid choice. Enter a number between 1 and {len(COMPONENT_TYPES)}.")
+        print(f"  Invalid choice. Enter a number between 1 and {len(COMPONENT_TYPES) + 1}.")
 
 
 def main():
@@ -99,11 +111,11 @@ def main():
     if component_type is None:
         component_type = prompt_component_type()
     elif component_type not in COMPONENT_TYPES:
-        print(
-            f"  Error: Unknown component type: '{component_type}'. Must be one of: {', '.join(COMPONENT_TYPES)}.",
-            file=sys.stderr,
-        )
-        sys.exit(1)
+        print(f"  Warning: '{component_type}' is not a known component type.")
+        print(f"  Known types: {', '.join(COMPONENT_TYPES)}")
+        confirm = input("  Continue anyway? [y/N]: ").strip().lower()
+        if confirm != "y":
+            sys.exit(1)
 
     package_name = folder_to_package(name)
     module_path = get_module_path(name, component_type)
@@ -132,8 +144,8 @@ def main():
     print(f"  2. Export the component classes from the __init__.py in your module")
     print(f"  3. Add integration-specific dependencies to integrations/{name}/pyproject.toml")
     print(f"  4. Add tests in integrations/{name}/tests/")
-    print(f"  5. If your integration tests need API keys, add the secret to the GitHub repo settings")
-    print(f"     and update .github/workflows/{name}.yml accordingly")
+    print(f"  5. If your integration tests need API keys, update .github/workflows/{name}.yml accordingly")
+    print(f"     and ask a maintainer to add the secret to the GitHub repo.")
     print(f"  6. Add relevant keywords to integrations/{name}/pyproject.toml")
     print(f"  7. Check that the correct module paths are used in integrations/{name}/pydoc/config_docusaurus.yml")
 
