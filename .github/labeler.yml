@@ -223,25 +223,25 @@ integration:unstructured-fileconverter:
       - any-glob-to-any-file: "integrations/unstructured/**/*"
       - any-glob-to-any-file: ".github/workflows/unstructured.yml"
 
+integration:valkey:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/valkey/**/*"
+      - any-glob-to-any-file: ".github/workflows/valkey.yml"
+
 integration:watsonx:
   - changed-files:
       - any-glob-to-any-file: "integrations/watsonx/**/*"
-      - any-glob-to-any-file: ".github/workflows/watsonx.yml"      
-
-integration:weaviate:
-  - changed-files:
-      - any-glob-to-any-file: "integrations/weaviate/**/*"
-      - any-glob-to-any-file: ".github/workflows/weaviate.yml"
+      - any-glob-to-any-file: ".github/workflows/watsonx.yml"
 
 integration:weave:
   - changed-files:
       - any-glob-to-any-file: "integrations/weave/**/*"
       - any-glob-to-any-file: ".github/workflows/weave.yml"
 
-integration:valkey:
+integration:weaviate:
   - changed-files:
-      - any-glob-to-any-file: "integrations/valkey/**/*"
-      - any-glob-to-any-file: ".github/workflows/valkey.yml"
+      - any-glob-to-any-file: "integrations/weaviate/**/*"
+      - any-glob-to-any-file: ".github/workflows/weaviate.yml"
 
 # Topics
 topic:CI:
