@@ -9,13 +9,14 @@ from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
-import faiss
 import numpy as np
 from haystack import default_from_dict, default_to_dict
 from haystack.dataclasses import Document
 from haystack.document_stores.errors import DocumentStoreError, DuplicateDocumentError
 from haystack.document_stores.types import DuplicatePolicy
 from haystack.errors import FilterError
+
+import faiss
 
 logger = logging.getLogger(__name__)
 
@@ -40,6 +41,8 @@ class FAISSDocumentStore:
         :param index_path: Path to save/load the index and documents. If None, the store is in-memory only.
         :param index_string: The FAISS index factory string. Default is "Flat".
         :param embedding_dim: The dimension of the embeddings. Default is 768.
+        :raises DocumentStoreError: If the FAISS index cannot be initialized.
+        :raises ValueError: If `index_path` points to a missing `.faiss` file when loading persisted data.
         """
         self.index_path = index_path
         self.embedding_dim = embedding_dim
@@ -68,6 +71,13 @@ class FAISSDocumentStore:
             msg = f"Could not create FAISS index with factory string '{self.index_string}': {e}"
             raise DocumentStoreError(msg) from e
 
+    def _get_index_or_raise(self) -> Any:
+        """Return the FAISS index or raise if it is unexpectedly missing."""
+        if self.index is None:
+            msg = "FAISS index has not been initialized."
+            raise DocumentStoreError(msg)
+        return self.index
+
     def count_documents(self) -> int:
         """
         Returns the number of documents in the store.
@@ -80,6 +90,7 @@ class FAISSDocumentStore:
 
         :param filters: A dictionary of filters to apply.
         :return: A list of matching Documents.
+        :raises FilterError: If the filter structure is invalid.
         """
         if not filters:
             return list(self.documents.values())
@@ -120,6 +131,9 @@ class FAISSDocumentStore:
         :param documents: The list of documents to write.
         :param policy: The policy to handle duplicate documents.
         :return: The number of documents written.
+        :raises ValueError: If `documents` is not an iterable of `Document` objects.
+        :raises DuplicateDocumentError: If a duplicate document is found and `policy` is `DuplicatePolicy.FAIL`.
+        :raises DocumentStoreError: If the FAISS index is unexpectedly unavailable when adding embeddings.
         """
         if not isinstance(documents, Iterable) or isinstance(documents, (str, bytes)):
             msg = "param 'documents' must contain an iterable of objects of type Document."
@@ -175,13 +189,16 @@ class FAISSDocumentStore:
         if vectors_to_add:
             vectors = np.array(vectors_to_add, dtype="float32")
             ids = np.array(ids_to_add_to_index, dtype="int64")
-            self.index.add_with_ids(vectors, ids)
+            index = self._get_index_or_raise()
+            index.add_with_ids(vectors, ids)
 
         return docs_written
 
     def delete_documents(self, document_ids: list[str]) -> None:
         """
         Deletes documents from the store.
+
+        :raises DocumentStoreError: If the FAISS index is unexpectedly unavailable when removing embeddings.
         """
         if not document_ids:
             return
@@ -197,9 +214,10 @@ class FAISSDocumentStore:
                     del self.id_map[int_id]
                     ids_to_remove_from_index.append(int_id)
 
-        if ids_to_remove_from_index and self.index.ntotal > 0:
+        index = self._get_index_or_raise()
+        if ids_to_remove_from_index and index.ntotal > 0:
             ids_array = np.array(ids_to_remove_from_index, dtype="int64")
-            self.index.remove_ids(ids_array)
+            index.remove_ids(ids_array)
 
     def delete_all_documents(self) -> None:
         """
@@ -221,6 +239,7 @@ class FAISSDocumentStore:
         :param top_k: The number of results to return.
         :param filters: Filters to apply.
         :return: A list of matching Documents.
+        :raises FilterError: If the filter structure is invalid.
         """
         if not self.index or self.index.ntotal == 0:
             return []
@@ -301,6 +320,9 @@ class FAISSDocumentStore:
             msg = "Missing 'field' in filter condition"
             raise FilterError(msg)
         field = condition.get("field")
+        if not isinstance(field, str):
+            msg = "'field' in filter condition must be a string"
+            raise FilterError(msg)
         if "value" not in condition:
             msg = "Missing 'value' in filter condition"
             raise FilterError(msg)
@@ -370,6 +392,8 @@ class FAISSDocumentStore:
 
         :param filters: A dictionary of filters to apply to find documents to delete.
         :returns: The number of documents deleted.
+        :raises FilterError: If the filter structure is invalid.
+        :raises DocumentStoreError: If the FAISS index is unexpectedly unavailable when removing embeddings.
         """
         docs_to_delete = self.filter_documents(filters)
         ids = [doc.id for doc in docs_to_delete]
@@ -382,6 +406,7 @@ class FAISSDocumentStore:
 
         :param filters: A dictionary of filters to apply.
         :returns: The number of matching documents.
+        :raises FilterError: If the filter structure is invalid.
         """
         return len(self.filter_documents(filters))
 
@@ -395,6 +420,7 @@ class FAISSDocumentStore:
         :param filters: A dictionary of filters to apply to find documents to update.
         :param meta: A dictionary of metadata key-value pairs to update in the matching documents.
         :returns: The number of documents updated.
+        :raises FilterError: If the filter structure is invalid.
         """
         docs_to_update = self.filter_documents(filters)
         for doc in docs_to_update:
@@ -505,9 +531,11 @@ class FAISSDocumentStore:
     def save(self, index_path: str | Path) -> None:
         """
         Saves the index and documents to disk.
+
+        :raises DocumentStoreError: If the FAISS index is unexpectedly unavailable.
         """
         path = Path(index_path)
-        faiss.write_index(self.index, str(path.with_suffix(".faiss")))
+        faiss.write_index(self._get_index_or_raise(), str(path.with_suffix(".faiss")))
 
         # Save documents and ID mapping
         data = {
@@ -523,6 +551,8 @@ class FAISSDocumentStore:
     def load(self, index_path: str | Path) -> None:
         """
         Loads the index and documents from disk.
+
+        :raises ValueError: If the `.faiss` file does not exist.
         """
         path = Path(index_path)
         if not path.with_suffix(".faiss").exists():

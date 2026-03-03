@@ -58,9 +58,19 @@ def _process_thinking_config(generation_kwargs: dict[str, Any]) -> dict[str, Any
     """
     Process thinking configuration from generation_kwargs.
 
+    Does not mutate the input dict; returns a new dict with thinking_config
+    applied when applicable. Supports explicit ``include_thoughts`` in
+    generation_kwargs to override the default derived from thinking_budget
+    or thinking_level.
+
     :param generation_kwargs: The generation configuration dictionary.
-    :returns: Updated generation_kwargs with thinking_config if applicable.
+    :returns: A new dict with thinking_config if applicable; caller's dict is unchanged.
     """
+    generation_kwargs = dict(generation_kwargs)
+    # Extract include_thoughts from generation_kwargs if explicitly set by the user.
+    # This must be popped before creating ThinkingConfig so it doesn't leak as an unknown kwarg.
+    explicit_include_thoughts = generation_kwargs.pop("include_thoughts", None)
+
     if "thinking_budget" in generation_kwargs:
         thinking_budget = generation_kwargs.pop("thinking_budget")
 
@@ -72,8 +82,14 @@ def _process_thinking_config(generation_kwargs: dict[str, Any]) -> dict[str, Any
             # fall back to default: dynamic thinking budget allocation
             thinking_budget = -1
 
-        # Create thinking config
-        thinking_config = types.ThinkingConfig(thinking_budget=thinking_budget, include_thoughts=True)
+        # Determine include_thoughts: respect explicit user override, otherwise auto-derive
+        if explicit_include_thoughts is not None:
+            include_thoughts = explicit_include_thoughts
+        else:
+            # When thinking_budget is 0, thinking is disabled so include_thoughts must be False
+            include_thoughts = thinking_budget != 0
+
+        thinking_config = types.ThinkingConfig(thinking_budget=thinking_budget, include_thoughts=include_thoughts)
         generation_kwargs["thinking_config"] = thinking_config
 
     if "thinking_level" in generation_kwargs:
@@ -103,8 +119,13 @@ def _process_thinking_config(generation_kwargs: dict[str, Any]) -> dict[str, Any
                 # Parse valid string to ThinkingLevel enum
                 thinking_level = types.ThinkingLevel(thinking_level_upper)
 
-        # Create thinking config with level
-        thinking_config = types.ThinkingConfig(thinking_level=thinking_level, include_thoughts=True)
+        # Determine include_thoughts: respect explicit user override, otherwise auto-derive
+        if explicit_include_thoughts is not None:
+            include_thoughts = explicit_include_thoughts
+        else:
+            include_thoughts = thinking_level != types.ThinkingLevel.MINIMAL
+
+        thinking_config = types.ThinkingConfig(thinking_level=thinking_level, include_thoughts=include_thoughts)
         generation_kwargs["thinking_config"] = thinking_config
 
     return generation_kwargs
@@ -534,7 +555,7 @@ def _convert_google_chunk_to_streaming_chunk(
     content = ""
     tool_calls: list[ToolCallDelta] = []
     finish_reason = None
-    reasoning_deltas: list[dict[str, str]] = []
+    reasoning_deltas: list[str] = []
     thought_signature_deltas: list[dict[str, Any]] = []  # Track thought signatures in streaming
 
     if chunk.candidates:
@@ -585,39 +606,39 @@ def _convert_google_chunk_to_streaming_chunk(
 
             # Handle thought parts for Gemini 2.5 series
             elif hasattr(part, "thought") and part.thought:
-                thought_delta = {
-                    "type": "reasoning",
-                    "content": part.text if part.text else "",
-                }
-                reasoning_deltas.append(thought_delta)
+                reasoning_deltas.append(part.text if part.text else "")
+
+    # Combine reasoning deltas into a single ReasoningContent
+    reasoning = ReasoningContent(reasoning_text="".join(reasoning_deltas)) if reasoning_deltas else None
 
     # start is only used by print_streaming_chunk. We try to make a reasonable assumption here but it should not be
     # a problem if we change it in the future.
     start = index == 0 or len(tool_calls) > 0
 
-    # Create meta with reasoning deltas and thought signatures if available
     meta: dict[str, Any] = {
         "received_at": datetime.now(timezone.utc).isoformat(),
         "model": model,
         "usage": usage,
     }
 
-    # Add reasoning deltas to meta if available
-    if reasoning_deltas:
-        meta["reasoning_deltas"] = reasoning_deltas
-
-    # Add thought signature deltas to meta if available (for multi-turn context)
+    # Thought signatures can appear in both reasoning and non-reasoning response parts,
+    # so we always store them in meta for consistency.
     if thought_signature_deltas:
         meta["thought_signature_deltas"] = thought_signature_deltas
 
+    # StreamingChunk allows only one of content/tool_calls/reasoning to be set.
+    # Determine the effective content: tool_calls and reasoning take priority.
+    effective_content = "" if tool_calls or reasoning else content
+
     return StreamingChunk(
-        content="" if tool_calls else content,  # prioritize tool calls over content when both are present
+        content=effective_content,
         tool_calls=tool_calls,
         component_info=component_info,
         index=index,
         start=start,
         finish_reason=FINISH_REASON_MAPPING.get(finish_reason or ""),
         meta=meta,
+        reasoning=reasoning,
     )
 
 
@@ -641,13 +662,9 @@ def _aggregate_streaming_chunks_with_reasoning(chunks: list[StreamingChunk]) -> 
     thoughts_token_count = None
 
     for chunk in chunks:
-        # Extract reasoning deltas
-        if chunk.meta and "reasoning_deltas" in chunk.meta:
-            reasoning_deltas = chunk.meta["reasoning_deltas"]
-            if isinstance(reasoning_deltas, list):
-                for delta in reasoning_deltas:
-                    if delta.get("type") == "reasoning":
-                        reasoning_text_parts.append(delta.get("content", ""))
+        # Extract reasoning from the StreamingChunk.reasoning field
+        if chunk.reasoning and chunk.reasoning.reasoning_text:
+            reasoning_text_parts.append(chunk.reasoning.reasoning_text)
 
         # Extract thought signature deltas (for multi-turn context preservation)
         if chunk.meta and "thought_signature_deltas" in chunk.meta:

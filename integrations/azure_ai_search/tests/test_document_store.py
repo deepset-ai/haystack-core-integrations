@@ -5,10 +5,17 @@
 import os
 import random
 from datetime import datetime, timezone
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 import pytest
-from azure.search.documents.indexes.models import CustomAnalyzer, SearchField, SearchResourceEncryptionKey, SimpleField
+from azure.search.documents.indexes.models import (
+    CustomAnalyzer,
+    SearchableField,
+    SearchField,
+    SearchFieldDataType,
+    SearchResourceEncryptionKey,
+    SimpleField,
+)
 from haystack.dataclasses.document import Document
 from haystack.errors import FilterError
 from haystack.testing.document_store import (
@@ -234,6 +241,128 @@ def test_init():
     assert document_store._vector_search_configuration == DEFAULT_VECTOR_SEARCH
 
 
+def _build_mock_document_store_with_schema(index_fields):
+    store = AzureAISearchDocumentStore(
+        api_key=Secret.from_token("fake-api-key"),
+        azure_endpoint=Secret.from_token("fake-endpoint"),
+        index_name="test-index",
+    )
+    search_client = Mock()
+    index_client = Mock()
+    index_client.list_index_names.return_value = ["test-index"]
+    index_client.get_index.return_value = Mock(fields=index_fields)
+    index_client.get_search_client.return_value = search_client
+    store._index_client = index_client
+    return store, search_client, index_client
+
+
+def test_count_documents_by_filter():
+    index_fields = [
+        SimpleField(name="id", type=SearchFieldDataType.String, key=True, filterable=True),
+        SearchableField(name="content", type=SearchFieldDataType.String),
+        SimpleField(name="category", type=SearchFieldDataType.String, filterable=True),
+    ]
+    document_store, search_client, _ = _build_mock_document_store_with_schema(index_fields)
+    count_result = Mock()
+    count_result.get_count.return_value = 3
+    search_client.search.return_value = count_result
+
+    count = document_store.count_documents_by_filter({"field": "meta.category", "operator": "==", "value": "news"})
+
+    assert count == 3
+    search_client.search.assert_called_once()
+    assert search_client.search.call_args.kwargs["include_total_count"] is True
+
+
+def test_count_unique_metadata_by_filter():
+    index_fields = [
+        SimpleField(name="id", type=SearchFieldDataType.String, key=True, filterable=True),
+        SearchableField(name="content", type=SearchFieldDataType.String),
+        SimpleField(name="category", type=SearchFieldDataType.String, filterable=True),
+        SimpleField(name="status", type=SearchFieldDataType.String, filterable=True),
+    ]
+    document_store, search_client, _ = _build_mock_document_store_with_schema(index_fields)
+    search_client.search.return_value = [
+        {"category": "news", "status": "draft"},
+        {"category": "docs", "status": "draft"},
+        {"category": "news", "status": "published"},
+    ]
+
+    counts = document_store.count_unique_metadata_by_filter(
+        filters={"field": "meta.status", "operator": "!=", "value": "archived"},
+        metadata_fields=["meta.category", "status"],
+    )
+
+    assert counts == {"category": 2, "status": 2}
+
+
+def test_get_metadata_fields_info():
+    index_fields = [
+        SimpleField(name="id", type=SearchFieldDataType.String, key=True, filterable=True),
+        SearchableField(name="content", type=SearchFieldDataType.String),
+        SimpleField(name="category", type=SearchFieldDataType.String, filterable=True),
+        SimpleField(name="status", type=SearchFieldDataType.String, filterable=True),
+        SimpleField(name="priority", type=SearchFieldDataType.Int32, filterable=True),
+    ]
+    document_store, _, _ = _build_mock_document_store_with_schema(index_fields)
+
+    info = document_store.get_metadata_fields_info()
+
+    assert info == {
+        "content": {"type": "text"},
+        "category": {"type": "keyword"},
+        "status": {"type": "keyword"},
+        "priority": {"type": "long"},
+    }
+
+
+def test_get_metadata_field_min_max():
+    index_fields = [
+        SimpleField(name="id", type=SearchFieldDataType.String, key=True, filterable=True),
+        SearchableField(name="content", type=SearchFieldDataType.String),
+        SimpleField(name="priority", type=SearchFieldDataType.Int32, filterable=True),
+    ]
+    document_store, search_client, _ = _build_mock_document_store_with_schema(index_fields)
+    search_client.search.return_value = [{"priority": 10}, {"priority": 2}, {"priority": 7}]
+
+    result = document_store.get_metadata_field_min_max("meta.priority")
+
+    assert result == {"min": 2, "max": 10}
+
+
+def test_get_metadata_field_unique_values():
+    index_fields = [
+        SimpleField(name="id", type=SearchFieldDataType.String, key=True, filterable=True),
+        SearchableField(name="content", type=SearchFieldDataType.String),
+        SimpleField(name="category", type=SearchFieldDataType.String, filterable=True),
+    ]
+    document_store, search_client, _ = _build_mock_document_store_with_schema(index_fields)
+    search_client.search.return_value = [
+        {"category": "news"},
+        {"category": "docs"},
+        {"category": "api"},
+        {"category": "news"},
+    ]
+
+    values, total_count = document_store.get_metadata_field_unique_values(
+        metadata_field="meta.category", search_term="d", from_=0, size=10
+    )
+
+    assert values == ["docs"]
+    assert total_count == 1
+
+
+def test_query_sql_raises_not_implemented():
+    document_store = AzureAISearchDocumentStore(
+        api_key=Secret.from_token("fake-api-key"),
+        azure_endpoint=Secret.from_token("fake-endpoint"),
+        index_name="test-index",
+    )
+
+    with pytest.raises(NotImplementedError, match="does not support SQL queries"):
+        document_store.query_sql("SELECT * FROM test-index")
+
+
 def _assert_documents_are_equal(received: list[Document], expected: list[Document]):
     """
     Assert that two lists of Documents are equal.
@@ -396,6 +525,101 @@ class TestDocumentStore(
             )
         assert "nonexistent_field" in str(exc_info.value)
         assert "not defined in index schema" in str(exc_info.value)
+
+    @pytest.mark.parametrize(
+        "document_store",
+        [{"metadata_fields": {"category": str, "status": str, "priority": int}}],
+        indirect=True,
+    )
+    def test_count_documents_by_filter_integration(self, document_store: AzureAISearchDocumentStore):
+        docs = [
+            Document(content="Doc 1", meta={"category": "news", "status": "draft", "priority": 1}),
+            Document(content="Doc 2", meta={"category": "news", "status": "published", "priority": 2}),
+            Document(content="Doc 3", meta={"category": "docs", "status": "draft", "priority": 3}),
+        ]
+        document_store.write_documents(docs)
+
+        count = document_store.count_documents_by_filter({"field": "meta.category", "operator": "==", "value": "news"})
+
+        assert count == 2
+
+    @pytest.mark.parametrize(
+        "document_store",
+        [{"metadata_fields": {"category": str, "status": str, "priority": int}}],
+        indirect=True,
+    )
+    def test_count_unique_metadata_by_filter_integration(self, document_store: AzureAISearchDocumentStore):
+        docs = [
+            Document(content="Doc 1", meta={"category": "news", "status": "draft", "priority": 1}),
+            Document(content="Doc 2", meta={"category": "news", "status": "published", "priority": 2}),
+            Document(content="Doc 3", meta={"category": "docs", "status": "draft", "priority": 3}),
+        ]
+        document_store.write_documents(docs)
+
+        counts = document_store.count_unique_metadata_by_filter(
+            filters={"field": "meta.priority", "operator": ">=", "value": 1},
+            metadata_fields=["meta.category", "status"],
+        )
+
+        assert counts == {"category": 2, "status": 2}
+
+    @pytest.mark.parametrize(
+        "document_store",
+        [{"metadata_fields": {"category": str, "status": str, "priority": int}}],
+        indirect=True,
+    )
+    def test_get_metadata_fields_info_integration(self, document_store: AzureAISearchDocumentStore):
+        info = document_store.get_metadata_fields_info()
+
+        assert info["content"] == {"type": "text"}
+        assert info["category"] == {"type": "keyword"}
+        assert info["status"] == {"type": "keyword"}
+        assert info["priority"] == {"type": "long"}
+
+    @pytest.mark.parametrize(
+        "document_store",
+        [{"metadata_fields": {"category": str, "status": str, "priority": int}}],
+        indirect=True,
+    )
+    def test_get_metadata_field_min_max_integration(self, document_store: AzureAISearchDocumentStore):
+        docs = [
+            Document(content="Doc 1", meta={"category": "news", "status": "draft", "priority": 1}),
+            Document(content="Doc 2", meta={"category": "news", "status": "published", "priority": 8}),
+            Document(content="Doc 3", meta={"category": "docs", "status": "draft", "priority": 3}),
+        ]
+        document_store.write_documents(docs)
+
+        result = document_store.get_metadata_field_min_max("meta.priority")
+
+        assert result == {"min": 1, "max": 8}
+
+    @pytest.mark.parametrize(
+        "document_store",
+        [{"metadata_fields": {"category": str, "status": str, "priority": int}}],
+        indirect=True,
+    )
+    def test_get_metadata_field_unique_values_integration(self, document_store: AzureAISearchDocumentStore):
+        docs = [
+            Document(content="Doc 1", meta={"category": "news", "status": "draft", "priority": 1}),
+            Document(content="Doc 2", meta={"category": "guides", "status": "published", "priority": 8}),
+            Document(content="Doc 3", meta={"category": "docs", "status": "draft", "priority": 3}),
+            Document(content="Doc 4", meta={"category": "news", "status": "archived", "priority": 10}),
+        ]
+        document_store.write_documents(docs)
+
+        values, total_count = document_store.get_metadata_field_unique_values(
+            metadata_field="meta.category",
+            search_term="d",
+            from_=0,
+            size=10,
+        )
+
+        assert values == ["docs", "guides"]
+        assert total_count == 2
+
+    def test_query_sql_integration(self, document_store: AzureAISearchDocumentStore):
+        with pytest.raises(NotImplementedError, match="does not support SQL queries"):
+            document_store.query_sql("SELECT * FROM documents")
 
 
 def _random_embeddings(n):
