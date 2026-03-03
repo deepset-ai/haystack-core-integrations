@@ -3,18 +3,14 @@ requires = ["hatchling", "hatch-vcs"]
 build-backend = "hatchling.build"
 
 [project]
-name = "qdrant-haystack"
+name = "arcadedb-haystack"
 dynamic = ["version"]
-description = 'An integration of Qdrant ANN vector database backend with Haystack'
+description = "An integration of ArcadeDB with Haystack — document storage + HNSW vector search + SQL filtering"
 readme = "README.md"
 requires-python = ">=3.10"
 license = "Apache-2.0"
-keywords = []
-authors = [
-  { name = "deepset GmbH", email = "info@deepset.ai" },
-  { name = "Kacper Łukawski", email = "kacper.lukawski@qdrant.com" },
-  { name = "Anush Shetty", email = "anush.shetty@qdrant.com" },
-]
+keywords = ["arcadedb", "haystack", "vector-search", "document-store", "rag"]
+authors = [{ name = "deepset GmbH", email = "info@deepset.ai" }, { name = "ArcadeData Ltd", email = "info@arcadedb.com" }]
 classifiers = [
   "License :: OSI Approved :: Apache Software License",
   "Development Status :: 4 - Beta",
@@ -27,13 +23,13 @@ classifiers = [
   "Programming Language :: Python :: Implementation :: PyPy",
 ]
 dependencies = [
-  "haystack-ai>=2.24.0",
-  "qdrant-client>=1.12.0"
+  "haystack-ai>=2.9.0",
+  "requests>=2.28.0",
 ]
 
 [project.urls]
 Source = "https://github.com/deepset-ai/haystack-core-integrations"
-Documentation = "https://github.com/deepset-ai/haystack-core-integrations/blob/main/integrations/qdrant/README.md"
+Documentation = "https://github.com/deepset-ai/haystack-core-integrations/blob/main/integrations/arcadedb/README.md"
 Issues = "https://github.com/deepset-ai/haystack-core-integrations/issues"
 
 [tool.hatch.build.targets.wheel]
@@ -41,11 +37,11 @@ packages = ["src/haystack_integrations"]
 
 [tool.hatch.version]
 source = "vcs"
-tag-pattern = 'integrations\/qdrant-v(?P<version>.*)'
+tag-pattern = 'integrations\/arcadedb-v(?P<version>.*)'
 
 [tool.hatch.version.raw-options]
 root = "../.."
-git_describe_command = 'git describe --tags --match="integrations/qdrant-v[0-9]*"'
+git_describe_command = 'git describe --tags --match="integrations/arcadedb-v[0-9]*"'
 
 [tool.hatch.envs.default]
 installer = "uv"
@@ -59,11 +55,10 @@ fmt-check = "ruff check {args} && ruff format --check {args}"
 [tool.hatch.envs.test]
 dependencies = [
     "pytest",
-    "pytest-asyncio",
     "pytest-cov",
     "pytest-rerunfailures",
     "mypy",
-    "pip"
+    "pip",
 ]
 
 [tool.hatch.envs.test.scripts]
@@ -71,9 +66,7 @@ unit = 'pytest -m "not integration" {args:tests}'
 integration = 'pytest -m "integration" {args:tests}'
 all = 'pytest {args:tests}'
 cov-retry = 'pytest --cov=haystack_integrations --reruns 3 --reruns-delay 30 -x {args:tests}'
-
-types = """mypy -p haystack_integrations.document_stores.qdrant \
--p haystack_integrations.components.retrievers.qdrant {args}"""
+types = "mypy -p haystack_integrations.document_stores.arcadedb -p haystack_integrations.components.retrievers.arcadedb {args}"
 
 [tool.mypy]
 install_types = true
@@ -81,81 +74,46 @@ non_interactive = true
 check_untyped_defs = true
 disallow_incomplete_defs = true
 
+[[tool.mypy.overrides]]
+module = ["requests.*"]
+ignore_missing_imports = true
 
 [tool.ruff]
 line-length = 120
 
 [tool.ruff.lint]
 select = [
-  "A",
-  "ARG",
-  "B",
-  "C",
-  "DTZ",
-  "E",
-  "EM",
-  "F",
-  "FBT",
-  "I",
-  "ICN",
-  "ISC",
-  "N",
-  "PLC",
-  "PLE",
-  "PLR",
-  "PLW",
-  "Q",
-  "RUF",
-  "S",
-  "T",
-  "TID",
-  "UP",
-  "W",
-  "YTT",
+  "A", "ARG", "B", "C", "DTZ", "E", "EM", "F", "FBT", "I", "ICN",
+  "ISC", "N", "PLC", "PLE", "PLR", "PLW", "Q", "RUF", "S", "T",
+  "TID", "UP", "W", "YTT",
 ]
 ignore = [
-  # Allow non-abstract empty methods in abstract base classes
-  "B027",
-  # Allow boolean positional values in function calls, like `dict.get(... True)`
-  "FBT003",
-  # Allow boolean arguments in function definition
-  "FBT001",
-  "FBT002",
-  # Ignore checks for possible passwords
-  "S105",
-  "S106",
-  "S107",
-  # Ignore complexity
-  "C901",
-  "PLR0911",
-  "PLR0912",
-  "PLR0913",
-  "PLR0915",
-  # Ignore assertions
-  "S101",
+  "B027", "FBT003", "S105", "S106", "S107",
+  "C901", "PLR0911", "PLR0912", "PLR0913", "PLR0915",
+  "B008", "S101",
+  # SQL string construction is intentional — ArcadeDB uses HTTP/JSON API with value escaping
+  "S608",
 ]
+
+[tool.ruff.lint.isort]
+known-first-party = ["haystack_integrations"]
 
 [tool.ruff.lint.flake8-tidy-imports]
 ban-relative-imports = "parents"
 
 [tool.ruff.lint.per-file-ignores]
-# Tests can use magic values, assertions, and relative imports
 "tests/**/*" = ["PLR2004", "S101", "TID252"]
-# examples can contain "print" commands
 "examples/**/*" = ["T201"]
-
 
 [tool.coverage.run]
 source = ["haystack_integrations"]
 branch = true
 parallel = false
 
-
 [tool.coverage.report]
-omit = [
-  "*/tests/*",
-  "*/__init__.py",
-  "src/haystack_integrations/document_stores/qdrant/migrate_to_sparse.py",
-]
+omit = ["*/tests/*", "*/__init__.py"]
 show_missing = true
 exclude_lines = ["no cov", "if __name__ == .__main__.:", "if TYPE_CHECKING:"]
+
+[tool.pytest.ini_options]
+markers = ["integration: integration tests"]

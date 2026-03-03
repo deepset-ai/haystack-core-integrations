@@ -91,6 +91,18 @@ logger = logging.getLogger(__name__)
 python_logging.getLogger("azure").setLevel(python_logging.ERROR)
 python_logging.getLogger("azure.identity").setLevel(python_logging.DEBUG)
 
+SPECIAL_FIELDS = {"id", "embedding"}
+FIELD_TYPE_MAPPING = {
+    "Edm.String": "keyword",
+    "Edm.Boolean": "boolean",
+    "Edm.Int16": "long",
+    "Edm.Int32": "long",
+    "Edm.Int64": "long",
+    "Edm.Single": "double",
+    "Edm.Double": "double",
+    "Edm.DateTimeOffset": "date",
+}
+
 
 class AzureAISearchDocumentStore:
     def __init__(
@@ -347,6 +359,197 @@ class AzureAISearchDocumentStore:
         :returns: list of retrieved documents.
         """
         return self.client.get_document_count()
+
+    @staticmethod
+    def _normalize_metadata_field_name(metadata_field: str) -> str:
+        """
+        Normalizes a metadata field name by removing the `meta.` prefix if present.
+        """
+        return metadata_field[5:] if metadata_field.startswith("meta.") else metadata_field
+
+    def _get_index_schema_fields(self) -> dict[str, Any]:
+        """
+        Returns the index schema fields keyed by field name.
+        """
+        _ = self.client
+        if self._index_client is None:
+            msg = "Search Index Client is not initialized."
+            raise AzureAISearchDocumentStoreConfigError(msg)
+
+        index_fields = self._index_client.get_index(self._index_name).fields
+        return {field.name: field for field in index_fields}
+
+    def _validate_index_fields(self, field_names: list[str]) -> None:
+        """
+        Validates that all provided field names exist in the index schema.
+        """
+        if not self._index_fields:
+            self._index_fields = list(self._get_index_schema_fields().keys())
+
+        missing_fields = [field for field in field_names if field not in self._index_fields]
+        if missing_fields:
+            msg = f"Fields {missing_fields} are not defined in index schema. Available fields: {self._index_fields}"
+            raise ValueError(msg)
+
+    def _fetch_raw_documents(
+        self,
+        *,
+        filters: dict[str, Any] | None = None,
+        select: list[str] | None = None,
+    ) -> list[dict[str, Any]]:
+        """
+        Fetches raw Azure documents, optionally filtered and projected to selected fields.
+        """
+        normalized_filters = _normalize_filters(filters) if filters else None
+        result = self.client.search(search_text="*", filter=normalized_filters, select=select, top=BIG_TOP_K)
+        return list(result)
+
+    @staticmethod
+    def _collect_unique_values(documents: list[dict[str, Any]], field_name: str) -> set[Any]:
+        """
+        Collects unique field values from Azure documents.
+        """
+        unique_values: set[Any] = set()
+        for document in documents:
+            value = document.get(field_name)
+            if isinstance(value, list):
+                unique_values.update(value)
+            elif value is not None:
+                unique_values.add(value)
+        return unique_values
+
+    @staticmethod
+    def _get_min_max_from_documents(documents: list[dict[str, Any]], field_name: str) -> dict[str, Any]:
+        """
+        Computes min and max values for a field from Azure documents.
+        """
+        values: list[bool | int | float | str | datetime] = []
+        for document in documents:
+            value = document.get(field_name)
+            if isinstance(value, (bool, int, float, str, datetime)):
+                values.append(value)
+
+        if not values:
+            return {"min": None, "max": None}
+
+        return {"min": min(values), "max": max(values)}
+
+    @staticmethod
+    def _map_azure_field_type(field: Any) -> str:
+        """
+        Maps Azure Search field definitions to Haystack metadata field types.
+        """
+        field_type = getattr(field, "type", None)
+        if field.name == "content":
+            return "text"
+        if field_type is None:
+            return "keyword"
+
+        field_type_name = str(field_type)
+        if field_type_name.startswith("Collection("):
+            inner_type = field_type_name[len("Collection(") : -1]
+            return FIELD_TYPE_MAPPING.get(inner_type, "keyword")
+
+        if field_type_name == "Edm.String" and getattr(field, "searchable", False):
+            return "text"
+
+        return FIELD_TYPE_MAPPING.get(field_type_name, "keyword")
+
+    def count_documents_by_filter(self, filters: dict[str, Any]) -> int:
+        """
+        Returns the count of documents that match the provided filters.
+
+        :param filters: The filters to apply to the document list.
+            For filter syntax, see [Haystack metadata filtering](https://docs.haystack.deepset.ai/docs/metadata-filtering)
+        :returns: The number of documents that match the filters.
+        """
+        normalized_filters = _normalize_filters(filters)
+        result = self.client.search(
+            search_text="*",
+            filter=normalized_filters,
+            select=["id"],
+            top=1,
+            include_total_count=True,
+        )
+        count = result.get_count()
+        return count if count is not None else len(self._fetch_raw_documents(filters=filters, select=["id"]))
+
+    def count_unique_metadata_by_filter(self, filters: dict[str, Any], metadata_fields: list[str]) -> dict[str, int]:
+        """
+        Counts unique values for each specified metadata field in documents matching the filters.
+
+        :param filters: The filters to apply to select documents.
+        :param metadata_fields: List of field names to count unique values for.
+        :returns: Dictionary mapping field names to counts of unique values.
+        """
+        normalized_metadata_fields = [self._normalize_metadata_field_name(field) for field in metadata_fields]
+        self._validate_index_fields(normalized_metadata_fields)
+
+        documents = self._fetch_raw_documents(filters=filters, select=normalized_metadata_fields)
+        return {
+            field_name: len(self._collect_unique_values(documents, field_name))
+            for field_name in normalized_metadata_fields
+        }
+
+    def get_metadata_fields_info(self) -> dict[str, dict[str, str]]:
+        """
+        Returns the information about metadata fields in the index.
+
+        :returns: Dictionary mapping field names to type information.
+        """
+        schema_fields = self._get_index_schema_fields()
+        return {
+            name: {"type": self._map_azure_field_type(field)}
+            for name, field in schema_fields.items()
+            if name not in SPECIAL_FIELDS
+        }
+
+    def get_metadata_field_min_max(self, metadata_field: str) -> dict[str, Any]:
+        """
+        Returns the minimum and maximum values for the given metadata field.
+
+        :param metadata_field: The metadata field to get the minimum and maximum values for.
+        :returns: A dictionary with the keys "min" and "max".
+        """
+        field_name = self._normalize_metadata_field_name(metadata_field)
+        self._validate_index_fields([field_name])
+
+        documents = self._fetch_raw_documents(select=[field_name])
+        return self._get_min_max_from_documents(documents, field_name)
+
+    def get_metadata_field_unique_values(
+        self, metadata_field: str, search_term: str | None = None, from_: int = 0, size: int = 10
+    ) -> tuple[list[str], int]:
+        """
+        Retrieves unique values for a metadata field with optional search and pagination.
+
+        :param metadata_field: The metadata field to get unique values for.
+        :param search_term: Optional search term to filter unique values.
+        :param from_: Starting offset for pagination.
+        :param size: Number of values to return.
+        :returns: Tuple of (list of unique values, total count of matching values).
+        """
+        field_name = self._normalize_metadata_field_name(metadata_field)
+        self._validate_index_fields([field_name])
+
+        documents = self._fetch_raw_documents(select=[field_name])
+        unique_values = sorted(str(value) for value in self._collect_unique_values(documents, field_name))
+
+        if search_term:
+            normalized_search_term = search_term.lower()
+            unique_values = [value for value in unique_values if normalized_search_term in value.lower()]
+
+        total_count = len(unique_values)
+        return unique_values[from_ : from_ + size], total_count
+
+    def query_sql(self, query: str) -> Any:
+        """
+        Executes an SQL query if supported by the document store backend.
+
+        Azure AI Search does not support SQL queries.
+        """
+        msg = f"Azure AI Search does not support SQL queries: {query}"
+        raise NotImplementedError(msg)
 
     def write_documents(self, documents: list[Document], policy: DuplicatePolicy = DuplicatePolicy.NONE) -> int:
         """

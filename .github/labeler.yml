@@ -19,6 +19,11 @@ integration:anthropic:
       - any-glob-to-any-file: "integrations/anthropic/**/*"
       - any-glob-to-any-file: ".github/workflows/anthropic.yml"
 
+integration:arcadedb:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/arcadedb/**/*"
+      - any-glob-to-any-file: ".github/workflows/arcadedb.yml"
+
 integration:astra:
   - changed-files:
       - any-glob-to-any-file: "integrations/astra/**/*"

@@ -1,5 +1,21 @@
 # Changelog
 
+## [integrations/pgvector-v6.2.0] - 2026-03-02
+
+### 🐛 Bug Fixes
+
+- Add metadata field-name validation using regex in `PGVectorDocumentStore` filters to prevent SQL injection vectors. (#2881)
+- Remove NUL bytes when converting from haystack to pg documents (#2892)
+
+### 📚 Documentation
+
+- Simplify pydoc configs (#2855)
+
+### 🧪 Testing
+
+- Replacing each `DocumentStore` specific tests and used the generalised ones from `haystack.testing.document_store` (#2812)
+
+
 ## [integrations/pgvector-v6.1.0] - 2026-01-28
 
 ### 🚀 Features
