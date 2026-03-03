@@ -29,7 +29,9 @@ def test_get_client_vertex_project_and_location(monkeypatch):
         client = _get_client(
             api_key=api_key, api="vertex", vertex_ai_project="test-project", vertex_ai_location="test-location"
         )
-        mock_client.assert_called_once_with(vertexai=True, project="test-project", location="test-location")
+        mock_client.assert_called_once_with(
+            vertexai=True, project="test-project", location="test-location", http_options=None
+        )
     assert client is not None
 
 
@@ -39,7 +41,7 @@ def test_get_client_vertex_api_key(monkeypatch):
 
     with patch("haystack_integrations.components.common.google_genai.utils.Client") as mock_client:
         client = _get_client(api_key=api_key, api="vertex", vertex_ai_project=None, vertex_ai_location=None)
-        mock_client.assert_called_once_with(vertexai=True, api_key="test-api-key")
+        mock_client.assert_called_once_with(vertexai=True, api_key="test-api-key", http_options=None)
     assert client is not None
 
 
@@ -49,7 +51,7 @@ def test_get_client_gemini_api_key(monkeypatch):
 
     with patch("haystack_integrations.components.common.google_genai.utils.Client") as mock_client:
         client = _get_client(api_key=api_key, api="gemini", vertex_ai_project=None, vertex_ai_location=None)
-        mock_client.assert_called_once_with(api_key="test-api-key")
+        mock_client.assert_called_once_with(api_key="test-api-key", http_options=None)
     assert client is not None
 
 

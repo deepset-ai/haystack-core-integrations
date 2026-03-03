@@ -70,27 +70,21 @@ def _get_client(
 
         if vertex_ai_project and vertex_ai_location:
             logger.info("Using vertex_ai_project and vertex_ai_location for authentication.")
-            if http_options is not None:
-                return Client(
-                    vertexai=True,
-                    project=vertex_ai_project,
-                    location=vertex_ai_location,
-                    http_options=http_options,
-                )
-            return Client(vertexai=True, project=vertex_ai_project, location=vertex_ai_location)
+            return Client(
+                vertexai=True,
+                project=vertex_ai_project,
+                location=vertex_ai_location,
+                http_options=http_options,
+            )
 
         logger.info(
             "No vertex_ai_project or vertex_ai_location provided for Vertex AI. Using the API key for authentication."
         )
-        if http_options is not None:
-            return Client(vertexai=True, api_key=resolved_api_key, http_options=http_options)
-        return Client(vertexai=True, api_key=resolved_api_key)
+        return Client(vertexai=True, api_key=resolved_api_key, http_options=http_options)
 
     # Gemini API
     if not resolved_api_key:
         msg = "To use Gemini API, you must export the GOOGLE_API_KEY or GEMINI_API_KEY environment variable."
         raise ValueError(msg)
 
-    if http_options is not None:
-        return Client(api_key=resolved_api_key, http_options=http_options)
-    return Client(api_key=resolved_api_key)
+    return Client(api_key=resolved_api_key, http_options=http_options)
