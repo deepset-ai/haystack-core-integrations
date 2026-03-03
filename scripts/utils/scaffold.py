@@ -5,16 +5,18 @@
 
 import re
 from pathlib import Path
+from string import Template
 
-from .naming import folder_to_label, folder_to_package
-from .templates import (
-    labeler_entry,
-    pydoc_config,
-    pyproject_toml,
-    readme_md,
-    readme_table_row,
-    workflow_yml,
-)
+from .naming import folder_to_label, folder_to_package, get_module_path, singularize_type
+
+
+_TEMPLATES_DIR = Path(__file__).parent / "templates"
+
+
+def render(filename: str, **kwargs: str) -> str:
+    """Load a template from the templates/ directory and substitute variables."""
+    text = (_TEMPLATES_DIR / filename).read_text()
+    return Template(text).safe_substitute(**kwargs)
 
 
 def create_integration_files(
@@ -46,11 +48,24 @@ def create_integration_files(
 
     write_file("tests/__init__.py", license_header)
 
-    write_file("pyproject.toml", pyproject_toml(name, component_type))
-    write_file("README.md", readme_md(name))
+    pkg = folder_to_package(name)
+    mod = get_module_path(name, component_type)
+
+    write_file("pyproject.toml", render("pyproject.toml", name=name, pkg=pkg, mod=mod))
+    write_file("README.md", render("readme.md", name=name, pkg=pkg))
     license_src = repo_root / "LICENSE"
     write_file("LICENSE.txt", license_src.read_text())
-    write_file("pydoc/config_docusaurus.yml", pydoc_config(name, component_type))
+    write_file(
+        "pydoc/config_docusaurus.yml",
+        render(
+            "pydoc_config.yml",
+            name=name,
+            mod=mod,
+            title=name.replace("_", " ").title(),
+            singular_type=singularize_type(component_type),
+            name_hyphenated=name.replace("_", "-"),
+        ),
+    )
 
     return created_files
 
@@ -58,7 +73,7 @@ def create_integration_files(
 def create_workflow(name: str, *, repo_root: Path) -> str:
     """Create a GitHub Actions workflow file. Returns the relative path."""
     workflow_path = repo_root / ".github" / "workflows" / f"{name}.yml"
-    workflow_path.write_text(workflow_yml(name))
+    workflow_path.write_text(render("workflow.yml", name=name))
     return str(workflow_path.relative_to(repo_root))
 
 
@@ -67,7 +82,7 @@ def update_labeler(name: str, *, repo_root: Path) -> str:
     labeler_path = repo_root / ".github" / "labeler.yml"
     content = labeler_path.read_text()
     new_label = folder_to_label(name)
-    entry = labeler_entry(name)
+    entry = render("labeler_entry.yml", name=name, label=new_label)
 
     label_pattern = re.compile(r"^(integration:\S+):", re.MULTILINE)
     matches = list(label_pattern.finditer(content))
@@ -98,8 +113,9 @@ def update_root_readme(
     readme_path = repo_root / "README.md"
     content = readme_path.read_text()
 
-    row = readme_table_row(name, component_type, type_labels)
     new_pkg = folder_to_package(name)
+    type_label = type_labels.get(component_type, component_type.replace("_", " ").title())
+    row = render("readme_table_row.txt", name=name, pkg=new_pkg, type_label=type_label).rstrip("\n")
 
     row_pattern = re.compile(r"^\| \[([^\]]+)\]", re.MULTILINE)
     matches = list(row_pattern.finditer(content))
