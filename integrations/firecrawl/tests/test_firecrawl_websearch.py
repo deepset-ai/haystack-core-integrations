@@ -7,7 +7,6 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from haystack import Document
-from haystack.core.serialization import component_from_dict, component_to_dict
 from haystack.utils import Secret
 
 from haystack_integrations.components.websearch.firecrawl import FirecrawlWebSearch
@@ -68,32 +67,6 @@ class TestFirecrawlWebSearch:
         assert ws._search_params == {"tbs": "qdr:d", "location": "US"}
         assert ws.api_key.resolve_value() == "custom-key"
 
-    def test_to_dict(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        monkeypatch.setenv("FIRECRAWL_API_KEY", "test-key")
-        ws = FirecrawlWebSearch(top_k=5, search_params={"tbs": "qdr:d"})
-        data = component_to_dict(ws, "FirecrawlWebSearch")
-        assert (
-            data["type"]
-            == "haystack_integrations.components.websearch.firecrawl.firecrawl_websearch.FirecrawlWebSearch"
-        )
-        assert data["init_parameters"]["top_k"] == 5
-        assert data["init_parameters"]["search_params"] == {"tbs": "qdr:d"}
-
-    def test_from_dict(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        monkeypatch.setenv("FIRECRAWL_API_KEY", "test-key")
-        data = {
-            "type": ("haystack_integrations.components.websearch.firecrawl.firecrawl_websearch.FirecrawlWebSearch"),
-            "init_parameters": {
-                "top_k": 3,
-                "search_params": {"location": "UK"},
-                "api_key": {"env_vars": ["FIRECRAWL_API_KEY"], "strict": True, "type": "env_var"},
-            },
-        }
-        ws = component_from_dict(FirecrawlWebSearch, data, "FirecrawlWebSearch")
-        assert ws.top_k == 3
-        assert ws.search_params == {"location": "UK"}
-        assert ws.api_key.resolve_value() == "test-key"
-
     def test_run_returns_documents_and_links(self, mock_client) -> None:
         ws = FirecrawlWebSearch(api_key=Secret.from_token("test-key"), top_k=10)
         ws._firecrawl_client = mock_client
@@ -140,26 +113,6 @@ class TestFirecrawlWebSearch:
             location="UK",
             limit=5,
         )
-
-    def test_run_respects_top_k(self, mock_client) -> None:
-        results = []
-        for i in range(5):
-            r = MagicMock(spec=["url", "title", "description"])
-            r.url = f"https://example.com/{i}"
-            r.title = f"Title {i}"
-            r.description = f"Description {i}"
-            results.append(r)
-        response = MagicMock()
-        response.web = results
-        mock_client.search.return_value = response
-
-        ws = FirecrawlWebSearch(api_key=Secret.from_token("test-key"), top_k=3)
-        ws._firecrawl_client = mock_client
-
-        result = ws.run(query="test")
-
-        assert len(result["documents"]) == 3
-        assert len(result["links"]) == 3
 
     @pytest.mark.asyncio
     async def test_run_async(self, mock_async_client) -> None:

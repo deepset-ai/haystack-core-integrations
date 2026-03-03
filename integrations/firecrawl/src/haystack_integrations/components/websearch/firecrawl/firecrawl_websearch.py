@@ -5,7 +5,8 @@
 from typing import Any
 
 from firecrawl import AsyncFirecrawl, Firecrawl  # type: ignore[import-untyped]
-from haystack import Document, component, default_from_dict, default_to_dict, logging
+from firecrawl.types import SearchData  # type: ignore[import-untyped]
+from haystack import Document, component, logging
 from haystack.utils import Secret
 
 logger = logging.getLogger(__name__)
@@ -33,8 +34,6 @@ class FirecrawlWebSearch:
         api_key=Secret.from_env_var("FIRECRAWL_API_KEY"),
         top_k=5,
     )
-    websearch.warm_up()
-
     result = websearch.run(query="What is Haystack by deepset?")
     documents = result["documents"]
     links = result["links"]
@@ -55,7 +54,7 @@ class FirecrawlWebSearch:
             Defaults to the `FIRECRAWL_API_KEY` environment variable.
         :param top_k:
             Maximum number of documents to return.
-            Defaults to 10.
+            Defaults to 10. This can be overridden by the `"limit"` parameter in `search_params`.
         :param search_params:
             Additional parameters passed to the Firecrawl search API.
             See the [Firecrawl API reference](https://docs.firecrawl.dev/api-reference/endpoint/search)
@@ -78,20 +77,6 @@ class FirecrawlWebSearch:
             self._firecrawl_client = Firecrawl(api_key=self.api_key.resolve_value())
         if self._async_firecrawl_client is None:
             self._async_firecrawl_client = AsyncFirecrawl(api_key=self.api_key.resolve_value())
-
-    def to_dict(self) -> dict[str, Any]:
-        """Serializes the component to a dictionary."""
-        return default_to_dict(
-            self,
-            api_key=self.api_key.to_dict(),
-            top_k=self.top_k,
-            search_params=self.search_params,
-        )
-
-    @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "FirecrawlWebSearch":
-        """Deserializes the component from a dictionary."""
-        return default_from_dict(cls, data)
 
     @component.output_types(documents=list[Document], links=list[str])
     def run(
@@ -128,11 +113,6 @@ class FirecrawlWebSearch:
             return {"documents": [], "links": []}
 
         documents, links = self._parse_search_response(search_response)
-
-        if self.top_k is not None:
-            documents = documents[: self.top_k]
-            links = links[: self.top_k]
-
         return {"documents": documents, "links": links}
 
     @component.output_types(documents=list[Document], links=list[str])
@@ -170,15 +150,10 @@ class FirecrawlWebSearch:
             return {"documents": [], "links": []}
 
         documents, links = self._parse_search_response(search_response)
-
-        if self.top_k is not None:
-            documents = documents[: self.top_k]
-            links = links[: self.top_k]
-
         return {"documents": documents, "links": links}
 
     @staticmethod
-    def _parse_search_response(search_response: Any) -> tuple[list[Document], list[str]]:
+    def _parse_search_response(search_response: SearchData) -> tuple[list[Document], list[str]]:
         """
         Convert a Firecrawl search response to Haystack Documents and links.
 
@@ -188,7 +163,7 @@ class FirecrawlWebSearch:
         documents: list[Document] = []
         links: list[str] = []
 
-        web_results = getattr(search_response, "web", None) or []
+        web_results = search_response.web or []
         for result in web_results:
             url = ""
             title = ""
@@ -200,9 +175,9 @@ class FirecrawlWebSearch:
                 url = metadata.get("url", getattr(result, "url", ""))
                 title = metadata.get("title", "")
             else:
-                url = getattr(result, "url", "") or ""
-                title = getattr(result, "title", "") or ""
-                content = getattr(result, "description", "") or ""
+                url = getattr(result, "url", "")
+                title = getattr(result, "title", "")
+                content = getattr(result, "description", "")
 
             doc = Document(
                 content=content,
