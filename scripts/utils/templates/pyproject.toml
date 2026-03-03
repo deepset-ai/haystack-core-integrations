@@ -107,8 +107,6 @@ ignore = [
     "B027",
     # Allow function calls in argument defaults (common Haystack pattern for Secret.from_env_var)
     "B008",
-    # zip() without strict= is OK when lengths are guaranteed equal
-    "B905",
     # Ignore checks for possible passwords
     "S105",
     "S106",
@@ -119,10 +117,6 @@ ignore = [
     "PLR0912",
     "PLR0913",
     "PLR0915",
-]
-unfixable = [
-    # Don't touch unused imports
-    "F401",
 ]
 
 [tool.ruff.lint.isort]
