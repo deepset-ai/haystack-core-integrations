@@ -4,14 +4,18 @@ from unittest.mock import MagicMock, patch
 import dspy
 import pytest
 from haystack.dataclasses import ChatMessage
-from haystack.utils.auth import Secret
 
 from haystack_integrations.components.generators.dspy.chat.chat_generator import (
     VALID_MODULE_TYPES,
     DSPyChatGenerator,
     _configure_dspy_lm,
     _get_dspy_module_class,
+    _resolve_signature,
 )
+
+
+def _sample_streaming_callback(chunk):
+    """Module-level callback for serialization tests."""
 
 
 @pytest.fixture
@@ -90,9 +94,9 @@ class TestConfigureDspyLm:
         mock_lm = MagicMock()
         mock_lm_class.return_value = mock_lm
 
-        result = _configure_dspy_lm(model="openai/gpt-5-mini", api_key="test-key")
+        result = _configure_dspy_lm(model="openai/gpt-5-mini")
 
-        mock_lm_class.assert_called_once_with(model="openai/gpt-5-mini", api_key="test-key")
+        mock_lm_class.assert_called_once_with(model="openai/gpt-5-mini")
         mock_configure.assert_called_once_with(lm=mock_lm)
         assert result is mock_lm
 
@@ -102,16 +106,54 @@ class TestConfigureDspyLm:
         mock_lm = MagicMock()
         mock_lm_class.return_value = mock_lm
 
-        _configure_dspy_lm(model="openai/gpt-5-mini", api_key="test-key", temperature=0.7, max_tokens=100)
+        _configure_dspy_lm(model="openai/gpt-5-mini", temperature=0.7, max_tokens=100)
 
-        mock_lm_class.assert_called_once_with(
-            model="openai/gpt-5-mini", api_key="test-key", temperature=0.7, max_tokens=100
-        )
+        mock_lm_class.assert_called_once_with(model="openai/gpt-5-mini", temperature=0.7, max_tokens=100)
+
+    @patch("dspy.configure")
+    @patch("dspy.LM")
+    def test_passes_api_base(self, mock_lm_class, mock_configure):
+        mock_lm = MagicMock()
+        mock_lm_class.return_value = mock_lm
+
+        _configure_dspy_lm(model="openai/local-model", api_base="http://localhost:8000")
+
+        mock_lm_class.assert_called_once_with(model="openai/local-model", api_base="http://localhost:8000")
+
+    @patch("dspy.configure")
+    @patch("dspy.LM")
+    def test_omits_api_base_when_none(self, mock_lm_class, mock_configure):
+        mock_lm = MagicMock()
+        mock_lm_class.return_value = mock_lm
+
+        _configure_dspy_lm(model="openai/gpt-5-mini")
+
+        mock_lm_class.assert_called_once_with(model="openai/gpt-5-mini")
+
+
+class TestResolveSignature:
+    def test_string_signature_passthrough(self):
+        sig = "question -> answer"
+        assert _resolve_signature(sig) == sig
+
+    def test_signature_class_passthrough(self):
+        class MySig(dspy.Signature):
+            question: str = dspy.InputField()
+            answer: str = dspy.OutputField()
+
+        assert _resolve_signature(MySig) is MySig
+
+    def test_resolves_dotted_class_path(self):
+        result = _resolve_signature("dspy.Signature")
+        assert result is dspy.Signature
+
+    def test_invalid_dotted_path_raises(self):
+        with pytest.raises((ImportError, ModuleNotFoundError)):
+            _resolve_signature("nonexistent.module.ClassName")
 
 
 class TestDSPyChatGenerator:
-    def test_init_default(self, monkeypatch, mock_dspy_module):
-        monkeypatch.setenv("OPENAI_API_KEY", "test-api-key")
+    def test_init_default(self, mock_dspy_module):
         component = DSPyChatGenerator(signature="question -> answer")
         assert component.model == "openai/gpt-5-mini"
         assert component.signature == "question -> answer"
@@ -120,20 +162,18 @@ class TestDSPyChatGenerator:
         assert component.streaming_callback is None
         assert not component.generation_kwargs
         assert component.input_mapping is None
-
-    def test_init_fail_wo_api_key(self, monkeypatch):
-        monkeypatch.delenv("OPENAI_API_KEY", raising=False)
-        with pytest.raises(ValueError, match=r"None of the .* environment variables are set"):
-            DSPyChatGenerator(signature="question -> answer")
+        assert component.api_base is None
+        assert not component.module_kwargs
 
     def test_init_with_parameters(self, mock_dspy_module):
         component = DSPyChatGenerator(
             signature="context, question -> answer",
             model="openai/gpt-4o",
-            api_key=Secret.from_token("test-api-key"),
+            api_base="http://localhost:8000",
             module_type="Predict",
             output_field="response",
             generation_kwargs={"max_tokens": 10, "some_test_param": "test-params"},
+            module_kwargs={"some_param": "value"},
             input_mapping={"context": "context", "question": "question"},
         )
         assert component.model == "openai/gpt-4o"
@@ -141,49 +181,66 @@ class TestDSPyChatGenerator:
         assert component.module_type == "Predict"
         assert component.output_field == "response"
         assert component.generation_kwargs == {"max_tokens": 10, "some_test_param": "test-params"}
+        assert component.module_kwargs == {"some_param": "value"}
         assert component.input_mapping == {"context": "context", "question": "question"}
+        assert component.api_base == "http://localhost:8000"
 
     def test_init_with_invalid_module_type(self, mock_dspy_module):
         with pytest.raises(ValueError, match="Invalid module_type"):
             DSPyChatGenerator(
                 signature="question -> answer",
-                api_key=Secret.from_token("test-api-key"),
                 module_type="InvalidModule",
             )
 
     def test_init_with_signature_class(self, mock_dspy_module, sample_qa_signature):
         component = DSPyChatGenerator(
             signature=sample_qa_signature,
-            api_key=Secret.from_token("test-api-key"),
         )
         assert component.signature is sample_qa_signature
 
-    def test_to_dict_default(self, monkeypatch, mock_dspy_module):
-        monkeypatch.setenv("OPENAI_API_KEY", "test-api-key")
+    def test_init_with_module_kwargs(self, mock_dspy_module):
+        """Test that module_kwargs are passed to the DSPy module constructor."""
+        tools = [MagicMock(), MagicMock()]
         component = DSPyChatGenerator(
             signature="question -> answer",
-            api_key=Secret.from_env_var("OPENAI_API_KEY"),
+            module_type="ReAct",
+            module_kwargs={"tools": tools},
+        )
+        assert component.module_kwargs == {"tools": tools}
+
+    def test_init_with_api_base(self, mock_dspy_module):
+        """Test initialization with api_base for local models."""
+        component = DSPyChatGenerator(
+            signature="question -> answer",
+            api_base="http://localhost:11434/v1",
+        )
+        assert component.api_base == "http://localhost:11434/v1"
+
+    def test_to_dict_default(self, mock_dspy_module):
+        component = DSPyChatGenerator(
+            signature="question -> answer",
         )
         data = component.to_dict()
         assert data == {
             "type": "haystack_integrations.components.generators.dspy.chat.chat_generator.DSPyChatGenerator",
             "init_parameters": {
-                "api_key": {"env_vars": ["OPENAI_API_KEY"], "strict": True, "type": "env_var"},
                 "signature": "question -> answer",
                 "model": "openai/gpt-5-mini",
+                "api_base": None,
                 "module_type": "ChainOfThought",
                 "output_field": "answer",
                 "generation_kwargs": {},
+                "module_kwargs": {},
                 "input_mapping": None,
+                "streaming_callback": None,
             },
         }
 
-    def test_to_dict_with_parameters(self, monkeypatch, mock_dspy_module):
-        monkeypatch.setenv("OPENAI_API_KEY", "test-api-key")
+    def test_to_dict_with_parameters(self, mock_dspy_module):
         component = DSPyChatGenerator(
             signature="context, question -> answer",
             model="openai/gpt-4o",
-            api_key=Secret.from_env_var("OPENAI_API_KEY"),
+            api_base="http://localhost:8000",
             module_type="Predict",
             output_field="response",
             generation_kwargs={"max_tokens": 10, "some_test_param": "test-params"},
@@ -193,28 +250,52 @@ class TestDSPyChatGenerator:
         assert data == {
             "type": "haystack_integrations.components.generators.dspy.chat.chat_generator.DSPyChatGenerator",
             "init_parameters": {
-                "api_key": {"env_vars": ["OPENAI_API_KEY"], "strict": True, "type": "env_var"},
                 "signature": "context, question -> answer",
                 "model": "openai/gpt-4o",
+                "api_base": "http://localhost:8000",
                 "module_type": "Predict",
                 "output_field": "response",
                 "generation_kwargs": {"max_tokens": 10, "some_test_param": "test-params"},
+                "module_kwargs": {},
                 "input_mapping": {"context": "context", "question": "question"},
+                "streaming_callback": None,
             },
         }
 
-    def test_from_dict(self, monkeypatch, mock_dspy_module):
-        monkeypatch.setenv("OPENAI_API_KEY", "fake-api-key")
+    def test_to_dict_with_signature_class(self, mock_dspy_module, sample_qa_signature):
+        """Test that signature classes are serialized as fully qualified class paths."""
+        component = DSPyChatGenerator(
+            signature=sample_qa_signature,
+        )
+        data = component.to_dict()
+        sig_value = data["init_parameters"]["signature"]
+        # Should be a dotted path like "test_chat_generator.TestDSPyChatGenerator...QASignature"
+        assert "QASignature" in sig_value
+        assert "." in sig_value
+
+    def test_to_dict_with_streaming_callback(self, mock_dspy_module):
+        """Test that streaming_callback is serialized."""
+        component = DSPyChatGenerator(
+            signature="question -> answer",
+            streaming_callback=_sample_streaming_callback,
+        )
+        data = component.to_dict()
+        assert data["init_parameters"]["streaming_callback"] is not None
+        assert "streaming_callback" in data["init_parameters"]["streaming_callback"]
+
+    def test_from_dict(self, mock_dspy_module):
         data = {
             "type": "haystack_integrations.components.generators.dspy.chat.chat_generator.DSPyChatGenerator",
             "init_parameters": {
-                "api_key": {"env_vars": ["OPENAI_API_KEY"], "strict": True, "type": "env_var"},
                 "signature": "question -> answer",
                 "model": "openai/gpt-4o",
+                "api_base": None,
                 "module_type": "Predict",
                 "output_field": "response",
                 "generation_kwargs": {"max_tokens": 10, "some_test_param": "test-params"},
+                "module_kwargs": {},
                 "input_mapping": None,
+                "streaming_callback": None,
             },
         }
         component = DSPyChatGenerator.from_dict(data)
@@ -223,30 +304,49 @@ class TestDSPyChatGenerator:
         assert component.module_type == "Predict"
         assert component.output_field == "response"
         assert component.generation_kwargs == {"max_tokens": 10, "some_test_param": "test-params"}
-        assert component.api_key == Secret.from_env_var("OPENAI_API_KEY")
         assert component.input_mapping is None
+        assert component.api_base is None
 
-    def test_from_dict_fail_wo_env_var(self, monkeypatch):
-        monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    def test_from_dict_with_api_base(self, mock_dspy_module):
+        """Test deserialization with api_base."""
         data = {
             "type": "haystack_integrations.components.generators.dspy.chat.chat_generator.DSPyChatGenerator",
             "init_parameters": {
-                "api_key": {"env_vars": ["OPENAI_API_KEY"], "strict": True, "type": "env_var"},
                 "signature": "question -> answer",
-                "model": "openai/gpt-4o",
+                "model": "openai/local-model",
+                "api_base": "http://localhost:8000",
                 "module_type": "Predict",
-                "output_field": "response",
+                "output_field": "answer",
                 "generation_kwargs": {},
+                "module_kwargs": {},
                 "input_mapping": None,
+                "streaming_callback": None,
             },
         }
-        with pytest.raises(ValueError, match=r"None of the .* environment variables are set"):
-            DSPyChatGenerator.from_dict(data)
+        component = DSPyChatGenerator.from_dict(data)
+        assert component.api_base == "http://localhost:8000"
+
+    def test_from_dict_resolves_signature_class_path(self, mock_dspy_module):
+        """Test that from_dict resolves a dotted signature class path."""
+        data = {
+            "type": "haystack_integrations.components.generators.dspy.chat.chat_generator.DSPyChatGenerator",
+            "init_parameters": {
+                "signature": "dspy.Signature",
+                "model": "openai/gpt-5-mini",
+                "module_type": "Predict",
+                "output_field": "answer",
+                "generation_kwargs": {},
+                "module_kwargs": {},
+                "input_mapping": None,
+                "streaming_callback": None,
+            },
+        }
+        component = DSPyChatGenerator.from_dict(data)
+        assert component.signature is dspy.Signature
 
     def test_run(self, chat_messages, mock_dspy_module):
         component = DSPyChatGenerator(
             signature="question -> answer",
-            api_key=Secret.from_token("test-api-key"),
         )
         response = component.run(chat_messages)
 
@@ -258,10 +358,19 @@ class TestDSPyChatGenerator:
         assert len(response["replies"]) == 1
         assert all(isinstance(reply, ChatMessage) for reply in response["replies"])
 
+    def test_run_always_passes_config(self, chat_messages, mock_dspy_module):
+        """Test that config is always passed (even as empty dict) - simplified call."""
+        component = DSPyChatGenerator(
+            signature="question -> answer",
+        )
+        component.run(chat_messages)
+
+        _, kwargs = mock_dspy_module.call_args
+        assert kwargs["config"] == {}
+
     def test_run_with_generation_kwargs(self, chat_messages, mock_dspy_module):
         component = DSPyChatGenerator(
             signature="question -> answer",
-            api_key=Secret.from_token("test-api-key"),
             generation_kwargs={"max_tokens": 10, "temperature": 0.5},
         )
         response = component.run(chat_messages, generation_kwargs={"temperature": 0.9})
@@ -277,7 +386,6 @@ class TestDSPyChatGenerator:
     def test_run_with_multiple_messages(self, mock_dspy_module):
         component = DSPyChatGenerator(
             signature="question -> answer",
-            api_key=Secret.from_token("test-api-key"),
         )
         messages = [
             ChatMessage.from_user("Hello"),
@@ -296,7 +404,6 @@ class TestDSPyChatGenerator:
     def test_run_with_empty_messages(self, mock_dspy_module):
         component = DSPyChatGenerator(
             signature="question -> answer",
-            api_key=Secret.from_token("test-api-key"),
         )
         with pytest.raises(ValueError, match="messages"):
             component.run(messages=[])
@@ -305,7 +412,6 @@ class TestDSPyChatGenerator:
         mock_dspy_module.return_value = MagicMock(summary="This is a summary")
         component = DSPyChatGenerator(
             signature="text -> summary",
-            api_key=Secret.from_token("test-api-key"),
             output_field="summary",
         )
         messages = [ChatMessage.from_user("Summarize this text")]
@@ -316,7 +422,6 @@ class TestDSPyChatGenerator:
     def test_run_with_input_mapping(self, mock_dspy_module):
         component = DSPyChatGenerator(
             signature="context, question -> answer",
-            api_key=Secret.from_token("test-api-key"),
             input_mapping={"context": "context", "question": "question"},
         )
         messages = [ChatMessage.from_user("What is ML?")]
@@ -331,7 +436,6 @@ class TestDSPyChatGenerator:
 
         generator = DSPyChatGenerator(
             signature="question -> answer",
-            api_key=Secret.from_token("test-api-key"),
             model="something-obviously-wrong",
         )
 
