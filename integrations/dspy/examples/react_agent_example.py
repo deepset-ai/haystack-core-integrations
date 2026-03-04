@@ -2,7 +2,7 @@ import dspy
 from haystack import Pipeline
 from haystack.dataclasses import ChatMessage
 
-from haystack_integrations.components.generators.dspy import DSPyChatGenerator
+from haystack_integrations.components.generators.dspy import DSPySignatureChatGenerator
 
 
 def get_weather(city: str) -> str:
@@ -35,7 +35,7 @@ class CityInfoSignature(dspy.Signature):
 def react_agent_example():
     """Use ReAct to answer a question that requires tool calls."""
 
-    generator = DSPyChatGenerator(
+    generator = DSPySignatureChatGenerator(
         model="openai/gpt-5-mini",
         signature=CityInfoSignature,
         module_type="ReAct",
@@ -56,7 +56,7 @@ def react_agent_example():
 def react_string_signature_example():
     """ReAct with a string signature and tools."""
 
-    generator = DSPyChatGenerator(
+    generator = DSPySignatureChatGenerator(
         model="openai/gpt-5-mini",
         signature="question -> answer",
         module_type="ReAct",

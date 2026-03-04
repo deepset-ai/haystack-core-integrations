@@ -1,3 +1,3 @@
-from .chat.chat_generator import DSPyChatGenerator
+from .chat.chat_generator import DSPySignatureChatGenerator
 
-__all__ = ["DSPyChatGenerator"]
+__all__ = ["DSPySignatureChatGenerator"]

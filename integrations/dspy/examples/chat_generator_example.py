@@ -2,7 +2,7 @@ import dspy
 from haystack import Pipeline
 from haystack.dataclasses import ChatMessage
 
-from haystack_integrations.components.generators.dspy import DSPyChatGenerator
+from haystack_integrations.components.generators.dspy import DSPySignatureChatGenerator
 
 
 class QASignature(dspy.Signature):
@@ -15,7 +15,7 @@ class QASignature(dspy.Signature):
 def basic_qa_example():
     """Simple question-answering with Chain-of-Thought reasoning."""
 
-    generator = DSPyChatGenerator(
+    generator = DSPySignatureChatGenerator(
         model="openai/gpt-5-mini",
         signature=QASignature,
         module_type="ChainOfThought",
@@ -34,7 +34,7 @@ def basic_qa_example():
 
 def string_signature_example():
     """Using a simple string signature instead of a class."""
-    generator = DSPyChatGenerator(
+    generator = DSPySignatureChatGenerator(
         model="openai/gpt-5-mini",
         signature="question -> answer",
         module_type="Predict",

@@ -65,7 +65,7 @@ def _resolve_signature(signature: str | type[dspy.Signature]) -> str | type[dspy
 
 
 @component
-class DSPyChatGenerator:
+class DSPySignatureChatGenerator:
     """
     A Haystack chat generator component that uses DSPy signatures and modules
     for structured generation.
@@ -80,14 +80,14 @@ class DSPyChatGenerator:
 
     ```python
     from haystack.dataclasses import ChatMessage
-    from haystack_integrations.components.generators.dspy import DSPyChatGenerator
+    from haystack_integrations.components.generators.dspy import DSPySignatureChatGenerator
     import dspy
 
     class QASignature(dspy.Signature):
         question = dspy.InputField(desc="The user's question")
         answer = dspy.OutputField(desc="A clear, concise answer")
 
-    generator = DSPyChatGenerator(
+    generator = DSPySignatureChatGenerator(
         model="openai/gpt-5-mini",
         signature=QASignature,
         module_type="ChainOfThought",
@@ -112,7 +112,7 @@ class DSPyChatGenerator:
         streaming_callback: StreamingCallbackT | None = None,
     ):
         """
-        Initialize the DSPyChatGenerator.
+        Initialize the DSPySignatureChatGenerator.
 
         :param signature: DSPy signature defining I/O structure. Can be a string
             like ``"question -> answer"`` or a ``dspy.Signature`` subclass.
@@ -218,7 +218,7 @@ class DSPyChatGenerator:
         return default_to_dict(self, **kwargs)
 
     @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "DSPyChatGenerator":
+    def from_dict(cls, data: dict[str, Any]) -> "DSPySignatureChatGenerator":
         """Deserialize a component from a dictionary."""
         init_params = data.get("init_parameters", {})
 

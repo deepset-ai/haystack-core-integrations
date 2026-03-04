@@ -4,7 +4,7 @@ import dspy
 import pydantic
 from haystack.dataclasses import ChatMessage
 
-from haystack_integrations.components.generators.dspy import DSPyChatGenerator
+from haystack_integrations.components.generators.dspy import DSPySignatureChatGenerator
 
 class Source(pydantic.BaseModel):
     """A single cited source."""
@@ -42,7 +42,7 @@ def print_signature_fields(sig):
 
 
 def main():
-    generator = DSPyChatGenerator(
+    generator = DSPySignatureChatGenerator(
         model="openai/gpt-5-mini",
         signature=ResearchSignature,
         module_type="ChainOfThought",
@@ -60,7 +60,7 @@ def main():
     print(f"  signature value: {sig_value}")
     print(f"  all init params: {list(data['init_parameters'].keys())}")
 
-    restored = DSPyChatGenerator.from_dict(data)
+    restored = DSPySignatureChatGenerator.from_dict(data)
     print(f"\n=== Restored generator ===")
     print(f"  signature class: {restored.signature.__name__}")
     print(f"  same class?    : {restored.signature is ResearchSignature}")

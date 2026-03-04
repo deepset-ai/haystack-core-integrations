@@ -3,7 +3,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from haystack.dataclasses import ChatMessage
 
-from haystack_integrations.components.generators.dspy.chat.chat_generator import DSPyChatGenerator
+from haystack_integrations.components.generators.dspy.chat.chat_generator import DSPySignatureChatGenerator
 
 
 @pytest.fixture
@@ -44,10 +44,10 @@ def chat_messages():
     ]
 
 
-class TestDSPyChatGeneratorAsync:
+class TestDSPySignatureChatGeneratorAsync:
     @pytest.mark.asyncio
     async def test_run_async(self, chat_messages, mock_dspy_module):
-        component = DSPyChatGenerator(
+        component = DSPySignatureChatGenerator(
             signature="question -> answer",
         )
         response = await component.run_async(messages=chat_messages)
@@ -63,7 +63,7 @@ class TestDSPyChatGeneratorAsync:
     @pytest.mark.asyncio
     async def test_run_async_always_passes_config(self, chat_messages, mock_dspy_module):
         """Test that config is always passed (even as empty dict) in async mode."""
-        component = DSPyChatGenerator(
+        component = DSPySignatureChatGenerator(
             signature="question -> answer",
         )
         await component.run_async(messages=chat_messages)
@@ -73,7 +73,7 @@ class TestDSPyChatGeneratorAsync:
 
     @pytest.mark.asyncio
     async def test_run_async_with_params(self, chat_messages, mock_dspy_module):
-        component = DSPyChatGenerator(
+        component = DSPySignatureChatGenerator(
             signature="question -> answer",
         )
         response = await component.run_async(
@@ -91,7 +91,7 @@ class TestDSPyChatGeneratorAsync:
 
     @pytest.mark.asyncio
     async def test_run_async_with_empty_messages(self, mock_dspy_module):
-        component = DSPyChatGenerator(
+        component = DSPySignatureChatGenerator(
             signature="question -> answer",
         )
         with pytest.raises(ValueError, match="messages"):
