@@ -6,8 +6,10 @@ from haystack.dataclasses import ChatMessage
 
 from haystack_integrations.components.generators.dspy import DSPySignatureChatGenerator
 
+
 class Source(pydantic.BaseModel):
     """A single cited source."""
+
     title: str
     url: str
     relevance: float
@@ -15,6 +17,7 @@ class Source(pydantic.BaseModel):
 
 class StructuredAnswer(pydantic.BaseModel):
     """A rich answer with metadata."""
+
     summary: str
     confidence: Literal["low", "medium", "high"]
     sources: list[Source]
@@ -23,6 +26,7 @@ class StructuredAnswer(pydantic.BaseModel):
 
 class ResearchSignature(dspy.Signature):
     """Research a topic and return a structured, cited answer."""
+
     question: str = dspy.InputField(desc="The research question")
     context: str = dspy.InputField(desc="Background material or documents to ground the answer")
     answer: StructuredAnswer = dspy.OutputField(desc="A structured answer with sources and confidence")
@@ -56,12 +60,12 @@ def main():
 
     data = generator.to_dict()
     sig_value = data["init_parameters"]["signature"]
-    print(f"\n=== Serialized ===")
+    print("\n=== Serialized ===")
     print(f"  signature value: {sig_value}")
     print(f"  all init params: {list(data['init_parameters'].keys())}")
 
     restored = DSPySignatureChatGenerator.from_dict(data)
-    print(f"\n=== Restored generator ===")
+    print("\n=== Restored generator ===")
     print(f"  signature class: {restored.signature.__name__}")
     print(f"  same class?    : {restored.signature is ResearchSignature}")
     print_signature_fields(restored.signature)
@@ -77,7 +81,7 @@ def main():
             "2017, 2020, and 2022, primarily driven by marine heatwaves."
         ),
     )
-    print(f"\n=== Inference ===")
+    print("\n=== Inference ===")
     print(f"  Question: {messages[0].text}")
     print(f"  Answer  : {result['replies'][0].text}")
 
