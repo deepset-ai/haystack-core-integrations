@@ -781,6 +781,293 @@ class ValkeyDocumentStore(DocumentStore):
             msg = f"Failed to delete documents: {e}"
             raise ValkeyDocumentStoreError(msg) from e
 
+    def delete_by_filter(self, filters: dict[str, Any]) -> int:
+        """
+        Delete all documents that match the provided filters.
+
+        :param filters: Haystack filter dictionary to select documents to delete.
+        :return: The number of documents deleted.
+        :raises FilterError: If the filter structure is invalid.
+        :raises ValkeyDocumentStoreError: If deletion fails.
+        """
+        _validate_filters(filters)
+        try:
+            docs_to_delete = self.filter_documents(filters)
+            ids = [doc.id for doc in docs_to_delete]
+            if ids:
+                self.delete_documents(ids)
+            return len(ids)
+        except FilterError:
+            raise
+        except Exception as e:
+            msg = f"Failed to delete documents by filter: {e}"
+            raise ValkeyDocumentStoreError(msg) from e
+
+    async def delete_by_filter_async(self, filters: dict[str, Any]) -> int:
+        """
+        Asynchronously delete all documents that match the provided filters.
+
+        :param filters: Haystack filter dictionary to select documents to delete.
+        :return: The number of documents deleted.
+        :raises FilterError: If the filter structure is invalid.
+        :raises ValkeyDocumentStoreError: If deletion fails.
+        """
+        _validate_filters(filters)
+        try:
+            docs_to_delete = await self.filter_documents_async(filters)
+            ids = [doc.id for doc in docs_to_delete]
+            if ids:
+                await self.delete_documents_async(ids)
+            return len(ids)
+        except FilterError:
+            raise
+        except Exception as e:
+            msg = f"Failed to delete documents by filter: {e}"
+            raise ValkeyDocumentStoreError(msg) from e
+
+    def update_by_filter(self, filters: dict[str, Any], meta: dict[str, Any]) -> int:
+        """
+        Update metadata of all documents that match the provided filters.
+
+        :param filters: Haystack filter dictionary to select documents to update.
+        :param meta: Metadata key-value pairs to set on matching documents (merged with existing meta).
+        :return: The number of documents updated.
+        :raises FilterError: If the filter structure is invalid.
+        :raises ValkeyDocumentStoreError: If update or write fails.
+        """
+        _validate_filters(filters)
+        try:
+            docs_to_update = self.filter_documents(filters)
+            for doc in docs_to_update:
+                doc.meta = dict(doc.meta or {})
+                doc.meta.update(meta)
+            if docs_to_update:
+                self.write_documents(docs_to_update, policy=DuplicatePolicy.OVERWRITE)
+            return len(docs_to_update)
+        except FilterError:
+            raise
+        except Exception as e:
+            msg = f"Failed to update documents by filter: {e}"
+            raise ValkeyDocumentStoreError(msg) from e
+
+    async def update_by_filter_async(self, filters: dict[str, Any], meta: dict[str, Any]) -> int:
+        """
+        Asynchronously update metadata of all documents that match the provided filters.
+
+        :param filters: Haystack filter dictionary to select documents to update.
+        :param meta: Metadata key-value pairs to set on matching documents (merged with existing meta).
+        :return: The number of documents updated.
+        :raises FilterError: If the filter structure is invalid.
+        :raises ValkeyDocumentStoreError: If update or write fails.
+        """
+        _validate_filters(filters)
+        try:
+            docs_to_update = await self.filter_documents_async(filters)
+            for doc in docs_to_update:
+                doc.meta = dict(doc.meta or {})
+                doc.meta.update(meta)
+            if docs_to_update:
+                await self.write_documents_async(docs_to_update, policy=DuplicatePolicy.OVERWRITE)
+            return len(docs_to_update)
+        except FilterError:
+            raise
+        except Exception as e:
+            msg = f"Failed to update documents by filter: {e}"
+            raise ValkeyDocumentStoreError(msg) from e
+
+    def count_documents_by_filter(self, filters: dict[str, Any]) -> int:
+        """
+        Return the number of documents that match the provided filters.
+
+        :param filters: Haystack filter dictionary to apply.
+        :return: The number of matching documents.
+        :raises FilterError: If the filter structure is invalid.
+        :raises ValkeyDocumentStoreError: If counting fails.
+        """
+        _validate_filters(filters)
+        try:
+            return len(self.filter_documents(filters))
+        except FilterError:
+            raise
+        except Exception as e:
+            msg = f"Failed to count documents by filter: {e}"
+            raise ValkeyDocumentStoreError(msg) from e
+
+    async def count_documents_by_filter_async(self, filters: dict[str, Any]) -> int:
+        """
+        Asynchronously return the number of documents that match the provided filters.
+
+        :param filters: Haystack filter dictionary to apply.
+        :return: The number of matching documents.
+        :raises FilterError: If the filter structure is invalid.
+        :raises ValkeyDocumentStoreError: If counting fails.
+        """
+        _validate_filters(filters)
+        try:
+            docs = await self.filter_documents_async(filters)
+            return len(docs)
+        except FilterError:
+            raise
+        except Exception as e:
+            msg = f"Failed to count documents by filter: {e}"
+            raise ValkeyDocumentStoreError(msg) from e
+
+    def count_unique_metadata_by_filter(self, filters: dict[str, Any], metadata_fields: list[str]) -> dict[str, int]:
+        """
+        Count unique values for each specified metadata field in documents matching the filters.
+
+        :param filters: Haystack filter dictionary to select documents.
+        :param metadata_fields: List of metadata field names (e.g. "category" or "meta.category").
+        :return: Dictionary mapping each field name to the count of its unique values.
+        :raises FilterError: If the filter structure is invalid.
+        :raises ValueError: If a field in metadata_fields is not configured for filtering.
+        :raises ValkeyDocumentStoreError: If the operation fails.
+        """
+        _validate_filters(filters)
+        self._validate_metadata_field_names(metadata_fields)
+        try:
+            docs = self.filter_documents(filters)
+            return self._count_unique_metadata_impl(docs, metadata_fields)
+        except FilterError:
+            raise
+        except Exception as e:
+            msg = f"Failed to count unique metadata by filter: {e}"
+            raise ValkeyDocumentStoreError(msg) from e
+
+    async def count_unique_metadata_by_filter_async(
+        self, filters: dict[str, Any], metadata_fields: list[str]
+    ) -> dict[str, int]:
+        """
+        Asynchronously count unique values for each specified metadata field in documents matching the filters.
+
+        :param filters: Haystack filter dictionary to select documents.
+        :param metadata_fields: List of metadata field names (e.g. "category" or "meta.category").
+        :return: Dictionary mapping each field name to the count of its unique values.
+        :raises FilterError: If the filter structure is invalid.
+        :raises ValueError: If a field in metadata_fields is not configured for filtering.
+        :raises ValkeyDocumentStoreError: If the operation fails.
+        """
+        _validate_filters(filters)
+        self._validate_metadata_field_names(metadata_fields)
+        try:
+            docs = await self.filter_documents_async(filters)
+            return self._count_unique_metadata_impl(docs, metadata_fields)
+        except FilterError:
+            raise
+        except Exception as e:
+            msg = f"Failed to count unique metadata by filter: {e}"
+            raise ValkeyDocumentStoreError(msg) from e
+
+    def get_metadata_fields_info(self) -> dict[str, dict[str, str]]:
+        """
+        Return information about metadata fields configured for filtering.
+
+        Returns the store's configured metadata field names and their types (as used in the index).
+        Field names are returned without the "meta." prefix (e.g. "category", "priority").
+
+        :return: Dictionary mapping field name to a dict with "type" key ("keyword" for tag, "long" for numeric).
+        """
+        result: dict[str, dict[str, str]] = {}
+        for field_name_with_prefix, field_type in self._metadata_fields.items():
+            name = field_name_with_prefix[5:] if field_name_with_prefix.startswith("meta_") else field_name_with_prefix
+            result[name] = {"type": "keyword" if field_type == "tag" else "long"}
+        return result
+
+    def get_metadata_field_min_max(self, metadata_field: str) -> dict[str, Any]:
+        """
+        Return the minimum and maximum values for a numeric metadata field.
+
+        :param metadata_field: Metadata field name (e.g. "priority" or "meta.priority"). Must be a configured
+            numeric field.
+        :return: Dictionary with "min" and "max" keys (values are int/float or None if no values).
+        :raises ValueError: If the field is not configured or is not numeric.
+        :raises ValkeyDocumentStoreError: If the operation fails.
+        """
+        self._validate_numeric_metadata_field(metadata_field)
+        try:
+            docs = self.filter_documents(filters=None)
+            return self._get_metadata_field_min_max_impl(docs, metadata_field)
+        except Exception as e:
+            msg = f"Failed to get min/max for field '{metadata_field}': {e}"
+            raise ValkeyDocumentStoreError(msg) from e
+
+    async def get_metadata_field_min_max_async(self, metadata_field: str) -> dict[str, Any]:
+        """
+        Asynchronously return the minimum and maximum values for a numeric metadata field.
+
+        :param metadata_field: Metadata field name (e.g. "priority" or "meta.priority"). Must be a configured
+            numeric field.
+        :return: Dictionary with "min" and "max" keys (values are int/float or None if no values).
+        :raises ValueError: If the field is not configured or is not numeric.
+        :raises ValkeyDocumentStoreError: If the operation fails.
+        """
+        self._validate_numeric_metadata_field(metadata_field)
+        try:
+            docs = await self.filter_documents_async(filters=None)
+            return self._get_metadata_field_min_max_impl(docs, metadata_field)
+        except Exception as e:
+            msg = f"Failed to get min/max for field '{metadata_field}': {e}"
+            raise ValkeyDocumentStoreError(msg) from e
+
+    def get_metadata_field_unique_values(
+        self,
+        metadata_field: str,
+        search_term: str | None = None,
+        from_: int = 0,
+        size: int = 10,
+    ) -> tuple[list[str], int]:
+        """
+        Return unique values for a metadata field with optional search and pagination.
+
+        Values are stringified. For tag fields the distinct values are returned; for numeric fields
+        the string representation of each distinct value is returned.
+
+        :param metadata_field: Metadata field name (e.g. "category" or "meta.category").
+        :param search_term: Optional case-insensitive substring filter on the value.
+        :param from_: Start index for pagination (default 0).
+        :param size: Number of values to return (default 10).
+        :return: Tuple of (list of unique values for the requested page, total count of unique values).
+        :raises ValueError: If the field is not configured for filtering.
+        :raises ValkeyDocumentStoreError: If the operation fails.
+        """
+        self._validate_metadata_field_names([metadata_field])
+        try:
+            docs = self.filter_documents(filters=None)
+            return self._get_metadata_field_unique_values_impl(
+                docs, metadata_field, search_term=search_term, from_=from_, size=size
+            )
+        except Exception as e:
+            msg = f"Failed to get unique values for field '{metadata_field}': {e}"
+            raise ValkeyDocumentStoreError(msg) from e
+
+    async def get_metadata_field_unique_values_async(
+        self,
+        metadata_field: str,
+        search_term: str | None = None,
+        from_: int = 0,
+        size: int = 10,
+    ) -> tuple[list[str], int]:
+        """
+        Asynchronously return unique values for a metadata field with optional search and pagination.
+
+        :param metadata_field: Metadata field name (e.g. "category" or "meta.category").
+        :param search_term: Optional case-insensitive substring filter on the value.
+        :param from_: Start index for pagination (default 0).
+        :param size: Number of values to return (default 10).
+        :return: Tuple of (list of unique values for the requested page, total count of unique values).
+        :raises ValueError: If the field is not configured for filtering.
+        :raises ValkeyDocumentStoreError: If the operation fails.
+        """
+        self._validate_metadata_field_names([metadata_field])
+        try:
+            docs = await self.filter_documents_async(filters=None)
+            return self._get_metadata_field_unique_values_impl(
+                docs, metadata_field, search_term=search_term, from_=from_, size=size
+            )
+        except Exception as e:
+            msg = f"Failed to get unique values for field '{metadata_field}': {e}"
+            raise ValkeyDocumentStoreError(msg) from e
+
     def delete_all_documents(self) -> None:
         """
         Delete all documents from the document store.
@@ -1111,6 +1398,95 @@ class ValkeyDocumentStore(DocumentStore):
             limit=FtSearchLimit(offset=0, count=limit),
         )
         return query, query_options
+
+    def _normalize_metadata_field_name(self, field_name: str) -> str:
+        """Return internal key with meta_ prefix for lookup in _metadata_fields."""
+        if field_name.startswith("meta."):
+            return f"meta_{field_name[5:]}"
+        if field_name.startswith("meta_"):
+            return field_name
+        return f"meta_{field_name}"
+
+    def _get_doc_meta_value(self, doc: Document, field_name: str) -> Any:
+        """Get metadata value from a document; field_name can be 'category', 'meta.category', or 'meta_category'."""
+        key = self._normalize_metadata_field_name(field_name)
+        meta_key = key[5:] if key.startswith("meta_") else key  # key for doc.meta
+        return (doc.meta or {}).get(meta_key)
+
+    def _validate_metadata_field_names(self, metadata_fields: list[str]) -> None:
+        """Ensure each field is configured for filtering; raise ValueError if not."""
+        for name in metadata_fields:
+            normalized = self._normalize_metadata_field_name(name)
+            if normalized not in self._metadata_fields:
+                msg = (
+                    f"Metadata field '{name}' is not configured for filtering. "
+                    f"Configured fields: {[f[5:] if f.startswith('meta_') else f for f in self._metadata_fields]}."
+                )
+                raise ValueError(msg)
+
+    def _validate_numeric_metadata_field(self, metadata_field: str) -> None:
+        """Ensure the field is configured and numeric; raise ValueError if not."""
+        self._validate_metadata_field_names([metadata_field])
+        normalized = self._normalize_metadata_field_name(metadata_field)
+        if self._metadata_fields.get(normalized) != "numeric":
+            msg = (
+                f"Field '{metadata_field}' is not a numeric metadata field. Min/max is only supported for "
+                f"numeric fields."
+            )
+            raise ValueError(msg)
+
+    def _count_unique_metadata_impl(self, documents: list[Document], metadata_fields: list[str]) -> dict[str, int]:
+        """Count unique values per metadata field; field names returned without meta_ prefix."""
+        counts: dict[str, int] = {}
+        for field_name in metadata_fields:
+            meta_key = self._normalize_metadata_field_name(field_name)
+            user_name = meta_key[5:] if meta_key.startswith("meta_") else meta_key
+            unique_vals: set[Any] = set()
+            for doc in documents:
+                val = self._get_doc_meta_value(doc, field_name)
+                if val is not None:
+                    unique_vals.add(val)
+            counts[user_name] = len(unique_vals)
+        return counts
+
+    def _get_metadata_field_min_max_impl(self, documents: list[Document], metadata_field: str) -> dict[str, Any]:
+        """Compute min/max for a numeric metadata field from a list of documents."""
+        values: list[int | float] = []
+        for doc in documents:
+            val = self._get_doc_meta_value(doc, metadata_field)
+            if val is not None and isinstance(val, (int, float)):
+                values.append(val)
+        if not values:
+            return {"min": None, "max": None}
+        return {"min": min(values), "max": max(values)}
+
+    def _get_metadata_field_unique_values_impl(
+        self,
+        documents: list[Document],
+        metadata_field: str,
+        *,
+        search_term: str | None = None,
+        from_: int = 0,
+        size: int = 10,
+    ) -> tuple[list[str], int]:
+        """Extract unique values for a metadata field with optional search and pagination."""
+        unique_vals: list[str] = []
+        seen: set[str] = set()
+        for doc in documents:
+            val = self._get_doc_meta_value(doc, metadata_field)
+            if val is None:
+                continue
+            str_val = str(val)
+            if str_val in seen:
+                continue
+            if search_term is not None and search_term.lower() not in str_val.lower():
+                continue
+            seen.add(str_val)
+            unique_vals.append(str_val)
+        unique_vals.sort()
+        total = len(unique_vals)
+        page = unique_vals[from_ : from_ + size]
+        return page, total
 
     @staticmethod
     def _validate_documents(documents: list[Document]) -> None:
