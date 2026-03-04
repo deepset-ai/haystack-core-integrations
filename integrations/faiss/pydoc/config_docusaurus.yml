@@ -1,0 +1,14 @@
+loaders:
+  - modules:
+      - haystack_integrations.components.retrievers.faiss.embedding_retriever
+      - haystack_integrations.document_stores.faiss.document_store
+    search_path: [../src]
+processors:
+  - type: filter
+    documented_only: true
+    skip_empty_modules: true
+renderer:
+  description: FAISS integration for Haystack
+  id: integrations-faiss
+  filename: faiss.md
+  title: FAISS

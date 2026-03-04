@@ -32,80 +32,132 @@ from haystack_integrations.components.generators.google_genai.chat.utils import 
 
 
 def test_process_thinking_budget():
-    """Test the _process_thinking_config method with different thinking_budget values."""
+    """Test the _process_thinking_config function with different thinking_budget values."""
 
     # Test valid thinking_budget values
     generation_kwargs = {"thinking_budget": 1024, "temperature": 0.7}
-    result = _process_thinking_config(generation_kwargs.copy())
+    result = _process_thinking_config(generation_kwargs)
 
     # thinking_budget should be moved to thinking_config
     assert "thinking_budget" not in result
     assert "thinking_config" in result
     assert result["thinking_config"].thinking_budget == 1024
+    assert result["thinking_config"].include_thoughts is True
     # Other kwargs should be preserved
     assert result["temperature"] == 0.7
 
     # Test dynamic allocation (-1)
     generation_kwargs = {"thinking_budget": -1}
-    result = _process_thinking_config(generation_kwargs.copy())
+    result = _process_thinking_config(generation_kwargs)
     assert result["thinking_config"].thinking_budget == -1
+    assert result["thinking_config"].include_thoughts is True
 
     # Test zero (disable thinking)
     generation_kwargs = {"thinking_budget": 0}
-    result = _process_thinking_config(generation_kwargs.copy())
+    result = _process_thinking_config(generation_kwargs)
     assert result["thinking_config"].thinking_budget == 0
+    assert result["thinking_config"].include_thoughts is False
 
     # Test large value
     generation_kwargs = {"thinking_budget": 24576}
-    result = _process_thinking_config(generation_kwargs.copy())
+    result = _process_thinking_config(generation_kwargs)
     assert result["thinking_config"].thinking_budget == 24576
+    assert result["thinking_config"].include_thoughts is True
 
     # Test when thinking_budget is not present
     generation_kwargs = {"temperature": 0.5}
-    result = _process_thinking_config(generation_kwargs.copy())
+    result = _process_thinking_config(generation_kwargs)
     assert result == generation_kwargs  # No changes
 
     # Test invalid type (should fall back to dynamic)
     generation_kwargs = {"thinking_budget": "invalid", "temperature": 0.5}
-    result = _process_thinking_config(generation_kwargs.copy())
+    result = _process_thinking_config(generation_kwargs)
     assert result["thinking_config"].thinking_budget == -1  # Dynamic allocation
     assert result["temperature"] == 0.5
 
 
 def test_process_thinking_level():
-    """Test the _process_thinking_config method with different thinking_level values."""
+    """Test the _process_thinking_config function with different thinking_level values."""
 
     # Test valid thinking_level values
     generation_kwargs = {"thinking_level": "high", "temperature": 0.7}
-    result = _process_thinking_config(generation_kwargs.copy())
+    result = _process_thinking_config(generation_kwargs)
 
     # thinking_level should be moved to thinking_config
     assert "thinking_level" not in result
     assert "thinking_config" in result
     assert result["thinking_config"].thinking_level == types.ThinkingLevel.HIGH
+    assert result["thinking_config"].include_thoughts is True
     # Other kwargs should be preserved
     assert result["temperature"] == 0.7
 
     # Test THINKING_LEVEL_LOW in upper case
     generation_kwargs = {"thinking_level": "LOW"}
-    result = _process_thinking_config(generation_kwargs.copy())
+    result = _process_thinking_config(generation_kwargs)
     assert result["thinking_config"].thinking_level == types.ThinkingLevel.LOW
+    assert result["thinking_config"].include_thoughts is True
 
-    # Test THINKING_LEVEL_UNSPECIFIED
+    # Test MINIMAL (should disable include_thoughts)
+    generation_kwargs = {"thinking_level": "MINIMAL"}
+    result = _process_thinking_config(generation_kwargs)
+    assert result["thinking_config"].thinking_level == types.ThinkingLevel.MINIMAL
+    assert result["thinking_config"].include_thoughts is False
+
+    # Test THINKING_LEVEL_UNSPECIFIED (invalid value falls back)
     generation_kwargs = {"thinking_level": "test"}
-    result = _process_thinking_config(generation_kwargs.copy())
+    result = _process_thinking_config(generation_kwargs)
     assert result["thinking_config"].thinking_level == types.ThinkingLevel.THINKING_LEVEL_UNSPECIFIED
+    assert result["thinking_config"].include_thoughts is True
 
     # Test when thinking_level is not present
     generation_kwargs = {"temperature": 0.5}
-    result = _process_thinking_config(generation_kwargs.copy())
+    result = _process_thinking_config(generation_kwargs)
     assert result == generation_kwargs  # No changes
 
     # Test invalid type (should fall back to THINKING_LEVEL_UNSPECIFIED)
     generation_kwargs = {"thinking_level": 123, "temperature": 0.5}
-    result = _process_thinking_config(generation_kwargs.copy())
+    result = _process_thinking_config(generation_kwargs)
     assert result["thinking_config"].thinking_level == types.ThinkingLevel.THINKING_LEVEL_UNSPECIFIED
+    assert result["thinking_config"].include_thoughts is True
     assert result["temperature"] == 0.5
+
+
+def test_process_thinking_config_explicit_include_thoughts():
+    """Test that explicit include_thoughts in generation_kwargs overrides the auto-derived value."""
+    # thinking_budget=0 normally means include_thoughts=False, but user explicitly sets True
+    generation_kwargs = {"thinking_budget": 0, "include_thoughts": True}
+    result = _process_thinking_config(generation_kwargs)
+    assert result["thinking_config"].thinking_budget == 0
+    assert result["thinking_config"].include_thoughts is True
+    assert "include_thoughts" not in result  # should be popped from top-level kwargs
+
+    # thinking_budget=1024 normally means include_thoughts=True, but user explicitly sets False
+    generation_kwargs = {"thinking_budget": 1024, "include_thoughts": False}
+    result = _process_thinking_config(generation_kwargs)
+    assert result["thinking_config"].thinking_budget == 1024
+    assert result["thinking_config"].include_thoughts is False
+    assert "include_thoughts" not in result
+
+    # thinking_level="high" normally means include_thoughts=True, but user explicitly sets False
+    generation_kwargs = {"thinking_level": "high", "include_thoughts": False}
+    result = _process_thinking_config(generation_kwargs)
+    assert result["thinking_config"].thinking_level == types.ThinkingLevel.HIGH
+    assert result["thinking_config"].include_thoughts is False
+    assert "include_thoughts" not in result
+
+    # thinking_level="minimal" normally means include_thoughts=False, but user explicitly sets True
+    generation_kwargs = {"thinking_level": "minimal", "include_thoughts": True}
+    result = _process_thinking_config(generation_kwargs)
+    assert result["thinking_config"].thinking_level == types.ThinkingLevel.MINIMAL
+    assert result["thinking_config"].include_thoughts is True
+    assert "include_thoughts" not in result
+
+    # include_thoughts alone (no thinking_budget or thinking_level) should just be popped and ignored
+    generation_kwargs = {"include_thoughts": True, "temperature": 0.5}
+    result = _process_thinking_config(generation_kwargs)
+    assert "include_thoughts" not in result
+    assert "thinking_config" not in result
+    assert result == {"temperature": 0.5}
 
 
 class TestStreamingChunkConversion:
@@ -437,8 +489,51 @@ class TestStreamingChunkConversion:
         assert streaming_chunk.tool_calls[5].id is None
         assert streaming_chunk.tool_calls[5].index == 5
 
+    def test_convert_google_chunk_to_streaming_chunk_with_thought(self, monkeypatch):
+        """Test that thought parts populate StreamingChunk.reasoning instead of meta."""
+        monkeypatch.setenv("GOOGLE_API_KEY", "test-api-key")
+        component = GoogleGenAIChatGenerator()
+        component_info = ComponentInfo.from_component(component)
+
+        # Build a chunk with a thought part using actual Google API objects
+        thought_part = types.Part(text="Let me think about this...", thought=True, function_call=None)
+        content = types.Content(role="model", parts=[thought_part])
+        candidate = types.Candidate(
+            content=content,
+            finish_reason=None,
+            index=None,
+            safety_ratings=None,
+            citation_metadata=None,
+            grounding_metadata=None,
+            finish_message=None,
+            token_count=None,
+            logprobs_result=None,
+            avg_logprobs=None,
+            url_context_metadata=None,
+        )
+        chunk = types.GenerateContentResponse(
+            candidates=[candidate],
+            usage_metadata=None,
+            model_version="gemini-2.5-flash",
+            response_id=None,
+            create_time=None,
+            prompt_feedback=None,
+            automatic_function_calling_history=None,
+            parsed=None,
+        )
+
+        streaming_chunk = _convert_google_chunk_to_streaming_chunk(
+            chunk=chunk, index=0, component_info=component_info, model="gemini-2.5-flash"
+        )
+
+        # Reasoning should be in the reasoning field, not in meta
+        assert streaming_chunk.reasoning is not None
+        assert streaming_chunk.reasoning.reasoning_text == "Let me think about this..."
+        assert "reasoning_deltas" not in streaming_chunk.meta
+        assert streaming_chunk.content == ""
+
     def test_aggregate_streaming_chunks_with_reasoning(self):
-        """Test the _aggregate_streaming_chunks_with_reasoning method for reasoning content aggregation."""
+        """Test the _aggregate_streaming_chunks_with_reasoning function for reasoning content aggregation."""
 
         # Create mock streaming chunks with reasoning content
         chunk1 = Mock()
@@ -462,9 +557,6 @@ class TestStreamingChunkConversion:
             "model": "gemini-2.5-pro",
         }
         final_chunk.reasoning = ReasoningContent(reasoning_text="I should greet the user politely")
-
-        # Add reasoning deltas to the final chunk meta (this is how the real method works)
-        final_chunk.meta["reasoning_deltas"] = [{"type": "reasoning", "content": "I should greet the user politely"}]
 
         # Test aggregation
         result = _aggregate_streaming_chunks_with_reasoning([chunk1, chunk2, final_chunk])

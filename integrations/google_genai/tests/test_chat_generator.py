@@ -59,6 +59,8 @@ class TestGoogleGenAIChatGeneratorInitSerDe:
         assert component._tools is None
         assert component._api_key is not None
         assert component._api_key.resolve_value() == "test-api-key"
+        assert component._timeout is None
+        assert component._max_retries is None
 
     def test_init_fail_wo_api_key(self, monkeypatch):
         monkeypatch.delenv("GOOGLE_API_KEY", raising=False)
@@ -81,6 +83,8 @@ class TestGoogleGenAIChatGeneratorInitSerDe:
             generation_kwargs={"temperature": 0.5, "max_output_tokens": 100},
             safety_settings=[{"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_MEDIUM_AND_ABOVE"}],
             tools=[tool],
+            timeout=30.0,
+            max_retries=5,
         )
         assert component._model == "gemini-2.5-flash"
         assert component._streaming_callback is print_streaming_chunk
@@ -89,6 +93,8 @@ class TestGoogleGenAIChatGeneratorInitSerDe:
             {"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_MEDIUM_AND_ABOVE"}
         ]
         assert component._tools == [tool]
+        assert component._timeout == 30.0
+        assert component._max_retries == 5
 
     def test_init_with_toolset(self, tools, monkeypatch):
         monkeypatch.setenv("GOOGLE_API_KEY", "test-api-key")
@@ -140,6 +146,8 @@ class TestGoogleGenAIChatGeneratorInitSerDe:
         assert data["init_parameters"]["tools"]["type"] == "haystack.tools.toolset.Toolset"
         assert "tools" in data["init_parameters"]["tools"]["data"]
         assert len(data["init_parameters"]["tools"]["data"]["tools"]) == len(tools)
+        assert data["init_parameters"]["timeout"] is None
+        assert data["init_parameters"]["max_retries"] is None
 
     def test_from_dict_with_toolset(self, tools, monkeypatch):
         monkeypatch.setenv("GOOGLE_API_KEY", "test-api-key")

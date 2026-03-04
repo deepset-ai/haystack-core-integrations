@@ -164,12 +164,24 @@ class TestDocumentStore(DocumentStoreBaseExtendedTests):
 
     def assert_documents_are_equal(self, received: list[Document], expected: list[Document]):
         """
-        The OpenSearchDocumentStore.filter_documents() method returns a Documents with their score set.
-        We don't want to compare the score, so we set it to None before comparing the documents.
+        The OpenSearchDocumentStore.filter_documents() method returns documents with their score set.
+
+        We don't want to compare the score, so we set it to None before comparing.
+
+        Embeddings are not exactly the same when retrieved from OpenSearch (float round-trip),
+        so we compare them approximately and then set both to None for the final equality check.
         """
-        for doc in received:
-            doc.score = None
-        assert received == expected
+        assert len(received) == len(expected)
+        received = sorted(received, key=lambda x: x.id)
+        expected = sorted(expected, key=lambda x: x.id)
+        for received_doc, expected_doc in zip(received, expected, strict=True):
+            received_doc.score = None
+            if received_doc.embedding is None:
+                assert expected_doc.embedding is None
+            else:
+                assert received_doc.embedding == pytest.approx(expected_doc.embedding)
+            received_doc.embedding, expected_doc.embedding = None, None
+            assert received_doc == expected_doc
 
     def test_write_documents(self, document_store: OpenSearchDocumentStore):
         docs = [Document(id="1")]
@@ -983,24 +995,15 @@ class TestDocumentStore(DocumentStoreBaseExtendedTests):
 
         # Verify raw JSON response structure
         assert isinstance(result, dict)
-        assert "hits" in result
-        assert "hits" in result["hits"]
-        assert len(result["hits"]["hits"]) == 2  # Two documents with category A
+        assert "schema" in result
+        assert "datarows" in result
+        assert "size" in result
+        assert "status" in result
+        assert [entry["name"] for entry in result["schema"]] == ["content", "category", "status", "priority"]
+        assert len(result["datarows"]) == 2  # Two documents with category A
 
-        # Extract _source from each hit
-        hits = result["hits"]["hits"]
-        assert all(isinstance(hit, dict) and "_source" in hit for hit in hits)
-
-        categories = [hit["_source"].get("category") for hit in hits]
-        assert all(cat == "A" for cat in categories)
-
-        # verify all expected fields are present in _source
-        for hit in hits:
-            source = hit["_source"]
-            assert "content" in source
-            assert "category" in source
-            assert "status" in source
-            assert "priority" in source
+        categories = [row[1] for row in result["datarows"]]
+        assert all(category == "A" for category in categories)
 
         # error handling for invalid SQL query
         invalid_query = "SELECT * FROM non_existent_index"

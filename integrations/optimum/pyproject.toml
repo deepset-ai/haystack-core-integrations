@@ -90,8 +90,6 @@ disallow_incomplete_defs = true
 module = "optimum.*"
 ignore_missing_imports = true
 
-[tool.hatch.metadata]
-allow-direct-references = true
 
 [tool.ruff.lint.isort]
 known-first-party = ["haystack_integrations"]

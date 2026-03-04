@@ -1,5 +1,25 @@
 # Changelog
 
+## [integrations/azure_ai_search-v3.1.0] - 2026-03-02
+
+### 🚀 Features
+
+- Add Azure AI Search document store metadata ops (#2903)
+
+### 📚 Documentation
+
+- Simplify pydoc configs (#2855)
+
+### 🧪 Testing
+
+- Replacing each `DocumentStore` specific tests and used the generalised ones from `haystack.testing.document_store` (#2812)
+
+### 🧹 Chores
+
+- Remove unused allow-direct-references (#2866)
+- Standardize author mentions (#2897)
+
+
 ## [integrations/azure_ai_search-v3.0.0] - 2026-01-09
 
 

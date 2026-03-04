@@ -1,6 +1,8 @@
 # SPDX-FileCopyrightText: 2023-present deepset GmbH <info@deepset.ai>
 #
 # SPDX-License-Identifier: Apache-2.0
+
+import re
 from datetime import datetime
 from itertools import chain
 from typing import Any, Literal
@@ -19,6 +21,7 @@ PYTHON_TYPES_TO_PG_TYPES = {
 }
 
 NO_VALUE = "no_value"
+SAFE_META_FIELD_RE = re.compile(r"^[a-zA-Z0-9_-]+$")
 
 
 def _validate_filters(filters: dict[str, Any] | None = None) -> None:
@@ -128,6 +131,12 @@ def _treat_meta_field(field: str, value: Any) -> str:
 
     # use the ->> operator to access keys in the meta JSONB field
     field_name = field.split(".", 1)[-1]
+    if not SAFE_META_FIELD_RE.match(field_name):
+        msg = (
+            f"Invalid metadata field name '{field_name}'. "
+            "Only alphanumeric characters, dashes, and underscores are allowed."
+        )
+        raise FilterError(msg)
     field = f"meta->>'{field_name}'"
 
     # meta fields are stored as strings in the JSONB field,

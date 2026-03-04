@@ -35,7 +35,7 @@ jobs:
           python-version: "3.12"
 
       - name: Install dependencies
-        run: pip install hatch requests
+        run: pip install hatch "virtualenv<21.0.0" requests
 
       - name: Validate version number
         run: python .github/utils/validate_version.py --tag ${{ github.ref_name }}

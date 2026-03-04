@@ -2003,12 +2003,9 @@ class OpenSearchDocumentStore:
             if fetch_size is not None:
                 body["fetch_size"] = fetch_size
 
-            params = {"format": "json"}
-
             response_data = self._client.transport.perform_request(
                 method="POST",
                 url="/_plugins/_sql",
-                params=params,
                 body=body,
             )
 
@@ -2039,12 +2036,9 @@ class OpenSearchDocumentStore:
             if fetch_size is not None:
                 body["fetch_size"] = fetch_size
 
-            params = {"format": "json"}
-
             response_data = await self._async_client.transport.perform_request(
                 method="POST",
                 url="/_plugins/_sql",
-                params=params,
                 body=body,
             )
 
