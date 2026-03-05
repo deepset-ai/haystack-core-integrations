@@ -291,6 +291,7 @@ class WeaviateDocumentStore:
         if self._client:
             self._client.close()
             self._client = None
+            self._collection = None
 
     async def close_async(self) -> None:
         """
@@ -299,6 +300,7 @@ class WeaviateDocumentStore:
         if self._async_client:
             await self._async_client.close()
             self._async_client = None
+            self._async_collection = None
 
     def to_dict(self) -> dict[str, Any]:
         """
