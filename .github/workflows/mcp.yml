@@ -53,7 +53,7 @@ jobs:
 
       - name: Set up Docker
         if: runner.os == 'Linux'
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@v4
 
       # we need to pull the mcp/brave-search image to run the test
       # on the actual mcp server as an example of real life usage
