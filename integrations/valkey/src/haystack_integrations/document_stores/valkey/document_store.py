@@ -793,7 +793,7 @@ class ValkeyDocumentStore(DocumentStore):
         _validate_filters(filters)
         try:
             docs_to_delete = self.filter_documents(filters)
-            if ids:= [doc.id for doc in docs_to_delete]:
+            if ids := [doc.id for doc in docs_to_delete]:
                 self.delete_documents(ids)
             return len(ids)
         except FilterError:
