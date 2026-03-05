@@ -30,8 +30,6 @@ class ChromaDocumentStore:
 
     We use the `collection.get` API to implement the document store protocol,
     the `collection.search` API will be used in the retriever instead.
-
-    trigger!!!!
     """
 
     def __init__(
