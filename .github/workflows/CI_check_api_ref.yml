@@ -109,7 +109,10 @@ jobs:
         if: steps.changed.outputs.integrations != '[]'
         working-directory: website
         run: |
-          # it might happen that katex's ESM build has a broken __VERSION__ placeholder, so we force CJS resolution
+          # docusaurus-mdx-checker is a package that is not frequently updated. Its dependency katex sometimes ships a 
+          # broken ESM build, where a __VERSION__ placeholder is left unresolved, causing a ReferenceError at import time.
+          # Node 22+ prefers ESM when available. We force CJS (CommonJS) resolution to use the working katex build.
+          # This should be safe because docusaurus-mdx-checker and its dependencies provide CJS builds.
           export NODE_OPTIONS="--conditions=require"
           npx docusaurus-mdx-checker -v || {
               echo ""
