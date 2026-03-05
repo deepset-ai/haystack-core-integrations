@@ -109,6 +109,8 @@ jobs:
         if: steps.changed.outputs.integrations != '[]'
         working-directory: website
         run: |
+          # it might happen that katex's ESM build has a broken __VERSION__ placeholder, so we force CJS resolution
+          export NODE_OPTIONS="--conditions=require"
           npx docusaurus-mdx-checker -v || {
               echo ""
               echo "For common MDX problems, see https://docusaurus.io/blog/preparing-your-site-for-docusaurus-v3#common-mdx-problems"
