@@ -545,7 +545,7 @@ class AstraDocumentStore:
         :param filters: The filters to apply to the document list.
         :returns: The number of documents that match the filter.
         """
-        normalized_filters = self._normalize_new_filter_input(filters)
+        normalized_filters = AstraDocumentStore._normalize_new_filter_input(filters)
         converted_filters = _convert_filters(normalized_filters)
         return self.index.count_documents(filters=converted_filters, upper_bound=1_000_000_000)
 
@@ -559,13 +559,13 @@ class AstraDocumentStore:
         :returns: A dictionary where the keys are the metadata field names and the values are the count of unique
             values.
         """
-        normalized_filters = self._normalize_new_filter_input(filters)
+        normalized_filters = AstraDocumentStore._normalize_new_filter_input(filters)
         converted_filters = _convert_filters(normalized_filters)
 
         counts = {}
         for field in metadata_fields:
             distinct_values = self.index.distinct(f"meta.{field}", filters=converted_filters)
-            counts[field] = len(self._normalize_distinct_values(distinct_values))
+            counts[field] = len(AstraDocumentStore._normalize_distinct_values(distinct_values))
         return counts
 
     def get_metadata_fields_info(self) -> dict[str, dict[str, str]]:
@@ -619,7 +619,7 @@ class AstraDocumentStore:
         :param size: The number of values to return.
         :returns: A tuple containing the paginated values and the total count.
         """
-        values = self._normalize_distinct_values(self.index.distinct(f"meta.{metadata_field}"))
+        values = AstraDocumentStore._normalize_distinct_values(self.index.distinct(f"meta.{metadata_field}"))
         if search_term:
             search_term_lower = search_term.lower()
             values = [value for value in values if search_term_lower in value.lower()]
