@@ -156,6 +156,23 @@ class TestWeaviateDocumentStore(DocumentStoreBaseExtendedTests):
             {"class": "My_collection", "properties": DOCUMENT_COLLECTION_PROPERTIES}
         )
 
+    def test_close(self) -> None:
+        document_store = WeaviateDocumentStore(url="http://localhost:8080")
+        # Initialise client and collection
+        assert document_store.client is not None
+        assert document_store.collection is not None
+
+        document_store.close()
+
+        assert document_store._client is None
+        assert document_store._collection is None
+
+        # Initialise client and collection, then test it stills works after reopening
+        assert document_store.client is not None
+        assert document_store.collection is not None
+
+        assert document_store.count_documents() == 0
+
     @patch("haystack_integrations.document_stores.weaviate.document_store.weaviate")
     def test_to_dict(self, _mock_weaviate, monkeypatch):
         monkeypatch.setenv("WEAVIATE_API_KEY", "my_api_key")

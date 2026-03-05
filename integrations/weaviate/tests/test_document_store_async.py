@@ -36,6 +36,33 @@ class TestWeaviateDocumentStoreAsync:
         await store.close_async()
 
     @pytest.mark.asyncio
+    async def test_close_async(self) -> None:
+        document_store = WeaviateDocumentStore(url="http://localhost:8080")
+        # Initialise client and collection
+        assert await document_store.async_client is not None
+        assert await document_store.async_collection is not None
+
+        await document_store.close_async()
+
+        assert document_store._async_client is None
+        assert document_store._async_collection is None
+
+        # Initialise client and collection, then test it stills works after reopening
+        assert await document_store.async_client is not None
+        assert await document_store.async_collection is not None
+
+        document_store.write_documents(
+            [
+                Document(content="Haskell is a functional programming language"),
+                Document(content="Lisp is a functional programming language"),
+                Document(content="Python is an object oriented programming language"),
+            ]
+        )
+        filters = {"field": "content", "operator": "==", "value": "Haskell"}
+
+        assert await document_store.count_documents_by_filter_async(filters) == 1
+
+    @pytest.mark.asyncio
     async def test_bm25_retrieval_async(self, document_store):
         document_store.write_documents(
             [
