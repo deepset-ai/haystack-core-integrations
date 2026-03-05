@@ -35,6 +35,9 @@ jobs:
         python-version: ["3.10", "3.13"]
 
     steps:
+
+      - name: make it fail
+        run: echo "This is a test" && exit 1
       - name: Support longpaths
         if: matrix.os == 'windows-latest'
         working-directory: .
@@ -70,10 +73,10 @@ jobs:
           hatch -e test env run -- uv pip install git+https://github.com/deepset-ai/haystack.git@main
           hatch run test:unit
 
-      - name: Send event to Datadog for nightly failures
-        if: failure() && github.event_name == 'schedule'
-        uses: ./.github/actions/send_failure
+      - name: Notify Slack on nightly failure
+        if: failure()
+        uses: deepset-ai/notify-slack-action@v1
         with:
-          title: |
-            Core integrations nightly tests failure: ${{ github.workflow }}
-          api-key: ${{ secrets.CORE_DATADOG_API_KEY }}
+          slack-webhook-url: ${{ secrets.SLACK_WEBHOOK_URL_NOTIFICATIONS }}
+          mention-here: "false"
+
