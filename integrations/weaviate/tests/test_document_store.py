@@ -156,8 +156,7 @@ class TestWeaviateDocumentStore(DocumentStoreBaseExtendedTests):
             {"class": "My_collection", "properties": DOCUMENT_COLLECTION_PROPERTIES}
         )
 
-    def test_close(self) -> None:
-        document_store = WeaviateDocumentStore(url="http://localhost:8080")
+    def test_close(self, document_store: WeaviateDocumentStore) -> None:
         # Initialise client and collection
         assert document_store.client is not None
         assert document_store.collection is not None

@@ -36,8 +36,7 @@ class TestWeaviateDocumentStoreAsync:
         await store.close_async()
 
     @pytest.mark.asyncio
-    async def test_close_async(self) -> None:
-        document_store = WeaviateDocumentStore(url="http://localhost:8080")
+    async def test_close_async(self, document_store: WeaviateDocumentStore) -> None:
         # Initialise client and collection
         assert await document_store.async_client is not None
         assert await document_store.async_collection is not None
