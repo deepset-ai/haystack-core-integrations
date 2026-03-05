@@ -164,6 +164,8 @@ class GoogleGenAIChatGenerator:
         safety_settings: list[dict[str, Any]] | None = None,
         streaming_callback: StreamingCallbackT | None = None,
         tools: ToolsType | None = None,
+        timeout: float | None = None,
+        max_retries: int | None = None,
     ):
         """
         Initialize a GoogleGenAIChatGenerator instance.
@@ -197,6 +199,12 @@ class GoogleGenAIChatGenerator:
         :param streaming_callback: A callback function that is called when a new token is received from the stream.
         :param tools: A list of Tool and/or Toolset objects, or a single Toolset for which the model can prepare calls.
             Each tool should have a unique name.
+        :param timeout:
+            Timeout for Google GenAI client calls. If not set, it defaults to the default set by the Google GenAI
+            client.
+        :param max_retries:
+            Maximum number of retries to attempt for failed requests. If not set, it defaults to the default set by
+            the Google GenAI client.
         """
         _check_duplicate_tool_names(flatten_tools_or_toolsets(tools))
 
@@ -205,6 +213,8 @@ class GoogleGenAIChatGenerator:
             api=api,
             vertex_ai_project=vertex_ai_project,
             vertex_ai_location=vertex_ai_location,
+            timeout=timeout,
+            max_retries=max_retries,
         )
 
         self._api_key = api_key
@@ -216,6 +226,8 @@ class GoogleGenAIChatGenerator:
         self._safety_settings = safety_settings or []
         self._streaming_callback = streaming_callback
         self._tools = tools
+        self._timeout = timeout
+        self._max_retries = max_retries
 
     def to_dict(self) -> dict[str, Any]:
         """
@@ -236,6 +248,8 @@ class GoogleGenAIChatGenerator:
             safety_settings=self._safety_settings,
             streaming_callback=callback_name,
             tools=serialized_tools,
+            timeout=self._timeout,
+            max_retries=self._max_retries,
         )
 
     @classmethod

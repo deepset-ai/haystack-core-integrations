@@ -11,6 +11,7 @@ requires-python = ">=3.10"
 license = "Apache-2.0"
 keywords = []
 authors = [
+  { name = "deepset GmbH", email = "info@deepset.ai" },
   { name = "Kacper Łukawski", email = "kacper.lukawski@qdrant.com" },
   { name = "Anush Shetty", email = "anush.shetty@qdrant.com" },
 ]
