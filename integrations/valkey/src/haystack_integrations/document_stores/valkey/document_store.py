@@ -793,8 +793,7 @@ class ValkeyDocumentStore(DocumentStore):
         _validate_filters(filters)
         try:
             docs_to_delete = self.filter_documents(filters)
-            ids = [doc.id for doc in docs_to_delete]
-            if ids:
+            if ids:= [doc.id for doc in docs_to_delete]:
                 self.delete_documents(ids)
             return len(ids)
         except FilterError:
@@ -815,8 +814,7 @@ class ValkeyDocumentStore(DocumentStore):
         _validate_filters(filters)
         try:
             docs_to_delete = await self.filter_documents_async(filters)
-            ids = [doc.id for doc in docs_to_delete]
-            if ids:
+            if ids := [doc.id for doc in docs_to_delete]:
                 await self.delete_documents_async(ids)
             return len(ids)
         except FilterError:
@@ -986,7 +984,7 @@ class ValkeyDocumentStore(DocumentStore):
         self._validate_numeric_metadata_field(metadata_field)
         try:
             docs = self.filter_documents(filters=None)
-            return self._get_metadata_field_min_max_impl(docs, metadata_field)
+            return ValkeyDocumentStore._get_metadata_field_min_max_impl(docs, metadata_field)
         except Exception as e:
             msg = f"Failed to get min/max for field '{metadata_field}': {e}"
             raise ValkeyDocumentStoreError(msg) from e
@@ -1004,7 +1002,7 @@ class ValkeyDocumentStore(DocumentStore):
         self._validate_numeric_metadata_field(metadata_field)
         try:
             docs = await self.filter_documents_async(filters=None)
-            return self._get_metadata_field_min_max_impl(docs, metadata_field)
+            return ValkeyDocumentStore._get_metadata_field_min_max_impl(docs, metadata_field)
         except Exception as e:
             msg = f"Failed to get min/max for field '{metadata_field}': {e}"
             raise ValkeyDocumentStoreError(msg) from e
@@ -1033,7 +1031,7 @@ class ValkeyDocumentStore(DocumentStore):
         self._validate_metadata_field_names([metadata_field])
         try:
             docs = self.filter_documents(filters=None)
-            return self._get_metadata_field_unique_values_impl(
+            return ValkeyDocumentStore._get_metadata_field_unique_values_impl(
                 docs, metadata_field, search_term=search_term, from_=from_, size=size
             )
         except Exception as e:
@@ -1061,7 +1059,7 @@ class ValkeyDocumentStore(DocumentStore):
         self._validate_metadata_field_names([metadata_field])
         try:
             docs = await self.filter_documents_async(filters=None)
-            return self._get_metadata_field_unique_values_impl(
+            return ValkeyDocumentStore._get_metadata_field_unique_values_impl(
                 docs, metadata_field, search_term=search_term, from_=from_, size=size
             )
         except Exception as e:
@@ -1399,7 +1397,8 @@ class ValkeyDocumentStore(DocumentStore):
         )
         return query, query_options
 
-    def _normalize_metadata_field_name(self, field_name: str) -> str:
+    @staticmethod
+    def _normalize_metadata_field_name(field_name: str) -> str:
         """Return internal key with meta_ prefix for lookup in _metadata_fields."""
         if field_name.startswith("meta."):
             return f"meta_{field_name[5:]}"
@@ -1407,16 +1406,17 @@ class ValkeyDocumentStore(DocumentStore):
             return field_name
         return f"meta_{field_name}"
 
-    def _get_doc_meta_value(self, doc: Document, field_name: str) -> Any:
+    @staticmethod
+    def _get_doc_meta_value(doc: Document, field_name: str) -> Any:
         """Get metadata value from a document; field_name can be 'category', 'meta.category', or 'meta_category'."""
-        key = self._normalize_metadata_field_name(field_name)
+        key = ValkeyDocumentStore._normalize_metadata_field_name(field_name)
         meta_key = key[5:] if key.startswith("meta_") else key  # key for doc.meta
         return (doc.meta or {}).get(meta_key)
 
     def _validate_metadata_field_names(self, metadata_fields: list[str]) -> None:
         """Ensure each field is configured for filtering; raise ValueError if not."""
         for name in metadata_fields:
-            normalized = self._normalize_metadata_field_name(name)
+            normalized = ValkeyDocumentStore._normalize_metadata_field_name(name)
             if normalized not in self._metadata_fields:
                 msg = (
                     f"Metadata field '{name}' is not configured for filtering. "
@@ -1427,7 +1427,7 @@ class ValkeyDocumentStore(DocumentStore):
     def _validate_numeric_metadata_field(self, metadata_field: str) -> None:
         """Ensure the field is configured and numeric; raise ValueError if not."""
         self._validate_metadata_field_names([metadata_field])
-        normalized = self._normalize_metadata_field_name(metadata_field)
+        normalized = ValkeyDocumentStore._normalize_metadata_field_name(metadata_field)
         if self._metadata_fields.get(normalized) != "numeric":
             msg = (
                 f"Field '{metadata_field}' is not a numeric metadata field. Min/max is only supported for "
@@ -1439,29 +1439,30 @@ class ValkeyDocumentStore(DocumentStore):
         """Count unique values per metadata field; field names returned without meta_ prefix."""
         counts: dict[str, int] = {}
         for field_name in metadata_fields:
-            meta_key = self._normalize_metadata_field_name(field_name)
+            meta_key = ValkeyDocumentStore._normalize_metadata_field_name(field_name)
             user_name = meta_key[5:] if meta_key.startswith("meta_") else meta_key
             unique_vals: set[Any] = set()
             for doc in documents:
-                val = self._get_doc_meta_value(doc, field_name)
+                val = ValkeyDocumentStore._get_doc_meta_value(doc, field_name)
                 if val is not None:
                     unique_vals.add(val)
             counts[user_name] = len(unique_vals)
         return counts
 
-    def _get_metadata_field_min_max_impl(self, documents: list[Document], metadata_field: str) -> dict[str, Any]:
+    @staticmethod
+    def _get_metadata_field_min_max_impl(documents: list[Document], metadata_field: str) -> dict[str, Any]:
         """Compute min/max for a numeric metadata field from a list of documents."""
         values: list[int | float] = []
         for doc in documents:
-            val = self._get_doc_meta_value(doc, metadata_field)
+            val = ValkeyDocumentStore._get_doc_meta_value(doc, metadata_field)
             if val is not None and isinstance(val, (int, float)):
                 values.append(val)
         if not values:
             return {"min": None, "max": None}
         return {"min": min(values), "max": max(values)}
 
+    @staticmethod
     def _get_metadata_field_unique_values_impl(
-        self,
         documents: list[Document],
         metadata_field: str,
         *,
@@ -1473,7 +1474,7 @@ class ValkeyDocumentStore(DocumentStore):
         unique_vals: list[str] = []
         seen: set[str] = set()
         for doc in documents:
-            val = self._get_doc_meta_value(doc, metadata_field)
+            val = ValkeyDocumentStore._get_doc_meta_value(doc, metadata_field)
             if val is None:
                 continue
             str_val = str(val)
