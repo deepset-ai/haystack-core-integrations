@@ -89,7 +89,9 @@ jobs:
         if: ${{ always() }}
         run: echo "${{ steps.license_check_report.outputs.report }}"
 
-      - if: failure() && github.event_name == 'schedule'
+      - name: Notify Slack on nightly failure
+        if: failure() && github.event_name == 'schedule'
         uses: deepset-ai/notify-slack-action@v1
         with:
           slack-webhook-url: ${{ secrets.SLACK_WEBHOOK_URL_NOTIFICATIONS }}
+          mention-here: "false"
