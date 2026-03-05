@@ -836,11 +836,9 @@ class ValkeyDocumentStore(DocumentStore):
         _validate_filters(filters)
         try:
             docs_to_update = self.filter_documents(filters)
-            for doc in docs_to_update:
-                doc.meta = dict(doc.meta or {})
-                doc.meta.update(meta)
-            if docs_to_update:
-                self.write_documents(docs_to_update, policy=DuplicatePolicy.OVERWRITE)
+            updated = [replace(doc, meta={**doc.meta, "processed": True}) for doc in docs_to_update]
+            if updated:
+                self.write_documents(updated, policy=DuplicatePolicy.OVERWRITE)
             return len(docs_to_update)
         except FilterError:
             raise
@@ -861,11 +859,9 @@ class ValkeyDocumentStore(DocumentStore):
         _validate_filters(filters)
         try:
             docs_to_update = await self.filter_documents_async(filters)
-            for doc in docs_to_update:
-                doc.meta = dict(doc.meta or {})
-                doc.meta.update(meta)
-            if docs_to_update:
-                await self.write_documents_async(docs_to_update, policy=DuplicatePolicy.OVERWRITE)
+            updated = [replace(doc, meta={**doc.meta, "processed": True}) for doc in docs_to_update]
+            if updated:
+                await self.write_documents_async(updated, policy=DuplicatePolicy.OVERWRITE)
             return len(docs_to_update)
         except FilterError:
             raise
@@ -925,7 +921,7 @@ class ValkeyDocumentStore(DocumentStore):
         self._validate_metadata_field_names(metadata_fields)
         try:
             docs = self.filter_documents(filters)
-            return self._count_unique_metadata_impl(docs, metadata_fields)
+            return ValkeyDocumentStore._count_unique_metadata_impl(docs, metadata_fields)
         except FilterError:
             raise
         except Exception as e:
@@ -949,7 +945,7 @@ class ValkeyDocumentStore(DocumentStore):
         self._validate_metadata_field_names(metadata_fields)
         try:
             docs = await self.filter_documents_async(filters)
-            return self._count_unique_metadata_impl(docs, metadata_fields)
+            return ValkeyDocumentStore._count_unique_metadata_impl(docs, metadata_fields)
         except FilterError:
             raise
         except Exception as e:
@@ -1435,7 +1431,8 @@ class ValkeyDocumentStore(DocumentStore):
             )
             raise ValueError(msg)
 
-    def _count_unique_metadata_impl(self, documents: list[Document], metadata_fields: list[str]) -> dict[str, int]:
+    @staticmethod
+    def _count_unique_metadata_impl(documents: list[Document], metadata_fields: list[str]) -> dict[str, int]:
         """Count unique values per metadata field; field names returned without meta_ prefix."""
         counts: dict[str, int] = {}
         for field_name in metadata_fields:
