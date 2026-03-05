@@ -73,10 +73,15 @@ jobs:
           hatch -e test env run -- uv pip install git+https://github.com/deepset-ai/haystack.git@main
           hatch run test:unit
 
+
+  notify:
+    name: Notify Slack on failure
+    needs: run
+    if: failure()
+    runs-on: ubuntu-latest
+    steps:
       - name: Notify Slack on nightly failure
-        if: failure()
         uses: deepset-ai/notify-slack-action@v1
         with:
           slack-webhook-url: ${{ secrets.SLACK_WEBHOOK_URL_NOTIFICATIONS }}
           mention-here: "false"
-
