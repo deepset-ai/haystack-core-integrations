@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2023-present deepset GmbH <info@deepset.ai>
+#
+# SPDX-License-Identifier: Apache-2.0
+
 # ruff: noqa: S110
 
 import struct
@@ -8,14 +12,19 @@ from glide_shared.commands.server_modules.ft_options.ft_search_options import Ft
 from haystack.dataclasses import Document
 from haystack.dataclasses.byte_stream import ByteStream
 from haystack.document_stores.types import DuplicatePolicy
-from haystack.testing.document_store import CountDocumentsTest, DeleteDocumentsTest, WriteDocumentsTest
+from haystack.testing.document_store import (
+    CountDocumentsTest,
+    DeleteByFilterTest,
+    DeleteDocumentsTest,
+    WriteDocumentsTest,
+)
 from haystack.utils import Secret
 
 from haystack_integrations.document_stores.valkey import ValkeyDocumentStore
 
 
 @pytest.mark.integration
-class TestValkeyDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocumentsTest):
+class TestValkeyDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocumentsTest, DeleteByFilterTest):
     @pytest.fixture
     def document_store(self):
         store = ValkeyDocumentStore(
@@ -28,6 +37,7 @@ class TestValkeyDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocu
                 "score": int,
                 "timestamp": int,
                 "quality": str,
+                "year": int,
             },
         )
         yield store
@@ -600,8 +610,9 @@ class TestValkeyDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocu
 
     # --- delete_by_filter, update_by_filter, count_documents_by_filter ---
 
+    """
     def test_delete_by_filter(self, document_store):
-        """Test deleting documents that match a filter."""
+
         docs = [
             Document(id="dbf1", content="doc 1", embedding=[0.1, 0.2, 0.3], meta={"category": "remove", "priority": 1}),
             Document(id="dbf2", content="doc 2", embedding=[0.2, 0.3, 0.4], meta={"category": "keep", "priority": 2}),
@@ -619,7 +630,6 @@ class TestValkeyDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocu
         assert remaining[0].meta.get("category") == "keep"
 
     def test_delete_by_filter_no_matches(self, document_store):
-        """Test delete_by_filter when no documents match."""
         docs = [
             Document(id="dbf_nm1", content="doc 1", embedding=[0.1, 0.2, 0.3], meta={"category": "other"}),
         ]
@@ -631,6 +641,7 @@ class TestValkeyDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocu
         deleted = document_store.delete_by_filter(filters)
         assert deleted == 0
         assert document_store.count_documents() == 1
+    """
 
     def test_update_by_filter(self, document_store):
         """Test updating metadata of documents that match a filter."""

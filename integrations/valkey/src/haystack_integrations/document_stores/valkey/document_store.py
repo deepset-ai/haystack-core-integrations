@@ -1437,13 +1437,13 @@ class ValkeyDocumentStore(DocumentStore):
         counts: dict[str, int] = {}
         for field_name in metadata_fields:
             meta_key = ValkeyDocumentStore._normalize_metadata_field_name(field_name)
-            user_name = meta_key[5:] if meta_key.startswith("meta_") else meta_key
+            stripped_meta_key = meta_key[5:] if meta_key.startswith("meta_") else meta_key
             unique_vals: set[Any] = set()
             for doc in documents:
                 val = ValkeyDocumentStore._get_doc_meta_value(doc, field_name)
                 if val is not None:
                     unique_vals.add(val)
-            counts[user_name] = len(unique_vals)
+            counts[stripped_meta_key] = len(unique_vals)
         return counts
 
     @staticmethod
