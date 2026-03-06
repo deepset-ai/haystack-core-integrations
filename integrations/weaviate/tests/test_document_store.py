@@ -5,6 +5,7 @@
 import base64
 import logging
 import os
+from collections.abc import Generator
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -46,7 +47,7 @@ def test_init_is_lazy(_mock_client):
 @pytest.mark.integration
 class TestWeaviateDocumentStore(DocumentStoreBaseExtendedTests):
     @pytest.fixture
-    def document_store(self, request) -> WeaviateDocumentStore:
+    def document_store(self, request) -> Generator[WeaviateDocumentStore, None, None]:
         # Use a different index for each test so we can run them in parallel
         collection_settings = {
             "class": f"{request.node.name}",
@@ -65,6 +66,7 @@ class TestWeaviateDocumentStore(DocumentStoreBaseExtendedTests):
         )
         yield store
         store.client.collections.delete(collection_settings["class"])
+        store.close()
 
     @pytest.fixture
     def filterable_docs(self) -> list[Document]:
@@ -153,6 +155,22 @@ class TestWeaviateDocumentStore(DocumentStoreBaseExtendedTests):
         mock_client.collections.create_from_dict.assert_called_once_with(
             {"class": "My_collection", "properties": DOCUMENT_COLLECTION_PROPERTIES}
         )
+
+    def test_close(self, document_store: WeaviateDocumentStore) -> None:
+        # Initialise client and collection
+        assert document_store.client is not None
+        assert document_store.collection is not None
+
+        document_store.close()
+
+        assert document_store._client is None
+        assert document_store._collection is None
+
+        # Initialise client and collection, then test it stills works after reopening
+        assert document_store.client is not None
+        assert document_store.collection is not None
+
+        assert document_store.count_documents() == 0
 
     @patch("haystack_integrations.document_stores.weaviate.document_store.weaviate")
     def test_to_dict(self, _mock_weaviate, monkeypatch):

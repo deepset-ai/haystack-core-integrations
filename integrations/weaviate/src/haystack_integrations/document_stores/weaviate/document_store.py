@@ -217,8 +217,6 @@ class WeaviateDocumentStore:
 
         self._client.connect()
 
-        # Test connection, it will raise an exception if it fails.
-        self._client.collections.list_all(simple=True)
         if not self._client.collections.exists(self._collection_settings["class"]):
             self._client.collections.create_from_dict(self._collection_settings)
 
@@ -262,8 +260,7 @@ class WeaviateDocumentStore:
             )
 
         await self._async_client.connect()
-        # Test connection, it will raise an exception if it fails.
-        await self._async_client.collections.list_all(simple=True)
+
         if not await self._async_client.collections.exists(self._collection_settings["class"]):
             await self._async_client.collections.create_from_dict(self._collection_settings)
 
@@ -286,6 +283,24 @@ class WeaviateDocumentStore:
         async_client = await self.async_client
         self._async_collection = async_client.collections.get(self._collection_settings["class"])
         return self._async_collection
+
+    def close(self) -> None:
+        """
+        Close the synchronous Weaviate client connection.
+        """
+        if self._client:
+            self._client.close()
+            self._client = None
+            self._collection = None
+
+    async def close_async(self) -> None:
+        """
+        Close the asynchronous Weaviate client connection.
+        """
+        if self._async_client:
+            await self._async_client.close()
+            self._async_client = None
+            self._async_collection = None
 
     def to_dict(self) -> dict[str, Any]:
         """
