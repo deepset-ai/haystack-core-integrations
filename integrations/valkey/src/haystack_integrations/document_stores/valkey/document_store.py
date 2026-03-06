@@ -1411,7 +1411,6 @@ class ValkeyDocumentStore(DocumentStore):
         key = ValkeyDocumentStore._normalize_metadata_field_name(field_name)
         return key[5:] if key.startswith("meta_") else key
 
-
     def _validate_metadata_field_names(self, metadata_fields: list[str]) -> None:
         """Ensure each field is configured for filtering; raise ValueError if not."""
         for name in metadata_fields:
