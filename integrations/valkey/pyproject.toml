@@ -25,7 +25,7 @@ classifiers = [
   "Programming Language :: Python :: Implementation :: CPython",
   "Programming Language :: Python :: Implementation :: PyPy",
 ]
-dependencies = ["haystack-ai>=2.11.0", "valkey-glide>=2.1.0", "valkey-glide-sync>=2.1.0"]
+dependencies = ["haystack-ai>=2.24.0", "valkey-glide>=2.1.0", "valkey-glide-sync>=2.1.0"]
 
 [project.urls]
 Documentation = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/valkey#readme"
