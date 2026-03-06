@@ -7,6 +7,7 @@ from typing import Any
 from warnings import warn
 
 from astrapy import DataAPIClient as AstraDBClient
+from astrapy.collection import FilterType
 from astrapy.constants import ReturnDocument
 from astrapy.exceptions import CollectionAlreadyExistsException
 from haystack import logging
@@ -216,11 +217,14 @@ class AstraClient:
 
         return result
 
-    def find_documents(self, find_query):
+    def find_documents(
+        self, find_query: dict[str, Any], projection: dict[str, Any] | None = None
+    ) -> list[dict[str, Any]]:
         """
         Find documents in the Astra index.
 
         :param find_query: a dictionary with the query options
+        :param projection: optional projection for the returned documents
         :returns: the documents found in the index
         """
         find_cursor = self._astra_db_collection.find(
@@ -228,7 +232,7 @@ class AstraClient:
             sort=find_query.get("sort"),
             limit=find_query.get("limit"),
             include_similarity=find_query.get("includeSimilarity"),
-            projection={"*": 1},
+            projection=projection or {"*": 1},
         )
 
         find_results = []
@@ -354,12 +358,25 @@ class AstraClient:
 
         return delete_result.deleted_count
 
-    def count_documents(self, upper_bound: int = 10000) -> int:
+    def count_documents(self, filters: FilterType | None = None, upper_bound: int = 10000) -> int:
         """
         Count the number of documents in the Astra index.
+
+        :param filters: optional filter to restrict the counted documents
+        :param upper_bound: maximum expected count, required by Astra's API
         :returns: the number of documents in the index
         """
-        return self._astra_db_collection.count_documents({}, upper_bound=upper_bound)
+        return self._astra_db_collection.count_documents(filters or {}, upper_bound=upper_bound)
+
+    def distinct(self, key: str, filters: FilterType | None = None) -> list[Any]:
+        """
+        Return the distinct values for a field in the Astra index.
+
+        :param key: field name
+        :param filters: optional filter to restrict the matching documents
+        :returns: distinct values for the field
+        """
+        return self._astra_db_collection.distinct(key, filter=filters)
 
     def update(
         self,
