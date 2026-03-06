@@ -70,7 +70,6 @@ jobs:
           hatch -e test env run -- uv pip install git+https://github.com/deepset-ai/haystack.git@main
           hatch run test:unit
 
-
   notify-slack-on-failure:
     needs: run
     if: failure() && github.event_name == 'schedule'
