@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2023-present deepset GmbH <info@deepset.ai>
+#
+# SPDX-License-Identifier: Apache-2.0
+
 # ruff: noqa: S110
 
 import uuid
@@ -471,3 +475,245 @@ class TestValkeyDocumentStoreAsync:
             assert doc.score is not None  # Vector similarity score
             assert "score" in doc.meta  # User metadata score
             assert doc.meta["score"] >= 0.7
+
+    # --- delete_by_filter_async, update_by_filter_async, count_documents_by_filter_async ---
+
+    async def test_delete_by_filter_async(self, document_store):
+        """Test async deleting documents that match a filter."""
+        test_id = str(uuid.uuid4())[:8]
+        docs = [
+            Document(
+                id=f"dbf1_{test_id}",
+                content="doc 1",
+                embedding=[0.1, 0.2, 0.3],
+                meta={"category": "remove", "priority": 1},
+            ),
+            Document(
+                id=f"dbf2_{test_id}",
+                content="doc 2",
+                embedding=[0.2, 0.3, 0.4],
+                meta={"category": "keep", "priority": 2},
+            ),
+            Document(
+                id=f"dbf3_{test_id}",
+                content="doc 3",
+                embedding=[0.3, 0.4, 0.5],
+                meta={"category": "remove", "priority": 3},
+            ),
+        ]
+        await document_store.write_documents_async(docs)
+        assert await document_store.count_documents_async() == 3
+
+        filters = {"operator": "AND", "conditions": [{"field": "meta.category", "operator": "==", "value": "remove"}]}
+        deleted = await document_store.delete_by_filter_async(filters)
+        assert deleted == 2
+        assert await document_store.count_documents_async() == 1
+        remaining = await document_store.filter_documents_async(filters=None)
+        assert len(remaining) == 1
+        assert remaining[0].meta.get("category") == "keep"
+
+    async def test_update_by_filter_async(self, document_store):
+        """Test async updating metadata of documents that match a filter."""
+        test_id = str(uuid.uuid4())[:8]
+        docs = [
+            Document(
+                id=f"ubf1_{test_id}",
+                content="doc 1",
+                embedding=[0.1, 0.2, 0.3],
+                meta={"category": "news", "priority": 1},
+            ),
+            Document(
+                id=f"ubf2_{test_id}",
+                content="doc 2",
+                embedding=[0.2, 0.3, 0.4],
+                meta={"category": "blog", "priority": 2},
+            ),
+            Document(
+                id=f"ubf3_{test_id}",
+                content="doc 3",
+                embedding=[0.3, 0.4, 0.5],
+                meta={"category": "news", "priority": 3},
+            ),
+        ]
+        await document_store.write_documents_async(docs)
+
+        filters = {"operator": "AND", "conditions": [{"field": "meta.category", "operator": "==", "value": "news"}]}
+        updated = await document_store.update_by_filter_async(filters, meta={"status": "archived", "priority": 99})
+        assert updated == 2
+
+        all_docs = await document_store.filter_documents_async(filters=None)
+        by_id = {d.id: d for d in all_docs}
+        assert by_id[f"ubf1_{test_id}"].meta.get("status") == "archived"
+        assert by_id[f"ubf1_{test_id}"].meta.get("priority") == 99
+        assert by_id[f"ubf2_{test_id}"].meta.get("status") is None
+        assert by_id[f"ubf2_{test_id}"].meta.get("priority") == 2
+        assert by_id[f"ubf3_{test_id}"].meta.get("status") == "archived"
+        assert by_id[f"ubf3_{test_id}"].meta.get("priority") == 99
+
+    async def test_count_documents_by_filter_async(self, document_store):
+        """Test async counting documents that match a filter."""
+        test_id = str(uuid.uuid4())[:8]
+        docs = [
+            Document(
+                id=f"cbf1_{test_id}",
+                content="doc 1",
+                embedding=[0.1, 0.2, 0.3],
+                meta={"category": "a", "priority": 1},
+            ),
+            Document(
+                id=f"cbf2_{test_id}",
+                content="doc 2",
+                embedding=[0.2, 0.3, 0.4],
+                meta={"category": "b", "priority": 2},
+            ),
+            Document(
+                id=f"cbf3_{test_id}",
+                content="doc 3",
+                embedding=[0.3, 0.4, 0.5],
+                meta={"category": "a", "priority": 3},
+            ),
+        ]
+        await document_store.write_documents_async(docs)
+
+        filters_a = {"operator": "AND", "conditions": [{"field": "meta.category", "operator": "==", "value": "a"}]}
+        assert await document_store.count_documents_by_filter_async(filters_a) == 2
+        filters_b = {"operator": "AND", "conditions": [{"field": "meta.category", "operator": "==", "value": "b"}]}
+        assert await document_store.count_documents_by_filter_async(filters_b) == 1
+        filters_none = {"operator": "AND", "conditions": [{"field": "meta.category", "operator": "==", "value": "z"}]}
+        assert await document_store.count_documents_by_filter_async(filters_none) == 0
+
+    async def test_count_unique_metadata_by_filter_async(self, document_store):
+        """Test async counting unique values per metadata field for documents matching a filter."""
+        test_id = str(uuid.uuid4())[:8]
+        docs = [
+            Document(
+                id=f"cumb1_{test_id}",
+                content="doc 1",
+                embedding=[0.1, 0.2, 0.3],
+                meta={"category": "tech", "priority": 1},
+            ),
+            Document(
+                id=f"cumb2_{test_id}",
+                content="doc 2",
+                embedding=[0.2, 0.3, 0.4],
+                meta={"category": "tech", "priority": 2},
+            ),
+            Document(
+                id=f"cumb3_{test_id}",
+                content="doc 3",
+                embedding=[0.3, 0.4, 0.5],
+                meta={"category": "news", "priority": 2},
+            ),
+        ]
+        await document_store.write_documents_async(docs)
+
+        filters = {"operator": "AND", "conditions": [{"field": "meta.priority", "operator": ">=", "value": 1}]}
+        counts = await document_store.count_unique_metadata_by_filter_async(
+            filters, metadata_fields=["category", "priority"]
+        )
+        assert counts["category"] == 2
+        assert counts["priority"] == 2
+
+    async def test_get_metadata_fields_info_async(self, document_store):
+        """Test get_metadata_fields_info (sync) returns configured field names and types."""
+        info = document_store.get_metadata_fields_info()
+        assert "category" in info
+        assert info["category"]["type"] == "keyword"
+        assert "priority" in info
+        assert info["priority"]["type"] == "long"
+        assert "status" in info
+        assert "score" in info
+        assert "quality" in info
+
+    async def test_get_metadata_field_min_max_async(self, document_store):
+        """Test async get_metadata_field_min_max for a numeric field."""
+        test_id = str(uuid.uuid4())[:8]
+        docs = [
+            Document(
+                id=f"gmm1_{test_id}",
+                content="doc 1",
+                embedding=[0.1, 0.2, 0.3],
+                meta={"priority": 10, "category": "a"},
+            ),
+            Document(
+                id=f"gmm2_{test_id}",
+                content="doc 2",
+                embedding=[0.2, 0.3, 0.4],
+                meta={"priority": 5, "category": "b"},
+            ),
+            Document(
+                id=f"gmm3_{test_id}",
+                content="doc 3",
+                embedding=[0.3, 0.4, 0.5],
+                meta={"priority": 20, "category": "c"},
+            ),
+        ]
+        await document_store.write_documents_async(docs)
+        result = await document_store.get_metadata_field_min_max_async("priority")
+        assert result["min"] == 5
+        assert result["max"] == 20
+
+    async def test_get_metadata_field_min_max_empty_store_async(self, document_store):
+        """Test async get_metadata_field_min_max when store has no documents."""
+        result = await document_store.get_metadata_field_min_max_async("priority")
+        assert result["min"] is None
+        assert result["max"] is None
+
+    async def test_get_metadata_field_unique_values_async(self, document_store):
+        """Test async get_metadata_field_unique_values returns distinct values and total count."""
+        test_id = str(uuid.uuid4())[:8]
+        docs = [
+            Document(
+                id=f"gmv1_{test_id}",
+                content="doc 1",
+                embedding=[0.1, 0.2, 0.3],
+                meta={"category": "apple", "priority": 1},
+            ),
+            Document(
+                id=f"gmv2_{test_id}",
+                content="doc 2",
+                embedding=[0.2, 0.3, 0.4],
+                meta={"category": "banana", "priority": 2},
+            ),
+            Document(
+                id=f"gmv3_{test_id}",
+                content="doc 3",
+                embedding=[0.3, 0.4, 0.5],
+                meta={"category": "apple", "priority": 3},
+            ),
+        ]
+        await document_store.write_documents_async(docs)
+        values, total = await document_store.get_metadata_field_unique_values_async("category", from_=0, size=10)
+        assert total == 2
+        assert set(values) == {"apple", "banana"}
+        assert len(values) == 2
+
+    async def test_get_metadata_field_unique_values_with_search_term_async(self, document_store):
+        """Test async get_metadata_field_unique_values with search_term filter."""
+        test_id = str(uuid.uuid4())[:8]
+        docs = [
+            Document(
+                id=f"gmvs1_{test_id}",
+                content="doc 1",
+                embedding=[0.1, 0.2, 0.3],
+                meta={"category": "apple_pie"},
+            ),
+            Document(
+                id=f"gmvs2_{test_id}",
+                content="doc 2",
+                embedding=[0.2, 0.3, 0.4],
+                meta={"category": "banana"},
+            ),
+            Document(
+                id=f"gmvs3_{test_id}",
+                content="doc 3",
+                embedding=[0.3, 0.4, 0.5],
+                meta={"category": "apple_jam"},
+            ),
+        ]
+        await document_store.write_documents_async(docs)
+        values, total = await document_store.get_metadata_field_unique_values_async(
+            "category", search_term="apple", from_=0, size=10
+        )
+        assert total == 2
+        assert set(values) == {"apple_pie", "apple_jam"}
