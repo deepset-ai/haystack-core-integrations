@@ -1406,21 +1406,19 @@ class ValkeyDocumentStore(DocumentStore):
         return f"meta_{field_name}"
 
     @staticmethod
-    def _get_doc_meta_value(doc: Document, field_name: str) -> Any:
-        """Get metadata value from a document; field_name can be 'category', 'meta.category', or 'meta_category'."""
+    def _metadata_field_to_doc_meta_key(field_name: str) -> str:
+        """Return the key to use in doc.meta (no meta_ prefix)."""
         key = ValkeyDocumentStore._normalize_metadata_field_name(field_name)
-        meta_key = key[5:] if key.startswith("meta_") else key  # key for doc.meta
-        return (doc.meta or {}).get(meta_key)
+        return key[5:] if key.startswith("meta_") else key
+
 
     def _validate_metadata_field_names(self, metadata_fields: list[str]) -> None:
         """Ensure each field is configured for filtering; raise ValueError if not."""
         for name in metadata_fields:
             normalized = ValkeyDocumentStore._normalize_metadata_field_name(name)
             if normalized not in self._metadata_fields:
-                msg = (
-                    f"Metadata field '{name}' is not configured for filtering. "
-                    f"Configured fields: {[f[5:] if f.startswith('meta_') else f for f in self._metadata_fields]}."
-                )
+                configured = [ValkeyDocumentStore._metadata_field_to_doc_meta_key(f) for f in self._metadata_fields]
+                msg = f"Metadata field '{name}' is not configured for filtering. Configured fields: {configured}."
                 raise ValueError(msg)
 
     def _validate_numeric_metadata_field(self, metadata_field: str) -> None:
@@ -1439,14 +1437,13 @@ class ValkeyDocumentStore(DocumentStore):
         """Count unique values per metadata field; field names returned without meta_ prefix."""
         counts: dict[str, int] = {}
         for field_name in metadata_fields:
-            meta_key = ValkeyDocumentStore._normalize_metadata_field_name(field_name)
-            stripped_meta_key = meta_key[5:] if meta_key.startswith("meta_") else meta_key
+            doc_meta_key = ValkeyDocumentStore._metadata_field_to_doc_meta_key(field_name)
             unique_vals: set[Any] = set()
             for doc in documents:
-                val = ValkeyDocumentStore._get_doc_meta_value(doc, field_name)
+                val = (doc.meta or {}).get(ValkeyDocumentStore._metadata_field_to_doc_meta_key(field_name))
                 if val is not None:
                     unique_vals.add(val)
-            counts[stripped_meta_key] = len(unique_vals)
+            counts[doc_meta_key] = len(unique_vals)
         return counts
 
     @staticmethod
@@ -1454,7 +1451,7 @@ class ValkeyDocumentStore(DocumentStore):
         """Compute min/max for a numeric metadata field from a list of documents."""
         values: list[int | float] = []
         for doc in documents:
-            val = ValkeyDocumentStore._get_doc_meta_value(doc, metadata_field)
+            val = (doc.meta or {}).get(ValkeyDocumentStore._metadata_field_to_doc_meta_key(metadata_field))
             if val is not None and isinstance(val, (int, float)):
                 values.append(val)
         if not values:
@@ -1474,7 +1471,7 @@ class ValkeyDocumentStore(DocumentStore):
         unique_vals: list[str] = []
         seen: set[str] = set()
         for doc in documents:
-            val = ValkeyDocumentStore._get_doc_meta_value(doc, metadata_field)
+            val = (doc.meta or {}).get(ValkeyDocumentStore._metadata_field_to_doc_meta_key(metadata_field))
             if val is None:
                 continue
             str_val = str(val)
