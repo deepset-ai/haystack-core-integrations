@@ -11,7 +11,6 @@ on:
     - cron: "0 0 * * *" # every day at midnight
 
 env:
-  CORE_DATADOG_API_KEY: ${{ secrets.CORE_DATADOG_API_KEY }}
   PYTHON_VERSION: "3.10"
   EXCLUDE_PACKAGES: "(?i)^(azure-identity|fastembed|ragas|tqdm|psycopg|mistralai|pgvector).*"
 
@@ -90,11 +89,8 @@ jobs:
         if: ${{ always() }}
         run: echo "${{ steps.license_check_report.outputs.report }}"
 
-      - name: Send event to Datadog for nightly failures
+      - name: Notify Slack on nightly failure
         if: failure() && github.event_name == 'schedule'
-        uses: ./.github/actions/send_failure
+        uses: deepset-ai/notify-slack-action@v1
         with:
-          title: |
-            Core integrations license compliance nightly failure: ${{ github.workflow }}
-          api-key: ${{ secrets.CORE_DATADOG_API_KEY }}
-          
+          slack-webhook-url: ${{ secrets.SLACK_WEBHOOK_URL_NOTIFICATIONS }}
