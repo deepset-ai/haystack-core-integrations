@@ -836,7 +836,7 @@ class ValkeyDocumentStore(DocumentStore):
         _validate_filters(filters)
         try:
             docs_to_update = self.filter_documents(filters)
-            updated = [replace(doc, meta={**doc.meta, "processed": True}) for doc in docs_to_update]
+            updated = [replace(doc, meta={**doc.meta, **meta}) for doc in docs_to_update]
             if updated:
                 self.write_documents(updated, policy=DuplicatePolicy.OVERWRITE)
             return len(docs_to_update)
@@ -859,7 +859,7 @@ class ValkeyDocumentStore(DocumentStore):
         _validate_filters(filters)
         try:
             docs_to_update = await self.filter_documents_async(filters)
-            updated = [replace(doc, meta={**doc.meta, "processed": True}) for doc in docs_to_update]
+            updated = [replace(doc, meta={**doc.meta, **meta}) for doc in docs_to_update]
             if updated:
                 await self.write_documents_async(updated, policy=DuplicatePolicy.OVERWRITE)
             return len(docs_to_update)
@@ -1297,14 +1297,17 @@ class ValkeyDocumentStore(DocumentStore):
             field_name = field_name_with_prefix[5:]  # Remove "meta_"
             value = meta.get(field_name)
 
-            # Validate value type matches field type
+            # Validate value type matches field type; coerce bool to int for numeric (Valkey expects number)
             if value is not None:
                 if field_type == "tag" and not isinstance(value, str):
                     msg = f"Field '{field_name}' expects string value but got {type(value).__name__}"
                     raise ValueError(msg)
-                elif field_type == "numeric" and not isinstance(value, (int, float)):
-                    msg = f"Field '{field_name}' expects numeric value but got {type(value).__name__}"
-                    raise ValueError(msg)
+                elif field_type == "numeric":
+                    if isinstance(value, bool):
+                        value = int(value)
+                    elif not isinstance(value, (int, float)):
+                        msg = f"Field '{field_name}' expects numeric value but got {type(value).__name__}"
+                        raise ValueError(msg)
 
             doc_dict[field_name_with_prefix] = value
 

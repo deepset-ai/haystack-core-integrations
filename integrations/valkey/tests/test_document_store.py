@@ -5,6 +5,7 @@
 # ruff: noqa: S110
 
 import struct
+from dataclasses import replace
 
 import pytest
 from glide_shared.commands.server_modules.ft_options.ft_create_options import DistanceMetricType
@@ -16,15 +17,38 @@ from haystack.testing.document_store import (
     CountDocumentsTest,
     DeleteByFilterTest,
     DeleteDocumentsTest,
+    FilterableDocsFixtureMixin,
+    UpdateByFilterTest,
     WriteDocumentsTest,
+    create_filterable_docs, DeleteAllTest,
 )
 from haystack.utils import Secret
 
 from haystack_integrations.document_stores.valkey import ValkeyDocumentStore
 
 
+def _filterable_docs_embedding_dim_3() -> list[Document]:
+    """Filterable docs with 3-dim embeddings for Valkey (store uses embedding_dim=3)."""
+    docs = create_filterable_docs()
+    return [
+        replace(
+            d,
+            embedding=d.embedding[:3] if d.embedding and len(d.embedding) >= 3 else [0.0, 0.0, 0.0],
+        )
+        for d in docs
+    ]
+
+
 @pytest.mark.integration
-class TestValkeyDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocumentsTest, DeleteByFilterTest):
+class TestValkeyDocumentStore(
+    CountDocumentsTest,
+    WriteDocumentsTest,
+    DeleteAllTest,
+    DeleteByFilterTest,
+    DeleteDocumentsTest,
+    FilterableDocsFixtureMixin,
+    UpdateByFilterTest,
+):
     @pytest.fixture
     def document_store(self):
         store = ValkeyDocumentStore(
@@ -38,6 +62,15 @@ class TestValkeyDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocu
                 "timestamp": int,
                 "quality": str,
                 "year": int,
+                "featured": int,  # for base-class test_update_by_filter_advanced_filters (meta.featured)
+                # for base-class UpdateByFilterTest.filterable_docs and filter tests:
+                "name": str,
+                "page": str,
+                "chapter": str,
+                "number": int,
+                "date": str,
+                "updated": int,  # bool from update_by_filter tests
+                "extra_field": str,
             },
         )
         yield store
@@ -46,6 +79,11 @@ class TestValkeyDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocu
             store.close()
         except Exception:
             pass
+
+    @pytest.fixture
+    def filterable_docs(self) -> list[Document]:
+        """Filterable docs with 3-dim embeddings (Valkey store uses embedding_dim=3)."""
+        return _filterable_docs_embedding_dim_3()
 
     def test_write_documents(self, document_store):
         """Test default write_documents() behavior (OVERWRITE by default)."""
@@ -494,25 +532,6 @@ class TestValkeyDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocu
         assert len(results) == 2
         assert {doc.id for doc in results} == {"c1", "c2"}
 
-    def test_delete_all_documents(self, document_store):
-        docs = [
-            Document(id="del1", content="doc 1", embedding=[0.1, 0.2, 0.3]),
-            Document(id="del2", content="doc 2", embedding=[0.4, 0.5, 0.6]),
-            Document(id="del3", content="doc 3", embedding=[0.7, 0.8, 0.9]),
-        ]
-
-        document_store.write_documents(docs)
-        assert document_store.count_documents() == 3
-
-        document_store.delete_all_documents()
-        assert document_store.count_documents() == 0
-
-    def test_delete_all_documents_empty_store(self, document_store):
-        assert document_store.count_documents() == 0
-
-        document_store.delete_all_documents()
-        assert document_store.count_documents() == 0
-
     def test_similarity_scores_are_set_correctly(self, document_store):
         """Test that similarity scores are properly computed and set for all returned documents."""
         docs = [
@@ -607,64 +626,6 @@ class TestValkeyDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocu
             assert doc.score is not None  # Vector similarity score
             assert "score" in doc.meta  # User metadata score
             assert doc.meta["score"] >= 0.7
-
-    # --- delete_by_filter, update_by_filter, count_documents_by_filter ---
-
-    """
-    def test_delete_by_filter(self, document_store):
-
-        docs = [
-            Document(id="dbf1", content="doc 1", embedding=[0.1, 0.2, 0.3], meta={"category": "remove", "priority": 1}),
-            Document(id="dbf2", content="doc 2", embedding=[0.2, 0.3, 0.4], meta={"category": "keep", "priority": 2}),
-            Document(id="dbf3", content="doc 3", embedding=[0.3, 0.4, 0.5], meta={"category": "remove", "priority": 3}),
-        ]
-        document_store.write_documents(docs)
-        assert document_store.count_documents() == 3
-
-        filters = {"operator": "AND", "conditions": [{"field": "meta.category", "operator": "==", "value": "remove"}]}
-        deleted = document_store.delete_by_filter(filters)
-        assert deleted == 2
-        assert document_store.count_documents() == 1
-        remaining = document_store.filter_documents(filters=None)
-        assert len(remaining) == 1
-        assert remaining[0].meta.get("category") == "keep"
-
-    def test_delete_by_filter_no_matches(self, document_store):
-        docs = [
-            Document(id="dbf_nm1", content="doc 1", embedding=[0.1, 0.2, 0.3], meta={"category": "other"}),
-        ]
-        document_store.write_documents(docs)
-        filters = {
-            "operator": "AND",
-            "conditions": [{"field": "meta.category", "operator": "==", "value": "nonexistent"}],
-        }
-        deleted = document_store.delete_by_filter(filters)
-        assert deleted == 0
-        assert document_store.count_documents() == 1
-    """
-
-    def test_update_by_filter(self, document_store):
-        """Test updating metadata of documents that match a filter."""
-        docs = [
-            Document(id="ubf1", content="doc 1", embedding=[0.1, 0.2, 0.3], meta={"category": "news", "priority": 1}),
-            Document(id="ubf2", content="doc 2", embedding=[0.2, 0.3, 0.4], meta={"category": "blog", "priority": 2}),
-            Document(id="ubf3", content="doc 3", embedding=[0.3, 0.4, 0.5], meta={"category": "news", "priority": 3}),
-        ]
-        document_store.write_documents(docs)
-
-        filters = {"operator": "AND", "conditions": [{"field": "meta.category", "operator": "==", "value": "news"}]}
-        updated = document_store.update_by_filter(filters, meta={"status": "archived", "priority": 99})
-        assert updated == 2
-
-        all_docs = document_store.filter_documents(filters=None)
-        by_id = {d.id: d for d in all_docs}
-        assert by_id["ubf1"].meta.get("status") == "archived"
-        assert by_id["ubf1"].meta.get("priority") == 99
-        assert by_id["ubf1"].meta.get("category") == "news"
-        assert by_id["ubf2"].meta.get("status") is None
-        assert by_id["ubf2"].meta.get("priority") == 2
-        assert by_id["ubf3"].meta.get("status") == "archived"
-        assert by_id["ubf3"].meta.get("priority") == 99
 
     def test_count_documents_by_filter(self, document_store):
         """Test counting documents that match a filter."""
