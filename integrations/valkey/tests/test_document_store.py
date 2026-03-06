@@ -15,12 +15,13 @@ from haystack.dataclasses.byte_stream import ByteStream
 from haystack.document_stores.types import DuplicatePolicy
 from haystack.testing.document_store import (
     CountDocumentsTest,
+    DeleteAllTest,
     DeleteByFilterTest,
     DeleteDocumentsTest,
     FilterableDocsFixtureMixin,
     UpdateByFilterTest,
     WriteDocumentsTest,
-    create_filterable_docs, DeleteAllTest,
+    create_filterable_docs,
 )
 from haystack.utils import Secret
 
