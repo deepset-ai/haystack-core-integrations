@@ -478,7 +478,7 @@ class TestValkeyDocumentStoreAsync:
 
     # --- delete_by_filter_async, update_by_filter_async, count_documents_by_filter_async ---
 
-    async def test_async_delete_by_filter(self, document_store):
+    async def test_delete_by_filter_async(self, document_store):
         """Test async deleting documents that match a filter."""
         test_id = str(uuid.uuid4())[:8]
         docs = [
