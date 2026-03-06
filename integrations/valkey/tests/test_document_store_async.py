@@ -512,7 +512,7 @@ class TestValkeyDocumentStoreAsync:
         assert len(remaining) == 1
         assert remaining[0].meta.get("category") == "keep"
 
-    async def test_async_update_by_filter(self, document_store):
+    async def test_update_by_filter_async(self, document_store):
         """Test async updating metadata of documents that match a filter."""
         test_id = str(uuid.uuid4())[:8]
         docs = [
@@ -550,7 +550,7 @@ class TestValkeyDocumentStoreAsync:
         assert by_id[f"ubf3_{test_id}"].meta.get("status") == "archived"
         assert by_id[f"ubf3_{test_id}"].meta.get("priority") == 99
 
-    async def test_async_count_documents_by_filter(self, document_store):
+    async def test_count_documents_by_filter_async(self, document_store):
         """Test async counting documents that match a filter."""
         test_id = str(uuid.uuid4())[:8]
         docs = [
@@ -582,7 +582,7 @@ class TestValkeyDocumentStoreAsync:
         filters_none = {"operator": "AND", "conditions": [{"field": "meta.category", "operator": "==", "value": "z"}]}
         assert await document_store.count_documents_by_filter_async(filters_none) == 0
 
-    async def test_async_count_unique_metadata_by_filter(self, document_store):
+    async def test_count_unique_metadata_by_filter_async(self, document_store):
         """Test async counting unique values per metadata field for documents matching a filter."""
         test_id = str(uuid.uuid4())[:8]
         docs = [
@@ -614,7 +614,7 @@ class TestValkeyDocumentStoreAsync:
         assert counts["category"] == 2
         assert counts["priority"] == 2
 
-    async def test_async_get_metadata_fields_info(self, document_store):
+    async def test_get_metadata_fields_info_async(self, document_store):
         """Test get_metadata_fields_info (sync) returns configured field names and types."""
         info = document_store.get_metadata_fields_info()
         assert "category" in info
@@ -625,7 +625,7 @@ class TestValkeyDocumentStoreAsync:
         assert "score" in info
         assert "quality" in info
 
-    async def test_async_get_metadata_field_min_max(self, document_store):
+    async def test_get_metadata_field_min_max_async(self, document_store):
         """Test async get_metadata_field_min_max for a numeric field."""
         test_id = str(uuid.uuid4())[:8]
         docs = [
@@ -653,13 +653,13 @@ class TestValkeyDocumentStoreAsync:
         assert result["min"] == 5
         assert result["max"] == 20
 
-    async def test_async_get_metadata_field_min_max_empty_store(self, document_store):
+    async def test_get_metadata_field_min_max_empty_store_async(self, document_store):
         """Test async get_metadata_field_min_max when store has no documents."""
         result = await document_store.get_metadata_field_min_max_async("priority")
         assert result["min"] is None
         assert result["max"] is None
 
-    async def test_async_get_metadata_field_unique_values(self, document_store):
+    async def test_get_metadata_field_unique_values_async(self, document_store):
         """Test async get_metadata_field_unique_values returns distinct values and total count."""
         test_id = str(uuid.uuid4())[:8]
         docs = [
@@ -688,7 +688,7 @@ class TestValkeyDocumentStoreAsync:
         assert set(values) == {"apple", "banana"}
         assert len(values) == 2
 
-    async def test_async_get_metadata_field_unique_values_with_search_term(self, document_store):
+    async def test_get_metadata_field_unique_values_with_search_term_async(self, document_store):
         """Test async get_metadata_field_unique_values with search_term filter."""
         test_id = str(uuid.uuid4())[:8]
         docs = [
