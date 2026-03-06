@@ -1418,8 +1418,9 @@ class ValkeyDocumentStore(DocumentStore):
             if normalized not in self._metadata_fields:
                 msg = (
                     f"Metadata field '{name}' is not configured for filtering. "
-                    f"Configured fields: {
-                        [ValkeyDocumentStore._metadata_field_to_doc_meta_key(f) for f in self._metadata_fields]
+                    f"Configured fields: {[
+                        ValkeyDocumentStore._metadata_field_to_doc_meta_key(f) for f in self._metadata_fields
+                    ]
                     }."
                 )
                 raise ValueError(msg)
