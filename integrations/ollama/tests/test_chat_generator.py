@@ -1,6 +1,6 @@
 import json
 from typing import Annotated
-from unittest.mock import Mock, patch
+from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 from haystack.components.generators.utils import print_streaming_chunk
@@ -810,7 +810,7 @@ class TestOllamaChatGeneratorRun:
         )
 
         mock_client_instance = mock_client.return_value
-        mock_client_instance.chat.side_effect = [RuntimeError("temporary failure"), mock_response]
+        mock_client_instance.chat.side_effect = [ResponseError("temporary failure", status_code=500), mock_response]
 
         result = generator.run(messages=[ChatMessage.from_user("Hello!")])
 
@@ -821,12 +821,71 @@ class TestOllamaChatGeneratorRun:
     def test_run_raises_after_retry_exhausted(self, mock_client):
         generator = OllamaChatGenerator(max_retries=1)
         mock_client_instance = mock_client.return_value
-        mock_client_instance.chat.side_effect = RuntimeError("persistent failure")
+        mock_client_instance.chat.side_effect = ResponseError("persistent failure", status_code=503)
 
-        with pytest.raises(RuntimeError, match="persistent failure"):
+        with pytest.raises(ResponseError, match="persistent failure"):
             generator.run(messages=[ChatMessage.from_user("Hello!")])
 
         assert mock_client_instance.chat.call_count == 2
+
+    @patch("haystack_integrations.components.generators.ollama.chat.chat_generator.Client")
+    def test_run_does_not_retry_non_retryable_error(self, mock_client):
+        generator = OllamaChatGenerator(max_retries=2)
+        mock_client_instance = mock_client.return_value
+        mock_client_instance.chat.side_effect = ResponseError("bad request", status_code=400)
+
+        with pytest.raises(ResponseError, match="bad request"):
+            generator.run(messages=[ChatMessage.from_user("Hello!")])
+
+        assert mock_client_instance.chat.call_count == 1
+
+    @pytest.mark.asyncio
+    @patch("haystack_integrations.components.generators.ollama.chat.chat_generator.AsyncClient")
+    async def test_run_async_does_not_retry_non_retryable_error(self, mock_async_client):
+        generator = OllamaChatGenerator(max_retries=2)
+        mock_async_client_instance = mock_async_client.return_value
+        mock_async_client_instance.chat = AsyncMock(side_effect=ResponseError("bad request", status_code=400))
+
+        with pytest.raises(ResponseError, match="bad request"):
+            await generator.run_async(messages=[ChatMessage.from_user("Hello!")])
+
+        assert mock_async_client_instance.chat.call_count == 1
+
+    @pytest.mark.asyncio
+    @patch("haystack_integrations.components.generators.ollama.chat.chat_generator.AsyncClient")
+    async def test_run_async_retries_after_failure(self, mock_async_client):
+        generator = OllamaChatGenerator(max_retries=1)
+
+        mock_response = ChatResponse(
+            model="qwen3:0.6b",
+            created_at="2023-12-12T14:13:43.416799Z",
+            message={"role": "assistant", "content": "Recovered after retry"},
+            done=True,
+            prompt_eval_count=1,
+            eval_count=2,
+        )
+
+        mock_async_client_instance = mock_async_client.return_value
+        mock_async_client_instance.chat = AsyncMock(
+            side_effect=[ResponseError("temporary failure", status_code=500), mock_response]
+        )
+
+        result = await generator.run_async(messages=[ChatMessage.from_user("Hello!")])
+
+        assert mock_async_client_instance.chat.call_count == 2
+        assert result["replies"][0].text == "Recovered after retry"
+
+    @pytest.mark.asyncio
+    @patch("haystack_integrations.components.generators.ollama.chat.chat_generator.AsyncClient")
+    async def test_run_async_raises_after_retry_exhausted(self, mock_async_client):
+        generator = OllamaChatGenerator(max_retries=1)
+        mock_async_client_instance = mock_async_client.return_value
+        mock_async_client_instance.chat = AsyncMock(side_effect=ResponseError("persistent failure", status_code=503))
+
+        with pytest.raises(ResponseError, match="persistent failure"):
+            await generator.run_async(messages=[ChatMessage.from_user("Hello!")])
+
+        assert mock_async_client_instance.chat.call_count == 2
 
     @patch("haystack_integrations.components.generators.ollama.chat.chat_generator.Client")
     def test_run_streaming(self, mock_client):
