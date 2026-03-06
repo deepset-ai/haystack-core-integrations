@@ -2,11 +2,15 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+import logging
 from collections.abc import AsyncGenerator
+from pathlib import Path
 
 import pytest
 import pytest_asyncio
+from haystack.dataclasses.byte_stream import ByteStream
 from haystack.dataclasses.document import Document
+from haystack.document_stores.errors import DocumentStoreError
 
 from haystack_integrations.document_stores.weaviate import WeaviateDocumentStore
 from haystack_integrations.document_stores.weaviate.document_store import DOCUMENT_COLLECTION_PROPERTIES
@@ -31,8 +35,7 @@ class TestWeaviateDocumentStoreAsync:
             collection_settings=collection_settings,
         )
         yield store
-        store.client.collections.delete(collection_settings["class"])
-        store.close()
+        await (await store.async_client).collections.delete(collection_settings["class"])
         await store.close_async()
 
     @pytest.mark.asyncio
@@ -50,20 +53,68 @@ class TestWeaviateDocumentStoreAsync:
         assert await document_store.async_client is not None
         assert await document_store.async_collection is not None
 
-        document_store.write_documents(
-            [
-                Document(content="Haskell is a functional programming language"),
-                Document(content="Lisp is a functional programming language"),
-                Document(content="Python is an object oriented programming language"),
-            ]
-        )
-        filters = {"field": "content", "operator": "==", "value": "Haskell"}
+        assert await document_store.count_documents_async() == 0
 
-        assert await document_store.count_documents_by_filter_async(filters) == 1
+    @pytest.mark.asyncio
+    async def test_filter_documents_with_blob_data_async(
+        self, document_store: WeaviateDocumentStore, test_files_path: Path
+    ) -> None:
+        image = ByteStream.from_file_path(test_files_path / "robot1.jpg", mime_type="image/jpeg")
+        doc = Document(content="test doc", blob=image)
+        assert await document_store.write_documents_async([doc]) == 1
+
+        docs = await document_store.filter_documents_async()
+
+        assert len(docs) == 1
+        assert docs[0].blob == image
+
+    @pytest.mark.asyncio
+    async def test_filter_documents_below_default_limit_async(self, document_store: WeaviateDocumentStore) -> None:
+        docs = []
+        for index in range(9998):
+            docs.append(Document(content="This is some content", meta={"index": index}))
+        await document_store.write_documents_async(docs)
+        result = await document_store.filter_documents_async(
+            {"field": "content", "operator": "==", "value": "This is some content"}
+        )
+
+        assert len(result) == 9998
+
+    @pytest.mark.asyncio
+    async def test_filter_documents_over_default_limit(self, document_store: WeaviateDocumentStore) -> None:
+        docs = []
+        for index in range(10000):
+            docs.append(Document(content="This is some content", meta={"index": index}))
+        await document_store.write_documents_async(docs)
+        with pytest.raises(DocumentStoreError):
+            await document_store.filter_documents_async(
+                {"field": "content", "operator": "==", "value": "This is some content"}
+            )
+
+    @pytest.mark.asyncio
+    async def test_write_documents_async(self, document_store: WeaviateDocumentStore) -> None:
+        """
+        Test write_documents() with default policy overwrites existing documents.
+        """
+        doc = Document(content="test doc")
+        assert await document_store.write_documents_async([doc]) == 1
+        assert await document_store.count_documents_async() == 1
+
+        doc.content = "test doc 2"
+        assert await document_store.write_documents_async([doc]) == 1
+        assert await document_store.count_documents_async() == 1
+
+    @pytest.mark.asyncio
+    async def test_write_documents_with_blob_data_async(
+        self, document_store: WeaviateDocumentStore, test_files_path: Path
+    ) -> None:
+        image = ByteStream.from_file_path(test_files_path / "robot1.jpg", mime_type="image/jpeg")
+        doc = Document(content="test doc", blob=image)
+        assert await document_store.write_documents_async([doc]) == 1
 
     @pytest.mark.asyncio
     async def test_bm25_retrieval_async(self, document_store):
-        document_store.write_documents(
+        await document_store.write_documents_async(
             [
                 Document(content="Haskell is a functional programming language"),
                 Document(content="Lisp is a functional programming language"),
@@ -80,7 +131,7 @@ class TestWeaviateDocumentStoreAsync:
 
     @pytest.mark.asyncio
     async def test_bm25_retrieval_async_with_filters(self, document_store):
-        document_store.write_documents(
+        await document_store.write_documents_async(
             [
                 Document(content="Haskell is a functional programming language"),
                 Document(content="Lisp is a functional programming language"),
@@ -96,7 +147,7 @@ class TestWeaviateDocumentStoreAsync:
 
     @pytest.mark.asyncio
     async def test_embedding_retrieval_async(self, document_store):
-        document_store.write_documents(
+        await document_store.write_documents_async(
             [
                 Document(content="The document", embedding=[1.0, 1.0, 1.0, 1.0]),
                 Document(content="Another document", embedding=[0.8, 0.8, 0.8, 1.0]),
@@ -112,7 +163,7 @@ class TestWeaviateDocumentStoreAsync:
 
     @pytest.mark.asyncio
     async def test_embedding_retrieval_async_with_filters(self, document_store):
-        document_store.write_documents(
+        await document_store.write_documents_async(
             [
                 Document(content="The document I want", embedding=[1.0, 1.0, 1.0, 1.0]),
                 Document(content="Another document", embedding=[0.8, 0.8, 0.8, 1.0]),
@@ -134,7 +185,7 @@ class TestWeaviateDocumentStoreAsync:
 
     @pytest.mark.asyncio
     async def test_hybrid_retrieval_async(self, document_store):
-        document_store.write_documents(
+        await document_store.write_documents_async(
             [
                 Document(content="Haskell is a functional programming language", embedding=[1.0, 0.8, 0.2, 0.1]),
                 Document(content="Lisp is a functional programming language", embedding=[0.9, 0.7, 0.3, 0.2]),
@@ -154,7 +205,7 @@ class TestWeaviateDocumentStoreAsync:
 
     @pytest.mark.asyncio
     async def test_hybrid_retrieval_async_with_filters(self, document_store):
-        document_store.write_documents(
+        await document_store.write_documents_async(
             [
                 Document(content="Haskell is a functional programming language", embedding=[1.0, 0.8, 0.2, 0.1]),
                 Document(content="Lisp is a functional programming language", embedding=[0.9, 0.7, 0.3, 0.2]),
@@ -173,7 +224,7 @@ class TestWeaviateDocumentStoreAsync:
 
     @pytest.mark.asyncio
     async def test_hybrid_retrieval_async_with_alpha(self, document_store):
-        document_store.write_documents(
+        await document_store.write_documents_async(
             [
                 Document(content="Haskell is a functional programming language", embedding=[1.0, 0.8, 0.2, 0.1]),
                 Document(content="Python is an object oriented language", embedding=[0.1, 0.2, 0.8, 0.9]),
@@ -205,7 +256,7 @@ class TestWeaviateDocumentStoreAsync:
             Document(content="Doc 2", meta={"category": "TypeB"}),
             Document(content="Doc 3", meta={"category": "TypeA"}),
         ]
-        document_store.write_documents(docs)
+        await document_store.write_documents_async(docs)
 
         # delete documents with category="TypeA"
         deleted_count = await document_store.delete_by_filter_async(
@@ -215,7 +266,7 @@ class TestWeaviateDocumentStoreAsync:
         assert document_store.count_documents() == 1
 
         # verify only category TypeB remains
-        remaining_docs = document_store.filter_documents()
+        remaining_docs = await document_store.filter_documents_async()
         assert len(remaining_docs) == 1
         assert remaining_docs[0].meta["category"] == "TypeB"
 
@@ -226,7 +277,7 @@ class TestWeaviateDocumentStoreAsync:
             Document(content="Doc 2", meta={"category": "TypeB", "status": "draft"}),
             Document(content="Doc 3", meta={"category": "TypeA", "status": "draft"}),
         ]
-        document_store.write_documents(docs)
+        await document_store.write_documents_async(docs)
         assert document_store.count_documents() == 3
 
         # update status for category="TypeA" documents
@@ -236,7 +287,7 @@ class TestWeaviateDocumentStoreAsync:
         assert updated_count == 2
 
         # Verify the updates
-        published_docs = document_store.filter_documents(
+        published_docs = await document_store.filter_documents_async(
             filters={"field": "meta.status", "operator": "==", "value": "published"}
         )
         assert len(published_docs) == 2
@@ -257,7 +308,7 @@ class TestWeaviateDocumentStoreAsync:
                     meta={"index": index, "status": "draft", "category": "test"},
                 )
             )
-        document_store.write_documents(docs)
+        await document_store.write_documents_async(docs)
 
         # update all documents should trigger pagination (3 pages)
         updated_count = await document_store.update_by_filter_async(
@@ -266,7 +317,7 @@ class TestWeaviateDocumentStoreAsync:
         )
         assert updated_count == 250
 
-        published_docs = document_store.filter_documents(
+        published_docs = await document_store.filter_documents_async(
             filters={"field": "status", "operator": "==", "value": "published"}
         )
         assert len(published_docs) == 250
@@ -277,6 +328,17 @@ class TestWeaviateDocumentStoreAsync:
             assert 0 <= doc.meta["index"] < 250
 
     @pytest.mark.asyncio
+    async def test_count_documents_async(self, document_store: WeaviateDocumentStore) -> None:
+        docs = [
+            Document(content="Doc 1", meta={"category": "TypeA"}),
+            Document(content="Doc 2", meta={"category": "TypeB"}),
+            Document(content="Doc 3", meta={"category": "TypeA"}),
+            Document(content="Doc 4", meta={"category": "TypeA"}),
+        ]
+        await document_store.write_documents_async(docs)
+        assert await document_store.count_documents_async() == 4
+
+    @pytest.mark.asyncio
     async def test_count_documents_by_filter_async(self, document_store):
         docs = [
             Document(content="Doc 1", meta={"category": "TypeA"}),
@@ -284,8 +346,8 @@ class TestWeaviateDocumentStoreAsync:
             Document(content="Doc 3", meta={"category": "TypeA"}),
             Document(content="Doc 4", meta={"category": "TypeA"}),
         ]
-        document_store.write_documents(docs)
-        assert document_store.count_documents() == 4
+        await document_store.write_documents_async(docs)
+        assert await document_store.count_documents_async() == 4
 
         count = await document_store.count_documents_by_filter_async(
             filters={"field": "meta.category", "operator": "==", "value": "TypeA"}
@@ -325,7 +387,7 @@ class TestWeaviateDocumentStoreAsync:
             Document(content="Doc 3", meta={"number": 20}),
             Document(content="Doc 4", meta={"number": 15}),
         ]
-        document_store.write_documents(docs)
+        await document_store.write_documents_async(docs)
 
         result = await document_store.get_metadata_field_min_max_async("number")
         assert result["min"] == 5
@@ -337,7 +399,7 @@ class TestWeaviateDocumentStoreAsync:
             Document(content="Doc 1", meta={"number": 100}),
             Document(content="Doc 2", meta={"number": 200}),
         ]
-        document_store.write_documents(docs)
+        await document_store.write_documents_async(docs)
 
         result = await document_store.get_metadata_field_min_max_async("meta.number")
         assert result["min"] == 100
@@ -362,7 +424,7 @@ class TestWeaviateDocumentStoreAsync:
             Document(content="Doc 4", meta={"category": "TypeC", "status": "published"}),
             Document(content="Doc 5", meta={"category": "TypeA", "status": "archived"}),
         ]
-        document_store.write_documents(docs)
+        await document_store.write_documents_async(docs)
 
         result = await document_store.count_unique_metadata_by_filter_async(
             filters={"field": "meta.category", "operator": "==", "value": "TypeA"}, metadata_fields=["status"]
@@ -388,7 +450,7 @@ class TestWeaviateDocumentStoreAsync:
             Document(content="Doc 1", meta={"category": "TypeA"}),
             Document(content="Doc 2", meta={"category": "TypeB"}),
         ]
-        document_store.write_documents(docs)
+        await document_store.write_documents_async(docs)
 
         result = await document_store.count_unique_metadata_by_filter_async(
             filters={"field": "meta.category", "operator": "in", "value": ["TypeA", "TypeB"]},
@@ -401,7 +463,7 @@ class TestWeaviateDocumentStoreAsync:
         docs = [
             Document(content="Doc 1", meta={"category": "TypeA"}),
         ]
-        document_store.write_documents(docs)
+        await document_store.write_documents_async(docs)
 
         result = await document_store.count_unique_metadata_by_filter_async(
             filters={"field": "meta.category", "operator": "==", "value": "NonExistent"},
@@ -426,7 +488,7 @@ class TestWeaviateDocumentStoreAsync:
             Document(content="Doc 4", meta={"category": "TypeC"}),
             Document(content="Doc 5", meta={"category": "TypeB"}),
         ]
-        document_store.write_documents(docs)
+        await document_store.write_documents_async(docs)
 
         values, total_count = await document_store.get_metadata_field_unique_values_async("category")
         assert total_count == 3
@@ -438,7 +500,7 @@ class TestWeaviateDocumentStoreAsync:
             Document(content="Doc 1", meta={"category": "TypeA"}),
             Document(content="Doc 2", meta={"category": "TypeB"}),
         ]
-        document_store.write_documents(docs)
+        await document_store.write_documents_async(docs)
 
         values, total_count = await document_store.get_metadata_field_unique_values_async("meta.category")
         assert total_count == 2
@@ -452,7 +514,7 @@ class TestWeaviateDocumentStoreAsync:
             Document(content="Python is great", meta={"category": "TypeC"}),
             Document(content="JavaScript tutorial", meta={"category": "TypeD"}),
         ]
-        document_store.write_documents(docs)
+        await document_store.write_documents_async(docs)
 
         values, total_count = await document_store.get_metadata_field_unique_values_async(
             "category", search_term="Python"
@@ -469,7 +531,7 @@ class TestWeaviateDocumentStoreAsync:
             Document(content="Doc 4", meta={"category": "TypeD"}),
             Document(content="Doc 5", meta={"category": "TypeE"}),
         ]
-        document_store.write_documents(docs)
+        await document_store.write_documents_async(docs)
 
         values, total_count = await document_store.get_metadata_field_unique_values_async("category", from_=0, size=2)
         assert total_count == 5
@@ -491,3 +553,39 @@ class TestWeaviateDocumentStoreAsync:
         values, total_count = await document_store.get_metadata_field_unique_values_async("category")
         assert total_count == 0
         assert values == []
+
+    @pytest.mark.asyncio
+    async def test_delete_all_documents_recreate_async(self, document_store: WeaviateDocumentStore) -> None:
+        docs = [Document(content="test doc 1"), Document(content="test doc 2")]
+        assert await document_store.write_documents_async(docs) == 2
+        assert await document_store.count_documents_async() == 2
+
+        cls = document_store._collection_settings["class"]
+        collection = (await document_store.async_client).collections.get(cls)
+        previous_config = (await collection.config.get()).to_dict()
+
+        await document_store.delete_all_documents_async(recreate_index=True)
+        assert await document_store.count_documents_async() == 0
+
+        new_config = (await (await document_store.async_client).collections.get(cls).config.get()).to_dict()
+        assert previous_config == new_config
+
+    @pytest.mark.asyncio
+    async def test_delete_all_documents_batch_size_async(self, document_store: WeaviateDocumentStore) -> None:
+        docs = [Document(content=str(i)) for i in range(0, 5)]
+        assert await document_store.write_documents_async(docs) == 5
+        await document_store.delete_all_documents_async(batch_size=2)
+        assert await document_store.count_documents_async() == 0
+
+    @pytest.mark.asyncio
+    async def test_delete_all_documents_excessive_batch_size_async(
+        self, document_store: WeaviateDocumentStore, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """Test that the deletion is not complete if the batch size exceeds the QUERY_MAXIMUM_RESULTS."""
+        # assume QUERY_MAXIMUM_RESULTS == 10000 with standard deployment
+        docs = [Document(content=str(i)) for i in range(0, 10005)]
+        assert await document_store.write_documents_async(docs) == 10005
+        with caplog.at_level(logging.WARNING):
+            await document_store.delete_all_documents_async(batch_size=20000)
+        assert await document_store.count_documents_async() == 5
+        assert "Not all documents in the batch have been deleted." in caplog.text
