@@ -3,9 +3,9 @@ requires = ["hatchling", "hatch-vcs"]
 build-backend = "hatchling.build"
 
 [project]
-name = "amazon-bedrock-haystack"
+name = "$pkg"
 dynamic = ["version"]
-description = 'An integration of AWS S3 and Bedrock as a Downloader and Generator components.'
+description = "Haystack integration for $name"
 readme = "README.md"
 requires-python = ">=3.10"
 license = "Apache-2.0"
@@ -22,23 +22,23 @@ classifiers = [
   "Programming Language :: Python :: Implementation :: CPython",
   "Programming Language :: Python :: Implementation :: PyPy",
 ]
-dependencies = ["haystack-ai>=2.24.1", "boto3>=1.28.57", "aioboto3>=14.0.0"]
+dependencies = ["haystack-ai"]
 
 [project.urls]
-Documentation = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/amazon_bedrock#readme"
+Documentation = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/$name#readme"
 Issues = "https://github.com/deepset-ai/haystack-core-integrations/issues"
-Source = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/amazon_bedrock"
+Source = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/$name"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/haystack_integrations"]
 
 [tool.hatch.version]
 source = "vcs"
-tag-pattern = 'integrations\/amazon_bedrock-v(?P<version>.*)'
+tag-pattern = 'integrations\/$name-v(?P<version>.*)'
 
 [tool.hatch.version.raw-options]
 root = "../.."
-git_describe_command = 'git describe --tags --match="integrations/amazon_bedrock-v[0-9]*"'
+git_describe_command = 'git describe --tags --match="integrations/$name-v[0-9]*"'
 
 [tool.hatch.envs.default]
 installer = "uv"
@@ -57,8 +57,6 @@ dependencies = [
     "pytest-rerunfailures",
     "mypy",
     "pip",
-    "pillow", # image resizing,
-    "pypdfium2"
 ]
 
 [tool.hatch.envs.test.scripts]
@@ -66,14 +64,7 @@ unit = 'pytest -m "not integration" {args:tests}'
 integration = 'pytest -m "integration" {args:tests}'
 all = 'pytest {args:tests}'
 cov-retry = 'pytest --cov=haystack_integrations --reruns 3 --reruns-delay 30 -x {args:tests}'
-
-types = """mypy -p haystack_integrations.common.amazon_bedrock \
--p haystack_integrations.components.embedders.amazon_bedrock \
--p haystack_integrations.components.generators.amazon_bedrock \
--p haystack_integrations.components.rankers.amazon_bedrock \
--p haystack_integrations.components.downloaders.s3 \
--p haystack_integrations.common.s3 {args}"""
-
+types = "mypy -p $mod {args}"
 
 [tool.mypy]
 install_types = true
@@ -81,62 +72,51 @@ non_interactive = true
 check_untyped_defs = true
 disallow_incomplete_defs = true
 
-[[tool.mypy.overrides]]
-# unfortunately, unofficial type stubs do not play well with some features of Bedrock
-module = [
-"aioboto3.*",
-"botocore.*",
-"boto3.*",
-]
-ignore_missing_imports = true
-
 [tool.ruff]
 line-length = 120
 
 [tool.ruff.lint]
 select = [
-  "A",
-  "ARG",
-  "B",
-  "C",
-  "DTZ",
-  "E",
-  "EM",
-  "F",
-  "I",
-  "ICN",
-  "ISC",
-  "N",
-  "PLC",
-  "PLE",
-  "PLR",
-  "PLW",
-  "Q",
-  "RUF",
-  "S",
-  "T",
-  "TID",
-  "UP",
-  "W",
-  "YTT",
+    "A",
+    "ARG",
+    "B",
+    "C",
+    "DTZ",
+    "E",
+    "EM",
+    "F",
+    "I",
+    "ICN",
+    "ISC",
+    "N",
+    "PLC",
+    "PLE",
+    "PLR",
+    "PLW",
+    "Q",
+    "RUF",
+    "S",
+    "T",
+    "TID",
+    "UP",
+    "W",
+    "YTT",
 ]
 ignore = [
-  # Allow non-abstract empty methods in abstract base classes
-  "B027",
-  # Ignore checks for possible passwords
-  "S105",
-  "S106",
-  "S107",
-  # Ignore complexity
-  "C901",
-  "PLR0911",
-  "PLR0912",
-  "PLR0913",
-  "PLR0915",
-  # Ignore unused params
-  "ARG001",
-  "ARG002",
-  "ARG005",
+    # Allow non-abstract empty methods in abstract base classes
+    "B027",
+    # Allow function calls in argument defaults (common Haystack pattern for Secret.from_env_var)
+    "B008",
+    # Ignore checks for possible passwords
+    "S105",
+    "S106",
+    "S107",
+    # Ignore complexity
+    "C901",
+    "PLR0911",
+    "PLR0912",
+    "PLR0913",
+    "PLR0915",
 ]
 
 [tool.ruff.lint.isort]
@@ -152,7 +132,7 @@ ban-relative-imports = "parents"
 [tool.coverage.run]
 source = ["haystack_integrations"]
 branch = true
-parallel = true
+parallel = false
 
 [tool.coverage.report]
 omit = ["*/tests/*", "*/__init__.py"]
@@ -165,3 +145,4 @@ markers = [
   "integration: integration tests",
 ]
 log_cli = true
+asyncio_default_fixture_loop_scope = "function"

@@ -1,0 +1,4 @@
+$label:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/$name/**/*"
+      - any-glob-to-any-file: ".github/workflows/$name.yml"

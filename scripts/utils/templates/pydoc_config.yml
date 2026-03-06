@@ -1,0 +1,13 @@
+loaders:
+  - modules:
+      - $mod.$singular_type
+    search_path: [../src]
+processors:
+  - type: filter
+    documented_only: true
+    skip_empty_modules: true
+renderer:
+  description: $title integration for Haystack
+  id: integrations-$name
+  filename: $name_hyphenated.md
+  title: $title

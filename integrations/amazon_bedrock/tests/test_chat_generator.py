@@ -6,7 +6,7 @@ from haystack import Pipeline
 from haystack.components.agents import Agent
 from haystack.components.generators.utils import print_streaming_chunk
 from haystack.components.tools import ToolInvoker
-from haystack.dataclasses import ChatMessage, ChatRole, ImageContent, StreamingChunk, TextContent, ToolCall
+from haystack.dataclasses import ChatMessage, ChatRole, FileContent, ImageContent, StreamingChunk, TextContent, ToolCall
 from haystack.tools import Tool, Toolset, create_tool_from_function
 
 from haystack_integrations.components.generators.amazon_bedrock import AmazonBedrockChatGenerator
@@ -32,6 +32,14 @@ STREAMING_TOOL_MODELS = [
 
 MODELS_TO_TEST_WITH_IMAGE_INPUT = [
     "us.anthropic.claude-sonnet-4-20250514-v1:0",
+]
+
+MODELS_TO_TEST_WITH_PDF_INPUT = [
+    "us.anthropic.claude-sonnet-4-6",
+]
+
+MODELS_TO_TEST_WITH_VIDEO_INPUT = [
+    "amazon.nova-lite-v1:0",
 ]
 
 MODELS_TO_TEST_WITH_THINKING = [
@@ -520,6 +528,43 @@ class TestAmazonBedrockChatGeneratorInference:
         assert ChatMessage.is_from(first_reply, ChatRole.ASSISTANT)
         assert first_reply.text
         assert "apple" in first_reply.text.lower()
+
+    @pytest.mark.parametrize("model_name", MODELS_TO_TEST_WITH_PDF_INPUT)
+    def test_run_with_pdf_citations(self, model_name, test_files_path):
+        client = AmazonBedrockChatGenerator(model=model_name)
+
+        file_path = test_files_path / "sample_pdf_1.pdf"
+        file_content = FileContent.from_file_path(file_path, extra={"citations": {"enabled": True}})
+
+        chat_message = ChatMessage.from_user(
+            content_parts=["Is this document a paper on Large Language Models? Respond briefly", file_content]
+        )
+
+        response = client.run([chat_message])
+
+        first_reply = response["replies"][0]
+        assert isinstance(first_reply, ChatMessage)
+        assert ChatMessage.is_from(first_reply, ChatRole.ASSISTANT)
+        assert first_reply.text
+        assert "no" in first_reply.text.lower()
+        assert "citations" in first_reply.meta
+
+    @pytest.mark.parametrize("model_name", MODELS_TO_TEST_WITH_VIDEO_INPUT)
+    def test_run_with_video(self, model_name, test_files_path):
+        client = AmazonBedrockChatGenerator(model=model_name)
+
+        file_path = test_files_path / "video.mp4"
+        file_content = FileContent.from_file_path(file_path)
+
+        chat_message = ChatMessage.from_user(content_parts=["What's in the video? Max 5 words.", file_content])
+
+        response = client.run([chat_message])
+
+        first_reply = response["replies"][0]
+        assert isinstance(first_reply, ChatMessage)
+        assert ChatMessage.is_from(first_reply, ChatRole.ASSISTANT)
+        assert first_reply.text
+        assert "earth" in first_reply.text.lower()
 
     @pytest.mark.parametrize("model_name", MODELS_TO_TEST_WITH_IMAGE_INPUT)
     def test_live_run_agent_with_images_in_tool_result(self, model_name, test_files_path):
