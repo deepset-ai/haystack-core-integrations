@@ -284,6 +284,59 @@ class AstraDocumentStore:
         """
         return self.index.count_documents()
 
+    @staticmethod
+    def _normalize_new_filter_input(filters: dict[str, Any]) -> dict[str, Any]:
+        if not isinstance(filters, dict):
+            msg = "Filters must be a dictionary"
+            raise AstraDocumentStoreFilterError(msg)
+
+        normalized_filters = filters.copy()
+        if "id" in normalized_filters:
+            normalized_filters["_id"] = normalized_filters.pop("id")
+
+        return normalized_filters
+
+    @staticmethod
+    def _infer_metadata_field_type(values: list[Any]) -> str:
+        inferred_types = set()
+        for value in values:
+            if isinstance(value, list):
+                for item in value:
+                    if isinstance(item, bool):
+                        inferred_types.add("boolean")
+                    elif isinstance(item, (int, float)):
+                        inferred_types.add("long")
+                    elif isinstance(item, str):
+                        inferred_types.add("keyword")
+            elif isinstance(value, bool):
+                inferred_types.add("boolean")
+            elif isinstance(value, (int, float)):
+                inferred_types.add("long")
+            elif isinstance(value, str):
+                inferred_types.add("keyword")
+
+        if not inferred_types:
+            return "keyword"
+
+        if len(inferred_types) > 1:
+            logger.warning("Field has mixed metadata types {types}. Defaulting to 'keyword'.", types=inferred_types)
+            return "keyword"
+
+        return next(iter(inferred_types))
+
+    @staticmethod
+    def _normalize_distinct_values(values: list[Any]) -> list[str]:
+        normalized_values: set[str] = set()
+        for value in values:
+            if isinstance(value, list):
+                normalized_values.update(str(item) for item in value)
+            elif value is not None:
+                normalized_values.add(str(value))
+        return sorted(normalized_values)
+
+    def _get_metadata_projection_documents(self) -> list[dict[str, Any]]:
+        return self.index.find_documents({}, projection={"content": 1, "meta": 1})
+
     def filter_documents(self, filters: dict[str, Any] | None = None) -> list[Document]:
         """
         Returns at most 1000 documents that match the filter.
@@ -484,3 +537,92 @@ class AstraDocumentStore:
         logger.info(f"{update_count} documents updated by filter")
 
         return update_count
+
+    def count_documents_by_filter(self, filters: dict[str, Any]) -> int:
+        """
+        Applies a filter and counts the documents that matched it.
+
+        :param filters: The filters to apply to the document list.
+        :returns: The number of documents that match the filter.
+        """
+        normalized_filters = AstraDocumentStore._normalize_new_filter_input(filters)
+        converted_filters = _convert_filters(normalized_filters)
+        return self.index.count_documents(filters=converted_filters, upper_bound=1_000_000_000)
+
+    def count_unique_metadata_by_filter(self, filters: dict[str, Any], metadata_fields: list[str]) -> dict[str, int]:
+        """
+        Applies a filter selecting documents and counts the unique values for each meta field of the matched
+        documents.
+
+        :param filters: The filters to apply to the document list.
+        :param metadata_fields: The metadata fields to count unique values for.
+        :returns: A dictionary where the keys are the metadata field names and the values are the count of unique
+            values.
+        """
+        normalized_filters = AstraDocumentStore._normalize_new_filter_input(filters)
+        converted_filters = _convert_filters(normalized_filters)
+
+        counts = {}
+        for field in metadata_fields:
+            distinct_values = self.index.distinct(f"meta.{field}", filters=converted_filters)
+            counts[field] = len(AstraDocumentStore._normalize_distinct_values(distinct_values))
+        return counts
+
+    def get_metadata_fields_info(self) -> dict[str, dict[str, str]]:
+        """
+        Returns the metadata fields and the corresponding types.
+
+        :returns: A dictionary mapping field names to dictionaries with a `type` key.
+        """
+        documents = self._get_metadata_projection_documents()
+        if not documents:
+            return {}
+
+        fields_info: dict[str, dict[str, str]] = {}
+
+        if any(document.get("content") is not None for document in documents):
+            fields_info["content"] = {"type": "text"}
+
+        field_values: dict[str, list[Any]] = {}
+        for document in documents:
+            for field, value in document.get("meta", {}).items():
+                field_values.setdefault(field, []).append(value)
+
+        for field, values in field_values.items():
+            fields_info[field] = {"type": self._infer_metadata_field_type(values)}
+
+        return fields_info
+
+    def get_metadata_field_min_max(self, metadata_field: str) -> dict[str, Any]:
+        """
+        For a given metadata field, find its max and min value.
+
+        :param metadata_field: The metadata field to inspect.
+        :returns: A dictionary with `min` and `max`.
+        """
+        distinct_values = self.index.distinct(f"meta.{metadata_field}")
+        comparable_values = [value for value in distinct_values if isinstance(value, (str, int, float, bool))]
+        if not comparable_values:
+            return {"min": None, "max": None}
+
+        return {"min": min(comparable_values), "max": max(comparable_values)}
+
+    def get_metadata_field_unique_values(
+        self, metadata_field: str, search_term: str | None = None, from_: int = 0, size: int = 10
+    ) -> tuple[list[str], int]:
+        """
+        Retrieves unique values for a field matching a search term or all possible values if no search term is given.
+
+        :param metadata_field: The metadata field to inspect.
+        :param search_term: Optional case-insensitive substring search term.
+        :param from_: The starting index for pagination.
+        :param size: The number of values to return.
+        :returns: A tuple containing the paginated values and the total count.
+        """
+        values = AstraDocumentStore._normalize_distinct_values(self.index.distinct(f"meta.{metadata_field}"))
+        if search_term:
+            search_term_lower = search_term.lower()
+            values = [value for value in values if search_term_lower in value.lower()]
+
+        total_count = len(values)
+        return values[from_ : from_ + size], total_count

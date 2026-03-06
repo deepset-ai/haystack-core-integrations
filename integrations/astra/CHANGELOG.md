@@ -1,5 +1,26 @@
 # Changelog
 
+## [integrations/integrations/astra-v4.1.0] - 2026-03-06
+
+### 🚀 Features
+
+- Add Astra document store operations (#2904)
+
+### 📚 Documentation
+
+- Fix some invalid raises directives (#2847)
+- Simplify pydoc configs (#2855)
+
+### 🧪 Testing
+
+- Replacing each `DocumentStore` specific tests and used the generalised ones from `haystack.testing.document_store` (#2812)
+
+### 🧹 Chores
+
+- Remove unused allow-direct-references (#2866)
+- Standardize author mentions (#2897)
+
+
 ## [integrations/astra-v4.0.0] - 2026-01-12
 
 ### 🧹 Chores

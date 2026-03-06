@@ -2,7 +2,10 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+from collections.abc import AsyncGenerator
+
 import pytest
+import pytest_asyncio
 from haystack.dataclasses.document import Document
 
 from haystack_integrations.document_stores.weaviate import WeaviateDocumentStore
@@ -11,8 +14,8 @@ from haystack_integrations.document_stores.weaviate.document_store import DOCUME
 
 @pytest.mark.integration
 class TestWeaviateDocumentStoreAsync:
-    @pytest.fixture
-    def document_store(self, request) -> WeaviateDocumentStore:
+    @pytest_asyncio.fixture
+    async def document_store(self, request) -> AsyncGenerator[WeaviateDocumentStore, None, None]:
         collection_settings = {
             "class": f"{request.node.name}",
             "invertedIndexConfig": {"indexNullState": True},
@@ -29,6 +32,34 @@ class TestWeaviateDocumentStoreAsync:
         )
         yield store
         store.client.collections.delete(collection_settings["class"])
+        store.close()
+        await store.close_async()
+
+    @pytest.mark.asyncio
+    async def test_close_async(self, document_store: WeaviateDocumentStore) -> None:
+        # Initialise client and collection
+        assert await document_store.async_client is not None
+        assert await document_store.async_collection is not None
+
+        await document_store.close_async()
+
+        assert document_store._async_client is None
+        assert document_store._async_collection is None
+
+        # Initialise client and collection, then test it stills works after reopening
+        assert await document_store.async_client is not None
+        assert await document_store.async_collection is not None
+
+        document_store.write_documents(
+            [
+                Document(content="Haskell is a functional programming language"),
+                Document(content="Lisp is a functional programming language"),
+                Document(content="Python is an object oriented programming language"),
+            ]
+        )
+        filters = {"field": "content", "operator": "==", "value": "Haskell"}
+
+        assert await document_store.count_documents_by_filter_async(filters) == 1
 
     @pytest.mark.asyncio
     async def test_bm25_retrieval_async(self, document_store):
