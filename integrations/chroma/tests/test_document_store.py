@@ -272,7 +272,7 @@ class TestDocumentStore(
 
         docs = [
             Document(content="test doc 1", meta={"invalid": {"dict": "value"}}),
-            Document(content="test doc 2", meta={"invalid": ["list", "value"]}),
+            Document(content="test doc 2", meta={"invalid": [["list", "value"]]}),
             Document(content="test doc 3", meta={"ok": 123}),
         ]
 

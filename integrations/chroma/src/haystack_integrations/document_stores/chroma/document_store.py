@@ -22,6 +22,7 @@ logger = logging.getLogger(__name__)
 
 VALID_DISTANCE_FUNCTIONS = "l2", "cosine", "ip"
 SUPPORTED_TYPES_FOR_METADATA_VALUES = str, int, float, bool
+SUPPORTED_METADATA_VALUES_TYPE = str | int | float | bool
 
 
 class ChromaDocumentStore:
@@ -533,11 +534,13 @@ class ChromaDocumentStore:
         data: dict[str, Any] = {"ids": [doc.id], "documents": [doc.content]}
 
         if doc.meta:
-            valid_meta = {}
+            valid_meta: dict[str, SUPPORTED_METADATA_VALUES_TYPE | list[SUPPORTED_METADATA_VALUES_TYPE]] = {}
             discarded_keys = []
 
             for k, v in doc.meta.items():
                 if isinstance(v, SUPPORTED_TYPES_FOR_METADATA_VALUES):
+                    valid_meta[k] = v
+                elif isinstance(v, list) and all(isinstance(item, SUPPORTED_TYPES_FOR_METADATA_VALUES) for item in v):
                     valid_meta[k] = v
                 else:
                     discarded_keys.append(k)
