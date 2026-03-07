@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 from collections.abc import AsyncIterator, Iterator
-from typing import Any, Literal
+from typing import Any, ClassVar, Literal
 
 from google.genai import types
 from haystack import logging
@@ -151,7 +151,7 @@ class GoogleGenAIChatGenerator:
     response = chat_generator.run(messages=[chat_message])
     ```
     """
-    SUPPORTED_MODELS = [
+    SUPPORTED_MODELS: ClassVar[list[str]] = [
         "gemini-2.5-pro",
         "gemini-2.5-flash",
         "gemini-2.5-flash-lite",
