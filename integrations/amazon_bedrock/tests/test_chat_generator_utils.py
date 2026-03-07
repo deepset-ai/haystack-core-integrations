@@ -1269,6 +1269,12 @@ class TestAmazonBedrockChatGeneratorUtils:
         ]
         assert replies == expected_messages
 
+        # Verify streaming chunks carry reasoning in the reasoning field, not in meta
+        reasoning_chunks = [c for c in streaming_chunks if c.reasoning is not None]
+        assert len(reasoning_chunks) > 0
+        for chunk in reasoning_chunks:
+            assert "reasoning_contents" not in chunk.meta
+
     def test_process_streaming_response_with_one_tool_call_with_redacted_thinking(self, mock_boto3_session):
         model = "arn:aws:bedrock:us-east-1::inference-profile/us.anthropic.claude-sonnet-3-7-20250219-v1:0"
         type_ = (
