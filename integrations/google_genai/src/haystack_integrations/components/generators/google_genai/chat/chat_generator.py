@@ -151,6 +151,15 @@ class GoogleGenAIChatGenerator:
     response = chat_generator.run(messages=[chat_message])
     ```
     """
+    SUPPORTED_MODELS = [
+        "gemini-2.5-pro",
+        "gemini-2.5-flash",
+        "gemini-2.5-flash-lite",
+    ]
+    """A non-exhaustive list of chat models supported by this component.
+
+    See https://ai.google.dev/gemini-api/docs/models for the full list of models and up-to-date model IDs.
+    """
 
     def __init__(
         self,
