@@ -27,15 +27,12 @@ from weaviate.collections.classes.aggregate import (
     _MetricsNumber,
 )
 from weaviate.collections.classes.batch import ErrorObject
-from weaviate.collections.classes.data import DataObject
-from weaviate.collections.classes.internal import References
-from weaviate.collections.classes.types import (
-    Properties,
-)
+from weaviate.collections.classes.internal import Object
 from weaviate.collections.collection import Collection, CollectionAsync
-from weaviate.collections.iterator import _ObjectAIterator
+from weaviate.collections.iterator import _ObjectAIterator, _ObjectIterator
 from weaviate.config import AdditionalConfig
 from weaviate.embedded import EmbeddedOptions
+from weaviate.types import VECTORS
 from weaviate.util import generate_uuid5
 
 from ._filters import convert_filters, validate_filters
@@ -282,7 +279,7 @@ class WeaviateDocumentStore:
         return self._async_client
 
     @property
-    def collection(self) -> Collection[Properties, References]:
+    def collection(self) -> Collection[dict[str, Any], None]:
         if self._collection:
             return self._collection
 
@@ -291,7 +288,7 @@ class WeaviateDocumentStore:
         return self._collection
 
     @property
-    async def async_collection(self) -> CollectionAsync[Properties, References]:
+    async def async_collection(self) -> CollectionAsync[dict[str, Any], None]:
         if self._async_collection:
             return self._async_collection
 
@@ -778,7 +775,7 @@ class WeaviateDocumentStore:
         return data
 
     @staticmethod
-    def _to_document(data: DataObject[dict[str, Any], None]) -> Document:
+    def _to_document(data: Object[dict[str, Any], None]) -> Document:
         """
         Converts a data object read from Weaviate into a Document.
         """
@@ -816,7 +813,7 @@ class WeaviateDocumentStore:
 
         return Document.from_dict(document_data)
 
-    def _query(self) -> list[DataObject[dict[str, Any], None]]:
+    def _query(self) -> _ObjectIterator[dict[str, Any], None]:
         properties = [p.name for p in self.collection.config.get().properties]
         try:
             result = self.collection.iterator(include_vector=True, return_properties=properties)
@@ -825,7 +822,7 @@ class WeaviateDocumentStore:
             raise DocumentStoreError(msg) from e
         return result
 
-    async def _query_async(self) -> _ObjectAIterator[Properties, References]:
+    async def _query_async(self) -> _ObjectAIterator[dict[str, Any], None]:
         collection = await self.async_collection
         properties = [p.name for p in (await collection.config.get()).properties]
         try:
@@ -835,7 +832,7 @@ class WeaviateDocumentStore:
             raise DocumentStoreError(msg) from e
         return result
 
-    def _query_with_filters(self, filters: dict[str, Any]) -> list[DataObject[dict[str, Any], None]]:
+    def _query_with_filters(self, filters: dict[str, Any]) -> list[Object[dict[str, Any], None]]:
         properties = [p.name for p in self.collection.config.get().properties]
         # When querying with filters we need to paginate using limit and offset as using
         # a cursor with after is not possible. See the official docs:
@@ -866,7 +863,7 @@ class WeaviateDocumentStore:
             offset += DEFAULT_QUERY_LIMIT
         return result
 
-    async def _query_with_filters_async(self, filters: dict[str, Any]) -> list[DataObject[dict[str, Any], None]]:
+    async def _query_with_filters_async(self, filters: dict[str, Any]) -> list[Object[dict[str, Any], None]]:
         collection = await self.async_collection
         properties = [p.name for p in (await collection.config.get()).properties]
         # When querying with filters we need to paginate using limit and offset as using
@@ -917,9 +914,9 @@ class WeaviateDocumentStore:
         result = []
         if filters:
             result = self._query_with_filters(filters)
-        else:
-            result = self._query()
-        return [WeaviateDocumentStore._to_document(doc) for doc in result]
+            return [WeaviateDocumentStore._to_document(doc) for doc in result]
+        result_iter = self._query()
+        return [WeaviateDocumentStore._to_document(doc) for doc in result_iter]
 
     async def filter_documents_async(self, filters: dict[str, Any] | None = None) -> list[Document]:
         """
@@ -941,8 +938,8 @@ class WeaviateDocumentStore:
         if filters:
             result = await self._query_with_filters_async(filters)
             return [WeaviateDocumentStore._to_document(doc) for doc in result]
-        result = await self._query_async()
-        return [WeaviateDocumentStore._to_document(doc) async for doc in result]
+        result_iter = await self._query_async()
+        return [WeaviateDocumentStore._to_document(doc) async for doc in result_iter]
 
     @staticmethod
     def _handle_failed_objects(failed_objects: list[ErrorObject]) -> NoReturn:
@@ -1062,14 +1059,14 @@ class WeaviateDocumentStore:
         collection = await self.async_collection
         sem = Semaphore(max(1, self.concurrency_limit))
 
-        async def _runner(doc: Document) -> str | None:
+        async def _runner(doc: Document) -> str:
             if not isinstance(doc, Document):
                 msg = f"Expected a Document, got '{type(doc)}' instead."
                 raise ValueError(msg)
 
             if policy == DuplicatePolicy.SKIP and self.collection.data.exists(uuid=generate_uuid5(doc.id)):
-                # This Document already exists, we skip it
-                return
+                # This Document already exists, we return an empty string
+                return ""
 
             try:
                 async with sem:
@@ -1082,9 +1079,10 @@ class WeaviateDocumentStore:
             except weaviate.exceptions.UnexpectedStatusCodeError:
                 if policy == DuplicatePolicy.FAIL:
                     return doc.id
+            return ""
 
         duplicate_errors_ids = set(await gather(*[_runner(doc) for doc in documents]))
-        duplicate_errors_ids.remove(None)
+        duplicate_errors_ids.remove("")
         if duplicate_errors_ids:
             msg = f"IDs '{', '.join(duplicate_errors_ids)}' already exist in the document store."
             raise DuplicateDocumentError(msg)
@@ -1327,11 +1325,9 @@ class WeaviateDocumentStore:
 
                     # Update the object, preserving the vector
                     # Get the vector from the object to preserve it during replace
-                    vector = None
-                    if isinstance(obj.vector, list):
+                    vector: VECTORS | None = None
+                    if isinstance(obj.vector, (list, dict)):
                         vector = obj.vector
-                    elif isinstance(obj.vector, dict):
-                        vector = obj.vector.get("default")
 
                     self.collection.data.replace(
                         uuid=obj.uuid,
@@ -1423,11 +1419,9 @@ class WeaviateDocumentStore:
 
                     # Update the object, preserving the vector
                     # Get the vector from the object to preserve it during replace
-                    vector = None
-                    if isinstance(obj.vector, list):
+                    vector: VECTORS | None = None
+                    if isinstance(obj.vector, (list, dict)):
                         vector = obj.vector
-                    elif isinstance(obj.vector, dict):
-                        vector = obj.vector.get("default")
 
                     await collection.data.replace(
                         uuid=obj.uuid,
@@ -1558,6 +1552,8 @@ class WeaviateDocumentStore:
         max_vector_distance: float | None = None,
     ) -> list[Document]:
         properties = [p.name for p in self.collection.config.get().properties]
+        if alpha is None:
+            alpha = 0.7
         result = self.collection.query.hybrid(
             query=query,
             vector=query_embedding,
@@ -1585,6 +1581,8 @@ class WeaviateDocumentStore:
         collection = await self.async_collection
         config = await collection.config.get()
         properties = [p.name for p in config.properties]
+        if alpha is None:
+            alpha = 0.7
         result = await collection.query.hybrid(
             query=query,
             vector=query_embedding,
