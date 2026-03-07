@@ -22,7 +22,7 @@ from haystack.tools import (
 )
 from haystack.utils.callable_serialization import deserialize_callable, serialize_callable
 from pydantic.json_schema import JsonSchemaValue
-from tenacity import retry, retry_if_exception, wait_exponential
+from tenacity import RetryCallState, retry, retry_if_exception, wait_exponential
 
 from ollama import AsyncClient, ChatResponse, Client, ResponseError
 
@@ -37,7 +37,7 @@ HTTP_STATUS_SERVER_ERROR_MIN = 500
 HTTP_STATUS_SERVER_ERROR_MAX_EXCLUSIVE = 600
 
 
-def _stop_after_instance_max_retries(retry_state: Any) -> bool:
+def _stop_after_instance_max_retries(retry_state: RetryCallState) -> bool:
     """
     Stop retries after `self.max_retries + 1` attempts.
     """
@@ -264,7 +264,8 @@ class OllamaChatGenerator:
         :param timeout:
             The number of seconds before throwing a timeout error from the Ollama API.
         :param max_retries:
-            Maximum number of retries to attempt for failed requests.
+            Maximum number of retries to attempt for failed requests (HTTP 429, 5xx, connection/timeout errors).
+            Uses exponential backoff between attempts. Set to 0 (default) to disable retries.
         :param think:
             If True, the model will "think" before producing a response.
             Only [thinking models](https://ollama.com/search?c=thinking) support this feature.
