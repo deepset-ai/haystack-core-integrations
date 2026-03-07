@@ -22,7 +22,7 @@ class TestCohereGenerator:
         assert component.model == "command-a-03-2025"
         assert component.streaming_callback is None
         assert component.api_base_url == COHERE_API_URL
-        assert component.model_parameters == {}
+        assert component.generation_kwargs == {}
 
     def test_init_with_parameters(self):
         callback = lambda x: x  # noqa: E731
@@ -38,7 +38,7 @@ class TestCohereGenerator:
         assert component.model == "command-light"
         assert component.streaming_callback == callback
         assert component.api_base_url == "test-base-url"
-        assert component.model_parameters == {"max_tokens": 10, "some_test_param": "test-params"}
+        assert component.generation_kwargs == {"max_tokens": 10, "some_test_param": "test-params"}
 
     def test_to_dict_default(self, monkeypatch):
         monkeypatch.setenv("COHERE_API_KEY", "test-api-key")
@@ -53,6 +53,8 @@ class TestCohereGenerator:
                 "api_base_url": COHERE_API_URL,
                 "generation_kwargs": {},
                 "tools": None,
+                "timeout": None,
+                "max_retries": None,
             },
         }
 
@@ -75,8 +77,10 @@ class TestCohereGenerator:
                 "api_base_url": "test-base-url",
                 "api_key": {"env_vars": ["ENV_VAR"], "strict": False, "type": "env_var"},
                 "streaming_callback": "haystack.components.generators.utils.print_streaming_chunk",
-                "generation_kwargs": {},
+                "generation_kwargs": {"max_tokens": 10, "some_test_param": "test-params"},
                 "tools": None,
+                "timeout": None,
+                "max_retries": None,
             },
         }
 
@@ -100,7 +104,7 @@ class TestCohereGenerator:
         assert component.model == "command-a-03-2025"
         assert component.streaming_callback == print_streaming_chunk
         assert component.api_base_url == "test-base-url"
-        assert component.model_parameters == {"max_tokens": 10, "some_test_param": "test-params"}
+        assert component.generation_kwargs == {"max_tokens": 10, "some_test_param": "test-params"}
 
     @pytest.mark.skipif(
         not os.environ.get("COHERE_API_KEY", None) and not os.environ.get("CO_API_KEY", None),

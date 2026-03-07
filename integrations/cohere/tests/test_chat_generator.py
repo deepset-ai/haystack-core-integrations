@@ -157,6 +157,8 @@ class TestCohereChatGenerator:
         assert component.streaming_callback is None
         assert component.api_base_url == "https://api.cohere.com"
         assert not component.generation_kwargs
+        assert component.timeout is None
+        assert component.max_retries is None
 
     def test_init_fail_wo_api_key(self, monkeypatch):
         monkeypatch.delenv("COHERE_API_KEY", raising=False)
@@ -174,6 +176,8 @@ class TestCohereChatGenerator:
                 "max_tokens": 10,
                 "some_test_param": "test-params",
             },
+            timeout=30.0,
+            max_retries=5,
         )
         assert component.api_key == Secret.from_token("test-api-key")
         assert component.model == "command-nightly"
@@ -183,6 +187,8 @@ class TestCohereChatGenerator:
             "max_tokens": 10,
             "some_test_param": "test-params",
         }
+        assert component.timeout == 30.0
+        assert component.max_retries == 5
 
     def test_to_dict_default(self, monkeypatch):
         monkeypatch.setenv("COHERE_API_KEY", "test-api-key")
@@ -201,6 +207,8 @@ class TestCohereChatGenerator:
                 "api_base_url": "https://api.cohere.com",
                 "generation_kwargs": {},
                 "tools": None,
+                "timeout": None,
+                "max_retries": None,
             },
         }
 
@@ -234,6 +242,8 @@ class TestCohereChatGenerator:
                     "some_test_param": "test-params",
                 },
                 "tools": None,
+                "timeout": None,
+                "max_retries": None,
             },
         }
 
@@ -255,6 +265,8 @@ class TestCohereChatGenerator:
                     "max_tokens": 10,
                     "some_test_param": "test-params",
                 },
+                "timeout": None,
+                "max_retries": None,
             },
         }
         component = CohereChatGenerator.from_dict(data)
@@ -265,6 +277,8 @@ class TestCohereChatGenerator:
             "max_tokens": 10,
             "some_test_param": "test-params",
         }
+        assert component.timeout is None
+        assert component.max_retries is None
 
     def test_from_dict_fail_wo_env_var(self, monkeypatch):
         monkeypatch.delenv("COHERE_API_KEY", raising=False)
@@ -284,6 +298,8 @@ class TestCohereChatGenerator:
                     "max_tokens": 10,
                     "some_test_param": "test-params",
                 },
+                "timeout": None,
+                "max_retries": None,
             },
         }
         with pytest.raises(ValueError):
@@ -327,6 +343,8 @@ class TestCohereChatGenerator:
                         "streaming_callback": "haystack.components.generators.utils.print_streaming_chunk",
                         "api_base_url": "https://api.cohere.com",
                         "generation_kwargs": {"temperature": 0.7},
+                        "timeout": None,
+                        "max_retries": None,
                         "tools": [
                             {
                                 "type": "haystack.tools.tool.Tool",
