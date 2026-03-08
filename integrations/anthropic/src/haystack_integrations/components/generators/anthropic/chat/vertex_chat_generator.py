@@ -1,6 +1,6 @@
 import os
 from collections.abc import Callable
-from typing import Any
+from typing import Any, ClassVar
 
 from haystack import component, default_from_dict, default_to_dict, logging
 from haystack.dataclasses import StreamingChunk
@@ -64,7 +64,21 @@ class AnthropicVertexChatGenerator(AnthropicChatGenerator):
     For more details on supported models and their capabilities, refer to the Anthropic
     [documentation](https://docs.anthropic.com/claude/docs/intro-to-claude).
 
+    For the list of available model IDs on Vertex AI, see
+    [Anthropic's Claude models on Vertex AI](https://cloud.google.com/vertex-ai/generative-ai/docs/partner-models/claude).
     """
+
+    SUPPORTED_MODELS: ClassVar[list[str]] = [
+        "claude-sonnet-4@20250514",
+        "claude-opus-4@20250514",
+        "claude-sonnet-4-5",
+        "claude-opus-4-5",
+        "claude-sonnet-4-6",
+        "claude-opus-4-6",
+        "claude-opus-4-1",
+        "claude-haiku-4-5",
+        "claude-3-5-haiku",
+    ]
 
     def __init__(
         self,
