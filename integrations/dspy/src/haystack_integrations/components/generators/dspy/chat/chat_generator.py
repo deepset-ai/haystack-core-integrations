@@ -4,8 +4,6 @@ from typing import Any
 import dspy
 from haystack import component, default_from_dict, default_to_dict
 from haystack.dataclasses import ChatMessage, ChatRole
-from haystack.dataclasses.streaming_chunk import StreamingCallbackT
-from haystack.utils import deserialize_callable, serialize_callable
 
 VALID_MODULE_TYPES = {"Predict", "ChainOfThought", "ReAct"}
 
@@ -109,7 +107,6 @@ class DSPySignatureChatGenerator:
         generation_kwargs: dict[str, Any] | None = None,
         module_kwargs: dict[str, Any] | None = None,
         input_mapping: dict[str, str] | None = None,
-        streaming_callback: StreamingCallbackT | None = None,
     ):
         """
         Initialize the DSPySignatureChatGenerator.
@@ -128,7 +125,6 @@ class DSPySignatureChatGenerator:
             provides it as ``"documents"``, use ``{"context": "documents"}``. When not provided,
             the first input field receives the last user message text, and remaining fields
             are matched by name from ``**kwargs``.
-        :param streaming_callback: Callback for streaming responses.
         """
         if module_type not in VALID_MODULE_TYPES:
             msg = f"Invalid module_type '{module_type}'. Must be one of {sorted(VALID_MODULE_TYPES)}"
@@ -142,7 +138,6 @@ class DSPySignatureChatGenerator:
         self.generation_kwargs = generation_kwargs or {}
         self.module_kwargs = module_kwargs or {}
         self.input_mapping = input_mapping
-        self.streaming_callback = streaming_callback
 
         self._lm = _configure_dspy_lm(
             model=self.model,
@@ -203,7 +198,6 @@ class DSPySignatureChatGenerator:
 
     def to_dict(self) -> dict[str, Any]:
         """Serialize this component to a dictionary."""
-        callback_name = serialize_callable(self.streaming_callback) if self.streaming_callback else None
         kwargs: dict[str, Any] = {
             "signature": self._signature_to_string(),
             "model": self.model,
@@ -213,7 +207,6 @@ class DSPySignatureChatGenerator:
             "generation_kwargs": self.generation_kwargs,
             "module_kwargs": self.module_kwargs,
             "input_mapping": self.input_mapping,
-            "streaming_callback": callback_name,
         }
         return default_to_dict(self, **kwargs)
 
@@ -226,11 +219,6 @@ class DSPySignatureChatGenerator:
         signature = init_params.get("signature")
         if signature:
             init_params["signature"] = _resolve_signature(signature)
-
-        # Deserialize streaming callback
-        serialized_callback = init_params.get("streaming_callback")
-        if serialized_callback:
-            init_params["streaming_callback"] = deserialize_callable(serialized_callback)
 
         return default_from_dict(cls, data)
 

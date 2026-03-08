@@ -14,10 +14,6 @@ from haystack_integrations.components.generators.dspy.chat.chat_generator import
 )
 
 
-def _sample_streaming_callback(chunk):
-    """Module-level callback for serialization tests."""
-
-
 @pytest.fixture
 def mock_dspy_module():
     """
@@ -159,7 +155,6 @@ class TestDSPySignatureChatGenerator:
         assert component.signature == "question -> answer"
         assert component.module_type == "ChainOfThought"
         assert component.output_field == "answer"
-        assert component.streaming_callback is None
         assert not component.generation_kwargs
         assert component.input_mapping is None
         assert component.api_base is None
@@ -232,7 +227,6 @@ class TestDSPySignatureChatGenerator:
                 "generation_kwargs": {},
                 "module_kwargs": {},
                 "input_mapping": None,
-                "streaming_callback": None,
             },
         }
 
@@ -258,7 +252,6 @@ class TestDSPySignatureChatGenerator:
                 "generation_kwargs": {"max_tokens": 10, "some_test_param": "test-params"},
                 "module_kwargs": {},
                 "input_mapping": {"context": "context", "question": "question"},
-                "streaming_callback": None,
             },
         }
 
@@ -273,16 +266,6 @@ class TestDSPySignatureChatGenerator:
         assert "QASignature" in sig_value
         assert "." in sig_value
 
-    def test_to_dict_with_streaming_callback(self, mock_dspy_module):
-        """Test that streaming_callback is serialized."""
-        component = DSPySignatureChatGenerator(
-            signature="question -> answer",
-            streaming_callback=_sample_streaming_callback,
-        )
-        data = component.to_dict()
-        assert data["init_parameters"]["streaming_callback"] is not None
-        assert "streaming_callback" in data["init_parameters"]["streaming_callback"]
-
     def test_from_dict(self, mock_dspy_module):
         data = {
             "type": "haystack_integrations.components.generators.dspy.chat.chat_generator.DSPySignatureChatGenerator",
@@ -295,7 +278,6 @@ class TestDSPySignatureChatGenerator:
                 "generation_kwargs": {"max_tokens": 10, "some_test_param": "test-params"},
                 "module_kwargs": {},
                 "input_mapping": None,
-                "streaming_callback": None,
             },
         }
         component = DSPySignatureChatGenerator.from_dict(data)
@@ -320,7 +302,6 @@ class TestDSPySignatureChatGenerator:
                 "generation_kwargs": {},
                 "module_kwargs": {},
                 "input_mapping": None,
-                "streaming_callback": None,
             },
         }
         component = DSPySignatureChatGenerator.from_dict(data)
@@ -338,7 +319,6 @@ class TestDSPySignatureChatGenerator:
                 "generation_kwargs": {},
                 "module_kwargs": {},
                 "input_mapping": None,
-                "streaming_callback": None,
             },
         }
         component = DSPySignatureChatGenerator.from_dict(data)
