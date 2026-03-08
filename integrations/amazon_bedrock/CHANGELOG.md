@@ -1,5 +1,17 @@
 # Changelog
 
+## [integrations/amazon_bedrock-v6.5.0] - 2026-03-03
+
+### 🚀 Features
+
+- Bedrock - support for FileContent + citations (#2883)
+
+### 📚 Documentation
+
+- Fix docstring for AmazonBedrockChatGenerator (#2813)
+- Simplify pydoc configs (#2855)
+
+
 ## [integrations/amazon_bedrock-v6.4.0] - 2026-02-05
 
 ### 🚀 Features

@@ -1,5 +1,7 @@
 import base64
 import json
+import os
+import re
 from datetime import datetime, timezone
 from typing import Any
 
@@ -11,6 +13,7 @@ from haystack.dataclasses import (
     ChatMessage,
     ChatRole,
     ComponentInfo,
+    FileContent,
     FinishReason,
     ImageContent,
     ReasoningContent,
@@ -26,7 +29,37 @@ logger = logging.getLogger(__name__)
 
 
 # see https://docs.aws.amazon.com/bedrock/latest/APIReference/API_runtime_ImageBlock.html for supported formats
-IMAGE_SUPPORTED_FORMATS = ["png", "jpeg", "gif", "webp"]
+IMAGE_MIME_TYPE_TO_FORMAT: dict[str, str] = {
+    "image/png": "png",
+    "image/jpeg": "jpeg",
+    "image/jpg": "jpeg",
+    "image/gif": "gif",
+    "image/webp": "webp",
+}
+
+# https://docs.aws.amazon.com/cli/latest/reference/bedrock-runtime/converse.html
+DOCUMENT_MIME_TYPE_TO_FORMAT: dict[str, str] = {
+    "application/pdf": "pdf",
+    "text/csv": "csv",
+    "application/msword": "doc",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document": "docx",
+    "application/vnd.ms-excel": "xls",
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": "xlsx",
+    "text/html": "html",
+    "text/plain": "txt",
+    "text/markdown": "md",
+}
+
+VIDEO_MIME_TYPE_TO_FORMAT: dict[str, str] = {
+    "video/x-matroska": "mkv",
+    "video/quicktime": "mov",
+    "video/mp4": "mp4",
+    "video/webm": "webm",
+    "video/x-flv": "flv",
+    "video/mpeg": "mpeg",
+    "video/x-ms-wmv": "wmv",
+    "video/3gpp": "three_gp",
+}
 
 # see https://docs.aws.amazon.com/bedrock/latest/APIReference/API_runtime_MessageStopEvent.html
 FINISH_REASON_MAPPING: dict[str, FinishReason] = {
@@ -70,17 +103,62 @@ def _convert_image_content_to_bedrock_format(image_content: ImageContent) -> dic
     Convert a Haystack ImageContent to Bedrock format.
     """
 
-    image_format = image_content.mime_type.split("/")[-1] if image_content.mime_type else None
-    if image_format not in IMAGE_SUPPORTED_FORMATS:
+    image_format = IMAGE_MIME_TYPE_TO_FORMAT.get(image_content.mime_type or "")
+    if image_format is None:
         err_msg = (
-            f"Unsupported image format: {image_format}. "
-            f"Bedrock supports the following image formats: {IMAGE_SUPPORTED_FORMATS}"
+            f"Unsupported image MIME type: {image_content.mime_type}. "
+            f"Bedrock supports the following image formats: {list(set(IMAGE_MIME_TYPE_TO_FORMAT.values()))}"
         )
         raise ValueError(err_msg)
 
     source = {"bytes": base64.b64decode(image_content.base64_image)}
 
     return {"image": {"format": image_format, "source": source}}
+
+
+def _convert_file_content_to_bedrock_format(file_content: FileContent) -> dict[str, Any]:
+    """
+    Convert a Haystack FileContent to Bedrock format.
+    """
+
+    if file_content.mime_type is None:
+        err_msg = "MIME type is required to use FileContent in Bedrock."
+        raise ValueError(err_msg)
+
+    if doc_format := DOCUMENT_MIME_TYPE_TO_FORMAT.get(file_content.mime_type):
+        source = {"bytes": base64.b64decode(file_content.base64_data)}
+
+        name = "filename"
+        if file_content.filename:
+            raw_name = os.path.splitext(file_content.filename)[0]
+            # Bedrock requires name to be present but is very strict about the format.
+            # See https://docs.aws.amazon.com/bedrock/latest/APIReference/API_runtime_DocumentBlock.html
+            sanitized_name = re.sub(r"\s+", " ", re.sub(r"[^a-zA-Z0-9\s\-\[\]()]", "", raw_name)).strip()
+            if sanitized_name:
+                name = sanitized_name
+
+        doc_block = {
+            "document": {
+                "format": doc_format,
+                "source": source,
+                "name": name,
+                **({"context": file_content.extra["context"]} if file_content.extra.get("context") else {}),
+                **({"citations": file_content.extra["citations"]} if file_content.extra.get("citations") else {}),
+            }
+        }
+        return doc_block
+
+    if video_format := VIDEO_MIME_TYPE_TO_FORMAT.get(file_content.mime_type):
+        source = {"bytes": base64.b64decode(file_content.base64_data)}
+        video_block = {"video": {"format": video_format, "source": source}}
+        return video_block
+
+    err_msg = (
+        f"Unsupported file content MIME type: {file_content.mime_type}\n"
+        f"Bedrock supports the following formats:\n - Documents: {list(DOCUMENT_MIME_TYPE_TO_FORMAT.values())}\n"
+        f" - Videos: {list(VIDEO_MIME_TYPE_TO_FORMAT.values())}"
+    )
+    raise ValueError(err_msg)
 
 
 def _format_tool_call_message(tool_call_message: ChatMessage) -> dict[str, Any]:
@@ -231,13 +309,36 @@ def _format_reasoning_content(reasoning_content: ReasoningContent) -> list[dict[
     return formatted_contents
 
 
-def _format_text_image_message(message: ChatMessage) -> dict[str, Any]:
+def _format_user_message(message: ChatMessage) -> dict[str, Any]:
     """
-    Format a Haystack ChatMessage containing text and optional image content into Bedrock format.
+    Format a Haystack user ChatMessage into Bedrock format.
 
     :param message: Haystack ChatMessage.
     :returns: Dictionary representing the message in Bedrock's expected format.
-    :raises ValueError: If image content is found in an assistant message or an unsupported image format is used.
+    """
+    content_parts = message._content
+
+    bedrock_content_blocks: list[dict[str, Any]] = []
+
+    for part in content_parts:
+        if isinstance(part, TextContent):
+            bedrock_content_blocks.append({"text": part.text})
+
+        elif isinstance(part, ImageContent):
+            bedrock_content_blocks.append(_convert_image_content_to_bedrock_format(part))
+
+        elif isinstance(part, FileContent):
+            bedrock_content_blocks.append(_convert_file_content_to_bedrock_format(part))
+
+    return {"role": message.role.value, "content": bedrock_content_blocks}
+
+
+def _format_textual_assistant_message(message: ChatMessage) -> dict[str, Any]:
+    """
+    Format a Haystack assistant ChatMessage containing text and optionally reasoning into Bedrock format.
+
+    :param message: Haystack ChatMessage.
+    :returns: Dictionary representing the message in Bedrock's expected format.
     """
     content_parts = message._content
 
@@ -249,12 +350,6 @@ def _format_text_image_message(message: ChatMessage) -> dict[str, Any]:
     for part in content_parts:
         if isinstance(part, TextContent):
             bedrock_content_blocks.append({"text": part.text})
-
-        elif isinstance(part, ImageContent):
-            if message.is_from(ChatRole.ASSISTANT):
-                err_msg = "Image content is not supported for assistant messages"
-                raise ValueError(err_msg)
-            bedrock_content_blocks.append(_convert_image_content_to_bedrock_format(part))
 
     return {"role": message.role.value, "content": bedrock_content_blocks}
 
@@ -314,8 +409,10 @@ def _format_messages(messages: list[ChatMessage]) -> tuple[list[dict[str, Any]],
             formatted_msg = _format_tool_call_message(msg)
         elif msg.tool_call_results:
             formatted_msg = _format_tool_result_message(msg)
-        else:
-            formatted_msg = _format_text_image_message(msg)
+        elif msg.is_from(ChatRole.USER):
+            formatted_msg = _format_user_message(msg)
+        elif msg.is_from(ChatRole.ASSISTANT):
+            formatted_msg = _format_textual_assistant_message(msg)
         if cache_point:
             formatted_msg["content"].append(cache_point)
         bedrock_formatted_messages.append(formatted_msg)
@@ -386,6 +483,14 @@ def _parse_completion_response(response_body: dict[str, Any], model: str) -> lis
                     if "redactedContent" in reasoning_content:
                         reasoning_content["redacted_content"] = reasoning_content.pop("redactedContent")
                     reasoning_contents.append({"reasoning_content": reasoning_content})
+                elif "citationsContent" in content_block:
+                    citations_content = content_block["citationsContent"]
+                    meta["citations"] = citations_content
+                    if "content" in citations_content:
+                        for entry in citations_content["content"]:
+                            text = entry.get("text", "")
+                            if text.strip():
+                                text_content.append(text)
 
             reasoning_text = ""
             for content in reasoning_contents:
@@ -397,7 +502,7 @@ def _parse_completion_response(response_body: dict[str, Any], model: str) -> lis
             # Create a single ChatMessage with combined text and tool calls
             replies.append(
                 ChatMessage.from_assistant(
-                    " ".join(text_content),
+                    "".join(text_content),
                     tool_calls=tool_calls,
                     meta=meta,
                     reasoning=ReasoningContent(
@@ -480,13 +585,15 @@ def _convert_event_to_streaming_chunk(
             reasoning_content = delta["reasoningContent"]
             if "redactedContent" in reasoning_content:
                 reasoning_content["redacted_content"] = reasoning_content.pop("redactedContent")
+            reasoning_text = reasoning_content.get("text", "")
             streaming_chunk = StreamingChunk(
                 content="",
                 index=block_idx,
-                meta={
-                    **base_meta,
-                    "reasoning_contents": [{"index": block_idx, "reasoning_content": reasoning_content}],
-                },
+                reasoning=ReasoningContent(
+                    reasoning_text=reasoning_text,
+                    extra={"reasoning_contents": [{"index": block_idx, "reasoning_content": reasoning_content}]},
+                ),
+                meta=base_meta,
             )
 
     elif "messageStop" in event:
@@ -537,7 +644,10 @@ def _process_reasoning_contents(chunks: list[StreamingChunk]) -> ReasoningConten
     reasoning_signature = None
     redacted_content = None
     for chunk in chunks:
-        reasoning_contents = chunk.meta.get("reasoning_contents", [])
+        if chunk.reasoning and chunk.reasoning.extra:
+            reasoning_contents = chunk.reasoning.extra.get("reasoning_contents", [])
+        else:
+            reasoning_contents = []
 
         for reasoning_content in reasoning_contents:
             content_block_index = reasoning_content["index"]

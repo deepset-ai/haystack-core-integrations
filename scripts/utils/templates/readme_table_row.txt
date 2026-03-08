@@ -1,0 +1,1 @@
+| [$pkg](integrations/$name/) | $type_label | [![PyPI - Version](https://img.shields.io/pypi/v/$pkg.svg)](https://pypi.org/project/$pkg) | [![Test / $name](https://github.com/deepset-ai/haystack-core-integrations/actions/workflows/$name.yml/badge.svg)](https://github.com/deepset-ai/haystack-core-integrations/actions/workflows/$name.yml) |

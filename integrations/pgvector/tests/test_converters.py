@@ -30,6 +30,13 @@ def test_from_haystack_to_pg_documents():
             embedding=[0.7, 0.8, 0.9],
             score=0.7,
         ),
+        Document(
+            id="4",
+            content="This is another text\x00",
+            meta={"meta_key": "meta_value"},
+            embedding=[0.7, 0.8, 0.9],
+            score=0.8,
+        ),
     ]
 
     pg_docs = _from_haystack_to_pg_documents(haystack_docs)
@@ -63,6 +70,16 @@ def test_from_haystack_to_pg_documents():
     assert pg_docs[2]["meta"].obj == {"meta_key": "meta_value"}
     assert pg_docs[2]["embedding"] == [0.7, 0.8, 0.9]
     assert "score" not in pg_docs[2]
+
+    assert pg_docs[3]["id"] == "4"
+    assert pg_docs[3]["content"] == "This is another text"
+    assert pg_docs[3]["blob_data"] is None
+    assert pg_docs[3]["blob_meta"] is None
+    assert pg_docs[3]["blob_mime_type"] is None
+    assert "dataframe" not in pg_docs[3]
+    assert pg_docs[3]["meta"].obj == {"meta_key": "meta_value"}
+    assert pg_docs[3]["embedding"] == [0.7, 0.8, 0.9]
+    assert "score" not in pg_docs[3]
 
 
 def test_from_pg_to_haystack_documents():

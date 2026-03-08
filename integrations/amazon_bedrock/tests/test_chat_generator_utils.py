@@ -6,6 +6,7 @@ from haystack.dataclasses import (
     ChatMessage,
     ChatRole,
     ComponentInfo,
+    FileContent,
     ImageContent,
     ReasoningContent,
     StreamingChunk,
@@ -16,10 +17,12 @@ from haystack.dataclasses import (
 from haystack.tools import Tool
 
 from haystack_integrations.components.generators.amazon_bedrock.chat.utils import (
+    _convert_file_content_to_bedrock_format,
     _convert_streaming_chunks_to_chat_message,
     _format_messages,
-    _format_text_image_message,
+    _format_textual_assistant_message,
     _format_tools,
+    _format_user_message,
     _parse_completion_response,
     _parse_streaming_response,
     _validate_and_format_cache_point,
@@ -88,6 +91,73 @@ class TestAmazonBedrockChatGeneratorUtils:
                 {"cachePoint": {"type": "default"}},
             ],
         }
+
+    def test_convert_file_content_to_bedrock_format_no_mime_type(self):
+        file_content = FileContent(
+            base64_data=base64.b64encode(b"This is a test file content."), mime_type=None, validation=False
+        )
+        with pytest.raises(ValueError, match="MIME type is required"):
+            _convert_file_content_to_bedrock_format(file_content)
+
+    def test_convert_file_content_to_bedrock_format_document(self, test_files_path):
+        file_path = test_files_path / "sample_pdf_1.pdf"
+        file_content = FileContent.from_file_path(
+            file_path, extra={"context": "Example context.", "citations": {"enabled": True}}
+        )
+        formatted_file_content = _convert_file_content_to_bedrock_format(file_content)
+        assert formatted_file_content == {
+            "document": {
+                "format": "pdf",
+                "source": {"bytes": base64.b64decode(file_content.base64_data)},
+                "name": "samplepdf1",  # sanitized name
+                "context": "Example context.",
+                "citations": {"enabled": True},
+            }
+        }
+
+        file_content.filename = None
+        formatted_file_content = _convert_file_content_to_bedrock_format(file_content)
+        assert formatted_file_content == {
+            "document": {
+                "format": "pdf",
+                "source": {"bytes": base64.b64decode(file_content.base64_data)},
+                "name": "filename",  # placeholder name
+                "context": "Example context.",
+                "citations": {"enabled": True},
+            }
+        }
+
+    def test_convert_file_content_to_bedrock_format_document_empty_sanitized_name(self, test_files_path):
+        file_content = FileContent(
+            base64_data=base64.b64encode(b"This is a test file content."),
+            mime_type="application/pdf",
+            validation=False,
+            filename=",.?<>@.pdf",
+        )
+
+        formatted_file_content = _convert_file_content_to_bedrock_format(file_content)
+        assert formatted_file_content == {
+            "document": {
+                "format": "pdf",
+                "source": {"bytes": base64.b64decode(file_content.base64_data)},
+                "name": "filename",  # empty sanitized name is replaced with a placeholder
+            }
+        }
+
+    def test_convert_file_content_to_bedrock_format_video(self, test_files_path):
+        file_path = test_files_path / "video.mp4"
+        file_content = FileContent.from_file_path(file_path)
+        formatted_file_content = _convert_file_content_to_bedrock_format(file_content)
+        assert formatted_file_content == {
+            "video": {"format": "mp4", "source": {"bytes": base64.b64decode(file_content.base64_data)}}
+        }
+
+    def test_convert_file_content_to_bedrock_format_unsupported_mime_type(self):
+        file_content = FileContent(
+            base64_data=base64.b64encode(b"This is a test file content."), mime_type="image/tiff", validation=False
+        )
+        with pytest.raises(ValueError, match="Unsupported file content MIME type"):
+            _convert_file_content_to_bedrock_format(file_content)
 
     def test_format_messages(self):
         messages = [
@@ -344,19 +414,15 @@ class TestAmazonBedrockChatGeneratorUtils:
             ],
         }
 
-    def test_format_text_image_message(self):
-        plain_assistant_message = ChatMessage.from_assistant("This is a test message.")
-        formatted_message = _format_text_image_message(plain_assistant_message)
-        assert formatted_message == {"role": "assistant", "content": [{"text": "This is a test message."}]}
-
+    def test_format_user_message(self):
         plain_user_message = ChatMessage.from_user("This is a test message.")
-        formatted_message = _format_text_image_message(plain_user_message)
+        formatted_message = _format_user_message(plain_user_message)
         assert formatted_message == {"role": "user", "content": [{"text": "This is a test message."}]}
 
         base64_image = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+ip1sAAAAASUVORK5CYII="
         image_content = ImageContent(base64_image)
         image_message = ChatMessage.from_user(content_parts=["This is a test message.", image_content])
-        formatted_message = _format_text_image_message(image_message)
+        formatted_message = _format_user_message(image_message)
         assert formatted_message == {
             "role": "user",
             "content": [
@@ -365,20 +431,36 @@ class TestAmazonBedrockChatGeneratorUtils:
             ],
         }
 
-    def test_format_text_image_message_errors(self):
+    def test_format_user_message_errors(self):
         base64_image = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+ip1sAAAAASUVORK5CYII="
-        image_content = ImageContent(base64_image)
-        assistant_message_with_image = ChatMessage.from_user(content_parts=["This is a test message.", image_content])
-        assistant_message_with_image._role = ChatRole.ASSISTANT
-        with pytest.raises(ValueError):
-            _format_text_image_message(assistant_message_with_image)
 
         image_content_unsupported_format = ImageContent(base64_image, mime_type="image/tiff")
         image_message = ChatMessage.from_user(
             content_parts=["This is a test message.", image_content_unsupported_format]
         )
         with pytest.raises(ValueError):
-            _format_text_image_message(image_message)
+            _format_user_message(image_message)
+
+    def test_format_textual_assistant_message(self):
+        assistant_message = ChatMessage.from_assistant(
+            "This is a test message.",
+            reasoning=ReasoningContent(
+                reasoning_text="",
+                extra={
+                    "reasoning_contents": [
+                        {"reasoning_content": {"reasoning_text": "This is the reasoning behind the message."}}
+                    ]
+                },
+            ),
+        )
+        formatted_message = _format_textual_assistant_message(assistant_message)
+        assert formatted_message == {
+            "role": "assistant",
+            "content": [
+                {"reasoningContent": {"reasoningText": "This is the reasoning behind the message."}},
+                {"text": "This is a test message."},
+            ],
+        }
 
     def test_format_messages_multi_tool(self):
         messages = [
@@ -814,6 +896,91 @@ class TestAmazonBedrockChatGeneratorUtils:
             "trace": trace,
         }
 
+    def test_parse_completion_response_with_citations(self, mock_boto3_session):
+        model = "anthropic.claude-4-6-sonnet"
+
+        response_body = {
+            "ResponseMetadata": {
+                "RequestId": "7f2b43ef-fb52-40e4-ab14-8cc1edaf5013",
+                "HTTPStatusCode": 200,
+                "HTTPHeaders": {
+                    "date": "Thu, 18 Sep 2025 09:14:48 GMT",
+                    "content-type": "application/json",
+                    "content-length": "835",
+                    "connection": "keep-alive",
+                    "x-amzn-requestid": "7f2b43ef-fb52-40e4-ab14-8cc1edaf5013",
+                },
+                "RetryAttempts": 0,
+            },
+            "output": {
+                "message": {
+                    "role": "assistant",
+                    "content": [
+                        {"text": "No, this is not a paper on Large Language Models. "},
+                        {
+                            "citationsContent": {
+                                "content": [
+                                    {
+                                        "text": (
+                                            "It is a sample PDF file covering the history and standardization of "
+                                            "the PDF format by Adobe Systems."
+                                        )
+                                    }
+                                ],
+                                "citations": [
+                                    {
+                                        "title": "samplepdf1",
+                                        "sourceContent": [
+                                            {
+                                                "text": (
+                                                    "A sample PDF file \r\nHistory and standardization\r\nFormat (PDF) "
+                                                    "Adobe Systems made the PDF specification available free of \r\n"
+                                                    "charge in 1993. "
+                                                )
+                                            }
+                                        ],
+                                        "location": {"documentPage": {"documentIndex": 0, "start": 1, "end": 2}},
+                                    }
+                                ],
+                            }
+                        },
+                    ],
+                }
+            },
+        }
+
+        replies = _parse_completion_response(response_body, model)
+        assert len(replies) == 1
+        assert replies[0].text == (
+            "No, this is not a paper on Large Language Models. It is a sample PDF file covering the history and "
+            "standardization of the PDF format by Adobe Systems."
+        )
+        assert replies[0].role == ChatRole.ASSISTANT
+        assert replies[0].meta["citations"] == {
+            "content": [
+                {
+                    "text": (
+                        "It is a sample PDF file covering the history and standardization of the PDF format by "
+                        "Adobe Systems."
+                    )
+                }
+            ],
+            "citations": [
+                {
+                    "title": "samplepdf1",
+                    "sourceContent": [
+                        {
+                            "text": (
+                                "A sample PDF file \r\nHistory and standardization\r\nFormat (PDF) Adobe Systems "
+                                "made the PDF specification available free of \r\ncharge in 1993. "
+                            )
+                        }
+                    ],
+                    "location": {"documentPage": {"documentIndex": 0, "start": 1, "end": 2}},
+                }
+            ],
+        }
+
     def test_process_streaming_response_one_tool_call(self, mock_boto3_session):
         """
         Test that process_streaming_response correctly handles streaming events and accumulates responses
@@ -1101,6 +1268,12 @@ class TestAmazonBedrockChatGeneratorUtils:
             )
         ]
         assert replies == expected_messages
+
+        # Verify streaming chunks carry reasoning in the reasoning field, not in meta
+        reasoning_chunks = [c for c in streaming_chunks if c.reasoning is not None]
+        assert len(reasoning_chunks) > 0
+        for chunk in reasoning_chunks:
+            assert "reasoning_contents" not in chunk.meta
 
     def test_process_streaming_response_with_one_tool_call_with_redacted_thinking(self, mock_boto3_session):
         model = "arn:aws:bedrock:us-east-1::inference-profile/us.anthropic.claude-sonnet-3-7-20250219-v1:0"
