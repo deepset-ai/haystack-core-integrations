@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/firecrawl-v1.1.0] - 2026-03-09
+
+### 🚀 Features
+
+- Add FirecrawlWebSearch component (#2888)
+
+
 ## [integrations/firecrawl-v1.0.1] - 2026-02-24
 
 ### 🌀 Miscellaneous
