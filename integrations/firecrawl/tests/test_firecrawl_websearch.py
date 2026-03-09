@@ -7,8 +7,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from haystack import Document
-from haystack.utils import Secret
 from haystack.core.serialization import component_from_dict, component_to_dict
+from haystack.utils import Secret
 
 from haystack_integrations.components.websearch.firecrawl import FirecrawlWebSearch
 
