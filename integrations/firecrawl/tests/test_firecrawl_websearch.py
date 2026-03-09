@@ -8,6 +8,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from haystack import Document
 from haystack.utils import Secret
+from haystack.core.serialization import component_from_dict, component_to_dict
 
 from haystack_integrations.components.websearch.firecrawl import FirecrawlWebSearch
 
@@ -66,6 +67,32 @@ class TestFirecrawlWebSearch:
         assert ws.top_k == 5
         assert ws._search_params == {"tbs": "qdr:d", "location": "US"}
         assert ws.api_key.resolve_value() == "custom-key"
+
+    def test_to_dict(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("FIRECRAWL_API_KEY", "test-key")
+        ws = FirecrawlWebSearch(top_k=5, search_params={"tbs": "qdr:d"})
+        data = component_to_dict(ws, "FirecrawlWebSearch")
+        assert (
+            data["type"]
+            == "haystack_integrations.components.websearch.firecrawl.firecrawl_websearch.FirecrawlWebSearch"
+        )
+        assert data["init_parameters"]["top_k"] == 5
+        assert data["init_parameters"]["search_params"] == {"tbs": "qdr:d"}
+
+    def test_from_dict(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("FIRECRAWL_API_KEY", "test-key")
+        data = {
+            "type": ("haystack_integrations.components.websearch.firecrawl.firecrawl_websearch.FirecrawlWebSearch"),
+            "init_parameters": {
+                "top_k": 3,
+                "search_params": {"location": "UK"},
+                "api_key": {"env_vars": ["FIRECRAWL_API_KEY"], "strict": True, "type": "env_var"},
+            },
+        }
+        ws = component_from_dict(FirecrawlWebSearch, data, "FirecrawlWebSearch")
+        assert ws.top_k == 3
+        assert ws.search_params == {"location": "UK"}
+        assert ws.api_key.resolve_value() == "test-key"
 
     def test_run_returns_documents_and_links(self, mock_client) -> None:
         ws = FirecrawlWebSearch(api_key=Secret.from_token("test-key"), top_k=10)
