@@ -1,5 +1,20 @@
 # Changelog
 
+## [integrations/valkey-v0.2.0] - 2026-03-06
+
+### 🚀 Features
+
+- Adding new operations to `ValkeyDocumentStore` (#2910)
+
+### 📚 Documentation
+
+- Simplify pydoc configs (#2855)
+
+### 🧹 Chores
+
+- Remove unused allow-direct-references (#2866)
+
+
 ## [integrations/valkey-v0.1.1] - 2026-01-29
 
 ### 🌀 Miscellaneous
