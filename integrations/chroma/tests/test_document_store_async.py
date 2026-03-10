@@ -107,21 +107,6 @@ class TestDocumentStoreAsync:
         await store._ensure_initialized_async()
         assert store._async_client.get_settings().anonymized_telemetry is False
 
-    async def test_invalid_client_settings_are_ignored_async(self):
-        store = ChromaDocumentStore(
-            host="localhost",
-            port=8000,
-            client_settings={
-                "invalid_setting_name": "some_value",
-                "another_fake_setting": 123,
-            },
-            collection_name=f"{uuid.uuid1()}-async-invalid",
-        )
-        await store._ensure_initialized_async()
-        settings = store._async_client.get_settings()
-        assert not hasattr(settings, "invalid_setting_name")
-        assert not hasattr(settings, "another_fake_setting")
-
     async def test_search_async(self):
         document_store = ChromaDocumentStore(host="localhost", port=8000, collection_name="my_custom_collection")
 

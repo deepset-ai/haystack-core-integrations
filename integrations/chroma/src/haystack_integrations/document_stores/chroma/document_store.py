@@ -114,7 +114,11 @@ class ChromaDocumentStore:
             # Use dict to conditionally pass settings because Chroma doesn't accept settings=None
             client_kwargs: dict[str, Any] = {}
             if self._client_settings:
-                client_kwargs["settings"] = Settings(**self._client_settings)
+                try:
+                    client_kwargs["settings"] = Settings(**self._client_settings)
+                except ValueError as e:
+                    msg = f"Invalid client_settings ({self._client_settings}): {e}"
+                    raise ValueError(msg) from e
 
             if self._host and self._port is not None:
                 # Remote connection via HTTP client
@@ -166,7 +170,11 @@ class ChromaDocumentStore:
             # Use dict to conditionally pass settings because Chroma doesn't accept settings=None
             client_kwargs: dict[str, Any] = {}
             if self._client_settings:
-                client_kwargs["settings"] = Settings(**self._client_settings)
+                try:
+                    client_kwargs["settings"] = Settings(**self._client_settings)
+                except ValueError as e:
+                    msg = f"Invalid client_settings ({self._client_settings}): {e}"
+                    raise ValueError(msg) from e
 
             client = await chromadb.AsyncHttpClient(
                 host=self._host,
