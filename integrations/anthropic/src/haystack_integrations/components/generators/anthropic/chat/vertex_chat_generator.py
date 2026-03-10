@@ -24,9 +24,8 @@ logger = logging.getLogger(__name__)
 class AnthropicVertexChatGenerator(AnthropicChatGenerator):
     """
 
-    Enables text generation using state-of-the-art Claude 3 LLMs via the Anthropic Vertex AI API.
-    It supports models such as `Claude 3.5 Sonnet`, `Claude 3 Opus`, `Claude 3 Sonnet`, and `Claude 3 Haiku`,
-    accessible through the Vertex AI API endpoint.
+    Enables text generation using Anthropic's Claude models via the Anthropic Vertex AI API.
+    A variety of Claude models (Opus, Sonnet, Haiku, and others) are available through the Vertex AI API endpoint.
 
     To use AnthropicVertexChatGenerator, you must have a GCP project with Vertex AI enabled.
     Additionally, ensure that the desired Anthropic model is activated in the Vertex AI Model Garden.
@@ -61,23 +60,19 @@ class AnthropicVertexChatGenerator(AnthropicChatGenerator):
     >> 'usage': {'input_tokens': 15, 'output_tokens': 64}})]}
     ```
 
-    For more details on supported models and their capabilities, refer to the Anthropic
-    [documentation](https://docs.anthropic.com/claude/docs/intro-to-claude).
-
-    For the list of available model IDs on Vertex AI, see
-    [Anthropic's Claude models on Vertex AI](https://cloud.google.com/vertex-ai/generative-ai/docs/partner-models/claude).
+    For a list of available model IDs when using Claude on Vertex AI, see
+    [Claude on Vertex AI – model availability](https://platform.claude.com/docs/en/build-with-claude/claude-on-vertex-ai#model-availability).
     """
 
     SUPPORTED_MODELS: ClassVar[list[str]] = [
-        "claude-sonnet-4@20250514",
-        "claude-opus-4@20250514",
-        "claude-sonnet-4-5",
-        "claude-opus-4-5",
-        "claude-sonnet-4-6",
         "claude-opus-4-6",
-        "claude-opus-4-1",
-        "claude-haiku-4-5",
-        "claude-3-5-haiku",
+        "claude-sonnet-4-6",
+        "claude-sonnet-4-5@20250929",
+        "claude-sonnet-4@20250514",
+        "claude-opus-4-5@20251101",
+        "claude-opus-4-1@20250805",
+        "claude-opus-4@20250514",
+        "claude-haiku-4-5@20251001",
     ]
 
     def __init__(
