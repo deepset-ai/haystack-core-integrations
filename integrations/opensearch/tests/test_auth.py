@@ -120,7 +120,16 @@ class TestAWSAuth:
         _get_aws_v4_signer_auth.return_value = signer_auth_mock
         aws_auth = AWSAuth()
         aws_auth(method="GET", url="http://some.url", body="some body")
-        signer_auth_mock.assert_called_once_with("GET", "http://some.url", "some body")
+        signer_auth_mock.assert_called_once_with("GET", "http://some.url", "some body", None)
+
+    @patch("haystack_integrations.document_stores.opensearch.auth.AWSAuth._get_aws_v4_signer_auth")
+    def test_call_with_headers(self, _get_aws_v4_signer_auth):
+        """AWSAuth accepts optional headers for opensearch-py 3.x sync connection compatibility."""
+        signer_auth_mock = Mock()
+        _get_aws_v4_signer_auth.return_value = signer_auth_mock
+        aws_auth = AWSAuth()
+        aws_auth(method="GET", url="http://some.url", body="some body", headers={"Host": "localhost"})
+        signer_auth_mock.assert_called_once_with("GET", "http://some.url", "some body", {"Host": "localhost"})
 
     @patch("haystack_integrations.document_stores.opensearch.auth.AWSAuth._get_aws_v4_signer_auth")
     def test_call_async(self, _get_aws_v4_signer_auth):
