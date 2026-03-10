@@ -18,7 +18,6 @@ from haystack.document_stores.types.policy import DuplicatePolicy
 from more_itertools import batched
 
 import weaviate
-from weaviate.collections.batch.batch_wrapper import BatchClientProtocolAsync
 from weaviate.collections.classes.aggregate import (
     GroupByAggregate,
     Metrics,
@@ -990,23 +989,19 @@ class WeaviateDocumentStore:
         Raises in case of errors.
         """
         client = await self.async_client
-        sem = Semaphore(max(1, self.concurrency_limit))
 
-        async def _runner(doc: Document, batch: BatchClientProtocolAsync) -> None:
-            if not isinstance(doc, Document):
-                msg = f"Expected a Document, got '{type(doc)}' instead."
-                raise ValueError(msg)
+        async with client.batch.stream() as batch:
+            for doc in documents:
+                if not isinstance(doc, Document):
+                    msg = f"Expected a Document, got '{type(doc)}' instead."
+                    raise ValueError(msg)
 
-            async with sem:
                 await batch.add_object(
                     properties=WeaviateDocumentStore._to_data_object(doc),
-                    collection=self.collection.name,
+                    collection=(await self.async_collection).name,
                     uuid=generate_uuid5(doc.id),
                     vector=doc.embedding,
                 )
-
-        async with client.batch.stream() as batch:
-            await gather(*[_runner(doc, batch) for doc in documents])
 
         if failed_objects := client.batch.failed_objects:
             self._handle_failed_objects(failed_objects)
@@ -1057,32 +1052,30 @@ class WeaviateDocumentStore:
         If policy is set to FAIL it will raise an exception if any of the documents already exists.
         """
         collection = await self.async_collection
-        sem = Semaphore(max(1, self.concurrency_limit))
 
-        async def _runner(doc: Document) -> str:
+        duplicate_errors_ids = []
+        for doc in documents:
             if not isinstance(doc, Document):
                 msg = f"Expected a Document, got '{type(doc)}' instead."
                 raise ValueError(msg)
 
-            if policy == DuplicatePolicy.SKIP and self.collection.data.exists(uuid=generate_uuid5(doc.id)):
-                # This Document already exists, we return an empty string
-                return ""
+            if policy == DuplicatePolicy.SKIP and await (await self.async_collection).data.exists(
+                uuid=generate_uuid5(doc.id)
+            ):
+                # This Document already exists, continue
+                continue
 
             try:
-                async with sem:
-                    await collection.data.insert(
-                        uuid=generate_uuid5(doc.id),
-                        properties=WeaviateDocumentStore._to_data_object(doc),
-                        vector=doc.embedding,
-                    )
+                await collection.data.insert(
+                    uuid=generate_uuid5(doc.id),
+                    properties=WeaviateDocumentStore._to_data_object(doc),
+                    vector=doc.embedding,
+                )
 
             except weaviate.exceptions.UnexpectedStatusCodeError:
                 if policy == DuplicatePolicy.FAIL:
-                    return doc.id
-            return ""
+                    duplicate_errors_ids.append(doc.id)
 
-        duplicate_errors_ids = set(await gather(*[_runner(doc) for doc in documents]))
-        duplicate_errors_ids.remove("")
         if duplicate_errors_ids:
             msg = f"IDs '{', '.join(duplicate_errors_ids)}' already exist in the document store."
             raise DuplicateDocumentError(msg)
@@ -1096,6 +1089,21 @@ class WeaviateDocumentStore:
         We can't use the batch API for other policies as it doesn't return any information whether the document
         already exists or not. That prevents us from returning errors when using the FAIL policy or skipping a
         Document when using the SKIP policy.
+
+        :param documents:
+            A list of documents to write into the document store.
+        :param policy:
+            DuplicatePolicy to apply when a document with the same ID already exists in the document store.
+
+        :raises ValueError:
+            When input is not valid.
+        :raises DuplicateDocumentError:
+            When duplicate documents are found and using a FAIL policy.
+        :raises DocumentStoreError:
+            When documents have failed to be batch written.
+
+        :returns:
+            The number of documents written.
         """
         if policy in [DuplicatePolicy.NONE, DuplicatePolicy.OVERWRITE]:
             return self._batch_write(documents)
@@ -1112,6 +1120,22 @@ class WeaviateDocumentStore:
         We can't use the batch API for other policies as it doesn't return any information whether the document
         already exists or not. That prevents us from returning errors when using the FAIL policy or skipping a
         Document when using the SKIP policy.
+
+
+        :param documents:
+            A list of documents to write into the document store.
+        :param policy:
+            DuplicatePolicy to apply when a document with the same ID already exists in the document store.
+
+        :raises ValueError:
+            When input is not valid.
+        :raises DuplicateDocumentError:
+            When duplicate documents are found and using a FAIL policy.
+        :raises DocumentStoreError:
+            When documents have failed to be batch written.
+
+        :returns:
+            The number of documents written.
         """
         if policy in [DuplicatePolicy.NONE, DuplicatePolicy.OVERWRITE]:
             return await self._batch_write_async(documents)
