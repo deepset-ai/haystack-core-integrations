@@ -1,5 +1,16 @@
 # Changelog
 
+## [integrations/opensearch-v6.5.1] - 2026-03-10
+
+### 🐛 Bug Fixes
+
+- `OpenSearchDocumentStore` AsyncAWSAuth method signature changed (#2938)
+
+### 🧹 Chores
+
+- Standardize author mentions (#2897)
+
+
 ## [integrations/opensearch-v6.5.0] - 2026-02-26
 
 ### 🐛 Bug Fixes
