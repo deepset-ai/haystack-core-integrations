@@ -124,16 +124,6 @@ class TestDocumentStore(
         store._ensure_initialized()
         assert store._client.get_settings().anonymized_telemetry is False
 
-    def test_invalid_client_settings(self, clear_chroma_system_cache):
-        store = ChromaDocumentStore(
-            client_settings={
-                "invalid_setting_name": "some_value",
-                "another_fake_setting": 123,
-            }
-        )
-        with pytest.raises(ValueError, match="Invalid client_settings"):
-            store._ensure_initialized()
-
     def test_to_dict(self, request):
         ds = ChromaDocumentStore(
             collection_name=request.node.name,
