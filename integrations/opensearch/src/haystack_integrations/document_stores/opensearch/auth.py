@@ -125,19 +125,27 @@ class AWSAuth:
         )
         return default_from_dict(cls, data)
 
-    def __call__(self, method: str, url: str, body: Any) -> dict[str, str]:
+    def __call__(
+        self,
+        method: str,
+        url: str,
+        body: Any = None,
+        headers: dict[str, str] | None = None,
+    ) -> dict[str, str]:
         """
         Signs the request and returns headers.
 
         This method is executed by Urllib3 when making a request to the OpenSearch service.
+        Compatible with opensearch-py 3.x which may call with (method, url, body, headers).
 
         :param method: HTTP method
         :param url: URL
-        :param body: Body
+        :param body: Request body
+        :param headers: Request headers to sign (opensearch-py 3.x passes these)
         :return:
             A dictionary containing the signed headers.
         """
-        return self._urllib3_aws_v4_signer_auth(method, url, body)
+        return self._urllib3_aws_v4_signer_auth(method, url, body, headers)
 
     def _get_aws_v4_signer_auth(self, signer_auth_class: type[TSignerAuth]) -> TSignerAuth:
         try:
@@ -184,17 +192,25 @@ class AsyncAWSAuth:
         self.aws_auth = aws_auth
         self._async_aws_v4_signer_auth = self.aws_auth._get_aws_v4_signer_auth(AWSV4SignerAsyncAuth)
 
-    def __call__(self, method: str, url: str, query_string: str, body: Any) -> dict[str, str]:
+    def __call__(
+        self,
+        method: str,
+        url: str,
+        body: Any = None,
+        headers: dict[str, str] | None = None,
+    ) -> dict[str, str]:
         """
         Signs the request and returns headers.
 
         This method is executed by AsyncHttpConnection when making a request to the OpenSearch service.
+        Compatible with opensearch-py 3.x which calls with (method, url, body, headers).
+        The query_string parameter was removed in opensearch-py 3.x.
 
         :param method: HTTP method
         :param url: URL
-        :param query_string: Query string
-        :param body: Body
+        :param body: Request body
+        :param headers: Request headers to sign (opensearch-py 3.x passes these)
         :return:
             A dictionary containing the signed headers.
         """
-        return self._async_aws_v4_signer_auth(method, url, query_string, body)
+        return self._async_aws_v4_signer_auth(method, url, body, headers)
