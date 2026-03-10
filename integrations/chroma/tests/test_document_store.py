@@ -265,7 +265,7 @@ class TestDocumentStore(
 
         assert document_store.filter_documents()[0].embedding == pytest.approx(TEST_EMBEDDING_1)
 
-    def test_write_documents_unsupported_meta_values(self, document_store: ChromaDocumentStore):
+    def test_write_documents_unsupported_meta_values(self, document_store: ChromaDocumentStore) -> None:
         """
         Unsupported meta values should be removed from the documents before writing them to the database
         """
@@ -273,7 +273,9 @@ class TestDocumentStore(
         docs = [
             Document(content="test doc 1", meta={"invalid": {"dict": "value"}}),
             Document(content="test doc 2", meta={"invalid": [["list", "value"]]}),
-            Document(content="test doc 3", meta={"ok": 123}),
+            Document(content="test doc 3", meta={"invalid": []}),
+            Document(content="test doc 4", meta={"invalid": ["list", 2]}),
+            Document(content="test doc 5", meta={"ok": 123}),
         ]
 
         document_store.write_documents(docs)
@@ -281,11 +283,41 @@ class TestDocumentStore(
         written_docs = document_store.filter_documents()
         written_docs.sort(key=lambda x: x.content)
 
-        assert len(written_docs) == 3
+        assert len(written_docs) == 5
         assert [doc.id for doc in written_docs] == [doc.id for doc in docs]
         assert written_docs[0].meta == {}
         assert written_docs[1].meta == {}
-        assert written_docs[2].meta == {"ok": 123}
+        assert written_docs[2].meta == {}
+        assert written_docs[3].meta == {}
+        assert written_docs[4].meta == {"ok": 123}
+
+    def test_write_documents_supported_meta_values(self, document_store: ChromaDocumentStore) -> None:
+        """
+        Unsupported meta values should be removed from the documents before writing them to the database
+        """
+
+        docs = [
+            Document(content="test doc 1", meta={"ok": "test"}),
+            Document(content="test doc 2", meta={"ok": ["list", "value"]}),
+            Document(content="test doc 3", meta={"ok": [True, False, True]}),
+            Document(content="test doc 4", meta={"ok": [1, 2, 3]}),
+            Document(content="test doc 5", meta={"ok": [1.1, 2.2, 3.3]}),
+            Document(content="test doc 6", meta={"ok": 123}),
+        ]
+
+        document_store.write_documents(docs)
+
+        written_docs = document_store.filter_documents()
+        written_docs.sort(key=lambda x: x.content)
+
+        assert len(written_docs) == 6
+        assert [doc.id for doc in written_docs] == [doc.id for doc in docs]
+        assert written_docs[0].meta == {"ok": "test"}
+        assert written_docs[1].meta == {"ok": ["list", "value"]}
+        assert written_docs[2].meta == {"ok": [True, False, True]}
+        assert written_docs[3].meta == {"ok": [1, 2, 3]}
+        assert written_docs[4].meta == {"ok": [1.1, 2.2, 3.3]}
+        assert written_docs[5].meta == {"ok": 123}
 
     def test_documents_with_content_none_are_not_stored(self, document_store: ChromaDocumentStore):
         document_store.write_documents([Document(content=None)])
