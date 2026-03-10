@@ -48,6 +48,12 @@ def tools():
     ]
 
 
+def test_supported_models_is_non_empty_list_of_strings():
+    assert isinstance(GoogleGenAIChatGenerator.SUPPORTED_MODELS, list)
+    assert GoogleGenAIChatGenerator.SUPPORTED_MODELS
+    assert all(isinstance(model, str) and model for model in GoogleGenAIChatGenerator.SUPPORTED_MODELS)
+
+
 class TestGoogleGenAIChatGeneratorInitSerDe:
     def test_init_default(self, monkeypatch):
         monkeypatch.setenv("GOOGLE_API_KEY", "test-api-key")
