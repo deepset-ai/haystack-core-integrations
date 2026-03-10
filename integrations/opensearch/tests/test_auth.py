@@ -124,11 +124,12 @@ class TestAWSAuth:
 
     @patch("haystack_integrations.document_stores.opensearch.auth.AWSAuth._get_aws_v4_signer_auth")
     def test_call_async(self, _get_aws_v4_signer_auth):
+        """AsyncAWSAuth must accept (method, url, body, headers) as per opensearch-py 3.x API."""
         signer_auth_mock = Mock()
         _get_aws_v4_signer_auth.return_value = signer_auth_mock
         async_aws_auth = AsyncAWSAuth(AWSAuth())
-        async_aws_auth(method="GET", url="http://some.url", query_string="", body="some body")
-        signer_auth_mock.assert_called_once_with("GET", "http://some.url", "", "some body")
+        async_aws_auth(method="GET", url="http://some.url", body="some body", headers={"Host": "localhost"})
+        signer_auth_mock.assert_called_once_with("GET", "http://some.url", "some body", {"Host": "localhost"})
 
     def test_async_aws_auth_init(self):
         data = {
