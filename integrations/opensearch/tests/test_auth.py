@@ -153,9 +153,10 @@ class TestAWSAuth:
 
 class TestAWSAuthRealSigning:
     """
-    Single test that uses real boto3.Session and real signing (no mocks on Session or signer).
-    
-    Verifies AWSAuth.__call__(method, url, body, headers) produces valid SigV4 headers.
+    Tests that use real boto3.Session and real signing (no mocks on Session or signer).
+
+    Verifies both AWSAuth and AsyncAWSAuth produce valid SigV4 headers when called
+    with (method, url, body, headers) as opensearch-py 3.x does.
     """
 
     def test_sync_auth_real_signing_no_network(self, monkeypatch):
@@ -167,6 +168,27 @@ class TestAWSAuthRealSigning:
         aws_auth = AWSAuth()
 
         signed_headers = aws_auth(
+            method="GET",
+            url="https://example.com/_search?q=test",
+            body=b"",
+            headers={"Host": "example.com"},
+        )
+
+        assert "Authorization" in signed_headers
+        assert signed_headers["Authorization"].startswith("AWS4-HMAC-SHA256 ")
+        assert "X-Amz-Date" in signed_headers
+        assert "X-Amz-Content-SHA256" in signed_headers
+
+    def test_async_auth_real_signing_no_network(self, monkeypatch):
+        monkeypatch.setenv("AWS_EC2_METADATA_DISABLED", "true")
+        monkeypatch.setenv("AWS_ACCESS_KEY_ID", "AKIDEXAMPLE")
+        monkeypatch.setenv("AWS_SECRET_ACCESS_KEY", "wJalrXUtnFEMI/K7MDENG+bPxRfiCYEXAMPLEKEY")
+        monkeypatch.setenv("AWS_DEFAULT_REGION", "us-east-1")
+
+        aws_auth = AWSAuth()
+        async_aws_auth = AsyncAWSAuth(aws_auth)
+
+        signed_headers = async_aws_auth(
             method="GET",
             url="https://example.com/_search?q=test",
             body=b"",
