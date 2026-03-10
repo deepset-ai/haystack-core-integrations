@@ -1,5 +1,12 @@
 # Changelog
 
+## [unreleased]
+
+### 🚀 Features
+
+- *(google-genai)* Add timeout and max_retries to chat generator (#2875)
+
+
 ## [integrations/google_genai-v3.8.0] - 2026-03-02
 
 ### 🚀 Features
