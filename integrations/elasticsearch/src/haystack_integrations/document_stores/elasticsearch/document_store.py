@@ -82,8 +82,8 @@ class ElasticsearchDocumentStore:
         hosts: Hosts | None = None,
         custom_mapping: dict[str, Any] | None = None,
         index: str = "default",
-        api_key: Secret | str = Secret.from_env_var("ELASTIC_API_KEY", strict=False),
-        api_key_id: Secret | str = Secret.from_env_var("ELASTIC_API_KEY_ID", strict=False),
+        api_key: Secret | str | None = Secret.from_env_var("ELASTIC_API_KEY", strict=False),
+        api_key_id: Secret | str | None = Secret.from_env_var("ELASTIC_API_KEY_ID", strict=False),
         embedding_similarity_function: Literal["cosine", "dot_product", "l2_norm", "max_inner_product"] = "cosine",
         **kwargs: Any,
     ):
@@ -273,8 +273,8 @@ class ElasticsearchDocumentStore:
             hosts=self._hosts,
             custom_mapping=self._custom_mapping,
             index=self._index,
-            api_key=self._api_key.to_dict() if isinstance(self._api_key, Secret) else self._api_key,
-            api_key_id=self._api_key_id.to_dict() if isinstance(self._api_key_id, Secret) else self._api_key_id,
+            api_key=self._api_key.to_dict() if isinstance(self._api_key, Secret) else None,
+            api_key_id=self._api_key_id.to_dict() if isinstance(self._api_key_id, Secret) else None,
             embedding_similarity_function=self._embedding_similarity_function,
             **self._kwargs,
         )

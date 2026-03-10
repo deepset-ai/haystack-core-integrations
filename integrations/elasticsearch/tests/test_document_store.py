@@ -113,8 +113,8 @@ def test_to_dict_with_api_keys_str():
         hosts="https://localhost:9200", api_key="my_api_key", api_key_id="my_api_key_id"
     )
     res = document_store.to_dict()
-    assert res["init_parameters"]["api_key"] == "my_api_key"
-    assert res["init_parameters"]["api_key_id"] == "my_api_key_id"
+    assert res["init_parameters"]["api_key"] is None
+    assert res["init_parameters"]["api_key_id"] is None
 
 
 def test_from_dict_with_api_keys_env_vars():
