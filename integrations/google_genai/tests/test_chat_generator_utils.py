@@ -17,6 +17,7 @@ from haystack.dataclasses import (
     TextContent,
     ToolCall,
 )
+from pydantic import BaseModel
 
 from haystack_integrations.components.generators.google_genai.chat.chat_generator import (
     GoogleGenAIChatGenerator,
@@ -27,6 +28,7 @@ from haystack_integrations.components.generators.google_genai.chat.utils import 
     _convert_google_genai_response_to_chatmessage,
     _convert_message_to_google_genai_format,
     _convert_usage_metadata_to_serializable,
+    _process_response_format,
     _process_thinking_config,
 )
 
@@ -158,6 +160,63 @@ def test_process_thinking_config_explicit_include_thoughts():
     assert "include_thoughts" not in result
     assert "thinking_config" not in result
     assert result == {"temperature": 0.5}
+
+
+def test_process_response_format():
+    """Test the _process_response_format function with different response_format values."""
+
+    class City(BaseModel):
+        name: str
+        country: str
+        population: int
+
+    # Test Pydantic model
+    generation_kwargs = {"response_format": City, "temperature": 0.7}
+    result = _process_response_format(generation_kwargs)
+
+    # response_format should be replaced with response_schema and response_mime_type
+    assert "response_format" not in result
+    assert result["response_schema"] is City
+    assert result["response_mime_type"] == "application/json"
+    # Other kwargs should be preserved
+    assert result["temperature"] == 0.7
+
+    # Test JSON schema dict
+    schema = {"type": "object", "properties": {"name": {"type": "string"}}}
+    generation_kwargs = {"response_format": schema, "temperature": 0.5}
+    result = _process_response_format(generation_kwargs)
+    assert "response_format" not in result
+    assert result["response_schema"] == schema
+    assert result["response_mime_type"] == "application/json"
+    assert result["temperature"] == 0.5
+
+    # Test when response_format is not present
+    generation_kwargs = {"temperature": 0.5}
+    result = _process_response_format(generation_kwargs)
+    assert result == generation_kwargs  # No changes
+
+    # Test that native keys take precedence
+    native_schema = {"type": "object", "properties": {"x": {"type": "string"}}}
+    generation_kwargs = {
+        "response_format": City,
+        "response_schema": native_schema,
+        "response_mime_type": "application/json",
+    }
+    result = _process_response_format(generation_kwargs)
+    assert "response_format" not in result
+    assert result["response_schema"] == native_schema
+    assert result["response_mime_type"] == "application/json"
+
+    # Test unsupported type raises TypeError
+    generation_kwargs = {"response_format": "invalid"}
+    with pytest.raises(TypeError, match="Unsupported response_format type"):
+        _process_response_format(generation_kwargs)
+
+    # Test that input dict is not mutated
+    generation_kwargs = {"response_format": City, "temperature": 0.7}
+    original = generation_kwargs.copy()
+    _process_response_format(generation_kwargs)
+    assert generation_kwargs == original
 
 
 class TestStreamingChunkConversion:
