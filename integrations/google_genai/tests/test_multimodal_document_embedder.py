@@ -4,6 +4,7 @@
 
 import base64
 import glob
+import os
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -255,7 +256,10 @@ class TestGoogleGenAIDocumentEmbedder:
         assert result["meta"]["model"] == "gemini-embedding-2-preview"
 
     @pytest.mark.integration
-    @pytest.mark.skip(reason="Quota exceeded on the Early Access Program model")
+    @pytest.mark.skipif(
+        not os.environ.get("GOOGLE_API_KEY", None),
+        reason="Export an env var called GOOGLE_API_KEY containing the Google API key to run this test.",
+    )
     def test_live_run(self, test_files_path):
         embedder = GoogleGenAIMultimodalDocumentEmbedder(progress_bar=False)
         docs = [
@@ -271,7 +275,10 @@ class TestGoogleGenAIDocumentEmbedder:
 
     @pytest.mark.integration
     @pytest.mark.asyncio
-    @pytest.mark.skip(reason="Quota exceeded on the Early Access Program model")
+    @pytest.mark.skipif(
+        not os.environ.get("GOOGLE_API_KEY", None),
+        reason="Export an env var called GOOGLE_API_KEY containing the Google API key to run this test.",
+    )
     async def test_live_run_async(self, test_files_path):
         embedder = GoogleGenAIMultimodalDocumentEmbedder(progress_bar=False)
         docs = [

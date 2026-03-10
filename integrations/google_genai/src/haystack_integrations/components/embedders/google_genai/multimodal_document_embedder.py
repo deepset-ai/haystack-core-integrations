@@ -209,7 +209,8 @@ class GoogleGenAIMultimodalDocumentEmbedder:
             The name of the model to use for calculating embeddings.
         :param batch_size:
             Number of documents to embed at once. Maximum batch size varies depending on the input type.
-            See Google AI documentation for more information.
+            See [Google AI documentation](https://ai.google.dev/gemini-api/docs/embeddings#supported-modalities) for
+            more information.
         :param progress_bar:
             If `True`, shows a progress bar when running.
         :param config:
