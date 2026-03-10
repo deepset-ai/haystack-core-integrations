@@ -123,15 +123,6 @@ class TestAWSAuth:
         signer_auth_mock.assert_called_once_with("GET", "http://some.url", "some body", None)
 
     @patch("haystack_integrations.document_stores.opensearch.auth.AWSAuth._get_aws_v4_signer_auth")
-    def test_call_with_headers(self, _get_aws_v4_signer_auth):
-        """AWSAuth accepts optional headers for opensearch-py 3.x sync connection compatibility."""
-        signer_auth_mock = Mock()
-        _get_aws_v4_signer_auth.return_value = signer_auth_mock
-        aws_auth = AWSAuth()
-        aws_auth(method="GET", url="http://some.url", body="some body", headers={"Host": "localhost"})
-        signer_auth_mock.assert_called_once_with("GET", "http://some.url", "some body", {"Host": "localhost"})
-
-    @patch("haystack_integrations.document_stores.opensearch.auth.AWSAuth._get_aws_v4_signer_auth")
     def test_call_async(self, _get_aws_v4_signer_auth):
         """AsyncAWSAuth must accept (method, url, body, headers) as per opensearch-py 3.x API."""
         signer_auth_mock = Mock()
@@ -158,6 +149,34 @@ class TestAWSAuth:
         assert async_aws_auth.aws_auth.aws_profile_name.resolve_value() == "some_fake_profile"
         assert async_aws_auth.aws_auth.aws_service == "aoss"
         assert isinstance(async_aws_auth._async_aws_v4_signer_auth, AWSV4SignerAsyncAuth)
+
+
+class TestAWSAuthRealSigning:
+    """
+    Single test that uses real boto3.Session and real signing (no mocks on Session or signer).
+    
+    Verifies AWSAuth.__call__(method, url, body, headers) produces valid SigV4 headers.
+    """
+
+    def test_sync_auth_real_signing_no_network(self, monkeypatch):
+        monkeypatch.setenv("AWS_EC2_METADATA_DISABLED", "true")
+        monkeypatch.setenv("AWS_ACCESS_KEY_ID", "AKIDEXAMPLE")
+        monkeypatch.setenv("AWS_SECRET_ACCESS_KEY", "wJalrXUtnFEMI/K7MDENG+bPxRfiCYEXAMPLEKEY")
+        monkeypatch.setenv("AWS_DEFAULT_REGION", "us-east-1")
+
+        aws_auth = AWSAuth()
+
+        signed_headers = aws_auth(
+            method="GET",
+            url="https://example.com/_search?q=test",
+            body=b"",
+            headers={"Host": "example.com"},
+        )
+
+        assert "Authorization" in signed_headers
+        assert signed_headers["Authorization"].startswith("AWS4-HMAC-SHA256 ")
+        assert "X-Amz-Date" in signed_headers
+        assert "X-Amz-Content-SHA256" in signed_headers
 
 
 class TestDocumentStoreWithAuth:
