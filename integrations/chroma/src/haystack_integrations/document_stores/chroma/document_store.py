@@ -21,9 +21,9 @@ logger = logging.getLogger(__name__)
 
 
 VALID_DISTANCE_FUNCTIONS = "l2", "cosine", "ip"
+# Supported ChromaDB metadata values can be found here: https://cookbook.chromadb.dev/core/concepts/#metadata
 SUPPORTED_TYPES_FOR_METADATA_VALUES = str, int, float, bool
 SUPPORTED_METADATA_VALUES_TYPE = str | int | float | bool
-# Supported ChromaDB metadata values can be found here: https://cookbook.chromadb.dev/core/concepts/#metadata
 
 
 class ChromaDocumentStore:
