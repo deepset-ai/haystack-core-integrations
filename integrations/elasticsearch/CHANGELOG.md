@@ -1,5 +1,25 @@
 # Changelog
 
+## [integrations/elasticsearch-v5.3.0] - 2026-03-10
+
+### 🚀 Features
+
+- Add str handling for ElasticsearchDocumentStore api_key (#2934)
+
+### 📚 Documentation
+
+- Simplify pydoc configs (#2855)
+
+### 🧪 Testing
+
+- Replacing each `DocumentStore` specific tests and used the generalised ones from `haystack.testing.document_store` (#2812)
+
+### 🧹 Chores
+
+- Remove unused allow-direct-references (#2866)
+- Standardize author mentions (#2897)
+
+
 ## [integrations/elasticsearch-v5.2.0] - 2026-02-02
 
 ### 🚀 Features

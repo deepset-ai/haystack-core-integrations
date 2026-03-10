@@ -328,6 +328,20 @@ class TestAnthropicChatGenerator:
         assert response["replies"][0].meta["model"] == "claude-sonnet-4-5"
         assert response["replies"][0].meta["finish_reason"] == "stop"
 
+    def test_run_with_output_config(self, chat_messages, mock_anthropic_completion):
+        """
+        Test that output_config is passed to the Anthropic API.
+        """
+        output_config = {"effort": "medium"}
+        component = AnthropicChatGenerator(
+            api_key=Secret.from_token("test-api-key"),
+            generation_kwargs={"max_tokens": 10, "output_config": output_config},
+        )
+        component.run(chat_messages)
+
+        _, kwargs = mock_anthropic_completion.call_args
+        assert kwargs["output_config"] == output_config
+
     @pytest.mark.parametrize(
         "generation_kwargs,expected_kwargs",
         [
