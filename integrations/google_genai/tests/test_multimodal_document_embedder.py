@@ -65,7 +65,7 @@ class TestExtractSourcesInfo:
             _extract_sources_info(documents=[document], file_path_meta_field="file_path", root_path="")
 
 
-class TestGoogleGenAIDocumentEmbedder:
+class TestGoogleGenAIMultimodalDocumentEmbedder:
     def test_init_with_parameters(self):
         embedder = GoogleGenAIMultimodalDocumentEmbedder(
             api_key=Secret.from_token("fake-api-key-2"),
@@ -123,7 +123,7 @@ class TestGoogleGenAIDocumentEmbedder:
                 "haystack_integrations.components.embedders.google_genai.multimodal_document_embedder.GoogleGenAIMultimodalDocumentEmbedder"
             ),
             "init_parameters": {
-                "model": "gemini-embedding-001",
+                "model": "gemini-embedding-2-preview",
                 "file_path_meta_field": "file_path",
                 "root_path": "some_root_path",
                 "image_size": (1024, 1024),
@@ -140,7 +140,7 @@ class TestGoogleGenAIDocumentEmbedder:
 
         embedder = component_from_dict(GoogleGenAIMultimodalDocumentEmbedder, data, "embedder")
         assert embedder._api_key.resolve_value() == "fake-api-key"
-        assert embedder._model == "gemini-embedding-001"
+        assert embedder._model == "gemini-embedding-2-preview"
         assert embedder._file_path_meta_field == "file_path"
         assert embedder._root_path == "some_root_path"
         assert embedder._image_size == (1024, 1024)
@@ -271,7 +271,7 @@ class TestGoogleGenAIDocumentEmbedder:
         assert len(result["documents"]) == 2
         for doc in result["documents"]:
             assert len(doc.embedding) == 3072
-        assert result["meta"]["model"] == "gemini-embedding-2-exp-11-2025"
+        assert result["meta"]["model"] == "gemini-embedding-2-preview"
 
     @pytest.mark.integration
     @pytest.mark.asyncio
@@ -290,4 +290,4 @@ class TestGoogleGenAIDocumentEmbedder:
         assert len(result["documents"]) == 2
         for doc in result["documents"]:
             assert len(doc.embedding) == 3072
-        assert result["meta"]["model"] == "gemini-embedding-2-exp-11-2025"
+        assert result["meta"]["model"] == "gemini-embedding-2-preview"
