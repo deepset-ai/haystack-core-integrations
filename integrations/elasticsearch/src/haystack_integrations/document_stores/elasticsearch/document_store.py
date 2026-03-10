@@ -16,7 +16,7 @@ from haystack import default_from_dict, default_to_dict, logging
 from haystack.dataclasses import Document
 from haystack.document_stores.errors import DocumentStoreError, DuplicateDocumentError
 from haystack.document_stores.types import DuplicatePolicy
-from haystack.utils import Secret, deserialize_secrets_inplace
+from haystack.utils import Secret
 from haystack.version import __version__ as haystack_version
 
 from elasticsearch import AsyncElasticsearch, Elasticsearch, helpers
@@ -82,8 +82,8 @@ class ElasticsearchDocumentStore:
         hosts: Hosts | None = None,
         custom_mapping: dict[str, Any] | None = None,
         index: str = "default",
-        api_key: Secret = Secret.from_env_var("ELASTIC_API_KEY", strict=False),
-        api_key_id: Secret = Secret.from_env_var("ELASTIC_API_KEY_ID", strict=False),
+        api_key: Secret | str = Secret.from_env_var("ELASTIC_API_KEY", strict=False),
+        api_key_id: Secret | str = Secret.from_env_var("ELASTIC_API_KEY_ID", strict=False),
         embedding_similarity_function: Literal["cosine", "dot_product", "l2_norm", "max_inner_product"] = "cosine",
         **kwargs: Any,
     ):
@@ -217,8 +217,10 @@ class ElasticsearchDocumentStore:
 
         api_key: str | tuple[str, str] | None  # make the type checker happy
 
-        api_key_resolved = self._api_key.resolve_value()
-        api_key_id_resolved = self._api_key_id.resolve_value()
+        api_key_resolved = self._api_key.resolve_value() if isinstance(self._api_key, Secret) else self._api_key
+        api_key_id_resolved = (
+            self._api_key_id.resolve_value() if isinstance(self._api_key_id, Secret) else self._api_key_id
+        )
 
         # Scenario 1: both are found, use them
         if api_key_id_resolved and api_key_resolved:
@@ -271,8 +273,8 @@ class ElasticsearchDocumentStore:
             hosts=self._hosts,
             custom_mapping=self._custom_mapping,
             index=self._index,
-            api_key=self._api_key.to_dict(),
-            api_key_id=self._api_key_id.to_dict(),
+            api_key=self._api_key.to_dict() if isinstance(self._api_key, Secret) else self._api_key,
+            api_key_id=self._api_key_id.to_dict() if isinstance(self._api_key_id, Secret) else self._api_key_id,
             embedding_similarity_function=self._embedding_similarity_function,
             **self._kwargs,
         )
@@ -287,7 +289,10 @@ class ElasticsearchDocumentStore:
         :returns:
             Deserialized component.
         """
-        deserialize_secrets_inplace(data, keys=["api_key", "api_key_id"], recursive=True)
+        if (api_key := data.get("api_key")) is not None and isinstance(api_key, dict):
+            data["api_key"] = Secret.from_dict(api_key)
+        if (api_key_id := data.get("api_key_id")) is not None and isinstance(api_key_id, dict):
+            data["api_key_id"] = Secret.from_dict(api_key_id)
         return default_from_dict(cls, data)
 
     def count_documents(self) -> int:

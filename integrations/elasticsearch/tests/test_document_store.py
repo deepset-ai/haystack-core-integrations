@@ -108,6 +108,15 @@ def test_to_dict_with_api_keys_as_secret():
         _ = document_store.to_dict()
 
 
+def test_to_dict_with_api_keys_str():
+    document_store = ElasticsearchDocumentStore(
+        hosts="https://localhost:9200", api_key="my_api_key", api_key_id="my_api_key_id"
+    )
+    res = document_store.to_dict()
+    assert res["init_parameters"]["api_key"] == "my_api_key"
+    assert res["init_parameters"]["api_key_id"] == "my_api_key_id"
+
+
 def test_from_dict_with_api_keys_env_vars():
     data = {
         "type": "haystack_integrations.document_stores.elasticsearch.document_store.ElasticsearchDocumentStore",
@@ -124,6 +133,24 @@ def test_from_dict_with_api_keys_env_vars():
     document_store = ElasticsearchDocumentStore.from_dict(data)
     assert document_store._api_key == Secret.from_env_var("ELASTIC_API_KEY", strict=False)
     assert document_store._api_key_id == Secret.from_env_var("ELASTIC_API_KEY_ID", strict=False)
+
+
+def test_from_dict_with_api_keys_str():
+    data = {
+        "type": "haystack_integrations.document_stores.elasticsearch.document_store.ElasticsearchDocumentStore",
+        "init_parameters": {
+            "hosts": "some hosts",
+            "custom_mapping": None,
+            "index": "default",
+            "api_key": "my_api_key",
+            "api_key_id": "my_api_key_id",
+            "embedding_similarity_function": "cosine",
+        },
+    }
+
+    document_store = ElasticsearchDocumentStore.from_dict(data)
+    assert document_store._api_key == "my_api_key"
+    assert document_store._api_key_id == "my_api_key_id"
 
 
 def test_api_key_validation_only_api_key():
@@ -173,7 +200,7 @@ def test_client_initialization_with_api_key_tuple(_mock_async_es, _mock_es):
 @patch("haystack_integrations.document_stores.elasticsearch.document_store.Elasticsearch")
 @patch("haystack_integrations.document_stores.elasticsearch.document_store.AsyncElasticsearch")
 def test_client_initialization_with_api_key_string(_mock_async_es, _mock_es):
-    api_key = Secret.from_token("test_api_key")
+    api_key = "test_api_key"
 
     # Mock the client.info() call to avoid actual connection
     mock_client = Mock()
