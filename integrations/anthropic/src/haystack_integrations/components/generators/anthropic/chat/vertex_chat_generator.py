@@ -60,6 +60,9 @@ class AnthropicVertexChatGenerator(AnthropicChatGenerator):
     >> 'usage': {'input_tokens': 15, 'output_tokens': 64}})]}
     ```
 
+    For more details on supported models and their capabilities, refer to the Anthropic
+    [documentation](https://docs.anthropic.com/claude/docs/intro-to-claude).
+
     For a list of available model IDs when using Claude on Vertex AI, see
     [Claude on Vertex AI - model availability](https://platform.claude.com/docs/en/build-with-claude/claude-on-vertex-ai#model-availability).
     """
