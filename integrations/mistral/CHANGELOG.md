@@ -1,5 +1,15 @@
 # Changelog
 
+## [integrations/mistral-v1.0.1] - 2026-03-11
+
+### 📚 Documentation
+
+- Simplify pydoc configs (#2855)
+
+### 🌀 Miscellaneous
+
+- Fix: Pin mistralai dep to be `<2.0.0` (#2949)
+
 ## [integrations/mistral-v1.0.0] - 2026-01-12
 
 ### ⚙️ CI
