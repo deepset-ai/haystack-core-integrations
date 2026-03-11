@@ -341,6 +341,46 @@ class ArcadeDBDocumentStore:
         ids_str = ", ".join(_sql_str(did) for did in document_ids)
         self._command(f"DELETE FROM `{self._type_name}` WHERE id IN [{ids_str}]")
 
+    def delete_all_documents(self) -> None:
+        """
+        Deletes all documents in the document store.
+        """
+        self._ensure_initialized()
+        self._command(f"TRUNCATE TYPE `{self._type_name}`")
+
+    def delete_by_filter(self, filters: dict[str, Any]) -> int:
+        """
+        Deletes all documents that match the provided filters.
+
+        :param filters: The filters to apply to select documents for deletion.
+            For filter syntax, see [Haystack metadata filtering](https://docs.haystack.deepset.ai/docs/metadata-filtering)
+        :returns: The number of documents deleted.
+        """
+        self._ensure_initialized()
+        where = _convert_filters(filters)
+
+        count_result = self._command(f"DELETE FROM `{self._type_name}` WHERE {where}")
+
+        return count_result[0]["count"]
+
+    def update_by_filter(self, filters: dict[str, Any], meta: dict[str, Any]) -> int:
+        """
+        Updates the metadata of all documents that match the provided filters.
+
+        :param filters: The filters to apply to select documents for updating.
+            For filter syntax, see [Haystack metadata filtering](https://docs.haystack.deepset.ai/docs/metadata-filtering)
+        :param meta: The metadata fields to update.
+        :returns: The number of documents updated.
+        """
+        self._ensure_initialized()
+        where = _convert_filters(filters)
+
+        sql_set = ",".join(f"meta[{_sql_str(key)}] = {_map_literal_base(value)}" for key, value in meta.items())
+        sql = f"UPDATE `{self._type_name}` SET {sql_set} WHERE {where}"
+        count_result = self._command(sql)
+
+        return count_result[0]["count"]
+
     # ------------------------------------------------------------------
     # Retrieval (called by Retriever components)
     # ------------------------------------------------------------------
@@ -402,22 +442,27 @@ def _sql_str(value: str | None) -> str:
     return f"'{escaped}'"
 
 
+def _map_literal_base(value: object) -> str | float:
+    """Map Python type to ArcadeDB type."""
+    if isinstance(value, str):
+        return _sql_str(value)
+    elif isinstance(value, bool):
+        return "true" if value else "false"
+    elif isinstance(value, (int, float)):
+        return value
+    elif value is None:
+        return "NULL"
+    elif isinstance(value, list):
+        return value
+    else:
+        return _sql_str(str(value))
+
+
 def _map_literal(meta: dict[str, Any]) -> str:
     """Build an ArcadeDB MAP literal from a Python dict."""
     if not meta:
         return "{}"
     pairs = []
     for key, value in meta.items():
-        if isinstance(value, str):
-            pairs.append(f'"{key}": {_sql_str(value)}')
-        elif isinstance(value, bool):
-            pairs.append(f'"{key}": {"true" if value else "false"}')
-        elif isinstance(value, (int, float)):
-            pairs.append(f'"{key}": {value}')
-        elif value is None:
-            pairs.append(f'"{key}": NULL')
-        elif isinstance(value, list):
-            pairs.append(f'"{key}": {value}')
-        else:
-            pairs.append(f'"{key}": {_sql_str(str(value))}')
+        pairs.append(f'"{key}": {_map_literal_base(value)}')
     return "{" + ", ".join(pairs) + "}"
