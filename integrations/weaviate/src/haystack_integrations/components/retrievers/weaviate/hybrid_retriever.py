@@ -23,7 +23,7 @@ class WeaviateHybridRetriever:
         document_store: WeaviateDocumentStore,
         filters: dict[str, Any] | None = None,
         top_k: int = 10,
-        alpha: float | None = None,
+        alpha: float = 0.7,
         max_vector_distance: float | None = None,
         filter_policy: str | FilterPolicy = FilterPolicy.REPLACE,
     ):
@@ -46,7 +46,7 @@ class WeaviateHybridRetriever:
             - `alpha = 1.0`: only vector similarity scoring is used.
             - Values in between blend the two; higher values favor the vector score, lower values favor BM25.
 
-            If `None`, the Weaviate server default is used.
+            By default, 0.7 is used which is the Weaviate server default.
 
             See the official Weaviate docs on Hybrid Search parameters for more details:
             - [Hybrid search parameters](https://weaviate.io/developers/weaviate/search/hybrid#parameters)
@@ -66,7 +66,7 @@ class WeaviateHybridRetriever:
             Policy to determine how filters are applied.
         """
 
-        if alpha is not None and not 0.0 <= alpha <= 1.0:
+        if not 0.0 <= alpha <= 1.0:
             msg = f"alpha ({alpha}) must be in the range [0.0, 1.0]"
             raise ValueError(msg)
 
