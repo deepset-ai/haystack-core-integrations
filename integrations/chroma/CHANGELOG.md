@@ -1,5 +1,26 @@
 # Changelog
 
+## [integrations/chroma-v4.2.0] - 2026-03-11
+
+### 🚀 Features
+
+- Add support for metadata that contains lists of supported types (#2877)
+
+### 📚 Documentation
+
+- Simplify pydoc configs (#2855)
+
+### 🧪 Testing
+
+- Replacing each `DocumentStore` specific tests and used the generalised ones from `haystack.testing.document_store` (#2812)
+- Chroma - remove tests for invalid Settings (now ignored) (#2935)
+
+### 🧹 Chores
+
+- Remove unused allow-direct-references (#2866)
+- Standardize author mentions (#2897)
+
+
 ## [integrations/chroma-v4.1.1] - 2026-02-10
 
 ### 📚 Documentation
