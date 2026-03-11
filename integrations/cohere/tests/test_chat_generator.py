@@ -525,7 +525,7 @@ class TestCohereChatGeneratorInference:
                 self.responses += chunk.content if chunk.content else ""
 
         callback = Callback()
-        component = CohereChatGenerator(streaming_callback=callback, stream=True)
+        component = CohereChatGenerator(streaming_callback=callback)
         results = component.run([ChatMessage.from_user("What's the capital of France? answer in a word")])
 
         assert len(results["replies"]) == 1
