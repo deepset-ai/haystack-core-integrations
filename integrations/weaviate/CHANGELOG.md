@@ -1,5 +1,21 @@
 # Changelog
 
+## [integrations/weaviate-v7.2.0] - 2026-03-06
+
+### 🐛 Bug Fixes
+
+- Remove unnecessary connection test and add `close`/`close_async` methods to `WeaviateDocumentStore` (#2891)
+
+### 📚 Documentation
+
+- Simplify pydoc configs (#2855)
+
+### 🧪 Testing
+
+- Replacing each `DocumentStore` specific tests and used the generalised ones from `haystack.testing.document_store` (#2812)
+- Fix Weaviate tests to include grpc_config (#2871)
+
+
 ## [integrations/weaviate-v7.1.0] - 2026-01-29
 
 ### 🚀 Features

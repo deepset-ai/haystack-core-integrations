@@ -101,7 +101,7 @@ class GoogleGenAIDocumentEmbedder:
             Required when using Vertex AI with Application Default Credentials.
         :param model:
             The name of the model to use for calculating embeddings.
-            The default model is `text-embedding-ada-002`.
+            The default model is `gemini-embedding-001`.
         :param prefix:
             A string to add at the beginning of each text.
         :param suffix:

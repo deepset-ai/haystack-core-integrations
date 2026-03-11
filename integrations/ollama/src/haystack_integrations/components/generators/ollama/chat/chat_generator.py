@@ -22,14 +22,43 @@ from haystack.tools import (
 )
 from haystack.utils.callable_serialization import deserialize_callable, serialize_callable
 from pydantic.json_schema import JsonSchemaValue
+from tenacity import RetryCallState, retry, retry_if_exception, wait_exponential
 
-from ollama import AsyncClient, ChatResponse, Client
+from ollama import AsyncClient, ChatResponse, Client, ResponseError
 
 FINISH_REASON_MAPPING: dict[str, FinishReason] = {
     "stop": "stop",
     "tool_calls": "tool_calls",
     # we skip load and unload reasons
 }
+
+HTTP_STATUS_TOO_MANY_REQUESTS = 429
+HTTP_STATUS_SERVER_ERROR_MIN = 500
+HTTP_STATUS_SERVER_ERROR_MAX_EXCLUSIVE = 600
+
+
+def _stop_after_instance_max_retries(retry_state: RetryCallState) -> bool:
+    """
+    Stop retries after `self.max_retries + 1` attempts.
+    """
+    instance = retry_state.args[0]
+    return retry_state.attempt_number >= instance.max_retries + 1
+
+
+def _is_retryable_exception(exc: BaseException) -> bool:
+    """
+    Return True for transient failures that should be retried.
+
+    Retries are attempted for:
+    - HTTP 429 responses
+    - HTTP 5xx responses
+    - transport-level connection/timeout errors
+    """
+    if isinstance(exc, ResponseError):
+        return exc.status_code == HTTP_STATUS_TOO_MANY_REQUESTS or (
+            HTTP_STATUS_SERVER_ERROR_MIN <= exc.status_code < HTTP_STATUS_SERVER_ERROR_MAX_EXCLUSIVE
+        )
+    return isinstance(exc, (ConnectionError, TimeoutError))
 
 
 def _convert_chatmessage_to_ollama_format(message: ChatMessage) -> dict[str, Any]:
@@ -216,6 +245,7 @@ class OllamaChatGenerator:
         url: str = "http://localhost:11434",
         generation_kwargs: dict[str, Any] | None = None,
         timeout: int = 120,
+        max_retries: int = 0,
         keep_alive: float | str | None = None,
         streaming_callback: Callable[[StreamingChunk], None] | None = None,
         tools: ToolsType | None = None,
@@ -233,6 +263,9 @@ class OllamaChatGenerator:
             [Ollama docs](https://github.com/jmorganca/ollama/blob/main/docs/modelfile.md#valid-parameters-and-values).
         :param timeout:
             The number of seconds before throwing a timeout error from the Ollama API.
+        :param max_retries:
+            Maximum number of retries to attempt for failed requests (HTTP 429, 5xx, connection/timeout errors).
+            Uses exponential backoff between attempts. Set to 0 (default) to disable retries.
         :param think:
             If True, the model will "think" before producing a response.
             Only [thinking models](https://ollama.com/search?c=thinking) support this feature.
@@ -268,6 +301,7 @@ class OllamaChatGenerator:
         self.url = url
         self.generation_kwargs = generation_kwargs or {}
         self.timeout = timeout
+        self.max_retries = max_retries
         self.keep_alive = keep_alive
         self.streaming_callback = streaming_callback
         self.tools = tools  # Store original tools for serialization
@@ -292,6 +326,7 @@ class OllamaChatGenerator:
             url=self.url,
             generation_kwargs=self.generation_kwargs,
             timeout=self.timeout,
+            max_retries=self.max_retries,
             keep_alive=self.keep_alive,
             streaming_callback=callback_name,
             tools=serialize_tools_or_toolset(self.tools),
@@ -469,6 +504,56 @@ class OllamaChatGenerator:
 
         return {"replies": [reply]}
 
+    @retry(
+        reraise=True,
+        stop=_stop_after_instance_max_retries,
+        retry=retry_if_exception(_is_retryable_exception),
+        wait=wait_exponential(),
+    )
+    def _chat(
+        self,
+        *,
+        messages: list[dict[str, Any]],
+        tools: list[dict[str, Any]] | None,
+        is_stream: bool,
+        generation_kwargs: dict[str, Any],
+    ) -> ChatResponse | Iterator[ChatResponse]:
+        return self._client.chat(
+            model=self.model,
+            messages=messages,
+            tools=tools,
+            stream=is_stream,  # type: ignore[call-overload]  # Ollama expects Literal[True] or Literal[False], not bool
+            keep_alive=self.keep_alive,
+            options=generation_kwargs,
+            format=self.response_format,
+            think=self.think,
+        )
+
+    @retry(
+        reraise=True,
+        stop=_stop_after_instance_max_retries,
+        retry=retry_if_exception(_is_retryable_exception),
+        wait=wait_exponential(),
+    )
+    async def _chat_async(
+        self,
+        *,
+        messages: list[dict[str, Any]],
+        tools: list[dict[str, Any]] | None,
+        is_stream: bool,
+        generation_kwargs: dict[str, Any],
+    ) -> ChatResponse | AsyncIterator[ChatResponse]:
+        return await self._async_client.chat(
+            model=self.model,
+            messages=messages,
+            tools=tools,
+            stream=is_stream,  # type: ignore[call-overload]  # Ollama expects Literal[True] or Literal[False], not bool
+            keep_alive=self.keep_alive,
+            options=generation_kwargs,
+            format=self.response_format,
+            think=self.think,
+        )
+
     @component.output_types(replies=list[ChatMessage])
     def run(
         self,
@@ -518,15 +603,8 @@ class OllamaChatGenerator:
 
         ollama_messages = [_convert_chatmessage_to_ollama_format(m) for m in messages]
 
-        response = self._client.chat(
-            model=self.model,
-            messages=ollama_messages,
-            tools=ollama_tools,
-            stream=is_stream,  # type: ignore[call-overload]  # Ollama expects Literal[True] or Literal[False], not bool
-            keep_alive=self.keep_alive,
-            options=generation_kwargs,
-            format=self.response_format,
-            think=self.think,
+        response = self._chat(
+            messages=ollama_messages, tools=ollama_tools, is_stream=is_stream, generation_kwargs=generation_kwargs
         )
 
         if isinstance(response, Iterator):
@@ -579,15 +657,8 @@ class OllamaChatGenerator:
 
         ollama_messages = [_convert_chatmessage_to_ollama_format(m) for m in messages]
 
-        response = await self._async_client.chat(
-            model=self.model,
-            messages=ollama_messages,
-            tools=ollama_tools,
-            stream=is_stream,  # type: ignore[call-overload]  # Ollama expects Literal[True] or Literal[False], not bool
-            keep_alive=self.keep_alive,
-            options=generation_kwargs,
-            format=self.response_format,
-            think=self.think,
+        response = await self._chat_async(
+            messages=ollama_messages, tools=ollama_tools, is_stream=is_stream, generation_kwargs=generation_kwargs
         )
 
         if isinstance(response, AsyncIterator):

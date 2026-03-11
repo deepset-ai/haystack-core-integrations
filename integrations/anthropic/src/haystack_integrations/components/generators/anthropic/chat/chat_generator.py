@@ -107,6 +107,7 @@ class AnthropicChatGenerator:
         "top_k",
         "extra_headers",
         "thinking",
+        "output_config",
     ]
 
     def __init__(
@@ -144,6 +145,7 @@ class AnthropicChatGenerator:
             - `thinking`: A dictionary of thinking parameters to be passed to the model.
                 The `budget_tokens` passed for thinking should be less than `max_tokens`.
                 For more details and supported models, see: [Anthropic Extended Thinking](https://docs.anthropic.com/en/docs/build-with-claude/extended-thinking)
+            - `output_config`: A dictionary of output configuration options to be passed to the model.
 
         :param ignore_tools_thinking_messages: Anthropic's approach to tools (function calling) resolution involves a
             "chain of thought" messages before returning the actual function names and parameters in a message. If

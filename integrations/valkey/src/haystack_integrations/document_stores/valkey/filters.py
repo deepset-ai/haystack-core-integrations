@@ -118,6 +118,10 @@ def _parse_comparison_condition(condition: dict[str, Any], supported_fields: dic
 
     field_type = supported_fields[field]
 
+    # Normalize bool to int for numeric fields (Valkey Search expects numeric range syntax)
+    if field_type == "numeric" and isinstance(value, bool):
+        value = int(value)
+
     # Validate operator for field type
     if operator not in FIELD_TYPE_OPERATORS[field_type]:
         supported_ops = FIELD_TYPE_OPERATORS[field_type]

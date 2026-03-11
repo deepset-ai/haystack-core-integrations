@@ -585,13 +585,15 @@ def _convert_event_to_streaming_chunk(
             reasoning_content = delta["reasoningContent"]
             if "redactedContent" in reasoning_content:
                 reasoning_content["redacted_content"] = reasoning_content.pop("redactedContent")
+            reasoning_text = reasoning_content.get("text", "")
             streaming_chunk = StreamingChunk(
                 content="",
                 index=block_idx,
-                meta={
-                    **base_meta,
-                    "reasoning_contents": [{"index": block_idx, "reasoning_content": reasoning_content}],
-                },
+                reasoning=ReasoningContent(
+                    reasoning_text=reasoning_text,
+                    extra={"reasoning_contents": [{"index": block_idx, "reasoning_content": reasoning_content}]},
+                ),
+                meta=base_meta,
             )
 
     elif "messageStop" in event:
@@ -642,7 +644,10 @@ def _process_reasoning_contents(chunks: list[StreamingChunk]) -> ReasoningConten
     reasoning_signature = None
     redacted_content = None
     for chunk in chunks:
-        reasoning_contents = chunk.meta.get("reasoning_contents", [])
+        if chunk.reasoning and chunk.reasoning.extra:
+            reasoning_contents = chunk.reasoning.extra.get("reasoning_contents", [])
+        else:
+            reasoning_contents = []
 
         for reasoning_content in reasoning_contents:
             content_block_index = reasoning_content["index"]
