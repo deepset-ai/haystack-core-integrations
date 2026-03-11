@@ -560,16 +560,14 @@ class CohereChatGenerator:
         if timeout is not None:
             client_kwargs["timeout"] = timeout
 
-        self.client = ClientV2(
-            **client_kwargs,
-            httpx_client=HTTPXClient(transport=HTTPTransport(retries=max_retries) if max_retries is not None else None),
-        )
-        self.async_client = AsyncClientV2(
-            **client_kwargs,
-            httpx_client=AsyncHTTPXClient(
-                transport=AsyncHTTPTransport(retries=max_retries) if max_retries is not None else None
-            ),
-        )
+        sync_kwargs = {**client_kwargs}
+        async_kwargs = {**client_kwargs}
+        if max_retries is not None:
+            sync_kwargs["httpx_client"] = HTTPXClient(transport=HTTPTransport(retries=max_retries))
+            async_kwargs["httpx_client"] = AsyncHTTPXClient(transport=AsyncHTTPTransport(retries=max_retries))
+
+        self.client = ClientV2(**sync_kwargs)
+        self.async_client = AsyncClientV2(**async_kwargs)
 
     def _get_telemetry_data(self) -> dict[str, Any]:
         """
