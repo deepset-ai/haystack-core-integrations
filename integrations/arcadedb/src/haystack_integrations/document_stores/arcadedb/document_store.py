@@ -442,7 +442,7 @@ def _sql_str(value: str | None) -> str:
     return f"'{escaped}'"
 
 
-def _map_literal_base(value: object) -> str | float:
+def _map_literal_base(value: object) -> str | float | list[Any]:
     """Map Python type to ArcadeDB type."""
     if isinstance(value, str):
         return _sql_str(value)
