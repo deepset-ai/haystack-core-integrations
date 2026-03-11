@@ -8,7 +8,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from haystack import logging
 from haystack.components.generators.utils import print_streaming_chunk
-from haystack.dataclasses import ChatMessage, ChatRole, ImageContent, StreamingChunk
+from haystack.dataclasses import ChatMessage, ChatRole, ComponentInfo, ImageContent, StreamingChunk
 from haystack.tools import Tool, Toolset
 from haystack.utils import Secret
 
@@ -521,6 +521,118 @@ class TestWatsonxChatGenerator:
 
         with pytest.raises(ValueError, match="Image content is only supported for user messages"):
             generator._prepare_api_call(messages=[message])
+
+    def test_convert_chunk_to_streaming_chunk_real_example(
+        self, mock_watsonx: dict[str, AsyncMock | MagicMock]
+    ) -> None:
+        component = WatsonxChatGenerator(
+            project_id=Secret.from_token("test-project"), model="meta-llama/llama-3-2-11b-vision-instruct"
+        )
+        component_info = ComponentInfo.from_component(component)
+
+        # Chunk 1: Text only
+        chunk1 = {
+            "id": "chatcmpl-21e72dd9-ed65-49cc-9ea2-64d971707cda---2dedc26eab5af753744ed4eaa116a197---e0399d75-cd8c-486e-b907-dc211cb70eac",  # noqa: E501
+            "object": "chat.completion.chunk",
+            "model_id": "meta-llama/llama-3-2-11b-vision-instruct",
+            "model": "meta-llama/llama-3-2-11b-vision-instruct",
+            "choices": [
+                {
+                    "index": 0,
+                    "finish_reason": None,
+                    "delta": {"content": "I'll get the weather information for Paris and Berlin"},
+                }
+            ],
+            "created": 1773250972,
+            "model_version": "3.2.0",
+            "created_at": "2026-03-11T17:42:52.921Z",
+        }
+
+        streaming_chunk1 = component._convert_chunk_to_streaming_chunk(chunk=chunk1, component_info=component_info)
+        assert streaming_chunk1.content == "I'll get the weather information for Paris and Berlin"
+        assert streaming_chunk1.tool_calls is None
+        assert streaming_chunk1.finish_reason is None
+        assert streaming_chunk1.index == 0
+        assert "created" in streaming_chunk1.meta
+        assert "created_at" in streaming_chunk1.meta
+        assert "received_at" in streaming_chunk1.meta
+        assert streaming_chunk1.meta["model"] == "meta-llama/llama-3-2-11b-vision-instruct"
+        assert streaming_chunk1.meta["model_id"] == "meta-llama/llama-3-2-11b-vision-instruct"
+        assert streaming_chunk1.meta["model_version"] == "3.2.0"
+        assert streaming_chunk1.component_info == component_info
+
+        # Chunk 2: Text only
+        chunk2 = {
+            "id": "chatcmpl-21e72dd9-ed65-49cc-9ea2-64d971707cda---2dedc26eab5af753744ed4eaa116a197---e0399d75-cd8c-486e-b907-dc211cb70eac",  # noqa: E501
+            "object": "chat.completion.chunk",
+            "model_id": "meta-llama/llama-3-2-11b-vision-instruct",
+            "model": "meta-llama/llama-3-2-11b-vision-instruct",
+            "choices": [
+                {"index": 0, "finish_reason": None, "delta": {"content": " and present it in a structured format."}}
+            ],
+            "created": 1773250972,
+            "model_version": "3.2.0",
+            "created_at": "2026-03-11T17:42:52.929Z",
+        }
+
+        streaming_chunk2 = component._convert_chunk_to_streaming_chunk(chunk=chunk2, component_info=component_info)
+        assert streaming_chunk2.content == " and present it in a structured format."
+        assert streaming_chunk2.tool_calls is None
+        assert streaming_chunk2.finish_reason is None
+        assert streaming_chunk2.index == 0
+        assert "created" in streaming_chunk2.meta
+        assert "created_at" in streaming_chunk2.meta
+        assert "received_at" in streaming_chunk2.meta
+        assert streaming_chunk2.meta["model"] == "meta-llama/llama-3-2-11b-vision-instruct"
+        assert streaming_chunk2.meta["model_id"] == "meta-llama/llama-3-2-11b-vision-instruct"
+        assert streaming_chunk2.meta["model_version"] == "3.2.0"
+        assert streaming_chunk2.component_info == component_info
+
+        # Chunk 3: Multiple tool calls (6 function calls) for 2 cities with 3 tools each
+        chunk3 = {
+            "id": "chatcmpl-6b615ca6-4aa7-4f79-832f-bedce4641c2b---87fdc1a1cd2032ff0c6776ecfc20b6a5---34576777-949d-4df1-b95f-56d14b848eca",  # noqa: E501
+            "object": "chat.completion.chunk",
+            "model_id": "meta-llama/llama-3-2-11b-vision-instruct",
+            "model": "meta-llama/llama-3-2-11b-vision-instruct",
+            "choices": [
+                {
+                    "index": 0,
+                    "finish_reason": None,
+                    "delta": {
+                        "tool_calls": [
+                            {
+                                "index": 0,
+                                "id": "chatcmpl-tool-9646185282a54afc86c3572513b2dafa",
+                                "type": "function",
+                                "function": {"name": "weather", "arguments": ""},
+                            }
+                        ]
+                    },
+                }
+            ],
+            "created": 1773252289,
+            "model_version": "3.2.0",
+            "created_at": "2026-03-11T18:04:49.696Z",
+        }
+
+        streaming_chunk3 = component._convert_chunk_to_streaming_chunk(chunk=chunk3, component_info=component_info)
+        assert streaming_chunk3.content == ""
+        assert streaming_chunk3.tool_calls is not None
+        assert len(streaming_chunk3.tool_calls) == 1
+        assert streaming_chunk3.finish_reason is None
+        assert streaming_chunk3.index == 0
+        assert "created" in streaming_chunk3.meta
+        assert "created_at" in streaming_chunk3.meta
+        assert "received_at" in streaming_chunk3.meta
+        assert streaming_chunk3.meta["model"] == "meta-llama/llama-3-2-11b-vision-instruct"
+        assert streaming_chunk3.meta["model_id"] == "meta-llama/llama-3-2-11b-vision-instruct"
+        assert streaming_chunk3.meta["model_version"] == "3.2.0"
+        assert streaming_chunk3.component_info == component_info
+
+        assert streaming_chunk3.tool_calls[0].tool_name == "weather"
+        assert streaming_chunk3.tool_calls[0].arguments == ""
+        assert streaming_chunk3.tool_calls[0].id == "chatcmpl-tool-9646185282a54afc86c3572513b2dafa"
+        assert streaming_chunk3.tool_calls[0].index == 0
 
     def test_multimodal_message_processing(self, mock_watsonx):
         """Test multimodal message processing with mocked model."""

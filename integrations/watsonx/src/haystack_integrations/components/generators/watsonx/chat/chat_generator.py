@@ -388,6 +388,10 @@ class WatsonxChatGenerator:
         choice = chunk["choices"][0]
         chunk_meta = {
             "model": self.model,
+            "model_id": chunk.get("model_id"),
+            "model_version": chunk.get("model_version"),
+            "created": chunk.get("created"),
+            "created_at": chunk.get("created_at"),
             "received_at": datetime.now(timezone.utc).isoformat(),
         }
 
