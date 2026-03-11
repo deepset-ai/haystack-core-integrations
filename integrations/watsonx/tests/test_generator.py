@@ -185,7 +185,7 @@ class TestWatsonxGenerator:
         assert "usage" in result["meta"][0]
 
         mock_watsonx["model_instance"].chat.assert_called_once_with(
-            messages=[{"role": "user", "content": "Test prompt"}], params={}
+            messages=[{"role": "user", "content": "Test prompt"}], params={}, tools=None
         )
 
     def test_run_with_system_prompt(self, mock_watsonx):
@@ -203,7 +203,7 @@ class TestWatsonxGenerator:
             {"role": "system", "content": "You are a helpful assistant."},
             {"role": "user", "content": "Test prompt"},
         ]
-        mock_watsonx["model_instance"].chat.assert_called_once_with(messages=expected_messages, params={})
+        mock_watsonx["model_instance"].chat.assert_called_once_with(messages=expected_messages, params={}, tools=None)
 
     def test_run_with_generation_kwargs(self, mock_watsonx):
         generator = WatsonxGenerator(
@@ -218,6 +218,7 @@ class TestWatsonxGenerator:
         mock_watsonx["model_instance"].chat.assert_called_once_with(
             messages=[{"role": "user", "content": "Test prompt"}],
             params={"max_tokens": 100, "temperature": 0.7, "top_p": 0.9},
+            tools=None,
         )
 
     def test_run_with_streaming(self, mock_watsonx):
@@ -296,7 +297,7 @@ class TestWatsonxGenerator:
         assert result["meta"][0]["finish_reason"] == "completed"
 
         mock_watsonx["model_instance"].achat.assert_called_once_with(
-            messages=[{"role": "user", "content": "Test prompt"}], params={}
+            messages=[{"role": "user", "content": "Test prompt"}], params={}, tools=None
         )
 
     @pytest.mark.asyncio
@@ -315,7 +316,7 @@ class TestWatsonxGenerator:
             {"role": "system", "content": "You are a helpful assistant."},
             {"role": "user", "content": "Test prompt"},
         ]
-        mock_watsonx["model_instance"].achat.assert_called_once_with(messages=expected_messages, params={})
+        mock_watsonx["model_instance"].achat.assert_called_once_with(messages=expected_messages, params={}, tools=None)
 
     @pytest.mark.asyncio
     async def test_run_async_streaming(self, mock_watsonx):

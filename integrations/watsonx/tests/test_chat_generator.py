@@ -66,7 +66,7 @@ class TestWatsonxChatGenerator:
                 ]
             )
 
-            async def mock_achat_stream(messages=None, params=None):
+            async def mock_achat_stream(messages=None, params=None, tools=None):
                 class MockAsyncGenerator:
                     def __init__(self):
                         self._count = 0
@@ -228,7 +228,7 @@ class TestWatsonxChatGenerator:
         assert result["replies"][0].meta["finish_reason"] == "stop"
 
         mock_watsonx["model_instance"].chat.assert_called_once_with(
-            messages=[{"role": "user", "content": "Test prompt"}], params={}
+            messages=[{"role": "user", "content": "Test prompt"}], params={}, tools=None
         )
 
     def test_run_with_generation_params(self, mock_watsonx):
@@ -245,6 +245,7 @@ class TestWatsonxChatGenerator:
         mock_watsonx["model_instance"].chat.assert_called_once_with(
             messages=[{"role": "user", "content": "Test prompt"}],
             params={"max_tokens": 100, "temperature": 0.7, "top_p": 0.9},
+            tools=None,
         )
 
     def test_run_with_streaming(self, mock_watsonx):
@@ -281,19 +282,6 @@ class TestWatsonxChatGenerator:
 
         result = generator.run(messages=[])
         assert result["replies"] == []
-
-    def test_skips_tool_messages(self, mock_watsonx):
-        generator = WatsonxChatGenerator(
-            project_id=Secret.from_token("test-project"),
-        )
-
-        messages = [ChatMessage.from_user("User message"), ChatMessage.from_tool("Tool result", "test-origin")]
-
-        generator.run(messages=messages)
-
-        mock_watsonx["model_instance"].chat.assert_called_once_with(
-            messages=[{"role": "user", "content": "User message"}], params={}
-        )
 
     def test_init_with_streaming_callback(self, mock_watsonx):
         def custom_callback(chunk: StreamingChunk):

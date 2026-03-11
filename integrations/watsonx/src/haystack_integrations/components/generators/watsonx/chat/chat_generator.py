@@ -166,6 +166,7 @@ class WatsonxChatGenerator:
         self.max_retries = max_retries
         self.verify = verify
         self.streaming_callback = streaming_callback
+        self.tools = tools
 
         self._initialize_client()
 
@@ -380,7 +381,7 @@ class WatsonxChatGenerator:
             "received_at": datetime.now(timezone.utc).isoformat(),
         }
 
-        if choice["delta"] and (choice_delta_tool_calls := choice["delta"]["tool_calls"]):
+        if choice["delta"] and (choice_delta_tool_calls := choice["delta"].get("tool_calls")):
             # create a list of ToolCallDelta objects from the tool calls
             tool_calls_deltas = [
                 ToolCallDelta(
@@ -428,7 +429,7 @@ class WatsonxChatGenerator:
         """
         chunks: list[StreamingChunk] = []
         stream = self.client.chat_stream(
-            messages=api_args["messages"], params=api_args["params"], tools=api_args["tools"]
+            messages=api_args["messages"], params=api_args["params"], tools=api_args.get("tools")
         )
         component_info = ComponentInfo.from_component(self)
 
@@ -444,7 +445,9 @@ class WatsonxChatGenerator:
 
     def _handle_standard(self, api_args: dict[str, Any]) -> dict[str, list[ChatMessage]]:
         """Handle synchronous standard response."""
-        response = self.client.chat(messages=api_args["messages"], params=api_args["params"], tools=api_args["tools"])
+        response = self.client.chat(
+            messages=api_args["messages"], params=api_args["params"], tools=api_args.get("tools")
+        )
         return self._process_response(response)
 
     async def _handle_async_streaming(
@@ -456,7 +459,7 @@ class WatsonxChatGenerator:
         """Handle asynchronous streaming response."""
         chunks: list[StreamingChunk] = []
         stream_generator = await self.client.achat_stream(
-            messages=api_args["messages"], params=api_args["params"], tools=api_args["tools"]
+            messages=api_args["messages"], params=api_args["params"], tools=api_args.get("tools")
         )
         component_info = ComponentInfo.from_component(self)
 
@@ -473,7 +476,7 @@ class WatsonxChatGenerator:
     async def _handle_async_standard(self, api_args: dict[str, Any]) -> dict[str, list[ChatMessage]]:
         """Handle asynchronous standard response."""
         response = await self.client.achat(
-            messages=api_args["messages"], params=api_args["params"], tools=api_args["tools"]
+            messages=api_args["messages"], params=api_args["params"], tools=api_args.get("tools")
         )
         return self._process_response(response)
 
@@ -487,6 +490,7 @@ class WatsonxChatGenerator:
         for choice in choices:
             message = choice.get("message", {})
 
+            message_tool_calls: list[ToolCall] | None = None
             if tool_calls := message.get("tool_calls", []):
                 message_tool_calls = [
                     ToolCall(
