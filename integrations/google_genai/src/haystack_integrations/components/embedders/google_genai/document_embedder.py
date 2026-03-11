@@ -207,7 +207,7 @@ class GoogleGenAIDocumentEmbedder:
         for batch in tqdm(
             batched(texts_to_embed, batch_size), disable=not self._progress_bar, desc="Calculating embeddings"
         ):
-            args: dict[str, Any] = {"model": self._model, "contents": [b[1] for b in batch]}
+            args: dict[str, Any] = {"model": self._model, "contents": list(batch)}
             if resolved_config:
                 args["config"] = resolved_config
 
@@ -238,7 +238,7 @@ class GoogleGenAIDocumentEmbedder:
         for batch in tqdm(
             batched(texts_to_embed, batch_size), disable=not self._progress_bar, desc="Calculating embeddings"
         ):
-            args: dict[str, Any] = {"model": self._model, "contents": [b[1] for b in batch]}
+            args: dict[str, Any] = {"model": self._model, "contents": list(batch)}
             if self._config:
                 args["config"] = types.EmbedContentConfig(**self._config) if self._config else None
 
