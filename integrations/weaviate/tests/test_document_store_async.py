@@ -588,4 +588,4 @@ class TestWeaviateDocumentStoreAsync:
         with caplog.at_level(logging.WARNING):
             await document_store.delete_all_documents_async(batch_size=20000)
         assert await document_store.count_documents_async() == 5
-        assert "Not all documents in the batch have been deleted." in caplog.text
+        assert "Not all documents have been deleted." in caplog.text

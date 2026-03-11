@@ -5,17 +5,14 @@
 import base64
 import datetime
 import json
-from asyncio import Semaphore, gather
 from dataclasses import asdict
 from typing import Any, NoReturn
-from uuid import UUID
 
 from haystack import logging
 from haystack.core.serialization import default_from_dict, default_to_dict
 from haystack.dataclasses.document import Document
 from haystack.document_stores.errors import DocumentStoreError, DuplicateDocumentError
 from haystack.document_stores.types.policy import DuplicatePolicy
-from more_itertools import batched
 
 import weaviate
 from weaviate.collections.classes.aggregate import (
@@ -69,6 +66,9 @@ DOCUMENT_COLLECTION_PROPERTIES = [
 # See WeaviateDocumentStore._query_with_filters() for more information.
 DEFAULT_QUERY_LIMIT = 9999
 
+# See weaviate.collections.queries.hybrid.query.sync.pyi for the default value of alpha
+DEFAULT_ALPHA = 0.7
+
 
 class WeaviateDocumentStore:
     """
@@ -112,7 +112,6 @@ class WeaviateDocumentStore:
         additional_config: AdditionalConfig | None = None,
         grpc_port: int = 50051,
         grpc_secure: bool = False,
-        concurrency_limit: int = 5,
     ) -> None:
         """
         Create a new instance of WeaviateDocumentStore and connects to the Weaviate instance.
@@ -156,8 +155,6 @@ class WeaviateDocumentStore:
             The port to use for the gRPC connection.
         :param grpc_secure:
             Whether to use a secure channel for the underlying gRPC API.
-        :param concurrency_limit:
-            Number of parallel requests to make. Default is 5.
         """
         self._url = url
         self._auth_client_secret = auth_client_secret
@@ -166,7 +163,6 @@ class WeaviateDocumentStore:
         self._additional_config = additional_config
         self._grpc_port = grpc_port
         self._grpc_secure = grpc_secure
-        self.concurrency_limit = concurrency_limit
         self._client: weaviate.WeaviateClient | None = None
         self._async_client: weaviate.WeaviateAsyncClient | None = None
         self._collection: weaviate.Collection | None = None
@@ -1225,7 +1221,6 @@ class WeaviateDocumentStore:
             Reference: https://docs.weaviate.io/weaviate/manage-objects/delete#delete-all-objects
         """
         client = await self.async_client
-        sem = Semaphore(max(1, self.concurrency_limit))
 
         if recreate_index:
             # get current up-to-date config from server, so we can recreate the collection faithfully
@@ -1245,17 +1240,22 @@ class WeaviateDocumentStore:
         collection = await self.async_collection
         async for obj in collection.iterator(return_properties=[], include_vector=False):
             uuids.append(obj.uuid)
-
-        async def _runner(uuids: list[UUID]) -> None:
-            async with sem:
+            if len(uuids) >= batch_size:
                 res = await collection.data.delete_many(where=weaviate.classes.query.Filter.by_id().contains_any(uuids))
+                if res.successful < len(uuids):
+                    logger.warning(
+                        "Not all documents in the batch have been deleted. "
+                        "Make sure to specify a deletion `batch_size` which is less than `QUERY_MAXIMUM_RESULTS`.",
+                    )
+                uuids.clear()
+
+        if uuids:
+            res = await collection.data.delete_many(where=weaviate.classes.query.Filter.by_id().contains_any(uuids))
             if res.successful < len(uuids):
                 logger.warning(
-                    "Not all documents in the batch have been deleted. "
+                    "Not all documents have been deleted. "
                     "Make sure to specify a deletion `batch_size` which is less than `QUERY_MAXIMUM_RESULTS`.",
                 )
-
-        await gather(*[_runner(list(batch)) for batch in batched(uuids, batch_size)])
 
     def delete_by_filter(self, filters: dict[str, Any]) -> int:
         """
@@ -1572,12 +1572,10 @@ class WeaviateDocumentStore:
         query_embedding: list[float],
         filters: dict[str, Any] | None = None,
         top_k: int | None = None,
-        alpha: float | None = None,
+        alpha: float = DEFAULT_ALPHA,
         max_vector_distance: float | None = None,
     ) -> list[Document]:
         properties = [p.name for p in self.collection.config.get().properties]
-        if alpha is None:
-            alpha = 0.7
         result = self.collection.query.hybrid(
             query=query,
             vector=query_embedding,
@@ -1599,14 +1597,12 @@ class WeaviateDocumentStore:
         query_embedding: list[float],
         filters: dict[str, Any] | None = None,
         top_k: int | None = None,
-        alpha: float | None = None,
+        alpha: float = DEFAULT_ALPHA,
         max_vector_distance: float | None = None,
     ) -> list[Document]:
         collection = await self.async_collection
         config = await collection.config.get()
         properties = [p.name for p in config.properties]
-        if alpha is None:
-            alpha = 0.7
         result = await collection.query.hybrid(
             query=query,
             vector=query_embedding,
