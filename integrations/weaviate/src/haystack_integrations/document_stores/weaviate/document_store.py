@@ -66,9 +66,6 @@ DOCUMENT_COLLECTION_PROPERTIES = [
 # See WeaviateDocumentStore._query_with_filters() for more information.
 DEFAULT_QUERY_LIMIT = 9999
 
-# See weaviate.collections.queries.hybrid.query.sync.pyi for the default value of alpha
-DEFAULT_ALPHA = 0.7
-
 
 class WeaviateDocumentStore:
     """
@@ -1572,7 +1569,7 @@ class WeaviateDocumentStore:
         query_embedding: list[float],
         filters: dict[str, Any] | None = None,
         top_k: int | None = None,
-        alpha: float = DEFAULT_ALPHA,
+        alpha: float = 0.7,
         max_vector_distance: float | None = None,
     ) -> list[Document]:
         properties = [p.name for p in self.collection.config.get().properties]
@@ -1597,7 +1594,7 @@ class WeaviateDocumentStore:
         query_embedding: list[float],
         filters: dict[str, Any] | None = None,
         top_k: int | None = None,
-        alpha: float = DEFAULT_ALPHA,
+        alpha: float = 0.7,
         max_vector_distance: float | None = None,
     ) -> list[Document]:
         collection = await self.async_collection

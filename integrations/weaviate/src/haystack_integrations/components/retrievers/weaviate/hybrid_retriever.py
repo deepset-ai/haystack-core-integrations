@@ -9,7 +9,6 @@ from haystack.document_stores.types import FilterPolicy
 from haystack.document_stores.types.filter_policy import apply_filter_policy
 
 from haystack_integrations.document_stores.weaviate import WeaviateDocumentStore
-from haystack_integrations.document_stores.weaviate.document_store import DEFAULT_ALPHA
 
 
 @component
@@ -24,7 +23,7 @@ class WeaviateHybridRetriever:
         document_store: WeaviateDocumentStore,
         filters: dict[str, Any] | None = None,
         top_k: int = 10,
-        alpha: float = DEFAULT_ALPHA,
+        alpha: float = 0.7,
         max_vector_distance: float | None = None,
         filter_policy: str | FilterPolicy = FilterPolicy.REPLACE,
     ):
