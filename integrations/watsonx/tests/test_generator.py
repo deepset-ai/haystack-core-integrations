@@ -135,6 +135,7 @@ class TestWatsonxGenerator:
                 "timeout": None,
                 "max_retries": None,
                 "streaming_callback": None,
+                "tools": None,
             },
         }
         assert data == expected

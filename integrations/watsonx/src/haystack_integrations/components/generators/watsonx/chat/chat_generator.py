@@ -2,6 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+import json
 from datetime import datetime, timezone
 from typing import Any, Literal, get_args
 
@@ -22,7 +23,13 @@ from haystack.dataclasses import (
     ToolCallDelta,
     select_streaming_callback,
 )
-from haystack.tools import ToolsType, _check_duplicate_tool_names, flatten_tools_or_toolsets
+from haystack.tools import (
+    ToolsType,
+    _check_duplicate_tool_names,
+    deserialize_tools_or_toolset_inplace,
+    flatten_tools_or_toolsets,
+    serialize_tools_or_toolset,
+)
 from haystack.utils import Secret, deserialize_callable, deserialize_secrets_inplace, serialize_callable
 from ibm_watsonx_ai import Credentials
 from ibm_watsonx_ai.foundation_models import ModelInference
@@ -190,6 +197,7 @@ class WatsonxChatGenerator:
             The serialized component as a dictionary.
         """
         callback_name = serialize_callable(self.streaming_callback) if self.streaming_callback else None
+        serialized_tools = serialize_tools_or_toolset(self.tools) if self.tools else None
         return default_to_dict(
             self,
             model=self.model,
@@ -201,6 +209,7 @@ class WatsonxChatGenerator:
             max_retries=self.max_retries,
             verify=self.verify,
             streaming_callback=callback_name,
+            tools=serialized_tools,
         )
 
     @classmethod
@@ -214,6 +223,7 @@ class WatsonxChatGenerator:
             The deserialized component instance.
         """
         deserialize_secrets_inplace(data["init_parameters"], keys=["api_key", "project_id"])
+        deserialize_tools_or_toolset_inplace(data["init_parameters"], key="tools")
         init_params = data.get("init_parameters", {})
         serialized_callback = init_params.get("streaming_callback")
         if serialized_callback:
@@ -386,7 +396,7 @@ class WatsonxChatGenerator:
             tool_calls_deltas = [
                 ToolCallDelta(
                     index=tool_call["index"],
-                    id=tool_call["id"],
+                    id=tool_call.get("id"),
                     tool_name=tool_call.get("function", {}).get("name"),
                     arguments=tool_call.get("function", {}).get("arguments"),
                 )
@@ -496,7 +506,7 @@ class WatsonxChatGenerator:
                     ToolCall(
                         id=tool_call["id"],
                         tool_name=tool_call["function"]["name"],
-                        arguments=tool_call["function"]["arguments"],
+                        arguments=json.loads(tool_call["function"]["arguments"]),
                     )
                     for tool_call in tool_calls
                 ]
