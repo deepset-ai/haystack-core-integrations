@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/google_genai-v3.10.1] - 2026-03-11
+
+### 🐛 Bug Fixes
+
+- Fix wrong batching in Google GenAI Document Embedder (#2951)
+
+
 ## [integrations/google_genai-v3.10.0] - 2026-03-10
 
 ### 🚀 Features
