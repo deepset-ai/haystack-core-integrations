@@ -22,7 +22,7 @@ classifiers = [
     "Programming Language :: Python :: Implementation :: CPython",
     "Programming Language :: Python :: Implementation :: PyPy",
 ]
-dependencies = ["haystack-ai>=2.0.0", "dspy>=3.0.0"]
+dependencies = ["haystack-ai>=2.22.0", "dspy>=3.0.0"]
 
 [project.urls]
 Documentation = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/dspy#readme"
@@ -72,6 +72,10 @@ install_types = true
 non_interactive = true
 check_untyped_defs = true
 disallow_incomplete_defs = true
+
+[[tool.mypy.overrides]]
+module = "dspy.*"
+ignore_missing_imports = true
 
 [tool.hatch.metadata]
 allow-direct-references = true
@@ -129,7 +133,7 @@ ban-relative-imports = "parents"
 
 [tool.ruff.lint.per-file-ignores]
 # Tests can use magic values, assertions, and relative imports
-"tests/**/*" = ["PLR2004", "S101", "TID252"]
+"tests/**/*" = ["PLR2004", "S101", "TID252", "ARG002"]
 # Examples can print their output
 "examples/**" = ["T201"]
 

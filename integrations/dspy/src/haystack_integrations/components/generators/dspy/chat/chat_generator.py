@@ -25,7 +25,7 @@ def _configure_dspy_lm(model: str, api_base: str | None = None, **kwargs: Any) -
     return lm
 
 
-def _get_dspy_module_class(module_type: str):
+def _get_dspy_module_class(module_type: str) -> type:
     """
     Map a module type string to the corresponding DSPy module class.
 
@@ -148,7 +148,7 @@ class DSPySignatureChatGenerator:
         module_class = _get_dspy_module_class(self.module_type)
         self._module = module_class(self.signature, **self.module_kwargs)
 
-    def _build_dspy_inputs(self, prompt: str, **kwargs) -> dict[str, Any]:
+    def _build_dspy_inputs(self, prompt: str, **kwargs: Any) -> dict[str, Any]:
         """Build the input dict for the DSPy module call."""
         if self.input_mapping:
             dspy_inputs = {}
@@ -180,8 +180,8 @@ class DSPySignatureChatGenerator:
         """Extract the text of the last user message from a list of chat messages."""
         for msg in reversed(messages):
             if msg.role == ChatRole.USER:
-                return msg.text
-        return messages[-1].text
+                return msg.text or ""
+        return messages[-1].text or ""
 
     def _signature_to_string(self) -> str:
         """
@@ -227,7 +227,7 @@ class DSPySignatureChatGenerator:
         self,
         messages: list[ChatMessage],
         generation_kwargs: dict[str, Any] | None = None,
-        **kwargs,
+        **kwargs: Any,
     ) -> dict[str, Any]:
         """
         Run the DSPy module on the given messages.
@@ -256,7 +256,7 @@ class DSPySignatureChatGenerator:
         self,
         messages: list[ChatMessage],
         generation_kwargs: dict[str, Any] | None = None,
-        **kwargs,
+        **kwargs: Any,
     ) -> dict[str, Any]:
         """
         Asynchronously run the DSPy module on the given messages.

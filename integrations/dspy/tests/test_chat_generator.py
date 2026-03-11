@@ -405,7 +405,7 @@ class TestDSPySignatureChatGenerator:
             input_mapping={"context": "context", "question": "question"},
         )
         messages = [ChatMessage.from_user("What is ML?")]
-        response = component.run(messages=messages, context="Machine learning is a subset of AI.")
+        component.run(messages=messages, context="Machine learning is a subset of AI.")
 
         call_kwargs = mock_dspy_module.call_args.kwargs
         assert call_kwargs.get("context") == "Machine learning is a subset of AI."
