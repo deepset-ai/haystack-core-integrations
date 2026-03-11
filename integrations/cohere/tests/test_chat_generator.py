@@ -702,7 +702,7 @@ class TestCohereChatGeneratorInference:
         )
 
         pipeline = Pipeline()
-        pipeline.add_component("generator", CohereChatGenerator(model="command-r-08-2024", tools=[weather_tool]))
+        pipeline.add_component("generator", CohereChatGenerator(model="command-r7b-12-2024", tools=[weather_tool]))
         pipeline.add_component("tool_invoker", ToolInvoker(tools=[weather_tool]))
 
         pipeline.connect("generator", "tool_invoker")
