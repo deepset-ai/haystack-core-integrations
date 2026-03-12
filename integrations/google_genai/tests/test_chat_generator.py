@@ -219,11 +219,16 @@ class TestGoogleGenAIChatGeneratorInitSerDe:
         data = generator.to_dict()
 
         response_format = data["init_parameters"]["generation_kwargs"]["response_format"]
-        assert isinstance(response_format, dict)
-        assert response_format["type"] == "object"
-        assert "name" in response_format["properties"]
-        assert "country" in response_format["properties"]
-        assert "population" in response_format["properties"]
+        assert response_format == {
+            "properties": {
+                "name": {"title": "Name", "type": "string"},
+                "country": {"title": "Country", "type": "string"},
+                "population": {"title": "Population", "type": "integer"},
+            },
+            "required": ["name", "country", "population"],
+            "title": "City",
+            "type": "object",
+        }
 
     def test_to_dict_with_response_format_dict(self, monkeypatch):
         """Test that to_dict preserves a dict response_format as is."""
