@@ -42,6 +42,7 @@ from haystack import default_from_dict, default_to_dict, logging
 from haystack.dataclasses import Document
 from haystack.document_stores.types import DuplicatePolicy
 from haystack.utils import Secret, deserialize_secrets_inplace
+from haystack.utils.misc import _normalize_metadata_field_name
 
 from .errors import AzureAISearchDocumentStoreConfigError, AzureAISearchDocumentStoreError
 from .filters import _normalize_filters
@@ -360,13 +361,6 @@ class AzureAISearchDocumentStore:
         """
         return self.client.get_document_count()
 
-    @staticmethod
-    def _normalize_metadata_field_name(metadata_field: str) -> str:
-        """
-        Normalizes a metadata field name by removing the `meta.` prefix if present.
-        """
-        return metadata_field[5:] if metadata_field.startswith("meta.") else metadata_field
-
     def _get_index_schema_fields(self) -> dict[str, Any]:
         """
         Returns the index schema fields keyed by field name.
@@ -482,7 +476,7 @@ class AzureAISearchDocumentStore:
         :param metadata_fields: List of field names to count unique values for.
         :returns: Dictionary mapping field names to counts of unique values.
         """
-        normalized_metadata_fields = [self._normalize_metadata_field_name(field) for field in metadata_fields]
+        normalized_metadata_fields = [_normalize_metadata_field_name(field) for field in metadata_fields]
         self._validate_index_fields(normalized_metadata_fields)
 
         documents = self._fetch_raw_documents(filters=filters, select=normalized_metadata_fields)
@@ -511,7 +505,7 @@ class AzureAISearchDocumentStore:
         :param metadata_field: The metadata field to get the minimum and maximum values for.
         :returns: A dictionary with the keys "min" and "max".
         """
-        field_name = self._normalize_metadata_field_name(metadata_field)
+        field_name = _normalize_metadata_field_name(metadata_field)
         self._validate_index_fields([field_name])
 
         documents = self._fetch_raw_documents(select=[field_name])
@@ -529,7 +523,7 @@ class AzureAISearchDocumentStore:
         :param size: Number of values to return.
         :returns: Tuple of (list of unique values, total count of matching values).
         """
-        field_name = self._normalize_metadata_field_name(metadata_field)
+        field_name = _normalize_metadata_field_name(metadata_field)
         self._validate_index_fields([field_name])
 
         documents = self._fetch_raw_documents(select=[field_name])
