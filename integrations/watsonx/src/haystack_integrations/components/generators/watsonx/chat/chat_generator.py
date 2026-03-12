@@ -522,7 +522,7 @@ class WatsonxChatGenerator:
         return self._process_response(response)
 
     @staticmethod
-    def _parse_tool_call_json(tool_call: object) -> dict[str, Any]:
+    def _parse_tool_call_json(tool_call: str | dict) -> dict[str, Any]:
         """Parse tool call json from Watsonx tool calls."""
         if isinstance(tool_call, dict):
             return tool_call
