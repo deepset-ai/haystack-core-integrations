@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/anthropic-v5.6.1] - 2026-03-12
+
+### 🧹 Chores
+
+- AnthropicVertexChatGenerator - add SUPPORTED_MODELS docstring (#2954)
+
+
 ## [integrations/anthropic-v5.6.0] - 2026-03-11
 
 ### 🚀 Features
