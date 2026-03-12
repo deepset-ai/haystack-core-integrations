@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/mistral-v1.1.0] - 2026-03-12
+
+### 🚀 Features
+
+- List supported models for Mistral integration (#2955)
+
+
 ## [integrations/mistral-v1.0.1] - 2026-03-11
 
 ### 📚 Documentation
