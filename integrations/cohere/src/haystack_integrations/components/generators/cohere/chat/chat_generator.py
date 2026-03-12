@@ -22,8 +22,11 @@ from haystack.tools import (
     flatten_tools_or_toolsets,
     serialize_tools_or_toolset,
 )
-from haystack.utils import Secret, deserialize_secrets_inplace
+from haystack.utils import Secret
 from haystack.utils.callable_serialization import deserialize_callable, serialize_callable
+from httpx import AsyncClient as AsyncHTTPXClient
+from httpx import AsyncHTTPTransport, HTTPTransport
+from httpx import Client as HTTPXClient
 
 from cohere import AsyncClientV2, ChatResponse, ClientV2, StreamedChatResponseV2
 
@@ -502,7 +505,9 @@ class CohereChatGenerator:
         api_base_url: str | None = None,
         generation_kwargs: dict[str, Any] | None = None,
         tools: ToolsType | None = None,
-        **kwargs: Any,
+        *,
+        timeout: float | None = None,
+        max_retries: int | None = None,
     ):
         """
         Initialize the CohereChatGenerator instance.
@@ -526,31 +531,43 @@ class CohereChatGenerator:
               mean less random generations.
         :param tools: A list of Tool and/or Toolset objects, or a single Toolset that the model can use.
             Each tool should have a unique name.
+        :param timeout:
+            Timeout for Cohere client calls. If not set, it defaults to the default set by the Cohere client.
+        :param max_retries:
+            Maximum number of retries to attempt for failed requests. If not set, it defaults to the default set by
+            the Cohere client.
 
         """
         _check_duplicate_tool_names(flatten_tools_or_toolsets(tools))
 
         if not api_base_url:
             api_base_url = "https://api.cohere.com"
-        if generation_kwargs is None:
-            generation_kwargs = {}
+
         self.api_key = api_key
         self.model = model
         self.streaming_callback = streaming_callback
         self.api_base_url = api_base_url
-        self.generation_kwargs = generation_kwargs
+        self.generation_kwargs = generation_kwargs or {}
         self.tools = tools
-        self.model_parameters = kwargs
-        self.client = ClientV2(
-            api_key=self.api_key.resolve_value(),
-            base_url=self.api_base_url,
-            client_name="haystack",
-        )
-        self.async_client = AsyncClientV2(
-            api_key=self.api_key.resolve_value(),
-            base_url=self.api_base_url,
-            client_name="haystack",
-        )
+        self.timeout = timeout
+        self.max_retries = max_retries
+
+        client_kwargs: dict[str, Any] = {
+            "api_key": self.api_key.resolve_value(),
+            "base_url": self.api_base_url,
+            "client_name": "haystack",
+        }
+        if timeout is not None:
+            client_kwargs["timeout"] = timeout
+
+        sync_kwargs = {**client_kwargs}
+        async_kwargs = {**client_kwargs}
+        if max_retries is not None:
+            sync_kwargs["httpx_client"] = HTTPXClient(transport=HTTPTransport(retries=max_retries))
+            async_kwargs["httpx_client"] = AsyncHTTPXClient(transport=AsyncHTTPTransport(retries=max_retries))
+
+        self.client = ClientV2(**sync_kwargs)
+        self.async_client = AsyncClientV2(**async_kwargs)
 
     def _get_telemetry_data(self) -> dict[str, Any]:
         """
@@ -571,9 +588,11 @@ class CohereChatGenerator:
             model=self.model,
             streaming_callback=callback_name,
             api_base_url=self.api_base_url,
-            api_key=self.api_key.to_dict(),
+            api_key=self.api_key,
             generation_kwargs=self.generation_kwargs,
             tools=serialize_tools_or_toolset(self.tools),
+            timeout=self.timeout,
+            max_retries=self.max_retries,
         )
 
     @classmethod
@@ -587,7 +606,6 @@ class CohereChatGenerator:
                Deserialized component.
         """
         init_params = data.get("init_parameters", {})
-        deserialize_secrets_inplace(init_params, ["api_key"])
         deserialize_tools_or_toolset_inplace(init_params, key="tools")
         serialized_callback_handler = init_params.get("streaming_callback")
         if serialized_callback_handler:

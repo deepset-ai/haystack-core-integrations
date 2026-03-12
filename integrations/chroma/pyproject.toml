@@ -24,7 +24,7 @@ classifiers = [
 ]
 dependencies = [
   "haystack-ai>=2.24.0",
-  "chromadb>=1.0.2"
+  "chromadb>=1.5.0"
 ]
 
 [project.urls]

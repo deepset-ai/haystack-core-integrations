@@ -1,5 +1,11 @@
+# SPDX-FileCopyrightText: 2023-present deepset GmbH <info@deepset.ai>
+#
+# SPDX-License-Identifier: Apache-2.0
+
 # ruff: noqa: S110
+
 import struct
+from dataclasses import replace
 
 import pytest
 from glide_shared.commands.server_modules.ft_options.ft_create_options import DistanceMetricType
@@ -7,14 +13,43 @@ from glide_shared.commands.server_modules.ft_options.ft_search_options import Ft
 from haystack.dataclasses import Document
 from haystack.dataclasses.byte_stream import ByteStream
 from haystack.document_stores.types import DuplicatePolicy
-from haystack.testing.document_store import CountDocumentsTest, DeleteDocumentsTest, WriteDocumentsTest
+from haystack.testing.document_store import (
+    CountDocumentsTest,
+    DeleteAllTest,
+    DeleteByFilterTest,
+    DeleteDocumentsTest,
+    FilterableDocsFixtureMixin,
+    UpdateByFilterTest,
+    WriteDocumentsTest,
+    create_filterable_docs,
+)
 from haystack.utils import Secret
 
 from haystack_integrations.document_stores.valkey import ValkeyDocumentStore
 
 
+def _filterable_docs_embedding_dim_3() -> list[Document]:
+    """Filterable docs with 3-dim embeddings for Valkey (store uses embedding_dim=3)."""
+    docs = create_filterable_docs()
+    return [
+        replace(
+            d,
+            embedding=d.embedding[:3] if d.embedding and len(d.embedding) >= 3 else [0.0, 0.0, 0.0],
+        )
+        for d in docs
+    ]
+
+
 @pytest.mark.integration
-class TestValkeyDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocumentsTest):
+class TestValkeyDocumentStore(
+    CountDocumentsTest,
+    WriteDocumentsTest,
+    DeleteAllTest,
+    DeleteByFilterTest,
+    DeleteDocumentsTest,
+    FilterableDocsFixtureMixin,
+    UpdateByFilterTest,
+):
     @pytest.fixture
     def document_store(self):
         store = ValkeyDocumentStore(
@@ -27,6 +62,16 @@ class TestValkeyDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocu
                 "score": int,
                 "timestamp": int,
                 "quality": str,
+                "year": int,
+                "featured": int,  # for base-class test_update_by_filter_advanced_filters (meta.featured)
+                # for base-class UpdateByFilterTest.filterable_docs and filter tests:
+                "name": str,
+                "page": str,
+                "chapter": str,
+                "number": int,
+                "date": str,
+                "updated": int,  # bool from update_by_filter tests
+                "extra_field": str,
             },
         )
         yield store
@@ -35,6 +80,11 @@ class TestValkeyDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocu
             store.close()
         except Exception:
             pass
+
+    @pytest.fixture
+    def filterable_docs(self) -> list[Document]:
+        """Filterable docs with 3-dim embeddings (Valkey store uses embedding_dim=3)."""
+        return _filterable_docs_embedding_dim_3()
 
     def test_write_documents(self, document_store):
         """Test default write_documents() behavior (OVERWRITE by default)."""
@@ -483,25 +533,6 @@ class TestValkeyDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocu
         assert len(results) == 2
         assert {doc.id for doc in results} == {"c1", "c2"}
 
-    def test_delete_all_documents(self, document_store):
-        docs = [
-            Document(id="del1", content="doc 1", embedding=[0.1, 0.2, 0.3]),
-            Document(id="del2", content="doc 2", embedding=[0.4, 0.5, 0.6]),
-            Document(id="del3", content="doc 3", embedding=[0.7, 0.8, 0.9]),
-        ]
-
-        document_store.write_documents(docs)
-        assert document_store.count_documents() == 3
-
-        document_store.delete_all_documents()
-        assert document_store.count_documents() == 0
-
-    def test_delete_all_documents_empty_store(self, document_store):
-        assert document_store.count_documents() == 0
-
-        document_store.delete_all_documents()
-        assert document_store.count_documents() == 0
-
     def test_similarity_scores_are_set_correctly(self, document_store):
         """Test that similarity scores are properly computed and set for all returned documents."""
         docs = [
@@ -596,6 +627,139 @@ class TestValkeyDocumentStore(CountDocumentsTest, WriteDocumentsTest, DeleteDocu
             assert doc.score is not None  # Vector similarity score
             assert "score" in doc.meta  # User metadata score
             assert doc.meta["score"] >= 0.7
+
+    def test_count_documents_by_filter(self, document_store):
+        """Test counting documents that match a filter."""
+        docs = [
+            Document(id="cbf1", content="doc 1", embedding=[0.1, 0.2, 0.3], meta={"category": "a", "priority": 1}),
+            Document(id="cbf2", content="doc 2", embedding=[0.2, 0.3, 0.4], meta={"category": "b", "priority": 2}),
+            Document(id="cbf3", content="doc 3", embedding=[0.3, 0.4, 0.5], meta={"category": "a", "priority": 3}),
+        ]
+        document_store.write_documents(docs)
+
+        filters_a = {"operator": "AND", "conditions": [{"field": "meta.category", "operator": "==", "value": "a"}]}
+        assert document_store.count_documents_by_filter(filters_a) == 2
+        filters_b = {"operator": "AND", "conditions": [{"field": "meta.category", "operator": "==", "value": "b"}]}
+        assert document_store.count_documents_by_filter(filters_b) == 1
+        filters_none = {"operator": "AND", "conditions": [{"field": "meta.category", "operator": "==", "value": "z"}]}
+        assert document_store.count_documents_by_filter(filters_none) == 0
+
+    def test_count_unique_metadata_by_filter(self, document_store):
+        """Test counting unique values per metadata field for documents matching a filter."""
+        docs = [
+            Document(id="cumb1", content="doc 1", embedding=[0.1, 0.2, 0.3], meta={"category": "tech", "priority": 1}),
+            Document(id="cumb2", content="doc 2", embedding=[0.2, 0.3, 0.4], meta={"category": "tech", "priority": 2}),
+            Document(id="cumb3", content="doc 3", embedding=[0.3, 0.4, 0.5], meta={"category": "news", "priority": 2}),
+        ]
+        document_store.write_documents(docs)
+
+        filters = {"operator": "AND", "conditions": [{"field": "meta.priority", "operator": ">=", "value": 1}]}
+        counts = document_store.count_unique_metadata_by_filter(filters, metadata_fields=["category", "priority"])
+        assert counts["category"] == 2
+        assert counts["priority"] == 2
+
+    def test_count_unique_metadata_by_filter_empty_result(self, document_store):
+        """Test count_unique_metadata_by_filter when filter matches no documents."""
+        docs = [
+            Document(id="cumb_e1", content="doc 1", embedding=[0.1, 0.2, 0.3], meta={"category": "x"}),
+        ]
+        document_store.write_documents(docs)
+        filters = {"operator": "AND", "conditions": [{"field": "meta.category", "operator": "==", "value": "y"}]}
+        counts = document_store.count_unique_metadata_by_filter(filters, metadata_fields=["category"])
+        assert counts["category"] == 0
+
+    def test_get_metadata_fields_info(self, document_store):
+        """Test get_metadata_fields_info returns configured field names and types."""
+        info = document_store.get_metadata_fields_info()
+        assert "category" in info
+        assert info["category"]["type"] == "keyword"
+        assert "priority" in info
+        assert info["priority"]["type"] == "long"
+        assert "status" in info
+        assert "score" in info
+        assert "timestamp" in info
+        assert "quality" in info
+
+    def test_get_metadata_field_min_max(self, document_store):
+        """Test get_metadata_field_min_max for a numeric field."""
+        docs = [
+            Document(id="gmm1", content="doc 1", embedding=[0.1, 0.2, 0.3], meta={"priority": 10, "category": "a"}),
+            Document(id="gmm2", content="doc 2", embedding=[0.2, 0.3, 0.4], meta={"priority": 5, "category": "b"}),
+            Document(id="gmm3", content="doc 3", embedding=[0.3, 0.4, 0.5], meta={"priority": 20, "category": "c"}),
+        ]
+        document_store.write_documents(docs)
+        result = document_store.get_metadata_field_min_max("priority")
+        assert result["min"] == 5
+        assert result["max"] == 20
+
+    def test_get_metadata_field_min_max_empty_store(self, document_store):
+        """Test get_metadata_field_min_max when store has no documents."""
+        result = document_store.get_metadata_field_min_max("priority")
+        assert result["min"] is None
+        assert result["max"] is None
+
+    def test_get_metadata_field_min_max_non_numeric_raises(self, document_store):
+        """Test get_metadata_field_min_max raises for tag (non-numeric) field."""
+        with pytest.raises(ValueError, match="not a numeric metadata field"):
+            document_store.get_metadata_field_min_max("category")
+
+    def test_get_metadata_field_min_max_unknown_field_raises(self, document_store):
+        """Test get_metadata_field_min_max raises for unconfigured field."""
+        with pytest.raises(ValueError, match="not configured for filtering"):
+            document_store.get_metadata_field_min_max("unknown_field")
+
+    def test_get_metadata_field_unique_values(self, document_store):
+        """Test get_metadata_field_unique_values returns distinct values and total count."""
+        docs = [
+            Document(id="gmv1", content="doc 1", embedding=[0.1, 0.2, 0.3], meta={"category": "apple", "priority": 1}),
+            Document(id="gmv2", content="doc 2", embedding=[0.2, 0.3, 0.4], meta={"category": "banana", "priority": 2}),
+            Document(id="gmv3", content="doc 3", embedding=[0.3, 0.4, 0.5], meta={"category": "apple", "priority": 3}),
+        ]
+        document_store.write_documents(docs)
+        values, total = document_store.get_metadata_field_unique_values("category", from_=0, size=10)
+        assert total == 2
+        assert set(values) == {"apple", "banana"}
+        assert len(values) == 2
+
+    def test_get_metadata_field_unique_values_pagination(self, document_store):
+        """Test get_metadata_field_unique_values with from_ and size."""
+        docs = [
+            Document(id=f"gmvp{i}", content=f"doc {i}", embedding=[0.1, 0.2, 0.3], meta={"category": f"cat_{i}"})
+            for i in range(5)
+        ]
+        document_store.write_documents(docs)
+        values, total = document_store.get_metadata_field_unique_values("category", from_=1, size=2)
+        assert total == 5
+        assert len(values) == 2
+        assert sorted(values)[0] >= "cat_0"
+
+    def test_get_metadata_field_unique_values_with_search_term(self, document_store):
+        """Test get_metadata_field_unique_values with search_term filter."""
+        docs = [
+            Document(id="gmvs1", content="doc 1", embedding=[0.1, 0.2, 0.3], meta={"category": "apple_pie"}),
+            Document(id="gmvs2", content="doc 2", embedding=[0.2, 0.3, 0.4], meta={"category": "banana"}),
+            Document(id="gmvs3", content="doc 3", embedding=[0.3, 0.4, 0.5], meta={"category": "apple_jam"}),
+        ]
+        document_store.write_documents(docs)
+        values, total = document_store.get_metadata_field_unique_values(
+            "category", search_term="apple", from_=0, size=10
+        )
+        assert total == 2
+        assert set(values) == {"apple_pie", "apple_jam"}
+
+    def test_get_metadata_field_unique_values_unknown_field_raises(self, document_store):
+        """Test get_metadata_field_unique_values raises for unconfigured field."""
+        with pytest.raises(ValueError, match="not configured for filtering"):
+            document_store.get_metadata_field_unique_values("unknown_field")
+
+    def test_count_unique_metadata_by_filter_invalid_field_raises(self, document_store):
+        """Test count_unique_metadata_by_filter raises for unconfigured field."""
+        document_store.write_documents(
+            [Document(id="x", content="doc", embedding=[0.1, 0.2, 0.3], meta={"category": "a"})]
+        )
+        filters = {"operator": "AND", "conditions": [{"field": "meta.category", "operator": "==", "value": "a"}]}
+        with pytest.raises(ValueError, match="not configured for filtering"):
+            document_store.count_unique_metadata_by_filter(filters, metadata_fields=["unknown_field"])
 
 
 class TestValkeyDocumentStoreStaticMethods:

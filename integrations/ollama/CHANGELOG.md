@@ -1,5 +1,16 @@
 # Changelog
 
+## [integrations/ollama-v6.2.0] - 2026-03-09
+
+### 🚀 Features
+
+- *(ollama)* Add max_retries to chat generator (#2899)
+
+### 🧹 Chores
+
+- Remove unused allow-direct-references (#2866)
+
+
 ## [integrations/ollama-v6.1.0] - 2026-02-19
 
 ### 🚀 Features

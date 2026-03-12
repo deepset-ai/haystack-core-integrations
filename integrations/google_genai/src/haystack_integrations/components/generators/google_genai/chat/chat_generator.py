@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 from collections.abc import AsyncIterator, Iterator
-from typing import Any, Literal
+from typing import Any, ClassVar, Literal
 
 from google.genai import types
 from haystack import logging
@@ -19,6 +19,7 @@ from haystack.tools import (
     serialize_tools_or_toolset,
 )
 from haystack.utils import Secret, deserialize_callable, deserialize_secrets_inplace, serialize_callable
+from pydantic import BaseModel
 
 from haystack_integrations.components.common.google_genai.utils import _get_client
 from haystack_integrations.components.generators.google_genai.chat.utils import (
@@ -27,6 +28,7 @@ from haystack_integrations.components.generators.google_genai.chat.utils import 
     _convert_google_genai_response_to_chatmessage,
     _convert_message_to_google_genai_format,
     _convert_tools_to_google_genai_format,
+    _process_response_format,
     _process_thinking_config,
 )
 
@@ -139,6 +141,28 @@ class GoogleGenAIChatGenerator:
     response = chat_generator_with_tools.run(messages=messages)
     ```
 
+    ### Usage example with structured output
+
+    ```python
+    from pydantic import BaseModel
+    from haystack.dataclasses.chat_message import ChatMessage
+    from haystack_integrations.components.generators.google_genai import GoogleGenAIChatGenerator
+
+    class City(BaseModel):
+        name: str
+        country: str
+        population: int
+
+    chat_generator = GoogleGenAIChatGenerator(
+        model="gemini-2.5-flash",
+        generation_kwargs={"response_format": City}
+    )
+
+    messages = [ChatMessage.from_user("Tell me about Paris")]
+    response = chat_generator.run(messages=messages)
+    print(response["replies"][0].text)  # JSON output matching the City schema
+    ```
+
     ### Usage example with FileContent embedded in a ChatMessage
 
     ```python
@@ -150,6 +174,19 @@ class GoogleGenAIChatGenerator:
     chat_generator = GoogleGenAIChatGenerator()
     response = chat_generator.run(messages=[chat_message])
     ```
+    """
+
+    SUPPORTED_MODELS: ClassVar[list[str]] = [
+        "gemini-3.1-pro-preview",
+        "gemini-3-flash-preview",
+        "gemini-3.1-flash-lite-preview",
+        "gemini-2.5-pro",
+        "gemini-2.5-flash",
+        "gemini-2.5-flash-lite",
+    ]
+    """A non-exhaustive list of chat models supported by this component.
+
+    See https://ai.google.dev/gemini-api/docs/models for the full list of models and up-to-date model IDs.
     """
 
     def __init__(
@@ -237,6 +274,12 @@ class GoogleGenAIChatGenerator:
         """
         callback_name = serialize_callable(self._streaming_callback) if self._streaming_callback else None
         serialized_tools = serialize_tools_or_toolset(self._tools) if self._tools else None
+
+        generation_kwargs = self._generation_kwargs.copy()
+        response_format = generation_kwargs.get("response_format")
+        if response_format and isinstance(response_format, type) and issubclass(response_format, BaseModel):
+            generation_kwargs["response_format"] = response_format.model_json_schema()
+
         return default_to_dict(
             self,
             api_key=self._api_key.to_dict(),
@@ -244,7 +287,7 @@ class GoogleGenAIChatGenerator:
             vertex_ai_project=self._vertex_ai_project,
             vertex_ai_location=self._vertex_ai_location,
             model=self._model,
-            generation_kwargs=self._generation_kwargs,
+            generation_kwargs=generation_kwargs,
             safety_settings=self._safety_settings,
             streaming_callback=callback_name,
             tools=serialized_tools,
@@ -366,8 +409,9 @@ class GoogleGenAIChatGenerator:
         safety_settings = safety_settings or self._safety_settings
         tools = tools or self._tools
 
-        # Process thinking configuration
+        # Process thinking configuration and response format
         generation_kwargs = _process_thinking_config(generation_kwargs)
+        generation_kwargs = _process_response_format(generation_kwargs)
 
         # Select appropriate streaming callback
         streaming_callback = select_streaming_callback(
@@ -476,8 +520,9 @@ class GoogleGenAIChatGenerator:
         safety_settings = safety_settings or self._safety_settings
         tools = tools or self._tools
 
-        # Process thinking configuration
+        # Process thinking configuration and response format
         generation_kwargs = _process_thinking_config(generation_kwargs)
+        generation_kwargs = _process_response_format(generation_kwargs)
 
         # Select appropriate streaming callback
         streaming_callback = select_streaming_callback(

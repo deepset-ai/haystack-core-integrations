@@ -157,6 +157,8 @@ class TestCohereChatGenerator:
         assert component.streaming_callback is None
         assert component.api_base_url == "https://api.cohere.com"
         assert not component.generation_kwargs
+        assert component.timeout is None
+        assert component.max_retries is None
 
     def test_init_fail_wo_api_key(self, monkeypatch):
         monkeypatch.delenv("COHERE_API_KEY", raising=False)
@@ -174,6 +176,8 @@ class TestCohereChatGenerator:
                 "max_tokens": 10,
                 "some_test_param": "test-params",
             },
+            timeout=30.0,
+            max_retries=5,
         )
         assert component.api_key == Secret.from_token("test-api-key")
         assert component.model == "command-nightly"
@@ -183,6 +187,8 @@ class TestCohereChatGenerator:
             "max_tokens": 10,
             "some_test_param": "test-params",
         }
+        assert component.timeout == 30.0
+        assert component.max_retries == 5
 
     def test_to_dict_default(self, monkeypatch):
         monkeypatch.setenv("COHERE_API_KEY", "test-api-key")
@@ -201,6 +207,8 @@ class TestCohereChatGenerator:
                 "api_base_url": "https://api.cohere.com",
                 "generation_kwargs": {},
                 "tools": None,
+                "timeout": None,
+                "max_retries": None,
             },
         }
 
@@ -234,6 +242,8 @@ class TestCohereChatGenerator:
                     "some_test_param": "test-params",
                 },
                 "tools": None,
+                "timeout": None,
+                "max_retries": None,
             },
         }
 
@@ -255,6 +265,8 @@ class TestCohereChatGenerator:
                     "max_tokens": 10,
                     "some_test_param": "test-params",
                 },
+                "timeout": None,
+                "max_retries": None,
             },
         }
         component = CohereChatGenerator.from_dict(data)
@@ -265,6 +277,8 @@ class TestCohereChatGenerator:
             "max_tokens": 10,
             "some_test_param": "test-params",
         }
+        assert component.timeout is None
+        assert component.max_retries is None
 
     def test_from_dict_fail_wo_env_var(self, monkeypatch):
         monkeypatch.delenv("COHERE_API_KEY", raising=False)
@@ -284,6 +298,8 @@ class TestCohereChatGenerator:
                     "max_tokens": 10,
                     "some_test_param": "test-params",
                 },
+                "timeout": None,
+                "max_retries": None,
             },
         }
         with pytest.raises(ValueError):
@@ -327,6 +343,8 @@ class TestCohereChatGenerator:
                         "streaming_callback": "haystack.components.generators.utils.print_streaming_chunk",
                         "api_base_url": "https://api.cohere.com",
                         "generation_kwargs": {"temperature": 0.7},
+                        "timeout": None,
+                        "max_retries": None,
                         "tools": [
                             {
                                 "type": "haystack.tools.tool.Tool",
@@ -481,7 +499,7 @@ class TestCohereChatGenerator:
 class TestCohereChatGeneratorInference:
     def test_live_run(self):
         chat_messages = [ChatMessage.from_user("What's the capital of France")]
-        component = CohereChatGenerator(generation_kwargs={"temperature": 0.8})
+        component = CohereChatGenerator(model="command-r7b-12-2024", generation_kwargs={"temperature": 0.8})
         results = component.run(chat_messages)
         assert len(results["replies"]) == 1
         message: ChatMessage = results["replies"][0]
@@ -507,7 +525,7 @@ class TestCohereChatGeneratorInference:
                 self.responses += chunk.content if chunk.content else ""
 
         callback = Callback()
-        component = CohereChatGenerator(streaming_callback=callback, stream=True)
+        component = CohereChatGenerator(model="command-r7b-12-2024", streaming_callback=callback)
         results = component.run([ChatMessage.from_user("What's the capital of France? answer in a word")])
 
         assert len(results["replies"]) == 1
@@ -541,7 +559,7 @@ class TestCohereChatGeneratorInference:
                 },
             }
         ]
-        client = CohereChatGenerator()
+        client = CohereChatGenerator(model="command-r7b-12-2024")
         response = client.run(
             messages=[ChatMessage.from_user("What is the current price of AAPL?")],
             generation_kwargs={"tools": tools_schema},
@@ -577,7 +595,7 @@ class TestCohereChatGeneratorInference:
             function=stock_price,
         )
         initial_messages = [ChatMessage.from_user("What is the current price of AAPL?")]
-        client = CohereChatGenerator()
+        client = CohereChatGenerator(model="command-r7b-12-2024")
         response = client.run(
             messages=initial_messages,
             tools=[stock_price_tool],
@@ -632,7 +650,7 @@ class TestCohereChatGeneratorInference:
 
         initial_messages = [ChatMessage.from_user("What's the weather like in Paris?")]
         component = CohereChatGenerator(
-            # Cohere's model that supports tools
+            model="command-r7b-12-2024",
             tools=[weather_tool],
             streaming_callback=print_streaming_chunk,
         )
@@ -684,7 +702,7 @@ class TestCohereChatGeneratorInference:
         )
 
         pipeline = Pipeline()
-        pipeline.add_component("generator", CohereChatGenerator(model="command-r-08-2024", tools=[weather_tool]))
+        pipeline.add_component("generator", CohereChatGenerator(model="command-r7b-12-2024", tools=[weather_tool]))
         pipeline.add_component("tool_invoker", ToolInvoker(tools=[weather_tool]))
 
         pipeline.connect("generator", "tool_invoker")
@@ -769,7 +787,7 @@ class TestCohereChatGeneratorInference:
         initial_messages = [
             ChatMessage.from_user("What's the weather like in Paris and what is the population of Berlin?")
         ]
-        component = CohereChatGenerator(model="command-r-08-2024", tools=mixed_tools)
+        component = CohereChatGenerator(model="command-r7b-12-2024", tools=mixed_tools)
         results = component.run(messages=initial_messages)
 
         assert len(results["replies"]) > 0, "No replies received"

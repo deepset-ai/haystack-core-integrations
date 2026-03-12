@@ -3,6 +3,7 @@ loaders:
       - haystack_integrations.components.generators.google_genai.chat.chat_generator
       - haystack_integrations.components.embedders.google_genai.document_embedder
       - haystack_integrations.components.embedders.google_genai.text_embedder
+      - haystack_integrations.components.embedders.google_genai.multimodal_document_embedder
     search_path: [../src]
 processors:
   - type: filter

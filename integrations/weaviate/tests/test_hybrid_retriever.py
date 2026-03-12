@@ -17,7 +17,7 @@ def test_init_default():
     assert retriever._document_store == mock_document_store
     assert retriever._filters == {}
     assert retriever._top_k == 10
-    assert retriever._alpha is None
+    assert retriever._alpha == 0.7
     assert retriever._max_vector_distance is None
     assert retriever._filter_policy == FilterPolicy.REPLACE
 
@@ -56,7 +56,7 @@ def test_to_dict(_mock_weaviate):
         "init_parameters": {
             "filters": {},
             "top_k": 10,
-            "alpha": None,
+            "alpha": 0.7,
             "max_vector_distance": None,
             "filter_policy": "replace",
             "document_store": {
@@ -112,7 +112,7 @@ def test_from_dict(_mock_weaviate):
             "init_parameters": {
                 "filters": {},
                 "top_k": 10,
-                "alpha": None,
+                "alpha": 0.7,
                 "max_vector_distance": None,
                 "filter_policy": "replace",
                 "document_store": {
@@ -142,7 +142,7 @@ def test_from_dict(_mock_weaviate):
     assert retriever._document_store
     assert retriever._filters == {}
     assert retriever._top_k == 10
-    assert retriever._alpha is None
+    assert retriever._alpha == 0.7
     assert retriever._max_vector_distance is None
 
 
@@ -200,7 +200,12 @@ def test_run_basic():
     assert "documents" in result
     assert len(result["documents"]) == 1
     mock_document_store._hybrid_retrieval.assert_called_once_with(
-        query="test query", query_embedding=[0.1, 0.2, 0.3], filters={}, top_k=10, alpha=None, max_vector_distance=None
+        query="test query",
+        query_embedding=[0.1, 0.2, 0.3],
+        filters={},
+        top_k=10,
+        alpha=0.7,
+        max_vector_distance=None,
     )
 
 
@@ -217,7 +222,7 @@ def test_run_with_runtime_filters():
         query_embedding=[0.1, 0.2, 0.3],
         filters={"runtime": "filter"},
         top_k=10,
-        alpha=None,
+        alpha=0.7,
         max_vector_distance=None,
     )
 
@@ -259,7 +264,7 @@ def test_run_empty_query():
     assert "documents" in result
     assert len(result["documents"]) == 0
     mock_document_store._hybrid_retrieval.assert_called_once_with(
-        query="", query_embedding=[0.1, 0.2, 0.3], filters={}, top_k=10, alpha=None, max_vector_distance=None
+        query="", query_embedding=[0.1, 0.2, 0.3], filters={}, top_k=10, alpha=0.7, max_vector_distance=None
     )
 
 
@@ -288,7 +293,7 @@ def test_from_dict_no_filter_policy(_mock_weaviate):
             "init_parameters": {
                 "filters": {},
                 "top_k": 10,
-                "alpha": None,
+                "alpha": 0.7,
                 "max_vector_distance": None,
                 # filter_policy intentionally omitted
                 "document_store": {
@@ -318,7 +323,7 @@ def test_from_dict_no_filter_policy(_mock_weaviate):
     assert retriever._document_store
     assert retriever._filters == {}
     assert retriever._top_k == 10
-    assert retriever._alpha is None
+    assert retriever._alpha == 0.7
     assert retriever._max_vector_distance is None
     assert retriever._filter_policy == FilterPolicy.REPLACE
 
@@ -381,7 +386,7 @@ def test_run_with_max_vector_distance_zero_runtime():
         query_embedding=[0.1, 0.2],
         filters={},
         top_k=10,
-        alpha=None,
+        alpha=0.7,
         max_vector_distance=0.0,
     )
 
@@ -402,7 +407,7 @@ def test_run_with_max_vector_distance_zero_init_and_none_runtime():
         query_embedding=[0.1, 0.2],
         filters={},
         top_k=10,
-        alpha=None,
+        alpha=0.7,
         max_vector_distance=0.0,
     )
 
