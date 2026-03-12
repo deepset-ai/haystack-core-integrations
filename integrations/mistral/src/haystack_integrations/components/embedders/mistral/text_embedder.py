@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: 2023-present deepset GmbH <info@deepset.ai>
 #
 # SPDX-License-Identifier: Apache-2.0
-from typing import Any
+from typing import Any, ClassVar
 
 from haystack import component, default_to_dict
 from haystack.components.embedders import OpenAITextEmbedder
@@ -27,6 +27,16 @@ class MistralTextEmbedder(OpenAITextEmbedder):
     #          'usage': {'prompt_tokens': 4, 'total_tokens': 4}}}
     ```
     """
+
+    SUPPORTED_MODELS: ClassVar[list[str]] = [
+        "mistral-embed-2312",
+        "mistral-embed",
+        "codestral-embed",
+        "codestral-embed-2505",
+    ]
+    """A list of models supported by Mistral AI
+    see [Mistral AI docs](https://docs.mistral.ai/getting-started/models) for more information
+    and send a GET HTTP request to "https://api.mistral.ai/v1/models" for a full list of model IDs."""
 
     def __init__(
         self,
@@ -64,6 +74,7 @@ class MistralTextEmbedder(OpenAITextEmbedder):
             A dictionary of keyword arguments to configure a custom `httpx.Client`or `httpx.AsyncClient`.
             For more information, see the [HTTPX documentation](https://www.python-httpx.org/api/#client).
         """
+
         super(MistralTextEmbedder, self).__init__(  # noqa: UP008
             api_key=api_key,
             model=model,
