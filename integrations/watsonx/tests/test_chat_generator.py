@@ -880,7 +880,11 @@ class TestWatsonxChatGeneratorIntegration:
         initial_messages = [
             ChatMessage.from_user("What's the weather like in Paris and what is the population of Berlin?")
         ]
-        component = WatsonxChatGenerator(project_id=Secret.from_env_var("WATSONX_PROJECT_ID"), tools=mixed_tools)
+        component = WatsonxChatGenerator(
+            model="meta-llama/llama-3-2-11b-vision-instruct",
+            project_id=Secret.from_env_var("WATSONX_PROJECT_ID"),
+            tools=mixed_tools,
+        )
         results = component.run(messages=initial_messages)
 
         assert len(results["replies"]) > 0, "No replies received"

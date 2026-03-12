@@ -3,6 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import json
+from dataclasses import replace
 from datetime import datetime, timezone
 from typing import Any, Literal, get_args
 
@@ -453,7 +454,21 @@ class WatsonxChatGenerator:
             chunks.append(streaming_chunk)
             callback(streaming_chunk)
 
-        return {"replies": [_convert_streaming_chunks_to_chat_message(chunks)]}
+        chat_message = _convert_streaming_chunks_to_chat_message(chunks)
+        message_tool_calls = [
+            replace(tool_call, arguments=self._parse_tool_call_json(tool_call.arguments))
+            for tool_call in chat_message.tool_calls
+        ]
+        return {
+            "replies": [
+                ChatMessage.from_assistant(
+                    text=chat_message.text,
+                    meta=chat_message.meta,
+                    tool_calls=message_tool_calls,
+                    reasoning=chat_message.reasoning,
+                )
+            ]
+        }
 
     def _handle_standard(self, api_args: dict[str, Any]) -> dict[str, list[ChatMessage]]:
         """Handle synchronous standard response."""
@@ -483,7 +498,21 @@ class WatsonxChatGenerator:
             chunks.append(streaming_chunk)
             await callback(streaming_chunk)
 
-        return {"replies": [_convert_streaming_chunks_to_chat_message(chunks)]}
+        chat_message = _convert_streaming_chunks_to_chat_message(chunks)
+        message_tool_calls = [
+            replace(tool_call, arguments=self._parse_tool_call_json(tool_call.arguments))
+            for tool_call in chat_message.tool_calls
+        ]
+        return {
+            "replies": [
+                ChatMessage.from_assistant(
+                    text=chat_message.text,
+                    meta=chat_message.meta,
+                    tool_calls=message_tool_calls,
+                    reasoning=chat_message.reasoning,
+                )
+            ]
+        }
 
     async def _handle_async_standard(self, api_args: dict[str, Any]) -> dict[str, list[ChatMessage]]:
         """Handle asynchronous standard response."""
@@ -491,6 +520,16 @@ class WatsonxChatGenerator:
             messages=api_args["messages"], params=api_args["params"], tools=api_args.get("tools")
         )
         return self._process_response(response)
+
+    @staticmethod
+    def _parse_tool_call_json(tool_call: object) -> dict[str, Any]:
+        """Parse tool call json from Watsonx tool calls."""
+        if isinstance(tool_call, dict):
+            return tool_call
+        obj = json.loads(tool_call)
+        if isinstance(obj, str):
+            obj = json.loads(obj)
+        return obj
 
     def _process_response(self, response: dict[str, Any]) -> dict[str, list[ChatMessage]]:
         """Process standard response into Haystack format."""
@@ -508,7 +547,7 @@ class WatsonxChatGenerator:
                     ToolCall(
                         id=tool_call["id"],
                         tool_name=tool_call["function"]["name"],
-                        arguments=json.loads(tool_call["function"]["arguments"]),
+                        arguments=self._parse_tool_call_json(tool_call["function"]["arguments"]),
                     )
                     for tool_call in tool_calls
                 ]
