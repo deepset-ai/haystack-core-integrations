@@ -47,7 +47,7 @@ jobs:
           python-version: ${{ matrix.python-version }}
 
       - name: Install Hatch
-        run: pip install hatch "virtualenv<21.0.0"
+        run: pip install hatch
 
       - name: Lint
         if: matrix.python-version == '3.10' && runner.os == 'Linux'
@@ -69,10 +69,12 @@ jobs:
           hatch -e test env run -- uv pip install git+https://github.com/deepset-ai/haystack.git@main
           hatch run test:unit
 
-      - name: Send event to Datadog for nightly failures
-        if: failure() && github.event_name == 'schedule'
-        uses: ./.github/actions/send_failure
+
+  notify-slack-on-failure:
+    needs: run
+    if: failure() && github.event_name == 'schedule'
+    runs-on: ubuntu-slim
+    steps:
+      - uses: deepset-ai/notify-slack-action@v1
         with:
-          title: |
-            Core integrations nightly tests failure: ${{ github.workflow }}
-          api-key: ${{ secrets.CORE_DATADOG_API_KEY }}
+          slack-webhook-url: ${{ secrets.SLACK_WEBHOOK_URL_NOTIFICATIONS }}
