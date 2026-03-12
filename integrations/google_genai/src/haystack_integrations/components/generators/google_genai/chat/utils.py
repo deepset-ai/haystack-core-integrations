@@ -57,7 +57,7 @@ GOOGLE_GENAI_SUPPORTED_MIME_TYPES = {
 
 def _process_response_format(generation_kwargs: dict[str, Any]) -> dict[str, Any]:
     """
-    Process ``response_format`` from generation_kwargs into Google GenAI's native
+    Process `response_format` from generation_kwargs into Google GenAI's native
     ``response_schema`` and ``response_mime_type`` parameters.
 
     Accepts either a Pydantic BaseModel class or a JSON schema dict.  When
