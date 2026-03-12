@@ -331,9 +331,7 @@ class WatsonxChatGenerator:
         for msg in messages:
             # Watsonx tool call result messages are of the same format as OpenAI chat completions
             if msg.tool_call_results:
-                watsonx_messages.append(
-                    msg._tool_result_message_to_openai({"role": msg.role.value}, require_tool_call_ids=True)
-                )
+                watsonx_messages.append(msg.to_openai_dict_format(require_tool_call_ids=True))
                 continue
 
             # Check that images are only in user messages
