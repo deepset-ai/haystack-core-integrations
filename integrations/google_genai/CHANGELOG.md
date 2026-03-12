@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/google_genai-v3.11.0] - 2026-03-12
+
+### 🚀 Features
+
+- Add support for structured output (response_format) in GoogleGenAIChatGenerator (#2946)
+
+
 ## [integrations/google_genai-v3.10.1] - 2026-03-11
 
 ### 🐛 Bug Fixes
