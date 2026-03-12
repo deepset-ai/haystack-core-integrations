@@ -5,7 +5,7 @@
 import json
 from dataclasses import replace
 from datetime import datetime, timezone
-from typing import Any, Literal, get_args
+from typing import Any, ClassVar, Literal, get_args
 
 from haystack import component, default_from_dict, default_to_dict, logging
 from haystack.components.generators.utils import _convert_streaming_chunks_to_chat_message
@@ -112,6 +112,30 @@ class WatsonxChatGenerator:
     print(response)
     ```
     """
+
+    SUPPORTED_MODELS: ClassVar[list[str]] = [
+        "ibm/granite-3-1-8b-base",
+        "ibm/granite-3-8b-instruct",
+        "ibm/granite-4-h-small",
+        "ibm/granite-8b-code-instruct",
+        "ibm/granite-guardian-3-8b",
+        "meta-llama/llama-3-1-70b-gptq",
+        "meta-llama/llama-3-1-8b",
+        "meta-llama/llama-3-2-11b-vision-instruct",
+        "meta-llama/llama-3-2-90b-vision-instruct",
+        "meta-llama/llama-3-3-70b-instruct",
+        "meta-llama/llama-3-405b-instruct",
+        "meta-llama/llama-4-maverick-17b-128e-instruct-fp8",
+        "meta-llama/llama-guard-3-11b-vision",
+        "mistral-large-2512",
+        "mistralai/mistral-medium-2505",
+        "mistralai/mistral-small-3-1-24b-instruct-2503",
+        "openai/gpt-oss-120b",
+    ]
+    """A list of models supported by watsonx.ai
+    see [watsonx.ai docs](https://www.ibm.com/docs/en/watsonx/saas?topic=solutions-supported-foundation-models) for more
+    information, and send a GET HTTP request to "https://us-south.ml.cloud.ibm.com/ml/v1/foundation_model_specs" for a
+    full list of model IDs."""
 
     def __init__(
         self,
