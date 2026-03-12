@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 class MistralChatGenerator(OpenAIChatGenerator):
     """
     Enables text generation using Mistral AI generative models.
-    For supported models, see [Mistral AI docs](https://docs.mistral.ai/platform/endpoints/#operation/listModels).
+    For supported models, see [Mistral AI docs](https://docs.mistral.ai/getting-started/models).
 
     Users can pass any text generation parameters valid for the Mistral Chat Completion API
     directly to this component via the `generation_kwargs` parameter in `__init__` or the `generation_kwargs`
@@ -106,8 +106,9 @@ class MistralChatGenerator(OpenAIChatGenerator):
         "voxtral-mini-latest",
         "voxtral-mini-2507",
     ]
-    """A list of models supported by the Mistral API
-    see [Mistral AI docs](https://docs.mistral.ai/platform/endpoints/#operation/listModels) for full information"""
+    """A list of models supported by Mistral AI
+    see [Mistral AI docs](https://docs.mistral.ai/getting-started/models) for more information
+    and send a GET HTTP request to "https://api.mistral.ai/v1/models for a full list of model IDs."""
 
     def __init__(
         self,

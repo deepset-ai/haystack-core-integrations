@@ -36,8 +36,9 @@ class MistralDocumentEmbedder(OpenAIDocumentEmbedder):
         "codestral-embed",
         "codestral-embed-2505",
     ]
-    """A list of embedding models supported by the Mistral API
-    see [Mistral AI docs](https://docs.mistral.ai/platform/endpoints/#operation/listModels) for full information"""
+    """A list of models supported by Mistral AI
+    see [Mistral AI docs](https://docs.mistral.ai/getting-started/models) for more information
+    and send a GET HTTP request to "https://api.mistral.ai/v1/models for a full list of model IDs."""
 
     def __init__(
         self,
