@@ -1,7 +1,7 @@
 import json
 import re
 from pathlib import Path
-from typing import Any
+from typing import Any, ClassVar
 
 from haystack import Document, component, default_from_dict, default_to_dict, logging
 from haystack.components.converters.utils import (
@@ -97,6 +97,15 @@ class MistralOCRDocumentConverter:
     raw_responses = result["raw_mistral_response"]
     ```
     """
+
+    SUPPORTED_MODELS: ClassVar[list[str]] = [
+        "mistral-ocr-2512",
+        "mistral-ocr-latest",
+        "mistral-ocr-2503",
+        "mistral-ocr-2505",
+    ]
+    """A list of OCR models supported by the Mistral API
+    see [Mistral AI docs](https://docs.mistral.ai/platform/endpoints/#operation/listModels) for full information"""
 
     def __init__(
         self,
