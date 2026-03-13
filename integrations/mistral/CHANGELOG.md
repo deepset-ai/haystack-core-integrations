@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/mistral-v1.2.0] - 2026-03-13
+
+### 🧹 Chores
+
+- Update mistral integration to work with mistralai>=2.0.0 (#2957)
+
+
 ## [integrations/mistral-v1.1.0] - 2026-03-12
 
 ### 🚀 Features
