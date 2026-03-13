@@ -6,7 +6,6 @@ import random
 from unittest.mock import patch
 
 import pytest
-
 from haystack.dataclasses.document import Document
 from haystack.document_stores.errors import DocumentStoreError, DuplicateDocumentError
 from haystack.document_stores.types import DuplicatePolicy
@@ -14,8 +13,8 @@ from haystack.testing.document_store import (
     CountDocumentsByFilterTest,
     CountUniqueMetadataByFilterTest,
     DocumentStoreBaseExtendedTests,
-    GetMetadataFieldsInfoTest,
     GetMetadataFieldMinMaxTest,
+    GetMetadataFieldsInfoTest,
     GetMetadataFieldUniqueValuesTest
 )
 from opensearchpy.exceptions import RequestError
@@ -165,11 +164,10 @@ class TestDocumentStore(
     DocumentStoreBaseExtendedTests,
     GetMetadataFieldsInfoTest,
     GetMetadataFieldMinMaxTest,
-    GetMetadataFieldUniqueValuesTest
+    GetMetadataFieldUniqueValuesTest,
 ):
     """
-    Common test cases will be provided by `DocumentStoreBaseExtendedTests` but
-    you can add more to this class.
+    Common test cases will be provided by `DocumentStoreBaseExtendedTests` but you can add more to this class.
     """
 
     @pytest.fixture
