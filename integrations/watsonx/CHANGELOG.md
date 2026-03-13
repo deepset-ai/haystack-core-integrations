@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/watsonx-v1.4.0] - 2026-03-13
+
+### 🚀 Features
+
+- List supported models in `WatsonxChatGenerator` (#2956)
+
+
 ## [integrations/watsonx-v1.3.0] - 2026-03-12
 
 ### 🚀 Features
