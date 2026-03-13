@@ -132,10 +132,11 @@ class WatsonxChatGenerator:
         "mistralai/mistral-small-3-1-24b-instruct-2503",
         "openai/gpt-oss-120b",
     ]
-    """A list of models supported by watsonx.ai
-    see [watsonx.ai docs](https://www.ibm.com/docs/en/watsonx/saas?topic=solutions-supported-foundation-models) for more
-    information, and send a GET HTTP request to "https://us-south.ml.cloud.ibm.com/ml/v1/foundation_model_specs" for a
-    full list of model IDs."""
+    """A non-exhaustive list of models supported by this component.
+
+    See https://www.ibm.com/docs/en/watsonx/saas?topic=solutions-supported-foundation-models for the
+    full list of models and up-to-date model IDs.
+    """
 
     def __init__(
         self,
