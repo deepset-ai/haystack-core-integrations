@@ -1,0 +1,13 @@
+loaders:
+  - modules:
+      - haystack_integrations.components.generators.dspy.chat.chat_generator
+    search_path: [../src]
+processors:
+  - type: filter
+    documented_only: true
+    skip_empty_modules: true
+renderer:
+  description: DSPy integration for Haystack
+  id: integrations-dspy
+  filename: dspy.md
+  title: DSPy
