@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from typing import Any
+from typing import Any, ClassVar
 
 from haystack import component, default_to_dict, logging
 from haystack.components.generators.chat import OpenAIChatGenerator
@@ -53,6 +53,15 @@ class MetaLlamaChatGenerator(OpenAIChatGenerator):
     print(response)
     ```
     """
+
+    SUPPORTED_MODELS: ClassVar[list[str]] = [
+        "Llama-4-Maverick-17B-128E-Instruct-FP8",
+        "Llama-4-Scout-17B-16E-Instruct-FP8",
+        "Llama-3.3-70B-Instruct",
+        "Llama-3.3-8B-Instruct",
+    ]
+    """A non-exhaustive list of chat models supported by this component.
+    See https://llama.developer.meta.com/docs/models for the full list."""
 
     def __init__(
         self,
