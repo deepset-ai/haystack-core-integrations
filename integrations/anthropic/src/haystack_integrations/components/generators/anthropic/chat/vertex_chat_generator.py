@@ -77,6 +77,8 @@ class AnthropicVertexChatGenerator(AnthropicChatGenerator):
         "claude-opus-4@20250514",
         "claude-haiku-4-5@20251001",
     ]
+    """A non-exhaustive list of chat models supported by this component. See
+     https://platform.claude.com/docs/en/build-with-claude/claude-on-vertex-ai#model-availability for the full list."""
 
     def __init__(
         self,

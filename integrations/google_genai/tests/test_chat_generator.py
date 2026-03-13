@@ -3,6 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import asyncio
+import json
 import os
 
 import pytest
@@ -21,6 +22,7 @@ from haystack.dataclasses import (
 )
 from haystack.tools import Tool, Toolset, create_tool_from_function
 from haystack.utils.auth import Secret
+from pydantic import BaseModel
 
 from haystack_integrations.components.generators.google_genai.chat.chat_generator import (
     GoogleGenAIChatGenerator,
@@ -203,6 +205,52 @@ class TestGoogleGenAIChatGeneratorInitSerDe:
         assert isinstance(restored._tools[1], Toolset)
         assert restored._tools[0].name == "tool1"
         assert len(restored._tools[1]) == 1
+
+    def test_to_dict_with_response_format_pydantic(self, monkeypatch):
+        """Test that to_dict serializes a Pydantic response_format to a JSON schema dict."""
+        monkeypatch.setenv("GOOGLE_API_KEY", "test-api-key")
+
+        class City(BaseModel):
+            name: str
+            country: str
+            population: int
+
+        generator = GoogleGenAIChatGenerator(generation_kwargs={"response_format": City})
+        data = generator.to_dict()
+
+        response_format = data["init_parameters"]["generation_kwargs"]["response_format"]
+        assert response_format == {
+            "properties": {
+                "name": {"title": "Name", "type": "string"},
+                "country": {"title": "Country", "type": "string"},
+                "population": {"title": "Population", "type": "integer"},
+            },
+            "required": ["name", "country", "population"],
+            "title": "City",
+            "type": "object",
+        }
+
+    def test_to_dict_with_response_format_dict(self, monkeypatch):
+        """Test that to_dict preserves a dict response_format as is."""
+        monkeypatch.setenv("GOOGLE_API_KEY", "test-api-key")
+
+        schema = {"type": "object", "properties": {"name": {"type": "string"}}}
+        generator = GoogleGenAIChatGenerator(generation_kwargs={"response_format": schema})
+        data = generator.to_dict()
+
+        assert data["init_parameters"]["generation_kwargs"]["response_format"] == schema
+
+    def test_serde_with_response_format(self, monkeypatch):
+        """Test serialization/deserialization round-trip with response_format."""
+        monkeypatch.setenv("GOOGLE_API_KEY", "test-api-key")
+
+        schema = {"type": "object", "properties": {"name": {"type": "string"}}}
+        generator = GoogleGenAIChatGenerator(generation_kwargs={"response_format": schema, "temperature": 0.5})
+        data = generator.to_dict()
+
+        restored = GoogleGenAIChatGenerator.from_dict(data)
+        assert restored._generation_kwargs["response_format"] == schema
+        assert restored._generation_kwargs["temperature"] == 0.5
 
 
 @pytest.mark.skipif(
@@ -632,6 +680,48 @@ class TestGoogleGenAIChatGeneratorInference:
         assert "thinking_budget" in error_message or "thinking features" in error_message
         assert "Try removing" in error_message or "use a different model" in error_message
 
+    def test_live_run_with_structured_output_pydantic(self):
+        """Test that response_format with a Pydantic model returns valid structured JSON output."""
+
+        class City(BaseModel):
+            name: str
+            country: str
+            population: int
+
+        component = GoogleGenAIChatGenerator(generation_kwargs={"response_format": City})
+        results = component.run([ChatMessage.from_user("Tell me about Paris. Respond in JSON.")])
+
+        assert len(results["replies"]) == 1
+        message = results["replies"][0]
+        assert message.text
+
+        parsed = json.loads(message.text)
+        assert "name" in parsed
+        assert "country" in parsed
+        assert "population" in parsed
+
+    def test_live_run_with_structured_output_dict_schema(self):
+        """Test that response_format with a JSON schema dict returns valid structured JSON output."""
+        schema = {
+            "type": "object",
+            "properties": {
+                "name": {"type": "string"},
+                "country": {"type": "string"},
+            },
+            "required": ["name", "country"],
+        }
+
+        component = GoogleGenAIChatGenerator(generation_kwargs={"response_format": schema})
+        results = component.run([ChatMessage.from_user("Tell me about Paris. Respond in JSON.")])
+
+        assert len(results["replies"]) == 1
+        message = results["replies"][0]
+        assert message.text
+
+        parsed = json.loads(message.text)
+        assert "name" in parsed
+        assert "country" in parsed
+
     def test_live_run_agent_with_images_in_tool_result(self, test_files_path):
         def retrieve_image():
             return [
@@ -762,6 +852,26 @@ class TestAsyncGoogleGenAIChatGeneratorInference:
         assert "gemini-2.0" in error_message
         assert "thinking_budget" in error_message or "thinking features" in error_message
         assert "Try removing" in error_message or "use a different model" in error_message
+
+    async def test_live_run_async_with_structured_output(self):
+        """Async integration test for structured output with a Pydantic model."""
+
+        class City(BaseModel):
+            name: str
+            country: str
+            population: int
+
+        component = GoogleGenAIChatGenerator(generation_kwargs={"response_format": City})
+        results = await component.run_async([ChatMessage.from_user("Tell me about Paris. Respond in JSON.")])
+
+        assert len(results["replies"]) == 1
+        message = results["replies"][0]
+        assert message.text
+
+        parsed = json.loads(message.text)
+        assert "name" in parsed
+        assert "country" in parsed
+        assert "population" in parsed
 
     async def test_concurrent_async_calls(self):
         """Test multiple concurrent async calls."""

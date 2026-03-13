@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from typing import Any
+from typing import Any, ClassVar
 
 from haystack import component, default_to_dict, logging
 from haystack.components.generators.chat import OpenAIChatGenerator
@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 class MistralChatGenerator(OpenAIChatGenerator):
     """
     Enables text generation using Mistral AI generative models.
-    For supported models, see [Mistral AI docs](https://docs.mistral.ai/platform/endpoints/#operation/listModels).
+    For supported models, see [Mistral AI docs](https://docs.mistral.ai/getting-started/models).
 
     Users can pass any text generation parameters valid for the Mistral Chat Completion API
     directly to this component via the `generation_kwargs` parameter in `__init__` or the `generation_kwargs`
@@ -58,6 +58,57 @@ class MistralChatGenerator(OpenAIChatGenerator):
     >> 'usage': {'prompt_tokens': 15, 'completion_tokens': 36, 'total_tokens': 51}})]}
     ```
     """
+
+    SUPPORTED_MODELS: ClassVar[list[str]] = [
+        "mistral-medium-2505",
+        "mistral-medium-2508",
+        "mistral-medium-latest",
+        "mistral-medium",
+        "mistral-vibe-cli-with-tools",
+        "open-mistral-nemo",
+        "open-mistral-nemo-2407",
+        "mistral-tiny-2407",
+        "mistral-tiny-latest",
+        "codestral-2508",
+        "codestral-latest",
+        "devstral-2512",
+        "mistral-vibe-cli-latest",
+        "devstral-medium-latest",
+        "devstral-latest",
+        "mistral-small-2506",
+        "mistral-small-latest",
+        "labs-mistral-small-creative",
+        "magistral-medium-2509",
+        "magistral-medium-latest",
+        "magistral-small-2509",
+        "magistral-small-latest",
+        "voxtral-small-2507",
+        "voxtral-small-latest",
+        "mistral-large-2512",
+        "mistral-large-latest",
+        "ministral-3b-2512",
+        "ministral-3b-latest",
+        "ministral-8b-2512",
+        "ministral-8b-latest",
+        "ministral-14b-2512",
+        "ministral-14b-latest",
+        "mistral-large-2411",
+        "pixtral-large-2411",
+        "pixtral-large-latest",
+        "mistral-large-pixtral-2411",
+        "devstral-small-2507",
+        "devstral-medium-2507",
+        "labs-devstral-small-2512",
+        "devstral-small-latest",
+        "voxtral-mini-2507",
+        "voxtral-mini-latest",
+        "voxtral-mini-2602",
+        "voxtral-mini-latest",
+        "voxtral-mini-2507",
+    ]
+    """A list of models supported by Mistral AI
+    see [Mistral AI docs](https://docs.mistral.ai/getting-started/models) for more information
+    and send a GET HTTP request to "https://api.mistral.ai/v1/models" for a full list of model IDs."""
 
     def __init__(
         self,
