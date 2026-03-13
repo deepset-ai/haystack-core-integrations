@@ -604,14 +604,63 @@ class QdrantDocumentStore:
         )
 
     @staticmethod
-    def _metadata_fields_info_from_schema(payload_schema: dict[str, Any]) -> dict[str, str]:
-        """Build field name -> type dict from Qdrant payload_schema. Used by get_metadata_fields_info (sync/async)."""
-        fields_info: dict[str, str] = {}
+    def _infer_type_from_value(value: Any) -> str:
+        """
+        Infers the type from a metadata value for get_metadata_fields_info.
+
+        Returns types matching OpenSearch format for consistency:
+        - 'keyword' for strings
+        - 'long' for integers
+        - 'float' for floats
+        - 'boolean' for booleans
+        """
+        if isinstance(value, bool):
+            return "boolean"
+        elif isinstance(value, int):
+            return "long"
+        elif isinstance(value, float):
+            return "float"
+        elif isinstance(value, str):
+            return "keyword"
+        else:
+            return "keyword"
+
+    @staticmethod
+    def _process_records_fields_info(
+        records: list[Any], field_info: dict[str, dict[str, str]]
+    ) -> None:
+        """
+        Update field_info from a batch of Qdrant records.
+
+        Used by get_metadata_fields_info (sync/async). Extracts metadata from
+        payload["meta"] and infers types for each field.
+        """
+        for record in records:
+            if record.payload and "meta" in record.payload:
+                meta = record.payload["meta"]
+                for field_name, value in meta.items():
+                    if value is not None and field_name not in field_info:
+                        field_info[field_name] = {
+                            "type": QdrantDocumentStore._infer_type_from_value(value)
+                        }
+
+    @staticmethod
+    def _metadata_fields_info_from_schema(payload_schema: dict[str, Any]) -> dict[str, dict[str, str]]:
+        """
+        Build field name -> {type: ...} dict from Qdrant payload_schema.
+
+        Used when payload_schema has indexed metadata fields (e.g. meta.category).
+        Returns empty dict when schema has no metadata field info.
+        """
+        fields_info: dict[str, dict[str, str]] = {}
         for field_name, field_config in payload_schema.items():
-            if hasattr(field_config, "data_type"):
-                fields_info[field_name] = str(field_config.data_type)
-            else:
-                fields_info[field_name] = "unknown"
+            if field_name.startswith("meta."):
+                meta_field = field_name[5:]
+                if hasattr(field_config, "data_type"):
+                    qdrant_type = str(field_config.data_type).lower()
+                    fields_info[meta_field] = {"type": qdrant_type}
+                else:
+                    fields_info[meta_field] = {"type": "unknown"}
         return fields_info
 
     @staticmethod
@@ -979,14 +1028,18 @@ class QdrantDocumentStore:
             logger.warning(f"Error {e} when calling QdrantDocumentStore.count_documents_by_filter_async()")
             return 0
 
-    def get_metadata_fields_info(self) -> dict[str, str]:
+    def get_metadata_fields_info(self) -> dict[str, dict[str, str]]:
         """
-        Returns the information about the fields from the collection.
+        Returns the information about the metadata fields in the collection.
+
+        Since Qdrant may not have a payload schema for unindexed metadata,
+        this method scrolls through documents to infer field types from
+        payload["meta"].
 
         :returns:
-            A dictionary mapping field names to their types e.g.:
+            A dictionary mapping field names to their type information e.g.:
             ```python
-            {"field_name": "integer"}
+            {"category": {"type": "keyword"}, "priority": {"type": "long"}}
             ```
         """
         self._initialize_client()
@@ -995,19 +1048,40 @@ class QdrantDocumentStore:
         try:
             collection_info = self._client.get_collection(self.index)
             payload_schema = collection_info.payload_schema or {}
-            return self._metadata_fields_info_from_schema(payload_schema)
+            fields_info = self._metadata_fields_info_from_schema(payload_schema)
+
+            if not fields_info:
+                next_offset = None
+                while True:
+                    records, next_offset = self._client.scroll(
+                        collection_name=self.index,
+                        scroll_filter=None,
+                        limit=self.scroll_size,
+                        offset=next_offset,
+                        with_payload=True,
+                        with_vectors=False,
+                    )
+                    self._process_records_fields_info(records, fields_info)
+                    if self._check_stop_scrolling(next_offset):
+                        break
+
+            return fields_info
         except (UnexpectedResponse, ValueError) as e:
             logger.warning(f"Error {e} when calling QdrantDocumentStore.get_metadata_fields_info()")
             return {}
 
-    async def get_metadata_fields_info_async(self) -> dict[str, str]:
+    async def get_metadata_fields_info_async(self) -> dict[str, dict[str, str]]:
         """
-        Asynchronously returns the information about the fields from the collection.
+        Asynchronously returns the information about the metadata fields in the collection.
+
+        Since Qdrant may not have a payload schema for unindexed metadata,
+        this method scrolls through documents to infer field types from
+        payload["meta"].
 
         :returns:
-            A dictionary mapping field names to their types e.g.:
+            A dictionary mapping field names to their type information e.g.:
             ```python
-            {"field_name": "integer"}
+            {"category": {"type": "keyword"}, "priority": {"type": "long"}}
             ```
         """
         await self._initialize_async_client()
@@ -1016,7 +1090,24 @@ class QdrantDocumentStore:
         try:
             collection_info = await self._async_client.get_collection(self.index)
             payload_schema = collection_info.payload_schema or {}
-            return self._metadata_fields_info_from_schema(payload_schema)
+            fields_info = self._metadata_fields_info_from_schema(payload_schema)
+
+            if not fields_info:
+                next_offset = None
+                while True:
+                    records, next_offset = await self._async_client.scroll(
+                        collection_name=self.index,
+                        scroll_filter=None,
+                        limit=self.scroll_size,
+                        offset=next_offset,
+                        with_payload=True,
+                        with_vectors=False,
+                    )
+                    self._process_records_fields_info(records, fields_info)
+                    if self._check_stop_scrolling(next_offset):
+                        break
+
+            return fields_info
         except (UnexpectedResponse, ValueError) as e:
             logger.warning(f"Error {e} when calling QdrantDocumentStore.get_metadata_fields_info_async()")
             return {}

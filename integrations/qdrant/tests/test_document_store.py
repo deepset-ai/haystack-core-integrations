@@ -32,17 +32,18 @@ from haystack_integrations.document_stores.qdrant.document_store import (
 
 
 class TestQdrantDocumentStore(
+    CountDocumentsByFilterTest,
     CountDocumentsTest,
+    CountUniqueMetadataByFilterTest,
     DeleteAllTest,
     DeleteByFilterTest,
     DeleteDocumentsTest,
     FilterableDocsFixtureMixin,
+    GetMetadataFieldMinMaxTest,
+    GetMetadataFieldUniqueValuesTest,
+    GetMetadataFieldsInfoTest,
     UpdateByFilterTest,
     WriteDocumentsTest,
-    CountDocumentsByFilterTest,
-    GetMetadataFieldMinMaxTest,
-    CountUniqueMetadataByFilterTest,
-    GetMetadataFieldUniqueValuesTest,
 ):
     @pytest.fixture
     def document_store(self) -> QdrantDocumentStore:
@@ -367,18 +368,6 @@ class TestQdrantDocumentStore(
         assert len(updated_docs) == 1
         assert updated_docs[0].embedding is not None
         assert len(updated_docs[0].embedding) == 768
-
-    def test_get_metadata_fields_info(self, document_store: QdrantDocumentStore):
-        """Test getting metadata field information."""
-        docs = [
-            Document(content="Doc 1", meta={"category": "A", "score": 0.9, "tags": ["tag1", "tag2"]}),
-            Document(content="Doc 2", meta={"category": "B", "score": 0.8, "tags": ["tag2"]}),
-        ]
-        document_store.write_documents(docs)
-
-        fields_info = document_store.get_metadata_fields_info()
-        # Should return empty dict or field info depending on Qdrant collection setup
-        assert isinstance(fields_info, dict)
 
     def test_get_metadata_field_unique_values_pagination(self, document_store: QdrantDocumentStore):
         """Test getting unique metadata field values with pagination."""
