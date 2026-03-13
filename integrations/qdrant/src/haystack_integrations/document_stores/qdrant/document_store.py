@@ -10,6 +10,7 @@ from haystack.dataclasses.sparse_embedding import SparseEmbedding
 from haystack.document_stores.errors import DocumentStoreError, DuplicateDocumentError
 from haystack.document_stores.types import DuplicatePolicy
 from haystack.utils import Secret, deserialize_secrets_inplace
+from haystack.utils.misc import _normalize_metadata_field_name
 from numpy import exp
 from qdrant_client.http import models as rest
 from qdrant_client.http.exceptions import UnexpectedResponse
@@ -1027,11 +1028,13 @@ class QdrantDocumentStore:
         :param metadata_field: The metadata field key (inside ``meta``) to get the minimum and maximum values for.
 
         :returns: A dictionary with the keys "min" and "max", where each value is the minimum or maximum value of the
-                  metadata field across all documents. Returns an empty dict if no documents have the field.
+                  metadata field across all documents. Returns ``{"min": None, "max": None}`` if no documents have
+                  the field.
         """
         self._initialize_client()
         assert self._client is not None
 
+        field_name = _normalize_metadata_field_name(metadata_field)
         try:
             min_value: Any = None
             max_value: Any = None
@@ -1046,13 +1049,11 @@ class QdrantDocumentStore:
                     with_payload=True,
                     with_vectors=False,
                 )
-                min_value, max_value = self._process_records_min_max(records, metadata_field, min_value, max_value)
+                min_value, max_value = self._process_records_min_max(records, field_name, min_value, max_value)
                 if self._check_stop_scrolling(next_offset):
                     break
 
-            if min_value is not None and max_value is not None:
-                return {"min": min_value, "max": max_value}
-            return {}
+            return {"min": min_value, "max": max_value}
         except Exception as e:
             logger.warning(f"Error {e} when calling QdrantDocumentStore.get_metadata_field_min_max()")
             return {}
@@ -1064,11 +1065,13 @@ class QdrantDocumentStore:
         :param metadata_field: The metadata field key (inside ``meta``) to get the minimum and maximum values for.
 
         :returns: A dictionary with the keys "min" and "max", where each value is the minimum or maximum value of the
-                  metadata field across all documents. Returns an empty dict if no documents have the field.
+                  metadata field across all documents. Returns ``{"min": None, "max": None}`` if no documents have
+                  the field.
         """
         await self._initialize_async_client()
         assert self._async_client is not None
 
+        field_name = _normalize_metadata_field_name(metadata_field)
         try:
             min_value: Any = None
             max_value: Any = None
@@ -1083,13 +1086,11 @@ class QdrantDocumentStore:
                     with_payload=True,
                     with_vectors=False,
                 )
-                min_value, max_value = self._process_records_min_max(records, metadata_field, min_value, max_value)
+                min_value, max_value = self._process_records_min_max(records, field_name, min_value, max_value)
                 if self._check_stop_scrolling(next_offset):
                     break
 
-            if min_value is not None and max_value is not None:
-                return {"min": min_value, "max": max_value}
-            return {}
+            return {"min": min_value, "max": max_value}
         except Exception as e:
             logger.warning(f"Error {e} when calling QdrantDocumentStore.get_metadata_field_min_max_async()")
             return {}

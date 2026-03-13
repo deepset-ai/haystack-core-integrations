@@ -14,6 +14,11 @@ from haystack.testing.document_store import (
     UpdateByFilterTest,
     WriteDocumentsTest,
     _random_embeddings,
+    CountDocumentsByFilterTest,
+    GetMetadataFieldsInfoTest,
+    GetMetadataFieldMinMaxTest,
+    CountUniqueMetadataByFilterTest,
+    GetMetadataFieldUniqueValuesTest,
 )
 from haystack.utils import Secret
 from qdrant_client.http import models as rest
@@ -34,6 +39,11 @@ class TestQdrantDocumentStore(
     FilterableDocsFixtureMixin,
     UpdateByFilterTest,
     WriteDocumentsTest,
+    CountDocumentsByFilterTest,
+    GetMetadataFieldsInfoTest,
+    GetMetadataFieldMinMaxTest,
+    CountUniqueMetadataByFilterTest,
+    GetMetadataFieldUniqueValuesTest,
 ):
     @pytest.fixture
     def document_store(self) -> QdrantDocumentStore:
