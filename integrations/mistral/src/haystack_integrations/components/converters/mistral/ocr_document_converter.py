@@ -10,14 +10,14 @@ from haystack.components.converters.utils import (
 )
 from haystack.dataclasses import ByteStream
 from haystack.utils import Secret, deserialize_secrets_inplace
-from mistralai import Mistral
-from mistralai.extra import response_format_from_pydantic_model
-from mistralai.models import (
+from mistralai.client import Mistral
+from mistralai.client.models import (
     DocumentURLChunk,
     FileChunk,
     ImageURLChunk,
     OCRResponse,
 )
+from mistralai.extra import response_format_from_pydantic_model  # type: ignore[import-untyped]
 from pydantic import BaseModel
 
 logger = logging.getLogger(__name__)
