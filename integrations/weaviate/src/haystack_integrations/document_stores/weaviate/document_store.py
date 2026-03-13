@@ -10,6 +10,7 @@ from typing import Any, NoReturn
 
 from haystack import logging
 from haystack.core.serialization import default_from_dict, default_to_dict
+from haystack.utils.misc import _normalize_metadata_field_name
 from haystack.dataclasses.document import Document
 from haystack.document_stores.errors import DocumentStoreError, DuplicateDocumentError
 from haystack.document_stores.types.policy import DuplicatePolicy
@@ -448,16 +449,6 @@ class WeaviateDocumentStore:
                 fields_info[prop.name] = {"type": data_type}
         return fields_info
 
-    @staticmethod
-    def _normalize_metadata_field_name(metadata_field: str) -> str:
-        """
-        Removes 'meta.' prefix from field name if present.
-
-        :param metadata_field: The field name, possibly prefixed with 'meta.'.
-        :returns: The field name without the 'meta.' prefix.
-        """
-        return metadata_field[5:] if metadata_field.startswith("meta.") else metadata_field
-
     def get_metadata_field_min_max(self, metadata_field: str) -> dict[str, Any]:
         """
         Returns the minimum and maximum values for a numeric or date metadata field.
@@ -467,7 +458,7 @@ class WeaviateDocumentStore:
         :returns: A dictionary with 'min' and 'max' keys containing the respective values.
         :raises ValueError: If the field is not found or doesn't support min/max operations.
         """
-        field_name = self._normalize_metadata_field_name(metadata_field)
+        field_name = _normalize_metadata_field_name(metadata_field)
 
         # Get field type from schema
         config = self.collection.config.get()
@@ -514,7 +505,7 @@ class WeaviateDocumentStore:
         :returns: A dictionary with 'min' and 'max' keys containing the respective values.
         :raises ValueError: If the field is not found or doesn't support min/max operations.
         """
-        field_name = self._normalize_metadata_field_name(metadata_field)
+        field_name = _normalize_metadata_field_name(metadata_field)
 
         # Get field type from schema
         collection = await self.async_collection
@@ -568,7 +559,7 @@ class WeaviateDocumentStore:
         validate_filters(filters)
         weaviate_filter = convert_filters(filters)
 
-        normalized_fields = [self._normalize_metadata_field_name(f) for f in metadata_fields]
+        normalized_fields = [_normalize_metadata_field_name(f) for f in metadata_fields]
 
         # Validate that all requested fields exist in the schema
         config = self.collection.config.get()
@@ -605,7 +596,7 @@ class WeaviateDocumentStore:
         collection = await self.async_collection
         weaviate_filter = convert_filters(filters)
 
-        normalized_fields = [self._normalize_metadata_field_name(f) for f in metadata_fields]
+        normalized_fields = [_normalize_metadata_field_name(f) for f in metadata_fields]
 
         # Validate that all requested fields exist in the schema
         config = await collection.config.get()
@@ -645,7 +636,7 @@ class WeaviateDocumentStore:
         :returns: A tuple of (list of unique values, total count of unique values).
         :raises ValueError: If the field is not found in the collection schema.
         """
-        field_name = self._normalize_metadata_field_name(metadata_field)
+        field_name = _normalize_metadata_field_name(metadata_field)
 
         config = self.collection.config.get()
         schema_fields = {prop.name for prop in config.properties}
@@ -695,7 +686,7 @@ class WeaviateDocumentStore:
         :returns: A tuple of (list of unique values, total count of unique values).
         :raises ValueError: If the field is not found in the collection schema.
         """
-        field_name = self._normalize_metadata_field_name(metadata_field)
+        field_name = _normalize_metadata_field_name(metadata_field)
 
         collection = await self.async_collection
         config = await collection.config.get()

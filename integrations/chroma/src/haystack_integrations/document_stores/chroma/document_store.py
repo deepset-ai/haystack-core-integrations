@@ -11,6 +11,7 @@ from chromadb.api.types import GetResult, Metadata, OneOrMany, QueryResult
 from chromadb.config import Settings
 from haystack import default_from_dict, default_to_dict, logging
 from haystack.dataclasses import Document
+from haystack.utils.misc import _normalize_metadata_field_name
 from haystack.document_stores.errors import DocumentStoreError
 from haystack.document_stores.types import DuplicatePolicy
 
@@ -241,16 +242,6 @@ class ChromaDocumentStore:
             "where_document": chroma_filters.where_document,
             "include": ["embeddings", "documents", "metadatas", "distances"],
         }
-
-    @staticmethod
-    def _normalize_metadata_field_name(metadata_field: str) -> str:
-        """
-        Normalizes a metadata field name by removing the "meta." prefix if present.
-
-        :param metadata_field: The metadata field name to normalize.
-        :returns: The normalized field name without "meta." prefix.
-        """
-        return metadata_field[5:] if metadata_field.startswith("meta.") else metadata_field
 
     @staticmethod
     def _infer_type_from_value(value: Any) -> str:
@@ -1087,7 +1078,7 @@ class ChromaDocumentStore:
         self._ensure_initialized()
         assert self._collection is not None
 
-        normalized_fields = [self._normalize_metadata_field_name(field) for field in metadata_fields]
+        normalized_fields = [_normalize_metadata_field_name(field) for field in metadata_fields]
 
         kwargs = ChromaDocumentStore._prepare_get_kwargs(filters)
         kwargs["include"] = ["metadatas"]
@@ -1114,7 +1105,7 @@ class ChromaDocumentStore:
         await self._ensure_initialized_async()
         assert self._async_collection is not None
 
-        normalized_fields = [self._normalize_metadata_field_name(field) for field in metadata_fields]
+        normalized_fields = [_normalize_metadata_field_name(field) for field in metadata_fields]
 
         kwargs = ChromaDocumentStore._prepare_get_kwargs(filters)
         kwargs["include"] = ["metadatas"]
@@ -1205,7 +1196,7 @@ class ChromaDocumentStore:
         self._ensure_initialized()
         assert self._collection is not None
 
-        field_name = self._normalize_metadata_field_name(metadata_field)
+        field_name = _normalize_metadata_field_name(metadata_field)
 
         result = self._collection.get(include=["metadatas"])
         return self._compute_field_min_max(result.get("metadatas", []), field_name)
@@ -1229,7 +1220,7 @@ class ChromaDocumentStore:
         await self._ensure_initialized_async()
         assert self._async_collection is not None
 
-        field_name = self._normalize_metadata_field_name(metadata_field)
+        field_name = _normalize_metadata_field_name(metadata_field)
 
         result = await self._async_collection.get(include=["metadatas"])
         return self._compute_field_min_max(result.get("metadatas", []), field_name)
@@ -1256,7 +1247,7 @@ class ChromaDocumentStore:
         self._ensure_initialized()
         assert self._collection is not None
 
-        field_name = self._normalize_metadata_field_name(metadata_field)
+        field_name = _normalize_metadata_field_name(metadata_field)
 
         kwargs: dict[str, Any] = {"include": ["metadatas"]}
         if search_term:
@@ -1289,7 +1280,7 @@ class ChromaDocumentStore:
         await self._ensure_initialized_async()
         assert self._async_collection is not None
 
-        field_name = self._normalize_metadata_field_name(metadata_field)
+        field_name = _normalize_metadata_field_name(metadata_field)
 
         kwargs: dict[str, Any] = {"include": ["metadatas"]}
         if search_term:
