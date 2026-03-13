@@ -1,5 +1,30 @@
 # Changelog
 
+## [integrations/google_genai-v3.11.0] - 2026-03-12
+
+### 🚀 Features
+
+- Add support for structured output (response_format) in GoogleGenAIChatGenerator (#2946)
+
+
+## [integrations/google_genai-v3.10.1] - 2026-03-11
+
+### 🐛 Bug Fixes
+
+- Fix wrong batching in Google GenAI Document Embedder (#2951)
+
+
+## [integrations/google_genai-v3.10.0] - 2026-03-10
+
+### 🚀 Features
+
+- *(google-genai)* Add timeout and max_retries to chat generator (#2875)
+- GoogleGenAIChatGenerator provides supported models list (#2930)
+- Add GoogleGenAIMultimodalDocumentEmbedder to support gemini-embedding-2 (#2944)
+
+### 🌀 Miscellaneous
+
+
 ## [integrations/google_genai-v3.8.0] - 2026-03-02
 
 ### 🚀 Features

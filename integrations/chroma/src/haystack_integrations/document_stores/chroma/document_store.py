@@ -21,7 +21,9 @@ logger = logging.getLogger(__name__)
 
 
 VALID_DISTANCE_FUNCTIONS = "l2", "cosine", "ip"
+# Supported ChromaDB metadata values can be found here: https://cookbook.chromadb.dev/core/concepts/#metadata
 SUPPORTED_TYPES_FOR_METADATA_VALUES = str, int, float, bool
+SUPPORTED_METADATA_VALUES_TYPE = str | int | float | bool
 
 
 class ChromaDocumentStore:
@@ -533,11 +535,20 @@ class ChromaDocumentStore:
         data: dict[str, Any] = {"ids": [doc.id], "documents": [doc.content]}
 
         if doc.meta:
-            valid_meta = {}
+            valid_meta: dict[str, SUPPORTED_METADATA_VALUES_TYPE | list[SUPPORTED_METADATA_VALUES_TYPE]] = {}
             discarded_keys = []
 
             for k, v in doc.meta.items():
                 if isinstance(v, SUPPORTED_TYPES_FOR_METADATA_VALUES):
+                    valid_meta[k] = v
+                # For list metadata values, list must not be empty, must be of all same type
+                # and be one of `SUPPORTED_TYPES_FOR_METADATA_VALUES`
+                elif (
+                    isinstance(v, list)
+                    and len(v) > 0
+                    and (first_type := type(v[0])) in SUPPORTED_TYPES_FOR_METADATA_VALUES
+                    and all(isinstance(item, first_type) for item in v)
+                ):
                     valid_meta[k] = v
                 else:
                     discarded_keys.append(k)

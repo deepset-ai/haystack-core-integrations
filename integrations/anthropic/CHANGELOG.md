@@ -1,5 +1,32 @@
 # Changelog
 
+## [integrations/anthropic-v5.7.0] - 2026-03-13
+
+### 🌀 Miscellaneous
+
+- Feat: List supported models for `AnthropicChatGenerator` (#2958)
+
+## [integrations/anthropic-v5.6.1] - 2026-03-12
+
+### 🧹 Chores
+
+- AnthropicVertexChatGenerator - add SUPPORTED_MODELS docstring (#2954)
+
+
+## [integrations/anthropic-v5.6.0] - 2026-03-11
+
+### 🚀 Features
+
+- *(anthropic)* Add SUPPORTED_MODELS to AnthropicVertexChatGenerator (#2932)
+
+
+## [integrations/anthropic-v5.5.0] - 2026-03-09
+
+### 🚀 Features
+
+- *(anthropic)* Allow output_config in AnthropicChatGenerator generation kwargs (#2931)
+
+
 ## [integrations/anthropic-v5.4.0] - 2026-02-24
 
 ### 🚀 Features

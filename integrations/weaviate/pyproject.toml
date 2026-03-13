@@ -24,7 +24,7 @@ classifiers = [
 ]
 dependencies = [
   "haystack-ai>=2.24.0",
-  "weaviate-client>=4.9",
+  "weaviate-client>=4.20",
   "python-dateutil",
 ]
 

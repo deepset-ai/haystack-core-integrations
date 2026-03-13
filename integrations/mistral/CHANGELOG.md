@@ -1,5 +1,29 @@
 # Changelog
 
+## [integrations/mistral-v1.2.0] - 2026-03-13
+
+### 🧹 Chores
+
+- Update mistral integration to work with mistralai>=2.0.0 (#2957)
+
+
+## [integrations/mistral-v1.1.0] - 2026-03-12
+
+### 🚀 Features
+
+- List supported models for Mistral integration (#2955)
+
+
+## [integrations/mistral-v1.0.1] - 2026-03-11
+
+### 📚 Documentation
+
+- Simplify pydoc configs (#2855)
+
+### 🌀 Miscellaneous
+
+- Fix: Pin mistralai dep to be `<2.0.0` (#2949)
+
 ## [integrations/mistral-v1.0.0] - 2026-01-12
 
 ### ⚙️ CI

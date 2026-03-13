@@ -107,7 +107,22 @@ class AnthropicChatGenerator:
         "top_k",
         "extra_headers",
         "thinking",
+        "output_config",
     ]
+
+    SUPPORTED_MODELS: ClassVar[list[str]] = [
+        "claude-opus-4-6",
+        "claude-sonnet-4-6",
+        "claude-haiku-4-5-20251001",
+        "claude-sonnet-4-5-20250929",
+        "claude-opus-4-5-20251101",
+        "claude-opus-4-1-20250805",
+        "claude-sonnet-4-20250514",
+        "claude-opus-4-20250514",
+        "claude-3-haiku-20240307",
+    ]
+    """A non-exhaustive list of chat models supported by this component. See
+     https://platform.claude.com/docs/en/about-claude/models/overview for the full list."""
 
     def __init__(
         self,
@@ -144,6 +159,7 @@ class AnthropicChatGenerator:
             - `thinking`: A dictionary of thinking parameters to be passed to the model.
                 The `budget_tokens` passed for thinking should be less than `max_tokens`.
                 For more details and supported models, see: [Anthropic Extended Thinking](https://docs.anthropic.com/en/docs/build-with-claude/extended-thinking)
+            - `output_config`: A dictionary of output configuration options to be passed to the model.
 
         :param ignore_tools_thinking_messages: Anthropic's approach to tools (function calling) resolution involves a
             "chain of thought" messages before returning the actual function names and parameters in a message. If
