@@ -34,7 +34,7 @@ class STACKITDocumentEmbedder(OpenAIDocumentEmbedder):
         "intfloat/e5-mistral-7b-instruct",
         "Qwen/Qwen3-VL-Embedding-8B",
     ]
-    """A non-exhaustive list of chat models supported by this component.
+    """A non-exhaustive list of embedding models supported by this component.
     See https://docs.stackit.cloud/products/data-and-ai/ai-model-serving/basics/available-shared-models
     for the full list."""
 
