@@ -580,6 +580,12 @@ class TestMetadataOperations:
         assert min_max["min"] == "A"
         assert min_max["max"] == "C"
 
+    def test_get_metadata_field_min_max_missing_field(self, populated_store):
+        """Test getting min/max for non-existent field"""
+        min_max = populated_store.get_metadata_field_min_max("nonexistent_field")
+        assert min_max["min"] is None
+        assert min_max["max"] is None
+
     def test_get_metadata_field_unique_values_basic(self, populated_store):
         """Test getting unique values for metadata field"""
         values, total = populated_store.get_metadata_field_unique_values("category", from_=0, size=10)
