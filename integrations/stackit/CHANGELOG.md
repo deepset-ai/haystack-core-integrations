@@ -1,5 +1,20 @@
 # Changelog
 
+## [integrations/stackit-v2.1.0] - 2026-03-16
+
+### 🚀 Features
+
+- Add list of supported models for StackIT components (#2962)
+
+### 📚 Documentation
+
+- Simplify pydoc configs (#2855)
+
+### 🧪 Testing
+
+- Stackit - make integration tests more robust (#2882)
+
+
 ## [integrations/stackit-v2.0.0] - 2026-01-13
 
 
