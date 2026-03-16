@@ -1,7 +1,12 @@
+# SPDX-FileCopyrightText: 2023-present deepset GmbH <info@deepset.ai>
+#
+# SPDX-License-Identifier: Apache-2.0
+
 import pytest
 from haystack.dataclasses.document import Document
 from haystack.testing.document_store import FilterDocumentsTest
-from psycopg.sql import SQL
+from psycopg.sql import SQL, Composed
+from psycopg.sql import Literal as SQLLiteral
 
 from haystack_integrations.document_stores.pgvector.filters import (
     FilterError,
@@ -129,24 +134,26 @@ class TestFilters(FilterDocumentsTest):
 
 
 def test_treat_meta_field():
-    assert _treat_meta_field(field="meta.number", value=9) == "(meta->>'number')::integer"
-    assert _treat_meta_field(field="meta.number", value=[1, 2, 3]) == "(meta->>'number')::integer"
-    assert _treat_meta_field(field="meta.name", value="my_name") == "meta->>'name'"
-    assert _treat_meta_field(field="meta.name", value=["my_name"]) == "meta->>'name'"
-    assert _treat_meta_field(field="meta.number", value=1.1) == "(meta->>'number')::real"
-    assert _treat_meta_field(field="meta.number", value=[1.1, 2.2, 3.3]) == "(meta->>'number')::real"
-    assert _treat_meta_field(field="meta.bool", value=True) == "(meta->>'bool')::boolean"
-    assert _treat_meta_field(field="meta.bool", value=[True, False, True]) == "(meta->>'bool')::boolean"
+    assert _treat_meta_field(field="meta.number", value=9) == SQL("(") + SQL("meta->>") + SQLLiteral("number") + SQL(")::integer")
+    assert _treat_meta_field(field="meta.number", value=[1, 2, 3]) == SQL("(") + SQL("meta->>") + SQLLiteral("number") + SQL(")::integer")
+    assert _treat_meta_field(field="meta.name", value="my_name") == SQL("meta->>") + SQLLiteral("name")
+    assert _treat_meta_field(field="meta.name", value=["my_name"]) == SQL("meta->>") + SQLLiteral("name")
+    assert _treat_meta_field(field="meta.number", value=1.1) == SQL("(") + SQL("meta->>") + SQLLiteral("number") + SQL(")::real")
+    assert _treat_meta_field(field="meta.number", value=[1.1, 2.2, 3.3]) == SQL("(") + SQL("meta->>") + SQLLiteral("number") + SQL(")::real")
+    assert _treat_meta_field(field="meta.bool", value=True) == SQL("(") + SQL("meta->>") + SQLLiteral("bool") + SQL(")::boolean")
+    assert _treat_meta_field(field="meta.bool", value=[True, False, True]) == SQL("(") + SQL("meta->>") + SQLLiteral("bool") + SQL(")::boolean")
 
     # do not cast the field if its value is not one of the known types, an empty list or None
-    assert _treat_meta_field(field="meta.other", value={"a": 3, "b": "example"}) == "meta->>'other'"
-    assert _treat_meta_field(field="meta.empty_list", value=[]) == "meta->>'empty_list'"
-    assert _treat_meta_field(field="meta.name", value=None) == "meta->>'name'"
+    assert _treat_meta_field(field="meta.other", value={"a": 3, "b": "example"}) == SQL("meta->>") + SQLLiteral("other")
+    assert _treat_meta_field(field="meta.empty_list", value=[]) == SQL("meta->>") + SQLLiteral("empty_list")
+    assert _treat_meta_field(field="meta.name", value=None) == SQL("meta->>") + SQLLiteral("name")
 
 
-def test_treat_meta_field_rejects_unsafe_metadata_key():
-    with pytest.raises(FilterError, match="Invalid metadata field name"):
-        _treat_meta_field(field="meta.name' OR 1=1 --", value="x")
+def test_treat_meta_field_sql_injection_is_safely_escaped():
+    # SQL injection attempts are safely escaped by SQLLiteral rather than rejected
+    result = _treat_meta_field(field="meta.name' OR 1=1 --", value="x")
+    assert isinstance(result, Composed)
+    assert result == SQL("meta->>") + SQLLiteral("name' OR 1=1 --")
 
 
 def test_comparison_condition_missing_operator():
@@ -206,10 +213,28 @@ def test_logical_condition_nested():
         ],
     }
     query, values = _parse_logical_condition(condition)
-    assert query == (
-        "((meta->>'domain' IS DISTINCT FROM %s OR meta->>'chapter' = ANY(%s)) "
-        "AND ((meta->>'number')::integer >= %s OR meta->>'author' IS NULL OR meta->>'author' != ALL(%s)))"
+    assert isinstance(query, Composed)
+
+    domain_field = SQL("meta->>") + SQLLiteral("domain")
+    chapter_field = SQL("meta->>") + SQLLiteral("chapter")
+    number_field = SQL("(") + SQL("meta->>") + SQLLiteral("number") + SQL(")::integer")
+    author_field = SQL("meta->>") + SQLLiteral("author")
+
+    expected = (
+        SQL("(")
+        + SQL(" AND ").join([
+            SQL("(") + SQL(" OR ").join([
+                SQL("{} IS DISTINCT FROM %s").format(domain_field),
+                SQL("{} = ANY(%s)").format(chapter_field),
+            ]) + SQL(")"),
+            SQL("(") + SQL(" OR ").join([
+                SQL("{} >= %s").format(number_field),
+                SQL("{} IS NULL OR {} != ALL(%s)").format(author_field, author_field),
+            ]) + SQL(")"),
+        ])
+        + SQL(")")
     )
+    assert query == expected
     assert values == ["science", [["intro", "conclusion"]], 90, [["John", "Jane"]]]
 
 
@@ -222,7 +247,18 @@ def test_convert_filters_to_where_clause_and_params():
         ],
     }
     where_clause, params = _convert_filters_to_where_clause_and_params(filters)
-    assert where_clause == SQL(" WHERE ") + SQL("((meta->>'number')::integer = %s AND meta->>'chapter' = %s)")
+
+    number_field = SQL("(") + SQL("meta->>") + SQLLiteral("number") + SQL(")::integer")
+    chapter_field = SQL("meta->>") + SQLLiteral("chapter")
+    expected = SQL(" WHERE ") + (
+        SQL("(")
+        + SQL(" AND ").join([
+            SQL("{} = %s").format(number_field),
+            SQL("{} = %s").format(chapter_field),
+        ])
+        + SQL(")")
+    )
+    assert where_clause == expected
     assert params == (100, "intro")
 
 
@@ -235,7 +271,18 @@ def test_convert_filters_to_where_clause_and_params_handle_null():
         ],
     }
     where_clause, params = _convert_filters_to_where_clause_and_params(filters)
-    assert where_clause == SQL(" WHERE ") + SQL("(meta->>'number' IS NULL AND meta->>'chapter' = %s)")
+
+    number_field = SQL("meta->>") + SQLLiteral("number")
+    chapter_field = SQL("meta->>") + SQLLiteral("chapter")
+    expected = SQL(" WHERE ") + (
+        SQL("(")
+        + SQL(" AND ").join([
+            SQL("{} IS NULL").format(number_field),
+            SQL("{} = %s").format(chapter_field),
+        ])
+        + SQL(")")
+    )
+    assert where_clause == expected
     assert params == ("intro",)
 
 
