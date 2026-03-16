@@ -52,9 +52,10 @@ class TestArcadeDBDocumentStore(DocumentStoreBaseExtendedTests):
     """
     Run Haystack DocumentStore mixin tests against ArcadeDBDocumentStore.
 
-    Base tests cover: count_documents, delete_documents, filter_documents, write_documents.
-    ArcadeDB does not implement delete_all_documents, delete_by_filter, or update_by_filter,
-    so DocumentStoreBaseTests (not Extended) is used.
+    DocumentStoreBaseExtendedTests covers:
+
+        count_documents, delete_documents, filter_documents, write_documents, delete_all_documents, delete_by_filter,
+        update_by_filter
     """
 
     @pytest.fixture
