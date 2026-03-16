@@ -11,6 +11,13 @@ from haystack_integrations.components.embedders.stackit.document_embedder import
 
 
 class TestSTACKITDocumentEmbedder:
+    def test_supported_models(self):
+        """SUPPORTED_MODELS is a non-empty list of strings."""
+        models = STACKITDocumentEmbedder.SUPPORTED_MODELS
+        assert isinstance(models, list)
+        assert len(models) > 0
+        assert all(isinstance(m, str) for m in models)
+
     def test_init_default(self, monkeypatch):
         monkeypatch.setenv("STACKIT_API_KEY", "test-api-key")
 
