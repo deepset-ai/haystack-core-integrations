@@ -9,7 +9,7 @@ import pytest
 from haystack import Document
 from haystack.document_stores.errors import DuplicateDocumentError
 from haystack.document_stores.types import DuplicatePolicy
-from haystack.testing.document_store import DocumentStoreBaseTests
+from haystack.testing.document_store import DocumentStoreBaseExtendedTests
 
 from haystack_integrations.document_stores.arcadedb import ArcadeDBDocumentStore
 
@@ -48,13 +48,14 @@ class TestSerialization:
     reason="Set ARCADEDB_PASSWORD (e.g. via repo secret in CI) to run integration tests.",
 )
 @pytest.mark.integration
-class TestArcadeDBDocumentStore(DocumentStoreBaseTests):
+class TestArcadeDBDocumentStore(DocumentStoreBaseExtendedTests):
     """
     Run Haystack DocumentStore mixin tests against ArcadeDBDocumentStore.
 
-    Base tests cover: count_documents, delete_documents, filter_documents, write_documents.
-    ArcadeDB does not implement delete_all_documents, delete_by_filter, or update_by_filter,
-    so DocumentStoreBaseTests (not Extended) is used.
+    DocumentStoreBaseExtendedTests covers:
+
+        count_documents, delete_documents, filter_documents, write_documents, delete_all_documents, delete_by_filter,
+        update_by_filter
     """
 
     @pytest.fixture
