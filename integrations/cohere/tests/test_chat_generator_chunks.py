@@ -506,12 +506,15 @@ def expected_streaming_chunks():
 
 
 class TestCohereChunkConversion:
+    # TODO Probably better to replace with _parse_streaming_response
     def test_convert_cohere_chunk_to_streaming_chunk_complete_sequence(self, cohere_chunks, expected_streaming_chunks):
-        # TODO: the indexes are not correctly checked because of missing global_index
-        # all the streaming chunks have index 0, but the expected indexes increase with tool calls.
-
+        global_index = 0
         for cohere_chunk, haystack_chunk in zip(cohere_chunks, expected_streaming_chunks, strict=True):
-            stream_chunk = _convert_cohere_chunk_to_streaming_chunk(chunk=cohere_chunk, model="command-a-03-2025")
+            if cohere_chunk.type in ["tool-call-start", "content-start", "citation-start"]:
+                global_index += 1
+            stream_chunk = _convert_cohere_chunk_to_streaming_chunk(
+                chunk=cohere_chunk, model="command-a-03-2025", global_index=global_index
+            )
             assert stream_chunk == haystack_chunk
 
     def test_convert_message_end_chunk(self):
