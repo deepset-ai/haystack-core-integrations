@@ -12,10 +12,10 @@ def _configure_dspy_lm(model: str, api_base: str | None = None, **kwargs: Any) -
     """
     Create and configure a DSPy language model.
 
-    :param model: Model identifier (e.g. ``"openai/gpt-5-mini"``).
+    :param model: Model identifier (e.g. `"openai/gpt-5-mini"`).
     :param api_base: Optional base URL for the API (useful for local models).
-    :param kwargs: Additional keyword arguments passed to ``dspy.LM``.
-    :returns: The configured ``dspy.LM`` instance.
+    :param kwargs: Additional keyword arguments passed to `dspy.LM`.
+    :returns: The configured `dspy.LM` instance.
     """
     lm_kwargs: dict[str, Any] = {"model": model, **kwargs}
     if api_base is not None:
@@ -29,7 +29,7 @@ def _get_dspy_module_class(module_type: str) -> type:
     """
     Map a module type string to the corresponding DSPy module class.
 
-    :param module_type: One of ``"Predict"``, ``"ChainOfThought"``, or ``"ReAct"``.
+    :param module_type: One of `"Predict"`, `"ChainOfThought"`, or `"ReAct"`.
     :returns: The DSPy module class.
     :raises ValueError: If the module type is not recognized.
     """
@@ -44,35 +44,17 @@ def _get_dspy_module_class(module_type: str) -> type:
     return mapping[module_type]
 
 
-def _resolve_signature(signature: str | type[dspy.Signature]) -> str | type[dspy.Signature]:
-    """
-    Resolve a signature that may be a fully qualified class path string.
-
-    If the string contains a dot, it is treated as a fully qualified class path
-    (e.g. ``"mymodule.QASignature"``) and imported. Otherwise, it is returned as-is
-    (a DSPy shorthand like ``"question -> answer"``).
-
-    :param signature: A string or dspy.Signature subclass.
-    :returns: The resolved signature.
-    """
-    if isinstance(signature, str) and "." in signature and "->" not in signature:
-        module_path, class_name = signature.rsplit(".", 1)
-        module = importlib.import_module(module_path)
-        return getattr(module, class_name)
-    return signature
-
-
 @component
 class DSPySignatureChatGenerator:
     """
     A Haystack chat generator component that uses DSPy signatures and modules
     for structured generation.
 
-    Accepts and returns ``ChatMessage`` objects, making it compatible with
+    Accepts and returns `ChatMessage` objects, making it compatible with
     Haystack chat pipelines.
 
     The API key is read automatically from environment variables by DSPy/litellm
-    (e.g. ``OPENAI_API_KEY``). Use ``api_base`` for local or self-hosted models.
+    (e.g. `OPENAI_API_KEY`). Use `api_base` for local or self-hosted models.
 
     Usage example:
 
@@ -112,19 +94,19 @@ class DSPySignatureChatGenerator:
         Initialize the DSPySignatureChatGenerator.
 
         :param signature: DSPy signature defining I/O structure. Can be a string
-            like ``"question -> answer"`` or a ``dspy.Signature`` subclass.
-        :param model: Model identifier (e.g. ``"openai/gpt-5-mini"``).
+            like `"question -> answer"` or a `dspy.Signature` subclass.
+        :param model: Model identifier (e.g. `"openai/gpt-5-mini"`).
         :param api_base: Optional base URL for the API (useful for local models).
-        :param module_type: DSPy module type: ``"Predict"``, ``"ChainOfThought"``, or ``"ReAct"``.
+        :param module_type: DSPy module type: `"Predict"`, `"ChainOfThought"`, or `"ReAct"`.
         :param output_field: Which signature output field to use as the reply.
         :param generation_kwargs: Additional generation parameters (temperature, max_tokens, etc.).
         :param module_kwargs: Additional keyword arguments passed to the DSPy module constructor.
-            For example, use ``{"tools": [tool1, tool2]}`` when using the ``"ReAct"`` module type.
-        :param input_mapping: Maps DSPy signature input field names to ``run()`` kwarg names.
-            For example, if your signature has an input field ``"context"`` but your pipeline
-            provides it as ``"documents"``, use ``{"context": "documents"}``. When not provided,
+            For example, use `{"tools": [tool1, tool2]}` when using the `"ReAct"` module type.
+        :param input_mapping: Maps DSPy signature input field names to `run()` kwarg names.
+            For example, if your signature has an input field `"context"` but your pipeline
+            provides it as `"documents"`, use `{"context": "documents"}`. When not provided,
             the first input field receives the last user message text, and remaining fields
-            are matched by name from ``**kwargs``.
+            are matched by name from `**kwargs`.
         """
         if module_type not in VALID_MODULE_TYPES:
             msg = f"Invalid module_type '{module_type}'. Must be one of {sorted(VALID_MODULE_TYPES)}"
@@ -183,23 +165,38 @@ class DSPySignatureChatGenerator:
                 return msg.text or ""
         return messages[-1].text or ""
 
-    def _signature_to_string(self) -> str:
+    @staticmethod
+    def _serialize_signature(signature: str | type[dspy.Signature]) -> dict[str, str]:
         """
-        Convert the signature to a serializable string representation.
+        Serialize the signature to a dictionary.
 
-        For string signatures, returns the string as-is.
-        For ``dspy.Signature`` subclasses, returns the fully qualified class path
-        (e.g. ``"mymodule.QASignature"``), which can be imported back during
-        deserialization.
+        String signatures are stored as `{"str": "question -> answer"}`.
+        `dspy.Signature` subclasses are stored as
+        `{"class": "mymodule.QASignature"}`.
         """
-        if isinstance(self.signature, str):
-            return self.signature
-        return f"{self.signature.__module__}.{self.signature.__qualname__}"
+        if isinstance(signature, str):
+            return {"str": signature}
+        return {"class": f"{signature.__module__}.{signature.__qualname__}"}
+
+    @staticmethod
+    def _deserialize_signature(data: dict[str, str]) -> str | type[dspy.Signature]:
+        """
+        Deserialize a signature from a dictionary.
+
+        Accepts `{"str": "question -> answer"}` or
+        `{"class": "mymodule.QASignature"}`.
+        """
+        if "str" in data:
+            return data["str"]
+        class_path = data["class"]
+        module_path, class_name = class_path.rsplit(".", 1)
+        module = importlib.import_module(module_path)
+        return getattr(module, class_name)
 
     def to_dict(self) -> dict[str, Any]:
         """Serialize this component to a dictionary."""
         kwargs: dict[str, Any] = {
-            "signature": self._signature_to_string(),
+            "signature": self._serialize_signature(self.signature),
             "model": self.model,
             "api_base": self.api_base,
             "module_type": self.module_type,
@@ -215,10 +212,9 @@ class DSPySignatureChatGenerator:
         """Deserialize a component from a dictionary."""
         init_params = data.get("init_parameters", {})
 
-        # Resolve signature class path if needed
         signature = init_params.get("signature")
-        if signature:
-            init_params["signature"] = _resolve_signature(signature)
+        if isinstance(signature, dict):
+            init_params["signature"] = cls._deserialize_signature(signature)
 
         return default_from_dict(cls, data)
 
@@ -235,7 +231,7 @@ class DSPySignatureChatGenerator:
         :param messages: List of chat messages. The last user message is used as input.
         :param generation_kwargs: Optional runtime generation parameters.
         :param kwargs: Additional keyword arguments mapped to signature input fields.
-        :returns: A dictionary with ``replies`` (list of ChatMessage).
+        :returns: A dictionary with `replies` (list of ChatMessage).
         """
         if not messages:
             msg = "The 'messages' parameter cannot be empty."
@@ -261,12 +257,12 @@ class DSPySignatureChatGenerator:
         """
         Asynchronously run the DSPy module on the given messages.
 
-        Uses DSPy's native ``acall`` for true async I/O.
+        Uses DSPy's native `acall` for true async I/O.
 
         :param messages: List of chat messages. The last user message is used as input.
         :param generation_kwargs: Optional runtime generation parameters.
         :param kwargs: Additional keyword arguments mapped to signature input fields.
-        :returns: A dictionary with ``replies`` (list of ChatMessage).
+        :returns: A dictionary with `replies` (list of ChatMessage).
         """
         if not messages:
             msg = "The 'messages' parameter cannot be empty."
