@@ -600,7 +600,8 @@ class AstraDocumentStore:
         :param metadata_field: The metadata field to inspect.
         :returns: A dictionary with `min` and `max`.
         """
-        distinct_values = self.index.distinct(f"meta.{metadata_field}")
+        field = metadata_field.removeprefix("meta.")
+        distinct_values = self.index.distinct(f"meta.{field}")
         comparable_values = [value for value in distinct_values if isinstance(value, (str, int, float, bool))]
         if not comparable_values:
             return {"min": None, "max": None}
@@ -619,7 +620,8 @@ class AstraDocumentStore:
         :param size: The number of values to return.
         :returns: A tuple containing the paginated values and the total count.
         """
-        values = AstraDocumentStore._normalize_distinct_values(self.index.distinct(f"meta.{metadata_field}"))
+        field = metadata_field.removeprefix("meta.")
+        values = AstraDocumentStore._normalize_distinct_values(self.index.distinct(f"meta.{field}"))
         if search_term:
             search_term_lower = search_term.lower()
             values = [value for value in values if search_term_lower in value.lower()]
