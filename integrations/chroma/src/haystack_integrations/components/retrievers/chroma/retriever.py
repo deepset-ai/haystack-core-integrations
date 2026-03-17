@@ -51,7 +51,7 @@ class ChromaQueryTextRetriever:
         filters: dict[str, Any] | None = None,
         top_k: int = 10,
         filter_policy: str | FilterPolicy = FilterPolicy.REPLACE,
-    ):
+    ) -> None:
         """
         :param document_store: an instance of `ChromaDocumentStore`.
         :param filters: filters to narrow down the search space.
@@ -164,7 +164,7 @@ class ChromaEmbeddingRetriever:
         filters: dict[str, Any] | None = None,
         top_k: int = 10,
         filter_policy: str | FilterPolicy = FilterPolicy.REPLACE,
-    ):
+    ) -> None:
         """
         :param document_store: an instance of `ChromaDocumentStore`.
         :param filters: filters to narrow down the search space.

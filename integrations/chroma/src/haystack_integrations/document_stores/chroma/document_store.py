@@ -45,7 +45,7 @@ class ChromaDocumentStore:
         metadata: dict | None = None,
         client_settings: dict[str, Any] | None = None,
         **embedding_function_params: Any,
-    ):
+    ) -> None:
         """
         Creates a new ChromaDocumentStore instance.
         It is meant to be connected to a Chroma collection.
