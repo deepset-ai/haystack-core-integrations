@@ -414,7 +414,6 @@ def cohere_chunks():
         ToolCallEndV2ChatStreamResponse(type="tool-call-end", index=1),
         MessageEndV2ChatStreamResponse(
             type="message-end",
-            id=None,
             delta=ChatMessageEndEventDelta(
                 error=None,
                 finish_reason="TOOL_CALL",
@@ -432,156 +431,68 @@ def cohere_chunks():
 
 @pytest.fixture
 def expected_streaming_chunks():
+    common_meta = {"model": "command-a-03-2025"}
     return [
-        StreamingChunk(content="", meta={"model": "command-a-03-2025"}, index=0),
+        StreamingChunk(content="", meta=common_meta, index=0),
         # TODO This one or the one above is missing the start=True
-        StreamingChunk(content="I", meta={"model": "command-a-03-2025"}, index=0),
-        StreamingChunk(content=" will", meta={"model": "command-a-03-2025"}, index=0),
-        StreamingChunk(content=" use", meta={"model": "command-a-03-2025"}, index=0),
-        StreamingChunk(content=" the", meta={"model": "command-a-03-2025"}, index=0),
-        StreamingChunk(content=" calculator", meta={"model": "command-a-03-2025"}, index=0),
-        StreamingChunk(content=" tool", meta={"model": "command-a-03-2025"}, index=0),
-        StreamingChunk(content=" to", meta={"model": "command-a-03-2025"}, index=0),
-        StreamingChunk(content=" compute", meta={"model": "command-a-03-2025"}, index=0),
-        StreamingChunk(content=" the", meta={"model": "command-a-03-2025"}, index=0),
-        StreamingChunk(content=" results", meta={"model": "command-a-03-2025"}, index=0),
-        StreamingChunk(content=" of", meta={"model": "command-a-03-2025"}, index=0),
-        StreamingChunk(content=" 7", meta={"model": "command-a-03-2025"}, index=0),
-        StreamingChunk(content=" +", meta={"model": "command-a-03-2025"}, index=0),
-        StreamingChunk(content=" 2", meta={"model": "command-a-03-2025"}, index=0),
-        StreamingChunk(content=" and", meta={"model": "command-a-03-2025"}, index=0),
-        StreamingChunk(content=" 2", meta={"model": "command-a-03-2025"}, index=0),
-        StreamingChunk(content=" *", meta={"model": "command-a-03-2025"}, index=0),
-        StreamingChunk(content=" 2", meta={"model": "command-a-03-2025"}, index=0),
-        StreamingChunk(content=".", meta={"model": "command-a-03-2025"}, index=0),
+        StreamingChunk(content="I", meta=common_meta, index=0),
+        StreamingChunk(content=" will", meta=common_meta, index=0),
+        StreamingChunk(content=" use", meta=common_meta, index=0),
+        StreamingChunk(content=" the", meta=common_meta, index=0),
+        StreamingChunk(content=" calculator", meta=common_meta, index=0),
+        StreamingChunk(content=" tool", meta=common_meta, index=0),
+        StreamingChunk(content=" to", meta=common_meta, index=0),
+        StreamingChunk(content=" compute", meta=common_meta, index=0),
+        StreamingChunk(content=" the", meta=common_meta, index=0),
+        StreamingChunk(content=" results", meta=common_meta, index=0),
+        StreamingChunk(content=" of", meta=common_meta, index=0),
+        StreamingChunk(content=" 7", meta=common_meta, index=0),
+        StreamingChunk(content=" +", meta=common_meta, index=0),
+        StreamingChunk(content=" 2", meta=common_meta, index=0),
+        StreamingChunk(content=" and", meta=common_meta, index=0),
+        StreamingChunk(content=" 2", meta=common_meta, index=0),
+        StreamingChunk(content=" *", meta=common_meta, index=0),
+        StreamingChunk(content=" 2", meta=common_meta, index=0),
+        StreamingChunk(content=".", meta=common_meta, index=0),
         StreamingChunk(
             content="",
             meta={"model": "command-a-03-2025", "tool_call_id": "calculator_mcdnh7tnn9v9"},
             index=1,
-            tool_calls=[
-                ToolCallDelta(index=1, tool_name="calculator", arguments=None, id="calculator_mcdnh7tnn9v9", extra=None)
-            ],
+            tool_calls=[ToolCallDelta(index=1, tool_name="calculator", id="calculator_mcdnh7tnn9v9")],
             start=True,
         ),
+        StreamingChunk(content="", meta=common_meta, index=1, tool_calls=[ToolCallDelta(index=1, arguments='{"')]),
         StreamingChunk(
-            content="",
-            meta={"model": "command-a-03-2025"},
-            index=1,
-            tool_calls=[ToolCallDelta(index=1, arguments='{"', id=None, extra=None)],
+            content="", meta=common_meta, index=1, tool_calls=[ToolCallDelta(index=1, arguments="expression")]
         ),
-        StreamingChunk(
-            content="",
-            meta={"model": "command-a-03-2025"},
-            index=1,
-            tool_calls=[ToolCallDelta(index=1, arguments="expression", id=None, extra=None)],
-        ),
-        StreamingChunk(
-            content="",
-            meta={"model": "command-a-03-2025"},
-            index=1,
-            tool_calls=[ToolCallDelta(index=1, arguments='":', id=None, extra=None)],
-        ),
-        StreamingChunk(
-            content="",
-            meta={"model": "command-a-03-2025"},
-            index=1,
-            tool_calls=[ToolCallDelta(index=1, arguments=' "', id=None, extra=None)],
-        ),
-        StreamingChunk(
-            content="",
-            meta={"model": "command-a-03-2025"},
-            index=1,
-            tool_calls=[ToolCallDelta(index=1, arguments="7", id=None, extra=None)],
-        ),
-        StreamingChunk(
-            content="",
-            meta={"model": "command-a-03-2025"},
-            index=1,
-            tool_calls=[ToolCallDelta(index=1, arguments=" +", id=None, extra=None)],
-        ),
-        StreamingChunk(
-            content="",
-            meta={"model": "command-a-03-2025"},
-            index=1,
-            tool_calls=[ToolCallDelta(index=1, arguments=" ", id=None, extra=None)],
-        ),
-        StreamingChunk(
-            content="",
-            meta={"model": "command-a-03-2025"},
-            index=1,
-            tool_calls=[ToolCallDelta(index=1, arguments="2", id=None, extra=None)],
-        ),
-        StreamingChunk(
-            content="",
-            meta={"model": "command-a-03-2025"},
-            index=1,
-            tool_calls=[ToolCallDelta(index=1, arguments='"}', id=None, extra=None)],
-        ),
-        StreamingChunk(content="", meta={"model": "command-a-03-2025"}, index=1, start=True),
+        StreamingChunk(content="", meta=common_meta, index=1, tool_calls=[ToolCallDelta(index=1, arguments='":')]),
+        StreamingChunk(content="", meta=common_meta, index=1, tool_calls=[ToolCallDelta(index=1, arguments=' "')]),
+        StreamingChunk(content="", meta=common_meta, index=1, tool_calls=[ToolCallDelta(index=1, arguments="7")]),
+        StreamingChunk(content="", meta=common_meta, index=1, tool_calls=[ToolCallDelta(index=1, arguments=" +")]),
+        StreamingChunk(content="", meta=common_meta, index=1, tool_calls=[ToolCallDelta(index=1, arguments=" ")]),
+        StreamingChunk(content="", meta=common_meta, index=1, tool_calls=[ToolCallDelta(index=1, arguments="2")]),
+        StreamingChunk(content="", meta=common_meta, index=1, tool_calls=[ToolCallDelta(index=1, arguments='"}')]),
+        # TODO This chunk should not have a start=True
+        StreamingChunk(content="", meta=common_meta, index=1, start=True),
         StreamingChunk(
             content="",
             meta={"model": "command-a-03-2025", "tool_call_id": "calculator_yk0yf8f7fzbe"},
             index=2,
-            tool_calls=[
-                ToolCallDelta(index=2, tool_name="calculator", arguments=None, id="calculator_yk0yf8f7fzbe", extra=None)
-            ],
+            tool_calls=[ToolCallDelta(index=2, tool_name="calculator", id="calculator_yk0yf8f7fzbe")],
             start=True,
         ),
+        StreamingChunk(content="", meta=common_meta, index=2, tool_calls=[ToolCallDelta(index=2, arguments='{"')]),
         StreamingChunk(
-            content="",
-            meta={"model": "command-a-03-2025"},
-            index=2,
-            tool_calls=[ToolCallDelta(index=2, arguments='{"', id=None, extra=None)],
+            content="", meta=common_meta, index=2, tool_calls=[ToolCallDelta(index=2, arguments="expression")]
         ),
-        StreamingChunk(
-            content="",
-            meta={"model": "command-a-03-2025"},
-            index=2,
-            tool_calls=[ToolCallDelta(index=2, arguments="expression", id=None, extra=None)],
-        ),
-        StreamingChunk(
-            content="",
-            meta={"model": "command-a-03-2025"},
-            index=2,
-            tool_calls=[ToolCallDelta(index=2, arguments='":', id=None, extra=None)],
-        ),
-        StreamingChunk(
-            content="",
-            meta={"model": "command-a-03-2025"},
-            index=2,
-            tool_calls=[ToolCallDelta(index=2, arguments=' "', id=None, extra=None)],
-        ),
-        StreamingChunk(
-            content="",
-            meta={"model": "command-a-03-2025"},
-            index=2,
-            tool_calls=[ToolCallDelta(index=2, arguments="2", id=None, extra=None)],
-        ),
-        StreamingChunk(
-            content="",
-            meta={"model": "command-a-03-2025"},
-            index=2,
-            tool_calls=[ToolCallDelta(index=2, arguments=" *", id=None, extra=None)],
-        ),
-        StreamingChunk(
-            content="",
-            meta={"model": "command-a-03-2025"},
-            index=2,
-            tool_calls=[ToolCallDelta(index=2, arguments=" ", id=None, extra=None)],
-        ),
-        StreamingChunk(
-            content="",
-            meta={"model": "command-a-03-2025"},
-            index=2,
-            tool_calls=[ToolCallDelta(index=2, arguments="2", id=None, extra=None)],
-        ),
-        StreamingChunk(
-            content="",
-            meta={"model": "command-a-03-2025"},
-            index=2,
-            tool_calls=[ToolCallDelta(index=2, arguments='"}', id=None, extra=None)],
-        ),
-        StreamingChunk(content="", meta={"model": "command-a-03-2025"}, index=2, start=True),
+        StreamingChunk(content="", meta=common_meta, index=2, tool_calls=[ToolCallDelta(index=2, arguments='":')]),
+        StreamingChunk(content="", meta=common_meta, index=2, tool_calls=[ToolCallDelta(index=2, arguments=' "')]),
+        StreamingChunk(content="", meta=common_meta, index=2, tool_calls=[ToolCallDelta(index=2, arguments="2")]),
+        StreamingChunk(content="", meta=common_meta, index=2, tool_calls=[ToolCallDelta(index=2, arguments=" *")]),
+        StreamingChunk(content="", meta=common_meta, index=2, tool_calls=[ToolCallDelta(index=2, arguments=" ")]),
+        StreamingChunk(content="", meta=common_meta, index=2, tool_calls=[ToolCallDelta(index=2, arguments="2")]),
+        StreamingChunk(content="", meta=common_meta, index=2, tool_calls=[ToolCallDelta(index=2, arguments='"}')]),
+        StreamingChunk(content="", meta=common_meta, index=2, start=True),
         StreamingChunk(
             content="",
             meta={
@@ -608,7 +519,6 @@ class TestCohereChunkConversion:
             "tool-call-start",
             tool_call_id="call_empty_123",
             # missing tool name
-            arguments=None,
         )
         result = _convert_cohere_chunk_to_streaming_chunk(chunk=chunk, model="command-r-08-2024")
 
