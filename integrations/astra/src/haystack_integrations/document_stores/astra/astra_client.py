@@ -3,6 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import json
+from collections.abc import Generator
 from typing import Any
 from warnings import warn
 
@@ -33,7 +34,7 @@ class Response:
 class QueryResponse:
     matches: list[Response]
 
-    def get(self, key):
+    def get(self, key: str) -> Any:
         return self.__dict__[key]
 
 
@@ -181,13 +182,13 @@ class AstraClient:
 
         return formatted_response
 
-    def _query_without_vector(self, top_k, filters=None):
+    def _query_without_vector(self, top_k: int | None, filters: dict[str, Any] | None = None) -> list[dict[str, Any]]:
         query = {"filter": filters, "limit": top_k}
 
         return self.find_documents(query)
 
     @staticmethod
-    def _format_query_response(responses, include_metadata, include_values):
+    def _format_query_response(responses: list[dict[str, Any]] | None, include_metadata: bool | None, include_values: bool | None) -> QueryResponse:
         final_res = []
 
         if responses is None:
@@ -207,7 +208,7 @@ class AstraClient:
 
         return QueryResponse(final_res)
 
-    def _query(self, vector, top_k, filters=None):
+    def _query(self, vector: list[float], top_k: int | None, filters: dict[str, Any] | None = None) -> list[dict[str, Any]]:
         query = {"sort": {"$vector": vector}, "limit": top_k, "includeSimilarity": True}
 
         if filters is not None:
@@ -244,7 +245,7 @@ class AstraClient:
 
         return find_results
 
-    def find_one_document(self, find_query):
+    def find_one_document(self, find_query: dict[str, Any]) -> dict[str, Any] | None:
         """
         Find one document in the Astra index.
 
@@ -271,7 +272,7 @@ class AstraClient:
         """
         document_batch = []
 
-        def batch_generator(chunks, batch_size):
+        def batch_generator(chunks: list[str], batch_size: int) -> Generator[list[str], None, None]:
             for i in range(0, len(chunks), batch_size):
                 i_end = min(len(chunks), i + batch_size)
                 batch = chunks[i:i_end]

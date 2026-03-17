@@ -2,6 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+from collections.abc import Generator
 from typing import Any
 
 from haystack import default_from_dict, default_to_dict, logging
@@ -20,7 +21,7 @@ logger = logging.getLogger(__name__)
 MAX_BATCH_SIZE = 20
 
 
-def _batches(input_list, batch_size):
+def _batches(input_list: list[Any], batch_size: int) -> Generator[list[Any], None, None]:
     input_length = len(input_list)
     for ndx in range(0, input_length, batch_size):
         yield input_list[ndx : min(ndx + batch_size, input_length)]
