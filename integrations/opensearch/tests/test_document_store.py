@@ -38,12 +38,25 @@ def test_to_dict(_mock_opensearch_client):
             "settings": {"index.knn": True},
             "return_embedding": False,
             "create_index": True,
-            "http_auth": None,
+            "http_auth": [
+                {"type": "env_var", "env_vars": ["OPENSEARCH_USERNAME"], "strict": False},
+                {"type": "env_var", "env_vars": ["OPENSEARCH_PASSWORD"], "strict": False},
+            ],
             "use_ssl": None,
             "verify_certs": None,
             "timeout": None,
         },
     }
+
+
+@patch("haystack_integrations.document_stores.opensearch.document_store.OpenSearch")
+def test_to_dict_with_http_auth_str(_mock_opensearch_client):
+    """
+    Verify that plain strings secrets are not serialized.
+    """
+    document_store = OpenSearchDocumentStore(hosts="some hosts", http_auth=("admin", "admin"))
+    res = document_store.to_dict()
+    assert res["init_parameters"]["http_auth"] is None
 
 
 @patch("haystack_integrations.document_stores.opensearch.document_store.OpenSearch")
@@ -94,6 +107,23 @@ def test_from_dict(_mock_opensearch_client):
 
 
 @patch("haystack_integrations.document_stores.opensearch.document_store.OpenSearch")
+def test_from_dict_with_http_auth_str(_mock_opensearch_client):
+    """
+    Verify that serialized plain strings secrets can be properly deserialized.
+    """
+    data = {
+        "type": "haystack_integrations.document_stores.opensearch.document_store.OpenSearchDocumentStore",
+        "init_parameters": {
+            "hosts": "some hosts",
+            "index": "default",
+            "http_auth": ("admin", "admin"),
+        },
+    }
+    document_store = OpenSearchDocumentStore.from_dict(data)
+    assert document_store._http_auth == ("admin", "admin")
+
+
+@patch("haystack_integrations.document_stores.opensearch.document_store.OpenSearch")
 def test_init_is_lazy(_mock_opensearch_client):
     OpenSearchDocumentStore(hosts="testhost")
     _mock_opensearch_client.assert_not_called()
@@ -110,16 +140,19 @@ def test_get_default_mappings(_mock_opensearch_client):
     }
 
 
+@patch("haystack_integrations.document_stores.opensearch.document_store.OpenSearch")
 @patch("haystack_integrations.document_stores.opensearch.document_store.bulk")
-def test_routing_extracted_from_metadata(mock_bulk, document_store):
+def test_routing_extracted_from_metadata(mock_bulk, _mock_opensearch_client):
     """Test routing extraction from document metadata"""
     mock_bulk.return_value = (2, [])
+
+    store = OpenSearchDocumentStore(hosts="testhost", http_auth=("admin", "admin"))
 
     docs = [
         Document(id="1", content="Doc", meta={"_routing": "user_a", "other": "data"}),
         Document(id="2", content="Doc"),
     ]
-    document_store.write_documents(docs)
+    store.write_documents(docs)
 
     actions = list(mock_bulk.call_args.kwargs["actions"])
 
@@ -135,13 +168,16 @@ def test_routing_extracted_from_metadata(mock_bulk, document_store):
     assert "_routing" not in actions[1]["_source"].get("meta", {})
 
 
+@patch("haystack_integrations.document_stores.opensearch.document_store.OpenSearch")
 @patch("haystack_integrations.document_stores.opensearch.document_store.bulk")
-def test_routing_in_delete(mock_bulk, document_store):
+def test_routing_in_delete(mock_bulk, _mock_opensearch_client):
     """Test routing parameter in delete operations"""
     mock_bulk.return_value = (2, [])
 
+    store = OpenSearchDocumentStore(hosts="testhost", http_auth=("admin", "admin"))
+
     routing_map = {"1": "user_a", "2": "user_b"}
-    document_store.delete_documents(["1", "2", "3"], routing=routing_map)
+    store.delete_documents(["1", "2", "3"], routing=routing_map)
 
     actions = list(mock_bulk.call_args.kwargs["actions"])
 

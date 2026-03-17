@@ -304,7 +304,7 @@ class TestDocumentStoreWithAuth:
                 "settings": {"index.knn": True},
                 "return_embedding": False,
                 "create_index": True,
-                "http_auth": ("user", "pw"),
+                "http_auth": None,
                 "use_ssl": None,
                 "verify_certs": None,
                 "timeout": None,
