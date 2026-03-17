@@ -223,9 +223,9 @@ def test_logical_condition_nested():
 
     expected_sql = (
         "("
-            "(meta->>'domain' IS DISTINCT FROM %s OR meta->>'chapter' = ANY(%s))"
-            " AND "
-            "((meta->>'number')::integer >= %s OR meta->>'author' IS NULL OR meta->>'author' != ALL(%s))"
+        "(meta->>'domain' IS DISTINCT FROM %s OR meta->>'chapter' = ANY(%s))"
+        " AND "
+        "((meta->>'number')::integer >= %s OR meta->>'author' IS NULL OR meta->>'author' != ALL(%s))"
         ")"
     )
     assert _render(query) == expected_sql
