@@ -34,7 +34,7 @@ class Response:
 class QueryResponse:
     matches: list[Response]
 
-    def get(self, key: str) -> Any:
+    def get(self, key: str) -> Any:  # noqa: ANN401
         return self.__dict__[key]
 
 
