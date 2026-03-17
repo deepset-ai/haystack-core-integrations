@@ -1,35 +1,31 @@
 from unittest.mock import MagicMock
 
 import pytest
-from cohere import (
-    ChatMessageEndEventDelta,
-    ChatMessageStartEventDelta,
-    ChatMessageStartEventDeltaMessage,
-    ChatToolCallDeltaEventDelta,
-    ChatToolCallDeltaEventDeltaMessage,
-    ChatToolCallDeltaEventDeltaMessageToolCalls,
-    ChatToolCallDeltaEventDeltaMessageToolCallsFunction,
-    ChatToolCallStartEventDelta,
-    ChatToolCallStartEventDeltaMessage,
-    ChatToolPlanDeltaEventDelta,
-    ChatToolPlanDeltaEventDeltaMessage,
-    MessageEndV2ChatStreamResponse,
-    MessageStartV2ChatStreamResponse,
-    ToolCallDeltaV2ChatStreamResponse,
-    ToolCallEndV2ChatStreamResponse,
-    ToolCallStartV2ChatStreamResponse,
-    ToolCallV2,
-    ToolCallV2Function,
-    ToolPlanDeltaV2ChatStreamResponse,
-    Usage,
-    UsageBilledUnits,
-    UsageTokens,
-)
+from cohere import ChatMessageEndEventDelta as MsgEndDelta
+from cohere import ChatMessageStartEventDelta as MsgStartDelta
+from cohere import ChatMessageStartEventDeltaMessage as MsgStartDeltaMsg
+from cohere import ChatToolCallDeltaEventDelta as ToolCallDeltaCo
+from cohere import ChatToolCallDeltaEventDeltaMessage as ToolCallDeltaMsg
+from cohere import ChatToolCallDeltaEventDeltaMessageToolCalls as ToolCallDeltaCalls
+from cohere import ChatToolCallDeltaEventDeltaMessageToolCallsFunction as ToolCallDeltaFn
+from cohere import ChatToolCallStartEventDelta as ToolCallStartDelta
+from cohere import ChatToolCallStartEventDeltaMessage as ToolCallStartMsg
+from cohere import ChatToolPlanDeltaEventDelta as ToolPlanDelta
+from cohere import ChatToolPlanDeltaEventDeltaMessage as ToolPlanDeltaMsg
+from cohere import MessageEndV2ChatStreamResponse as MsgEndStream
+from cohere import MessageStartV2ChatStreamResponse as MsgStartStream
+from cohere import ToolCallDeltaV2ChatStreamResponse as ToolCallDeltaStream
+from cohere import ToolCallEndV2ChatStreamResponse as ToolCallEndStream
+from cohere import ToolCallStartV2ChatStreamResponse as ToolCallStartStream
+from cohere import ToolCallV2 as ToolCall
+from cohere import ToolCallV2Function as ToolCallFn
+from cohere import ToolPlanDeltaV2ChatStreamResponse as ToolPlanDeltaStream
+from cohere import Usage, UsageTokens
+from cohere import UsageBilledUnits as BilledUnits
 from haystack.dataclasses import ComponentInfo, StreamingChunk, ToolCallDelta
 
 from haystack_integrations.components.generators.cohere.chat.chat_generator import (
     _convert_cohere_chunk_to_streaming_chunk,
-    _parse_streaming_response,
 )
 
 
@@ -101,324 +97,203 @@ def create_mock_cohere_chunk(chunk_type: str, index: int | None = None, **kwargs
 @pytest.fixture
 def cohere_chunks():
     return [
-        MessageStartV2ChatStreamResponse(
+        MsgStartStream(
             type="message-start",
             id="05509383-5673-47b0-af67-e34c4cf64a5f",
-            delta=ChatMessageStartEventDelta(
-                message=ChatMessageStartEventDeltaMessage(
-                    role="assistant", content=[], tool_plan="", tool_calls=[], citations=[]
-                )
+            delta=MsgStartDelta(
+                message=MsgStartDeltaMsg(role="assistant", content=[], tool_plan="", tool_calls=[], citations=[])
             ),
         ),
-        ToolPlanDeltaV2ChatStreamResponse(
-            type="tool-plan-delta",
-            delta=ChatToolPlanDeltaEventDelta(message=ChatToolPlanDeltaEventDeltaMessage(tool_plan="I")),
+        ToolPlanDeltaStream(type="tool-plan-delta", delta=ToolPlanDelta(message=ToolPlanDeltaMsg(tool_plan="I"))),
+        ToolPlanDeltaStream(type="tool-plan-delta", delta=ToolPlanDelta(message=ToolPlanDeltaMsg(tool_plan=" will"))),
+        ToolPlanDeltaStream(type="tool-plan-delta", delta=ToolPlanDelta(message=ToolPlanDeltaMsg(tool_plan=" use"))),
+        ToolPlanDeltaStream(type="tool-plan-delta", delta=ToolPlanDelta(message=ToolPlanDeltaMsg(tool_plan=" the"))),
+        ToolPlanDeltaStream(
+            type="tool-plan-delta", delta=ToolPlanDelta(message=ToolPlanDeltaMsg(tool_plan=" calculator"))
         ),
-        ToolPlanDeltaV2ChatStreamResponse(
-            type="tool-plan-delta",
-            delta=ChatToolPlanDeltaEventDelta(message=ChatToolPlanDeltaEventDeltaMessage(tool_plan=" will")),
+        ToolPlanDeltaStream(type="tool-plan-delta", delta=ToolPlanDelta(message=ToolPlanDeltaMsg(tool_plan=" tool"))),
+        ToolPlanDeltaStream(type="tool-plan-delta", delta=ToolPlanDelta(message=ToolPlanDeltaMsg(tool_plan=" to"))),
+        ToolPlanDeltaStream(
+            type="tool-plan-delta", delta=ToolPlanDelta(message=ToolPlanDeltaMsg(tool_plan=" compute"))
         ),
-        ToolPlanDeltaV2ChatStreamResponse(
-            type="tool-plan-delta",
-            delta=ChatToolPlanDeltaEventDelta(message=ChatToolPlanDeltaEventDeltaMessage(tool_plan=" use")),
+        ToolPlanDeltaStream(type="tool-plan-delta", delta=ToolPlanDelta(message=ToolPlanDeltaMsg(tool_plan=" the"))),
+        ToolPlanDeltaStream(
+            type="tool-plan-delta", delta=ToolPlanDelta(message=ToolPlanDeltaMsg(tool_plan=" results"))
         ),
-        ToolPlanDeltaV2ChatStreamResponse(
-            type="tool-plan-delta",
-            delta=ChatToolPlanDeltaEventDelta(message=ChatToolPlanDeltaEventDeltaMessage(tool_plan=" the")),
-        ),
-        ToolPlanDeltaV2ChatStreamResponse(
-            type="tool-plan-delta",
-            delta=ChatToolPlanDeltaEventDelta(message=ChatToolPlanDeltaEventDeltaMessage(tool_plan=" calculator")),
-        ),
-        ToolPlanDeltaV2ChatStreamResponse(
-            type="tool-plan-delta",
-            delta=ChatToolPlanDeltaEventDelta(message=ChatToolPlanDeltaEventDeltaMessage(tool_plan=" tool")),
-        ),
-        ToolPlanDeltaV2ChatStreamResponse(
-            type="tool-plan-delta",
-            delta=ChatToolPlanDeltaEventDelta(message=ChatToolPlanDeltaEventDeltaMessage(tool_plan=" to")),
-        ),
-        ToolPlanDeltaV2ChatStreamResponse(
-            type="tool-plan-delta",
-            delta=ChatToolPlanDeltaEventDelta(message=ChatToolPlanDeltaEventDeltaMessage(tool_plan=" compute")),
-        ),
-        ToolPlanDeltaV2ChatStreamResponse(
-            type="tool-plan-delta",
-            delta=ChatToolPlanDeltaEventDelta(message=ChatToolPlanDeltaEventDeltaMessage(tool_plan=" the")),
-        ),
-        ToolPlanDeltaV2ChatStreamResponse(
-            type="tool-plan-delta",
-            delta=ChatToolPlanDeltaEventDelta(message=ChatToolPlanDeltaEventDeltaMessage(tool_plan=" results")),
-        ),
-        ToolPlanDeltaV2ChatStreamResponse(
-            type="tool-plan-delta",
-            delta=ChatToolPlanDeltaEventDelta(message=ChatToolPlanDeltaEventDeltaMessage(tool_plan=" of")),
-        ),
-        ToolPlanDeltaV2ChatStreamResponse(
-            type="tool-plan-delta",
-            delta=ChatToolPlanDeltaEventDelta(message=ChatToolPlanDeltaEventDeltaMessage(tool_plan=" 7")),
-        ),
-        ToolPlanDeltaV2ChatStreamResponse(
-            type="tool-plan-delta",
-            delta=ChatToolPlanDeltaEventDelta(message=ChatToolPlanDeltaEventDeltaMessage(tool_plan=" +")),
-        ),
-        ToolPlanDeltaV2ChatStreamResponse(
-            type="tool-plan-delta",
-            delta=ChatToolPlanDeltaEventDelta(message=ChatToolPlanDeltaEventDeltaMessage(tool_plan=" 2")),
-        ),
-        ToolPlanDeltaV2ChatStreamResponse(
-            type="tool-plan-delta",
-            delta=ChatToolPlanDeltaEventDelta(message=ChatToolPlanDeltaEventDeltaMessage(tool_plan=" and")),
-        ),
-        ToolPlanDeltaV2ChatStreamResponse(
-            type="tool-plan-delta",
-            delta=ChatToolPlanDeltaEventDelta(message=ChatToolPlanDeltaEventDeltaMessage(tool_plan=" 2")),
-        ),
-        ToolPlanDeltaV2ChatStreamResponse(
-            type="tool-plan-delta",
-            delta=ChatToolPlanDeltaEventDelta(message=ChatToolPlanDeltaEventDeltaMessage(tool_plan=" *")),
-        ),
-        ToolPlanDeltaV2ChatStreamResponse(
-            type="tool-plan-delta",
-            delta=ChatToolPlanDeltaEventDelta(message=ChatToolPlanDeltaEventDeltaMessage(tool_plan=" 2")),
-        ),
-        ToolPlanDeltaV2ChatStreamResponse(
-            type="tool-plan-delta",
-            delta=ChatToolPlanDeltaEventDelta(message=ChatToolPlanDeltaEventDeltaMessage(tool_plan=".")),
-        ),
-        ToolCallStartV2ChatStreamResponse(
+        ToolPlanDeltaStream(type="tool-plan-delta", delta=ToolPlanDelta(message=ToolPlanDeltaMsg(tool_plan=" of"))),
+        ToolPlanDeltaStream(type="tool-plan-delta", delta=ToolPlanDelta(message=ToolPlanDeltaMsg(tool_plan=" 7"))),
+        ToolPlanDeltaStream(type="tool-plan-delta", delta=ToolPlanDelta(message=ToolPlanDeltaMsg(tool_plan=" +"))),
+        ToolPlanDeltaStream(type="tool-plan-delta", delta=ToolPlanDelta(message=ToolPlanDeltaMsg(tool_plan=" 2"))),
+        ToolPlanDeltaStream(type="tool-plan-delta", delta=ToolPlanDelta(message=ToolPlanDeltaMsg(tool_plan=" and"))),
+        ToolPlanDeltaStream(type="tool-plan-delta", delta=ToolPlanDelta(message=ToolPlanDeltaMsg(tool_plan=" 2"))),
+        ToolPlanDeltaStream(type="tool-plan-delta", delta=ToolPlanDelta(message=ToolPlanDeltaMsg(tool_plan=" *"))),
+        ToolPlanDeltaStream(type="tool-plan-delta", delta=ToolPlanDelta(message=ToolPlanDeltaMsg(tool_plan=" 2"))),
+        ToolPlanDeltaStream(type="tool-plan-delta", delta=ToolPlanDelta(message=ToolPlanDeltaMsg(tool_plan="."))),
+        ToolCallStartStream(
             type="tool-call-start",
             index=0,
-            delta=ChatToolCallStartEventDelta(
-                message=ChatToolCallStartEventDeltaMessage(
-                    tool_calls=ToolCallV2(
+            delta=ToolCallStartDelta(
+                message=ToolCallStartMsg(
+                    tool_calls=ToolCall(
                         id="calculator_mcdnh7tnn9v9",
                         type="function",
-                        function=ToolCallV2Function(name="calculator", arguments=""),
+                        function=ToolCallFn(name="calculator", arguments=""),
                     )
                 )
             ),
         ),
-        ToolCallDeltaV2ChatStreamResponse(
+        ToolCallDeltaStream(
             type="tool-call-delta",
             index=0,
-            delta=ChatToolCallDeltaEventDelta(
-                message=ChatToolCallDeltaEventDeltaMessage(
-                    tool_calls=ChatToolCallDeltaEventDeltaMessageToolCalls(
-                        function=ChatToolCallDeltaEventDeltaMessageToolCallsFunction(arguments='{"')
-                    )
-                )
+            delta=ToolCallDeltaCo(
+                message=ToolCallDeltaMsg(tool_calls=ToolCallDeltaCalls(function=ToolCallDeltaFn(arguments='{"')))
             ),
         ),
-        ToolCallDeltaV2ChatStreamResponse(
+        ToolCallDeltaStream(
             type="tool-call-delta",
             index=0,
-            delta=ChatToolCallDeltaEventDelta(
-                message=ChatToolCallDeltaEventDeltaMessage(
-                    tool_calls=ChatToolCallDeltaEventDeltaMessageToolCalls(
-                        function=ChatToolCallDeltaEventDeltaMessageToolCallsFunction(arguments="expression")
-                    )
+            delta=ToolCallDeltaCo(
+                message=ToolCallDeltaMsg(
+                    tool_calls=ToolCallDeltaCalls(function=ToolCallDeltaFn(arguments="expression"))
                 )
             ),
         ),
-        ToolCallDeltaV2ChatStreamResponse(
+        ToolCallDeltaStream(
             type="tool-call-delta",
             index=0,
-            delta=ChatToolCallDeltaEventDelta(
-                message=ChatToolCallDeltaEventDeltaMessage(
-                    tool_calls=ChatToolCallDeltaEventDeltaMessageToolCalls(
-                        function=ChatToolCallDeltaEventDeltaMessageToolCallsFunction(arguments='":')
-                    )
-                )
+            delta=ToolCallDeltaCo(
+                message=ToolCallDeltaMsg(tool_calls=ToolCallDeltaCalls(function=ToolCallDeltaFn(arguments='":')))
             ),
         ),
-        ToolCallDeltaV2ChatStreamResponse(
+        ToolCallDeltaStream(
             type="tool-call-delta",
             index=0,
-            delta=ChatToolCallDeltaEventDelta(
-                message=ChatToolCallDeltaEventDeltaMessage(
-                    tool_calls=ChatToolCallDeltaEventDeltaMessageToolCalls(
-                        function=ChatToolCallDeltaEventDeltaMessageToolCallsFunction(arguments=' "')
-                    )
-                )
+            delta=ToolCallDeltaCo(
+                message=ToolCallDeltaMsg(tool_calls=ToolCallDeltaCalls(function=ToolCallDeltaFn(arguments=' "')))
             ),
         ),
-        ToolCallDeltaV2ChatStreamResponse(
+        ToolCallDeltaStream(
             type="tool-call-delta",
             index=0,
-            delta=ChatToolCallDeltaEventDelta(
-                message=ChatToolCallDeltaEventDeltaMessage(
-                    tool_calls=ChatToolCallDeltaEventDeltaMessageToolCalls(
-                        function=ChatToolCallDeltaEventDeltaMessageToolCallsFunction(arguments="7")
-                    )
-                )
+            delta=ToolCallDeltaCo(
+                message=ToolCallDeltaMsg(tool_calls=ToolCallDeltaCalls(function=ToolCallDeltaFn(arguments="7")))
             ),
         ),
-        ToolCallDeltaV2ChatStreamResponse(
+        ToolCallDeltaStream(
             type="tool-call-delta",
             index=0,
-            delta=ChatToolCallDeltaEventDelta(
-                message=ChatToolCallDeltaEventDeltaMessage(
-                    tool_calls=ChatToolCallDeltaEventDeltaMessageToolCalls(
-                        function=ChatToolCallDeltaEventDeltaMessageToolCallsFunction(arguments=" +")
-                    )
-                )
+            delta=ToolCallDeltaCo(
+                message=ToolCallDeltaMsg(tool_calls=ToolCallDeltaCalls(function=ToolCallDeltaFn(arguments=" +")))
             ),
         ),
-        ToolCallDeltaV2ChatStreamResponse(
+        ToolCallDeltaStream(
             type="tool-call-delta",
             index=0,
-            delta=ChatToolCallDeltaEventDelta(
-                message=ChatToolCallDeltaEventDeltaMessage(
-                    tool_calls=ChatToolCallDeltaEventDeltaMessageToolCalls(
-                        function=ChatToolCallDeltaEventDeltaMessageToolCallsFunction(arguments=" ")
-                    )
-                )
+            delta=ToolCallDeltaCo(
+                message=ToolCallDeltaMsg(tool_calls=ToolCallDeltaCalls(function=ToolCallDeltaFn(arguments=" ")))
             ),
         ),
-        ToolCallDeltaV2ChatStreamResponse(
+        ToolCallDeltaStream(
             type="tool-call-delta",
             index=0,
-            delta=ChatToolCallDeltaEventDelta(
-                message=ChatToolCallDeltaEventDeltaMessage(
-                    tool_calls=ChatToolCallDeltaEventDeltaMessageToolCalls(
-                        function=ChatToolCallDeltaEventDeltaMessageToolCallsFunction(arguments="2")
-                    )
-                )
+            delta=ToolCallDeltaCo(
+                message=ToolCallDeltaMsg(tool_calls=ToolCallDeltaCalls(function=ToolCallDeltaFn(arguments="2")))
             ),
         ),
-        ToolCallDeltaV2ChatStreamResponse(
+        ToolCallDeltaStream(
             type="tool-call-delta",
             index=0,
-            delta=ChatToolCallDeltaEventDelta(
-                message=ChatToolCallDeltaEventDeltaMessage(
-                    tool_calls=ChatToolCallDeltaEventDeltaMessageToolCalls(
-                        function=ChatToolCallDeltaEventDeltaMessageToolCallsFunction(arguments='"}')
-                    )
-                )
+            delta=ToolCallDeltaCo(
+                message=ToolCallDeltaMsg(tool_calls=ToolCallDeltaCalls(function=ToolCallDeltaFn(arguments='"}')))
             ),
         ),
-        ToolCallEndV2ChatStreamResponse(type="tool-call-end", index=0),
-        ToolCallStartV2ChatStreamResponse(
+        ToolCallEndStream(type="tool-call-end", index=0),
+        ToolCallStartStream(
             type="tool-call-start",
             index=1,
-            delta=ChatToolCallStartEventDelta(
-                message=ChatToolCallStartEventDeltaMessage(
-                    tool_calls=ToolCallV2(
+            delta=ToolCallStartDelta(
+                message=ToolCallStartMsg(
+                    tool_calls=ToolCall(
                         id="calculator_yk0yf8f7fzbe",
                         type="function",
-                        function=ToolCallV2Function(name="calculator", arguments=""),
+                        function=ToolCallFn(name="calculator", arguments=""),
                     )
                 )
             ),
         ),
-        ToolCallDeltaV2ChatStreamResponse(
+        ToolCallDeltaStream(
             type="tool-call-delta",
             index=1,
-            delta=ChatToolCallDeltaEventDelta(
-                message=ChatToolCallDeltaEventDeltaMessage(
-                    tool_calls=ChatToolCallDeltaEventDeltaMessageToolCalls(
-                        function=ChatToolCallDeltaEventDeltaMessageToolCallsFunction(arguments='{"')
-                    )
-                )
+            delta=ToolCallDeltaCo(
+                message=ToolCallDeltaMsg(tool_calls=ToolCallDeltaCalls(function=ToolCallDeltaFn(arguments='{"')))
             ),
         ),
-        ToolCallDeltaV2ChatStreamResponse(
+        ToolCallDeltaStream(
             type="tool-call-delta",
             index=1,
-            delta=ChatToolCallDeltaEventDelta(
-                message=ChatToolCallDeltaEventDeltaMessage(
-                    tool_calls=ChatToolCallDeltaEventDeltaMessageToolCalls(
-                        function=ChatToolCallDeltaEventDeltaMessageToolCallsFunction(arguments="expression")
-                    )
+            delta=ToolCallDeltaCo(
+                message=ToolCallDeltaMsg(
+                    tool_calls=ToolCallDeltaCalls(function=ToolCallDeltaFn(arguments="expression"))
                 )
             ),
         ),
-        ToolCallDeltaV2ChatStreamResponse(
+        ToolCallDeltaStream(
             type="tool-call-delta",
             index=1,
-            delta=ChatToolCallDeltaEventDelta(
-                message=ChatToolCallDeltaEventDeltaMessage(
-                    tool_calls=ChatToolCallDeltaEventDeltaMessageToolCalls(
-                        function=ChatToolCallDeltaEventDeltaMessageToolCallsFunction(arguments='":')
-                    )
-                )
+            delta=ToolCallDeltaCo(
+                message=ToolCallDeltaMsg(tool_calls=ToolCallDeltaCalls(function=ToolCallDeltaFn(arguments='":')))
             ),
         ),
-        ToolCallDeltaV2ChatStreamResponse(
+        ToolCallDeltaStream(
             type="tool-call-delta",
             index=1,
-            delta=ChatToolCallDeltaEventDelta(
-                message=ChatToolCallDeltaEventDeltaMessage(
-                    tool_calls=ChatToolCallDeltaEventDeltaMessageToolCalls(
-                        function=ChatToolCallDeltaEventDeltaMessageToolCallsFunction(arguments=' "')
-                    )
-                )
+            delta=ToolCallDeltaCo(
+                message=ToolCallDeltaMsg(tool_calls=ToolCallDeltaCalls(function=ToolCallDeltaFn(arguments=' "')))
             ),
         ),
-        ToolCallDeltaV2ChatStreamResponse(
+        ToolCallDeltaStream(
             type="tool-call-delta",
             index=1,
-            delta=ChatToolCallDeltaEventDelta(
-                message=ChatToolCallDeltaEventDeltaMessage(
-                    tool_calls=ChatToolCallDeltaEventDeltaMessageToolCalls(
-                        function=ChatToolCallDeltaEventDeltaMessageToolCallsFunction(arguments="2")
-                    )
-                )
+            delta=ToolCallDeltaCo(
+                message=ToolCallDeltaMsg(tool_calls=ToolCallDeltaCalls(function=ToolCallDeltaFn(arguments="2")))
             ),
         ),
-        ToolCallDeltaV2ChatStreamResponse(
+        ToolCallDeltaStream(
             type="tool-call-delta",
             index=1,
-            delta=ChatToolCallDeltaEventDelta(
-                message=ChatToolCallDeltaEventDeltaMessage(
-                    tool_calls=ChatToolCallDeltaEventDeltaMessageToolCalls(
-                        function=ChatToolCallDeltaEventDeltaMessageToolCallsFunction(arguments=" *")
-                    )
-                )
+            delta=ToolCallDeltaCo(
+                message=ToolCallDeltaMsg(tool_calls=ToolCallDeltaCalls(function=ToolCallDeltaFn(arguments=" *")))
             ),
         ),
-        ToolCallDeltaV2ChatStreamResponse(
+        ToolCallDeltaStream(
             type="tool-call-delta",
             index=1,
-            delta=ChatToolCallDeltaEventDelta(
-                message=ChatToolCallDeltaEventDeltaMessage(
-                    tool_calls=ChatToolCallDeltaEventDeltaMessageToolCalls(
-                        function=ChatToolCallDeltaEventDeltaMessageToolCallsFunction(arguments=" ")
-                    )
-                )
+            delta=ToolCallDeltaCo(
+                message=ToolCallDeltaMsg(tool_calls=ToolCallDeltaCalls(function=ToolCallDeltaFn(arguments=" ")))
             ),
         ),
-        ToolCallDeltaV2ChatStreamResponse(
+        ToolCallDeltaStream(
             type="tool-call-delta",
             index=1,
-            delta=ChatToolCallDeltaEventDelta(
-                message=ChatToolCallDeltaEventDeltaMessage(
-                    tool_calls=ChatToolCallDeltaEventDeltaMessageToolCalls(
-                        function=ChatToolCallDeltaEventDeltaMessageToolCallsFunction(arguments="2")
-                    )
-                )
+            delta=ToolCallDeltaCo(
+                message=ToolCallDeltaMsg(tool_calls=ToolCallDeltaCalls(function=ToolCallDeltaFn(arguments="2")))
             ),
         ),
-        ToolCallDeltaV2ChatStreamResponse(
+        ToolCallDeltaStream(
             type="tool-call-delta",
             index=1,
-            delta=ChatToolCallDeltaEventDelta(
-                message=ChatToolCallDeltaEventDeltaMessage(
-                    tool_calls=ChatToolCallDeltaEventDeltaMessageToolCalls(
-                        function=ChatToolCallDeltaEventDeltaMessageToolCallsFunction(arguments='"}')
-                    )
-                )
+            delta=ToolCallDeltaCo(
+                message=ToolCallDeltaMsg(tool_calls=ToolCallDeltaCalls(function=ToolCallDeltaFn(arguments='"}')))
             ),
         ),
-        ToolCallEndV2ChatStreamResponse(type="tool-call-end", index=1),
-        MessageEndV2ChatStreamResponse(
+        ToolCallEndStream(type="tool-call-end", index=1),
+        MsgEndStream(
             type="message-end",
-            delta=ChatMessageEndEventDelta(
+            delta=MsgEndDelta(
                 error=None,
                 finish_reason="TOOL_CALL",
                 usage=Usage(
-                    billed_units=UsageBilledUnits(
+                    billed_units=BilledUnits(
                         input_tokens=60.0, output_tokens=41.0, search_units=None, classifications=None
                     ),
                     tokens=UsageTokens(input_tokens=1462.0, output_tokens=92.0),
