@@ -246,8 +246,7 @@ def expected_streaming_chunks():
     common_meta = {"model": "command-a-03-2025"}
     return [
         StreamingChunk(content="", meta=common_meta, index=0),
-        # TODO This one or the one above is missing the start=True
-        StreamingChunk(content="I", meta=common_meta, index=0),
+        StreamingChunk(content="I", meta=common_meta, index=0, start=True),
         StreamingChunk(content=" will", meta=common_meta, index=0),
         StreamingChunk(content=" use", meta=common_meta, index=0),
         StreamingChunk(content=" the", meta=common_meta, index=0),
@@ -284,8 +283,7 @@ def expected_streaming_chunks():
         StreamingChunk(content="", meta=common_meta, index=1, tool_calls=[ToolCallDelta(index=1, arguments=" ")]),
         StreamingChunk(content="", meta=common_meta, index=1, tool_calls=[ToolCallDelta(index=1, arguments="2")]),
         StreamingChunk(content="", meta=common_meta, index=1, tool_calls=[ToolCallDelta(index=1, arguments='"}')]),
-        # TODO This chunk should not have a start=True
-        StreamingChunk(content="", meta=common_meta, index=1, start=True),
+        StreamingChunk(content="", meta=common_meta, index=1),
         StreamingChunk(
             content="",
             meta={"model": "command-a-03-2025", "tool_call_id": "calculator_yk0yf8f7fzbe"},
@@ -304,7 +302,7 @@ def expected_streaming_chunks():
         StreamingChunk(content="", meta=common_meta, index=2, tool_calls=[ToolCallDelta(index=2, arguments=" ")]),
         StreamingChunk(content="", meta=common_meta, index=2, tool_calls=[ToolCallDelta(index=2, arguments="2")]),
         StreamingChunk(content="", meta=common_meta, index=2, tool_calls=[ToolCallDelta(index=2, arguments='"}')]),
-        StreamingChunk(content="", meta=common_meta, index=2, start=True),
+        StreamingChunk(content="", meta=common_meta, index=2),
         StreamingChunk(
             content="",
             meta={
@@ -319,13 +317,20 @@ def expected_streaming_chunks():
 
 class TestCohereChunkConversion:
     def test_convert_cohere_chunk_to_streaming_chunk_complete_sequence(self, cohere_chunks, expected_streaming_chunks):
+        # This test has to follow the _parse_streaming_response logic to make sure the chunks conversion is correct
+        # _parse_streaming_response isn't used directly b/c it returns a final ChatMessage
+        original_chunks = []
         global_index = 0
         for cohere_chunk, haystack_chunk in zip(cohere_chunks, expected_streaming_chunks, strict=True):
             if cohere_chunk.type in ["tool-call-start", "content-start", "citation-start"]:
                 global_index += 1
             stream_chunk = _convert_cohere_chunk_to_streaming_chunk(
-                chunk=cohere_chunk, model="command-a-03-2025", global_index=global_index
+                chunk=cohere_chunk,
+                model="command-a-03-2025",
+                global_index=global_index,
+                previous_original_chunks=original_chunks
             )
+            original_chunks.append(cohere_chunk)
             assert stream_chunk == haystack_chunk
 
     def test_parse_response(self, cohere_chunks):

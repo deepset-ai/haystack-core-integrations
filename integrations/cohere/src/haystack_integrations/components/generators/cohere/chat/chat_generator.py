@@ -51,17 +51,11 @@ def _format_tool(tool: Tool) -> dict[str, Any]:
     """
     return {
         "type": "function",
-        "function": {
-            "name": tool.name,
-            "description": tool.description,
-            "parameters": tool.parameters,
-        },
+        "function": {"name": tool.name, "description": tool.description, "parameters": tool.parameters},
     }
 
 
-def _format_message(
-    message: ChatMessage,
-) -> dict[str, Any]:
+def _format_message(message: ChatMessage) -> dict[str, Any]:
     """
     Formats a Haystack ChatMessage into Cohere's chat format.
 
@@ -102,17 +96,10 @@ def _format_message(
                 {
                     "id": tool_call.id,
                     "type": "function",
-                    "function": {
-                        "name": tool_call.tool_name,
-                        "arguments": json.dumps(tool_call.arguments),
-                    },
+                    "function": {"name": tool_call.tool_name, "arguments": json.dumps(tool_call.arguments)},
                 }
             )
-        return {
-            "role": "assistant",
-            "tool_calls": tool_calls,
-            "tool_plan": message.text if message.text else "",
-        }
+        return {"role": "assistant", "tool_calls": tool_calls, "tool_plan": message.text if message.text else ""}
 
     if message.role.value == "user":
         if not message.images and not message.text:
@@ -193,11 +180,7 @@ def _parse_response(chat_response: ChatResponse, model: str) -> ChatMessage:
         for tc in chat_response.message.tool_calls:
             if tc.function and tc.function.name and tc.function.arguments and isinstance(tc.function.arguments, str):
                 tool_calls.append(
-                    ToolCall(
-                        id=tc.id,
-                        tool_name=tc.function.name,
-                        arguments=json.loads(tc.function.arguments),
-                    )
+                    ToolCall(id=tc.id, tool_name=tc.function.name, arguments=json.loads(tc.function.arguments))
                 )
         # If a tool plan is provided we use that as our text content over the default text content
         text_content = chat_response.message.tool_plan or text_content
@@ -227,6 +210,7 @@ def _convert_cohere_chunk_to_streaming_chunk(
     model: str,
     component_info: ComponentInfo | None = None,
     global_index: int = 0,
+    previous_original_chunks: list[StreamedChatResponseV2] | None = None,
 ) -> StreamingChunk:
     """
     Converts a Cohere streaming response chunk to a StreamingChunk.
@@ -262,24 +246,23 @@ def _convert_cohere_chunk_to_streaming_chunk(
     if chunk.type == "content-delta" and chunk.delta and chunk.delta.message:
         if chunk.delta.message and chunk.delta.message.content and chunk.delta.message.content.text is not None:
             content = chunk.delta.message.content.text
+        if previous_original_chunks and previous_original_chunks[-1].type == "content-start":
+            # If the previous chunk is a content-start chunk, we set start to True for the first content-delta chunk
+            start = True
 
     elif chunk.type == "tool-plan-delta" and chunk.delta and chunk.delta.message:
         if chunk.delta.message and chunk.delta.message.tool_plan is not None:
             content = chunk.delta.message.tool_plan
+        if previous_original_chunks and previous_original_chunks[-1].type == "message-start":
+            # If the previous chunk is a message-start chunk, we set start to True for the first tool-plan-delta chunk
+            start = True
 
     elif chunk.type == "tool-call-start" and chunk.delta and chunk.delta.message:
         if chunk.delta.message and chunk.delta.message.tool_calls:
             tool_call = chunk.delta.message.tool_calls
             function = tool_call.function
             if function is not None and function.name is not None:
-                tool_calls = [
-                    ToolCallDelta(
-                        index=global_index,
-                        id=tool_call.id,
-                        tool_name=function.name,
-                        arguments=None,
-                    )
-                ]
+                tool_calls = [ToolCallDelta(index=global_index, id=tool_call.id, tool_name=function.name)]
                 start = True  # This starts a tool call
                 if tool_call.id is not None:
                     meta["tool_call_id"] = tool_call.id
@@ -292,17 +275,7 @@ def _convert_cohere_chunk_to_streaming_chunk(
             and chunk.delta.message.tool_calls.function.arguments is not None
         ):
             arguments = chunk.delta.message.tool_calls.function.arguments
-            tool_calls = [
-                ToolCallDelta(
-                    index=global_index,
-                    tool_name=None,
-                    arguments=arguments,
-                )
-            ]
-
-    elif chunk.type == "tool-call-end":
-        # Tool call end doesn't have content, just signals completion
-        start = True
+            tool_calls = [ToolCallDelta(index=global_index, arguments=arguments)]
 
     elif chunk.type == "message-end":
         finish_reason_raw = getattr(chunk.delta, "finish_reason", None)
@@ -354,6 +327,7 @@ def _parse_streaming_response(
 
     Loops through each stream object from Cohere and converts it into a StreamingChunk.
     """
+    original_chunks = []
     chunks: list[StreamingChunk] = []
     global_index = 0
 
@@ -366,8 +340,10 @@ def _parse_streaming_response(
             component_info=component_info,
             model=model,
             global_index=global_index,
+            previous_original_chunks=original_chunks,
         )
 
+        original_chunks.append(chunk)
         chunks.append(streaming_chunk)
         streaming_callback(streaming_chunk)
 
@@ -643,10 +619,7 @@ class CohereChatGenerator:
         """
 
         # update generation kwargs by merging with the generation kwargs passed to the run method
-        generation_kwargs = {
-            **self.generation_kwargs,
-            **(generation_kwargs or {}),
-        }
+        generation_kwargs = {**self.generation_kwargs, **(generation_kwargs or {})}
 
         # Handle tools
         tools = tools or self.tools
@@ -710,10 +683,7 @@ class CohereChatGenerator:
         """
 
         # update generation kwargs by merging with the generation kwargs passed to the run method
-        generation_kwargs = {
-            **self.generation_kwargs,
-            **(generation_kwargs or {}),
-        }
+        generation_kwargs = {**self.generation_kwargs, **(generation_kwargs or {})}
 
         # Handle tools
         tools = tools or self.tools
