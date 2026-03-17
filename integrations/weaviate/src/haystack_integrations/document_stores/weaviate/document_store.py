@@ -745,15 +745,6 @@ class WeaviateDocumentStore:
         # The embedding vector is stored separately from the rest of the data
         del data["embedding"]
 
-        # _split_overlap meta field is unsupported because of a bug
-        # https://github.com/deepset-ai/haystack-core-integrations/issues/1172
-        if "_split_overlap" in data:
-            data.pop("_split_overlap")
-            logger.warning(
-                "Document {id} has the unsupported `_split_overlap` meta field. It will be ignored.",
-                id=data["_original_id"],
-            )
-
         if "sparse_embedding" in data:
             sparse_embedding = data.pop("sparse_embedding", None)
             if sparse_embedding:
