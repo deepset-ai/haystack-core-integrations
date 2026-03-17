@@ -134,14 +134,26 @@ class TestFilters(FilterDocumentsTest):
 
 
 def test_treat_meta_field():
-    assert _treat_meta_field(field="meta.number", value=9) == SQL("(") + SQL("meta->>") + SQLLiteral("number") + SQL(")::integer")
-    assert _treat_meta_field(field="meta.number", value=[1, 2, 3]) == SQL("(") + SQL("meta->>") + SQLLiteral("number") + SQL(")::integer")
+    assert _treat_meta_field(field="meta.number", value=9) == SQL("(") + SQL("meta->>") + SQLLiteral("number") + SQL(
+        ")::integer"
+    )
+    assert _treat_meta_field(field="meta.number", value=[1, 2, 3]) == SQL("(") + SQL("meta->>") + SQLLiteral(
+        "number"
+    ) + SQL(")::integer")
     assert _treat_meta_field(field="meta.name", value="my_name") == SQL("meta->>") + SQLLiteral("name")
     assert _treat_meta_field(field="meta.name", value=["my_name"]) == SQL("meta->>") + SQLLiteral("name")
-    assert _treat_meta_field(field="meta.number", value=1.1) == SQL("(") + SQL("meta->>") + SQLLiteral("number") + SQL(")::real")
-    assert _treat_meta_field(field="meta.number", value=[1.1, 2.2, 3.3]) == SQL("(") + SQL("meta->>") + SQLLiteral("number") + SQL(")::real")
-    assert _treat_meta_field(field="meta.bool", value=True) == SQL("(") + SQL("meta->>") + SQLLiteral("bool") + SQL(")::boolean")
-    assert _treat_meta_field(field="meta.bool", value=[True, False, True]) == SQL("(") + SQL("meta->>") + SQLLiteral("bool") + SQL(")::boolean")
+    assert _treat_meta_field(field="meta.number", value=1.1) == SQL("(") + SQL("meta->>") + SQLLiteral("number") + SQL(
+        ")::real"
+    )
+    assert _treat_meta_field(field="meta.number", value=[1.1, 2.2, 3.3]) == SQL("(") + SQL("meta->>") + SQLLiteral(
+        "number"
+    ) + SQL(")::real")
+    assert _treat_meta_field(field="meta.bool", value=True) == SQL("(") + SQL("meta->>") + SQLLiteral("bool") + SQL(
+        ")::boolean"
+    )
+    assert _treat_meta_field(field="meta.bool", value=[True, False, True]) == SQL("(") + SQL("meta->>") + SQLLiteral(
+        "bool"
+    ) + SQL(")::boolean")
 
     # do not cast the field if its value is not one of the known types, an empty list or None
     assert _treat_meta_field(field="meta.other", value={"a": 3, "b": "example"}) == SQL("meta->>") + SQLLiteral("other")
@@ -222,16 +234,26 @@ def test_logical_condition_nested():
 
     expected = (
         SQL("(")
-        + SQL(" AND ").join([
-            SQL("(") + SQL(" OR ").join([
-                SQL("{} IS DISTINCT FROM %s").format(domain_field),
-                SQL("{} = ANY(%s)").format(chapter_field),
-            ]) + SQL(")"),
-            SQL("(") + SQL(" OR ").join([
-                SQL("{} >= %s").format(number_field),
-                SQL("{} IS NULL OR {} != ALL(%s)").format(author_field, author_field),
-            ]) + SQL(")"),
-        ])
+        + SQL(" AND ").join(
+            [
+                SQL("(")
+                + SQL(" OR ").join(
+                    [
+                        SQL("{} IS DISTINCT FROM %s").format(domain_field),
+                        SQL("{} = ANY(%s)").format(chapter_field),
+                    ]
+                )
+                + SQL(")"),
+                SQL("(")
+                + SQL(" OR ").join(
+                    [
+                        SQL("{} >= %s").format(number_field),
+                        SQL("{} IS NULL OR {} != ALL(%s)").format(author_field, author_field),
+                    ]
+                )
+                + SQL(")"),
+            ]
+        )
         + SQL(")")
     )
     assert query == expected
@@ -252,10 +274,12 @@ def test_convert_filters_to_where_clause_and_params():
     chapter_field = SQL("meta->>") + SQLLiteral("chapter")
     expected = SQL(" WHERE ") + (
         SQL("(")
-        + SQL(" AND ").join([
-            SQL("{} = %s").format(number_field),
-            SQL("{} = %s").format(chapter_field),
-        ])
+        + SQL(" AND ").join(
+            [
+                SQL("{} = %s").format(number_field),
+                SQL("{} = %s").format(chapter_field),
+            ]
+        )
         + SQL(")")
     )
     assert where_clause == expected
@@ -276,10 +300,12 @@ def test_convert_filters_to_where_clause_and_params_handle_null():
     chapter_field = SQL("meta->>") + SQLLiteral("chapter")
     expected = SQL(" WHERE ") + (
         SQL("(")
-        + SQL(" AND ").join([
-            SQL("{} IS NULL").format(number_field),
-            SQL("{} = %s").format(chapter_field),
-        ])
+        + SQL(" AND ").join(
+            [
+                SQL("{} IS NULL").format(number_field),
+                SQL("{} = %s").format(chapter_field),
+            ]
+        )
         + SQL(")")
     )
     assert where_clause == expected

@@ -7,7 +7,7 @@ from itertools import chain
 from typing import Any, Literal
 
 from haystack.errors import FilterError
-from psycopg.sql import SQL, Composed
+from psycopg.sql import SQL, Composable, Composed
 from psycopg.sql import Literal as SQLLiteral
 from psycopg.types.json import Jsonb
 
@@ -106,7 +106,7 @@ def _parse_comparison_condition(condition: dict[str, Any]) -> tuple[Composed, li
     value: Any = condition["value"]
 
     if field.startswith("meta."):
-        sql_field: str | Composed = _treat_meta_field(field, value)
+        sql_field: str | Composable = _treat_meta_field(field, value)
     else:
         sql_field = field
 
@@ -147,7 +147,7 @@ def _treat_meta_field(field: str, value: Any) -> Composed:
     return composed
 
 
-def _equal(field: str | Composed, value: Any) -> tuple[Composed, Any]:
+def _equal(field: str | Composable, value: Any) -> tuple[Composed, Any]:
     if isinstance(field, str):
         field = SQL(field)
     if value is None:
@@ -155,7 +155,7 @@ def _equal(field: str | Composed, value: Any) -> tuple[Composed, Any]:
     return SQL("{} = %s").format(field), value
 
 
-def _not_equal(field: str | Composed, value: Any) -> tuple[Composed, Any]:
+def _not_equal(field: str | Composable, value: Any) -> tuple[Composed, Any]:
     # we use IS DISTINCT FROM to correctly handle NULL values
     # (not handled by !=)
     if isinstance(field, str):
@@ -163,7 +163,7 @@ def _not_equal(field: str | Composed, value: Any) -> tuple[Composed, Any]:
     return SQL("{} IS DISTINCT FROM %s").format(field), value
 
 
-def _greater_than(field: str | Composed, value: Any) -> tuple[Composed, Any]:
+def _greater_than(field: str | Composable, value: Any) -> tuple[Composed, Any]:
     if isinstance(value, str):
         try:
             datetime.fromisoformat(value)
@@ -181,7 +181,7 @@ def _greater_than(field: str | Composed, value: Any) -> tuple[Composed, Any]:
     return SQL("{} > %s").format(field), value
 
 
-def _greater_than_equal(field: str | Composed, value: Any) -> tuple[Composed, Any]:
+def _greater_than_equal(field: str | Composable, value: Any) -> tuple[Composed, Any]:
     if isinstance(value, str):
         try:
             datetime.fromisoformat(value)
@@ -199,7 +199,7 @@ def _greater_than_equal(field: str | Composed, value: Any) -> tuple[Composed, An
     return SQL("{} >= %s").format(field), value
 
 
-def _less_than(field: str | Composed, value: Any) -> tuple[Composed, Any]:
+def _less_than(field: str | Composable, value: Any) -> tuple[Composed, Any]:
     if isinstance(value, str):
         try:
             datetime.fromisoformat(value)
@@ -217,7 +217,7 @@ def _less_than(field: str | Composed, value: Any) -> tuple[Composed, Any]:
     return SQL("{} < %s").format(field), value
 
 
-def _less_than_equal(field: str | Composed, value: Any) -> tuple[Composed, Any]:
+def _less_than_equal(field: str | Composable, value: Any) -> tuple[Composed, Any]:
     if isinstance(value, str):
         try:
             datetime.fromisoformat(value)
@@ -235,7 +235,7 @@ def _less_than_equal(field: str | Composed, value: Any) -> tuple[Composed, Any]:
     return SQL("{} <= %s").format(field), value
 
 
-def _not_in(field: str | Composed, value: Any) -> tuple[Composed, list]:
+def _not_in(field: str | Composable, value: Any) -> tuple[Composed, list]:
     if not isinstance(value, list):
         msg = f"{field}'s value must be a list when using 'not in' comparator in Pinecone"
         raise FilterError(msg)
@@ -244,7 +244,7 @@ def _not_in(field: str | Composed, value: Any) -> tuple[Composed, list]:
     return SQL("{} IS NULL OR {} != ALL(%s)").format(field, field), [value]
 
 
-def _in(field: str | Composed, value: Any) -> tuple[Composed, list]:
+def _in(field: str | Composable, value: Any) -> tuple[Composed, list]:
     if not isinstance(value, list):
         msg = f"{field}'s value must be a list when using 'in' comparator in Pinecone"
         raise FilterError(msg)
@@ -255,7 +255,7 @@ def _in(field: str | Composed, value: Any) -> tuple[Composed, list]:
     return SQL("{} = ANY(%s)").format(field), [value]
 
 
-def _like(field: str | Composed, value: Any) -> tuple[Composed, Any]:
+def _like(field: str | Composable, value: Any) -> tuple[Composed, Any]:
     if not isinstance(value, str):
         msg = f"{field}'s value must be a str when using 'LIKE' "
         raise FilterError(msg)
@@ -264,7 +264,7 @@ def _like(field: str | Composed, value: Any) -> tuple[Composed, Any]:
     return SQL("{} LIKE %s").format(field), value
 
 
-def _not_like(field: str | Composed, value: Any) -> tuple[Composed, Any]:
+def _not_like(field: str | Composable, value: Any) -> tuple[Composed, Any]:
     if not isinstance(value, str):
         msg = f"{field}'s value must be a str when using 'LIKE' "
         raise FilterError(msg)
