@@ -10,11 +10,16 @@ from haystack.dataclasses.document import ByteStream, Document
 from haystack.document_stores.errors import DocumentStoreError, DuplicateDocumentError
 from haystack.document_stores.types import DuplicatePolicy
 from haystack.testing.document_store import (
+    CountDocumentsByFilterTest,
     CountDocumentsTest,
+    CountUniqueMetadataByFilterTest,
     DeleteAllTest,
     DeleteByFilterTest,
     DeleteDocumentsTest,
     FilterableDocsFixtureMixin,
+    GetMetadataFieldMinMaxTest,
+    GetMetadataFieldsInfoTest,
+    GetMetadataFieldUniqueValuesTest,
     UpdateByFilterTest,
     WriteDocumentsTest,
 )
@@ -32,7 +37,26 @@ class TestDocumentStore(
     FilterableDocsFixtureMixin,
     UpdateByFilterTest,
     WriteDocumentsTest,
+    CountDocumentsByFilterTest,
+    CountUniqueMetadataByFilterTest,
+    GetMetadataFieldsInfoTest,
+    GetMetadataFieldMinMaxTest,
+    GetMetadataFieldUniqueValuesTest,
 ):
+    def test_get_metadata_fields_info_empty_collection(self, document_store: PgvectorDocumentStore):
+        """PgvectorDocumentStore always includes 'content' in fields info, even for empty stores."""
+        assert document_store.count_documents() == 0
+
+        fields_info = document_store.get_metadata_fields_info()
+        assert fields_info == {"content": {"type": "text"}}
+
+    def test_get_metadata_field_min_max_empty_collection(self, document_store: PgvectorDocumentStore):
+        """PgvectorDocumentStore raises ValueError when the field doesn't exist in the store."""
+        assert document_store.count_documents() == 0
+
+        with pytest.raises(ValueError, match="not found in document store"):
+            document_store.get_metadata_field_min_max("priority")
+
     def test_write_documents(self, document_store: PgvectorDocumentStore):
         docs = [Document(id="1")]
         assert document_store.write_documents(docs) == 1
