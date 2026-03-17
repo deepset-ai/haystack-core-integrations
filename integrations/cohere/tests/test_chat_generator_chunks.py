@@ -311,6 +311,7 @@ def expected_streaming_chunks():
                 "usage": {"prompt_tokens": 60.0, "completion_tokens": 41.0},
             },
             index=2,
+            finish_reason="tool_calls",
         ),
     ]
 
@@ -354,8 +355,7 @@ class TestCohereChunkConversion:
             meta={
                 "model": "command-a-03-2025",
                 "completion_start_time": None,
-                # TODO Something went wrong if this is None
-                "finish_reason": None,
+                "finish_reason": "tool_calls",
                 "index": 0,
                 "usage": {"prompt_tokens": 60.0, "completion_tokens": 41.0},
             },
@@ -392,7 +392,7 @@ class TestCohereChunkConversion:
         assert result.finish_reason is None
 
     def test_finish_reason_mapping(self):
-        finish_reasons = [("COMPLETE", "stop"), ("MAX_TOKENS", "length"), ("TOOL_CALLS", "tool_calls")]
+        finish_reasons = [("COMPLETE", "stop"), ("MAX_TOKENS", "length"), ("TOOL_CALL", "tool_calls")]
 
         for cohere_reason, haystack_reason in finish_reasons:
             mock_chunk = MsgEndStream(type="message-end", delta=MsgEndDelta(finish_reason=cohere_reason, usage=None))

@@ -231,8 +231,9 @@ def _convert_cohere_chunk_to_streaming_chunk(
     """
     finish_reason_mapping: dict[str, FinishReason] = {
         "COMPLETE": "stop",
+        "STOP_SEQUENCE": "stop",
         "MAX_TOKENS": "length",
-        "TOOL_CALLS": "tool_calls",
+        "TOOL_CALL": "tool_calls",
     }
 
     # Initialize default values
@@ -246,15 +247,15 @@ def _convert_cohere_chunk_to_streaming_chunk(
     if chunk.type == "content-delta" and chunk.delta and chunk.delta.message:
         if chunk.delta.message and chunk.delta.message.content and chunk.delta.message.content.text is not None:
             content = chunk.delta.message.content.text
+        # If the previous chunk is a content-start chunk, we set start to True for the first content-delta chunk
         if previous_original_chunks and previous_original_chunks[-1].type == "content-start":
-            # If the previous chunk is a content-start chunk, we set start to True for the first content-delta chunk
             start = True
 
     elif chunk.type == "tool-plan-delta" and chunk.delta and chunk.delta.message:
         if chunk.delta.message and chunk.delta.message.tool_plan is not None:
             content = chunk.delta.message.tool_plan
+        # If the previous chunk is a message-start chunk, we set start to True for the first tool-plan-delta chunk
         if previous_original_chunks and previous_original_chunks[-1].type == "message-start":
-            # If the previous chunk is a message-start chunk, we set start to True for the first tool-plan-delta chunk
             start = True
 
     elif chunk.type == "tool-call-start" and chunk.delta and chunk.delta.message:
