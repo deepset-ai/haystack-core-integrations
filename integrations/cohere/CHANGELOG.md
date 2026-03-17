@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/cohere-v8.0.1] - 2026-03-17
+
+### 🐛 Bug Fixes
+
+- Fix the conversion of cohere chunks to Haystack streaming chunks (#2968)
+
+
 ## [integrations/cohere-v8.0.0] - 2026-03-11
 
 ### 🚀 Features
