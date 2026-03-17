@@ -82,7 +82,7 @@ class OpenSearchDocumentStore:
         mappings: dict[str, Any] | None = None,
         settings: dict[str, Any] | None = DEFAULT_SETTINGS,
         create_index: bool = True,
-        http_auth: Any = (
+        http_auth: tuple[Secret, Secret] | tuple[str, str] | list[str] | str | AWSAuth | None = (
             Secret.from_env_var("OPENSEARCH_USERNAME", strict=False),  # noqa: B008
             Secret.from_env_var("OPENSEARCH_PASSWORD", strict=False),  # noqa: B008
         ),
@@ -207,13 +207,16 @@ class OpenSearchDocumentStore:
             Dictionary with serialized data.
         """
         # Handle http_auth serialization
-        http_auth: list[dict[str, Any]] | dict[str, Any] | None
-        if isinstance(self._http_auth, (tuple, list)) and all(isinstance(s, Secret) for s in self._http_auth):
-            http_auth = [s.to_dict() for s in self._http_auth]
+        http_auth: list[dict[str, Any]] | dict[str, Any] | None = None
+        if (
+            isinstance(self._http_auth, (tuple, list))
+            and len(self._http_auth) == 2  # noqa: PLR2004
+            and isinstance(self._http_auth[0], Secret)
+            and isinstance(self._http_auth[1], Secret)
+        ):
+            http_auth = [self._http_auth[0].to_dict(), self._http_auth[1].to_dict()]
         elif isinstance(self._http_auth, AWSAuth):
             http_auth = self._http_auth.to_dict()
-        else:
-            http_auth = None
 
         return default_to_dict(
             self,
@@ -252,18 +255,24 @@ class OpenSearchDocumentStore:
                 init_params["http_auth"] = [Secret.from_dict(item) for item in http_auth] if are_secrets else http_auth
         return default_from_dict(cls, data)
 
-    def _resolve_http_auth(self) -> Any:
+    def _resolve_http_auth(self) -> tuple[str, str] | list[str] | str | AWSAuth | None:
         """Resolves Secret objects in http_auth to their plain values."""
-        if not (isinstance(self._http_auth, (tuple, list)) and all(isinstance(s, Secret) for s in self._http_auth)):
+        if isinstance(self._http_auth, (tuple, list)) and len(self._http_auth) == 2:  # noqa: PLR2004
+            first, second = self._http_auth
+            if isinstance(first, Secret) and isinstance(second, Secret):
+                username = first.resolve_value()
+                password = second.resolve_value()
+                if username and password:
+                    return [username, password]
+                if not username and not password:
+                    return None
+                msg = "http_auth requires both username and password to be set, but only one was provided."
+                raise DocumentStoreError(msg)
+            if isinstance(first, str) and isinstance(second, str):
+                return (first, second)
+        if isinstance(self._http_auth, (str, AWSAuth)):
             return self._http_auth
-
-        resolved = [s.resolve_value() for s in self._http_auth]
-        if all(resolved):
-            return resolved
-        if not any(resolved):
-            return None
-        msg = "http_auth requires both username and password to be set, but only one was provided."
-        raise DocumentStoreError(msg)
+        return None
 
     def _ensure_initialized(self):
         # Ideally, we have a warm-up stage for document stores as well as components.
