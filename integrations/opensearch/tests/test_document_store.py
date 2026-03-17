@@ -124,6 +124,37 @@ def test_from_dict_with_http_auth_str(_mock_opensearch_client):
 
 
 @patch("haystack_integrations.document_stores.opensearch.document_store.OpenSearch")
+def test_resolve_http_auth_with_secrets(_mock_opensearch_client, monkeypatch):
+    monkeypatch.setenv("OPENSEARCH_USERNAME", "admin")
+    monkeypatch.setenv("OPENSEARCH_PASSWORD", "secret")
+    store = OpenSearchDocumentStore(hosts="testhost")
+    assert store._resolve_http_auth() == ["admin", "secret"]
+
+
+@patch("haystack_integrations.document_stores.opensearch.document_store.OpenSearch")
+def test_resolve_http_auth_with_no_secrets(_mock_opensearch_client, monkeypatch):
+    monkeypatch.delenv("OPENSEARCH_USERNAME", raising=False)
+    monkeypatch.delenv("OPENSEARCH_PASSWORD", raising=False)
+    store = OpenSearchDocumentStore(hosts="testhost")
+    assert store._resolve_http_auth() is None
+
+
+@patch("haystack_integrations.document_stores.opensearch.document_store.OpenSearch")
+def test_resolve_http_auth_with_partial_secrets(_mock_opensearch_client, monkeypatch):
+    monkeypatch.setenv("OPENSEARCH_USERNAME", "admin")
+    monkeypatch.delenv("OPENSEARCH_PASSWORD", raising=False)
+    store = OpenSearchDocumentStore(hosts="testhost")
+    with pytest.raises(DocumentStoreError, match="http_auth requires both username and password"):
+        store._resolve_http_auth()
+
+
+@patch("haystack_integrations.document_stores.opensearch.document_store.OpenSearch")
+def test_resolve_http_auth_with_plain_strings(_mock_opensearch_client):
+    store = OpenSearchDocumentStore(hosts="testhost", http_auth=("admin", "admin"))
+    assert store._resolve_http_auth() == ("admin", "admin")
+
+
+@patch("haystack_integrations.document_stores.opensearch.document_store.OpenSearch")
 def test_init_is_lazy(_mock_opensearch_client):
     OpenSearchDocumentStore(hosts="testhost")
     _mock_opensearch_client.assert_not_called()
