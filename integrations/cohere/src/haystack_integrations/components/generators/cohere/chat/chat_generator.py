@@ -38,6 +38,13 @@ logger = logging.getLogger(__name__)
 ImageFormat = Literal["image/png", "image/jpeg", "image/webp", "image/gif"]
 IMAGE_SUPPORTED_FORMATS: list[ImageFormat] = list(get_args(ImageFormat))
 
+FINISH_REASON_MAPPING: dict[str, FinishReason] = {
+    "COMPLETE": "stop",
+    "STOP_SEQUENCE": "stop",
+    "MAX_TOKENS": "length",
+    "TOOL_CALL": "tool_calls",
+}
+
 
 def _format_tool(tool: Tool) -> dict[str, Any]:
     """
@@ -182,10 +189,15 @@ def _parse_response(chat_response: ChatResponse, model: str) -> ChatMessage:
         text_content = chat_response.message.tool_plan or text_content
 
     # Create metadata for the message
+    resolved_finish_reason = None
+    if chat_response.message.finish_reason:
+        resolved_finish_reason = FINISH_REASON_MAPPING.get(
+            chat_response.message.finish_reason, chat_response.message.finish_reason
+        )
     base_meta = {
         "model": model,
         "index": 0,
-        "finish_reason": chat_response.finish_reason,
+        "finish_reason": resolved_finish_reason,
         "citations": chat_response.message.citations,
     }
     # In V2, token usage is part of the response object, not the message
@@ -223,13 +235,6 @@ def _convert_cohere_chunk_to_streaming_chunk(
     :returns:
         A StreamingChunk object representing the content of the chunk from the Cohere API.
     """
-    finish_reason_mapping: dict[str, FinishReason] = {
-        "COMPLETE": "stop",
-        "STOP_SEQUENCE": "stop",
-        "MAX_TOKENS": "length",
-        "TOOL_CALL": "tool_calls",
-    }
-
     # Initialize default values
     content = ""
     index = global_index
@@ -274,7 +279,7 @@ def _convert_cohere_chunk_to_streaming_chunk(
 
     elif chunk.type == "message-end":
         finish_reason_raw = getattr(chunk.delta, "finish_reason", None)
-        finish_reason = finish_reason_mapping.get(finish_reason_raw) if finish_reason_raw else None
+        finish_reason = FINISH_REASON_MAPPING.get(finish_reason_raw) if finish_reason_raw else None
 
         # The Cohere API is subject to changes in how usage data is returned. We try to support both dict and objects.
         usage_data = getattr(chunk.delta, "usage", None)
