@@ -190,10 +190,8 @@ def _parse_response(chat_response: ChatResponse, model: str) -> ChatMessage:
 
     # Create metadata for the message
     resolved_finish_reason = None
-    if chat_response.message.finish_reason:
-        resolved_finish_reason = FINISH_REASON_MAPPING.get(
-            chat_response.message.finish_reason, chat_response.message.finish_reason
-        )
+    if chat_response.finish_reason:
+        resolved_finish_reason = FINISH_REASON_MAPPING.get(chat_response.finish_reason, chat_response.finish_reason)
     base_meta = {
         "model": model,
         "index": 0,
@@ -327,7 +325,7 @@ def _parse_streaming_response(
 
     Loops through each stream object from Cohere and converts it into a StreamingChunk.
     """
-    original_chunks = []
+    original_chunks: list[StreamedChatResponseV2] = []
     chunks: list[StreamingChunk] = []
     global_index = 0
 
