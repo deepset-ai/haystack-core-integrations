@@ -1,6 +1,30 @@
 from unittest.mock import MagicMock
 
 import pytest
+from cohere import (
+    ChatMessageEndEventDelta,
+    ChatMessageStartEventDelta,
+    ChatMessageStartEventDeltaMessage,
+    ChatToolCallDeltaEventDelta,
+    ChatToolCallDeltaEventDeltaMessage,
+    ChatToolCallDeltaEventDeltaMessageToolCalls,
+    ChatToolCallDeltaEventDeltaMessageToolCallsFunction,
+    ChatToolCallStartEventDelta,
+    ChatToolCallStartEventDeltaMessage,
+    ChatToolPlanDeltaEventDelta,
+    ChatToolPlanDeltaEventDeltaMessage,
+    MessageEndV2ChatStreamResponse,
+    MessageStartV2ChatStreamResponse,
+    ToolCallDeltaV2ChatStreamResponse,
+    ToolCallEndV2ChatStreamResponse,
+    ToolCallStartV2ChatStreamResponse,
+    ToolCallV2,
+    ToolCallV2Function,
+    ToolPlanDeltaV2ChatStreamResponse,
+    Usage,
+    UsageBilledUnits,
+    UsageTokens,
+)
 from haystack.dataclasses import ComponentInfo, StreamingChunk, ToolCallDelta
 
 from haystack_integrations.components.generators.cohere.chat.chat_generator import (
@@ -76,48 +100,948 @@ def create_mock_cohere_chunk(chunk_type: str, index: int | None = None, **kwargs
 
 @pytest.fixture
 def cohere_chunks():
-    """Mocked Cohere streaming response chunks to test conversion function"""
     return [
-        # Chunk 1: Initial content-delta with text
-        create_mock_cohere_chunk("content-delta", text="I'll help you get the weather", index=0),
-        # Chunk 2: Tool plan delta
-        create_mock_cohere_chunk("tool-plan-delta", tool_plan="I need to call the weather tool"),
-        # Chunk 3: Tool call start - first tool call
-        create_mock_cohere_chunk(
-            "tool-call-start", tool_call_id="call_weather_paris_123", tool_name="weather", index=1, arguments=None
+        MessageStartV2ChatStreamResponse(
+            type="message-start",
+            id="05509383-5673-47b0-af67-e34c4cf64a5f",
+            delta=ChatMessageStartEventDelta(
+                message=ChatMessageStartEventDeltaMessage(
+                    role="assistant", content=[], tool_plan="", tool_calls=[], citations=[]
+                )
+            ),
         ),
-        # Chunk 4: Tool call delta - arguments streaming
-        create_mock_cohere_chunk("tool-call-delta", index=1, arguments='{"ci'),
-        # Chunk 5: Tool call delta - more arguments
-        create_mock_cohere_chunk("tool-call-delta", index=1, arguments='ty": "'),
-        # Chunk 6: Tool call delta - city name
-        create_mock_cohere_chunk("tool-call-delta", index=1, arguments='Paris"'),
-        # Chunk 7: Tool call delta - closing brace
-        create_mock_cohere_chunk("tool-call-delta", index=1, arguments="}"),
-        # Chunk 8: Tool call end - first tool call complete
-        create_mock_cohere_chunk("tool-call-end", index=1),
-        # Chunk 9: Tool call start - second tool call
-        create_mock_cohere_chunk(
-            "tool-call-start", tool_call_id="call_weather_berlin_456", tool_name="weather", index=2, arguments=None
+        ToolPlanDeltaV2ChatStreamResponse(
+            type="tool-plan-delta",
+            delta=ChatToolPlanDeltaEventDelta(message=ChatToolPlanDeltaEventDeltaMessage(tool_plan="I")),
         ),
-        # Chunk 10: Tool call delta - second tool arguments
-        create_mock_cohere_chunk("tool-call-delta", index=2, arguments='{"ci'),
-        # Chunk 11: Tool call delta - more second tool arguments
-        create_mock_cohere_chunk("tool-call-delta", index=2, arguments='ty": "'),
-        # Chunk 12: Tool call delta - second city name
-        create_mock_cohere_chunk("tool-call-delta", index=2, arguments='Berlin"'),
-        # Chunk 13: Tool call delta - closing brace for second tool
-        create_mock_cohere_chunk("tool-call-delta", index=2, arguments="}"),
-        # Chunk 14: Tool call end - second tool call complete
-        create_mock_cohere_chunk("tool-call-end", index=2),
-        # Chunk 15: Message end with finish reason and usage
-        create_mock_cohere_chunk(
-            "message-end",
-            finish_reason="TOOL_CALLS",
-            usage={
-                "billed_units": {"input_tokens": 9, "output_tokens": 75},
-                "tokens": {"input_tokens": 150, "output_tokens": 75},
+        ToolPlanDeltaV2ChatStreamResponse(
+            type="tool-plan-delta",
+            delta=ChatToolPlanDeltaEventDelta(message=ChatToolPlanDeltaEventDeltaMessage(tool_plan=" will")),
+        ),
+        ToolPlanDeltaV2ChatStreamResponse(
+            type="tool-plan-delta",
+            delta=ChatToolPlanDeltaEventDelta(message=ChatToolPlanDeltaEventDeltaMessage(tool_plan=" use")),
+        ),
+        ToolPlanDeltaV2ChatStreamResponse(
+            type="tool-plan-delta",
+            delta=ChatToolPlanDeltaEventDelta(message=ChatToolPlanDeltaEventDeltaMessage(tool_plan=" the")),
+        ),
+        ToolPlanDeltaV2ChatStreamResponse(
+            type="tool-plan-delta",
+            delta=ChatToolPlanDeltaEventDelta(message=ChatToolPlanDeltaEventDeltaMessage(tool_plan=" calculator")),
+        ),
+        ToolPlanDeltaV2ChatStreamResponse(
+            type="tool-plan-delta",
+            delta=ChatToolPlanDeltaEventDelta(message=ChatToolPlanDeltaEventDeltaMessage(tool_plan=" tool")),
+        ),
+        ToolPlanDeltaV2ChatStreamResponse(
+            type="tool-plan-delta",
+            delta=ChatToolPlanDeltaEventDelta(message=ChatToolPlanDeltaEventDeltaMessage(tool_plan=" to")),
+        ),
+        ToolPlanDeltaV2ChatStreamResponse(
+            type="tool-plan-delta",
+            delta=ChatToolPlanDeltaEventDelta(message=ChatToolPlanDeltaEventDeltaMessage(tool_plan=" compute")),
+        ),
+        ToolPlanDeltaV2ChatStreamResponse(
+            type="tool-plan-delta",
+            delta=ChatToolPlanDeltaEventDelta(message=ChatToolPlanDeltaEventDeltaMessage(tool_plan=" the")),
+        ),
+        ToolPlanDeltaV2ChatStreamResponse(
+            type="tool-plan-delta",
+            delta=ChatToolPlanDeltaEventDelta(message=ChatToolPlanDeltaEventDeltaMessage(tool_plan=" results")),
+        ),
+        ToolPlanDeltaV2ChatStreamResponse(
+            type="tool-plan-delta",
+            delta=ChatToolPlanDeltaEventDelta(message=ChatToolPlanDeltaEventDeltaMessage(tool_plan=" of")),
+        ),
+        ToolPlanDeltaV2ChatStreamResponse(
+            type="tool-plan-delta",
+            delta=ChatToolPlanDeltaEventDelta(message=ChatToolPlanDeltaEventDeltaMessage(tool_plan=" 7")),
+        ),
+        ToolPlanDeltaV2ChatStreamResponse(
+            type="tool-plan-delta",
+            delta=ChatToolPlanDeltaEventDelta(message=ChatToolPlanDeltaEventDeltaMessage(tool_plan=" +")),
+        ),
+        ToolPlanDeltaV2ChatStreamResponse(
+            type="tool-plan-delta",
+            delta=ChatToolPlanDeltaEventDelta(message=ChatToolPlanDeltaEventDeltaMessage(tool_plan=" 2")),
+        ),
+        ToolPlanDeltaV2ChatStreamResponse(
+            type="tool-plan-delta",
+            delta=ChatToolPlanDeltaEventDelta(message=ChatToolPlanDeltaEventDeltaMessage(tool_plan=" and")),
+        ),
+        ToolPlanDeltaV2ChatStreamResponse(
+            type="tool-plan-delta",
+            delta=ChatToolPlanDeltaEventDelta(message=ChatToolPlanDeltaEventDeltaMessage(tool_plan=" 2")),
+        ),
+        ToolPlanDeltaV2ChatStreamResponse(
+            type="tool-plan-delta",
+            delta=ChatToolPlanDeltaEventDelta(message=ChatToolPlanDeltaEventDeltaMessage(tool_plan=" *")),
+        ),
+        ToolPlanDeltaV2ChatStreamResponse(
+            type="tool-plan-delta",
+            delta=ChatToolPlanDeltaEventDelta(message=ChatToolPlanDeltaEventDeltaMessage(tool_plan=" 2")),
+        ),
+        ToolPlanDeltaV2ChatStreamResponse(
+            type="tool-plan-delta",
+            delta=ChatToolPlanDeltaEventDelta(message=ChatToolPlanDeltaEventDeltaMessage(tool_plan=".")),
+        ),
+        ToolCallStartV2ChatStreamResponse(
+            type="tool-call-start",
+            index=0,
+            delta=ChatToolCallStartEventDelta(
+                message=ChatToolCallStartEventDeltaMessage(
+                    tool_calls=ToolCallV2(
+                        id="calculator_mcdnh7tnn9v9",
+                        type="function",
+                        function=ToolCallV2Function(name="calculator", arguments=""),
+                    )
+                )
+            ),
+        ),
+        ToolCallDeltaV2ChatStreamResponse(
+            type="tool-call-delta",
+            index=0,
+            delta=ChatToolCallDeltaEventDelta(
+                message=ChatToolCallDeltaEventDeltaMessage(
+                    tool_calls=ChatToolCallDeltaEventDeltaMessageToolCalls(
+                        function=ChatToolCallDeltaEventDeltaMessageToolCallsFunction(arguments='{"')
+                    )
+                )
+            ),
+        ),
+        ToolCallDeltaV2ChatStreamResponse(
+            type="tool-call-delta",
+            index=0,
+            delta=ChatToolCallDeltaEventDelta(
+                message=ChatToolCallDeltaEventDeltaMessage(
+                    tool_calls=ChatToolCallDeltaEventDeltaMessageToolCalls(
+                        function=ChatToolCallDeltaEventDeltaMessageToolCallsFunction(arguments="expression")
+                    )
+                )
+            ),
+        ),
+        ToolCallDeltaV2ChatStreamResponse(
+            type="tool-call-delta",
+            index=0,
+            delta=ChatToolCallDeltaEventDelta(
+                message=ChatToolCallDeltaEventDeltaMessage(
+                    tool_calls=ChatToolCallDeltaEventDeltaMessageToolCalls(
+                        function=ChatToolCallDeltaEventDeltaMessageToolCallsFunction(arguments='":')
+                    )
+                )
+            ),
+        ),
+        ToolCallDeltaV2ChatStreamResponse(
+            type="tool-call-delta",
+            index=0,
+            delta=ChatToolCallDeltaEventDelta(
+                message=ChatToolCallDeltaEventDeltaMessage(
+                    tool_calls=ChatToolCallDeltaEventDeltaMessageToolCalls(
+                        function=ChatToolCallDeltaEventDeltaMessageToolCallsFunction(arguments=' "')
+                    )
+                )
+            ),
+        ),
+        ToolCallDeltaV2ChatStreamResponse(
+            type="tool-call-delta",
+            index=0,
+            delta=ChatToolCallDeltaEventDelta(
+                message=ChatToolCallDeltaEventDeltaMessage(
+                    tool_calls=ChatToolCallDeltaEventDeltaMessageToolCalls(
+                        function=ChatToolCallDeltaEventDeltaMessageToolCallsFunction(arguments="7")
+                    )
+                )
+            ),
+        ),
+        ToolCallDeltaV2ChatStreamResponse(
+            type="tool-call-delta",
+            index=0,
+            delta=ChatToolCallDeltaEventDelta(
+                message=ChatToolCallDeltaEventDeltaMessage(
+                    tool_calls=ChatToolCallDeltaEventDeltaMessageToolCalls(
+                        function=ChatToolCallDeltaEventDeltaMessageToolCallsFunction(arguments=" +")
+                    )
+                )
+            ),
+        ),
+        ToolCallDeltaV2ChatStreamResponse(
+            type="tool-call-delta",
+            index=0,
+            delta=ChatToolCallDeltaEventDelta(
+                message=ChatToolCallDeltaEventDeltaMessage(
+                    tool_calls=ChatToolCallDeltaEventDeltaMessageToolCalls(
+                        function=ChatToolCallDeltaEventDeltaMessageToolCallsFunction(arguments=" ")
+                    )
+                )
+            ),
+        ),
+        ToolCallDeltaV2ChatStreamResponse(
+            type="tool-call-delta",
+            index=0,
+            delta=ChatToolCallDeltaEventDelta(
+                message=ChatToolCallDeltaEventDeltaMessage(
+                    tool_calls=ChatToolCallDeltaEventDeltaMessageToolCalls(
+                        function=ChatToolCallDeltaEventDeltaMessageToolCallsFunction(arguments="2")
+                    )
+                )
+            ),
+        ),
+        ToolCallDeltaV2ChatStreamResponse(
+            type="tool-call-delta",
+            index=0,
+            delta=ChatToolCallDeltaEventDelta(
+                message=ChatToolCallDeltaEventDeltaMessage(
+                    tool_calls=ChatToolCallDeltaEventDeltaMessageToolCalls(
+                        function=ChatToolCallDeltaEventDeltaMessageToolCallsFunction(arguments='"}')
+                    )
+                )
+            ),
+        ),
+        ToolCallEndV2ChatStreamResponse(type="tool-call-end", index=0),
+        ToolCallStartV2ChatStreamResponse(
+            type="tool-call-start",
+            index=1,
+            delta=ChatToolCallStartEventDelta(
+                message=ChatToolCallStartEventDeltaMessage(
+                    tool_calls=ToolCallV2(
+                        id="calculator_yk0yf8f7fzbe",
+                        type="function",
+                        function=ToolCallV2Function(name="calculator", arguments=""),
+                    )
+                )
+            ),
+        ),
+        ToolCallDeltaV2ChatStreamResponse(
+            type="tool-call-delta",
+            index=1,
+            delta=ChatToolCallDeltaEventDelta(
+                message=ChatToolCallDeltaEventDeltaMessage(
+                    tool_calls=ChatToolCallDeltaEventDeltaMessageToolCalls(
+                        function=ChatToolCallDeltaEventDeltaMessageToolCallsFunction(arguments='{"')
+                    )
+                )
+            ),
+        ),
+        ToolCallDeltaV2ChatStreamResponse(
+            type="tool-call-delta",
+            index=1,
+            delta=ChatToolCallDeltaEventDelta(
+                message=ChatToolCallDeltaEventDeltaMessage(
+                    tool_calls=ChatToolCallDeltaEventDeltaMessageToolCalls(
+                        function=ChatToolCallDeltaEventDeltaMessageToolCallsFunction(arguments="expression")
+                    )
+                )
+            ),
+        ),
+        ToolCallDeltaV2ChatStreamResponse(
+            type="tool-call-delta",
+            index=1,
+            delta=ChatToolCallDeltaEventDelta(
+                message=ChatToolCallDeltaEventDeltaMessage(
+                    tool_calls=ChatToolCallDeltaEventDeltaMessageToolCalls(
+                        function=ChatToolCallDeltaEventDeltaMessageToolCallsFunction(arguments='":')
+                    )
+                )
+            ),
+        ),
+        ToolCallDeltaV2ChatStreamResponse(
+            type="tool-call-delta",
+            index=1,
+            delta=ChatToolCallDeltaEventDelta(
+                message=ChatToolCallDeltaEventDeltaMessage(
+                    tool_calls=ChatToolCallDeltaEventDeltaMessageToolCalls(
+                        function=ChatToolCallDeltaEventDeltaMessageToolCallsFunction(arguments=' "')
+                    )
+                )
+            ),
+        ),
+        ToolCallDeltaV2ChatStreamResponse(
+            type="tool-call-delta",
+            index=1,
+            delta=ChatToolCallDeltaEventDelta(
+                message=ChatToolCallDeltaEventDeltaMessage(
+                    tool_calls=ChatToolCallDeltaEventDeltaMessageToolCalls(
+                        function=ChatToolCallDeltaEventDeltaMessageToolCallsFunction(arguments="2")
+                    )
+                )
+            ),
+        ),
+        ToolCallDeltaV2ChatStreamResponse(
+            type="tool-call-delta",
+            index=1,
+            delta=ChatToolCallDeltaEventDelta(
+                message=ChatToolCallDeltaEventDeltaMessage(
+                    tool_calls=ChatToolCallDeltaEventDeltaMessageToolCalls(
+                        function=ChatToolCallDeltaEventDeltaMessageToolCallsFunction(arguments=" *")
+                    )
+                )
+            ),
+        ),
+        ToolCallDeltaV2ChatStreamResponse(
+            type="tool-call-delta",
+            index=1,
+            delta=ChatToolCallDeltaEventDelta(
+                message=ChatToolCallDeltaEventDeltaMessage(
+                    tool_calls=ChatToolCallDeltaEventDeltaMessageToolCalls(
+                        function=ChatToolCallDeltaEventDeltaMessageToolCallsFunction(arguments=" ")
+                    )
+                )
+            ),
+        ),
+        ToolCallDeltaV2ChatStreamResponse(
+            type="tool-call-delta",
+            index=1,
+            delta=ChatToolCallDeltaEventDelta(
+                message=ChatToolCallDeltaEventDeltaMessage(
+                    tool_calls=ChatToolCallDeltaEventDeltaMessageToolCalls(
+                        function=ChatToolCallDeltaEventDeltaMessageToolCallsFunction(arguments="2")
+                    )
+                )
+            ),
+        ),
+        ToolCallDeltaV2ChatStreamResponse(
+            type="tool-call-delta",
+            index=1,
+            delta=ChatToolCallDeltaEventDelta(
+                message=ChatToolCallDeltaEventDeltaMessage(
+                    tool_calls=ChatToolCallDeltaEventDeltaMessageToolCalls(
+                        function=ChatToolCallDeltaEventDeltaMessageToolCallsFunction(arguments='"}')
+                    )
+                )
+            ),
+        ),
+        ToolCallEndV2ChatStreamResponse(type="tool-call-end", index=1),
+        MessageEndV2ChatStreamResponse(
+            type="message-end",
+            id=None,
+            delta=ChatMessageEndEventDelta(
+                error=None,
+                finish_reason="TOOL_CALL",
+                usage=Usage(
+                    billed_units=UsageBilledUnits(
+                        input_tokens=60.0, output_tokens=41.0, search_units=None, classifications=None
+                    ),
+                    tokens=UsageTokens(input_tokens=1462.0, output_tokens=92.0),
+                    cached_tokens=0.0,
+                ),
+            ),
+        ),
+    ]
+
+
+@pytest.fixture
+def expected_chunks():
+    return [
+        StreamingChunk(
+            content="",
+            meta={"model": "command-a-03-2025"},
+            component_info=ComponentInfo(
+                type="haystack_integrations.components.generators.cohere.chat.chat_generator.CohereChatGenerator",
+                name=None,
+            ),
+            index=0,
+            tool_calls=None,
+            tool_call_result=None,
+            start=False,
+            finish_reason=None,
+            reasoning=None,
+        ),
+        StreamingChunk(
+            content="I",
+            meta={"model": "command-a-03-2025"},
+            component_info=ComponentInfo(
+                type="haystack_integrations.components.generators.cohere.chat.chat_generator.CohereChatGenerator",
+                name=None,
+            ),
+            index=0,
+            tool_calls=None,
+            tool_call_result=None,
+            start=False,
+            finish_reason=None,
+            reasoning=None,
+        ),
+        StreamingChunk(
+            content=" will",
+            meta={"model": "command-a-03-2025"},
+            component_info=ComponentInfo(
+                type="haystack_integrations.components.generators.cohere.chat.chat_generator.CohereChatGenerator",
+                name=None,
+            ),
+            index=0,
+            tool_calls=None,
+            tool_call_result=None,
+            start=False,
+            finish_reason=None,
+            reasoning=None,
+        ),
+        StreamingChunk(
+            content=" use",
+            meta={"model": "command-a-03-2025"},
+            component_info=ComponentInfo(
+                type="haystack_integrations.components.generators.cohere.chat.chat_generator.CohereChatGenerator",
+                name=None,
+            ),
+            index=0,
+            tool_calls=None,
+            tool_call_result=None,
+            start=False,
+            finish_reason=None,
+            reasoning=None,
+        ),
+        StreamingChunk(
+            content=" the",
+            meta={"model": "command-a-03-2025"},
+            component_info=ComponentInfo(
+                type="haystack_integrations.components.generators.cohere.chat.chat_generator.CohereChatGenerator",
+                name=None,
+            ),
+            index=0,
+            tool_calls=None,
+            tool_call_result=None,
+            start=False,
+            finish_reason=None,
+            reasoning=None,
+        ),
+        StreamingChunk(
+            content=" calculator",
+            meta={"model": "command-a-03-2025"},
+            component_info=ComponentInfo(
+                type="haystack_integrations.components.generators.cohere.chat.chat_generator.CohereChatGenerator",
+                name=None,
+            ),
+            index=0,
+            tool_calls=None,
+            tool_call_result=None,
+            start=False,
+            finish_reason=None,
+            reasoning=None,
+        ),
+        StreamingChunk(
+            content=" tool",
+            meta={"model": "command-a-03-2025"},
+            component_info=ComponentInfo(
+                type="haystack_integrations.components.generators.cohere.chat.chat_generator.CohereChatGenerator",
+                name=None,
+            ),
+            index=0,
+            tool_calls=None,
+            tool_call_result=None,
+            start=False,
+            finish_reason=None,
+            reasoning=None,
+        ),
+        StreamingChunk(
+            content=" to",
+            meta={"model": "command-a-03-2025"},
+            component_info=ComponentInfo(
+                type="haystack_integrations.components.generators.cohere.chat.chat_generator.CohereChatGenerator",
+                name=None,
+            ),
+            index=0,
+            tool_calls=None,
+            tool_call_result=None,
+            start=False,
+            finish_reason=None,
+            reasoning=None,
+        ),
+        StreamingChunk(
+            content=" compute",
+            meta={"model": "command-a-03-2025"},
+            component_info=ComponentInfo(
+                type="haystack_integrations.components.generators.cohere.chat.chat_generator.CohereChatGenerator",
+                name=None,
+            ),
+            index=0,
+            tool_calls=None,
+            tool_call_result=None,
+            start=False,
+            finish_reason=None,
+            reasoning=None,
+        ),
+        StreamingChunk(
+            content=" the",
+            meta={"model": "command-a-03-2025"},
+            component_info=ComponentInfo(
+                type="haystack_integrations.components.generators.cohere.chat.chat_generator.CohereChatGenerator",
+                name=None,
+            ),
+            index=0,
+            tool_calls=None,
+            tool_call_result=None,
+            start=False,
+            finish_reason=None,
+            reasoning=None,
+        ),
+        StreamingChunk(
+            content=" results",
+            meta={"model": "command-a-03-2025"},
+            component_info=ComponentInfo(
+                type="haystack_integrations.components.generators.cohere.chat.chat_generator.CohereChatGenerator",
+                name=None,
+            ),
+            index=0,
+            tool_calls=None,
+            tool_call_result=None,
+            start=False,
+            finish_reason=None,
+            reasoning=None,
+        ),
+        StreamingChunk(
+            content=" of",
+            meta={"model": "command-a-03-2025"},
+            component_info=ComponentInfo(
+                type="haystack_integrations.components.generators.cohere.chat.chat_generator.CohereChatGenerator",
+                name=None,
+            ),
+            index=0,
+            tool_calls=None,
+            tool_call_result=None,
+            start=False,
+            finish_reason=None,
+            reasoning=None,
+        ),
+        StreamingChunk(
+            content=" 7",
+            meta={"model": "command-a-03-2025"},
+            component_info=ComponentInfo(
+                type="haystack_integrations.components.generators.cohere.chat.chat_generator.CohereChatGenerator",
+                name=None,
+            ),
+            index=0,
+            tool_calls=None,
+            tool_call_result=None,
+            start=False,
+            finish_reason=None,
+            reasoning=None,
+        ),
+        StreamingChunk(
+            content=" +",
+            meta={"model": "command-a-03-2025"},
+            component_info=ComponentInfo(
+                type="haystack_integrations.components.generators.cohere.chat.chat_generator.CohereChatGenerator",
+                name=None,
+            ),
+            index=0,
+            tool_calls=None,
+            tool_call_result=None,
+            start=False,
+            finish_reason=None,
+            reasoning=None,
+        ),
+        StreamingChunk(
+            content=" 2",
+            meta={"model": "command-a-03-2025"},
+            component_info=ComponentInfo(
+                type="haystack_integrations.components.generators.cohere.chat.chat_generator.CohereChatGenerator",
+                name=None,
+            ),
+            index=0,
+            tool_calls=None,
+            tool_call_result=None,
+            start=False,
+            finish_reason=None,
+            reasoning=None,
+        ),
+        StreamingChunk(
+            content=" and",
+            meta={"model": "command-a-03-2025"},
+            component_info=ComponentInfo(
+                type="haystack_integrations.components.generators.cohere.chat.chat_generator.CohereChatGenerator",
+                name=None,
+            ),
+            index=0,
+            tool_calls=None,
+            tool_call_result=None,
+            start=False,
+            finish_reason=None,
+            reasoning=None,
+        ),
+        StreamingChunk(
+            content=" 2",
+            meta={"model": "command-a-03-2025"},
+            component_info=ComponentInfo(
+                type="haystack_integrations.components.generators.cohere.chat.chat_generator.CohereChatGenerator",
+                name=None,
+            ),
+            index=0,
+            tool_calls=None,
+            tool_call_result=None,
+            start=False,
+            finish_reason=None,
+            reasoning=None,
+        ),
+        StreamingChunk(
+            content=" *",
+            meta={"model": "command-a-03-2025"},
+            component_info=ComponentInfo(
+                type="haystack_integrations.components.generators.cohere.chat.chat_generator.CohereChatGenerator",
+                name=None,
+            ),
+            index=0,
+            tool_calls=None,
+            tool_call_result=None,
+            start=False,
+            finish_reason=None,
+            reasoning=None,
+        ),
+        StreamingChunk(
+            content=" 2",
+            meta={"model": "command-a-03-2025"},
+            component_info=ComponentInfo(
+                type="haystack_integrations.components.generators.cohere.chat.chat_generator.CohereChatGenerator",
+                name=None,
+            ),
+            index=0,
+            tool_calls=None,
+            tool_call_result=None,
+            start=False,
+            finish_reason=None,
+            reasoning=None,
+        ),
+        StreamingChunk(
+            content=".",
+            meta={"model": "command-a-03-2025"},
+            component_info=ComponentInfo(
+                type="haystack_integrations.components.generators.cohere.chat.chat_generator.CohereChatGenerator",
+                name=None,
+            ),
+            index=0,
+            tool_calls=None,
+            tool_call_result=None,
+            start=False,
+            finish_reason=None,
+            reasoning=None,
+        ),
+        StreamingChunk(
+            content="",
+            meta={"model": "command-a-03-2025", "tool_call_id": "calculator_mcdnh7tnn9v9"},
+            component_info=ComponentInfo(
+                type="haystack_integrations.components.generators.cohere.chat.chat_generator.CohereChatGenerator",
+                name=None,
+            ),
+            index=1,
+            tool_calls=[
+                ToolCallDelta(index=1, tool_name="calculator", arguments=None, id="calculator_mcdnh7tnn9v9", extra=None)
+            ],
+            tool_call_result=None,
+            start=True,
+            finish_reason=None,
+            reasoning=None,
+        ),
+        StreamingChunk(
+            content="",
+            meta={"model": "command-a-03-2025"},
+            component_info=ComponentInfo(
+                type="haystack_integrations.components.generators.cohere.chat.chat_generator.CohereChatGenerator",
+                name=None,
+            ),
+            index=1,
+            tool_calls=[ToolCallDelta(index=1, tool_name=None, arguments='{"', id=None, extra=None)],
+            tool_call_result=None,
+            start=False,
+            finish_reason=None,
+            reasoning=None,
+        ),
+        StreamingChunk(
+            content="",
+            meta={"model": "command-a-03-2025"},
+            component_info=ComponentInfo(
+                type="haystack_integrations.components.generators.cohere.chat.chat_generator.CohereChatGenerator",
+                name=None,
+            ),
+            index=1,
+            tool_calls=[ToolCallDelta(index=1, tool_name=None, arguments="expression", id=None, extra=None)],
+            tool_call_result=None,
+            start=False,
+            finish_reason=None,
+            reasoning=None,
+        ),
+        StreamingChunk(
+            content="",
+            meta={"model": "command-a-03-2025"},
+            component_info=ComponentInfo(
+                type="haystack_integrations.components.generators.cohere.chat.chat_generator.CohereChatGenerator",
+                name=None,
+            ),
+            index=1,
+            tool_calls=[ToolCallDelta(index=1, tool_name=None, arguments='":', id=None, extra=None)],
+            tool_call_result=None,
+            start=False,
+            finish_reason=None,
+            reasoning=None,
+        ),
+        StreamingChunk(
+            content="",
+            meta={"model": "command-a-03-2025"},
+            component_info=ComponentInfo(
+                type="haystack_integrations.components.generators.cohere.chat.chat_generator.CohereChatGenerator",
+                name=None,
+            ),
+            index=1,
+            tool_calls=[ToolCallDelta(index=1, tool_name=None, arguments=' "', id=None, extra=None)],
+            tool_call_result=None,
+            start=False,
+            finish_reason=None,
+            reasoning=None,
+        ),
+        StreamingChunk(
+            content="",
+            meta={"model": "command-a-03-2025"},
+            component_info=ComponentInfo(
+                type="haystack_integrations.components.generators.cohere.chat.chat_generator.CohereChatGenerator",
+                name=None,
+            ),
+            index=1,
+            tool_calls=[ToolCallDelta(index=1, tool_name=None, arguments="7", id=None, extra=None)],
+            tool_call_result=None,
+            start=False,
+            finish_reason=None,
+            reasoning=None,
+        ),
+        StreamingChunk(
+            content="",
+            meta={"model": "command-a-03-2025"},
+            component_info=ComponentInfo(
+                type="haystack_integrations.components.generators.cohere.chat.chat_generator.CohereChatGenerator",
+                name=None,
+            ),
+            index=1,
+            tool_calls=[ToolCallDelta(index=1, tool_name=None, arguments=" +", id=None, extra=None)],
+            tool_call_result=None,
+            start=False,
+            finish_reason=None,
+            reasoning=None,
+        ),
+        StreamingChunk(
+            content="",
+            meta={"model": "command-a-03-2025"},
+            component_info=ComponentInfo(
+                type="haystack_integrations.components.generators.cohere.chat.chat_generator.CohereChatGenerator",
+                name=None,
+            ),
+            index=1,
+            tool_calls=[ToolCallDelta(index=1, tool_name=None, arguments=" ", id=None, extra=None)],
+            tool_call_result=None,
+            start=False,
+            finish_reason=None,
+            reasoning=None,
+        ),
+        StreamingChunk(
+            content="",
+            meta={"model": "command-a-03-2025"},
+            component_info=ComponentInfo(
+                type="haystack_integrations.components.generators.cohere.chat.chat_generator.CohereChatGenerator",
+                name=None,
+            ),
+            index=1,
+            tool_calls=[ToolCallDelta(index=1, tool_name=None, arguments="2", id=None, extra=None)],
+            tool_call_result=None,
+            start=False,
+            finish_reason=None,
+            reasoning=None,
+        ),
+        StreamingChunk(
+            content="",
+            meta={"model": "command-a-03-2025"},
+            component_info=ComponentInfo(
+                type="haystack_integrations.components.generators.cohere.chat.chat_generator.CohereChatGenerator",
+                name=None,
+            ),
+            index=1,
+            tool_calls=[ToolCallDelta(index=1, tool_name=None, arguments='"}', id=None, extra=None)],
+            tool_call_result=None,
+            start=False,
+            finish_reason=None,
+            reasoning=None,
+        ),
+        StreamingChunk(
+            content="",
+            meta={"model": "command-a-03-2025"},
+            component_info=ComponentInfo(
+                type="haystack_integrations.components.generators.cohere.chat.chat_generator.CohereChatGenerator",
+                name=None,
+            ),
+            index=1,
+            tool_calls=None,
+            tool_call_result=None,
+            start=True,
+            finish_reason=None,
+            reasoning=None,
+        ),
+        StreamingChunk(
+            content="",
+            meta={"model": "command-a-03-2025", "tool_call_id": "calculator_yk0yf8f7fzbe"},
+            component_info=ComponentInfo(
+                type="haystack_integrations.components.generators.cohere.chat.chat_generator.CohereChatGenerator",
+                name=None,
+            ),
+            index=2,
+            tool_calls=[
+                ToolCallDelta(index=2, tool_name="calculator", arguments=None, id="calculator_yk0yf8f7fzbe", extra=None)
+            ],
+            tool_call_result=None,
+            start=True,
+            finish_reason=None,
+            reasoning=None,
+        ),
+        StreamingChunk(
+            content="",
+            meta={"model": "command-a-03-2025"},
+            component_info=ComponentInfo(
+                type="haystack_integrations.components.generators.cohere.chat.chat_generator.CohereChatGenerator",
+                name=None,
+            ),
+            index=2,
+            tool_calls=[ToolCallDelta(index=2, tool_name=None, arguments='{"', id=None, extra=None)],
+            tool_call_result=None,
+            start=False,
+            finish_reason=None,
+            reasoning=None,
+        ),
+        StreamingChunk(
+            content="",
+            meta={"model": "command-a-03-2025"},
+            component_info=ComponentInfo(
+                type="haystack_integrations.components.generators.cohere.chat.chat_generator.CohereChatGenerator",
+                name=None,
+            ),
+            index=2,
+            tool_calls=[ToolCallDelta(index=2, tool_name=None, arguments="expression", id=None, extra=None)],
+            tool_call_result=None,
+            start=False,
+            finish_reason=None,
+            reasoning=None,
+        ),
+        StreamingChunk(
+            content="",
+            meta={"model": "command-a-03-2025"},
+            component_info=ComponentInfo(
+                type="haystack_integrations.components.generators.cohere.chat.chat_generator.CohereChatGenerator",
+                name=None,
+            ),
+            index=2,
+            tool_calls=[ToolCallDelta(index=2, tool_name=None, arguments='":', id=None, extra=None)],
+            tool_call_result=None,
+            start=False,
+            finish_reason=None,
+            reasoning=None,
+        ),
+        StreamingChunk(
+            content="",
+            meta={"model": "command-a-03-2025"},
+            component_info=ComponentInfo(
+                type="haystack_integrations.components.generators.cohere.chat.chat_generator.CohereChatGenerator",
+                name=None,
+            ),
+            index=2,
+            tool_calls=[ToolCallDelta(index=2, tool_name=None, arguments=' "', id=None, extra=None)],
+            tool_call_result=None,
+            start=False,
+            finish_reason=None,
+            reasoning=None,
+        ),
+        StreamingChunk(
+            content="",
+            meta={"model": "command-a-03-2025"},
+            component_info=ComponentInfo(
+                type="haystack_integrations.components.generators.cohere.chat.chat_generator.CohereChatGenerator",
+                name=None,
+            ),
+            index=2,
+            tool_calls=[ToolCallDelta(index=2, tool_name=None, arguments="2", id=None, extra=None)],
+            tool_call_result=None,
+            start=False,
+            finish_reason=None,
+            reasoning=None,
+        ),
+        StreamingChunk(
+            content="",
+            meta={"model": "command-a-03-2025"},
+            component_info=ComponentInfo(
+                type="haystack_integrations.components.generators.cohere.chat.chat_generator.CohereChatGenerator",
+                name=None,
+            ),
+            index=2,
+            tool_calls=[ToolCallDelta(index=2, tool_name=None, arguments=" *", id=None, extra=None)],
+            tool_call_result=None,
+            start=False,
+            finish_reason=None,
+            reasoning=None,
+        ),
+        StreamingChunk(
+            content="",
+            meta={"model": "command-a-03-2025"},
+            component_info=ComponentInfo(
+                type="haystack_integrations.components.generators.cohere.chat.chat_generator.CohereChatGenerator",
+                name=None,
+            ),
+            index=2,
+            tool_calls=[ToolCallDelta(index=2, tool_name=None, arguments=" ", id=None, extra=None)],
+            tool_call_result=None,
+            start=False,
+            finish_reason=None,
+            reasoning=None,
+        ),
+        StreamingChunk(
+            content="",
+            meta={"model": "command-a-03-2025"},
+            component_info=ComponentInfo(
+                type="haystack_integrations.components.generators.cohere.chat.chat_generator.CohereChatGenerator",
+                name=None,
+            ),
+            index=2,
+            tool_calls=[ToolCallDelta(index=2, tool_name=None, arguments="2", id=None, extra=None)],
+            tool_call_result=None,
+            start=False,
+            finish_reason=None,
+            reasoning=None,
+        ),
+        StreamingChunk(
+            content="",
+            meta={"model": "command-a-03-2025"},
+            component_info=ComponentInfo(
+                type="haystack_integrations.components.generators.cohere.chat.chat_generator.CohereChatGenerator",
+                name=None,
+            ),
+            index=2,
+            tool_calls=[ToolCallDelta(index=2, tool_name=None, arguments='"}', id=None, extra=None)],
+            tool_call_result=None,
+            start=False,
+            finish_reason=None,
+            reasoning=None,
+        ),
+        StreamingChunk(
+            content="",
+            meta={"model": "command-a-03-2025"},
+            component_info=ComponentInfo(
+                type="haystack_integrations.components.generators.cohere.chat.chat_generator.CohereChatGenerator",
+                name=None,
+            ),
+            index=2,
+            tool_calls=None,
+            tool_call_result=None,
+            start=True,
+            finish_reason=None,
+            reasoning=None,
+        ),
+        StreamingChunk(
+            content="",
+            meta={
+                "model": "command-a-03-2025",
+                "finish_reason": "TOOL_CALL",
+                "usage": {"prompt_tokens": 60.0, "completion_tokens": 41.0},
             },
+            component_info=ComponentInfo(
+                type="haystack_integrations.components.generators.cohere.chat.chat_generator.CohereChatGenerator",
+                name=None,
+            ),
+            index=2,
+            tool_calls=None,
+            tool_call_result=None,
+            start=False,
+            finish_reason=None,
+            reasoning=None,
         ),
     ]
 
