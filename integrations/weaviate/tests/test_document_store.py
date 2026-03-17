@@ -464,7 +464,7 @@ class TestWeaviateDocumentStore(DocumentStoreBaseExtendedTests):
             ],
         )
 
-    def test_split_overlap_preserved_with_weaviate(self, document_store):
+    def test_split_overlap_preserved(self, document_store):
         """Split overlap meta is written and read back correctly."""
         overlap = [
             {"range": [3.0, 13.0], "doc_id": "34326b7e6be489cb4c031152fc378cb50479ca5fcc3861e7e61dfb2e4e4e968b"},
