@@ -489,18 +489,18 @@ class FAISSDocumentStore:
                 values.add(val)
         return list(values)
 
-    def count_unique_metadata_by_filter(self, filters: dict[str, Any], fields: list[str]) -> dict[str, int]:
+    def count_unique_metadata_by_filter(self, filters: dict[str, Any], metadata_fields: list[str]) -> dict[str, int]:
         """
         Returns a count of unique values for multiple metadata fields, optionally scoped by a filter.
 
         :param filters: A dictionary of filters to apply.
-        :param fields: A list of metadata field names to count unique values for.
+        :param metadata_fields: A list of metadata field names to count unique values for.
         :returns: A dictionary mapping each field name to the count of its unique values.
         """
         filtered_docs = self.filter_documents(filters)
         counts = {}
 
-        for field in fields:
+        for field in metadata_fields:
             unique_vals = set()
             for doc in filtered_docs:
                 val = FAISSDocumentStore._get_doc_value(doc, field)

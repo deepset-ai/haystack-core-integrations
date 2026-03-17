@@ -12,6 +12,11 @@ from haystack.testing.document_store import (
     DeleteDocumentsTest,
     FilterDocumentsTest,
     UpdateByFilterTest,
+    CountDocumentsByFilterTest,
+    CountUniqueMetadataByFilterTest,
+    GetMetadataFieldsInfoTest,
+    GetMetadataFieldMinMaxTest,
+    GetMetadataFieldUniqueValuesTest
 )
 
 from haystack_integrations.document_stores.faiss import FAISSDocumentStore
@@ -24,6 +29,11 @@ class TestFAISSDocumentStore(
     UpdateByFilterTest,
     DeleteAllTest,
     DeleteByFilterTest,
+    CountDocumentsByFilterTest,
+    CountUniqueMetadataByFilterTest,
+    GetMetadataFieldsInfoTest,
+    GetMetadataFieldMinMaxTest,
+    GetMetadataFieldUniqueValuesTest
 ):
     @pytest.fixture
     def document_store(self, tmp_path):
@@ -146,7 +156,7 @@ class TestFAISSDocumentStore(
         document_store.write_documents(docs)
 
         counts = document_store.count_unique_metadata_by_filter(
-            filters={"field": "meta.category", "operator": "==", "value": "A"}, fields=["meta.status"]
+            filters={"field": "meta.category", "operator": "==", "value": "A"}, metadata_fields=["meta.status"]
         )
         assert "meta.status" in counts
         assert counts["meta.status"] == 1  # Only "active" status for category A
