@@ -357,6 +357,7 @@ async def _parse_async_streaming_response(
     """
     Parses Cohere's async streaming chat response into a Haystack ChatMessage.
     """
+    original_chunks: list[StreamedChatResponseV2] = []
     chunks: list[StreamingChunk] = []
     global_index = 0
 
@@ -365,11 +366,14 @@ async def _parse_async_streaming_response(
             global_index += 1
 
         streaming_chunk = _convert_cohere_chunk_to_streaming_chunk(
-            chunk=chunk, component_info=component_info, model=model, global_index=global_index
+            chunk=chunk,
+            component_info=component_info,
+            model=model,
+            global_index=global_index,
+            previous_original_chunks=original_chunks
         )
-        if not streaming_chunk:
-            continue
 
+        original_chunks.append(chunk)
         chunks.append(streaming_chunk)
         await streaming_callback(streaming_chunk)
 
