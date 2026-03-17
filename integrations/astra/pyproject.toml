@@ -84,6 +84,7 @@ line-length = 120
 [tool.ruff.lint]
 select = [
   "A",
+  "ANN204",
   "ARG",
   "B",
   "C",

@@ -50,7 +50,7 @@ class AstraClient:
         embedding_dimension: int,
         similarity_function: str,
         namespace: str | None = None,
-    ):
+    ) -> None:
         """
         The connection to Astra DB is established and managed through the JSON API.
         The required credentials (api endpoint and application token) can be generated
