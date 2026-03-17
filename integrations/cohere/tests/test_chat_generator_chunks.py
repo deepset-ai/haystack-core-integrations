@@ -329,7 +329,7 @@ class TestCohereChunkConversion:
                 chunk=cohere_chunk,
                 model="command-a-03-2025",
                 global_index=global_index,
-                previous_original_chunks=original_chunks
+                previous_original_chunks=original_chunks,
             )
             original_chunks.append(cohere_chunk)
             assert stream_chunk == haystack_chunk
