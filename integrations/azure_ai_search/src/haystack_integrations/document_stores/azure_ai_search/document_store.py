@@ -430,7 +430,7 @@ class AzureAISearchDocumentStore:
         values: list[bool | int | float | str | datetime] = []
         for document in documents:
             value = document.get(field_name)
-            if isinstance(value, (bool, int, float, str, datetime)):
+            if isinstance(value, bool | int | float | str | datetime):
                 values.append(value)
 
         if not values:
