@@ -19,6 +19,11 @@ from haystack.testing.document_store import (
     FilterableDocsFixtureMixin,
     UpdateByFilterTest,
     WriteDocumentsTest,
+    CountDocumentsByFilterTest,
+    CountUniqueMetadataByFilterTest,
+    GetMetadataFieldsInfoTest,
+    GetMetadataFieldMinMaxTest,
+    GetMetadataFieldUniqueValuesTest
 )
 from haystack.utils import Secret
 from pinecone import Pinecone, PodSpec, ServerlessSpec
@@ -276,6 +281,11 @@ class TestDocumentStore(
     UpdateByFilterTest,
     DeleteAllTest,
     DeleteByFilterTest,
+    CountDocumentsByFilterTest,
+    CountUniqueMetadataByFilterTest,
+    GetMetadataFieldsInfoTest,
+    GetMetadataFieldMinMaxTest,
+    GetMetadataFieldUniqueValuesTest
 ):
     def test_write_documents(self, document_store: PineconeDocumentStore):
         docs = [Document(id="1")]
