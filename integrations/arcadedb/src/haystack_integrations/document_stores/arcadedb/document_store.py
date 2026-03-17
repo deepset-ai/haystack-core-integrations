@@ -448,7 +448,7 @@ def _map_literal_base(value: object) -> str | float | list[Any]:
         return _sql_str(value)
     elif isinstance(value, bool):
         return "true" if value else "false"
-    elif isinstance(value, (int, float)):
+    elif isinstance(value, int | float):
         return value
     elif value is None:
         return "NULL"
