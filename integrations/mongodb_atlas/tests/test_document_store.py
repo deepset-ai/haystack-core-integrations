@@ -10,7 +10,14 @@ import pytest
 from haystack.dataclasses.document import ByteStream, Document
 from haystack.document_stores.errors import DuplicateDocumentError
 from haystack.document_stores.types import DuplicatePolicy
-from haystack.testing.document_store import DocumentStoreBaseExtendedTests
+from haystack.testing.document_store import (
+    DocumentStoreBaseExtendedTests,
+    CountDocumentsByFilterTest,
+    CountUniqueMetadataByFilterTest,
+    GetMetadataFieldsInfoTest,
+    GetMetadataFieldMinMaxTest,
+    GetMetadataFieldUniqueValuesTest,
+)
 from haystack.utils import Secret
 from pymongo import MongoClient
 from pymongo.driver_info import DriverInfo
@@ -116,7 +123,14 @@ class TestMongoDBDocumentStoreConversion:
     reason="No MongoDB Atlas connection string provided",
 )
 @pytest.mark.integration
-class TestDocumentStore(DocumentStoreBaseExtendedTests):
+class TestDocumentStore(
+    DocumentStoreBaseExtendedTests,
+    CountDocumentsByFilterTest,
+    CountUniqueMetadataByFilterTest,
+    GetMetadataFieldsInfoTest,
+    GetMetadataFieldMinMaxTest,
+    GetMetadataFieldUniqueValuesTest,
+):
     @pytest.fixture
     def document_store(self):
         database_name = "haystack_integration_test"
