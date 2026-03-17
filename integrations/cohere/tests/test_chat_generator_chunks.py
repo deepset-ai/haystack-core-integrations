@@ -128,237 +128,91 @@ def expected_streaming_chunks():
 
     return [
         # Chunk 1: Content delta
-        StreamingChunk(
-            content="I'll help you get the weather",
-            index=0,
-            start=False,
-            finish_reason=None,
-            tool_calls=None,
-            meta={
-                "model": "command-a-03-2025",
-            },
-        ),
+        StreamingChunk(content="I'll help you get the weather", index=0, meta={"model": "command-a-03-2025"}),
         # Chunk 2: Tool plan delta
-        StreamingChunk(
-            content="I need to call the weather tool",
-            index=0,
-            start=False,
-            finish_reason=None,
-            tool_calls=None,
-            meta={
-                "model": "command-a-03-2025",
-            },
-        ),
+        StreamingChunk(content="I need to call the weather tool", index=0, meta={"model": "command-a-03-2025"}),
         # Chunk 3: Tool call start
         StreamingChunk(
             content="",
             index=0,
             start=True,  # Tool call start
-            finish_reason=None,
-            tool_calls=[
-                ToolCallDelta(
-                    index=0,
-                    id="call_weather_paris_123",
-                    tool_name="weather",
-                    arguments=None,
-                )
-            ],
-            meta={
-                "model": "command-a-03-2025",
-                "tool_call_id": "call_weather_paris_123",
-            },
+            tool_calls=[ToolCallDelta(index=0, id="call_weather_paris_123", tool_name="weather")],
+            meta={"model": "command-a-03-2025", "tool_call_id": "call_weather_paris_123"},
         ),
         # Chunk 4: Tool call delta - arguments
         StreamingChunk(
             content="",
             index=0,
-            start=False,
-            finish_reason=None,
-            tool_calls=[
-                ToolCallDelta(
-                    index=0,
-                    tool_name=None,  # Name was set in start chunk
-                    arguments='{"ci',
-                )
-            ],
-            meta={
-                "model": "command-a-03-2025",
-            },
+            # Name was set in start chunk
+            tool_calls=[ToolCallDelta(index=0, arguments='{"ci')],
+            meta={"model": "command-a-03-2025"},
         ),
         # Chunk 5: Tool call delta - more arguments
         StreamingChunk(
             content="",
             index=0,
-            start=False,
-            finish_reason=None,
-            tool_calls=[
-                ToolCallDelta(
-                    index=0,
-                    tool_name=None,
-                    arguments='ty": "',
-                )
-            ],
-            meta={
-                "model": "command-a-03-2025",
-            },
+            tool_calls=[ToolCallDelta(index=0, arguments='ty": "')],
+            meta={"model": "command-a-03-2025"},
         ),
         # Chunk 6: Tool call delta - city name
         StreamingChunk(
             content="",
             index=0,
-            start=False,
-            finish_reason=None,
-            tool_calls=[
-                ToolCallDelta(
-                    index=0,
-                    tool_name=None,
-                    arguments='Paris"',
-                )
-            ],
-            meta={
-                "model": "command-a-03-2025",
-            },
+            tool_calls=[ToolCallDelta(index=0, arguments='Paris"')],
+            meta={"model": "command-a-03-2025"},
         ),
         # Chunk 7: Tool call delta - closing brace
         StreamingChunk(
-            content="",
-            index=0,
-            start=False,
-            finish_reason=None,
-            tool_calls=[
-                ToolCallDelta(
-                    index=0,
-                    tool_name=None,
-                    arguments="}",
-                )
-            ],
-            meta={
-                "model": "command-a-03-2025",
-            },
+            content="", index=0, tool_calls=[ToolCallDelta(index=0, arguments="}")], meta={"model": "command-a-03-2025"}
         ),
         # Chunk 8: Tool call end
-        StreamingChunk(
-            content="",
-            index=0,
-            start=True,
-            finish_reason=None,
-            tool_calls=None,
-            meta={
-                "model": "command-a-03-2025",
-            },
-        ),
+        StreamingChunk(content="", index=0, start=True, meta={"model": "command-a-03-2025"}),
         # Chunk 9: Tool call start - second tool
+        # TODO The index in ToolCallDelta should be 1
         StreamingChunk(
             content="",
             index=0,
             start=True,  # Tool call start
-            finish_reason=None,
-            tool_calls=[
-                ToolCallDelta(
-                    index=0,
-                    id="call_weather_berlin_456",
-                    tool_name="weather",
-                    arguments=None,
-                )
-            ],
-            meta={
-                "model": "command-a-03-2025",
-                "tool_call_id": "call_weather_berlin_456",
-            },
+            tool_calls=[ToolCallDelta(index=0, id="call_weather_berlin_456", tool_name="weather")],
+            meta={"model": "command-a-03-2025", "tool_call_id": "call_weather_berlin_456"},
         ),
         # Chunk 10: Tool call delta - second tool arguments
         StreamingChunk(
             content="",
             index=0,
-            start=False,
-            finish_reason=None,
-            tool_calls=[
-                ToolCallDelta(
-                    index=0,
-                    tool_name=None,
-                    arguments='{"ci',
-                )
-            ],
-            meta={
-                "model": "command-a-03-2025",
-            },
+            tool_calls=[ToolCallDelta(index=0, arguments='{"ci')],
+            meta={"model": "command-a-03-2025"},
         ),
         # Chunk 11: Tool call delta - more second tool arguments
         StreamingChunk(
             content="",
             index=0,
-            start=False,
-            finish_reason=None,
-            tool_calls=[
-                ToolCallDelta(
-                    index=0,
-                    tool_name=None,
-                    arguments='ty": "',
-                )
-            ],
-            meta={
-                "model": "command-a-03-2025",
-            },
+            tool_calls=[ToolCallDelta(index=0, arguments='ty": "')],
+            meta={"model": "command-a-03-2025"},
         ),
         # Chunk 12: Tool call delta - second city name
         StreamingChunk(
             content="",
             index=0,
-            start=False,
-            finish_reason=None,
-            tool_calls=[
-                ToolCallDelta(
-                    index=0,
-                    tool_name=None,
-                    arguments='Berlin"',
-                )
-            ],
-            meta={
-                "model": "command-a-03-2025",
-            },
+            tool_calls=[ToolCallDelta(index=0, arguments='Berlin"')],
+            meta={"model": "command-a-03-2025"},
         ),
         # Chunk 13: Tool call delta - closing brace for second tool
         StreamingChunk(
-            content="",
-            index=0,
-            start=False,
-            finish_reason=None,
-            tool_calls=[
-                ToolCallDelta(
-                    index=0,
-                    tool_name=None,
-                    arguments="}",
-                )
-            ],
-            meta={
-                "model": "command-a-03-2025",
-            },
+            content="", index=0, tool_calls=[ToolCallDelta(index=0, arguments="}")], meta={"model": "command-a-03-2025"}
         ),
         # Chunk 14: Tool call end - second tool
-        StreamingChunk(
-            content="",
-            index=0,
-            start=True,
-            finish_reason=None,
-            tool_calls=None,
-            meta={
-                "model": "command-a-03-2025",
-            },
-        ),
+        # TODO This shouldn't be returning start=True
+        StreamingChunk(content="", index=0, start=True, meta={"model": "command-a-03-2025"}),
         # Chunk 15: Message end with finish reason and usage
         StreamingChunk(
             content="",
             index=0,
-            start=False,
             finish_reason="tool_calls",
-            tool_calls=None,
             meta={
                 "model": "command-a-03-2025",
                 "finish_reason": "TOOL_CALLS",
-                "usage": {
-                    "prompt_tokens": 9,
-                    "completion_tokens": 75,
-                },
+                "usage": {"prompt_tokens": 9, "completion_tokens": 75},
             },
         ),
     ]
@@ -370,10 +224,7 @@ class TestCohereChunkConversion:
         # all the streaming chunks have index 0, but the expected indexes increase with tool calls.
 
         for cohere_chunk, haystack_chunk in zip(cohere_chunks, expected_streaming_chunks, strict=True):
-            stream_chunk = _convert_cohere_chunk_to_streaming_chunk(
-                chunk=cohere_chunk,
-                model="command-a-03-2025",
-            )
+            stream_chunk = _convert_cohere_chunk_to_streaming_chunk(chunk=cohere_chunk, model="command-a-03-2025")
             assert stream_chunk == haystack_chunk
 
     def test_convert_cohere_chunk_with_empty_tool_calls(self):
@@ -401,9 +252,7 @@ class TestCohereChunkConversion:
         assert result.tool_calls is None
 
     def test_convert_tool_call_start_chunk(self):
-        chunk = create_mock_cohere_chunk(
-            "tool-call-start", tool_call_id="call_123", tool_name="weather", arguments=None
-        )
+        chunk = create_mock_cohere_chunk("tool-call-start", tool_call_id="call_123", tool_name="weather")
 
         result = _convert_cohere_chunk_to_streaming_chunk(chunk=chunk, model="command-r-08-2024")
         assert result.content == ""
@@ -452,10 +301,7 @@ class TestCohereChunkConversion:
         assert result.finish_reason == "stop"  # Mapped from "COMPLETE"
         assert result.tool_calls is None
         assert result.meta["finish_reason"] == "COMPLETE"
-        assert result.meta["usage"] == {
-            "prompt_tokens": 9,
-            "completion_tokens": 75,
-        }
+        assert result.meta["usage"] == {"prompt_tokens": 9, "completion_tokens": 75}
 
     def test_convert_message_end_chunk_max_tokens(self):
         chunk = create_mock_cohere_chunk(
@@ -470,10 +316,7 @@ class TestCohereChunkConversion:
         result = _convert_cohere_chunk_to_streaming_chunk(chunk=chunk, model="command-r-08-2024")
         assert result.finish_reason == "length"  # mapped from "MAX_TOKENS"
         assert result.meta["finish_reason"] == "MAX_TOKENS"
-        assert result.meta["usage"] == {
-            "prompt_tokens": 9,
-            "completion_tokens": 75,
-        }
+        assert result.meta["usage"] == {"prompt_tokens": 9, "completion_tokens": 75}
 
     def test_convert_unknown_chunk_type(self):
         chunk = create_mock_cohere_chunk("unknown-chunk-type")
@@ -494,11 +337,7 @@ class TestCohereChunkConversion:
         assert result.content == "Test content"
 
     def test_finish_reason_mapping(self):
-        finish_reasons = [
-            ("COMPLETE", "stop"),
-            ("MAX_TOKENS", "length"),
-            ("TOOL_CALLS", "tool_calls"),
-        ]
+        finish_reasons = [("COMPLETE", "stop"), ("MAX_TOKENS", "length"), ("TOOL_CALLS", "tool_calls")]
 
         for cohere_reason, haystack_reason in finish_reasons:
             chunk = create_mock_cohere_chunk("message-end", finish_reason=cohere_reason)
@@ -537,10 +376,7 @@ class TestCohereChunkConversion:
         component_info = ComponentInfo(name="test_component", type="test_type")
 
         message = _parse_streaming_response(
-            response=mock_response,
-            model="test-model",
-            streaming_callback=callback,
-            component_info=component_info,
+            response=mock_response, model="test-model", streaming_callback=callback, component_info=component_info
         )
 
         assert len(captured_chunks) == 1

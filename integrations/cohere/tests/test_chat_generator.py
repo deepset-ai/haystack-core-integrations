@@ -462,6 +462,7 @@ class TestCohereChatGenerator:
         mock_response = MagicMock()
         mock_response.message.content = [MagicMock()]
         mock_response.message.content[0].text = "This is a test image response"
+        mock_response.message.content[0].type = "text"
         mock_response.message.tool_calls = None
         mock_response.finish_reason = "COMPLETE"
         mock_response.usage = None

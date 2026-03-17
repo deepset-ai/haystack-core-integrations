@@ -4,7 +4,7 @@ from typing import Any, Literal, get_args
 
 from haystack import component, default_from_dict, default_to_dict, logging
 from haystack.components.generators.utils import _convert_streaming_chunks_to_chat_message
-from haystack.dataclasses import ChatMessage, ComponentInfo, ImageContent, TextContent, ToolCall
+from haystack.dataclasses import ChatMessage, ComponentInfo, ImageContent, ReasoningContent, TextContent, ToolCall
 from haystack.dataclasses.streaming_chunk import (
     AsyncStreamingCallbackT,
     FinishReason,
@@ -167,6 +167,7 @@ def _parse_response(chat_response: ChatResponse, model: str) -> ChatMessage:
     Extracts and organizes various response components including:
     - Text content
     - Tool calls
+    - Reasoning content
     - Usage statistics
     - Citations
     - Metadata
@@ -175,6 +176,18 @@ def _parse_response(chat_response: ChatResponse, model: str) -> ChatMessage:
     :param model: The name of the model that generated the response.
     :return: A Haystack ChatMessage containing the formatted response.
     """
+    # Extract text and reasoning content from the response
+    reasoning_content = None
+    text_content = ""
+    if chat_response.message.content:
+        for content_item in chat_response.message.content:
+            if content_item.type == "thinking":
+                reasoning_content = ReasoningContent(reasoning_text=content_item.thinking)
+            elif content_item.type == "text":
+                text_content = content_item.text
+
+    # Extract tool calls if present in the response
+    tool_calls = None
     if chat_response.message.tool_calls:
         tool_calls = []
         for tc in chat_response.message.tool_calls:
@@ -186,31 +199,26 @@ def _parse_response(chat_response: ChatResponse, model: str) -> ChatMessage:
                         arguments=json.loads(tc.function.arguments),
                     )
                 )
+        # If a tool plan is provided we use that as our text content over the default text content
+        text_content = chat_response.message.tool_plan or text_content
 
-        # Create message with tool plan as text and tool calls in the format Haystack expects
-        tool_plan = chat_response.message.tool_plan or ""
-        message = ChatMessage.from_assistant(text=tool_plan, tool_calls=tool_calls)
-    elif chat_response.message.content and hasattr(chat_response.message.content[0], "text"):
-        message = ChatMessage.from_assistant(chat_response.message.content[0].text)
-    else:
-        # Handle the case where neither tool_calls nor content exists
-        logger.warning(f"Received empty response from Cohere API: {chat_response.message}")
-        message = ChatMessage.from_assistant("")
-
+    # Create metadata for the message
+    base_meta = {
+        "model": model,
+        "index": 0,
+        "finish_reason": chat_response.finish_reason,
+        "citations": chat_response.message.citations,
+    }
     # In V2, token usage is part of the response object, not the message
-    message._meta.update(
-        {
-            "model": model,
-            "index": 0,
-            "finish_reason": chat_response.finish_reason,
-            "citations": chat_response.message.citations,
-        }
-    )
     if chat_response.usage and chat_response.usage.billed_units:
-        message._meta["usage"] = {
+        base_meta["usage"] = {
             "prompt_tokens": chat_response.usage.billed_units.input_tokens,
             "completion_tokens": chat_response.usage.billed_units.output_tokens,
         }
+
+    message = ChatMessage.from_assistant(
+        text=text_content, tool_calls=tool_calls, reasoning=reasoning_content, meta=base_meta
+    )
     return message
 
 
@@ -359,9 +367,6 @@ def _parse_streaming_response(
             model=model,
             global_index=global_index,
         )
-
-        if not streaming_chunk:
-            continue
 
         chunks.append(streaming_chunk)
         streaming_callback(streaming_chunk)
