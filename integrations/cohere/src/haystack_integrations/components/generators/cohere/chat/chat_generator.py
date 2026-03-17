@@ -370,7 +370,7 @@ async def _parse_async_streaming_response(
             component_info=component_info,
             model=model,
             global_index=global_index,
-            previous_original_chunks=original_chunks
+            previous_original_chunks=original_chunks,
         )
 
         original_chunks.append(chunk)
