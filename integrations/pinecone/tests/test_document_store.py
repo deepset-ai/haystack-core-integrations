@@ -460,11 +460,6 @@ class TestDocumentStore(
         assert "tags" in field_info
         assert field_info["tags"]["type"] == "keyword"
 
-    def test_get_metadata_fields_info_empty(self, document_store: PineconeDocumentStore):
-        # Test with no documents
-        field_info = document_store.get_metadata_fields_info()
-        assert field_info == {}
-
     def test_get_metadata_fields_info_consistent_types(self, document_store: PineconeDocumentStore):
         # Test that all documents are checked for type consistency
         docs = [
@@ -506,6 +501,11 @@ class TestDocumentStore(
         min_max = document_store.get_metadata_field_min_max("category")
         assert min_max["min"] == "Alpha"
         assert min_max["max"] == "Zebra"
+
+    def test_get_metadata_field_min_max_empty_collection(self, document_store: PineconeDocumentStore):
+        assert document_store.count_documents() == 0
+        with pytest.raises(ValueError, match="No values found"):
+            document_store.get_metadata_field_min_max("priority")
 
     def test_get_metadata_field_min_max_no_values(self, document_store: PineconeDocumentStore):
         docs = [
