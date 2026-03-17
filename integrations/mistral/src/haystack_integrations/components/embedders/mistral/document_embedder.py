@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: 2023-present deepset GmbH <info@deepset.ai>
 #
 # SPDX-License-Identifier: Apache-2.0
-from typing import Any
+from typing import Any, ClassVar
 
 from haystack import component, default_to_dict
 from haystack.components.embedders import OpenAIDocumentEmbedder
@@ -29,6 +29,16 @@ class MistralDocumentEmbedder(OpenAIDocumentEmbedder):
     # [0.017020374536514282, -0.023255806416273117, ...]
     ```
     """
+
+    SUPPORTED_MODELS: ClassVar[list[str]] = [
+        "mistral-embed-2312",
+        "mistral-embed",
+        "codestral-embed",
+        "codestral-embed-2505",
+    ]
+    """A list of models supported by Mistral AI
+    see [Mistral AI docs](https://docs.mistral.ai/getting-started/models) for more information
+    and send a GET HTTP request to "https://api.mistral.ai/v1/models" for a full list of model IDs."""
 
     def __init__(
         self,

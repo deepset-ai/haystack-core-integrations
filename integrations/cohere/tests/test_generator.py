@@ -91,12 +91,10 @@ class TestCohereGenerator:
             "type": "haystack_integrations.components.generators.cohere.generator.CohereGenerator",
             "init_parameters": {
                 "model": "command-a-03-2025",
-                "max_tokens": 10,
+                "generation_kwargs": {"max_tokens": 10, "some_test_param": "test-params"},
                 "api_key": {"env_vars": ["ENV_VAR"], "strict": False, "type": "env_var"},
-                "some_test_param": "test-params",
                 "api_base_url": "test-base-url",
                 "streaming_callback": "haystack.components.generators.utils.print_streaming_chunk",
-                "tools": None,
             },
         }
         component: CohereGenerator = CohereGenerator.from_dict(data)

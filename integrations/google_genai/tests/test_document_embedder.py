@@ -4,12 +4,14 @@
 
 import os
 import random
+from unittest.mock import AsyncMock, MagicMock
 
+import numpy as np
 import pytest
 from haystack import Document
 from haystack.utils.auth import Secret
 
-from haystack_integrations.components.embedders.google_genai import GoogleGenAIDocumentEmbedder
+from haystack_integrations.components.embedders.google_genai import GoogleGenAIDocumentEmbedder, GoogleGenAITextEmbedder
 
 
 def mock_google_response(contents: list[str], model: str = "gemini-embedding-001", **kwargs) -> dict:
@@ -256,20 +258,66 @@ class TestGoogleGenAIDocumentEmbedder:
         for doc_with_embedding in result["documents"]:
             assert doc_with_embedding.embedding == [0.1, 0.2, 0.3]
 
+    def test_embed_batch_passes_full_texts(self, monkeypatch):
+        monkeypatch.setenv("GOOGLE_API_KEY", "fake-api-key")
+        embedder = GoogleGenAIDocumentEmbedder(batch_size=2)
+
+        texts = ["first document text", "second document text", "third document text"]
+
+        mock_embedding = MagicMock()
+        mock_embedding.values = [0.1, 0.2, 0.3]
+
+        mock_response = MagicMock()
+        mock_response.embeddings = [mock_embedding]
+
+        embedder._client = MagicMock()
+        embedder._client.models.embed_content.return_value = mock_response
+
+        embedder._embed_batch(texts, batch_size=2)
+
+        calls = embedder._client.models.embed_content.call_args_list
+        assert len(calls) == 2
+        assert calls[0].kwargs["contents"] == ["first document text", "second document text"]
+        assert calls[1].kwargs["contents"] == ["third document text"]
+
+    @pytest.mark.asyncio
+    async def test_embed_batch_async_passes_full_texts(self, monkeypatch):
+        monkeypatch.setenv("GOOGLE_API_KEY", "fake-api-key")
+        embedder = GoogleGenAIDocumentEmbedder(batch_size=2)
+
+        texts = ["first document text", "second document text", "third document text"]
+
+        mock_embedding = MagicMock()
+        mock_embedding.values = [0.1, 0.2, 0.3]
+
+        mock_response = MagicMock()
+        mock_response.embeddings = [mock_embedding]
+
+        embedder._client = MagicMock()
+        embedder._client.aio.models.embed_content = AsyncMock(return_value=mock_response)
+
+        await embedder._embed_batch_async(texts, batch_size=2)
+
+        calls = embedder._client.aio.models.embed_content.call_args_list
+        assert len(calls) == 2
+        assert calls[0].kwargs["contents"] == ["first document text", "second document text"]
+        assert calls[1].kwargs["contents"] == ["third document text"]
+
     @pytest.mark.skipif(
         not os.environ.get("GOOGLE_API_KEY", None),
         reason="Export an env var called GOOGLE_API_KEY containing the Google API key to run this test.",
     )
     @pytest.mark.integration
     def test_run(self):
-        docs = [
-            Document(content="I love cheese", meta={"topic": "Cuisine"}),
-            Document(content="A transformer is a deep learning architecture", meta={"topic": "ML"}),
-        ]
-
         model = "gemini-embedding-001"
 
-        embedder = GoogleGenAIDocumentEmbedder(model=model, meta_fields_to_embed=["topic"], embedding_separator=" | ")
+        docs = [
+            Document(content="The capybara is the largest rodent in the world and lives near rivers in South America."),
+            Document(content="Dogs are domesticated mammals known for their loyalty and bond with humans."),
+            Document(content="The tiger is the largest big cat, recognized by its orange coat with black stripes."),
+        ]
+
+        embedder = GoogleGenAIDocumentEmbedder(model=model, config={"task_type": "RETRIEVAL_DOCUMENT"})
 
         result = embedder.run(documents=docs)
         documents_with_embeddings = result["documents"]
@@ -282,6 +330,18 @@ class TestGoogleGenAIDocumentEmbedder:
             assert all(isinstance(x, float) for x in doc.embedding)
 
         assert result["meta"]["model"] == model
+
+        text_embedder = GoogleGenAITextEmbedder(model=model, config={"task_type": "RETRIEVAL_QUERY"})
+        query_embedding = text_embedder.run("capybara")["embedding"]
+        query_vec = np.array(query_embedding)
+
+        similarities = []
+        for doc in documents_with_embeddings:
+            doc_vec = np.array(doc.embedding)
+            cosine_sim = np.dot(query_vec, doc_vec) / (np.linalg.norm(query_vec) * np.linalg.norm(doc_vec))
+            similarities.append(cosine_sim)
+
+        assert similarities[0] == max(similarities)
 
     @pytest.mark.asyncio
     @pytest.mark.skipif(

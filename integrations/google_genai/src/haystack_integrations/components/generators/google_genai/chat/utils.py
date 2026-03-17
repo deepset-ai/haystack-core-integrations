@@ -28,6 +28,7 @@ from haystack.tools import (
     flatten_tools_or_toolsets,
 )
 from jsonref import replace_refs
+from pydantic import BaseModel
 
 logger = logging.getLogger(__name__)
 
@@ -52,6 +53,49 @@ GOOGLE_GENAI_SUPPORTED_MIME_TYPES = {
     "image/heic": "heic",
     "image/heif": "heif",
 }
+
+
+def _process_response_format(generation_kwargs: dict[str, Any]) -> dict[str, Any]:
+    """
+    Process `response_format` from generation_kwargs into Google GenAI's native
+    `response_schema` and `response_mime_type` parameters.
+
+    Accepts either a Pydantic BaseModel class or a JSON schema dict.  When
+    `response_format` is present, it is popped and replaced with the two
+    Google-native keys.  If `response_schema` or `response_mime_type` are
+    already set, they take precedence and `response_format` is ignored.
+
+    Does not mutate the input dict; returns a new dict.
+
+    :param generation_kwargs: The generation configuration dictionary.
+    :returns: A new dict with response_schema/response_mime_type if applicable.
+    """
+    generation_kwargs = dict(generation_kwargs)
+
+    # If the user already set Google-native keys, leave them alone
+    if "response_schema" in generation_kwargs or "response_mime_type" in generation_kwargs:
+        generation_kwargs.pop("response_format", None)
+        return generation_kwargs
+
+    response_format = generation_kwargs.pop("response_format", None)
+    if response_format is None:
+        return generation_kwargs
+
+    if isinstance(response_format, type) and issubclass(response_format, BaseModel):
+        generation_kwargs["response_schema"] = response_format
+        generation_kwargs["response_mime_type"] = "application/json"
+        return generation_kwargs
+
+    if isinstance(response_format, dict):
+        generation_kwargs["response_schema"] = response_format
+        generation_kwargs["response_mime_type"] = "application/json"
+        return generation_kwargs
+
+    msg = (
+        f"Unsupported response_format type: {type(response_format).__name__}. "
+        "Expected a Pydantic model class or a JSON schema dict."
+    )
+    raise TypeError(msg)
 
 
 def _process_thinking_config(generation_kwargs: dict[str, Any]) -> dict[str, Any]:

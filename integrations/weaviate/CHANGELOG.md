@@ -1,5 +1,19 @@
 # Changelog
 
+## [integrations/weaviate-v7.4.0] - 2026-03-17
+
+### 🐛 Bug Fixes
+
+- Weaviate - stop ignoring _split_overlap meta field (#2966)
+
+
+## [integrations/weaviate-v7.3.0] - 2026-03-11
+
+### 🚀 Features
+
+- Add missing async methods for `WeaviateDocumentStore` (#2929)
+
+
 ## [integrations/weaviate-v7.2.0] - 2026-03-06
 
 ### 🐛 Bug Fixes
