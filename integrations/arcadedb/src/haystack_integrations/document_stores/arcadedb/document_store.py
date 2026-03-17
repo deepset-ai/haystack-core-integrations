@@ -68,7 +68,7 @@ class ArcadeDBDocumentStore:
         similarity_function: str = "cosine",
         recreate_type: bool = False,
         create_database: bool = True,
-    ):
+    ) -> None:
         """
         Create an ArcadeDBDocumentStore instance.
 
