@@ -53,7 +53,7 @@ class AstraDocumentStore:
         duplicates_policy: DuplicatePolicy = DuplicatePolicy.NONE,
         similarity: str = "cosine",
         namespace: str | None = None,
-    ):
+    ) -> None:
         """
         The connection to Astra DB is established and managed through the JSON API.
         The required credentials (api endpoint and application token) can be generated
