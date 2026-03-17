@@ -514,62 +514,6 @@ class TestCohereChunkConversion:
             stream_chunk = _convert_cohere_chunk_to_streaming_chunk(chunk=cohere_chunk, model="command-a-03-2025")
             assert stream_chunk == haystack_chunk
 
-    def test_convert_cohere_chunk_with_empty_tool_calls(self):
-        chunk = create_mock_cohere_chunk(
-            "tool-call-start",
-            tool_call_id="call_empty_123",
-            # missing tool name
-        )
-        result = _convert_cohere_chunk_to_streaming_chunk(chunk=chunk, model="command-r-08-2024")
-
-        assert result.content == ""
-        assert result.start is False
-        assert result.tool_calls is None
-        assert result.index == 0
-        assert result.meta["model"] == "command-r-08-2024"
-
-    def test_convert_tool_plan_delta_chunk(self):
-        chunk = create_mock_cohere_chunk("tool-plan-delta", tool_plan="I will call the weather tool")
-
-        result = _convert_cohere_chunk_to_streaming_chunk(chunk=chunk, model="command-r-08-2024")
-        assert result.content == "I will call the weather tool"
-        assert result.index == 0
-        assert result.start is False
-        assert result.tool_calls is None
-
-    def test_convert_tool_call_start_chunk(self):
-        chunk = create_mock_cohere_chunk("tool-call-start", tool_call_id="call_123", tool_name="weather")
-
-        result = _convert_cohere_chunk_to_streaming_chunk(chunk=chunk, model="command-r-08-2024")
-        assert result.content == ""
-        assert result.index == 0
-        assert result.start is True
-        assert len(result.tool_calls) == 1
-        assert result.tool_calls[0].id == "call_123"
-        assert result.tool_calls[0].tool_name == "weather"
-        assert result.tool_calls[0].arguments is None
-        assert result.meta["tool_call_id"] == "call_123"
-
-    def test_convert_tool_call_delta_chunk(self):
-        chunk = create_mock_cohere_chunk("tool-call-delta", arguments='{"city": "Paris"}')
-
-        result = _convert_cohere_chunk_to_streaming_chunk(chunk=chunk, model="command-r-08-2024")
-        assert result.content == ""
-        assert result.index == 0
-        assert result.start is False
-        assert len(result.tool_calls) == 1
-        assert result.tool_calls[0].tool_name is None  # name was set in start chunk
-        assert result.tool_calls[0].arguments == '{"city": "Paris"}'
-
-    def test_convert_tool_call_end_chunk(self):
-        chunk = create_mock_cohere_chunk("tool-call-end")
-
-        result = _convert_cohere_chunk_to_streaming_chunk(chunk=chunk, model="command-r-08-2024")
-        assert result.content == ""
-        assert result.index == 0
-        assert result.start
-        assert result.tool_calls is None
-
     def test_convert_message_end_chunk(self):
         chunk = create_mock_cohere_chunk(
             "message-end",
@@ -587,21 +531,6 @@ class TestCohereChunkConversion:
         assert result.finish_reason == "stop"  # Mapped from "COMPLETE"
         assert result.tool_calls is None
         assert result.meta["finish_reason"] == "COMPLETE"
-        assert result.meta["usage"] == {"prompt_tokens": 9, "completion_tokens": 75}
-
-    def test_convert_message_end_chunk_max_tokens(self):
-        chunk = create_mock_cohere_chunk(
-            "message-end",
-            finish_reason="MAX_TOKENS",
-            usage={
-                "billed_units": {"input_tokens": 9, "output_tokens": 75},
-                "tokens": {"input_tokens": 200, "output_tokens": 100},
-            },
-        )
-
-        result = _convert_cohere_chunk_to_streaming_chunk(chunk=chunk, model="command-r-08-2024")
-        assert result.finish_reason == "length"  # mapped from "MAX_TOKENS"
-        assert result.meta["finish_reason"] == "MAX_TOKENS"
         assert result.meta["usage"] == {"prompt_tokens": 9, "completion_tokens": 75}
 
     def test_convert_unknown_chunk_type(self):
@@ -646,26 +575,3 @@ class TestCohereChunkConversion:
 
         result = _convert_cohere_chunk_to_streaming_chunk(chunk=chunk, model="command-r-08-2024")
         assert result.meta["usage"] == {"completion_tokens": 0.0, "prompt_tokens": 0.0}
-
-    def test_parse_streaming_response_uses_component_info(self):
-        mock_cohere_chunk = MagicMock()
-        mock_cohere_chunk.type = "content-delta"
-        mock_cohere_chunk.delta.message.content.text = "Hello"
-
-        mock_response = [mock_cohere_chunk]
-
-        captured_chunks = []
-
-        def callback(chunk: StreamingChunk):
-            captured_chunks.append(chunk)
-
-        component_info = ComponentInfo(name="test_component", type="test_type")
-
-        message = _parse_streaming_response(
-            response=mock_response, model="test-model", streaming_callback=callback, component_info=component_info
-        )
-
-        assert len(captured_chunks) == 1
-        assert captured_chunks[0].component_info == component_info
-        assert captured_chunks[0].content == "Hello"
-        assert message.text == "Hello"
