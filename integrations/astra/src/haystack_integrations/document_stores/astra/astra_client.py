@@ -178,7 +178,9 @@ class AstraClient:
 
         # include_metadata means return all columns in the table (including text that got embedded)
         # include_values means return the vector of the embedding for the searched items
-        formatted_response = self._format_query_response(responses, include_metadata, include_values)
+        formatted_response = self._format_query_response(
+            responses, include_metadata=include_metadata, include_values=include_values
+        )
 
         return formatted_response
 
@@ -188,7 +190,12 @@ class AstraClient:
         return self.find_documents(query)
 
     @staticmethod
-    def _format_query_response(responses: list[dict[str, Any]] | None, include_metadata: bool | None, include_values: bool | None) -> QueryResponse:
+    def _format_query_response(
+        responses: list[dict[str, Any]] | None,
+        *,
+        include_metadata: bool | None,
+        include_values: bool | None,
+    ) -> QueryResponse:
         final_res = []
 
         if responses is None:
@@ -208,7 +215,9 @@ class AstraClient:
 
         return QueryResponse(final_res)
 
-    def _query(self, vector: list[float], top_k: int | None, filters: dict[str, Any] | None = None) -> list[dict[str, Any]]:
+    def _query(
+        self, vector: list[float], top_k: int | None, filters: dict[str, Any] | None = None
+    ) -> list[dict[str, Any]]:
         query = {"sort": {"$vector": vector}, "limit": top_k, "includeSimilarity": True}
 
         if filters is not None:

@@ -305,13 +305,13 @@ class AstraDocumentStore:
                 for item in value:
                     if isinstance(item, bool):
                         inferred_types.add("boolean")
-                    elif isinstance(item, (int, float)):
+                    elif isinstance(item, int | float):
                         inferred_types.add("long")
                     elif isinstance(item, str):
                         inferred_types.add("keyword")
             elif isinstance(value, bool):
                 inferred_types.add("boolean")
-            elif isinstance(value, (int, float)):
+            elif isinstance(value, int | float):
                 inferred_types.add("long")
             elif isinstance(value, str):
                 inferred_types.add("keyword")
@@ -602,7 +602,7 @@ class AstraDocumentStore:
         :returns: A dictionary with `min` and `max`.
         """
         distinct_values = self.index.distinct(f"meta.{metadata_field}")
-        comparable_values = [value for value in distinct_values if isinstance(value, (str, int, float, bool))]
+        comparable_values = [value for value in distinct_values if isinstance(value, str | int | float | bool)]
         if not comparable_values:
             return {"min": None, "max": None}
 
