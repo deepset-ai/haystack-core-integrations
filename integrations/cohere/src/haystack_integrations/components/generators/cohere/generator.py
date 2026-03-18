@@ -37,7 +37,7 @@ class CohereGenerator(CohereChatGenerator):
         streaming_callback: Callable | None = None,
         api_base_url: str | None = None,
         **kwargs: Any,
-    ):
+    ) -> None:
         """
         Instantiates a `CohereGenerator` component.
 

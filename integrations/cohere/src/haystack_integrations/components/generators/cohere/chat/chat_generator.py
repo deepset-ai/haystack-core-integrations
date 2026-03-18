@@ -491,7 +491,7 @@ class CohereChatGenerator:
         *,
         timeout: float | None = None,
         max_retries: int | None = None,
-    ):
+    ) -> None:
         """
         Initialize the CohereChatGenerator instance.
 

@@ -41,7 +41,7 @@ class CohereRanker:
         meta_fields_to_embed: list[str] | None = None,
         meta_data_separator: str = "\n",
         max_tokens_per_doc: int = 4096,
-    ):
+    ) -> None:
         """
         Creates an instance of the 'CohereRanker'.
 

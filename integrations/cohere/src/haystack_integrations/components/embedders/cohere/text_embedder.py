@@ -41,7 +41,7 @@ class CohereTextEmbedder:
         truncate: str = "END",
         timeout: float = 120.0,
         embedding_type: EmbeddingTypes | None = None,
-    ):
+    ) -> None:
         """
         :param api_key: the Cohere API key.
         :param model: the name of the model to use. Supported Models are:
