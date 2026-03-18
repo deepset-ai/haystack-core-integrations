@@ -3,7 +3,12 @@
 [![PyPI](https://img.shields.io/pypi/v/cognee-haystack.svg)](https://pypi.org/project/cognee-haystack/)
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
 
-A [Haystack](https://haystack.deepset.ai/) integration for [Cognee](https://github.com/topoteretes/cognee) — memory for AI agents.
+A [Haystack](https://haystack.deepset.ai/) integration for [Cognee](https://github.com/topoteretes/cognee) — open-source memory for AI agents.
+
+[Cognee](https://www.cognee.ai/) gives agents persistent, traceable memory by transforming raw data (e.g., unstructured documents, relational databases, etc.) into a knowledge engine that is both searchable by meaning and connected by relationships. Cognee uses an ECL (Extract, Cognify, Load) pipeline: vector search, knowledge graphs, with support for ontology-based entity grounding (e.g. OWL) and Pydantic-defined graph schemas.
+
+Cognee serves developers and teams building agentic systems where agents need to retain context across sessions, learn from user feedback, and operate in multi-tenant, data-isolated environments. Cognee is available as an open-source Python library (Apache 2.0), a self-hosted/on-prem subscription tier, and a managed cloud service (Cognee Cloud at platform.cognee.ai).
+
 
 ## Installation
 
@@ -87,7 +92,7 @@ results = store.search_memories(query="When is the deadline?")
 Cognee uses environment variables for its LLM and storage configuration:
 
 ```bash
-export OPENAI_API_KEY="sk-..."
+export LLM_API_KEY="sk-..."
 ```
 
 See the [Cognee documentation](https://docs.cognee.ai/) for additional configuration options.
@@ -102,13 +107,19 @@ See the [`examples/`](examples/) directory for runnable demos:
 ## Development
 
 ```bash
-# Install in dev mode
-pip install -e "integrations/cognee[memory]"
+cd integrations/cognee
+
+# Format and lint
+hatch run fmt
+hatch run fmt-check
+
+# Type checking
+hatch run test:types
 
 # Run tests
-pytest integrations/cognee/tests/
+hatch run test:unit
 ```
 
 ## License
 
-Apache 2.0 — see [LICENSE](../../LICENSE) for details.
+Apache 2.0 — see [LICENSE](LICENSE) for details.

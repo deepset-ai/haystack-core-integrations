@@ -8,10 +8,14 @@ Install the integration from the repository root:
 pip install -e "integrations/cognee[memory]"
 ```
 
-Set your LLM API key (required by cognee):
+Set your LLM API key (required by cognee, default OpenAI API key) and ENABLE_BACKEND_ACCESS_CONTROL=False for simplicity:
+
+To integrate other LLM providers and other configuration options, see [Cognee Documentation](https://docs.cognee.ai/getting-started/installation#environment-configuration).
+
 
 ```bash
-export LLM_API_KEY="sk-..."
+export LLM_API_KEY="sk-your-openai-api-key"
+export ENABLE_BACKEND_ACCESS_CONTROL="False"
 ```
 
 ## Examples
