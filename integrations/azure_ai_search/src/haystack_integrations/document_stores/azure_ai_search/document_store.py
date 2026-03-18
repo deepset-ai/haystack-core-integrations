@@ -105,6 +105,11 @@ FIELD_TYPE_MAPPING = {
 
 
 class AzureAISearchDocumentStore:
+    """
+    A document store using [Azure AI Search](https://azure.microsoft.com/products/ai-services/ai-search/)
+    as the backend.
+    """
+
     def __init__(
         self,
         *,
@@ -116,10 +121,9 @@ class AzureAISearchDocumentStore:
         vector_search_configuration: VectorSearch | None = None,
         include_search_metadata: bool = False,
         **index_creation_kwargs: Any,
-    ):
+    ) -> None:
         """
-        A document store using [Azure AI Search](https://azure.microsoft.com/products/ai-services/ai-search/)
-        as the backend.
+        Creates a new instance of AzureAISearchDocumentStore.
 
         :param azure_endpoint: The URL endpoint of an Azure AI Search service.
         :param api_key: The API key to use for authentication.
@@ -426,7 +430,7 @@ class AzureAISearchDocumentStore:
         values: list[bool | int | float | str | datetime] = []
         for document in documents:
             value = document.get(field_name)
-            if isinstance(value, (bool, int, float, str, datetime)):
+            if isinstance(value, bool | int | float | str | datetime):
                 values.append(value)
 
         if not values:
@@ -706,6 +710,12 @@ class AzureAISearchDocumentStore:
             raise AzureAISearchDocumentStoreError(msg) from e
 
     def get_documents_by_id(self, document_ids: list[str]) -> list[Document]:
+        """
+        Retrieves documents by their IDs.
+
+        :param document_ids: IDs of the documents to retrieve.
+        :returns: List of documents with the given IDs.
+        """
         return self._convert_search_result_to_documents(self._get_raw_documents_by_id(document_ids))
 
     def search_documents(self, search_text: str = "*", top_k: int = 10) -> list[Document]:

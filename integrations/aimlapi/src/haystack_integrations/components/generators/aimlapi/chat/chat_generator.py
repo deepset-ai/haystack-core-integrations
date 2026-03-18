@@ -71,7 +71,7 @@ class AIMLAPIChatGenerator(OpenAIChatGenerator):
         extra_headers: dict[str, Any] | None = None,
         max_retries: int | None = None,
         http_client_kwargs: dict[str, Any] | None = None,
-    ):
+    ) -> None:
         """
         Creates an instance of AIMLAPIChatGenerator. Unless specified otherwise,
         the default model is `openai/gpt-5-chat-latest`.
@@ -190,8 +190,6 @@ class AIMLAPIChatGenerator(OpenAIChatGenerator):
         if is_streaming and num_responses > 1:
             msg = "Cannot stream multiple responses, please set n=1."
             raise ValueError(msg)
-        response_format = generation_kwargs.pop("response_format", None)
-
         response_format = generation_kwargs.pop("response_format", None)
 
         base_args = {

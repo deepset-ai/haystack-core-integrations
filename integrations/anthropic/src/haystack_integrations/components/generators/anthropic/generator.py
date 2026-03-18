@@ -68,7 +68,7 @@ class AnthropicGenerator:
         *,
         timeout: float | None = None,
         max_retries: int | None = None,
-    ):
+    ) -> None:
         """
         Initialize the AnthropicGenerator.
 
