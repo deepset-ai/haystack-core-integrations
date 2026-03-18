@@ -91,6 +91,9 @@ def test_serialization_roundtrip_all_params() -> None:
     assert params["batch"] is False
     assert params["easyocr_kwargs"] == {"gpu": True, "beam_width": 3}
 
+    # Save config JSON before from_dict mutates d in place
+    original_config_json = json.loads(params["config"])
+
     # from_dict restores all fields
     restored = KreuzbergConverter.from_dict(d)
     assert restored.config.output_format == "html"
@@ -106,7 +109,7 @@ def test_serialization_roundtrip_all_params() -> None:
     p1 = {k: v for k, v in d["init_parameters"].items() if k != "config"}
     p2 = {k: v for k, v in d2["init_parameters"].items() if k != "config"}
     assert p1 == p2
-    assert json.loads(d["init_parameters"]["config"]) == json.loads(d2["init_parameters"]["config"])
+    assert original_config_json == json.loads(d2["init_parameters"]["config"])
 
 
 def test_serialization_roundtrip_config_path() -> None:
