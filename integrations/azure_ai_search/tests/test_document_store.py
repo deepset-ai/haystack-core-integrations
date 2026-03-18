@@ -27,6 +27,11 @@ from haystack.testing.document_store import (
     FilterDocumentsTest,
     UpdateByFilterTest,
     WriteDocumentsTest,
+    CountDocumentsByFilterTest,
+    CountUniqueMetadataByFilterTest,
+    GetMetadataFieldsInfoTest,
+    GetMetadataFieldMinMaxTest,
+    GetMetadataFieldUniqueValuesTest,
 )
 from haystack.utils.auth import EnvVarSecret, Secret
 
@@ -397,6 +402,11 @@ class TestDocumentStore(
     FilterableDocsFixtureMixin,
     WriteDocumentsTest,
     UpdateByFilterTest,
+    CountDocumentsByFilterTest,
+    CountUniqueMetadataByFilterTest,
+    GetMetadataFieldsInfoTest,
+    GetMetadataFieldMinMaxTest,
+    GetMetadataFieldUniqueValuesTest,
 ):
     def assert_documents_are_equal(self, received: list[Document], expected: list[Document]):
         _assert_documents_are_equal(received, expected)
