@@ -161,11 +161,9 @@ class KreuzbergConverter:
         :returns:
             Deserialized component.
         """
-        data = {**data, "init_parameters": dict(data["init_parameters"])}
-        init_params = data["init_parameters"]
-        config_data = init_params.get("config")
+        config_data = data["init_parameters"].get("config")
         if isinstance(config_data, str):
-            init_params["config"] = _config_from_json_str(config_data)
+            data["init_parameters"]["config"] = _config_from_json_str(config_data)
         return default_from_dict(cls, data)
 
     def _build_config(self) -> ExtractionConfig:
