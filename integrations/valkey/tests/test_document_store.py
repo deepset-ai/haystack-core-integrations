@@ -22,6 +22,11 @@ from haystack.testing.document_store import (
     UpdateByFilterTest,
     WriteDocumentsTest,
     create_filterable_docs,
+    CountDocumentsByFilterTest,
+    CountUniqueMetadataByFilterTest,
+    GetMetadataFieldsInfoTest,
+    GetMetadataFieldMinMaxTest,
+    GetMetadataFieldUniqueValuesTest,
 )
 from haystack.utils import Secret
 
@@ -49,6 +54,11 @@ class TestValkeyDocumentStore(
     DeleteDocumentsTest,
     FilterableDocsFixtureMixin,
     UpdateByFilterTest,
+    CountDocumentsByFilterTest,
+    CountUniqueMetadataByFilterTest,
+    GetMetadataFieldsInfoTest,
+    GetMetadataFieldMinMaxTest,
+    GetMetadataFieldUniqueValuesTest,
 ):
     @pytest.fixture
     def document_store(self):
