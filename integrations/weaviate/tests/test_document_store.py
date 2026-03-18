@@ -16,6 +16,11 @@ from haystack.document_stores.errors import DocumentStoreError
 from haystack.testing.document_store import (
     DocumentStoreBaseExtendedTests,
     create_filterable_docs,
+    CountDocumentsByFilterTest,
+    CountUniqueMetadataByFilterTest,
+    GetMetadataFieldsInfoTest,
+    GetMetadataFieldMinMaxTest,
+    GetMetadataFieldUniqueValuesTest,
 )
 from haystack.utils.auth import Secret
 from numpy import array as np_array
@@ -45,7 +50,14 @@ def test_init_is_lazy(_mock_client):
 
 
 @pytest.mark.integration
-class TestWeaviateDocumentStore(DocumentStoreBaseExtendedTests):
+class TestWeaviateDocumentStore(
+    DocumentStoreBaseExtendedTests,
+    CountDocumentsByFilterTest,
+    CountUniqueMetadataByFilterTest,
+    GetMetadataFieldsInfoTest,
+    GetMetadataFieldMinMaxTest,
+    GetMetadataFieldUniqueValuesTest,
+):
     @pytest.fixture
     def document_store(self, request) -> Generator[WeaviateDocumentStore, None, None]:
         # Use a different index for each test so we can run them in parallel
