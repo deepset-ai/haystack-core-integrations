@@ -1090,3 +1090,49 @@ class TestWeaviateDocumentStore(
         values, total_count = document_store.get_metadata_field_unique_values("category")
         assert total_count == 0
         assert values == []
+
+    # --- Overrides of mixin tests to account for Weaviate-specific behaviour ---
+
+    @staticmethod
+    def test_get_metadata_field_min_max_empty_collection(document_store):
+        # Weaviate requires fields to be declared in the schema before querying them.
+        # The mixin uses "priority" which is not in the pre-defined schema, so we use
+        # "number" which IS declared in the fixture's collection_settings.
+        # An aggregate over an empty collection should return None for both min and max.
+        assert document_store.count_documents() == 0
+        result = document_store.get_metadata_field_min_max("number")
+        assert result["min"] is None
+        assert result["max"] is None
+
+    @staticmethod
+    def test_get_metadata_fields_info_empty_collection(document_store):
+        # Weaviate collections always carry a fixed schema regardless of whether any
+        # documents have been written.  The fixture pre-declares "number", "date",
+        # "category" and "status", so get_metadata_fields_info() will return those
+        # even on an empty collection instead of the empty dict the generic mixin expects.
+        assert document_store.count_documents() == 0
+        fields_info = document_store.get_metadata_fields_info()
+        assert set(fields_info.keys()) == {"number", "date", "category", "status"}
+
+    @staticmethod
+    def test_count_unique_metadata_by_filter_all_documents(document_store):
+        # The generic mixin passes filters={} (empty dict) to mean "no filter".
+        # Weaviate's convert_filters() does not accept an empty dict; a filter that
+        # explicitly selects all documents must be used instead.
+        docs = [
+            Document(content="Doc 1", meta={"category": "A", "status": "active", "priority": 1}),
+            Document(content="Doc 2", meta={"category": "B", "status": "active", "priority": 2}),
+            Document(content="Doc 3", meta={"category": "A", "status": "inactive", "priority": 1}),
+            Document(content="Doc 4", meta={"category": "A", "status": "active", "priority": 3}),
+            Document(content="Doc 5", meta={"category": "C", "status": "active", "priority": 2}),
+        ]
+        document_store.write_documents(docs)
+        assert document_store.count_documents() == 5
+
+        counts = document_store.count_unique_metadata_by_filter(
+            filters={"field": "meta.priority", "operator": ">=", "value": 1},
+            metadata_fields=["category", "status", "priority"],
+        )
+        assert counts["category"] == 3
+        assert counts["status"] == 2
+        assert counts["priority"] == 3
