@@ -1544,7 +1544,7 @@ class ValkeyDocumentStore(DocumentStore):
             msg = "metadata_fields must be a dictionary"
             raise ValueError(msg)
 
-        type_mapping = {str: "tag", int: "numeric"}
+        type_mapping = {str: "tag", int: "numeric", float: "numeric"}
 
         normalized = {}
         for field_name, field_type in metadata_fields.items():
