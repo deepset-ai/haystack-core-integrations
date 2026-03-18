@@ -67,7 +67,7 @@ class AzureDocumentIntelligenceConverter:
         api_key: Secret = Secret.from_env_var("AZURE_DI_API_KEY"),
         model_id: str = "prebuilt-document",
         store_full_path: bool = False,
-    ):
+    ) -> None:
         """
         Creates an AzureDocumentIntelligenceConverter component.
 
@@ -93,7 +93,7 @@ class AzureDocumentIntelligenceConverter:
         self.store_full_path = store_full_path
         self.client: DocumentIntelligenceClient | None = None
 
-    def warm_up(self):
+    def warm_up(self) -> None:
         """
         Initializes the Azure Document Intelligence client.
         """
