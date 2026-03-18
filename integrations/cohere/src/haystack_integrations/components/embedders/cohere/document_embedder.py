@@ -49,7 +49,7 @@ class CohereDocumentEmbedder:
         meta_fields_to_embed: list[str] | None = None,
         embedding_separator: str = "\n",
         embedding_type: EmbeddingTypes | None = None,
-    ):
+    ) -> None:
         """
         :param api_key: the Cohere API key.
         :param model: the name of the model to use. Supported Models are:

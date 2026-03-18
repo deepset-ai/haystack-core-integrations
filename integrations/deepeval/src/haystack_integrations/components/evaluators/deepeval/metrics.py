@@ -49,7 +49,7 @@ class DeepEvalMetric(Enum):
     #: Inputs - `questions: List[str], contexts: List[List[str]], responses: List[str]`
     CONTEXTUAL_RELEVANCE = "contextual_relevance"
 
-    def __str__(self):
+    def __str__(self) -> str:
         return self.value
 
     @classmethod
@@ -87,7 +87,13 @@ class MetricResult:
     score: float | None = None
     explanation: str | None = None
 
-    def to_dict(self):
+    def to_dict(self) -> dict[str, Any]:
+        """
+        Convert the metric result to a dictionary.
+
+        :returns:
+            A dictionary with the metric result fields.
+        """
         return dataclasses.asdict(self)
 
 
@@ -129,6 +135,23 @@ class MetricDescriptor:
         *,
         init_parameters: Mapping[str, type] | None = None,
     ) -> "MetricDescriptor":
+        """
+        Create a new metric descriptor, inferring input parameters from the converter signature.
+
+        :param metric:
+            The metric enum value.
+        :param backend:
+            The DeepEval metric class to instantiate.
+        :param input_converter:
+            Callable that converts Haystack inputs to DeepEval test cases.
+        :param output_converter:
+            Callable that converts DeepEval results to `MetricResult` objects.
+            If ``None``, the default output converter is used.
+        :param init_parameters:
+            Optional mapping of parameter names to types accepted by the backend metric's constructor.
+        :returns:
+            A new `MetricDescriptor` instance.
+        """
         input_converter_signature = inspect.signature(input_converter)
         input_parameters = {}
         for name, param in input_converter_signature.parameters.items():
@@ -158,7 +181,7 @@ class InputConverters:
     """
 
     @staticmethod
-    def _validate_input_elements(**kwargs):
+    def _validate_input_elements(**kwargs: Any) -> None:
         for k, collection in kwargs.items():
             if not isinstance(collection, list):
                 msg = (
@@ -177,6 +200,18 @@ class InputConverters:
 
     @staticmethod
     def validate_input_parameters(metric: DeepEvalMetric, expected: dict[str, Any], received: dict[str, Any]) -> None:
+        """
+        Validate that all expected input parameters are present in the received inputs.
+
+        :param metric:
+            The metric being evaluated, used for error messages.
+        :param expected:
+            Dictionary of expected parameter names to their types.
+        :param received:
+            Dictionary of received parameter names to their values.
+        :raises ValueError:
+            If a required parameter is missing from ``received``.
+        """
         for param, _ in expected.items():
             if param not in received:
                 msg = f"DeepEval evaluator expected input parameter '{param}' for metric '{metric}'"
@@ -186,6 +221,18 @@ class InputConverters:
     def question_context_response(
         questions: list[str], contexts: list[list[str]], responses: list[str]
     ) -> Iterable[LLMTestCase]:
+        """
+        Convert question, context, and response inputs to DeepEval test cases.
+
+        :param questions:
+            List of input questions.
+        :param contexts:
+            List of retrieval context lists, one per question.
+        :param responses:
+            List of model responses, one per question.
+        :returns:
+            An iterable of `LLMTestCase` objects.
+        """
         InputConverters._validate_input_elements(questions=questions, contexts=contexts, responses=responses)
         for q, c, r in zip(questions, contexts, responses, strict=True):  # type: ignore
             test_case = LLMTestCase(input=q, actual_output=r, retrieval_context=c)
@@ -195,6 +242,20 @@ class InputConverters:
     def question_context_response_ground_truth(
         questions: list[str], contexts: list[list[str]], responses: list[str], ground_truths: list[str]
     ) -> Iterable[LLMTestCase]:
+        """
+        Convert question, context, response, and ground truth inputs to DeepEval test cases.
+
+        :param questions:
+            List of input questions.
+        :param contexts:
+            List of retrieval context lists, one per question.
+        :param responses:
+            List of model responses, one per question.
+        :param ground_truths:
+            List of expected (ground truth) responses, one per question.
+        :returns:
+            An iterable of `LLMTestCase` objects.
+        """
         InputConverters._validate_input_elements(questions=questions, contexts=contexts, responses=responses)
         for q, c, r, gt in zip(questions, contexts, responses, ground_truths, strict=True):  # type: ignore
             test_case = LLMTestCase(input=q, actual_output=r, retrieval_context=c, expected_output=gt)
@@ -212,6 +273,15 @@ class OutputConverters:
     def default(
         metric: DeepEvalMetric,
     ) -> Callable[[TestResult], list[MetricResult]]:
+        """
+        Return the default output converter for a given metric.
+
+        :param metric:
+            The metric for which to create the converter.
+        :returns:
+            A callable that converts a `TestResult` to a list of `MetricResult` objects.
+        """
+
         def inner(output: TestResult, metric: DeepEvalMetric) -> list[MetricResult]:
             metric_name = str(metric)
             assert output.metrics_data
