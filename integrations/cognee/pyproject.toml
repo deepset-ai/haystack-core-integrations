@@ -1,0 +1,55 @@
+[build-system]
+requires = ["hatchling", "hatch-vcs"]
+build-backend = "hatchling.build"
+
+[project]
+name = "cognee-haystack"
+dynamic = ["version"]
+description = "Haystack integration for Cognee — memory for AI agents"
+readme = "README.md"
+requires-python = ">=3.10"
+license = "Apache-2.0"
+authors = [{ name = "deepset GmbH", email = "info@deepset.ai" }]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "License :: OSI Approved :: Apache Software License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+]
+dependencies = [
+    "haystack-ai>=2.0",
+    "cognee==0.5.4",
+    "mistralai>=1.0,<2.0",
+]
+
+[project.optional-dependencies]
+memory = ["haystack-experimental"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/haystack_integrations"]
+
+[tool.hatch.version]
+source = "vcs"
+tag-pattern = 'integrations\/cognee-v(?P<version>.*)'
+
+[tool.hatch.version.raw-options]
+root = "../.."
+git_describe_command = 'git describe --tags --match="integrations/cognee-v[0-9]*"'
+
+[tool.hatch.envs.test]
+dependencies = [
+    "pytest",
+    "pytest-asyncio",
+    "haystack-experimental",
+]
+
+[tool.hatch.envs.test.scripts]
+unit = "pytest {args:tests}"
+
+[tool.hatch.envs.types]
+dependencies = ["mypy"]
+
+[tool.hatch.envs.types.scripts]
+types = "mypy -p haystack_integrations.components.connectors.cognee {args}"
