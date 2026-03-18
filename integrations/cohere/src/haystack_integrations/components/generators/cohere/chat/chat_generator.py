@@ -4,7 +4,7 @@ from typing import Any, Literal, get_args
 
 from haystack import component, default_from_dict, default_to_dict, logging
 from haystack.components.generators.utils import _convert_streaming_chunks_to_chat_message
-from haystack.dataclasses import ChatMessage, ComponentInfo, ImageContent, TextContent, ToolCall
+from haystack.dataclasses import ChatMessage, ComponentInfo, ImageContent, ReasoningContent, TextContent, ToolCall
 from haystack.dataclasses.streaming_chunk import (
     AsyncStreamingCallbackT,
     FinishReason,
@@ -106,7 +106,15 @@ def _format_message(message: ChatMessage) -> dict[str, Any]:
                     "function": {"name": tool_call.tool_name, "arguments": json.dumps(tool_call.arguments)},
                 }
             )
-        return {"role": "assistant", "tool_calls": tool_calls, "tool_plan": message.text if message.text else ""}
+        formatted_message = {
+            "role": "assistant",
+            "tool_calls": tool_calls,
+            "tool_plan": message.text if message.text else ""
+        }
+        # It seems like when using a reasoning model + reasoning enabled the tool_plan is empty and instead there is
+        # reasoning content
+        # TODO Add content with reasoning if it's there. Should only add the new key if it's present.
+        return formatted_message
 
     if message.role.value == "user":
         if not message.images and not message.text:
@@ -142,7 +150,11 @@ def _format_message(message: ChatMessage) -> dict[str, Any]:
         if not message.text:
             msg = "A `ChatMessage` from assistant without tool calls must contain a non-empty `TextContent`."
             raise ValueError(msg)
-        return {"role": "assistant", "content": [{"type": "text", "text": message.text}]}
+        contents = [{"type": "text", "text": message.text}]
+        # Seems like yes Cohere's API accepts past reasoning content
+        # https://docs.cohere.com/reference/chat#request.body.messages
+        # TODO Optionally add reasoning/thinking content if it's available
+        return {"role": "assistant", "content": contents}
 
     if message.role.value == "system":
         if not message.text:
@@ -161,6 +173,7 @@ def _parse_response(chat_response: ChatResponse, model: str) -> ChatMessage:
     Extracts and organizes various response components including:
     - Text content
     - Tool calls
+    - Reasoning content
     - Usage statistics
     - Citations
     - Metadata
@@ -169,11 +182,14 @@ def _parse_response(chat_response: ChatResponse, model: str) -> ChatMessage:
     :param model: The name of the model that generated the response.
     :return: A Haystack ChatMessage containing the formatted response.
     """
-    # Extract text content from the response
-    text_content = ""
+    # Extract text and reasoning content from the response
+    reasoning_content = None
+    text_content = None
     if chat_response.message.content:
         for content_item in chat_response.message.content:
-            if content_item.type == "text":
+            if content_item.type == "thinking":
+                reasoning_content = ReasoningContent(reasoning_text=content_item.thinking)
+            elif content_item.type == "text":
                 text_content = content_item.text
 
     # Extract tool calls if present in the response
@@ -205,7 +221,9 @@ def _parse_response(chat_response: ChatResponse, model: str) -> ChatMessage:
             "completion_tokens": chat_response.usage.billed_units.output_tokens,
         }
 
-    message = ChatMessage.from_assistant(text=text_content, tool_calls=tool_calls, meta=base_meta)
+    message = ChatMessage.from_assistant(
+        text=text_content, tool_calls=tool_calls, reasoning=reasoning_content, meta=base_meta
+    )
     return message
 
 
