@@ -52,7 +52,7 @@ class ElasticsearchBM25Retriever:
         top_k: int = 10,
         scale_score: bool = False,
         filter_policy: str | FilterPolicy = FilterPolicy.REPLACE,
-    ):
+    ) -> None:
         """
         Initialize ElasticsearchBM25Retriever with an instance ElasticsearchDocumentStore.
 

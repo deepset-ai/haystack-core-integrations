@@ -86,7 +86,7 @@ class ElasticsearchDocumentStore:
         api_key_id: Secret | str | None = Secret.from_env_var("ELASTIC_API_KEY_ID", strict=False),
         embedding_similarity_function: Literal["cosine", "dot_product", "l2_norm", "max_inner_product"] = "cosine",
         **kwargs: Any,
-    ):
+    ) -> None:
         """
         Creates a new ElasticsearchDocumentStore instance.
 
@@ -156,7 +156,7 @@ class ElasticsearchDocumentStore:
                 ],
             }
 
-    def _ensure_initialized(self):
+    def _ensure_initialized(self) -> None:
         """
         Ensures both sync and async clients are initialized and the index exists.
         """
