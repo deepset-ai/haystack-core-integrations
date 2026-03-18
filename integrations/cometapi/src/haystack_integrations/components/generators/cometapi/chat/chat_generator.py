@@ -46,7 +46,7 @@ class CometAPIChatGenerator(OpenAIChatGenerator):
         tools: list[Tool | Toolset] | Toolset | None = None,
         tools_strict: bool = False,
         http_client_kwargs: dict[str, Any] | None = None,
-    ):
+    ) -> None:
         api_base_url = "https://api.cometapi.com/v1"
 
         super().__init__(
