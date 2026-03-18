@@ -47,6 +47,19 @@ class CometAPIChatGenerator(OpenAIChatGenerator):
         tools_strict: bool = False,
         http_client_kwargs: dict[str, Any] | None = None,
     ) -> None:
+        """
+        Creates a `CometAPIChatGenerator` instance.
+
+        :param api_key: The API key for authenticating with the CometAPI.
+        :param model: The name of the model to use for chat generation (e.g., `"gpt-5-mini"`, `"grok-3-mini"`).
+        :param streaming_callback: An optional callable invoked with each chunk of a streaming response.
+        :param generation_kwargs: Optional keyword arguments passed to the underlying generation API call.
+        :param timeout: The maximum time in seconds to wait for a response from the API.
+        :param max_retries: The maximum number of times to retry a failed API request.
+        :param tools: An optional list of tools the model can use.
+        :param tools_strict: If `True`, the model is forced to use one of the provided tools.
+        :param http_client_kwargs: Optional keyword arguments passed to the HTTP client.
+        """
         api_base_url = "https://api.cometapi.com/v1"
 
         super().__init__(
