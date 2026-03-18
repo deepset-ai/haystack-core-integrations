@@ -4,9 +4,11 @@
 
 from typing import Any
 
-import cognee
 from haystack import default_from_dict, default_to_dict, logging
 from haystack.dataclasses import ChatMessage
+
+import cognee  # type: ignore[import-untyped]
+from cognee.api.v1.search import SearchType  # type: ignore[import-untyped]
 
 from ._utils import run_sync
 
@@ -89,14 +91,10 @@ class CogneeMemoryStore:
         if not query:
             return []
 
-        from cognee.api.v1.search import SearchType
-
         search_type_enum = SearchType[self.search_type]
         effective_top_k = top_k or self.top_k
 
-        raw_results = run_sync(
-            cognee.search(query_text=query, query_type=search_type_enum)
-        )
+        raw_results = run_sync(cognee.search(query_text=query, query_type=search_type_enum))
 
         memories: list[ChatMessage] = []
         if not raw_results:

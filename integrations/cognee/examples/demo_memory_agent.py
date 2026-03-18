@@ -12,12 +12,14 @@ Set your LLM API key:
     export LLM_API_KEY="sk-..."
 """
 
+import asyncio
+import os
+
+from cognee.api.v1.visualize.visualize import visualize_graph
 from haystack.dataclasses import ChatMessage
 
 from haystack_integrations.components.connectors.cognee import CogneeMemoryStore
-from cognee.api.v1.visualize.visualize import visualize_graph
-import asyncio
-import os
+
 
 async def main():
     print("=== Cognee Memory Store Demo ===\n")
@@ -33,8 +35,7 @@ async def main():
     print("2. Adding memories...")
     messages = [
         ChatMessage.from_user(
-            "My name is Alice and I'm working on the Cognee-Haystack integration. "
-            "The deadline is next Friday."
+            "My name is Alice and I'm working on the Cognee-Haystack integration. The deadline is next Friday."
         ),
         ChatMessage.from_user(
             "We decided to use GRAPH_COMPLETION as the default search type "
@@ -48,9 +49,7 @@ async def main():
     store.add_memories(messages=messages)
     print(f"   Added {len(messages)} messages as memories.\n")
 
-    visualization_path = os.path.join(
-        os.path.dirname(__file__), ".artifacts", "demo_memory_agent.html"
-    )
+    visualization_path = os.path.join(os.path.dirname(__file__), ".artifacts", "demo_memory_agent.html")
     await visualize_graph(visualization_path)
 
     # --- Step 3: Search memories ---

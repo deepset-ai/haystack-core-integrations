@@ -12,12 +12,13 @@ Set your LLM API key (Cognee uses it internally):
     export LLM_API_KEY="sk-..."
 """
 
-from haystack import Document, Pipeline
-from cognee.api.v1.visualize.visualize import visualize_graph
-
-from haystack_integrations.components.connectors.cognee import CogneeRetriever, CogneeWriter
 import asyncio
 import os
+
+from cognee.api.v1.visualize.visualize import visualize_graph
+from haystack import Document, Pipeline
+
+from haystack_integrations.components.connectors.cognee import CogneeRetriever, CogneeWriter
 
 SAMPLE_DOCUMENTS = [
     Document(
@@ -67,9 +68,7 @@ async def main():
     result = indexing.run({"writer": {"documents": SAMPLE_DOCUMENTS}})
     print(f"   Written: {result['writer']['documents_written']} documents\n")
 
-    visualization_path = os.path.join(
-        os.path.dirname(__file__), ".artifacts", "demo_pipeline.html"
-    )
+    visualization_path = os.path.join(os.path.dirname(__file__), ".artifacts", "demo_pipeline.html")
     await visualize_graph(visualization_path)
 
     # --- Query pipeline ---

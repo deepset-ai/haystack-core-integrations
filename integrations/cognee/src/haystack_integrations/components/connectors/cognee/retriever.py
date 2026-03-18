@@ -4,9 +4,10 @@
 
 from typing import Any
 
-import cognee
-from cognee.api.v1.search import SearchType
 from haystack import Document, component, default_from_dict, default_to_dict, logging
+
+import cognee  # type: ignore[import-untyped]
+from cognee.api.v1.search import SearchType  # type: ignore[import-untyped]
 
 from ._utils import run_sync
 

@@ -4,8 +4,9 @@
 
 from typing import Any
 
-import cognee
 from haystack import Document, component, default_from_dict, default_to_dict, logging
+
+import cognee  # type: ignore[import-untyped]
 
 from ._utils import run_sync
 
@@ -30,7 +31,7 @@ class CogneeWriter:
     ```
     """
 
-    def __init__(self, dataset_name: str = "haystack", auto_cognify: bool = True):
+    def __init__(self, *, dataset_name: str = "haystack", auto_cognify: bool = True):
         """
         :param dataset_name: Name of the Cognee dataset to add documents to.
         :param auto_cognify: If True, automatically runs `cognee.cognify()` after adding

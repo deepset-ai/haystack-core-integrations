@@ -3,10 +3,14 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import asyncio
+from collections.abc import Coroutine
 from concurrent.futures import ThreadPoolExecutor
+from typing import Any, TypeVar
+
+T = TypeVar("T")
 
 
-def run_sync(coro):
+def run_sync(coro: Coroutine[Any, Any, T]) -> T:
     """
     Run an async coroutine from a synchronous context.
 

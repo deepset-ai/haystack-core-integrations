@@ -4,8 +4,9 @@
 
 from typing import Any
 
-import cognee
 from haystack import component, default_from_dict, default_to_dict, logging
+
+import cognee  # type: ignore[import-untyped]
 
 from ._utils import run_sync
 

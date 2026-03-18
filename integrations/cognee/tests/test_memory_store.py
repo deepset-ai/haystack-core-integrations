@@ -77,10 +77,14 @@ class TestCogneeMemoryStore:
 
     @patch("haystack_integrations.components.connectors.cognee.memory_store.cognee")
     def test_delete_all_memories(self, mock_cognee):
-        mock_cognee.prune = type("Prune", (), {
-            "prune_data": AsyncMock(),
-            "prune_system": AsyncMock(),
-        })()
+        mock_cognee.prune = type(
+            "Prune",
+            (),
+            {
+                "prune_data": AsyncMock(),
+                "prune_system": AsyncMock(),
+            },
+        )()
 
         store = CogneeMemoryStore()
         store.delete_all_memories()
