@@ -136,7 +136,7 @@ class ElasticsearchDocumentStore:
             raise ValueError(msg)
 
         if not self._custom_mapping:
-            self._default_mappings = {
+            self._default_mappings: dict[str, Any] = {
                 "properties": {
                     "embedding": {
                         "type": "dense_vector",
