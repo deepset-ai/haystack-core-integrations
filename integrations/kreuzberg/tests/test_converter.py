@@ -23,7 +23,6 @@ from haystack_integrations.components.converters.kreuzberg.utils import (
     _serialize_warnings,
 )
 
-FIXTURES_DIR = Path(__file__).parent / "test_files"
 CONVERTER_MODULE = "haystack_integrations.components.converters.kreuzberg.converter"
 
 
@@ -140,8 +139,7 @@ def test_serialization_from_dict_empty_init_parameters() -> None:
     assert converter.easyocr_kwargs is None
 
 
-def test_build_config_default() -> None:
-    converter = KreuzbergConverter()
+def test_build_config_default(converter: KreuzbergConverter) -> None:
     config = converter._build_config()
     assert config.output_format == "plain"
     assert config.language_detection is not None
@@ -231,58 +229,16 @@ def test_edge_empty_sources_list(sequential_converter: KreuzbergConverter) -> No
 
 @patch(CONVERTER_MODULE + ".extract_file_sync")
 def test_edge_sequential_extraction_error_skipped(
-    mock_extract: MagicMock, sequential_converter: KreuzbergConverter
+    mock_extract: MagicMock, sequential_converter: KreuzbergConverter, fixtures_dir: Path
 ) -> None:
     mock_extract.side_effect = RuntimeError("extraction failed")
     converter = sequential_converter
-    result = converter.run(sources=[FIXTURES_DIR / "sample.txt"])
+    result = converter.run(sources=[fixtures_dir / "sample.txt"])
     assert result["documents"] == []
 
 
-def _make_mock_result(**overrides: Any) -> MagicMock:
-    """Create a mock ExtractionResult with realistic defaults.
-
-    Fields that are never `None` at runtime (`metadata`, `tables`,
-    `processing_warnings`, `output_format`, `result_format`,
-    `mime_type`) use their actual default values.  Nullable fields
-    default to `None`.
-
-    The metadata dict mirrors real kreuzberg behaviour: it always
-    includes output_format and quality_score (when not None).
-    """
-    result = MagicMock(spec=ExtractionResult)
-    defaults: dict[str, Any] = {
-        "content": "",
-        "metadata": {},
-        "quality_score": None,
-        "processing_warnings": [],
-        "detected_languages": None,
-        "extracted_keywords": None,
-        "output_format": "plain",
-        "result_format": "unified",
-        "mime_type": "text/plain",
-        "tables": [],
-        "images": None,
-        "annotations": None,
-        "pages": None,
-        "chunks": None,
-    }
-    for key, default in defaults.items():
-        setattr(result, key, overrides.get(key, default))
-
-    # Mirror real kreuzberg: metadata always includes output_format and
-    # quality_score (when not None), matching the PyO3 struct behaviour.
-    effective_meta = dict(result.metadata)
-    effective_meta.setdefault("output_format", result.output_format)
-    if result.quality_score is not None:
-        effective_meta.setdefault("quality_score", result.quality_score)
-    result.metadata = effective_meta
-
-    return result
-
-
-def test_metadata_mock_images_excludes_binary_data() -> None:
-    result = _make_mock_result(
+def test_metadata_mock_images_excludes_binary_data(converter: KreuzbergConverter, make_mock_result) -> None:
+    result = make_mock_result(
         images=[
             {
                 "format": "png",
@@ -296,7 +252,6 @@ def test_metadata_mock_images_excludes_binary_data() -> None:
         ]
     )
 
-    converter = KreuzbergConverter()
     meta = converter._build_extraction_metadata(result)
     assert meta["image_count"] == 1
     assert meta["images"][0]["format"] == "png"
@@ -308,7 +263,7 @@ def test_metadata_mock_images_excludes_binary_data() -> None:
     assert "data" not in meta["images"][0]
 
 
-def test_metadata_mock_all_fields_populated() -> None:
+def test_metadata_mock_all_fields_populated(converter: KreuzbergConverter, make_mock_result) -> None:
     warning = MagicMock()
     warning.source = "parser"
     warning.message = "skipped element"
@@ -316,7 +271,7 @@ def test_metadata_mock_all_fields_populated() -> None:
     ann.annotation_type = "link"
     ann.content = "https://example.com"
     ann.page_number = 1
-    result = _make_mock_result(
+    result = make_mock_result(
         processing_warnings=[warning],
         images=[
             {
@@ -337,7 +292,6 @@ def test_metadata_mock_all_fields_populated() -> None:
         mime_type="application/pdf",
     )
 
-    converter = KreuzbergConverter()
     meta = converter._build_extraction_metadata(result)
     # quality_score and output_format come from result.metadata (not top-level)
     assert meta["quality_score"] == 0.95
@@ -350,9 +304,8 @@ def test_metadata_mock_all_fields_populated() -> None:
     assert meta["annotations"] == [{"type": "link", "content": "https://example.com", "page_number": 1}]
 
 
-def test_metadata_file_extensions_mock() -> None:
-    result = _make_mock_result(mime_type="application/pdf")
-    converter = KreuzbergConverter()
+def test_metadata_file_extensions_mock(converter: KreuzbergConverter, make_mock_result) -> None:
+    result = make_mock_result(mime_type="application/pdf")
 
     with patch(f"{CONVERTER_MODULE}.get_extensions_for_mime", return_value=["pdf"]):
         meta = converter._build_extraction_metadata(result)
@@ -361,8 +314,7 @@ def test_metadata_file_extensions_mock() -> None:
     assert meta["file_extensions"] == ["pdf"]
 
 
-def test_chunked_creates_one_document_per_chunk() -> None:
-    converter = KreuzbergConverter()
+def test_chunked_creates_one_document_per_chunk(converter: KreuzbergConverter) -> None:
     result = MagicMock(spec=ExtractionResult)
     chunk1 = MagicMock()
     chunk1.content = "chunk one"
@@ -409,8 +361,7 @@ def test_chunked_creates_one_document_per_chunk() -> None:
     assert single_docs[0].meta["total_chunks"] == 1
 
 
-def test_per_page_mock_with_object_tables() -> None:
-    converter = KreuzbergConverter()
+def test_per_page_mock_with_object_tables(converter: KreuzbergConverter) -> None:
     result = MagicMock(spec=ExtractionResult)
     result.output_format = "plain"
     table = MagicMock(spec=ExtractedTable)
@@ -439,8 +390,7 @@ def test_per_page_mock_with_object_tables() -> None:
     assert docs[0].meta["page_number"] == 1
 
 
-def test_per_page_mock_with_dict_tables() -> None:
-    converter = KreuzbergConverter()
+def test_per_page_mock_with_dict_tables(converter: KreuzbergConverter) -> None:
     result = MagicMock(spec=ExtractionResult)
     result.output_format = "plain"
     result.pages = [
@@ -464,8 +414,7 @@ def test_per_page_mock_with_dict_tables() -> None:
     assert "| Y |" in docs[0].content
 
 
-def test_per_page_mock_with_images() -> None:
-    converter = KreuzbergConverter()
+def test_per_page_mock_with_images(converter: KreuzbergConverter) -> None:
     result = MagicMock(spec=ExtractionResult)
     result.output_format = "plain"
     result.pages = [
@@ -493,8 +442,7 @@ def test_per_page_mock_with_images() -> None:
     assert "data" not in images[0]
 
 
-def test_deepcopy_per_page_nested_meta_not_shared() -> None:
-    converter = KreuzbergConverter()
+def test_deepcopy_per_page_nested_meta_not_shared(converter: KreuzbergConverter) -> None:
     result = MagicMock(spec=ExtractionResult)
     result.output_format = "plain"
     result.pages = [
@@ -519,8 +467,7 @@ def test_deepcopy_per_page_nested_meta_not_shared() -> None:
     assert user_meta["tags"] == ["original"]
 
 
-def test_deepcopy_chunked_nested_meta_not_shared() -> None:
-    converter = KreuzbergConverter()
+def test_deepcopy_chunked_nested_meta_not_shared(converter: KreuzbergConverter) -> None:
     result = MagicMock(spec=ExtractionResult)
     chunk1 = MagicMock()
     chunk1.content = "chunk one"
@@ -545,9 +492,8 @@ def test_deepcopy_chunked_nested_meta_not_shared() -> None:
     assert user_meta["tags"] == ["original"]
 
 
-def test_deepcopy_unified_nested_meta_not_shared() -> None:
-    converter = KreuzbergConverter()
-    result = _make_mock_result(content="hello")
+def test_deepcopy_unified_nested_meta_not_shared(converter: KreuzbergConverter, make_mock_result) -> None:
+    result = make_mock_result(content="hello")
 
     bytestream = MagicMock()
     bytestream.meta = {"file_path": "test.txt"}
@@ -583,10 +529,10 @@ def test_build_config_skips_auto_language_detection_when_already_set() -> None:
 
 
 @patch(CONVERTER_MODULE + ".extract_file_sync")
-def test_run_expands_directory_sources(mock_extract: MagicMock, tmp_path: Path) -> None:
+def test_run_expands_directory_sources(mock_extract: MagicMock, tmp_path: Path, make_mock_result) -> None:
     (tmp_path / "a.txt").write_text("a")
     (tmp_path / "b.txt").write_text("b")
-    mock_extract.return_value = _make_mock_result(content="text")
+    mock_extract.return_value = make_mock_result(content="text")
 
     converter = KreuzbergConverter(batch=False)
     result = converter.run(sources=[tmp_path])
@@ -597,12 +543,13 @@ def test_run_expands_directory_sources(mock_extract: MagicMock, tmp_path: Path) 
 
 @patch(CONVERTER_MODULE + ".extract_bytes_sync")
 @patch(CONVERTER_MODULE + ".detect_mime_type")
-def test_extract_sequential_with_bytestream(mock_detect: MagicMock, mock_extract: MagicMock) -> None:
+def test_extract_sequential_with_bytestream(
+    mock_detect: MagicMock, mock_extract: MagicMock, converter: KreuzbergConverter, make_mock_result
+) -> None:
     mock_detect.return_value = "application/octet-stream"
-    mock_result = _make_mock_result()
+    mock_result = make_mock_result()
     mock_extract.return_value = mock_result
 
-    converter = KreuzbergConverter()
     bs = ByteStream(data=b"hello world")
     mock_bytestream = MagicMock()
     mock_bytestream.meta = {}
@@ -617,13 +564,14 @@ def test_extract_sequential_with_bytestream(mock_detect: MagicMock, mock_extract
 
 @patch(CONVERTER_MODULE + ".batch_extract_bytes_sync")
 @patch(CONVERTER_MODULE + ".batch_extract_files_sync")
-def test_extract_batch_dispatches_by_source_type(mock_batch_files: MagicMock, mock_batch_bytes: MagicMock) -> None:
-    file_result = _make_mock_result(content="from file")
-    bytes_result = _make_mock_result(content="from bytes")
+def test_extract_batch_dispatches_by_source_type(
+    mock_batch_files: MagicMock, mock_batch_bytes: MagicMock, converter: KreuzbergConverter, make_mock_result
+) -> None:
+    file_result = make_mock_result(content="from file")
+    bytes_result = make_mock_result(content="from bytes")
     mock_batch_files.return_value = [file_result]
     mock_batch_bytes.return_value = [bytes_result]
 
-    converter = KreuzbergConverter()
     bs = ByteStream(data=b"hello", mime_type="text/plain")
 
     results = converter._extract_batch([Path("a.pdf"), bs], ExtractionConfig())
@@ -634,61 +582,55 @@ def test_extract_batch_dispatches_by_source_type(mock_batch_files: MagicMock, mo
     mock_batch_bytes.assert_called_once()
 
 
-def test_metadata_file_extensions_edge_cases() -> None:
-    converter = KreuzbergConverter()
-
+def test_metadata_file_extensions_edge_cases(converter: KreuzbergConverter, make_mock_result) -> None:
     # RuntimeError from get_extensions_for_mime is handled gracefully
-    result = _make_mock_result(mime_type="application/pdf")
+    result = make_mock_result(mime_type="application/pdf")
     with patch(f"{CONVERTER_MODULE}.get_extensions_for_mime", side_effect=RuntimeError("unknown mime")):
         meta = converter._build_extraction_metadata(result)
     assert "file_extensions" not in meta
     assert meta["mime_type"] == "application/pdf"
 
     # Unknown MIME type yields no file_extensions key
-    result2 = _make_mock_result(mime_type="application/x-unknown-format")
+    result2 = make_mock_result(mime_type="application/x-unknown-format")
     meta2 = converter._build_extraction_metadata(result2)
     assert meta2["mime_type"] == "application/x-unknown-format"
     assert "file_extensions" not in meta2
 
 
-def test_create_documents_dispatches_to_chunked() -> None:
+def test_create_documents_dispatches_to_chunked(converter: KreuzbergConverter, make_mock_result) -> None:
     chunk = MagicMock()
     chunk.content = "chunk text"
     chunk.embedding = None
-    result = _make_mock_result(chunks=[chunk], pages=None)
+    result = make_mock_result(chunks=[chunk], pages=None)
 
     bytestream = MagicMock()
     bytestream.meta = {"file_path": "test.txt"}
 
-    converter = KreuzbergConverter()
     with patch.object(converter, "_create_chunked_documents", wraps=converter._create_chunked_documents) as spy:
         converter._create_documents(result, bytestream, {})
         spy.assert_called_once()
 
 
-def test_create_documents_dispatches_to_per_page() -> None:
+def test_create_documents_dispatches_to_per_page(converter: KreuzbergConverter, make_mock_result) -> None:
     page = {"page_number": 1, "content": "page text", "is_blank": False, "tables": [], "images": []}
-    result = _make_mock_result(pages=[page], chunks=None)
+    result = make_mock_result(pages=[page], chunks=None)
 
     bytestream = MagicMock()
     bytestream.meta = {"file_path": "test.txt"}
 
-    converter = KreuzbergConverter()
     with patch.object(converter, "_create_per_page_documents", wraps=converter._create_per_page_documents) as spy:
         converter._create_documents(result, bytestream, {})
         spy.assert_called_once()
 
 
-def test_run_raises_for_directory_with_list_meta(tmp_path: Path) -> None:
-    converter = KreuzbergConverter()
+def test_run_raises_for_directory_with_list_meta(converter: KreuzbergConverter, tmp_path: Path) -> None:
     with pytest.raises(TypeError):
         converter.run(sources=[str(tmp_path)], meta=[{}, {}])
 
 
 @patch(CONVERTER_MODULE + ".get_bytestream_from_source")
-def test_run_uses_batch_path_for_multiple_sources(mock_get_bs: MagicMock) -> None:
+def test_run_uses_batch_path_for_multiple_sources(mock_get_bs: MagicMock, converter: KreuzbergConverter) -> None:
     mock_get_bs.return_value = MagicMock(meta={})
-    converter = KreuzbergConverter(batch=True)
     with patch.object(converter, "_extract_batch", return_value=[None, None]) as mock_batch:
         result = converter.run(sources=["a.pdf", "b.pdf"])
     mock_batch.assert_called_once()
@@ -711,8 +653,8 @@ def test_extract_sequential_skips_none_bytestreams() -> None:
 
 
 @patch(CONVERTER_MODULE + ".extract_file_sync")
-def test_extract_sequential_success_path(mock_extract: MagicMock) -> None:
-    mock_extract.return_value = _make_mock_result()
+def test_extract_sequential_success_path(mock_extract: MagicMock, make_mock_result) -> None:
+    mock_extract.return_value = make_mock_result()
     mock_bytestream = MagicMock()
     mock_bytestream.meta = {"file_path": "test.txt"}
 
@@ -724,13 +666,14 @@ def test_extract_sequential_success_path(mock_extract: MagicMock) -> None:
 
 
 @patch(CONVERTER_MODULE + ".get_bytestream_from_source")
-def test_run_batch_skips_failed_sources(mock_get_bs: MagicMock) -> None:
+def test_run_batch_skips_failed_sources(
+    mock_get_bs: MagicMock, converter: KreuzbergConverter, make_mock_result
+) -> None:
     mock_bytestream = MagicMock()
     mock_bytestream.meta = {"file_path": "b.pdf"}
     mock_get_bs.side_effect = [Exception("read error"), mock_bytestream]
 
-    mock_result = _make_mock_result()
-    converter = KreuzbergConverter()
+    mock_result = make_mock_result()
 
     with patch.object(converter, "_extract_batch", return_value=[None, mock_result]):
         result = converter.run(sources=[Path("a.pdf"), Path("b.pdf")])
@@ -739,13 +682,12 @@ def test_run_batch_skips_failed_sources(mock_get_bs: MagicMock) -> None:
 
 
 @patch(CONVERTER_MODULE + ".get_bytestream_from_source")
-def test_run_batch_success(mock_get_bs: MagicMock) -> None:
+def test_run_batch_success(mock_get_bs: MagicMock, converter: KreuzbergConverter, make_mock_result) -> None:
     mock_bytestream = MagicMock()
     mock_bytestream.meta = {"file_path": "test.pdf"}
     mock_get_bs.return_value = mock_bytestream
 
-    mock_result = _make_mock_result()
-    converter = KreuzbergConverter()
+    mock_result = make_mock_result()
 
     with patch.object(converter, "_extract_batch", return_value=[mock_result, mock_result]):
         result = converter.run(sources=[Path("a.pdf"), Path("b.pdf")])
