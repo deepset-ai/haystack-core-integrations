@@ -13,6 +13,13 @@ COHERE_API_URL = "https://api.cohere.com"
 
 
 class TestCohereTextEmbedder:
+    def test_supported_models(self) -> None:
+        """SUPPORTED_MODELS is a non-empty list of strings."""
+        models = CohereTextEmbedder.SUPPORTED_MODELS
+        assert isinstance(models, list)
+        assert len(models) > 0
+        assert all(isinstance(m, str) for m in models)
+
     def test_init_default(self, monkeypatch):
         """
         Test default initialization parameters for CohereTextEmbedder.

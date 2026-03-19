@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: 2023-present deepset GmbH <info@deepset.ai>
 #
 # SPDX-License-Identifier: Apache-2.0
-from typing import Any
+from typing import Any, ClassVar
 
 from haystack import component, default_from_dict, default_to_dict
 from haystack.utils import Secret, deserialize_secrets_inplace
@@ -31,6 +31,16 @@ class CohereTextEmbedder:
     # 'meta': {'api_version': {'version': '1'}, 'billed_units': {'input_tokens': 4}}}
     ```
     """
+
+    SUPPORTED_MODELS: ClassVar[list[str]] = [
+        "embed-v4.0",
+        "embed-english-v3.0",
+        "embed-english-light-v3.0",
+        "embed-multilingual-v3.0",
+        "embed-multilingual-light-v3.0",
+    ]
+    """A non-exhaustive list of embed models supported by this component.
+    See https://docs.cohere.com/docs/models#embed for the full list."""
 
     def __init__(
         self,
