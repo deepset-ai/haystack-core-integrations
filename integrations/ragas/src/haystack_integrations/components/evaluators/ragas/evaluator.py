@@ -57,7 +57,7 @@ class RagasEvaluator:
         ragas_metrics: list[Metric],
         evaluator_llm: BaseRagasLLM | None = None,
         evaluator_embedding: BaseRagasEmbeddings | None = None,
-    ):
+    ) -> None:
         """
         Constructs a new Ragas evaluator.
 

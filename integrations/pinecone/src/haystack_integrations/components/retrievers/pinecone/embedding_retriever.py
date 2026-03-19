@@ -58,7 +58,7 @@ class PineconeEmbeddingRetriever:
         filters: dict[str, Any] | None = None,
         top_k: int = 10,
         filter_policy: str | FilterPolicy = FilterPolicy.REPLACE,
-    ):
+    ) -> None:
         """
         :param document_store: The Pinecone Document Store.
         :param filters: Filters applied to the retrieved Documents.
