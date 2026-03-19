@@ -1,5 +1,27 @@
 # Changelog
 
+## [integrations/watsonx-v1.4.0] - 2026-03-13
+
+### 🚀 Features
+
+- List supported models in `WatsonxChatGenerator` (#2956)
+
+
+## [integrations/watsonx-v1.3.0] - 2026-03-12
+
+### 🚀 Features
+
+- `WatsonXChatGenerator` - support Tools and use the `StreamingChunk` fields (#2902)
+
+### 📚 Documentation
+
+- Simplify pydoc configs (#2855)
+
+### 🧹 Chores
+
+- Remove unused allow-direct-references (#2866)
+
+
 ## [integrations/watsonx-v1.2.0] - 2026-01-21
 
 ### 🐛 Bug Fixes

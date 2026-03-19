@@ -46,7 +46,7 @@ class ChromaDocumentStore:
         metadata: dict | None = None,
         client_settings: dict[str, Any] | None = None,
         **embedding_function_params: Any,
-    ):
+    ) -> None:
         """
         Creates a new ChromaDocumentStore instance.
         It is meant to be connected to a Chroma collection.
@@ -103,7 +103,7 @@ class ChromaDocumentStore:
         self._collection: chromadb.Collection | None = None
         self._async_collection: AsyncCollection | None = None
 
-    def _ensure_initialized(self):
+    def _ensure_initialized(self) -> None:
         if not self._collection:
             # Create the client instance
             if self._persist_path and (self._host or self._port is not None):
@@ -161,7 +161,7 @@ class ChromaDocumentStore:
                     embedding_function=self._embedding_func,
                 )
 
-    async def _ensure_initialized_async(self):
+    async def _ensure_initialized_async(self) -> None:
         if not self._async_collection:
             if self._host is None or self._port is None:
                 error_message = (
@@ -332,7 +332,7 @@ class ChromaDocumentStore:
         for meta in metadatas:
             if meta and field_name in meta:
                 val = meta.get(field_name)
-                if isinstance(val, (str, int, float)):
+                if isinstance(val, str | int | float):
                     values.append(val)
 
         if not values:

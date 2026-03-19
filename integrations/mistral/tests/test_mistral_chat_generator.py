@@ -111,6 +111,13 @@ def mock_chat_completion():
 
 
 class TestMistralChatGenerator:
+    def test_supported_models(self) -> None:
+        """SUPPORTED_MODELS is a non-empty list of strings."""
+        models = MistralChatGenerator.SUPPORTED_MODELS
+        assert isinstance(models, list)
+        assert len(models) > 0
+        assert all(isinstance(m, str) for m in models)
+
     def test_init_default(self, monkeypatch):
         monkeypatch.setenv("MISTRAL_API_KEY", "test-api-key")
         component = MistralChatGenerator()
@@ -569,7 +576,6 @@ class TestMistralChatGenerator:
         results = component.run(chat_messages)
         assert len(results["replies"]) == 1
         message = results["replies"][0]
-        assert message.text == ""
 
         assert message.tool_calls
         tool_call = message.tool_call

@@ -23,7 +23,7 @@ classifiers = [
   "Programming Language :: Python :: Implementation :: PyPy",
 ]
 dependencies = [
-  "haystack-ai>=2.9.0",
+  "haystack-ai>=2.24.0",
   "requests>=2.28.0",
 ]
 
@@ -83,7 +83,7 @@ line-length = 120
 
 [tool.ruff.lint]
 select = [
-  "A", "ARG", "B", "C", "DTZ", "E", "EM", "F", "FBT", "I", "ICN",
+  "A", "ANN", "ARG", "B", "C", "DTZ", "E", "EM", "F", "FBT", "I", "ICN",
   "ISC", "N", "PLC", "PLE", "PLR", "PLW", "Q", "RUF", "S", "T",
   "TID", "UP", "W", "YTT",
 ]
@@ -91,6 +91,8 @@ ignore = [
   "B027", "FBT003", "S105", "S106", "S107",
   "C901", "PLR0911", "PLR0912", "PLR0913", "PLR0915",
   "B008", "S101",
+  # Allow `Any` - used legitimately for filter values that can be any comparable type
+  "ANN401",
   # SQL string construction is intentional — ArcadeDB uses HTTP/JSON API with value escaping
   "S608",
 ]
@@ -102,7 +104,7 @@ known-first-party = ["haystack_integrations"]
 ban-relative-imports = "parents"
 
 [tool.ruff.lint.per-file-ignores]
-"tests/**/*" = ["PLR2004", "S101", "TID252"]
+"tests/**/*" = ["PLR2004", "S101", "TID252", "ANN"]
 "examples/**/*" = ["T201"]
 
 [tool.coverage.run]

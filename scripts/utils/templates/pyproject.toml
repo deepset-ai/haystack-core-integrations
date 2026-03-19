@@ -78,6 +78,7 @@ line-length = 120
 [tool.ruff.lint]
 select = [
     "A",
+    "ANN",
     "ARG",
     "B",
     "C",
@@ -117,6 +118,8 @@ ignore = [
     "PLR0912",
     "PLR0913",
     "PLR0915",
+    # Allow `Any` type - used legitimately for dynamic types and SDK boundaries
+    "ANN401",
 ]
 
 [tool.ruff.lint.isort]
@@ -126,8 +129,8 @@ known-first-party = ["haystack_integrations"]
 ban-relative-imports = "parents"
 
 [tool.ruff.lint.per-file-ignores]
-# Tests can use magic values, assertions, and relative imports
-"tests/**/*" = ["PLR2004", "S101", "TID252"]
+# Tests can use magic values, assertions, relative imports, and don't need type annotations
+"tests/**/*" = ["PLR2004", "S101", "TID252", "ANN"]
 
 [tool.coverage.run]
 source = ["haystack_integrations"]

@@ -1,5 +1,27 @@
 # Changelog
 
+## [integrations/cohere-v8.0.1] - 2026-03-17
+
+### 🐛 Bug Fixes
+
+- Fix the conversion of cohere chunks to Haystack streaming chunks (#2968)
+
+
+## [integrations/cohere-v8.0.0] - 2026-03-11
+
+### 🚀 Features
+
+- *(cohere)* Add timeout and max_retries to chat generator (#2873)
+
+### 📚 Documentation
+
+- Simplify pydoc configs (#2855)
+
+### 🧹 Chores
+
+- [**breaking**] CohereChatGenerator - remove `**kwargs` init parameter + fix test (#2948)
+
+
 ## [integrations/cohere-v7.0.2] - 2026-02-12
 
 ### 🐛 Bug Fixes

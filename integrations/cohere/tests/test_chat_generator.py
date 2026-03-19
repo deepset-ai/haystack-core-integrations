@@ -462,6 +462,7 @@ class TestCohereChatGenerator:
         mock_response = MagicMock()
         mock_response.message.content = [MagicMock()]
         mock_response.message.content[0].text = "This is a test image response"
+        mock_response.message.content[0].type = "text"
         mock_response.message.tool_calls = None
         mock_response.finish_reason = "COMPLETE"
         mock_response.usage = None
@@ -499,7 +500,7 @@ class TestCohereChatGenerator:
 class TestCohereChatGeneratorInference:
     def test_live_run(self):
         chat_messages = [ChatMessage.from_user("What's the capital of France")]
-        component = CohereChatGenerator(generation_kwargs={"temperature": 0.8})
+        component = CohereChatGenerator(model="command-r7b-12-2024", generation_kwargs={"temperature": 0.8})
         results = component.run(chat_messages)
         assert len(results["replies"]) == 1
         message: ChatMessage = results["replies"][0]
@@ -525,7 +526,7 @@ class TestCohereChatGeneratorInference:
                 self.responses += chunk.content if chunk.content else ""
 
         callback = Callback()
-        component = CohereChatGenerator(streaming_callback=callback, stream=True)
+        component = CohereChatGenerator(model="command-r7b-12-2024", streaming_callback=callback)
         results = component.run([ChatMessage.from_user("What's the capital of France? answer in a word")])
 
         assert len(results["replies"]) == 1
@@ -559,7 +560,7 @@ class TestCohereChatGeneratorInference:
                 },
             }
         ]
-        client = CohereChatGenerator()
+        client = CohereChatGenerator(model="command-r7b-12-2024")
         response = client.run(
             messages=[ChatMessage.from_user("What is the current price of AAPL?")],
             generation_kwargs={"tools": tools_schema},
@@ -595,7 +596,7 @@ class TestCohereChatGeneratorInference:
             function=stock_price,
         )
         initial_messages = [ChatMessage.from_user("What is the current price of AAPL?")]
-        client = CohereChatGenerator()
+        client = CohereChatGenerator(model="command-r7b-12-2024")
         response = client.run(
             messages=initial_messages,
             tools=[stock_price_tool],
@@ -650,7 +651,7 @@ class TestCohereChatGeneratorInference:
 
         initial_messages = [ChatMessage.from_user("What's the weather like in Paris?")]
         component = CohereChatGenerator(
-            # Cohere's model that supports tools
+            model="command-r7b-12-2024",
             tools=[weather_tool],
             streaming_callback=print_streaming_chunk,
         )
@@ -702,7 +703,7 @@ class TestCohereChatGeneratorInference:
         )
 
         pipeline = Pipeline()
-        pipeline.add_component("generator", CohereChatGenerator(model="command-r-08-2024", tools=[weather_tool]))
+        pipeline.add_component("generator", CohereChatGenerator(model="command-r7b-12-2024", tools=[weather_tool]))
         pipeline.add_component("tool_invoker", ToolInvoker(tools=[weather_tool]))
 
         pipeline.connect("generator", "tool_invoker")
@@ -787,7 +788,7 @@ class TestCohereChatGeneratorInference:
         initial_messages = [
             ChatMessage.from_user("What's the weather like in Paris and what is the population of Berlin?")
         ]
-        component = CohereChatGenerator(model="command-r-08-2024", tools=mixed_tools)
+        component = CohereChatGenerator(model="command-r7b-12-2024", tools=mixed_tools)
         results = component.run(messages=initial_messages)
 
         assert len(results["replies"]) > 0, "No replies received"

@@ -37,7 +37,7 @@ class CohereGenerator(CohereChatGenerator):
         streaming_callback: Callable | None = None,
         api_base_url: str | None = None,
         **kwargs: Any,
-    ):
+    ) -> None:
         """
         Instantiates a `CohereGenerator` component.
 
@@ -51,8 +51,21 @@ class CohereGenerator(CohereChatGenerator):
             You can check them in model's documentation.
         """
 
+        # from_dict deserialization, where `generation_kwargs` is in **kwargs
+        if "generation_kwargs" in kwargs:
+            generation_kwargs = kwargs.pop("generation_kwargs")
+        else:
+            # direct construction like `CohereGenerator(max_tokens=10)`
+            generation_kwargs = kwargs
+
         # Note we have to call super() like this because of the way components are dynamically built with the decorator
-        super(CohereGenerator, self).__init__(api_key, model, streaming_callback, api_base_url, None, **kwargs)  # noqa
+        super(CohereGenerator, self).__init__(  # noqa: UP008
+            api_key=api_key,
+            model=model,
+            streaming_callback=streaming_callback,
+            api_base_url=api_base_url,
+            generation_kwargs=generation_kwargs,
+        )
 
     @component.output_types(replies=list[str], meta=list[dict[str, Any]])
     def run(  # type: ignore[override] # due to incompatible signature with ChatGenerator
