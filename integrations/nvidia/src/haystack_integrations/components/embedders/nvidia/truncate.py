@@ -17,7 +17,7 @@ class EmbeddingTruncateMode(Enum):
     END = "END"
     NONE = "NONE"
 
-    def __str__(self):
+    def __str__(self) -> str:
         return self.value
 
     @classmethod

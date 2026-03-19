@@ -68,7 +68,7 @@ class MongoDBAtlasDocumentStore:
         full_text_search_index: str,
         embedding_field: str = "embedding",
         content_field: str = "content",
-    ):
+    ) -> None:
         """
         Creates a new MongoDBAtlasDocumentStore instance.
 

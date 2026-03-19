@@ -29,7 +29,7 @@ class NimBackend:
         model_kwargs: dict[str, Any] | None = None,
         client: str | Client | None = None,
         timeout: float | None = None,
-    ):
+    ) -> None:
         headers = {
             "Content-Type": "application/json",
             "accept": "application/json",
