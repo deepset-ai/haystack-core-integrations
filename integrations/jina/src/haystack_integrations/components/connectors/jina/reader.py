@@ -45,7 +45,7 @@ class JinaReaderConnector:
         mode: JinaReaderMode | str,
         api_key: Secret = Secret.from_env_var("JINA_API_KEY"),  # noqa: B008
         json_response: bool = True,
-    ):
+    ) -> None:
         """
         Initialize a JinaReader instance.
 
