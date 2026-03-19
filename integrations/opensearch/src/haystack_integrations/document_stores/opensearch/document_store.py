@@ -13,6 +13,7 @@ from haystack.dataclasses import Document
 from haystack.document_stores.errors import DocumentStoreError, DuplicateDocumentError
 from haystack.document_stores.types import DuplicatePolicy
 from haystack.utils.auth import Secret
+from haystack.utils.misc import _normalize_metadata_field_name
 from opensearchpy import AsyncHttpConnection, AsyncOpenSearch, OpenSearch
 from opensearchpy.helpers import async_bulk, bulk
 
@@ -1659,7 +1660,7 @@ class OpenSearchDocumentStore:
         index_mapping = mapping[self._index]["mappings"]["properties"]
 
         # normalize field names
-        normalized_metadata_fields = [self._normalize_metadata_field_name(field) for field in metadata_fields]
+        normalized_metadata_fields = [_normalize_metadata_field_name(field) for field in metadata_fields]
         # validate that all requested fields exist in the index mapping
         missing_fields = [f for f in normalized_metadata_fields if f not in index_mapping]
         if missing_fields:
@@ -1703,7 +1704,7 @@ class OpenSearchDocumentStore:
         index_mapping = mapping[self._index]["mappings"]["properties"]
 
         # normalize field names
-        normalized_metadata_fields = [self._normalize_metadata_field_name(field) for field in metadata_fields]
+        normalized_metadata_fields = [_normalize_metadata_field_name(field) for field in metadata_fields]
         # validate that all requested fields exist in the index mapping
         missing_fields = [f for f in normalized_metadata_fields if f not in index_mapping]
         if missing_fields:
@@ -1791,13 +1792,6 @@ class OpenSearchDocumentStore:
         return index_mapping
 
     @staticmethod
-    def _normalize_metadata_field_name(metadata_field: str) -> str:
-        """
-        Normalizes a metadata field name by removing the "meta." prefix if present.
-        """
-        return metadata_field[5:] if metadata_field.startswith("meta.") else metadata_field
-
-    @staticmethod
     def _build_min_max_query_body(field_name: str) -> dict[str, Any]:
         """
         Builds the query body for getting min and max values using stats aggregation.
@@ -1834,7 +1828,7 @@ class OpenSearchDocumentStore:
         self._ensure_initialized()
         assert self._client is not None
 
-        field_name = self._normalize_metadata_field_name(metadata_field)
+        field_name = _normalize_metadata_field_name(metadata_field)
         body = self._build_min_max_query_body(field_name)
         result = self._client.search(index=self._index, body=body)
         stats = result.get("aggregations", {}).get("field_stats", {})
@@ -1852,7 +1846,7 @@ class OpenSearchDocumentStore:
         await self._ensure_initialized_async()
         assert self._async_client is not None
 
-        field_name = self._normalize_metadata_field_name(metadata_field)
+        field_name = _normalize_metadata_field_name(metadata_field)
         body = self._build_min_max_query_body(field_name)
         result = await self._async_client.search(index=self._index, body=body)
         stats = result.get("aggregations", {}).get("field_stats", {})
@@ -1882,7 +1876,7 @@ class OpenSearchDocumentStore:
         self._ensure_initialized()
         assert self._client is not None
 
-        field_name = self._normalize_metadata_field_name(metadata_field)
+        field_name = _normalize_metadata_field_name(metadata_field)
 
         # filter by search_term if provided
         query: dict[str, Any] = {"match_all": {}}
@@ -1947,7 +1941,7 @@ class OpenSearchDocumentStore:
         await self._ensure_initialized_async()
         assert self._async_client is not None
 
-        field_name = self._normalize_metadata_field_name(metadata_field)
+        field_name = _normalize_metadata_field_name(metadata_field)
 
         # filter by search_term if provided
         query: dict[str, Any] = {"match_all": {}}
