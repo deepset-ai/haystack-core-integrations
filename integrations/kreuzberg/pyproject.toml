@@ -134,6 +134,10 @@ strict = true
 install_types = true
 non_interactive = true
 
+[[tool.mypy.overrides]]
+module = ["kreuzberg", "kreuzberg.*"]
+follow_imports = "skip"
+
 [tool.pytest.ini_options]
 addopts = "--strict-markers"
 markers = [

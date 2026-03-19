@@ -5,7 +5,7 @@ import tempfile
 from pathlib import Path
 from typing import Any
 
-from kreuzberg import (  # type: ignore[attr-defined]
+from kreuzberg import (
     ExtractedImage,
     ExtractedTable,
     ExtractionConfig,
