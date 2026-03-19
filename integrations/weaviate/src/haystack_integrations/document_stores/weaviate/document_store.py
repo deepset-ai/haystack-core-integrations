@@ -173,7 +173,7 @@ class WeaviateDocumentStore:
         }
         self._clean_connection_settings()
 
-    def _clean_connection_settings(self):
+    def _clean_connection_settings(self) -> None:
         # Set the class if not set
         _class_name = self._collection_settings.get("class", "Default")
         _class_name = _class_name[0].upper() + _class_name[1:]
@@ -184,7 +184,7 @@ class WeaviateDocumentStore:
         )
 
     @property
-    def client(self):
+    def client(self) -> weaviate.WeaviateClient:
         if self._client:
             return self._client
 
@@ -228,7 +228,7 @@ class WeaviateDocumentStore:
         return self._client
 
     @property
-    async def async_client(self):
+    async def async_client(self) -> weaviate.WeaviateAsyncClient:
         if self._async_client:
             return self._async_client
 

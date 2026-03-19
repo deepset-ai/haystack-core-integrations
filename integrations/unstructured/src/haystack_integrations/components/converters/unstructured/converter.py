@@ -54,7 +54,7 @@ class UnstructuredFileConverter:
         separator: str = "\n\n",
         unstructured_kwargs: dict[str, Any] | None = None,
         progress_bar: bool = True,  # noqa: FBT001, FBT002
-    ):
+    ) -> None:
         """
         :param api_url: URL of the Unstructured API. Defaults to the URL of the hosted version.
             If you run the API locally, specify the URL of your local API (e.g. `"http://localhost:8000/general/v0/general"`).
