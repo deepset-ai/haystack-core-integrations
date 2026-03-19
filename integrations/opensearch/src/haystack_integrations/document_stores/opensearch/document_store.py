@@ -11,9 +11,9 @@ from typing import Any, Literal
 from haystack import default_from_dict, default_to_dict, logging
 from haystack.dataclasses import Document
 from haystack.document_stores.errors import DocumentStoreError, DuplicateDocumentError
-from haystack.utils.misc import _normalize_metadata_field_name
 from haystack.document_stores.types import DuplicatePolicy
 from haystack.utils.auth import Secret
+from haystack.utils.misc import _normalize_metadata_field_name
 from opensearchpy import AsyncHttpConnection, AsyncOpenSearch, OpenSearch
 from opensearchpy.helpers import async_bulk, bulk
 

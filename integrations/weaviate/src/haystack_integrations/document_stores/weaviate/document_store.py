@@ -10,10 +10,10 @@ from typing import Any, NoReturn
 
 from haystack import logging
 from haystack.core.serialization import default_from_dict, default_to_dict
-from haystack.utils.misc import _normalize_metadata_field_name
 from haystack.dataclasses.document import Document
 from haystack.document_stores.errors import DocumentStoreError, DuplicateDocumentError
 from haystack.document_stores.types.policy import DuplicatePolicy
+from haystack.utils.misc import _normalize_metadata_field_name
 
 import weaviate
 from weaviate.collections.classes.aggregate import (
