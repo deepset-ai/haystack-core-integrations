@@ -56,6 +56,8 @@ class UnstructuredFileConverter:
         progress_bar: bool = True,  # noqa: FBT001, FBT002
     ) -> None:
         """
+        Create an `UnstructuredFileConverter` instance.
+
         :param api_url: URL of the Unstructured API. Defaults to the URL of the hosted version.
             If you run the API locally, specify the URL of your local API (e.g. `"http://localhost:8000/general/v0/general"`).
         :param api_key: API key for the Unstructured API.

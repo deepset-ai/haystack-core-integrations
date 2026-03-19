@@ -68,6 +68,8 @@ class ValkeyEmbeddingRetriever:
         filter_policy: str | FilterPolicy = FilterPolicy.REPLACE,
     ) -> None:
         """
+        Create a `ValkeyEmbeddingRetriever` instance.
+
         :param document_store: The Valkey Document Store.
         :param filters: Filters applied to the retrieved Documents.
         :param top_k: Maximum number of Documents to return.
