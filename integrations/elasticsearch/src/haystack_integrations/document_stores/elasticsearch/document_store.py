@@ -85,6 +85,7 @@ class ElasticsearchDocumentStore:
         api_key: Secret | str | None = Secret.from_env_var("ELASTIC_API_KEY", strict=False),
         api_key_id: Secret | str | None = Secret.from_env_var("ELASTIC_API_KEY_ID", strict=False),
         embedding_similarity_function: Literal["cosine", "dot_product", "l2_norm", "max_inner_product"] = "cosine",
+        sparse_vector_field: str | None = None,
         **kwargs: Any,
     ):
         """
@@ -125,6 +126,7 @@ class ElasticsearchDocumentStore:
         self._api_key = api_key
         self._api_key_id = api_key_id
         self._embedding_similarity_function = embedding_similarity_function
+        self._sparse_vector_field = sparse_vector_field
         self._custom_mapping = custom_mapping
         self._kwargs = kwargs
         self._initialized = False
@@ -155,6 +157,8 @@ class ElasticsearchDocumentStore:
                     }
                 ],
             }
+            if self._sparse_vector_field:
+                self._default_mappings["properties"][self._sparse_vector_field] = {"type": "sparse_vector"}
 
     def _ensure_initialized(self):
         """
@@ -276,6 +280,7 @@ class ElasticsearchDocumentStore:
             api_key=self._api_key.to_dict() if isinstance(self._api_key, Secret) else None,
             api_key_id=self._api_key_id.to_dict() if isinstance(self._api_key_id, Secret) else None,
             embedding_similarity_function=self._embedding_similarity_function,
+            sparse_vector_field=self._sparse_vector_field,
             **self._kwargs,
         )
 
@@ -457,12 +462,17 @@ class ElasticsearchDocumentStore:
             if "sparse_embedding" in doc_dict:
                 sparse_embedding = doc_dict.pop("sparse_embedding", None)
                 if sparse_embedding:
-                    logger.warning(
-                        "Document {doc_id} has the `sparse_embedding` field set,"
-                        "but storing sparse embeddings in Elasticsearch is not currently supported."
-                        "The `sparse_embedding` field will be ignored.",
-                        doc_id=doc.id,
-                    )
+                    if self._sparse_vector_field:
+                        doc_dict[self._sparse_vector_field] = {
+                            str(idx): val for idx, val in zip(sparse_embedding["indices"], sparse_embedding["values"])
+                        }
+                    else:
+                        logger.warning(
+                            "Document {doc_id} has the `sparse_embedding` field set, "
+                            "but `sparse_vector_field` is not configured for this ElasticsearchDocumentStore. "
+                            "The `sparse_embedding` field will be ignored.",
+                            doc_id=doc.id,
+                        )
             elasticsearch_actions.append(
                 {
                     "_op_type": action,
@@ -544,12 +554,17 @@ class ElasticsearchDocumentStore:
             if "sparse_embedding" in doc_dict:
                 sparse_embedding = doc_dict.pop("sparse_embedding", None)
                 if sparse_embedding:
-                    logger.warning(
-                        "Document {doc_id} has the `sparse_embedding` field set,"
-                        "but storing sparse embeddings in Elasticsearch is not currently supported."
-                        "The `sparse_embedding` field will be ignored.",
-                        doc_id=doc.id,
-                    )
+                    if self._sparse_vector_field:
+                        doc_dict[self._sparse_vector_field] = {
+                            str(idx): val for idx, val in zip(sparse_embedding["indices"], sparse_embedding["values"])
+                        }
+                    else:
+                        logger.warning(
+                            "Document {doc_id} has the `sparse_embedding` field set, "
+                            "but `sparse_vector_field` is not configured for this ElasticsearchDocumentStore. "
+                            "The `sparse_embedding` field will be ignored.",
+                            doc_id=doc.id,
+                        )
 
             action = {
                 "_op_type": "create" if policy == DuplicatePolicy.FAIL else "index",
