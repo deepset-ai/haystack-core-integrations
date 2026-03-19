@@ -152,12 +152,29 @@ class TestElasticsearchDocumentStoreAsync:
         doc = Document(id="1", content="test", sparse_embedding=SparseEmbedding(indices=[0, 1], values=[0.5, 0.5]))
 
         await document_store.write_documents_async([doc])
-        assert "but storing sparse embeddings in Elasticsearch is not currently supported." in caplog.text
+        assert "but `sparse_vector_field` is not configured" in caplog.text
 
         results = await document_store.filter_documents_async()
         assert len(results) == 1
         assert results[0].id == "1"
         assert not hasattr(results[0], "sparse_embedding") or results[0].sparse_embedding is None
+
+    @pytest.mark.asyncio
+    async def test_write_documents_async_with_sparse_vectors(self):
+        """Test write_documents with document containing sparse_embedding field"""
+        store = ElasticsearchDocumentStore(
+            hosts=["http://localhost:9200"], index="test_async_sparse", sparse_vector_field="sparse_vec"
+        )
+        store.client.options(ignore_status=[400, 404]).indices.delete(index="test_async_sparse")
+
+        doc = Document(id="1", content="test", sparse_embedding=SparseEmbedding(indices=[0, 1], values=[0.5, 0.5]))
+        await store.write_documents_async([doc])
+
+        # check ES natively
+        raw_doc = await store.async_client.get(index="test_async_sparse", id="1")
+        assert raw_doc["_source"]["sparse_vec"] == {"0": 0.5, "1": 0.5}
+
+        store.client.indices.delete(index="test_async_sparse")
 
     @pytest.mark.asyncio
     async def test_delete_all_documents_async(self, document_store):
