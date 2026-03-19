@@ -46,7 +46,7 @@ class FastembedRanker:
         local_files_only: bool = False,
         meta_fields_to_embed: list[str] | None = None,
         meta_data_separator: str = "\n",
-    ):
+    ) -> None:
         """
         Creates an instance of the 'FastembedRanker'.
 
@@ -114,7 +114,7 @@ class FastembedRanker:
         """
         return default_from_dict(cls, data)
 
-    def warm_up(self):
+    def warm_up(self) -> None:
         """
         Initializes the component.
         """
