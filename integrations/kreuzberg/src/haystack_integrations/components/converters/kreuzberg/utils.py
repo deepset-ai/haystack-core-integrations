@@ -9,8 +9,19 @@ from kreuzberg import (
     ExtractedImage,
     ExtractedTable,
     ExtractionConfig,
+    ExtractionResult,
     config_to_json,
 )
+
+
+def _is_batch_error(result: ExtractionResult) -> bool:
+    """Detect error results returned by kreuzberg's batch APIs.
+
+    Batch APIs return ``ExtractionResult(content="Error: ...", metadata={},
+    quality_score=None)`` instead of raising exceptions. Valid results always
+    have populated metadata (at minimum ``output_format``).
+    """
+    return result.metadata == {} and result.quality_score is None
 
 
 def _get_table_markdown(table: ExtractedTable | dict[str, Any]) -> str | None:

@@ -20,6 +20,7 @@ from kreuzberg import (
 
 from haystack_integrations.components.converters.kreuzberg import KreuzbergConverter
 from haystack_integrations.components.converters.kreuzberg.utils import (
+    _is_batch_error,
     _serialize_warnings,
 )
 
@@ -693,3 +694,33 @@ def test_run_batch_success(mock_get_bs: MagicMock, converter: KreuzbergConverter
         result = converter.run(sources=[Path("a.pdf"), Path("b.pdf")])
 
     assert len(result["documents"]) == 2
+
+
+def test_is_batch_error_detects_error_result() -> None:
+    """Batch error results have empty metadata and None quality_score."""
+    result = MagicMock(spec=ExtractionResult)
+    result.metadata = {}
+    result.quality_score = None
+    result.content = "Error: could not parse file"
+
+    assert _is_batch_error(result) is True
+
+
+def test_is_batch_error_passes_valid_result() -> None:
+    """Valid results have populated metadata and are not flagged."""
+    result = MagicMock(spec=ExtractionResult)
+    result.metadata = {"output_format": "plain", "quality_score": 0.85}
+    result.quality_score = 0.85
+    result.content = "Hello world"
+
+    assert _is_batch_error(result) is False
+
+
+def test_is_batch_error_no_false_positive_on_error_content() -> None:
+    """Content starting with 'Error:' but valid metadata is NOT a batch error."""
+    result = MagicMock(spec=ExtractionResult)
+    result.metadata = {"output_format": "plain"}
+    result.quality_score = 0.5
+    result.content = "Error: this is actual document content that starts with Error:"
+
+    assert _is_batch_error(result) is False

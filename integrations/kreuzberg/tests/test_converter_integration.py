@@ -514,3 +514,44 @@ def test_edge_config_not_mutated_across_runs() -> None:
     converter.run(sources=[FIXTURES_DIR / "sample.txt"])
     # Original config should not be mutated
     assert config.output_format == "html"
+
+
+@pytest.mark.integration
+def test_batch_filters_corrupt_files(tmp_path: Path) -> None:
+    """Batch mode filters corrupt files and keeps valid ones."""
+    corrupt = tmp_path / "corrupt.pdf"
+    corrupt.write_bytes(b"not a valid pdf")
+
+    converter = KreuzbergConverter(batch=True)
+    result = converter.run(sources=[FIXTURES_DIR / "sample.txt", corrupt])
+    docs = _docs(result)
+
+    assert len(docs) == 1
+    assert "sample text document" in docs[0].content
+
+
+@pytest.mark.integration
+def test_batch_filters_corrupt_bytestream() -> None:
+    """Batch mode filters corrupt ByteStream and keeps valid file."""
+    corrupt_bs = ByteStream(data=b"not a valid pdf", mime_type="application/pdf")
+
+    converter = KreuzbergConverter(batch=True)
+    result = converter.run(sources=[FIXTURES_DIR / "sample.txt", corrupt_bs])
+    docs = _docs(result)
+
+    assert len(docs) == 1
+    assert "sample text document" in docs[0].content
+
+
+@pytest.mark.integration
+def test_batch_all_corrupt(tmp_path: Path) -> None:
+    """Batch mode with all corrupt sources returns empty documents list."""
+    corrupt1 = tmp_path / "corrupt1.pdf"
+    corrupt1.write_bytes(b"not a valid pdf")
+    corrupt2 = tmp_path / "corrupt2.pdf"
+    corrupt2.write_bytes(b"also not valid")
+
+    converter = KreuzbergConverter(batch=True)
+    result = converter.run(sources=[corrupt1, corrupt2])
+
+    assert result["documents"] == []

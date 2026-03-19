@@ -19,6 +19,7 @@ from kreuzberg import (
     LanguageDetectionConfig,
     batch_extract_bytes_sync,
     batch_extract_files_sync,
+    classify_error,
     config_to_json,
     detect_mime_type,
     error_code_name,
@@ -33,6 +34,7 @@ from .utils import (
     _config_from_json_str,
     _copy_config,
     _get_table_markdown,
+    _is_batch_error,
     _serialize_annotations,
     _serialize_images,
     _serialize_warnings,
@@ -218,19 +220,45 @@ class KreuzbergConverter:
 
         # Batch-extract file paths
         if file_paths:
-            file_results = batch_extract_files_sync(file_paths, config=config, easyocr_kwargs=self.easyocr_kwargs)
-            for idx, result in zip(file_indices, file_results, strict=True):
-                results[idx] = result
+            self._collect_batch_results(
+                file_indices,
+                batch_extract_files_sync(file_paths, config=config, easyocr_kwargs=self.easyocr_kwargs),
+                sources,
+                results,
+            )
 
         # Batch-extract byte streams
         if bytes_data:
-            bytes_results = batch_extract_bytes_sync(
-                bytes_data, bytes_mimes, config=config, easyocr_kwargs=self.easyocr_kwargs
+            self._collect_batch_results(
+                bytes_indices,
+                batch_extract_bytes_sync(bytes_data, bytes_mimes, config=config, easyocr_kwargs=self.easyocr_kwargs),
+                sources,
+                results,
             )
-            for idx, result in zip(bytes_indices, bytes_results, strict=True):
-                results[idx] = result
 
         return results
+
+    @staticmethod
+    def _collect_batch_results(
+        indices: list[int],
+        batch_results: list[ExtractionResult],
+        sources: list[str | Path | ByteStream],
+        results: list[ExtractionResult | None],
+    ) -> None:
+        """Filter batch results, logging and skipping error entries."""
+        for idx, result in zip(indices, batch_results, strict=True):
+            if _is_batch_error(result):
+                err_code = classify_error(result.content)
+                logger.warning(
+                    "Could not convert {source} to Document. Error code: {code} ({code_name}). "
+                    "Details: {details}. Skipping it.",
+                    source=sources[idx],
+                    code=err_code,
+                    code_name=error_code_name(err_code),
+                    details=result.content,
+                )
+                continue
+            results[idx] = result
 
     @staticmethod
     def _build_extraction_metadata(result: ExtractionResult) -> dict[str, Any]:
@@ -501,11 +529,11 @@ class KreuzbergConverter:
                     details = get_error_details()
                     code_name = error_code_name(err_code) if err_code is not None else "UNKNOWN"
                     logger.warning(
-                        "Could not convert {source} to Document. Error code: {code} ({name}). "
+                        "Could not convert {source} to Document. Error code: {code} ({code_name}). "
                         "Details: {details}. Skipping it.",
                         source=source,
                         code=err_code,
-                        name=code_name,
+                        code_name=code_name,
                         details=details.get("message", str(e)),
                     )
                 except Exception as diag_err:
