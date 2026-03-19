@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 from dataclasses import replace
-from typing import Any
+from typing import Any, ClassVar
 
 from haystack import Document, component, default_from_dict, default_to_dict, logging
 from haystack.components.converters.image.image_utils import (
@@ -58,6 +58,16 @@ class CohereDocumentImageEmbedder:
     #  ...]
     ```
     """
+
+    SUPPORTED_MODELS: ClassVar[list[str]] = [
+        "embed-v4.0",
+        "embed-english-v3.0",
+        "embed-english-light-v3.0",
+        "embed-multilingual-v3.0",
+        "embed-multilingual-light-v3.0",
+    ]
+    """A non-exhaustive list of embed models supported by this component.
+    See https://docs.cohere.com/docs/models#embed for the full list."""
 
     def __init__(
         self,

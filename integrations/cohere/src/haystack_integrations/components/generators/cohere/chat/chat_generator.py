@@ -1,6 +1,6 @@
 import json
 from collections.abc import AsyncIterator, Iterator
-from typing import Any, Literal, get_args
+from typing import Any, ClassVar, Literal, get_args
 
 from haystack import component, default_from_dict, default_to_dict, logging
 from haystack.components.generators.utils import _convert_streaming_chunks_to_chat_message
@@ -479,6 +479,24 @@ class CohereChatGenerator:
     # Output: "The weather in Paris is sunny and 32°C"
     ```
     """
+
+    SUPPORTED_MODELS: ClassVar[list[str]] = [
+        "command-a-03-2025",
+        "command-r7b-12-2024",
+        "command-a-translate-08-2025",
+        "command-a-reasoning-08-2025",
+        "command-a-vision-07-2025",
+        "command-r-08-2024",
+        "command-r-plus-08-2024",
+        "command-r-03-2024",
+        "command-r-plus-04-2024",
+        "command-r-plus",
+        "command-r",
+        "command-light",
+        "command",
+    ]
+    """A non-exhaustive list of chat models supported by this component.
+    See https://docs.cohere.com/docs/models#command for the full list."""
 
     def __init__(
         self,
