@@ -232,7 +232,8 @@ class KreuzbergConverter:
 
         return results
 
-    def _build_extraction_metadata(self, result: ExtractionResult) -> dict[str, Any]:
+    @staticmethod
+    def _build_extraction_metadata(result: ExtractionResult) -> dict[str, Any]:
         """
         Build metadata dict from an `ExtractionResult`, flattening kreuzberg's
         metadata fields and enriching with top-level result attributes.
@@ -322,8 +323,8 @@ class KreuzbergConverter:
         merged = {**base_meta, **source_meta, **copy.deepcopy(user_meta)}
         return [Document(content=content, meta=merged)]
 
+    @staticmethod
     def _create_per_page_documents(
-        self,
         result: ExtractionResult,
         base_meta: dict[str, Any],
         source_meta: dict[str, Any],
@@ -336,7 +337,7 @@ class KreuzbergConverter:
             page_tables = page.get("tables", [])
             page_images = page.get("images", [])
 
-            page_content = self._assemble_content(page_content, page_tables, result.output_format)
+            page_content = KreuzbergConverter._assemble_content(page_content, page_tables, result.output_format)
 
             page_meta: dict[str, Any] = {
                 **copy.deepcopy(base_meta),
@@ -354,8 +355,8 @@ class KreuzbergConverter:
 
         return documents
 
+    @staticmethod
     def _create_chunked_documents(
-        self,
         result: ExtractionResult,
         base_meta: dict[str, Any],
         source_meta: dict[str, Any],
