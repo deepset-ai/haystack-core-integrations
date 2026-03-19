@@ -4,7 +4,7 @@
 
 # ruff: noqa: FBT001, FBT002   boolean-type-hint-positional-argument and boolean-default-value-positional-argument
 
-from collections.abc import Mapping
+from collections.abc import Generator, Mapping
 from math import exp
 from typing import Any, Literal
 
@@ -275,7 +275,7 @@ class OpenSearchDocumentStore:
             return self._http_auth
         return None
 
-    def _ensure_initialized(self):
+    def _ensure_initialized(self) -> None:
         # Ideally, we have a warm-up stage for document stores as well as components.
         if not self._client:
             self._client = OpenSearch(
@@ -290,7 +290,7 @@ class OpenSearchDocumentStore:
 
             self._ensure_index_exists()
 
-    async def _ensure_initialized_async(self):
+    async def _ensure_initialized_async(self) -> None:
         if not self._async_client:
             resolved_auth = self._resolve_http_auth()
             async_http_auth = AsyncAWSAuth(resolved_auth) if isinstance(resolved_auth, AWSAuth) else resolved_auth
@@ -308,7 +308,7 @@ class OpenSearchDocumentStore:
             self._initialized = True
             await self._ensure_index_exists_async()
 
-    async def _ensure_index_exists_async(self):
+    async def _ensure_index_exists_async(self) -> None:
         assert self._async_client is not None
 
         if await self._async_client.indices.exists(index=self._index):
@@ -322,7 +322,7 @@ class OpenSearchDocumentStore:
             body = {"mappings": self._mappings, "settings": self._settings}
             await self._async_client.indices.create(index=self._index, body=body)
 
-    def _ensure_index_exists(self):
+    def _ensure_index_exists(self) -> None:
         assert self._client is not None
 
         if self._client.indices.exists(index=self._index):
@@ -577,7 +577,7 @@ class OpenSearchDocumentStore:
         refresh: Literal["wait_for", True, False],
         routing: dict[str, str] | None = None,
     ) -> dict[str, Any]:
-        def action_generator():
+        def action_generator() -> Generator[dict[str, Any], None, None]:
             for id_ in document_ids:
                 action = {"_op_type": "delete", "_id": id_}
                 # Add routing if provided for this document ID
