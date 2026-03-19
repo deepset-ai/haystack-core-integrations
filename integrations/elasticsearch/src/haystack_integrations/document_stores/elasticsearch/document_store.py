@@ -464,7 +464,8 @@ class ElasticsearchDocumentStore:
                 if sparse_embedding:
                     if self._sparse_vector_field:
                         doc_dict[self._sparse_vector_field] = {
-                            str(idx): val for idx, val in zip(sparse_embedding["indices"], sparse_embedding["values"])
+                            str(idx): val
+                            for idx, val in zip(sparse_embedding["indices"], sparse_embedding["values"], strict=True)
                         }
                     else:
                         logger.warning(
@@ -556,7 +557,8 @@ class ElasticsearchDocumentStore:
                 if sparse_embedding:
                     if self._sparse_vector_field:
                         doc_dict[self._sparse_vector_field] = {
-                            str(idx): val for idx, val in zip(sparse_embedding["indices"], sparse_embedding["values"])
+                            str(idx): val
+                            for idx, val in zip(sparse_embedding["indices"], sparse_embedding["values"], strict=True)
                         }
                     else:
                         logger.warning(
