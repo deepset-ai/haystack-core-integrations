@@ -105,7 +105,7 @@ class KreuzbergConverter:
             and language, force-OCR mode, per-page extraction, chunking,
             keyword extraction, and other kreuzberg options. If not provided,
             kreuzberg's defaults are used.
-            See the `kreuzberg API reference <https://docs.kreuzberg.dev/reference/api-python/>`_
+            See the [kreuzberg API reference](https://docs.kreuzberg.dev/reference/api-python/)
             for the full list of configuration options.
         :param config_path:
             Path to a kreuzberg configuration file (`.toml`, `.yaml`, or
@@ -121,7 +121,7 @@ class KreuzbergConverter:
             Optional keyword arguments to pass to EasyOCR when using the
             `"easyocr"` backend. Supports GPU, beam width, model storage,
             and other EasyOCR-specific options.
-            See the `EasyOCR documentation <https://www.jaided.ai/easyocr/documentation/>`_
+            See the [EasyOCR documentation](https://www.jaided.ai/easyocr/documentation/)
             for the full list of supported arguments.
         """
         if config is not None and config_path is not None:
