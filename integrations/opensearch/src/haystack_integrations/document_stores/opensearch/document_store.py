@@ -82,7 +82,7 @@ class OpenSearchDocumentStore:
         mappings: dict[str, Any] | None = None,
         settings: dict[str, Any] | None = DEFAULT_SETTINGS,
         create_index: bool = True,
-        http_auth: Any = (
+        http_auth: tuple[Secret, Secret] | tuple[str, str] | list[str] | str | AWSAuth | None = (
             Secret.from_env_var("OPENSEARCH_USERNAME", strict=False),  # noqa: B008
             Secret.from_env_var("OPENSEARCH_PASSWORD", strict=False),  # noqa: B008
         ),
@@ -138,17 +138,6 @@ class OpenSearchDocumentStore:
         self._mappings = mappings or self._get_default_mappings()
         self._settings = settings
         self._create_index = create_index
-        self._http_auth_are_secrets = False
-
-        # Handle authentication
-        if isinstance(http_auth, (tuple, list)) and len(http_auth) == 2:  # noqa: PLR2004
-            username, password = http_auth
-            if isinstance(username, Secret) and isinstance(password, Secret):
-                self._http_auth_are_secrets = True
-                username_val = username.resolve_value()
-                password_val = password.resolve_value()
-                http_auth = [username_val, password_val] if username_val and password_val else None
-
         self._http_auth = http_auth
         self._use_ssl = use_ssl
         self._verify_certs = verify_certs
@@ -218,17 +207,16 @@ class OpenSearchDocumentStore:
             Dictionary with serialized data.
         """
         # Handle http_auth serialization
-        http_auth: list[dict[str, Any]] | dict[str, Any] | tuple[str, str] | list[str] | str = ""
-        if isinstance(self._http_auth, list) and self._http_auth_are_secrets:
-            # Recreate the Secret objects for serialization
-            http_auth = [
-                Secret.from_env_var("OPENSEARCH_USERNAME", strict=False).to_dict(),
-                Secret.from_env_var("OPENSEARCH_PASSWORD", strict=False).to_dict(),
-            ]
+        http_auth: list[dict[str, Any]] | dict[str, Any] | None = None
+        if (
+            isinstance(self._http_auth, (tuple, list))
+            and len(self._http_auth) == 2  # noqa: PLR2004
+            and isinstance(self._http_auth[0], Secret)
+            and isinstance(self._http_auth[1], Secret)
+        ):
+            http_auth = [self._http_auth[0].to_dict(), self._http_auth[1].to_dict()]
         elif isinstance(self._http_auth, AWSAuth):
             http_auth = self._http_auth.to_dict()
-        else:
-            http_auth = self._http_auth
 
         return default_to_dict(
             self,
@@ -267,12 +255,31 @@ class OpenSearchDocumentStore:
                 init_params["http_auth"] = [Secret.from_dict(item) for item in http_auth] if are_secrets else http_auth
         return default_from_dict(cls, data)
 
+    def _resolve_http_auth(self) -> tuple[str, str] | list[str] | str | AWSAuth | None:
+        """Resolves Secret objects in http_auth to their plain values."""
+        if isinstance(self._http_auth, (tuple, list)) and len(self._http_auth) == 2:  # noqa: PLR2004
+            first, second = self._http_auth
+            if isinstance(first, Secret) and isinstance(second, Secret):
+                username = first.resolve_value()
+                password = second.resolve_value()
+                if username and password:
+                    return [username, password]
+                if not username and not password:
+                    return None
+                msg = "http_auth requires both username and password to be set, but only one was provided."
+                raise DocumentStoreError(msg)
+            if isinstance(first, str) and isinstance(second, str):
+                return (first, second)
+        if isinstance(self._http_auth, (str, AWSAuth)):
+            return self._http_auth
+        return None
+
     def _ensure_initialized(self):
         # Ideally, we have a warm-up stage for document stores as well as components.
         if not self._client:
             self._client = OpenSearch(
                 hosts=self._hosts,
-                http_auth=self._http_auth,
+                http_auth=self._resolve_http_auth(),
                 use_ssl=self._use_ssl,
                 verify_certs=self._verify_certs,
                 timeout=self._timeout,
@@ -284,7 +291,8 @@ class OpenSearchDocumentStore:
 
     async def _ensure_initialized_async(self):
         if not self._async_client:
-            async_http_auth = AsyncAWSAuth(self._http_auth) if isinstance(self._http_auth, AWSAuth) else self._http_auth
+            resolved_auth = self._resolve_http_auth()
+            async_http_auth = AsyncAWSAuth(resolved_auth) if isinstance(resolved_auth, AWSAuth) else resolved_auth
             self._async_client = AsyncOpenSearch(
                 hosts=self._hosts,
                 http_auth=async_http_auth,

@@ -59,7 +59,7 @@ class FAISSEmbeddingRetriever:
         filters: dict[str, Any] | None = None,
         top_k: int = 10,
         filter_policy: str | FilterPolicy = FilterPolicy.REPLACE,
-    ):
+    ) -> None:
         """
         :param document_store: An instance of `FAISSDocumentStore`.
         :param filters: Filters applied to the retrieved Documents at initialisation time. At runtime, these are merged
