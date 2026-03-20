@@ -343,8 +343,7 @@ class TestAmazonBedrockChatGeneratorUtils:
             tool_calls=[ToolCall(id="123", tool_name="test_tool", arguments={"key": "value"})],
             reasoning=ReasoningContent(
                 reasoning_text="[REDACTED]",
-                extra={
-                },
+                extra={},
             ),
         )
         formatted_message = _format_messages([tool_call_message_with_redacted])[1][0]
@@ -398,7 +397,14 @@ class TestAmazonBedrockChatGeneratorUtils:
         assert formatted_message == {
             "role": "assistant",
             "content": [
-                {"reasoningContent": {"reasoningText": {"text": "This is the reasoning behind the message.", "signature": "reasoning_signature"}}},
+                {
+                    "reasoningContent": {
+                        "reasoningText": {
+                            "text": "This is the reasoning behind the message.",
+                            "signature": "reasoning_signature",
+                        }
+                    }
+                },
                 {"text": "This is a test message."},
             ],
         }

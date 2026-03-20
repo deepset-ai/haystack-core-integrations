@@ -508,9 +508,7 @@ def _parse_completion_response(response_body: dict[str, Any], model: str) -> lis
                     "".join(text_content),
                     tool_calls=tool_calls,
                     meta=meta,
-                    reasoning=ReasoningContent(
-                        reasoning_text=reasoning_text, extra=reasoning_extra
-                    )
+                    reasoning=ReasoningContent(reasoning_text=reasoning_text, extra=reasoning_extra)
                     if reasoning_text or reasoning_extra
                     else None,
                 )
