@@ -116,8 +116,7 @@ def _parse_comparison_condition(condition: dict[str, Any]) -> tuple[Composed, li
 
 def _treat_meta_field(field: str, value: Any) -> Composed:
     """
-    Internal method that returns a psycopg Composed object
-    to make the meta JSONB field queryable safely.
+    Internal method that returns a psycopg Composed object to make the meta JSONB field queryable safely.
 
     Uses psycopg.sql.Literal to embed the field name, preventing SQL injection
     via metadata field names without requiring regex validation.

@@ -113,8 +113,7 @@ def _normalize_file_type(file_type: FileTypeInput) -> FileType | None:
 @component
 class PaddleOCRVLDocumentConverter:
     """
-    This component extracts text from documents using PaddleOCR's large model
-    document parsing API.
+    Extracts text from documents using PaddleOCR's large model document parsing API.
 
     PaddleOCR-VL is used behind the scenes. For more information, please
     refer to:

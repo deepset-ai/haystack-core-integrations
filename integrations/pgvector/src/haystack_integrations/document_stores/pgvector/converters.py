@@ -10,8 +10,9 @@ logger = logging.getLogger(__name__)
 
 def _from_haystack_to_pg_documents(documents: list[Document]) -> list[dict[str, Any]]:
     """
-    Internal method to convert a list of Haystack Documents to a list of dictionaries that can be used to insert
-    documents into the PgvectorDocumentStore.
+    Internal method to convert a list of Haystack Documents to a list of dictionaries.
+
+    The resulting dictionaries can be used to insert documents into the PgvectorDocumentStore.
     """
 
     db_documents = []
