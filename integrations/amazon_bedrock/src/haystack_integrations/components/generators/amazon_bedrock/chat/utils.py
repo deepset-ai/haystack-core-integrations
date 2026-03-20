@@ -670,15 +670,16 @@ def _convert_chunks_to_messages(chunks: list[StreamingChunk]) -> list[ChatMessag
 
     # reasoning signatures are ignored in _convert_streaming_chunks_to_chat_message
     # so we need to process them separately
-    for chunk in reversed(chunks):
-        if reply.reasoning and chunk.reasoning and chunk.reasoning.extra and "signature" in chunk.reasoning.extra:
-            reply.reasoning.extra["signature"] = chunk.reasoning.extra["signature"]
-            break
+    if reply.reasoning:
+        for chunk in reversed(chunks):
+            if chunk.reasoning and chunk.reasoning.extra and "signature" in chunk.reasoning.extra:
+                reply.reasoning.extra["signature"] = chunk.reasoning.extra["signature"]
+                break
 
     # the trace are ignored in _convert_streaming_chunks_to_chat_message
     # so we need to process them separately
-    if chunks[-1].meta and "trace" in chunks[-1].meta:
-        reply.meta["trace"] = chunks[-1].meta["trace"]
+    if chunks and (last_chunk := chunks[-1]) and last_chunk.meta and "trace" in last_chunk.meta:
+        reply.meta["trace"] = last_chunk.meta["trace"]
 
     return [reply]
 
