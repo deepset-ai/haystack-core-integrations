@@ -82,7 +82,7 @@ class GitHubFileEditor:
         repo: str | None = None,
         branch: str = "main",
         raise_on_failure: bool = True,
-    ):
+    ) -> None:
         """
         Initialize the component.
 

@@ -39,7 +39,7 @@ class OllamaDocumentEmbedder:
         meta_fields_to_embed: list[str] | None = None,
         embedding_separator: str = "\n",
         batch_size: int = 32,
-    ):
+    ) -> None:
         """
         :param model:
             The name of the model to use. The model should be available in the running Ollama instance.

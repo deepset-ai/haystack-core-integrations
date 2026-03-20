@@ -54,7 +54,7 @@ class DeepEvalEvaluator:
         self,
         metric: str | DeepEvalMetric,
         metric_params: dict[str, Any] | None = None,
-    ):
+    ) -> None:
         """
         Construct a new DeepEval evaluator.
 
@@ -144,7 +144,7 @@ class DeepEvalEvaluator:
     def _invoke_deepeval(test_cases: list[LLMTestCase], metric: BaseMetric) -> EvaluationResult:
         return evaluate(test_cases=test_cases, metrics=[metric])
 
-    def _init_backend(self):
+    def _init_backend(self) -> None:
         """
         Initialize the DeepEval backend.
         """

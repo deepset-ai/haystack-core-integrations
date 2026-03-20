@@ -284,7 +284,7 @@ class OpenSearchHybridRetriever:
 
         return hybrid_retrieval
 
-    def to_dict(self):
+    def to_dict(self) -> dict[str, Any]:
         """
         Serialize OpenSearchHybridRetriever to a dictionary.
 
@@ -327,7 +327,7 @@ class OpenSearchHybridRetriever:
         )
 
     @classmethod
-    def from_dict(cls, data):
+    def from_dict(cls, data: dict[str, Any]) -> "OpenSearchHybridRetriever":
         # deserialize the document store
         doc_store = OpenSearchDocumentStore.from_dict(data["init_parameters"]["document_store"])
         data["init_parameters"]["document_store"] = doc_store

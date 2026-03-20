@@ -42,7 +42,7 @@ class JinaTextEmbedder:
         task: str | None = None,
         dimensions: int | None = None,
         late_chunking: bool | None = None,
-    ):
+    ) -> None:
         """
         Create a JinaTextEmbedder component.
 

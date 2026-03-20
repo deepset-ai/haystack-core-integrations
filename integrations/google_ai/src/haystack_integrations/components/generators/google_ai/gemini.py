@@ -62,7 +62,7 @@ class GoogleAIGeminiGenerator:
     ```
     """
 
-    def __new__(cls, *_, **kwargs):
+    def __new__(cls, *_: Any, **kwargs: Any) -> "GoogleAIGeminiGenerator":
         if "tools" in kwargs:
             msg = (
                 "GoogleAIGeminiGenerator does not support the `tools` parameter. "
@@ -80,7 +80,7 @@ class GoogleAIGeminiGenerator:
         generation_config: Optional[Union[GenerationConfig, dict[str, Any]]] = None,
         safety_settings: Optional[dict[HarmCategory, HarmBlockThreshold]] = None,
         streaming_callback: Optional[Callable[[StreamingChunk], None]] = None,
-    ):
+    ) -> None:
         """
         Initializes a `GoogleAIGeminiGenerator` instance.
 
@@ -185,7 +185,7 @@ class GoogleAIGeminiGenerator:
         self,
         parts: Variadic[Union[str, ByteStream, Part]],
         streaming_callback: Optional[Callable[[StreamingChunk], None]] = None,
-    ):
+    ) -> dict[str, list[str]]:
         """
         Generates text based on the given input parts.
 
