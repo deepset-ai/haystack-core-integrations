@@ -96,7 +96,7 @@ class PgvectorDocumentStore:
         hnsw_index_name: str = "haystack_hnsw_index",
         hnsw_ef_search: int | None = None,
         keyword_index_name: str = "haystack_keyword_index",
-    ):
+    ) -> None:
         """
         Creates a new PgvectorDocumentStore instance.
         It is meant to be connected to a PostgreSQL database with the pgvector extension installed.
@@ -223,7 +223,7 @@ class PgvectorDocumentStore:
         return default_from_dict(cls, data)
 
     @staticmethod
-    def _connection_is_valid(connection):
+    def _connection_is_valid(connection: Connection) -> bool:
         """
         Internal method to check if the connection is still valid.
         """
@@ -238,7 +238,7 @@ class PgvectorDocumentStore:
         return True
 
     @staticmethod
-    async def _connection_is_valid_async(connection):
+    async def _connection_is_valid_async(connection: AsyncConnection) -> bool:
         """
         Internal method to check if the async connection is still valid.
         """
@@ -250,18 +250,18 @@ class PgvectorDocumentStore:
 
     @overload
     def _execute_sql(
-        self, cursor: Cursor, sql_query: Composed, params: tuple | None = None, error_msg: str = ""
+        self, cursor: Cursor, sql_query: SQL | Composed, params: tuple | None = None, error_msg: str = ""
     ) -> Cursor: ...
 
     @overload
     def _execute_sql(
-        self, cursor: Cursor[DictRow], sql_query: Composed, params: tuple | None = None, error_msg: str = ""
+        self, cursor: Cursor[DictRow], sql_query: SQL | Composed, params: tuple | None = None, error_msg: str = ""
     ) -> Cursor[DictRow]: ...
 
     def _execute_sql(
         self,
         cursor: Cursor | Cursor[DictRow],
-        sql_query: Composed,
+        sql_query: SQL | Composed,
         params: tuple | None = None,
         error_msg: str = "",
     ) -> Cursor | Cursor[DictRow]:
@@ -299,18 +299,18 @@ class PgvectorDocumentStore:
 
     @overload
     async def _execute_sql_async(
-        self, cursor: AsyncCursor, sql_query: Composed, params: tuple | None = None, error_msg: str = ""
+        self, cursor: AsyncCursor, sql_query: SQL | Composed, params: tuple | None = None, error_msg: str = ""
     ) -> AsyncCursor: ...
 
     @overload
     async def _execute_sql_async(
-        self, cursor: AsyncCursor[DictRow], sql_query: Composed, params: tuple | None = None, error_msg: str = ""
+        self, cursor: AsyncCursor[DictRow], sql_query: SQL | Composed, params: tuple | None = None, error_msg: str = ""
     ) -> AsyncCursor[DictRow]: ...
 
     async def _execute_sql_async(
         self,
         cursor: AsyncCursor | AsyncCursor[DictRow],
-        sql_query: Composed,
+        sql_query: SQL | Composed,
         params: tuple | None = None,
         error_msg: str = "",
     ) -> AsyncCursor | AsyncCursor[DictRow]:
@@ -346,7 +346,7 @@ class PgvectorDocumentStore:
 
         return result
 
-    def _ensure_db_setup(self):
+    def _ensure_db_setup(self) -> None:
         """
         Ensures that the connection to the PostgreSQL database exists and is valid.
         If not, connection and cursors are created.
@@ -384,7 +384,7 @@ class PgvectorDocumentStore:
         if not self._table_initialized:
             self._initialize_table()
 
-    async def _ensure_db_setup_async(self):
+    async def _ensure_db_setup_async(self) -> None:
         """
         Async internal method.
         Ensures that the connection to the PostgreSQL database exists and is valid.
@@ -426,7 +426,7 @@ class PgvectorDocumentStore:
         if not self._table_initialized:
             await self._initialize_table_async()
 
-    def _build_table_creation_queries(self):
+    def _build_table_creation_queries(self) -> tuple[SQL, Composed, SQL, Composed]:
         """
         Internal method to build the SQL queries for table creation.
         """
@@ -453,7 +453,7 @@ class PgvectorDocumentStore:
 
         return sql_table_exists, sql_create_table, sql_keyword_index_exists, sql_create_keyword_index
 
-    def _initialize_table(self):
+    def _initialize_table(self) -> None:
         """
         Internal method to initialize the table.
         """
@@ -497,7 +497,7 @@ class PgvectorDocumentStore:
 
         self._table_initialized = True
 
-    async def _initialize_table_async(self):
+    async def _initialize_table_async(self) -> None:
         """
         Internal async method to initialize the table.
         """
@@ -547,7 +547,7 @@ class PgvectorDocumentStore:
 
         self._table_initialized = True
 
-    def delete_table(self):
+    def delete_table(self) -> None:
         """
         Deletes the table used to store Haystack documents.
         The name of the schema (`schema_name`) and the name of the table (`table_name`)
@@ -567,7 +567,7 @@ class PgvectorDocumentStore:
             error_msg=f"Could not delete table {self.schema_name}.{self.table_name} in PgvectorDocumentStore",
         )
 
-    async def delete_table_async(self):
+    async def delete_table_async(self) -> None:
         """
         Async method to delete the table used to store Haystack documents.
         """
@@ -585,7 +585,7 @@ class PgvectorDocumentStore:
             error_msg=f"Could not delete table {self.schema_name}.{self.table_name} in PgvectorDocumentStore",
         )
 
-    def _build_hnsw_queries(self):
+    def _build_hnsw_queries(self) -> tuple[Composed | None, SQL, Composed, Composed]:
         """Common method to build all HNSW-related SQL queries"""
 
         sql_set_hnsw_ef_search = (
@@ -633,7 +633,7 @@ class PgvectorDocumentStore:
 
         return sql_set_hnsw_ef_search, sql_hnsw_index_exists, sql_drop_hnsw_index, sql_create_hnsw_index
 
-    def _handle_hnsw(self):
+    def _handle_hnsw(self) -> None:
         """
         Internal method to handle the HNSW index creation.
         It also sets the `hnsw.ef_search` parameter for queries if it is specified.
@@ -645,7 +645,7 @@ class PgvectorDocumentStore:
 
         assert self._cursor is not None
 
-        if self.hnsw_ef_search:
+        if sql_set_hnsw_ef_search is not None:
             self._execute_sql(
                 cursor=self._cursor, sql_query=sql_set_hnsw_ef_search, error_msg="Could not set hnsw.ef_search"
             )
@@ -671,7 +671,7 @@ class PgvectorDocumentStore:
 
         self._execute_sql(cursor=self._cursor, sql_query=sql_create_hnsw_index, error_msg="Could not create HNSW index")
 
-    async def _handle_hnsw_async(self):
+    async def _handle_hnsw_async(self) -> None:
         """
         Internal async method to handle the HNSW index creation.
         """
@@ -682,7 +682,7 @@ class PgvectorDocumentStore:
 
         assert self._async_cursor is not None
 
-        if self.hnsw_ef_search:
+        if sql_set_hnsw_ef_search is not None:
             await self._execute_sql_async(
                 cursor=self._async_cursor, sql_query=sql_set_hnsw_ef_search, error_msg="Could not set hnsw.ef_search"
             )
@@ -1439,7 +1439,7 @@ class PgvectorDocumentStore:
         docs = _from_pg_to_haystack_documents(records)
         return docs
 
-    def _prepare_filters_count_documents(self, filters):
+    def _prepare_filters_count_documents(self, filters: dict[str, Any] | None) -> tuple[tuple[Any, ...], Composed]:
         _validate_filters(filters)
         sql_count = SQL("SELECT COUNT(*) FROM {schema_name}.{table_name}").format(
             schema_name=Identifier(self.schema_name), table_name=Identifier(self.table_name)
@@ -1681,7 +1681,7 @@ class PgvectorDocumentStore:
 
         return fields_info
 
-    def _analyze_metadata_from_docs_query(self):
+    def _analyze_metadata_from_docs_query(self) -> Composed:
         # query all documents to analyze metadata structure
         sql_query = SQL("SELECT meta FROM {schema_name}.{table_name} WHERE meta IS NOT NULL").format(
             schema_name=Identifier(self.schema_name), table_name=Identifier(self.table_name)

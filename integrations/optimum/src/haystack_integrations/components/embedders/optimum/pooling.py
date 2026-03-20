@@ -32,7 +32,7 @@ class OptimumEmbedderPooling(Enum):
     #: Perform Last Token Pooling on the output of the embedding model.
     LAST_TOKEN = "last_token"
 
-    def __str__(self):
+    def __str__(self) -> str:
         return self.value
 
     @classmethod

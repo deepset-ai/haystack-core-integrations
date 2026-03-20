@@ -1,5 +1,22 @@
 # Changelog
 
+## [integrations/meta_llama-v2.2.0] - 2026-03-13
+
+### 🚀 Features
+
+- Add list of supported models for MetaLlamaChatGenerator (#2959)
+
+## [integrations/meta_llama-v2.1.0] - 2026-02-26
+
+### 🚀 Features
+
+- *(meta-llama)* Add timeout and max_retries to chat generator (#2872)
+
+### 📚 Documentation
+
+- Simplify pydoc configs (#2855)
+
+
 ## [integrations/meta_llama-v2.0.0] - 2026-01-12
 
 ### ⚙️ CI

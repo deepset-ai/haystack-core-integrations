@@ -157,7 +157,8 @@ class TestDocumentStore(DocumentStoreBaseExtendedTests):
         document_store.delete_all_documents()
         assert document_store.count_documents() == 0
 
-    def assert_documents_are_equal(self, received: list[Document], expected: list[Document]):
+    @staticmethod
+    def assert_documents_are_equal(received: list[Document], expected: list[Document]):
         """
         Assert that two lists of Documents are equal.
         This is used in every test, if a Document Store implementation has a different behaviour
@@ -174,7 +175,7 @@ class TestDocumentStore(DocumentStoreBaseExtendedTests):
         document_store.write_documents(filterable_docs)
         result = document_store.filter_documents(filters={"field": "meta.number", "operator": "==", "value": None})
         # Astra does not support filtering on None, it returns empty list
-        self.assert_documents_are_equal(result, [])
+        TestDocumentStore.assert_documents_are_equal(result, [])
 
     def test_write_documents(self, document_store: AstraDocumentStore):
         """
@@ -185,9 +186,9 @@ class TestDocumentStore(DocumentStoreBaseExtendedTests):
         doc2 = Document(id="1", content="test doc 2")
 
         assert document_store.write_documents([doc2], policy=DuplicatePolicy.OVERWRITE) == 1
-        self.assert_documents_are_equal(document_store.filter_documents(), [doc2])
+        TestDocumentStore.assert_documents_are_equal(document_store.filter_documents(), [doc2])
         assert document_store.write_documents(documents=[doc1], policy=DuplicatePolicy.OVERWRITE) == 1
-        self.assert_documents_are_equal(document_store.filter_documents(), [doc1])
+        TestDocumentStore.assert_documents_are_equal(document_store.filter_documents(), [doc1])
 
     def test_write_documents_skip_duplicates(self, document_store: AstraDocumentStore):
         docs = [
@@ -264,7 +265,7 @@ class TestDocumentStore(DocumentStoreBaseExtendedTests):
         document_store.write_documents(filterable_docs)
         result = document_store.filter_documents(filters=filter_criteria)
 
-        self.assert_documents_are_equal(
+        TestDocumentStore.assert_documents_are_equal(
             result,
             [
                 d
@@ -278,7 +279,7 @@ class TestDocumentStore(DocumentStoreBaseExtendedTests):
         docs = [Document(id="1", content="test doc 1"), Document(id="2", content="test doc 2")]
         document_store.write_documents(docs)
         result = document_store.filter_documents(filters={"field": "id", "operator": "==", "value": "1"})
-        self.assert_documents_are_equal(result, [docs[0]])
+        TestDocumentStore.assert_documents_are_equal(result, [docs[0]])
 
     def test_filter_documents_by_in_operator(self, document_store):
         docs = [Document(id="3", content="test doc 3"), Document(id="4", content="test doc 4")]
@@ -288,8 +289,8 @@ class TestDocumentStore(DocumentStoreBaseExtendedTests):
         # Sort the result in place by the id field
         result.sort(key=lambda x: x.id)
 
-        self.assert_documents_are_equal([result[0]], [docs[0]])
-        self.assert_documents_are_equal([result[1]], [docs[1]])
+        TestDocumentStore.assert_documents_are_equal([result[0]], [docs[0]])
+        TestDocumentStore.assert_documents_are_equal([result[1]], [docs[1]])
 
     def test_count_documents_by_filter(self, document_store: AstraDocumentStore):
         docs = [

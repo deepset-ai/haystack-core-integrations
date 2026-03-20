@@ -92,7 +92,7 @@ class AnthropicVertexChatGenerator(AnthropicChatGenerator):
         *,
         timeout: float | None = None,
         max_retries: int | None = None,
-    ):
+    ) -> None:
         """
         Creates an instance of AnthropicVertexChatGenerator.
 

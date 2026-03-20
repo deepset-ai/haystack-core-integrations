@@ -117,7 +117,7 @@ class MistralOCRDocumentConverter:
         image_limit: int | None = None,
         image_min_size: int | None = None,
         cleanup_uploaded_files: bool = True,
-    ):
+    ) -> None:
         """
         Creates a MistralOCRDocumentConverter component.
 

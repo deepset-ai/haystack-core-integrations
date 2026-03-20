@@ -2,6 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+from collections.abc import Generator
 from typing import Any
 
 from haystack import default_from_dict, default_to_dict, logging
@@ -20,7 +21,7 @@ logger = logging.getLogger(__name__)
 MAX_BATCH_SIZE = 20
 
 
-def _batches(input_list, batch_size):
+def _batches(input_list: list[Any], batch_size: int) -> Generator[list[Any], None, None]:
     input_length = len(input_list)
     for ndx in range(0, input_length, batch_size):
         yield input_list[ndx : min(ndx + batch_size, input_length)]
@@ -53,7 +54,7 @@ class AstraDocumentStore:
         duplicates_policy: DuplicatePolicy = DuplicatePolicy.NONE,
         similarity: str = "cosine",
         namespace: str | None = None,
-    ):
+    ) -> None:
         """
         The connection to Astra DB is established and managed through the JSON API.
         The required credentials (api endpoint and application token) can be generated
@@ -304,13 +305,13 @@ class AstraDocumentStore:
                 for item in value:
                     if isinstance(item, bool):
                         inferred_types.add("boolean")
-                    elif isinstance(item, (int, float)):
+                    elif isinstance(item, int | float):
                         inferred_types.add("long")
                     elif isinstance(item, str):
                         inferred_types.add("keyword")
             elif isinstance(value, bool):
                 inferred_types.add("boolean")
-            elif isinstance(value, (int, float)):
+            elif isinstance(value, int | float):
                 inferred_types.add("long")
             elif isinstance(value, str):
                 inferred_types.add("keyword")
@@ -601,7 +602,7 @@ class AstraDocumentStore:
         :returns: A dictionary with `min` and `max`.
         """
         distinct_values = self.index.distinct(f"meta.{metadata_field}")
-        comparable_values = [value for value in distinct_values if isinstance(value, (str, int, float, bool))]
+        comparable_values = [value for value in distinct_values if isinstance(value, str | int | float | bool)]
         if not comparable_values:
             return {"min": None, "max": None}
 

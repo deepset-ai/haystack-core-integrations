@@ -94,6 +94,7 @@ line-length = 120
 [tool.ruff.lint]
 select = [
     "A",
+    "ANN",
     "ARG",
     "B",
     "C",
@@ -131,6 +132,8 @@ ignore = [
     "PLR0912",
     "PLR0913",
     "PLR0915",
+  # Allow `Any` - used legitimately for dynamic types and SDK boundaries
+  "ANN401",
 ]
 
 [tool.ruff.lint.flake8-tidy-imports]
@@ -138,7 +141,7 @@ ban-relative-imports = "parents"
 
 [tool.ruff.lint.per-file-ignores]
 # Tests can use magic values, assertions, and relative imports
-"tests/**/*" = ["PLR2004", "S101", "TID252"]
+"tests/**/*" = ["PLR2004", "S101", "TID252", "ANN"]
 # Examples can print their output
 "examples/**" = ["T201"]
 "tests/**" = ["T201"]

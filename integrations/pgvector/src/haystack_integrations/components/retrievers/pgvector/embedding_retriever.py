@@ -66,7 +66,7 @@ class PgvectorEmbeddingRetriever:
         top_k: int = 10,
         vector_function: Literal["cosine_similarity", "inner_product", "l2_distance"] | None = None,
         filter_policy: str | FilterPolicy = FilterPolicy.REPLACE,
-    ):
+    ) -> None:
         """
         :param document_store: An instance of `PgvectorDocumentStore`.
         :param filters: Filters applied to the retrieved Documents.

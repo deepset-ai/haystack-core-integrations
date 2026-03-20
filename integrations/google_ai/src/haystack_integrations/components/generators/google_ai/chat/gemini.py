@@ -151,7 +151,7 @@ class GoogleAIGeminiChatGenerator:
         tools: Optional[list[Tool]] = None,
         tool_config: Optional[content_types.ToolConfigDict] = None,
         streaming_callback: Optional[StreamingCallbackT] = None,
-    ):
+    ) -> None:
         """
         Initializes a `GoogleAIGeminiChatGenerator` instance.
 
@@ -262,7 +262,7 @@ class GoogleAIGeminiChatGenerator:
         streaming_callback: Optional[StreamingCallbackT] = None,
         *,
         tools: Optional[list[Tool]] = None,
-    ):
+    ) -> dict[str, list[ChatMessage]]:
         """
         Generates text based on the provided messages.
 
@@ -315,7 +315,7 @@ class GoogleAIGeminiChatGenerator:
         streaming_callback: Optional[StreamingCallbackT] = None,
         *,
         tools: Optional[list[Tool]] = None,
-    ):
+    ) -> dict[str, list[ChatMessage]]:
         """
         Async version of the run method. Generates text based on the provided messages.
 

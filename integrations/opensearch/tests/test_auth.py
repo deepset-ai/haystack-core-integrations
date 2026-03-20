@@ -254,7 +254,7 @@ class TestDocumentStoreWithAuth:
         document_store._ensure_initialized()
         assert document_store._client
         _mock_opensearch_client.assert_called_once()
-        assert _mock_opensearch_client.call_args[1]["http_auth"] == ["user", "pw"]
+        assert _mock_opensearch_client.call_args[1]["http_auth"] == ("user", "pw")
 
     @patch("haystack_integrations.document_stores.opensearch.document_store.OpenSearch")
     def test_ds_from_dict_aws_auth(self, _mock_opensearch_client, monkeypatch: pytest.MonkeyPatch):
@@ -304,7 +304,7 @@ class TestDocumentStoreWithAuth:
                 "settings": {"index.knn": True},
                 "return_embedding": False,
                 "create_index": True,
-                "http_auth": ("user", "pw"),
+                "http_auth": None,
                 "use_ssl": None,
                 "verify_certs": None,
                 "timeout": None,

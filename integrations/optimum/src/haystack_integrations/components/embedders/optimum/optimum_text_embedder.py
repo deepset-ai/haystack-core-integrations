@@ -48,7 +48,7 @@ class OptimumTextEmbedder:
         working_dir: str | None = None,
         optimizer_settings: OptimumEmbedderOptimizationConfig | None = None,
         quantizer_settings: OptimumEmbedderQuantizationConfig | None = None,
-    ):
+    ) -> None:
         """
         Create a OptimumTextEmbedder component.
 
@@ -121,7 +121,7 @@ class OptimumTextEmbedder:
         self._backend = _EmbedderBackend(params)
         self._initialized = False
 
-    def warm_up(self):
+    def warm_up(self) -> None:
         """
         Initializes the component.
         """

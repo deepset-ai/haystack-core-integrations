@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: 2023-present deepset GmbH <info@deepset.ai>
 #
 # SPDX-License-Identifier: Apache-2.0
-from typing import Any
+from typing import Any, ClassVar
 
 from haystack import component, default_to_dict
 from haystack.components.embedders import OpenAIDocumentEmbedder
@@ -30,6 +30,14 @@ class STACKITDocumentEmbedder(OpenAIDocumentEmbedder):
     ```
     """
 
+    SUPPORTED_MODELS: ClassVar[list[str]] = [
+        "intfloat/e5-mistral-7b-instruct",
+        "Qwen/Qwen3-VL-Embedding-8B",
+    ]
+    """A non-exhaustive list of embedding models supported by this component.
+    See https://docs.stackit.cloud/products/data-and-ai/ai-model-serving/basics/available-shared-models
+    for the full list."""
+
     def __init__(
         self,
         model: str,
@@ -45,7 +53,7 @@ class STACKITDocumentEmbedder(OpenAIDocumentEmbedder):
         timeout: float | None = None,
         max_retries: int | None = None,
         http_client_kwargs: dict[str, Any] | None = None,
-    ):
+    ) -> None:
         """
         Creates a STACKITDocumentEmbedder component.
 

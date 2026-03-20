@@ -39,7 +39,7 @@ class AstraEmbeddingRetriever:
         filters: dict[str, Any] | None = None,
         top_k: int = 10,
         filter_policy: str | FilterPolicy = FilterPolicy.REPLACE,
-    ):
+    ) -> None:
         """
         :param document_store: An instance of AstraDocumentStore.
         :param filters: a dictionary with filters to narrow down the search space.

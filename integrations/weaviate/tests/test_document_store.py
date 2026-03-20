@@ -464,29 +464,32 @@ class TestWeaviateDocumentStore(DocumentStoreBaseExtendedTests):
             ],
         )
 
-    def test_meta_split_overlap_is_skipped(self, document_store):
+    def test_split_overlap_preserved(self, document_store):
+        """Split overlap meta is written and read back correctly."""
+        overlap = [
+            {"range": [3.0, 13.0], "doc_id": "34326b7e6be489cb4c031152fc378cb50479ca5fcc3861e7e61dfb2e4e4e968b"},
+            {"range": [0.0, 13.0], "doc_id": "780f791c09d499c0bf01f87bce047b45c44224d36c79f0c9d8c1405a3197fc1a"},
+        ]
         doc = Document(
-            content="The moonlight shimmered ",
+            id="6edd24e8b01f3cd6e4b71fef7d57b52f17664e14db5ab01b8ef429f97add3620",
+            content="an eighth test. ",
             meta={
-                "source_id": "62049ba1d1e1d5ebb1f6230b0b00c5356b8706c56e0b9c36b1dfc86084cd75f0",
-                "page_number": 1,
-                "split_id": 0,
-                "split_idx_start": 0,
-                "_split_overlap": [
-                    {"doc_id": "68ed48ba830048c5d7815874ed2de794722e6d10866b6c55349a914fd9a0df65", "range": (0, 20)}
-                ],
+                "_split_overlap": overlap,
+                "page_number": 1.0,
+                "split_id": 33.0,
+                "split_idx_start": 159.0,
+                "source_id": "fdbde6d217f04d3dd60c01f36541794f3153a61f13b4ca669655f4c5610c1664",
             },
         )
         document_store.write_documents([doc])
-
         written_doc = document_store.filter_documents()[0]
-
-        assert written_doc.content == "The moonlight shimmered "
-        assert written_doc.meta["source_id"] == "62049ba1d1e1d5ebb1f6230b0b00c5356b8706c56e0b9c36b1dfc86084cd75f0"
-        assert written_doc.meta["page_number"] == 1.0
-        assert written_doc.meta["split_id"] == 0.0
-        assert written_doc.meta["split_idx_start"] == 0.0
-        assert "_split_overlap" not in written_doc.meta
+        assert "_split_overlap" in written_doc.meta
+        written_overlap = written_doc.meta["_split_overlap"]
+        assert len(written_overlap) == 2
+        assert written_overlap[0]["doc_id"] == overlap[0]["doc_id"]
+        assert list(written_overlap[0]["range"]) == [3, 13]
+        assert written_overlap[1]["doc_id"] == overlap[1]["doc_id"]
+        assert list(written_overlap[1]["range"]) == [0, 13]
 
     def test_bm25_retrieval(self, document_store):
         document_store.write_documents(

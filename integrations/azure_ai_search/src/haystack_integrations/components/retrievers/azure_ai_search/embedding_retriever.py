@@ -25,7 +25,7 @@ class AzureAISearchEmbeddingRetriever:
         top_k: int = 10,
         filter_policy: str | FilterPolicy = FilterPolicy.REPLACE,
         **kwargs: Any,
-    ):
+    ) -> None:
         """
         Create the AzureAISearchEmbeddingRetriever component.
 

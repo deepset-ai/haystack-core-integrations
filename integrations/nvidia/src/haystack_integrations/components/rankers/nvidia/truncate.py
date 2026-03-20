@@ -15,7 +15,7 @@ class RankerTruncateMode(str, Enum):
     NONE = "NONE"
     END = "END"
 
-    def __str__(self):
+    def __str__(self) -> str:
         return self.value
 
     @classmethod

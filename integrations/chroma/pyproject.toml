@@ -23,7 +23,7 @@ classifiers = [
   "Programming Language :: Python :: Implementation :: PyPy",
 ]
 dependencies = [
-  "haystack-ai>=2.24.0",
+  "haystack-ai>=2.26.0",
   "chromadb>=1.5.0"
 ]
 
@@ -83,6 +83,7 @@ line-length = 120
 [tool.ruff.lint]
 select = [
   "A",
+  "ANN",
   "ARG",
   "B",
   "C",
@@ -111,6 +112,8 @@ select = [
 ignore = [
   # Allow non-abstract empty methods in abstract base classes
   "B027",
+  # Allow `Any` - used legitimately for **kwargs and dynamic metadata values
+  "ANN401",
   # Allow boolean positional values in function calls, like `dict.get(... True)`
   "FBT003",
   # Ignore checks for possible passwords
@@ -138,7 +141,7 @@ ban-relative-imports = "parents"
 
 [tool.ruff.lint.per-file-ignores]
 # Tests can use magic values, assertions, and relative imports
-"tests/**/*" = ["PLR2004", "S101", "TID252"]
+"tests/**/*" = ["PLR2004", "S101", "TID252", "ANN"]
 "example/**/*" = ["T201"]
 
 [tool.coverage.run]

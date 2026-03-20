@@ -51,7 +51,7 @@ class ArcadeDBEmbeddingRetriever:
         filters: dict[str, Any] | None = None,
         top_k: int = 10,
         filter_policy: FilterPolicy = FilterPolicy.REPLACE,
-    ):
+    ) -> None:
         """
         Create an ArcadeDBEmbeddingRetriever.
 
