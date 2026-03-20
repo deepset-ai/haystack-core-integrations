@@ -34,7 +34,7 @@ jobs:
       max-parallel: 3
       matrix:
         os: [ubuntu-latest, windows-latest]  # the tests are slow and we can't run many of them in parallel, so we skip testing on macOS
-        python-version: ["3.10", "3.13"]
+        python-version: ["3.10", "3.14"]
 
     steps:
       - uses: actions/checkout@v6
