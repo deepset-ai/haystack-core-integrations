@@ -31,7 +31,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest] # we run OpenSearch using Docker, which is not available on MacOS and Windows GitHub Runners
-        python-version: ["3.10", "3.13"]
+        python-version: ["3.10", "3.14"]
 
     steps:
       - uses: actions/checkout@v6
