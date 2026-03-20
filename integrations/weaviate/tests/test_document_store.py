@@ -14,13 +14,13 @@ from haystack.dataclasses.byte_stream import ByteStream
 from haystack.dataclasses.document import Document
 from haystack.document_stores.errors import DocumentStoreError
 from haystack.testing.document_store import (
-    DocumentStoreBaseExtendedTests,
-    create_filterable_docs,
     CountDocumentsByFilterTest,
     CountUniqueMetadataByFilterTest,
-    GetMetadataFieldsInfoTest,
+    DocumentStoreBaseExtendedTests,
     GetMetadataFieldMinMaxTest,
+    GetMetadataFieldsInfoTest,
     GetMetadataFieldUniqueValuesTest,
+    create_filterable_docs,
 )
 from haystack.utils.auth import Secret
 from numpy import array as np_array
@@ -947,20 +947,6 @@ class TestWeaviateDocumentStore(
                 metadata_fields=["nonexistent_field"],
             )
 
-    def test_get_metadata_field_unique_values(self, document_store):
-        docs = [
-            Document(content="Doc 1", meta={"category": "TypeA"}),
-            Document(content="Doc 2", meta={"category": "TypeB"}),
-            Document(content="Doc 3", meta={"category": "TypeA"}),
-            Document(content="Doc 4", meta={"category": "TypeC"}),
-            Document(content="Doc 5", meta={"category": "TypeB"}),
-        ]
-        document_store.write_documents(docs)
-
-        values, total_count = document_store.get_metadata_field_unique_values("category")
-        assert total_count == 3
-        assert set(values) == {"TypeA", "TypeB", "TypeC"}
-
     def test_get_metadata_field_unique_values_with_meta_prefix(self, document_store):
         docs = [
             Document(content="Doc 1", meta={"category": "TypeA"}),
@@ -1114,8 +1100,8 @@ class TestWeaviateDocumentStore(
         # "number" which IS declared in the fixture's collection_settings.
         assert document_store.count_documents() == 0
         result = document_store.get_metadata_field_min_max("number")
-        assert result["min"] is 0
-        assert result["max"] is 0
+        assert result["min"] == 0
+        assert result["max"] == 0
 
     @staticmethod
     def test_get_metadata_fields_info_empty_collection(document_store):
