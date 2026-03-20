@@ -303,7 +303,11 @@ def _format_reasoning_content(reasoning_content: ReasoningContent) -> dict[str, 
         "reasoningContent": {
             "reasoningText": {
                 "text": reasoning_content.reasoning_text,
-                **({"signature": reasoning_content.extra["signature"]} if reasoning_content.extra.get("signature") else {}),
+                **(
+                    {"signature": reasoning_content.extra["signature"]}
+                    if reasoning_content.extra.get("signature")
+                    else {}
+                ),
             }
         }
     }
