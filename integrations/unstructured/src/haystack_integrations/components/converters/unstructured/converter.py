@@ -115,6 +115,7 @@ class UnstructuredFileConverter:
     def from_dict(cls, data: dict[str, Any]) -> "UnstructuredFileConverter":
         """
         Deserializes the component from a dictionary.
+
         :param data:
             Dictionary to deserialize from.
         :returns:

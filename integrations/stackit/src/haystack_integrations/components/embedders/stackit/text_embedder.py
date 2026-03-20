@@ -86,6 +86,7 @@ class STACKITTextEmbedder(OpenAITextEmbedder):
     def to_dict(self) -> dict[str, Any]:
         """
         Serializes the component to a dictionary.
+
         :returns:
             Dictionary with serialized data.
         """

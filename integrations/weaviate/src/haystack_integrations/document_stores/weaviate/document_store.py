@@ -70,8 +70,7 @@ DEFAULT_QUERY_LIMIT = 9999
 
 class WeaviateDocumentStore:
     """
-    A WeaviateDocumentStore instance you
-    can use with Weaviate Cloud Services or self-hosted instances.
+    A WeaviateDocumentStore instance you can use with Weaviate Cloud Services or self-hosted instances.
 
     Usage example with Weaviate Cloud Services:
     ```python
@@ -185,6 +184,7 @@ class WeaviateDocumentStore:
 
     @property
     def client(self) -> weaviate.WeaviateClient:
+        """Return the synchronous Weaviate client, creating and connecting it if necessary."""
         if self._client:
             return self._client
 
@@ -229,6 +229,7 @@ class WeaviateDocumentStore:
 
     @property
     async def async_client(self) -> weaviate.WeaviateAsyncClient:
+        """Return the asynchronous Weaviate client, creating and connecting it if necessary."""
         if self._async_client:
             return self._async_client
 
@@ -273,6 +274,7 @@ class WeaviateDocumentStore:
 
     @property
     def collection(self) -> Collection[dict[str, Any], None]:
+        """Return the synchronous Weaviate collection, initializing it via the client if necessary."""
         if self._collection:
             return self._collection
 
@@ -282,6 +284,7 @@ class WeaviateDocumentStore:
 
     @property
     async def async_collection(self) -> CollectionAsync[dict[str, Any], None]:
+        """Return the asynchronous Weaviate collection, initializing it via the async client if necessary."""
         if self._async_collection:
             return self._async_collection
 
@@ -934,6 +937,7 @@ class WeaviateDocumentStore:
     def _batch_write(self, documents: list[Document]) -> int:
         """
         Writes document to Weaviate in batches.
+
         Documents with the same id will be overwritten.
         Raises in case of errors.
         """
@@ -960,6 +964,7 @@ class WeaviateDocumentStore:
     async def _batch_write_async(self, documents: list[Document]) -> int:
         """
         Asynchronously writes document to Weaviate in batches.
+
         Documents with the same id will be overwritten.
         Raises in case of errors.
         """
@@ -988,6 +993,7 @@ class WeaviateDocumentStore:
     def _write(self, documents: list[Document], policy: DuplicatePolicy) -> int:
         """
         Writes documents to Weaviate using the specified policy.
+
         This doesn't use the batch API, so it's slower than _batch_write.
         If policy is set to SKIP it will skip any document that already exists.
         If policy is set to FAIL it will raise an exception if any of the documents already exists.
@@ -1022,6 +1028,7 @@ class WeaviateDocumentStore:
     async def _write_async(self, documents: list[Document], policy: DuplicatePolicy) -> int:
         """
         Asynchronously writes documents to Weaviate using the specified policy.
+
         This doesn't use the batch API, so it's slower than _batch_write.
         If policy is set to SKIP it will skip any document that already exists.
         If policy is set to FAIL it will raise an exception if any of the documents already exists.
@@ -1059,6 +1066,7 @@ class WeaviateDocumentStore:
     def write_documents(self, documents: list[Document], policy: DuplicatePolicy = DuplicatePolicy.NONE) -> int:
         """
         Writes documents to Weaviate using the specified policy.
+
         We recommend using a OVERWRITE policy as it's faster than other policies for Weaviate since it uses
         the batch API.
         We can't use the batch API for other policies as it doesn't return any information whether the document
@@ -1090,12 +1098,12 @@ class WeaviateDocumentStore:
     ) -> int:
         """
         Asynchronously writes documents to Weaviate using the specified policy.
+
         We recommend using a OVERWRITE policy as it's faster than other policies for Weaviate since it uses
         the batch API.
         We can't use the batch API for other policies as it doesn't return any information whether the document
         already exists or not. That prevents us from returning errors when using the FAIL policy or skipping a
         Document when using the SKIP policy.
-
 
         :param documents:
             A list of documents to write into the document store.
