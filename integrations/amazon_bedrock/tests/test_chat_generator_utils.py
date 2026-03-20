@@ -1237,18 +1237,7 @@ class TestAmazonBedrockChatGeneratorUtils:
                     "that takes a city parameter. Paris is clearly specified as the city, so I have all the required "
                     "parameters to make the function call.",
                     extra={
-                        "reasoning_contents": [
-                            {
-                                "reasoning_content": {
-                                    "reasoning_text": {
-                                        "text": "The user is asking about the weather in Paris. I have access to a "
-                                        "weather function that takes a city parameter. Paris is clearly specified "
-                                        "as the city, so I have all the required parameters to make the function call.",
-                                        "signature": "...",
-                                    }
-                                }
-                            }
-                        ]
+                        "signature": "...",
                     },
                 ),
                 meta={
@@ -1340,15 +1329,7 @@ class TestAmazonBedrockChatGeneratorUtils:
                 "Just let me know which city you'd like to check the weather for.",
                 reasoning=ReasoningContent(
                     reasoning_text="[REDACTED]",
-                    extra={
-                        "reasoning_contents": [
-                            {
-                                "reasoning_content": {
-                                    "redacted_content": b"Some encrypted byte string",
-                                }
-                            }
-                        ]
-                    },
+                    extra={},
                 ),
                 meta={
                     "model": model,

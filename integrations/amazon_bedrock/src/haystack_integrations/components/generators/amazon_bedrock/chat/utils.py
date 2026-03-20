@@ -583,15 +583,20 @@ def _convert_event_to_streaming_chunk(
         # This is for accumulating reasoning content deltas
         elif "reasoningContent" in delta:
             reasoning_content = delta["reasoningContent"]
-            if "redactedContent" in reasoning_content:
+            if "text" in reasoning_content:
+                reasoning_text = reasoning_content.pop("text", "")
+            elif "redactedContent" in reasoning_content:
+                # redactedContent was only used for Claude 3.7 which is marked as legacy
                 reasoning_content["redacted_content"] = reasoning_content.pop("redactedContent")
-            reasoning_text = reasoning_content.get("text", "")
+                reasoning_text = "[REDACTED]"
+            elif "signature" in reasoning_content:
+                reasoning_text = ""
             streaming_chunk = StreamingChunk(
                 content="",
                 index=block_idx,
                 reasoning=ReasoningContent(
                     reasoning_text=reasoning_text,
-                    extra={"reasoning_contents": [{"index": block_idx, "reasoning_content": reasoning_content}]},
+                    extra=reasoning_content,
                 ),
                 meta=base_meta,
             )
@@ -630,86 +635,6 @@ def _convert_event_to_streaming_chunk(
     return streaming_chunk
 
 
-def _process_reasoning_contents(chunks: list[StreamingChunk]) -> ReasoningContent | None:
-    """
-    Process reasoning contents from a list of StreamingChunk objects into the Bedrock expected format.
-
-    :param chunks: List of StreamingChunk objects potentially containing reasoning contents.
-
-    :returns: List of Bedrock formatted reasoning content dictionaries
-    """
-    formatted_reasoning_contents = []
-    current_index = None
-    reasoning_text = ""
-    reasoning_signature = None
-    redacted_content = None
-    for chunk in chunks:
-        if chunk.reasoning and chunk.reasoning.extra:
-            reasoning_contents = chunk.reasoning.extra.get("reasoning_contents", [])
-        else:
-            reasoning_contents = []
-
-        for reasoning_content in reasoning_contents:
-            content_block_index = reasoning_content["index"]
-
-            # Start new group when index changes
-            if current_index is not None and content_block_index != current_index:
-                # Finalize current group
-                if reasoning_text:
-                    formatted_reasoning_contents.append(
-                        {
-                            "reasoning_content": {
-                                "reasoning_text": {"text": reasoning_text, "signature": reasoning_signature},
-                            }
-                        }
-                    )
-                if redacted_content:
-                    formatted_reasoning_contents.append({"reasoning_content": {"redacted_content": redacted_content}})
-
-                # Reset accumulators for new group
-                reasoning_text = ""
-                reasoning_signature = None
-                redacted_content = None
-
-            # Accumulate content for current index
-            current_index = content_block_index
-            reasoning_text += reasoning_content["reasoning_content"].get("text", "")
-            if "redacted_content" in reasoning_content["reasoning_content"]:
-                redacted_content = reasoning_content["reasoning_content"]["redacted_content"]
-            if "signature" in reasoning_content["reasoning_content"]:
-                reasoning_signature = reasoning_content["reasoning_content"]["signature"]
-
-    # Finalize the last group
-    if current_index is not None:
-        if reasoning_text:
-            formatted_reasoning_contents.append(
-                {
-                    "reasoning_content": {
-                        "reasoning_text": {"text": reasoning_text, "signature": reasoning_signature},
-                    }
-                }
-            )
-        if redacted_content:
-            formatted_reasoning_contents.append({"reasoning_content": {"redacted_content": redacted_content}})
-
-    # Combine all reasoning texts into a single string for the main reasoning_text field
-    final_reasoning_text = ""
-    for content in formatted_reasoning_contents:
-        if "reasoning_text" in content["reasoning_content"]:
-            # mypy somehow thinks that content["reasoning_content"]["reasoning_text"]["text"] can be of type None
-            final_reasoning_text += content["reasoning_content"]["reasoning_text"]["text"]  # type: ignore[operator]
-        elif "redacted_content" in content["reasoning_content"]:
-            final_reasoning_text += "[REDACTED]"
-
-    return (
-        ReasoningContent(
-            reasoning_text=final_reasoning_text, extra={"reasoning_contents": formatted_reasoning_contents}
-        )
-        if formatted_reasoning_contents
-        else None
-    )
-
-
 def _parse_streaming_response(
     response_stream: EventStream,
     streaming_callback: SyncStreamingCallbackT,
@@ -736,21 +661,24 @@ def _parse_streaming_response(
         streaming_callback(streaming_chunk)
         chunks.append(streaming_chunk)
 
+    replies = _convert_chunks_to_messages(chunks)
+    return replies
+
+
+def _convert_chunks_to_messages(chunks: list[StreamingChunk]) -> list[ChatMessage]:
     reply = _convert_streaming_chunks_to_chat_message(chunks=chunks)
 
-    # both the reasoning content and the trace are ignored in _convert_streaming_chunks_to_chat_message
+    # reasoning signatures are ignored in _convert_streaming_chunks_to_chat_message
     # so we need to process them separately
-    reasoning_content = _process_reasoning_contents(chunks=chunks)
+    for chunk in reversed(chunks):
+        if chunk.reasoning and chunk.reasoning.extra and "signature" in chunk.reasoning.extra:
+            reply.reasoning.extra["signature"] = chunk.reasoning.extra["signature"]
+            break
+
+    # the trace are ignored in _convert_streaming_chunks_to_chat_message
+    # so we need to process them separately
     if chunks[-1].meta and "trace" in chunks[-1].meta:
         reply.meta["trace"] = chunks[-1].meta["trace"]
-
-    reply = ChatMessage.from_assistant(
-        text=reply.text,
-        meta=reply.meta,
-        name=reply.name,
-        tool_calls=reply.tool_calls,
-        reasoning=reasoning_content,
-    )
 
     return [reply]
 
@@ -780,16 +708,10 @@ async def _parse_streaming_response_async(
             content_block_idxs.add(content_block_idx)
         await streaming_callback(streaming_chunk)
         chunks.append(streaming_chunk)
-    reply = _convert_streaming_chunks_to_chat_message(chunks=chunks)
-    reasoning_content = _process_reasoning_contents(chunks=chunks)
-    reply = ChatMessage.from_assistant(
-        text=reply.text,
-        meta=reply.meta,
-        name=reply.name,
-        tool_calls=reply.tool_calls,
-        reasoning=reasoning_content,
-    )
-    return [reply]
+
+    replies = _convert_chunks_to_messages(chunks)
+
+    return replies
 
 
 def _validate_guardrail_config(guardrail_config: dict[str, str] | None = None, streaming: bool = False) -> None:
