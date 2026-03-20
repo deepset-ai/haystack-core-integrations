@@ -64,15 +64,15 @@ To fix type issues, avoid `type: ignore`, casts, or assertions when possible. If
 ### Format and lint
 hatch run fmt
 
-## Changelogs
-
-Changelogs are auto-generated per integration and not meant to be edited manually.
-
 ## Versioning
 
 Each integration is versioned independently via git tags with the pattern `integrations/<name>-v<version>` (e.g. `integrations/anthropic-v5.7.0`).
 
 Only maintainers can release new versions of integrations, following the instructions in the general `README.md`.
+
+## Changelogs
+
+Changelogs are auto-generated per integration and not meant to be edited manually.
 
 ## Creating a New Integration
 
