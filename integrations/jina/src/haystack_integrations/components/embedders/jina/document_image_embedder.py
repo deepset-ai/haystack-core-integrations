@@ -62,7 +62,7 @@ class JinaDocumentImageEmbedder:
         embedding_dimension: int | None = None,
         image_size: tuple[int, int] | None = None,
         batch_size: int = 5,
-    ):
+    ) -> None:
         """
         Create a JinaDocumentImageEmbedder component.
 

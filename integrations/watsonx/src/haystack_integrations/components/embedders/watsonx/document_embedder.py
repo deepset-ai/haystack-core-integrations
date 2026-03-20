@@ -59,7 +59,7 @@ class WatsonxDocumentEmbedder:
         max_retries: int | None = None,
         meta_fields_to_embed: list[str] | None = None,
         embedding_separator: str = "\n",
-    ):
+    ) -> None:
         """
         Creates a WatsonxDocumentEmbedder component.
 

@@ -106,7 +106,7 @@ class OllamaGenerator:
         timeout: int = 120,
         keep_alive: float | str | None = None,
         streaming_callback: Callable[[StreamingChunk], None] | None = None,
-    ):
+    ) -> None:
         """
         :param model:
             The name of the model to use. The model should be available in the running Ollama instance.

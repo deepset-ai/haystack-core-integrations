@@ -74,7 +74,7 @@ class MetaLlamaChatGenerator(OpenAIChatGenerator):
         timeout: float | None = None,
         max_retries: int | None = None,
         tools: ToolsType | None = None,
-    ):
+    ) -> None:
         """
         Creates an instance of LlamaChatGenerator. Unless specified otherwise in the `model`, this is for Llama's
         `Llama-4-Scout-17B-16E-Instruct-FP8` model.

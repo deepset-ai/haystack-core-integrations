@@ -232,7 +232,7 @@ class MCPToolset(Toolset):
         inputs_from_state: dict[str, dict[str, str]] | None = None,
         outputs_to_state: dict[str, dict[str, dict[str, Any]]] | None = None,
         outputs_to_string: dict[str, dict[str, Any]] | None = None,
-    ):
+    ) -> None:
         """
         Initialize the MCP toolset.
 
@@ -531,7 +531,7 @@ class MCPToolset(Toolset):
             outputs_to_string=outputs_to_string if outputs_to_string else None,
         )
 
-    def close(self):
+    def close(self) -> None:
         """Close the underlying MCP client safely."""
         if hasattr(self, "_worker") and self._worker:
             try:
@@ -539,5 +539,5 @@ class MCPToolset(Toolset):
             except Exception as e:
                 logger.debug(f"TOOLSET: error during worker stop: {e!s}")
 
-    def __del__(self):
+    def __del__(self) -> None:
         self.close()
