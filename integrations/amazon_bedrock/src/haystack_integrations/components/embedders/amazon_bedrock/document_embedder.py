@@ -22,6 +22,7 @@ logger = logging.getLogger(__name__)
 class AmazonBedrockDocumentEmbedder:
     """
     A component for computing Document embeddings using Amazon Bedrock.
+
     The embedding of each Document is stored in the `embedding` field of the Document.
 
     Usage example:
@@ -66,8 +67,9 @@ class AmazonBedrockDocumentEmbedder:
         **kwargs: Any,
     ) -> None:
         """
-        Initializes the AmazonBedrockDocumentEmbedder with the provided parameters. The parameters are passed to the
-        Amazon Bedrock client.
+        Initializes the AmazonBedrockDocumentEmbedder with the provided parameters.
+
+        The parameters are passed to the Amazon Bedrock client.
 
         Note that the AWS credentials are not required if the AWS environment is configured correctly. These are loaded
         automatically from the environment or the AWS configuration file and do not need to be provided explicitly via
@@ -154,6 +156,7 @@ class AmazonBedrockDocumentEmbedder:
     def _embed_cohere(self, documents: list[Document]) -> list[Document]:
         """
         Internal method to embed Documents using Cohere models.
+
         Batch inference is supported.
         """
 
@@ -196,6 +199,7 @@ class AmazonBedrockDocumentEmbedder:
     def _embed_titan(self, documents: list[Document]) -> list[Document]:
         """
         Internal method to embed Documents using Amazon Titan models.
+
         NOTE: Batch inference is not supported, so embeddings are created one by one.
         """
 
@@ -224,7 +228,8 @@ class AmazonBedrockDocumentEmbedder:
 
     @component.output_types(documents=list[Document])
     def run(self, documents: list[Document]) -> dict[str, list[Document]]:
-        """Embed the provided `Document`s using the specified model.
+        """
+        Embed the provided `Document`s using the specified model.
 
         :param documents: The `Document`s to embed.
         :returns: A dictionary with the following keys:

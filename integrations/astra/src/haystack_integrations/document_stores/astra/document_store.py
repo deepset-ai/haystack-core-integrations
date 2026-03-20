@@ -57,6 +57,7 @@ class AstraDocumentStore:
     ) -> None:
         """
         The connection to Astra DB is established and managed through the JSON API.
+
         The required credentials (api endpoint and application token) can be generated
         through the UI by clicking and the connect tab, and then selecting JSON API and
         Generate Configuration.
@@ -105,6 +106,7 @@ class AstraDocumentStore:
 
     @property
     def index(self) -> AstraClient:
+        """Return the AstraClient index, initializing it if necessary."""
         if self._index is None:
             self._index = AstraClient(
                 self.resolved_api_endpoint,
@@ -552,8 +554,7 @@ class AstraDocumentStore:
 
     def count_unique_metadata_by_filter(self, filters: dict[str, Any], metadata_fields: list[str]) -> dict[str, int]:
         """
-        Applies a filter selecting documents and counts the unique values for each meta field of the matched
-        documents.
+        Applies a filter selecting documents and counts the unique values for each meta field of the matched documents.
 
         :param filters: The filters to apply to the document list.
         :param metadata_fields: The metadata fields to count unique values for.
