@@ -291,16 +291,7 @@ class TestAmazonBedrockChatGeneratorUtils:
             reasoning=ReasoningContent(
                 reasoning_text="This is the reasoning behind the message.",
                 extra={
-                    "reasoning_contents": [
-                        {
-                            "reasoning_content": {
-                                "reasoning_text": {
-                                    "text": "This is the reasoning behind the message.",
-                                    "signature": "reasoning_signature",
-                                }
-                            }
-                        }
-                    ]
+                    "signature": "reasoning_signature",
                 },
             ),
         )
@@ -326,16 +317,7 @@ class TestAmazonBedrockChatGeneratorUtils:
             reasoning=ReasoningContent(
                 reasoning_text="This is the reasoning behind the tool call.",
                 extra={
-                    "reasoning_contents": [
-                        {
-                            "reasoning_content": {
-                                "reasoning_text": {
-                                    "text": "This is the reasoning behind the tool call.",
-                                    "signature": "reasoning_signature",
-                                }
-                            }
-                        }
-                    ]
+                    "signature": "reasoning_signature",
                 },
             ),
         )
@@ -362,7 +344,6 @@ class TestAmazonBedrockChatGeneratorUtils:
             reasoning=ReasoningContent(
                 reasoning_text="[REDACTED]",
                 extra={
-                    "reasoning_contents": [{"reasoning_content": {"redacted_content": b"Some encrypted byte string"}}]
                 },
             ),
         )
@@ -370,45 +351,7 @@ class TestAmazonBedrockChatGeneratorUtils:
         assert formatted_message == {
             "role": "assistant",
             "content": [
-                {"reasoningContent": {"redactedContent": b"Some encrypted byte string"}},
-                {"text": "This is a test message with a tool call."},
-                {"toolUse": {"toolUseId": "123", "name": "test_tool", "input": {"key": "value"}}},
-            ],
-        }
-
-        tool_call_message_with_redacted_and_normal_thinking = ChatMessage.from_assistant(
-            "This is a test message with a tool call.",
-            tool_calls=[ToolCall(id="123", tool_name="test_tool", arguments={"key": "value"})],
-            reasoning=ReasoningContent(
-                reasoning_text="[REDACTED]This is the reasoning behind the tool call.",
-                extra={
-                    "reasoning_contents": [
-                        {"reasoning_content": {"redacted_content": b"Some encrypted byte string"}},
-                        {
-                            "reasoning_content": {
-                                "reasoningText": {
-                                    "text": "This is the reasoning behind the tool call.",
-                                    "signature": "reasoning_signature",
-                                }
-                            }
-                        },
-                    ]
-                },
-            ),
-        )
-        formatted_message = _format_messages([tool_call_message_with_redacted_and_normal_thinking])[1][0]
-        assert formatted_message == {
-            "role": "assistant",
-            "content": [
-                {"reasoningContent": {"redactedContent": b"Some encrypted byte string"}},
-                {
-                    "reasoningContent": {
-                        "reasoningText": {
-                            "text": "This is the reasoning behind the tool call.",
-                            "signature": "reasoning_signature",
-                        }
-                    }
-                },
+                {"reasoningContent": {"reasoningText": {"text": "[REDACTED]"}}},
                 {"text": "This is a test message with a tool call."},
                 {"toolUse": {"toolUseId": "123", "name": "test_tool", "input": {"key": "value"}}},
             ],
@@ -445,11 +388,9 @@ class TestAmazonBedrockChatGeneratorUtils:
         assistant_message = ChatMessage.from_assistant(
             "This is a test message.",
             reasoning=ReasoningContent(
-                reasoning_text="",
+                reasoning_text="This is the reasoning behind the message.",
                 extra={
-                    "reasoning_contents": [
-                        {"reasoning_content": {"reasoning_text": "This is the reasoning behind the message."}}
-                    ]
+                    "signature": "reasoning_signature",
                 },
             ),
         )
@@ -457,7 +398,7 @@ class TestAmazonBedrockChatGeneratorUtils:
         assert formatted_message == {
             "role": "assistant",
             "content": [
-                {"reasoningContent": {"reasoningText": "This is the reasoning behind the message."}},
+                {"reasoningContent": {"reasoningText": {"text": "This is the reasoning behind the message.", "signature": "reasoning_signature"}}},
                 {"text": "This is a test message."},
             ],
         }
