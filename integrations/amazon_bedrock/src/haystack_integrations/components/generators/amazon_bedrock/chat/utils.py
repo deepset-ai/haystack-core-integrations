@@ -467,7 +467,7 @@ def _parse_completion_response(response_body: dict[str, Any], model: str) -> lis
             # Process all content blocks and combine them into a single message
             text_content = []
             tool_calls = []
-            reasoning_contents = []
+            reasoning_content = None
             for content_block in content_blocks:
                 if "text" in content_block:
                     text_content.append(content_block["text"])
@@ -482,12 +482,6 @@ def _parse_completion_response(response_body: dict[str, Any], model: str) -> lis
                     tool_calls.append(tool_call)
                 elif "reasoningContent" in content_block:
                     reasoning_content = content_block["reasoningContent"]
-                    # If reasoningText is present, replace it with reasoning_text
-                    if "reasoningText" in reasoning_content:
-                        reasoning_content["reasoning_text"] = reasoning_content.pop("reasoningText")
-                    if "redactedContent" in reasoning_content:
-                        reasoning_content["redacted_content"] = reasoning_content.pop("redactedContent")
-                    reasoning_contents.append({"reasoning_content": reasoning_content})
                 elif "citationsContent" in content_block:
                     citations_content = content_block["citationsContent"]
                     meta["citations"] = citations_content
@@ -497,12 +491,16 @@ def _parse_completion_response(response_body: dict[str, Any], model: str) -> lis
                             if text.strip():
                                 text_content.append(text)
 
+            reasoning_extra = {}
             reasoning_text = ""
-            for content in reasoning_contents:
-                if "reasoning_text" in content["reasoning_content"]:
-                    reasoning_text += content["reasoning_content"]["reasoning_text"]["text"]
-                elif "redacted_content" in content["reasoning_content"]:
-                    reasoning_text += "[REDACTED]"
+            if reasoning_content:
+                if "redacted_content" in reasoning_content:
+                    reasoning_text = "[REDACTED]"
+                elif "reasoningText" in reasoning_content:
+                    reasoning_text = reasoning_content["reasoningText"].get("text", "")
+                    signature = reasoning_content["reasoningText"].get("signature")
+                if signature:
+                    reasoning_extra["signature"] = signature
 
             # Create a single ChatMessage with combined text and tool calls
             replies.append(
@@ -511,9 +509,9 @@ def _parse_completion_response(response_body: dict[str, Any], model: str) -> lis
                     tool_calls=tool_calls,
                     meta=meta,
                     reasoning=ReasoningContent(
-                        reasoning_text=reasoning_text, extra={"reasoning_contents": reasoning_contents}
+                        reasoning_text=reasoning_text, extra=reasoning_extra
                     )
-                    if reasoning_contents
+                    if reasoning_text or reasoning_extra
                     else None,
                 )
             )

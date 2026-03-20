@@ -733,20 +733,7 @@ class TestAmazonBedrockChatGeneratorUtils:
                 'city to get the weather for\n\nIn this case, the user has clearly specified "Paris" as the city, so '
                 "I have all the required information to make the function call.",
                 extra={
-                    "reasoning_contents": [
-                        {
-                            "reasoning_content": {
-                                "reasoning_text": {
-                                    "text": "The user wants to know the weather in Paris. I have a `weather` function "
-                                    "available that can provide this information. \n\nRequired parameters for "
-                                    "the weather function:\n- city: The city to get the weather for\n\nIn this "
-                                    'case, the user has clearly specified "Paris" as the city, so I have all '
-                                    "the required information to make the function call.",
-                                    "signature": "...",
-                                }
-                            }
-                        }
-                    ]
+                    "signature": "...",
                 },
             ),
             meta={
