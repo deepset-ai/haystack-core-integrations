@@ -678,7 +678,8 @@ def _convert_chunks_to_messages(chunks: list[StreamingChunk]) -> list[ChatMessag
 
     # the trace are ignored in _convert_streaming_chunks_to_chat_message
     # so we need to process them separately
-    if chunks and (last_chunk := chunks[-1]) and last_chunk.meta and "trace" in last_chunk.meta:
+    last_chunk = chunks[-1] if chunks else None
+    if last_chunk and last_chunk.meta and "trace" in last_chunk.meta:
         reply.meta["trace"] = last_chunk.meta["trace"]
 
     return [reply]
