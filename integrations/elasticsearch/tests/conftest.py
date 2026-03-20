@@ -40,8 +40,6 @@ def document_store():
     store.client.close()
     if store._async_client is not None:
         asyncio.run(store._async_client.close())
-    if store._async_client is not None:
-        asyncio.run(store._async_client.close())
 
 
 @pytest.fixture
