@@ -1057,7 +1057,6 @@ class TestWeaviateDocumentStore(
         )
         assert count == 0
 
-
     def test_count_unique_metadata_by_filter_with_filter(self, document_store):
         docs = [
             Document(content="Doc 1", meta={"category": "TypeA", "status": "draft"}),
