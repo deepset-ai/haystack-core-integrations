@@ -173,7 +173,7 @@ def _format_tool_call_message(tool_call_message: ChatMessage) -> dict[str, Any]:
 
     # tool call messages can contain reasoning content
     if reasoning_content := tool_call_message.reasoning:
-        content.extend(_format_reasoning_content(reasoning_content=reasoning_content))
+        content.append(_format_reasoning_content(reasoning_content=reasoning_content))
 
     # Tool call message can contain text
     if tool_call_message.text:
@@ -291,22 +291,23 @@ def _repair_tool_result_messages(bedrock_formatted_messages: list[dict[str, Any]
     return [msg for _, msg in repaired_bedrock_formatted_messages]
 
 
-def _format_reasoning_content(reasoning_content: ReasoningContent) -> list[dict[str, Any]]:
+def _format_reasoning_content(reasoning_content: ReasoningContent) -> dict[str, Any]:
     """
     Format ReasoningContent to match Bedrock's expected structure.
 
     :param reasoning_content: ReasoningContent object containing reasoning contents to format.
-    :returns: List of formatted reasoning content dictionaries for Bedrock.
+    :returns: Dictionary representing the formatted reasoning content for Bedrock.
+
     """
-    formatted_contents = []
-    for content in reasoning_content.extra.get("reasoning_contents", []):
-        formatted_content = {"reasoningContent": content["reasoning_content"]}
-        if reasoning_text := formatted_content["reasoningContent"].pop("reasoning_text", None):
-            formatted_content["reasoningContent"]["reasoningText"] = reasoning_text
-        if redacted_content := formatted_content["reasoningContent"].pop("redacted_content", None):
-            formatted_content["reasoningContent"]["redactedContent"] = redacted_content
-        formatted_contents.append(formatted_content)
-    return formatted_contents
+    formatted_content = {
+        "reasoningContent": {
+            "reasoningText": {
+                "text": reasoning_content.reasoning_text,
+                **({"signature": reasoning_content.extra["signature"]} if reasoning_content.extra.get("signature") else {}),
+            }
+        }
+    }
+    return formatted_content
 
 
 def _format_user_message(message: ChatMessage) -> dict[str, Any]:
@@ -345,7 +346,7 @@ def _format_textual_assistant_message(message: ChatMessage) -> dict[str, Any]:
     bedrock_content_blocks: list[dict[str, Any]] = []
     # Add reasoning content if available as the first content block
     if message.reasoning:
-        bedrock_content_blocks.extend(_format_reasoning_content(reasoning_content=message.reasoning))
+        bedrock_content_blocks.append(_format_reasoning_content(reasoning_content=message.reasoning))
 
     for part in content_parts:
         if isinstance(part, TextContent):
