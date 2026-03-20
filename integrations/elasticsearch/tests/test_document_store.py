@@ -11,14 +11,13 @@ from haystack.dataclasses.document import Document
 from haystack.document_stores.errors import DocumentStoreError, DuplicateDocumentError
 from haystack.document_stores.types import DuplicatePolicy
 from haystack.testing.document_store import (
-    DocumentStoreBaseExtendedTests,
     CountDocumentsByFilterTest,
     CountUniqueMetadataByFilterTest,
-    GetMetadataFieldsInfoTest,
+    DocumentStoreBaseExtendedTests,
     GetMetadataFieldMinMaxTest,
-    GetMetadataFieldUniqueValuesTest
+    GetMetadataFieldsInfoTest,
+    GetMetadataFieldUniqueValuesTest,
 )
-
 from haystack.utils import Secret
 from haystack.utils.auth import TokenSecret
 
@@ -240,7 +239,7 @@ class TestDocumentStore(
     CountUniqueMetadataByFilterTest,
     GetMetadataFieldsInfoTest,
     GetMetadataFieldMinMaxTest,
-    GetMetadataFieldUniqueValuesTest
+    GetMetadataFieldUniqueValuesTest,
 ):
     """
     Common test cases will be provided by `DocumentStoreBaseExtendedTests` but
