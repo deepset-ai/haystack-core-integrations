@@ -1,0 +1,13 @@
+loaders:
+  - modules:
+      - haystack_integrations.components.converters.kreuzberg.converter
+    search_path: [../src]
+processors:
+  - type: filter
+    documented_only: true
+    skip_empty_modules: true
+renderer:
+  description: Kreuzberg integration for Haystack
+  id: integrations-kreuzberg
+  filename: kreuzberg.md
+  title: Kreuzberg
