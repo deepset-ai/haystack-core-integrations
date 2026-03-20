@@ -2,6 +2,7 @@
 name: Feature request for existing integrations
 about: Suggest an idea for an integration
 title: ''
+labels: ''
 assignees: ''
 type: Feature
 
