@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/arcadedb-v1.1.0] - 2026-03-16
+
+### 🚀 Features
+
+- Add missing operations to `ArcadeDBDocumentstore` (#2952)
+
+
 ## [integrations/arcadedb-v1.0.0] - 2026-03-02
 
 ### 🚀 Features

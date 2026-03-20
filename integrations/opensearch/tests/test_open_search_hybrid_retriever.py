@@ -46,7 +46,10 @@ class TestOpenSearchHybridRetriever:
                     "settings": {"index.knn": True},
                     "create_index": True,
                     "return_embedding": False,
-                    "http_auth": None,
+                    "http_auth": [
+                        {"type": "env_var", "env_vars": ["OPENSEARCH_USERNAME"], "strict": False},
+                        {"type": "env_var", "env_vars": ["OPENSEARCH_PASSWORD"], "strict": False},
+                    ],
                     "use_ssl": None,
                     "verify_certs": None,
                     "timeout": None,

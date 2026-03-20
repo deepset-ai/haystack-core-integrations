@@ -8,7 +8,7 @@ import pytest
 from haystack import Document
 from haystack.dataclasses import ByteStream
 from haystack.utils import Secret
-from mistralai.models import DocumentURLChunk, FileChunk, ImageURLChunk
+from mistralai.client.models import DocumentURLChunk, FileChunk, ImageURLChunk
 from pydantic import BaseModel, Field
 
 from haystack_integrations.components.converters.mistral import (
@@ -20,6 +20,13 @@ class TestMistralOCRDocumentConverter:
     CLASS_TYPE = (
         "haystack_integrations.components.converters.mistral.ocr_document_converter.MistralOCRDocumentConverter"
     )
+
+    def test_supported_models(self) -> None:
+        """SUPPORTED_MODELS is a non-empty list of strings."""
+        models = MistralOCRDocumentConverter.SUPPORTED_MODELS
+        assert isinstance(models, list)
+        assert len(models) > 0
+        assert all(isinstance(m, str) for m in models)
 
     def test_init_default(self, monkeypatch):
         monkeypatch.setenv("MISTRAL_API_KEY", "test-api-key")

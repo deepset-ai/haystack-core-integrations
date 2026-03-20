@@ -1,7 +1,7 @@
 import json
 import re
 from pathlib import Path
-from typing import Any
+from typing import Any, ClassVar
 
 from haystack import Document, component, default_from_dict, default_to_dict, logging
 from haystack.components.converters.utils import (
@@ -10,14 +10,14 @@ from haystack.components.converters.utils import (
 )
 from haystack.dataclasses import ByteStream
 from haystack.utils import Secret, deserialize_secrets_inplace
-from mistralai import Mistral
-from mistralai.extra import response_format_from_pydantic_model
-from mistralai.models import (
+from mistralai.client import Mistral
+from mistralai.client.models import (
     DocumentURLChunk,
     FileChunk,
     ImageURLChunk,
     OCRResponse,
 )
+from mistralai.extra import response_format_from_pydantic_model  # type: ignore[import-untyped]
 from pydantic import BaseModel
 
 logger = logging.getLogger(__name__)
@@ -98,6 +98,16 @@ class MistralOCRDocumentConverter:
     ```
     """
 
+    SUPPORTED_MODELS: ClassVar[list[str]] = [
+        "mistral-ocr-2512",
+        "mistral-ocr-latest",
+        "mistral-ocr-2503",
+        "mistral-ocr-2505",
+    ]
+    """A list of models supported by Mistral AI
+    see [Mistral AI docs](https://docs.mistral.ai/getting-started/models) for more information
+    and send a GET HTTP request to "https://api.mistral.ai/v1/models" for a full list of model IDs."""
+
     def __init__(
         self,
         api_key: Secret = Secret.from_env_var("MISTRAL_API_KEY"),
@@ -107,7 +117,7 @@ class MistralOCRDocumentConverter:
         image_limit: int | None = None,
         image_min_size: int | None = None,
         cleanup_uploaded_files: bool = True,
-    ):
+    ) -> None:
         """
         Creates a MistralOCRDocumentConverter component.
 

@@ -90,6 +90,13 @@ def mock_anthropic_completion():
 
 
 class TestAnthropicChatGenerator:
+    def test_supported_models(self) -> None:
+        """SUPPORTED_MODELS is a non-empty list of strings."""
+        models = AnthropicChatGenerator.SUPPORTED_MODELS
+        assert isinstance(models, list)
+        assert len(models) > 0
+        assert all(isinstance(m, str) for m in models)
+
     def test_init_default(self, monkeypatch):
         """
         Test the default initialization of the AnthropicChatGenerator component.

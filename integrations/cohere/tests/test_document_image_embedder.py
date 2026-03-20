@@ -20,6 +20,13 @@ IMPORT_PATH = "haystack_integrations.components.embedders.cohere.document_image_
 
 
 class TestCohereDocumentImageEmbedder:
+    def test_supported_models(self) -> None:
+        """SUPPORTED_MODELS is a non-empty list of strings."""
+        models = CohereDocumentImageEmbedder.SUPPORTED_MODELS
+        assert isinstance(models, list)
+        assert len(models) > 0
+        assert all(isinstance(m, str) for m in models)
+
     def test_init_default(self, monkeypatch):
         monkeypatch.setenv("COHERE_API_KEY", "test-api-key")
         embedder = CohereDocumentImageEmbedder()

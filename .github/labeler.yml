@@ -108,6 +108,11 @@ integration:jina:
       - any-glob-to-any-file: "integrations/jina/**/*"
       - any-glob-to-any-file: ".github/workflows/jina.yml"
 
+integration:kreuzberg:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/kreuzberg/**/*"
+      - any-glob-to-any-file: ".github/workflows/kreuzberg.yml"
+
 integration:langfuse:
   - changed-files:
       - any-glob-to-any-file: "integrations/langfuse/**/*"

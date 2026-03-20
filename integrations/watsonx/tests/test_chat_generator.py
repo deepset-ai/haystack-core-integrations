@@ -119,6 +119,13 @@ class TestWatsonxChatGenerator:
 
             yield {"model": mock_model, "model_instance": mock_model_instance, "select_callback": mock_select_callback}
 
+    def test_supported_models(self) -> None:
+        """SUPPORTED_MODELS is a non-empty list of strings."""
+        models = WatsonxChatGenerator.SUPPORTED_MODELS
+        assert isinstance(models, list)
+        assert len(models) > 0
+        assert all(isinstance(m, str) for m in models)
+
     def test_init_default(self, mock_watsonx):
         generator = WatsonxChatGenerator(project_id=Secret.from_token("fake-project-id"))
 

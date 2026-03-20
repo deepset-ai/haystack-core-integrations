@@ -251,7 +251,7 @@ class OllamaChatGenerator:
         tools: ToolsType | None = None,
         response_format: None | Literal["json"] | JsonSchemaValue | None = None,
         think: bool | Literal["low", "medium", "high"] = False,
-    ):
+    ) -> None:
         """
         :param model:
             The name of the model to use. The model must already be present (pulled) in the running Ollama instance.

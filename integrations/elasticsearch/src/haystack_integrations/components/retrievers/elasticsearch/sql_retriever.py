@@ -42,7 +42,7 @@ class ElasticsearchSQLRetriever:
         document_store: ElasticsearchDocumentStore,
         raise_on_failure: bool = True,
         fetch_size: int | None = None,
-    ):
+    ) -> None:
         """
         Creates the ElasticsearchSQLRetriever component.
 

@@ -2,8 +2,9 @@
 name: Bug report
 about: Report a bug for an integration
 title: ''
-labels: bug
+labels: ''
 assignees: ''
+type: Bug
 
 ---
 

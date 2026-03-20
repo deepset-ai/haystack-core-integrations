@@ -44,9 +44,9 @@ messages = [ChatMessage.from_user("What's the weather in Tokyo?")]
 
 response = client.run(messages=messages, tools=[weather_tool])["replies"]
 
-print(f"assistant messages: {response[0]}\n")  # noqa: T201
+print(f"assistant messages: {response[0]}\n")
 
 # If the assistant message contains a tool call, run the tool invoker
 if response[0].tool_calls:
     tool_messages = tool_invoker.run(messages=response)["tool_messages"]
-    print(f"tool messages: {tool_messages}")  # noqa: T201
+    print(f"tool messages: {tool_messages}")

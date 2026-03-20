@@ -36,7 +36,7 @@ class JinaRanker:
         api_key: Secret = Secret.from_env_var("JINA_API_KEY"),  # noqa: B008,
         top_k: int | None = None,
         score_threshold: float | None = None,
-    ):
+    ) -> None:
         """
         Creates an instance of JinaRanker.
 
@@ -110,7 +110,7 @@ class JinaRanker:
         documents: list[Document],
         top_k: int | None = None,
         score_threshold: float | None = None,
-    ):
+    ) -> dict[str, list[Document]]:
         """
         Returns a list of Documents ranked by their similarity to the given query.
 

@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: 2025-present deepset GmbH <info@deepset.ai>
 #
 # SPDX-License-Identifier: Apache-2.0
-from typing import Any
+from typing import Any, ClassVar
 
 from haystack import component, default_to_dict
 from haystack.components.generators.chat import OpenAIChatGenerator
@@ -38,6 +38,19 @@ class STACKITChatGenerator(OpenAIChatGenerator):
     ```
     """
 
+    SUPPORTED_MODELS: ClassVar[list[str]] = [
+        "Qwen/Qwen3-VL-235B-A22B-Instruct-FP8",
+        "cortecs/Llama-3.3-70B-Instruct-FP8-Dynamic",
+        "openai/gpt-oss-120b",
+        "google/gemma-3-27b-it",
+        "openai/gpt-oss-20b",
+        "neuralmagic/Mistral-Nemo-Instruct-2407-FP8",
+        "neuralmagic/Meta-Llama-3.1-8B-Instruct-FP8",
+    ]
+    """A non-exhaustive list of chat models supported by this component.
+    See https://docs.stackit.cloud/products/data-and-ai/ai-model-serving/basics/available-shared-models
+    for the full list."""
+
     def __init__(
         self,
         model: str,
@@ -49,7 +62,7 @@ class STACKITChatGenerator(OpenAIChatGenerator):
         timeout: float | None = None,
         max_retries: int | None = None,
         http_client_kwargs: dict[str, Any] | None = None,
-    ):
+    ) -> None:
         """
         Creates an instance of STACKITChatGenerator class.
 
