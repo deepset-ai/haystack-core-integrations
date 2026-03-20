@@ -15,7 +15,7 @@ from haystack.testing.document_store import (
     DocumentStoreBaseExtendedTests,
     GetMetadataFieldMinMaxTest,
     GetMetadataFieldsInfoTest,
-    GetMetadataFieldUniqueValuesTest
+    GetMetadataFieldUniqueValuesTest,
 )
 from opensearchpy.exceptions import RequestError
 
