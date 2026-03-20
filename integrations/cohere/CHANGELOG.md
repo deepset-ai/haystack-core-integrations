@@ -1,5 +1,23 @@
 # Changelog
 
+## [integrations/cohere-v8.1.0] - 2026-03-19
+
+### 🚀 Features
+
+- Add list of models supported by Cohere components (#2993)
+
+### 🧹 Chores
+
+- Enable ANN ruff ruleset for cohere integration (#2983)
+
+
+## [integrations/cohere-v8.0.1] - 2026-03-17
+
+### 🐛 Bug Fixes
+
+- Fix the conversion of cohere chunks to Haystack streaming chunks (#2968)
+
+
 ## [integrations/cohere-v8.0.0] - 2026-03-11
 
 ### 🚀 Features

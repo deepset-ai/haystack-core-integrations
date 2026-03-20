@@ -85,6 +85,7 @@ line-length = 120
 [tool.ruff.lint]
 select = [
   "A",
+  "ANN",
   "ARG",
   "B",
   "C",
@@ -112,6 +113,7 @@ select = [
 ]
 ignore = [
   # Allow non-abstract empty methods in abstract base classes
+  "ANN401",
   "B027",
   # Allow boolean positional values in function calls, like `dict.get(... True)`
   "FBT003",
@@ -135,7 +137,7 @@ ban-relative-imports = "parents"
 
 [tool.ruff.lint.per-file-ignores]
 # Tests can use magic values, assertions, and relative imports
-"tests/**/*" = ["PLR2004", "S101", "TID252"]
+"tests/**/*" = ["ANN", "PLR2004", "S101", "TID252"]
 
 [tool.coverage.run]
 source = ["haystack_integrations"]

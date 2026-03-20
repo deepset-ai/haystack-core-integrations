@@ -48,7 +48,7 @@ class MongoDBAtlasEmbeddingRetriever:
         filters: dict[str, Any] | None = None,
         top_k: int = 10,
         filter_policy: str | FilterPolicy = FilterPolicy.REPLACE,
-    ):
+    ) -> None:
         """
         Create the MongoDBAtlasDocumentStore component.
 

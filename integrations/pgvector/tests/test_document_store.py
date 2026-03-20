@@ -10,11 +10,16 @@ from haystack.dataclasses.document import ByteStream, Document
 from haystack.document_stores.errors import DocumentStoreError, DuplicateDocumentError
 from haystack.document_stores.types import DuplicatePolicy
 from haystack.testing.document_store import (
+    CountDocumentsByFilterTest,
     CountDocumentsTest,
+    CountUniqueMetadataByFilterTest,
     DeleteAllTest,
     DeleteByFilterTest,
     DeleteDocumentsTest,
     FilterableDocsFixtureMixin,
+    GetMetadataFieldMinMaxTest,
+    GetMetadataFieldsInfoTest,
+    GetMetadataFieldUniqueValuesTest,
     UpdateByFilterTest,
     WriteDocumentsTest,
 )
@@ -32,7 +37,26 @@ class TestDocumentStore(
     FilterableDocsFixtureMixin,
     UpdateByFilterTest,
     WriteDocumentsTest,
+    CountDocumentsByFilterTest,
+    CountUniqueMetadataByFilterTest,
+    GetMetadataFieldsInfoTest,
+    GetMetadataFieldMinMaxTest,
+    GetMetadataFieldUniqueValuesTest,
 ):
+    def test_get_metadata_fields_info_empty_collection(self, document_store: PgvectorDocumentStore):
+        """PgvectorDocumentStore always includes 'content' in fields info, even for empty stores."""
+        assert document_store.count_documents() == 0
+
+        fields_info = document_store.get_metadata_fields_info()
+        assert fields_info == {"content": {"type": "text"}}
+
+    def test_get_metadata_field_min_max_empty_collection(self, document_store: PgvectorDocumentStore):
+        """PgvectorDocumentStore raises ValueError when the field doesn't exist in the store."""
+        assert document_store.count_documents() == 0
+
+        with pytest.raises(ValueError, match="not found in document store"):
+            document_store.get_metadata_field_min_max("priority")
+
     def test_write_documents(self, document_store: PgvectorDocumentStore):
         docs = [Document(id="1")]
         assert document_store.write_documents(docs) == 1
@@ -281,150 +305,7 @@ def test_update_by_filter_empty_meta_raises_error(document_store: PgvectorDocume
 
 
 @pytest.mark.integration
-def test_count_documents_by_filter(document_store: PgvectorDocumentStore):
-    docs = [
-        Document(content="Doc 1", meta={"category": "A", "status": "active"}),
-        Document(content="Doc 2", meta={"category": "B", "status": "active"}),
-        Document(content="Doc 3", meta={"category": "A", "status": "inactive"}),
-        Document(content="Doc 4", meta={"category": "A", "status": "active"}),
-    ]
-    document_store.write_documents(docs)
-
-    count_a = document_store.count_documents_by_filter(
-        filters={"field": "meta.category", "operator": "==", "value": "A"}
-    )
-    assert count_a == 3
-
-    count_a_active = document_store.count_documents_by_filter(
-        filters={
-            "operator": "AND",
-            "conditions": [
-                {"field": "meta.category", "operator": "==", "value": "A"},
-                {"field": "meta.status", "operator": "==", "value": "active"},
-            ],
-        }
-    )
-    assert count_a_active == 2
-
-
-@pytest.mark.integration
-def test_count_unique_metadata_by_filter(document_store: PgvectorDocumentStore):
-    docs = [
-        Document(content="Doc 1", meta={"category": "A", "status": "active", "priority": 1}),
-        Document(content="Doc 2", meta={"category": "B", "status": "active", "priority": 2}),
-        Document(content="Doc 3", meta={"category": "A", "status": "inactive", "priority": 1}),
-        Document(content="Doc 4", meta={"category": "A", "status": "active", "priority": 3}),
-        Document(content="Doc 5", meta={"category": "C", "status": "active", "priority": 2}),
-    ]
-    document_store.write_documents(docs)
-
-    distinct_counts = document_store.count_unique_metadata_by_filter(
-        filters={}, metadata_fields=["category", "status", "priority"]
-    )
-    assert distinct_counts["category"] == 3  # A, B, C
-    assert distinct_counts["status"] == 2  # active, inactive
-    assert distinct_counts["priority"] == 3  # 1, 2, 3
-
-    # distinct values for documents with category="A"
-    distinct_counts_a = document_store.count_unique_metadata_by_filter(
-        filters={"field": "meta.category", "operator": "==", "value": "A"},
-        metadata_fields=["category", "status", "priority"],
-    )
-    assert distinct_counts_a["category"] == 1  # Only A
-    assert distinct_counts_a["status"] == 2  # active, inactive
-    assert distinct_counts_a["priority"] == 2  # 1, 3
-
-    # distinct values with complex filter (category="A" AND status="active")
-    distinct_counts_a_active = document_store.count_unique_metadata_by_filter(
-        filters={
-            "operator": "AND",
-            "conditions": [
-                {"field": "meta.category", "operator": "==", "value": "A"},
-                {"field": "meta.status", "operator": "==", "value": "active"},
-            ],
-        },
-        metadata_fields=["category", "status", "priority"],
-    )
-    assert distinct_counts_a_active["category"] == 1  # Only A
-    assert distinct_counts_a_active["status"] == 1  # Only active
-    assert distinct_counts_a_active["priority"] == 2  # 1, 3
-
-    # with only a subset of fields
-    distinct_counts_subset = document_store.count_unique_metadata_by_filter(
-        filters={}, metadata_fields=["category", "status"]
-    )
-    assert distinct_counts_subset["category"] == 3
-    assert distinct_counts_subset["status"] == 2
-    assert "priority" not in distinct_counts_subset
-
-    # with field name normalization (with "meta." prefix)
-    distinct_counts_normalized = document_store.count_unique_metadata_by_filter(
-        filters={}, metadata_fields=["meta.category", "status", "meta.priority"]
-    )
-    assert distinct_counts_normalized["category"] == 3
-    assert distinct_counts_normalized["status"] == 2
-    assert distinct_counts_normalized["priority"] == 3
-
-
-@pytest.mark.integration
-def test_get_metadata_fields_info(document_store: PgvectorDocumentStore):
-    docs = [
-        Document(content="Doc 1", meta={"category": "A", "status": "active", "priority": 1}),
-        Document(content="Doc 2", meta={"category": "B", "status": "inactive"}),
-    ]
-    document_store.write_documents(docs)
-
-    fields_info = document_store.get_metadata_fields_info()
-
-    # Verify that fields_info contains expected fields
-    assert "content" in fields_info
-    assert "category" in fields_info
-    assert "status" in fields_info
-    assert "priority" in fields_info
-
-    assert fields_info["content"]["type"] == "text"
-    assert fields_info["category"]["type"] == "text"
-    assert fields_info["status"]["type"] == "text"
-    assert fields_info["priority"]["type"] == "integer"
-
-
-@pytest.mark.integration
 def test_get_metadata_field_min_max(document_store: PgvectorDocumentStore):
-    # Test with integer values
-    docs = [
-        Document(content="Doc 1", meta={"priority": 1, "age": 10}),
-        Document(content="Doc 2", meta={"priority": 5, "age": 20}),
-        Document(content="Doc 3", meta={"priority": 3, "age": 15}),
-        Document(content="Doc 4", meta={"priority": 10, "age": 5}),
-        Document(content="Doc 6", meta={"rating": 10.5}),
-        Document(content="Doc 7", meta={"rating": 20.3}),
-        Document(content="Doc 8", meta={"rating": 15.7}),
-        Document(content="Doc 9", meta={"rating": 5.2}),
-    ]
-    document_store.write_documents(docs)
-
-    # Test with "meta." prefix for integer field
-    min_max_priority = document_store.get_metadata_field_min_max("meta.priority")
-    assert min_max_priority["min"] == 1
-    assert min_max_priority["max"] == 10
-
-    # Test with "meta." prefix for another integer field
-    min_max_age = document_store.get_metadata_field_min_max("meta.age")
-    assert min_max_age["min"] == 5
-    assert min_max_age["max"] == 20
-
-    # Test with single value
-    single_doc = [Document(content="Doc 5", meta={"single_value": 42})]
-    document_store.write_documents(single_doc)
-    min_max_single = document_store.get_metadata_field_min_max("meta.single_value")
-    assert min_max_single["min"] == 42
-    assert min_max_single["max"] == 42
-
-    # Test with float values
-    min_max_rating = document_store.get_metadata_field_min_max("meta.rating")
-    assert min_max_rating["min"] == pytest.approx(5.2)
-    assert min_max_rating["max"] == pytest.approx(20.3)
-
     # Test with text/string values - lexicographic comparison
     text_docs = [
         Document(content="Doc 1", meta={"category": "Zebra", "status": "active"}),

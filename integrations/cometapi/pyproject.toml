@@ -84,6 +84,7 @@ line-length = 120
 [tool.ruff.lint]
 select = [
   "A",
+  "ANN",
   "ARG",
   "B",
   "C",
@@ -110,6 +111,7 @@ select = [
   "YTT",
 ]
 ignore = [
+  "ANN401",  # Allow Any - used legitimately for dynamic types and SDK boundaries
   # Allow non-abstract empty methods in abstract base classes
   "B027",
   # Allow boolean positional values in function calls, like `dict.get(... True)`
@@ -140,7 +142,7 @@ ban-relative-imports = "parents"
 
 [tool.ruff.lint.per-file-ignores]
 # Tests can use magic values, assertions, and relative imports
-"tests/**/*" = ["PLR2004", "S101", "TID252"]
+"tests/**/*" = ["PLR2004", "S101", "TID252", "ANN"]
 # Examples can use print statements
 "examples/**/*" = ["T201"]
 

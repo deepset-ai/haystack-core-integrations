@@ -28,7 +28,7 @@ class OpenSearchSQLRetriever:
         document_store: OpenSearchDocumentStore,
         raise_on_failure: bool = True,
         fetch_size: int | None = None,
-    ):
+    ) -> None:
         """
         Creates the OpenSearchSQLRetriever component.
 

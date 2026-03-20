@@ -68,7 +68,7 @@ class LlamaStackChatGenerator(OpenAIChatGenerator):
         tools_strict: bool = False,
         max_retries: int | None = None,
         http_client_kwargs: dict[str, Any] | None = None,
-    ):
+    ) -> None:
         """
         Creates an instance of LlamaStackChatGenerator. To use this chat generator,
         you need to setup Llama Stack Server with an inference provider and have a model available.
