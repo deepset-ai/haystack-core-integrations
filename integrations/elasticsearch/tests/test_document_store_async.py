@@ -165,7 +165,7 @@ class TestElasticsearchDocumentStoreAsync:
         store = ElasticsearchDocumentStore(
             hosts=["http://localhost:9200"], index="test_async_sparse", sparse_vector_field="sparse_vec"
         )
-        store.client.options(ignore_status=[400, 404]).indices.delete(index="test_async_sparse")
+        await store.async_client.options(ignore_status=[400, 404]).indices.delete(index="test_async_sparse")
 
         doc = Document(id="1", content="test", sparse_embedding=SparseEmbedding(indices=[0, 1], values=[0.5, 0.5]))
         await store.write_documents_async([doc])
@@ -174,7 +174,14 @@ class TestElasticsearchDocumentStoreAsync:
         raw_doc = await store.async_client.get(index="test_async_sparse", id="1")
         assert raw_doc["_source"]["sparse_vec"] == {"0": 0.5, "1": 0.5}
 
-        store.client.indices.delete(index="test_async_sparse")
+        # check retrieval
+        results = await store.filter_documents_async()
+        assert len(results) == 1
+        assert results[0].sparse_embedding is not None
+        assert results[0].sparse_embedding.indices == [0, 1]
+        assert results[0].sparse_embedding.values == [0.5, 0.5]
+
+        await store.async_client.indices.delete(index="test_async_sparse")
 
     @pytest.mark.asyncio
     async def test_delete_all_documents_async(self, document_store):

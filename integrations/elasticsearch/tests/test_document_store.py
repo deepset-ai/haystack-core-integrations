@@ -24,6 +24,18 @@ def test_init_is_lazy(_mock_es_client):
     _mock_es_client.assert_not_called()
 
 
+def test_init_with_special_fields_raises_error():
+    with pytest.raises(ValueError, match=r"sparse_vector_field 'content' conflicts with a reserved field name\."):
+        ElasticsearchDocumentStore(sparse_vector_field="content")
+
+
+def test_init_with_custom_mapping_injects_sparse_vector():
+    custom_mapping = {"properties": {"some_field": {"type": "text"}}}
+    store = ElasticsearchDocumentStore(custom_mapping=custom_mapping, sparse_vector_field="my_sparse_vec")
+    assert "my_sparse_vec" in store._custom_mapping["properties"]
+    assert store._custom_mapping["properties"]["my_sparse_vec"] == {"type": "sparse_vector"}
+
+
 @patch("haystack_integrations.document_stores.elasticsearch.document_store.Elasticsearch")
 def test_headers_are_supported(_mock_es_client):
     _ = ElasticsearchDocumentStore(
@@ -157,6 +169,23 @@ def test_from_dict_with_api_keys_str():
     document_store = ElasticsearchDocumentStore.from_dict(data)
     assert document_store._api_key == "my_api_key"
     assert document_store._api_key_id == "my_api_key_id"
+
+
+def test_from_dict_without_sparse_vector_field():
+    data = {
+        "type": "haystack_integrations.document_stores.elasticsearch.document_store.ElasticsearchDocumentStore",
+        "init_parameters": {
+            "hosts": "some hosts",
+            "custom_mapping": None,
+            "index": "default",
+            "api_key": "my_api_key",
+            "api_key_id": "my_api_key_id",
+            "embedding_similarity_function": "cosine",
+        },
+    }
+
+    document_store = ElasticsearchDocumentStore.from_dict(data)
+    assert document_store._sparse_vector_field is None
 
 
 def test_api_key_validation_only_api_key():
@@ -305,6 +334,13 @@ class TestDocumentStore(DocumentStoreBaseExtendedTests):
         # check ES natively
         raw_doc = store.client.get(index="test_sync_sparse", id="1")
         assert raw_doc["_source"]["sparse_vec"] == {"0": 0.5, "1": 0.5}
+
+        # check retrieval reconstruction
+        results = store.filter_documents()
+        assert len(results) == 1
+        assert results[0].sparse_embedding is not None
+        assert results[0].sparse_embedding.indices == [0, 1]
+        assert results[0].sparse_embedding.values == [0.5, 0.5]
 
         store.client.indices.delete(index="test_sync_sparse")
 
