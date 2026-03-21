@@ -7,7 +7,7 @@ from unittest.mock import AsyncMock, patch
 import pytest
 from haystack.dataclasses import ChatMessage
 
-from haystack_integrations.components.connectors.cognee import CogneeMemoryStore
+from haystack_integrations.memory_stores.cognee import CogneeMemoryStore
 
 
 class TestCogneeMemoryStore:
@@ -26,14 +26,14 @@ class TestCogneeMemoryStore:
     def test_to_dict(self):
         store = CogneeMemoryStore(search_type="SUMMARIES", top_k=3, dataset_name="mem")
         data = store.to_dict()
-        assert data["type"] == "haystack_integrations.components.connectors.cognee.memory_store.CogneeMemoryStore"
+        assert data["type"] == "haystack_integrations.memory_stores.cognee.memory_store.CogneeMemoryStore"
         assert data["init_parameters"]["search_type"] == "SUMMARIES"
         assert data["init_parameters"]["top_k"] == 3
         assert data["init_parameters"]["dataset_name"] == "mem"
 
     def test_from_dict(self):
         data = {
-            "type": "haystack_integrations.components.connectors.cognee.memory_store.CogneeMemoryStore",
+            "type": "haystack_integrations.memory_stores.cognee.memory_store.CogneeMemoryStore",
             "init_parameters": {"search_type": "CHUNKS", "top_k": 8, "dataset_name": "restored"},
         }
         store = CogneeMemoryStore.from_dict(data)
@@ -41,7 +41,7 @@ class TestCogneeMemoryStore:
         assert store.top_k == 8
         assert store.dataset_name == "restored"
 
-    @patch("haystack_integrations.components.connectors.cognee.memory_store.cognee")
+    @patch("haystack_integrations.memory_stores.cognee.memory_store.cognee")
     def test_add_memories(self, mock_cognee):
         mock_cognee.add = AsyncMock()
         mock_cognee.cognify = AsyncMock()
@@ -56,7 +56,20 @@ class TestCogneeMemoryStore:
         assert mock_cognee.add.await_count == 2
         mock_cognee.cognify.assert_awaited_once()
 
-    @patch("haystack_integrations.components.connectors.cognee.memory_store.cognee")
+    @patch("haystack_integrations.memory_stores.cognee.memory_store.cognee")
+    def test_add_memories_cognify_uses_dataset(self, mock_cognee):
+        mock_cognee.add = AsyncMock()
+        mock_cognee.cognify = AsyncMock()
+
+        store = CogneeMemoryStore(dataset_name="my_ds")
+        messages = [ChatMessage.from_user("Remember this.")]
+        store.add_memories(messages=messages)
+
+        mock_cognee.cognify.assert_awaited_once()
+        cognify_kwargs = mock_cognee.cognify.call_args[1]
+        assert cognify_kwargs["datasets"] == ["my_ds"]
+
+    @patch("haystack_integrations.memory_stores.cognee.memory_store.cognee")
     def test_search_memories(self, mock_cognee):
         mock_cognee.search = AsyncMock(return_value=["Memory about deadline"])
 
@@ -75,7 +88,7 @@ class TestCogneeMemoryStore:
         results = store.search_memories(query="")
         assert results == []
 
-    @patch("haystack_integrations.components.connectors.cognee.memory_store.cognee")
+    @patch("haystack_integrations.memory_stores.cognee.memory_store.cognee")
     def test_delete_all_memories(self, mock_cognee):
         mock_cognee.prune = type(
             "Prune",

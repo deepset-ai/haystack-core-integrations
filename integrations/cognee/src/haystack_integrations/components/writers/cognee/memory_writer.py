@@ -7,8 +7,7 @@ from typing import Any
 from haystack import Document, component, default_from_dict, default_to_dict, logging
 
 import cognee  # type: ignore[import-untyped]
-
-from ._utils import run_sync
+from haystack_integrations.components.connectors.cognee._utils import run_sync
 
 logger = logging.getLogger(__name__)
 
@@ -24,7 +23,7 @@ class CogneeWriter:
     Usage:
     ```python
     from haystack import Document
-    from haystack_integrations.components.connectors.cognee import CogneeWriter
+    from haystack_integrations.components.writers.cognee import CogneeWriter
 
     writer = CogneeWriter(dataset_name="my_dataset", auto_cognify=True)
     writer.run(documents=[Document(content="Cognee builds AI memory.")])
@@ -49,13 +48,15 @@ class CogneeWriter:
         :returns: Dictionary with key `documents_written` indicating how many
             documents were successfully added.
         """
-        written = 0
-        for doc in documents:
-            if not doc.content:
-                logger.warning("Skipping document with empty content: {doc_id}", doc_id=doc.id)
-                continue
-            run_sync(cognee.add(doc.content, dataset_name=self.dataset_name))
-            written += 1
+        texts = [doc.content for doc in documents if doc.content]
+        skipped = len(documents) - len(texts)
+        if skipped > 0:
+            logger.warning("Skipping {count} document(s) with empty content", count=skipped)
+
+        if texts:
+            run_sync(cognee.add(texts, dataset_name=self.dataset_name))
+
+        written = len(texts)
 
         if self.auto_cognify and written > 0:
             logger.info(
@@ -63,7 +64,7 @@ class CogneeWriter:
                 count=written,
                 dataset=self.dataset_name,
             )
-            run_sync(cognee.cognify())
+            run_sync(cognee.cognify(datasets=[self.dataset_name]))
 
         return {"documents_written": written}
 

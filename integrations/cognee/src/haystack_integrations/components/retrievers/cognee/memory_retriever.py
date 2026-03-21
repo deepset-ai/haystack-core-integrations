@@ -8,12 +8,9 @@ from haystack import Document, component, default_from_dict, default_to_dict, lo
 
 import cognee  # type: ignore[import-untyped]
 from cognee.api.v1.search import SearchType  # type: ignore[import-untyped]
-
-from ._utils import run_sync
+from haystack_integrations.components.connectors.cognee._utils import CogneeSearchType, extract_text, run_sync
 
 logger = logging.getLogger(__name__)
-
-_VALID_SEARCH_TYPES = {member.name for member in SearchType}
 
 
 @component
@@ -25,7 +22,7 @@ class CogneeRetriever:
 
     Usage:
     ```python
-    from haystack_integrations.components.connectors.cognee import CogneeRetriever
+    from haystack_integrations.components.retrievers.cognee import CogneeRetriever
 
     retriever = CogneeRetriever(search_type="GRAPH_COMPLETION", top_k=5)
     results = retriever.run(query="What is Cognee?")
@@ -34,17 +31,15 @@ class CogneeRetriever:
     ```
     """
 
-    def __init__(self, search_type: str = "GRAPH_COMPLETION", top_k: int = 10, dataset_name: str | None = None):
+    def __init__(
+        self, search_type: CogneeSearchType = "GRAPH_COMPLETION", top_k: int = 10, dataset_name: str | None = None
+    ):
         """
         :param search_type: Cognee search type. One of: GRAPH_COMPLETION, CHUNKS,
             SUMMARIES, INSIGHTS, etc.
         :param top_k: Maximum number of results to return.
         :param dataset_name: Optional dataset name to restrict search scope.
         """
-        if search_type not in _VALID_SEARCH_TYPES:
-            msg = f"Invalid search_type '{search_type}'. Must be one of: {sorted(_VALID_SEARCH_TYPES)}"
-            raise ValueError(msg)
-
         self.search_type = search_type
         self.top_k = top_k
         self.dataset_name = dataset_name
@@ -100,7 +95,7 @@ def _convert_results(raw_results: list[Any], top_k: int) -> list[Document]:
         return documents
 
     for item in raw_results[:top_k]:
-        text = _extract_text(item)
+        text = extract_text(item)
         if text:
             documents.append(
                 Document(
@@ -109,22 +104,3 @@ def _convert_results(raw_results: list[Any], top_k: int) -> list[Document]:
                 )
             )
     return documents
-
-
-def _extract_text(item: Any) -> str:
-    """Best-effort text extraction from a Cognee search result item."""
-    if isinstance(item, str):
-        return item
-
-    for attr in ("content", "text", "description", "name"):
-        if hasattr(item, attr):
-            val = getattr(item, attr)
-            if val and isinstance(val, str):
-                return val
-
-    if isinstance(item, dict):
-        for key in ("content", "text", "description", "name"):
-            if key in item and isinstance(item[key], str):
-                return item[key]
-
-    return str(item)

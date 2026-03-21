@@ -2,8 +2,8 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from .cognifier import CogneeCognifier
+from .memory_store import CogneeMemoryStore
 
 __all__ = [
-    "CogneeCognifier",
+    "CogneeMemoryStore",
 ]

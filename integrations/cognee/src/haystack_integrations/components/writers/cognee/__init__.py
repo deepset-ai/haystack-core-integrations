@@ -2,8 +2,8 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from .cognifier import CogneeCognifier
+from .memory_writer import CogneeWriter
 
 __all__ = [
-    "CogneeCognifier",
+    "CogneeWriter",
 ]

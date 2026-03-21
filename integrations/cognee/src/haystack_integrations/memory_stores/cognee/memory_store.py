@@ -9,8 +9,7 @@ from haystack.dataclasses import ChatMessage
 
 import cognee  # type: ignore[import-untyped]
 from cognee.api.v1.search import SearchType  # type: ignore[import-untyped]
-
-from ._utils import run_sync
+from haystack_integrations.components.connectors.cognee._utils import CogneeSearchType, extract_text, run_sync
 
 logger = logging.getLogger(__name__)
 
@@ -24,7 +23,7 @@ class CogneeMemoryStore:
 
     Usage:
     ```python
-    from haystack_integrations.components.connectors.cognee import CogneeMemoryStore
+    from haystack_integrations.memory_stores.cognee import CogneeMemoryStore
 
     store = CogneeMemoryStore(search_type="GRAPH_COMPLETION", top_k=5)
     store.add_memories(messages=[ChatMessage.from_user("Remember: the project deadline is Friday.")])
@@ -32,7 +31,9 @@ class CogneeMemoryStore:
     ```
     """
 
-    def __init__(self, search_type: str = "GRAPH_COMPLETION", top_k: int = 5, dataset_name: str = "haystack_memory"):
+    def __init__(
+        self, search_type: CogneeSearchType = "GRAPH_COMPLETION", top_k: int = 5, dataset_name: str = "haystack_memory"
+    ):
         """
         :param search_type: Cognee search type for memory retrieval.
         :param top_k: Default number of results for memory search.
@@ -42,22 +43,11 @@ class CogneeMemoryStore:
         self.top_k = top_k
         self.dataset_name = dataset_name
 
-    def add_memories(
-        self,
-        *,
-        messages: list[ChatMessage],
-        user_id: str | None = None,
-        agent_id: str | None = None,
-        run_id: str | None = None,
-        **kwargs: Any,
-    ) -> None:
+    def add_memories(self, *, messages: list[ChatMessage]) -> None:
         """
-        Add chat messages to Cognee as memories and cognify them.
+        Add chat messages to Cognee as memories.
 
         :param messages: List of ChatMessages to store.
-        :param user_id: Optional user identifier (reserved for future use).
-        :param agent_id: Optional agent identifier (reserved for future use).
-        :param run_id: Optional run identifier (reserved for future use).
         """
         for msg in messages:
             text = msg.text
@@ -65,27 +55,15 @@ class CogneeMemoryStore:
                 continue
             run_sync(cognee.add(text, dataset_name=self.dataset_name))
 
-        run_sync(cognee.cognify())
+        run_sync(cognee.cognify(datasets=[self.dataset_name]))
         logger.info("Added and cognified {count} messages as memories", count=len(messages))
 
-    def search_memories(
-        self,
-        *,
-        query: str | None = None,
-        top_k: int = 5,
-        user_id: str | None = None,
-        agent_id: str | None = None,
-        run_id: str | None = None,
-        **kwargs: Any,
-    ) -> list[ChatMessage]:
+    def search_memories(self, *, query: str | None = None, top_k: int = 5) -> list[ChatMessage]:
         """
         Search Cognee's knowledge engine for relevant memories.
 
         :param query: The search query.
         :param top_k: Maximum number of memories to return.
-        :param user_id: Optional user identifier (reserved for future use).
-        :param agent_id: Optional agent identifier (reserved for future use).
-        :param run_id: Optional run identifier (reserved for future use).
         :returns: List of ChatMessages containing memory content as system messages.
         """
         if not query:
@@ -101,33 +79,22 @@ class CogneeMemoryStore:
             return memories
 
         for item in raw_results[:effective_top_k]:
-            text = _extract_memory_text(item)
+            text = extract_text(item)
             if text:
                 memories.append(ChatMessage.from_system(text))
 
         logger.info("Found {count} memories for query '{query}'", count=len(memories), query=query[:80])
         return memories
 
-    def delete_all_memories(
-        self,
-        *,
-        user_id: str | None = None,
-        agent_id: str | None = None,
-        run_id: str | None = None,
-        **kwargs: Any,
-    ) -> None:
+    def delete_all_memories(self) -> None:
         """
         Delete all memories by pruning Cognee's data and system state.
-
-        :param user_id: Optional user identifier (reserved for future use).
-        :param agent_id: Optional agent identifier (reserved for future use).
-        :param run_id: Optional run identifier (reserved for future use).
         """
         run_sync(cognee.prune.prune_data())
         run_sync(cognee.prune.prune_system(metadata=True))
         logger.info("All Cognee memories pruned")
 
-    def delete_memory(self, memory_id: str, **kwargs: Any) -> None:
+    def delete_memory(self, memory_id: str) -> None:
         """
         Delete a single memory by ID.
 
@@ -150,22 +117,3 @@ class CogneeMemoryStore:
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "CogneeMemoryStore":
         return default_from_dict(cls, data)
-
-
-def _extract_memory_text(item: Any) -> str:
-    """Best-effort text extraction from a Cognee search result item."""
-    if isinstance(item, str):
-        return item
-
-    for attr in ("content", "text", "description", "name"):
-        if hasattr(item, attr):
-            val = getattr(item, attr)
-            if val and isinstance(val, str):
-                return val
-
-    if isinstance(item, dict):
-        for key in ("content", "text", "description", "name"):
-            if key in item and isinstance(item[key], str):
-                return item[key]
-
-    return str(item)

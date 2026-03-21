@@ -18,7 +18,8 @@ import os
 from cognee.api.v1.visualize.visualize import visualize_graph
 from haystack import Document, Pipeline
 
-from haystack_integrations.components.connectors.cognee import CogneeRetriever, CogneeWriter
+from haystack_integrations.components.retrievers.cognee import CogneeRetriever
+from haystack_integrations.components.writers.cognee import CogneeWriter
 
 SAMPLE_DOCUMENTS = [
     Document(

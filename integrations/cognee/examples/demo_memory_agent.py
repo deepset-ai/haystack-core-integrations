@@ -18,7 +18,7 @@ import os
 from cognee.api.v1.visualize.visualize import visualize_graph
 from haystack.dataclasses import ChatMessage
 
-from haystack_integrations.components.connectors.cognee import CogneeMemoryStore
+from haystack_integrations.memory_stores.cognee import CogneeMemoryStore
 
 
 async def main():
