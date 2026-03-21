@@ -51,7 +51,7 @@ class WatsonxTextEmbedder:
         suffix: str = "",
         timeout: float | None = None,
         max_retries: int | None = None,
-    ):
+    ) -> None:
         """
         Creates an WatsonxTextEmbedder component.
 

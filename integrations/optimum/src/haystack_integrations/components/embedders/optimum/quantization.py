@@ -27,7 +27,7 @@ class OptimumEmbedderQuantizationMode(Enum):
     #: Quantization with AVX-512 and VNNI instructions.
     AVX512_VNNI = "avx512_vnni"
 
-    def __str__(self):
+    def __str__(self) -> str:
         return self.value
 
     @classmethod

@@ -22,6 +22,7 @@ classifiers = [
   "Programming Language :: Python :: 3.11",
   "Programming Language :: Python :: 3.12",
   "Programming Language :: Python :: 3.13",
+  "Programming Language :: Python :: 3.14",
   "Programming Language :: Python :: Implementation :: CPython",
   "Programming Language :: Python :: Implementation :: PyPy",
 ]
@@ -91,6 +92,7 @@ line-length = 120
 [tool.ruff.lint]
 select = [
   "A",
+  "ANN",
   "ARG",
   "B",
   "C",
@@ -137,6 +139,8 @@ ignore = [
   "ARG005",
   # Allow function call argument defaults e.g. `Secret.from_env_var`
   "B008",
+  # Allow `Any` - used legitimately for dynamic types and SDK boundaries
+  "ANN401",
 ]
 
 [tool.ruff.lint.isort]
@@ -147,7 +151,7 @@ ban-relative-imports = "parents"
 
 [tool.ruff.lint.per-file-ignores]
 # Tests can use magic values, assertions, and relative imports
-"tests/**/*" = ["PLR2004", "S101", "TID252"]
+"tests/**/*" = ["PLR2004", "S101", "TID252", "ANN"]
 # Examples can use print statements
 "examples/**/*" = ["T201"]
 

@@ -46,7 +46,7 @@ class NvidiaTextEmbedder:
         suffix: str = "",
         truncate: EmbeddingTruncateMode | str | None = None,
         timeout: float | None = None,
-    ):
+    ) -> None:
         """
         Create a NvidiaTextEmbedder component.
 
@@ -92,7 +92,7 @@ class NvidiaTextEmbedder:
     def class_name(cls) -> str:
         return "NvidiaTextEmbedder"
 
-    def default_model(self):
+    def default_model(self) -> None:
         """Set default model in local NIM mode."""
         valid_models = [
             model.id for model in self.available_models if not model.base_model or model.base_model == model.id
@@ -119,7 +119,7 @@ class NvidiaTextEmbedder:
             error_message = "No locally hosted model was found."
             raise ValueError(error_message)
 
-    def warm_up(self):
+    def warm_up(self) -> None:
         """
         Initializes the component.
         """
