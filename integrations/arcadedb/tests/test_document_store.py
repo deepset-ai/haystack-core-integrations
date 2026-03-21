@@ -73,15 +73,16 @@ class TestArcadeDBDocumentStore(DocumentStoreBaseExtendedTests):
         received = sorted(received, key=lambda x: x.id)
         expected = sorted(expected, key=lambda x: x.id)
         for received_doc, expected_doc in zip(received, expected, strict=True):
-            received_doc.score = None
+            actual = dataclasses.replace(received_doc, score=None)
             if expected_doc.embedding is None:
-                received_doc.embedding = None
-            elif received_doc.embedding is None:
+                actual = dataclasses.replace(actual, embedding=None)
+            elif actual.embedding is None:
                 assert expected_doc.embedding is None
             else:
-                assert received_doc.embedding == pytest.approx(expected_doc.embedding)
-            received_doc.embedding, expected_doc.embedding = None, None
-            assert received_doc == expected_doc
+                assert actual.embedding == pytest.approx(expected_doc.embedding)
+            actual = dataclasses.replace(actual, embedding=None)
+            expected_clean = dataclasses.replace(expected_doc, embedding=None)
+            assert actual == expected_clean
 
     def test_write_documents(self, document_store: ArcadeDBDocumentStore):
         """Override mixin: test default write_documents and duplicate fail behaviour."""
@@ -122,3 +123,185 @@ class TestArcadeDBDocumentStore(DocumentStoreBaseExtendedTests):
         )
         assert len(results) <= 3
         assert results[0].score is not None
+
+    def test_count_documents_by_filter(self, document_store: ArcadeDBDocumentStore):
+        """Counts only documents matching the provided filter."""
+        docs = [
+            Document(id="1", content="Doc 1", meta={"category": "news", "status": "published", "priority": 3}),
+            Document(id="2", content="Doc 2", meta={"category": "docs", "status": "draft", "priority": 1}),
+            Document(id="3", content="Doc 3", meta={"category": "news", "status": "published", "priority": 5}),
+        ]
+        document_store.write_documents(docs)
+
+        count = document_store.count_documents_by_filter(
+            {"field": "meta.status", "operator": "==", "value": "published"}
+        )
+
+        assert count == 2
+
+    def test_count_documents_by_filter_no_matches(self, document_store: ArcadeDBDocumentStore):
+        """Returns zero when no documents match the filter."""
+        docs = [
+            Document(id="1", content="Doc 1", meta={"category": "news"}),
+        ]
+        document_store.write_documents(docs)
+
+        count = document_store.count_documents_by_filter({"field": "meta.status", "operator": "==", "value": "sports"})
+
+        assert count == 0
+
+    def test_count_documents_by_empty_filter(self, document_store: ArcadeDBDocumentStore):
+        """Counts all documents when an empty filter is provided."""
+        docs = [
+            Document(id="1", content="Doc 1", meta={"category": "news"}),
+        ]
+        document_store.write_documents(docs)
+
+        count = document_store.count_documents_by_filter({})
+
+        assert count == 1
+
+    def test_count_unique_metadata_by_filter(self, document_store: ArcadeDBDocumentStore):
+        """Counts unique values per field across documents matching the filter."""
+        docs = [
+            Document(id="1", content="Doc 1", meta={"category": "news", "status": "published", "priority": 1}),
+            Document(id="2", content="Doc 2", meta={"category": "docs", "status": "published", "priority": 2}),
+            Document(id="3", content="Doc 3", meta={"category": "news", "status": "published", "priority": 2}),
+            Document(id="4", content="Doc 4", meta={"category": "faq", "status": "draft", "priority": 3}),
+        ]
+        document_store.write_documents(docs)
+
+        counts = document_store.count_unique_metadata_by_filter(
+            {"field": "meta.status", "operator": "==", "value": "published"},
+            ["category", "priority"],
+        )
+
+        assert counts == {"category": 2, "priority": 2}
+
+    def test_count_unique_metadata_by_filter_empty_fields(self, document_store: ArcadeDBDocumentStore):
+        """Returns an empty dict when no metadata fields are requested."""
+        docs = [
+            Document(id="1", content="Doc 1", meta={"category": "news"}),
+        ]
+        document_store.write_documents(docs)
+
+        counts = document_store.count_unique_metadata_by_filter(
+            {"field": "meta.status", "operator": "==", "value": "news"},
+            [],
+        )
+
+        assert counts == {}
+
+    def test_count_unique_metadata_by_empty_filter(self, document_store: ArcadeDBDocumentStore):
+        """Counts unique values across all documents when filter is empty."""
+        docs = [
+            Document(id="1", content="Doc 1", meta={"category": "news"}),
+        ]
+        document_store.write_documents(docs)
+
+        counts = document_store.count_unique_metadata_by_filter({}, ["category"])
+
+        assert counts == {"category": 1}
+
+    def test_get_metadata_fields_info(self, document_store: ArcadeDBDocumentStore):
+        """Returns correct Haystack type strings for all metadata field types."""
+        docs = [
+            Document(
+                id="1", content="Doc 1", meta={"category": "news", "status": "published", "priority": 1, "active": True}
+            ),
+            Document(
+                id="2", content="Doc 2", meta={"category": "docs", "status": "draft", "priority": 2.5, "active": False}
+            ),
+        ]
+        document_store.write_documents(docs)
+
+        fields_info = document_store.get_metadata_fields_info()
+
+        assert fields_info == {
+            "content": {"type": "text"},
+            "category": {"type": "keyword"},
+            "status": {"type": "keyword"},
+            "priority": {"type": "long"},
+            "active": {"type": "boolean"},
+        }
+
+    def test_get_metadata_fields_info_empty_store(self, document_store: ArcadeDBDocumentStore):
+        """Returns an empty dict when the store contains no documents."""
+        result = document_store.get_metadata_fields_info()
+        assert result == {}
+
+    def test_get_metadata_field_min_max(self, document_store: ArcadeDBDocumentStore):
+        """Returns the correct min and max for a numeric metadata field."""
+        docs = [
+            Document(id="1", content="Doc 1", meta={"priority": 3}),
+            Document(id="2", content="Doc 2", meta={"priority": 1}),
+            Document(id="3", content="Doc 3", meta={"priority": 7}),
+        ]
+        document_store.write_documents(docs)
+
+        result = document_store.get_metadata_field_min_max("priority")
+
+        assert result == {"min": 1, "max": 7}
+
+    def test_get_metadata_field_min_max_nonexistent_field(self, document_store: ArcadeDBDocumentStore):
+        """Returns None for both min and max when the field does not exist."""
+        docs = [Document(id="1", content="Doc 1", meta={"category": "news"})]
+        document_store.write_documents(docs)
+
+        result = document_store.get_metadata_field_min_max("nonexistent")
+
+        assert result == {"min": None, "max": None}
+
+    def test_get_metadata_field_unique_values(self, document_store: ArcadeDBDocumentStore):
+        """Returns values matching the search term and the correct total count."""
+        docs = [
+            Document(id="1", content="Doc 1", meta={"category": "alpha"}),
+            Document(id="2", content="Doc 2", meta={"category": "beta"}),
+            Document(id="3", content="Doc 3", meta={"category": "alphabet"}),
+            Document(id="4", content="Doc 4", meta={"category": "gamma"}),
+        ]
+        document_store.write_documents(docs)
+
+        values, total_count = document_store.get_metadata_field_unique_values(
+            "category", search_term="alp", from_=0, size=10
+        )
+
+        assert sorted(values) == ["alpha", "alphabet"]
+        assert total_count == 2
+
+    def test_get_metadata_field_unique_values_pagination(self, document_store: ArcadeDBDocumentStore):
+        """Respects size limit while total reflects the full unpaginated count."""
+        docs = [
+            Document(id="1", content="Doc 1", meta={"category": "alpha"}),
+            Document(id="2", content="Doc 2", meta={"category": "beta"}),
+            Document(id="3", content="Doc 3", meta={"category": "gamma"}),
+        ]
+        document_store.write_documents(docs)
+
+        values, total = document_store.get_metadata_field_unique_values("category", from_=0, size=2)
+
+        assert len(values) == 2
+        assert total == 3
+
+    def test_get_metadata_field_unique_values_case_insensitive(self, document_store: ArcadeDBDocumentStore):
+        """Matches values case-insensitively when a search term is provided."""
+        docs = [
+            Document(id="1", content="Doc 1", meta={"category": "Books"}),
+            Document(id="2", content="Doc 2", meta={"category": "books"}),
+            Document(id="3", content="Doc 3", meta={"category": "ELECTRONICS"}),
+        ]
+        document_store.write_documents(docs)
+
+        _, total = document_store.get_metadata_field_unique_values("category", search_term="book")
+
+        assert total == 2
+
+    def test_get_metadata_field_unique_values_no_matches(self, document_store: ArcadeDBDocumentStore):
+        """Returns empty results when no metadata values match the search term."""
+        docs = [Document(id="1", content="Doc 1", meta={"category": "news"})]
+        document_store.write_documents(docs)
+
+        values, total = document_store.get_metadata_field_unique_values("category", search_term="sports")
+
+        assert values == []
+        assert total == 0
