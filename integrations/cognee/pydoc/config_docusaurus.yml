@@ -1,9 +1,9 @@
 loaders:
   - modules:
-      - haystack_integrations.components.connectors.cognee.writer
-      - haystack_integrations.components.connectors.cognee.retriever
       - haystack_integrations.components.connectors.cognee.cognifier
-      - haystack_integrations.components.connectors.cognee.memory_store
+      - haystack_integrations.components.retrievers.cognee.memory_retriever
+      - haystack_integrations.components.writers.cognee.memory_writer
+      - haystack_integrations.memory_stores.cognee.memory_store
     search_path: [../src]
 processors:
   - type: filter

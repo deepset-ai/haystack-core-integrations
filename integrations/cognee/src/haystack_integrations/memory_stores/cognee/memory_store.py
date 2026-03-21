@@ -49,14 +49,18 @@ class CogneeMemoryStore:
 
         :param messages: List of ChatMessages to store.
         """
+        added = 0
         for msg in messages:
             text = msg.text
             if not text:
                 continue
             run_sync(cognee.add(text, dataset_name=self.dataset_name))
+            added += 1
 
-        run_sync(cognee.cognify(datasets=[self.dataset_name]))
-        logger.info("Added and cognified {count} messages as memories", count=len(messages))
+        if added > 0:
+            run_sync(cognee.cognify(datasets=[self.dataset_name]))
+
+        logger.info("Added and cognified {count} messages as memories", count=added)
 
     def search_memories(self, *, query: str | None = None, top_k: int = 5) -> list[ChatMessage]:
         """
