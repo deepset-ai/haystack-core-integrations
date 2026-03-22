@@ -188,7 +188,7 @@ class AzureAISearchDocumentStore:
         resolved_key = self._api_key.resolve_value()
 
         if self._azure_token_provider is not None:
-            credential = self._azure_token_provider
+            credential: TokenCredential | AzureKeyCredential = self._azure_token_provider
         elif resolved_key:
             credential = AzureKeyCredential(resolved_key)
         else:
