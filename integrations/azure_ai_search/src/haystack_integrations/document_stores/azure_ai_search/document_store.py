@@ -6,7 +6,7 @@ import logging as python_logging
 from datetime import datetime
 from typing import Any
 
-from azure.core.credentials import AzureKeyCredential
+from azure.core.credentials import AzureKeyCredential, TokenCredential
 from azure.core.exceptions import (
     ClientAuthenticationError,
     HttpResponseError,
@@ -121,6 +121,7 @@ class AzureAISearchDocumentStore:
         metadata_fields: dict[str, SearchField | type] | None = None,
         vector_search_configuration: VectorSearch | None = None,
         include_search_metadata: bool = False,
+        azure_token_provider: TokenCredential | None = None,
         **index_creation_kwargs: Any,
     ) -> None:
         """
@@ -155,6 +156,8 @@ class AzureAISearchDocumentStore:
             in the returned documents. When set to True, the `meta` field of the returned
             documents will contain the @search.score, @search.reranker_score, @search.highlights,
             @search.captions, and other fields returned by Azure AI Search.
+        :param azure_token_provider: A class with a `get_token` method that returns an Azure token,
+            will be invoked on every request.
         :param index_creation_kwargs: Optional keyword parameters to be passed to `SearchIndex` class
             during index creation. Some of the supported parameters:
                 - `semantic_search`: Defines semantic configuration of the search index. This parameter is needed
@@ -176,6 +179,7 @@ class AzureAISearchDocumentStore:
         self._metadata_fields = AzureAISearchDocumentStore._normalize_metadata_index_fields(metadata_fields)
         self._vector_search_configuration = vector_search_configuration or DEFAULT_VECTOR_SEARCH
         self._include_search_metadata = include_search_metadata
+        self._azure_token_provider = azure_token_provider
         self._index_creation_kwargs = index_creation_kwargs
 
     @property
@@ -183,7 +187,12 @@ class AzureAISearchDocumentStore:
         resolved_endpoint = self._azure_endpoint.resolve_value()
         resolved_key = self._api_key.resolve_value()
 
-        credential = AzureKeyCredential(resolved_key) if resolved_key else DefaultAzureCredential()
+        if self._azure_token_provider is not None:
+            credential = self._azure_token_provider
+        elif resolved_key:
+            credential = AzureKeyCredential(resolved_key)
+        else:
+            credential = DefaultAzureCredential()
 
         # build a UserAgentPolicy to be used for the request
         ua_policy = UserAgentPolicy(user_agent=USER_AGENT)
@@ -315,6 +324,12 @@ class AzureAISearchDocumentStore:
         :returns:
             Dictionary with serialized data.
         """
+        if self._azure_token_provider:
+            logger.warning(
+                "`azure_token_provider` was used in initialization of AzureAISearchDocumentStore, "
+                "but does not support serializing it."
+            )
+
         return default_to_dict(
             self,
             azure_endpoint=(self._azure_endpoint.to_dict() if self._azure_endpoint else None),
