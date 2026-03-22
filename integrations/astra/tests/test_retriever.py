@@ -4,6 +4,7 @@
 from unittest.mock import patch
 
 import pytest
+from haystack import Document
 from haystack.document_stores.types import FilterPolicy
 
 from haystack_integrations.components.retrievers.astra import AstraEmbeddingRetriever
@@ -122,3 +123,22 @@ def test_retriever_from_json_no_filter_policy(*_):
     assert retriever.top_k == 42
     assert retriever.filters == {"bar": "baz"}
     assert retriever.filter_policy == FilterPolicy.REPLACE  # defaults to REPLACE
+
+
+@patch.dict(
+    "os.environ",
+    {"ASTRA_DB_APPLICATION_TOKEN": "fake-token", "ASTRA_DB_API_ENDPOINT": "http://fake-url.apps.astra.datastax.com"},
+)
+@patch("haystack_integrations.document_stores.astra.document_store.AstraClient")
+@pytest.mark.asyncio
+async def test_run_async(*_):
+    ds = AstraDocumentStore()
+    mock_doc = Document(content="test", id="1")
+    with patch.object(ds, "search", return_value=[mock_doc]):
+        retriever = AstraEmbeddingRetriever(ds, top_k=5)
+        result = await retriever.run_async(query_embedding=[0.1] * 768)
+        assert result["documents"] == [mock_doc]
+        ds.search.assert_called_once()
+        call_args = ds.search.call_args[0]
+        assert call_args[0] == [0.1] * 768
+        assert call_args[1] == 5
