@@ -149,13 +149,24 @@ class TestLangfuseSpan:
     def test_set_content_tag_updates_input_and_output_with_messages(self):
         mock_context_manager = MockContextManager()
 
-        # test message input
         span = LangfuseSpan(mock_context_manager)
         span.set_content_tag("key.input", {"messages": [ChatMessage.from_user("message")]})
         assert mock_context_manager._span.update.call_count == 1
-        # check we converted ChatMessage to OpenAI format
         assert mock_context_manager._span.update.call_args_list[0][1] == {
             "input": [{"role": "user", "content": "message"}]
+        }
+
+        mock_context_manager._span.update.reset_mock()
+        span.set_content_tag(
+            "key.input",
+            {"messages": [ChatMessage.from_user("message")], "generation_kwargs": {"n": 2, "temperature": 0.7}},
+        )
+        assert mock_context_manager._span.update.call_count == 1
+        assert mock_context_manager._span.update.call_args_list[0][1] == {
+            "input": {
+                "messages": [{"role": "user", "content": "message"}],
+                "generation_kwargs": {"n": 2, "temperature": 0.7},
+            }
         }
         # test replies ChatMessage list
         mock_context_manager._span.update.reset_mock()
