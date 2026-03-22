@@ -2,6 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+import asyncio
 from collections.abc import Generator
 from typing import Any
 
@@ -447,6 +448,19 @@ class AstraDocumentStore:
         logger.debug(f"Raw responses: {result}")  # leaving for debugging
 
         return result
+
+    async def search_async(
+        self, query_embedding: list[float], top_k: int, filters: dict[str, Any] | None = None
+    ) -> list[Document]:
+        """
+        Async version of search(). Wraps the sync call via asyncio.to_thread.
+
+        :param query_embedding: a list of query embeddings.
+        :param top_k: the number of results to return.
+        :param filters: filters to apply during search.
+        :returns: matching documents.
+        """
+        return await asyncio.to_thread(self.search, query_embedding, top_k, filters=filters)
 
     def delete_documents(self, document_ids: list[str]) -> None:
         """

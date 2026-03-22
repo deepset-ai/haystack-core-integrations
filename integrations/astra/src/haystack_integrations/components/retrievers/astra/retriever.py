@@ -79,6 +79,28 @@ class AstraEmbeddingRetriever:
 
         return {"documents": self.document_store.search(query_embedding, top_k, filters=filters)}
 
+    @component.output_types(documents=list[Document])
+    async def run_async(
+        self,
+        query_embedding: list[float],
+        filters: dict[str, Any] | None = None,
+        top_k: int | None = None,
+    ) -> dict[str, list[Document]]:
+        """Asynchronously retrieve documents from the AstraDocumentStore.
+
+        :param query_embedding: floats representing the query embedding
+        :param filters: Filters applied to the retrieved Documents. The way runtime filters are applied depends on
+                        the `filter_policy` chosen at retriever initialization. See init method docstring for more
+                        details.
+        :param top_k: the maximum number of documents to retrieve.
+        :returns: a dictionary with the following keys:
+            - `documents`: A list of documents retrieved from the AstraDocumentStore.
+        """
+        filters = apply_filter_policy(self.filter_policy, self.filters, filters)
+        top_k = top_k or self.top_k
+
+        return {"documents": await self.document_store.search_async(query_embedding, top_k, filters=filters)}
+
     def to_dict(self) -> dict[str, Any]:
         """
         Serializes the component to a dictionary.
