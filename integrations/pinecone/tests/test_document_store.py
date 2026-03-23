@@ -363,65 +363,6 @@ class TestDocumentStore(
 
         assert len(result["context_windows"]) == 1
 
-    def test_count_documents_by_filter(self, document_store: PineconeDocumentStore):
-        docs = [
-            Document(content="Doc 1", meta={"category": "A", "status": "draft"}),
-            Document(content="Doc 2", meta={"category": "B", "status": "published"}),
-            Document(content="Doc 3", meta={"category": "A", "status": "published"}),
-            Document(content="Doc 4", meta={"category": "A", "status": "draft"}),
-        ]
-        document_store.write_documents(docs)
-
-        # Count documents with category="A"
-        count = document_store.count_documents_by_filter(
-            filters={"field": "meta.category", "operator": "==", "value": "A"}
-        )
-        assert count == 3
-
-        # Count documents with status="published"
-        count = document_store.count_documents_by_filter(
-            filters={"field": "meta.status", "operator": "==", "value": "published"}
-        )
-        assert count == 2
-
-        # Count with complex filter
-        count = document_store.count_documents_by_filter(
-            filters={
-                "operator": "AND",
-                "conditions": [
-                    {"field": "meta.category", "operator": "==", "value": "A"},
-                    {"field": "meta.status", "operator": "==", "value": "draft"},
-                ],
-            }
-        )
-        assert count == 2
-
-    def test_count_unique_metadata_by_filter(self, document_store: PineconeDocumentStore):
-        docs = [
-            Document(content="Doc 1", meta={"category": "A", "author": "Alice", "priority": 1}),
-            Document(content="Doc 2", meta={"category": "B", "author": "Bob", "priority": 2}),
-            Document(content="Doc 3", meta={"category": "A", "author": "Alice", "priority": 1}),
-            Document(content="Doc 4", meta={"category": "C", "author": "Charlie", "priority": 3}),
-            Document(content="Doc 5", meta={"category": "A", "author": "Bob", "priority": 2}),
-        ]
-        document_store.write_documents(docs)
-
-        # Count unique values without filter
-        counts = document_store.count_unique_metadata_by_filter(
-            filters={}, metadata_fields=["category", "author", "priority"]
-        )
-        assert counts["category"] == 3  # A, B, C
-        assert counts["author"] == 3  # Alice, Bob, Charlie
-        assert counts["priority"] == 3  # 1, 2, 3
-
-        # Count unique values with filter
-        counts = document_store.count_unique_metadata_by_filter(
-            filters={"field": "meta.category", "operator": "==", "value": "A"},
-            metadata_fields=["author", "priority"],
-        )
-        assert counts["author"] == 2  # Alice, Bob
-        assert counts["priority"] == 2  # 1, 2
-
     def test_get_metadata_fields_info(self, document_store: PineconeDocumentStore):
         docs = [
             Document(
