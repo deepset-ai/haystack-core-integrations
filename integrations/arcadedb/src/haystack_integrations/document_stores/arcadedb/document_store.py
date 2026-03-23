@@ -488,8 +488,8 @@ class ArcadeDBDocumentStore:
 
         counts = {}
         for field in metadata_fields:  # Arcade doesn't support COUNT(DISTINCT..)
-            field = field.removeprefix("meta.")
-            sql = f"SELECT DISTINCT meta[{_sql_str(field)}] AS val FROM `{self._type_name}`"
+            field_name = field.removeprefix("meta.")
+            sql = f"SELECT DISTINCT meta[{_sql_str(field_name)}] AS val FROM `{self._type_name}`"
             if where:
                 sql += f" WHERE {where}"
             rows = self._command(sql)
