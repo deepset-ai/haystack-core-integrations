@@ -15,7 +15,8 @@ from kreuzberg import (
 
 
 def _is_batch_error(result: ExtractionResult) -> bool:
-    """Detect error results returned by kreuzberg's batch APIs.
+    """
+    Detect error results returned by kreuzberg's batch APIs.
 
     Batch APIs return ``ExtractionResult(content="Error: ...", metadata={},
     quality_score=None)`` instead of raising exceptions. Valid results always

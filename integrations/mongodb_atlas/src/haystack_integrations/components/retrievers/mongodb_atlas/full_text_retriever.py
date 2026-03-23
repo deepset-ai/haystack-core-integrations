@@ -49,6 +49,7 @@ class MongoDBAtlasFullTextRetriever:
     ) -> None:
         """
         :param document_store: An instance of MongoDBAtlasDocumentStore.
+
         :param filters: Filters applied to the retrieved Documents. Make sure that the fields used in the filters are
             included in the configuration of the `full_text_search_index`. The configuration must be done manually
             in the Web UI of MongoDB Atlas.

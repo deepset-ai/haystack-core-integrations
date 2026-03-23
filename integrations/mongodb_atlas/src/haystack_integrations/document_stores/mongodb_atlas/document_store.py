@@ -23,8 +23,7 @@ logger = logging.getLogger(__name__)
 
 class MongoDBAtlasDocumentStore:
     """
-    A MongoDBAtlasDocumentStore implementation that uses the
-    [MongoDB Atlas](https://www.mongodb.com/atlas/database) service that is easy to deploy, operate, and scale.
+    A MongoDBAtlasDocumentStore backed by [MongoDB Atlas](https://www.mongodb.com/atlas/database).
 
     To connect to MongoDB Atlas, you need to provide a connection string in the format:
     `"mongodb+srv://{mongo_atlas_username}:{mongo_atlas_password}@{mongo_atlas_host}/?{mongo_atlas_params_string}"`.
@@ -120,6 +119,7 @@ class MongoDBAtlasDocumentStore:
 
     @property
     def connection(self) -> AsyncMongoClient | MongoClient:
+        """Return the active MongoDB client connection."""
         if self._connection:
             return self._connection
         if self._connection_async:
@@ -129,6 +129,7 @@ class MongoDBAtlasDocumentStore:
 
     @property
     def collection(self) -> AsyncCollection | Collection:
+        """Return the active MongoDB collection."""
         if self._collection:
             return self._collection
         if self._collection_async:
@@ -306,7 +307,7 @@ class MongoDBAtlasDocumentStore:
     def _create_count_unique_metadata_pipeline(
         self, filters: dict[str, Any], metadata_fields: list[str]
     ) -> list[dict[str, Any]]:
-        normalized_filters = _normalize_filters(filters)
+        normalized_filters = _normalize_filters(filters) if filters else {}
         pipeline = [{"$match": normalized_filters}]
         facet_stages = {}
         for field in metadata_fields:
@@ -352,8 +353,7 @@ class MongoDBAtlasDocumentStore:
         self, filters: dict[str, Any], metadata_fields: list[str]
     ) -> dict[str, int]:
         """
-        Asynchronously applies a filter selecting documents and counts the unique values for each meta field of the
-        matched documents.
+        Asynchronously applies a filter selecting documents and counts unique metadata values for each meta field.
 
         :param filters: The filters to apply to the document list.
         :param metadata_fields: The metadata fields to count unique values for.
@@ -374,6 +374,8 @@ class MongoDBAtlasDocumentStore:
             raise DocumentStoreError(msg) from e
 
     def _compute_metadata_fields_info(self, docs: list[Any]) -> dict[str, dict]:
+        if not docs:
+            return {}
         # We start with the content field
         fields_info = {self.content_field: {"type": "text"}}
         type_mapping = {str: "keyword", int: "long", float: "float", bool: "boolean", list: "list", dict: "object"}
@@ -426,12 +428,16 @@ class MongoDBAtlasDocumentStore:
             raise DocumentStoreError(msg) from e
 
     def _create_min_max_pipeline(self, metadata_field: str) -> list[dict[str, Any]]:
+        if metadata_field.startswith("meta."):
+            mongo_field = f"${metadata_field}"
+        else:
+            mongo_field = f"$meta.{metadata_field}"
         return [
             {
                 "$group": {
                     "_id": None,
-                    "min": {"$min": f"$meta.{metadata_field}"},
-                    "max": {"$max": f"$meta.{metadata_field}"},
+                    "min": {"$min": mongo_field},
+                    "max": {"$max": mongo_field},
                 }
             }
         ]
@@ -538,8 +544,7 @@ class MongoDBAtlasDocumentStore:
         self, metadata_field: str, search_term: str | None = None, from_: int = 0, size: int = 10
     ) -> tuple[list[str], int]:
         """
-        Asynchronously retrieves unique values for a field matching a search_term or all possible values if no search
-        term is given.
+        Asynchronously retrieves unique values for a metadata field, optionally filtered by a search term.
 
         :param metadata_field: The metadata field to retrieve unique values for.
         :param search_term: The search term to filter values. Matches as a case-insensitive substring.
@@ -972,8 +977,7 @@ class MongoDBAtlasDocumentStore:
         self, query_embedding: list[float], filters: dict[str, Any] | None = None, top_k: int = 10
     ) -> list[Document]:
         """
-        Asynchronously find the documents that are most similar to the provided `query_embedding` by using a vector
-        similarity metric.
+        Asynchronously find the documents most similar to the provided `query_embedding` using vector similarity.
 
         :param query_embedding: Embedding of the query
         :param filters: Optional filters.

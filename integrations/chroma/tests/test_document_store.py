@@ -4,7 +4,6 @@
 
 import logging
 import operator
-import time
 import uuid
 from unittest import mock
 
@@ -13,12 +12,17 @@ from chromadb.api.shared_system_client import SharedSystemClient
 from haystack.dataclasses import ByteStream, Document
 from haystack.testing.document_store import (
     TEST_EMBEDDING_1,
+    CountDocumentsByFilterTest,
     CountDocumentsTest,
+    CountUniqueMetadataByFilterTest,
     DeleteAllTest,
     DeleteByFilterTest,
     DeleteDocumentsTest,
     FilterableDocsFixtureMixin,
     FilterDocumentsTest,
+    GetMetadataFieldMinMaxTest,
+    GetMetadataFieldsInfoTest,
+    GetMetadataFieldUniqueValuesTest,
     UpdateByFilterTest,
 )
 
@@ -46,6 +50,11 @@ class TestDocumentStore(
     UpdateByFilterTest,
     DeleteAllTest,
     DeleteByFilterTest,
+    CountDocumentsByFilterTest,
+    CountUniqueMetadataByFilterTest,
+    GetMetadataFieldsInfoTest,
+    GetMetadataFieldMinMaxTest,
+    GetMetadataFieldUniqueValuesTest,
 ):
     """
     Common test cases will be provided by `DocumentStoreBaseTests` but
@@ -482,23 +491,6 @@ class TestDocumentStore(
         document_store.write_documents(docs)
         assert document_store.count_documents() == 2
 
-    def test_delete_all_documents_no_index_recreation(self, document_store: ChromaDocumentStore):
-        docs = [Document(id="1", content="A first document"), Document(id="2", content="Second document")]
-        document_store.write_documents(docs)
-        assert document_store.count_documents() == 2
-
-        document_store.delete_all_documents()
-        time.sleep(2)  # need to wait for the deletion to be reflected in count_documents
-        assert document_store.count_documents() == 0
-
-        new_doc = Document(id="3", content="New document after delete all")
-        document_store.write_documents([new_doc])
-        assert document_store.count_documents() == 1
-
-        results = document_store.filter_documents()
-        assert len(results) == 1
-        assert results[0].content == "New document after delete all"
-
     @pytest.mark.integration
     def test_search_embeddings(self, document_store: ChromaDocumentStore):
         query_embedding = TEST_EMBEDDING_1
@@ -548,79 +540,6 @@ class TestMetadataOperations:
         document_store.write_documents(docs)
         return document_store
 
-    def test_count_documents_by_filter_simple(self, populated_store):
-        """Test counting documents with simple filter"""
-        count = populated_store.count_documents_by_filter(
-            filters={"field": "meta.category", "operator": "==", "value": "A"}
-        )
-        assert count == 3
-
-    def test_count_documents_by_filter_compound(self, populated_store):
-        """Test counting documents with compound filter"""
-        count = populated_store.count_documents_by_filter(
-            filters={
-                "operator": "AND",
-                "conditions": [
-                    {"field": "meta.category", "operator": "==", "value": "A"},
-                    {"field": "meta.status", "operator": "==", "value": "active"},
-                ],
-            }
-        )
-        assert count == 2
-
-    def test_count_documents_by_filter_no_matches(self, populated_store):
-        """Test counting documents with no matches"""
-        count = populated_store.count_documents_by_filter(
-            filters={"field": "meta.category", "operator": "==", "value": "Z"}
-        )
-        assert count == 0
-
-    def test_count_documents_by_filter_empty_collection(self, document_store):
-        """Test counting documents in empty collection"""
-        count = document_store.count_documents_by_filter(
-            filters={"field": "meta.category", "operator": "==", "value": "A"}
-        )
-        assert count == 0
-
-    def test_count_unique_metadata_by_filter_all_documents(self, populated_store):
-        """Test counting unique metadata values with no filter"""
-        counts = populated_store.count_unique_metadata_by_filter({}, ["category", "status"])
-        assert counts["category"] == 3  # A, B, C
-        assert counts["status"] == 2  # active, inactive
-
-    def test_count_unique_metadata_by_filter_with_filter(self, populated_store):
-        """Test counting unique metadata values with filter"""
-        counts = populated_store.count_unique_metadata_by_filter(
-            filters={"field": "meta.category", "operator": "==", "value": "A"}, metadata_fields=["status", "priority"]
-        )
-        assert counts["status"] == 2  # active, inactive
-        assert counts["priority"] == 2  # 1, 3
-
-    def test_count_unique_metadata_by_filter_field_normalization(self, populated_store):
-        """Test field name normalization (with/without meta. prefix)"""
-        # Test with "meta." prefix
-        counts_with_prefix = populated_store.count_unique_metadata_by_filter({}, ["meta.category"])
-        # Test without "meta." prefix
-        counts_without_prefix = populated_store.count_unique_metadata_by_filter({}, ["category"])
-
-        assert counts_with_prefix["category"] == counts_without_prefix["category"] == 3
-
-    def test_count_unique_metadata_by_filter_missing_field(self, populated_store):
-        """Test counting unique metadata for non-existent field"""
-        counts = populated_store.count_unique_metadata_by_filter({}, ["nonexistent_field"])
-        assert counts["nonexistent_field"] == 0
-
-    def test_count_unique_metadata_by_filter_sparse_field(self, populated_store):
-        """Test counting unique metadata for field that exists in some docs"""
-        counts = populated_store.count_unique_metadata_by_filter({}, ["score"])
-        assert counts["score"] == 5  # 0.9, 0.8, 0.7, 0.95, 0.6
-
-    def test_count_unique_metadata_by_filter_empty_collection(self, document_store):
-        """Test counting unique metadata in empty collection"""
-        counts = document_store.count_unique_metadata_by_filter({}, ["category", "status"])
-        assert counts["category"] == 0
-        assert counts["status"] == 0
-
     def test_get_metadata_fields_info(self, populated_store):
         """Test getting metadata field information"""
         fields_info = populated_store.get_metadata_fields_info()
@@ -635,11 +554,6 @@ class TestMetadataOperations:
         assert fields_info["status"]["type"] == "keyword"
         assert fields_info["priority"]["type"] == "long"
         assert fields_info["score"]["type"] == "float"
-
-    def test_get_metadata_fields_info_empty_collection(self, document_store):
-        """Test getting metadata field info from empty collection"""
-        fields_info = document_store.get_metadata_fields_info()
-        assert fields_info == {}
 
     def test_get_metadata_fields_info_type_inference(self):
         """Test type inference for different data types"""
@@ -658,44 +572,15 @@ class TestMetadataOperations:
         assert fields_info["float_field"]["type"] == "float"
         assert fields_info["bool_field"]["type"] == "boolean"
 
-    def test_get_metadata_field_min_max_numeric(self, populated_store):
-        """Test getting min/max values for numeric field"""
-        min_max = populated_store.get_metadata_field_min_max("priority")
-        assert min_max["min"] == 1
-        assert min_max["max"] == 3
-
-    def test_get_metadata_field_min_max_float(self, populated_store):
-        """Test getting min/max values for float field"""
-        min_max = populated_store.get_metadata_field_min_max("score")
-        assert min_max["min"] == 0.6
-        assert min_max["max"] == 0.95
-
     def test_get_metadata_field_min_max_string(self, populated_store):
         """Test getting min/max values for string field (alphabetical)"""
         min_max = populated_store.get_metadata_field_min_max("category")
         assert min_max["min"] == "A"
         assert min_max["max"] == "C"
 
-    def test_get_metadata_field_min_max_field_normalization(self, populated_store):
-        """Test field name normalization in min/max"""
-        # Test with "meta." prefix
-        min_max_with_prefix = populated_store.get_metadata_field_min_max("meta.priority")
-        # Test without "meta." prefix
-        min_max_without_prefix = populated_store.get_metadata_field_min_max("priority")
-
-        assert min_max_with_prefix == min_max_without_prefix
-        assert min_max_with_prefix["min"] == 1
-        assert min_max_with_prefix["max"] == 3
-
     def test_get_metadata_field_min_max_missing_field(self, populated_store):
         """Test getting min/max for non-existent field"""
         min_max = populated_store.get_metadata_field_min_max("nonexistent_field")
-        assert min_max["min"] is None
-        assert min_max["max"] is None
-
-    def test_get_metadata_field_min_max_empty_collection(self, document_store):
-        """Test getting min/max from empty collection"""
-        min_max = document_store.get_metadata_field_min_max("priority")
         assert min_max["min"] is None
         assert min_max["max"] is None
 

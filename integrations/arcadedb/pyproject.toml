@@ -105,7 +105,7 @@ known-first-party = ["haystack_integrations"]
 ban-relative-imports = "parents"
 
 [tool.ruff.lint.per-file-ignores]
-"tests/**/*" = ["PLR2004", "S101", "TID252", "ANN"]
+"tests/**/*" = ["PLR2004", "S101", "TID252", "D", "ANN"]
 "examples/**/*" = ["T201"]
 
 [tool.coverage.run]

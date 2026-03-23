@@ -20,6 +20,7 @@ logger = logging.getLogger(__name__)
 class LlamaStackChatGenerator(OpenAIChatGenerator):
     """
     Enables text generation using Llama Stack framework.
+
     Llama Stack Server supports multiple inference providers, including Ollama, Together,
     and vLLM and other cloud providers.
     For a complete list of inference providers, see [Llama Stack docs](https://llama-stack.readthedocs.io/en/latest/providers/inference/index.html).
@@ -70,8 +71,10 @@ class LlamaStackChatGenerator(OpenAIChatGenerator):
         http_client_kwargs: dict[str, Any] | None = None,
     ) -> None:
         """
-        Creates an instance of LlamaStackChatGenerator. To use this chat generator,
-        you need to setup Llama Stack Server with an inference provider and have a model available.
+        Creates an instance of LlamaStackChatGenerator.
+
+        To use this chat generator, you need to setup Llama Stack Server with an inference provider and have a model
+        available.
 
         :param model:
             The name of the model to use for chat completion.

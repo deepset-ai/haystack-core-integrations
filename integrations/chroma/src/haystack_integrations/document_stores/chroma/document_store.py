@@ -49,6 +49,7 @@ class ChromaDocumentStore:
     ) -> None:
         """
         Creates a new ChromaDocumentStore instance.
+
         It is meant to be connected to a Chroma collection.
 
         Note: for the component to be part of a serializable pipeline, the __init__
@@ -999,8 +1000,7 @@ class ChromaDocumentStore:
         filters: dict[str, Any] | None = None,
     ) -> list[list[Document]]:
         """
-        Asynchronously perform vector search on the stored document, pass the embeddings of the queries instead of
-        their text.
+        Asynchronously perform vector search using query embeddings instead of text.
 
         Asynchronous methods are only supported for HTTP connections.
 
@@ -1065,8 +1065,7 @@ class ChromaDocumentStore:
 
     def count_unique_metadata_by_filter(self, filters: dict[str, Any], metadata_fields: list[str]) -> dict[str, int]:
         """
-        Returns the number of unique values for each specified metadata field
-        of the documents that match the provided filters.
+        Return unique value counts for metadata fields of documents matching the provided filters.
 
         :param filters: The filters to apply to count documents.
             For filter syntax, see [Haystack metadata filtering](https://docs.haystack.deepset.ai/docs/metadata-filtering)
@@ -1090,8 +1089,7 @@ class ChromaDocumentStore:
         self, filters: dict[str, Any], metadata_fields: list[str]
     ) -> dict[str, int]:
         """
-        Asynchronously returns the number of unique values for each specified metadata field
-        of the documents that match the provided filters.
+        Asynchronously return unique value counts for metadata fields of documents matching the provided filters.
 
         Asynchronous methods are only supported for HTTP connections.
 
@@ -1233,8 +1231,7 @@ class ChromaDocumentStore:
         size: int = 10,
     ) -> tuple[list[str], int]:
         """
-        Returns unique values for a metadata field, optionally filtered by
-        a search term in the content field, with pagination support.
+        Return unique metadata field values, optionally filtered by a content search term, with pagination.
 
         :param metadata_field: The metadata field to get unique values for.
             Can include or omit the "meta." prefix.
@@ -1264,8 +1261,7 @@ class ChromaDocumentStore:
         size: int = 10,
     ) -> tuple[list[str], int]:
         """
-        Asynchronously returns unique values for a metadata field, optionally filtered by
-        a search term in the content field, with pagination support.
+        Asynchronously return unique metadata field values, optionally filtered by content, with pagination.
 
         Asynchronous methods are only supported for HTTP connections.
 
