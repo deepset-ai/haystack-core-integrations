@@ -1198,7 +1198,6 @@ class TestAmazonBedrockChatGeneratorUtils:
         for chunk in reasoning_chunks:
             assert "reasoning_contents" not in chunk.meta
 
-
     def test_parse_streaming_response_with_two_tool_calls(self, mock_boto3_session):
         model = "anthropic.claude-3-5-sonnet-20240620-v1:0"
         type_ = (
