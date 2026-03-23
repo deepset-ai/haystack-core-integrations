@@ -57,6 +57,7 @@ class JinaDocumentImageEmbedder:
         *,
         api_key: Secret = Secret.from_env_var("JINA_API_KEY"),  # noqa: B008
         model: str = "jina-clip-v2",
+        base_url: str = JINA_API_URL,
         file_path_meta_field: str = "file_path",
         root_path: str | None = None,
         embedding_dimension: int | None = None,
@@ -74,6 +75,7 @@ class JinaDocumentImageEmbedder:
             - "jina-clip-v2" (default)
             - "jina-embeddings-v4"
             Check the list of available models on [Jina documentation](https://jina.ai/embeddings/).
+        :param base_url: The base URL of the Jina API.
         :param file_path_meta_field: The metadata field in the Document that contains the file path to the image or PDF.
         :param root_path: The root directory path where document files are located. If provided, file paths in
             document metadata will be resolved relative to this path. If None, file paths are treated as absolute paths.
@@ -89,6 +91,7 @@ class JinaDocumentImageEmbedder:
 
         self.api_key = api_key
         self.model_name = model
+        self.base_url = base_url
         self.file_path_meta_field = file_path_meta_field
         self.root_path = root_path or ""
         self.embedding_dimension = embedding_dimension
@@ -120,6 +123,7 @@ class JinaDocumentImageEmbedder:
             self,
             api_key=self.api_key.to_dict(),
             model=self.model_name,
+            base_url=self.base_url,
             file_path_meta_field=self.file_path_meta_field,
             root_path=self.root_path,
             embedding_dimension=self.embedding_dimension,
@@ -235,7 +239,7 @@ class JinaDocumentImageEmbedder:
 
             try:
                 response = self._session.post(
-                    JINA_API_URL,
+                    self.base_url,
                     json={
                         "input": batch_images,
                         "model": self.model_name,
