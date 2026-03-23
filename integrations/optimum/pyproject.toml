@@ -21,6 +21,8 @@ classifiers = [
   "Programming Language :: Python :: 3.10",
   "Programming Language :: Python :: 3.11",
   "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Programming Language :: Python :: 3.14",
   "Programming Language :: Python :: Implementation :: CPython",
   "Programming Language :: Python :: Implementation :: PyPy",
 ]
@@ -33,8 +35,8 @@ dependencies = [
   # Ref: https://github.com/huggingface/optimum/blob/8651c0ca1cccf095458bc80329dec9df4601edb4/optimum/exporters/onnx/__main__.py#L164
   # "sentence-transformers" has been added, since most embedding models use it
   "sentence-transformers>=2.3",
-  # tokenizers is a dependency of transformers/sentence-transformers. The following version is the first one which supports Python 3.13.
-  "tokenizers>=0.20.2",
+  # tokenizers is a dependency of transformers/sentence-transformers. The following version is the first one which supports Python 3.14.
+  "tokenizers>=0.21.0",
 ]
 
 [project.urls]
