@@ -526,7 +526,8 @@ class ArcadeDBDocumentStore:
         """
         self._ensure_initialized()
 
-        field_ref = f"meta[{_sql_str(metadata_field)}]"
+        field_name = metadata_field.removeprefix("meta.")
+        field_ref = f"meta[{_sql_str(field_name)}]"
         sql = f"SELECT MIN({field_ref}) AS min_value, MAX({field_ref}) AS max_value FROM `{self._type_name}`"
         rows = self._command(sql)
 
