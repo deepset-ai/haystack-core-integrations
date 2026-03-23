@@ -70,7 +70,7 @@ class TogetherAIChatGenerator(OpenAIChatGenerator):
         timeout: float | None = None,
         max_retries: int | None = None,
         http_client_kwargs: dict[str, Any] | None = None,
-    ):
+    ) -> None:
         """
         Creates an instance of TogetherAIChatGenerator. Unless specified otherwise,
         the default model is `meta-llama/Llama-3.3-70B-Instruct-Turbo`.

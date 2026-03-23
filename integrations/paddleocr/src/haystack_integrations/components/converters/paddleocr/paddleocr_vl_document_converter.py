@@ -175,7 +175,7 @@ class PaddleOCRVLDocumentConverter:
         relevel_titles: bool | None = None,
         visualize: bool | None = None,
         additional_params: dict[str, Any] | None = None,
-    ):
+    ) -> None:
         """
         Create a `PaddleOCRVLDocumentConverter` component.
 

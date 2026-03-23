@@ -14,11 +14,16 @@ from haystack.dataclasses import Document
 from haystack.dataclasses.byte_stream import ByteStream
 from haystack.document_stores.types import DuplicatePolicy
 from haystack.testing.document_store import (
+    CountDocumentsByFilterTest,
     CountDocumentsTest,
+    CountUniqueMetadataByFilterTest,
     DeleteAllTest,
     DeleteByFilterTest,
     DeleteDocumentsTest,
     FilterableDocsFixtureMixin,
+    GetMetadataFieldMinMaxTest,
+    GetMetadataFieldsInfoTest,
+    GetMetadataFieldUniqueValuesTest,
     UpdateByFilterTest,
     WriteDocumentsTest,
     create_filterable_docs,
@@ -49,6 +54,11 @@ class TestValkeyDocumentStore(
     DeleteDocumentsTest,
     FilterableDocsFixtureMixin,
     UpdateByFilterTest,
+    CountDocumentsByFilterTest,
+    CountUniqueMetadataByFilterTest,
+    GetMetadataFieldsInfoTest,
+    GetMetadataFieldMinMaxTest,
+    GetMetadataFieldUniqueValuesTest,
 ):
     @pytest.fixture
     def document_store(self):
@@ -64,6 +74,8 @@ class TestValkeyDocumentStore(
                 "quality": str,
                 "year": int,
                 "featured": int,  # for base-class test_update_by_filter_advanced_filters (meta.featured)
+                "rating": float,  # for GetMetadataFieldMinMaxTest (float field)
+                "age": int,  # for GetMetadataFieldMinMaxTest meta_prefix test
                 # for base-class UpdateByFilterTest.filterable_docs and filter tests:
                 "name": str,
                 "page": str,
@@ -93,6 +105,10 @@ class TestValkeyDocumentStore(
         # Valkey overwrites by default
         assert document_store.write_documents(docs) == 1
         assert document_store.count_documents() == 1
+
+    def test_get_metadata_fields_info_empty_collection(self, document_store):
+        """Valkey pre-configures metadata fields at init, so they're always present even when empty."""
+        pytest.skip("Valkey metadata fields are pre-configured at init, not discovered from documents")
 
     def test_write_documents_duplicate_fail(self, document_store):
         """Valkey only supports OVERWRITE policy, skip FAIL test."""

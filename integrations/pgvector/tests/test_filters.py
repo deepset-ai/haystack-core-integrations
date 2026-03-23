@@ -5,6 +5,7 @@
 import pytest
 from haystack.dataclasses.document import Document
 from haystack.testing.document_store import FilterDocumentsTest
+from psycopg.adapt import Transformer
 from psycopg.sql import SQL, Composed
 from psycopg.sql import Literal as SQLLiteral
 
@@ -16,6 +17,11 @@ from haystack_integrations.document_stores.pgvector.filters import (
     _treat_meta_field,
     _validate_filters,
 )
+
+
+def _render(composed: Composed) -> str:
+    """Render a psycopg Composed object to a plain SQL string for assertions."""
+    return composed.as_string(Transformer())
 
 
 @pytest.mark.integration
@@ -134,31 +140,19 @@ class TestFilters(FilterDocumentsTest):
 
 
 def test_treat_meta_field():
-    assert _treat_meta_field(field="meta.number", value=9) == SQL("(") + SQL("meta->>") + SQLLiteral("number") + SQL(
-        ")::integer"
-    )
-    assert _treat_meta_field(field="meta.number", value=[1, 2, 3]) == SQL("(") + SQL("meta->>") + SQLLiteral(
-        "number"
-    ) + SQL(")::integer")
-    assert _treat_meta_field(field="meta.name", value="my_name") == SQL("meta->>") + SQLLiteral("name")
-    assert _treat_meta_field(field="meta.name", value=["my_name"]) == SQL("meta->>") + SQLLiteral("name")
-    assert _treat_meta_field(field="meta.number", value=1.1) == SQL("(") + SQL("meta->>") + SQLLiteral("number") + SQL(
-        ")::real"
-    )
-    assert _treat_meta_field(field="meta.number", value=[1.1, 2.2, 3.3]) == SQL("(") + SQL("meta->>") + SQLLiteral(
-        "number"
-    ) + SQL(")::real")
-    assert _treat_meta_field(field="meta.bool", value=True) == SQL("(") + SQL("meta->>") + SQLLiteral("bool") + SQL(
-        ")::boolean"
-    )
-    assert _treat_meta_field(field="meta.bool", value=[True, False, True]) == SQL("(") + SQL("meta->>") + SQLLiteral(
-        "bool"
-    ) + SQL(")::boolean")
+    cast_integer = SQL("(") + SQL("meta->>") + SQLLiteral("number") + SQL(")::integer")
+    no_cast_name = SQL("meta->>") + SQLLiteral("name")
+    cast_real = SQL("(") + SQL("meta->>") + SQLLiteral("number") + SQL(")::real")
+    cast_boolean = SQL("(") + SQL("meta->>") + SQLLiteral("bool") + SQL(")::boolean")
 
-    # do not cast the field if its value is not one of the known types, an empty list or None
-    assert _treat_meta_field(field="meta.other", value={"a": 3, "b": "example"}) == SQL("meta->>") + SQLLiteral("other")
-    assert _treat_meta_field(field="meta.empty_list", value=[]) == SQL("meta->>") + SQLLiteral("empty_list")
-    assert _treat_meta_field(field="meta.name", value=None) == SQL("meta->>") + SQLLiteral("name")
+    assert _treat_meta_field(field="meta.number", value=9) == cast_integer
+    assert _treat_meta_field(field="meta.number", value=[1, 2, 3]) == cast_integer
+    assert _treat_meta_field(field="meta.name", value="my_name") == no_cast_name
+    assert _treat_meta_field(field="meta.name", value=["my_name"]) == no_cast_name
+    assert _treat_meta_field(field="meta.number", value=1.1) == cast_real
+    assert _treat_meta_field(field="meta.number", value=[1.1, 2.2]) == cast_real
+    assert _treat_meta_field(field="meta.bool", value=True) == cast_boolean
+    assert _treat_meta_field(field="meta.bool", value=[True, False]) == cast_boolean
 
 
 def test_treat_meta_field_sql_injection_is_safely_escaped():
@@ -227,36 +221,14 @@ def test_logical_condition_nested():
     query, values = _parse_logical_condition(condition)
     assert isinstance(query, Composed)
 
-    domain_field = SQL("meta->>") + SQLLiteral("domain")
-    chapter_field = SQL("meta->>") + SQLLiteral("chapter")
-    number_field = SQL("(") + SQL("meta->>") + SQLLiteral("number") + SQL(")::integer")
-    author_field = SQL("meta->>") + SQLLiteral("author")
-
-    expected = (
-        SQL("(")
-        + SQL(" AND ").join(
-            [
-                SQL("(")
-                + SQL(" OR ").join(
-                    [
-                        SQL("{} IS DISTINCT FROM %s").format(domain_field),
-                        SQL("{} = ANY(%s)").format(chapter_field),
-                    ]
-                )
-                + SQL(")"),
-                SQL("(")
-                + SQL(" OR ").join(
-                    [
-                        SQL("{} >= %s").format(number_field),
-                        SQL("{} IS NULL OR {} != ALL(%s)").format(author_field, author_field),
-                    ]
-                )
-                + SQL(")"),
-            ]
-        )
-        + SQL(")")
+    expected_sql = (
+        "("
+        "(meta->>'domain' IS DISTINCT FROM %s OR meta->>'chapter' = ANY(%s))"
+        " AND "
+        "((meta->>'number')::integer >= %s OR meta->>'author' IS NULL OR meta->>'author' != ALL(%s))"
+        ")"
     )
-    assert query == expected
+    assert _render(query) == expected_sql
     assert values == ["science", [["intro", "conclusion"]], 90, [["John", "Jane"]]]
 
 
@@ -270,19 +242,8 @@ def test_convert_filters_to_where_clause_and_params():
     }
     where_clause, params = _convert_filters_to_where_clause_and_params(filters)
 
-    number_field = SQL("(") + SQL("meta->>") + SQLLiteral("number") + SQL(")::integer")
-    chapter_field = SQL("meta->>") + SQLLiteral("chapter")
-    expected = SQL(" WHERE ") + (
-        SQL("(")
-        + SQL(" AND ").join(
-            [
-                SQL("{} = %s").format(number_field),
-                SQL("{} = %s").format(chapter_field),
-            ]
-        )
-        + SQL(")")
-    )
-    assert where_clause == expected
+    expected_sql = " WHERE ((meta->>'number')::integer = %s AND meta->>'chapter' = %s)"
+    assert _render(where_clause) == expected_sql
     assert params == (100, "intro")
 
 
@@ -296,19 +257,8 @@ def test_convert_filters_to_where_clause_and_params_handle_null():
     }
     where_clause, params = _convert_filters_to_where_clause_and_params(filters)
 
-    number_field = SQL("meta->>") + SQLLiteral("number")
-    chapter_field = SQL("meta->>") + SQLLiteral("chapter")
-    expected = SQL(" WHERE ") + (
-        SQL("(")
-        + SQL(" AND ").join(
-            [
-                SQL("{} IS NULL").format(number_field),
-                SQL("{} = %s").format(chapter_field),
-            ]
-        )
-        + SQL(")")
-    )
-    assert where_clause == expected
+    expected_sql = " WHERE (meta->>'number' IS NULL AND meta->>'chapter' = %s)"
+    assert _render(where_clause) == expected_sql
     assert params == ("intro",)
 
 

@@ -42,7 +42,7 @@ class JinaTextEmbedder:
         task: str | None = None,
         dimensions: int | None = None,
         late_chunking: bool | None = None,
-    ):
+    ) -> None:
         """
         Create a JinaTextEmbedder component.
 
@@ -91,6 +91,7 @@ class JinaTextEmbedder:
     def to_dict(self) -> dict[str, Any]:
         """
         Serializes the component to a dictionary.
+
         :returns:
             Dictionary with serialized data.
         """
@@ -113,6 +114,7 @@ class JinaTextEmbedder:
     def from_dict(cls, data: dict[str, Any]) -> "JinaTextEmbedder":
         """
         Deserializes the component from a dictionary.
+
         :param data:
             Dictionary to deserialize from.
         :returns:

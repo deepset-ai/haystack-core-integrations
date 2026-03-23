@@ -30,6 +30,7 @@ def get_aws_session(
 ) -> boto3.Session | aioboto3.Session:
     """
     Creates an AWS Session with the given parameters.
+
     Checks if the provided AWS credentials are valid and can be used to connect to AWS.
 
     :param aws_access_key_id: AWS access key ID.
@@ -69,6 +70,7 @@ def get_aws_session(
 def aws_configured(**kwargs: Any) -> bool:
     """
     Checks whether AWS configuration is provided.
+
     :param kwargs: The kwargs passed down to the generator.
     :returns: True if AWS configuration is provided, False otherwise.
     """
