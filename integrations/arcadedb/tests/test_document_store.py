@@ -63,7 +63,7 @@ class TestArcadeDBDocumentStore(
     FilterableDocsFixtureMixin,
     GetMetadataFieldMinMaxTest,
     GetMetadataFieldsInfoTest,
-    GetMetadataFieldUniqueValuesTest
+    GetMetadataFieldUniqueValuesTest,
 ):
     """
     Run Haystack DocumentStore mixin tests against ArcadeDBDocumentStore.
