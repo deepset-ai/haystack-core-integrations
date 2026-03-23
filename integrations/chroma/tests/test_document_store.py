@@ -4,7 +4,6 @@
 
 import logging
 import operator
-import time
 import uuid
 from unittest import mock
 
@@ -13,19 +12,18 @@ from chromadb.api.shared_system_client import SharedSystemClient
 from haystack.dataclasses import ByteStream, Document
 from haystack.testing.document_store import (
     TEST_EMBEDDING_1,
+    CountDocumentsByFilterTest,
     CountDocumentsTest,
-    DocumentStoreBaseExtendedTests,
+    CountUniqueMetadataByFilterTest,
     DeleteAllTest,
     DeleteByFilterTest,
     DeleteDocumentsTest,
     FilterableDocsFixtureMixin,
     FilterDocumentsTest,
-    UpdateByFilterTest,
-    CountDocumentsByFilterTest,
-    CountUniqueMetadataByFilterTest,
-    GetMetadataFieldsInfoTest,
     GetMetadataFieldMinMaxTest,
-    GetMetadataFieldUniqueValuesTest
+    GetMetadataFieldsInfoTest,
+    GetMetadataFieldUniqueValuesTest,
+    UpdateByFilterTest,
 )
 
 from haystack_integrations.document_stores.chroma import ChromaDocumentStore
