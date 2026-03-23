@@ -20,6 +20,7 @@ AIMLAPI_HEADERS = {"HTTP-Referer": "https://github.com/deepset-ai/haystack-core-
 class AIMLAPIChatGenerator(OpenAIChatGenerator):
     """
     Enables text generation using AIMLAPI generative models.
+
     For supported models, see AIMLAPI documentation.
 
     Users can pass any text generation parameters valid for the AIMLAPI chat completion API
@@ -71,10 +72,11 @@ class AIMLAPIChatGenerator(OpenAIChatGenerator):
         extra_headers: dict[str, Any] | None = None,
         max_retries: int | None = None,
         http_client_kwargs: dict[str, Any] | None = None,
-    ):
+    ) -> None:
         """
-        Creates an instance of AIMLAPIChatGenerator. Unless specified otherwise,
-        the default model is `openai/gpt-5-chat-latest`.
+        Creates an instance of AIMLAPIChatGenerator.
+
+        Unless specified otherwise, the default model is `openai/gpt-5-chat-latest`.
 
         :param api_key:
             The AIMLAPI API key.
@@ -190,8 +192,6 @@ class AIMLAPIChatGenerator(OpenAIChatGenerator):
         if is_streaming and num_responses > 1:
             msg = "Cannot stream multiple responses, please set n=1."
             raise ValueError(msg)
-        response_format = generation_kwargs.pop("response_format", None)
-
         response_format = generation_kwargs.pop("response_format", None)
 
         base_args = {

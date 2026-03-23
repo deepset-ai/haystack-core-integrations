@@ -37,7 +37,8 @@ FUNCTION_REGISTRY = {
 
 
 def get_embedding_function(function_name: str, **kwargs: Any) -> EmbeddingFunction:
-    """Load an embedding function by name.
+    """
+    Load an embedding function by name.
 
     :param function_name: the name of the embedding function.
     :param kwargs: additional arguments to pass to the embedding function.

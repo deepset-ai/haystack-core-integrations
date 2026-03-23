@@ -59,5 +59,5 @@ if __name__ == "__main__":
             },
         }
     )
-    print(response["llm"]["replies"][0])  # noqa: T201
-    print(response["tracer"]["trace_url"])  # noqa: T201
+    print(response["llm"]["replies"][0])
+    print(response["tracer"]["trace_url"])

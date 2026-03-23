@@ -34,7 +34,7 @@ class FAISSDocumentStore:
         index_path: str | None = None,
         index_string: str = "Flat",
         embedding_dim: int = 768,
-    ):
+    ) -> None:
         """
         Initializes the FAISSDocumentStore.
 
@@ -61,7 +61,7 @@ class FAISSDocumentStore:
         else:
             self._create_new_index()
 
-    def _create_new_index(self):
+    def _create_new_index(self) -> None:
         """Creates a new FAISS index."""
         try:
             # We use IndexIDMap to support add_with_ids

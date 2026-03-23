@@ -21,6 +21,7 @@ logger = logging.getLogger(__name__)
 class NvidiaChatGenerator(OpenAIChatGenerator):
     """
     Enables text generation using NVIDIA generative models.
+
     For supported models, see [NVIDIA Docs](https://build.nvidia.com/models).
 
     Users can pass any text generation parameters valid for the NVIDIA Chat Completion API

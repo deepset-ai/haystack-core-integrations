@@ -76,7 +76,7 @@ class GitHubRepoViewer:
         max_file_size: int = 1_000_000,  # 1MB default limit
         repo: str | None = None,
         branch: str = "main",
-    ):
+    ) -> None:
         """
         Initialize the component.
 

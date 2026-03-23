@@ -44,7 +44,7 @@ class PineconeDocumentStore:
         spec: dict[str, Any] | None = None,
         metric: Literal["cosine", "euclidean", "dotproduct"] = "cosine",
         show_progress: bool = True,
-    ):
+    ) -> None:
         """
         Creates a new PineconeDocumentStore instance.
         It is meant to be connected to a Pinecone index and namespace.
@@ -81,9 +81,9 @@ class PineconeDocumentStore:
         self._async_index: _IndexAsyncio | None = None
         self._dummy_vector = [-10.0] * self.dimension
 
-    def _initialize_index(self):
+    def _initialize_index(self) -> None:
         if self._index is not None:
-            return self._index
+            return
 
         client = Pinecone(api_key=self.api_key.resolve_value(), source_tag="haystack")
 
@@ -108,9 +108,9 @@ class PineconeDocumentStore:
         self.dimension = actual_dimension or self.dimension
         self._dummy_vector = [-10.0] * self.dimension
 
-    async def _initialize_async_index(self):
+    async def _initialize_async_index(self) -> None:
         if self._async_index is not None:
-            return self._async_index
+            return
 
         async_client = PineconeAsyncio(api_key=self.api_key.resolve_value(), source_tag="haystack")
 
@@ -143,7 +143,7 @@ class PineconeDocumentStore:
 
         await async_client.close()
 
-    def close(self):
+    def close(self) -> None:
         """
         Close the associated synchronous resources.
         """
@@ -151,7 +151,7 @@ class PineconeDocumentStore:
             self._index.close()
             self._index = None
 
-    async def close_async(self):
+    async def close_async(self) -> None:
         """
         Close the associated asynchronous resources. To be invoked manually when the Document Store is no longer needed.
         """

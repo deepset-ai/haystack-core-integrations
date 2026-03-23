@@ -104,6 +104,7 @@ def _convert_chatmessage_to_ollama_format(message: ChatMessage) -> dict[str, Any
 def _convert_ollama_meta_to_openai_format(input_response_dict: dict) -> dict[str, Any]:
     """
     Map Ollama metadata keys onto the OpenAI-compatible names Haystack expects.
+
     All fields that are not part of the OpenAI metadata are left unchanged in the returned dict.
 
     Example Ollama metadata:
@@ -251,8 +252,10 @@ class OllamaChatGenerator:
         tools: ToolsType | None = None,
         response_format: None | Literal["json"] | JsonSchemaValue | None = None,
         think: bool | Literal["low", "medium", "high"] = False,
-    ):
+    ) -> None:
         """
+        Create a new OllamaChatGenerator instance.
+
         :param model:
             The name of the model to use. The model must already be present (pulled) in the running Ollama instance.
         :param url:
@@ -355,9 +358,9 @@ class OllamaChatGenerator:
         callback: SyncStreamingCallbackT | None,
     ) -> dict[str, list[ChatMessage]]:
         """
-        Merge an Ollama streaming response into a single ChatMessage, preserving
-        tool calls.  Works even when arguments arrive piecemeal as str fragments
-        or as full JSON dicts.
+        Merge an Ollama streaming response into a single ChatMessage, preserving tool calls.
+
+        Works even when arguments arrive piecemeal as str fragments or as full JSON dicts.
         """
 
         component_info = ComponentInfo.from_component(self)
@@ -439,9 +442,10 @@ class OllamaChatGenerator:
         callback: AsyncStreamingCallbackT | None,
     ) -> dict[str, list[ChatMessage]]:
         """
-        Merge an Ollama async streaming response into a single ChatMessage, preserving
-        tool calls.  Works even when arguments arrive piecemeal as str fragments
-        or as full JSON dicts."""
+        Merge an Ollama async streaming response into a single ChatMessage, preserving tool calls.
+
+        Works even when arguments arrive piecemeal as str fragments or as full JSON dicts.
+        """
         component_info = ComponentInfo.from_component(self)
         chunks: list[StreamingChunk] = []
 

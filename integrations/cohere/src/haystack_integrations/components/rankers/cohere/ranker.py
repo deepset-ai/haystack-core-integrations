@@ -41,7 +41,7 @@ class CohereRanker:
         meta_fields_to_embed: list[str] | None = None,
         meta_data_separator: str = "\n",
         max_tokens_per_doc: int = 4096,
-    ):
+    ) -> None:
         """
         Creates an instance of the 'CohereRanker'.
 
@@ -106,6 +106,7 @@ class CohereRanker:
     def _prepare_cohere_input_docs(self, documents: list[Document]) -> list[str]:
         """
         Prepare the input by concatenating the document text with the metadata fields specified.
+
         :param documents: The list of Document objects.
 
         :return: A list of strings to be given as input to Cohere model.

@@ -19,7 +19,7 @@ class JinaReaderMode(Enum):
     SEARCH = "search"
     GROUND = "ground"
 
-    def __str__(self):
+    def __str__(self) -> str:
         return self.value
 
     @classmethod

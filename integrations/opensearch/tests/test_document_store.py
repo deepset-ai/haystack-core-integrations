@@ -9,7 +9,14 @@ import pytest
 from haystack.dataclasses.document import Document
 from haystack.document_stores.errors import DocumentStoreError, DuplicateDocumentError
 from haystack.document_stores.types import DuplicatePolicy
-from haystack.testing.document_store import DocumentStoreBaseExtendedTests
+from haystack.testing.document_store import (
+    CountDocumentsByFilterTest,
+    CountUniqueMetadataByFilterTest,
+    DocumentStoreBaseExtendedTests,
+    GetMetadataFieldMinMaxTest,
+    GetMetadataFieldsInfoTest,
+    GetMetadataFieldUniqueValuesTest,
+)
 from opensearchpy.exceptions import RequestError
 
 from haystack_integrations.document_stores.opensearch import OpenSearchDocumentStore
@@ -38,12 +45,25 @@ def test_to_dict(_mock_opensearch_client):
             "settings": {"index.knn": True},
             "return_embedding": False,
             "create_index": True,
-            "http_auth": None,
+            "http_auth": [
+                {"type": "env_var", "env_vars": ["OPENSEARCH_USERNAME"], "strict": False},
+                {"type": "env_var", "env_vars": ["OPENSEARCH_PASSWORD"], "strict": False},
+            ],
             "use_ssl": None,
             "verify_certs": None,
             "timeout": None,
         },
     }
+
+
+@patch("haystack_integrations.document_stores.opensearch.document_store.OpenSearch")
+def test_to_dict_with_http_auth_str(_mock_opensearch_client):
+    """
+    Verify that plain strings secrets are not serialized.
+    """
+    document_store = OpenSearchDocumentStore(hosts="some hosts", http_auth=("admin", "admin"))
+    res = document_store.to_dict()
+    assert res["init_parameters"]["http_auth"] is None
 
 
 @patch("haystack_integrations.document_stores.opensearch.document_store.OpenSearch")
@@ -94,6 +114,54 @@ def test_from_dict(_mock_opensearch_client):
 
 
 @patch("haystack_integrations.document_stores.opensearch.document_store.OpenSearch")
+def test_from_dict_with_http_auth_str(_mock_opensearch_client):
+    """
+    Verify that serialized plain strings secrets can be properly deserialized.
+    """
+    data = {
+        "type": "haystack_integrations.document_stores.opensearch.document_store.OpenSearchDocumentStore",
+        "init_parameters": {
+            "hosts": "some hosts",
+            "index": "default",
+            "http_auth": ("admin", "admin"),
+        },
+    }
+    document_store = OpenSearchDocumentStore.from_dict(data)
+    assert document_store._http_auth == ("admin", "admin")
+
+
+@patch("haystack_integrations.document_stores.opensearch.document_store.OpenSearch")
+def test_resolve_http_auth_with_secrets(_mock_opensearch_client, monkeypatch):
+    monkeypatch.setenv("OPENSEARCH_USERNAME", "admin")
+    monkeypatch.setenv("OPENSEARCH_PASSWORD", "secret")
+    store = OpenSearchDocumentStore(hosts="testhost")
+    assert store._resolve_http_auth() == ["admin", "secret"]
+
+
+@patch("haystack_integrations.document_stores.opensearch.document_store.OpenSearch")
+def test_resolve_http_auth_with_no_secrets(_mock_opensearch_client, monkeypatch):
+    monkeypatch.delenv("OPENSEARCH_USERNAME", raising=False)
+    monkeypatch.delenv("OPENSEARCH_PASSWORD", raising=False)
+    store = OpenSearchDocumentStore(hosts="testhost")
+    assert store._resolve_http_auth() is None
+
+
+@patch("haystack_integrations.document_stores.opensearch.document_store.OpenSearch")
+def test_resolve_http_auth_with_partial_secrets(_mock_opensearch_client, monkeypatch):
+    monkeypatch.setenv("OPENSEARCH_USERNAME", "admin")
+    monkeypatch.delenv("OPENSEARCH_PASSWORD", raising=False)
+    store = OpenSearchDocumentStore(hosts="testhost")
+    with pytest.raises(DocumentStoreError, match="http_auth requires both username and password"):
+        store._resolve_http_auth()
+
+
+@patch("haystack_integrations.document_stores.opensearch.document_store.OpenSearch")
+def test_resolve_http_auth_with_plain_strings(_mock_opensearch_client):
+    store = OpenSearchDocumentStore(hosts="testhost", http_auth=("admin", "admin"))
+    assert store._resolve_http_auth() == ("admin", "admin")
+
+
+@patch("haystack_integrations.document_stores.opensearch.document_store.OpenSearch")
 def test_init_is_lazy(_mock_opensearch_client):
     OpenSearchDocumentStore(hosts="testhost")
     _mock_opensearch_client.assert_not_called()
@@ -110,16 +178,19 @@ def test_get_default_mappings(_mock_opensearch_client):
     }
 
 
+@patch("haystack_integrations.document_stores.opensearch.document_store.OpenSearch")
 @patch("haystack_integrations.document_stores.opensearch.document_store.bulk")
-def test_routing_extracted_from_metadata(mock_bulk, document_store):
+def test_routing_extracted_from_metadata(mock_bulk, _mock_opensearch_client):
     """Test routing extraction from document metadata"""
     mock_bulk.return_value = (2, [])
+
+    store = OpenSearchDocumentStore(hosts="testhost", http_auth=("admin", "admin"))
 
     docs = [
         Document(id="1", content="Doc", meta={"_routing": "user_a", "other": "data"}),
         Document(id="2", content="Doc"),
     ]
-    document_store.write_documents(docs)
+    store.write_documents(docs)
 
     actions = list(mock_bulk.call_args.kwargs["actions"])
 
@@ -135,13 +206,16 @@ def test_routing_extracted_from_metadata(mock_bulk, document_store):
     assert "_routing" not in actions[1]["_source"].get("meta", {})
 
 
+@patch("haystack_integrations.document_stores.opensearch.document_store.OpenSearch")
 @patch("haystack_integrations.document_stores.opensearch.document_store.bulk")
-def test_routing_in_delete(mock_bulk, document_store):
+def test_routing_in_delete(mock_bulk, _mock_opensearch_client):
     """Test routing parameter in delete operations"""
     mock_bulk.return_value = (2, [])
 
+    store = OpenSearchDocumentStore(hosts="testhost", http_auth=("admin", "admin"))
+
     routing_map = {"1": "user_a", "2": "user_b"}
-    document_store.delete_documents(["1", "2", "3"], routing=routing_map)
+    store.delete_documents(["1", "2", "3"], routing=routing_map)
 
     actions = list(mock_bulk.call_args.kwargs["actions"])
 
@@ -151,10 +225,16 @@ def test_routing_in_delete(mock_bulk, document_store):
 
 
 @pytest.mark.integration
-class TestDocumentStore(DocumentStoreBaseExtendedTests):
+class TestDocumentStore(
+    CountDocumentsByFilterTest,
+    CountUniqueMetadataByFilterTest,
+    DocumentStoreBaseExtendedTests,
+    GetMetadataFieldsInfoTest,
+    GetMetadataFieldMinMaxTest,
+    GetMetadataFieldUniqueValuesTest,
+):
     """
-    Common test cases will be provided by `DocumentStoreBaseExtendedTests` but
-    you can add more to this class.
+    Common test cases will be provided by `DocumentStoreBaseExtendedTests` but you can add more to this class.
     """
 
     @pytest.fixture
@@ -539,158 +619,6 @@ class TestDocumentStore(DocumentStoreBaseExtendedTests):
         results = document_store.filter_documents()
         assert len(results) == 1
         assert results[0].content == "New document after delete all"
-
-    def test_count_documents_by_filter(self, document_store: OpenSearchDocumentStore):
-        docs = [
-            Document(content="Doc 1", meta={"category": "A", "status": "active"}),
-            Document(content="Doc 2", meta={"category": "B", "status": "active"}),
-            Document(content="Doc 3", meta={"category": "A", "status": "inactive"}),
-            Document(content="Doc 4", meta={"category": "A", "status": "active"}),
-        ]
-        document_store.write_documents(docs)
-        assert document_store.count_documents() == 4
-
-        count_a = document_store.count_documents_by_filter(
-            filters={"field": "meta.category", "operator": "==", "value": "A"}
-        )
-        assert count_a == 3
-
-        count_a_active = document_store.count_documents_by_filter(
-            filters={
-                "operator": "AND",
-                "conditions": [
-                    {"field": "meta.category", "operator": "==", "value": "A"},
-                    {"field": "meta.status", "operator": "==", "value": "active"},
-                ],
-            }
-        )
-        assert count_a_active == 2
-
-    def test_count_unique_metadata_by_filter(self, document_store: OpenSearchDocumentStore):
-        docs = [
-            Document(content="Doc 1", meta={"category": "A", "status": "active", "priority": 1}),
-            Document(content="Doc 2", meta={"category": "B", "status": "active", "priority": 2}),
-            Document(content="Doc 3", meta={"category": "A", "status": "inactive", "priority": 1}),
-            Document(content="Doc 4", meta={"category": "A", "status": "active", "priority": 3}),
-            Document(content="Doc 5", meta={"category": "C", "status": "active", "priority": 2}),
-        ]
-        document_store.write_documents(docs)
-        assert document_store.count_documents() == 5
-
-        # Count distinct values for all documents
-        distinct_counts = document_store.count_unique_metadata_by_filter(
-            filters={}, metadata_fields=["category", "status", "priority"]
-        )
-        assert distinct_counts["category"] == 3  # A, B, C
-        assert distinct_counts["status"] == 2  # active, inactive
-        assert distinct_counts["priority"] == 3  # 1, 2, 3
-
-        # Count distinct values for documents with category="A"
-        distinct_counts_a = document_store.count_unique_metadata_by_filter(
-            filters={"field": "meta.category", "operator": "==", "value": "A"},
-            metadata_fields=["category", "status", "priority"],
-        )
-        assert distinct_counts_a["category"] == 1  # Only A
-        assert distinct_counts_a["status"] == 2  # active, inactive
-        assert distinct_counts_a["priority"] == 2  # 1, 3
-
-        # Count distinct values for documents with status="active"
-        distinct_counts_active = document_store.count_unique_metadata_by_filter(
-            filters={"field": "meta.status", "operator": "==", "value": "active"},
-            metadata_fields=["category", "status", "priority"],
-        )
-        assert distinct_counts_active["category"] == 3  # A, B, C
-        assert distinct_counts_active["status"] == 1  # Only active
-        assert distinct_counts_active["priority"] == 3  # 1, 2, 3
-
-        # Count distinct values with complex filter (category="A" AND status="active")
-        distinct_counts_a_active = document_store.count_unique_metadata_by_filter(
-            filters={
-                "operator": "AND",
-                "conditions": [
-                    {"field": "meta.category", "operator": "==", "value": "A"},
-                    {"field": "meta.status", "operator": "==", "value": "active"},
-                ],
-            },
-            metadata_fields=["category", "status", "priority"],
-        )
-        assert distinct_counts_a_active["category"] == 1  # Only A
-        assert distinct_counts_a_active["status"] == 1  # Only active
-        assert distinct_counts_a_active["priority"] == 2  # 1, 3
-
-        # Test with only a subset of fields
-        distinct_counts_subset = document_store.count_unique_metadata_by_filter(
-            filters={}, metadata_fields=["category", "status"]
-        )
-        assert distinct_counts_subset["category"] == 3
-        assert distinct_counts_subset["status"] == 2
-        assert "priority" not in distinct_counts_subset
-
-        # Test field name normalization (with "meta." prefix)
-        distinct_counts_normalized = document_store.count_unique_metadata_by_filter(
-            filters={}, metadata_fields=["meta.category", "status", "meta.priority"]
-        )
-        assert distinct_counts_normalized["category"] == 3
-        assert distinct_counts_normalized["status"] == 2
-        assert distinct_counts_normalized["priority"] == 3
-
-        # Test error handling when field doesn't exist
-        with pytest.raises(ValueError, match="Fields not found in index mapping"):
-            document_store.count_unique_metadata_by_filter(filters={}, metadata_fields=["nonexistent_field"])
-
-    def test_get_metadata_fields_info(self, document_store: OpenSearchDocumentStore):
-        docs = [
-            Document(content="Doc 1", meta={"category": "A", "status": "active", "priority": 1}),
-            Document(content="Doc 2", meta={"category": "B", "status": "inactive"}),
-        ]
-        document_store.write_documents(docs)
-
-        fields_info = document_store.get_metadata_fields_info()
-
-        # Verify that fields_info contains expected fields
-        assert "category" in fields_info
-        assert "status" in fields_info
-        assert "priority" in fields_info
-
-        assert fields_info["category"]["type"] == "keyword"
-        assert fields_info["status"]["type"] == "keyword"
-        assert fields_info["priority"]["type"] == "long"
-
-    def test_get_metadata_field_min_max(self, document_store: OpenSearchDocumentStore):
-        # Test with integer values
-        docs = [
-            Document(content="Doc 1", meta={"priority": 1, "age": 10}),
-            Document(content="Doc 2", meta={"priority": 5, "age": 20}),
-            Document(content="Doc 3", meta={"priority": 3, "age": 15}),
-            Document(content="Doc 4", meta={"priority": 10, "age": 5}),
-            Document(content="Doc 6", meta={"rating": 10.5}),
-            Document(content="Doc 7", meta={"rating": 20.3}),
-            Document(content="Doc 8", meta={"rating": 15.7}),
-            Document(content="Doc 9", meta={"rating": 5.2}),
-        ]
-        document_store.write_documents(docs)
-
-        # Test with "meta." prefix for integer field
-        min_max_priority = document_store.get_metadata_field_min_max("meta.priority")
-        assert min_max_priority["min"] == 1
-        assert min_max_priority["max"] == 10
-
-        # Test with "meta." prefix for another integer field
-        min_max_rating = document_store.get_metadata_field_min_max("meta.age")
-        assert min_max_rating["min"] == 5
-        assert min_max_rating["max"] == 20
-
-        # Test with single value
-        single_doc = [Document(content="Doc 5", meta={"single_value": 42})]
-        document_store.write_documents(single_doc)
-        min_max_single = document_store.get_metadata_field_min_max("meta.single_value")
-        assert min_max_single["min"] == 42
-        assert min_max_single["max"] == 42
-
-        # Test with float values
-        min_max_score = document_store.get_metadata_field_min_max("meta.rating")
-        assert min_max_score["min"] == pytest.approx(5.2)
-        assert min_max_score["max"] == pytest.approx(20.3)
 
     def test_get_metadata_field_unique_values(self, document_store: OpenSearchDocumentStore):
         # Test with string values

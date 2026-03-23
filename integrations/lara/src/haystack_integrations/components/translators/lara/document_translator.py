@@ -53,7 +53,7 @@ class LaraDocumentTranslator:
         adapt_to: list[str] | None = None,
         glossaries: list[str] | None = None,
         reasoning: bool = False,
-    ):
+    ) -> None:
         """
         Creats an instance of the LaraDocumentTranslator component.
 

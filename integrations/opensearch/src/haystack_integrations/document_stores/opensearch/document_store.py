@@ -4,7 +4,7 @@
 
 # ruff: noqa: FBT001, FBT002   boolean-type-hint-positional-argument and boolean-default-value-positional-argument
 
-from collections.abc import Mapping
+from collections.abc import Generator, Mapping
 from math import exp
 from typing import Any, Literal
 
@@ -13,6 +13,7 @@ from haystack.dataclasses import Document
 from haystack.document_stores.errors import DocumentStoreError, DuplicateDocumentError
 from haystack.document_stores.types import DuplicatePolicy
 from haystack.utils.auth import Secret
+from haystack.utils.misc import _normalize_metadata_field_name
 from opensearchpy import AsyncHttpConnection, AsyncOpenSearch, OpenSearch
 from opensearchpy.helpers import async_bulk, bulk
 
@@ -82,7 +83,7 @@ class OpenSearchDocumentStore:
         mappings: dict[str, Any] | None = None,
         settings: dict[str, Any] | None = DEFAULT_SETTINGS,
         create_index: bool = True,
-        http_auth: Any = (
+        http_auth: tuple[Secret, Secret] | tuple[str, str] | list[str] | str | AWSAuth | None = (
             Secret.from_env_var("OPENSEARCH_USERNAME", strict=False),  # noqa: B008
             Secret.from_env_var("OPENSEARCH_PASSWORD", strict=False),  # noqa: B008
         ),
@@ -138,17 +139,6 @@ class OpenSearchDocumentStore:
         self._mappings = mappings or self._get_default_mappings()
         self._settings = settings
         self._create_index = create_index
-        self._http_auth_are_secrets = False
-
-        # Handle authentication
-        if isinstance(http_auth, (tuple, list)) and len(http_auth) == 2:  # noqa: PLR2004
-            username, password = http_auth
-            if isinstance(username, Secret) and isinstance(password, Secret):
-                self._http_auth_are_secrets = True
-                username_val = username.resolve_value()
-                password_val = password.resolve_value()
-                http_auth = [username_val, password_val] if username_val and password_val else None
-
         self._http_auth = http_auth
         self._use_ssl = use_ssl
         self._verify_certs = verify_certs
@@ -218,17 +208,16 @@ class OpenSearchDocumentStore:
             Dictionary with serialized data.
         """
         # Handle http_auth serialization
-        http_auth: list[dict[str, Any]] | dict[str, Any] | tuple[str, str] | list[str] | str = ""
-        if isinstance(self._http_auth, list) and self._http_auth_are_secrets:
-            # Recreate the Secret objects for serialization
-            http_auth = [
-                Secret.from_env_var("OPENSEARCH_USERNAME", strict=False).to_dict(),
-                Secret.from_env_var("OPENSEARCH_PASSWORD", strict=False).to_dict(),
-            ]
+        http_auth: list[dict[str, Any]] | dict[str, Any] | None = None
+        if (
+            isinstance(self._http_auth, (tuple, list))
+            and len(self._http_auth) == 2  # noqa: PLR2004
+            and isinstance(self._http_auth[0], Secret)
+            and isinstance(self._http_auth[1], Secret)
+        ):
+            http_auth = [self._http_auth[0].to_dict(), self._http_auth[1].to_dict()]
         elif isinstance(self._http_auth, AWSAuth):
             http_auth = self._http_auth.to_dict()
-        else:
-            http_auth = self._http_auth
 
         return default_to_dict(
             self,
@@ -267,12 +256,31 @@ class OpenSearchDocumentStore:
                 init_params["http_auth"] = [Secret.from_dict(item) for item in http_auth] if are_secrets else http_auth
         return default_from_dict(cls, data)
 
-    def _ensure_initialized(self):
+    def _resolve_http_auth(self) -> tuple[str, str] | list[str] | str | AWSAuth | None:
+        """Resolves Secret objects in http_auth to their plain values."""
+        if isinstance(self._http_auth, (tuple, list)) and len(self._http_auth) == 2:  # noqa: PLR2004
+            first, second = self._http_auth
+            if isinstance(first, Secret) and isinstance(second, Secret):
+                username = first.resolve_value()
+                password = second.resolve_value()
+                if username and password:
+                    return [username, password]
+                if not username and not password:
+                    return None
+                msg = "http_auth requires both username and password to be set, but only one was provided."
+                raise DocumentStoreError(msg)
+            if isinstance(first, str) and isinstance(second, str):
+                return (first, second)
+        if isinstance(self._http_auth, (str, AWSAuth)):
+            return self._http_auth
+        return None
+
+    def _ensure_initialized(self) -> None:
         # Ideally, we have a warm-up stage for document stores as well as components.
         if not self._client:
             self._client = OpenSearch(
                 hosts=self._hosts,
-                http_auth=self._http_auth,
+                http_auth=self._resolve_http_auth(),
                 use_ssl=self._use_ssl,
                 verify_certs=self._verify_certs,
                 timeout=self._timeout,
@@ -282,9 +290,10 @@ class OpenSearchDocumentStore:
 
             self._ensure_index_exists()
 
-    async def _ensure_initialized_async(self):
+    async def _ensure_initialized_async(self) -> None:
         if not self._async_client:
-            async_http_auth = AsyncAWSAuth(self._http_auth) if isinstance(self._http_auth, AWSAuth) else self._http_auth
+            resolved_auth = self._resolve_http_auth()
+            async_http_auth = AsyncAWSAuth(resolved_auth) if isinstance(resolved_auth, AWSAuth) else resolved_auth
             self._async_client = AsyncOpenSearch(
                 hosts=self._hosts,
                 http_auth=async_http_auth,
@@ -299,7 +308,7 @@ class OpenSearchDocumentStore:
             self._initialized = True
             await self._ensure_index_exists_async()
 
-    async def _ensure_index_exists_async(self):
+    async def _ensure_index_exists_async(self) -> None:
         assert self._async_client is not None
 
         if await self._async_client.indices.exists(index=self._index):
@@ -313,7 +322,7 @@ class OpenSearchDocumentStore:
             body = {"mappings": self._mappings, "settings": self._settings}
             await self._async_client.indices.create(index=self._index, body=body)
 
-    def _ensure_index_exists(self):
+    def _ensure_index_exists(self) -> None:
         assert self._client is not None
 
         if self._client.indices.exists(index=self._index):
@@ -568,7 +577,7 @@ class OpenSearchDocumentStore:
         refresh: Literal["wait_for", True, False],
         routing: dict[str, str] | None = None,
     ) -> dict[str, Any]:
-        def action_generator():
+        def action_generator() -> Generator[dict[str, Any], None, None]:
             for id_ in document_ids:
                 action = {"_op_type": "delete", "_id": id_}
                 # Add routing if provided for this document ID
@@ -1651,7 +1660,7 @@ class OpenSearchDocumentStore:
         index_mapping = mapping[self._index]["mappings"]["properties"]
 
         # normalize field names
-        normalized_metadata_fields = [self._normalize_metadata_field_name(field) for field in metadata_fields]
+        normalized_metadata_fields = [_normalize_metadata_field_name(field) for field in metadata_fields]
         # validate that all requested fields exist in the index mapping
         missing_fields = [f for f in normalized_metadata_fields if f not in index_mapping]
         if missing_fields:
@@ -1695,7 +1704,7 @@ class OpenSearchDocumentStore:
         index_mapping = mapping[self._index]["mappings"]["properties"]
 
         # normalize field names
-        normalized_metadata_fields = [self._normalize_metadata_field_name(field) for field in metadata_fields]
+        normalized_metadata_fields = [_normalize_metadata_field_name(field) for field in metadata_fields]
         # validate that all requested fields exist in the index mapping
         missing_fields = [f for f in normalized_metadata_fields if f not in index_mapping]
         if missing_fields:
@@ -1783,13 +1792,6 @@ class OpenSearchDocumentStore:
         return index_mapping
 
     @staticmethod
-    def _normalize_metadata_field_name(metadata_field: str) -> str:
-        """
-        Normalizes a metadata field name by removing the "meta." prefix if present.
-        """
-        return metadata_field[5:] if metadata_field.startswith("meta.") else metadata_field
-
-    @staticmethod
     def _build_min_max_query_body(field_name: str) -> dict[str, Any]:
         """
         Builds the query body for getting min and max values using stats aggregation.
@@ -1826,7 +1828,7 @@ class OpenSearchDocumentStore:
         self._ensure_initialized()
         assert self._client is not None
 
-        field_name = self._normalize_metadata_field_name(metadata_field)
+        field_name = _normalize_metadata_field_name(metadata_field)
         body = self._build_min_max_query_body(field_name)
         result = self._client.search(index=self._index, body=body)
         stats = result.get("aggregations", {}).get("field_stats", {})
@@ -1844,7 +1846,7 @@ class OpenSearchDocumentStore:
         await self._ensure_initialized_async()
         assert self._async_client is not None
 
-        field_name = self._normalize_metadata_field_name(metadata_field)
+        field_name = _normalize_metadata_field_name(metadata_field)
         body = self._build_min_max_query_body(field_name)
         result = await self._async_client.search(index=self._index, body=body)
         stats = result.get("aggregations", {}).get("field_stats", {})
@@ -1874,7 +1876,7 @@ class OpenSearchDocumentStore:
         self._ensure_initialized()
         assert self._client is not None
 
-        field_name = self._normalize_metadata_field_name(metadata_field)
+        field_name = _normalize_metadata_field_name(metadata_field)
 
         # filter by search_term if provided
         query: dict[str, Any] = {"match_all": {}}
@@ -1939,7 +1941,7 @@ class OpenSearchDocumentStore:
         await self._ensure_initialized_async()
         assert self._async_client is not None
 
-        field_name = self._normalize_metadata_field_name(metadata_field)
+        field_name = _normalize_metadata_field_name(metadata_field)
 
         # filter by search_term if provided
         query: dict[str, Any] = {"match_all": {}}

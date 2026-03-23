@@ -54,8 +54,9 @@ class AmazonBedrockTextEmbedder:
         **kwargs: Any,
     ) -> None:
         """
-        Initializes the AmazonBedrockTextEmbedder with the provided parameters. The parameters are passed to the
-        Amazon Bedrock client.
+        Initializes the AmazonBedrockTextEmbedder with the provided parameters.
+
+        The parameters are passed to the Amazon Bedrock client.
 
         Note that the AWS credentials are not required if the AWS environment is configured correctly. These are loaded
         automatically from the environment or the AWS configuration file and do not need to be provided explicitly via
@@ -118,7 +119,8 @@ class AmazonBedrockTextEmbedder:
 
     @component.output_types(embedding=list[float])
     def run(self, text: str) -> dict[str, list[float]]:
-        """Embeds the input text using the Amazon Bedrock model.
+        """
+        Embeds the input text using the Amazon Bedrock model.
 
         :param text: The input text to embed.
         :returns: A dictionary with the following keys:
