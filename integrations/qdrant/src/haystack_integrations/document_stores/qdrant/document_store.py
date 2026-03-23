@@ -626,9 +626,7 @@ class QdrantDocumentStore:
             return "keyword"
 
     @staticmethod
-    def _process_records_fields_info(
-        records: list[Any], field_info: dict[str, dict[str, str]]
-    ) -> None:
+    def _process_records_fields_info(records: list[Any], field_info: dict[str, dict[str, str]]) -> None:
         """
         Update field_info from a batch of Qdrant records.
 
@@ -640,9 +638,7 @@ class QdrantDocumentStore:
                 meta = record.payload["meta"]
                 for field_name, value in meta.items():
                     if value is not None and field_name not in field_info:
-                        field_info[field_name] = {
-                            "type": QdrantDocumentStore._infer_type_from_value(value)
-                        }
+                        field_info[field_name] = {"type": QdrantDocumentStore._infer_type_from_value(value)}
 
     @staticmethod
     def _metadata_fields_info_from_schema(payload_schema: dict[str, Any]) -> dict[str, dict[str, str]]:
