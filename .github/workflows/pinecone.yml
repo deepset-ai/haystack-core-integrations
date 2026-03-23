@@ -33,12 +33,12 @@ jobs:
       matrix:
         # Pinecone tests are time expensive, so only test on Ubuntu
         os: [ubuntu-latest]
-        python-version: ["3.10", "3.13"]
+        python-version: ["3.10", "3.14"]
         # the INDEX_NAME is used in test_serverless_index_creation_from_scratch
         include:
           - python-version: "3.10"
             INDEX_NAME: "index-310"
-          - python-version: "3.13"
+          - python-version: "3.14"
             INDEX_NAME: "index-313"
 
     steps:

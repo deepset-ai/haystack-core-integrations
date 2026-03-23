@@ -25,6 +25,7 @@ class AnthropicVertexChatGenerator(AnthropicChatGenerator):
     """
 
     Enables text generation using Anthropic's Claude models via the Anthropic Vertex AI API.
+
     A variety of Claude models (Opus, Sonnet, Haiku, and others) are available through the Vertex AI API endpoint.
 
     To use AnthropicVertexChatGenerator, you must have a GCP project with Vertex AI enabled.
@@ -92,7 +93,7 @@ class AnthropicVertexChatGenerator(AnthropicChatGenerator):
         *,
         timeout: float | None = None,
         max_retries: int | None = None,
-    ):
+    ) -> None:
         """
         Creates an instance of AnthropicVertexChatGenerator.
 

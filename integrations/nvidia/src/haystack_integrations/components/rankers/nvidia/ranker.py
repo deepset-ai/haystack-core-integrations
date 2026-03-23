@@ -18,8 +18,7 @@ logger = logging.getLogger(__name__)
 @component
 class NvidiaRanker:
     """
-    A component for ranking documents using ranking models provided by
-    [NVIDIA NIMs](https://ai.nvidia.com).
+    A component for ranking documents using ranking models provided by [NVIDIA NIMs](https://ai.nvidia.com).
 
     Usage example:
     ```python
@@ -120,6 +119,7 @@ class NvidiaRanker:
 
     @classmethod
     def class_name(cls) -> str:
+        """Return the class name identifier for serialization."""
         return "NvidiaRanker"
 
     def to_dict(self) -> dict[str, Any]:

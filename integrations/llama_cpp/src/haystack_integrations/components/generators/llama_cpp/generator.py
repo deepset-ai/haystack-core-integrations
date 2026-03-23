@@ -38,8 +38,11 @@ class LlamaCppGenerator:
         generation_kwargs: dict[str, Any] | None = None,
     ) -> None:
         """
+        Initialize LlamaCppGenerator.
+
         :param model: The path of a quantized model for text generation, for example, "zephyr-7b-beta.Q4_0.gguf".
             If the model path is also specified in the `model_kwargs`, this parameter will be ignored.
+
         :param n_ctx: The number of tokens in the context. When set to 0, the context will be taken from the model.
         :param n_batch: Prompt processing maximum batch size.
         :param model_kwargs: Dictionary containing keyword arguments used to initialize the LLM for text generation.
@@ -69,6 +72,7 @@ class LlamaCppGenerator:
         self.model: Llama | None = None
 
     def warm_up(self) -> None:
+        """Load and initialize the llama.cpp model."""
         if self.model is None:
             self.model = Llama(**self.model_kwargs)
 

@@ -21,6 +21,7 @@ logger = logging.getLogger(__name__)
 class MetaLlamaChatGenerator(OpenAIChatGenerator):
     """
     Enables text generation using Llama generative models.
+
     For supported models, see [Llama API Docs](https://llama.developer.meta.com/docs/).
 
     Users can pass any text generation parameters valid for the Llama Chat Completion API
@@ -74,10 +75,11 @@ class MetaLlamaChatGenerator(OpenAIChatGenerator):
         timeout: float | None = None,
         max_retries: int | None = None,
         tools: ToolsType | None = None,
-    ):
+    ) -> None:
         """
-        Creates an instance of LlamaChatGenerator. Unless specified otherwise in the `model`, this is for Llama's
-        `Llama-4-Scout-17B-16E-Instruct-FP8` model.
+        Creates an instance of LlamaChatGenerator.
+
+        Unless specified otherwise in the `model`, this is for Llama's `Llama-4-Scout-17B-16E-Instruct-FP8` model.
 
         :param api_key:
             The Llama API key.

@@ -36,7 +36,7 @@ class JinaRanker:
         api_key: Secret = Secret.from_env_var("JINA_API_KEY"),  # noqa: B008,
         top_k: int | None = None,
         score_threshold: float | None = None,
-    ):
+    ) -> None:
         """
         Creates an instance of JinaRanker.
 
@@ -74,6 +74,7 @@ class JinaRanker:
     def to_dict(self) -> dict[str, Any]:
         """
         Serializes the component to a dictionary.
+
         :returns:
             Dictionary with serialized data.
         """
@@ -89,6 +90,7 @@ class JinaRanker:
     def from_dict(cls, data: dict[str, Any]) -> "JinaRanker":
         """
         Deserializes the component from a dictionary.
+
         :param data:
             Dictionary to deserialize from.
         :returns:
@@ -110,7 +112,7 @@ class JinaRanker:
         documents: list[Document],
         top_k: int | None = None,
         score_threshold: float | None = None,
-    ):
+    ) -> dict[str, list[Document]]:
         """
         Returns a list of Documents ranked by their similarity to the given query.
 

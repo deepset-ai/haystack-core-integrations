@@ -26,7 +26,7 @@ class WeaviateEmbeddingRetriever:
         distance: float | None = None,
         certainty: float | None = None,
         filter_policy: str | FilterPolicy = FilterPolicy.REPLACE,
-    ):
+    ) -> None:
         """
         Creates a new instance of WeaviateEmbeddingRetriever.
 

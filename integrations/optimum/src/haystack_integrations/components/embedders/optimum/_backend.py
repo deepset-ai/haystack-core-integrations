@@ -83,7 +83,7 @@ class _EmbedderParams:
 
 
 class _EmbedderBackend:
-    def __init__(self, params: _EmbedderParams):
+    def __init__(self, params: _EmbedderParams) -> None:
         check_valid_model(params.model, HFModelType.EMBEDDING, params.token)
         resolved_token = params.token.resolve_value() if params.token else None
 
@@ -117,7 +117,7 @@ class _EmbedderBackend:
         self.tokenizer = None
         self.pooling_layer: SentenceTransformerPoolingLayer | None = None
 
-    def warm_up(self):
+    def warm_up(self) -> None:
         assert self.params.model_kwargs
         model_kwargs = copy.deepcopy(self.params.model_kwargs)
         model = ORTModelForFeatureExtraction.from_pretrained(**model_kwargs, export=True)

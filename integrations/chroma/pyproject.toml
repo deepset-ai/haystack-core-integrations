@@ -83,9 +83,17 @@ line-length = 120
 [tool.ruff.lint]
 select = [
   "A",
+  "ANN",
   "ARG",
   "B",
   "C",
+  "D102",   # Missing docstring in public method
+  "D103",   # Missing docstring in public function
+  "D205",   # 1 blank line required between summary line and description
+  "D209",   # Closing triple quotes go to new line
+  "D213",   # summary lines must be positioned on the second physical line of the docstring
+  "D417",   # Missing argument descriptions in the docstring
+  "D419",   # Docstring is empty
   "DTZ",
   "E",
   "EM",
@@ -111,6 +119,8 @@ select = [
 ignore = [
   # Allow non-abstract empty methods in abstract base classes
   "B027",
+  # Allow `Any` - used legitimately for **kwargs and dynamic metadata values
+  "ANN401",
   # Allow boolean positional values in function calls, like `dict.get(... True)`
   "FBT003",
   # Ignore checks for possible passwords
@@ -138,7 +148,7 @@ ban-relative-imports = "parents"
 
 [tool.ruff.lint.per-file-ignores]
 # Tests can use magic values, assertions, and relative imports
-"tests/**/*" = ["PLR2004", "S101", "TID252"]
+"tests/**/*" = ["PLR2004", "S101", "TID252", "D", "ANN"]
 "example/**/*" = ["T201"]
 
 [tool.coverage.run]

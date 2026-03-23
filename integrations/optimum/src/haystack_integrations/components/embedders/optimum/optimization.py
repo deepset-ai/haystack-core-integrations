@@ -27,7 +27,7 @@ class OptimumEmbedderOptimizationMode(Enum):
     #: Same as O3 with mixed precision.
     O4 = "o4"
 
-    def __str__(self):
+    def __str__(self) -> str:
         return self.value
 
     @classmethod
