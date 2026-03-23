@@ -6,17 +6,17 @@ import pytest
 from haystack.dataclasses import Document
 from haystack.errors import FilterError
 from haystack.testing.document_store import (
+    CountDocumentsByFilterTest,
     CountDocumentsTest,
+    CountUniqueMetadataByFilterTest,
     DeleteAllTest,
     DeleteByFilterTest,
     DeleteDocumentsTest,
     FilterDocumentsTest,
-    UpdateByFilterTest,
-    CountDocumentsByFilterTest,
-    CountUniqueMetadataByFilterTest,
-    GetMetadataFieldsInfoTest,
     GetMetadataFieldMinMaxTest,
-    GetMetadataFieldUniqueValuesTest
+    GetMetadataFieldsInfoTest,
+    GetMetadataFieldUniqueValuesTest,
+    UpdateByFilterTest,
 )
 
 from haystack_integrations.document_stores.faiss import FAISSDocumentStore
@@ -40,14 +40,12 @@ class TestFAISSDocumentStore(
         return FAISSDocumentStore(index_path=str(tmp_path / "test_index"))
 
     def test_write_documents(self, document_store):
-
         doc = Document(content="test")
         document_store.write_documents([doc])
         assert document_store.count_documents() == 1
         assert document_store.filter_documents()[0].id == doc.id
 
     def test_persistence(self, tmp_path):
-
         path = tmp_path / "persistent_index"
         ds = FAISSDocumentStore(index_path=str(path), embedding_dim=3)
 
@@ -83,7 +81,6 @@ class TestFAISSDocumentStore(
             ds.load(path)
 
     def test_search_with_and_without_filters(self, document_store):
-
         # Setup documents with missing/varied embeddings to test edge cases
         doc1 = Document(content="test1", embedding=[0.1, 0.2, 0.3], meta={"category": "A"})
         doc2 = Document(content="test2", embedding=[0.4, 0.5, 0.6], meta={"category": "B"})
@@ -107,7 +104,6 @@ class TestFAISSDocumentStore(
 
     def test_to_dict_from_dict(self):
         ds = FAISSDocumentStore(index_path="test_index", index_string="Flat", embedding_dim=128)
-
         data = ds.to_dict()
         assert data["type"] == "haystack_integrations.document_stores.faiss.document_store.FAISSDocumentStore"
         assert data["init_parameters"]["index_path"] == "test_index"
@@ -119,23 +115,7 @@ class TestFAISSDocumentStore(
         assert ds_loaded.index_string == "Flat"
         assert ds_loaded.embedding_dim == 128
 
-    def test_count_unique_metadata_by_filter(self, document_store):
-
-        docs = [
-            Document(content="test1", meta={"category": "A", "status": "active"}),
-            Document(content="test2", meta={"category": "B", "status": "inactive"}),
-            Document(content="test3", meta={"category": "A", "status": "active"}),
-        ]
-        document_store.write_documents(docs)
-
-        counts = document_store.count_unique_metadata_by_filter(
-            filters={"field": "meta.category", "operator": "==", "value": "A"}, metadata_fields=["meta.status"]
-        )
-        assert "meta.status" in counts
-        assert counts["meta.status"] == 1  # Only "active" status for category A
-
     def test_not_filter_with_empty_conditions_raises_filter_error(self, document_store):
         document_store.write_documents([Document(content="test", meta={"category": "A"})])
-
         with pytest.raises(FilterError, match="NOT operator expects at least one condition"):
             document_store.filter_documents(filters={"operator": "NOT", "conditions": []})
