@@ -102,7 +102,8 @@ class S3Storage:
     def from_env(
         cls, *, session: Session, config: Config, s3_bucket_name_env: str = "S3_DOWNLOADER_BUCKET"
     ) -> "S3Storage":
-        """Create a S3Storage object from environment variables.
+        """
+        Create a S3Storage object from environment variables.
 
         The following environment variables are read:
         - `S3_DOWNLOADER_BUCKET` (or the value of `s3_bucket_name_env`): The name of the S3 bucket
