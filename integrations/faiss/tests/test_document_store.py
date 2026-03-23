@@ -33,7 +33,7 @@ class TestFAISSDocumentStore(
     CountUniqueMetadataByFilterTest,
     GetMetadataFieldsInfoTest,
     GetMetadataFieldMinMaxTest,
-    GetMetadataFieldUniqueValuesTest
+    GetMetadataFieldUniqueValuesTest,
 ):
     @pytest.fixture
     def document_store(self, tmp_path):
