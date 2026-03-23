@@ -12,18 +12,18 @@ from haystack import Document
 from haystack.components.preprocessors import DocumentSplitter
 from haystack.components.retrievers import SentenceWindowRetriever
 from haystack.testing.document_store import (
+    CountDocumentsByFilterTest,
     CountDocumentsTest,
+    CountUniqueMetadataByFilterTest,
     DeleteAllTest,
     DeleteByFilterTest,
     DeleteDocumentsTest,
     FilterableDocsFixtureMixin,
+    GetMetadataFieldMinMaxTest,
+    GetMetadataFieldsInfoTest,
+    GetMetadataFieldUniqueValuesTest,
     UpdateByFilterTest,
     WriteDocumentsTest,
-    CountDocumentsByFilterTest,
-    CountUniqueMetadataByFilterTest,
-    GetMetadataFieldsInfoTest,
-    GetMetadataFieldMinMaxTest,
-    GetMetadataFieldUniqueValuesTest
 )
 from haystack.utils import Secret
 from pinecone import Pinecone, PodSpec, ServerlessSpec
@@ -285,7 +285,7 @@ class TestDocumentStore(
     CountUniqueMetadataByFilterTest,
     GetMetadataFieldsInfoTest,
     GetMetadataFieldMinMaxTest,
-    GetMetadataFieldUniqueValuesTest
+    GetMetadataFieldUniqueValuesTest,
 ):
     def test_write_documents(self, document_store: PineconeDocumentStore):
         docs = [Document(id="1")]
