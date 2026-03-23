@@ -119,33 +119,6 @@ class TestFAISSDocumentStore(
         assert ds_loaded.index_string == "Flat"
         assert ds_loaded.embedding_dim == 128
 
-    def test_count_documents_by_filter(self, document_store):
-
-        docs = [
-            Document(content="test1", meta={"category": "A"}),
-            Document(content="test2", meta={"category": "B"}),
-            Document(content="test3", meta={"category": "A"}),
-        ]
-        document_store.write_documents(docs)
-
-        count = document_store.count_documents_by_filter(
-            filters={"field": "meta.category", "operator": "==", "value": "A"}
-        )
-        assert count == 2
-
-    def test_get_metadata_fields_info(self, document_store):
-
-        docs = [Document(content="test1", meta={"category": "A", "count": 1, "is_active": True})]
-        document_store.write_documents(docs)
-
-        info = document_store.get_metadata_fields_info()
-        assert "category" in info
-        assert info["category"]["type"] == "keyword"
-        assert "count" in info
-        assert info["count"]["type"] == "long"
-        assert "is_active" in info
-        assert info["is_active"]["type"] == "boolean"
-
     def test_count_unique_metadata_by_filter(self, document_store):
 
         docs = [
