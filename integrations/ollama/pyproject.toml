@@ -23,10 +23,11 @@ classifiers = [
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
     "Programming Language :: Python :: Implementation :: CPython",
     "Programming Language :: Python :: Implementation :: PyPy",
 ]
-dependencies = ["haystack-ai>=2.22.0", "ollama>=0.5.0", "pydantic", "tenacity>=8.2.3"]
+dependencies = ["haystack-ai>=2.22.0", "ollama>=0.5.0", "pydantic>=2.12.0", "tenacity>=8.2.3"]
 
 [project.urls]
 Documentation = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/ollama#readme"
