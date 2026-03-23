@@ -494,13 +494,11 @@ def _parse_completion_response(response_body: dict[str, Any], model: str) -> lis
             reasoning_extra = {}
             reasoning_text = ""
             if reasoning_content:
-                if "redacted_content" in reasoning_content:
-                    reasoning_text = "[REDACTED]"
-                elif "reasoningText" in reasoning_content:
+                if "reasoningText" in reasoning_content:
                     reasoning_text = reasoning_content["reasoningText"].get("text", "")
                     signature = reasoning_content["reasoningText"].get("signature")
-                if signature:
-                    reasoning_extra["signature"] = signature
+                    if signature:
+                        reasoning_extra["signature"] = signature
 
             # Create a single ChatMessage with combined text and tool calls
             replies.append(
@@ -584,20 +582,18 @@ def _convert_event_to_streaming_chunk(
         # This is for accumulating reasoning content deltas
         elif "reasoningContent" in delta:
             reasoning_content = delta["reasoningContent"]
+            reasoning_text = ""
+            extra = {}
             if "text" in reasoning_content:
-                reasoning_text = reasoning_content.pop("text", "")
-            elif "redactedContent" in reasoning_content:
-                # redactedContent was only used for Claude 3.7 which is marked as legacy
-                reasoning_content["redacted_content"] = reasoning_content.pop("redactedContent")
-                reasoning_text = "[REDACTED]"
-            elif "signature" in reasoning_content:
-                reasoning_text = ""
+                reasoning_text = reasoning_content["text"]
+            if "signature" in reasoning_content:
+                extra["signature"] = reasoning_content["signature"]
             streaming_chunk = StreamingChunk(
                 content="",
                 index=block_idx,
                 reasoning=ReasoningContent(
                     reasoning_text=reasoning_text,
-                    extra=reasoning_content,
+                    extra=extra,
                 ),
                 meta=base_meta,
             )
