@@ -23,7 +23,7 @@ classifiers = [
   "Programming Language :: Python :: Implementation :: PyPy",
 ]
 dependencies = [
-  "haystack-ai>=2.26.0",
+  "haystack-ai>=2.26.1",
   "chromadb>=1.5.0"
 ]
 
