@@ -19,8 +19,10 @@ from .metrics import (
 @component
 class DeepEvalEvaluator:
     """
-    A component that uses the [DeepEval framework](https://docs.confident-ai.com/docs/evaluation-introduction)
-    to evaluate inputs against a specific metric. Supported metrics are defined by `DeepEvalMetric`.
+    A component that uses DeepEval to evaluate inputs against a specific metric.
+
+    Uses the [DeepEval framework](https://docs.confident-ai.com/docs/evaluation-introduction).
+    Supported metrics are defined by `DeepEvalMetric`.
 
     Usage example:
     ```python

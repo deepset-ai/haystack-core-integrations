@@ -61,6 +61,8 @@ class FAISSEmbeddingRetriever:
         filter_policy: str | FilterPolicy = FilterPolicy.REPLACE,
     ) -> None:
         """
+        Initialize FAISSEmbeddingRetriever.
+
         :param document_store: An instance of `FAISSDocumentStore`.
         :param filters: Filters applied to the retrieved Documents at initialisation time. At runtime, these are merged
             with any runtime filters according to the `filter_policy`.

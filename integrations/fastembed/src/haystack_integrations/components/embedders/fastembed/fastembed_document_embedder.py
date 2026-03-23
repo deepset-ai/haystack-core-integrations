@@ -14,6 +14,7 @@ from .embedding_backend.fastembed_backend import _FastembedEmbeddingBackend, _Fa
 class FastembedDocumentEmbedder:
     """
     FastembedDocumentEmbedder computes Document embeddings using Fastembed embedding models.
+
     The embedding of each Document is stored in the `embedding` field of the Document.
 
     Usage example:
@@ -110,6 +111,7 @@ class FastembedDocumentEmbedder:
     def to_dict(self) -> dict[str, Any]:
         """
         Serializes the component to a dictionary.
+
         :returns:
             Dictionary with serialized data.
         """

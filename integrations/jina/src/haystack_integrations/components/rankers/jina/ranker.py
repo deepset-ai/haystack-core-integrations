@@ -74,6 +74,7 @@ class JinaRanker:
     def to_dict(self) -> dict[str, Any]:
         """
         Serializes the component to a dictionary.
+
         :returns:
             Dictionary with serialized data.
         """
@@ -89,6 +90,7 @@ class JinaRanker:
     def from_dict(cls, data: dict[str, Any]) -> "JinaRanker":
         """
         Deserializes the component from a dictionary.
+
         :param data:
             Dictionary to deserialize from.
         :returns:
