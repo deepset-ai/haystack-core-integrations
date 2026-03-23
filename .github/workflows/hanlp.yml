@@ -33,12 +33,6 @@ jobs:
         os: [ubuntu-latest, windows-latest, macos-latest]
         python-version: ["3.10", "3.14"]
 
-        # # sentencepiece cannot be installed on Windows with Python 3.14
-        # # https://github.com/google/sentencepiece/issues/1111
-        # exclude:
-        #   - os: windows-latest
-        #     python-version: "3.14"
-
     steps:
       - name: Support longpaths
         if: matrix.os == 'windows-latest'
