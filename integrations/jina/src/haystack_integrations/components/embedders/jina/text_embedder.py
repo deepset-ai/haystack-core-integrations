@@ -37,6 +37,7 @@ class JinaTextEmbedder:
         self,
         api_key: Secret = Secret.from_env_var("JINA_API_KEY"),  # noqa: B008
         model: str = "jina-embeddings-v3",
+        base_url: str = JINA_API_URL,
         prefix: str = "",
         suffix: str = "",
         task: str | None = None,
@@ -68,6 +69,7 @@ class JinaTextEmbedder:
 
         self.api_key = api_key
         self.model_name = model
+        self.base_url = base_url
         self.prefix = prefix
         self.suffix = suffix
         self._session = requests.Session()
@@ -98,6 +100,7 @@ class JinaTextEmbedder:
         kwargs: dict[str, Any] = {
             "api_key": self.api_key.to_dict(),
             "model": self.model_name,
+            "base_url": self.base_url,
             "prefix": self.prefix,
             "suffix": self.suffix,
         }
@@ -152,7 +155,7 @@ class JinaTextEmbedder:
             parameters["late_chunking"] = self.late_chunking
 
         resp = self._session.post(
-            JINA_API_URL,
+            self.base_url,
             json={"input": [text_to_embed], "model": self.model_name, **parameters},
         ).json()
 
