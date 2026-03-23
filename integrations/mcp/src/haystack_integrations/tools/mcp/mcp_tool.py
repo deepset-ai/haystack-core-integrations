@@ -119,8 +119,7 @@ class AsyncExecutor:
         self, coro_factory: Callable[[asyncio.Event], Coroutine[Any, Any, Any]], timeout: float | None = None
     ) -> tuple[concurrent.futures.Future[Any], asyncio.Event]:
         """
-        Schedule `coro_factory` to run in the executor's event loop **without** blocking the
-        caller thread.
+        Schedule `coro_factory` to run in the executor's event loop **without** blocking the caller thread.
 
         The factory receives an :class:`asyncio.Event` that can be used to cooperatively shut
         the coroutine down. The method returns **both** the concurrent future (to observe
@@ -1292,7 +1291,8 @@ class MCPTool(Tool):
 
 
 class _MCPClientSessionManager:
-    """Runs an MCPClient connect/close inside the AsyncExecutor's event loop.
+    """
+    Runs an MCPClient connect/close inside the AsyncExecutor's event loop.
 
     Life-cycle:
       1.  Create the worker to schedule a long-running coroutine in the

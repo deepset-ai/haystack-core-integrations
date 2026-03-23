@@ -74,6 +74,7 @@ class NimBackend:
         self.timeout = timeout
 
     def embed(self, texts: list[str]) -> tuple[list[list[float]], dict[str, Any]]:
+        """Compute embeddings for a list of texts via the NIM API."""
         url = f"{self.api_url}/embeddings"
 
         try:
@@ -99,6 +100,7 @@ class NimBackend:
         return embeddings, {"usage": data["usage"]}
 
     def generate(self, prompt: str) -> tuple[list[str], list[dict[str, Any]]]:
+        """Generate text completions for a prompt via the NIM API."""
         # We're using the chat completion endpoint as the NIM API doesn't support
         # the /completions endpoint. So both the non-chat and chat generator will use this.
         # This is the same for local containers and the cloud API.
@@ -152,6 +154,7 @@ class NimBackend:
         return replies, meta
 
     def models(self) -> list[Model]:
+        """Retrieve available models from the NIM API."""
         url = f"{self.api_url}/models"
 
         res = self.session.get(
@@ -175,6 +178,7 @@ class NimBackend:
         return models
 
     def rank(self, query_text: str, document_texts: list[str]) -> list[dict[str, Any]]:
+        """Rank documents by relevance to a query via the NIM API."""
         url = self.api_url
 
         try:
