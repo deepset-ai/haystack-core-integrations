@@ -363,44 +363,6 @@ class TestDocumentStore(
 
         assert len(result["context_windows"]) == 1
 
-    def test_get_metadata_fields_info(self, document_store: PineconeDocumentStore):
-        docs = [
-            Document(
-                content="Doc 1",
-                meta={
-                    "category": "A",
-                    "author": "Alice",
-                    "priority": 1,
-                    "is_published": True,
-                    "tags": ["tag1", "tag2"],
-                },
-            ),
-            Document(content="Doc 2", meta={"category": "B", "author": "Bob", "priority": 2, "is_published": False}),
-        ]
-        document_store.write_documents(docs)
-
-        field_info = document_store.get_metadata_fields_info()
-
-        # Check content field
-        assert "content" in field_info
-        assert field_info["content"]["type"] == "text"
-
-        # Check metadata fields
-        assert "category" in field_info
-        assert field_info["category"]["type"] == "keyword"
-
-        assert "author" in field_info
-        assert field_info["author"]["type"] == "keyword"
-
-        assert "priority" in field_info
-        assert field_info["priority"]["type"] == "long"
-
-        assert "is_published" in field_info
-        assert field_info["is_published"]["type"] == "boolean"
-
-        assert "tags" in field_info
-        assert field_info["tags"]["type"] == "keyword"
-
     def test_get_metadata_fields_info_consistent_types(self, document_store: PineconeDocumentStore):
         # Test that all documents are checked for type consistency
         docs = [
@@ -414,7 +376,7 @@ class TestDocumentStore(
         assert "score" in field_info
         assert field_info["score"]["type"] == "long"
 
-    def test_get_metadata_field_min_max(self, document_store: PineconeDocumentStore):
+    def test_get_metadata_field_min_max_boolean_and_string(self, document_store: PineconeDocumentStore):
         docs = [
             Document(content="Doc 1", meta={"priority": 1, "score": 85.5, "active": True, "category": "Zebra"}),
             Document(content="Doc 2", meta={"priority": 5, "score": 92.3, "active": False, "category": "Alpha"}),
@@ -422,16 +384,6 @@ class TestDocumentStore(
             Document(content="Doc 4", meta={"priority": 7, "score": 95.1, "active": False, "category": "Gamma"}),
         ]
         document_store.write_documents(docs)
-
-        # Get min/max for numeric field (int)
-        min_max = document_store.get_metadata_field_min_max("priority")
-        assert min_max["min"] == 1
-        assert min_max["max"] == 7
-
-        # Get min/max for numeric field (float)
-        min_max = document_store.get_metadata_field_min_max("score")
-        assert min_max["min"] == 78.9
-        assert min_max["max"] == 95.1
 
         # Get min/max for boolean field
         min_max = document_store.get_metadata_field_min_max("active")
