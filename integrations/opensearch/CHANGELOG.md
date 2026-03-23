@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/opensearch-v7.0.0] - 2026-03-19
+
+### 🐛 Bug Fixes
+
+- OpenSearch - do not serialize string Secrets + authentication refactoring (#2967)
+
+
 ## [integrations/opensearch-v6.5.1] - 2026-03-10
 
 ### 🐛 Bug Fixes

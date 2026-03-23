@@ -33,19 +33,19 @@ jobs:
       matrix:
         # Pinecone tests are time expensive, so only test on Ubuntu
         os: [ubuntu-latest]
-        python-version: ["3.10", "3.13"]
+        python-version: ["3.10", "3.14"]
         # the INDEX_NAME is used in test_serverless_index_creation_from_scratch
         include:
           - python-version: "3.10"
             INDEX_NAME: "index-310"
-          - python-version: "3.13"
+          - python-version: "3.14"
             INDEX_NAME: "index-313"
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
         with:
           python-version: ${{ matrix.python-version }}
 
@@ -81,6 +81,6 @@ jobs:
     if: failure() && github.event_name == 'schedule'
     runs-on: ubuntu-slim
     steps:
-      - uses: deepset-ai/notify-slack-action@v1
+      - uses: deepset-ai/notify-slack-action@3cda73b77a148f16f703274198e7771340cf862b # v1
         with:
           slack-webhook-url: ${{ secrets.SLACK_WEBHOOK_URL_NOTIFICATIONS }}

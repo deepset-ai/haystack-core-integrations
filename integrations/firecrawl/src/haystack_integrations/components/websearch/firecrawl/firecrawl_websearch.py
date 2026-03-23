@@ -71,6 +71,7 @@ class FirecrawlWebSearch:
     def warm_up(self) -> None:
         """
         Warm up the Firecrawl clients by initializing the sync and async clients.
+
         This is useful to avoid cold start delays when performing searches.
         """
         if self._firecrawl_client is None:

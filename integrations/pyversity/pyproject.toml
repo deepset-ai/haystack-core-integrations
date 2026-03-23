@@ -22,6 +22,7 @@ classifiers = [
   "Programming Language :: Python :: 3.11",
   "Programming Language :: Python :: 3.12",
   "Programming Language :: Python :: 3.13",
+  "Programming Language :: Python :: 3.14",
   "Programming Language :: Python :: Implementation :: CPython",
   "Programming Language :: Python :: Implementation :: PyPy",
 ]
@@ -84,6 +85,7 @@ line-length = 120
 [tool.ruff.lint]
 select = [
   "A",
+  "ANN",
   "ARG",
   "B",
   "C",
@@ -111,6 +113,8 @@ select = [
 ignore = [
   # Allow non-abstract empty methods in abstract base classes
   "B027",
+  # Allow Any in type annotations at dynamic boundaries
+  "ANN401",
   # Ignore checks for possible passwords
   "S105",
   "S106",
@@ -134,7 +138,7 @@ ban-relative-imports = "parents"
 
 [tool.ruff.lint.per-file-ignores]
 # Tests can use magic values, assertions, and relative imports
-"tests/**/*" = ["PLR2004", "S101", "TID252"]
+"tests/**/*" = ["PLR2004", "S101", "TID252", "ANN"]
 # Examples can use print statements
 "examples/**/*" = ["T201"]
 
