@@ -78,6 +78,7 @@ class S3Downloader:
             If the environment variable `S3_DOWNLOADER_PREFIX` is set, its value will be automatically
             prefixed to the generated S3 key.
         :param s3_bucket_name_env: The name of the environment variable of the S3 bucket to download files from.
+            By default, the value is `"S3_DOWNLOADER_BUCKET"`.
         :raises ValueError: If the `file_root_path` is not set through
             the constructor or the `FILE_ROOT_PATH` environment variable.
 
