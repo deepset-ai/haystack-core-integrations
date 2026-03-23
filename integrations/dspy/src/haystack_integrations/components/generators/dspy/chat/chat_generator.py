@@ -162,8 +162,12 @@ class DSPySignatureChatGenerator:
         """Extract the text of the last user message from a list of chat messages."""
         for msg in reversed(messages):
             if msg.role == ChatRole.USER:
-                return msg.text or ""
-        return messages[-1].text or ""
+                if not msg.text:
+                    err = "The last user message has no text content."
+                    raise ValueError(err)
+                return msg.text
+        err = "No user message found in 'messages'."
+        raise ValueError(err)
 
     @staticmethod
     def _serialize_signature(signature: str | type[dspy.Signature]) -> dict[str, str]:
@@ -193,10 +197,13 @@ class DSPySignatureChatGenerator:
         if signature_type == "str":
             return value
 
-        class_path = value
-        module_path, class_name = class_path.rsplit(".", 1)
-        module = importlib.import_module(module_path)
-        return getattr(module, class_name)
+        if signature_type == "class":
+            module_path, class_name = value.rsplit(".", 1)
+            module = importlib.import_module(module_path)
+            return getattr(module, class_name)
+
+        msg = f"Unknown signature type '{signature_type}'. Must be 'str' or 'class'."
+        raise ValueError(msg)
 
     def to_dict(self) -> dict[str, Any]:
         """Serialize this component to a dictionary."""
@@ -247,7 +254,11 @@ class DSPySignatureChatGenerator:
 
         prediction = self._module(**dspy_inputs, config=generation_kwargs or {})
 
-        output_text = getattr(prediction, self.output_field, str(prediction))
+        if not hasattr(prediction, self.output_field):
+            available = list(prediction.keys())
+            msg = f"Output field '{self.output_field}' not found in prediction. Available fields: {available}"
+            raise ValueError(msg)
+        output_text = getattr(prediction, self.output_field)
 
         replies = [ChatMessage.from_assistant(text=output_text)]
         return {"replies": replies}
@@ -278,7 +289,11 @@ class DSPySignatureChatGenerator:
 
         prediction = await self._module.acall(**dspy_inputs, config=generation_kwargs or {})
 
-        output_text = getattr(prediction, self.output_field, str(prediction))
+        if not hasattr(prediction, self.output_field):
+            available = list(prediction.keys())
+            msg = f"Output field '{self.output_field}' not found in prediction. Available fields: {available}"
+            raise ValueError(msg)
+        output_text = getattr(prediction, self.output_field)
 
         replies = [ChatMessage.from_assistant(text=output_text)]
         return {"replies": replies}

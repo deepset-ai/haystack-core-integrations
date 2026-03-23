@@ -302,6 +302,23 @@ class TestDSPySignatureChatGenerator:
         component = DSPySignatureChatGenerator.from_dict(data)
         assert component.signature is dspy.Signature
 
+    def test_from_dict_with_unknown_signature_type(self, mock_dspy_module):
+        """Test that from_dict raises an error for unknown signature types."""
+        data = {
+            "type": "haystack_integrations.components.generators.dspy.chat.chat_generator.DSPySignatureChatGenerator",
+            "init_parameters": {
+                "signature": {"type": "unknown", "value": "question -> answer"},
+                "model": "openai/gpt-5-mini",
+                "module_type": "Predict",
+                "output_field": "answer",
+                "generation_kwargs": {},
+                "module_kwargs": {},
+                "input_mapping": None,
+            },
+        }
+        with pytest.raises(ValueError, match="Unknown signature type 'unknown'"):
+            DSPySignatureChatGenerator.from_dict(data)
+
     def test_run(self, chat_messages, mock_dspy_module):
         component = DSPySignatureChatGenerator(
             signature="question -> answer",
@@ -365,6 +382,34 @@ class TestDSPySignatureChatGenerator:
         )
         with pytest.raises(ValueError, match="messages"):
             component.run(messages=[])
+
+    def test_run_with_no_user_message(self, mock_dspy_module):
+        component = DSPySignatureChatGenerator(
+            signature="question -> answer",
+        )
+        messages = [ChatMessage.from_assistant("I'm an assistant")]
+        with pytest.raises(ValueError, match="No user message found"):
+            component.run(messages=messages)
+
+    def test_run_with_empty_user_message(self, mock_dspy_module):
+        component = DSPySignatureChatGenerator(
+            signature="question -> answer",
+        )
+        messages = [ChatMessage.from_user("")]
+        with pytest.raises(ValueError, match="no text content"):
+            component.run(messages=messages)
+
+    def test_run_with_wrong_output_field(self, mock_dspy_module):
+        prediction = MagicMock(spec=["answer", "keys"])
+        prediction.keys.return_value = ["answer"]
+        mock_dspy_module.return_value = prediction
+        component = DSPySignatureChatGenerator(
+            signature="question -> answer",
+            output_field="nonexistent",
+        )
+        messages = [ChatMessage.from_user("Hello")]
+        with pytest.raises(ValueError, match="Output field 'nonexistent' not found"):
+            component.run(messages=messages)
 
     def test_run_with_custom_output_field(self, mock_dspy_module):
         mock_dspy_module.return_value = MagicMock(summary="This is a summary")
