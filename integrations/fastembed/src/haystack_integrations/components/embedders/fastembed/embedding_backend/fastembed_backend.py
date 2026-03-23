@@ -44,7 +44,7 @@ class _FastembedEmbeddingBackend:
         cache_dir: str | None = None,
         threads: int | None = None,
         local_files_only: bool = False,
-    ):
+    ) -> None:
         self.model = TextEmbedding(
             model_name=model_name, cache_dir=cache_dir, threads=threads, local_files_only=local_files_only
         )
@@ -103,7 +103,7 @@ class _FastembedSparseEmbeddingBackend:
         threads: int | None = None,
         local_files_only: bool = False,
         model_kwargs: dict[str, Any] | None = None,
-    ):
+    ) -> None:
         model_kwargs = model_kwargs or {}
 
         self.model = SparseTextEmbedding(

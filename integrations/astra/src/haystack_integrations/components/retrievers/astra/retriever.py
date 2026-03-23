@@ -41,6 +41,8 @@ class AstraEmbeddingRetriever:
         filter_policy: str | FilterPolicy = FilterPolicy.REPLACE,
     ) -> None:
         """
+        Initialize the AstraEmbeddingRetriever.
+
         :param document_store: An instance of AstraDocumentStore.
         :param filters: a dictionary with filters to narrow down the search space.
         :param top_k: the maximum number of documents to retrieve.
@@ -64,7 +66,8 @@ class AstraEmbeddingRetriever:
         filters: dict[str, Any] | None = None,
         top_k: int | None = None,
     ) -> dict[str, list[Document]]:
-        """Retrieve documents from the AstraDocumentStore.
+        """
+        Retrieve documents from the AstraDocumentStore.
 
         :param query_embedding: floats representing the query embedding
         :param filters: Filters applied to the retrieved Documents. The way runtime filters are applied depends on

@@ -27,6 +27,7 @@ class BedrockModelAdapter(ABC):
     def prepare_body(self, prompt: str, **inference_kwargs: Any) -> dict[str, Any]:
         """
         Prepares the body for the Amazon Bedrock request.
+
         Each subclass should implement this method to prepare the request body for the specific model.
 
         :param prompt: The prompt to be sent to the model.
@@ -374,7 +375,8 @@ class AI21LabsJurassic2Adapter(BedrockModelAdapter):
     """
 
     def prepare_body(self, prompt: str, **inference_kwargs: Any) -> dict[str, Any]:
-        """Prepares the body for the Jurassic 2 model.
+        """
+        Prepares the body for the Jurassic 2 model.
 
         :param prompt: The prompt to be sent to the model.
         :param inference_kwargs: Additional keyword arguments passed to the handler.

@@ -13,6 +13,7 @@ logger = logging.getLogger(__name__)
 class AzureAISearchEmbeddingRetriever:
     """
     Retrieves documents from the AzureAISearchDocumentStore using a vector similarity metric.
+
     Must be connected to the AzureAISearchDocumentStore to run.
 
     """
@@ -96,7 +97,8 @@ class AzureAISearchEmbeddingRetriever:
     def run(
         self, query_embedding: list[float], filters: dict[str, Any] | None = None, top_k: int | None = None
     ) -> dict[str, list[Document]]:
-        """Retrieve documents from the AzureAISearchDocumentStore.
+        """
+        Retrieve documents from the AzureAISearchDocumentStore.
 
         :param query_embedding: A list of floats representing the query embedding.
         :param filters: Filters applied to the retrieved Documents. The way runtime filters are applied depends on

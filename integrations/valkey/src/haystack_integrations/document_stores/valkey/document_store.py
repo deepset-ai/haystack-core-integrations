@@ -159,7 +159,7 @@ class ValkeyDocumentStore(DocumentStore):
         distance_metric: Literal["l2", "cosine", "ip"] = "cosine",
         embedding_dim: int = 768,
         metadata_fields: dict[str, type[str] | type[int]] | None = None,
-    ):
+    ) -> None:
         """
         Creates a new ValkeyDocumentStore instance.
 

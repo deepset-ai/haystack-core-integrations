@@ -35,6 +35,7 @@ class QueryResponse:
     matches: list[Response]
 
     def get(self, key: str) -> Any:  # noqa: ANN401
+        """Return the value for the given key."""
         return self.__dict__[key]
 
 
@@ -54,6 +55,7 @@ class AstraClient:
     ) -> None:
         """
         The connection to Astra DB is established and managed through the JSON API.
+
         The required credentials (api endpoint and application token) can be generated
         through the UI by clicking and the connect tab, and then selecting JSON API and
         Generate Configuration.
@@ -340,7 +342,8 @@ class AstraClient:
         ids: list[str] | None = None,
         filters: dict[str, str | float | int | bool | list | dict] | None = None,
     ) -> int:
-        """Delete documents from the Astra index.
+        """
+        Delete documents from the Astra index.
 
         :param ids: the ids of the documents to delete
         :param filters: additional filters to apply when deleting documents
@@ -362,6 +365,7 @@ class AstraClient:
     def delete_all_documents(self) -> int:
         """
         Delete all documents from the Astra index.
+
         :returns: the number of documents deleted
         """
         delete_result = self._astra_db_collection.delete_many(filter={})
