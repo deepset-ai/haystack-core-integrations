@@ -271,13 +271,17 @@ class ArcadeDBDocumentStore:
                 for item in value:
                     if isinstance(item, bool):
                         inferred_types.add("boolean")
-                    elif isinstance(item, int | float):
+                    elif isinstance(item, float):
+                        inferred_types.add("double")
+                    elif isinstance(item, int):
                         inferred_types.add("long")
                     elif isinstance(item, str):
                         inferred_types.add("keyword")
             elif isinstance(value, bool):
                 inferred_types.add("boolean")
-            elif isinstance(value, int | float):
+            elif isinstance(value, float):
+                inferred_types.add("double")
+            elif isinstance(value, int):
                 inferred_types.add("long")
             elif isinstance(value, str):
                 inferred_types.add("keyword")
@@ -484,6 +488,7 @@ class ArcadeDBDocumentStore:
 
         counts = {}
         for field in metadata_fields:  # Arcade doesn't support COUNT(DISTINCT..)
+            field = field.removeprefix("meta.")
             sql = f"SELECT DISTINCT meta[{_sql_str(field)}] AS val FROM `{self._type_name}`"
             if where:
                 sql += f" WHERE {where}"
@@ -550,6 +555,7 @@ class ArcadeDBDocumentStore:
         """
         self._ensure_initialized()
 
+        metadata_field = metadata_field.removeprefix("meta.")
         field_ref = f"meta[{_sql_str(metadata_field)}]"
         where = ""
 
