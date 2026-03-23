@@ -16,20 +16,25 @@ MODELS_TO_TEST = [
     "global.anthropic.claude-sonnet-4-6",
     "us.meta.llama3-3-70b-instruct-v1:0",
     "us.mistral.pixtral-large-2502-v1:0",
+    "qwen.qwen3-vl-235b-a22b",
+    "us.deepseek.r1-v1:0",
 ]
 MODELS_TO_TEST_WITH_TOOLS = [
     "global.anthropic.claude-sonnet-4-6",
     "us.mistral.pixtral-large-2502-v1:0",
+    "qwen.qwen3-vl-235b-a22b",
 ]
 
 # so far we've discovered these models support streaming and tool use
 STREAMING_TOOL_MODELS = [
     "global.anthropic.claude-sonnet-4-6",
+    "qwen.qwen3-vl-235b-a22b",
 ]
 
 MODELS_TO_TEST_WITH_IMAGE_INPUT = [
     "global.anthropic.claude-sonnet-4-6",
     "us.mistral.pixtral-large-2502-v1:0",
+    "qwen.qwen3-vl-235b-a22b",
 ]
 
 MODELS_TO_TEST_WITH_IMAGE_TOOL_OUTPUT = [
@@ -46,6 +51,7 @@ MODELS_TO_TEST_WITH_VIDEO_INPUT = [
 
 MODELS_TO_TEST_WITH_THINKING = [
     "global.anthropic.claude-sonnet-4-6",
+    "us.deepseek.r1-v1:0",
 ]
 
 MODELS_TO_TEST_WITH_THINKING_TOOLS_STREAMING = [
@@ -738,10 +744,12 @@ class TestAmazonBedrockChatGeneratorInference:
             model=model_name,
             generation_kwargs={
                 "maxTokens": 8192,
-                "thinking": {
-                    "type": "enabled",
-                    "budget_tokens": 1024,
-                },
+                **({
+                    "thinking": {
+                        "type": "enabled",
+                        "budget_tokens": 1024,
+                    }
+                } if "claude" in model_name else {})
             },
         )
         results = component.run(messages=initial_messages)
@@ -759,10 +767,12 @@ class TestAmazonBedrockChatGeneratorInference:
             tools=tools,
             generation_kwargs={
                 "maxTokens": 8192,
-                "thinking": {
-                    "type": "enabled",
-                    "budget_tokens": 1024,
-                },
+                **({
+                    "thinking": {
+                        "type": "enabled",
+                        "budget_tokens": 1024,
+                    }
+                } if "claude" in model_name else {})
             },
         )
         results = component.run(messages=initial_messages)
