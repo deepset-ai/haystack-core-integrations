@@ -603,7 +603,8 @@ class AstraDocumentStore:
         :returns: A dictionary with `min` and `max`.
         """
 
-        distinct_values = self.index.distinct(f"meta.{metadata_field}")
+        field = metadata_field.removeprefix("meta.")
+        distinct_values = self.index.distinct(f"meta.{field}")
         comparable_values = [value for value in distinct_values if isinstance(value, str | int | float | bool)]
         if not comparable_values:
             return {"min": None, "max": None}
