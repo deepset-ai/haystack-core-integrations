@@ -13,6 +13,7 @@ logger = logging.getLogger(__name__)
 class AzureAISearchHybridRetriever:
     """
     Retrieves documents from the AzureAISearchDocumentStore using a hybrid (vector + BM25) retrieval.
+
     Must be connected to the AzureAISearchDocumentStore to run.
 
     """
@@ -25,7 +26,7 @@ class AzureAISearchHybridRetriever:
         top_k: int = 10,
         filter_policy: str | FilterPolicy = FilterPolicy.REPLACE,
         **kwargs: Any,
-    ):
+    ) -> None:
         """
         Create the AzureAISearchHybridRetriever component.
 
@@ -103,7 +104,8 @@ class AzureAISearchHybridRetriever:
         filters: dict[str, Any] | None = None,
         top_k: int | None = None,
     ) -> dict[str, list[Document]]:
-        """Retrieve documents from the AzureAISearchDocumentStore.
+        """
+        Retrieve documents from the AzureAISearchDocumentStore.
 
         :param query: Text of the query.
         :param query_embedding: A list of floats representing the query embedding

@@ -36,7 +36,7 @@ class OpenSearchBM25Retriever:
         filter_policy: str | FilterPolicy = FilterPolicy.REPLACE,
         custom_query: dict[str, Any] | None = None,
         raise_on_failure: bool = True,
-    ):
+    ) -> None:
         """
         Creates the OpenSearchBM25Retriever component.
 

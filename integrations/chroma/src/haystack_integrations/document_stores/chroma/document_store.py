@@ -13,6 +13,7 @@ from haystack import default_from_dict, default_to_dict, logging
 from haystack.dataclasses import Document
 from haystack.document_stores.errors import DocumentStoreError
 from haystack.document_stores.types import DuplicatePolicy
+from haystack.utils.misc import _normalize_metadata_field_name
 
 from .filters import _convert_filters
 from .utils import get_embedding_function
@@ -45,9 +46,10 @@ class ChromaDocumentStore:
         metadata: dict | None = None,
         client_settings: dict[str, Any] | None = None,
         **embedding_function_params: Any,
-    ):
+    ) -> None:
         """
         Creates a new ChromaDocumentStore instance.
+
         It is meant to be connected to a Chroma collection.
 
         Note: for the component to be part of a serializable pipeline, the __init__
@@ -102,7 +104,7 @@ class ChromaDocumentStore:
         self._collection: chromadb.Collection | None = None
         self._async_collection: AsyncCollection | None = None
 
-    def _ensure_initialized(self):
+    def _ensure_initialized(self) -> None:
         if not self._collection:
             # Create the client instance
             if self._persist_path and (self._host or self._port is not None):
@@ -160,7 +162,7 @@ class ChromaDocumentStore:
                     embedding_function=self._embedding_func,
                 )
 
-    async def _ensure_initialized_async(self):
+    async def _ensure_initialized_async(self) -> None:
         if not self._async_collection:
             if self._host is None or self._port is None:
                 error_message = (
@@ -241,16 +243,6 @@ class ChromaDocumentStore:
             "where_document": chroma_filters.where_document,
             "include": ["embeddings", "documents", "metadatas", "distances"],
         }
-
-    @staticmethod
-    def _normalize_metadata_field_name(metadata_field: str) -> str:
-        """
-        Normalizes a metadata field name by removing the "meta." prefix if present.
-
-        :param metadata_field: The metadata field name to normalize.
-        :returns: The normalized field name without "meta." prefix.
-        """
-        return metadata_field[5:] if metadata_field.startswith("meta.") else metadata_field
 
     @staticmethod
     def _infer_type_from_value(value: Any) -> str:
@@ -341,7 +333,7 @@ class ChromaDocumentStore:
         for meta in metadatas:
             if meta and field_name in meta:
                 val = meta.get(field_name)
-                if isinstance(val, (str, int, float)):
+                if isinstance(val, str | int | float):
                     values.append(val)
 
         if not values:
@@ -1008,8 +1000,7 @@ class ChromaDocumentStore:
         filters: dict[str, Any] | None = None,
     ) -> list[list[Document]]:
         """
-        Asynchronously perform vector search on the stored document, pass the embeddings of the queries instead of
-        their text.
+        Asynchronously perform vector search using query embeddings instead of text.
 
         Asynchronous methods are only supported for HTTP connections.
 
@@ -1074,8 +1065,7 @@ class ChromaDocumentStore:
 
     def count_unique_metadata_by_filter(self, filters: dict[str, Any], metadata_fields: list[str]) -> dict[str, int]:
         """
-        Returns the number of unique values for each specified metadata field
-        of the documents that match the provided filters.
+        Return unique value counts for metadata fields of documents matching the provided filters.
 
         :param filters: The filters to apply to count documents.
             For filter syntax, see [Haystack metadata filtering](https://docs.haystack.deepset.ai/docs/metadata-filtering)
@@ -1087,7 +1077,7 @@ class ChromaDocumentStore:
         self._ensure_initialized()
         assert self._collection is not None
 
-        normalized_fields = [self._normalize_metadata_field_name(field) for field in metadata_fields]
+        normalized_fields = [_normalize_metadata_field_name(field) for field in metadata_fields]
 
         kwargs = ChromaDocumentStore._prepare_get_kwargs(filters)
         kwargs["include"] = ["metadatas"]
@@ -1099,8 +1089,7 @@ class ChromaDocumentStore:
         self, filters: dict[str, Any], metadata_fields: list[str]
     ) -> dict[str, int]:
         """
-        Asynchronously returns the number of unique values for each specified metadata field
-        of the documents that match the provided filters.
+        Asynchronously return unique value counts for metadata fields of documents matching the provided filters.
 
         Asynchronous methods are only supported for HTTP connections.
 
@@ -1114,7 +1103,7 @@ class ChromaDocumentStore:
         await self._ensure_initialized_async()
         assert self._async_collection is not None
 
-        normalized_fields = [self._normalize_metadata_field_name(field) for field in metadata_fields]
+        normalized_fields = [_normalize_metadata_field_name(field) for field in metadata_fields]
 
         kwargs = ChromaDocumentStore._prepare_get_kwargs(filters)
         kwargs["include"] = ["metadatas"]
@@ -1205,7 +1194,7 @@ class ChromaDocumentStore:
         self._ensure_initialized()
         assert self._collection is not None
 
-        field_name = self._normalize_metadata_field_name(metadata_field)
+        field_name = _normalize_metadata_field_name(metadata_field)
 
         result = self._collection.get(include=["metadatas"])
         return self._compute_field_min_max(result.get("metadatas", []), field_name)
@@ -1229,7 +1218,7 @@ class ChromaDocumentStore:
         await self._ensure_initialized_async()
         assert self._async_collection is not None
 
-        field_name = self._normalize_metadata_field_name(metadata_field)
+        field_name = _normalize_metadata_field_name(metadata_field)
 
         result = await self._async_collection.get(include=["metadatas"])
         return self._compute_field_min_max(result.get("metadatas", []), field_name)
@@ -1242,8 +1231,7 @@ class ChromaDocumentStore:
         size: int = 10,
     ) -> tuple[list[str], int]:
         """
-        Returns unique values for a metadata field, optionally filtered by
-        a search term in the content field, with pagination support.
+        Return unique metadata field values, optionally filtered by a content search term, with pagination.
 
         :param metadata_field: The metadata field to get unique values for.
             Can include or omit the "meta." prefix.
@@ -1256,7 +1244,7 @@ class ChromaDocumentStore:
         self._ensure_initialized()
         assert self._collection is not None
 
-        field_name = self._normalize_metadata_field_name(metadata_field)
+        field_name = _normalize_metadata_field_name(metadata_field)
 
         kwargs: dict[str, Any] = {"include": ["metadatas"]}
         if search_term:
@@ -1273,8 +1261,7 @@ class ChromaDocumentStore:
         size: int = 10,
     ) -> tuple[list[str], int]:
         """
-        Asynchronously returns unique values for a metadata field, optionally filtered by
-        a search term in the content field, with pagination support.
+        Asynchronously return unique metadata field values, optionally filtered by content, with pagination.
 
         Asynchronous methods are only supported for HTTP connections.
 
@@ -1289,7 +1276,7 @@ class ChromaDocumentStore:
         await self._ensure_initialized_async()
         assert self._async_collection is not None
 
-        field_name = self._normalize_metadata_field_name(metadata_field)
+        field_name = _normalize_metadata_field_name(metadata_field)
 
         kwargs: dict[str, Any] = {"include": ["metadatas"]}
         if search_term:

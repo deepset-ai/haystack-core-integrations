@@ -24,6 +24,7 @@ logger = logging.getLogger(__name__)
 class S3Downloader:
     """
     A component for downloading files from AWS S3 Buckets to local filesystem.
+
     Supports filtering by file extensions.
     """
 
@@ -132,7 +133,8 @@ class S3Downloader:
         self,
         documents: list[Document],
     ) -> dict[str, list[Document]]:
-        """Download files from AWS S3 Buckets to local filesystem.
+        """
+        Download files from AWS S3 Buckets to local filesystem.
 
         Return enriched `Document`s with the path of the downloaded file.
         :param documents: Document containing the name of the file to download in the meta field.
@@ -250,6 +252,7 @@ class S3Downloader:
     def from_dict(cls, data: dict[str, Any]) -> "S3Downloader":
         """
         Deserializes the component from a dictionary.
+
         :param data:
             Dictionary to deserialize from.
         :returns:

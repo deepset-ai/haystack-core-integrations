@@ -42,6 +42,7 @@ from haystack import default_from_dict, default_to_dict, logging
 from haystack.dataclasses import Document
 from haystack.document_stores.types import DuplicatePolicy
 from haystack.utils import Secret, deserialize_secrets_inplace
+from haystack.utils.misc import _normalize_metadata_field_name
 
 from .errors import AzureAISearchDocumentStoreConfigError, AzureAISearchDocumentStoreError
 from .filters import _normalize_filters
@@ -105,6 +106,10 @@ FIELD_TYPE_MAPPING = {
 
 
 class AzureAISearchDocumentStore:
+    """
+    Document store using [Azure AI Search](https://azure.microsoft.com/products/ai-services/ai-search/) as the backend.
+    """
+
     def __init__(
         self,
         *,
@@ -116,10 +121,9 @@ class AzureAISearchDocumentStore:
         vector_search_configuration: VectorSearch | None = None,
         include_search_metadata: bool = False,
         **index_creation_kwargs: Any,
-    ):
+    ) -> None:
         """
-        A document store using [Azure AI Search](https://azure.microsoft.com/products/ai-services/ai-search/)
-        as the backend.
+        Creates a new instance of AzureAISearchDocumentStore.
 
         :param azure_endpoint: The URL endpoint of an Azure AI Search service.
         :param api_key: The API key to use for authentication.
@@ -175,6 +179,7 @@ class AzureAISearchDocumentStore:
 
     @property
     def client(self) -> SearchClient:
+        """Return the Azure SearchClient, creating the index if it does not exist."""
         resolved_endpoint = self._azure_endpoint.resolve_value()
         resolved_key = self._api_key.resolve_value()
 
@@ -290,6 +295,7 @@ class AzureAISearchDocumentStore:
     ) -> dict[str, Any]:
         """
         Serializes the index creation kwargs to a dictionary.
+
         This is needed to handle serialization of Azure AI Search classes
         that are passed in the index creation kwargs.
         """
@@ -360,13 +366,6 @@ class AzureAISearchDocumentStore:
         """
         return self.client.get_document_count()
 
-    @staticmethod
-    def _normalize_metadata_field_name(metadata_field: str) -> str:
-        """
-        Normalizes a metadata field name by removing the `meta.` prefix if present.
-        """
-        return metadata_field[5:] if metadata_field.startswith("meta.") else metadata_field
-
     def _get_index_schema_fields(self) -> dict[str, Any]:
         """
         Returns the index schema fields keyed by field name.
@@ -426,7 +425,7 @@ class AzureAISearchDocumentStore:
         values: list[bool | int | float | str | datetime] = []
         for document in documents:
             value = document.get(field_name)
-            if isinstance(value, (bool, int, float, str, datetime)):
+            if isinstance(value, bool | int | float | str | datetime):
                 values.append(value)
 
         if not values:
@@ -482,7 +481,7 @@ class AzureAISearchDocumentStore:
         :param metadata_fields: List of field names to count unique values for.
         :returns: Dictionary mapping field names to counts of unique values.
         """
-        normalized_metadata_fields = [self._normalize_metadata_field_name(field) for field in metadata_fields]
+        normalized_metadata_fields = [_normalize_metadata_field_name(field) for field in metadata_fields]
         self._validate_index_fields(normalized_metadata_fields)
 
         documents = self._fetch_raw_documents(filters=filters, select=normalized_metadata_fields)
@@ -511,7 +510,7 @@ class AzureAISearchDocumentStore:
         :param metadata_field: The metadata field to get the minimum and maximum values for.
         :returns: A dictionary with the keys "min" and "max".
         """
-        field_name = self._normalize_metadata_field_name(metadata_field)
+        field_name = _normalize_metadata_field_name(metadata_field)
         self._validate_index_fields([field_name])
 
         documents = self._fetch_raw_documents(select=[field_name])
@@ -529,7 +528,7 @@ class AzureAISearchDocumentStore:
         :param size: Number of values to return.
         :returns: Tuple of (list of unique values, total count of matching values).
         """
-        field_name = self._normalize_metadata_field_name(metadata_field)
+        field_name = _normalize_metadata_field_name(metadata_field)
         self._validate_index_fields([field_name])
 
         documents = self._fetch_raw_documents(select=[field_name])
@@ -706,11 +705,18 @@ class AzureAISearchDocumentStore:
             raise AzureAISearchDocumentStoreError(msg) from e
 
     def get_documents_by_id(self, document_ids: list[str]) -> list[Document]:
+        """
+        Retrieves documents by their IDs.
+
+        :param document_ids: IDs of the documents to retrieve.
+        :returns: List of documents with the given IDs.
+        """
         return self._convert_search_result_to_documents(self._get_raw_documents_by_id(document_ids))
 
     def search_documents(self, search_text: str = "*", top_k: int = 10) -> list[Document]:
         """
         Returns all documents that match the provided search_text.
+
         If search_text is None, returns all documents.
         :param search_text: the text to search for in the Document list.
         :param top_k: Maximum number of documents to return.
@@ -722,6 +728,7 @@ class AzureAISearchDocumentStore:
     def filter_documents(self, filters: dict[str, Any] | None = None) -> list[Document]:
         """
         Returns the documents that match the provided filters.
+
         Filters should be given as a dictionary supporting filtering by metadata. For details on
         filters, see the [metadata filtering documentation](https://docs.haystack.deepset.ai/docs/metadata-filtering).
 
@@ -822,6 +829,7 @@ class AzureAISearchDocumentStore:
     ) -> list[Document]:
         """
         Retrieves documents that are most similar to the query embedding using a vector similarity metric.
+
         It uses the vector configuration specified in the document store. By default, it uses the HNSW algorithm
         with cosine similarity.
 
@@ -888,8 +896,9 @@ class AzureAISearchDocumentStore:
         **kwargs: Any,
     ) -> list[Document]:
         """
-        Retrieves documents similar to query using the vector configuration in the document store and
-        the BM25 algorithm. This method combines vector similarity and BM25 for improved retrieval.
+        Retrieve documents using vector search combined with the BM25 algorithm.
+
+        This method combines vector similarity and BM25 for improved retrieval.
 
         This method is not meant to be part of the public interface of
         `AzureAISearchDocumentStore` nor called directly.

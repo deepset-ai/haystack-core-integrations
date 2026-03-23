@@ -38,7 +38,7 @@ class WeaviateBM25Retriever:
         filters: dict[str, Any] | None = None,
         top_k: int = 10,
         filter_policy: str | FilterPolicy = FilterPolicy.REPLACE,
-    ):
+    ) -> None:
         """
         Create a new instance of WeaviateBM25Retriever.
 

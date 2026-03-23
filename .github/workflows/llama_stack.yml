@@ -31,13 +31,13 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest]  # to test on other Operating Systems, we need to install Ollama differently
-        python-version: ["3.12", "3.13"]  
+        python-version: ["3.12", "3.14"]  
 
     steps:
       - uses: actions/checkout@v6
 
       - name: Install and run Ollama Server as inference provider (needed for Llama Stack Server)
-        uses: nick-fields/retry@v3
+        uses: nick-fields/retry@v4
         with:
           timeout_minutes: 4
           max_attempts: 3
@@ -61,7 +61,7 @@ jobs:
             echo "Ollama service started successfully."
       
       - name: Pull models
-        uses: nick-fields/retry@v3
+        uses: nick-fields/retry@v4
         with:
           timeout_minutes: 2
           max_attempts: 5

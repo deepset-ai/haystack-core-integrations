@@ -29,7 +29,7 @@ class GitHubRepoForkerTool(ComponentTool):
         outputs_to_string: dict[str, str | Callable[[Any], str]] | None = None,
         inputs_from_state: dict[str, str] | None = None,
         outputs_to_state: dict[str, dict[str, str | Callable]] | None = None,
-    ):
+    ) -> None:
         """
         Initialize the GitHub Repo Forker tool.
 

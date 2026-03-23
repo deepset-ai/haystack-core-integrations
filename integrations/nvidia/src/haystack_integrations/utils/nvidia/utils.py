@@ -49,6 +49,7 @@ def is_hosted(api_url: str) -> bool:
 def lookup_model(name: str) -> Model | None:
     """
     Lookup a model by name, using only the table of known models.
+
     The name is either:
         - directly in the table
         - an alias in the table
@@ -66,8 +67,7 @@ def lookup_model(name: str) -> Model | None:
 
 def determine_model(name: str) -> Model | None:
     """
-    Determine the model to use based on a name, using
-    only the table of known models.
+    Determine the model to use based on a name, using only the table of known models.
 
     Raise a warning if the model is found to be
     an alias of a known model.

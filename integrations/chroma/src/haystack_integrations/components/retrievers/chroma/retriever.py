@@ -51,8 +51,10 @@ class ChromaQueryTextRetriever:
         filters: dict[str, Any] | None = None,
         top_k: int = 10,
         filter_policy: str | FilterPolicy = FilterPolicy.REPLACE,
-    ):
+    ) -> None:
         """
+        Initialize the ChromaQueryTextRetriever.
+
         :param document_store: an instance of `ChromaDocumentStore`.
         :param filters: filters to narrow down the search space.
         :param top_k: the maximum number of documents to retrieve.
@@ -164,8 +166,10 @@ class ChromaEmbeddingRetriever:
         filters: dict[str, Any] | None = None,
         top_k: int = 10,
         filter_policy: str | FilterPolicy = FilterPolicy.REPLACE,
-    ):
+    ) -> None:
         """
+        Initialize the ChromaEmbeddingRetriever.
+
         :param document_store: an instance of `ChromaDocumentStore`.
         :param filters: filters to narrow down the search space.
         :param top_k: the maximum number of documents to retrieve.

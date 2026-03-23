@@ -148,6 +148,13 @@ class TestFormatMessage:
 
 
 class TestCohereChatGenerator:
+    def test_supported_models(self) -> None:
+        """SUPPORTED_MODELS is a non-empty list of strings."""
+        models = CohereChatGenerator.SUPPORTED_MODELS
+        assert isinstance(models, list)
+        assert len(models) > 0
+        assert all(isinstance(m, str) for m in models)
+
     def test_init_default(self, monkeypatch):
         monkeypatch.setenv("COHERE_API_KEY", "test-api-key")
 
@@ -462,6 +469,7 @@ class TestCohereChatGenerator:
         mock_response = MagicMock()
         mock_response.message.content = [MagicMock()]
         mock_response.message.content[0].text = "This is a test image response"
+        mock_response.message.content[0].type = "text"
         mock_response.message.tool_calls = None
         mock_response.finish_reason = "COMPLETE"
         mock_response.usage = None
