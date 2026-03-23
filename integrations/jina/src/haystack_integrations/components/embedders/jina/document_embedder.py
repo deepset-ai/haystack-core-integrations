@@ -41,6 +41,7 @@ class JinaDocumentEmbedder:
         self,
         api_key: Secret = Secret.from_env_var("JINA_API_KEY"),  # noqa: B008
         model: str = "jina-embeddings-v3",
+        base_url: str = JINA_API_URL,
         prefix: str = "",
         suffix: str = "",
         batch_size: int = 32,
@@ -57,6 +58,7 @@ class JinaDocumentEmbedder:
         :param api_key: The Jina API key.
         :param model: The name of the Jina model to use.
             Check the list of available models on [Jina documentation](https://jina.ai/embeddings/).
+        :param base_url: The base URL of the Jina API.
         :param prefix: A string to add to the beginning of each text.
         :param suffix: A string to add to the end of each text.
         :param batch_size: Number of Documents to encode at once.
@@ -79,6 +81,7 @@ class JinaDocumentEmbedder:
 
         self.api_key = api_key
         self.model_name = model
+        self.base_url = base_url
         self.prefix = prefix
         self.suffix = suffix
         self.batch_size = batch_size
@@ -113,6 +116,7 @@ class JinaDocumentEmbedder:
         kwargs = {
             "api_key": self.api_key.to_dict(),
             "model": self.model_name,
+            "base_url": self.base_url,
             "prefix": self.prefix,
             "suffix": self.suffix,
             "batch_size": self.batch_size,
@@ -173,7 +177,7 @@ class JinaDocumentEmbedder:
         ):
             batch = texts_to_embed[i : i + batch_size]
             response = self._session.post(
-                JINA_API_URL,
+                self.base_url,
                 json={"input": batch, "model": self.model_name, **(parameters or {})},
             ).json()
             if "data" not in response:

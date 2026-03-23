@@ -51,6 +51,7 @@ class JinaTextEmbedder:
             environment variable `JINA_API_KEY` (recommended).
         :param model: The name of the Jina model to use.
             Check the list of available models on [Jina documentation](https://jina.ai/embeddings/).
+        :param base_url: The base URL of the Jina API.
         :param prefix: A string to add to the beginning of each text.
         :param suffix: A string to add to the end of each text.
         :param task: The downstream task for which the embeddings will be used.
