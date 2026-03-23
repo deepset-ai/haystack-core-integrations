@@ -12,6 +12,7 @@ from haystack.utils.auth import Secret
 class MistralDocumentEmbedder(OpenAIDocumentEmbedder):
     """
     A component for computing Document embeddings using Mistral models.
+
     The embedding of each Document is stored in the `embedding` field of the Document.
 
     Usage example:
@@ -55,7 +56,7 @@ class MistralDocumentEmbedder(OpenAIDocumentEmbedder):
         timeout: float | None = None,
         max_retries: int | None = None,
         http_client_kwargs: dict[str, Any] | None = None,
-    ):
+    ) -> None:
         """
         Creates a MistralDocumentEmbedder component.
 

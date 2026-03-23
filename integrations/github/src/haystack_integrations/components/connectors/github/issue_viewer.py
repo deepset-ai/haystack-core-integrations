@@ -40,7 +40,7 @@ class GitHubIssueViewer:
         github_token: Secret | None = None,
         raise_on_failure: bool = True,
         retry_attempts: int = 2,
-    ):
+    ) -> None:
         """
         Initialize the component.
 

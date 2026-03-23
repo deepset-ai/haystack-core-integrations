@@ -72,7 +72,10 @@ def test_to_dict(_mock_opensearch_client):
                     },
                     "return_embedding": False,
                     "create_index": True,
-                    "http_auth": None,
+                    "http_auth": [
+                        {"type": "env_var", "env_vars": ["OPENSEARCH_USERNAME"], "strict": False},
+                        {"type": "env_var", "env_vars": ["OPENSEARCH_PASSWORD"], "strict": False},
+                    ],
                     "use_ssl": None,
                     "verify_certs": None,
                     "timeout": None,

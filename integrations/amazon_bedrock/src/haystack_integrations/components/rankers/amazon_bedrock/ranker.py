@@ -72,9 +72,6 @@ class AmazonBedrockRanker:
         meta_fields_to_embed: list[str] | None = None,
         meta_data_separator: str = "\n",
     ) -> None:
-        if not model:
-            msg = "'model' cannot be None or empty string"
-            raise ValueError(msg)
         """
         Creates an instance of the 'AmazonBedrockRanker'.
 
@@ -93,6 +90,9 @@ class AmazonBedrockRanker:
         :param meta_data_separator: Separator used to concatenate the meta fields
             to the Document content.
         """
+        if not model:
+            msg = "'model' cannot be None or empty string"
+            raise ValueError(msg)
         self.model_name = model
         self.aws_access_key_id = aws_access_key_id
         self.aws_secret_access_key = aws_secret_access_key
@@ -159,6 +159,7 @@ class AmazonBedrockRanker:
     def _prepare_bedrock_input_docs(self, documents: list[Document]) -> list[str]:
         """
         Prepare the input by concatenating the document text with the metadata fields specified.
+
         :param documents: The list of Document objects.
 
         :return: A list of strings to be given as input to Bedrock model.

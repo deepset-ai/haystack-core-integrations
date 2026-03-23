@@ -1,5 +1,11 @@
 # Changelog
 
+## [integrations/anthropic-v5.7.0] - 2026-03-13
+
+### 🌀 Miscellaneous
+
+- Feat: List supported models for `AnthropicChatGenerator` (#2958)
+
 ## [integrations/anthropic-v5.6.1] - 2026-03-12
 
 ### 🧹 Chores

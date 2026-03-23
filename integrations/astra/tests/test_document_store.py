@@ -10,7 +10,14 @@ import pytest
 from haystack import Document
 from haystack.document_stores.errors import MissingDocumentError
 from haystack.document_stores.types import DuplicatePolicy
-from haystack.testing.document_store import DocumentStoreBaseExtendedTests
+from haystack.testing.document_store import (
+    CountDocumentsByFilterTest,
+    CountUniqueMetadataByFilterTest,
+    DocumentStoreBaseExtendedTests,
+    GetMetadataFieldMinMaxTest,
+    GetMetadataFieldsInfoTest,
+    GetMetadataFieldUniqueValuesTest,
+)
 
 from haystack_integrations.document_stores.astra import AstraDocumentStore
 
@@ -135,7 +142,14 @@ def test_get_metadata_field_unique_values(mock_astra_client):
     os.environ.get("ASTRA_DB_APPLICATION_TOKEN", "") == "", reason="ASTRA_DB_APPLICATION_TOKEN env var not set"
 )
 @pytest.mark.skipif(os.environ.get("ASTRA_DB_API_ENDPOINT", "") == "", reason="ASTRA_DB_API_ENDPOINT env var not set")
-class TestDocumentStore(DocumentStoreBaseExtendedTests):
+class TestDocumentStore(
+    DocumentStoreBaseExtendedTests,
+    CountDocumentsByFilterTest,
+    CountUniqueMetadataByFilterTest,
+    GetMetadataFieldsInfoTest,
+    GetMetadataFieldMinMaxTest,
+    GetMetadataFieldUniqueValuesTest,
+):
     """
     Common test cases will be provided by `DocumentStoreBaseExtendedTests` but
     you can add more to this class.
@@ -157,7 +171,8 @@ class TestDocumentStore(DocumentStoreBaseExtendedTests):
         document_store.delete_all_documents()
         assert document_store.count_documents() == 0
 
-    def assert_documents_are_equal(self, received: list[Document], expected: list[Document]):
+    @staticmethod
+    def assert_documents_are_equal(received: list[Document], expected: list[Document]):
         """
         Assert that two lists of Documents are equal.
         This is used in every test, if a Document Store implementation has a different behaviour
@@ -174,7 +189,7 @@ class TestDocumentStore(DocumentStoreBaseExtendedTests):
         document_store.write_documents(filterable_docs)
         result = document_store.filter_documents(filters={"field": "meta.number", "operator": "==", "value": None})
         # Astra does not support filtering on None, it returns empty list
-        self.assert_documents_are_equal(result, [])
+        TestDocumentStore.assert_documents_are_equal(result, [])
 
     def test_write_documents(self, document_store: AstraDocumentStore):
         """
@@ -185,9 +200,9 @@ class TestDocumentStore(DocumentStoreBaseExtendedTests):
         doc2 = Document(id="1", content="test doc 2")
 
         assert document_store.write_documents([doc2], policy=DuplicatePolicy.OVERWRITE) == 1
-        self.assert_documents_are_equal(document_store.filter_documents(), [doc2])
+        TestDocumentStore.assert_documents_are_equal(document_store.filter_documents(), [doc2])
         assert document_store.write_documents(documents=[doc1], policy=DuplicatePolicy.OVERWRITE) == 1
-        self.assert_documents_are_equal(document_store.filter_documents(), [doc1])
+        TestDocumentStore.assert_documents_are_equal(document_store.filter_documents(), [doc1])
 
     def test_write_documents_skip_duplicates(self, document_store: AstraDocumentStore):
         docs = [
@@ -264,7 +279,7 @@ class TestDocumentStore(DocumentStoreBaseExtendedTests):
         document_store.write_documents(filterable_docs)
         result = document_store.filter_documents(filters=filter_criteria)
 
-        self.assert_documents_are_equal(
+        TestDocumentStore.assert_documents_are_equal(
             result,
             [
                 d
@@ -278,7 +293,7 @@ class TestDocumentStore(DocumentStoreBaseExtendedTests):
         docs = [Document(id="1", content="test doc 1"), Document(id="2", content="test doc 2")]
         document_store.write_documents(docs)
         result = document_store.filter_documents(filters={"field": "id", "operator": "==", "value": "1"})
-        self.assert_documents_are_equal(result, [docs[0]])
+        TestDocumentStore.assert_documents_are_equal(result, [docs[0]])
 
     def test_filter_documents_by_in_operator(self, document_store):
         docs = [Document(id="3", content="test doc 3"), Document(id="4", content="test doc 4")]
@@ -288,82 +303,8 @@ class TestDocumentStore(DocumentStoreBaseExtendedTests):
         # Sort the result in place by the id field
         result.sort(key=lambda x: x.id)
 
-        self.assert_documents_are_equal([result[0]], [docs[0]])
-        self.assert_documents_are_equal([result[1]], [docs[1]])
-
-    def test_count_documents_by_filter(self, document_store: AstraDocumentStore):
-        docs = [
-            Document(id="1", content="Doc 1", meta={"category": "news", "status": "published", "priority": 3}),
-            Document(id="2", content="Doc 2", meta={"category": "docs", "status": "draft", "priority": 1}),
-            Document(id="3", content="Doc 3", meta={"category": "news", "status": "published", "priority": 5}),
-        ]
-        document_store.write_documents(docs)
-
-        count = document_store.count_documents_by_filter(
-            {"field": "meta.status", "operator": "==", "value": "published"}
-        )
-
-        assert count == 2
-
-    def test_count_unique_metadata_by_filter(self, document_store: AstraDocumentStore):
-        docs = [
-            Document(id="1", content="Doc 1", meta={"category": "news", "status": "published", "priority": 1}),
-            Document(id="2", content="Doc 2", meta={"category": "docs", "status": "published", "priority": 2}),
-            Document(id="3", content="Doc 3", meta={"category": "news", "status": "published", "priority": 2}),
-            Document(id="4", content="Doc 4", meta={"category": "faq", "status": "draft", "priority": 3}),
-        ]
-        document_store.write_documents(docs)
-
-        counts = document_store.count_unique_metadata_by_filter(
-            {"field": "meta.status", "operator": "==", "value": "published"},
-            ["category", "priority"],
-        )
-
-        assert counts == {"category": 2, "priority": 2}
-
-    def test_get_metadata_fields_info(self, document_store: AstraDocumentStore):
-        docs = [
-            Document(id="1", content="Doc 1", meta={"category": "news", "status": "published", "priority": 1}),
-            Document(id="2", content="Doc 2", meta={"category": "docs", "status": "draft", "priority": 2}),
-        ]
-        document_store.write_documents(docs)
-
-        fields_info = document_store.get_metadata_fields_info()
-
-        assert fields_info == {
-            "content": {"type": "text"},
-            "category": {"type": "keyword"},
-            "status": {"type": "keyword"},
-            "priority": {"type": "long"},
-        }
-
-    def test_get_metadata_field_min_max(self, document_store: AstraDocumentStore):
-        docs = [
-            Document(id="1", content="Doc 1", meta={"priority": 3}),
-            Document(id="2", content="Doc 2", meta={"priority": 1}),
-            Document(id="3", content="Doc 3", meta={"priority": 7}),
-        ]
-        document_store.write_documents(docs)
-
-        result = document_store.get_metadata_field_min_max("priority")
-
-        assert result == {"min": 1, "max": 7}
-
-    def test_get_metadata_field_unique_values(self, document_store: AstraDocumentStore):
-        docs = [
-            Document(id="1", content="Doc 1", meta={"category": "alpha"}),
-            Document(id="2", content="Doc 2", meta={"category": "beta"}),
-            Document(id="3", content="Doc 3", meta={"category": "alphabet"}),
-            Document(id="4", content="Doc 4", meta={"category": "gamma"}),
-        ]
-        document_store.write_documents(docs)
-
-        values, total_count = document_store.get_metadata_field_unique_values(
-            "category", search_term="alp", from_=0, size=10
-        )
-
-        assert values == ["alpha", "alphabet"]
-        assert total_count == 2
+        TestDocumentStore.assert_documents_are_equal([result[0]], [docs[0]])
+        TestDocumentStore.assert_documents_are_equal([result[1]], [docs[1]])
 
     @pytest.mark.skip(reason="Unsupported filter operator not.")
     def test_not_operator(self, document_store, filterable_docs):

@@ -35,7 +35,7 @@ class OpenSearchEmbeddingRetriever:
         raise_on_failure: bool = True,
         efficient_filtering: bool = False,
         search_kwargs: dict[str, Any] | None = None,
-    ):
+    ) -> None:
         """
         Create the OpenSearchEmbeddingRetriever component.
 

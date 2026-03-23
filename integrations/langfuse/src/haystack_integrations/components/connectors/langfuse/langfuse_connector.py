@@ -19,6 +19,7 @@ logger = logging.getLogger(__name__)
 class LangfuseConnector:
     """
     LangfuseConnector connects Haystack LLM framework with [Langfuse](https://langfuse.com) in order to enable the
+
     tracing of operations and data flow within various components of a pipeline.
 
     To use LangfuseConnector, add it to your pipeline without connecting it to any other components.

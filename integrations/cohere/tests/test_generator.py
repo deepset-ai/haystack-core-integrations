@@ -15,6 +15,13 @@ COHERE_API_URL = "https://api.cohere.com"
 
 
 class TestCohereGenerator:
+    def test_supported_models(self) -> None:
+        """SUPPORTED_MODELS is a non-empty list of strings."""
+        models = CohereGenerator.SUPPORTED_MODELS
+        assert isinstance(models, list)
+        assert len(models) > 0
+        assert all(isinstance(m, str) for m in models)
+
     def test_init_default(self, monkeypatch):
         monkeypatch.setenv("COHERE_API_KEY", "foo")
         component = CohereGenerator()
@@ -115,7 +122,7 @@ class TestCohereGenerator:
         assert len(results["replies"]) == 1
         assert "Paris" in results["replies"][0]
         assert len(results["meta"]) == 1
-        assert results["meta"][0]["finish_reason"] == "COMPLETE"
+        assert results["meta"][0]["finish_reason"] == "stop"
 
     @pytest.mark.skipif(
         not os.environ.get("COHERE_API_KEY", None) and not os.environ.get("CO_API_KEY", None),

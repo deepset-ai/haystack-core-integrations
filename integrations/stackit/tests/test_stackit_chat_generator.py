@@ -63,6 +63,13 @@ def mock_chat_completion():
 
 
 class TestSTACKITChatGenerator:
+    def test_supported_models(self):
+        """SUPPORTED_MODELS is a non-empty list of strings."""
+        models = STACKITChatGenerator.SUPPORTED_MODELS
+        assert isinstance(models, list)
+        assert len(models) > 0
+        assert all(isinstance(m, str) for m in models)
+
     def test_init_default(self, monkeypatch):
         monkeypatch.setenv("STACKIT_API_KEY", "test-api-key")
         component = STACKITChatGenerator(model="neuralmagic/Meta-Llama-3.1-8B-Instruct-FP8")
