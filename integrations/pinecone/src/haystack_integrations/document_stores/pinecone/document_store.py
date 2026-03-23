@@ -852,10 +852,11 @@ class PineconeDocumentStore:
     @staticmethod
     def _get_metadata_field_min_max_impl(documents: list[Document], metadata_field: str) -> dict[str, Any]:
         """Helper method to get min/max values for a metadata field (supports numeric, boolean, and string types)."""
+        field_name = metadata_field.removeprefix("meta.")
         values: list[bool | int | float | str] = []
         for doc in documents:
-            if doc.meta and metadata_field in doc.meta:
-                value = doc.meta[metadata_field]
+            if doc.meta and field_name in doc.meta:
+                value = doc.meta[field_name]
                 # Note: bool check must come before numeric because bool is subclass of int
                 if isinstance(value, bool):
                     values.append(value)
