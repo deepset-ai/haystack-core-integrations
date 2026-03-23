@@ -1,5 +1,25 @@
 # Changelog
 
+## [integrations/amazon_bedrock-v6.6.0] - 2026-03-23
+
+### 🚀 Features
+
+- Use reasoning field in StreamingChunk for Bedrock (#2901)
+
+### 📚 Documentation
+
+- Move misplaced docstring in AmazonBedrockRanker.__init__ (#2970)
+
+### 🧪 Testing
+
+- Test compatible integrations with python 3.14; update pyproject (#3001)
+
+### 🧹 Chores
+
+- Enforce ruff docstring rules (D102/D103/D205/D209/D213/D417/D419) in first 10 integrations (#3008)
+- Drop redacted thinking support for AmazonBedrockChatGenerator (#2998)
+
+
 ## [integrations/amazon_bedrock-v6.5.0] - 2026-03-03
 
 ### 🚀 Features
