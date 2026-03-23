@@ -19,19 +19,19 @@ from azure.search.documents.indexes.models import (
 from haystack.dataclasses.document import Document
 from haystack.errors import FilterError
 from haystack.testing.document_store import (
+    CountDocumentsByFilterTest,
     CountDocumentsTest,
+    CountUniqueMetadataByFilterTest,
     DeleteAllTest,
     DeleteByFilterTest,
     DeleteDocumentsTest,
     FilterableDocsFixtureMixin,
     FilterDocumentsTest,
+    GetMetadataFieldMinMaxTest,
+    GetMetadataFieldsInfoTest,
+    GetMetadataFieldUniqueValuesTest,
     UpdateByFilterTest,
     WriteDocumentsTest,
-    CountDocumentsByFilterTest,
-    CountUniqueMetadataByFilterTest,
-    GetMetadataFieldsInfoTest,
-    GetMetadataFieldMinMaxTest,
-    GetMetadataFieldUniqueValuesTest,
 )
 from haystack.utils.auth import EnvVarSecret, Secret
 
@@ -259,80 +259,6 @@ def _build_mock_document_store_with_schema(index_fields):
     index_client.get_search_client.return_value = search_client
     store._index_client = index_client
     return store, search_client, index_client
-
-
-def test_count_documents_by_filter():
-    index_fields = [
-        SimpleField(name="id", type=SearchFieldDataType.String, key=True, filterable=True),
-        SearchableField(name="content", type=SearchFieldDataType.String),
-        SimpleField(name="category", type=SearchFieldDataType.String, filterable=True),
-    ]
-    document_store, search_client, _ = _build_mock_document_store_with_schema(index_fields)
-    count_result = Mock()
-    count_result.get_count.return_value = 3
-    search_client.search.return_value = count_result
-
-    count = document_store.count_documents_by_filter({"field": "meta.category", "operator": "==", "value": "news"})
-
-    assert count == 3
-    search_client.search.assert_called_once()
-    assert search_client.search.call_args.kwargs["include_total_count"] is True
-
-
-def test_count_unique_metadata_by_filter():
-    index_fields = [
-        SimpleField(name="id", type=SearchFieldDataType.String, key=True, filterable=True),
-        SearchableField(name="content", type=SearchFieldDataType.String),
-        SimpleField(name="category", type=SearchFieldDataType.String, filterable=True),
-        SimpleField(name="status", type=SearchFieldDataType.String, filterable=True),
-    ]
-    document_store, search_client, _ = _build_mock_document_store_with_schema(index_fields)
-    search_client.search.return_value = [
-        {"category": "news", "status": "draft"},
-        {"category": "docs", "status": "draft"},
-        {"category": "news", "status": "published"},
-    ]
-
-    counts = document_store.count_unique_metadata_by_filter(
-        filters={"field": "meta.status", "operator": "!=", "value": "archived"},
-        metadata_fields=["meta.category", "status"],
-    )
-
-    assert counts == {"category": 2, "status": 2}
-
-
-def test_get_metadata_fields_info():
-    index_fields = [
-        SimpleField(name="id", type=SearchFieldDataType.String, key=True, filterable=True),
-        SearchableField(name="content", type=SearchFieldDataType.String),
-        SimpleField(name="category", type=SearchFieldDataType.String, filterable=True),
-        SimpleField(name="status", type=SearchFieldDataType.String, filterable=True),
-        SimpleField(name="priority", type=SearchFieldDataType.Int32, filterable=True),
-    ]
-    document_store, _, _ = _build_mock_document_store_with_schema(index_fields)
-
-    info = document_store.get_metadata_fields_info()
-
-    assert info == {
-        "content": {"type": "text"},
-        "category": {"type": "keyword"},
-        "status": {"type": "keyword"},
-        "priority": {"type": "long"},
-    }
-
-
-def test_get_metadata_field_min_max():
-    index_fields = [
-        SimpleField(name="id", type=SearchFieldDataType.String, key=True, filterable=True),
-        SearchableField(name="content", type=SearchFieldDataType.String),
-        SimpleField(name="priority", type=SearchFieldDataType.Int32, filterable=True),
-    ]
-    document_store, search_client, _ = _build_mock_document_store_with_schema(index_fields)
-    search_client.search.return_value = [{"priority": 10}, {"priority": 2}, {"priority": 7}]
-
-    result = document_store.get_metadata_field_min_max("meta.priority")
-
-    assert result == {"min": 2, "max": 10}
 
 
 def test_get_metadata_field_unique_values():
