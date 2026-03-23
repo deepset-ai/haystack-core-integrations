@@ -11,14 +11,13 @@ from haystack import Document
 from haystack.document_stores.errors import MissingDocumentError
 from haystack.document_stores.types import DuplicatePolicy
 from haystack.testing.document_store import (
-    DocumentStoreBaseExtendedTests,
     CountDocumentsByFilterTest,
     CountUniqueMetadataByFilterTest,
-    GetMetadataFieldsInfoTest,
+    DocumentStoreBaseExtendedTests,
     GetMetadataFieldMinMaxTest,
-    GetMetadataFieldUniqueValuesTest
+    GetMetadataFieldsInfoTest,
+    GetMetadataFieldUniqueValuesTest,
 )
-
 
 from haystack_integrations.document_stores.astra import AstraDocumentStore
 
@@ -149,7 +148,7 @@ class TestDocumentStore(
     CountUniqueMetadataByFilterTest,
     GetMetadataFieldsInfoTest,
     GetMetadataFieldMinMaxTest,
-    GetMetadataFieldUniqueValuesTest
+    GetMetadataFieldUniqueValuesTest,
 ):
     """
     Common test cases will be provided by `DocumentStoreBaseExtendedTests` but
