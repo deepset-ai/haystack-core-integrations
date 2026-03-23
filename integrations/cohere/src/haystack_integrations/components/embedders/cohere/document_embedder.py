@@ -61,6 +61,8 @@ class CohereDocumentEmbedder:
         embedding_type: EmbeddingTypes | None = None,
     ) -> None:
         """
+        Initialize the CohereDocumentEmbedder.
+
         :param api_key: the Cohere API key.
         :param model: the name of the model to use. Supported Models are:
             `"embed-english-v3.0"`, `"embed-english-light-v3.0"`, `"embed-multilingual-v3.0"`,
@@ -179,7 +181,8 @@ class CohereDocumentEmbedder:
 
     @component.output_types(documents=list[Document], meta=dict[str, Any])
     def run(self, documents: list[Document]) -> dict[str, list[Document] | dict[str, Any]]:
-        """Embed a list of `Documents`.
+        """
+        Embed a list of `Documents`.
 
         :param documents: documents to embed.
         :returns:  A dictionary with the following keys:

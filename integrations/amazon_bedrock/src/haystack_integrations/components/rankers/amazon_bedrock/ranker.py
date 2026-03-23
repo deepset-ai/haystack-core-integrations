@@ -159,6 +159,7 @@ class AmazonBedrockRanker:
     def _prepare_bedrock_input_docs(self, documents: list[Document]) -> list[str]:
         """
         Prepare the input by concatenating the document text with the metadata fields specified.
+
         :param documents: The list of Document objects.
 
         :return: A list of strings to be given as input to Bedrock model.
