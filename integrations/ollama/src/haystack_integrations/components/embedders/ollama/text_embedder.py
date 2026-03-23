@@ -8,8 +8,9 @@ from ollama import AsyncClient, Client
 @component
 class OllamaTextEmbedder:
     """
-    Computes the embeddings of a list of Documents and stores the obtained vectors in the embedding field of
-    each Document. It uses embedding models compatible with the Ollama Library.
+    Computes the embeddings of a list of Documents and stores the obtained vectors in each Document's embedding field.
+
+    It uses embedding models compatible with the Ollama Library.
 
     Usage example:
     ```python
@@ -28,8 +29,10 @@ class OllamaTextEmbedder:
         generation_kwargs: dict[str, Any] | None = None,
         timeout: int = 120,
         keep_alive: float | str | None = None,
-    ):
+    ) -> None:
         """
+        Create a new OllamaTextEmbedder instance.
+
         :param model:
             The name of the model to use. The model should be available in the running Ollama instance.
         :param url:

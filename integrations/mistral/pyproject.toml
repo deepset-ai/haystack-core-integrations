@@ -19,6 +19,7 @@ classifiers = [
   "Programming Language :: Python :: 3.11",
   "Programming Language :: Python :: 3.12",
   "Programming Language :: Python :: 3.13",
+  "Programming Language :: Python :: 3.14",
   "Programming Language :: Python :: Implementation :: CPython",
   "Programming Language :: Python :: Implementation :: PyPy",
 ]
@@ -82,9 +83,17 @@ line-length = 120
 [tool.ruff.lint]
 select = [
   "A",
+  "ANN",
   "ARG",
   "B",
   "C",
+  "D102",   # Missing docstring in public method
+  "D103",   # Missing docstring in public function
+  "D205",   # 1 blank line required between summary line and description
+  "D209",   # Closing triple quotes go to new line
+  "D213",   # summary lines must be positioned on the second physical line of the docstring
+  "D417",   # Missing argument descriptions in the docstring
+  "D419",   # Docstring is empty
   "DTZ",
   "E",
   "EM",
@@ -122,6 +131,8 @@ ignore = [
   # Misc
   "B008",
   "S101",
+  # Allow `Any` - used legitimately for dynamic types and SDK boundaries
+  "ANN401",
 ]
 
 [tool.ruff.lint.isort]
@@ -132,7 +143,7 @@ ban-relative-imports = "parents"
 
 [tool.ruff.lint.per-file-ignores]
 # Tests can use magic values, assertions, and relative imports
-"tests/**/*" = ["PLR2004", "S101", "TID252"]
+"tests/**/*" = ["D", "PLR2004", "S101", "TID252", "ANN"]
 
 [tool.coverage.run]
 source = ["haystack_integrations"]

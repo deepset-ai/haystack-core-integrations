@@ -74,7 +74,7 @@ class AsyncExecutor:
                 cls._singleton_instance = cls()
             return cls._singleton_instance
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize a dedicated event loop"""
         self._loop: asyncio.AbstractEventLoop = asyncio.new_event_loop()
         self._thread: threading.Thread = threading.Thread(target=self._run_loop, daemon=True)
@@ -84,7 +84,7 @@ class AsyncExecutor:
             message = "AsyncExecutor failed to start background event loop"
             raise RuntimeError(message)
 
-    def _run_loop(self):
+    def _run_loop(self) -> None:
         """Run the event loop"""
         asyncio.set_event_loop(self._loop)
         self._started.set()
@@ -107,7 +107,7 @@ class AsyncExecutor:
             message = f"Operation timed out after {timeout} seconds"
             raise TimeoutError(message) from e
 
-    def get_loop(self):
+    def get_loop(self) -> asyncio.AbstractEventLoop:
         """
         Get the event loop.
 
@@ -119,8 +119,7 @@ class AsyncExecutor:
         self, coro_factory: Callable[[asyncio.Event], Coroutine[Any, Any, Any]], timeout: float | None = None
     ) -> tuple[concurrent.futures.Future[Any], asyncio.Event]:
         """
-        Schedule `coro_factory` to run in the executor's event loop **without** blocking the
-        caller thread.
+        Schedule `coro_factory` to run in the executor's event loop **without** blocking the caller thread.
 
         The factory receives an :class:`asyncio.Event` that can be used to cooperatively shut
         the coroutine down. The method returns **both** the concurrent future (to observe
@@ -135,7 +134,7 @@ class AsyncExecutor:
         # correct loop and can safely be set from other threads via *call_soon_threadsafe*.
         stop_event_promise: Future[asyncio.Event] = Future()
 
-        async def _coroutine_with_stop_event():
+        async def _coroutine_with_stop_event() -> None:
             stop_event = asyncio.Event()
             stop_event_promise.set_result(stop_event)
             await coro_factory(stop_event)
@@ -155,7 +154,7 @@ class AsyncExecutor:
         :param timeout: Timeout in seconds for shutting down the event loop
         """
 
-        def _stop_loop():
+        def _stop_loop() -> None:
             self._loop.stop()
 
         asyncio.run_coroutine_threadsafe(asyncio.sleep(0), self._loop).result(timeout=timeout)
@@ -680,7 +679,7 @@ class SSEServerInfo(MCPServerInfo):
     base_delay: float = 1.0
     max_delay: float = 30.0
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         """Validate that either url or base_url is provided."""
         if not self.url and not self.base_url:
             message = "Either url or base_url must be provided"
@@ -766,7 +765,7 @@ class StreamableHttpServerInfo(MCPServerInfo):
     base_delay: float = 1.0
     max_delay: float = 30.0
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         """Validate the URL."""
         if not is_valid_http_url(self.url):
             message = f"Invalid url: {self.url}"
@@ -911,7 +910,7 @@ class MCPTool(Tool):
         outputs_to_string: dict[str, Any] | None = None,
         inputs_from_state: dict[str, str] | None = None,
         outputs_to_state: dict[str, dict[str, Any]] | None = None,
-    ):
+    ) -> None:
         """
         Initialize the MCP tool.
 
@@ -1062,7 +1061,7 @@ class MCPTool(Tool):
             # Connect on first use if eager_connect is turned off
             self.warm_up()
 
-            async def invoke():
+            async def invoke() -> Any:
                 logger.debug(f"TOOL: Inside invoke coroutine for '{self.name}'")
                 client = cast(MCPClient, self._client)
                 result = await asyncio.wait_for(client.call_tool(self.name, kwargs), timeout=self._invocation_timeout)
@@ -1274,7 +1273,7 @@ class MCPTool(Tool):
             outputs_to_state=outputs_to_state,
         )
 
-    def close(self):
+    def close(self) -> None:
         """Close the tool synchronously."""
         if hasattr(self, "_client") and self._client:
             try:
@@ -1284,7 +1283,7 @@ class MCPTool(Tool):
             except Exception as e:
                 logger.debug(f"TOOL: Error during synchronous worker stop: {e!s}")
 
-    def __del__(self):
+    def __del__(self) -> None:
         """Cleanup resources when the tool is garbage collected."""
         logger.debug(f"TOOL: __del__ called for MCPTool '{self.name if hasattr(self, 'name') else 'unknown'}'")
 
@@ -1292,7 +1291,8 @@ class MCPTool(Tool):
 
 
 class _MCPClientSessionManager:
-    """Runs an MCPClient connect/close inside the AsyncExecutor's event loop.
+    """
+    Runs an MCPClient connect/close inside the AsyncExecutor's event loop.
 
     Life-cycle:
       1.  Create the worker to schedule a long-running coroutine in the
@@ -1309,7 +1309,7 @@ class _MCPClientSessionManager:
     # Maximum time to wait for worker shutdown in seconds
     WORKER_SHUTDOWN_TIMEOUT = 2.0
 
-    def __init__(self, client: "MCPClient", *, timeout: float | None = None):
+    def __init__(self, client: "MCPClient", *, timeout: float | None = None) -> None:
         self._client = client
         self.executor = AsyncExecutor.get_instance()
 

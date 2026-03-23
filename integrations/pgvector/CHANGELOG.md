@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/pgvector-v6.3.0] - 2026-03-17
+
+### 🐛 Bug Fixes
+
+- PgVectorDocumentStore `_treat_meta_field` and comparison functions now return Composed - string escaping done by `psycopg` (#2964)
+
+
 ## [integrations/pgvector-v6.2.0] - 2026-03-02
 
 ### 🐛 Bug Fixes

@@ -20,6 +20,7 @@ logger = logging.getLogger(__name__)
 class MistralChatGenerator(OpenAIChatGenerator):
     """
     Enables text generation using Mistral AI generative models.
+
     For supported models, see [Mistral AI docs](https://docs.mistral.ai/getting-started/models).
 
     Users can pass any text generation parameters valid for the Mistral Chat Completion API
@@ -122,10 +123,11 @@ class MistralChatGenerator(OpenAIChatGenerator):
         timeout: float | None = None,
         max_retries: int | None = None,
         http_client_kwargs: dict[str, Any] | None = None,
-    ):
+    ) -> None:
         """
-        Creates an instance of MistralChatGenerator. Unless specified otherwise in the `model`, this is for Mistral's
-        `mistral-small-latest` model.
+        Creates an instance of MistralChatGenerator.
+
+        Unless specified otherwise in the `model`, this is for Mistral's `mistral-small-latest` model.
 
         :param api_key:
             The Mistral API key.

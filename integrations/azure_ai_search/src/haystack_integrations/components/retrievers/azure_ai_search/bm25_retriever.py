@@ -13,6 +13,7 @@ logger = logging.getLogger(__name__)
 class AzureAISearchBM25Retriever:
     """
     Retrieves documents from the AzureAISearchDocumentStore using BM25 retrieval.
+
     Must be connected to the AzureAISearchDocumentStore to run.
 
     """
@@ -25,7 +26,7 @@ class AzureAISearchBM25Retriever:
         top_k: int = 10,
         filter_policy: str | FilterPolicy = FilterPolicy.REPLACE,
         **kwargs: Any,
-    ):
+    ) -> None:
         """
         Create the AzureAISearchBM25Retriever component.
 
@@ -99,7 +100,8 @@ class AzureAISearchBM25Retriever:
     def run(
         self, query: str, filters: dict[str, Any] | None = None, top_k: int | None = None
     ) -> dict[str, list[Document]]:
-        """Retrieve documents from the AzureAISearchDocumentStore.
+        """
+        Retrieve documents from the AzureAISearchDocumentStore.
 
         :param query: Text of the query.
         :param filters: Filters applied to the retrieved Documents. The way runtime filters are applied depends on

@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 from dataclasses import replace
-from typing import Any
+from typing import Any, ClassVar
 
 from haystack import Document, component, default_from_dict, default_to_dict
 from haystack.utils import Secret, deserialize_secrets_inplace
@@ -36,6 +36,16 @@ class CohereDocumentEmbedder:
     ```
     """
 
+    SUPPORTED_MODELS: ClassVar[list[str]] = [
+        "embed-v4.0",
+        "embed-english-v3.0",
+        "embed-english-light-v3.0",
+        "embed-multilingual-v3.0",
+        "embed-multilingual-light-v3.0",
+    ]
+    """A non-exhaustive list of embed models supported by this component.
+    See https://docs.cohere.com/docs/models#embed for the full list."""
+
     def __init__(
         self,
         api_key: Secret = Secret.from_env_var(["COHERE_API_KEY", "CO_API_KEY"]),
@@ -49,8 +59,10 @@ class CohereDocumentEmbedder:
         meta_fields_to_embed: list[str] | None = None,
         embedding_separator: str = "\n",
         embedding_type: EmbeddingTypes | None = None,
-    ):
+    ) -> None:
         """
+        Initialize the CohereDocumentEmbedder.
+
         :param api_key: the Cohere API key.
         :param model: the name of the model to use. Supported Models are:
             `"embed-english-v3.0"`, `"embed-english-light-v3.0"`, `"embed-multilingual-v3.0"`,
@@ -169,7 +181,8 @@ class CohereDocumentEmbedder:
 
     @component.output_types(documents=list[Document], meta=dict[str, Any])
     def run(self, documents: list[Document]) -> dict[str, list[Document] | dict[str, Any]]:
-        """Embed a list of `Documents`.
+        """
+        Embed a list of `Documents`.
 
         :param documents: documents to embed.
         :returns:  A dictionary with the following keys:

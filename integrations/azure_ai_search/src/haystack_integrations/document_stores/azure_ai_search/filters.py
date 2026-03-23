@@ -105,7 +105,7 @@ def _validate_type(value: Any, operator: str) -> None:
             parser.isoparse(value)
         except ValueError as e:
             raise AzureAISearchDocumentStoreFilterError(msg) from e
-    elif not isinstance(value, (int, float)):
+    elif not isinstance(value, int | float):
         raise AzureAISearchDocumentStoreFilterError(msg)
 
 

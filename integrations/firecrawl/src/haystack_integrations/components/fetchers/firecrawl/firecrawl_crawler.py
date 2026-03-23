@@ -125,6 +125,7 @@ class FirecrawlCrawler:
     def warm_up(self) -> None:
         """
         Warm up the Firecrawl client by initializing the clients.
+
         This is useful to avoid cold start delays when crawling many URLs.
         """
         if self._firecrawl_client is None:

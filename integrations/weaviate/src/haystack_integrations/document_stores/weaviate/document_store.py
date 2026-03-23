@@ -13,6 +13,7 @@ from haystack.core.serialization import default_from_dict, default_to_dict
 from haystack.dataclasses.document import Document
 from haystack.document_stores.errors import DocumentStoreError, DuplicateDocumentError
 from haystack.document_stores.types.policy import DuplicatePolicy
+from haystack.utils.misc import _normalize_metadata_field_name
 
 import weaviate
 from weaviate.collections.classes.aggregate import (
@@ -172,7 +173,7 @@ class WeaviateDocumentStore:
         }
         self._clean_connection_settings()
 
-    def _clean_connection_settings(self):
+    def _clean_connection_settings(self) -> None:
         # Set the class if not set
         _class_name = self._collection_settings.get("class", "Default")
         _class_name = _class_name[0].upper() + _class_name[1:]
@@ -183,7 +184,7 @@ class WeaviateDocumentStore:
         )
 
     @property
-    def client(self):
+    def client(self) -> weaviate.WeaviateClient:
         if self._client:
             return self._client
 
@@ -227,7 +228,7 @@ class WeaviateDocumentStore:
         return self._client
 
     @property
-    async def async_client(self):
+    async def async_client(self) -> weaviate.WeaviateAsyncClient:
         if self._async_client:
             return self._async_client
 
@@ -448,16 +449,6 @@ class WeaviateDocumentStore:
                 fields_info[prop.name] = {"type": data_type}
         return fields_info
 
-    @staticmethod
-    def _normalize_metadata_field_name(metadata_field: str) -> str:
-        """
-        Removes 'meta.' prefix from field name if present.
-
-        :param metadata_field: The field name, possibly prefixed with 'meta.'.
-        :returns: The field name without the 'meta.' prefix.
-        """
-        return metadata_field[5:] if metadata_field.startswith("meta.") else metadata_field
-
     def get_metadata_field_min_max(self, metadata_field: str) -> dict[str, Any]:
         """
         Returns the minimum and maximum values for a numeric or date metadata field.
@@ -467,7 +458,7 @@ class WeaviateDocumentStore:
         :returns: A dictionary with 'min' and 'max' keys containing the respective values.
         :raises ValueError: If the field is not found or doesn't support min/max operations.
         """
-        field_name = self._normalize_metadata_field_name(metadata_field)
+        field_name = _normalize_metadata_field_name(metadata_field)
 
         # Get field type from schema
         config = self.collection.config.get()
@@ -514,7 +505,7 @@ class WeaviateDocumentStore:
         :returns: A dictionary with 'min' and 'max' keys containing the respective values.
         :raises ValueError: If the field is not found or doesn't support min/max operations.
         """
-        field_name = self._normalize_metadata_field_name(metadata_field)
+        field_name = _normalize_metadata_field_name(metadata_field)
 
         # Get field type from schema
         collection = await self.async_collection
@@ -568,7 +559,7 @@ class WeaviateDocumentStore:
         validate_filters(filters)
         weaviate_filter = convert_filters(filters)
 
-        normalized_fields = [self._normalize_metadata_field_name(f) for f in metadata_fields]
+        normalized_fields = [_normalize_metadata_field_name(f) for f in metadata_fields]
 
         # Validate that all requested fields exist in the schema
         config = self.collection.config.get()
@@ -605,7 +596,7 @@ class WeaviateDocumentStore:
         collection = await self.async_collection
         weaviate_filter = convert_filters(filters)
 
-        normalized_fields = [self._normalize_metadata_field_name(f) for f in metadata_fields]
+        normalized_fields = [_normalize_metadata_field_name(f) for f in metadata_fields]
 
         # Validate that all requested fields exist in the schema
         config = await collection.config.get()
@@ -645,7 +636,7 @@ class WeaviateDocumentStore:
         :returns: A tuple of (list of unique values, total count of unique values).
         :raises ValueError: If the field is not found in the collection schema.
         """
-        field_name = self._normalize_metadata_field_name(metadata_field)
+        field_name = _normalize_metadata_field_name(metadata_field)
 
         config = self.collection.config.get()
         schema_fields = {prop.name for prop in config.properties}
@@ -695,7 +686,7 @@ class WeaviateDocumentStore:
         :returns: A tuple of (list of unique values, total count of unique values).
         :raises ValueError: If the field is not found in the collection schema.
         """
-        field_name = self._normalize_metadata_field_name(metadata_field)
+        field_name = _normalize_metadata_field_name(metadata_field)
 
         collection = await self.async_collection
         config = await collection.config.get()
@@ -744,15 +735,6 @@ class WeaviateDocumentStore:
             data["blob_mime_type"] = blob.pop("mime_type")
         # The embedding vector is stored separately from the rest of the data
         del data["embedding"]
-
-        # _split_overlap meta field is unsupported because of a bug
-        # https://github.com/deepset-ai/haystack-core-integrations/issues/1172
-        if "_split_overlap" in data:
-            data.pop("_split_overlap")
-            logger.warning(
-                "Document {id} has the unsupported `_split_overlap` meta field. It will be ignored.",
-                id=data["_original_id"],
-            )
 
         if "sparse_embedding" in data:
             sparse_embedding = data.pop("sparse_embedding", None)

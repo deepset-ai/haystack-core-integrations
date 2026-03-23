@@ -19,11 +19,12 @@ classifiers = [
   "Programming Language :: Python :: 3.11",
   "Programming Language :: Python :: 3.12",
   "Programming Language :: Python :: 3.13",
+  "Programming Language :: Python :: 3.14",
   "Programming Language :: Python :: Implementation :: CPython",
   "Programming Language :: Python :: Implementation :: PyPy",
 ]
 dependencies = [
-  "haystack-ai>=2.24.0",
+  "haystack-ai>=2.26.1",
   "pgvector>=0.3.0",
   "psycopg[binary]"
 ]
@@ -91,6 +92,7 @@ line-length = 120
 [tool.ruff.lint]
 select = [
   "A",
+  "ANN",
   "ARG",
   "B",
   "C",
@@ -119,6 +121,8 @@ select = [
 ignore = [
   # Allow non-abstract empty methods in abstract base classes
   "B027",
+  # Allow Any in type annotations at dynamic boundaries
+  "ANN401",
   # Allow boolean positional values in function calls, like `dict.get(... True)`
   "FBT003",
   # Ignore checks for possible passwords
@@ -145,7 +149,7 @@ ban-relative-imports = "parents"
 
 [tool.ruff.lint.per-file-ignores]
 # Tests can use magic values, assertions, and relative imports
-"tests/**/*" = ["PLR2004", "S101", "TID252"]
+"tests/**/*" = ["PLR2004", "S101", "TID252", "ANN"]
 # examples can contain "print" commands
 "examples/**/*" = ["T201"]
 
