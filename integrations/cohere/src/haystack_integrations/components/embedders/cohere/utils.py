@@ -18,7 +18,8 @@ async def get_async_response(
     truncate: str,
     embedding_type: EmbeddingTypes | None = None,
 ) -> tuple[list[list[float]], dict[str, Any]]:
-    """Embeds a list of texts asynchronously using the Cohere API.
+    """
+    Embeds a list of texts asynchronously using the Cohere API.
 
     :param cohere_async_client: the Cohere `AsyncClient`
     :param texts: the texts to embed
@@ -66,7 +67,8 @@ def get_response(
     progress_bar: bool = False,
     embedding_type: EmbeddingTypes | None = None,
 ) -> tuple[list[list[float]], dict[str, Any]]:
-    """Embeds a list of texts using the Cohere API.
+    """
+    Embeds a list of texts using the Cohere API.
 
     :param cohere_client: the Cohere `Client`
     :param texts: the texts to embed

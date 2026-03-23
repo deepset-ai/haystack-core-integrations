@@ -50,8 +50,7 @@ SPECIAL_FIELDS = {"content", "embedding", "id", "score", "sparse_embedding", "bl
 
 class ElasticsearchDocumentStore:
     """
-    An ElasticsearchDocumentStore instance that works with Elastic Cloud or your own
-    Elasticsearch cluster.
+    An ElasticsearchDocumentStore instance that works with Elastic Cloud or your own Elasticsearch cluster.
 
     Usage example (Elastic Cloud):
     ```python
@@ -309,6 +308,7 @@ class ElasticsearchDocumentStore:
     async def count_documents_async(self) -> int:
         """
         Asynchronously returns how many documents are present in the document store.
+
         :returns: Number of documents in the document store.
         """
         self._ensure_initialized()
@@ -407,7 +407,9 @@ class ElasticsearchDocumentStore:
     def _deserialize_document(hit: dict[str, Any]) -> Document:
         """
         Creates a `Document` from the search hit provided.
+
         This is mostly useful in self.filter_documents().
+
         :param hit: A search hit from Elasticsearch.
         :returns: `Document` created from the search hit.
         """
@@ -1136,8 +1138,7 @@ class ElasticsearchDocumentStore:
 
     def count_unique_metadata_by_filter(self, filters: dict[str, Any], metadata_fields: list[str]) -> dict[str, int]:
         """
-        Returns the number of unique values for each specified metadata field of the documents
-        that match the provided filters.
+        Returns the number of unique values for each specified metadata field that match the provided filters.
 
         :param filters: The filters to apply to count documents.
             For filter syntax, see [Haystack metadata filtering](https://docs.haystack.deepset.ai/docs/metadata-filtering)
@@ -1180,8 +1181,7 @@ class ElasticsearchDocumentStore:
         self, filters: dict[str, Any], metadata_fields: list[str]
     ) -> dict[str, int]:
         """
-        Asynchronously returns the number of unique values for each specified metadata field of the documents
-        that match the provided filters.
+        Asynchronously returns unique value counts for each specified metadata field matching the provided filters.
 
         :param filters: The filters to apply to count documents.
             For filter syntax, see [Haystack metadata filtering](https://docs.haystack.deepset.ai/docs/metadata-filtering)
@@ -1352,6 +1352,7 @@ class ElasticsearchDocumentStore:
     ) -> tuple[list[str], dict[str, Any] | None]:
         """
         Returns unique values for a metadata field, optionally filtered by a search term in the content.
+
         Uses composite aggregations for proper pagination beyond 10k results.
 
         See: https://www.elastic.co/docs/reference/aggregations/search-aggregations-bucket-composite-aggregation
@@ -1418,6 +1419,7 @@ class ElasticsearchDocumentStore:
     ) -> tuple[list[str], dict[str, Any] | None]:
         """
         Asynchronously returns unique values for a metadata field, optionally filtered by a search term in the content.
+
         Uses composite aggregations for proper pagination beyond 10k results.
 
         See: https://www.elastic.co/docs/reference/aggregations/search-aggregations-bucket-composite-aggregation

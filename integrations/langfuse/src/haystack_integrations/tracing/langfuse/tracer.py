@@ -125,6 +125,7 @@ class LangfuseSpan(Span):
         return self._data
 
     def get_correlation_data_for_logs(self) -> dict[str, Any]:
+        """Return correlation data for log enrichment."""
         return {}
 
 
@@ -234,9 +235,11 @@ class SpanHandler(ABC):
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "SpanHandler":
+        """Deserialize a SpanHandler from a dictionary."""
         return default_from_dict(cls, data)
 
     def to_dict(self) -> dict[str, Any]:
+        """Serialize this SpanHandler to a dictionary."""
         return default_to_dict(self)
 
 
@@ -273,6 +276,7 @@ class DefaultSpanHandler(SpanHandler):
     """DefaultSpanHandler provides the default Langfuse tracing behavior for Haystack."""
 
     def create_span(self, context: SpanContext) -> LangfuseSpan:
+        """Create a Langfuse span based on the given context."""
         if self.tracer is None:
             message = (
                 "Tracer is not initialized. "
@@ -343,6 +347,7 @@ class DefaultSpanHandler(SpanHandler):
             return LangfuseSpan(self.tracer.start_as_current_span(name=context.name))
 
     def handle(self, span: LangfuseSpan, component_type: str | None) -> None:
+        """Process and enrich a span after component execution."""
         # If the span is at the pipeline level, we add input and output keys to the span
         at_pipeline_level = span.get_data().get(_PIPELINE_INPUT_KEY) is not None
         if at_pipeline_level:
@@ -456,6 +461,7 @@ class LangfuseTracer(Tracer):
     def trace(
         self, operation_name: str, tags: dict[str, Any] | None = None, parent_span: Span | None = None
     ) -> Iterator[Span]:
+        """Create and manage a tracing span as a context manager."""
         tags = tags or {}
         span_name = tags.get(_COMPONENT_NAME_KEY, operation_name)
         component_type = tags.get(_COMPONENT_TYPE_KEY)
@@ -543,6 +549,7 @@ class LangfuseTracer(Tracer):
                 self.flush()
 
     def flush(self) -> None:
+        """Flush all pending spans to Langfuse."""
         self._tracer.flush()
 
     def current_span(self) -> Span | None:
@@ -558,6 +565,7 @@ class LangfuseTracer(Tracer):
     def get_trace_url(self) -> str:
         """
         Return the URL to the tracing data.
+
         :return: The URL to the tracing data.
         """
         return self._tracer.get_trace_url() or ""
@@ -565,6 +573,7 @@ class LangfuseTracer(Tracer):
     def get_trace_id(self) -> str:
         """
         Return the trace ID.
+
         :return: The trace ID.
         """
         return self._tracer.get_current_trace_id() or ""
