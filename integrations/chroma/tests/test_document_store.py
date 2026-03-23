@@ -54,7 +54,7 @@ class TestDocumentStore(
     CountUniqueMetadataByFilterTest,
     GetMetadataFieldsInfoTest,
     GetMetadataFieldMinMaxTest,
-    GetMetadataFieldUniqueValuesTest
+    GetMetadataFieldUniqueValuesTest,
 ):
     """
     Common test cases will be provided by `DocumentStoreBaseTests` but
