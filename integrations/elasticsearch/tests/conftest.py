@@ -2,6 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+import asyncio
 import uuid
 
 import pytest
@@ -37,6 +38,8 @@ def document_store():
     store._ensure_initialized()
     store.client.options(ignore_status=[400, 404]).indices.delete(index=index)
     store.client.close()
+    if store._async_client is not None:
+        asyncio.run(store._async_client.close())
 
 
 @pytest.fixture
@@ -58,3 +61,5 @@ def document_store_2():
     store._ensure_initialized()
     store.client.options(ignore_status=[400, 404]).indices.delete(index=index)
     store.client.close()
+    if store._async_client is not None:
+        asyncio.run(store._async_client.close())

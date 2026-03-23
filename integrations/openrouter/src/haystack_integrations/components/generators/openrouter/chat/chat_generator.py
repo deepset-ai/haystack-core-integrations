@@ -69,7 +69,7 @@ class OpenRouterChatGenerator(OpenAIChatGenerator):
         extra_headers: dict[str, Any] | None = None,
         max_retries: int | None = None,
         http_client_kwargs: dict[str, Any] | None = None,
-    ):
+    ) -> None:
         """
         Creates an instance of OpenRouterChatGenerator. Unless specified otherwise,
         the default model is `openai/gpt-5-mini`.

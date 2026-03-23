@@ -53,7 +53,8 @@ class S3Storage:
             raise S3ConfigurationError(msg) from e
 
     def download(self, key: str, local_file_path: Path) -> None:
-        """Download a file from S3.
+        """
+        Download a file from S3.
 
         :param key: The key of the file to download.
         :param local_file_path: The folder path to download the file to.

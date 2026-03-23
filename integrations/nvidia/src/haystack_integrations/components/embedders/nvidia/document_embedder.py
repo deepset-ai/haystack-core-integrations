@@ -20,8 +20,7 @@ logger = logging.getLogger(__name__)
 @component
 class NvidiaDocumentEmbedder:
     """
-    A component for embedding documents using embedding models provided by
-    [NVIDIA NIMs](https://ai.nvidia.com).
+    A component for embedding documents using embedding models provided by [NVIDIA NIMs](https://ai.nvidia.com).
 
     Usage example:
     ```python
@@ -107,6 +106,7 @@ class NvidiaDocumentEmbedder:
 
     @classmethod
     def class_name(cls) -> str:
+        """Return the class name identifier for serialization."""
         return "NvidiaDocumentEmbedder"
 
     def default_model(self) -> None:

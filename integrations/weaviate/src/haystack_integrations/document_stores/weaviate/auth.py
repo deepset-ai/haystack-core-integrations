@@ -26,7 +26,7 @@ class SupportedAuthTypes(Enum):
     CLIENT_CREDENTIALS = "client_credentials"
     CLIENT_PASSWORD = "client_password"
 
-    def __str__(self):
+    def __str__(self) -> str:
         return self.value
 
     @staticmethod
@@ -87,7 +87,9 @@ class AuthCredentials(ABC):
         """
 
     @abstractmethod
-    def resolve_value(self):
+    def resolve_value(
+        self,
+    ) -> WeaviateAuthApiKey | WeaviateAuthBearerToken | WeaviateAuthClientCredentials | WeaviateAuthClientPassword:
         """
         Resolves all the secrets in the auth credentials object and returns the corresponding Weaviate object.
         All subclasses must implement this method.

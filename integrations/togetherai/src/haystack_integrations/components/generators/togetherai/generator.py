@@ -41,7 +41,7 @@ class TogetherAIGenerator(TogetherAIChatGenerator):
         generation_kwargs: dict[str, Any] | None = None,
         timeout: float | None = None,
         max_retries: int | None = None,
-    ):
+    ) -> None:
         """
         Initialize the TogetherAIGenerator.
 

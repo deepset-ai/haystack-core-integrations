@@ -110,7 +110,7 @@ def _sql_value(value: Any) -> str:
         return f"'{escaped}'"
     if isinstance(value, bool):
         return "true" if value else "false"
-    if isinstance(value, (int, float)):
+    if isinstance(value, int | float):
         return str(value)
     if value is None:
         return "NULL"

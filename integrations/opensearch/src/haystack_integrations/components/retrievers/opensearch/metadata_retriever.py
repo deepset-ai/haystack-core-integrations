@@ -92,7 +92,7 @@ class OpenSearchMetadataRetriever:
         tie_breaker: float = 0.7,
         jaccard_n: int = 3,
         raise_on_failure: bool = True,
-    ):
+    ) -> None:
         """
         Create the OpenSearchMetadataRetriever component.
 
