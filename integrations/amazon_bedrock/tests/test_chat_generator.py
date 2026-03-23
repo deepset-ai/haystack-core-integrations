@@ -744,12 +744,16 @@ class TestAmazonBedrockChatGeneratorInference:
             model=model_name,
             generation_kwargs={
                 "maxTokens": 8192,
-                **({
-                    "thinking": {
-                        "type": "enabled",
-                        "budget_tokens": 1024,
+                **(
+                    {
+                        "thinking": {
+                            "type": "enabled",
+                            "budget_tokens": 1024,
+                        }
                     }
-                } if "claude" in model_name else {})
+                    if "claude" in model_name
+                    else {}
+                ),
             },
         )
         results = component.run(messages=initial_messages)
@@ -767,12 +771,16 @@ class TestAmazonBedrockChatGeneratorInference:
             tools=tools,
             generation_kwargs={
                 "maxTokens": 8192,
-                **({
-                    "thinking": {
-                        "type": "enabled",
-                        "budget_tokens": 1024,
+                **(
+                    {
+                        "thinking": {
+                            "type": "enabled",
+                            "budget_tokens": 1024,
+                        }
                     }
-                } if "claude" in model_name else {})
+                    if "claude" in model_name
+                    else {}
+                ),
             },
         )
         results = component.run(messages=initial_messages)
