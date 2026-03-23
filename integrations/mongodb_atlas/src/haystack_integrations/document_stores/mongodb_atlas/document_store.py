@@ -307,7 +307,7 @@ class MongoDBAtlasDocumentStore:
     def _create_count_unique_metadata_pipeline(
         self, filters: dict[str, Any], metadata_fields: list[str]
     ) -> list[dict[str, Any]]:
-        normalized_filters = _normalize_filters(filters)
+        normalized_filters = _normalize_filters(filters) if filters else {}
         pipeline = [{"$match": normalized_filters}]
         facet_stages = {}
         for field in metadata_fields:
@@ -374,6 +374,8 @@ class MongoDBAtlasDocumentStore:
             raise DocumentStoreError(msg) from e
 
     def _compute_metadata_fields_info(self, docs: list[Any]) -> dict[str, dict]:
+        if not docs:
+            return {}
         # We start with the content field
         fields_info = {self.content_field: {"type": "text"}}
         type_mapping = {str: "keyword", int: "long", float: "float", bool: "boolean", list: "list", dict: "object"}
@@ -426,12 +428,16 @@ class MongoDBAtlasDocumentStore:
             raise DocumentStoreError(msg) from e
 
     def _create_min_max_pipeline(self, metadata_field: str) -> list[dict[str, Any]]:
+        if metadata_field.startswith("meta."):
+            mongo_field = f"${metadata_field}"
+        else:
+            mongo_field = f"$meta.{metadata_field}"
         return [
             {
                 "$group": {
                     "_id": None,
-                    "min": {"$min": f"$meta.{metadata_field}"},
-                    "max": {"$max": f"$meta.{metadata_field}"},
+                    "min": {"$min": mongo_field},
+                    "max": {"$max": mongo_field},
                 }
             }
         ]
