@@ -99,7 +99,9 @@ class S3Storage:
                 raise S3StorageError(msg) from e
 
     @classmethod
-    def from_env(cls, *, session: Session, config: Config, s3_bucket_name_env: str) -> "S3Storage":
+    def from_env(
+        cls, *, session: Session, config: Config, s3_bucket_name_env: str = "S3_DOWNLOADER_BUCKET"
+    ) -> "S3Storage":
         """Create a S3Storage object from environment variables."""
         s3_bucket = os.getenv(s3_bucket_name_env)
         if not s3_bucket:
