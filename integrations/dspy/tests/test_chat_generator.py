@@ -10,7 +10,6 @@ from haystack_integrations.components.generators.dspy.chat.chat_generator import
     DSPySignatureChatGenerator,
     _configure_dspy_lm,
     _get_dspy_module_class,
-    _resolve_signature,
 )
 
 
@@ -127,27 +126,6 @@ class TestConfigureDspyLm:
         mock_lm_class.assert_called_once_with(model="openai/gpt-5-mini")
 
 
-class TestResolveSignature:
-    def test_string_signature_passthrough(self):
-        sig = "question -> answer"
-        assert _resolve_signature(sig) == sig
-
-    def test_signature_class_passthrough(self):
-        class MySig(dspy.Signature):
-            question: str = dspy.InputField()
-            answer: str = dspy.OutputField()
-
-        assert _resolve_signature(MySig) is MySig
-
-    def test_resolves_dotted_class_path(self):
-        result = _resolve_signature("dspy.Signature")
-        assert result is dspy.Signature
-
-    def test_invalid_dotted_path_raises(self):
-        with pytest.raises((ImportError, ModuleNotFoundError)):
-            _resolve_signature("nonexistent.module.ClassName")
-
-
 class TestDSPySignatureChatGenerator:
     def test_init_default(self, mock_dspy_module):
         component = DSPySignatureChatGenerator(signature="question -> answer")
@@ -219,7 +197,7 @@ class TestDSPySignatureChatGenerator:
         assert data == {
             "type": "haystack_integrations.components.generators.dspy.chat.chat_generator.DSPySignatureChatGenerator",
             "init_parameters": {
-                "signature": "question -> answer",
+                "signature": {"type": "str", "value": "question -> answer"},
                 "model": "openai/gpt-5-mini",
                 "api_base": None,
                 "module_type": "ChainOfThought",
@@ -244,7 +222,7 @@ class TestDSPySignatureChatGenerator:
         assert data == {
             "type": "haystack_integrations.components.generators.dspy.chat.chat_generator.DSPySignatureChatGenerator",
             "init_parameters": {
-                "signature": "context, question -> answer",
+                "signature": {"type": "str", "value": "context, question -> answer"},
                 "model": "openai/gpt-4o",
                 "api_base": "http://localhost:8000",
                 "module_type": "Predict",
@@ -261,16 +239,16 @@ class TestDSPySignatureChatGenerator:
             signature=sample_qa_signature,
         )
         data = component.to_dict()
-        sig_value = data["init_parameters"]["signature"]
-        # Should be a dotted path like "test_chat_generator.TestDSPySignatureChatGenerator...QASignature"
-        assert "QASignature" in sig_value
-        assert "." in sig_value
+        signature_value = data["init_parameters"]["signature"]
+        assert signature_value["type"] == "class"
+        assert "QASignature" in signature_value["value"]
+        assert "." in signature_value["value"]
 
     def test_from_dict(self, mock_dspy_module):
         data = {
             "type": "haystack_integrations.components.generators.dspy.chat.chat_generator.DSPySignatureChatGenerator",
             "init_parameters": {
-                "signature": "question -> answer",
+                "signature": {"type": "str", "value": "question -> answer"},
                 "model": "openai/gpt-4o",
                 "api_base": None,
                 "module_type": "Predict",
@@ -294,7 +272,7 @@ class TestDSPySignatureChatGenerator:
         data = {
             "type": "haystack_integrations.components.generators.dspy.chat.chat_generator.DSPySignatureChatGenerator",
             "init_parameters": {
-                "signature": "question -> answer",
+                "signature": {"type": "str", "value": "question -> answer"},
                 "model": "openai/local-model",
                 "api_base": "http://localhost:8000",
                 "module_type": "Predict",
@@ -312,7 +290,7 @@ class TestDSPySignatureChatGenerator:
         data = {
             "type": "haystack_integrations.components.generators.dspy.chat.chat_generator.DSPySignatureChatGenerator",
             "init_parameters": {
-                "signature": "dspy.Signature",
+                "signature": {"type": "class", "value": "dspy.Signature"},
                 "model": "openai/gpt-5-mini",
                 "module_type": "Predict",
                 "output_field": "answer",

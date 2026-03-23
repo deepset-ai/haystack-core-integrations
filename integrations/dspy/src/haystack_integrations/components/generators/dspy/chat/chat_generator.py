@@ -170,25 +170,30 @@ class DSPySignatureChatGenerator:
         """
         Serialize the signature to a dictionary.
 
-        String signatures are stored as `{"str": "question -> answer"}`.
+        String signatures are stored as
+        `{"type": "str", "value": "question -> answer"}`.
         `dspy.Signature` subclasses are stored as
-        `{"class": "mymodule.QASignature"}`.
+        `{"type": "class", "value": "mymodule.QASignature"}`.
         """
         if isinstance(signature, str):
-            return {"str": signature}
-        return {"class": f"{signature.__module__}.{signature.__qualname__}"}
+            return {"type": "str", "value": signature}
+        return {"type": "class", "value": f"{signature.__module__}.{signature.__qualname__}"}
 
     @staticmethod
     def _deserialize_signature(data: dict[str, str]) -> str | type[dspy.Signature]:
         """
         Deserialize a signature from a dictionary.
 
-        Accepts `{"str": "question -> answer"}` or
-        `{"class": "mymodule.QASignature"}`.
+        Accepts `{"type": "str", "value": "question -> answer"}` or
+        `{"type": "class", "value": "mymodule.QASignature"}`.
         """
-        if "str" in data:
-            return data["str"]
-        class_path = data["class"]
+        signature_type = data["type"]
+        value = data["value"]
+
+        if signature_type == "str":
+            return value
+
+        class_path = value
         module_path, class_name = class_path.rsplit(".", 1)
         module = importlib.import_module(module_path)
         return getattr(module, class_name)
