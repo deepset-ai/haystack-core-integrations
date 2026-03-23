@@ -11,11 +11,11 @@ from haystack.dataclasses.document import ByteStream, Document
 from haystack.document_stores.errors import DuplicateDocumentError
 from haystack.document_stores.types import DuplicatePolicy
 from haystack.testing.document_store import (
-    DocumentStoreBaseExtendedTests,
     CountDocumentsByFilterTest,
     CountUniqueMetadataByFilterTest,
-    GetMetadataFieldsInfoTest,
+    DocumentStoreBaseExtendedTests,
     GetMetadataFieldMinMaxTest,
+    GetMetadataFieldsInfoTest,
     GetMetadataFieldUniqueValuesTest,
 )
 from haystack.utils import Secret
