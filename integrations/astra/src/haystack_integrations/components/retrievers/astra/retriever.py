@@ -106,9 +106,7 @@ class AstraEmbeddingRetriever:
         filters = apply_filter_policy(self.filter_policy, self.filters, filters)
         top_k = top_k or self.top_k
 
-        documents = await asyncio.to_thread(
-            self.document_store.search, query_embedding, top_k, filters=filters
-        )
+        documents = await asyncio.to_thread(self.document_store.search, query_embedding, top_k, filters=filters)
         return {"documents": documents}
 
     def to_dict(self) -> dict[str, Any]:
