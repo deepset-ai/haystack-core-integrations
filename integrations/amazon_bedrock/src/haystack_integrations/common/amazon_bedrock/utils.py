@@ -18,6 +18,18 @@ AWS_CONFIGURATION_KEYS = [
     "aws_profile_name",
 ]
 
+MAX_RETRIES = 8
+
+THROTTLING_CODES = frozenset(
+    {
+        "ThrottlingException",
+        "TooManyRequestsException",
+        "ServiceUnavailableException",
+        "ModelNotReadyException",
+        "ModelStreamErrorException",
+    }
+)
+
 
 def get_aws_session(
     aws_access_key_id: str | None = None,

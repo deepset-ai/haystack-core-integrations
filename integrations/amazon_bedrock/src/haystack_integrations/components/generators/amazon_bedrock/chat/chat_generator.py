@@ -23,7 +23,7 @@ from haystack_integrations.common.amazon_bedrock.errors import (
     AmazonBedrockConfigurationError,
     AmazonBedrockInferenceError,
 )
-from haystack_integrations.common.amazon_bedrock.utils import get_aws_session
+from haystack_integrations.common.amazon_bedrock.utils import MAX_RETRIES, THROTTLING_CODES, get_aws_session
 from haystack_integrations.components.generators.amazon_bedrock.chat.utils import (
     _format_messages,
     _format_tools,
@@ -35,20 +35,6 @@ from haystack_integrations.components.generators.amazon_bedrock.chat.utils impor
 )
 
 logger = logging.getLogger(__name__)
-
-
-MAX_RETRIES = 8
-
-THROTTLING_CODES = frozenset(
-    {
-        "ThrottlingException",
-        "TooManyRequestsException",
-        "ServiceUnavailableException",
-        "ModelNotReadyException",
-        "RequestTooLargeException",
-        "ModelStreamErrorException",
-    }
-)
 
 
 @component

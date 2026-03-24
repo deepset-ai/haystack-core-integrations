@@ -28,21 +28,9 @@ from .adapters import (
     MetaLlamaAdapter,
     MistralAdapter,
 )
+from haystack_integrations.common.amazon_bedrock.utils import MAX_RETRIES, THROTTLING_CODES
 
 logger = logging.getLogger(__name__)
-
-MAX_RETRIES = 8
-
-THROTTLING_CODES = frozenset(
-    {
-        "ThrottlingException",
-        "TooManyRequestsException",
-        "ServiceUnavailableException",
-        "ModelNotReadyException",
-        "RequestTooLargeException",
-        "ModelStreamErrorException",
-    }
-)
 
 
 @component

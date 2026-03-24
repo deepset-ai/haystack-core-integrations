@@ -1784,7 +1784,6 @@ class TestAmazonBedrockGeneratorRetry:
             "TooManyRequestsException",
             "ServiceUnavailableException",
             "ModelNotReadyException",
-            "RequestTooLargeException",
             "ModelStreamErrorException",
         ],
     )
