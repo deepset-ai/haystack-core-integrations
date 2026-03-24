@@ -5,12 +5,12 @@ build-backend = "hatchling.build"
 [project]
 name = "libreoffice-haystack"
 dynamic = ["version"]
-description = "Haystack 2.x component to convert files using LibreOffice."
+description = "LibreOffice integration for Haystack"
 readme = "README.md"
 requires-python = ">=3.10"
 license = "Apache-2.0"
 keywords = []
-authors = [{ name = "deepset GmbH", email = "info@deepset.ai" }, {name = "Max Swain"}]
+authors = [{ name = "deepset GmbH", email = "info@deepset.ai" }, { name = "Max Swain" }]
 classifiers = [
   "License :: OSI Approved :: Apache Software License",
   "Development Status :: 4 - Beta",
@@ -19,6 +19,7 @@ classifiers = [
   "Programming Language :: Python :: 3.11",
   "Programming Language :: Python :: 3.12",
   "Programming Language :: Python :: 3.13",
+  "Programming Language :: Python :: 3.14",
   "Programming Language :: Python :: Implementation :: CPython",
   "Programming Language :: Python :: Implementation :: PyPy",
 ]
@@ -82,6 +83,13 @@ select = [
     "ARG",
     "B",
     "C",
+    "D102",   # Missing docstring in public method
+    "D103",   # Missing docstring in public function
+    "D205",   # 1 blank line required between summary line and description
+    "D209",   # Closing triple quotes go to new line
+    "D213",   # summary lines must be positioned on the second physical line of the docstring
+    "D417",   # Missing argument descriptions in the docstring
+    "D419",   # Docstring is empty
     "DTZ",
     "E",
     "EM",
@@ -130,7 +138,7 @@ ban-relative-imports = "parents"
 
 [tool.ruff.lint.per-file-ignores]
 # Tests can use magic values, assertions, relative imports, and don't need type annotations
-"tests/**/*" = ["PLR2004", "S101", "TID252", "ANN"]
+"tests/**/*" = ["D", "PLR2004", "S101", "TID252", "ANN"]
 
 [tool.coverage.run]
 source = ["haystack_integrations"]

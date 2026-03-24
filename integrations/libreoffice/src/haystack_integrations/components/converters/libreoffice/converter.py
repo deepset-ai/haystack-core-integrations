@@ -86,9 +86,38 @@ class LibreOfficeFileConverter:
         "ppt": frozenset(["pdf", "pptx", "odp", "html", "png", "jpg"]),
         "odp": frozenset(["pdf", "pptx", "ppt", "html", "png", "jpg"]),
     }
+    """A non-exhaustive mapping of supported conversion types by this component.
+    See https://help.libreoffice.org/latest/en-GB/text/shared/guide/convertfilters.html for more information."""
 
-    def __init__(self) -> None:
-        """Check whether soffice is installed."""
+    def __init__(
+        self,
+        output_file_type: Literal[
+            "doc",
+            "docx",
+            "odt",
+            "rtf",
+            "txt",
+            "html",
+            "xlsx",
+            "xls",
+            "ods",
+            "csv",
+            "pptx",
+            "ppt",
+            "odp",
+            "epub",
+            "png",
+            "jpg",
+        ]
+        | None = None,
+    ) -> None:
+        """
+        Check whether soffice is installed.
+
+        :param output_file_type:
+            Target file format to convert to. Must be a valid conversion target for
+            each source's input type — see :attr:`SUPPORTED_TYPES` for the full mapping.
+        """
         soffice_path = shutil.which("soffice")
         if soffice_path is None:
             msg = """LibreOffice (soffice) is required but not installed or not in PATH.
@@ -97,6 +126,7 @@ class LibreOfficeFileConverter:
             raise FileNotFoundError(msg)
 
         self.soffice_path = soffice_path
+        self.output_file_type = output_file_type
 
     def to_dict(self) -> dict[str, Any]:
         """
@@ -127,12 +157,12 @@ class LibreOfficeFileConverter:
 
         :param source: Source file path.
         :param output_directory: Output directory to save converted files to.
-        :param output_file_type: Target file format extension (e.g. ``"pdf"``).
-        :returns: Tuple of ``(output_path, soffice_args)`` where ``output_path`` is the
-            expected path of the converted file and ``soffice_args`` is the list of
-            arguments to pass to ``soffice``.
-        :raises FileNotFoundError: If ``source`` does not exist.
-        :raises OSError: If ``output_directory`` does not exist or is not writable.
+        :param output_file_type: Target file format extension (e.g. `"pdf"`).
+        :returns: Tuple of `(output_path, soffice_args)` where `output_path` is the
+            expected path of the converted file and `soffice_args` is the list of
+            arguments to pass to `soffice`.
+        :raises FileNotFoundError: If `source` does not exist.
+        :raises OSError: If `output_directory` does not exist or is not writable.
         """
         source_path = Path(source)
         output_path = Path(output_directory)
@@ -164,12 +194,12 @@ class LibreOfficeFileConverter:
 
         :param output_file_type: Target file format extension to convert to.
         :param input_file_type: Source file format extension. If provided, validates that
-            it is a supported input type and that ``output_file_type`` is a valid conversion
+            it is a supported input type and that `output_file_type` is a valid conversion
             target for it.
-        :raises ValueError: If ``input_file_type`` is not in :attr:`SUPPORTED_TYPES`, or if
-            ``output_file_type`` is not a valid conversion target for the given ``input_file_type``.
+        :raises ValueError: If `input_file_type` is not in :attr:`SUPPORTED_TYPES`, or if
+            `output_file_type` is not a valid conversion target for the given `input_file_type`.
         """
-        # Cannot validate conversion types if input conversions is not known - i.e., source is ``ByteStream``
+        # Cannot validate conversion types if input conversions is not known - i.e., source is `ByteStream`
         if input_file_type is None:
             return
 
@@ -206,28 +236,36 @@ class LibreOfficeFileConverter:
             "epub",
             "png",
             "jpg",
-        ],
+        ]
+        | None = None,
     ) -> LibreOfficeFileConverterOutput:
         """
         Convert office files to the specified output format using LibreOffice.
 
         :param sources:
-            List of sources to convert. Each source can be a file path (``str`` or
-            ``Path``) or a ``ByteStream``. For ``ByteStream`` sources, the input file
-            type cannot be inferred from the filename, so only ``output_file_type`` is
+            List of sources to convert. Each source can be a file path (`str` or
+            `Path`) or a `ByteStream`. For `ByteStream` sources, the input file
+            type cannot be inferred from the filename, so only `output_file_type` is
             validated (not the source type).
         :param output_file_type:
             Target file format to convert to. Must be a valid conversion target for
             each source's input type — see :attr:`SUPPORTED_TYPES` for the full mapping.
+            If set, it will override the `output_file_type` parameter provided during initialization.
         :returns:
             A dictionary with the following key:
-            - ``output``: List of ``ByteStream`` objects containing the converted file
-              data, in the same order as ``sources``.
+            - `output`: List of `ByteStream` objects containing the converted file
+              data, in the same order as `sources`.
         :raises FileNotFoundError: If a source file path does not exist.
         :raises OSError: If the internal temporary output directory is not writable.
         :raises ValueError: If a source's file type is not in :attr:`SUPPORTED_TYPES`,
-            or if ``output_file_type`` is not a valid conversion target for it.
+            or if `output_file_type` is not a valid conversion target for it,
+            or if `output_file_type` has not been provided anywhere.
         """
+        if output_file_type is None and self.output_file_type is None:
+            msg = "output_file_type must be provided either during initialization or for this method"
+            raise ValueError(msg)
+        output_file_type = output_file_type or self.output_file_type
+
         outputs: list[ByteStream] = []
         with TemporaryDirectory() as tmpdir:
             for source in sources:
@@ -272,7 +310,8 @@ class LibreOfficeFileConverter:
             "epub",
             "png",
             "jpg",
-        ],
+        ]
+        | None = None,
     ) -> LibreOfficeFileConverterOutput:
         """
         Asynchronously convert office files to the specified output format using LibreOffice.
@@ -280,22 +319,29 @@ class LibreOfficeFileConverter:
         This is the asynchronous version of the `run` method with the same parameters and return values.
 
         :param sources:
-            List of sources to convert. Each source can be a file path (``str`` or
-            ``Path``) or a ``ByteStream``. For ``ByteStream`` sources, the input file
-            type cannot be inferred from the filename, so only ``output_file_type`` is
+            List of sources to convert. Each source can be a file path (`str` or
+            `Path`) or a `ByteStream`. For `ByteStream` sources, the input file
+            type cannot be inferred from the filename, so only `output_file_type` is
             validated (not the source type).
         :param output_file_type:
             Target file format to convert to. Must be a valid conversion target for
             each source's input type — see :attr:`SUPPORTED_TYPES` for the full mapping.
+            If set, it will override the `output_file_type` parameter provided during initialization.
         :returns:
             A dictionary with the following key:
-            - ``output``: List of ``ByteStream`` objects containing the converted file
-              data, in the same order as ``sources``.
+            - `output`: List of `ByteStream` objects containing the converted file
+              data, in the same order as `sources`.
         :raises FileNotFoundError: If a source file path does not exist.
         :raises OSError: If the internal temporary output directory is not writable.
         :raises ValueError: If a source's file type is not in :attr:`SUPPORTED_TYPES`,
-            or if ``output_file_type`` is not a valid conversion target for it.
+            or if `output_file_type` is not a valid conversion target for it,
+            or if `output_file_type` has not been provided anywhere.
         """
+        if output_file_type is None and self.output_file_type is None:
+            msg = "output_file_type must be provided either during initialization or for this method"
+            raise ValueError(msg)
+        output_file_type = output_file_type or self.output_file_type
+
         outputs: list[ByteStream] = []
         with TemporaryDirectory() as tmpdir:
             for source in sources:

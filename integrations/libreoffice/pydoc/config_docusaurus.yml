@@ -7,7 +7,7 @@ processors:
     documented_only: true
     skip_empty_modules: true
 renderer:
-  description: Haystack 2.x component to convert files using LibreOffice
+  description: LibreOffice integration for Haystack
   id: integrations-libreoffice
   filename: libreoffice.md
-  title: LibreOffice File Converter
+  title: LibreOffice
