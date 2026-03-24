@@ -1234,7 +1234,6 @@ class TestAmazonBedrockChatGeneratorRetry:
             "TooManyRequestsException",
             "ServiceUnavailableException",
             "ModelNotReadyException",
-            "RequestTooLargeException",
             "ModelStreamErrorException",
         ],
     )
