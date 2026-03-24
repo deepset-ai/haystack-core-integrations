@@ -45,7 +45,7 @@ class TestJinaDocumentEmbedder:
         embedder = JinaDocumentEmbedder(
             api_key=Secret.from_token("fake-api-key"),
             model="model",
-            base_url="http://api.jina.ai/v1/embeddings",
+            base_url="https://my.custom.url/v1/embeddings",
             prefix="prefix",
             suffix="suffix",
             batch_size=64,
@@ -59,7 +59,7 @@ class TestJinaDocumentEmbedder:
 
         assert embedder.api_key == Secret.from_token("fake-api-key")
         assert embedder.model_name == "model"
-        assert embedder.base_url == "http://api.jina.ai/v1/embeddings"
+        assert embedder.base_url == "https://my.custom.url/v1/embeddings"
         assert embedder.prefix == "prefix"
         assert embedder.suffix == "suffix"
         assert embedder.batch_size == 64
@@ -98,7 +98,7 @@ class TestJinaDocumentEmbedder:
         monkeypatch.setenv("JINA_API_KEY", "fake-api-key")
         component = JinaDocumentEmbedder(
             model="model",
-            base_url="http://api.jina.ai/v1/embeddings",
+            base_url="https://my.custom.url/v1/embeddings",
             prefix="prefix",
             suffix="suffix",
             batch_size=64,
@@ -114,7 +114,7 @@ class TestJinaDocumentEmbedder:
             "init_parameters": {
                 "api_key": {"env_vars": ["JINA_API_KEY"], "strict": True, "type": "env_var"},
                 "model": "model",
-                "base_url": "http://api.jina.ai/v1/embeddings",
+                "base_url": "https://my.custom.url/v1/embeddings",
                 "prefix": "prefix",
                 "suffix": "suffix",
                 "batch_size": 64,

@@ -32,7 +32,7 @@ class TestJinaDocumentImageEmbedder:
         embedder = JinaDocumentImageEmbedder(
             api_key=Secret.from_token("fake-api-token"),
             model="jina-embeddings-v4",
-            base_url="http://api.jina.ai/v1/embeddings",
+            base_url="https://my.custom.url/v1/embeddings",
             file_path_meta_field="custom_file_path",
             root_path="/custom/root",
             embedding_dimension=256,
@@ -40,7 +40,7 @@ class TestJinaDocumentImageEmbedder:
             batch_size=5,
         )
         assert embedder.model_name == "jina-embeddings-v4"
-        assert embedder.base_url == "http://api.jina.ai/v1/embeddings"
+        assert embedder.base_url == "https://my.custom.url/v1/embeddings"
         assert embedder.file_path_meta_field == "custom_file_path"
         assert embedder.root_path == "/custom/root"
         assert embedder.embedding_dimension == 256
