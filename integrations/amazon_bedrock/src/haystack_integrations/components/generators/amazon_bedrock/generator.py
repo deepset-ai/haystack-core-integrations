@@ -16,7 +16,7 @@ from haystack_integrations.common.amazon_bedrock.errors import (
     AmazonBedrockConfigurationError,
     AmazonBedrockInferenceError,
 )
-from haystack_integrations.common.amazon_bedrock.utils import get_aws_session
+from haystack_integrations.common.amazon_bedrock.utils import MAX_RETRIES, THROTTLING_CODES, get_aws_session
 
 from .adapters import (
     AI21LabsJurassic2Adapter,
@@ -28,7 +28,6 @@ from .adapters import (
     MetaLlamaAdapter,
     MistralAdapter,
 )
-from haystack_integrations.common.amazon_bedrock.utils import MAX_RETRIES, THROTTLING_CODES
 
 logger = logging.getLogger(__name__)
 
