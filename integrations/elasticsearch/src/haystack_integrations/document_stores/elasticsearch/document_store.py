@@ -142,7 +142,7 @@ class ElasticsearchDocumentStore:
             raise ValueError(msg)
 
         if self._custom_mapping and self._sparse_vector_field:
-            self._custom_mapping = copy.deepcopy(custom_mapping)    # original custom_mapping dict is left unchanged
+            self._custom_mapping = copy.deepcopy(custom_mapping)  # original custom_mapping dict is left unchanged
             self._custom_mapping.setdefault("properties", {})
             self._custom_mapping["properties"][self._sparse_vector_field] = {"type": "sparse_vector"}
 
