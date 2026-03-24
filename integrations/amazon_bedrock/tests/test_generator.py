@@ -1,11 +1,13 @@
 from typing import Any
-from unittest.mock import MagicMock, call
+from unittest.mock import MagicMock, call, patch
 
 import pytest
+from botocore.exceptions import ClientError
 from haystack.dataclasses import StreamingChunk
 
 from haystack_integrations.common.amazon_bedrock.errors import (
     AmazonBedrockConfigurationError,
+    AmazonBedrockInferenceError,
 )
 from haystack_integrations.components.generators.amazon_bedrock import AmazonBedrockGenerator
 from haystack_integrations.components.generators.amazon_bedrock.adapters import (
@@ -1727,3 +1729,107 @@ class TestMetaLlamaAdapter:
         assert result["meta"]["RequestId"] == "test-request-id"
         assert result["meta"]["HTTPStatusCode"] == 200
         assert result["meta"]["HTTPHeaders"]["content-type"] == "application/json"
+
+
+def _make_client_error(code: str) -> ClientError:
+    """Helper to build a botocore ClientError with a given error code."""
+    return ClientError({"Error": {"Code": code, "Message": "test error"}}, "InvokeModel")
+
+
+class TestAmazonBedrockGeneratorRetry:
+    """Unit tests for the retry-with-backoff logic in AmazonBedrockGenerator.run()."""
+
+    def test_run_succeeds_on_first_attempt(self, mock_boto3_session):
+        """No retry occurs when the first call succeeds."""
+        generator = AmazonBedrockGenerator(model="anthropic.claude-v2")
+        mock_client = mock_boto3_session.return_value.client.return_value
+
+        mock_body = MagicMock()
+        mock_body.read.return_value = b'{"content": [{"type": "text", "text": "hello"}]}'
+        mock_client.invoke_model.return_value = {"body": mock_body, "ResponseMetadata": {}}
+
+        with patch("time.sleep") as mock_sleep:
+            result = generator.run("hi")
+
+        assert "replies" in result
+        mock_client.invoke_model.assert_called_once()
+        mock_sleep.assert_not_called()
+
+    def test_run_retries_on_throttling_and_succeeds(self, mock_boto3_session):
+        """A ThrottlingException triggers a retry that eventually succeeds."""
+        generator = AmazonBedrockGenerator(model="anthropic.claude-v2")
+        mock_client = mock_boto3_session.return_value.client.return_value
+
+        mock_body = MagicMock()
+        mock_body.read.return_value = b'{"content": [{"type": "text", "text": "hello"}]}'
+        success_response = {"body": mock_body, "ResponseMetadata": {}}
+
+        mock_client.invoke_model.side_effect = [
+            _make_client_error("ThrottlingException"),
+            success_response,
+        ]
+
+        with patch("time.sleep") as mock_sleep:
+            result = generator.run("hi")
+
+        assert "replies" in result
+        assert mock_client.invoke_model.call_count == 2
+        mock_sleep.assert_called_once()
+
+    @pytest.mark.parametrize(
+        "throttle_code",
+        [
+            "ThrottlingException",
+            "TooManyRequestsException",
+            "ServiceUnavailableException",
+            "ModelNotReadyException",
+            "RequestTooLargeException",
+            "ModelStreamErrorException",
+        ],
+    )
+    def test_run_retries_on_all_throttling_codes(self, mock_boto3_session, throttle_code):
+        """Every code in THROTTLING_CODES causes a retry."""
+        generator = AmazonBedrockGenerator(model="anthropic.claude-v2")
+        mock_client = mock_boto3_session.return_value.client.return_value
+
+        mock_body = MagicMock()
+        mock_body.read.return_value = b'{"content": [{"type": "text", "text": "hello"}]}'
+        success_response = {"body": mock_body, "ResponseMetadata": {}}
+
+        mock_client.invoke_model.side_effect = [
+            _make_client_error(throttle_code),
+            success_response,
+        ]
+
+        with patch("time.sleep"):
+            result = generator.run("hi")
+
+        assert "replies" in result
+        assert mock_client.invoke_model.call_count == 2
+
+    def test_run_raises_on_non_throttling_client_error(self, mock_boto3_session):
+        """A non-throttling ClientError is raised immediately without retrying."""
+        generator = AmazonBedrockGenerator(model="anthropic.claude-v2")
+        mock_client = mock_boto3_session.return_value.client.return_value
+        mock_client.invoke_model.side_effect = _make_client_error("ValidationException")
+
+        with patch("time.sleep") as mock_sleep:
+            with pytest.raises(AmazonBedrockInferenceError):
+                generator.run("hi")
+
+        mock_client.invoke_model.assert_called_once()
+        mock_sleep.assert_not_called()
+
+    def test_run_raises_after_max_retries_exhausted(self, mock_boto3_session):
+        """After MAX_RETRIES throttling errors the error is propagated."""
+        from haystack_integrations.components.generators.amazon_bedrock.generator import MAX_RETRIES
+
+        generator = AmazonBedrockGenerator(model="anthropic.claude-v2")
+        mock_client = mock_boto3_session.return_value.client.return_value
+        mock_client.invoke_model.side_effect = _make_client_error("ThrottlingException")
+
+        with patch("time.sleep"):
+            with pytest.raises(AmazonBedrockInferenceError):
+                generator.run("hi")
+
+        assert mock_client.invoke_model.call_count == MAX_RETRIES

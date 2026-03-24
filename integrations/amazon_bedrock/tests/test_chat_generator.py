@@ -1,7 +1,9 @@
 import os
 from typing import Any
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from botocore.exceptions import ClientError
 from haystack import Pipeline
 from haystack.components.agents import Agent
 from haystack.components.generators.utils import print_streaming_chunk
@@ -9,6 +11,7 @@ from haystack.components.tools import ToolInvoker
 from haystack.dataclasses import ChatMessage, ChatRole, FileContent, ImageContent, StreamingChunk, TextContent, ToolCall
 from haystack.tools import Tool, Toolset, create_tool_from_function
 
+from haystack_integrations.common.amazon_bedrock.errors import AmazonBedrockInferenceError
 from haystack_integrations.components.generators.amazon_bedrock import AmazonBedrockChatGenerator
 
 CLASS_TYPE = "haystack_integrations.components.generators.amazon_bedrock.chat.chat_generator.AmazonBedrockChatGenerator"
@@ -1174,3 +1177,194 @@ class TestAmazonBedrockChatGeneratorAsyncInference:
         assert len(final_message.text) > 0
         assert "paris" in final_message.text.lower()
         assert "berlin" in final_message.text.lower()
+
+
+def _make_client_error(code: str) -> ClientError:
+    """Helper to build a botocore ClientError with a given error code."""
+    return ClientError({"Error": {"Code": code, "Message": "test error"}}, "Converse")
+
+
+def _make_converse_response(text: str = "hello") -> dict:
+    """Build a minimal mock response from the Bedrock Converse API."""
+    return {
+        "output": {"message": {"role": "assistant", "content": [{"text": text}]}},
+        "stopReason": "end_turn",
+        "usage": {"inputTokens": 10, "outputTokens": 5, "totalTokens": 15},
+        "ResponseMetadata": {"HTTPStatusCode": 200},
+    }
+
+
+class TestAmazonBedrockChatGeneratorRetry:
+    """Unit tests for the retry-with-backoff logic in AmazonBedrockChatGenerator.run()."""
+
+    def test_run_succeeds_on_first_attempt(self, mock_boto3_session, set_env_variables):
+        """No retry occurs when the first call succeeds."""
+        generator = AmazonBedrockChatGenerator(model="anthropic.claude-3-5-sonnet-20240620-v1:0")
+        mock_client = mock_boto3_session.return_value.client.return_value
+        mock_client.converse.return_value = _make_converse_response()
+
+        with patch("time.sleep") as mock_sleep:
+            result = generator.run([ChatMessage.from_user("hi")])
+
+        assert "replies" in result
+        mock_client.converse.assert_called_once()
+        mock_sleep.assert_not_called()
+
+    def test_run_retries_on_throttling_and_succeeds(self, mock_boto3_session, set_env_variables):
+        """A ThrottlingException triggers a retry that eventually succeeds."""
+        generator = AmazonBedrockChatGenerator(model="anthropic.claude-3-5-sonnet-20240620-v1:0")
+        mock_client = mock_boto3_session.return_value.client.return_value
+        mock_client.converse.side_effect = [
+            _make_client_error("ThrottlingException"),
+            _make_converse_response(),
+        ]
+
+        with patch("time.sleep") as mock_sleep:
+            result = generator.run([ChatMessage.from_user("hi")])
+
+        assert "replies" in result
+        assert mock_client.converse.call_count == 2
+        mock_sleep.assert_called_once()
+
+    @pytest.mark.parametrize(
+        "throttle_code",
+        [
+            "ThrottlingException",
+            "TooManyRequestsException",
+            "ServiceUnavailableException",
+            "ModelNotReadyException",
+            "RequestTooLargeException",
+            "ModelStreamErrorException",
+        ],
+    )
+    def test_run_retries_on_all_throttling_codes(self, mock_boto3_session, set_env_variables, throttle_code):
+        """Every code in THROTTLING_CODES causes a retry."""
+        generator = AmazonBedrockChatGenerator(model="anthropic.claude-3-5-sonnet-20240620-v1:0")
+        mock_client = mock_boto3_session.return_value.client.return_value
+        mock_client.converse.side_effect = [
+            _make_client_error(throttle_code),
+            _make_converse_response(),
+        ]
+
+        with patch("time.sleep"):
+            result = generator.run([ChatMessage.from_user("hi")])
+
+        assert "replies" in result
+        assert mock_client.converse.call_count == 2
+
+    def test_run_raises_on_non_throttling_client_error(self, mock_boto3_session, set_env_variables):
+        """A non-throttling ClientError is raised immediately without retrying."""
+        generator = AmazonBedrockChatGenerator(model="anthropic.claude-3-5-sonnet-20240620-v1:0")
+        mock_client = mock_boto3_session.return_value.client.return_value
+        mock_client.converse.side_effect = _make_client_error("ValidationException")
+
+        with patch("time.sleep") as mock_sleep:
+            with pytest.raises(AmazonBedrockInferenceError):
+                generator.run([ChatMessage.from_user("hi")])
+
+        mock_client.converse.assert_called_once()
+        mock_sleep.assert_not_called()
+
+    def test_run_raises_after_max_retries_exhausted(self, mock_boto3_session, set_env_variables):
+        """After MAX_RETRIES throttling errors the error is propagated."""
+        from haystack_integrations.components.generators.amazon_bedrock.chat.chat_generator import MAX_RETRIES
+
+        generator = AmazonBedrockChatGenerator(model="anthropic.claude-3-5-sonnet-20240620-v1:0")
+        mock_client = mock_boto3_session.return_value.client.return_value
+        mock_client.converse.side_effect = _make_client_error("ThrottlingException")
+
+        with patch("time.sleep"):
+            with pytest.raises(AmazonBedrockInferenceError):
+                generator.run([ChatMessage.from_user("hi")])
+
+        assert mock_client.converse.call_count == MAX_RETRIES
+
+
+class TestAmazonBedrockChatGeneratorAsyncRetry:
+    """Unit tests for the retry-with-backoff logic in AmazonBedrockChatGenerator.run_async()."""
+
+    @pytest.mark.asyncio
+    async def test_run_async_succeeds_on_first_attempt(self, mock_boto3_session, mock_aioboto3_session):
+        """No retry occurs when the first async call succeeds."""
+        generator = AmazonBedrockChatGenerator(model="anthropic.claude-3-5-sonnet-20240620-v1:0")
+
+        mock_async_client = AsyncMock()
+        mock_async_client.converse = AsyncMock(return_value=_make_converse_response())
+
+        mock_context = MagicMock()
+        mock_context.__aenter__ = AsyncMock(return_value=mock_async_client)
+        mock_context.__aexit__ = AsyncMock(return_value=None)
+        mock_aioboto3_session.return_value.client.return_value = mock_context
+
+        with patch("asyncio.sleep") as mock_sleep:
+            result = await generator.run_async([ChatMessage.from_user("hi")])
+
+        assert "replies" in result
+        mock_async_client.converse.assert_called_once()
+        mock_sleep.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_run_async_retries_on_throttling_and_succeeds(self, mock_boto3_session, mock_aioboto3_session):
+        """A ThrottlingException triggers an async retry that eventually succeeds."""
+        generator = AmazonBedrockChatGenerator(model="anthropic.claude-3-5-sonnet-20240620-v1:0")
+
+        mock_async_client = AsyncMock()
+        mock_async_client.converse = AsyncMock(
+            side_effect=[
+                _make_client_error("ThrottlingException"),
+                _make_converse_response(),
+            ]
+        )
+
+        mock_context = MagicMock()
+        mock_context.__aenter__ = AsyncMock(return_value=mock_async_client)
+        mock_context.__aexit__ = AsyncMock(return_value=None)
+        mock_aioboto3_session.return_value.client.return_value = mock_context
+
+        with patch("asyncio.sleep") as mock_sleep:
+            result = await generator.run_async([ChatMessage.from_user("hi")])
+
+        assert "replies" in result
+        assert mock_async_client.converse.call_count == 2
+        mock_sleep.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_run_async_raises_on_non_throttling_client_error(self, mock_boto3_session, mock_aioboto3_session):
+        """A non-throttling ClientError is raised immediately without retrying."""
+        generator = AmazonBedrockChatGenerator(model="anthropic.claude-3-5-sonnet-20240620-v1:0")
+
+        mock_async_client = AsyncMock()
+        mock_async_client.converse = AsyncMock(side_effect=_make_client_error("ValidationException"))
+
+        mock_context = MagicMock()
+        mock_context.__aenter__ = AsyncMock(return_value=mock_async_client)
+        mock_context.__aexit__ = AsyncMock(return_value=None)
+        mock_aioboto3_session.return_value.client.return_value = mock_context
+
+        with patch("asyncio.sleep") as mock_sleep:
+            with pytest.raises(AmazonBedrockInferenceError):
+                await generator.run_async([ChatMessage.from_user("hi")])
+
+        mock_async_client.converse.assert_called_once()
+        mock_sleep.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_run_async_raises_after_max_retries_exhausted(self, mock_boto3_session, mock_aioboto3_session):
+        """After MAX_RETRIES throttling errors the error is propagated in async mode."""
+        from haystack_integrations.components.generators.amazon_bedrock.chat.chat_generator import MAX_RETRIES
+
+        generator = AmazonBedrockChatGenerator(model="anthropic.claude-3-5-sonnet-20240620-v1:0")
+
+        mock_async_client = AsyncMock()
+        mock_async_client.converse = AsyncMock(side_effect=_make_client_error("ThrottlingException"))
+
+        mock_context = MagicMock()
+        mock_context.__aenter__ = AsyncMock(return_value=mock_async_client)
+        mock_context.__aexit__ = AsyncMock(return_value=None)
+        mock_aioboto3_session.return_value.client.return_value = mock_context
+
+        with patch("asyncio.sleep"):
+            with pytest.raises(AmazonBedrockInferenceError):
+                await generator.run_async([ChatMessage.from_user("hi")])
+
+        assert mock_async_client.converse.call_count == MAX_RETRIES
