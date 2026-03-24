@@ -37,12 +37,13 @@ class JinaTextEmbedder:
         self,
         api_key: Secret = Secret.from_env_var("JINA_API_KEY"),  # noqa: B008
         model: str = "jina-embeddings-v3",
-        base_url: str = JINA_API_URL,
         prefix: str = "",
         suffix: str = "",
         task: str | None = None,
         dimensions: int | None = None,
         late_chunking: bool | None = None,
+        *,
+        base_url: str = JINA_API_URL,
     ) -> None:
         """
         Create a JinaTextEmbedder component.
@@ -51,7 +52,6 @@ class JinaTextEmbedder:
             environment variable `JINA_API_KEY` (recommended).
         :param model: The name of the Jina model to use.
             Check the list of available models on [Jina documentation](https://jina.ai/embeddings/).
-        :param base_url: The base URL of the Jina API.
         :param prefix: A string to add to the beginning of each text.
         :param suffix: A string to add to the end of each text.
         :param task: The downstream task for which the embeddings will be used.
@@ -62,6 +62,7 @@ class JinaTextEmbedder:
         :param late_chunking: A boolean to enable or disable late chunking.
             Apply the late chunking technique to leverage the model's long-context capabilities for
             generating contextual chunk embeddings.
+        :param base_url: The base URL of the Jina API.
 
             The support of `task` and `late_chunking` parameters is only available for jina-embeddings-v3.
         """

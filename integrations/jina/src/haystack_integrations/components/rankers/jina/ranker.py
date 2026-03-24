@@ -34,9 +34,10 @@ class JinaRanker:
         self,
         model: str = "jina-reranker-v1-base-en",
         api_key: Secret = Secret.from_env_var("JINA_API_KEY"),  # noqa: B008,
-        base_url: str = JINA_API_URL,
         top_k: int | None = None,
         score_threshold: float | None = None,
+        *,
+        base_url: str = JINA_API_URL,
     ) -> None:
         """
         Creates an instance of JinaRanker.
@@ -44,11 +45,11 @@ class JinaRanker:
         :param api_key: The Jina API key. It can be explicitly provided or automatically read from the
             environment variable JINA_API_KEY (recommended).
         :param model: The name of the Jina model to use. Check the list of available models on `https://jina.ai/reranker/`
-        :param base_url: The base URL of the Jina API.
         :param top_k:
             The maximum number of Documents to return per query. If `None`, all documents are returned
         :param score_threshold:
             If provided only returns documents with a score above this threshold.
+        :param base_url: The base URL of the Jina API.
 
         :raises ValueError:
             If `top_k` is not > 0.
