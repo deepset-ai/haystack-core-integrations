@@ -19,6 +19,7 @@ classifiers = [
   "Programming Language :: Python :: 3.11",
   "Programming Language :: Python :: 3.12",
   "Programming Language :: Python :: 3.13",
+  "Programming Language :: Python :: 3.14",
   "Programming Language :: Python :: Implementation :: CPython",
   "Programming Language :: Python :: Implementation :: PyPy",
 ]
@@ -27,8 +28,8 @@ dependencies = [
   "hanlp>=2.1.1",
   # the following pins can be removed once HanLP supports transformers 5
   "transformers>=4.1.1,<5",
-  # tokenizers is a dependency of transformers. The following version is the first one which supports Python 3.13.
-  "tokenizers>=0.20.2",
+  # tokenizers is a dependency of transformers. The following version is the first one which supports Python 3.14.
+  "tokenizers>=0.21.0",
 ]
 
 [project.urls]

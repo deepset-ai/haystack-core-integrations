@@ -19,11 +19,12 @@ classifiers = [
   "Programming Language :: Python :: 3.11",
   "Programming Language :: Python :: 3.12",
   "Programming Language :: Python :: 3.13",
+  "Programming Language :: Python :: 3.14",
   "Programming Language :: Python :: Implementation :: CPython",
   "Programming Language :: Python :: Implementation :: PyPy",
 ]
 dependencies = [
-  "astrapy>=1.5.0,<2.0",
+  "astrapy>=1.5.2,<2.0",
   "haystack-ai>=2.26.1",
   "pydantic",
   "typing_extensions",
