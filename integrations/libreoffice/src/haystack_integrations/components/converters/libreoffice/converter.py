@@ -5,16 +5,34 @@
 import os
 import shutil
 import subprocess
-import time
 from asyncio import create_subprocess_exec
 from collections.abc import Iterable
 from pathlib import Path
-from tempfile import NamedTemporaryFile, TemporaryDirectory
-from typing import Any, ClassVar, Literal, TypedDict
+from tempfile import TemporaryDirectory
+from typing import Any, ClassVar, Literal, TypedDict, get_args
 
 from haystack import component, default_from_dict, default_to_dict
 from haystack.dataclasses import ByteStream
 from typing_extensions import Self
+
+OUTPUT_FILE_TYPE = Literal[
+    "doc",
+    "docx",
+    "odt",
+    "rtf",
+    "txt",
+    "html",
+    "xlsx",
+    "xls",
+    "ods",
+    "csv",
+    "pptx",
+    "ppt",
+    "odp",
+    "epub",
+    "png",
+    "jpg",
+]
 
 
 class LibreOfficeFileConverterOutput(TypedDict):
@@ -92,25 +110,7 @@ class LibreOfficeFileConverter:
 
     def __init__(
         self,
-        output_file_type: Literal[
-            "doc",
-            "docx",
-            "odt",
-            "rtf",
-            "txt",
-            "html",
-            "xlsx",
-            "xls",
-            "ods",
-            "csv",
-            "pptx",
-            "ppt",
-            "odp",
-            "epub",
-            "png",
-            "jpg",
-        ]
-        | None = None,
+        output_file_type: OUTPUT_FILE_TYPE | None = None,
     ) -> None:
         """
         Check whether soffice is installed.
@@ -200,7 +200,14 @@ class LibreOfficeFileConverter:
         :raises ValueError: If `input_file_type` is not in :attr:`SUPPORTED_TYPES`, or if
             `output_file_type` is not a valid conversion target for the given `input_file_type`.
         """
-        # Cannot validate conversion types if input conversions is not known - i.e., source is `ByteStream`
+        # Validate specified output type is one of allow output file types
+        supported_output_types = get_args(OUTPUT_FILE_TYPE)
+        if output_file_type not in supported_output_types:
+            supported_types = ", ".join(supported_output_types)
+            msg = f"{output_file_type=} is not supported and must be one of type {supported_types}"
+            raise ValueError(msg)
+
+        # Cannot further validate conversion types if input conversions is not known - i.e., source is `ByteStream`
         if input_file_type is None:
             return
 
@@ -220,25 +227,7 @@ class LibreOfficeFileConverter:
     def run(
         self,
         sources: Iterable[str | Path | ByteStream],
-        output_file_type: Literal[
-            "doc",
-            "docx",
-            "odt",
-            "rtf",
-            "txt",
-            "html",
-            "xlsx",
-            "xls",
-            "ods",
-            "csv",
-            "pptx",
-            "ppt",
-            "odp",
-            "epub",
-            "png",
-            "jpg",
-        ]
-        | None = None,
+        output_file_type: OUTPUT_FILE_TYPE | None = None,
     ) -> LibreOfficeFileConverterOutput:
         """
         Convert office files to the specified output format using LibreOffice.
@@ -262,8 +251,8 @@ class LibreOfficeFileConverter:
             or if `output_file_type` is not a valid conversion target for it,
             or if `output_file_type` has not been provided anywhere.
         """
-        output_file_type = output_file_type or self.output_file_type
-        if output_file_type is None:
+        resolved_output_file_type = output_file_type or self.output_file_type
+        if resolved_output_file_type is None:
             msg = "output_file_type must be provided either during initialization or for this method"
             raise ValueError(msg)
 
@@ -272,30 +261,18 @@ class LibreOfficeFileConverter:
             for source in sources:
                 # Handle case where source is a `ByteStream` using tempfile
                 if isinstance(source, ByteStream):
-                    # `NamedTemporaryFile` behaves differently on windows and locks the file if `delete=True`
-                    # this workaround uses a try-finally block to make sure the file is deleted while adding a
-                    # retry mechanism as there if often a brief handle after the process finishes
-                    with NamedTemporaryFile(mode="wb", delete=False) as f:
-                        try:
-                            f.write(source.data)
+                    tmp_path = Path(tmpdir) / "input"
+                    tmp_path.write_bytes(source.data)
 
-                            self._validate_args(output_file_type)
-                            tmp_path = f.name
-                            output_path, args = self._get_conversion_args(tmp_path, tmpdir, output_file_type)
+                    self._validate_args(resolved_output_file_type)
+                    output_path, args = self._get_conversion_args(tmp_path, tmpdir, resolved_output_file_type)
 
-                            subprocess.run(args, check=True)  # noqa: S603
-                            outputs.append(ByteStream(data=output_path.read_bytes()))
-                        finally:
-                            for _ in range(10):
-                                try:
-                                    os.unlink(tmp_path)
-                                    break
-                                except PermissionError:
-                                    time.sleep(0.1)
-                        continue
+                    subprocess.run(args, check=True)  # noqa: S603 - ruff doesn't know the arguments have been validated
+                    outputs.append(ByteStream(data=output_path.read_bytes()))
+                    continue
 
-                self._validate_args(output_file_type, str(source).split(".")[-1])
-                output_path, args = self._get_conversion_args(source, tmpdir, output_file_type)
+                self._validate_args(resolved_output_file_type, str(source).split(".")[-1])
+                output_path, args = self._get_conversion_args(source, tmpdir, resolved_output_file_type)
 
                 subprocess.run(args, check=True)  # noqa: S603
                 outputs.append(ByteStream(data=output_path.read_bytes()))
@@ -306,25 +283,7 @@ class LibreOfficeFileConverter:
     async def run_async(
         self,
         sources: Iterable[str | Path | ByteStream],
-        output_file_type: Literal[
-            "doc",
-            "docx",
-            "odt",
-            "rtf",
-            "txt",
-            "html",
-            "xlsx",
-            "xls",
-            "ods",
-            "csv",
-            "pptx",
-            "ppt",
-            "odp",
-            "epub",
-            "png",
-            "jpg",
-        ]
-        | None = None,
+        output_file_type: OUTPUT_FILE_TYPE | None = None,
     ) -> LibreOfficeFileConverterOutput:
         """
         Asynchronously convert office files to the specified output format using LibreOffice.
@@ -350,42 +309,29 @@ class LibreOfficeFileConverter:
             or if `output_file_type` is not a valid conversion target for it,
             or if `output_file_type` has not been provided anywhere.
         """
-        output_file_type = output_file_type or self.output_file_type
-        if output_file_type is None:
+        resolved_output_file_type = output_file_type or self.output_file_type
+        if resolved_output_file_type is None:
             msg = "output_file_type must be provided either during initialization or for this method"
             raise ValueError(msg)
 
         outputs: list[ByteStream] = []
         with TemporaryDirectory() as tmpdir:
             for source in sources:
-                # Handle case where source is a `ByteStream` using tempfile
+                # Handle case where source is a `ByteStream`
                 if isinstance(source, ByteStream):
-                    # `NamedTemporaryFile` behaves differently on windows and locks the file if `delete=True`
-                    # this workaround uses a try-finally block to make sure the file is deleted while adding a
-                    # retry mechanism as there if often a brief handle after the process finishes
-                    with NamedTemporaryFile(mode="wb", delete=False) as f:
-                        try:
-                            f.write(source.data)
+                    tmp_path = Path(tmpdir) / "input"
+                    tmp_path.write_bytes(source.data)
 
-                            self._validate_args(output_file_type)
-                            tmp_path = f.name
-                            output_path, args = self._get_conversion_args(tmp_path, tmpdir, output_file_type)
+                    self._validate_args(resolved_output_file_type)
+                    output_path, args = self._get_conversion_args(tmp_path, tmpdir, resolved_output_file_type)
 
-                            process = await create_subprocess_exec(*args)
-                            # Wait for process to complete as only one instance of soffice can occur at once
-                            await process.wait()
-                            outputs.append(ByteStream(data=output_path.read_bytes()))
-                        finally:
-                            for _ in range(10):
-                                try:
-                                    os.unlink(tmp_path)
-                                    break
-                                except PermissionError:
-                                    time.sleep(0.1)
-                        continue
+                    process = await create_subprocess_exec(*args)
+                    # Wait for process to complete as only one instance of soffice can occur at once
+                    await process.wait()
+                    outputs.append(ByteStream(data=output_path.read_bytes()))
 
-                self._validate_args(output_file_type, str(source).split(".")[-1])
-                output_path, args = self._get_conversion_args(source, tmpdir, output_file_type)
+                self._validate_args(resolved_output_file_type, str(source).split(".")[-1])
+                output_path, args = self._get_conversion_args(source, tmpdir, resolved_output_file_type)
 
                 process = await create_subprocess_exec(*args)
                 # Wait for process to complete as only one instance of soffice can occur at once
