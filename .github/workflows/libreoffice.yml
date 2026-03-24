@@ -54,7 +54,7 @@ jobs:
 
       - name: Install LibreOffice headless (Ubuntu)
         if: runner.os == 'Linux'
-        run: sudo apt-get update && sudo apt-get install -y libreoffice-common libreoffice-writer libreoffice-calc
+        run: sudo apt-get update && sudo apt-get install -y libreoffice-common libreoffice-writer libreoffice-calc libreoffice-impress
 
       - name: Install LibreOffice headless (Windows)
         if: runner.os == 'Windows'
