@@ -54,8 +54,9 @@ def get_batches_from_generator(iterable: list, n: int) -> Generator:
 
 class QdrantDocumentStore:
     """
-    A QdrantDocumentStore implementation that you can use with any Qdrant instance: in-memory, disk-persisted,
-    Docker-based, and Qdrant Cloud Cluster deployments.
+    A QdrantDocumentStore implementation that you can use with any Qdrant instance.
+
+    Supports in-memory, disk-persisted, Docker-based, and Qdrant Cloud Cluster deployments.
 
     Usage example by creating an in-memory instance:
 
@@ -376,6 +377,7 @@ class QdrantDocumentStore:
     ) -> int:
         """
         Writes documents to Qdrant using the specified policy.
+
         The QdrantDocumentStore can handle duplicate documents based on the given policy.
         The available policies are:
         - `FAIL`: The operation will raise an error if any document already exists.
@@ -429,6 +431,7 @@ class QdrantDocumentStore:
     ) -> int:
         """
         Asynchronously writes documents to Qdrant using the specified policy.
+
         The QdrantDocumentStore can handle duplicate documents based on the given policy.
         The available policies are:
         - `FAIL`: The operation will raise an error if any document already exists.
@@ -1223,8 +1226,9 @@ class QdrantDocumentStore:
         self, filters: dict[str, Any], metadata_fields: list[str]
     ) -> dict[str, int]:
         """
-        Asynchronously returns the number of unique values for each specified metadata field among documents that
-        match the filters.
+        Asynchronously returns the number of unique values for each specified metadata field among documents.
+
+        Only documents that match the filters are considered.
 
         :param filters: The filters to restrict the documents considered.
             For filter syntax, see [Haystack metadata filtering](https://docs.haystack.deepset.ai/docs/metadata-filtering)
@@ -1926,8 +1930,9 @@ class QdrantDocumentStore:
         group_size: int | None = None,
     ) -> list[Document]:
         """
-        Asynchronously retrieves documents based on dense and sparse embeddings and fuses
-        the results using Reciprocal Rank Fusion.
+        Asynchronously retrieves documents based on dense and sparse embeddings.
+
+        Fuses the results using Reciprocal Rank Fusion.
 
         This method is not part of the public interface of `QdrantDocumentStore` and shouldn't be used directly.
         Use the `QdrantHybridRetriever` instead.
@@ -2292,8 +2297,9 @@ class QdrantDocumentStore:
         policy: DuplicatePolicy | None = None,
     ) -> list[Document]:
         """
-        Checks whether any of the passed documents is already existing in the chosen index and returns a list of
-        documents that are not in the index yet.
+        Checks whether any of the passed documents is already existing in the chosen index.
+
+        Returns a list of documents that are not in the index yet.
 
         :param documents: A list of Haystack Document objects.
         :param policy: The duplicate policy to use when writing documents.
@@ -2319,9 +2325,9 @@ class QdrantDocumentStore:
         policy: DuplicatePolicy | None = None,
     ) -> list[Document]:
         """
-        Asynchronously checks whether any of the passed documents is already existing
-        in the chosen index and returns a list of
-        documents that are not in the index yet.
+        Asynchronously checks whether any of the passed documents is already existing in the chosen index.
+
+        Returns a list of documents that are not in the index yet.
 
         :param documents: A list of Haystack Document objects.
         :param policy: The duplicate policy to use when writing documents.

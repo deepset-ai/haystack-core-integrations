@@ -41,6 +41,7 @@ def _get_aws_session(
 ) -> "boto3.Session":
     """
     Creates an AWS Session with the given parameters.
+
     Checks if the provided AWS credentials are valid and can be used to connect to AWS.
 
     :param aws_access_key_id: AWS access key ID.

@@ -11,8 +11,10 @@ from optimum.onnxruntime.configuration import AutoQuantizationConfig, Quantizati
 
 class OptimumEmbedderQuantizationMode(Enum):
     """
-    [Dynamic Quantization modes](https://huggingface.co/docs/optimum/onnxruntime/usage_guides/quantization)
-    support by the Optimum Embedders.
+    Dynamic Quantization modes supported by the Optimum Embedders.
+
+    See [Optimum ONNX quantization docs](https://huggingface.co/docs/optimum/onnxruntime/usage_guides/quantization)
+    for more details.
     """
 
     #: Quantization for the ARM64 architecture.
