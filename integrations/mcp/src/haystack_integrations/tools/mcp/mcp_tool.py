@@ -32,7 +32,7 @@ from haystack.utils.url_validation import is_valid_http_url
 from mcp import ClientSession, StdioServerParameters, types
 from mcp.client.sse import sse_client
 from mcp.client.stdio import stdio_client
-from mcp.client.streamable_http import streamable_http_client
+from mcp.client.streamable_http import streamablehttp_client
 from mcp.shared.message import SessionMessage
 
 logger = logging.getLogger(__name__)
@@ -292,7 +292,7 @@ class MCPClient(ABC):
 
                 # Only attempt reconnection for SSE/HTTP transports (if available)
                 if isinstance(self, SSEClient | StreamableHttpClient) and (
-                    sse_client is not None or streamable_http_client is not None
+                    sse_client is not None or streamablehttp_client is not None
                 ):
                     logger.warning(f"Connection lost during tool call '{tool_name}': {error_type}: {error_msg}")
 
@@ -546,7 +546,7 @@ class StreamableHttpClient(MCPClient):
         :returns: List of available tools on the server
         :raises MCPConnectionError: If connection to the server fails
         """
-        if streamable_http_client is None:
+        if streamablehttp_client is None:
             message = (
                 "Streamable HTTP client is not available. "
                 "This may require a newer version of the mcp package that includes mcp.client.streamable_http"
@@ -561,7 +561,7 @@ class StreamableHttpClient(MCPClient):
             headers = {"Authorization": f"Bearer {self.token}"}
 
         streamable_http_transport = await self.exit_stack.enter_async_context(
-            streamable_http_client(url=self.url, headers=headers, timeout=timedelta(seconds=self.timeout))
+            streamablehttp_client(url=self.url, headers=headers, timeout=timedelta(seconds=self.timeout))
         )
         return await self._initialize_session_with_transport(streamable_http_transport, f"HTTP server at {self.url}")
 
