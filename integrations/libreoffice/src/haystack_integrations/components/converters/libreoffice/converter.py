@@ -16,6 +16,7 @@ from haystack.dataclasses import ByteStream
 from typing_extensions import Self
 
 OUTPUT_FILE_TYPE = Literal[
+    "pdf",
     "doc",
     "docx",
     "odt",
