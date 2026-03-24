@@ -423,6 +423,10 @@ class ArcadeDBDocumentStore:
         except ValueError as e:
             raise FilterError(str(e)) from e
 
+        if not where:
+            msg = "delete_by_filter requires a non-empty filter. Use delete_all_documents() to delete all documents."
+            raise FilterError(msg)
+
         count_result = self._command(f"DELETE FROM `{self._type_name}` WHERE {where}")
 
         return count_result[0]["count"]
@@ -441,6 +445,10 @@ class ArcadeDBDocumentStore:
             where = _convert_filters(filters)
         except ValueError as e:
             raise FilterError(str(e)) from e
+
+        if not where:
+            msg = "update_by_filter requires a non-empty filter."
+            raise FilterError(msg)
 
         sql_set = ",".join(f"meta[{_sql_str(key)}] = {_map_literal_base(value)}" for key, value in meta.items())
         sql = f"UPDATE `{self._type_name}` SET {sql_set} WHERE {where}"
