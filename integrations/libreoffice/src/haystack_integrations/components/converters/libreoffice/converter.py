@@ -5,6 +5,7 @@
 import os
 import shutil
 import subprocess
+import time
 from asyncio import create_subprocess_exec
 from collections.abc import Iterable
 from pathlib import Path
@@ -271,14 +272,26 @@ class LibreOfficeFileConverter:
             for source in sources:
                 # Handle case where source is a `ByteStream` using tempfile
                 if isinstance(source, ByteStream):
-                    with NamedTemporaryFile(mode="wb") as f:
-                        f.write(source.data)
+                    # `NamedTemporaryFile` behaves differently on windows and locks the file if `delete=True`
+                    # this workaround uses a try-finally block to make sure the file is deleted while adding a
+                    # retry mechanism as there if often a brief handle after the process finishes
+                    with NamedTemporaryFile(mode="wb", delete=False) as f:
+                        try:
+                            f.write(source.data)
 
-                        self._validate_args(output_file_type)
-                        output_path, args = self._get_conversion_args(f.name, tmpdir, output_file_type)
+                            self._validate_args(output_file_type)
+                            tmp_path = f.name
+                            output_path, args = self._get_conversion_args(tmp_path, tmpdir, output_file_type)
 
-                        subprocess.run(args, check=True)  # noqa: S603
-                        outputs.append(ByteStream(data=output_path.read_bytes()))
+                            subprocess.run(args, check=True)  # noqa: S603
+                            outputs.append(ByteStream(data=output_path.read_bytes()))
+                        finally:
+                            for _ in range(10):
+                                try:
+                                    os.unlink(tmp_path)
+                                    break
+                                except PermissionError:
+                                    time.sleep(0.1)
                         continue
 
                 self._validate_args(output_file_type, str(source).split(".")[-1])
@@ -347,16 +360,28 @@ class LibreOfficeFileConverter:
             for source in sources:
                 # Handle case where source is a `ByteStream` using tempfile
                 if isinstance(source, ByteStream):
-                    with NamedTemporaryFile(mode="wb") as f:
-                        f.write(source.data)
+                    # `NamedTemporaryFile` behaves differently on windows and locks the file if `delete=True`
+                    # this workaround uses a try-finally block to make sure the file is deleted while adding a
+                    # retry mechanism as there if often a brief handle after the process finishes
+                    with NamedTemporaryFile(mode="wb", delete=False) as f:
+                        try:
+                            f.write(source.data)
 
-                        self._validate_args(output_file_type)
-                        output_path, args = self._get_conversion_args(f.name, tmpdir, output_file_type)
+                            self._validate_args(output_file_type)
+                            tmp_path = f.name
+                            output_path, args = self._get_conversion_args(tmp_path, tmpdir, output_file_type)
 
-                        process = await create_subprocess_exec(*args)
-                        # Wait for process to complete as only one instance of soffice can occur at once
-                        await process.wait()
-                        outputs.append(ByteStream(data=output_path.read_bytes()))
+                            process = await create_subprocess_exec(*args)
+                            # Wait for process to complete as only one instance of soffice can occur at once
+                            await process.wait()
+                            outputs.append(ByteStream(data=output_path.read_bytes()))
+                        finally:
+                            for _ in range(10):
+                                try:
+                                    os.unlink(tmp_path)
+                                    break
+                                except PermissionError:
+                                    time.sleep(0.1)
                         continue
 
                 self._validate_args(output_file_type, str(source).split(".")[-1])
