@@ -265,6 +265,12 @@ class ArcadeDBDocumentStore:
 
     @staticmethod
     def _infer_metadata_field_type(values: list[Any]) -> str:
+        """
+        Infers the metadata field type from a list of sampled values.
+        :param values: A list of raw Python values sampled from the field.
+        :returns: A type string — one of ``"boolean"``, ``"double"``, ``"long"``, or ``"keyword"``.
+            Returns ``"keyword"`` if values are empty or of mixed types.
+        """
         inferred_types = set()
         for value in values:
             if isinstance(value, list):
