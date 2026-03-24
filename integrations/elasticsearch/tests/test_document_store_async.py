@@ -184,6 +184,51 @@ class TestElasticsearchDocumentStoreAsync:
         await store.async_client.indices.delete(index="test_async_sparse")
 
     @pytest.mark.asyncio
+    async def test_write_documents_async_with_non_contiguous_sparse_indices(self):
+        store = ElasticsearchDocumentStore(
+            hosts=["http://localhost:9200"], index="test_async_sparse_noncontiguous", sparse_vector_field="sparse_vec"
+        )
+        await store.async_client.options(ignore_status=[400, 404]).indices.delete(
+            index="test_async_sparse_noncontiguous"
+        )
+
+        doc = Document(
+            id="1", content="test", sparse_embedding=SparseEmbedding(indices=[100, 5, 42], values=[0.1, 0.9, 0.5])
+        )
+        await store.write_documents_async([doc])
+
+        results = await store.filter_documents_async()
+        assert len(results) == 1
+        assert results[0].sparse_embedding is not None
+        assert results[0].sparse_embedding.indices == [5, 42, 100]
+        assert results[0].sparse_embedding.values == [0.9, 0.5, 0.1]
+
+        await store.async_client.indices.delete(index="test_async_sparse_noncontiguous")
+
+    @pytest.mark.asyncio
+    async def test_write_documents_async_mixed_sparse_and_non_sparse(self):
+        store = ElasticsearchDocumentStore(
+            hosts=["http://localhost:9200"], index="test_async_sparse_mixed", sparse_vector_field="sparse_vec"
+        )
+        await store.async_client.options(ignore_status=[400, 404]).indices.delete(index="test_async_sparse_mixed")
+
+        docs = [
+            Document(
+                id="1", content="with sparse", sparse_embedding=SparseEmbedding(indices=[0, 1], values=[0.5, 0.5])
+            ),
+            Document(id="2", content="without sparse"),
+        ]
+        await store.write_documents_async(docs)
+
+        results = sorted(await store.filter_documents_async(), key=lambda d: d.id)
+        assert len(results) == 2
+        assert results[0].sparse_embedding is not None
+        assert results[0].sparse_embedding.indices == [0, 1]
+        assert results[1].sparse_embedding is None
+
+        await store.async_client.indices.delete(index="test_async_sparse_mixed")
+
+    @pytest.mark.asyncio
     async def test_delete_all_documents_async(self, document_store):
         docs = [
             Document(id="1", content="First document", meta={"category": "test"}),

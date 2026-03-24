@@ -143,8 +143,8 @@ class ElasticsearchDocumentStore:
 
         if self._custom_mapping and self._sparse_vector_field:
             self._custom_mapping = copy.deepcopy(custom_mapping)  # original custom_mapping dict is left unchanged
-            self._custom_mapping.setdefault("properties", {})
-            self._custom_mapping["properties"][self._sparse_vector_field] = {"type": "sparse_vector"}
+            self._custom_mapping.setdefault("properties", {})  # type: ignore # can't be None here
+            self._custom_mapping["properties"][self._sparse_vector_field] = {"type": "sparse_vector"}  # type: ignore # can't be None here
 
         if not self._custom_mapping:
             self._default_mappings: dict[str, Any] = {
