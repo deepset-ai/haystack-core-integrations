@@ -1,5 +1,7 @@
 import json
+import random
 import re
+import time
 import warnings
 from collections.abc import Callable
 from typing import Any, ClassVar, Literal, get_args
@@ -28,6 +30,19 @@ from .adapters import (
 )
 
 logger = logging.getLogger(__name__)
+
+MAX_RETRIES = 8
+
+THROTTLING_CODES = frozenset(
+    {
+        "ThrottlingException",
+        "TooManyRequestsException",
+        "ServiceUnavailableException",
+        "ModelNotReadyException",
+        "RequestTooLargeException",  # Can cause back-pressure
+        "ModelStreamErrorException",  # Streaming-specific — add this
+    }
+)
 
 
 @component
@@ -213,35 +228,45 @@ class AmazonBedrockGenerator:
         generation_kwargs["stream"] = streaming_callback is not None
 
         body = self.model_adapter.prepare_body(prompt=prompt, **generation_kwargs)
-        try:
-            if streaming_callback:
-                response = self.client.invoke_model_with_response_stream(
-                    body=json.dumps(body),
-                    modelId=self.model,
-                    accept="application/json",
-                    contentType="application/json",
-                )
-                response_stream = response["body"]
-                replies = self.model_adapter.get_stream_responses(
-                    stream=response_stream, streaming_callback=streaming_callback
-                )
-            else:
-                response = self.client.invoke_model(
-                    body=json.dumps(body),
-                    modelId=self.model,
-                    accept="application/json",
-                    contentType="application/json",
-                )
-                response_body = json.loads(response.get("body").read().decode("utf-8"))
-                replies = self.model_adapter.get_responses(response_body=response_body)
 
-            metadata = response.get("ResponseMetadata", {})
+        for attempt in range(1, MAX_RETRIES + 1):
+            try:
+                if streaming_callback:
+                    response = self.client.invoke_model_with_response_stream(
+                        body=json.dumps(body),
+                        modelId=self.model,
+                        accept="application/json",
+                        contentType="application/json",
+                    )
+                    response_stream = response["body"]
+                    replies = self.model_adapter.get_stream_responses(
+                        stream=response_stream, streaming_callback=streaming_callback
+                    )
+                else:
+                    response = self.client.invoke_model(
+                        body=json.dumps(body),
+                        modelId=self.model,
+                        accept="application/json",
+                        contentType="application/json",
+                    )
+                    response_body = json.loads(response.get("body").read().decode("utf-8"))
+                    replies = self.model_adapter.get_responses(response_body=response_body)
 
-        except ClientError as exception:
-            msg = f"Could not perform inference for Amazon Bedrock model {self.model} due to:\n{exception}"
-            raise AmazonBedrockInferenceError(msg) from exception
+                metadata = response.get("ResponseMetadata", {})
 
-        return {"replies": replies, "meta": metadata}
+                return {"replies": replies, "meta": metadata}
+
+            except ClientError as exception:
+                code = exception.response["Error"]["Code"]
+                if code not in THROTTLING_CODES or attempt == MAX_RETRIES:
+                    msg = f"Could not perform inference for Amazon Bedrock model {self.model} due to:\n{exception}"
+                    raise AmazonBedrockInferenceError(msg) from exception
+
+                wait = min(2**attempt + (random.random() * 10), 60)  # noqa: S311 — jitter, not security-sensitive
+                logger.warning(
+                    f"Bedrock throttle [{code}] on attempt {attempt}/{MAX_RETRIES} — retrying in {wait:.1f}s",
+                )
+                time.sleep(wait)
 
     @classmethod
     def get_model_adapter(cls, model: str, model_family: str | None = None) -> type[BedrockModelAdapter]:

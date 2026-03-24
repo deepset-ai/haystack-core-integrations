@@ -1,3 +1,6 @@
+import asyncio
+import random
+import time
 from typing import Any
 
 import aioboto3
@@ -32,6 +35,20 @@ from haystack_integrations.components.generators.amazon_bedrock.chat.utils impor
 )
 
 logger = logging.getLogger(__name__)
+
+
+MAX_RETRIES = 8
+
+THROTTLING_CODES = frozenset(
+    {
+        "ThrottlingException",
+        "TooManyRequestsException",
+        "ServiceUnavailableException",
+        "ModelNotReadyException",
+        "RequestTooLargeException",  # Can cause back-pressure
+        "ModelStreamErrorException",  # Streaming-specific — add this
+    }
+)
 
 
 @component
@@ -513,28 +530,37 @@ class AmazonBedrockChatGenerator:
             requires_async=False,
         )
 
-        try:
-            if callback:
-                response = self.client.converse_stream(**params)
-                response_stream: EventStream = response.get("stream")
-                if not response_stream:
-                    msg = "No stream found in the response."
-                    raise AmazonBedrockInferenceError(msg)
-                # the type of streaming callback is checked in _prepare_request_params, but mypy doesn't know
-                replies = _parse_streaming_response(
-                    response_stream=response_stream,
-                    streaming_callback=callback,  # type: ignore[arg-type]
-                    model=self.model,
-                    component_info=component_info,
-                )
-            else:
-                response = self.client.converse(**params)
-                replies = _parse_completion_response(response, self.model)
-        except ClientError as exception:
-            msg = f"Could not perform inference for Amazon Bedrock model {self.model} due to:\n{exception}"
-            raise AmazonBedrockInferenceError(msg) from exception
+        for attempt in range(1, MAX_RETRIES + 1):
+            try:
+                if callback:
+                    response = self.client.converse_stream(**params)
+                    response_stream: EventStream = response.get("stream")
+                    if not response_stream:
+                        msg = "No stream found in the response."
+                        raise AmazonBedrockInferenceError(msg)
+                    # the type of streaming callback is checked in _prepare_request_params, but mypy doesn't know
+                    replies = _parse_streaming_response(
+                        response_stream=response_stream,
+                        streaming_callback=callback,  # type: ignore[arg-type]
+                        model=self.model,
+                        component_info=component_info,
+                    )
+                else:
+                    response = self.client.converse(**params)
+                    replies = _parse_completion_response(response, self.model)
 
-        return {"replies": replies}
+                return {"replies": replies}
+            except ClientError as exception:
+                code = exception.response["Error"]["Code"]
+                if code not in THROTTLING_CODES or attempt == MAX_RETRIES:
+                    msg = f"Could not perform inference for Amazon Bedrock model {self.model} due to:\n{exception}"
+                    raise AmazonBedrockInferenceError(msg) from exception
+
+                wait = min(2**attempt + (random.random() * 10), 60)  # noqa: S311 — jitter, not security-sensitive
+                logger.warning(
+                    f"Bedrock throttle [{code}] on attempt {attempt}/{MAX_RETRIES} — retrying in {wait:.1f}s",
+                )
+                time.sleep(wait)
 
     @component.output_types(replies=list[ChatMessage])
     async def run_async(
@@ -574,33 +600,42 @@ class AmazonBedrockChatGenerator:
             requires_async=True,
         )
 
-        try:
-            session = self._get_async_session()
-            # Note: https://aioboto3.readthedocs.io/en/latest/usage.html
-            # we need to create a new client for each request
-            config = Config(
-                user_agent_extra="x-client-framework:haystack", **(self.boto3_config if self.boto3_config else {})
-            )
-            async with session.client("bedrock-runtime", config=config) as async_client:
-                if callback:
-                    response = await async_client.converse_stream(**params)
-                    response_stream: EventStream = response.get("stream")
-                    if not response_stream:
-                        msg = "No stream found in the response."
-                        raise AmazonBedrockInferenceError(msg)
-                    # the type of streaming callback is checked in _prepare_request_params, but mypy doesn't know
-                    replies = await _parse_streaming_response_async(
-                        response_stream=response_stream,
-                        streaming_callback=callback,  # type: ignore[arg-type]
-                        model=self.model,
-                        component_info=component_info,
-                    )
-                else:
-                    response = await async_client.converse(**params)
-                    replies = _parse_completion_response(response, self.model)
+        for attempt in range(1, MAX_RETRIES + 1):
+            try:
+                session = self._get_async_session()
+                # Note: https://aioboto3.readthedocs.io/en/latest/usage.html
+                # we need to create a new client for each request
+                config = Config(
+                    user_agent_extra="x-client-framework:haystack", **(self.boto3_config if self.boto3_config else {})
+                )
+                async with session.client("bedrock-runtime", config=config) as async_client:
+                    if callback:
+                        response = await async_client.converse_stream(**params)
+                        response_stream: EventStream = response.get("stream")
+                        if not response_stream:
+                            msg = "No stream found in the response."
+                            raise AmazonBedrockInferenceError(msg)
+                        # the type of streaming callback is checked in _prepare_request_params, but mypy doesn't know
+                        replies = await _parse_streaming_response_async(
+                            response_stream=response_stream,
+                            streaming_callback=callback,  # type: ignore[arg-type]
+                            model=self.model,
+                            component_info=component_info,
+                        )
+                    else:
+                        response = await async_client.converse(**params)
+                        replies = _parse_completion_response(response, self.model)
 
-        except ClientError as exception:
-            msg = f"Could not perform inference for Amazon Bedrock model {self.model} due to:\n{exception}"
-            raise AmazonBedrockInferenceError(msg) from exception
+                    return {"replies": replies}
 
-        return {"replies": replies}
+            except ClientError as exception:
+                code = exception.response["Error"]["Code"]
+                if code not in THROTTLING_CODES or attempt == MAX_RETRIES:
+                    msg = f"Could not perform inference for Amazon Bedrock model {self.model} due to:\n{exception}"
+                    raise AmazonBedrockInferenceError(msg) from exception
+
+                wait = min(2**attempt + (random.random() * 10), 60)  # noqa: S311 — jitter, not security-sensitive
+                logger.warning(
+                    f"Bedrock throttle [{code}] on attempt {attempt}/{MAX_RETRIES} — retrying in {wait:.1f}s",
+                )
+                await asyncio.sleep(wait)
