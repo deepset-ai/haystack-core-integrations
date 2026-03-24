@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/amazon_bedrock-v6.7.0] - 2026-03-24
+
+### 🚀 Features
+
+- Add configurable environment variable names to `S3FileDownloader` init params (#3015)
+
+
 ## [integrations/amazon_bedrock-v6.6.0] - 2026-03-23
 
 ### 🚀 Features
