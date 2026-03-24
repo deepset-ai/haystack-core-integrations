@@ -1515,7 +1515,7 @@ class OpenSearchDocumentStore:
         search_kwargs: dict[str, Any] | None = None,
     ) -> list[Document]:
         """
-        Asynchronously retrieve documents most similar to the query embedding using a vector similarity metric.
+        Asynchronously retrieves documents most similar to the query embedding using a vector similarity metric.
 
         It uses the OpenSearch's Approximate k-Nearest Neighbors search algorithm.
 

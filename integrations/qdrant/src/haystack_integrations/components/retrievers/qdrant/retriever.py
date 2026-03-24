@@ -482,7 +482,7 @@ class QdrantSparseEmbeddingRetriever:
 @component
 class QdrantHybridRetriever:
     """
-    A component for retrieving documents from an QdrantDocumentStore using both dense and sparse vectors.
+    A component for retrieving documents from a QdrantDocumentStore using both dense and sparse vectors.
 
     Fuses the results using Reciprocal Rank Fusion.
 
