@@ -13,6 +13,7 @@ from haystack.tools import Tool, Toolset, create_tool_from_function
 
 from haystack_integrations.common.amazon_bedrock.errors import AmazonBedrockInferenceError
 from haystack_integrations.components.generators.amazon_bedrock import AmazonBedrockChatGenerator
+from haystack_integrations.components.generators.amazon_bedrock.chat.chat_generator import MAX_RETRIES
 
 CLASS_TYPE = "haystack_integrations.components.generators.amazon_bedrock.chat.chat_generator.AmazonBedrockChatGenerator"
 MODELS_TO_TEST = [
@@ -1267,8 +1268,6 @@ class TestAmazonBedrockChatGeneratorRetry:
 
     def test_run_raises_after_max_retries_exhausted(self, mock_boto3_session, set_env_variables):
         """After MAX_RETRIES throttling errors the error is propagated."""
-        from haystack_integrations.components.generators.amazon_bedrock.chat.chat_generator import MAX_RETRIES
-
         generator = AmazonBedrockChatGenerator(model="anthropic.claude-3-5-sonnet-20240620-v1:0")
         mock_client = mock_boto3_session.return_value.client.return_value
         mock_client.converse.side_effect = _make_client_error("ThrottlingException")
@@ -1351,8 +1350,6 @@ class TestAmazonBedrockChatGeneratorAsyncRetry:
     @pytest.mark.asyncio
     async def test_run_async_raises_after_max_retries_exhausted(self, mock_boto3_session, mock_aioboto3_session):
         """After MAX_RETRIES throttling errors the error is propagated in async mode."""
-        from haystack_integrations.components.generators.amazon_bedrock.chat.chat_generator import MAX_RETRIES
-
         generator = AmazonBedrockChatGenerator(model="anthropic.claude-3-5-sonnet-20240620-v1:0")
 
         mock_async_client = AsyncMock()

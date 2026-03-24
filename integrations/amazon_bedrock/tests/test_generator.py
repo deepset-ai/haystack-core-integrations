@@ -20,6 +20,7 @@ from haystack_integrations.components.generators.amazon_bedrock.adapters import 
     MetaLlamaAdapter,
     MistralAdapter,
 )
+from haystack_integrations.components.generators.amazon_bedrock.generator import MAX_RETRIES
 
 
 @pytest.mark.parametrize("boto3_config", [None, {"read_timeout": 1000}])
@@ -1822,8 +1823,6 @@ class TestAmazonBedrockGeneratorRetry:
 
     def test_run_raises_after_max_retries_exhausted(self, mock_boto3_session):
         """After MAX_RETRIES throttling errors the error is propagated."""
-        from haystack_integrations.components.generators.amazon_bedrock.generator import MAX_RETRIES
-
         generator = AmazonBedrockGenerator(model="anthropic.claude-v2")
         mock_client = mock_boto3_session.return_value.client.return_value
         mock_client.invoke_model.side_effect = _make_client_error("ThrottlingException")
