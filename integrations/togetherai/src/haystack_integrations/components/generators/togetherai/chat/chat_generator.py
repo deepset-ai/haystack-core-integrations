@@ -75,8 +75,6 @@ class TogetherAIChatGenerator(OpenAIChatGenerator):
         """
         Creates an instance of TogetherAIChatGenerator.
 
-        Unless specified otherwise, the default model is `meta-llama/Llama-3.3-70B-Instruct-Turbo`.
-
         :param api_key:
             The Together API key.
         :param model:
