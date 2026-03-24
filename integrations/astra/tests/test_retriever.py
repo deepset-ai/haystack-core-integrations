@@ -142,3 +142,34 @@ async def test_run_async(*_):
         call_args = ds.search.call_args[0]
         assert call_args[0] == [0.1] * 768
         assert call_args[1] == 5
+        assert ds.search.call_args.kwargs["filters"] == {}
+
+
+@patch.dict(
+    "os.environ",
+    {"ASTRA_DB_APPLICATION_TOKEN": "fake-token", "ASTRA_DB_API_ENDPOINT": "http://fake-url.apps.astra.datastax.com"},
+)
+@patch("haystack_integrations.document_stores.astra.document_store.AstraClient")
+@pytest.mark.asyncio
+async def test_run_async_filters_replace(*_):
+    ds = AstraDocumentStore()
+    mock_doc = Document(content="test", id="1")
+    with patch.object(ds, "search", return_value=[mock_doc]):
+        retriever = AstraEmbeddingRetriever(ds, top_k=5, filters={"lang": "en"}, filter_policy=FilterPolicy.REPLACE)
+        await retriever.run_async(query_embedding=[0.1] * 768, filters={"year": 2024})
+        assert ds.search.call_args.kwargs["filters"] == {"year": 2024}
+
+
+@patch.dict(
+    "os.environ",
+    {"ASTRA_DB_APPLICATION_TOKEN": "fake-token", "ASTRA_DB_API_ENDPOINT": "http://fake-url.apps.astra.datastax.com"},
+)
+@patch("haystack_integrations.document_stores.astra.document_store.AstraClient")
+@pytest.mark.asyncio
+async def test_run_async_filters_merge(*_):
+    ds = AstraDocumentStore()
+    mock_doc = Document(content="test", id="1")
+    with patch.object(ds, "search", return_value=[mock_doc]):
+        retriever = AstraEmbeddingRetriever(ds, top_k=5, filters={"lang": "en"}, filter_policy=FilterPolicy.MERGE)
+        await retriever.run_async(query_embedding=[0.1] * 768, filters={"year": 2024})
+        assert ds.search.call_args.kwargs["filters"] == {"lang": "en", "year": 2024}

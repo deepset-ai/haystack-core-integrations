@@ -159,4 +159,5 @@ exclude_lines = ["no cov", "if __name__ == .__main__.:", "if TYPE_CHECKING:"]
 
 [tool.pytest.ini_options]
 minversion = "6.0"
+asyncio_mode = "auto"
 markers = ["integration: integration tests"]
