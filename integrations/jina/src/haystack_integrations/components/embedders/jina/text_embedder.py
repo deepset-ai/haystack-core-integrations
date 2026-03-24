@@ -42,6 +42,8 @@ class JinaTextEmbedder:
         task: str | None = None,
         dimensions: int | None = None,
         late_chunking: bool | None = None,
+        *,
+        base_url: str = JINA_API_URL,
     ) -> None:
         """
         Create a JinaTextEmbedder component.
@@ -60,6 +62,7 @@ class JinaTextEmbedder:
         :param late_chunking: A boolean to enable or disable late chunking.
             Apply the late chunking technique to leverage the model's long-context capabilities for
             generating contextual chunk embeddings.
+        :param base_url: The base URL of the Jina API.
 
             The support of `task` and `late_chunking` parameters is only available for jina-embeddings-v3.
         """
@@ -68,6 +71,7 @@ class JinaTextEmbedder:
 
         self.api_key = api_key
         self.model_name = model
+        self.base_url = base_url
         self.prefix = prefix
         self.suffix = suffix
         self._session = requests.Session()
@@ -98,6 +102,7 @@ class JinaTextEmbedder:
         kwargs: dict[str, Any] = {
             "api_key": self.api_key.to_dict(),
             "model": self.model_name,
+            "base_url": self.base_url,
             "prefix": self.prefix,
             "suffix": self.suffix,
         }
@@ -152,7 +157,7 @@ class JinaTextEmbedder:
             parameters["late_chunking"] = self.late_chunking
 
         resp = self._session.post(
-            JINA_API_URL,
+            self.base_url,
             json={"input": [text_to_embed], "model": self.model_name, **parameters},
         ).json()
 

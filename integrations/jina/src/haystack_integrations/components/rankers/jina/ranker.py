@@ -36,6 +36,8 @@ class JinaRanker:
         api_key: Secret = Secret.from_env_var("JINA_API_KEY"),  # noqa: B008,
         top_k: int | None = None,
         score_threshold: float | None = None,
+        *,
+        base_url: str = JINA_API_URL,
     ) -> None:
         """
         Creates an instance of JinaRanker.
@@ -47,6 +49,7 @@ class JinaRanker:
             The maximum number of Documents to return per query. If `None`, all documents are returned
         :param score_threshold:
             If provided only returns documents with a score above this threshold.
+        :param base_url: The base URL of the Jina API.
 
         :raises ValueError:
             If `top_k` is not > 0.
@@ -57,6 +60,7 @@ class JinaRanker:
         self.model = model
         self.top_k = top_k
         self.score_threshold = score_threshold
+        self.base_url = base_url
 
         if self.top_k is not None and self.top_k <= 0:
             msg = f"top_k must be > 0, but got {top_k}"
@@ -82,6 +86,7 @@ class JinaRanker:
             self,
             api_key=self.api_key.to_dict(),
             model=self.model,
+            base_url=self.base_url,
             top_k=self.top_k,
             score_threshold=self.score_threshold,
         )
@@ -149,7 +154,7 @@ class JinaRanker:
         }
 
         resp = self._session.post(
-            JINA_API_URL,
+            self.base_url,
             json=data,
         ).json()
 

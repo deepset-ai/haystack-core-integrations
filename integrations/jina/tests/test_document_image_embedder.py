@@ -20,6 +20,7 @@ class TestJinaDocumentImageEmbedder:
         monkeypatch.setenv("JINA_API_KEY", "fake-api-key")
         embedder = JinaDocumentImageEmbedder()
         assert embedder.model_name == "jina-clip-v2"
+        assert embedder.base_url == "https://api.jina.ai/v1/embeddings"
         assert embedder.file_path_meta_field == "file_path"
         assert embedder.root_path == ""
         assert embedder.embedding_dimension is None
@@ -31,6 +32,7 @@ class TestJinaDocumentImageEmbedder:
         embedder = JinaDocumentImageEmbedder(
             api_key=Secret.from_token("fake-api-token"),
             model="jina-embeddings-v4",
+            base_url="https://my.custom.url/v1/embeddings",
             file_path_meta_field="custom_file_path",
             root_path="/custom/root",
             embedding_dimension=256,
@@ -38,6 +40,7 @@ class TestJinaDocumentImageEmbedder:
             batch_size=5,
         )
         assert embedder.model_name == "jina-embeddings-v4"
+        assert embedder.base_url == "https://my.custom.url/v1/embeddings"
         assert embedder.file_path_meta_field == "custom_file_path"
         assert embedder.root_path == "/custom/root"
         assert embedder.embedding_dimension == 256
@@ -50,6 +53,7 @@ class TestJinaDocumentImageEmbedder:
         component = JinaDocumentImageEmbedder(
             api_key=Secret.from_env_var("JINA_API_KEY"),
             model="jina-clip-v2",
+            base_url="https://api.jina.ai/v1/embeddings",
             file_path_meta_field="image_path",
             root_path="/images",
             embedding_dimension=512,
@@ -62,6 +66,7 @@ class TestJinaDocumentImageEmbedder:
             "init_parameters": {
                 "api_key": {"env_vars": ["JINA_API_KEY"], "strict": True, "type": "env_var"},
                 "model": "jina-clip-v2",
+                "base_url": "https://api.jina.ai/v1/embeddings",
                 "file_path_meta_field": "image_path",
                 "root_path": "/images",
                 "embedding_dimension": 512,
@@ -78,6 +83,7 @@ class TestJinaDocumentImageEmbedder:
             "init_parameters": {
                 "api_key": {"env_vars": ["JINA_API_KEY"], "strict": True, "type": "env_var"},
                 "model": "jina-clip-v2",
+                "base_url": "https://api.jina.ai/v1/embeddings",
                 "file_path_meta_field": "image_path",
                 "root_path": "/images",
                 "embedding_dimension": 512,
@@ -87,6 +93,7 @@ class TestJinaDocumentImageEmbedder:
         }
         component = JinaDocumentImageEmbedder.from_dict(data)
         assert component.model_name == "jina-clip-v2"
+        assert component.base_url == "https://api.jina.ai/v1/embeddings"
         assert component.file_path_meta_field == "image_path"
         assert component.root_path == "/images"
         assert component.embedding_dimension == 512
