@@ -2,11 +2,10 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 import copy
+
 # ruff: noqa: FBT002, FBT001    boolean-type-hint-positional-argument and boolean-default-value-positional-argument
 # ruff: noqa: B008              function-call-in-default-argument
 # ruff: noqa: S101              disable checks for uses of the assert keyword
-
-
 from collections.abc import Mapping
 from typing import Any, Literal
 
@@ -424,7 +423,7 @@ class ElasticsearchDocumentStore:
         """
         Creates a `Document` from the search hit provided.
 
-        This is mostly useful in self.filter_documents().
+        This is mostly useful in self.filter_documents() and self.filter_documents_async().
 
         :param hit: A search hit from Elasticsearch.
         :returns: `Document` created from the search hit.
