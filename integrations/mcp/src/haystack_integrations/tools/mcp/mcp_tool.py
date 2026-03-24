@@ -560,10 +560,10 @@ class StreamableHttpClient(MCPClient):
         elif self.token:
             headers = {"Authorization": f"Bearer {self.token}"}
 
-        streamable_http_transport = await self.exit_stack.enter_async_context(
+        streamablehttp_transport = await self.exit_stack.enter_async_context(
             streamablehttp_client(url=self.url, headers=headers, timeout=timedelta(seconds=self.timeout))
         )
-        return await self._initialize_session_with_transport(streamable_http_transport, f"HTTP server at {self.url}")
+        return await self._initialize_session_with_transport(streamablehttp_transport, f"HTTP server at {self.url}")
 
 
 @dataclass
