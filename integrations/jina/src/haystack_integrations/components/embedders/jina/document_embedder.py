@@ -16,6 +16,7 @@ JINA_API_URL: str = "https://api.jina.ai/v1/embeddings"
 class JinaDocumentEmbedder:
     """
     A component for computing Document embeddings using Jina AI models.
+
     The embedding of each Document is stored in the `embedding` field of the Document.
 
     Usage example:
@@ -49,7 +50,7 @@ class JinaDocumentEmbedder:
         task: str | None = None,
         dimensions: int | None = None,
         late_chunking: bool | None = None,
-    ):
+    ) -> None:
         """
         Create a JinaDocumentEmbedder component.
 
@@ -105,6 +106,7 @@ class JinaDocumentEmbedder:
     def to_dict(self) -> dict[str, Any]:
         """
         Serializes the component to a dictionary.
+
         :returns:
             Dictionary with serialized data.
         """
@@ -132,6 +134,7 @@ class JinaDocumentEmbedder:
     def from_dict(cls, data: dict[str, Any]) -> "JinaDocumentEmbedder":
         """
         Deserializes the component from a dictionary.
+
         :param data:
             Dictionary to deserialize from.
         :returns:

@@ -48,7 +48,7 @@ class GitHubRepoForker:
         poll_interval: int = 2,
         auto_sync: bool = True,
         create_branch: bool = True,
-    ):
+    ) -> None:
         """
         Initialize the component.
 

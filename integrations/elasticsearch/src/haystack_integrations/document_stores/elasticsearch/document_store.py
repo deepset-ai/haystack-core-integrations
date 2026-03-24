@@ -17,6 +17,7 @@ from haystack.dataclasses import Document
 from haystack.document_stores.errors import DocumentStoreError, DuplicateDocumentError
 from haystack.document_stores.types import DuplicatePolicy
 from haystack.utils import Secret
+from haystack.utils.misc import _normalize_metadata_field_name
 from haystack.version import __version__ as haystack_version
 
 from elasticsearch import AsyncElasticsearch, Elasticsearch, helpers
@@ -49,8 +50,7 @@ SPECIAL_FIELDS = {"content", "embedding", "id", "score", "sparse_embedding", "bl
 
 class ElasticsearchDocumentStore:
     """
-    An ElasticsearchDocumentStore instance that works with Elastic Cloud or your own
-    Elasticsearch cluster.
+    An ElasticsearchDocumentStore instance that works with Elastic Cloud or your own Elasticsearch cluster.
 
     Usage example (Elastic Cloud):
     ```python
@@ -87,7 +87,7 @@ class ElasticsearchDocumentStore:
         embedding_similarity_function: Literal["cosine", "dot_product", "l2_norm", "max_inner_product"] = "cosine",
         sparse_vector_field: str | None = None,
         **kwargs: Any,
-    ):
+    ) -> None:
         """
         Creates a new ElasticsearchDocumentStore instance.
 
@@ -171,7 +171,7 @@ class ElasticsearchDocumentStore:
             if self._sparse_vector_field:
                 self._default_mappings["properties"][self._sparse_vector_field] = {"type": "sparse_vector"}
 
-    def _ensure_initialized(self):
+    def _ensure_initialized(self) -> None:
         """
         Ensures both sync and async clients are initialized and the index exists.
         """
@@ -324,6 +324,7 @@ class ElasticsearchDocumentStore:
     async def count_documents_async(self) -> int:
         """
         Asynchronously returns how many documents are present in the document store.
+
         :returns: Number of documents in the document store.
         """
         self._ensure_initialized()
@@ -421,7 +422,9 @@ class ElasticsearchDocumentStore:
     def _deserialize_document(self, hit: dict[str, Any]) -> Document:
         """
         Creates a `Document` from the search hit provided.
+
         This is mostly useful in self.filter_documents().
+
         :param hit: A search hit from Elasticsearch.
         :returns: `Document` created from the search hit.
         """
@@ -1109,13 +1112,6 @@ class ElasticsearchDocumentStore:
         return result["count"]
 
     @staticmethod
-    def _normalize_metadata_field_name(metadata_field: str) -> str:
-        """
-        Normalizes a metadata field name by removing the "meta." prefix if present.
-        """
-        return metadata_field[5:] if metadata_field.startswith("meta.") else metadata_field
-
-    @staticmethod
     def _build_cardinality_aggregations(index_mapping: dict[str, Any], fields: list[str]) -> dict[str, Any]:
         """
         Builds cardinality aggregations for specified metadata fields in the index mapping.
@@ -1173,8 +1169,7 @@ class ElasticsearchDocumentStore:
 
     def count_unique_metadata_by_filter(self, filters: dict[str, Any], metadata_fields: list[str]) -> dict[str, int]:
         """
-        Returns the number of unique values for each specified metadata field of the documents
-        that match the provided filters.
+        Returns the number of unique values for each specified metadata field that match the provided filters.
 
         :param filters: The filters to apply to count documents.
             For filter syntax, see [Haystack metadata filtering](https://docs.haystack.deepset.ai/docs/metadata-filtering)
@@ -1191,7 +1186,7 @@ class ElasticsearchDocumentStore:
         index_mapping = mapping[self._index]["mappings"]["properties"]
 
         # normalize field names, e.g: remove "meta." prefix if present
-        normalized_metadata_fields = [self._normalize_metadata_field_name(field) for field in metadata_fields]
+        normalized_metadata_fields = [_normalize_metadata_field_name(field) for field in metadata_fields]
 
         # validate that all requested fields exist in the index mapping
         missing_fields = [f for f in normalized_metadata_fields if f not in index_mapping]
@@ -1217,8 +1212,7 @@ class ElasticsearchDocumentStore:
         self, filters: dict[str, Any], metadata_fields: list[str]
     ) -> dict[str, int]:
         """
-        Asynchronously returns the number of unique values for each specified metadata field of the documents
-        that match the provided filters.
+        Asynchronously returns unique value counts for each specified metadata field matching the provided filters.
 
         :param filters: The filters to apply to count documents.
             For filter syntax, see [Haystack metadata filtering](https://docs.haystack.deepset.ai/docs/metadata-filtering)
@@ -1235,7 +1229,7 @@ class ElasticsearchDocumentStore:
         index_mapping = mapping[self._index]["mappings"]["properties"]
 
         # normalize field names
-        normalized_metadata_fields = [self._normalize_metadata_field_name(field) for field in metadata_fields]
+        normalized_metadata_fields = [_normalize_metadata_field_name(field) for field in metadata_fields]
         # validate that all requested fields exist in the index mapping
         missing_fields = [f for f in normalized_metadata_fields if f not in index_mapping]
         if missing_fields:
@@ -1356,7 +1350,7 @@ class ElasticsearchDocumentStore:
         """
         self._ensure_initialized()
 
-        field_name = self._normalize_metadata_field_name(metadata_field)
+        field_name = _normalize_metadata_field_name(metadata_field)
         body = self._build_min_max_query_body(field_name)
         result = self.client.search(index=self._index, body=body)
         stats = result.get("aggregations", {}).get("field_stats", {})
@@ -1373,7 +1367,7 @@ class ElasticsearchDocumentStore:
         """
         self._ensure_initialized()
 
-        field_name = self._normalize_metadata_field_name(metadata_field)
+        field_name = _normalize_metadata_field_name(metadata_field)
         body = self._build_min_max_query_body(field_name)
         result = await self.async_client.search(index=self._index, body=body)
         stats = result.get("aggregations", {}).get("field_stats", {})
@@ -1389,6 +1383,7 @@ class ElasticsearchDocumentStore:
     ) -> tuple[list[str], dict[str, Any] | None]:
         """
         Returns unique values for a metadata field, optionally filtered by a search term in the content.
+
         Uses composite aggregations for proper pagination beyond 10k results.
 
         See: https://www.elastic.co/docs/reference/aggregations/search-aggregations-bucket-composite-aggregation
@@ -1404,7 +1399,7 @@ class ElasticsearchDocumentStore:
         """
         self._ensure_initialized()
 
-        field_name = self._normalize_metadata_field_name(metadata_field)
+        field_name = _normalize_metadata_field_name(metadata_field)
 
         # filter by search_term if provided
         query: dict[str, Any] = {"match_all": {}}
@@ -1455,6 +1450,7 @@ class ElasticsearchDocumentStore:
     ) -> tuple[list[str], dict[str, Any] | None]:
         """
         Asynchronously returns unique values for a metadata field, optionally filtered by a search term in the content.
+
         Uses composite aggregations for proper pagination beyond 10k results.
 
         See: https://www.elastic.co/docs/reference/aggregations/search-aggregations-bucket-composite-aggregation
@@ -1470,7 +1466,7 @@ class ElasticsearchDocumentStore:
         """
         self._ensure_initialized()
 
-        field_name = self._normalize_metadata_field_name(metadata_field)
+        field_name = _normalize_metadata_field_name(metadata_field)
 
         # filter by search_term if provided
         query: dict[str, Any] = {"match_all": {}}

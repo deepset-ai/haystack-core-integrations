@@ -53,7 +53,7 @@ class ElasticsearchEmbeddingRetriever:
         top_k: int = 10,
         num_candidates: int | None = None,
         filter_policy: str | FilterPolicy = FilterPolicy.REPLACE,
-    ):
+    ) -> None:
         """
         Create the ElasticsearchEmbeddingRetriever component.
 

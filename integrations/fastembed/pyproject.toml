@@ -79,9 +79,17 @@ line-length = 120
 [tool.ruff.lint]
 select = [
   "A",
+  "ANN",
   "ARG",
   "B",
   "C",
+  "D102",   # Missing docstring in public method
+  "D103",   # Missing docstring in public function
+  "D205",   # 1 blank line required between summary line and description
+  "D209",   # Closing triple quotes go to new line
+  "D213",   # summary lines must be positioned on the second physical line of the docstring
+  "D417",   # Missing argument descriptions in the docstring
+  "D419",   # Docstring is empty
   "DTZ",
   "E",
   "EM",
@@ -115,6 +123,8 @@ ignore = [
   "S105",
   "S106",
   "S107",
+  # Allow `Any` - used legitimately for dynamic types and SDK boundaries
+  "ANN401",
   # Ignore complexity
   "C901",
   "PLR0911",
@@ -131,7 +141,7 @@ ban-relative-imports = "parents"
 
 [tool.ruff.lint.per-file-ignores]
 # Tests can use magic values, assertions, and relative imports
-"tests/**/*" = ["PLR2004", "S101", "TID252"]
+"tests/**/*" = ["D", "PLR2004", "S101", "TID252", "ANN"]
 # examples can contain "print" commands
 "examples/**/*" = ["T201", "E501"]
 

@@ -1,5 +1,25 @@
 # Changelog
 
+## [integrations/qdrant-v10.3.0] - 2026-03-23
+
+### 📚 Documentation
+
+- Simplify pydoc configs (#2855)
+
+### 🧪 Testing
+
+- Replacing each `DocumentStore` specific tests and used the generalised ones from `haystack.testing.document_store` (#2812)
+- Test compatible integrations with python 3.14; update pyproject (#3001)
+
+### 🧹 Chores
+
+- Standardize author mentions (#2897)
+- Add ANN ruff ruleset to optimum, paddleocr, pgvector, pinecone, pyversity, qdrant, ragas, snowflake (#2992)
+
+### 🌀 Miscellaneous
+
+- !test: `QdrantDocumentStore` use Mixin tests +  updated signature `get_metadata_fields_info(self) -> dict[str, dict[str, str]]`: (#3004)
+
 ## [integrations/qdrant-v10.2.1] - 2026-02-02
 
 ### 📚 Documentation

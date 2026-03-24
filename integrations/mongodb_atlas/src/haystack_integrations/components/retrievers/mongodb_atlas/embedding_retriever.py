@@ -48,7 +48,7 @@ class MongoDBAtlasEmbeddingRetriever:
         filters: dict[str, Any] | None = None,
         top_k: int = 10,
         filter_policy: str | FilterPolicy = FilterPolicy.REPLACE,
-    ):
+    ) -> None:
         """
         Create the MongoDBAtlasDocumentStore component.
 
@@ -142,8 +142,7 @@ class MongoDBAtlasEmbeddingRetriever:
         top_k: int | None = None,
     ) -> dict[str, list[Document]]:
         """
-        Asynchronously retrieve documents from the MongoDBAtlasDocumentStore, based on the provided embedding
-        similarity.
+        Asynchronously retrieve documents from MongoDBAtlasDocumentStore based on embedding similarity.
 
         :param query_embedding: Embedding of the query.
         :param filters: Filters applied to the retrieved Documents. The way runtime filters are applied depends on

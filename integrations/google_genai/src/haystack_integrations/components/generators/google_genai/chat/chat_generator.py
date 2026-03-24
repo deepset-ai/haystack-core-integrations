@@ -203,7 +203,7 @@ class GoogleGenAIChatGenerator:
         tools: ToolsType | None = None,
         timeout: float | None = None,
         max_retries: int | None = None,
-    ):
+    ) -> None:
         """
         Initialize a GoogleGenAIChatGenerator instance.
 
@@ -315,6 +315,7 @@ class GoogleGenAIChatGenerator:
     ) -> dict[str, list[ChatMessage]]:
         """
         Handle streaming response from Google Gen AI generate_content_stream.
+
         :param response_stream: The streaming response from generate_content_stream.
         :param streaming_callback: The callback function for streaming chunks.
         :returns: A dictionary with the replies.
@@ -346,6 +347,7 @@ class GoogleGenAIChatGenerator:
     ) -> dict[str, list[ChatMessage]]:
         """
         Handle async streaming response from Google Gen AI generate_content_stream.
+
         :param response_stream: The async streaming response from generate_content_stream.
         :param streaming_callback: The async callback function for streaming chunks.
         :returns: A dictionary with the replies.

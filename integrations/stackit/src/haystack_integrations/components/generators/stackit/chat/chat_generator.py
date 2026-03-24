@@ -62,7 +62,7 @@ class STACKITChatGenerator(OpenAIChatGenerator):
         timeout: float | None = None,
         max_retries: int | None = None,
         http_client_kwargs: dict[str, Any] | None = None,
-    ):
+    ) -> None:
         """
         Creates an instance of STACKITChatGenerator class.
 

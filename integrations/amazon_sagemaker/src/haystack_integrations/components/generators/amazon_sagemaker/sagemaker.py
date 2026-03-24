@@ -58,7 +58,7 @@ class SagemakerGenerator:
         aws_profile_name: Secret | None = Secret.from_env_var(["AWS_PROFILE"], strict=False),  # noqa: B008
         aws_custom_attributes: dict[str, Any] | None = None,
         generation_kwargs: dict[str, Any] | None = None,
-    ):
+    ) -> None:
         """
         Instantiates the session with SageMaker.
 

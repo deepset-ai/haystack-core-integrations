@@ -26,7 +26,7 @@ class WeaviateHybridRetriever:
         alpha: float = 0.7,
         max_vector_distance: float | None = None,
         filter_policy: str | FilterPolicy = FilterPolicy.REPLACE,
-    ):
+    ) -> None:
         """
         Creates a new instance of WeaviateHybridRetriever.
 
