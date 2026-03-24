@@ -61,6 +61,8 @@ jobs:
         run: | 
           choco install libreoffice -y
           echo "C:\Program Files\LibreOffice\program" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+          Start-Process "C:\Program Files\LibreOffice\program\soffice.exe" -ArgumentList "--headless --norestore --nofirststartwizard" -Wait -PassThru
+
 
       - name: Install LibreOffice headless (macOS)
         if: runner.os == 'macOS'
