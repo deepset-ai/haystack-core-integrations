@@ -329,6 +329,7 @@ class LibreOfficeFileConverter:
                     # Wait for process to complete as only one instance of soffice can occur at once
                     await process.wait()
                     outputs.append(ByteStream(data=output_path.read_bytes()))
+                    continue
 
                 self._validate_args(resolved_output_file_type, str(source).split(".")[-1])
                 output_path, args = self._get_conversion_args(source, tmpdir, resolved_output_file_type)
