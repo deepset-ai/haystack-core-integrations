@@ -90,7 +90,8 @@ class AstraEmbeddingRetriever:
         filters: dict[str, Any] | None = None,
         top_k: int | None = None,
     ) -> dict[str, list[Document]]:
-        """Retrieve documents from the AstraDocumentStore asynchronously.
+        """
+        Retrieve documents from the AstraDocumentStore asynchronously.
 
         Runs the sync search in a thread pool to avoid blocking the event loop.
 
@@ -106,7 +107,7 @@ class AstraEmbeddingRetriever:
         top_k = top_k or self.top_k
 
         documents = await asyncio.to_thread(
-            self.document_store.search, query_embedding, top_k, filters
+            self.document_store.search, query_embedding, top_k, filters=filters
         )
         return {"documents": documents}
 
