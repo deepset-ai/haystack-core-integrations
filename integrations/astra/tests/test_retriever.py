@@ -169,7 +169,12 @@ async def test_run_async_filters_replace(*_):
 async def test_run_async_filters_merge(*_):
     ds = AstraDocumentStore()
     mock_doc = Document(content="test", id="1")
+    init_filters = {"field": "lang", "operator": "==", "value": "en"}
+    runtime_filters = {"field": "year", "operator": "==", "value": 2024}
     with patch.object(ds, "search", return_value=[mock_doc]):
-        retriever = AstraEmbeddingRetriever(ds, top_k=5, filters={"lang": "en"}, filter_policy=FilterPolicy.MERGE)
-        await retriever.run_async(query_embedding=[0.1] * 768, filters={"year": 2024})
-        assert ds.search.call_args.kwargs["filters"] == {"lang": "en", "year": 2024}
+        retriever = AstraEmbeddingRetriever(ds, top_k=5, filters=init_filters, filter_policy=FilterPolicy.MERGE)
+        await retriever.run_async(query_embedding=[0.1] * 768, filters=runtime_filters)
+        merged = ds.search.call_args.kwargs["filters"]
+        assert merged["operator"] == "AND"
+        assert init_filters in merged["conditions"]
+        assert runtime_filters in merged["conditions"]
