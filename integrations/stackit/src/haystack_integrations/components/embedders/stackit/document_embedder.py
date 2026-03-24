@@ -12,6 +12,7 @@ from haystack.utils.auth import Secret
 class STACKITDocumentEmbedder(OpenAIDocumentEmbedder):
     """
     A component for computing Document embeddings using STACKIT as model provider.
+
     The embedding of each Document is stored in the `embedding` field of the Document.
 
     Usage example:
@@ -110,6 +111,7 @@ class STACKITDocumentEmbedder(OpenAIDocumentEmbedder):
     def to_dict(self) -> dict[str, Any]:
         """
         Serializes the component to a dictionary.
+
         :returns:
             Dictionary with serialized data.
         """
