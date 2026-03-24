@@ -9,6 +9,7 @@ from haystack.errors import FilterError
 def _normalize_filters(filters: dict[str, Any]) -> dict[str, Any]:
     """
     Converts Haystack filters in Pinecone compatible filters.
+
     Reference: https://docs.pinecone.io/docs/metadata-filtering
     """
     if not isinstance(filters, dict):

@@ -559,6 +559,7 @@ class OpenSearchDocumentStore:
     def _deserialize_document(hit: dict[str, Any]) -> Document:
         """
         Creates a Document from the search hit provided.
+
         This is mostly useful in self.filter_documents().
         """
         data = hit["_source"]
@@ -1482,6 +1483,7 @@ class OpenSearchDocumentStore:
     ) -> list[Document]:
         """
         Retrieves documents that are most similar to the query embedding using a vector similarity metric.
+
         It uses the OpenSearch's Approximate k-Nearest Neighbors search algorithm.
 
         This method is not meant to be part of the public interface of
@@ -1513,8 +1515,9 @@ class OpenSearchDocumentStore:
         search_kwargs: dict[str, Any] | None = None,
     ) -> list[Document]:
         """
-        Asynchronously retrieves documents that are most similar to the query embedding using a vector similarity
-        metric. It uses the OpenSearch's Approximate k-Nearest Neighbors search algorithm.
+        Asynchronously retrieves documents most similar to the query embedding using a vector similarity metric.
+
+        It uses the OpenSearch's Approximate k-Nearest Neighbors search algorithm.
 
         This method is not meant to be part of the public interface of
         `OpenSearchDocumentStore` nor called directly.
@@ -1641,8 +1644,7 @@ class OpenSearchDocumentStore:
 
     def count_unique_metadata_by_filter(self, filters: dict[str, Any], metadata_fields: list[str]) -> dict[str, int]:
         """
-        Returns the number of unique values for each specified metadata field of the documents
-        that match the provided filters.
+        Returns the number of unique values for each specified metadata field of the documents that match the filters.
 
         :param filters: The filters to apply to count documents.
             For filter syntax, see [Haystack metadata filtering](https://docs.haystack.deepset.ai/docs/metadata-filtering)
@@ -1685,8 +1687,7 @@ class OpenSearchDocumentStore:
         self, filters: dict[str, Any], metadata_fields: list[str]
     ) -> dict[str, int]:
         """
-        Asynchronously returns the number of unique values for each specified metadata field of the documents
-        that match the provided filters.
+        Asynchronously returns the number of unique values for each specified metadata field matching the filters.
 
         :param filters: The filters to apply to count documents.
             For filter syntax, see [Haystack metadata filtering](https://docs.haystack.deepset.ai/docs/metadata-filtering)
@@ -1862,6 +1863,7 @@ class OpenSearchDocumentStore:
     ) -> tuple[list[str], dict[str, Any] | None]:
         """
         Returns unique values for a metadata field, optionally filtered by a search term in the content.
+
         Uses composite aggregations for proper pagination beyond 10k results.
 
         :param metadata_field: The metadata field to get unique values for.
@@ -1927,6 +1929,7 @@ class OpenSearchDocumentStore:
     ) -> tuple[list[str], dict[str, Any] | None]:
         """
         Asynchronously returns unique values for a metadata field, optionally filtered by a search term in the content.
+
         Uses composite aggregations for proper pagination beyond 10k results.
 
         :param metadata_field: The metadata field to get unique values for.

@@ -91,6 +91,7 @@ class ValkeyEmbeddingRetriever:
     def to_dict(self) -> dict[str, Any]:
         """
         Serializes the component to a dictionary.
+
         :returns:
             Dictionary with serialized data.
         """
@@ -106,6 +107,7 @@ class ValkeyEmbeddingRetriever:
     def from_dict(cls, data: dict[str, Any]) -> "ValkeyEmbeddingRetriever":
         """
         Deserializes the component from a dictionary.
+
         :param data:
             Dictionary to deserialize from.
         :returns:

@@ -1,5 +1,7 @@
+import io
 import json
 import os
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from haystack.components.agents import Agent
@@ -13,6 +15,7 @@ from haystack_integrations.tools.mcp import (
     MCPTool,
     StdioServerInfo,
 )
+from haystack_integrations.tools.mcp.mcp_tool import StdioClient
 
 from .mcp_memory_transport import InMemoryServerInfo
 from .mcp_servers_fixtures import calculator_mcp, echo_mcp
@@ -196,6 +199,42 @@ class TestMCPTool:
         assert new_tool._outputs_to_string == {"source": "result"}
         assert new_tool._inputs_from_state == {"state_a": "a"}
         assert new_tool._outputs_to_state == {"result": {"source": "output"}}
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "fileno_side_effect,fileno_return_value,notebook_environment",
+        [
+            (io.UnsupportedOperation("fileno"), None, True),
+            (None, 2, False),
+        ],
+    )
+    async def test_stdio_client_stderr_handling(self, fileno_side_effect, fileno_return_value, notebook_environment):
+        """Test that StdioClient uses sys.stderr in terminals and falls back to a file in notebooks."""
+        client = StdioClient(command="echo", args=["hello"])
+
+        mock_stderr = MagicMock()
+        mock_stderr.fileno.side_effect = fileno_side_effect
+        mock_stderr.fileno.return_value = fileno_return_value
+
+        with (
+            patch.object(client, "exit_stack") as mock_stack,
+            patch("haystack_integrations.tools.mcp.mcp_tool.stdio_client") as mock_stdio_client,
+            patch("haystack_integrations.tools.mcp.mcp_tool.sys") as mock_sys,
+            patch.object(client, "_initialize_session_with_transport", new_callable=AsyncMock) as mock_init,
+        ):
+            mock_sys.stderr = mock_stderr
+            mock_stack.enter_async_context = AsyncMock(return_value=(MagicMock(), MagicMock()))
+            mock_init.return_value = []
+
+            await client.connect()
+
+            _, kwargs = mock_stdio_client.call_args
+            errlog = kwargs["errlog"]
+            if notebook_environment:
+                assert errlog is not mock_stderr
+                assert hasattr(errlog, "write")
+            else:
+                assert errlog is mock_stderr
 
     @pytest.mark.skipif("OPENAI_API_KEY" not in os.environ, reason="OPENAI_API_KEY not set")
     @pytest.mark.integration
