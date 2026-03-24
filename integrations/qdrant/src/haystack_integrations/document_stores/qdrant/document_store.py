@@ -10,6 +10,7 @@ from haystack.dataclasses.sparse_embedding import SparseEmbedding
 from haystack.document_stores.errors import DocumentStoreError, DuplicateDocumentError
 from haystack.document_stores.types import DuplicatePolicy
 from haystack.utils import Secret, deserialize_secrets_inplace
+from haystack.utils.misc import _normalize_metadata_field_name
 from numpy import exp
 from qdrant_client.http import models as rest
 from qdrant_client.http.exceptions import UnexpectedResponse
@@ -53,8 +54,9 @@ def get_batches_from_generator(iterable: list, n: int) -> Generator:
 
 class QdrantDocumentStore:
     """
-    A QdrantDocumentStore implementation that you can use with any Qdrant instance: in-memory, disk-persisted,
-    Docker-based, and Qdrant Cloud Cluster deployments.
+    A QdrantDocumentStore implementation that you can use with any Qdrant instance.
+
+    Supports in-memory, disk-persisted, Docker-based, and Qdrant Cloud Cluster deployments.
 
     Usage example by creating an in-memory instance:
 
@@ -375,6 +377,7 @@ class QdrantDocumentStore:
     ) -> int:
         """
         Writes documents to Qdrant using the specified policy.
+
         The QdrantDocumentStore can handle duplicate documents based on the given policy.
         The available policies are:
         - `FAIL`: The operation will raise an error if any document already exists.
@@ -428,6 +431,7 @@ class QdrantDocumentStore:
     ) -> int:
         """
         Asynchronously writes documents to Qdrant using the specified policy.
+
         The QdrantDocumentStore can handle duplicate documents based on the given policy.
         The available policies are:
         - `FAIL`: The operation will raise an error if any document already exists.
@@ -603,14 +607,59 @@ class QdrantDocumentStore:
         )
 
     @staticmethod
-    def _metadata_fields_info_from_schema(payload_schema: dict[str, Any]) -> dict[str, str]:
-        """Build field name -> type dict from Qdrant payload_schema. Used by get_metadata_fields_info (sync/async)."""
-        fields_info: dict[str, str] = {}
+    def _infer_type_from_value(value: Any) -> str:
+        """
+        Infers the type from a metadata value for get_metadata_fields_info.
+
+        Returns types matching OpenSearch format for consistency:
+        - 'keyword' for strings
+        - 'long' for integers
+        - 'float' for floats
+        - 'boolean' for booleans
+        """
+        if isinstance(value, bool):
+            return "boolean"
+        elif isinstance(value, int):
+            return "long"
+        elif isinstance(value, float):
+            return "float"
+        elif isinstance(value, str):
+            return "keyword"
+        else:
+            return "keyword"
+
+    @staticmethod
+    def _process_records_fields_info(records: list[Any], field_info: dict[str, dict[str, str]]) -> None:
+        """
+        Update field_info from a batch of Qdrant records.
+
+        Used by get_metadata_fields_info (sync/async). Extracts metadata from
+        payload["meta"] and infers types for each field.
+        """
+        for record in records:
+            if record.payload and "meta" in record.payload:
+                meta = record.payload["meta"]
+                for field_name, value in meta.items():
+                    if value is not None and field_name not in field_info:
+                        field_info[field_name] = {"type": QdrantDocumentStore._infer_type_from_value(value)}
+
+    @staticmethod
+    def _metadata_fields_info_from_schema(payload_schema: dict[str, Any]) -> dict[str, dict[str, str]]:
+        """
+        Build field name -> {type: ...} dict from Qdrant payload_schema.
+
+        Used when payload_schema has indexed metadata fields (e.g. meta.category).
+        Returns empty dict when schema has no metadata field info.
+        """
+        fields_info: dict[str, dict[str, str]] = {}
         for field_name, field_config in payload_schema.items():
-            if hasattr(field_config, "data_type"):
-                fields_info[field_name] = str(field_config.data_type)
-            else:
-                fields_info[field_name] = "unknown"
+            if field_name.startswith("meta."):
+                meta_field = field_name[5:]
+                if hasattr(field_config, "data_type"):
+                    qdrant_type = str(field_config.data_type).lower()
+                    fields_info[meta_field] = {"type": qdrant_type}
+                else:
+                    fields_info[meta_field] = {"type": "unknown"}
         return fields_info
 
     @staticmethod
@@ -978,14 +1027,18 @@ class QdrantDocumentStore:
             logger.warning(f"Error {e} when calling QdrantDocumentStore.count_documents_by_filter_async()")
             return 0
 
-    def get_metadata_fields_info(self) -> dict[str, str]:
+    def get_metadata_fields_info(self) -> dict[str, dict[str, str]]:
         """
-        Returns the information about the fields from the collection.
+        Returns the information about the metadata fields in the collection.
+
+        Since Qdrant may not have a payload schema for unindexed metadata,
+        this method scrolls through documents to infer field types from
+        payload["meta"].
 
         :returns:
-            A dictionary mapping field names to their types e.g.:
+            A dictionary mapping field names to their type information e.g.:
             ```python
-            {"field_name": "integer"}
+            {"category": {"type": "keyword"}, "priority": {"type": "long"}}
             ```
         """
         self._initialize_client()
@@ -994,19 +1047,40 @@ class QdrantDocumentStore:
         try:
             collection_info = self._client.get_collection(self.index)
             payload_schema = collection_info.payload_schema or {}
-            return self._metadata_fields_info_from_schema(payload_schema)
+            fields_info = self._metadata_fields_info_from_schema(payload_schema)
+
+            if not fields_info:
+                next_offset = None
+                while True:
+                    records, next_offset = self._client.scroll(
+                        collection_name=self.index,
+                        scroll_filter=None,
+                        limit=self.scroll_size,
+                        offset=next_offset,
+                        with_payload=True,
+                        with_vectors=False,
+                    )
+                    self._process_records_fields_info(records, fields_info)
+                    if self._check_stop_scrolling(next_offset):
+                        break
+
+            return fields_info
         except (UnexpectedResponse, ValueError) as e:
             logger.warning(f"Error {e} when calling QdrantDocumentStore.get_metadata_fields_info()")
             return {}
 
-    async def get_metadata_fields_info_async(self) -> dict[str, str]:
+    async def get_metadata_fields_info_async(self) -> dict[str, dict[str, str]]:
         """
-        Asynchronously returns the information about the fields from the collection.
+        Asynchronously returns the information about the metadata fields in the collection.
+
+        Since Qdrant may not have a payload schema for unindexed metadata,
+        this method scrolls through documents to infer field types from
+        payload["meta"].
 
         :returns:
-            A dictionary mapping field names to their types e.g.:
+            A dictionary mapping field names to their type information e.g.:
             ```python
-            {"field_name": "integer"}
+            {"category": {"type": "keyword"}, "priority": {"type": "long"}}
             ```
         """
         await self._initialize_async_client()
@@ -1015,7 +1089,24 @@ class QdrantDocumentStore:
         try:
             collection_info = await self._async_client.get_collection(self.index)
             payload_schema = collection_info.payload_schema or {}
-            return self._metadata_fields_info_from_schema(payload_schema)
+            fields_info = self._metadata_fields_info_from_schema(payload_schema)
+
+            if not fields_info:
+                next_offset = None
+                while True:
+                    records, next_offset = await self._async_client.scroll(
+                        collection_name=self.index,
+                        scroll_filter=None,
+                        limit=self.scroll_size,
+                        offset=next_offset,
+                        with_payload=True,
+                        with_vectors=False,
+                    )
+                    self._process_records_fields_info(records, fields_info)
+                    if self._check_stop_scrolling(next_offset):
+                        break
+
+            return fields_info
         except (UnexpectedResponse, ValueError) as e:
             logger.warning(f"Error {e} when calling QdrantDocumentStore.get_metadata_fields_info_async()")
             return {}
@@ -1027,11 +1118,13 @@ class QdrantDocumentStore:
         :param metadata_field: The metadata field key (inside ``meta``) to get the minimum and maximum values for.
 
         :returns: A dictionary with the keys "min" and "max", where each value is the minimum or maximum value of the
-                  metadata field across all documents. Returns an empty dict if no documents have the field.
+                  metadata field across all documents. Returns ``{"min": None, "max": None}`` if no documents have
+                  the field.
         """
         self._initialize_client()
         assert self._client is not None
 
+        field_name = _normalize_metadata_field_name(metadata_field)
         try:
             min_value: Any = None
             max_value: Any = None
@@ -1046,13 +1139,11 @@ class QdrantDocumentStore:
                     with_payload=True,
                     with_vectors=False,
                 )
-                min_value, max_value = self._process_records_min_max(records, metadata_field, min_value, max_value)
+                min_value, max_value = self._process_records_min_max(records, field_name, min_value, max_value)
                 if self._check_stop_scrolling(next_offset):
                     break
 
-            if min_value is not None and max_value is not None:
-                return {"min": min_value, "max": max_value}
-            return {}
+            return {"min": min_value, "max": max_value}
         except Exception as e:
             logger.warning(f"Error {e} when calling QdrantDocumentStore.get_metadata_field_min_max()")
             return {}
@@ -1064,11 +1155,13 @@ class QdrantDocumentStore:
         :param metadata_field: The metadata field key (inside ``meta``) to get the minimum and maximum values for.
 
         :returns: A dictionary with the keys "min" and "max", where each value is the minimum or maximum value of the
-                  metadata field across all documents. Returns an empty dict if no documents have the field.
+                  metadata field across all documents. Returns ``{"min": None, "max": None}`` if no documents have
+                  the field.
         """
         await self._initialize_async_client()
         assert self._async_client is not None
 
+        field_name = _normalize_metadata_field_name(metadata_field)
         try:
             min_value: Any = None
             max_value: Any = None
@@ -1083,13 +1176,11 @@ class QdrantDocumentStore:
                     with_payload=True,
                     with_vectors=False,
                 )
-                min_value, max_value = self._process_records_min_max(records, metadata_field, min_value, max_value)
+                min_value, max_value = self._process_records_min_max(records, field_name, min_value, max_value)
                 if self._check_stop_scrolling(next_offset):
                     break
 
-            if min_value is not None and max_value is not None:
-                return {"min": min_value, "max": max_value}
-            return {}
+            return {"min": min_value, "max": max_value}
         except Exception as e:
             logger.warning(f"Error {e} when calling QdrantDocumentStore.get_metadata_field_min_max_async()")
             return {}
@@ -1135,8 +1226,9 @@ class QdrantDocumentStore:
         self, filters: dict[str, Any], metadata_fields: list[str]
     ) -> dict[str, int]:
         """
-        Asynchronously returns the number of unique values for each specified metadata field among documents that
-        match the filters.
+        Asynchronously returns the number of unique values for each specified metadata field among documents.
+
+        Only documents that match the filters are considered.
 
         :param filters: The filters to restrict the documents considered.
             For filter syntax, see [Haystack metadata filtering](https://docs.haystack.deepset.ai/docs/metadata-filtering)
@@ -1838,8 +1930,9 @@ class QdrantDocumentStore:
         group_size: int | None = None,
     ) -> list[Document]:
         """
-        Asynchronously retrieves documents based on dense and sparse embeddings and fuses
-        the results using Reciprocal Rank Fusion.
+        Asynchronously retrieves documents based on dense and sparse embeddings.
+
+        Fuses the results using Reciprocal Rank Fusion.
 
         This method is not part of the public interface of `QdrantDocumentStore` and shouldn't be used directly.
         Use the `QdrantHybridRetriever` instead.
@@ -2204,8 +2297,9 @@ class QdrantDocumentStore:
         policy: DuplicatePolicy | None = None,
     ) -> list[Document]:
         """
-        Checks whether any of the passed documents is already existing in the chosen index and returns a list of
-        documents that are not in the index yet.
+        Checks whether any of the passed documents is already existing in the chosen index.
+
+        Returns a list of documents that are not in the index yet.
 
         :param documents: A list of Haystack Document objects.
         :param policy: The duplicate policy to use when writing documents.
@@ -2231,9 +2325,9 @@ class QdrantDocumentStore:
         policy: DuplicatePolicy | None = None,
     ) -> list[Document]:
         """
-        Asynchronously checks whether any of the passed documents is already existing
-        in the chosen index and returns a list of
-        documents that are not in the index yet.
+        Asynchronously checks whether any of the passed documents is already existing in the chosen index.
+
+        Returns a list of documents that are not in the index yet.
 
         :param documents: A list of Haystack Document objects.
         :param policy: The duplicate policy to use when writing documents.

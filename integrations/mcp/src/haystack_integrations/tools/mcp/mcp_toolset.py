@@ -113,8 +113,7 @@ def _deserialize_state_config(config: dict[str, dict[str, Any]] | None) -> dict[
 
 class MCPToolset(Toolset):
     """
-    A Toolset that connects to an MCP (Model Context Protocol) server and provides
-    access to its tools.
+    A Toolset that connects to an MCP (Model Context Protocol) server and provides access to its tools.
 
     MCPToolset dynamically discovers and loads all tools from any MCP-compliant server,
     supporting both network-based streaming connections (Streamable HTTP, SSE) and local
@@ -289,7 +288,8 @@ class MCPToolset(Toolset):
             self._warmup_called = True
 
     def warm_up(self) -> None:
-        """Connect and load tools when eager_connect is turned off.
+        """
+        Connect and load tools when eager_connect is turned off.
 
         This method is automatically called by ``ToolInvoker.warm_up()`` and ``Pipeline.warm_up()``.
         You can also call it directly before using the toolset to ensure all tool schemas

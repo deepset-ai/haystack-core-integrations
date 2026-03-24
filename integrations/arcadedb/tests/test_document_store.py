@@ -9,7 +9,15 @@ import pytest
 from haystack import Document
 from haystack.document_stores.errors import DuplicateDocumentError
 from haystack.document_stores.types import DuplicatePolicy
-from haystack.testing.document_store import DocumentStoreBaseExtendedTests
+from haystack.testing.document_store import (
+    CountDocumentsByFilterTest,
+    CountUniqueMetadataByFilterTest,
+    DocumentStoreBaseExtendedTests,
+    FilterableDocsFixtureMixin,
+    GetMetadataFieldMinMaxTest,
+    GetMetadataFieldsInfoTest,
+    GetMetadataFieldUniqueValuesTest,
+)
 
 from haystack_integrations.document_stores.arcadedb import ArcadeDBDocumentStore
 
@@ -48,7 +56,15 @@ class TestSerialization:
     reason="Set ARCADEDB_PASSWORD (e.g. via repo secret in CI) to run integration tests.",
 )
 @pytest.mark.integration
-class TestArcadeDBDocumentStore(DocumentStoreBaseExtendedTests):
+class TestArcadeDBDocumentStore(
+    CountDocumentsByFilterTest,
+    CountUniqueMetadataByFilterTest,
+    DocumentStoreBaseExtendedTests,
+    FilterableDocsFixtureMixin,
+    GetMetadataFieldMinMaxTest,
+    GetMetadataFieldsInfoTest,
+    GetMetadataFieldUniqueValuesTest,
+):
     """
     Run Haystack DocumentStore mixin tests against ArcadeDBDocumentStore.
 
@@ -73,15 +89,16 @@ class TestArcadeDBDocumentStore(DocumentStoreBaseExtendedTests):
         received = sorted(received, key=lambda x: x.id)
         expected = sorted(expected, key=lambda x: x.id)
         for received_doc, expected_doc in zip(received, expected, strict=True):
-            received_doc.score = None
+            actual = dataclasses.replace(received_doc, score=None)
             if expected_doc.embedding is None:
-                received_doc.embedding = None
-            elif received_doc.embedding is None:
+                actual = dataclasses.replace(actual, embedding=None)
+            elif actual.embedding is None:
                 assert expected_doc.embedding is None
             else:
-                assert received_doc.embedding == pytest.approx(expected_doc.embedding)
-            received_doc.embedding, expected_doc.embedding = None, None
-            assert received_doc == expected_doc
+                assert actual.embedding == pytest.approx(expected_doc.embedding)
+            actual = dataclasses.replace(actual, embedding=None)
+            expected_clean = dataclasses.replace(expected_doc, embedding=None)
+            assert actual == expected_clean
 
     def test_write_documents(self, document_store: ArcadeDBDocumentStore):
         """Override mixin: test default write_documents and duplicate fail behaviour."""
@@ -122,3 +139,74 @@ class TestArcadeDBDocumentStore(DocumentStoreBaseExtendedTests):
         )
         assert len(results) <= 3
         assert results[0].score is not None
+
+    def test_count_documents_by_empty_filter(self, document_store: ArcadeDBDocumentStore):
+        """Counts all documents when an empty filter is provided."""
+        docs = [
+            Document(id="1", content="Doc 1", meta={"category": "news"}),
+        ]
+        document_store.write_documents(docs)
+
+        count = document_store.count_documents_by_filter({})
+
+        assert count == 1
+
+    def test_count_unique_metadata_by_filter_empty_fields(self, document_store: ArcadeDBDocumentStore):
+        """Returns an empty dict when no metadata fields are requested."""
+        docs = [
+            Document(id="1", content="Doc 1", meta={"category": "news"}),
+        ]
+        document_store.write_documents(docs)
+
+        counts = document_store.count_unique_metadata_by_filter(
+            {"field": "meta.status", "operator": "==", "value": "news"},
+            [],
+        )
+
+        assert counts == {}
+
+    def test_get_metadata_field_min_max_nonexistent_field(self, document_store: ArcadeDBDocumentStore):
+        """Returns None for both min and max when the field does not exist."""
+        docs = [Document(id="1", content="Doc 1", meta={"category": "news"})]
+        document_store.write_documents(docs)
+
+        result = document_store.get_metadata_field_min_max("nonexistent")
+
+        assert result == {"min": None, "max": None}
+
+    def test_get_metadata_field_unique_values_pagination(self, document_store: ArcadeDBDocumentStore):
+        """Respects size limit while total reflects the full unpaginated count."""
+        docs = [
+            Document(id="1", content="Doc 1", meta={"category": "alpha"}),
+            Document(id="2", content="Doc 2", meta={"category": "beta"}),
+            Document(id="3", content="Doc 3", meta={"category": "gamma"}),
+        ]
+        document_store.write_documents(docs)
+
+        values, total = document_store.get_metadata_field_unique_values("category", from_=0, size=2)
+
+        assert len(values) == 2
+        assert total == 3
+
+    def test_get_metadata_field_unique_values_case_insensitive(self, document_store: ArcadeDBDocumentStore):
+        """Matches values case-insensitively when a search term is provided."""
+        docs = [
+            Document(id="1", content="Doc 1", meta={"category": "Books"}),
+            Document(id="2", content="Doc 2", meta={"category": "books"}),
+            Document(id="3", content="Doc 3", meta={"category": "ELECTRONICS"}),
+        ]
+        document_store.write_documents(docs)
+
+        _, total = document_store.get_metadata_field_unique_values("category", search_term="book")
+
+        assert total == 2
+
+    def test_get_metadata_field_unique_values_no_matches(self, document_store: ArcadeDBDocumentStore):
+        """Returns empty results when no metadata values match the search term."""
+        docs = [Document(id="1", content="Doc 1", meta={"category": "news"})]
+        document_store.write_documents(docs)
+
+        values, total = document_store.get_metadata_field_unique_values("category", search_term="sports")
+
+        assert values == []
+        assert total == 0

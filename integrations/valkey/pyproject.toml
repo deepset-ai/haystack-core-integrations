@@ -22,10 +22,11 @@ classifiers = [
   "Programming Language :: Python :: 3.11",
   "Programming Language :: Python :: 3.12",
   "Programming Language :: Python :: 3.13",
+  "Programming Language :: Python :: 3.14",
   "Programming Language :: Python :: Implementation :: CPython",
   "Programming Language :: Python :: Implementation :: PyPy",
 ]
-dependencies = ["haystack-ai>=2.24.0", "valkey-glide>=2.1.0", "valkey-glide-sync>=2.1.0"]
+dependencies = ["haystack-ai>=2.26.1", "valkey-glide>=2.2.0", "valkey-glide-sync>=2.2.0"]
 
 [project.urls]
 Documentation = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/valkey#readme"
@@ -88,6 +89,13 @@ select = [
   "ARG",
   "B",
   "C",
+  "D102",   # Missing docstring in public method
+  "D103",   # Missing docstring in public function
+  "D205",   # 1 blank line required between summary line and description
+  "D209",   # Closing triple quotes go to new line
+  "D213",   # summary lines must be positioned on the second physical line of the docstring
+  "D417",   # Missing argument descriptions in the docstring
+  "D419",   # Docstring is empty
   "DTZ",
   "E",
   "EM",
@@ -145,8 +153,8 @@ ban-relative-imports = "parents"
 
 [tool.ruff.lint.per-file-ignores]
 # Tests can use magic values, assertions, and relative imports
-"examples/**/*" = ["ANN", "T201"]
-"tests/**/*" = ["ANN", "PLR2004", "S101", "TID252"]
+"examples/**/*" = ["D", "ANN", "T201"]
+"tests/**/*" = ["D", "ANN", "PLR2004", "S101", "TID252"]
 
 [tool.coverage.run]
 source = ["haystack_integrations"]

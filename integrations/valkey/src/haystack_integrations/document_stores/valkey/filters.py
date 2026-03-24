@@ -2,7 +2,8 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""Valkey document store filtering utilities.
+"""
+Valkey document store filtering utilities.
 
 This module provides filter conversion from Haystack's filter format to Valkey Search query syntax.
 It supports both tag-based exact matching and numeric range filtering with logical operators.

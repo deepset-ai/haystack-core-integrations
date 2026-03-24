@@ -18,6 +18,7 @@ def convert_haystack_documents_to_qdrant_points(
     *,
     use_sparse_embeddings: bool,
 ) -> list[rest.PointStruct]:
+    """Convert a list of Haystack Document objects to Qdrant PointStruct objects."""
     points = []
     for document in documents:
         payload = document.to_dict(flatten=False)
@@ -61,6 +62,7 @@ QdrantPoint = rest.ScoredPoint | rest.Record
 
 
 def convert_qdrant_point_to_haystack_document(point: QdrantPoint, use_sparse_embeddings: bool) -> Document:
+    """Convert a Qdrant ScoredPoint or Record to a Haystack Document object."""
     payload = point.payload or {}
     payload["score"] = point.score if hasattr(point, "score") else None
 

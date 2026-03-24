@@ -263,8 +263,9 @@ class KreuzbergConverter:
     @staticmethod
     def _build_extraction_metadata(result: ExtractionResult) -> dict[str, Any]:
         """
-        Build metadata dict from an `ExtractionResult`, flattening kreuzberg's
-        metadata fields and enriching with top-level result attributes.
+        Build metadata dict from an `ExtractionResult`.
+
+        Flattens kreuzberg's metadata fields and enriches with top-level result attributes.
 
         Fields already present in `result.metadata` (`quality_score`,
         `output_format`, `keywords`) are passed through as-is - they

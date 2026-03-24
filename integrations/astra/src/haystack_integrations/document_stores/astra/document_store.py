@@ -57,6 +57,7 @@ class AstraDocumentStore:
     ) -> None:
         """
         The connection to Astra DB is established and managed through the JSON API.
+
         The required credentials (api endpoint and application token) can be generated
         through the UI by clicking and the connect tab, and then selecting JSON API and
         Generate Configuration.
@@ -105,6 +106,7 @@ class AstraDocumentStore:
 
     @property
     def index(self) -> AstraClient:
+        """Return the AstraClient index, initializing it if necessary."""
         if self._index is None:
             self._index = AstraClient(
                 self.resolved_api_endpoint,
@@ -552,8 +554,7 @@ class AstraDocumentStore:
 
     def count_unique_metadata_by_filter(self, filters: dict[str, Any], metadata_fields: list[str]) -> dict[str, int]:
         """
-        Applies a filter selecting documents and counts the unique values for each meta field of the matched
-        documents.
+        Applies a filter selecting documents and counts the unique values for each meta field of the matched documents.
 
         :param filters: The filters to apply to the document list.
         :param metadata_fields: The metadata fields to count unique values for.
@@ -601,7 +602,9 @@ class AstraDocumentStore:
         :param metadata_field: The metadata field to inspect.
         :returns: A dictionary with `min` and `max`.
         """
-        distinct_values = self.index.distinct(f"meta.{metadata_field}")
+
+        field = metadata_field.removeprefix("meta.")
+        distinct_values = self.index.distinct(f"meta.{field}")
         comparable_values = [value for value in distinct_values if isinstance(value, str | int | float | bool)]
         if not comparable_values:
             return {"min": None, "max": None}
@@ -620,7 +623,8 @@ class AstraDocumentStore:
         :param size: The number of values to return.
         :returns: A tuple containing the paginated values and the total count.
         """
-        values = AstraDocumentStore._normalize_distinct_values(self.index.distinct(f"meta.{metadata_field}"))
+        field = metadata_field.removeprefix("meta.")
+        values = AstraDocumentStore._normalize_distinct_values(self.index.distinct(f"meta.{field}"))
         if search_term:
             search_term_lower = search_term.lower()
             values = [value for value in values if search_term_lower in value.lower()]
