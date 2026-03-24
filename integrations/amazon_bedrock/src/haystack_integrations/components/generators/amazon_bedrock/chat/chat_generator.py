@@ -562,6 +562,8 @@ class AmazonBedrockChatGenerator:
                 )
                 time.sleep(wait)
 
+        return {"replies": []}
+
     @component.output_types(replies=list[ChatMessage])
     async def run_async(
         self,
@@ -639,3 +641,5 @@ class AmazonBedrockChatGenerator:
                     f"Bedrock throttle [{code}] on attempt {attempt}/{MAX_RETRIES} — retrying in {wait:.1f}s",
                 )
                 await asyncio.sleep(wait)
+
+        return {"replies": []}

@@ -268,6 +268,8 @@ class AmazonBedrockGenerator:
                 )
                 time.sleep(wait)
 
+        return {"replies": [], "meta": {}}
+
     @classmethod
     def get_model_adapter(cls, model: str, model_family: str | None = None) -> type[BedrockModelAdapter]:
         """
