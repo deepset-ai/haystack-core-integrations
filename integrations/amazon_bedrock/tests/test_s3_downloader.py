@@ -59,6 +59,7 @@ class TestS3Downloader:
             max_cache_size=100,
             max_workers=32,
             file_name_meta_key="file_id",
+            s3_bucket_name_env="b",
         )
         assert d.file_extensions == [".pdf", ".txt"]
 
@@ -79,6 +80,7 @@ class TestS3Downloader:
                 "max_workers": 32,
                 "file_name_meta_key": "file_name",
                 "s3_key_generation_function": None,
+                "s3_bucket_name_env": "S3_DOWNLOADER_BUCKET",
             },
         }
         assert d.to_dict() == expected
@@ -95,6 +97,7 @@ class TestS3Downloader:
                 "aws_profile_name": {"type": "env_var", "env_vars": ["AWS_PROFILE"], "strict": False},
                 "file_root_path": str(tmp_path),
                 "s3_key_generation_function": None,
+                "s3_bucket_name_env": "S3_DOWNLOADER_BUCKET",
             },
         }
         d = S3Downloader.from_dict(data)
@@ -108,6 +111,7 @@ class TestS3Downloader:
             max_workers=40,
             file_name_meta_key="new_file_key",
             s3_key_generation_function=s3_key_generation_function,
+            s3_bucket_name_env="b",
         )
         expected = {
             "type": TYPE,
@@ -123,6 +127,7 @@ class TestS3Downloader:
                 "max_workers": 40,
                 "file_name_meta_key": "new_file_key",
                 "s3_key_generation_function": "tests.test_s3_downloader.s3_key_generation_function",
+                "s3_bucket_name_env": "b",
             },
         }
         assert d.to_dict() == expected

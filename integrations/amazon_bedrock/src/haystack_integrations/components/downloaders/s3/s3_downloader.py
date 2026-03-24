@@ -45,6 +45,7 @@ class S3Downloader:
         max_workers: int = 32,
         max_cache_size: int = 100,
         s3_key_generation_function: Callable[[Document], str] | None = None,
+        s3_bucket_name_env: str = "S3_DOWNLOADER_BUCKET",
     ) -> None:
         """
         Initializes the `S3Downloader` with the provided parameters.
@@ -77,6 +78,8 @@ class S3Downloader:
             The function must accept a `Document` object and return a string.
             If the environment variable `S3_DOWNLOADER_PREFIX` is set, its value will be automatically
             prefixed to the generated S3 key.
+        :param s3_bucket_name_env: The name of the environment variable of the S3 bucket to download files from.
+            By default, the value is `"S3_DOWNLOADER_BUCKET"`.
         :raises ValueError: If the `file_root_path` is not set through
             the constructor or the `FILE_ROOT_PATH` environment variable.
 
@@ -105,6 +108,7 @@ class S3Downloader:
         self.max_cache_size = max_cache_size
         self.file_name_meta_key = file_name_meta_key
         self.s3_key_generation_function = s3_key_generation_function
+        self.s3_bucket_name_env = s3_bucket_name_env
 
         self._storage: S3Storage | None = None
 
@@ -126,7 +130,9 @@ class S3Downloader:
         """Warm up the component by initializing the settings and storage."""
         if self._storage is None:
             self.file_root_path.mkdir(parents=True, exist_ok=True)
-            self._storage = S3Storage.from_env(session=self._session, config=self._config)
+            self._storage = S3Storage.from_env(
+                session=self._session, config=self._config, s3_bucket_name_env=self.s3_bucket_name_env
+            )
 
     @component.output_types(documents=list[Document])
     def run(
@@ -246,6 +252,7 @@ class S3Downloader:
             file_extensions=self.file_extensions,
             file_name_meta_key=self.file_name_meta_key,
             s3_key_generation_function=s3_key_generation_function_name,
+            s3_bucket_name_env=self.s3_bucket_name_env,
         )
 
     @classmethod
