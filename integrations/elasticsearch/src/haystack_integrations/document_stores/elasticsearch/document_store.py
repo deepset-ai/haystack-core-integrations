@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: 2023-present deepset GmbH <info@deepset.ai>
 #
 # SPDX-License-Identifier: Apache-2.0
-
+import copy
 # ruff: noqa: FBT002, FBT001    boolean-type-hint-positional-argument and boolean-default-value-positional-argument
 # ruff: noqa: B008              function-call-in-default-argument
 # ruff: noqa: S101              disable checks for uses of the assert keyword
@@ -143,6 +143,7 @@ class ElasticsearchDocumentStore:
             raise ValueError(msg)
 
         if self._custom_mapping and self._sparse_vector_field:
+            self._custom_mapping = copy.deepcopy(custom_mapping)    # original custom_mapping dict is left unchanged
             self._custom_mapping.setdefault("properties", {})
             self._custom_mapping["properties"][self._sparse_vector_field] = {"type": "sparse_vector"}
 
