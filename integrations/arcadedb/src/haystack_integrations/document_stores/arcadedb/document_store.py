@@ -501,7 +501,7 @@ class ArcadeDBDocumentStore:
             if where:
                 sql += f" WHERE {where}"
             rows = self._command(sql)
-            counts[field] = len(self._extract_distinct_values(rows))
+            counts[field_name] = len(self._extract_distinct_values(rows))
 
         return counts
 
