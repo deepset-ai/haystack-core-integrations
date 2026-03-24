@@ -446,9 +446,7 @@ class ElasticsearchDocumentStore:
 
     def _handle_sparse_embedding(self, doc_dict: dict[str, Any], doc_id: str) -> None:
         """
-        Extracts the sparse_embedding from a document dict and converts it to
-        the Elasticsearch sparse_vector format if sparse_vector_field is configured.
-        Otherwise logs a warning.
+        Extracts the sparse_embedding from a document dict and converts it to the Elasticsearch sparse_vector format.
 
         :param doc_dict: The dictionary representation of the document.
         :param doc_id: The document ID, used for warning messages.
