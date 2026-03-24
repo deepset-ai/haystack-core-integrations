@@ -58,7 +58,7 @@ jobs:
 
       - name: Install LibreOffice headless (Windows)
         if: runner.os == 'Windows'
-        run: choco install libreoffice -y
+        run: choco install libreoffice-fresh -y
 
       - name: Install LibreOffice headless (macOS)
         if: runner.os == 'macOS'

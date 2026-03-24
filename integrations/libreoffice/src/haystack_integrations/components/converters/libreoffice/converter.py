@@ -261,10 +261,10 @@ class LibreOfficeFileConverter:
             or if `output_file_type` is not a valid conversion target for it,
             or if `output_file_type` has not been provided anywhere.
         """
-        if output_file_type is None and self.output_file_type is None:
+        output_file_type = output_file_type or self.output_file_type
+        if output_file_type is None:
             msg = "output_file_type must be provided either during initialization or for this method"
             raise ValueError(msg)
-        output_file_type = output_file_type or self.output_file_type
 
         outputs: list[ByteStream] = []
         with TemporaryDirectory() as tmpdir:
@@ -337,10 +337,10 @@ class LibreOfficeFileConverter:
             or if `output_file_type` is not a valid conversion target for it,
             or if `output_file_type` has not been provided anywhere.
         """
-        if output_file_type is None and self.output_file_type is None:
+        output_file_type = output_file_type or self.output_file_type
+        if output_file_type is None:
             msg = "output_file_type must be provided either during initialization or for this method"
             raise ValueError(msg)
-        output_file_type = output_file_type or self.output_file_type
 
         outputs: list[ByteStream] = []
         with TemporaryDirectory() as tmpdir:
