@@ -39,8 +39,8 @@ THROTTLING_CODES = frozenset(
         "TooManyRequestsException",
         "ServiceUnavailableException",
         "ModelNotReadyException",
-        "RequestTooLargeException",  # Can cause back-pressure
-        "ModelStreamErrorException",  # Streaming-specific — add this
+        "RequestTooLargeException",
+        "ModelStreamErrorException",
     }
 )
 
