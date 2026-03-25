@@ -266,6 +266,36 @@ class GoogleGenAIChatGenerator:
         self._timeout = timeout
         self._max_retries = max_retries
 
+    def close(self) -> None:
+        """
+        Closes the underlying Google GenAI HTTP client and releases its resources.
+
+        Call this method when the component is no longer needed, or use the component
+        as a context manager (``with`` statement) to have it closed automatically.
+        """
+        self._client.close()
+
+    async def close_async(self) -> None:
+        """
+        Async version of :meth:`close`. Closes the underlying async HTTP client session.
+
+        Call this when running inside an async context (e.g. ``AsyncPipeline``) to avoid
+        ``ResourceWarning: Unclosed client session`` warnings.
+        """
+        await self._client.aio.close()
+
+    def __enter__(self) -> "GoogleGenAIChatGenerator":
+        return self
+
+    def __exit__(self, *args: object) -> None:
+        self.close()
+
+    async def __aenter__(self) -> "GoogleGenAIChatGenerator":
+        return self
+
+    async def __aexit__(self, *args: object) -> None:
+        await self.close_async()
+
     def to_dict(self) -> dict[str, Any]:
         """
         Serializes the component to a dictionary.
