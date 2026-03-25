@@ -6,6 +6,7 @@ from typing import Any
 
 from haystack import Document, component, logging
 from haystack.utils import Secret
+
 from tavily import AsyncTavilyClient, TavilyClient  # type: ignore[import-untyped]
 
 logger = logging.getLogger(__name__)
