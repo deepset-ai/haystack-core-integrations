@@ -123,6 +123,11 @@ integration:lara:
       - any-glob-to-any-file: "integrations/lara/**/*"
       - any-glob-to-any-file: ".github/workflows/lara.yml"
 
+integration:libreoffice:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/libreoffice/**/*"
+      - any-glob-to-any-file: ".github/workflows/libreoffice.yml"
+
 integration:llama_cpp:
   - changed-files:
       - any-glob-to-any-file: "integrations/llama_cpp/**/*"
