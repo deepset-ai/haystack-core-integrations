@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-import os
+import logging
 from pathlib import Path
 from unittest.mock import MagicMock
 
@@ -110,15 +110,18 @@ class TestMarkItDownConverter:
 
         assert result["documents"][0].meta["author"] == "Alice"
 
-    def test_run_skips_unreadable_source(self):
+    def test_run_skips_unreadable_source(self, caplog):
         converter = MarkItDownConverter()
         converter._converter = MagicMock()
+        converter._converter.convert.side_effect = FileNotFoundError("No such file or directory")
 
-        result = converter.run(sources=[Path("/nonexistent/file.pdf")])
+        with caplog.at_level(logging.WARNING):
+            result = converter.run(sources=[Path("/nonexistent/file.pdf")])
 
         assert result["documents"] == []
+        assert "Could not convert" in caplog.text
 
-    def test_run_skips_conversion_error(self, tmp_path):
+    def test_run_skips_conversion_error(self, tmp_path, caplog):
         txt_file = tmp_path / "test.txt"
         txt_file.write_text("Hello world")
 
@@ -126,9 +129,11 @@ class TestMarkItDownConverter:
         converter._converter = MagicMock()
         converter._converter.convert.side_effect = Exception("Conversion failed")
 
-        result = converter.run(sources=[txt_file])
+        with caplog.at_level(logging.WARNING):
+            result = converter.run(sources=[txt_file])
 
         assert result["documents"] == []
+        assert "Could not convert" in caplog.text
 
     def test_run_multiple_sources(self, mock_result, tmp_path):
         files = []
@@ -161,10 +166,6 @@ class TestMarkItDownConverter:
         assert result["documents"][0].meta["tag"] == "a"
         assert result["documents"][1].meta["tag"] == "b"
 
-    @pytest.mark.skipif(
-        not os.environ.get("MARKITDOWN_INTEGRATION_TEST"),
-        reason="Set MARKITDOWN_INTEGRATION_TEST=1 to run integration tests.",
-    )
     @pytest.mark.integration
     def test_run_integration(self, tmp_path):
         txt_file = tmp_path / "hello.txt"

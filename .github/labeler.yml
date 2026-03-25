@@ -128,6 +128,11 @@ integration:libreoffice:
       - any-glob-to-any-file: "integrations/libreoffice/**/*"
       - any-glob-to-any-file: ".github/workflows/libreoffice.yml"
 
+integration:markitdown:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/markitdown/**/*"
+      - any-glob-to-any-file: ".github/workflows/markitdown.yml"
+
 integration:llama_cpp:
   - changed-files:
       - any-glob-to-any-file: "integrations/llama_cpp/**/*"

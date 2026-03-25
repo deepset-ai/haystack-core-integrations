@@ -7,10 +7,10 @@ from pathlib import Path
 from typing import Any
 
 from haystack import Document, component, logging
-from haystack.components.converters.utils import get_bytestream_from_source, normalize_metadata
+from haystack.components.converters.utils import normalize_metadata
 from haystack.dataclasses import ByteStream
 
-from markitdown import MarkItDown  # type: ignore[import-untyped]
+from markitdown import MarkItDown, StreamInfo  # type: ignore[import-untyped]
 
 logger = logging.getLogger(__name__)
 
@@ -71,16 +71,10 @@ class MarkItDownConverter:
 
         for source, user_meta in zip(sources, meta_list, strict=True):
             try:
-                bytestream = get_bytestream_from_source(source)
-            except Exception as e:
-                logger.warning("Could not read {source}. Skipping it. Error: {error}", source=source, error=e)
-                continue
-
-            try:
                 if isinstance(source, ByteStream):
-                    file_extension = bytestream.meta.get("file_path", "")
-                    ext = Path(file_extension).suffix if file_extension else ""
-                    result = self._converter.convert_stream(io.BytesIO(bytestream.data), file_extension=ext)
+                    file_path_str = source.meta.get("file_path", "")
+                    ext = Path(file_path_str).suffix if file_path_str else ""
+                    result = self._converter.convert_stream(io.BytesIO(source.data), stream_info=StreamInfo(extension=ext))
                 else:
                     result = self._converter.convert(str(source))
             except Exception as e:
@@ -92,9 +86,12 @@ class MarkItDownConverter:
                 continue
 
             source_meta: dict[str, Any] = {}
-            if "file_path" in bytestream.meta:
-                file_path = bytestream.meta["file_path"]
-                source_meta["file_path"] = file_path if self.store_full_path else Path(file_path).name
+            if isinstance(source, ByteStream):
+                if "file_path" in source.meta:
+                    file_path = source.meta["file_path"]
+                    source_meta["file_path"] = file_path if self.store_full_path else Path(file_path).name
+            else:
+                source_meta["file_path"] = str(source) if self.store_full_path else Path(source).name
 
             documents.append(Document(content=result.text_content, meta={**source_meta, **user_meta}))
 
