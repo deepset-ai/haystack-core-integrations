@@ -54,10 +54,7 @@ class TestTavilyWebSearch:
         monkeypatch.setenv("TAVILY_API_KEY", "test-key")
         ws = TavilyWebSearch(top_k=5, search_params={"search_depth": "advanced"})
         data = component_to_dict(ws, "TavilyWebSearch")
-        assert (
-            data["type"]
-            == "haystack_integrations.components.websearch.tavily.tavily_websearch.TavilyWebSearch"
-        )
+        assert data["type"] == "haystack_integrations.components.websearch.tavily.tavily_websearch.TavilyWebSearch"
         assert data["init_parameters"]["top_k"] == 5
         assert data["init_parameters"]["search_params"] == {"search_depth": "advanced"}
 
@@ -154,9 +151,7 @@ class TestTavilyWebSearch:
     async def test_run_async_triggers_warm_up(self, search_response):
         with (
             patch("haystack_integrations.components.websearch.tavily.tavily_websearch.TavilyClient"),
-            patch(
-                "haystack_integrations.components.websearch.tavily.tavily_websearch.AsyncTavilyClient"
-            ) as mock_cls,
+            patch("haystack_integrations.components.websearch.tavily.tavily_websearch.AsyncTavilyClient") as mock_cls,
         ):
             mock_cls.return_value.search = AsyncMock(return_value=search_response)
             ws = TavilyWebSearch(api_key=Secret.from_token("test-key"))
