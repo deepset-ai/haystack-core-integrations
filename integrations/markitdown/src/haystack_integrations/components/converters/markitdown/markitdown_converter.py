@@ -74,7 +74,9 @@ class MarkItDownConverter:
                 if isinstance(source, ByteStream):
                     file_path_str = source.meta.get("file_path", "")
                     ext = Path(file_path_str).suffix if file_path_str else ""
-                    result = self._converter.convert_stream(io.BytesIO(source.data), stream_info=StreamInfo(extension=ext))
+                    result = self._converter.convert_stream(
+                        io.BytesIO(source.data), stream_info=StreamInfo(extension=ext)
+                    )
                 else:
                     result = self._converter.convert(str(source))
             except Exception as e:
