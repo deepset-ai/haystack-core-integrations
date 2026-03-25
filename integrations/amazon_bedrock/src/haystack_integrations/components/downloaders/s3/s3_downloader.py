@@ -61,7 +61,9 @@ class S3Downloader:
         :param aws_session_token: AWS session token.
         :param aws_region_name: AWS region name.
         :param aws_profile_name: AWS profile name.
-        :param boto3_config: The configuration for the boto3 client.
+        :param boto3_config: Dictionary of configuration options for the underlying Boto3 client.
+            Can be used to tune [retry behavior](https://docs.aws.amazon.com/boto3/latest/guide/retries.html)
+            and other low-level settings like timeouts and connection management.
         :param file_root_path: The path where the file will be downloaded.
             Can be set through this parameter or the `FILE_ROOT_PATH` environment variable.
             If none of them is set, a `ValueError` is raised.
