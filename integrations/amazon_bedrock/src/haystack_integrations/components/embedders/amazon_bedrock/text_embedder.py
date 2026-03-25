@@ -76,7 +76,9 @@ class AmazonBedrockTextEmbedder:
         :param aws_session_token: AWS session token.
         :param aws_region_name: AWS region name.
         :param aws_profile_name: AWS profile name.
-        :param boto3_config: The configuration for the boto3 client.
+        :param boto3_config: Dictionary of configuration options for the underlying Boto3 client.
+            Can be used to tune [retry behavior](https://docs.aws.amazon.com/boto3/latest/guide/retries.html)
+            and other low-level settings like timeouts and connection management.
         :param kwargs: Additional parameters to pass for model inference. For example, `input_type` and `truncate` for
             Cohere models.
         :raises ValueError: If the model is not supported.

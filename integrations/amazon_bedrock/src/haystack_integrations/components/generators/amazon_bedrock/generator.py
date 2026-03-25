@@ -127,7 +127,9 @@ class AmazonBedrockGenerator:
         :param truncate: Deprecated. This parameter no longer has any effect.
         :param streaming_callback: A callback function that is called when a new token is received from the stream.
             The callback function accepts StreamingChunk as an argument.
-        :param boto3_config: The configuration for the boto3 client.
+        :param boto3_config: Dictionary of configuration options for the underlying Boto3 client.
+            Can be used to tune [retry behavior](https://docs.aws.amazon.com/boto3/latest/guide/retries.html)
+            and other low-level settings like timeouts and connection management.
         :param model_family: The model family to use. If not provided, the model adapter is selected based on the model
             name.
         :param kwargs: Additional keyword arguments to be passed to the model.

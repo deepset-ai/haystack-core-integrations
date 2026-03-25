@@ -95,7 +95,9 @@ class AmazonBedrockDocumentEmbedder:
             to keep the logs clean.
         :param meta_fields_to_embed: List of meta fields that should be embedded along with the Document text.
         :param embedding_separator: Separator used to concatenate the meta fields to the Document text.
-        :param boto3_config: The configuration for the boto3 client.
+        :param boto3_config: Dictionary of configuration options for the underlying Boto3 client.
+            Can be used to tune [retry behavior](https://docs.aws.amazon.com/boto3/latest/guide/retries.html)
+            and other low-level settings like timeouts and connection management.
         :param kwargs: Additional parameters to pass for model inference. For example, `input_type` and `truncate` for
             Cohere models.
         :raises ValueError: If the model is not supported.
