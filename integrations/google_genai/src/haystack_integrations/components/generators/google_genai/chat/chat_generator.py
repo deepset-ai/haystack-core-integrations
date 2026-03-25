@@ -282,7 +282,7 @@ class GoogleGenAIChatGenerator:
         Call this when running inside an async context (e.g. ``AsyncPipeline``) to avoid
         ``ResourceWarning: Unclosed client session`` warnings.
         """
-        await self._client.aio.close()
+        await self._client.aio.aclose()
 
     def __enter__(self) -> "GoogleGenAIChatGenerator":
         return self
