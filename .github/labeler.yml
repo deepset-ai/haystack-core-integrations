@@ -138,6 +138,11 @@ integration:llama_stack:
       - any-glob-to-any-file: "integrations/llama_stack/**/*"
       - any-glob-to-any-file: ".github/workflows/llama_stack.yml"
 
+integration:markitdown:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/markitdown/**/*"
+      - any-glob-to-any-file: ".github/workflows/markitdown.yml"
+
 integration:mcp:
   - changed-files:
       - any-glob-to-any-file: "integrations/mcp/**/*"
@@ -222,6 +227,11 @@ integration:stackit:
   - changed-files:
       - any-glob-to-any-file: "integrations/stackit/**/*"
       - any-glob-to-any-file: ".github/workflows/stackit.yml"
+
+integration:tavily:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/tavily/**/*"
+      - any-glob-to-any-file: ".github/workflows/tavily.yml"
 
 integration:togetherai:
   - changed-files:

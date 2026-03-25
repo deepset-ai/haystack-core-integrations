@@ -1,0 +1,13 @@
+loaders:
+  - modules:
+      - haystack_integrations.components.websearch.tavily.tavily_websearch
+    search_path: [../src]
+processors:
+  - type: filter
+    documented_only: true
+    skip_empty_modules: true
+renderer:
+  description: Tavily integration for Haystack
+  id: integrations-tavily
+  filename: tavily.md
+  title: Tavily
