@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/amazon_bedrock-v6.7.1] - 2026-03-25
+
+### 📚 Documentation
+
+- Better docstring for boto3_config explaining retries (#3042)
+
+
 ## [integrations/amazon_bedrock-v6.7.0] - 2026-03-24
 
 ### 🚀 Features

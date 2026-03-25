@@ -205,7 +205,9 @@ class AmazonBedrockChatGenerator:
             function that handles the streaming chunks. The callback function receives a
             [StreamingChunk](https://docs.haystack.deepset.ai/docs/data-classes#streamingchunk) object and switches
             the streaming mode on.
-        :param boto3_config: The configuration for the boto3 client.
+        :param boto3_config: Dictionary of configuration options for the underlying Boto3 client.
+            Can be used to tune [retry behavior](https://docs.aws.amazon.com/boto3/latest/guide/retries.html)
+            and other low-level settings like timeouts and connection management.
         :param tools: A list of Tool and/or Toolset objects, or a single Toolset for which the model can prepare calls.
             Each tool should have a unique name.
         :param guardrail_config: Optional configuration for a guardrail that has been created in Amazon Bedrock.
