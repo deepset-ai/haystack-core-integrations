@@ -10,7 +10,7 @@ from haystack import Document, component, logging
 from haystack.components.converters.utils import normalize_metadata
 from haystack.dataclasses import ByteStream
 
-from markitdown import MarkItDown, StreamInfo  # type: ignore[import-untyped]
+from markitdown import MarkItDown, StreamInfo
 
 logger = logging.getLogger(__name__)
 
@@ -40,7 +40,7 @@ class MarkItDownConverter:
         store_full_path: bool = False,
     ) -> None:
         """
-        Initialize the MarkItDownConverter.
+        Initializes the MarkItDownConverter.
 
         :param store_full_path:
             If `True`, the full file path is stored in the Document metadata.
@@ -56,7 +56,7 @@ class MarkItDownConverter:
         meta: dict[str, Any] | list[dict[str, Any]] | None = None,
     ) -> dict[str, list[Document]]:
         """
-        Convert files to Documents using MarkItDown.
+        Converts files to Documents using MarkItDown.
 
         :param sources:
             List of file paths or ByteStream objects to convert.
