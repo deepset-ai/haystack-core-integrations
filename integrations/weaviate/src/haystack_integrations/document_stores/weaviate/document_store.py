@@ -1053,9 +1053,7 @@ class WeaviateDocumentStore:
                 msg = f"Expected a Document, got '{type(doc)}' instead."
                 raise ValueError(msg)
 
-            if policy == DuplicatePolicy.SKIP and await collection.data.exists(
-                uuid=generate_uuid5(doc.id)
-            ):
+            if policy == DuplicatePolicy.SKIP and await collection.data.exists(uuid=generate_uuid5(doc.id)):
                 # This Document already exists, continue
                 continue
 
@@ -1111,7 +1109,10 @@ class WeaviateDocumentStore:
         return self._write(documents, policy, tenant)
 
     async def write_documents_async(
-        self, documents: list[Document], policy: DuplicatePolicy = DuplicatePolicy.NONE, tenant: str | None = None,
+        self,
+        documents: list[Document],
+        policy: DuplicatePolicy = DuplicatePolicy.NONE,
+        tenant: str | None = None,
     ) -> int:
         """
         Asynchronously writes documents to Weaviate using the specified policy.
@@ -1293,7 +1294,6 @@ class WeaviateDocumentStore:
             msg = f"Failed to delete documents by filter in Weaviate: {e!s}"
             raise DocumentStoreError(msg) from e
 
-
     async def delete_by_filter_async(self, filters: dict[str, Any]) -> int:
         """
         Asynchronously deletes all documents that match the provided filters.
@@ -1360,7 +1360,7 @@ class WeaviateDocumentStore:
                     if isinstance(obj.vector, list | dict):
                         vector = obj.vector
 
-                    collection.data.replace(   # ✅ FIX
+                    collection.data.replace(  # ✅ FIX
                         uuid=obj.uuid,
                         properties=current_properties,
                         vector=vector,
