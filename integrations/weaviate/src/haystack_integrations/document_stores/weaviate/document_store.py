@@ -1295,6 +1295,12 @@ class WeaviateDocumentStore:
 
 
     async def delete_by_filter_async(self, filters: dict[str, Any]) -> int:
+        """
+        Asynchronously deletes all documents that match the provided filters.
+
+        :param filters: Filters to select documents for deletion.
+        :returns: Number of deleted documents.
+        """
         validate_filters(filters)
 
         try:
@@ -1320,6 +1326,13 @@ class WeaviateDocumentStore:
             raise DocumentStoreError(msg) from e
 
     def update_by_filter(self, filters: dict[str, Any], meta: dict[str, Any]) -> int:
+        """
+        Updates metadata of all documents that match the provided filters.
+
+        :param filters: Filters to select documents for updating.
+        :param meta: Metadata fields to update.
+        :returns: Number of updated documents.
+        """
         validate_filters(filters)
 
         if not isinstance(meta, dict):
