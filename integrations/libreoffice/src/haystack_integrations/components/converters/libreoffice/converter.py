@@ -107,6 +107,8 @@ class LibreOfficeFileConverter:
         "ppt": frozenset(["pdf", "pptx", "odp", "html", "png", "jpg"]),
         "odp": frozenset(["pdf", "pptx", "ppt", "html", "png", "jpg"]),
     }
+    """A non-exhaustive mapping of supported conversion types by this component.
+    See https://help.libreoffice.org/latest/en-GB/text/shared/guide/convertfilters.html for more information."""
 
     MIME_TYPE_FALLBACKS: ClassVar[dict[str, str]] = {
         "pdf": "application/pdf",
@@ -127,8 +129,6 @@ class LibreOfficeFileConverter:
         "png": "image/png",
         "jpg": "image/jpeg",
     }
-    """A non-exhaustive mapping of supported conversion types by this component.
-    See https://help.libreoffice.org/latest/en-GB/text/shared/guide/convertfilters.html for more information."""
 
     def __init__(
         self,
