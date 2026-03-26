@@ -5,10 +5,10 @@
 import base64
 import logging
 import os
+import platform
 from collections.abc import Generator
 from unittest.mock import MagicMock, patch
 
-import platform
 import pytest
 from dateutil import parser
 from haystack.dataclasses.byte_stream import ByteStream
@@ -377,7 +377,7 @@ class TestWeaviateDocumentStore(
         doc.content = "test doc 2"
         assert document_store.write_documents([doc]) == 1
         assert document_store.count_documents() == 1
-    
+
     def test_write_documents_with_tenant(self, document_store):
         doc = Document(content="tenant test doc")
 
