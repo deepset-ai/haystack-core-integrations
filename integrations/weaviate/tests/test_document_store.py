@@ -376,6 +376,15 @@ class TestWeaviateDocumentStore(
         doc.content = "test doc 2"
         assert document_store.write_documents([doc]) == 1
         assert document_store.count_documents() == 1
+    
+    def test_write_documents_with_tenant(self, document_store):
+        doc = Document(content="tenant test doc")
+
+        # Write with tenant
+        written = document_store.write_documents([doc], tenant="tenant1")
+
+        assert written == 1
+        assert document_store.count_documents() == 1
 
     def test_write_documents_with_blob_data(self, document_store, test_files_path):
         image = ByteStream.from_file_path(test_files_path / "robot1.jpg", mime_type="image/jpeg")

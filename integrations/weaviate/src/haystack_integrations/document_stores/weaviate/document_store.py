@@ -934,7 +934,7 @@ class WeaviateDocumentStore:
         )
         raise DocumentStoreError(msg)
 
-    def _batch_write(self, documents: list[Document]) -> int:
+    def _batch_write(self, documents: list[Document], tenant: str | None = None) -> int:
         """
         Writes document to Weaviate in batches.
 
@@ -953,6 +953,7 @@ class WeaviateDocumentStore:
                     collection=self.collection.name,
                     uuid=generate_uuid5(doc.id),
                     vector=doc.embedding,
+                    tenant=tenant
                 )
         if failed_objects := self.client.batch.failed_objects:
             self._handle_failed_objects(failed_objects)
@@ -961,7 +962,7 @@ class WeaviateDocumentStore:
         # So we assume that all Documents were written.
         return len(documents)
 
-    async def _batch_write_async(self, documents: list[Document]) -> int:
+    async def _batch_write_async(self, documents: list[Document], tenant: str | None = None) -> int:
         """
         Asynchronously writes document to Weaviate in batches.
 
@@ -981,6 +982,7 @@ class WeaviateDocumentStore:
                     collection=(await self.async_collection).name,
                     uuid=generate_uuid5(doc.id),
                     vector=doc.embedding,
+                    tenant=tenant
                 )
 
         if failed_objects := client.batch.failed_objects:
@@ -990,7 +992,7 @@ class WeaviateDocumentStore:
         # So we assume that all Documents were written.
         return len(documents)
 
-    def _write(self, documents: list[Document], policy: DuplicatePolicy) -> int:
+    def _write(self, documents: list[Document], policy: DuplicatePolicy, tenant: str | None = None) -> int:
         """
         Writes documents to Weaviate using the specified policy.
 
@@ -998,6 +1000,9 @@ class WeaviateDocumentStore:
         If policy is set to SKIP it will skip any document that already exists.
         If policy is set to FAIL it will raise an exception if any of the documents already exists.
         """
+        collection = self.collection
+        if tenant:
+            collection = collection.with_tenant(tenant)
         written = 0
         duplicate_errors_ids = []
         for doc in documents:
@@ -1005,12 +1010,12 @@ class WeaviateDocumentStore:
                 msg = f"Expected a Document, got '{type(doc)}' instead."
                 raise ValueError(msg)
 
-            if policy == DuplicatePolicy.SKIP and self.collection.data.exists(uuid=generate_uuid5(doc.id)):
+            if policy == DuplicatePolicy.SKIP and collection.data.exists(uuid=generate_uuid5(doc.id)):                
                 # This Document already exists, we skip it
                 continue
 
             try:
-                self.collection.data.insert(
+                collection.data.insert(
                     uuid=generate_uuid5(doc.id),
                     properties=WeaviateDocumentStore._to_data_object(doc),
                     vector=doc.embedding,
@@ -1025,7 +1030,12 @@ class WeaviateDocumentStore:
             raise DuplicateDocumentError(msg)
         return written
 
-    async def _write_async(self, documents: list[Document], policy: DuplicatePolicy) -> int:
+    async def _write_async(
+        self,
+        documents: list[Document],
+        policy: DuplicatePolicy,
+        tenant: str | None = None,
+    ) -> int:
         """
         Asynchronously writes documents to Weaviate using the specified policy.
 
@@ -1041,7 +1051,7 @@ class WeaviateDocumentStore:
                 msg = f"Expected a Document, got '{type(doc)}' instead."
                 raise ValueError(msg)
 
-            if policy == DuplicatePolicy.SKIP and await (await self.async_collection).data.exists(
+            if policy == DuplicatePolicy.SKIP and await collection.data.exists(
                 uuid=generate_uuid5(doc.id)
             ):
                 # This Document already exists, continue
@@ -1063,7 +1073,12 @@ class WeaviateDocumentStore:
             raise DuplicateDocumentError(msg)
         return len(documents)
 
-    def write_documents(self, documents: list[Document], policy: DuplicatePolicy = DuplicatePolicy.NONE) -> int:
+    def write_documents(
+        self,
+        documents: list[Document],
+        policy: DuplicatePolicy = DuplicatePolicy.NONE,
+        tenant: str | None = None,
+    ) -> int:
         """
         Writes documents to Weaviate using the specified policy.
 
@@ -1089,12 +1104,12 @@ class WeaviateDocumentStore:
             The number of documents written.
         """
         if policy in [DuplicatePolicy.NONE, DuplicatePolicy.OVERWRITE]:
-            return self._batch_write(documents)
+            return self._batch_write(documents, tenant)
 
-        return self._write(documents, policy)
+        return self._write(documents, policy, tenant)
 
     async def write_documents_async(
-        self, documents: list[Document], policy: DuplicatePolicy = DuplicatePolicy.NONE
+        self, documents: list[Document], policy: DuplicatePolicy = DuplicatePolicy.NONE, tenant: str | None = None,
     ) -> int:
         """
         Asynchronously writes documents to Weaviate using the specified policy.
@@ -1121,9 +1136,9 @@ class WeaviateDocumentStore:
             The number of documents written.
         """
         if policy in [DuplicatePolicy.NONE, DuplicatePolicy.OVERWRITE]:
-            return await self._batch_write_async(documents)
+            return await self._batch_write_async(documents, tenant)
 
-        return await self._write_async(documents, policy)
+        return await self._write_async(documents, policy, tenant)
 
     def delete_documents(self, document_ids: list[str]) -> None:
         """
