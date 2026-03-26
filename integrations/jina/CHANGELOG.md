@@ -1,5 +1,30 @@
 # Changelog
 
+## [integrations/jina-v1.2.0] - 2026-03-24
+
+### 🐛 Bug Fixes
+
+- Jina base url pass as params (#3032)
+
+### 📚 Documentation
+
+- Simplify pydoc configs (#2855)
+
+### 🧪 Testing
+
+- Fix JinaDocumentImageEmbedder test (#2846)
+- Test compatible integrations with python 3.14; update pyproject (#3001)
+
+### 🧹 Chores
+
+- Standardize author mentions (#2897)
+- Add ANN type annotations to google_genai, hanlp, jina, langfuse, lara (#2990)
+- Enforce ruff docstring rules (D102/D103/D205/D209/D213/D417/D419) in integrations 11-20 (#3009)
+
+### 🌀 Miscellaneous
+
+- Add Jina integration tests for text/document embedders and ranker (#2841)
+
 ## [integrations/jina-v1.1.0] - 2026-01-19
 
 ### 🐛 Bug Fixes
