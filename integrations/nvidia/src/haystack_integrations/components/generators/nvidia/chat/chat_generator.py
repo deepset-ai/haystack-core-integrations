@@ -11,6 +11,8 @@ from haystack.dataclasses import StreamingCallbackT
 from haystack.tools import ToolsType, serialize_tools_or_toolset
 from haystack.utils import serialize_callable
 from haystack.utils.auth import Secret
+from haystack.dataclasses import ChatMessage
+from haystack.tools import ToolsType
 
 from haystack_integrations.utils.nvidia import DEFAULT_API_URL
 
@@ -127,6 +129,66 @@ class NvidiaChatGenerator(OpenAIChatGenerator):
             http_client_kwargs=http_client_kwargs,
         )
 
+    def run(
+        self,
+        messages: list[ChatMessage],
+        streaming_callback: StreamingCallbackT | None = None,
+        generation_kwargs: dict[str, Any] | None = None,
+        *,
+        tools: ToolsType | None = None,
+        tools_strict: bool | None = None,
+    ):
+        def fix_extra_body(kwargs):
+            if kwargs and "extra_body" in kwargs:
+                extra_body = kwargs.get("extra_body", {})
+                if "extra_body" in extra_body:
+                    inner = extra_body.pop("extra_body")
+                    extra_body.update(inner)
+                    kwargs["extra_body"] = extra_body
+
+        # fix both
+        fix_extra_body(self.generation_kwargs)
+        fix_extra_body(generation_kwargs)
+
+        return OpenAIChatGenerator.run(
+            self,
+            messages=messages,
+            streaming_callback=streaming_callback,
+            generation_kwargs=generation_kwargs,
+            tools=tools,
+            tools_strict=tools_strict,
+        )
+    
+    async def run_async(
+        self,
+        messages: list[ChatMessage],
+        streaming_callback: StreamingCallbackT | None = None,
+        generation_kwargs: dict[str, Any] | None = None,
+        *,
+        tools: ToolsType | None = None,
+        tools_strict: bool | None = None,
+    ):
+        def fix_extra_body(kwargs):
+            if kwargs and "extra_body" in kwargs:
+                extra_body = kwargs.get("extra_body", {})
+                if "extra_body" in extra_body:
+                    inner = extra_body.pop("extra_body")
+                    extra_body.update(inner)
+                    kwargs["extra_body"] = extra_body
+
+        # fix both
+        fix_extra_body(self.generation_kwargs)
+        fix_extra_body(generation_kwargs)
+
+        return await OpenAIChatGenerator.run_async(
+            self,
+            messages=messages,
+            streaming_callback=streaming_callback,
+            generation_kwargs=generation_kwargs,
+            tools=tools,
+            tools_strict=tools_strict,
+        )
+    
     def to_dict(self) -> dict[str, Any]:
         """
         Serialize this component to a dictionary.
