@@ -2,6 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+import mimetypes
 import os
 import shutil
 import subprocess
@@ -105,6 +106,26 @@ class LibreOfficeFileConverter:
         "pptx": frozenset(["pdf", "ppt", "odp", "html", "png", "jpg"]),
         "ppt": frozenset(["pdf", "pptx", "odp", "html", "png", "jpg"]),
         "odp": frozenset(["pdf", "pptx", "ppt", "html", "png", "jpg"]),
+    }
+
+    MIME_TYPE_FALLBACKS: ClassVar[dict[str, str]] = {
+        "pdf": "application/pdf",
+        "doc": "application/msword",
+        "docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        "odt": "application/vnd.oasis.opendocument.text",
+        "rtf": "application/rtf",
+        "txt": "text/plain",
+        "html": "text/html",
+        "xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        "xls": "application/vnd.ms-excel",
+        "ods": "application/vnd.oasis.opendocument.spreadsheet",
+        "csv": "text/csv",
+        "pptx": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+        "ppt": "application/vnd.ms-powerpoint",
+        "odp": "application/vnd.oasis.opendocument.presentation",
+        "epub": "application/epub+zip",
+        "png": "image/png",
+        "jpg": "image/jpeg",
     }
     """A non-exhaustive mapping of supported conversion types by this component.
     See https://help.libreoffice.org/latest/en-GB/text/shared/guide/convertfilters.html for more information."""
@@ -224,6 +245,12 @@ class LibreOfficeFileConverter:
             )
             raise ValueError(msg)
 
+    def _resolve_mime_type(self, output_path: Path, output_file_type: str) -> str | None:
+        mime_type, _ = mimetypes.guess_type(str(output_path))
+        if mime_type is None:
+            return self.MIME_TYPE_FALLBACKS.get(output_file_type)
+        return mime_type
+
     @component.output_types(output=list[ByteStream])
     def run(
         self,
@@ -269,14 +296,24 @@ class LibreOfficeFileConverter:
                     output_path, args = self._get_conversion_args(tmp_path, tmpdir, resolved_output_file_type)
 
                     subprocess.run(args, check=True)  # noqa: S603 - ruff doesn't know the arguments have been validated
-                    outputs.append(ByteStream(data=output_path.read_bytes()))
+                    outputs.append(
+                        ByteStream(
+                            data=output_path.read_bytes(),
+                            mime_type=self._resolve_mime_type(output_path, resolved_output_file_type),
+                        )
+                    )
                     continue
 
                 self._validate_args(resolved_output_file_type, str(source).split(".")[-1])
                 output_path, args = self._get_conversion_args(source, tmpdir, resolved_output_file_type)
 
                 subprocess.run(args, check=True)  # noqa: S603
-                outputs.append(ByteStream(data=output_path.read_bytes()))
+                outputs.append(
+                    ByteStream(
+                        data=output_path.read_bytes(),
+                        mime_type=self._resolve_mime_type(output_path, resolved_output_file_type),
+                    )
+                )
 
         return {"output": outputs}
 
@@ -329,7 +366,12 @@ class LibreOfficeFileConverter:
                     process = await create_subprocess_exec(*args)
                     # Wait for process to complete as only one instance of soffice can occur at once
                     await process.wait()
-                    outputs.append(ByteStream(data=output_path.read_bytes()))
+                    outputs.append(
+                        ByteStream(
+                            data=output_path.read_bytes(),
+                            mime_type=self._resolve_mime_type(output_path, resolved_output_file_type),
+                        )
+                    )
                     continue
 
                 self._validate_args(resolved_output_file_type, str(source).split(".")[-1])
@@ -339,6 +381,11 @@ class LibreOfficeFileConverter:
                 # Wait for process to complete as only one instance of soffice can occur at once
                 await process.wait()
 
-                outputs.append(ByteStream(data=output_path.read_bytes()))
+                outputs.append(
+                    ByteStream(
+                        data=output_path.read_bytes(),
+                        mime_type=self._resolve_mime_type(output_path, resolved_output_file_type),
+                    )
+                )
 
         return {"output": outputs}
