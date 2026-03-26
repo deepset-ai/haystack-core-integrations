@@ -73,6 +73,10 @@ non_interactive = true
 check_untyped_defs = true
 disallow_incomplete_defs = true
 
+[[tool.mypy.overrides]]
+module = ["tavily.*"]
+ignore_missing_imports = true
+
 [tool.ruff]
 line-length = 120
 

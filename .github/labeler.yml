@@ -138,11 +138,6 @@ integration:llama_stack:
       - any-glob-to-any-file: "integrations/llama_stack/**/*"
       - any-glob-to-any-file: ".github/workflows/llama_stack.yml"
 
-integration:markitdown:
-  - changed-files:
-      - any-glob-to-any-file: "integrations/markitdown/**/*"
-      - any-glob-to-any-file: ".github/workflows/markitdown.yml"
-
 integration:mcp:
   - changed-files:
       - any-glob-to-any-file: "integrations/mcp/**/*"

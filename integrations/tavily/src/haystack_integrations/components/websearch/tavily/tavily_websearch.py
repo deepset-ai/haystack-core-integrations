@@ -7,7 +7,7 @@ from typing import Any
 from haystack import Document, component, logging
 from haystack.utils import Secret
 
-from tavily import AsyncTavilyClient, TavilyClient  # type: ignore[import-untyped]
+from tavily import AsyncTavilyClient, TavilyClient
 
 logger = logging.getLogger(__name__)
 
@@ -18,8 +18,7 @@ class TavilyWebSearch:
     A component that uses Tavily to search the web and return results as Haystack Documents.
 
     This component wraps the Tavily Search API, enabling web search queries that return
-    structured documents with content and links. It follows the standard Haystack WebSearch
-    component interface.
+    structured documents with content and links.
 
     Tavily is an AI-powered search API optimized for LLM applications. You need a Tavily
     API key from [tavily.com](https://tavily.com).
@@ -52,13 +51,12 @@ class TavilyWebSearch:
         :param api_key:
             API key for Tavily. Defaults to the `TAVILY_API_KEY` environment variable.
         :param top_k:
-            Maximum number of results to return. Defaults to 10.
-            Can be overridden by setting `"max_results"` in `search_params`.
+            Maximum number of results to return.
         :param search_params:
             Additional parameters passed to the Tavily search API.
             See the [Tavily API reference](https://docs.tavily.com/docs/tavily-api/rest_api)
             for available options. Supported keys include: `search_depth`, `include_answer`,
-            `include_raw_content`, `include_images`, `include_domains`, `exclude_domains`.
+            `include_raw_content`, `include_domains`, `exclude_domains`.
         """
         self.api_key = api_key
         self.top_k = top_k
@@ -97,17 +95,15 @@ class TavilyWebSearch:
         """
         if self._tavily_client is None:
             self.warm_up()
+        if self._tavily_client is None:
+            msg = "TavilyWebSearch client failed to initialize."
+            raise RuntimeError(msg)
 
         params = (search_params if search_params is not None else self._search_params).copy()
         if "max_results" not in params and self.top_k is not None:
             params["max_results"] = self.top_k
 
-        try:
-            response = self._tavily_client.search(query=query, **params)  # type: ignore[union-attr]
-        except Exception as error:
-            logger.exception(f"Failed to search for query '{query}': {error}")
-            return {"documents": [], "links": []}
-
+        response = self._tavily_client.search(query=query, **params)
         return self._parse_response(response)
 
     @component.output_types(documents=list[Document], links=list[str])
@@ -129,17 +125,15 @@ class TavilyWebSearch:
         """
         if self._async_tavily_client is None:
             self.warm_up()
+        if self._async_tavily_client is None:
+            msg = "TavilyWebSearch async client failed to initialize."
+            raise RuntimeError(msg)
 
         params = (search_params if search_params is not None else self._search_params).copy()
         if "max_results" not in params and self.top_k is not None:
             params["max_results"] = self.top_k
 
-        try:
-            response = await self._async_tavily_client.search(query=query, **params)  # type: ignore[union-attr]
-        except Exception as error:
-            logger.exception(f"Failed to search for query '{query}': {error}")
-            return {"documents": [], "links": []}
-
+        response = await self._async_tavily_client.search(query=query, **params)
         return self._parse_response(response)
 
     @staticmethod
@@ -159,11 +153,7 @@ class TavilyWebSearch:
             content = result.get("content", "")
             score = result.get("score")
 
-            meta: dict[str, Any] = {"title": title, "url": url}
-            if score is not None:
-                meta["score"] = score
-
-            documents.append(Document(content=content, meta=meta))
+            documents.append(Document(content=content, meta={"title": title, "url": url}, score=score))
             if url:
                 links.append(url)
 

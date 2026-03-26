@@ -83,7 +83,7 @@ class TestTavilyWebSearch:
         assert result["documents"][0].content == "Example content"
         assert result["documents"][0].meta["url"] == "https://example.com"
         assert result["documents"][0].meta["title"] == "Example Title"
-        assert result["documents"][0].meta["score"] == 0.95
+        assert result["documents"][0].score == 0.95
         assert result["links"] == ["https://example.com"]
         mock_client.search.assert_called_once_with(query="test query", max_results=10)
 
@@ -110,24 +110,22 @@ class TestTavilyWebSearch:
         assert result["links"] == ["https://example.com"]
         mock_async_client.search.assert_awaited_once()
 
-    def test_run_returns_empty_on_error(self, mock_client):
+    def test_run_raises_on_error(self, mock_client):
         mock_client.search.side_effect = Exception("API error")
         ws = TavilyWebSearch(api_key=Secret.from_token("test-key"))
         ws._tavily_client = mock_client
 
-        result = ws.run(query="test")
-        assert result["documents"] == []
-        assert result["links"] == []
+        with pytest.raises(Exception, match="API error"):
+            ws.run(query="test")
 
     @pytest.mark.asyncio
-    async def test_run_async_returns_empty_on_error(self, mock_async_client):
+    async def test_run_async_raises_on_error(self, mock_async_client):
         mock_async_client.search = AsyncMock(side_effect=Exception("API error"))
         ws = TavilyWebSearch(api_key=Secret.from_token("test-key"))
         ws._async_tavily_client = mock_async_client
 
-        result = await ws.run_async(query="test")
-        assert result["documents"] == []
-        assert result["links"] == []
+        with pytest.raises(Exception, match="API error"):
+            await ws.run_async(query="test")
 
     def test_warm_up_initializes_clients(self):
         ws = TavilyWebSearch(api_key=Secret.from_token("test-key"))
