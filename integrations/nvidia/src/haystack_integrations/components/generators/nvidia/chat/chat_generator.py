@@ -137,6 +137,7 @@ class NvidiaChatGenerator(OpenAIChatGenerator):
         tools_strict: bool | None = None,
     ) -> dict[str, Any]:
         """Run the NVIDIA chat generator."""
+
         def fix_extra_body(kwargs: dict[str, Any] | None) -> None:
             if kwargs and "extra_body" in kwargs:
                 extra_body = kwargs.get("extra_body", {})
@@ -167,6 +168,7 @@ class NvidiaChatGenerator(OpenAIChatGenerator):
         tools_strict: bool | None = None,
     ) -> dict[str, Any]:
         """Run the NVIDIA chat generator asynchronously."""
+
         def fix_extra_body(kwargs: dict[str, Any] | None) -> None:
             if kwargs and "extra_body" in kwargs:
                 extra_body = kwargs.get("extra_body", {})
