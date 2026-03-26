@@ -8,6 +8,7 @@ import os
 from collections.abc import Generator
 from unittest.mock import MagicMock, patch
 
+import platform
 import pytest
 from dateutil import parser
 from haystack.dataclasses.byte_stream import ByteStream
@@ -833,6 +834,7 @@ class TestWeaviateDocumentStore(
         )
         assert document_store.client
 
+    @pytest.mark.skipif(platform.system() == "Windows", reason="EmbeddedDB not supported on Windows")
     def test_connect_to_embedded(self):
         document_store = WeaviateDocumentStore(embedded_options=EmbeddedOptions())
         assert document_store.client
