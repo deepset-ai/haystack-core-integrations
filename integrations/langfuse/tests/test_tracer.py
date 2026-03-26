@@ -152,6 +152,7 @@ class TestLangfuseSpan:
         span = LangfuseSpan(mock_context_manager)
         span.set_content_tag("key.input", {"messages": [ChatMessage.from_user("message")]})
         assert mock_context_manager._span.update.call_count == 1
+        # check we converted ChatMessage to OpenAI format
         assert mock_context_manager._span.update.call_args_list[0][1] == {
             "input": [{"role": "user", "content": "message"}]
         }
