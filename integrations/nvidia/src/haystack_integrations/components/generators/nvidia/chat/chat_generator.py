@@ -7,12 +7,10 @@ from typing import Any
 
 from haystack import component, default_to_dict, logging
 from haystack.components.generators.chat import OpenAIChatGenerator
-from haystack.dataclasses import StreamingCallbackT
+from haystack.dataclasses import ChatMessage, StreamingCallbackT
 from haystack.tools import ToolsType, serialize_tools_or_toolset
 from haystack.utils import serialize_callable
 from haystack.utils.auth import Secret
-from haystack.dataclasses import ChatMessage
-from haystack.tools import ToolsType
 
 from haystack_integrations.utils.nvidia import DEFAULT_API_URL
 
@@ -137,8 +135,9 @@ class NvidiaChatGenerator(OpenAIChatGenerator):
         *,
         tools: ToolsType | None = None,
         tools_strict: bool | None = None,
-    ):
-        def fix_extra_body(kwargs):
+    ) -> dict[str, Any]:
+        """Run the NVIDIA chat generator."""
+        def fix_extra_body(kwargs: dict[str, Any] | None) -> None:
             if kwargs and "extra_body" in kwargs:
                 extra_body = kwargs.get("extra_body", {})
                 if "extra_body" in extra_body:
@@ -157,7 +156,7 @@ class NvidiaChatGenerator(OpenAIChatGenerator):
             tools=tools,
             tools_strict=tools_strict,
         )
-    
+
     async def run_async(
         self,
         messages: list[ChatMessage],
@@ -166,8 +165,9 @@ class NvidiaChatGenerator(OpenAIChatGenerator):
         *,
         tools: ToolsType | None = None,
         tools_strict: bool | None = None,
-    ):
-        def fix_extra_body(kwargs):
+    ) -> dict[str, Any]:
+        """Run the NVIDIA chat generator asynchronously."""
+        def fix_extra_body(kwargs: dict[str, Any] | None) -> None:
             if kwargs and "extra_body" in kwargs:
                 extra_body = kwargs.get("extra_body", {})
                 if "extra_body" in extra_body:
@@ -186,7 +186,7 @@ class NvidiaChatGenerator(OpenAIChatGenerator):
             tools=tools,
             tools_strict=tools_strict,
         )
-    
+
     def to_dict(self) -> dict[str, Any]:
         """
         Serialize this component to a dictionary.
