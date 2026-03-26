@@ -91,12 +91,10 @@ class LangfuseSpan(Span):
         if key.endswith(".input"):
             if "messages" in value:
                 messages = [m.to_openai_dict_format(require_tool_call_ids=False) for m in value["messages"]]
-                gen_kwargs = value.get("generation_kwargs")
-                if gen_kwargs is not None and isinstance(gen_kwargs, dict):
-                    input_data: dict[str, Any] = {"messages": messages, "generation_kwargs": gen_kwargs}
-                    self._span.update(input=input_data)
-                else:
-                    self._span.update(input=messages)
+                input_data = {"messages": messages}
+                if isinstance(gen_kwargs := value.get("generation_kwargs"), dict):
+                    input_data["generation_kwargs"] = gen_kwargs
+                self._span.update(input=input_data)
             else:
                 coerced_value = tracing_utils.coerce_tag_value(value)
                 self._span.update(input=coerced_value)

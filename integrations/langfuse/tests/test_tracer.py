@@ -156,6 +156,7 @@ class TestLangfuseSpan:
             "input": [{"role": "user", "content": "message"}]
         }
 
+        # test generation_kwargs are captured
         mock_context_manager._span.update.reset_mock()
         span.set_content_tag(
             "key.input",
