@@ -181,7 +181,7 @@ class WeaviateDocumentStore:
         # Set the properties if they're not set
         self._collection_settings["properties"] = self._collection_settings.get(
             "properties", DOCUMENT_COLLECTION_PROPERTIES
-        )   
+        )
 
     @property
     def client(self) -> weaviate.WeaviateClient:
@@ -953,7 +953,7 @@ class WeaviateDocumentStore:
 
                 batch.add_object(
                     properties=WeaviateDocumentStore._to_data_object(doc),
-                    collection=collection.name,  
+                    collection=collection.name,
                     uuid=generate_uuid5(doc.id),
                     vector=doc.embedding,
                 )
@@ -983,7 +983,7 @@ class WeaviateDocumentStore:
 
                 await batch.add_object(
                     properties=WeaviateDocumentStore._to_data_object(doc),
-                    collection=collection.name,   
+                    collection=collection.name,
                     uuid=generate_uuid5(doc.id),
                     vector=doc.embedding,
                 )
@@ -1011,7 +1011,7 @@ class WeaviateDocumentStore:
                 msg = f"Expected a Document, got '{type(doc)}' instead."
                 raise ValueError(msg)
 
-            if policy == DuplicatePolicy.SKIP and collection.data.exists(uuid=generate_uuid5(doc.id)):                
+            if policy == DuplicatePolicy.SKIP and collection.data.exists(uuid=generate_uuid5(doc.id)):
                 # This Document already exists, we skip it
                 continue
 
@@ -1045,7 +1045,8 @@ class WeaviateDocumentStore:
         If policy is set to FAIL it will raise an exception if any of the documents already exists.
         """
         collection = await self.async_collection
-
+        if tenant:
+            collection = collection.with_tenant(tenant)
         duplicate_errors_ids = []
         for doc in documents:
             if not isinstance(doc, Document):
@@ -1261,10 +1262,17 @@ class WeaviateDocumentStore:
                 )
 
     def delete_by_filter(self, filters: dict[str, Any]) -> int:
+        """
+        Deletes all documents that match the provided filters.
+
+        :param filters: The filters to apply to select documents for deletion.
+            For filter syntax, see Haystack metadata filtering docs.
+        :returns: The number of documents deleted.
+        """
         validate_filters(filters)
 
         try:
-            collection = self.collection  # ✅ FIX
+            collection = self.collection
 
             weaviate_filter = convert_filters(filters)
             result = collection.data.delete_many(where=weaviate_filter)
@@ -1285,27 +1293,25 @@ class WeaviateDocumentStore:
             msg = f"Failed to delete documents by filter in Weaviate: {e!s}"
             raise DocumentStoreError(msg) from e
 
-    async def delete_by_filter_async(self, filters: dict[str, Any]) -> int:
-        """
-        Asynchronously deletes all documents that match the provided filters.
 
-        :param filters: The filters to apply to select documents for deletion.
-            For filter syntax, see [Haystack metadata filtering](https://docs.haystack.deepset.ai/docs/metadata-filtering)
-        :returns: The number of documents deleted.
-        """
+    async def delete_by_filter_async(self, filters: dict[str, Any]) -> int:
         validate_filters(filters)
 
         try:
             collection = await self.async_collection
+
             weaviate_filter = convert_filters(filters)
             result = await collection.data.delete_many(where=weaviate_filter)
             deleted_count = result.successful
+
             logger.info(
                 "Deleted {n_docs} documents from collection '{collection}' using filters.",
                 n_docs=deleted_count,
                 collection=collection.name,
             )
+
             return deleted_count
+
         except weaviate.exceptions.WeaviateQueryError as e:
             msg = f"Failed to delete documents by filter in Weaviate. Error: {e.message}"
             raise DocumentStoreError(msg) from e
@@ -1338,7 +1344,7 @@ class WeaviateDocumentStore:
                         current_properties[key] = value
 
                     vector: VECTORS | None = None
-                    if isinstance(obj.vector, (list, dict)):
+                    if isinstance(obj.vector, list | dict):
                         vector = obj.vector
 
                     collection.data.replace(   # ✅ FIX
@@ -1435,7 +1441,7 @@ class WeaviateDocumentStore:
                     # Update the object, preserving the vector
                     # Get the vector from the object to preserve it during replace
                     vector: VECTORS | None = None
-                    if isinstance(obj.vector, (list, dict)):
+                    if isinstance(obj.vector, list | dict):
                         vector = obj.vector
 
                     await collection.data.replace(
