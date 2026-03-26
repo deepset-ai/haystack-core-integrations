@@ -146,7 +146,6 @@ class NvidiaChatGenerator(OpenAIChatGenerator):
                     extra_body.update(inner)
                     kwargs["extra_body"] = extra_body
 
-        # fix both
         fix_extra_body(self.generation_kwargs)
         fix_extra_body(generation_kwargs)
 
@@ -176,7 +175,6 @@ class NvidiaChatGenerator(OpenAIChatGenerator):
                     extra_body.update(inner)
                     kwargs["extra_body"] = extra_body
 
-        # fix both
         fix_extra_body(self.generation_kwargs)
         fix_extra_body(generation_kwargs)
 
