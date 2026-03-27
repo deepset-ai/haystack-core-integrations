@@ -138,16 +138,22 @@ class NvidiaChatGenerator(OpenAIChatGenerator):
     ) -> dict[str, Any]:
         """Run the NVIDIA chat generator."""
 
-        def fix_extra_body(kwargs: dict[str, Any] | None) -> None:
+        def transform_guided_json(kwargs: dict[str, Any] | None) -> None:
             if kwargs and "extra_body" in kwargs:
                 extra_body = kwargs.get("extra_body", {})
-                if "extra_body" in extra_body:
-                    inner = extra_body.pop("extra_body")
-                    extra_body.update(inner)
-                    kwargs["extra_body"] = extra_body
 
-        fix_extra_body(self.generation_kwargs)
-        fix_extra_body(generation_kwargs)
+                if "guided_json" in extra_body:
+                    kwargs["response_format"] = {
+                        "type": "json_schema",
+                        "json_schema": {
+                            "name": "structured_output",
+                            "schema": extra_body["guided_json"],
+                        },
+                    }
+                    kwargs.pop("extra_body", None)
+
+        transform_guided_json(self.generation_kwargs)
+        transform_guided_json(generation_kwargs)
 
         return OpenAIChatGenerator.run(
             self,
@@ -169,16 +175,24 @@ class NvidiaChatGenerator(OpenAIChatGenerator):
     ) -> dict[str, Any]:
         """Run the NVIDIA chat generator asynchronously."""
 
-        def fix_extra_body(kwargs: dict[str, Any] | None) -> None:
+        def transform_guided_json(kwargs: dict[str, Any] | None) -> None:
             if kwargs and "extra_body" in kwargs:
                 extra_body = kwargs.get("extra_body", {})
-                if "extra_body" in extra_body:
-                    inner = extra_body.pop("extra_body")
-                    extra_body.update(inner)
-                    kwargs["extra_body"] = extra_body
 
-        fix_extra_body(self.generation_kwargs)
-        fix_extra_body(generation_kwargs)
+                if "guided_json" in extra_body:
+                    kwargs["response_format"] = {
+                        "type": "json_schema",
+                        "json_schema": {
+                            "name": "structured_output",
+                            "schema": extra_body["guided_json"],
+                        },
+                    }
+
+                    # remove old field
+                    kwargs.pop("extra_body", None)
+
+        transform_guided_json(self.generation_kwargs)
+        transform_guided_json(generation_kwargs)
 
         return await OpenAIChatGenerator.run_async(
             self,
