@@ -127,3 +127,16 @@ class TestLibreOfficeFileConverter:
         assert len(output) == 1
         assert isinstance(output[0], ByteStream)
         assert len(output[0].data) > 0
+
+    def test_resolve_mime_type(self, mock_converter: LibreOfficeFileConverter) -> None:
+        with patch("mimetypes.guess_type", return_value=("application/pdf", None)):
+            mime = mock_converter._resolve_mime_type(Path("test.pdf"), "pdf")
+            assert mime == "application/pdf"
+
+        with patch("mimetypes.guess_type", return_value=(None, None)):
+            mime = mock_converter._resolve_mime_type(Path("test.docx"), "docx")
+            assert mime == "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+
+        with patch("mimetypes.guess_type", return_value=(None, None)):
+            mime = mock_converter._resolve_mime_type(Path("test.unknown"), "unknown")
+            assert mime is None
