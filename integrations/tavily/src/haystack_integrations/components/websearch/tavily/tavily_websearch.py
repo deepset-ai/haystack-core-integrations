@@ -61,7 +61,6 @@ class TavilyWebSearch:
         self.api_key = api_key
         self.top_k = top_k
         self.search_params = search_params
-        self._search_params = search_params or {}
         self._tavily_client: TavilyClient | None = None
         self._async_tavily_client: AsyncTavilyClient | None = None
 
@@ -99,7 +98,7 @@ class TavilyWebSearch:
             msg = "TavilyWebSearch client failed to initialize."
             raise RuntimeError(msg)
 
-        params = (search_params if search_params is not None else self._search_params).copy()
+        params = (search_params if search_params is not None else self.search_params or {}).copy()
         if "max_results" not in params and self.top_k is not None:
             params["max_results"] = self.top_k
 
@@ -129,7 +128,7 @@ class TavilyWebSearch:
             msg = "TavilyWebSearch async client failed to initialize."
             raise RuntimeError(msg)
 
-        params = (search_params if search_params is not None else self._search_params).copy()
+        params = (search_params if search_params is not None else self.search_params or {}).copy()
         if "max_results" not in params and self.top_k is not None:
             params["max_results"] = self.top_k
 
