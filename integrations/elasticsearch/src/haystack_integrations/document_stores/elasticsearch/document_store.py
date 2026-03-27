@@ -1,12 +1,11 @@
 # SPDX-FileCopyrightText: 2023-present deepset GmbH <info@deepset.ai>
 #
 # SPDX-License-Identifier: Apache-2.0
+import copy
 
 # ruff: noqa: FBT002, FBT001    boolean-type-hint-positional-argument and boolean-default-value-positional-argument
 # ruff: noqa: B008              function-call-in-default-argument
 # ruff: noqa: S101              disable checks for uses of the assert keyword
-
-
 from collections.abc import Mapping
 from typing import Any, Literal
 
@@ -85,6 +84,7 @@ class ElasticsearchDocumentStore:
         api_key: Secret | str | None = Secret.from_env_var("ELASTIC_API_KEY", strict=False),
         api_key_id: Secret | str | None = Secret.from_env_var("ELASTIC_API_KEY_ID", strict=False),
         embedding_similarity_function: Literal["cosine", "dot_product", "l2_norm", "max_inner_product"] = "cosine",
+        sparse_vector_field: str | None = None,
         **kwargs: Any,
     ) -> None:
         """
@@ -116,6 +116,9 @@ class ElasticsearchDocumentStore:
             To choose the most appropriate function, look for information about your embedding model.
             To understand how document scores are computed, see the Elasticsearch
             [documentation](https://www.elastic.co/guide/en/elasticsearch/reference/current/dense-vector.html#dense-vector-params)
+        :param sparse_vector_field: If set, the name of the Elasticsearch field where sparse embeddings
+            will be stored using the `sparse_vector` field type. When not set, any `sparse_embedding`
+            data on Documents is silently dropped during writes.
         :param **kwargs: Optional arguments that `Elasticsearch` takes.
         """
         self._hosts = hosts
@@ -125,16 +128,26 @@ class ElasticsearchDocumentStore:
         self._api_key = api_key
         self._api_key_id = api_key_id
         self._embedding_similarity_function = embedding_similarity_function
+        self._sparse_vector_field = sparse_vector_field
         self._custom_mapping = custom_mapping
         self._kwargs = kwargs
         self._initialized = False
+
+        if self._sparse_vector_field and self._sparse_vector_field in SPECIAL_FIELDS:
+            msg = f"sparse_vector_field '{self._sparse_vector_field}' conflicts with a reserved field name."
+            raise ValueError(msg)
 
         if self._custom_mapping and not isinstance(self._custom_mapping, dict):
             msg = "custom_mapping must be a dictionary"
             raise ValueError(msg)
 
+        if self._custom_mapping and self._sparse_vector_field:
+            self._custom_mapping = copy.deepcopy(custom_mapping)  # original custom_mapping dict is left unchanged
+            self._custom_mapping.setdefault("properties", {})  # type: ignore # can't be None here
+            self._custom_mapping["properties"][self._sparse_vector_field] = {"type": "sparse_vector"}  # type: ignore # can't be None here
+
         if not self._custom_mapping:
-            self._default_mappings = {
+            self._default_mappings: dict[str, Any] = {
                 "properties": {
                     "embedding": {
                         "type": "dense_vector",
@@ -155,6 +168,8 @@ class ElasticsearchDocumentStore:
                     }
                 ],
             }
+            if self._sparse_vector_field:
+                self._default_mappings["properties"][self._sparse_vector_field] = {"type": "sparse_vector"}
 
     def _ensure_initialized(self) -> None:
         """
@@ -276,6 +291,7 @@ class ElasticsearchDocumentStore:
             api_key=self._api_key.to_dict() if isinstance(self._api_key, Secret) else None,
             api_key_id=self._api_key_id.to_dict() if isinstance(self._api_key_id, Secret) else None,
             embedding_similarity_function=self._embedding_similarity_function,
+            sparse_vector_field=self._sparse_vector_field,
             **self._kwargs,
         )
 
@@ -403,12 +419,11 @@ class ElasticsearchDocumentStore:
         documents = await self._search_documents_async(query=query)
         return documents
 
-    @staticmethod
-    def _deserialize_document(hit: dict[str, Any]) -> Document:
+    def _deserialize_document(self, hit: dict[str, Any]) -> Document:
         """
         Creates a `Document` from the search hit provided.
 
-        This is mostly useful in self.filter_documents().
+        This is mostly useful in self.filter_documents() and self.filter_documents_async().
 
         :param hit: A search hit from Elasticsearch.
         :returns: `Document` created from the search hit.
@@ -419,7 +434,39 @@ class ElasticsearchDocumentStore:
             data["metadata"]["highlighted"] = hit["highlight"]
         data["score"] = hit["_score"]
 
+        if self._sparse_vector_field and self._sparse_vector_field in data:
+            es_sparse = data.pop(self._sparse_vector_field)
+            sorted_items = sorted(es_sparse.items(), key=lambda x: int(x[0]))
+            data["sparse_embedding"] = {
+                "indices": [int(k) for k, _ in sorted_items],
+                "values": [v for _, v in sorted_items],
+            }
+
         return Document.from_dict(data)
+
+    def _handle_sparse_embedding(self, doc_dict: dict[str, Any], doc_id: str) -> None:
+        """
+        Extracts the sparse_embedding from a document dict and converts it to the Elasticsearch sparse_vector format.
+
+        :param doc_dict: The dictionary representation of the document.
+        :param doc_id: The document ID, used for warning messages.
+        """
+        if "sparse_embedding" not in doc_dict:
+            return
+        sparse_embedding = doc_dict.pop("sparse_embedding")
+        if not sparse_embedding:
+            return
+        if self._sparse_vector_field:
+            doc_dict[self._sparse_vector_field] = {
+                str(idx): val for idx, val in zip(sparse_embedding["indices"], sparse_embedding["values"], strict=True)
+            }
+        else:
+            logger.warning(
+                "Document {doc_id} has the `sparse_embedding` field set, "
+                "but `sparse_vector_field` is not configured for this ElasticsearchDocumentStore. "
+                "The `sparse_embedding` field will be ignored.",
+                doc_id=doc_id,
+            )
 
     def write_documents(
         self,
@@ -456,16 +503,7 @@ class ElasticsearchDocumentStore:
         elasticsearch_actions = []
         for doc in documents:
             doc_dict = doc.to_dict()
-
-            if "sparse_embedding" in doc_dict:
-                sparse_embedding = doc_dict.pop("sparse_embedding", None)
-                if sparse_embedding:
-                    logger.warning(
-                        "Document {doc_id} has the `sparse_embedding` field set,"
-                        "but storing sparse embeddings in Elasticsearch is not currently supported."
-                        "The `sparse_embedding` field will be ignored.",
-                        doc_id=doc.id,
-                    )
+            self._handle_sparse_embedding(doc_dict, doc.id)
             elasticsearch_actions.append(
                 {
                     "_op_type": action,
@@ -543,16 +581,7 @@ class ElasticsearchDocumentStore:
         actions = []
         for doc in documents:
             doc_dict = doc.to_dict()
-
-            if "sparse_embedding" in doc_dict:
-                sparse_embedding = doc_dict.pop("sparse_embedding", None)
-                if sparse_embedding:
-                    logger.warning(
-                        "Document {doc_id} has the `sparse_embedding` field set,"
-                        "but storing sparse embeddings in Elasticsearch is not currently supported."
-                        "The `sparse_embedding` field will be ignored.",
-                        doc_id=doc.id,
-                    )
+            self._handle_sparse_embedding(doc_dict, doc.id)
 
             action = {
                 "_op_type": "create" if policy == DuplicatePolicy.FAIL else "index",
