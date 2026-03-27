@@ -61,7 +61,7 @@ class TavilyWebSearch:
         self.api_key = api_key
         self.top_k = top_k
         self.search_params = search_params
-        self._search_params = {} if search_params is None else search_params.copy()
+        self._search_params = search_params or {}
         self._tavily_client: TavilyClient | None = None
         self._async_tavily_client: AsyncTavilyClient | None = None
 

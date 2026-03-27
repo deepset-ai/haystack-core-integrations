@@ -10,3 +10,9 @@
 ## Contributing
 
 Refer to the general [Contribution Guidelines](https://github.com/deepset-ai/haystack-core-integrations/blob/main/CONTRIBUTING.md).
+
+To run integration tests, export your Tavily API key:
+
+```bash
+export TAVILY_API_KEY=<your-api-key>
+```
