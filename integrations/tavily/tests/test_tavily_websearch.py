@@ -38,7 +38,7 @@ class TestTavilyWebSearch:
         monkeypatch.setenv("TAVILY_API_KEY", "test-key")
         ws = TavilyWebSearch()
         assert ws.top_k == 10
-        assert ws._search_params == {}
+        assert ws.search_params is None
         assert ws.api_key.resolve_value() == "test-key"
 
     def test_init_with_params(self):
@@ -48,7 +48,7 @@ class TestTavilyWebSearch:
             search_params={"search_depth": "advanced"},
         )
         assert ws.top_k == 5
-        assert ws._search_params == {"search_depth": "advanced"}
+        assert ws.search_params == {"search_depth": "advanced"}
 
     def test_to_dict(self, monkeypatch):
         monkeypatch.setenv("TAVILY_API_KEY", "test-key")
