@@ -90,15 +90,16 @@ class NvidiaChatGenerator(OpenAIChatGenerator):
             - `response_format`: For NVIDIA NIM servers, this parameter has limited support.
                 - The basic JSON mode with `{"type": "json_object"}` is supported by compatible models, to produce
                 valid JSON output.
-                To pass the JSON schema to the model, use the `guided_json` parameter in `extra_body`.
-                For example:
+                To generate structured JSON output, use the `response_format` parameter.
+                Example:
                 ```python
                 generation_kwargs={
-                    "extra_body": {
-                        "nvext": {
-                            "guided_json": {
-                                json_schema
-                        }
+                    "response_format": {
+                        "type": "json_schema",
+                        "json_schema": {
+                            "name": "my_schema",
+                            "schema": json_schema,
+                        },
                     }
                 }
                 ```
@@ -138,23 +139,6 @@ class NvidiaChatGenerator(OpenAIChatGenerator):
     ) -> dict[str, Any]:
         """Run the NVIDIA chat generator."""
 
-        def transform_guided_json(kwargs: dict[str, Any] | None) -> None:
-            if kwargs and "extra_body" in kwargs:
-                extra_body = kwargs.get("extra_body", {})
-
-                if "guided_json" in extra_body:
-                    kwargs["response_format"] = {
-                        "type": "json_schema",
-                        "json_schema": {
-                            "name": "structured_output",
-                            "schema": extra_body["guided_json"],
-                        },
-                    }
-                    kwargs.pop("extra_body", None)
-
-        transform_guided_json(self.generation_kwargs)
-        transform_guided_json(generation_kwargs)
-
         return OpenAIChatGenerator.run(
             self,
             messages=messages,
@@ -174,25 +158,6 @@ class NvidiaChatGenerator(OpenAIChatGenerator):
         tools_strict: bool | None = None,
     ) -> dict[str, Any]:
         """Run the NVIDIA chat generator asynchronously."""
-
-        def transform_guided_json(kwargs: dict[str, Any] | None) -> None:
-            if kwargs and "extra_body" in kwargs:
-                extra_body = kwargs.get("extra_body", {})
-
-                if "guided_json" in extra_body:
-                    kwargs["response_format"] = {
-                        "type": "json_schema",
-                        "json_schema": {
-                            "name": "structured_output",
-                            "schema": extra_body["guided_json"],
-                        },
-                    }
-
-                    # remove old field
-                    kwargs.pop("extra_body", None)
-
-        transform_guided_json(self.generation_kwargs)
-        transform_guided_json(generation_kwargs)
 
         return await OpenAIChatGenerator.run_async(
             self,

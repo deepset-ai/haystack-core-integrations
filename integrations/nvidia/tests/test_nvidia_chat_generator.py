@@ -278,7 +278,7 @@ class TestNvidiaChatGenerator:
         reason="Export an env var called NVIDIA_API_KEY containing the NVIDIA API key to run this test.",
     )
     @pytest.mark.integration
-    def test_live_run_with_guided_json_schema(self):
+    def test_live_run_with_json_schema(self):
         json_schema = {
             "type": "object",
             "properties": {"title": {"type": "string"}, "rating": {"type": "number"}},
@@ -295,7 +295,15 @@ class TestNvidiaChatGenerator:
 
         component = NvidiaChatGenerator(
             model="meta/llama-3.1-70b-instruct",
-            generation_kwargs={"extra_body": {"nvext": {"guided_json": json_schema}}},
+            generation_kwargs={
+                "response_format": {
+                    "type": "json_schema",
+                    "json_schema": {
+                        "name": "movie_review",
+                        "schema": json_schema,
+                    },
+                },
+            }
         )
 
         results = component.run(chat_messages)
