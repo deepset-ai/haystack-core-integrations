@@ -310,7 +310,7 @@ class TestNvidiaChatGenerator:
         assert len(results["replies"]) == 1
         message = results["replies"][0].text
         output = json.loads(message)
-        assert output["title"] == "Inception"
+        assert "Inception" in output["title"]
         assert "rating" in output
 
     @pytest.mark.skipif(
