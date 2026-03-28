@@ -303,7 +303,7 @@ class TestNvidiaChatGenerator:
                         "schema": json_schema,
                     },
                 },
-            }
+            },
         )
 
         results = component.run(chat_messages)
