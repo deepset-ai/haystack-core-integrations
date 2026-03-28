@@ -1,0 +1,1450 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cognee Knowledge Graph</title>
+<script src="https://d3js.org/d3.v7.min.js"></script>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#000000;--bg2:#323332;--surface:rgba(255,255,255,0.06);
+  --border:rgba(219,216,216,0.12);--text:#F4F4F4;--text2:#DBD8D8;
+  --accent:#6510F4;--accent2:#A550FF;--green:#0DFF00;
+}
+@font-face{font-family:'Inter';src:local('Inter'),local('Inter-Regular');font-display:swap}
+body,html{width:100%;height:100%;overflow:hidden;background:#000000;color:#F4F4F4;font-family:'Inter',system-ui,-apple-system,sans-serif}
+canvas{display:block;width:100vw;height:100vh;cursor:grab}
+canvas:active{cursor:grabbing}
+
+#header{
+  position:fixed;top:0;left:0;right:0;height:48px;
+  display:flex;align-items:center;justify-content:space-between;
+  padding:0 20px;z-index:100;
+  background:linear-gradient(180deg,rgba(0,0,0,0.95) 0%,rgba(0,0,0,0) 100%);
+  pointer-events:none;
+}
+#header>*{pointer-events:auto}
+.logo{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600;letter-spacing:0.02em;color:var(--text)}
+.logo img{height:28px;width:auto}
+.stats{display:flex;gap:16px;font-size:11px;color:var(--text2);font-variant-numeric:tabular-nums}
+.stats span{display:flex;align-items:center;gap:4px}
+.stats .dot{width:6px;height:6px;border-radius:50%;flex-shrink:0}
+
+#controls{
+  position:fixed;bottom:20px;left:50%;transform:translateX(-50%);z-index:100;
+  display:flex;gap:2px;padding:4px;
+  background:var(--bg2);border:1px solid var(--border);border-radius:10px;
+}
+.ctrl-btn{
+  padding:6px 14px;font-size:11px;font-weight:500;font-family:inherit;
+  color:var(--text2);background:transparent;border:none;border-radius:7px;
+  cursor:pointer;transition:all 0.15s ease;white-space:nowrap;
+}
+.ctrl-btn:hover{color:var(--text);background:var(--surface)}
+.ctrl-btn.active{color:#F4F4F4;background:rgba(101,16,244,0.2)}
+.ctrl-sep{width:1px;background:var(--border);margin:2px 4px}
+
+#search-box{
+  position:fixed;top:56px;left:20px;z-index:100;width:280px;
+}
+#search-input{
+  width:100%;padding:8px 12px 8px 32px;
+  font-size:12px;font-family:inherit;color:var(--text);
+  background:var(--bg2);border:1px solid var(--border);border-radius:8px;
+  outline:none;transition:border-color 0.15s;
+}
+#search-input:focus{border-color:var(--accent)}
+#search-input::placeholder{color:var(--text2)}
+.search-icon{position:absolute;left:10px;top:50%;transform:translateY(-50%);color:var(--text2);pointer-events:none}
+
+#info-panel{
+  position:fixed;top:56px;right:20px;width:320px;max-height:calc(100vh - 80px);
+  overflow-y:auto;z-index:100;
+  background:var(--bg2);border:1px solid var(--border);border-radius:12px;
+  padding:16px;opacity:0;transform:translateX(8px);
+  transition:opacity 0.2s ease,transform 0.2s ease;
+}
+#info-panel.visible{opacity:1;transform:translateX(0)}
+#info-panel::-webkit-scrollbar{width:4px}
+#info-panel::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
+.panel-header{display:flex;align-items:center;gap:8px;margin-bottom:12px}
+.panel-type{
+  font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:0.06em;
+  padding:2px 6px;border-radius:4px;background:rgba(101,16,244,0.2);color:#A550FF;
+}
+.panel-title{font-size:14px;font-weight:600;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.panel-section{margin-top:12px;padding-top:12px;border-top:1px solid var(--border)}
+.panel-section-title{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;color:var(--text2);margin-bottom:8px}
+.panel-row{display:flex;justify-content:space-between;align-items:flex-start;padding:3px 0;font-size:12px;gap:12px}
+.panel-row .k{color:var(--text2);flex-shrink:0}
+.panel-row .v{color:var(--text);text-align:right;word-break:break-word;max-width:200px}
+
+#legend{
+  position:fixed;bottom:64px;left:20px;z-index:100;
+  display:flex;flex-wrap:wrap;gap:6px 12px;
+  padding:10px 14px;background:var(--bg2);border:1px solid var(--border);border-radius:10px;
+  max-width:400px;
+}
+.legend-item{display:flex;align-items:center;gap:5px;font-size:10px;color:var(--text2);white-space:nowrap}
+.legend-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+
+.empty-state{
+  position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);
+  text-align:center;color:var(--text2);font-size:14px;
+}
+
+#loading-overlay{
+  position:fixed;top:0;left:0;right:0;bottom:0;z-index:200;
+  background:rgba(0,0,0,0.92);
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  transition:opacity 0.4s ease;
+}
+#loading-overlay.hidden{opacity:0;pointer-events:none}
+#loading-text{font-size:14px;color:var(--text2);margin-bottom:16px}
+#loading-bar-bg{width:240px;height:4px;background:var(--bg2);border-radius:2px;overflow:hidden}
+#loading-bar{width:0%;height:100%;background:var(--accent);border-radius:2px;transition:width 0.15s linear}
+#loading-stats{font-size:11px;color:var(--text2);margin-top:10px;opacity:0.7}
+
+#minimap-container{
+  position:fixed;bottom:64px;right:20px;z-index:100;
+  border:1px solid var(--border);border-radius:8px;overflow:hidden;
+  background:rgba(0,0,0,0.7);cursor:pointer;display:none;
+}
+#minimap-canvas{display:block}
+
+#fps-counter{
+  position:fixed;top:12px;right:180px;z-index:100;
+  font-size:10px;color:var(--text2);font-variant-numeric:tabular-nums;
+  display:none;pointer-events:none;
+}
+</style>
+</head>
+<body>
+
+<div id="header">
+  <div class="logo">
+    <img src="data:image/png;base64,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" alt="Cognee">
+  </div>
+  <div class="stats" id="stats"></div>
+</div>
+
+<div id="search-box">
+  <svg class="search-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+  <input type="text" id="search-input" placeholder="Search nodes..." autocomplete="off" spellcheck="false">
+</div>
+
+<div id="controls">
+  <button class="ctrl-btn active" data-layer="nodes">Nodes</button>
+  <button class="ctrl-btn active" data-layer="edges">Edges</button>
+  <button class="ctrl-btn active" data-layer="labels">Labels</button>
+  <button class="ctrl-btn" data-layer="heatmap">Heatmap</button>
+  <button class="ctrl-btn" data-layer="typeclouds">Type Clouds</button>
+  <div class="ctrl-sep"></div>
+  <span style="font-size:10px;color:var(--text2);padding:6px 4px">Color:</span>
+  <button class="ctrl-btn active" data-colorby="type">Type</button>
+  <button class="ctrl-btn" data-colorby="task">Task</button>
+  <button class="ctrl-btn" data-colorby="pipeline">Pipeline</button>
+  <button class="ctrl-btn" data-colorby="nodeset">Node Set</button>
+  <button class="ctrl-btn" data-colorby="user">User</button>
+  <div class="ctrl-sep"></div>
+  <button class="ctrl-btn" id="btn-zoom-out" title="Zoom out (-)">&#x2212;</button>
+  <button class="ctrl-btn" id="btn-zoom-in" title="Zoom in (+)">+</button>
+  <button class="ctrl-btn" id="btn-fit" title="Fit to view (F)">Fit</button>
+</div>
+
+<div id="info-panel"></div>
+<div id="legend"></div>
+
+<div id="loading-overlay">
+  <div id="loading-text">Laying out graph...</div>
+  <div id="loading-bar-bg"><div id="loading-bar"></div></div>
+  <div id="loading-stats"></div>
+</div>
+
+<div id="minimap-container"><canvas id="minimap-canvas"></canvas></div>
+<div id="fps-counter"></div>
+
+<canvas id="canvas"></canvas>
+
+<script>
+(function(){
+"use strict";
+
+var nodes = [{"name": "", "type": "DocumentChunk", "ontology_valid": false, "version": 1, "topological_rank": 0, "metadata": {"index_fields": ["text"]}, "belongs_to_set": null, "source_pipeline": "cognify_pipeline", "source_task": "extract_chunks_from_documents", "source_node_set": null, "source_user": "default_user@example.com", "text": "Knowledge graphs represent information as nodes (entities) and edges (relationships). They enable semantic search, reasoning, and discovery of hidden connections across large document collections.", "chunk_size": 56, "chunk_index": 0, "cut_type": "sentence_end", "id": "601f27c0-4582-5a13-89d3-64a8c0f15cc1", "color": "#0DFF00"}, {"name": "knowledge graphs", "type": "Entity", "ontology_valid": false, "version": 1, "topological_rank": 0, "metadata": {"index_fields": ["name"]}, "belongs_to_set": null, "source_pipeline": "cognify_pipeline", "source_task": "extract_graph_from_data", "source_node_set": null, "source_user": "default_user@example.com", "description": "Knowledge graph technologies used to power the search platform.", "id": "df20c394-b710-5b2c-9256-ce5f5fe36397", "color": "#6510F4"}, {"name": "concept", "type": "EntityType", "ontology_valid": false, "version": 1, "topological_rank": 0, "metadata": {"index_fields": ["name"]}, "belongs_to_set": null, "source_pipeline": "cognify_pipeline", "source_task": "extract_graph_from_data", "source_node_set": null, "source_user": "default_user@example.com", "description": "concept", "id": "dd9713b7-dc20-5101-aad0-1c4216811147", "color": "#A550FF"}, {"name": "nodes", "type": "Entity", "ontology_valid": false, "version": 1, "topological_rank": 0, "metadata": {"index_fields": ["name"]}, "belongs_to_set": null, "source_pipeline": "cognify_pipeline", "source_task": "extract_graph_from_data", "source_node_set": null, "source_user": "default_user@example.com", "description": "Elements in a knowledge graph that represent entities.", "id": "bd3f3aa5-5df4-54a0-af4e-78aa5a54e8f3", "color": "#6510F4"}, {"name": "edges", "type": "Entity", "ontology_valid": false, "version": 1, "topological_rank": 0, "metadata": {"index_fields": ["name"]}, "belongs_to_set": null, "source_pipeline": "cognify_pipeline", "source_task": "extract_graph_from_data", "source_node_set": null, "source_user": "default_user@example.com", "description": "Relationships that connect nodes in a knowledge graph.", "id": "e4f1a343-1dd6-5191-ab16-4901f6eccf51", "color": "#6510F4"}, {"name": "information", "type": "Entity", "ontology_valid": false, "version": 1, "topological_rank": 0, "metadata": {"index_fields": ["name"]}, "belongs_to_set": null, "source_pipeline": "cognify_pipeline", "source_task": "extract_graph_from_data", "source_node_set": null, "source_user": "default_user@example.com", "description": "Data or knowledge represented within a knowledge graph.", "id": "3fb76a7a-fbf5-57ce-afb0-dcabb13cddeb", "color": "#6510F4"}, {"name": "semantic search", "type": "Entity", "ontology_valid": false, "version": 1, "topological_rank": 0, "metadata": {"index_fields": ["name"]}, "belongs_to_set": null, "source_pipeline": "cognify_pipeline", "source_task": "extract_graph_from_data", "source_node_set": null, "source_user": "default_user@example.com", "description": "Search that uses meaning and relationships rather than simple keyword matching.", "id": "9d6360d4-504a-5f7f-b618-c2ea457a1a4d", "color": "#6510F4"}, {"name": "reasoning", "type": "Entity", "ontology_valid": false, "version": 1, "topological_rank": 0, "metadata": {"index_fields": ["name"]}, "belongs_to_set": null, "source_pipeline": "cognify_pipeline", "source_task": "extract_graph_from_data", "source_node_set": null, "source_user": "default_user@example.com", "description": "Inference and logical processes enabled by structured knowledge representations.", "id": "ba802be9-50b2-58a6-a46d-031e30a780a8", "color": "#6510F4"}, {"name": "discovery of hidden connections", "type": "Entity", "ontology_valid": false, "version": 1, "topological_rank": 0, "metadata": {"index_fields": ["name"]}, "belongs_to_set": null, "source_pipeline": "cognify_pipeline", "source_task": "extract_graph_from_data", "source_node_set": null, "source_user": "default_user@example.com", "description": "Identification of non-obvious relationships across data using a knowledge graph.", "id": "e0c5c99c-74a8-5d09-8e8a-05cb2e5bcf6b", "color": "#6510F4"}, {"name": "large document collections", "type": "Entity", "ontology_valid": false, "version": 1, "topological_rank": 0, "metadata": {"index_fields": ["name"]}, "belongs_to_set": null, "source_pipeline": "cognify_pipeline", "source_task": "extract_graph_from_data", "source_node_set": null, "source_user": "default_user@example.com", "description": "Extensive corpora of documents across which knowledge graphs can reveal connections.", "id": "838f4a46-e459-58e4-a40b-ab30cd21da5c", "color": "#6510F4"}, {"name": "text_41edf18cf1a9cb76a5e2eb8429cb9a29", "type": "TextDocument", "ontology_valid": false, "version": 1, "topological_rank": 0, "metadata": {"index_fields": ["name"]}, "belongs_to_set": null, "source_pipeline": "cognify_pipeline", "source_task": "classify_documents", "source_node_set": null, "source_user": "default_user@example.com", "raw_data_location": "file:///Users/handekafkas/Documents/local-code/haystack-core-integrations/integrations/cognee/.venv/lib/python3.13/site-packages/cognee/.data_storage/text_41edf18cf1a9cb76a5e2eb8429cb9a29.txt", "external_metadata": "{}", "mime_type": "text/plain", "id": "86c075e6-5852-5d80-8327-4e9691a71f62", "color": "#DBD8D8"}, {"name": "", "type": "DocumentChunk", "ontology_valid": false, "version": 1, "topological_rank": 0, "metadata": {"index_fields": ["text"]}, "belongs_to_set": null, "source_pipeline": "cognify_pipeline", "source_task": "extract_chunks_from_documents", "source_node_set": null, "source_user": "default_user@example.com", "text": "Cognee is an open-source memory for AI agents. Cognee builts a knowledge enginethat transforms raw data (e.g., unstructured documents, relational databases, etc.)into a persistent, rich, and traceable memory that is searchable by meaning and relationships.", "chunk_size": 95, "chunk_index": 0, "cut_type": "sentence_end", "id": "bc815248-f743-5faa-b176-a216cf9e908e", "color": "#0DFF00"}, {"name": "cognee", "type": "Entity", "ontology_valid": false, "version": 1, "topological_rank": 0, "metadata": {"index_fields": ["name"]}, "belongs_to_set": null, "source_pipeline": "cognify_pipeline", "source_task": "extract_graph_from_data", "source_node_set": null, "source_user": "default_user@example.com", "description": "Open-source memory for AI agents; builds a knowledge engine that transforms raw data into a persistent, rich, and traceable memory searchable by meaning and relationships.", "id": "2d09f34b-aee1-5d32-a2f9-23eb7ed48b24", "color": "#6510F4"}, {"name": "software", "type": "EntityType", "ontology_valid": false, "version": 1, "topological_rank": 0, "metadata": {"index_fields": ["name"]}, "belongs_to_set": null, "source_pipeline": "cognify_pipeline", "source_task": "extract_graph_from_data", "source_node_set": null, "source_user": "default_user@example.com", "description": "software", "id": "2d66edc2-1e14-55ab-8304-680b514a597a", "color": "#A550FF"}, {"name": "ai agents", "type": "Entity", "ontology_valid": false, "version": 1, "topological_rank": 0, "metadata": {"index_fields": ["name"]}, "belongs_to_set": null, "source_pipeline": "cognify_pipeline", "source_task": "extract_graph_from_data", "source_node_set": null, "source_user": "default_user@example.com", "description": "Autonomous or semi-autonomous software agents that use memory systems.", "id": "968213f1-6ddc-5155-89d4-6df7c144a4a1", "color": "#6510F4"}, {"name": "agent", "type": "EntityType", "ontology_valid": false, "version": 1, "topological_rank": 0, "metadata": {"index_fields": ["name"]}, "belongs_to_set": null, "source_pipeline": "cognify_pipeline", "source_task": "extract_graph_from_data", "source_node_set": null, "source_user": "default_user@example.com", "description": "agent", "id": "5f6d6fc0-e6aa-5365-a4a0-98d6fa3af190", "color": "#A550FF"}, {"name": "knowledge engine", "type": "Entity", "ontology_valid": false, "version": 1, "topological_rank": 0, "metadata": {"index_fields": ["name"]}, "belongs_to_set": null, "source_pipeline": "cognify_pipeline", "source_task": "extract_graph_from_data", "source_node_set": null, "source_user": "default_user@example.com", "description": "A system that processes and structures raw data into persistent, rich, and traceable memory.", "id": "d8b992b3-ebdc-52a4-9913-9e1aea9a47f8", "color": "#6510F4"}, {"name": "raw data", "type": "Entity", "ontology_valid": false, "version": 1, "topological_rank": 0, "metadata": {"index_fields": ["name"]}, "belongs_to_set": null, "source_pipeline": "cognify_pipeline", "source_task": "extract_graph_from_data", "source_node_set": null, "source_user": "default_user@example.com", "description": "Unprocessed input such as unstructured documents, relational databases, and other data sources.", "id": "0a6f4624-d50e-5989-ba18-ddab839f5554", "color": "#6510F4"}, {"name": "data", "type": "EntityType", "ontology_valid": false, "version": 1, "topological_rank": 0, "metadata": {"index_fields": ["name"]}, "belongs_to_set": null, "source_pipeline": "cognify_pipeline", "source_task": "extract_graph_from_data", "source_node_set": null, "source_user": "default_user@example.com", "description": "data", "id": "4ed5a0c7-2efb-52d1-9734-06a8ba225c94", "color": "#A550FF"}, {"name": "unstructured documents", "type": "Entity", "ontology_valid": false, "version": 1, "topological_rank": 0, "metadata": {"index_fields": ["name"]}, "belongs_to_set": null, "source_pipeline": "cognify_pipeline", "source_task": "extract_graph_from_data", "source_node_set": null, "source_user": "default_user@example.com", "description": "Example raw data format (e.g., text files, reports, articles) mentioned as an input to the knowledge engine.", "id": "f89d185b-5df9-5fc6-84a7-35931b380405", "color": "#6510F4"}, {"name": "relational databases", "type": "Entity", "ontology_valid": false, "version": 1, "topological_rank": 0, "metadata": {"index_fields": ["name"]}, "belongs_to_set": null, "source_pipeline": "cognify_pipeline", "source_task": "extract_graph_from_data", "source_node_set": null, "source_user": "default_user@example.com", "description": "Example raw data format (structured tables) mentioned as an input to the knowledge engine.", "id": "9d84ec4f-0968-52d0-bd6d-2a4c1b07490d", "color": "#6510F4"}, {"name": "persistent rich traceable memory", "type": "Entity", "ontology_valid": false, "version": 1, "topological_rank": 0, "metadata": {"index_fields": ["name"]}, "belongs_to_set": null, "source_pipeline": "cognify_pipeline", "source_task": "extract_graph_from_data", "source_node_set": null, "source_user": "default_user@example.com", "description": "Memory produced by the knowledge engine that is persistent, rich in structure and metadata, traceable, and searchable by meaning and relationships.", "id": "dce5dd84-ed4d-5666-8908-c4c523b804c8", "color": "#6510F4"}, {"name": "text_d1622b5a4ae1e31ed9d352ea3d2cbc20", "type": "TextDocument", "ontology_valid": false, "version": 1, "topological_rank": 0, "metadata": {"index_fields": ["name"]}, "belongs_to_set": null, "source_pipeline": "cognify_pipeline", "source_task": "classify_documents", "source_node_set": null, "source_user": "default_user@example.com", "raw_data_location": "file:///Users/handekafkas/Documents/local-code/haystack-core-integrations/integrations/cognee/.venv/lib/python3.13/site-packages/cognee/.data_storage/text_d1622b5a4ae1e31ed9d352ea3d2cbc20.txt", "external_metadata": "{}", "mime_type": "text/plain", "id": "0700b84c-e4eb-5462-be56-0d7d97d0009e", "color": "#DBD8D8"}, {"name": "", "type": "DocumentChunk", "ontology_valid": false, "version": 1, "topological_rank": 0, "metadata": {"index_fields": ["text"]}, "belongs_to_set": null, "source_pipeline": "cognify_pipeline", "source_task": "extract_chunks_from_documents", "source_node_set": null, "source_user": "default_user@example.com", "text": "The engineering team at Acme Corp consists of Alice (backend lead), Bob (ML engineer), and Carol (infrastructure). They are building a next-generation search platform powered by knowledge graphs and LLMs.", "chunk_size": 72, "chunk_index": 0, "cut_type": "sentence_end", "id": "c569abe9-16f1-54e0-ab9c-a4223e1088e1", "color": "#0DFF00"}, {"name": "alice", "type": "Entity", "ontology_valid": false, "version": 1, "topological_rank": 0, "metadata": {"index_fields": ["name"]}, "belongs_to_set": null, "source_pipeline": "cognify_pipeline", "source_task": "extract_graph_from_data", "source_node_set": null, "source_user": "default_user@example.com", "description": "Backend lead on Acme Corp's engineering team.", "id": "f7d8be13-2a72-5104-bd02-7a5964737a91", "color": "#6510F4"}, {"name": "person", "type": "EntityType", "ontology_valid": false, "version": 1, "topological_rank": 0, "metadata": {"index_fields": ["name"]}, "belongs_to_set": null, "source_pipeline": "cognify_pipeline", "source_task": "extract_graph_from_data", "source_node_set": null, "source_user": "default_user@example.com", "description": "person", "id": "d072ba0f-e1a9-58bf-9974-e1802adc8134", "color": "#A550FF"}, {"name": "bob", "type": "Entity", "ontology_valid": false, "version": 1, "topological_rank": 0, "metadata": {"index_fields": ["name"]}, "belongs_to_set": null, "source_pipeline": "cognify_pipeline", "source_task": "extract_graph_from_data", "source_node_set": null, "source_user": "default_user@example.com", "description": "ML engineer on Acme Corp's engineering team.", "id": "515e93c6-3782-59db-96be-ad5b8cf872a5", "color": "#6510F4"}, {"name": "carol", "type": "Entity", "ontology_valid": false, "version": 1, "topological_rank": 0, "metadata": {"index_fields": ["name"]}, "belongs_to_set": null, "source_pipeline": "cognify_pipeline", "source_task": "extract_graph_from_data", "source_node_set": null, "source_user": "default_user@example.com", "description": "Infrastructure engineer on Acme Corp's engineering team.", "id": "80370ebb-d9b5-5f12-a3fb-db3631157840", "color": "#6510F4"}, {"name": "acme corp", "type": "Entity", "ontology_valid": false, "version": 1, "topological_rank": 0, "metadata": {"index_fields": ["name"]}, "belongs_to_set": null, "source_pipeline": "cognify_pipeline", "source_task": "extract_graph_from_data", "source_node_set": null, "source_user": "default_user@example.com", "description": "Company employing the engineering team.", "id": "7f5a651e-56c1-574f-aa54-cd0a0b7dbc38", "color": "#6510F4"}, {"name": "organization", "type": "EntityType", "ontology_valid": false, "version": 1, "topological_rank": 0, "metadata": {"index_fields": ["name"]}, "belongs_to_set": null, "source_pipeline": "cognify_pipeline", "source_task": "extract_graph_from_data", "source_node_set": null, "source_user": "default_user@example.com", "description": "organization", "id": "d3d7b6b4-9b0d-52e8-9e09-a9e9cf4b5a4d", "color": "#A550FF"}, {"name": "engineering team at acme corp", "type": "Entity", "ontology_valid": false, "version": 1, "topological_rank": 0, "metadata": {"index_fields": ["name"]}, "belongs_to_set": null, "source_pipeline": "cognify_pipeline", "source_task": "extract_graph_from_data", "source_node_set": null, "source_user": "default_user@example.com", "description": "Engineering team at Acme Corp consisting of Alice, Bob, and Carol.", "id": "7fa8891b-a426-5d42-b011-6851ef945793", "color": "#6510F4"}, {"name": "team", "type": "EntityType", "ontology_valid": false, "version": 1, "topological_rank": 0, "metadata": {"index_fields": ["name"]}, "belongs_to_set": null, "source_pipeline": "cognify_pipeline", "source_task": "extract_graph_from_data", "source_node_set": null, "source_user": "default_user@example.com", "description": "team", "id": "e308d782-2a18-5ace-b0e8-236c7c3b4db4", "color": "#A550FF"}, {"name": "next-generation search platform", "type": "Entity", "ontology_valid": false, "version": 1, "topological_rank": 0, "metadata": {"index_fields": ["name"]}, "belongs_to_set": null, "source_pipeline": "cognify_pipeline", "source_task": "extract_graph_from_data", "source_node_set": null, "source_user": "default_user@example.com", "description": "Next-generation search platform being built by the engineering team.", "id": "6fdb37d4-ae27-5a1a-9f7a-03f5036247ca", "color": "#6510F4"}, {"name": "project", "type": "EntityType", "ontology_valid": false, "version": 1, "topological_rank": 0, "metadata": {"index_fields": ["name"]}, "belongs_to_set": null, "source_pipeline": "cognify_pipeline", "source_task": "extract_graph_from_data", "source_node_set": null, "source_user": "default_user@example.com", "description": "project", "id": "29c0d211-0d39-579f-bf45-c7a78394c9aa", "color": "#A550FF"}, {"name": "technology", "type": "EntityType", "ontology_valid": false, "version": 1, "topological_rank": 0, "metadata": {"index_fields": ["name"]}, "belongs_to_set": null, "source_pipeline": "cognify_pipeline", "source_task": "extract_graph_from_data", "source_node_set": null, "source_user": "default_user@example.com", "description": "technology", "id": "65c71de3-4c23-5f28-8e07-fc7428d1e0c4", "color": "#A550FF"}, {"name": "llms", "type": "Entity", "ontology_valid": false, "version": 1, "topological_rank": 0, "metadata": {"index_fields": ["name"]}, "belongs_to_set": null, "source_pipeline": "cognify_pipeline", "source_task": "extract_graph_from_data", "source_node_set": null, "source_user": "default_user@example.com", "description": "Large language models used to power the search platform.", "id": "f7dc5ef7-3d2d-50c7-9edc-475862a15d4b", "color": "#6510F4"}, {"name": "text_fe5096366b6f10a6766dc51cbac9058c", "type": "TextDocument", "ontology_valid": false, "version": 1, "topological_rank": 0, "metadata": {"index_fields": ["name"]}, "belongs_to_set": null, "source_pipeline": "cognify_pipeline", "source_task": "classify_documents", "source_node_set": null, "source_user": "default_user@example.com", "raw_data_location": "file:///Users/handekafkas/Documents/local-code/haystack-core-integrations/integrations/cognee/.venv/lib/python3.13/site-packages/cognee/.data_storage/text_fe5096366b6f10a6766dc51cbac9058c.txt", "external_metadata": "{}", "mime_type": "text/plain", "id": "7706f53e-49ac-582a-8cf4-59b9c6e64bfb", "color": "#DBD8D8"}, {"name": "", "type": "DocumentChunk", "ontology_valid": false, "version": 1, "topological_rank": 0, "metadata": {"index_fields": ["text"]}, "belongs_to_set": null, "source_pipeline": "cognify_pipeline", "source_task": "extract_chunks_from_documents", "source_node_set": null, "source_user": "default_user@example.com", "text": "Haystack is an open-source LLM framework by deepset for building production-ready RAG pipelines, agents, and search systems. It uses a component-based architecture where each step (retrieval, generation, etc.) is a composable building block.", "chunk_size": 84, "chunk_index": 0, "cut_type": "sentence_end", "id": "ee7307f2-cba9-5003-9dc0-0780c50591a6", "color": "#0DFF00"}, {"name": "haystack", "type": "Entity", "ontology_valid": false, "version": 1, "topological_rank": 0, "metadata": {"index_fields": ["name"]}, "belongs_to_set": null, "source_pipeline": "cognify_pipeline", "source_task": "extract_graph_from_data", "source_node_set": null, "source_user": "default_user@example.com", "description": "Open-source LLM framework by deepset for building production-ready RAG pipelines, agents, and search systems.", "id": "2bdd3deb-07d8-5413-a56d-1643e3ceb48b", "color": "#6510F4"}, {"name": "deepset", "type": "Entity", "ontology_valid": false, "version": 1, "topological_rank": 0, "metadata": {"index_fields": ["name"]}, "belongs_to_set": null, "source_pipeline": "cognify_pipeline", "source_task": "extract_graph_from_data", "source_node_set": null, "source_user": "default_user@example.com", "description": "Company that develops Haystack.", "id": "126df7ec-d0db-53ea-bc88-1bafd84c8646", "color": "#6510F4"}, {"name": "rag pipelines", "type": "Entity", "ontology_valid": false, "version": 1, "topological_rank": 0, "metadata": {"index_fields": ["name"]}, "belongs_to_set": null, "source_pipeline": "cognify_pipeline", "source_task": "extract_graph_from_data", "source_node_set": null, "source_user": "default_user@example.com", "description": "Retrieval-Augmented Generation pipelines combining retrieval with LLM generation.", "id": "7594343c-5532-5896-b0aa-be5c1a74bd92", "color": "#6510F4"}, {"name": "agents", "type": "Entity", "ontology_valid": false, "version": 1, "topological_rank": 0, "metadata": {"index_fields": ["name"]}, "belongs_to_set": null, "source_pipeline": "cognify_pipeline", "source_task": "extract_graph_from_data", "source_node_set": null, "source_user": "default_user@example.com", "description": "Agent systems that orchestrate actions and LLM calls.", "id": "ba1f1dac-e2fb-5464-914d-ff54b9b19787", "color": "#6510F4"}, {"name": "search systems", "type": "Entity", "ontology_valid": false, "version": 1, "topological_rank": 0, "metadata": {"index_fields": ["name"]}, "belongs_to_set": null, "source_pipeline": "cognify_pipeline", "source_task": "extract_graph_from_data", "source_node_set": null, "source_user": "default_user@example.com", "description": "Systems for information retrieval and search.", "id": "a1a666e4-2070-59fd-95f7-c4c6178e89ba", "color": "#6510F4"}, {"name": "component-based architecture", "type": "Entity", "ontology_valid": false, "version": 1, "topological_rank": 0, "metadata": {"index_fields": ["name"]}, "belongs_to_set": null, "source_pipeline": "cognify_pipeline", "source_task": "extract_graph_from_data", "source_node_set": null, "source_user": "default_user@example.com", "description": "Architecture composed of modular components where each step is a building block.", "id": "30f5dcb9-d238-5c7d-8d2a-b9da0b854f98", "color": "#6510F4"}, {"name": "retrieval", "type": "Entity", "ontology_valid": false, "version": 1, "topological_rank": 0, "metadata": {"index_fields": ["name"]}, "belongs_to_set": null, "source_pipeline": "cognify_pipeline", "source_task": "extract_graph_from_data", "source_node_set": null, "source_user": "default_user@example.com", "description": "A retrieval step/component in the pipeline.", "id": "f010bf52-6eb5-511f-bbed-cd5237545edd", "color": "#6510F4"}, {"name": "component", "type": "EntityType", "ontology_valid": false, "version": 1, "topological_rank": 0, "metadata": {"index_fields": ["name"]}, "belongs_to_set": null, "source_pipeline": "cognify_pipeline", "source_task": "extract_graph_from_data", "source_node_set": null, "source_user": "default_user@example.com", "description": "component", "id": "b283358b-c288-5ca1-a6e8-05bac88f7a6f", "color": "#A550FF"}, {"name": "generation", "type": "Entity", "ontology_valid": false, "version": 1, "topological_rank": 0, "metadata": {"index_fields": ["name"]}, "belongs_to_set": null, "source_pipeline": "cognify_pipeline", "source_task": "extract_graph_from_data", "source_node_set": null, "source_user": "default_user@example.com", "description": "A generation (LLM) step/component in the pipeline.", "id": "dba0457b-9aff-5eb6-8ccd-19f7c9ae4dfa", "color": "#6510F4"}, {"name": "composable building block", "type": "Entity", "ontology_valid": false, "version": 1, "topological_rank": 0, "metadata": {"index_fields": ["name"]}, "belongs_to_set": null, "source_pipeline": "cognify_pipeline", "source_task": "extract_graph_from_data", "source_node_set": null, "source_user": "default_user@example.com", "description": "A modular, composable building block representing an individual step in the architecture.", "id": "59cf88c0-cb09-5f96-9252-5f5810981bcc", "color": "#6510F4"}, {"name": "text_62f45b114bbc9894497442c0588694a9", "type": "TextDocument", "ontology_valid": false, "version": 1, "topological_rank": 0, "metadata": {"index_fields": ["name"]}, "belongs_to_set": null, "source_pipeline": "cognify_pipeline", "source_task": "classify_documents", "source_node_set": null, "source_user": "default_user@example.com", "raw_data_location": "file:///Users/handekafkas/Documents/local-code/haystack-core-integrations/integrations/cognee/.venv/lib/python3.13/site-packages/cognee/.data_storage/text_62f45b114bbc9894497442c0588694a9.txt", "external_metadata": "{}", "mime_type": "text/plain", "id": "1a7434a3-3266-5111-9501-4fe093f36076", "color": "#DBD8D8"}, {"name": "", "type": "TextSummary", "ontology_valid": false, "version": 1, "topological_rank": 0, "metadata": {"index_fields": ["text"]}, "belongs_to_set": null, "source_pipeline": "cognify_pipeline", "source_task": "summarize_text", "source_node_set": null, "source_user": "default_user@example.com", "text": "Knowledge graphs model information as nodes (entities) and edges (relationships), enabling semantic search, inference, and discovery of hidden connections across large document collections.", "id": "8a75198a-6b32-5a14-926f-ae42589088af", "color": "#6510F4"}, {"name": "", "type": "TextSummary", "ontology_valid": false, "version": 1, "topological_rank": 0, "metadata": {"index_fields": ["text"]}, "belongs_to_set": null, "source_pipeline": "cognify_pipeline", "source_task": "summarize_text", "source_node_set": null, "source_user": "default_user@example.com", "text": "Acme Corp\u2019s engineering team \u2014 Alice (backend lead), Bob (ML engineer), and Carol (infrastructure) \u2014 is developing a next\u2011generation search platform.", "id": "349bab63-8b60-5d59-a1f2-a4413b6377f2", "color": "#6510F4"}, {"name": "", "type": "TextSummary", "ontology_valid": false, "version": 1, "topological_rank": 0, "metadata": {"index_fields": ["text"]}, "belongs_to_set": null, "source_pipeline": "cognify_pipeline", "source_task": "summarize_text", "source_node_set": null, "source_user": "default_user@example.com", "text": "Cognee is an open-source memory system for AI agents that builds a knowledge engine to convert raw data (e.g., unstructured documents, relational databases) into a persistent, enriched, and traceable memory searchable by semantic meaning and relationships.", "id": "16c06ddd-c7f6-5d74-9ed4-a4520ffde7ca", "color": "#6510F4"}, {"name": "", "type": "TextSummary", "ontology_valid": false, "version": 1, "topological_rank": 0, "metadata": {"index_fields": ["text"]}, "belongs_to_set": null, "source_pipeline": "cognify_pipeline", "source_task": "summarize_text", "source_node_set": null, "source_user": "default_user@example.com", "text": "Haystack is an open-source LLM framework by deepset for building production-ready RAG pipelines, agents, and search applications using modular, composable components.", "id": "208e9fa9-a281-5f67-8f8f-4b78c917c467", "color": "#6510F4"}];
+var links = [{"source": "601f27c0-4582-5a13-89d3-64a8c0f15cc1", "target": "df20c394-b710-5b2c-9256-ce5f5fe36397", "relation": "contains", "weight": null, "all_weights": {}, "relationship_type": "contains", "edge_info": {"source_node_id": "601f27c0-4582-5a13-89d3-64a8c0f15cc1", "target_node_id": "df20c394-b710-5b2c-9256-ce5f5fe36397", "relationship_name": "contains", "updated_at": "2026-03-20 23:21:01", "relationship_type": "contains", "edge_text": "relationship_name: contains; entity_name: knowledge graphs; entity_description: Structures that represent information as nodes (entities) and edges (relationships)."}}, {"source": "601f27c0-4582-5a13-89d3-64a8c0f15cc1", "target": "bd3f3aa5-5df4-54a0-af4e-78aa5a54e8f3", "relation": "contains", "weight": null, "all_weights": {}, "relationship_type": "contains", "edge_info": {"source_node_id": "601f27c0-4582-5a13-89d3-64a8c0f15cc1", "target_node_id": "bd3f3aa5-5df4-54a0-af4e-78aa5a54e8f3", "relationship_name": "contains", "updated_at": "2026-03-20 23:21:01", "relationship_type": "contains", "edge_text": "relationship_name: contains; entity_name: nodes; entity_description: Elements in a knowledge graph that represent entities."}}, {"source": "601f27c0-4582-5a13-89d3-64a8c0f15cc1", "target": "e4f1a343-1dd6-5191-ab16-4901f6eccf51", "relation": "contains", "weight": null, "all_weights": {}, "relationship_type": "contains", "edge_info": {"source_node_id": "601f27c0-4582-5a13-89d3-64a8c0f15cc1", "target_node_id": "e4f1a343-1dd6-5191-ab16-4901f6eccf51", "relationship_name": "contains", "updated_at": "2026-03-20 23:21:01", "relationship_type": "contains", "edge_text": "relationship_name: contains; entity_name: edges; entity_description: Relationships that connect nodes in a knowledge graph."}}, {"source": "601f27c0-4582-5a13-89d3-64a8c0f15cc1", "target": "3fb76a7a-fbf5-57ce-afb0-dcabb13cddeb", "relation": "contains", "weight": null, "all_weights": {}, "relationship_type": "contains", "edge_info": {"source_node_id": "601f27c0-4582-5a13-89d3-64a8c0f15cc1", "target_node_id": "3fb76a7a-fbf5-57ce-afb0-dcabb13cddeb", "relationship_name": "contains", "updated_at": "2026-03-20 23:21:01", "relationship_type": "contains", "edge_text": "relationship_name: contains; entity_name: information; entity_description: Data or knowledge represented within a knowledge graph."}}, {"source": "601f27c0-4582-5a13-89d3-64a8c0f15cc1", "target": "9d6360d4-504a-5f7f-b618-c2ea457a1a4d", "relation": "contains", "weight": null, "all_weights": {}, "relationship_type": "contains", "edge_info": {"source_node_id": "601f27c0-4582-5a13-89d3-64a8c0f15cc1", "target_node_id": "9d6360d4-504a-5f7f-b618-c2ea457a1a4d", "relationship_name": "contains", "updated_at": "2026-03-20 23:21:01", "relationship_type": "contains", "edge_text": "relationship_name: contains; entity_name: semantic search; entity_description: Search that uses meaning and relationships rather than simple keyword matching."}}, {"source": "601f27c0-4582-5a13-89d3-64a8c0f15cc1", "target": "ba802be9-50b2-58a6-a46d-031e30a780a8", "relation": "contains", "weight": null, "all_weights": {}, "relationship_type": "contains", "edge_info": {"source_node_id": "601f27c0-4582-5a13-89d3-64a8c0f15cc1", "target_node_id": "ba802be9-50b2-58a6-a46d-031e30a780a8", "relationship_name": "contains", "updated_at": "2026-03-20 23:21:01", "relationship_type": "contains", "edge_text": "relationship_name: contains; entity_name: reasoning; entity_description: Inference and logical processes enabled by structured knowledge representations."}}, {"source": "601f27c0-4582-5a13-89d3-64a8c0f15cc1", "target": "e0c5c99c-74a8-5d09-8e8a-05cb2e5bcf6b", "relation": "contains", "weight": null, "all_weights": {}, "relationship_type": "contains", "edge_info": {"source_node_id": "601f27c0-4582-5a13-89d3-64a8c0f15cc1", "target_node_id": "e0c5c99c-74a8-5d09-8e8a-05cb2e5bcf6b", "relationship_name": "contains", "updated_at": "2026-03-20 23:21:01", "relationship_type": "contains", "edge_text": "relationship_name: contains; entity_name: discovery of hidden connections; entity_description: Identification of non-obvious relationships across data using a knowledge graph."}}, {"source": "601f27c0-4582-5a13-89d3-64a8c0f15cc1", "target": "838f4a46-e459-58e4-a40b-ab30cd21da5c", "relation": "contains", "weight": null, "all_weights": {}, "relationship_type": "contains", "edge_info": {"source_node_id": "601f27c0-4582-5a13-89d3-64a8c0f15cc1", "target_node_id": "838f4a46-e459-58e4-a40b-ab30cd21da5c", "relationship_name": "contains", "updated_at": "2026-03-20 23:21:01", "relationship_type": "contains", "edge_text": "relationship_name: contains; entity_name: large document collections; entity_description: Extensive corpora of documents across which knowledge graphs can reveal connections."}}, {"source": "601f27c0-4582-5a13-89d3-64a8c0f15cc1", "target": "86c075e6-5852-5d80-8327-4e9691a71f62", "relation": "is_part_of", "weight": null, "all_weights": {}, "relationship_type": null, "edge_info": {"source_node_id": "601f27c0-4582-5a13-89d3-64a8c0f15cc1", "target_node_id": "86c075e6-5852-5d80-8327-4e9691a71f62", "relationship_name": "is_part_of", "updated_at": "2026-03-20 23:21:01"}}, {"source": "df20c394-b710-5b2c-9256-ce5f5fe36397", "target": "dd9713b7-dc20-5101-aad0-1c4216811147", "relation": "is_a", "weight": null, "all_weights": {}, "relationship_type": null, "edge_info": {"source_node_id": "df20c394-b710-5b2c-9256-ce5f5fe36397", "target_node_id": "dd9713b7-dc20-5101-aad0-1c4216811147", "relationship_name": "is_a", "updated_at": "2026-03-20 23:21:01"}}, {"source": "df20c394-b710-5b2c-9256-ce5f5fe36397", "target": "3fb76a7a-fbf5-57ce-afb0-dcabb13cddeb", "relation": "represents_information", "weight": null, "all_weights": {}, "relationship_type": null, "edge_info": {"relationship_name": "represents_information", "source_node_id": "df20c394-b710-5b2c-9256-ce5f5fe36397", "target_node_id": "3fb76a7a-fbf5-57ce-afb0-dcabb13cddeb", "ontology_valid": false}}, {"source": "df20c394-b710-5b2c-9256-ce5f5fe36397", "target": "bd3f3aa5-5df4-54a0-af4e-78aa5a54e8f3", "relation": "has_nodes", "weight": null, "all_weights": {}, "relationship_type": null, "edge_info": {"relationship_name": "has_nodes", "source_node_id": "df20c394-b710-5b2c-9256-ce5f5fe36397", "target_node_id": "bd3f3aa5-5df4-54a0-af4e-78aa5a54e8f3", "ontology_valid": false}}, {"source": "df20c394-b710-5b2c-9256-ce5f5fe36397", "target": "e4f1a343-1dd6-5191-ab16-4901f6eccf51", "relation": "has_edges", "weight": null, "all_weights": {}, "relationship_type": null, "edge_info": {"relationship_name": "has_edges", "source_node_id": "df20c394-b710-5b2c-9256-ce5f5fe36397", "target_node_id": "e4f1a343-1dd6-5191-ab16-4901f6eccf51", "ontology_valid": false}}, {"source": "df20c394-b710-5b2c-9256-ce5f5fe36397", "target": "9d6360d4-504a-5f7f-b618-c2ea457a1a4d", "relation": "enables_semantic_search", "weight": null, "all_weights": {}, "relationship_type": null, "edge_info": {"relationship_name": "enables_semantic_search", "source_node_id": "df20c394-b710-5b2c-9256-ce5f5fe36397", "target_node_id": "9d6360d4-504a-5f7f-b618-c2ea457a1a4d", "ontology_valid": false}}, {"source": "df20c394-b710-5b2c-9256-ce5f5fe36397", "target": "ba802be9-50b2-58a6-a46d-031e30a780a8", "relation": "enables_reasoning", "weight": null, "all_weights": {}, "relationship_type": null, "edge_info": {"relationship_name": "enables_reasoning", "source_node_id": "df20c394-b710-5b2c-9256-ce5f5fe36397", "target_node_id": "ba802be9-50b2-58a6-a46d-031e30a780a8", "ontology_valid": false}}, {"source": "df20c394-b710-5b2c-9256-ce5f5fe36397", "target": "e0c5c99c-74a8-5d09-8e8a-05cb2e5bcf6b", "relation": "enables_discovery_of_hidden_connections", "weight": null, "all_weights": {}, "relationship_type": null, "edge_info": {"relationship_name": "enables_discovery_of_hidden_connections", "source_node_id": "df20c394-b710-5b2c-9256-ce5f5fe36397", "target_node_id": "e0c5c99c-74a8-5d09-8e8a-05cb2e5bcf6b", "ontology_valid": false}}, {"source": "df20c394-b710-5b2c-9256-ce5f5fe36397", "target": "65c71de3-4c23-5f28-8e07-fc7428d1e0c4", "relation": "is_a", "weight": null, "all_weights": {}, "relationship_type": null, "edge_info": {"source_node_id": "df20c394-b710-5b2c-9256-ce5f5fe36397", "target_node_id": "65c71de3-4c23-5f28-8e07-fc7428d1e0c4", "relationship_name": "is_a", "updated_at": "2026-03-20 23:21:03"}}, {"source": "bd3f3aa5-5df4-54a0-af4e-78aa5a54e8f3", "target": "dd9713b7-dc20-5101-aad0-1c4216811147", "relation": "is_a", "weight": null, "all_weights": {}, "relationship_type": null, "edge_info": {"source_node_id": "bd3f3aa5-5df4-54a0-af4e-78aa5a54e8f3", "target_node_id": "dd9713b7-dc20-5101-aad0-1c4216811147", "relationship_name": "is_a", "updated_at": "2026-03-20 23:21:01"}}, {"source": "e4f1a343-1dd6-5191-ab16-4901f6eccf51", "target": "dd9713b7-dc20-5101-aad0-1c4216811147", "relation": "is_a", "weight": null, "all_weights": {}, "relationship_type": null, "edge_info": {"source_node_id": "e4f1a343-1dd6-5191-ab16-4901f6eccf51", "target_node_id": "dd9713b7-dc20-5101-aad0-1c4216811147", "relationship_name": "is_a", "updated_at": "2026-03-20 23:21:01"}}, {"source": "3fb76a7a-fbf5-57ce-afb0-dcabb13cddeb", "target": "dd9713b7-dc20-5101-aad0-1c4216811147", "relation": "is_a", "weight": null, "all_weights": {}, "relationship_type": null, "edge_info": {"source_node_id": "3fb76a7a-fbf5-57ce-afb0-dcabb13cddeb", "target_node_id": "dd9713b7-dc20-5101-aad0-1c4216811147", "relationship_name": "is_a", "updated_at": "2026-03-20 23:21:01"}}, {"source": "9d6360d4-504a-5f7f-b618-c2ea457a1a4d", "target": "dd9713b7-dc20-5101-aad0-1c4216811147", "relation": "is_a", "weight": null, "all_weights": {}, "relationship_type": null, "edge_info": {"source_node_id": "9d6360d4-504a-5f7f-b618-c2ea457a1a4d", "target_node_id": "dd9713b7-dc20-5101-aad0-1c4216811147", "relationship_name": "is_a", "updated_at": "2026-03-20 23:21:01"}}, {"source": "ba802be9-50b2-58a6-a46d-031e30a780a8", "target": "dd9713b7-dc20-5101-aad0-1c4216811147", "relation": "is_a", "weight": null, "all_weights": {}, "relationship_type": null, "edge_info": {"source_node_id": "ba802be9-50b2-58a6-a46d-031e30a780a8", "target_node_id": "dd9713b7-dc20-5101-aad0-1c4216811147", "relationship_name": "is_a", "updated_at": "2026-03-20 23:21:01"}}, {"source": "e0c5c99c-74a8-5d09-8e8a-05cb2e5bcf6b", "target": "dd9713b7-dc20-5101-aad0-1c4216811147", "relation": "is_a", "weight": null, "all_weights": {}, "relationship_type": null, "edge_info": {"source_node_id": "e0c5c99c-74a8-5d09-8e8a-05cb2e5bcf6b", "target_node_id": "dd9713b7-dc20-5101-aad0-1c4216811147", "relationship_name": "is_a", "updated_at": "2026-03-20 23:21:01"}}, {"source": "e0c5c99c-74a8-5d09-8e8a-05cb2e5bcf6b", "target": "838f4a46-e459-58e4-a40b-ab30cd21da5c", "relation": "across_large_document_collections", "weight": null, "all_weights": {}, "relationship_type": null, "edge_info": {"relationship_name": "across_large_document_collections", "source_node_id": "e0c5c99c-74a8-5d09-8e8a-05cb2e5bcf6b", "target_node_id": "838f4a46-e459-58e4-a40b-ab30cd21da5c", "ontology_valid": false}}, {"source": "838f4a46-e459-58e4-a40b-ab30cd21da5c", "target": "dd9713b7-dc20-5101-aad0-1c4216811147", "relation": "is_a", "weight": null, "all_weights": {}, "relationship_type": null, "edge_info": {"source_node_id": "838f4a46-e459-58e4-a40b-ab30cd21da5c", "target_node_id": "dd9713b7-dc20-5101-aad0-1c4216811147", "relationship_name": "is_a", "updated_at": "2026-03-20 23:21:01"}}, {"source": "bc815248-f743-5faa-b176-a216cf9e908e", "target": "2d09f34b-aee1-5d32-a2f9-23eb7ed48b24", "relation": "contains", "weight": null, "all_weights": {}, "relationship_type": "contains", "edge_info": {"source_node_id": "bc815248-f743-5faa-b176-a216cf9e908e", "target_node_id": "2d09f34b-aee1-5d32-a2f9-23eb7ed48b24", "relationship_name": "contains", "updated_at": "2026-03-20 23:21:04", "relationship_type": "contains", "edge_text": "relationship_name: contains; entity_name: cognee; entity_description: Open-source memory for AI agents; builds a knowledge engine that transforms raw data into a persistent, rich, and traceable memory searchable by meaning and relationships."}}, {"source": "bc815248-f743-5faa-b176-a216cf9e908e", "target": "968213f1-6ddc-5155-89d4-6df7c144a4a1", "relation": "contains", "weight": null, "all_weights": {}, "relationship_type": "contains", "edge_info": {"source_node_id": "bc815248-f743-5faa-b176-a216cf9e908e", "target_node_id": "968213f1-6ddc-5155-89d4-6df7c144a4a1", "relationship_name": "contains", "updated_at": "2026-03-20 23:21:04", "relationship_type": "contains", "edge_text": "relationship_name: contains; entity_name: ai agents; entity_description: Autonomous or semi-autonomous software agents that use memory systems."}}, {"source": "bc815248-f743-5faa-b176-a216cf9e908e", "target": "d8b992b3-ebdc-52a4-9913-9e1aea9a47f8", "relation": "contains", "weight": null, "all_weights": {}, "relationship_type": "contains", "edge_info": {"source_node_id": "bc815248-f743-5faa-b176-a216cf9e908e", "target_node_id": "d8b992b3-ebdc-52a4-9913-9e1aea9a47f8", "relationship_name": "contains", "updated_at": "2026-03-20 23:21:04", "relationship_type": "contains", "edge_text": "relationship_name: contains; entity_name: knowledge engine; entity_description: A system that processes and structures raw data into persistent, rich, and traceable memory."}}, {"source": "bc815248-f743-5faa-b176-a216cf9e908e", "target": "0a6f4624-d50e-5989-ba18-ddab839f5554", "relation": "contains", "weight": null, "all_weights": {}, "relationship_type": "contains", "edge_info": {"source_node_id": "bc815248-f743-5faa-b176-a216cf9e908e", "target_node_id": "0a6f4624-d50e-5989-ba18-ddab839f5554", "relationship_name": "contains", "updated_at": "2026-03-20 23:21:04", "relationship_type": "contains", "edge_text": "relationship_name: contains; entity_name: raw data; entity_description: Unprocessed input such as unstructured documents, relational databases, and other data sources."}}, {"source": "bc815248-f743-5faa-b176-a216cf9e908e", "target": "f89d185b-5df9-5fc6-84a7-35931b380405", "relation": "contains", "weight": null, "all_weights": {}, "relationship_type": "contains", "edge_info": {"source_node_id": "bc815248-f743-5faa-b176-a216cf9e908e", "target_node_id": "f89d185b-5df9-5fc6-84a7-35931b380405", "relationship_name": "contains", "updated_at": "2026-03-20 23:21:04", "relationship_type": "contains", "edge_text": "relationship_name: contains; entity_name: unstructured documents; entity_description: Example raw data format (e.g., text files, reports, articles) mentioned as an input to the knowledge engine."}}, {"source": "bc815248-f743-5faa-b176-a216cf9e908e", "target": "9d84ec4f-0968-52d0-bd6d-2a4c1b07490d", "relation": "contains", "weight": null, "all_weights": {}, "relationship_type": "contains", "edge_info": {"source_node_id": "bc815248-f743-5faa-b176-a216cf9e908e", "target_node_id": "9d84ec4f-0968-52d0-bd6d-2a4c1b07490d", "relationship_name": "contains", "updated_at": "2026-03-20 23:21:04", "relationship_type": "contains", "edge_text": "relationship_name: contains; entity_name: relational databases; entity_description: Example raw data format (structured tables) mentioned as an input to the knowledge engine."}}, {"source": "bc815248-f743-5faa-b176-a216cf9e908e", "target": "dce5dd84-ed4d-5666-8908-c4c523b804c8", "relation": "contains", "weight": null, "all_weights": {}, "relationship_type": "contains", "edge_info": {"source_node_id": "bc815248-f743-5faa-b176-a216cf9e908e", "target_node_id": "dce5dd84-ed4d-5666-8908-c4c523b804c8", "relationship_name": "contains", "updated_at": "2026-03-20 23:21:04", "relationship_type": "contains", "edge_text": "relationship_name: contains; entity_name: persistent rich traceable memory; entity_description: Memory produced by the knowledge engine that is persistent, rich in structure and metadata, traceable, and searchable by meaning and relationships."}}, {"source": "bc815248-f743-5faa-b176-a216cf9e908e", "target": "0700b84c-e4eb-5462-be56-0d7d97d0009e", "relation": "is_part_of", "weight": null, "all_weights": {}, "relationship_type": null, "edge_info": {"source_node_id": "bc815248-f743-5faa-b176-a216cf9e908e", "target_node_id": "0700b84c-e4eb-5462-be56-0d7d97d0009e", "relationship_name": "is_part_of", "updated_at": "2026-03-20 23:21:04"}}, {"source": "2d09f34b-aee1-5d32-a2f9-23eb7ed48b24", "target": "2d66edc2-1e14-55ab-8304-680b514a597a", "relation": "is_a", "weight": null, "all_weights": {}, "relationship_type": null, "edge_info": {"source_node_id": "2d09f34b-aee1-5d32-a2f9-23eb7ed48b24", "target_node_id": "2d66edc2-1e14-55ab-8304-680b514a597a", "relationship_name": "is_a", "updated_at": "2026-03-20 23:21:04"}}, {"source": "2d09f34b-aee1-5d32-a2f9-23eb7ed48b24", "target": "dce5dd84-ed4d-5666-8908-c4c523b804c8", "relation": "is_a", "weight": null, "all_weights": {}, "relationship_type": null, "edge_info": {"relationship_name": "is_a", "source_node_id": "2d09f34b-aee1-5d32-a2f9-23eb7ed48b24", "target_node_id": "dce5dd84-ed4d-5666-8908-c4c523b804c8", "ontology_valid": false}}, {"source": "2d09f34b-aee1-5d32-a2f9-23eb7ed48b24", "target": "968213f1-6ddc-5155-89d4-6df7c144a4a1", "relation": "for_agents", "weight": null, "all_weights": {}, "relationship_type": null, "edge_info": {"relationship_name": "for_agents", "source_node_id": "2d09f34b-aee1-5d32-a2f9-23eb7ed48b24", "target_node_id": "968213f1-6ddc-5155-89d4-6df7c144a4a1", "ontology_valid": false}}, {"source": "2d09f34b-aee1-5d32-a2f9-23eb7ed48b24", "target": "d8b992b3-ebdc-52a4-9913-9e1aea9a47f8", "relation": "builds_knowledge_engine", "weight": null, "all_weights": {}, "relationship_type": null, "edge_info": {"relationship_name": "builds_knowledge_engine", "source_node_id": "2d09f34b-aee1-5d32-a2f9-23eb7ed48b24", "target_node_id": "d8b992b3-ebdc-52a4-9913-9e1aea9a47f8", "ontology_valid": false}}, {"source": "968213f1-6ddc-5155-89d4-6df7c144a4a1", "target": "5f6d6fc0-e6aa-5365-a4a0-98d6fa3af190", "relation": "is_a", "weight": null, "all_weights": {}, "relationship_type": null, "edge_info": {"source_node_id": "968213f1-6ddc-5155-89d4-6df7c144a4a1", "target_node_id": "5f6d6fc0-e6aa-5365-a4a0-98d6fa3af190", "relationship_name": "is_a", "updated_at": "2026-03-20 23:21:04"}}, {"source": "d8b992b3-ebdc-52a4-9913-9e1aea9a47f8", "target": "dd9713b7-dc20-5101-aad0-1c4216811147", "relation": "is_a", "weight": null, "all_weights": {}, "relationship_type": null, "edge_info": {"source_node_id": "d8b992b3-ebdc-52a4-9913-9e1aea9a47f8", "target_node_id": "dd9713b7-dc20-5101-aad0-1c4216811147", "relationship_name": "is_a", "updated_at": "2026-03-20 23:21:04"}}, {"source": "d8b992b3-ebdc-52a4-9913-9e1aea9a47f8", "target": "0a6f4624-d50e-5989-ba18-ddab839f5554", "relation": "transforms_raw_data", "weight": null, "all_weights": {}, "relationship_type": null, "edge_info": {"relationship_name": "transforms_raw_data", "source_node_id": "d8b992b3-ebdc-52a4-9913-9e1aea9a47f8", "target_node_id": "0a6f4624-d50e-5989-ba18-ddab839f5554", "ontology_valid": false}}, {"source": "d8b992b3-ebdc-52a4-9913-9e1aea9a47f8", "target": "dce5dd84-ed4d-5666-8908-c4c523b804c8", "relation": "creates_memory", "weight": null, "all_weights": {}, "relationship_type": null, "edge_info": {"relationship_name": "creates_memory", "source_node_id": "d8b992b3-ebdc-52a4-9913-9e1aea9a47f8", "target_node_id": "dce5dd84-ed4d-5666-8908-c4c523b804c8", "ontology_valid": false}}, {"source": "0a6f4624-d50e-5989-ba18-ddab839f5554", "target": "4ed5a0c7-2efb-52d1-9734-06a8ba225c94", "relation": "is_a", "weight": null, "all_weights": {}, "relationship_type": null, "edge_info": {"source_node_id": "0a6f4624-d50e-5989-ba18-ddab839f5554", "target_node_id": "4ed5a0c7-2efb-52d1-9734-06a8ba225c94", "relationship_name": "is_a", "updated_at": "2026-03-20 23:21:04"}}, {"source": "0a6f4624-d50e-5989-ba18-ddab839f5554", "target": "f89d185b-5df9-5fc6-84a7-35931b380405", "relation": "includes", "weight": null, "all_weights": {}, "relationship_type": null, "edge_info": {"relationship_name": "includes", "source_node_id": "0a6f4624-d50e-5989-ba18-ddab839f5554", "target_node_id": "f89d185b-5df9-5fc6-84a7-35931b380405", "ontology_valid": false}}, {"source": "0a6f4624-d50e-5989-ba18-ddab839f5554", "target": "9d84ec4f-0968-52d0-bd6d-2a4c1b07490d", "relation": "includes", "weight": null, "all_weights": {}, "relationship_type": null, "edge_info": {"relationship_name": "includes", "source_node_id": "0a6f4624-d50e-5989-ba18-ddab839f5554", "target_node_id": "9d84ec4f-0968-52d0-bd6d-2a4c1b07490d", "ontology_valid": false}}, {"source": "f89d185b-5df9-5fc6-84a7-35931b380405", "target": "4ed5a0c7-2efb-52d1-9734-06a8ba225c94", "relation": "is_a", "weight": null, "all_weights": {}, "relationship_type": null, "edge_info": {"source_node_id": "f89d185b-5df9-5fc6-84a7-35931b380405", "target_node_id": "4ed5a0c7-2efb-52d1-9734-06a8ba225c94", "relationship_name": "is_a", "updated_at": "2026-03-20 23:21:04"}}, {"source": "9d84ec4f-0968-52d0-bd6d-2a4c1b07490d", "target": "4ed5a0c7-2efb-52d1-9734-06a8ba225c94", "relation": "is_a", "weight": null, "all_weights": {}, "relationship_type": null, "edge_info": {"source_node_id": "9d84ec4f-0968-52d0-bd6d-2a4c1b07490d", "target_node_id": "4ed5a0c7-2efb-52d1-9734-06a8ba225c94", "relationship_name": "is_a", "updated_at": "2026-03-20 23:21:04"}}, {"source": "dce5dd84-ed4d-5666-8908-c4c523b804c8", "target": "dd9713b7-dc20-5101-aad0-1c4216811147", "relation": "is_a", "weight": null, "all_weights": {}, "relationship_type": null, "edge_info": {"source_node_id": "dce5dd84-ed4d-5666-8908-c4c523b804c8", "target_node_id": "dd9713b7-dc20-5101-aad0-1c4216811147", "relationship_name": "is_a", "updated_at": "2026-03-20 23:21:04"}}, {"source": "c569abe9-16f1-54e0-ab9c-a4223e1088e1", "target": "f7d8be13-2a72-5104-bd02-7a5964737a91", "relation": "contains", "weight": null, "all_weights": {}, "relationship_type": "contains", "edge_info": {"source_node_id": "c569abe9-16f1-54e0-ab9c-a4223e1088e1", "target_node_id": "f7d8be13-2a72-5104-bd02-7a5964737a91", "relationship_name": "contains", "updated_at": "2026-03-20 23:21:03", "relationship_type": "contains", "edge_text": "relationship_name: contains; entity_name: alice; entity_description: Backend lead on Acme Corp's engineering team."}}, {"source": "c569abe9-16f1-54e0-ab9c-a4223e1088e1", "target": "515e93c6-3782-59db-96be-ad5b8cf872a5", "relation": "contains", "weight": null, "all_weights": {}, "relationship_type": "contains", "edge_info": {"source_node_id": "c569abe9-16f1-54e0-ab9c-a4223e1088e1", "target_node_id": "515e93c6-3782-59db-96be-ad5b8cf872a5", "relationship_name": "contains", "updated_at": "2026-03-20 23:21:03", "relationship_type": "contains", "edge_text": "relationship_name: contains; entity_name: bob; entity_description: ML engineer on Acme Corp's engineering team."}}, {"source": "c569abe9-16f1-54e0-ab9c-a4223e1088e1", "target": "80370ebb-d9b5-5f12-a3fb-db3631157840", "relation": "contains", "weight": null, "all_weights": {}, "relationship_type": "contains", "edge_info": {"source_node_id": "c569abe9-16f1-54e0-ab9c-a4223e1088e1", "target_node_id": "80370ebb-d9b5-5f12-a3fb-db3631157840", "relationship_name": "contains", "updated_at": "2026-03-20 23:21:03", "relationship_type": "contains", "edge_text": "relationship_name: contains; entity_name: carol; entity_description: Infrastructure engineer on Acme Corp's engineering team."}}, {"source": "c569abe9-16f1-54e0-ab9c-a4223e1088e1", "target": "7f5a651e-56c1-574f-aa54-cd0a0b7dbc38", "relation": "contains", "weight": null, "all_weights": {}, "relationship_type": "contains", "edge_info": {"source_node_id": "c569abe9-16f1-54e0-ab9c-a4223e1088e1", "target_node_id": "7f5a651e-56c1-574f-aa54-cd0a0b7dbc38", "relationship_name": "contains", "updated_at": "2026-03-20 23:21:03", "relationship_type": "contains", "edge_text": "relationship_name: contains; entity_name: acme corp; entity_description: Company employing the engineering team."}}, {"source": "c569abe9-16f1-54e0-ab9c-a4223e1088e1", "target": "7fa8891b-a426-5d42-b011-6851ef945793", "relation": "contains", "weight": null, "all_weights": {}, "relationship_type": "contains", "edge_info": {"source_node_id": "c569abe9-16f1-54e0-ab9c-a4223e1088e1", "target_node_id": "7fa8891b-a426-5d42-b011-6851ef945793", "relationship_name": "contains", "updated_at": "2026-03-20 23:21:03", "relationship_type": "contains", "edge_text": "relationship_name: contains; entity_name: engineering team at acme corp; entity_description: Engineering team at Acme Corp consisting of Alice, Bob, and Carol."}}, {"source": "c569abe9-16f1-54e0-ab9c-a4223e1088e1", "target": "6fdb37d4-ae27-5a1a-9f7a-03f5036247ca", "relation": "contains", "weight": null, "all_weights": {}, "relationship_type": "contains", "edge_info": {"source_node_id": "c569abe9-16f1-54e0-ab9c-a4223e1088e1", "target_node_id": "6fdb37d4-ae27-5a1a-9f7a-03f5036247ca", "relationship_name": "contains", "updated_at": "2026-03-20 23:21:03", "relationship_type": "contains", "edge_text": "relationship_name: contains; entity_name: next-generation search platform; entity_description: Next-generation search platform being built by the engineering team."}}, {"source": "c569abe9-16f1-54e0-ab9c-a4223e1088e1", "target": "df20c394-b710-5b2c-9256-ce5f5fe36397", "relation": "contains", "weight": null, "all_weights": {}, "relationship_type": "contains", "edge_info": {"source_node_id": "c569abe9-16f1-54e0-ab9c-a4223e1088e1", "target_node_id": "df20c394-b710-5b2c-9256-ce5f5fe36397", "relationship_name": "contains", "updated_at": "2026-03-20 23:21:03", "relationship_type": "contains", "edge_text": "relationship_name: contains; entity_name: knowledge graphs; entity_description: Knowledge graph technologies used to power the search platform."}}, {"source": "c569abe9-16f1-54e0-ab9c-a4223e1088e1", "target": "f7dc5ef7-3d2d-50c7-9edc-475862a15d4b", "relation": "contains", "weight": null, "all_weights": {}, "relationship_type": "contains", "edge_info": {"source_node_id": "c569abe9-16f1-54e0-ab9c-a4223e1088e1", "target_node_id": "f7dc5ef7-3d2d-50c7-9edc-475862a15d4b", "relationship_name": "contains", "updated_at": "2026-03-20 23:21:03", "relationship_type": "contains", "edge_text": "relationship_name: contains; entity_name: llms; entity_description: Large language models used to power the search platform."}}, {"source": "c569abe9-16f1-54e0-ab9c-a4223e1088e1", "target": "7706f53e-49ac-582a-8cf4-59b9c6e64bfb", "relation": "is_part_of", "weight": null, "all_weights": {}, "relationship_type": null, "edge_info": {"source_node_id": "c569abe9-16f1-54e0-ab9c-a4223e1088e1", "target_node_id": "7706f53e-49ac-582a-8cf4-59b9c6e64bfb", "relationship_name": "is_part_of", "updated_at": "2026-03-20 23:21:03"}}, {"source": "f7d8be13-2a72-5104-bd02-7a5964737a91", "target": "d072ba0f-e1a9-58bf-9974-e1802adc8134", "relation": "is_a", "weight": null, "all_weights": {}, "relationship_type": null, "edge_info": {"source_node_id": "f7d8be13-2a72-5104-bd02-7a5964737a91", "target_node_id": "d072ba0f-e1a9-58bf-9974-e1802adc8134", "relationship_name": "is_a", "updated_at": "2026-03-20 23:21:03"}}, {"source": "f7d8be13-2a72-5104-bd02-7a5964737a91", "target": "7fa8891b-a426-5d42-b011-6851ef945793", "relation": "member_of", "weight": null, "all_weights": {}, "relationship_type": null, "edge_info": {"relationship_name": "member_of", "source_node_id": "f7d8be13-2a72-5104-bd02-7a5964737a91", "target_node_id": "7fa8891b-a426-5d42-b011-6851ef945793", "ontology_valid": false}}, {"source": "515e93c6-3782-59db-96be-ad5b8cf872a5", "target": "d072ba0f-e1a9-58bf-9974-e1802adc8134", "relation": "is_a", "weight": null, "all_weights": {}, "relationship_type": null, "edge_info": {"source_node_id": "515e93c6-3782-59db-96be-ad5b8cf872a5", "target_node_id": "d072ba0f-e1a9-58bf-9974-e1802adc8134", "relationship_name": "is_a", "updated_at": "2026-03-20 23:21:03"}}, {"source": "515e93c6-3782-59db-96be-ad5b8cf872a5", "target": "7fa8891b-a426-5d42-b011-6851ef945793", "relation": "member_of", "weight": null, "all_weights": {}, "relationship_type": null, "edge_info": {"relationship_name": "member_of", "source_node_id": "515e93c6-3782-59db-96be-ad5b8cf872a5", "target_node_id": "7fa8891b-a426-5d42-b011-6851ef945793", "ontology_valid": false}}, {"source": "80370ebb-d9b5-5f12-a3fb-db3631157840", "target": "d072ba0f-e1a9-58bf-9974-e1802adc8134", "relation": "is_a", "weight": null, "all_weights": {}, "relationship_type": null, "edge_info": {"source_node_id": "80370ebb-d9b5-5f12-a3fb-db3631157840", "target_node_id": "d072ba0f-e1a9-58bf-9974-e1802adc8134", "relationship_name": "is_a", "updated_at": "2026-03-20 23:21:03"}}, {"source": "80370ebb-d9b5-5f12-a3fb-db3631157840", "target": "7fa8891b-a426-5d42-b011-6851ef945793", "relation": "member_of", "weight": null, "all_weights": {}, "relationship_type": null, "edge_info": {"relationship_name": "member_of", "source_node_id": "80370ebb-d9b5-5f12-a3fb-db3631157840", "target_node_id": "7fa8891b-a426-5d42-b011-6851ef945793", "ontology_valid": false}}, {"source": "7f5a651e-56c1-574f-aa54-cd0a0b7dbc38", "target": "d3d7b6b4-9b0d-52e8-9e09-a9e9cf4b5a4d", "relation": "is_a", "weight": null, "all_weights": {}, "relationship_type": null, "edge_info": {"source_node_id": "7f5a651e-56c1-574f-aa54-cd0a0b7dbc38", "target_node_id": "d3d7b6b4-9b0d-52e8-9e09-a9e9cf4b5a4d", "relationship_name": "is_a", "updated_at": "2026-03-20 23:21:03"}}, {"source": "7fa8891b-a426-5d42-b011-6851ef945793", "target": "e308d782-2a18-5ace-b0e8-236c7c3b4db4", "relation": "is_a", "weight": null, "all_weights": {}, "relationship_type": null, "edge_info": {"source_node_id": "7fa8891b-a426-5d42-b011-6851ef945793", "target_node_id": "e308d782-2a18-5ace-b0e8-236c7c3b4db4", "relationship_name": "is_a", "updated_at": "2026-03-20 23:21:03"}}, {"source": "7fa8891b-a426-5d42-b011-6851ef945793", "target": "7f5a651e-56c1-574f-aa54-cd0a0b7dbc38", "relation": "part_of", "weight": null, "all_weights": {}, "relationship_type": null, "edge_info": {"relationship_name": "part_of", "source_node_id": "7fa8891b-a426-5d42-b011-6851ef945793", "target_node_id": "7f5a651e-56c1-574f-aa54-cd0a0b7dbc38", "ontology_valid": false}}, {"source": "7fa8891b-a426-5d42-b011-6851ef945793", "target": "6fdb37d4-ae27-5a1a-9f7a-03f5036247ca", "relation": "building", "weight": null, "all_weights": {}, "relationship_type": null, "edge_info": {"relationship_name": "building", "source_node_id": "7fa8891b-a426-5d42-b011-6851ef945793", "target_node_id": "6fdb37d4-ae27-5a1a-9f7a-03f5036247ca", "ontology_valid": false}}, {"source": "6fdb37d4-ae27-5a1a-9f7a-03f5036247ca", "target": "29c0d211-0d39-579f-bf45-c7a78394c9aa", "relation": "is_a", "weight": null, "all_weights": {}, "relationship_type": null, "edge_info": {"source_node_id": "6fdb37d4-ae27-5a1a-9f7a-03f5036247ca", "target_node_id": "29c0d211-0d39-579f-bf45-c7a78394c9aa", "relationship_name": "is_a", "updated_at": "2026-03-20 23:21:03"}}, {"source": "6fdb37d4-ae27-5a1a-9f7a-03f5036247ca", "target": "df20c394-b710-5b2c-9256-ce5f5fe36397", "relation": "powered_by", "weight": null, "all_weights": {}, "relationship_type": null, "edge_info": {"relationship_name": "powered_by", "source_node_id": "6fdb37d4-ae27-5a1a-9f7a-03f5036247ca", "target_node_id": "df20c394-b710-5b2c-9256-ce5f5fe36397", "ontology_valid": false}}, {"source": "6fdb37d4-ae27-5a1a-9f7a-03f5036247ca", "target": "f7dc5ef7-3d2d-50c7-9edc-475862a15d4b", "relation": "powered_by", "weight": null, "all_weights": {}, "relationship_type": null, "edge_info": {"relationship_name": "powered_by", "source_node_id": "6fdb37d4-ae27-5a1a-9f7a-03f5036247ca", "target_node_id": "f7dc5ef7-3d2d-50c7-9edc-475862a15d4b", "ontology_valid": false}}, {"source": "f7dc5ef7-3d2d-50c7-9edc-475862a15d4b", "target": "65c71de3-4c23-5f28-8e07-fc7428d1e0c4", "relation": "is_a", "weight": null, "all_weights": {}, "relationship_type": null, "edge_info": {"source_node_id": "f7dc5ef7-3d2d-50c7-9edc-475862a15d4b", "target_node_id": "65c71de3-4c23-5f28-8e07-fc7428d1e0c4", "relationship_name": "is_a", "updated_at": "2026-03-20 23:21:03"}}, {"source": "ee7307f2-cba9-5003-9dc0-0780c50591a6", "target": "2bdd3deb-07d8-5413-a56d-1643e3ceb48b", "relation": "contains", "weight": null, "all_weights": {}, "relationship_type": "contains", "edge_info": {"source_node_id": "ee7307f2-cba9-5003-9dc0-0780c50591a6", "target_node_id": "2bdd3deb-07d8-5413-a56d-1643e3ceb48b", "relationship_name": "contains", "updated_at": "2026-03-20 23:21:04", "relationship_type": "contains", "edge_text": "relationship_name: contains; entity_name: haystack; entity_description: Open-source LLM framework by deepset for building production-ready RAG pipelines, agents, and search systems."}}, {"source": "ee7307f2-cba9-5003-9dc0-0780c50591a6", "target": "126df7ec-d0db-53ea-bc88-1bafd84c8646", "relation": "contains", "weight": null, "all_weights": {}, "relationship_type": "contains", "edge_info": {"source_node_id": "ee7307f2-cba9-5003-9dc0-0780c50591a6", "target_node_id": "126df7ec-d0db-53ea-bc88-1bafd84c8646", "relationship_name": "contains", "updated_at": "2026-03-20 23:21:04", "relationship_type": "contains", "edge_text": "relationship_name: contains; entity_name: deepset; entity_description: Company that develops Haystack."}}, {"source": "ee7307f2-cba9-5003-9dc0-0780c50591a6", "target": "7594343c-5532-5896-b0aa-be5c1a74bd92", "relation": "contains", "weight": null, "all_weights": {}, "relationship_type": "contains", "edge_info": {"source_node_id": "ee7307f2-cba9-5003-9dc0-0780c50591a6", "target_node_id": "7594343c-5532-5896-b0aa-be5c1a74bd92", "relationship_name": "contains", "updated_at": "2026-03-20 23:21:04", "relationship_type": "contains", "edge_text": "relationship_name: contains; entity_name: rag pipelines; entity_description: Retrieval-Augmented Generation pipelines combining retrieval with LLM generation."}}, {"source": "ee7307f2-cba9-5003-9dc0-0780c50591a6", "target": "ba1f1dac-e2fb-5464-914d-ff54b9b19787", "relation": "contains", "weight": null, "all_weights": {}, "relationship_type": "contains", "edge_info": {"source_node_id": "ee7307f2-cba9-5003-9dc0-0780c50591a6", "target_node_id": "ba1f1dac-e2fb-5464-914d-ff54b9b19787", "relationship_name": "contains", "updated_at": "2026-03-20 23:21:04", "relationship_type": "contains", "edge_text": "relationship_name: contains; entity_name: agents; entity_description: Agent systems that orchestrate actions and LLM calls."}}, {"source": "ee7307f2-cba9-5003-9dc0-0780c50591a6", "target": "a1a666e4-2070-59fd-95f7-c4c6178e89ba", "relation": "contains", "weight": null, "all_weights": {}, "relationship_type": "contains", "edge_info": {"source_node_id": "ee7307f2-cba9-5003-9dc0-0780c50591a6", "target_node_id": "a1a666e4-2070-59fd-95f7-c4c6178e89ba", "relationship_name": "contains", "updated_at": "2026-03-20 23:21:04", "relationship_type": "contains", "edge_text": "relationship_name: contains; entity_name: search systems; entity_description: Systems for information retrieval and search."}}, {"source": "ee7307f2-cba9-5003-9dc0-0780c50591a6", "target": "30f5dcb9-d238-5c7d-8d2a-b9da0b854f98", "relation": "contains", "weight": null, "all_weights": {}, "relationship_type": "contains", "edge_info": {"source_node_id": "ee7307f2-cba9-5003-9dc0-0780c50591a6", "target_node_id": "30f5dcb9-d238-5c7d-8d2a-b9da0b854f98", "relationship_name": "contains", "updated_at": "2026-03-20 23:21:04", "relationship_type": "contains", "edge_text": "relationship_name: contains; entity_name: component-based architecture; entity_description: Architecture composed of modular components where each step is a building block."}}, {"source": "ee7307f2-cba9-5003-9dc0-0780c50591a6", "target": "f010bf52-6eb5-511f-bbed-cd5237545edd", "relation": "contains", "weight": null, "all_weights": {}, "relationship_type": "contains", "edge_info": {"source_node_id": "ee7307f2-cba9-5003-9dc0-0780c50591a6", "target_node_id": "f010bf52-6eb5-511f-bbed-cd5237545edd", "relationship_name": "contains", "updated_at": "2026-03-20 23:21:04", "relationship_type": "contains", "edge_text": "relationship_name: contains; entity_name: retrieval; entity_description: A retrieval step/component in the pipeline."}}, {"source": "ee7307f2-cba9-5003-9dc0-0780c50591a6", "target": "dba0457b-9aff-5eb6-8ccd-19f7c9ae4dfa", "relation": "contains", "weight": null, "all_weights": {}, "relationship_type": "contains", "edge_info": {"source_node_id": "ee7307f2-cba9-5003-9dc0-0780c50591a6", "target_node_id": "dba0457b-9aff-5eb6-8ccd-19f7c9ae4dfa", "relationship_name": "contains", "updated_at": "2026-03-20 23:21:04", "relationship_type": "contains", "edge_text": "relationship_name: contains; entity_name: generation; entity_description: A generation (LLM) step/component in the pipeline."}}, {"source": "ee7307f2-cba9-5003-9dc0-0780c50591a6", "target": "59cf88c0-cb09-5f96-9252-5f5810981bcc", "relation": "contains", "weight": null, "all_weights": {}, "relationship_type": "contains", "edge_info": {"source_node_id": "ee7307f2-cba9-5003-9dc0-0780c50591a6", "target_node_id": "59cf88c0-cb09-5f96-9252-5f5810981bcc", "relationship_name": "contains", "updated_at": "2026-03-20 23:21:04", "relationship_type": "contains", "edge_text": "relationship_name: contains; entity_name: composable building block; entity_description: A modular, composable building block representing an individual step in the architecture."}}, {"source": "ee7307f2-cba9-5003-9dc0-0780c50591a6", "target": "1a7434a3-3266-5111-9501-4fe093f36076", "relation": "is_part_of", "weight": null, "all_weights": {}, "relationship_type": null, "edge_info": {"source_node_id": "ee7307f2-cba9-5003-9dc0-0780c50591a6", "target_node_id": "1a7434a3-3266-5111-9501-4fe093f36076", "relationship_name": "is_part_of", "updated_at": "2026-03-20 23:21:04"}}, {"source": "2bdd3deb-07d8-5413-a56d-1643e3ceb48b", "target": "2d66edc2-1e14-55ab-8304-680b514a597a", "relation": "is_a", "weight": null, "all_weights": {}, "relationship_type": null, "edge_info": {"source_node_id": "2bdd3deb-07d8-5413-a56d-1643e3ceb48b", "target_node_id": "2d66edc2-1e14-55ab-8304-680b514a597a", "relationship_name": "is_a", "updated_at": "2026-03-20 23:21:04"}}, {"source": "2bdd3deb-07d8-5413-a56d-1643e3ceb48b", "target": "126df7ec-d0db-53ea-bc88-1bafd84c8646", "relation": "developed_by", "weight": null, "all_weights": {}, "relationship_type": null, "edge_info": {"relationship_name": "developed_by", "source_node_id": "2bdd3deb-07d8-5413-a56d-1643e3ceb48b", "target_node_id": "126df7ec-d0db-53ea-bc88-1bafd84c8646", "ontology_valid": false}}, {"source": "2bdd3deb-07d8-5413-a56d-1643e3ceb48b", "target": "7594343c-5532-5896-b0aa-be5c1a74bd92", "relation": "used_to_build", "weight": null, "all_weights": {}, "relationship_type": null, "edge_info": {"relationship_name": "used_to_build", "source_node_id": "2bdd3deb-07d8-5413-a56d-1643e3ceb48b", "target_node_id": "7594343c-5532-5896-b0aa-be5c1a74bd92", "ontology_valid": false}}, {"source": "2bdd3deb-07d8-5413-a56d-1643e3ceb48b", "target": "ba1f1dac-e2fb-5464-914d-ff54b9b19787", "relation": "used_to_build", "weight": null, "all_weights": {}, "relationship_type": null, "edge_info": {"relationship_name": "used_to_build", "source_node_id": "2bdd3deb-07d8-5413-a56d-1643e3ceb48b", "target_node_id": "ba1f1dac-e2fb-5464-914d-ff54b9b19787", "ontology_valid": false}}, {"source": "2bdd3deb-07d8-5413-a56d-1643e3ceb48b", "target": "a1a666e4-2070-59fd-95f7-c4c6178e89ba", "relation": "used_to_build", "weight": null, "all_weights": {}, "relationship_type": null, "edge_info": {"relationship_name": "used_to_build", "source_node_id": "2bdd3deb-07d8-5413-a56d-1643e3ceb48b", "target_node_id": "a1a666e4-2070-59fd-95f7-c4c6178e89ba", "ontology_valid": false}}, {"source": "2bdd3deb-07d8-5413-a56d-1643e3ceb48b", "target": "30f5dcb9-d238-5c7d-8d2a-b9da0b854f98", "relation": "uses_architecture", "weight": null, "all_weights": {}, "relationship_type": null, "edge_info": {"relationship_name": "uses_architecture", "source_node_id": "2bdd3deb-07d8-5413-a56d-1643e3ceb48b", "target_node_id": "30f5dcb9-d238-5c7d-8d2a-b9da0b854f98", "ontology_valid": false}}, {"source": "126df7ec-d0db-53ea-bc88-1bafd84c8646", "target": "d3d7b6b4-9b0d-52e8-9e09-a9e9cf4b5a4d", "relation": "is_a", "weight": null, "all_weights": {}, "relationship_type": null, "edge_info": {"source_node_id": "126df7ec-d0db-53ea-bc88-1bafd84c8646", "target_node_id": "d3d7b6b4-9b0d-52e8-9e09-a9e9cf4b5a4d", "relationship_name": "is_a", "updated_at": "2026-03-20 23:21:04"}}, {"source": "7594343c-5532-5896-b0aa-be5c1a74bd92", "target": "dd9713b7-dc20-5101-aad0-1c4216811147", "relation": "is_a", "weight": null, "all_weights": {}, "relationship_type": null, "edge_info": {"source_node_id": "7594343c-5532-5896-b0aa-be5c1a74bd92", "target_node_id": "dd9713b7-dc20-5101-aad0-1c4216811147", "relationship_name": "is_a", "updated_at": "2026-03-20 23:21:04"}}, {"source": "ba1f1dac-e2fb-5464-914d-ff54b9b19787", "target": "dd9713b7-dc20-5101-aad0-1c4216811147", "relation": "is_a", "weight": null, "all_weights": {}, "relationship_type": null, "edge_info": {"source_node_id": "ba1f1dac-e2fb-5464-914d-ff54b9b19787", "target_node_id": "dd9713b7-dc20-5101-aad0-1c4216811147", "relationship_name": "is_a", "updated_at": "2026-03-20 23:21:04"}}, {"source": "a1a666e4-2070-59fd-95f7-c4c6178e89ba", "target": "dd9713b7-dc20-5101-aad0-1c4216811147", "relation": "is_a", "weight": null, "all_weights": {}, "relationship_type": null, "edge_info": {"source_node_id": "a1a666e4-2070-59fd-95f7-c4c6178e89ba", "target_node_id": "dd9713b7-dc20-5101-aad0-1c4216811147", "relationship_name": "is_a", "updated_at": "2026-03-20 23:21:04"}}, {"source": "30f5dcb9-d238-5c7d-8d2a-b9da0b854f98", "target": "dd9713b7-dc20-5101-aad0-1c4216811147", "relation": "is_a", "weight": null, "all_weights": {}, "relationship_type": null, "edge_info": {"source_node_id": "30f5dcb9-d238-5c7d-8d2a-b9da0b854f98", "target_node_id": "dd9713b7-dc20-5101-aad0-1c4216811147", "relationship_name": "is_a", "updated_at": "2026-03-20 23:21:04"}}, {"source": "30f5dcb9-d238-5c7d-8d2a-b9da0b854f98", "target": "f010bf52-6eb5-511f-bbed-cd5237545edd", "relation": "includes_component", "weight": null, "all_weights": {}, "relationship_type": null, "edge_info": {"relationship_name": "includes_component", "source_node_id": "30f5dcb9-d238-5c7d-8d2a-b9da0b854f98", "target_node_id": "f010bf52-6eb5-511f-bbed-cd5237545edd", "ontology_valid": false}}, {"source": "30f5dcb9-d238-5c7d-8d2a-b9da0b854f98", "target": "dba0457b-9aff-5eb6-8ccd-19f7c9ae4dfa", "relation": "includes_component", "weight": null, "all_weights": {}, "relationship_type": null, "edge_info": {"relationship_name": "includes_component", "source_node_id": "30f5dcb9-d238-5c7d-8d2a-b9da0b854f98", "target_node_id": "dba0457b-9aff-5eb6-8ccd-19f7c9ae4dfa", "ontology_valid": false}}, {"source": "f010bf52-6eb5-511f-bbed-cd5237545edd", "target": "b283358b-c288-5ca1-a6e8-05bac88f7a6f", "relation": "is_a", "weight": null, "all_weights": {}, "relationship_type": null, "edge_info": {"source_node_id": "f010bf52-6eb5-511f-bbed-cd5237545edd", "target_node_id": "b283358b-c288-5ca1-a6e8-05bac88f7a6f", "relationship_name": "is_a", "updated_at": "2026-03-20 23:21:04"}}, {"source": "f010bf52-6eb5-511f-bbed-cd5237545edd", "target": "59cf88c0-cb09-5f96-9252-5f5810981bcc", "relation": "is_composable_building_block", "weight": null, "all_weights": {}, "relationship_type": null, "edge_info": {"relationship_name": "is_composable_building_block", "source_node_id": "f010bf52-6eb5-511f-bbed-cd5237545edd", "target_node_id": "59cf88c0-cb09-5f96-9252-5f5810981bcc", "ontology_valid": false}}, {"source": "dba0457b-9aff-5eb6-8ccd-19f7c9ae4dfa", "target": "b283358b-c288-5ca1-a6e8-05bac88f7a6f", "relation": "is_a", "weight": null, "all_weights": {}, "relationship_type": null, "edge_info": {"source_node_id": "dba0457b-9aff-5eb6-8ccd-19f7c9ae4dfa", "target_node_id": "b283358b-c288-5ca1-a6e8-05bac88f7a6f", "relationship_name": "is_a", "updated_at": "2026-03-20 23:21:04"}}, {"source": "dba0457b-9aff-5eb6-8ccd-19f7c9ae4dfa", "target": "59cf88c0-cb09-5f96-9252-5f5810981bcc", "relation": "is_composable_building_block", "weight": null, "all_weights": {}, "relationship_type": null, "edge_info": {"relationship_name": "is_composable_building_block", "source_node_id": "dba0457b-9aff-5eb6-8ccd-19f7c9ae4dfa", "target_node_id": "59cf88c0-cb09-5f96-9252-5f5810981bcc", "ontology_valid": false}}, {"source": "59cf88c0-cb09-5f96-9252-5f5810981bcc", "target": "dd9713b7-dc20-5101-aad0-1c4216811147", "relation": "is_a", "weight": null, "all_weights": {}, "relationship_type": null, "edge_info": {"source_node_id": "59cf88c0-cb09-5f96-9252-5f5810981bcc", "target_node_id": "dd9713b7-dc20-5101-aad0-1c4216811147", "relationship_name": "is_a", "updated_at": "2026-03-20 23:21:04"}}, {"source": "8a75198a-6b32-5a14-926f-ae42589088af", "target": "601f27c0-4582-5a13-89d3-64a8c0f15cc1", "relation": "made_from", "weight": null, "all_weights": {}, "relationship_type": null, "edge_info": {"source_node_id": "8a75198a-6b32-5a14-926f-ae42589088af", "target_node_id": "601f27c0-4582-5a13-89d3-64a8c0f15cc1", "relationship_name": "made_from", "updated_at": "2026-03-20 23:21:01"}}, {"source": "349bab63-8b60-5d59-a1f2-a4413b6377f2", "target": "c569abe9-16f1-54e0-ab9c-a4223e1088e1", "relation": "made_from", "weight": null, "all_weights": {}, "relationship_type": null, "edge_info": {"source_node_id": "349bab63-8b60-5d59-a1f2-a4413b6377f2", "target_node_id": "c569abe9-16f1-54e0-ab9c-a4223e1088e1", "relationship_name": "made_from", "updated_at": "2026-03-20 23:21:03"}}, {"source": "16c06ddd-c7f6-5d74-9ed4-a4520ffde7ca", "target": "bc815248-f743-5faa-b176-a216cf9e908e", "relation": "made_from", "weight": null, "all_weights": {}, "relationship_type": null, "edge_info": {"source_node_id": "16c06ddd-c7f6-5d74-9ed4-a4520ffde7ca", "target_node_id": "bc815248-f743-5faa-b176-a216cf9e908e", "relationship_name": "made_from", "updated_at": "2026-03-20 23:21:04"}}, {"source": "208e9fa9-a281-5f67-8f8f-4b78c917c467", "target": "ee7307f2-cba9-5003-9dc0-0780c50591a6", "relation": "made_from", "weight": null, "all_weights": {}, "relationship_type": null, "edge_info": {"source_node_id": "208e9fa9-a281-5f67-8f8f-4b78c917c467", "target_node_id": "ee7307f2-cba9-5003-9dc0-0780c50591a6", "relationship_name": "made_from", "updated_at": "2026-03-20 23:21:04"}}];
+var taskColors = {"classify_documents": "#db5656", "extract_chunks_from_documents": "#56db7d", "extract_graph_from_data": "#a456db", "summarize_text": "#dbca56"};
+var pipelineColors = {"cognify_pipeline": "#db5656"};
+var nodesetColors = {};
+var userColors = {"default_user@example.com": "#db5656"};
+
+if (!nodes || nodes.length === 0) {
+  document.body.innerHTML = '<div class="empty-state">No graph data available</div>';
+  return;
+}
+
+// ── Helpers ──
+function esc(s){return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;")}
+function truncate(s,n){if(!s)return"";return s.length>n?s.slice(0,n)+"\u2026":s}
+function hexToRgb(hex){
+  if(!hex)return[219,216,216];
+  var c=hex.replace("#","");
+  if(c.length===3)c=c[0]+c[0]+c[1]+c[1]+c[2]+c[2];
+  var n=parseInt(c,16);
+  return[(n>>16)&255,(n>>8)&255,n&255];
+}
+function hslToRgb(h,s,l){
+  s/=100;l/=100;
+  var a=s*Math.min(l,1-l);
+  function f(n){var k=(n+h/30)%12;return l-a*Math.max(-1,Math.min(k-3,9-k,1))}
+  return[Math.round(f(0)*255),Math.round(f(8)*255),Math.round(f(4)*255)];
+}
+function clamp(v,lo,hi){return v<lo?lo:v>hi?hi:v}
+function lerp(a,b,t){return a+(b-a)*t}
+
+var N=nodes.length;
+var M=links.length;
+
+// ── Resolve IDs ──
+nodes.forEach(function(n){
+  if(!n.id)n.id=n.node_id||n.uuid||n.external_id||n.name||Math.random().toString(36);
+});
+var nodeMap={};
+nodes.forEach(function(n){nodeMap[n.id]=n});
+links=links.filter(function(l){
+  var s=typeof l.source==="object"?(l.source.id||l.source):l.source;
+  var t=typeof l.target==="object"?(l.target.id||l.target):l.target;
+  return nodeMap[s]&&nodeMap[t];
+});
+M=links.length;
+
+// ── Compute node degrees for sizing ──
+var degreeMap={};
+nodes.forEach(function(n){degreeMap[n.id]=0});
+links.forEach(function(l){
+  var s=typeof l.source==="object"?l.source.id:l.source;
+  var t=typeof l.target==="object"?l.target.id:l.target;
+  degreeMap[s]=(degreeMap[s]||0)+1;
+  degreeMap[t]=(degreeMap[t]||0)+1;
+});
+var maxDeg=Math.max(1,Math.max.apply(null,Object.values(degreeMap)));
+nodes.forEach(function(n){n._degree=degreeMap[n.id]||0;n._r=4+Math.sqrt(n._degree/maxDeg)*10});
+
+// Pre-sort nodes by degree descending (for adaptive labels)
+var nodesByDegree=nodes.slice().sort(function(a,b){return b._degree-a._degree});
+var topDegreeSet=new Set();
+nodesByDegree.slice(0,Math.min(10,N)).forEach(function(n){topDegreeSet.add(n.id)});
+
+// ── Color palette ──
+var colorByType={
+  "Entity":"#6510F4","EntityType":"#A550FF","DocumentChunk":"#0DFF00",
+  "TextSummary":"#6510F4","TableRow":"#A550FF","TableType":"#6510F4",
+  "ColumnValue":"#747470","SchemaTable":"#A550FF","DatabaseSchema":"#6510F4",
+  "SchemaRelationship":"#323332"
+};
+var typeColors={};
+var typeRgbCache={};
+var hueStep=0;
+nodes.forEach(function(n){
+  if(!n.color)n.color=colorByType[n.type]||null;
+  if(!n.color){
+    if(!typeColors[n.type]){
+      var hue=(hueStep*137.5)%360;hueStep++;
+      typeColors[n.type]="hsl("+hue+",55%,65%)";
+    }
+    n.color=typeColors[n.type];
+  }
+  // Cache RGB per type
+  if(!typeRgbCache[n.type]){
+    var c=n.color;
+    if(c.indexOf("hsl")===0){
+      var m=c.match(/[\d.]+/g);
+      typeRgbCache[n.type]=hslToRgb(+m[0],+m[1],+m[2]);
+    }else{
+      typeRgbCache[n.type]=hexToRgb(c);
+    }
+  }
+  n._rgb=typeRgbCache[n.type];
+  if(n.ontology_valid===true){
+    n.color="#D8D8D8";
+    n._rgb=[216,216,216];
+  }
+});
+
+// ── Color-by mode ──
+var colorByMode="type";
+
+function recolorNodes(){
+  nodes.forEach(function(n){
+    if(colorByMode==="type"){
+      n.color=colorByType[n.type]||typeColors[n.type]||"#DBD8D8";
+    }else if(colorByMode==="task"){
+      n.color=taskColors[n.source_task||"Unknown"]||"#DBD8D8";
+    }else if(colorByMode==="pipeline"){
+      n.color=pipelineColors[n.source_pipeline||"Unknown"]||"#DBD8D8";
+    }else if(colorByMode==="nodeset"){
+      n.color=nodesetColors[n.source_node_set||"Unknown"]||"#DBD8D8";
+    }else if(colorByMode==="user"){
+      n.color=userColors[n.source_user||"Unknown"]||"#DBD8D8";
+    }
+    if(colorByMode==="type"&&n.ontology_valid===true){
+      n.color="#D8D8D8";
+      n._rgb=[216,216,216];
+    }else{
+      // Recache RGB
+      if(n.color.indexOf("hsl")===0){
+        var m=n.color.match(/[\d.]+/g);
+        n._rgb=hslToRgb(+m[0],+m[1],+m[2]);
+      }else{
+        n._rgb=hexToRgb(n.color);
+      }
+    }
+  });
+}
+
+document.querySelectorAll(".ctrl-btn[data-colorby]").forEach(function(btn){
+  btn.addEventListener("click",function(){
+    document.querySelectorAll(".ctrl-btn[data-colorby]").forEach(function(b){b.classList.remove("active")});
+    btn.classList.add("active");
+    colorByMode=btn.dataset.colorby;
+    recolorNodes();
+    updateLegend();
+    draw();
+  });
+});
+
+// ── Stats ──
+var typeCounts={};
+nodes.forEach(function(n){typeCounts[n.type]=(typeCounts[n.type]||0)+1});
+var taskCounts={};
+nodes.forEach(function(n){var t=n.source_task||"Unknown";taskCounts[t]=(taskCounts[t]||0)+1});
+var pipeCounts={};
+nodes.forEach(function(n){var p=n.source_pipeline||"Unknown";pipeCounts[p]=(pipeCounts[p]||0)+1});
+var nodesetCounts={};
+nodes.forEach(function(n){var s=n.source_node_set||"Unknown";nodesetCounts[s]=(nodesetCounts[s]||0)+1});
+var userCounts={};
+nodes.forEach(function(n){var u=n.source_user||"Unknown";userCounts[u]=(userCounts[u]||0)+1});
+var uniqueTasks=Object.keys(taskCounts).length;
+var uniquePipelines=Object.keys(pipeCounts).length;
+var uniqueNodesets=Object.keys(nodesetCounts).length;
+var uniqueUsers=Object.keys(userCounts).length;
+var statsEl=document.getElementById("stats");
+var perfTier=N>10000?"large":N>2000?"medium":"small";
+statsEl.innerHTML='<span><span class="dot" style="background:#6510F4"></span>'+N.toLocaleString()+" nodes</span>"+
+  '<span><span class="dot" style="background:#747470"></span>'+M.toLocaleString()+" edges</span>"+
+  '<span>'+Object.keys(typeCounts).length+" types</span>"+
+  '<span>'+uniqueTasks+" tasks</span>"+
+  '<span>'+uniquePipelines+" pipelines</span>"+
+  '<span>'+uniqueNodesets+" node sets</span>"+
+  '<span>'+uniqueUsers+" users</span>"+
+  '<span style="opacity:0.5">['+perfTier+']</span>';
+
+// ── Legend ──
+var legendEl=document.getElementById("legend");
+
+function updateLegend(){
+  var entries,counts,colorSource;
+  if(colorByMode==="type"){
+    counts=typeCounts;
+    entries=Object.keys(counts).sort(function(a,b){return counts[b]-counts[a]});
+    colorSource=function(t){return colorByType[t]||typeColors[t]||"#DBD8D8"};
+  }else if(colorByMode==="task"){
+    counts=taskCounts;
+    entries=Object.keys(counts).sort(function(a,b){return counts[b]-counts[a]});
+    colorSource=function(t){return taskColors[t]||"#DBD8D8"};
+  }else if(colorByMode==="pipeline"){
+    counts=pipeCounts;
+    entries=Object.keys(counts).sort(function(a,b){return counts[b]-counts[a]});
+    colorSource=function(t){return pipelineColors[t]||"#DBD8D8"};
+  }else if(colorByMode==="nodeset"){
+    counts=nodesetCounts;
+    entries=Object.keys(counts).sort(function(a,b){return counts[b]-counts[a]});
+    colorSource=function(t){return nodesetColors[t]||"#DBD8D8"};
+  }else{
+    counts=userCounts;
+    entries=Object.keys(counts).sort(function(a,b){return counts[b]-counts[a]});
+    colorSource=function(t){return userColors[t]||"#DBD8D8"};
+  }
+  if(entries.length>12)entries=entries.slice(0,12);
+  legendEl.innerHTML=entries.map(function(t){
+    return '<div class="legend-item"><div class="legend-dot" style="background:'+colorSource(t)+'"></div>'+esc(t)+" ("+counts[t]+")</div>";
+  }).join("");
+}
+updateLegend();
+
+// ── Canvas setup ──
+var canvas=document.getElementById("canvas");
+var ctx=canvas.getContext("2d");
+var dpr=window.devicePixelRatio||1;
+var W,H;
+function resize(){
+  W=window.innerWidth;H=window.innerHeight;
+  canvas.width=W*dpr;canvas.height=H*dpr;
+  canvas.style.width=W+"px";canvas.style.height=H+"px";
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+}
+resize();
+window.addEventListener("resize",function(){resize();draw()});
+
+// ── Layer toggles ──
+var layers={nodes:true,edges:true,labels:true,heatmap:false,typeclouds:false};
+document.querySelectorAll(".ctrl-btn[data-layer]").forEach(function(btn){
+  btn.addEventListener("click",function(){
+    var key=btn.dataset.layer;
+    layers[key]=!layers[key];
+    btn.classList.toggle("active",layers[key]);
+    if((key==="heatmap"||key==="typeclouds")&&layers[key]){
+      computeDensity();
+    }
+    draw();
+  });
+});
+
+// ── Transform state ──
+var tx=W/2,ty=H/2,scale=1;
+
+// ── Smooth zoom animation state ──
+var zoomAnim=null; // {fromScale,toScale,fromTx,toTx,fromTy,toTy,startTime,duration}
+
+function animateZoom(){
+  if(!zoomAnim)return;
+  var elapsed=performance.now()-zoomAnim.startTime;
+  var t=Math.min(1,elapsed/zoomAnim.duration);
+  // Ease out cubic
+  var e=1-Math.pow(1-t,3);
+  scale=lerp(zoomAnim.fromScale,zoomAnim.toScale,e);
+  tx=lerp(zoomAnim.fromTx,zoomAnim.toTx,e);
+  ty=lerp(zoomAnim.fromTy,zoomAnim.toTy,e);
+  draw();
+  if(t<1){requestAnimationFrame(animateZoom)}
+  else{zoomAnim=null}
+}
+
+function smoothZoomTo(newScale,pivotX,pivotY,duration){
+  newScale=clamp(newScale,0.02,30);
+  var ratio=newScale/scale;
+  var newTx=pivotX-(pivotX-tx)*ratio;
+  var newTy=pivotY-(pivotY-ty)*ratio;
+  zoomAnim={fromScale:scale,toScale:newScale,fromTx:tx,toTx:newTx,fromTy:ty,toTy:newTy,startTime:performance.now(),duration:duration||150};
+  requestAnimationFrame(animateZoom);
+}
+
+function smoothPanZoomTo(newScale,newTx,newTy,duration){
+  newScale=clamp(newScale,0.02,30);
+  zoomAnim={fromScale:scale,toScale:newScale,fromTx:tx,toTx:newTx,fromTy:ty,toTy:newTy,startTime:performance.now(),duration:duration||300};
+  requestAnimationFrame(animateZoom);
+}
+
+// ── Zoom-to-fit ──
+function zoomToFit(animated){
+  var minX=Infinity,maxX=-Infinity,minY=Infinity,maxY=-Infinity;
+  var valid=0;
+  nodes.forEach(function(n){
+    if(typeof n.x!=="number"||!isFinite(n.x))return;
+    valid++;
+    if(n.x<minX)minX=n.x;if(n.x>maxX)maxX=n.x;
+    if(n.y<minY)minY=n.y;if(n.y>maxY)maxY=n.y;
+  });
+  if(valid===0){return}
+  var pad=0.1;
+  var gw=maxX-minX||100;
+  var gh=maxY-minY||100;
+  var cx=(minX+maxX)/2;
+  var cy=(minY+maxY)/2;
+  var sx=W*(1-2*pad)/gw;
+  var sy=H*(1-2*pad)/gh;
+  var ns=Math.min(sx,sy,10);
+  var ntx=W/2-cx*ns;
+  var nty=H/2-cy*ns;
+  if(animated){smoothPanZoomTo(ns,ntx,nty,400)}
+  else{scale=ns;tx=ntx;ty=nty;draw()}
+}
+
+// ── Force simulation (Phase 3f: adaptive tuning) ──
+var repStr,linkDist,alphaDecayVal,velDecayVal,distMaxVal,collideIter;
+if(N>10000){
+  repStr=-20;linkDist=20;alphaDecayVal=0.05;velDecayVal=0.6;distMaxVal=200;collideIter=0;
+}else if(N>5000){
+  repStr=-40;linkDist=30;alphaDecayVal=0.04;velDecayVal=0.5;distMaxVal=300;collideIter=0;
+}else if(N>2000){
+  repStr=-60;linkDist=40;alphaDecayVal=0.03;velDecayVal=0.45;distMaxVal=400;collideIter=1;
+}else if(N>500){
+  repStr=-120;linkDist=70;alphaDecayVal=0.02;velDecayVal=0.4;distMaxVal=500;collideIter=1;
+}else{
+  repStr=-180;linkDist=100;alphaDecayVal=0.02;velDecayVal=0.4;distMaxVal=600;collideIter=1;
+}
+
+var MAX_TICKS=N>10000?300:N>5000?400:1000;
+var simTickCount=0;
+var simDone=false;
+
+// ── Loading overlay (Phase 3g) ──
+var loadingOverlay=document.getElementById("loading-overlay");
+var loadingBar=document.getElementById("loading-bar");
+var loadingText=document.getElementById("loading-text");
+var loadingStatsEl=document.getElementById("loading-stats");
+var showLoading=N>200;
+
+if(!showLoading){
+  loadingOverlay.classList.add("hidden");
+}else{
+  loadingStatsEl.textContent=N.toLocaleString()+" nodes, "+M.toLocaleString()+" edges";
+}
+
+var simulation=d3.forceSimulation(nodes)
+  .force("link",d3.forceLink(links).id(function(d){return d.id}).distance(linkDist).strength(0.2))
+  .force("charge",d3.forceManyBody().strength(repStr).distanceMax(distMaxVal))
+  .force("center",d3.forceCenter(0,0))
+  .force("x",d3.forceX(0).strength(0.04))
+  .force("y",d3.forceY(0).strength(0.04))
+  .alphaDecay(alphaDecayVal)
+  .velocityDecay(velDecayVal);
+
+if(collideIter>0){
+  simulation.force("collide",d3.forceCollide().radius(function(d){return d._r+2}).iterations(collideIter));
+}
+
+// ── Quadtree (Phase 3a) ──
+var quadtree=null;
+var qtRebuildInterval=N>10000?10:N>2000?5:3;
+
+function rebuildQuadtree(){
+  quadtree=d3.quadtree()
+    .x(function(d){return d.x})
+    .y(function(d){return d.y})
+    .addAll(nodes.filter(function(n){return typeof n.x==="number"&&isFinite(n.x)}));
+}
+
+// ── Adjacency index ──
+var adjMap={};
+nodes.forEach(function(n){adjMap[n.id]=[]});
+
+// Simulation tick handler
+simulation.on("tick",function(){
+  simTickCount++;
+
+  // Rebuild adjacency once after link objects are resolved
+  if(simTickCount===1){
+    adjMap={};
+    nodes.forEach(function(n2){adjMap[n2.id]=[]});
+    links.forEach(function(l){
+      var sid=l.source.id||l.source;
+      var tid=l.target.id||l.target;
+      if(adjMap[sid])adjMap[sid].push(tid);
+      if(adjMap[tid])adjMap[tid].push(sid);
+    });
+  }
+
+  // Rebuild quadtree periodically
+  if(simTickCount%qtRebuildInterval===0){rebuildQuadtree()}
+
+  // Update loading progress
+  if(showLoading&&!simDone){
+    var pct=Math.min(99,Math.round(simTickCount/MAX_TICKS*100));
+    loadingBar.style.width=pct+"%";
+    loadingText.textContent="Laying out graph... "+pct+"%";
+  }
+
+  // Cap simulation ticks
+  if(simTickCount>=MAX_TICKS&&!simDone){
+    simulation.stop();
+    simDone=true;
+    rebuildQuadtree();
+    computeDensity();
+    if(showLoading){
+      loadingBar.style.width="100%";
+      loadingText.textContent="Done!";
+      setTimeout(function(){loadingOverlay.classList.add("hidden")},300);
+    }
+    zoomToFit(false);
+    setupMinimap();
+    draw();
+    return;
+  }
+
+  // Only draw during simulation if small graph, otherwise skip frames
+  if(N<2000||simTickCount%3===0){draw()}
+});
+
+// When simulation ends naturally (alpha < alphaMin)
+simulation.on("end",function(){
+  if(!simDone){
+    simDone=true;
+    rebuildQuadtree();
+    computeDensity();
+    if(showLoading){
+      loadingBar.style.width="100%";
+      loadingText.textContent="Done!";
+      setTimeout(function(){loadingOverlay.classList.add("hidden")},300);
+    }
+    zoomToFit(false);
+    setupMinimap();
+    draw();
+  }
+});
+
+// ── Interaction state ──
+var hoveredNode=null;
+var searchQuery="";
+var searchMatches=new Set();
+
+// ── Search ──
+var searchInput=document.getElementById("search-input");
+searchInput.addEventListener("input",function(){
+  searchQuery=searchInput.value.trim().toLowerCase();
+  searchMatches.clear();
+  if(searchQuery){
+    nodes.forEach(function(n){
+      var name=(n.name||"").toLowerCase();
+      var type=(n.type||"").toLowerCase();
+      if(name.indexOf(searchQuery)>=0||type.indexOf(searchQuery)>=0)searchMatches.add(n.id);
+    });
+  }
+  draw();
+});
+
+// ── Info panel ──
+var infoPanel=document.getElementById("info-panel");
+function showNodeInfo(n){
+  if(!n){infoPanel.classList.remove("visible");return}
+  var html='<div class="panel-header">';
+  html+='<span class="panel-type" style="background:'+n.color+'22;color:'+n.color+'">'+esc(n.type||"Node")+"</span>";
+  html+='<span class="panel-title">'+esc(truncate(n.name||n.id,40))+"</span></div>";
+
+  var desc=null;
+  var descKeys=["description","summary","text","content"];
+  for(var i=0;i<descKeys.length;i++){
+    var v=n[descKeys[i]]||(n.properties&&n.properties[descKeys[i]]);
+    if(typeof v==="string"&&v.trim()){desc=v.trim();break}
+  }
+  if(desc){
+    html+='<div style="font-size:12px;color:var(--text2);line-height:1.5;margin-top:8px">'+esc(truncate(desc,300))+"</div>";
+  }
+
+  html+='<div class="panel-section"><div class="panel-section-title">Properties</div>';
+  html+='<div class="panel-row"><span class="k">ID</span><span class="v" style="font-size:10px;opacity:0.7">'+esc(truncate(n.id,36))+"</span></div>";
+  html+='<div class="panel-row"><span class="k">Connections</span><span class="v">'+n._degree+"</span></div>";
+  if(n.source_task)html+='<div class="panel-row"><span class="k">Source Task</span><span class="v">'+esc(n.source_task)+"</span></div>";
+  if(n.source_pipeline)html+='<div class="panel-row"><span class="k">Source Pipeline</span><span class="v">'+esc(n.source_pipeline)+"</span></div>";
+  if(n.source_node_set)html+='<div class="panel-row"><span class="k">Source Node Set</span><span class="v">'+esc(n.source_node_set)+"</span></div>";
+  if(n.source_user)html+='<div class="panel-row"><span class="k">Source User</span><span class="v">'+esc(n.source_user)+"</span></div>";
+  if(n.ontology_valid!==undefined&&n.ontology_valid!==null){var ovStyle=n.ontology_valid===true?'color:#D8D8D8;font-weight:600':'color:var(--text2)';html+='<div class="panel-row"><span class="k">Ontology Valid</span><span class="v" style="'+ovStyle+'">'+esc(String(n.ontology_valid))+"</span></div>";}
+
+  if(n.properties){
+    Object.keys(n.properties).slice(0,10).forEach(function(key){
+      var v=n.properties[key];
+      if(v!==undefined&&v!==null&&typeof v!=="object"){
+        html+='<div class="panel-row"><span class="k">'+esc(key)+'</span><span class="v">'+esc(truncate(String(v),80))+"</span></div>";
+      }
+    });
+  }
+  html+="</div>";
+
+  infoPanel.innerHTML=html;
+  infoPanel.classList.add("visible");
+}
+
+function showEdgeInfo(e){
+  var html='<div class="panel-header">';
+  html+='<span class="panel-type">Edge</span>';
+  html+='<span class="panel-title">'+esc(e.relation||"relationship")+"</span></div>";
+  html+='<div class="panel-section"><div class="panel-section-title">Details</div>';
+  var sName=e.source.name||e.source.id;
+  var tName=e.target.name||e.target.id;
+  html+='<div class="panel-row"><span class="k">From</span><span class="v">'+esc(truncate(sName,30))+"</span></div>";
+  html+='<div class="panel-row"><span class="k">To</span><span class="v">'+esc(truncate(tName,30))+"</span></div>";
+  if(e.weight!=null)html+='<div class="panel-row"><span class="k">Weight</span><span class="v">'+e.weight+"</span></div>";
+  if(e.all_weights&&Object.keys(e.all_weights).length>0){
+    Object.keys(e.all_weights).forEach(function(k){
+      html+='<div class="panel-row"><span class="k">w:'+esc(k)+'</span><span class="v">'+e.all_weights[k]+"</span></div>";
+    });
+  }
+  if(e.relationship_type)html+='<div class="panel-row"><span class="k">Type</span><span class="v">'+esc(e.relationship_type)+"</span></div>";
+  html+="</div>";
+  infoPanel.innerHTML=html;
+  infoPanel.classList.add("visible");
+}
+
+// ── Hit testing (Phase 3a: quadtree-accelerated) ──
+function screenToWorld(sx,sy){return{x:(sx-tx)/scale,y:(sy-ty)/scale}}
+function worldToScreen(wx,wy){return{x:wx*scale+tx,y:wy*scale+ty}}
+
+function findNodeAt(sx,sy){
+  var w=screenToWorld(sx,sy);
+  var searchR=(20)/scale; // max search radius in world coords
+  if(quadtree){
+    var found=quadtree.find(w.x,w.y,searchR);
+    if(found){
+      var dx=found.x-w.x,dy=found.y-w.y;
+      var d=Math.sqrt(dx*dx+dy*dy);
+      var hitR=(found._r+4)/scale;
+      if(d<hitR)return found;
+    }
+    return null;
+  }
+  // Fallback for before quadtree is built
+  var best=null,bestD=Infinity;
+  for(var i=nodes.length-1;i>=0;i--){
+    var n=nodes[i];
+    if(typeof n.x!=="number")continue;
+    var dx2=n.x-w.x,dy2=n.y-w.y;
+    var d2=Math.sqrt(dx2*dx2+dy2*dy2);
+    var hitR2=(n._r+4)/scale;
+    if(d2<hitR2&&d2<bestD){best=n;bestD=d2}
+  }
+  return best;
+}
+
+function findEdgeAt(sx,sy){
+  var w=screenToWorld(sx,sy);
+  var threshold=6/scale;
+  // Only check edges with at least one endpoint in viewport (Phase 3b)
+  var vp=getViewportWorld();
+  var margin=50/scale;
+  for(var i=0;i<links.length;i++){
+    var e=links[i];
+    var ax=e.source.x,ay=e.source.y,bx=e.target.x,by=e.target.y;
+    if(typeof ax!=="number")continue;
+    // Skip if both endpoints off-screen
+    var sIn=ax>=vp.x1-margin&&ax<=vp.x2+margin&&ay>=vp.y1-margin&&ay<=vp.y2+margin;
+    var tIn=bx>=vp.x1-margin&&bx<=vp.x2+margin&&by>=vp.y1-margin&&by<=vp.y2+margin;
+    if(!sIn&&!tIn)continue;
+    var ddx=bx-ax,ddy=by-ay;
+    var len2=ddx*ddx+ddy*ddy;
+    if(len2===0)continue;
+    var t=Math.max(0,Math.min(1,((w.x-ax)*ddx+(w.y-ay)*ddy)/len2));
+    var px=ax+t*ddx,py=ay+t*ddy;
+    var dist=Math.sqrt((w.x-px)*(w.x-px)+(w.y-py)*(w.y-py));
+    if(dist<threshold)return e;
+  }
+  return null;
+}
+
+// ── Viewport helpers (Phase 3b) ──
+function getViewportWorld(){
+  return{
+    x1:-tx/scale,
+    y1:-ty/scale,
+    x2:(W-tx)/scale,
+    y2:(H-ty)/scale
+  };
+}
+
+function isInViewport(wx,wy,margin,vp){
+  return wx>=vp.x1-margin&&wx<=vp.x2+margin&&wy>=vp.y1-margin&&wy<=vp.y2+margin;
+}
+
+// ── Mouse ──
+var isDragging=false,dragNode=null,isPanning=false;
+var lastMx=0,lastMy=0;
+
+canvas.addEventListener("mousedown",function(ev){
+  var mx=ev.offsetX,my=ev.offsetY;
+  lastMx=mx;lastMy=my;
+  var hit=findNodeAt(mx,my);
+  if(hit){
+    dragNode=hit;isDragging=true;
+    dragNode.fx=dragNode.x;dragNode.fy=dragNode.y;
+    simulation.alphaTarget(0.3).restart();
+    canvas.style.cursor="grabbing";
+  }else{
+    isPanning=true;
+    canvas.style.cursor="grabbing";
+  }
+});
+
+canvas.addEventListener("mousemove",function(ev){
+  var mx=ev.offsetX,my=ev.offsetY;
+  if(isDragging&&dragNode){
+    var w=screenToWorld(mx,my);
+    dragNode.fx=w.x;dragNode.fy=w.y;
+  }else if(isPanning){
+    tx+=mx-lastMx;ty+=my-lastMy;
+    draw();
+  }else{
+    var hit=findNodeAt(mx,my);
+    if(hit!==hoveredNode){
+      hoveredNode=hit;
+      if(hoveredNode){
+        showNodeInfo(hoveredNode);
+        canvas.style.cursor="pointer";
+      }else{
+        var edge=findEdgeAt(mx,my);
+        if(edge){showEdgeInfo(edge);canvas.style.cursor="pointer"}
+        else{infoPanel.classList.remove("visible");canvas.style.cursor="grab"}
+      }
+      draw();
+    }
+  }
+  lastMx=mx;lastMy=my;
+});
+
+canvas.addEventListener("mouseup",function(){
+  if(isDragging&&dragNode){
+    dragNode.fx=null;dragNode.fy=null;
+    simulation.alphaTarget(0);
+  }
+  isDragging=false;dragNode=null;isPanning=false;
+  canvas.style.cursor="grab";
+});
+
+canvas.addEventListener("mouseleave",function(){
+  if(isDragging&&dragNode){dragNode.fx=null;dragNode.fy=null;simulation.alphaTarget(0)}
+  isDragging=false;dragNode=null;isPanning=false;
+  hoveredNode=null;draw();
+});
+
+// ── Double-click to zoom to node (Phase 1) ──
+canvas.addEventListener("dblclick",function(ev){
+  ev.preventDefault();
+  var mx=ev.offsetX,my=ev.offsetY;
+  var hit=findNodeAt(mx,my);
+  if(hit&&typeof hit.x==="number"){
+    var ns=clamp(scale*2,0.02,30);
+    var ntx=W/2-hit.x*ns;
+    var nty=H/2-hit.y*ns;
+    smoothPanZoomTo(ns,ntx,nty,300);
+  }
+});
+
+// ── Wheel zoom (Phase 1: proportional to deltaY) ──
+canvas.addEventListener("wheel",function(ev){
+  ev.preventDefault();
+  if(zoomAnim)zoomAnim=null; // cancel any running animation
+  var mx=ev.offsetX,my=ev.offsetY;
+  var factor=Math.exp(-ev.deltaY*0.002);
+  var newScale=clamp(scale*factor,0.02,30);
+  var ratio=newScale/scale;
+  tx=mx-(mx-tx)*ratio;
+  ty=my-(my-ty)*ratio;
+  scale=newScale;
+  draw();
+},{passive:false});
+
+// ── Zoom buttons (Phase 1) ──
+document.getElementById("btn-zoom-in").addEventListener("click",function(){
+  smoothZoomTo(scale*1.4,W/2,H/2,200);
+});
+document.getElementById("btn-zoom-out").addEventListener("click",function(){
+  smoothZoomTo(scale/1.4,W/2,H/2,200);
+});
+document.getElementById("btn-fit").addEventListener("click",function(){
+  zoomToFit(true);
+});
+
+// ── Density (Phase 2: Grid-based heatmap + type clouds) ──
+var densityCellSize=30; // world-space cell size
+var heatmapGrid=null; // {cols,rows,ox,oy,data:[]} global density
+var typeGrids=null; // {type:{cols,rows,ox,oy,data:[],rgb:[]}} per-type density
+
+function computeDensity(){
+  if(!layers.heatmap&&!layers.typeclouds)return;
+  // Compute world bounding box
+  var minX=Infinity,maxX=-Infinity,minY=Infinity,maxY=-Infinity;
+  nodes.forEach(function(n){
+    if(typeof n.x!=="number"||!isFinite(n.x))return;
+    if(n.x<minX)minX=n.x;if(n.x>maxX)maxX=n.x;
+    if(n.y<minY)minY=n.y;if(n.y>maxY)maxY=n.y;
+  });
+  if(minX===Infinity)return;
+
+  var pad=densityCellSize*2;
+  minX-=pad;minY-=pad;maxX+=pad;maxY+=pad;
+  var cols=Math.ceil((maxX-minX)/densityCellSize);
+  var rows=Math.ceil((maxY-minY)/densityCellSize);
+  if(cols<1||rows<1||cols*rows>500000)return; // safety limit
+
+  // Global heatmap
+  if(layers.heatmap){
+    var grid=new Float32Array(cols*rows);
+    nodes.forEach(function(n){
+      if(typeof n.x!=="number"||!isFinite(n.x))return;
+      var ci=Math.floor((n.x-minX)/densityCellSize);
+      var ri=Math.floor((n.y-minY)/densityCellSize);
+      if(ci>=0&&ci<cols&&ri>=0&&ri<rows)grid[ri*cols+ci]++;
+    });
+    // Multi-pass 3x3 box blur (3 passes approximates Gaussian)
+    var src=grid,dst;
+    for(var pass=0;pass<3;pass++){
+      dst=new Float32Array(cols*rows);
+      for(var r=0;r<rows;r++){
+        for(var c=0;c<cols;c++){
+          var sum=0,cnt=0;
+          for(var dr=-1;dr<=1;dr++){
+            for(var dc=-1;dc<=1;dc++){
+              var rr=r+dr,cc=c+dc;
+              if(rr>=0&&rr<rows&&cc>=0&&cc<cols){sum+=src[rr*cols+cc];cnt++}
+            }
+          }
+          dst[r*cols+c]=sum/cnt;
+        }
+      }
+      src=dst;
+    }
+    var blurred=src;
+    var maxVal=0;
+    for(var i=0;i<blurred.length;i++){if(blurred[i]>maxVal)maxVal=blurred[i]}
+    // Pre-render to offscreen canvas for smooth bilinear interpolation
+    var hmCanvas=document.createElement("canvas");
+    hmCanvas.width=cols;hmCanvas.height=rows;
+    var hmCtx=hmCanvas.getContext("2d");
+    var hmImg=hmCtx.createImageData(cols,rows);
+    if(maxVal>0){
+      for(var i=0;i<blurred.length;i++){
+        var v=blurred[i];
+        if(v>0){
+          var a=Math.round((0.03+(v/maxVal)*0.17)*255);
+          var idx=i*4;
+          hmImg.data[idx]=255;hmImg.data[idx+1]=230;hmImg.data[idx+2]=200;hmImg.data[idx+3]=a;
+        }
+      }
+    }
+    hmCtx.putImageData(hmImg,0,0);
+    heatmapGrid={cols:cols,rows:rows,ox:minX,oy:minY,data:blurred,maxVal:maxVal,canvas:hmCanvas};
+  }
+
+  // Per-type grids
+  if(layers.typeclouds){
+    var tg={};
+    nodes.forEach(function(n){
+      if(typeof n.x!=="number"||!isFinite(n.x))return;
+      var t=n.type||"default";
+      if(!tg[t]){tg[t]={grid:new Float32Array(cols*rows),rgb:n._rgb}}
+      var ci=Math.floor((n.x-minX)/densityCellSize);
+      var ri=Math.floor((n.y-minY)/densityCellSize);
+      if(ci>=0&&ci<cols&&ri>=0&&ri<rows)tg[t].grid[ri*cols+ci]++;
+    });
+    // Multi-pass blur + offscreen canvas per type
+    var result={};
+    Object.keys(tg).forEach(function(t){
+      var g=tg[t].grid;
+      var rgb=tg[t].rgb;
+      // 3-pass box blur
+      var src2=g,dst2;
+      for(var pass=0;pass<3;pass++){
+        dst2=new Float32Array(cols*rows);
+        for(var r=0;r<rows;r++){
+          for(var c=0;c<cols;c++){
+            var sum=0,cnt=0;
+            for(var dr=-1;dr<=1;dr++){
+              for(var dc=-1;dc<=1;dc++){
+                var rr=r+dr,cc=c+dc;
+                if(rr>=0&&rr<rows&&cc>=0&&cc<cols){sum+=src2[rr*cols+cc];cnt++}
+              }
+            }
+            dst2[r*cols+c]=sum/cnt;
+          }
+        }
+        src2=dst2;
+      }
+      var bl=src2;
+      var mv=0;
+      for(var i=0;i<bl.length;i++){if(bl[i]>mv)mv=bl[i]}
+      // Pre-render to offscreen canvas
+      var tcCanvas=document.createElement("canvas");
+      tcCanvas.width=cols;tcCanvas.height=rows;
+      var tcCtx=tcCanvas.getContext("2d");
+      var tcImg=tcCtx.createImageData(cols,rows);
+      if(mv>0){
+        for(var i=0;i<bl.length;i++){
+          var v=bl[i];
+          if(v>0){
+            var a=Math.round((0.05+(v/mv)*0.20)*255);
+            var idx=i*4;
+            tcImg.data[idx]=rgb[0];tcImg.data[idx+1]=rgb[1];tcImg.data[idx+2]=rgb[2];tcImg.data[idx+3]=a;
+          }
+        }
+      }
+      tcCtx.putImageData(tcImg,0,0);
+      result[t]={cols:cols,rows:rows,ox:minX,oy:minY,data:bl,maxVal:mv,rgb:rgb,canvas:tcCanvas};
+    });
+    typeGrids=result;
+  }
+}
+
+// ── FPS counter (Phase 4) ──
+var fpsEl=document.getElementById("fps-counter");
+var showFps=false;
+var fpsFrames=0,fpsLast=performance.now(),fpsCurrent=0;
+
+function updateFps(){
+  fpsFrames++;
+  var now=performance.now();
+  if(now-fpsLast>=1000){
+    fpsCurrent=Math.round(fpsFrames*1000/(now-fpsLast));
+    fpsFrames=0;fpsLast=now;
+    if(showFps)fpsEl.textContent=fpsCurrent+" fps | "+N+" nodes | "+M+" edges";
+  }
+}
+
+// ── Drawing (Phase 3b-3e: viewport culling, batched edges, LOD, adaptive labels) ──
+function draw(){
+  updateFps();
+  ctx.save();
+  ctx.clearRect(0,0,W,H);
+
+  // Background
+  ctx.fillStyle="#000000";
+  ctx.fillRect(0,0,W,H);
+
+  // Subtle grid
+  ctx.save();
+  ctx.globalAlpha=0.03;
+  ctx.strokeStyle="#fff";
+  ctx.lineWidth=1;
+  var gridSize=60*scale;
+  if(gridSize>10){
+    var ox=tx%gridSize,oy=ty%gridSize;
+    ctx.beginPath();
+    for(var gx=ox;gx<W;gx+=gridSize){ctx.moveTo(gx,0);ctx.lineTo(gx,H)}
+    for(var gy=oy;gy<H;gy+=gridSize){ctx.moveTo(0,gy);ctx.lineTo(W,gy)}
+    ctx.stroke();
+  }
+  ctx.restore();
+
+  ctx.translate(tx,ty);
+  ctx.scale(scale,scale);
+
+  // Viewport in world coords
+  var vp=getViewportWorld();
+  var vpMargin=30/scale;
+
+  // Build neighbor set for hover
+  var neighborSet=null;
+  if(hoveredNode){
+    neighborSet=new Set();
+    neighborSet.add(hoveredNode.id);
+    if(adjMap[hoveredNode.id]){
+      adjMap[hoveredNode.id].forEach(function(id){neighborSet.add(id)});
+    }
+  }
+
+  // Search highlighting
+  var hasSearch=searchQuery&&searchMatches.size>0;
+
+  // ── Density heatmap layer (smooth offscreen canvas) ──
+  if(layers.heatmap&&heatmapGrid&&heatmapGrid.maxVal>0&&heatmapGrid.canvas){
+    ctx.save();
+    ctx.imageSmoothingEnabled=true;
+    ctx.imageSmoothingQuality="high";
+    ctx.drawImage(heatmapGrid.canvas,heatmapGrid.ox,heatmapGrid.oy,
+      heatmapGrid.cols*densityCellSize,heatmapGrid.rows*densityCellSize);
+    ctx.restore();
+  }
+
+  // ── Type cloud layer (smooth offscreen canvas) ──
+  if(layers.typeclouds&&typeGrids){
+    ctx.save();
+    ctx.imageSmoothingEnabled=true;
+    ctx.imageSmoothingQuality="high";
+    Object.keys(typeGrids).forEach(function(t){
+      var tg=typeGrids[t];
+      if(tg.maxVal<=0||!tg.canvas)return;
+      ctx.drawImage(tg.canvas,tg.ox,tg.oy,
+        tg.cols*densityCellSize,tg.rows*densityCellSize);
+    });
+    ctx.restore();
+  }
+
+  // ── Edges (Phase 3b-3c: viewport culling + batched rendering) ──
+  if(layers.edges){
+    // At extreme zoom-out with large graph, skip edges entirely
+    var skipEdges=scale<0.1&&N>5000;
+    if(!skipEdges){
+      var skipArrows=scale<0.5||N>5000;
+
+      // Classify edges into batches by visual state
+      var normalEdges=[];
+      var hoverEdges=[];
+      var searchEdges=[];
+      var arrowEdges=[];
+
+      links.forEach(function(l){
+        var sx2=l.source.x,sy2=l.source.y,tx2=l.target.x,ty2=l.target.y;
+        if(typeof sx2!=="number")return;
+
+        // Viewport culling: skip if both endpoints off-screen
+        var sIn=sx2>=vp.x1-vpMargin&&sx2<=vp.x2+vpMargin&&sy2>=vp.y1-vpMargin&&sy2<=vp.y2+vpMargin;
+        var tIn=tx2>=vp.x1-vpMargin&&tx2<=vp.x2+vpMargin&&ty2>=vp.y1-vpMargin&&ty2<=vp.y2+vpMargin;
+        if(!sIn&&!tIn)return;
+
+        var alpha=0.08;
+        var lineW=0.5;
+        var isHover=false,isSearch=false;
+
+        if(hoveredNode){
+          var sid=l.source.id||l.source;
+          var tid=l.target.id||l.target;
+          if(sid===hoveredNode.id||tid===hoveredNode.id){
+            alpha=0.6;lineW=1.5;isHover=true;
+          }else{alpha=0.02}
+        }
+        if(hasSearch){
+          var sid3=l.source.id||l.source;
+          var tid3=l.target.id||l.target;
+          if(searchMatches.has(sid3)&&searchMatches.has(tid3)){
+            alpha=Math.max(alpha,0.4);lineW=Math.max(lineW,1);isSearch=true;
+          }else if(!hoveredNode){alpha=0.02}
+        }
+        if(l.weight){lineW=Math.max(lineW,Math.min(3,l.weight*2))}
+
+        var entry={l:l,alpha:alpha,lineW:lineW};
+        if(isHover){hoverEdges.push(entry);if(!skipArrows&&alpha>0.1)arrowEdges.push(entry)}
+        else if(isSearch){searchEdges.push(entry);if(!skipArrows&&alpha>0.1)arrowEdges.push(entry)}
+        else{normalEdges.push(entry)}
+      });
+
+      // Draw normal edges in a single batch
+      if(normalEdges.length>0){
+        var nAlpha=hoveredNode?0.02:hasSearch?0.02:0.08;
+        ctx.beginPath();
+        normalEdges.forEach(function(e){
+          ctx.moveTo(e.l.source.x,e.l.source.y);
+          ctx.lineTo(e.l.target.x,e.l.target.y);
+        });
+        ctx.strokeStyle="rgba(219,216,216,"+nAlpha+")";
+        ctx.lineWidth=0.5/scale;
+        ctx.stroke();
+      }
+
+      // Draw search-matched edges
+      searchEdges.forEach(function(e){
+        ctx.beginPath();
+        ctx.moveTo(e.l.source.x,e.l.source.y);
+        ctx.lineTo(e.l.target.x,e.l.target.y);
+        ctx.strokeStyle="rgba(219,216,216,"+e.alpha+")";
+        ctx.lineWidth=e.lineW/scale;
+        ctx.stroke();
+      });
+
+      // Draw hover edges
+      hoverEdges.forEach(function(e){
+        ctx.beginPath();
+        ctx.moveTo(e.l.source.x,e.l.source.y);
+        ctx.lineTo(e.l.target.x,e.l.target.y);
+        ctx.strokeStyle="rgba(219,216,216,"+e.alpha+")";
+        ctx.lineWidth=e.lineW/scale;
+        ctx.stroke();
+      });
+
+      // Draw arrows for highlighted edges
+      if(!skipArrows){
+        arrowEdges.forEach(function(e){
+          var l=e.l;
+          var sx3=l.source.x,sy3=l.source.y,tx3=l.target.x,ty3=l.target.y;
+          var ddx=tx3-sx3,ddy=ty3-sy3;
+          var len=Math.sqrt(ddx*ddx+ddy*ddy);
+          if(len>0){
+            var ux=ddx/len,uy=ddy/len;
+            var tr=(l.target._r||6)+2;
+            var ax=tx3-ux*tr,ay=ty3-uy*tr;
+            var arrowSize=4/scale;
+            ctx.beginPath();
+            ctx.moveTo(ax,ay);
+            ctx.lineTo(ax-ux*arrowSize+uy*arrowSize*0.5,ay-uy*arrowSize-ux*arrowSize*0.5);
+            ctx.lineTo(ax-ux*arrowSize-uy*arrowSize*0.5,ay-uy*arrowSize+ux*arrowSize*0.5);
+            ctx.closePath();
+            ctx.fillStyle="rgba(219,216,216,"+e.alpha+")";
+            ctx.fill();
+          }
+        });
+      }
+    }
+  }
+
+  // Edge labels on hover
+  if(layers.labels&&hoveredNode&&scale>0.4){
+    ctx.font=(10/scale)+"px Inter,system-ui,sans-serif";
+    ctx.textAlign="center";
+    ctx.textBaseline="middle";
+    links.forEach(function(l){
+      var sid=l.source.id||l.source;
+      var tid=l.target.id||l.target;
+      if(sid===hoveredNode.id||tid===hoveredNode.id){
+        var mx2=(l.source.x+l.target.x)/2;
+        var my2=(l.source.y+l.target.y)/2;
+        ctx.fillStyle="rgba(219,216,216,0.7)";
+        ctx.fillText(truncate(l.relation||"",30),mx2,my2-6/scale);
+      }
+    });
+  }
+
+  // ── Nodes (Phase 3d: LOD rendering) ──
+  if(layers.nodes){
+    var useDots=scale<0.2||N>10000;
+    var skipGlow=N>5000;
+    var skipBorder=N>2000;
+
+    nodes.forEach(function(n){
+      if(typeof n.x!=="number")return;
+      // Viewport culling
+      if(!isInViewport(n.x,n.y,n._r*3+vpMargin,vp))return;
+
+      var r=n._r;
+      var alpha=1;
+      var glowAlpha=0;
+
+      if(hoveredNode){
+        if(neighborSet.has(n.id)){
+          alpha=1;glowAlpha=n.id===hoveredNode.id?0.4:0.2;
+        }else{
+          alpha=0.15;
+        }
+      }
+      if(hasSearch){
+        if(searchMatches.has(n.id)){alpha=1;glowAlpha=0.3}
+        else if(!hoveredNode){alpha=0.12}
+      }
+
+      if(useDots){
+        // Simplified: small filled rectangle
+        ctx.globalAlpha=alpha;
+        ctx.fillStyle=n.color;
+        var dotSize=Math.max(1,r*0.5);
+        ctx.fillRect(n.x-dotSize,n.y-dotSize,dotSize*2,dotSize*2);
+        ctx.globalAlpha=1;
+        return;
+      }
+
+      // Glow (skip for large graphs)
+      if(glowAlpha>0&&!skipGlow){
+        var grd=ctx.createRadialGradient(n.x,n.y,r,n.x,n.y,r*3);
+        var rgb=n._rgb;
+        grd.addColorStop(0,"rgba("+rgb[0]+","+rgb[1]+","+rgb[2]+","+glowAlpha+")");
+        grd.addColorStop(1,"rgba("+rgb[0]+","+rgb[1]+","+rgb[2]+",0)");
+        ctx.fillStyle=grd;
+        ctx.beginPath();
+        ctx.arc(n.x,n.y,r*3,0,Math.PI*2);
+        ctx.fill();
+      }
+
+      // Node circle
+      ctx.globalAlpha=alpha;
+      ctx.beginPath();
+      ctx.arc(n.x,n.y,r,0,Math.PI*2);
+      ctx.fillStyle=n.color;
+      ctx.fill();
+
+      // Subtle border (skip for medium+ graphs)
+      if(!skipBorder){
+        ctx.strokeStyle="rgba(244,244,244,0.2)";
+        ctx.lineWidth=0.5;
+        ctx.stroke();
+      }
+      ctx.globalAlpha=1;
+    });
+  }
+
+  // ── Labels (Phase 3e: adaptive) ──
+  if(layers.labels){
+    var fontSize=Math.max(3,Math.min(12,10/scale));
+    ctx.font="500 "+fontSize+"px Inter,system-ui,sans-serif";
+    ctx.textAlign="center";
+    ctx.textBaseline="middle";
+
+    // Adaptive label strategy
+    var disableLabels=N>10000&&scale<0.5;
+
+    if(!disableLabels){
+      var labelEvery;
+      if(N>5000){labelEvery=Infinity} // only special nodes
+      else if(N>2000){labelEvery=Math.ceil(N/20)}
+      else if(N>500){labelEvery=scale<0.3?Math.ceil(N/20):scale<0.8?Math.ceil(N/80):1}
+      else{labelEvery=1}
+
+      nodes.forEach(function(n,i){
+        if(typeof n.x!=="number")return;
+        // Viewport culling for labels
+        if(!isInViewport(n.x,n.y,n._r+fontSize*2+vpMargin,vp))return;
+
+        var shouldLabel=false;
+
+        // Always label hovered + neighbors
+        if(hoveredNode&&neighborSet&&neighborSet.has(n.id))shouldLabel=true;
+        // Always label search matches
+        if(hasSearch&&searchMatches.has(n.id))shouldLabel=true;
+
+        if(N>5000){
+          // Only label top-degree or hovered/searched
+          if(topDegreeSet.has(n.id))shouldLabel=true;
+        }else{
+          // High-degree nodes
+          if(n._degree>=maxDeg*0.3)shouldLabel=true;
+          // Sparse labeling
+          if(labelEvery<Infinity&&i%labelEvery===0)shouldLabel=true;
+        }
+
+        if(!shouldLabel)return;
+
+        var alpha2=0.85;
+        if(hoveredNode){
+          alpha2=neighborSet.has(n.id)?1:0.1;
+        }
+        if(hasSearch){
+          alpha2=searchMatches.has(n.id)?1:0.08;
+        }
+
+        var label=truncate(n.name||"",30);
+        var yOff=n._r+fontSize*0.8;
+
+        // Text shadow
+        ctx.fillStyle="rgba(0,0,0,"+alpha2*0.8+")";
+        ctx.fillText(label,n.x+0.5,n.y+yOff+0.5);
+
+        ctx.fillStyle="rgba(244,244,244,"+alpha2+")";
+        ctx.fillText(label,n.x,n.y+yOff);
+      });
+    }else if(hoveredNode){
+      // Even with labels disabled, label hovered node
+      var hn=hoveredNode;
+      var label2=truncate(hn.name||"",30);
+      var yOff2=hn._r+fontSize*0.8;
+      ctx.fillStyle="rgba(0,0,0,0.8)";
+      ctx.fillText(label2,hn.x+0.5,hn.y+yOff2+0.5);
+      ctx.fillStyle="rgba(244,244,244,1)";
+      ctx.fillText(label2,hn.x,hn.y+yOff2);
+    }
+  }
+
+  ctx.restore();
+
+  // Update minimap
+  if(minimapReady)drawMinimap();
+}
+
+// ── Density scheduling ──
+var densityTimer=null;
+function scheduleDensity(){
+  if(densityTimer)clearTimeout(densityTimer);
+  densityTimer=setTimeout(computeDensity,300);
+}
+
+// Recompute density when simulation settles
+var densityTickCount=0;
+simulation.on("tick.density",function(){
+  densityTickCount++;
+  if(densityTickCount%50===0)computeDensity();
+});
+
+// ── Minimap (Phase 4) ──
+var minimapContainer=document.getElementById("minimap-container");
+var minimapCanvas=document.getElementById("minimap-canvas");
+var minimapCtx=minimapCanvas.getContext("2d");
+var minimapW=150,minimapH=100;
+var minimapReady=false;
+var minimapBounds=null; // {minX,maxX,minY,maxY}
+var minimapDragging=false;
+
+function setupMinimap(){
+  if(N<500){return} // hide minimap for small graphs
+  minimapCanvas.width=minimapW*dpr;
+  minimapCanvas.height=minimapH*dpr;
+  minimapCanvas.style.width=minimapW+"px";
+  minimapCanvas.style.height=minimapH+"px";
+  minimapCtx.setTransform(dpr,0,0,dpr,0,0);
+  minimapContainer.style.display="block";
+  minimapReady=true;
+  computeMinimapBounds();
+  drawMinimap();
+}
+
+function computeMinimapBounds(){
+  var minX=Infinity,maxX=-Infinity,minY=Infinity,maxY=-Infinity;
+  nodes.forEach(function(n){
+    if(typeof n.x!=="number"||!isFinite(n.x))return;
+    if(n.x<minX)minX=n.x;if(n.x>maxX)maxX=n.x;
+    if(n.y<minY)minY=n.y;if(n.y>maxY)maxY=n.y;
+  });
+  var pad=50;
+  minimapBounds={minX:minX-pad,maxX:maxX+pad,minY:minY-pad,maxY:maxY+pad};
+}
+
+function drawMinimap(){
+  if(!minimapReady||!minimapBounds)return;
+  var mb=minimapBounds;
+  var gw=mb.maxX-mb.minX||100;
+  var gh=mb.maxY-mb.minY||100;
+  var sx=minimapW/gw;
+  var sy=minimapH/gh;
+  var ms=Math.min(sx,sy);
+
+  minimapCtx.clearRect(0,0,minimapW,minimapH);
+  minimapCtx.fillStyle="rgba(0,0,0,0.6)";
+  minimapCtx.fillRect(0,0,minimapW,minimapH);
+
+  // Draw nodes as dots
+  var dotR=Math.max(0.5,1);
+  nodes.forEach(function(n){
+    if(typeof n.x!=="number")return;
+    var px=(n.x-mb.minX)*ms;
+    var py=(n.y-mb.minY)*ms;
+    minimapCtx.fillStyle=n.color;
+    minimapCtx.fillRect(px-dotR,py-dotR,dotR*2,dotR*2);
+  });
+
+  // Draw viewport rectangle
+  var vp=getViewportWorld();
+  var vx1=(vp.x1-mb.minX)*ms;
+  var vy1=(vp.y1-mb.minY)*ms;
+  var vx2=(vp.x2-mb.minX)*ms;
+  var vy2=(vp.y2-mb.minY)*ms;
+  minimapCtx.strokeStyle="rgba(255,255,255,0.7)";
+  minimapCtx.lineWidth=1;
+  minimapCtx.strokeRect(vx1,vy1,vx2-vx1,vy2-vy1);
+}
+
+// Minimap click-to-navigate
+minimapCanvas.addEventListener("mousedown",function(ev){
+  ev.stopPropagation();
+  minimapDragging=true;
+  navigateMinimap(ev);
+});
+minimapCanvas.addEventListener("mousemove",function(ev){
+  if(minimapDragging)navigateMinimap(ev);
+});
+minimapCanvas.addEventListener("mouseup",function(){minimapDragging=false});
+minimapCanvas.addEventListener("mouseleave",function(){minimapDragging=false});
+
+function navigateMinimap(ev){
+  if(!minimapBounds)return;
+  var rect=minimapCanvas.getBoundingClientRect();
+  var mx=(ev.clientX-rect.left);
+  var my=(ev.clientY-rect.top);
+  var mb=minimapBounds;
+  var gw=mb.maxX-mb.minX||100;
+  var gh=mb.maxY-mb.minY||100;
+  var ms=Math.min(minimapW/gw,minimapH/gh);
+  var wx=mx/ms+mb.minX;
+  var wy=my/ms+mb.minY;
+  tx=W/2-wx*scale;
+  ty=H/2-wy*scale;
+  draw();
+}
+
+// Initial draw
+draw();
+
+// ── Keyboard shortcuts ──
+document.addEventListener("keydown",function(ev){
+  if(ev.target===searchInput)return;
+  if(ev.key==="f"||ev.key==="/"){ev.preventDefault();searchInput.focus()}
+  if(ev.key==="Escape"){searchInput.value="";searchQuery="";searchMatches.clear();searchInput.blur();draw()}
+  if(ev.key==="0"){tx=W/2;ty=H/2;scale=1;draw()}
+  // Phase 1: keyboard zoom
+  if(ev.key==="="||ev.key==="+"){smoothZoomTo(scale*1.4,W/2,H/2,200)}
+  if(ev.key==="-"||ev.key==="_"){smoothZoomTo(scale/1.4,W/2,H/2,200)}
+  // Phase 4: FPS counter toggle
+  if(ev.key==="d"||ev.key==="D"){
+    showFps=!showFps;
+    fpsEl.style.display=showFps?"block":"none";
+    if(!showFps)fpsEl.textContent="";
+  }
+});
+
+// Trigger density computation after initial layout
+scheduleDensity();
+
+})();
+</script>
+</body>
+</html>

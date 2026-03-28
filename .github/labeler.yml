@@ -39,6 +39,11 @@ integration:azure-doc-intelligence:
       - any-glob-to-any-file: "integrations/azure_doc_intelligence/**/*"
       - any-glob-to-any-file: ".github/workflows/azure_doc_intelligence.yml"
 
+integration:cognee:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/cognee/**/*"
+      - any-glob-to-any-file: ".github/workflows/cognee.yml"
+
 integration:chroma:
   - changed-files:
       - any-glob-to-any-file: "integrations/chroma/**/*"
