@@ -7,7 +7,7 @@ from typing import Any
 
 from haystack import component, default_to_dict, logging
 from haystack.components.generators.chat import OpenAIChatGenerator
-from haystack.dataclasses import ChatMessage, StreamingCallbackT
+from haystack.dataclasses import StreamingCallbackT
 from haystack.tools import ToolsType, serialize_tools_or_toolset
 from haystack.utils import serialize_callable
 from haystack.utils.auth import Secret
@@ -88,7 +88,7 @@ class NvidiaChatGenerator(OpenAIChatGenerator):
             - `stream`: Whether to stream back partial progress. If set, tokens will be sent as data-only server-sent
                 events as they become available, with the stream terminated by a data: [DONE] message.
             - `response_format`: For NVIDIA NIM servers, this parameter has limited support.
-                - The basic JSON mode with `{"type": "json_object"}` is supported by compatible models, to produce
+                The basic JSON mode with `{"type": "json_object"}` is supported by compatible models, to produce
                 valid JSON output.
                 To generate structured JSON output, use the `response_format` parameter.
                 Example:
@@ -103,7 +103,7 @@ class NvidiaChatGenerator(OpenAIChatGenerator):
                     }
                 }
                 ```
-                For more details, see the [NVIDIA NIM documentation](https://docs.nvidia.com/nim/large-language-models/latest/structured-generation.html).
+                For more details, see the [NVIDIA NIM documentation](https://docs.nvidia.com/nim/vision-language-models/latest/structured-generation.html).
         :param tools:
             A list of tools or a Toolset for which the model can prepare calls. This parameter can accept either a
             list of `Tool` objects or a `Toolset` instance.
@@ -126,46 +126,6 @@ class NvidiaChatGenerator(OpenAIChatGenerator):
             timeout=timeout,
             max_retries=max_retries,
             http_client_kwargs=http_client_kwargs,
-        )
-
-    def run(
-        self,
-        messages: list[ChatMessage],
-        streaming_callback: StreamingCallbackT | None = None,
-        generation_kwargs: dict[str, Any] | None = None,
-        *,
-        tools: ToolsType | None = None,
-        tools_strict: bool | None = None,
-    ) -> dict[str, Any]:
-        """Run the NVIDIA chat generator."""
-
-        return OpenAIChatGenerator.run(
-            self,
-            messages=messages,
-            streaming_callback=streaming_callback,
-            generation_kwargs=generation_kwargs,
-            tools=tools,
-            tools_strict=tools_strict,
-        )
-
-    async def run_async(
-        self,
-        messages: list[ChatMessage],
-        streaming_callback: StreamingCallbackT | None = None,
-        generation_kwargs: dict[str, Any] | None = None,
-        *,
-        tools: ToolsType | None = None,
-        tools_strict: bool | None = None,
-    ) -> dict[str, Any]:
-        """Run the NVIDIA chat generator asynchronously."""
-
-        return await OpenAIChatGenerator.run_async(
-            self,
-            messages=messages,
-            streaming_callback=streaming_callback,
-            generation_kwargs=generation_kwargs,
-            tools=tools,
-            tools_strict=tools_strict,
         )
 
     def to_dict(self) -> dict[str, Any]:
