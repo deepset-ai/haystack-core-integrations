@@ -228,6 +228,11 @@ integration:stackit:
       - any-glob-to-any-file: "integrations/stackit/**/*"
       - any-glob-to-any-file: ".github/workflows/stackit.yml"
 
+integration:tavily:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/tavily/**/*"
+      - any-glob-to-any-file: ".github/workflows/tavily.yml"
+
 integration:togetherai:
   - changed-files:
       - any-glob-to-any-file: "integrations/togetherai/**/*"
