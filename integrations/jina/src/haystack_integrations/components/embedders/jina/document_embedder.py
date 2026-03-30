@@ -16,6 +16,7 @@ JINA_API_URL: str = "https://api.jina.ai/v1/embeddings"
 class JinaDocumentEmbedder:
     """
     A component for computing Document embeddings using Jina AI models.
+
     The embedding of each Document is stored in the `embedding` field of the Document.
 
     Usage example:
@@ -49,6 +50,8 @@ class JinaDocumentEmbedder:
         task: str | None = None,
         dimensions: int | None = None,
         late_chunking: bool | None = None,
+        *,
+        base_url: str = JINA_API_URL,
     ) -> None:
         """
         Create a JinaDocumentEmbedder component.
@@ -71,6 +74,7 @@ class JinaDocumentEmbedder:
         :param late_chunking: A boolean to enable or disable late chunking.
             Apply the late chunking technique to leverage the model's long-context capabilities for
             generating contextual chunk embeddings.
+        :param base_url: The base URL of the Jina API.
 
             The support of `task` and `late_chunking` parameters is only available for jina-embeddings-v3.
         """
@@ -78,6 +82,7 @@ class JinaDocumentEmbedder:
 
         self.api_key = api_key
         self.model_name = model
+        self.base_url = base_url
         self.prefix = prefix
         self.suffix = suffix
         self.batch_size = batch_size
@@ -105,12 +110,14 @@ class JinaDocumentEmbedder:
     def to_dict(self) -> dict[str, Any]:
         """
         Serializes the component to a dictionary.
+
         :returns:
             Dictionary with serialized data.
         """
         kwargs = {
             "api_key": self.api_key.to_dict(),
             "model": self.model_name,
+            "base_url": self.base_url,
             "prefix": self.prefix,
             "suffix": self.suffix,
             "batch_size": self.batch_size,
@@ -132,6 +139,7 @@ class JinaDocumentEmbedder:
     def from_dict(cls, data: dict[str, Any]) -> "JinaDocumentEmbedder":
         """
         Deserializes the component from a dictionary.
+
         :param data:
             Dictionary to deserialize from.
         :returns:
@@ -170,7 +178,7 @@ class JinaDocumentEmbedder:
         ):
             batch = texts_to_embed[i : i + batch_size]
             response = self._session.post(
-                JINA_API_URL,
+                self.base_url,
                 json={"input": batch, "model": self.model_name, **(parameters or {})},
             ).json()
             if "data" not in response:

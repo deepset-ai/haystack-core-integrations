@@ -280,6 +280,7 @@ class ValkeyDocumentStore(DocumentStore):
             raise ValkeyDocumentStoreError(msg) from e
 
     def close(self) -> None:
+        """Close the synchronous Valkey client connection."""
         if self._client:
             try:
                 self._client.close()
@@ -289,6 +290,7 @@ class ValkeyDocumentStore(DocumentStore):
         self._client = None
 
     async def close_async(self) -> None:
+        """Close the asynchronous Valkey client connection."""
         if self._async_client:
             try:
                 await self._async_client.close()
@@ -1544,7 +1546,7 @@ class ValkeyDocumentStore(DocumentStore):
             msg = "metadata_fields must be a dictionary"
             raise ValueError(msg)
 
-        type_mapping = {str: "tag", int: "numeric"}
+        type_mapping = {str: "tag", int: "numeric", float: "numeric"}
 
         normalized = {}
         for field_name, field_type in metadata_fields.items():

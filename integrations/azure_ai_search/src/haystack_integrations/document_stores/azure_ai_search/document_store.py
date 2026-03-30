@@ -107,8 +107,7 @@ FIELD_TYPE_MAPPING = {
 
 class AzureAISearchDocumentStore:
     """
-    A document store using [Azure AI Search](https://azure.microsoft.com/products/ai-services/ai-search/)
-    as the backend.
+    Document store using [Azure AI Search](https://azure.microsoft.com/products/ai-services/ai-search/) as the backend.
     """
 
     def __init__(
@@ -184,6 +183,7 @@ class AzureAISearchDocumentStore:
 
     @property
     def client(self) -> SearchClient:
+        """Return the Azure SearchClient, creating the index if it does not exist."""
         resolved_endpoint = self._azure_endpoint.resolve_value()
         resolved_key = self._api_key.resolve_value()
 
@@ -304,6 +304,7 @@ class AzureAISearchDocumentStore:
     ) -> dict[str, Any]:
         """
         Serializes the index creation kwargs to a dictionary.
+
         This is needed to handle serialization of Azure AI Search classes
         that are passed in the index creation kwargs.
         """
@@ -731,6 +732,7 @@ class AzureAISearchDocumentStore:
     def search_documents(self, search_text: str = "*", top_k: int = 10) -> list[Document]:
         """
         Returns all documents that match the provided search_text.
+
         If search_text is None, returns all documents.
         :param search_text: the text to search for in the Document list.
         :param top_k: Maximum number of documents to return.
@@ -742,6 +744,7 @@ class AzureAISearchDocumentStore:
     def filter_documents(self, filters: dict[str, Any] | None = None) -> list[Document]:
         """
         Returns the documents that match the provided filters.
+
         Filters should be given as a dictionary supporting filtering by metadata. For details on
         filters, see the [metadata filtering documentation](https://docs.haystack.deepset.ai/docs/metadata-filtering).
 
@@ -842,6 +845,7 @@ class AzureAISearchDocumentStore:
     ) -> list[Document]:
         """
         Retrieves documents that are most similar to the query embedding using a vector similarity metric.
+
         It uses the vector configuration specified in the document store. By default, it uses the HNSW algorithm
         with cosine similarity.
 
@@ -908,8 +912,9 @@ class AzureAISearchDocumentStore:
         **kwargs: Any,
     ) -> list[Document]:
         """
-        Retrieves documents similar to query using the vector configuration in the document store and
-        the BM25 algorithm. This method combines vector similarity and BM25 for improved retrieval.
+        Retrieve documents using vector search combined with the BM25 algorithm.
+
+        This method combines vector similarity and BM25 for improved retrieval.
 
         This method is not meant to be part of the public interface of
         `AzureAISearchDocumentStore` nor called directly.

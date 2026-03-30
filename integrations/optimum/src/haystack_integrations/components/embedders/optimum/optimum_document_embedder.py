@@ -17,9 +17,10 @@ from .quantization import OptimumEmbedderQuantizationConfig
 @component
 class OptimumDocumentEmbedder:
     """
-    A component for computing `Document` embeddings using models loaded with the
-    [HuggingFace Optimum](https://huggingface.co/docs/optimum/index) library,
-    leveraging the ONNX runtime for high-speed inference.
+    A component for computing `Document` embeddings using models loaded with the HuggingFace Optimum library.
+
+    Uses the [HuggingFace Optimum](https://huggingface.co/docs/optimum/index) library and leverages the ONNX
+    runtime for high-speed inference.
 
     The embedding of each Document is stored in the `embedding` field of the Document.
 
@@ -199,6 +200,7 @@ class OptimumDocumentEmbedder:
     def run(self, documents: list[Document]) -> dict[str, list[Document]]:
         """
         Embed a list of Documents.
+
         The embedding of each Document is stored in the `embedding` field of the Document.
 
         :param documents:

@@ -54,8 +54,9 @@ class AmazonBedrockTextEmbedder:
         **kwargs: Any,
     ) -> None:
         """
-        Initializes the AmazonBedrockTextEmbedder with the provided parameters. The parameters are passed to the
-        Amazon Bedrock client.
+        Initializes the AmazonBedrockTextEmbedder with the provided parameters.
+
+        The parameters are passed to the Amazon Bedrock client.
 
         Note that the AWS credentials are not required if the AWS environment is configured correctly. These are loaded
         automatically from the environment or the AWS configuration file and do not need to be provided explicitly via
@@ -75,7 +76,9 @@ class AmazonBedrockTextEmbedder:
         :param aws_session_token: AWS session token.
         :param aws_region_name: AWS region name.
         :param aws_profile_name: AWS profile name.
-        :param boto3_config: The configuration for the boto3 client.
+        :param boto3_config: Dictionary of configuration options for the underlying Boto3 client.
+            Can be used to tune [retry behavior](https://docs.aws.amazon.com/boto3/latest/guide/retries.html)
+            and other low-level settings like timeouts and connection management.
         :param kwargs: Additional parameters to pass for model inference. For example, `input_type` and `truncate` for
             Cohere models.
         :raises ValueError: If the model is not supported.
@@ -118,7 +121,8 @@ class AmazonBedrockTextEmbedder:
 
     @component.output_types(embedding=list[float])
     def run(self, text: str) -> dict[str, list[float]]:
-        """Embeds the input text using the Amazon Bedrock model.
+        """
+        Embeds the input text using the Amazon Bedrock model.
 
         :param text: The input text to embed.
         :returns: A dictionary with the following keys:

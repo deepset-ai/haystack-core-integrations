@@ -61,6 +61,7 @@ OPERATOR_INVERSE = {
 def _invert_condition(filters: dict[str, Any]) -> dict[str, Any]:
     """
     Invert condition recursively.
+
     Weaviate doesn't support NOT filters so we need to invert them ourselves.
     """
     inverted_condition = filters.copy()
@@ -286,8 +287,9 @@ def _parse_comparison_condition(condition: dict[str, Any]) -> FilterReturn:
 
 def _match_no_document(field: str) -> FilterReturn:
     """
-    Returns a filters that will match no Document, this is used to keep the behavior consistent
-    between different Document Stores.
+    Returns a filter that will match no Document.
+
+    This is used to keep the behavior consistent between different Document Stores.
     """
 
     operands = [weaviate.classes.query.Filter.by_property(field).is_none(val) for val in [False, True]]

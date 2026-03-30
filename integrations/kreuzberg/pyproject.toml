@@ -79,6 +79,13 @@ select = [
     "ARG",  # flake8-unused-arguments
     "B",    # flake8-bugbear
     "C",    # flake8-comprehensions
+    "D102",   # Missing docstring in public method
+    "D103",   # Missing docstring in public function
+    "D205",   # 1 blank line required between summary line and description
+    "D209",   # Closing triple quotes go to new line
+    "D213",   # summary lines must be positioned on the second physical line of the docstring
+    "D417",   # Missing argument descriptions in the docstring
+    "D419",   # Docstring is empty
     "DTZ",  # flake8-datetimez
     "E",    # pycodestyle (error)
     "EM",   # flake8-errmsg
@@ -130,7 +137,7 @@ ban-relative-imports = "parents"
 
 [tool.ruff.lint.per-file-ignores]
 # Tests can use magic values, assertions, and relative imports
-"tests/**/*" = ["ANN", "PLR2004", "S101", "S108", "TID252"]
+"tests/**/*" = ["D", "ANN", "PLR2004", "S101", "S108", "TID252"]
 
 [tool.mypy]
 strict = true

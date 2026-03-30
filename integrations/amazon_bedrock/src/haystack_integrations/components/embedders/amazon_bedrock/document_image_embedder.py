@@ -106,7 +106,9 @@ class AmazonBedrockDocumentImageEmbedder:
             when working with models that have resolution constraints or when transmitting images to remote services.
         :param progress_bar:
             If `True`, shows a progress bar when embedding documents.
-        :param boto3_config: The configuration for the boto3 client.
+        :param boto3_config: Dictionary of configuration options for the underlying Boto3 client.
+            Can be used to tune [retry behavior](https://docs.aws.amazon.com/boto3/latest/guide/retries.html)
+            and other low-level settings like timeouts and connection management.
         :param kwargs: Additional parameters to pass for model inference.
             For example, `embeddingConfig` for Amazon Titan models and
             `embedding_types` for Cohere models.

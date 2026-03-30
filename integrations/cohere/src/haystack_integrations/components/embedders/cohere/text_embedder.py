@@ -53,6 +53,8 @@ class CohereTextEmbedder:
         embedding_type: EmbeddingTypes | None = None,
     ) -> None:
         """
+        Initialize the CohereTextEmbedder.
+
         :param api_key: the Cohere API key.
         :param model: the name of the model to use. Supported Models are:
             `"embed-english-v3.0"`, `"embed-english-light-v3.0"`, `"embed-multilingual-v3.0"`,

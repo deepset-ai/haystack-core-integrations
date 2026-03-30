@@ -1,5 +1,21 @@
 # Changelog
 
+## [integrations/arcadedb-v1.2.0] - 2026-03-24
+
+### 🚀 Features
+
+- *(arcadedb)* Add metadata query methods to ArcadeDBDocumentStore (#3013)
+
+### 🧪 Testing
+
+- Test compatible integrations with python 3.14; update pyproject (#3001)
+
+### 🧹 Chores
+
+- Add missing -> None return type annotations to arcadedb __init__ methods (#2973)
+- Enforce ruff docstring rules (D102/D103/D205/D209/D213/D417/D419) in first 10 integrations (#3008)
+
+
 ## [integrations/arcadedb-v1.1.0] - 2026-03-16
 
 ### 🚀 Features

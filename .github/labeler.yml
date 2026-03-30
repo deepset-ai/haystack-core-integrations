@@ -123,6 +123,16 @@ integration:lara:
       - any-glob-to-any-file: "integrations/lara/**/*"
       - any-glob-to-any-file: ".github/workflows/lara.yml"
 
+integration:libreoffice:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/libreoffice/**/*"
+      - any-glob-to-any-file: ".github/workflows/libreoffice.yml"
+
+integration:markitdown:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/markitdown/**/*"
+      - any-glob-to-any-file: ".github/workflows/markitdown.yml"
+
 integration:llama_cpp:
   - changed-files:
       - any-glob-to-any-file: "integrations/llama_cpp/**/*"
@@ -217,6 +227,11 @@ integration:stackit:
   - changed-files:
       - any-glob-to-any-file: "integrations/stackit/**/*"
       - any-glob-to-any-file: ".github/workflows/stackit.yml"
+
+integration:tavily:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/tavily/**/*"
+      - any-glob-to-any-file: ".github/workflows/tavily.yml"
 
 integration:togetherai:
   - changed-files:

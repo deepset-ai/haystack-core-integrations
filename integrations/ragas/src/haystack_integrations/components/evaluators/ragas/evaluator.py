@@ -19,8 +19,9 @@ from ragas.metrics import Metric
 @component
 class RagasEvaluator:
     """
-    A component that uses the [Ragas framework](https://docs.ragas.io/) to evaluate
-    inputs against specified Ragas metrics.
+    A component that uses the Ragas framework to evaluate inputs against specified Ragas metrics.
+
+    See the [Ragas framework](https://docs.ragas.io/) for more details.
 
     Usage example:
     ```python
@@ -76,7 +77,8 @@ class RagasEvaluator:
         llm: BaseRagasLLM | None,
         embedding: BaseRagasEmbeddings | None,
     ) -> None:
-        """Validate input parameters.
+        """
+        Validate input parameters.
 
         :param metrics: List of Ragas metrics to validate
         :param llm: Language model to validate
@@ -152,7 +154,8 @@ class RagasEvaluator:
         return {"result": result}
 
     def _process_documents(self, documents: list[Document | str] | None) -> list[str] | None:
-        """Process and validate input documents.
+        """
+        Process and validate input documents.
 
         :param documents: List of Documents or strings to process
         :return: List of document contents as strings or None
@@ -172,7 +175,8 @@ class RagasEvaluator:
         raise ValueError(error_message)
 
     def _process_response(self, response: list[ChatMessage] | str | None) -> str | None:
-        """Process response into expected format.
+        """
+        Process response into expected format.
 
         :param response: Response to process
         :return: None or Processed response string
@@ -186,7 +190,8 @@ class RagasEvaluator:
         return response
 
     def _handle_conversion_error(self, error: Exception) -> None:
-        """Handle evaluation errors with improved messages.
+        """
+        Handle evaluation errors with improved messages.
 
         :params error: Original error
         """

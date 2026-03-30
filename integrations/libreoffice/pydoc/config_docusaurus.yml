@@ -1,0 +1,13 @@
+loaders:
+  - modules:
+      - haystack_integrations.components.converters.libreoffice.converter
+    search_path: [../src]
+processors:
+  - type: filter
+    documented_only: true
+    skip_empty_modules: true
+renderer:
+  description: LibreOffice integration for Haystack
+  id: integrations-libreoffice
+  filename: libreoffice.md
+  title: LibreOffice
