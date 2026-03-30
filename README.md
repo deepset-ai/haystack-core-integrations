@@ -85,7 +85,7 @@ Please check out our [Contribution Guidelines](CONTRIBUTING.md) for all the deta
 > [!NOTE]
 > Only maintainers can release new versions of integrations.
 > If you're a community contributor and want to release a new version of an integration,
-> reach out to a maintainer.
+> reach out to a maintainer. They will set up trusted publisher management for PyPI.
 
 To release a new version of an integration to PyPI tag the commit with the right version number and push the tag to
 GitHub. The GitHub Actions workflow will take care of the rest.
