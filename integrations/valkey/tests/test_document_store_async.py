@@ -79,6 +79,55 @@ class TestValkeyDocumentStoreAsync(
     async def test_write_documents_duplicate_skip_async(self, document_store):
         pytest.skip("ValkeyDocumentStore does not support DuplicatePolicy.SKIP")
 
+    # --- Overrides for mixin tests that use undeclared metadata fields ---
+    # ValkeyDocumentStore requires metadata fields to be pre-declared in the fixture.
+
+    @pytest.mark.asyncio
+    async def test_update_by_filter_async(self, document_store):
+        """Override: use declared metadata fields (category, priority) instead of filterable_docs fixture."""
+        test_id = str(uuid.uuid4())[:8]
+        docs = [
+            Document(id=f"u1_{test_id}", content="doc 1", embedding=[0.1, 0.2, 0.3], meta={"category": "news", "priority": 1}),
+            Document(id=f"u2_{test_id}", content="doc 2", embedding=[0.2, 0.3, 0.4], meta={"category": "blog", "priority": 2}),
+            Document(id=f"u3_{test_id}", content="doc 3", embedding=[0.3, 0.4, 0.5], meta={"category": "news", "priority": 3}),
+        ]
+        await document_store.write_documents_async(docs)
+
+        updated_count = await document_store.update_by_filter_async(
+            filters={"field": "meta.category", "operator": "==", "value": "news"}, meta={"status": "archived"}
+        )
+        assert updated_count == 2
+
+        all_docs = await document_store.filter_documents_async(filters=None)
+        by_id = {d.id: d for d in all_docs}
+        assert by_id[f"u1_{test_id}"].meta.get("status") == "archived"
+        assert by_id[f"u2_{test_id}"].meta.get("status") is None
+        assert by_id[f"u3_{test_id}"].meta.get("status") == "archived"
+
+    @staticmethod
+    @pytest.mark.asyncio
+    async def test_count_unique_metadata_by_filter_async_with_multiple_filters(document_store):
+        """Override: use declared metadata fields (category, priority) instead of year."""
+        test_id = str(uuid.uuid4())[:8]
+        docs = [
+            Document(id=f"cu1_{test_id}", content="doc 1", meta={"category": "A", "priority": 1}),
+            Document(id=f"cu2_{test_id}", content="doc 2", meta={"category": "A", "priority": 2}),
+            Document(id=f"cu3_{test_id}", content="doc 3", meta={"category": "B", "priority": 1}),
+            Document(id=f"cu4_{test_id}", content="doc 4", meta={"category": "B", "priority": 2}),
+        ]
+        await document_store.write_documents_async(docs)
+
+        count = await document_store.count_documents_by_filter_async(
+            filters={
+                "operator": "AND",
+                "conditions": [
+                    {"field": "meta.category", "operator": "==", "value": "B"},
+                    {"field": "meta.priority", "operator": "==", "value": 1},
+                ],
+            }
+        )
+        assert count == 1
+
     # --- Valkey-specific tests ---
 
     async def test_async_write_exceed_batch_size(self, document_store):
