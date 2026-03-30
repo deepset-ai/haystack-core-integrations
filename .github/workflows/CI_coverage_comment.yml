@@ -1,0 +1,27 @@
+name: Coverage Comment
+
+on:
+  workflow_run:
+    workflows:
+      - "Test / kreuzberg"
+    types: [completed]
+
+jobs:
+  comment:
+    if: github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+    steps:
+      - name: Get integration name from workflow name
+        id: integration
+        run: |
+          # Workflow names follow "Test / <name>" convention
+          echo "name=$(echo '${{ github.event.workflow_run.name }}' | sed 's/Test \/ //')" >> $GITHUB_OUTPUT
+
+      - uses: py-cov-action/python-coverage-comment-action@v3
+        with:
+          GITHUB_TOKEN: ${{ github.token }}
+          GITHUB_PR_RUN_ID: ${{ github.event.workflow_run.id }}
+          SUBPROJECT_ID: ${{ steps.integration.outputs.name }}
+          COMMENT_ARTIFACT_NAME: coverage-comment-${{ steps.integration.outputs.name }}

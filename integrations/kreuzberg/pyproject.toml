@@ -66,7 +66,8 @@ dependencies = [
 unit = 'pytest -m "not integration" {args:tests}'
 integration = 'pytest -m "integration" {args:tests}'
 all = 'pytest {args:tests}'
-cov-retry = 'pytest --cov=haystack_integrations --reruns 3 --reruns-delay 30 -x {args:tests}'
+unit-cov-retry = 'pytest --cov=haystack_integrations --reruns 3 --reruns-delay 30 -x -m "not integration" {args:tests}'
+integration-cov-retry = 'pytest --cov=haystack_integrations --cov-append --reruns 3 --reruns-delay 30 -x -m "integration" {args:tests}'
 types = "mypy -p haystack_integrations.components.converters.kreuzberg {args}"
 
 [tool.ruff]
@@ -161,6 +162,7 @@ asyncio_default_fixture_loop_scope = "function"
 source = ["haystack_integrations"]
 branch = true
 parallel = false
+relative_files = true
 
 [tool.coverage.report]
 omit = ["*/tests/*", "*/__init__.py"]
