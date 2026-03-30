@@ -2,12 +2,14 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+import logging
 import os
 import random
 from datetime import datetime, timezone
 from unittest.mock import Mock, patch
 
 import pytest
+from azure.core.credentials import TokenCredential
 from azure.search.documents.indexes.models import (
     CustomAnalyzer,
     SearchableField,
@@ -135,6 +137,24 @@ def test_to_dict_with_params(monkeypatch):
     }
 
 
+def test_to_dict_emits_warning_when_token_credential_is_used(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    monkeypatch.setenv("AZURE_AI_SEARCH_API_KEY", "test-api-key")
+    monkeypatch.setenv("AZURE_AI_SEARCH_ENDPOINT", "test-endpoint")
+
+    mock_token_credential = Mock(spec=TokenCredential)
+    document_store = AzureAISearchDocumentStore(azure_token_credential=mock_token_credential)
+
+    with caplog.at_level(logging.WARNING):
+        result = document_store.to_dict()
+
+    assert "`azure_token_credential`, which cannot be serialized." in caplog.text
+
+    # token credential should not appear in the serialized output
+    assert "azure_token_credential" not in result["init_parameters"]
+
+
 def test_from_dict(monkeypatch):
     monkeypatch.setenv("AZURE_AI_SEARCH_API_KEY", "test-api-key")
     monkeypatch.setenv("AZURE_AI_SEARCH_ENDPOINT", "test-endpoint")
@@ -244,6 +264,28 @@ def test_init():
         "Pages": SimpleField(name="Pages", type="Edm.Int32", filterable=True),
     }
     assert document_store._vector_search_configuration == DEFAULT_VECTOR_SEARCH
+
+
+def test_token_credential_takes_priority_over_api_key(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("AZURE_AI_SEARCH_API_KEY", "test-api-key")
+    monkeypatch.setenv("AZURE_AI_SEARCH_ENDPOINT", "test-endpoint")
+
+    mock_token_credential = Mock(spec=TokenCredential)
+    document_store = AzureAISearchDocumentStore(azure_token_credential=mock_token_credential)
+
+    with patch(
+        "haystack_integrations.document_stores.azure_ai_search.document_store.SearchIndexClient"
+    ) as mock_index_client_cls:
+        mock_index_client = Mock()
+        mock_index_client.list_index_names.return_value = ["default"]
+        mock_index_client.get_index.return_value = Mock(fields=[])
+        mock_index_client.get_search_client.return_value = Mock()
+        mock_index_client_cls.return_value = mock_index_client
+
+        _ = document_store.client
+
+        _, kwargs = mock_index_client_cls.call_args
+        assert kwargs["credential"] is mock_token_credential
 
 
 def _build_mock_document_store_with_schema(index_fields):
