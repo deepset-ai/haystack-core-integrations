@@ -83,6 +83,7 @@ class TestLibreOfficeFileConverter:
         for stream in output:
             assert isinstance(stream, ByteStream)
             assert len(stream.data) > 0
+            assert stream.mime_type == "application/pdf"
 
     @pytest.mark.integration
     def test_run_bytestream_source(self, converter: LibreOfficeFileConverter, test_files_path: Path) -> None:
@@ -95,6 +96,7 @@ class TestLibreOfficeFileConverter:
         assert len(output) == 1
         assert isinstance(output[0], ByteStream)
         assert len(output[0].data) > 0
+        assert output[0].mime_type == "application/pdf"
 
     @pytest.mark.asyncio
     @pytest.mark.integration
@@ -112,6 +114,7 @@ class TestLibreOfficeFileConverter:
         for stream in output:
             assert isinstance(stream, ByteStream)
             assert len(stream.data) > 0
+            assert stream.mime_type == "application/pdf"
 
     @pytest.mark.asyncio
     @pytest.mark.integration
@@ -127,3 +130,17 @@ class TestLibreOfficeFileConverter:
         assert len(output) == 1
         assert isinstance(output[0], ByteStream)
         assert len(output[0].data) > 0
+        assert output[0].mime_type == "application/pdf"
+
+    def test_resolve_mime_type(self, mock_converter: LibreOfficeFileConverter) -> None:
+        with patch("mimetypes.guess_type", return_value=("application/pdf", None)):
+            mime = mock_converter._resolve_mime_type(Path("test.pdf"), "pdf")
+            assert mime == "application/pdf"
+
+        with patch("mimetypes.guess_type", return_value=(None, None)):
+            mime = mock_converter._resolve_mime_type(Path("test.docx"), "docx")
+            assert mime == "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+
+        with patch("mimetypes.guess_type", return_value=(None, None)):
+            mime = mock_converter._resolve_mime_type(Path("test.unknown"), "unknown")
+            assert mime is None
