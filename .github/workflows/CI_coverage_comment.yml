@@ -19,7 +19,7 @@ jobs:
           # Workflow names follow "Test / <name>" convention
           echo "name=$(echo '${{ github.event.workflow_run.name }}' | sed 's/Test \/ //')" >> $GITHUB_OUTPUT
 
-      - uses: py-cov-action/python-coverage-comment-action@v3
+      - uses: py-cov-action/python-coverage-comment-action@7188638f871f721a365d644f505d1ff3df20d683 # v3.40
         with:
           GITHUB_TOKEN: ${{ github.token }}
           GITHUB_PR_RUN_ID: ${{ github.event.workflow_run.id }}
