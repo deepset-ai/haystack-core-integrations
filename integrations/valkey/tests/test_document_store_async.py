@@ -87,9 +87,15 @@ class TestValkeyDocumentStoreAsync(
         """Override: use declared metadata fields (category, priority) instead of filterable_docs fixture."""
         test_id = str(uuid.uuid4())[:8]
         docs = [
-            Document(id=f"u1_{test_id}", content="doc 1", embedding=[0.1, 0.2, 0.3], meta={"category": "news", "priority": 1}),
-            Document(id=f"u2_{test_id}", content="doc 2", embedding=[0.2, 0.3, 0.4], meta={"category": "blog", "priority": 2}),
-            Document(id=f"u3_{test_id}", content="doc 3", embedding=[0.3, 0.4, 0.5], meta={"category": "news", "priority": 3}),
+            Document(
+                id=f"u1_{test_id}", content="doc 1", embedding=[0.1, 0.2, 0.3], meta={"category": "news", "priority": 1}
+            ),
+            Document(
+                id=f"u2_{test_id}", content="doc 2", embedding=[0.2, 0.3, 0.4], meta={"category": "blog", "priority": 2}
+            ),
+            Document(
+                id=f"u3_{test_id}", content="doc 3", embedding=[0.3, 0.4, 0.5], meta={"category": "news", "priority": 3}
+            ),
         ]
         await document_store.write_documents_async(docs)
 
@@ -104,9 +110,8 @@ class TestValkeyDocumentStoreAsync(
         assert by_id[f"u2_{test_id}"].meta.get("status") is None
         assert by_id[f"u3_{test_id}"].meta.get("status") == "archived"
 
-    @staticmethod
     @pytest.mark.asyncio
-    async def test_count_unique_metadata_by_filter_async_with_multiple_filters(document_store):
+    async def test_count_unique_metadata_by_filter_async_with_multiple_filters(self, document_store):
         """Override: use declared metadata fields (category, priority) instead of year."""
         test_id = str(uuid.uuid4())[:8]
         docs = [
