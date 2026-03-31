@@ -47,7 +47,16 @@ class TestValkeyDocumentStoreAsync(
             index_name="test_async_haystack_document",
             embedding_dim=3,
             batch_size=5,
-            metadata_fields={"category": str, "priority": int, "status": str, "score": int, "quality": str},
+            metadata_fields={
+                "category": str,
+                "priority": int,
+                "status": str,
+                "score": int,
+                "quality": str,
+                "rating": float,
+                "age": int,
+                "year": int,
+            },
         )
         yield store
         await store.close_async()
