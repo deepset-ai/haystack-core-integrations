@@ -89,17 +89,7 @@ jobs:
           SUBPROJECT_ID: faiss
           COMMENT_ARTIFACT_NAME: coverage-comment-faiss
 
-      - name: Run integration tests
-        run: hatch run test:integration-cov-append-retry
-
-      - name: Store combined coverage
-        if: github.event_name == 'push'
-        uses: py-cov-action/python-coverage-comment-action@7188638f871f721a365d644f505d1ff3df20d683 # v3.40
-        with:
-          GITHUB_TOKEN: ${{ github.token }}
-          COVERAGE_PATH: integrations/faiss
-          SUBPROJECT_ID: faiss-combined
-          COMMENT_ARTIFACT_NAME: coverage-comment-faiss-combined
+      # No integration tests yet — add integration-cov-append-retry + combined coverage step when needed
 
       - name: Run unit tests with lowest direct dependencies
         if: matrix.python-version == '3.10' && runner.os == 'Linux'
