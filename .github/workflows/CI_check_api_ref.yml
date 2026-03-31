@@ -81,7 +81,7 @@ jobs:
 
       - name: Install Hatch
         if: steps.changed.outputs.integrations != '[]'
-        run: pip install pip install hatch
+        run: pip install hatch
 
       - name: Generate API references
         if: steps.changed.outputs.integrations != '[]'
