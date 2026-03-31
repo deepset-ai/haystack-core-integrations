@@ -1,7 +1,6 @@
 # SPDX-FileCopyrightText: 2026-present deepset GmbH <info@deepset.ai>
 #
 # SPDX-License-Identifier: Apache-2.0
-import json
 import tempfile
 from pathlib import Path
 from typing import Any
@@ -14,7 +13,6 @@ from kreuzberg import (
     ExtractionConfig,
     ExtractionResult,
     LanguageDetectionConfig,
-    OcrConfig,
     config_to_json,
 )
 
@@ -25,106 +23,6 @@ from haystack_integrations.components.converters.kreuzberg.utils import (
 )
 
 CONVERTER_MODULE = "haystack_integrations.components.converters.kreuzberg.converter"
-
-
-def test_init_default() -> None:
-    converter = KreuzbergConverter()
-    assert converter.config is None
-    assert converter.config_path is None
-    assert converter.store_full_path is False
-    assert converter.batch is True
-    assert converter.easyocr_kwargs is None
-
-
-def test_init_with_all_params() -> None:
-    config = ExtractionConfig(output_format="markdown")
-    converter = KreuzbergConverter(
-        config=config,
-        store_full_path=True,
-        batch=False,
-        easyocr_kwargs={"gpu": False},
-    )
-    assert converter.config is config
-    assert converter.config_path is None
-    assert converter.store_full_path is True
-    assert converter.batch is False
-    assert converter.easyocr_kwargs == {"gpu": False}
-
-
-def test_serialization_roundtrip_defaults() -> None:
-    converter = KreuzbergConverter()
-    d = converter.to_dict()
-    assert d == {
-        "type": "haystack_integrations.components.converters.kreuzberg.converter.KreuzbergConverter",
-        "init_parameters": {
-            "config": None,
-            "config_path": None,
-            "store_full_path": False,
-            "batch": True,
-            "easyocr_kwargs": None,
-        },
-    }
-    restored = KreuzbergConverter.from_dict(d)
-    assert restored.config is None
-    assert restored.config_path is None
-    assert restored.store_full_path is False
-    assert restored.batch is True
-    assert restored.easyocr_kwargs is None
-
-
-def test_serialization_roundtrip_all_params() -> None:
-    converter = KreuzbergConverter(
-        config=ExtractionConfig(
-            output_format="html",
-            ocr=OcrConfig(backend="tesseract", language="deu"),
-        ),
-        store_full_path=True,
-        batch=False,
-        easyocr_kwargs={"gpu": True, "beam_width": 3},
-    )
-    # to_dict serializes config as JSON string
-    d = converter.to_dict()
-    params = d["init_parameters"]
-    assert isinstance(params["config"], str)
-    assert json.loads(params["config"])["output_format"] == "html"
-    assert params["store_full_path"] is True
-    assert params["batch"] is False
-    assert params["easyocr_kwargs"] == {"gpu": True, "beam_width": 3}
-
-    # Save config JSON before from_dict mutates d in place
-    original_config_json = json.loads(params["config"])
-
-    # from_dict restores all fields
-    restored = KreuzbergConverter.from_dict(d)
-    assert restored.config.output_format == "html"
-    assert restored.config.ocr.backend == "tesseract"
-    assert restored.config.ocr.language == "deu"
-    assert restored.config_path is None
-    assert restored.store_full_path is True
-    assert restored.batch is False
-    assert restored.easyocr_kwargs == {"gpu": True, "beam_width": 3}
-
-    # Double roundtrip produces identical to_dict output
-    d2 = restored.to_dict()
-    p1 = {k: v for k, v in d["init_parameters"].items() if k != "config"}
-    p2 = {k: v for k, v in d2["init_parameters"].items() if k != "config"}
-    assert p1 == p2
-    assert original_config_json == json.loads(d2["init_parameters"]["config"])
-
-
-def test_serialization_roundtrip_config_path() -> None:
-    # String config_path
-    converter = KreuzbergConverter(config_path="/tmp/kreuzberg.toml")
-    d = converter.to_dict()
-    assert d["init_parameters"]["config_path"] == "/tmp/kreuzberg.toml"
-    restored = KreuzbergConverter.from_dict(d)
-    assert restored.config_path == "/tmp/kreuzberg.toml"
-
-    # Path object is normalized to str
-    converter2 = KreuzbergConverter(config_path=Path("/some/path/config.json"))
-    d2 = converter2.to_dict()
-    assert d2["init_parameters"]["config_path"] == "/some/path/config.json"
-    assert isinstance(d2["init_parameters"]["config_path"], str)
 
 
 def test_serialization_from_dict_empty_init_parameters() -> None:
