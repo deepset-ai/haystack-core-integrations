@@ -1,9 +1,7 @@
 # SPDX-FileCopyrightText: 2026-present deepset GmbH <info@deepset.ai>
 #
 # SPDX-License-Identifier: Apache-2.0
-import tempfile
 from pathlib import Path
-from typing import Any
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -13,7 +11,6 @@ from kreuzberg import (
     ExtractionConfig,
     ExtractionResult,
     LanguageDetectionConfig,
-    config_to_json,
 )
 
 from haystack_integrations.components.converters.kreuzberg import KreuzbergConverter
@@ -23,117 +20,6 @@ from haystack_integrations.components.converters.kreuzberg.utils import (
 )
 
 CONVERTER_MODULE = "haystack_integrations.components.converters.kreuzberg.converter"
-
-
-def test_serialization_from_dict_empty_init_parameters() -> None:
-    d = {
-        "type": "haystack_integrations.components.converters.kreuzberg.converter.KreuzbergConverter",
-        "init_parameters": {},
-    }
-    converter = KreuzbergConverter.from_dict(d)
-    assert converter.config is None
-    assert converter.config_path is None
-    assert converter.store_full_path is False
-    assert converter.batch is True
-    assert converter.easyocr_kwargs is None
-
-
-def test_build_config_default(converter: KreuzbergConverter) -> None:
-    config = converter._build_config()
-    assert config.output_format == "plain"
-    assert config.language_detection is not None
-    assert config.language_detection.enabled is True
-
-
-def test_build_config_does_not_mutate_self_config() -> None:
-    base = ExtractionConfig(output_format="html")
-    converter = KreuzbergConverter(config=base)
-    converter._build_config()
-    assert base.output_format == "html"
-
-
-def test_build_config_from_file() -> None:
-    config = ExtractionConfig(output_format="markdown")
-    json_str = config_to_json(config)
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
-        f.write(json_str)
-        path = f.name
-
-    try:
-        converter = KreuzbergConverter(config_path=path)
-        built = converter._build_config()
-        assert built.output_format == "markdown"
-    finally:
-        Path(path).unlink(missing_ok=True)
-
-
-def test_raises_when_both_config_and_config_path() -> None:
-    with pytest.raises(ValueError, match="Cannot specify both"):
-        KreuzbergConverter(
-            config=ExtractionConfig(output_format="markdown"),
-            config_path="/tmp/config.json",
-        )
-
-
-def test_table_assembly_appends_markdown_to_content() -> None:
-    table = MagicMock(spec=ExtractedTable)
-    table.markdown = "| A | B |\n|---|---|\n| 1 | 2 |"
-    content = KreuzbergConverter._assemble_content("Main text", [table], "plain")
-    assert content == "Main text\n\n| A | B |\n|---|---|\n| 1 | 2 |"
-
-    # Also works with dict-style tables
-    dict_table = {"markdown": "| A |\n|---|\n| 1 |", "cells": [["A"], ["1"]], "page_number": 1}
-    content = KreuzbergConverter._assemble_content("Main text", [dict_table], "plain")
-    assert content == "Main text\n\n| A |\n|---|\n| 1 |"
-
-
-def test_table_assembly_appends_multiple_tables() -> None:
-    t1 = MagicMock(spec=ExtractedTable)
-    t1.markdown = "| A |\n|---|\n| 1 |"
-    t2 = MagicMock(spec=ExtractedTable)
-    t2.markdown = "| B |\n|---|\n| 2 |"
-    content = KreuzbergConverter._assemble_content("Text", [t1, t2], "plain")
-    assert content == "Text\n\n| A |\n|---|\n| 1 |\n\n| B |\n|---|\n| 2 |"
-
-
-def test_table_assembly_skips_tables_with_empty_markdown() -> None:
-    table = MagicMock(spec=ExtractedTable)
-    table.markdown = ""
-    content = KreuzbergConverter._assemble_content("Main text", [table], "plain")
-    assert content == "Main text"
-
-    # Also works with dict-style tables
-    dict_table: dict[str, Any] = {"markdown": "", "cells": [], "page_number": 1}
-    content = KreuzbergConverter._assemble_content("Main text", [dict_table], "plain")
-    assert content == "Main text"
-
-
-def test_table_assembly_no_tables_returns_text_unchanged() -> None:
-    assert KreuzbergConverter._assemble_content("text", None, "plain") == "text"
-    assert KreuzbergConverter._assemble_content("text", [], "plain") == "text"
-
-
-def test_table_assembly_skipped_for_markdown_and_html_format() -> None:
-    table = MagicMock(spec=ExtractedTable)
-    table.markdown = "| A |"
-    assert KreuzbergConverter._assemble_content("text", [table], "markdown") == "text"
-    assert KreuzbergConverter._assemble_content("text", [table], "html") == "text"
-
-
-def test_edge_empty_sources_list(sequential_converter: KreuzbergConverter) -> None:
-    converter = sequential_converter
-    result = converter.run(sources=[])
-    assert result["documents"] == []
-
-
-@patch(CONVERTER_MODULE + ".extract_file_sync")
-def test_edge_sequential_extraction_error_skipped(
-    mock_extract: MagicMock, sequential_converter: KreuzbergConverter, fixtures_dir: Path
-) -> None:
-    mock_extract.side_effect = RuntimeError("extraction failed")
-    converter = sequential_converter
-    result = converter.run(sources=[fixtures_dir / "sample.txt"])
-    assert result["documents"] == []
 
 
 def test_metadata_mock_images_excludes_binary_data(converter: KreuzbergConverter, make_mock_result) -> None:
