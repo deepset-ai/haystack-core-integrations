@@ -64,7 +64,6 @@ jobs:
       - name: Free up disk space
         working-directory: .
         run: |
-          sudo docker image prune --all --force
           sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/share/boost /usr/local/lib/android /opt/hostedtoolcache/CodeQL
 
       - name: Run Unstructured API (docker)
