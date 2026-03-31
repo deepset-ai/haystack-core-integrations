@@ -2,7 +2,6 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-import logging
 
 import pytest
 from haystack.dataclasses import Document
@@ -108,7 +107,7 @@ class TestDocumentStoreAsync:
         res = await document_store._bm25_retrieval_async(long_query, top_k=3, fuzziness="AUTO")
         assert isinstance(res, list)
         assert "Retrying with fuzziness=0" in caplog.text
-        
+
     @pytest.mark.asyncio
     async def test_bm25_retrieval_with_filters(
         self, document_store: OpenSearchDocumentStore, test_documents: list[Document]

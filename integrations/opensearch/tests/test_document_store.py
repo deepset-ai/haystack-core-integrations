@@ -2,7 +2,6 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-import logging
 import random
 from unittest.mock import AsyncMock, MagicMock, patch
 
