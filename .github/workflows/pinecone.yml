@@ -10,31 +10,57 @@ on:
       - "integrations/pinecone/**"
       - "!integrations/pinecone/*.md"
       - ".github/workflows/pinecone.yml"
+  push:
+    branches:
+      - main
+    paths:
+      - "integrations/pinecone/**"
+      - "!integrations/pinecone/*.md"
+      - ".github/workflows/pinecone.yml"
 
 defaults:
   run:
     working-directory: integrations/pinecone
 
 concurrency:
-  group: pinecone-${{ github.head_ref }}
+  group: pinecone-${{ github.head_ref || github.sha }}
   cancel-in-progress: true
 
 env:
   PYTHONUNBUFFERED: "1"
   FORCE_COLOR: "1"
   PINECONE_API_KEY: ${{ secrets.PINECONE_API_KEY }}
+  TEST_MATRIX_OS: '["ubuntu-latest"]'
+  TEST_MATRIX_PYTHON: '["3.10", "3.14"]'
 
 jobs:
+  compute-test-matrix:
+    runs-on: ubuntu-slim
+    defaults:
+      run:
+        working-directory: .
+    outputs:
+      os: ${{ steps.set.outputs.os }}
+      python-version: ${{ steps.set.outputs.python-version }}
+    steps:
+      - id: set
+        run: |
+          echo 'os=${{ github.event_name == 'push' && '["ubuntu-latest"]' || env.TEST_MATRIX_OS }}' >> $GITHUB_OUTPUT
+          echo 'python-version=${{ github.event_name == 'push' && '["3.10"]' || env.TEST_MATRIX_PYTHON }}' >> $GITHUB_OUTPUT
+
   run:
     name: Python ${{ matrix.python-version }} on ${{ startsWith(matrix.os, 'macos-') && 'macOS' || startsWith(matrix.os, 'windows-') && 'Windows' || 'Linux' }}
+    needs: compute-test-matrix
+    permissions:
+      contents: write
+      pull-requests: write
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
         # Pinecone tests are time expensive, so only test on Ubuntu
-        os: [ubuntu-latest]
-        python-version: ["3.10", "3.14"]
-        # the INDEX_NAME is used in test_serverless_index_creation_from_scratch
+        os: ${{ fromJSON(needs.compute-test-matrix.outputs.os) }}
+        python-version: ${{ fromJSON(needs.compute-test-matrix.outputs.python-version) }}
         include:
           - python-version: "3.10"
             INDEX_NAME: "index-310"
@@ -58,12 +84,35 @@ jobs:
         if: matrix.python-version == '3.10' && runner.os == 'Linux'
         run: hatch run fmt-check && hatch run test:types
 
-      - name: Run tests
+      - name: Run unit tests
+        run: hatch run test:unit-cov-retry
+
+      # On PR: generates coverage comment artifact. On push to main: stores coverage baseline on data branch.
+      - name: Store unit tests coverage
+        if: matrix.python-version == '3.10' && runner.os == 'Linux' && github.event_name != 'schedule'
+        uses: py-cov-action/python-coverage-comment-action@7188638f871f721a365d644f505d1ff3df20d683 # v3.40
+        with:
+          GITHUB_TOKEN: ${{ github.token }}
+          COVERAGE_PATH: integrations/pinecone
+          SUBPROJECT_ID: pinecone
+          COMMENT_ARTIFACT_NAME: coverage-comment-pinecone
+
+      - name: Run integration tests
         env:
           INDEX_NAME: ${{ matrix.INDEX_NAME }}
-        run: hatch run test:cov-retry
+        run: hatch run test:integration-cov-append-retry
+
+      - name: Store combined coverage
+        if: github.event_name == 'push'
+        uses: py-cov-action/python-coverage-comment-action@7188638f871f721a365d644f505d1ff3df20d683 # v3.40
+        with:
+          GITHUB_TOKEN: ${{ github.token }}
+          COVERAGE_PATH: integrations/pinecone
+          SUBPROJECT_ID: pinecone-combined
+          COMMENT_ARTIFACT_NAME: coverage-comment-pinecone-combined
 
       - name: Run unit tests with lowest direct dependencies
+        if: github.event_name != 'push'
         run: |
           hatch run uv pip compile pyproject.toml --resolution lowest-direct --output-file requirements_lowest_direct.txt
           hatch -e test env run -- uv pip install -r requirements_lowest_direct.txt
