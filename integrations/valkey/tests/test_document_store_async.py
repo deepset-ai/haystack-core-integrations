@@ -70,6 +70,16 @@ class TestValkeyDocumentStoreAsync(
         except Exception:
             pass
 
+    # --- Override for mixin bug: test_count_not_empty_async is missing `self` in DeleteByFilterAsyncTest ---
+
+    @pytest.mark.asyncio
+    async def test_count_not_empty_async(self, document_store):
+        """Test count is greater than zero if the document store contains documents."""
+        await document_store.write_documents_async(
+            [Document(content="test doc 1"), Document(content="test doc 2"), Document(content="test doc 3")]
+        )
+        assert await document_store.count_documents_async() == 3
+
     # --- Overrides for WriteDocumentsAsyncTest ---
     # ValkeyDocumentStore only supports DuplicatePolicy.NONE and DuplicatePolicy.OVERWRITE
 
