@@ -1,6 +1,6 @@
 import json
-from typing import Any
 from types import SimpleNamespace
+from typing import Any
 from unittest.mock import MagicMock
 
 from haystack_integrations.components.converters.docling import DoclingConverter, ExportType
@@ -26,9 +26,7 @@ def test_run_doc_chunks_minimal() -> None:
     chunker_mock.chunk.side_effect = chunk_side_effect
     chunker_mock.contextualize.side_effect = lambda chunk: f"contextualized-{chunk.text}"
 
-    meta_extractor_mock.extract_chunk_meta.side_effect = (
-        lambda chunk: {"chunk_id": chunk.text}
-    )
+    meta_extractor_mock.extract_chunk_meta.side_effect = lambda chunk: {"chunk_id": chunk.text}
 
     converter = DoclingConverter(
         converter=converter_mock,
