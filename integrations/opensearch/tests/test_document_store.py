@@ -18,7 +18,7 @@ from haystack.testing.document_store import (
     GetMetadataFieldsInfoTest,
     GetMetadataFieldUniqueValuesTest,
 )
-from opensearchpy.exceptions import RequestError
+from opensearchpy.exceptions import RequestError, TransportError
 
 from haystack_integrations.document_stores.opensearch import OpenSearchDocumentStore
 from haystack_integrations.document_stores.opensearch.document_store import DEFAULT_MAX_CHUNK_BYTES
@@ -230,8 +230,8 @@ def test_bm25_retrieval_retries_with_fuzziness_zero_on_too_many_clauses(_mock_op
     store = OpenSearchDocumentStore(hosts="testhost")
     store._client = MagicMock()
 
-    too_many_clauses_error = RequestError(
-        400, "search_phase_execution_exception", "too_many_clauses: maxClauseCount is set to 1024"
+    too_many_clauses_error = TransportError(
+        500, "search_phase_execution_exception", "too_many_clauses: maxClauseCount is set to 1024"
     )
     store._client.search.side_effect = [
         too_many_clauses_error,
@@ -253,12 +253,12 @@ def test_bm25_retrieval_no_retry_when_fuzziness_already_zero(_mock_opensearch_cl
     store = OpenSearchDocumentStore(hosts="testhost")
     store._client = MagicMock()
 
-    too_many_clauses_error = RequestError(
-        400, "search_phase_execution_exception", "too_many_clauses: maxClauseCount is set to 1024"
+    too_many_clauses_error = TransportError(
+        500, "search_phase_execution_exception", "too_many_clauses: maxClauseCount is set to 1024"
     )
     store._client.search.side_effect = too_many_clauses_error
 
-    with pytest.raises(RequestError):
+    with pytest.raises(TransportError):
         store._bm25_retrieval("a very long query", fuzziness=0)
 
     assert store._client.search.call_count == 1
@@ -269,27 +269,27 @@ def test_bm25_retrieval_no_retry_with_custom_query(_mock_opensearch_client):
     store = OpenSearchDocumentStore(hosts="testhost")
     store._client = MagicMock()
 
-    too_many_clauses_error = RequestError(
-        400, "search_phase_execution_exception", "too_many_clauses: maxClauseCount is set to 1024"
+    too_many_clauses_error = TransportError(
+        500, "search_phase_execution_exception", "too_many_clauses: maxClauseCount is set to 1024"
     )
     store._client.search.side_effect = too_many_clauses_error
 
     custom_query = {"query": {"match": {"content": "$query"}}}
-    with pytest.raises(RequestError):
+    with pytest.raises(TransportError):
         store._bm25_retrieval("a very long query", fuzziness="AUTO", custom_query=custom_query)
 
     assert store._client.search.call_count == 1
 
 
 @patch("haystack_integrations.document_stores.opensearch.document_store.OpenSearch")
-def test_bm25_retrieval_reraises_other_request_errors(_mock_opensearch_client):
+def test_bm25_retrieval_reraises_other_transport_errors(_mock_opensearch_client):
     store = OpenSearchDocumentStore(hosts="testhost")
     store._client = MagicMock()
 
-    other_error = RequestError(400, "parsing_exception", {"error": {"reason": "some other error"}})
+    other_error = TransportError(500, "parsing_exception", {"error": {"reason": "some other error"}})
     store._client.search.side_effect = other_error
 
-    with pytest.raises(RequestError):
+    with pytest.raises(TransportError):
         store._bm25_retrieval("some query", fuzziness="AUTO")
 
     assert store._client.search.call_count == 1
@@ -304,8 +304,8 @@ async def test_bm25_retrieval_async_retries_with_fuzziness_zero_on_too_many_clau
     store = OpenSearchDocumentStore(hosts="testhost")
     store._async_client = AsyncMock()
 
-    too_many_clauses_error = RequestError(
-        400, "search_phase_execution_exception", "too_many_clauses: maxClauseCount is set to 1024"
+    too_many_clauses_error = TransportError(
+        500, "search_phase_execution_exception", "too_many_clauses: maxClauseCount is set to 1024"
     )
     store._async_client.search.side_effect = [
         too_many_clauses_error,
@@ -328,12 +328,12 @@ async def test_bm25_retrieval_async_no_retry_when_fuzziness_already_zero(_mock_o
     store = OpenSearchDocumentStore(hosts="testhost")
     store._async_client = AsyncMock()
 
-    too_many_clauses_error = RequestError(
-        400, "search_phase_execution_exception", "too_many_clauses: maxClauseCount is set to 1024"
+    too_many_clauses_error = TransportError(
+        500, "search_phase_execution_exception", "too_many_clauses: maxClauseCount is set to 1024"
     )
     store._async_client.search.side_effect = too_many_clauses_error
 
-    with pytest.raises(RequestError):
+    with pytest.raises(TransportError):
         await store._bm25_retrieval_async("a very long query", fuzziness=0)
 
     assert store._async_client.search.call_count == 1
@@ -346,13 +346,13 @@ async def test_bm25_retrieval_async_no_retry_with_custom_query(_mock_opensearch_
     store = OpenSearchDocumentStore(hosts="testhost")
     store._async_client = AsyncMock()
 
-    too_many_clauses_error = RequestError(
-        400, "search_phase_execution_exception", "too_many_clauses: maxClauseCount is set to 1024"
+    too_many_clauses_error = TransportError(
+        500, "search_phase_execution_exception", "too_many_clauses: maxClauseCount is set to 1024"
     )
     store._async_client.search.side_effect = too_many_clauses_error
 
     custom_query = {"query": {"match": {"content": "$query"}}}
-    with pytest.raises(RequestError):
+    with pytest.raises(TransportError):
         await store._bm25_retrieval_async("a very long query", fuzziness="AUTO", custom_query=custom_query)
 
     assert store._async_client.search.call_count == 1
@@ -361,14 +361,14 @@ async def test_bm25_retrieval_async_no_retry_with_custom_query(_mock_opensearch_
 @pytest.mark.asyncio
 @patch("haystack_integrations.document_stores.opensearch.document_store.AsyncOpenSearch")
 @patch("haystack_integrations.document_stores.opensearch.document_store.OpenSearch")
-async def test_bm25_retrieval_async_reraises_other_request_errors(_mock_opensearch_client, _mock_async_client):
+async def test_bm25_retrieval_async_reraises_other_transport_errors(_mock_opensearch_client, _mock_async_client):
     store = OpenSearchDocumentStore(hosts="testhost")
     store._async_client = AsyncMock()
 
-    other_error = RequestError(400, "parsing_exception", {"error": {"reason": "some other error"}})
+    other_error = TransportError(500, "parsing_exception", {"error": {"reason": "some other error"}})
     store._async_client.search.side_effect = other_error
 
-    with pytest.raises(RequestError):
+    with pytest.raises(TransportError):
         await store._bm25_retrieval_async("some query", fuzziness="AUTO")
 
     assert store._async_client.search.call_count == 1
