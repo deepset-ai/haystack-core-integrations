@@ -111,7 +111,7 @@ jobs:
           hatch -e test env run -- uv pip install -r requirements_lowest_direct.txt
           hatch run test:unit
 
-      - name: Nightly - run tests with Haystack main branch
+      - name: Nightly - run unit tests with Haystack main branch
         if: github.event_name == 'schedule'
         run: |
           hatch env prune

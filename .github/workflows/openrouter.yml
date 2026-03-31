@@ -118,7 +118,8 @@ jobs:
         run: |
           hatch env prune
           hatch -e test env run -- uv pip install git+https://github.com/deepset-ai/haystack.git@main
-          hatch run test:unit
+          hatch run test:unit-cov-retry
+          hatch run test:integration-cov-append-retry
 
   notify-slack-on-failure:
     needs: run
