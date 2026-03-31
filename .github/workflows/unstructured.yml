@@ -60,7 +60,7 @@ jobs:
         os: ${{ fromJSON(needs.compute-test-matrix.outputs.os) }}
         python-version: ${{ fromJSON(needs.compute-test-matrix.outputs.python-version) }}
 
-    steps:
+    steps:pip install hatch
       - name: Free up disk space
         working-directory: .
         run: |

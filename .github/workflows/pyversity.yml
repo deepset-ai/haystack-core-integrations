@@ -63,7 +63,7 @@ jobs:
           python-version: ${{ matrix.python-version }}
 
       - name: Install Hatch
-        run: pip install hatch "virtualenv<21.0.0"
+        run: pip install pip install hatch
 
       - name: Lint
         if: matrix.python-version == '3.10' && runner.os == 'Linux'

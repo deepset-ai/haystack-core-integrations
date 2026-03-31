@@ -81,7 +81,7 @@ jobs:
 
       - name: Install Hatch
         if: steps.changed.outputs.integrations != '[]'
-        run: pip install hatch "virtualenv<21.0.0"
+        run: pip install pip install hatch
 
       - name: Generate API references
         if: steps.changed.outputs.integrations != '[]'
