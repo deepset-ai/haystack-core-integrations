@@ -4,16 +4,16 @@
 
 | Name                                                                                           |    Stmts |     Miss |   Branch |   BrPart |   Cover |   Missing |
 |----------------------------------------------------------------------------------------------- | -------: | -------: | -------: | -------: | ------: | --------: |
-| src/haystack\_integrations/components/retrievers/opensearch/bm25\_retriever.py                 |       79 |       12 |       28 |        6 |     81% |102-103, 171, 180->183, 273-274, 283, 340-341, 348-351 |
-| src/haystack\_integrations/components/retrievers/opensearch/embedding\_retriever.py            |       85 |       15 |       36 |       12 |     76% |110-111, 248, 250, 251->253, 262-263, 279, 374, 376, 377->379, 379->381, 381->384, 388-389, 403-406 |
+| src/haystack\_integrations/components/retrievers/opensearch/bm25\_retriever.py                 |       79 |       12 |       28 |        6 |     81% |102-103, 171, 180-\>183, 273-274, 283, 340-341, 348-351 |
+| src/haystack\_integrations/components/retrievers/opensearch/embedding\_retriever.py            |       85 |       15 |       36 |       12 |     76% |110-111, 248, 250, 251-\>253, 262-263, 279, 374, 376, 377-\>379, 379-\>381, 381-\>384, 388-389, 403-406 |
 | src/haystack\_integrations/components/retrievers/opensearch/metadata\_retriever.py             |       82 |        4 |       16 |        2 |     94% |257-258, 371-372 |
-| src/haystack\_integrations/components/retrievers/opensearch/open\_search\_hybrid\_retriever.py |       77 |        0 |       14 |        3 |     97% |346->350, 350->354, 354->358 |
+| src/haystack\_integrations/components/retrievers/opensearch/open\_search\_hybrid\_retriever.py |       77 |        0 |       14 |        3 |     97% |346-\>350, 350-\>354, 354-\>358 |
 | src/haystack\_integrations/components/retrievers/opensearch/sql\_retriever.py                  |       53 |        4 |       14 |        2 |     91% |113-114, 168-169 |
 | src/haystack\_integrations/document\_stores/opensearch/auth.py                                 |       63 |        7 |        4 |        0 |     90% |66-69, 168-173 |
-| src/haystack\_integrations/document\_stores/opensearch/document\_store.py                      |      664 |       51 |      206 |       26 |     90% |193->195, 195->197, 197->200, 200->exit, 254->257, 272->274, 276, 363, 440->450, 443, 565-571, 702-704, 739-741, 770-772, 799-801, 839-841, 879-881, 894-896, 943-946, 1141-1143, 1171, 1173->1172, 1281, 1300-1302, 1305->1309, 1386, 1405-1407, 1410->1414, 1427-1428, 1601->1600, 1639->1638, 1641->1638, 1669-1670, 1675, 1718 |
+| src/haystack\_integrations/document\_stores/opensearch/document\_store.py                      |      678 |       51 |      210 |       26 |     90% |193-\>195, 195-\>197, 197-\>200, 200-\>exit, 254-\>257, 272-\>274, 276, 363, 440-\>450, 443, 565-571, 702-704, 739-741, 770-772, 799-801, 839-841, 879-881, 894-896, 943-946, 1181-1183, 1211, 1213-\>1212, 1321, 1340-1342, 1345-\>1349, 1426, 1445-1447, 1450-\>1454, 1467-1468, 1641-\>1640, 1679-\>1678, 1681-\>1678, 1709-1710, 1715, 1758 |
 | src/haystack\_integrations/document\_stores/opensearch/filters.py                              |      135 |        5 |       72 |        4 |     96% |15-16, 51, 70, 73 |
 | src/haystack\_integrations/document\_stores/opensearch/opensearch\_scripts.py                  |        1 |        0 |        0 |        0 |    100% |           |
-| **TOTAL**                                                                                      | **1239** |   **98** |  **390** |   **55** | **90%** |           |
+| **TOTAL**                                                                                      | **1253** |   **98** |  **394** |   **55** | **90%** |           |
 
 
 ## Setup coverage badge
