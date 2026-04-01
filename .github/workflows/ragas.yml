@@ -93,6 +93,8 @@ jobs:
           COVERAGE_PATH: integrations/ragas
           SUBPROJECT_ID: ragas
           COMMENT_ARTIFACT_NAME: coverage-comment-ragas
+          MINIMUM_GREEN: 90
+          MINIMUM_ORANGE: 60
 
       # No integration tests yet — add integration-cov-append-retry + combined coverage step when needed
 

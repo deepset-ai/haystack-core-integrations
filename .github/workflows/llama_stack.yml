@@ -155,6 +155,8 @@ jobs:
           COVERAGE_PATH: integrations/llama_stack
           SUBPROJECT_ID: llama_stack
           COMMENT_ARTIFACT_NAME: coverage-comment-llama_stack
+          MINIMUM_GREEN: 90
+          MINIMUM_ORANGE: 60
 
       - name: Run integration tests
         run: hatch run test:integration-cov-append-retry
@@ -167,6 +169,8 @@ jobs:
           COVERAGE_PATH: integrations/llama_stack
           SUBPROJECT_ID: llama_stack-combined
           COMMENT_ARTIFACT_NAME: coverage-comment-llama_stack-combined
+          MINIMUM_GREEN: 90
+          MINIMUM_ORANGE: 60
 
       - name: Run unit tests with lowest direct dependencies
         if: github.event_name != 'push'

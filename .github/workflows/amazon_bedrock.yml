@@ -103,6 +103,8 @@ jobs:
           COVERAGE_PATH: integrations/amazon_bedrock
           SUBPROJECT_ID: amazon_bedrock
           COMMENT_ARTIFACT_NAME: coverage-comment-amazon_bedrock
+          MINIMUM_GREEN: 90
+          MINIMUM_ORANGE: 60
 
       # Do not authenticate on PRs from forks and on PRs created by dependabot
       - name: AWS authentication
@@ -125,6 +127,8 @@ jobs:
           COVERAGE_PATH: integrations/amazon_bedrock
           SUBPROJECT_ID: amazon_bedrock-combined
           COMMENT_ARTIFACT_NAME: coverage-comment-amazon_bedrock-combined
+          MINIMUM_GREEN: 90
+          MINIMUM_ORANGE: 60
 
       - name: Run unit tests with lowest direct dependencies
         if: github.event_name != 'push'

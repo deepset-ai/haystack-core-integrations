@@ -91,6 +91,8 @@ jobs:
           COVERAGE_PATH: integrations/github
           SUBPROJECT_ID: github
           COMMENT_ARTIFACT_NAME: coverage-comment-github
+          MINIMUM_GREEN: 90
+          MINIMUM_ORANGE: 60
 
       # No integration tests yet — add integration-cov-append-retry + combined coverage step when needed
 

@@ -90,6 +90,8 @@ jobs:
           COVERAGE_PATH: integrations/azure_ai_search
           SUBPROJECT_ID: azure_ai_search
           COMMENT_ARTIFACT_NAME: coverage-comment-azure_ai_search
+          MINIMUM_GREEN: 90
+          MINIMUM_ORANGE: 60
 
       - name: Run integration tests
         run: hatch run test:integration-cov-append-retry
@@ -102,6 +104,8 @@ jobs:
           COVERAGE_PATH: integrations/azure_ai_search
           SUBPROJECT_ID: azure_ai_search-combined
           COMMENT_ARTIFACT_NAME: coverage-comment-azure_ai_search-combined
+          MINIMUM_GREEN: 90
+          MINIMUM_ORANGE: 60
 
       - name: Run unit tests with lowest direct dependencies
         if: github.event_name != 'push'

@@ -90,6 +90,8 @@ jobs:
           COVERAGE_PATH: integrations/opensearch
           SUBPROJECT_ID: opensearch
           COMMENT_ARTIFACT_NAME: coverage-comment-opensearch
+          MINIMUM_GREEN: 90
+          MINIMUM_ORANGE: 60
 
       - name: Run integration tests (in parallel, using 4 cores)
         run: hatch run test:integration-cov-append-retry -n 4  # GA runner has 4 cores
@@ -102,6 +104,8 @@ jobs:
           COVERAGE_PATH: integrations/opensearch
           SUBPROJECT_ID: opensearch-combined
           COMMENT_ARTIFACT_NAME: coverage-comment-opensearch-combined
+          MINIMUM_GREEN: 90
+          MINIMUM_ORANGE: 60
 
       - name: Run unit tests with lowest direct dependencies
         if: github.event_name != 'push'

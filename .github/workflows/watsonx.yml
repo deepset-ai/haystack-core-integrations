@@ -94,6 +94,8 @@ jobs:
           COVERAGE_PATH: integrations/watsonx
           SUBPROJECT_ID: watsonx
           COMMENT_ARTIFACT_NAME: coverage-comment-watsonx
+          MINIMUM_GREEN: 90
+          MINIMUM_ORANGE: 60
 
       - name: Run integration tests
         run: hatch run test:integration-cov-append-retry
@@ -106,6 +108,8 @@ jobs:
           COVERAGE_PATH: integrations/watsonx
           SUBPROJECT_ID: watsonx-combined
           COMMENT_ARTIFACT_NAME: coverage-comment-watsonx-combined
+          MINIMUM_GREEN: 90
+          MINIMUM_ORANGE: 60
 
       - name: Run unit tests with lowest direct dependencies
         if: github.event_name != 'push'
