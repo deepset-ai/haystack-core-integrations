@@ -4,7 +4,7 @@
 
 | Name                                                                       |    Stmts |     Miss |   Branch |   BrPart |   Cover |   Missing |
 |--------------------------------------------------------------------------- | -------: | -------: | -------: | -------: | ------: | --------: |
-| src/haystack\_integrations/components/connectors/weave/weave\_connector.py |       29 |        0 |        6 |        1 |     97% |  91->exit |
+| src/haystack\_integrations/components/connectors/weave/weave\_connector.py |       29 |        0 |        6 |        1 |     97% | 91-\>exit |
 | src/haystack\_integrations/tracing/weave/tracer.py                         |       86 |        3 |       12 |        0 |     95% |     55-57 |
 | **TOTAL**                                                                  |  **115** |    **3** |   **18** |    **1** | **95%** |           |
 
