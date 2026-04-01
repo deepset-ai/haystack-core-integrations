@@ -33,7 +33,8 @@ def populated_store(document_store):
 
 def test_invalid_document_store_type():
     with pytest.raises(ValueError, match="document_store must be an instance of FAISSDocumentStore"):
-        FAISSEmbeddingRetriever(document_store="not_a_store")  # type: ignore[arg-type]                 
+        FAISSEmbeddingRetriever(document_store="not_a_store")  # type: ignore[arg-type]
+
 
 @pytest.mark.integration
 class TestFAISSEmbeddingRetriever:
