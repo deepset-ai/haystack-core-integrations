@@ -4,9 +4,9 @@
 
 | Name                                                                           |    Stmts |     Miss |   Branch |   BrPart |   Cover |   Missing |
 |------------------------------------------------------------------------------- | -------: | -------: | -------: | -------: | ------: | --------: |
-| src/haystack\_integrations/components/retrievers/faiss/embedding\_retriever.py |       32 |        1 |        2 |        0 |     97% |       155 |
-| src/haystack\_integrations/document\_stores/faiss/document\_store.py           |      298 |       36 |      150 |       24 |     87% |70-72, 77-78, 116, 118, 124, 139-140, 143-144, 147, 150->157, 153-154, 164, 171, 213-215, 219-220, 245, 264, 268, 305-306, 310-311, 324-325, 364->370, 366-368, 385, 448, 488->482, 507->505 |
-| **TOTAL**                                                                      |  **330** |   **37** |  **152** |   **24** | **87%** |           |
+| src/haystack\_integrations/components/retrievers/faiss/embedding\_retriever.py |       32 |       13 |        2 |        1 |     59% |78-81, 91, 107-109, 129-132, 155 |
+| src/haystack\_integrations/document\_stores/faiss/document\_store.py           |      298 |      258 |      150 |        0 |      9% |47-62, 66-72, 76-79, 85, 95-102, 110, 115-125, 138-195, 203-220, 226-230, 244-284, 287-385, 398-401, 411, 425-429, 438-450, 459-472, 481-490, 500-511, 517, 529, 537-549, 557-575 |
+| **TOTAL**                                                                      |  **330** |  **271** |  **152** |    **1** | **12%** |           |
 
 
 ## Setup coverage badge
