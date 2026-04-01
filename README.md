@@ -4,7 +4,7 @@
 
 | Name                                                                   |    Stmts |     Miss |   Branch |   BrPart |   Cover |   Missing |
 |----------------------------------------------------------------------- | -------: | -------: | -------: | -------: | ------: | --------: |
-| src/haystack\_integrations/components/evaluators/deepeval/evaluator.py |       54 |        0 |        8 |        1 |     98% |  153->164 |
+| src/haystack\_integrations/components/evaluators/deepeval/evaluator.py |       54 |        0 |        8 |        1 |     98% | 153-\>164 |
 | src/haystack\_integrations/components/evaluators/deepeval/metrics.py   |       90 |        2 |       24 |        2 |     96% |  159, 161 |
 | **TOTAL**                                                              |  **144** |    **2** |   **32** |    **3** | **97%** |           |
 
