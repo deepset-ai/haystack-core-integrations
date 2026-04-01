@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-# ruff: noqa: S110, E402
+# ruff: noqa: S110
 
 import uuid
 
