@@ -10,13 +10,20 @@ on:
       - "integrations/langfuse/**"
       - "!integrations/langfuse/*.md"
       - ".github/workflows/langfuse.yml"
+  push:
+    branches:
+      - main
+    paths:
+      - "integrations/langfuse/**"
+      - "!integrations/langfuse/*.md"
+      - ".github/workflows/langfuse.yml"
 
 defaults:
   run:
     working-directory: integrations/langfuse
 
 concurrency:
-  group: langfuse-${{ github.head_ref }}
+  group: langfuse-${{ github.head_ref || github.sha }}
   cancel-in-progress: true
 
 env:
@@ -27,16 +34,36 @@ env:
   OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
   ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
   COHERE_API_KEY: ${{ secrets.COHERE_API_KEY }}
+  TEST_MATRIX_OS: '["ubuntu-latest", "windows-latest", "macos-latest"]'
+  TEST_MATRIX_PYTHON: '["3.10", "3.13"]'
 
 jobs:
+  compute-test-matrix:
+    runs-on: ubuntu-slim
+    defaults:
+      run:
+        working-directory: .
+    outputs:
+      os: ${{ steps.set.outputs.os }}
+      python-version: ${{ steps.set.outputs.python-version }}
+    steps:
+      - id: set
+        run: |
+          echo 'os=${{ github.event_name == 'push' && '["ubuntu-latest"]' || env.TEST_MATRIX_OS }}' >> "$GITHUB_OUTPUT"
+          echo 'python-version=${{ github.event_name == 'push' && '["3.10"]' || env.TEST_MATRIX_PYTHON }}' >> "$GITHUB_OUTPUT"
+
   run:
     name: Python ${{ matrix.python-version }} on ${{ startsWith(matrix.os, 'macos-') && 'macOS' || startsWith(matrix.os, 'windows-') && 'Windows' || 'Linux' }}
+    needs: compute-test-matrix
+    permissions:
+      contents: write
+      pull-requests: write
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
-        python-version: ["3.10", "3.13"]
+        os: ${{ fromJSON(needs.compute-test-matrix.outputs.os) }}
+        python-version: ${{ fromJSON(needs.compute-test-matrix.outputs.python-version) }}
 
     steps:
       - name: Support longpaths
@@ -52,18 +79,39 @@ jobs:
           python-version: ${{ matrix.python-version }}
 
       - name: Install Hatch
-        run: pip install hatch "virtualenv<21.0.0"
+        run: pip install hatch
 
-    # TODO: Once this integration is properly typed, use hatch run test:types
-    # https://github.com/deepset-ai/haystack-core-integrations/issues/1771
       - name: Lint
         if: matrix.python-version == '3.10' && runner.os == 'Linux'
         run: hatch run fmt-check && hatch run test:types
 
-      - name: Run tests
-        run: hatch run test:cov-retry
+      - name: Run unit tests
+        run: hatch run test:unit-cov-retry
+
+      # On PR: generates coverage comment artifact. On push to main: stores coverage baseline on data branch.
+      - name: Store unit tests coverage
+        if: matrix.python-version == '3.10' && runner.os == 'Linux' && github.event_name != 'schedule'
+        uses: py-cov-action/python-coverage-comment-action@7188638f871f721a365d644f505d1ff3df20d683 # v3.40
+        with:
+          GITHUB_TOKEN: ${{ github.token }}
+          COVERAGE_PATH: integrations/langfuse
+          SUBPROJECT_ID: langfuse
+          COMMENT_ARTIFACT_NAME: coverage-comment-langfuse
+
+      - name: Run integration tests
+        run: hatch run test:integration-cov-append-retry
+
+      - name: Store combined coverage
+        if: github.event_name == 'push'
+        uses: py-cov-action/python-coverage-comment-action@7188638f871f721a365d644f505d1ff3df20d683 # v3.40
+        with:
+          GITHUB_TOKEN: ${{ github.token }}
+          COVERAGE_PATH: integrations/langfuse
+          SUBPROJECT_ID: langfuse-combined
+          COMMENT_ARTIFACT_NAME: coverage-comment-langfuse-combined
 
       - name: Run unit tests with lowest direct dependencies
+        if: github.event_name != 'push'
         run: |
           hatch run uv pip compile pyproject.toml --resolution lowest-direct --output-file requirements_lowest_direct.txt
           hatch -e test env run -- uv pip install -r requirements_lowest_direct.txt

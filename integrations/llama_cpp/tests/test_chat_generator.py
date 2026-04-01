@@ -34,7 +34,9 @@ from haystack_integrations.components.generators.llama_cpp.chat.chat_generator i
 
 @pytest.fixture
 def model_path():
-    return Path(__file__).parent / "models"
+    path = Path.home() / ".cache" / "haystack_llama_cpp_tests"
+    path.mkdir(parents=True, exist_ok=True)
+    return path
 
 
 def get_current_temperature(location: Annotated[str, "The city and state, e.g. San Francisco, CA"]):

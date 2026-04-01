@@ -211,7 +211,7 @@ class TestAmazonBedrockChatGenerator:
                     "aws_session_token": {"type": "env_var", "env_vars": ["AWS_SESSION_TOKEN"], "strict": False},
                     "aws_region_name": {"type": "env_var", "env_vars": ["AWS_DEFAULT_REGION"], "strict": False},
                     "aws_profile_name": {"type": "env_var", "env_vars": ["AWS_PROFILE"], "strict": False},
-                    "model": "anthropic.claude-3-5-sonnet-20240620-v1:0",
+                    "model": "global.anthropic.claude-sonnet-4-6",
                     "generation_kwargs": {"temperature": 0.7},
                     "streaming_callback": "haystack.components.generators.utils.print_streaming_chunk",
                     "boto3_config": boto3_config,
@@ -221,7 +221,7 @@ class TestAmazonBedrockChatGenerator:
                 },
             }
         )
-        assert generator.model == "anthropic.claude-3-5-sonnet-20240620-v1:0"
+        assert generator.model == "global.anthropic.claude-sonnet-4-6"
         assert generator.streaming_callback == print_streaming_chunk
         assert generator.boto3_config == boto3_config
 
@@ -229,8 +229,8 @@ class TestAmazonBedrockChatGenerator:
         """
         Test that the default constructor sets the correct values
         """
-        layer = AmazonBedrockChatGenerator(model="anthropic.claude-3-5-sonnet-20240620-v1:0")
-        assert layer.model == "anthropic.claude-3-5-sonnet-20240620-v1:0"
+        layer = AmazonBedrockChatGenerator(model="global.anthropic.claude-sonnet-4-6")
+        assert layer.model == "global.anthropic.claude-sonnet-4-6"
 
         # assert mocked boto3 client called exactly once
         mock_boto3_session.assert_called_once()
@@ -250,7 +250,7 @@ class TestAmazonBedrockChatGenerator:
         """
         generation_kwargs = {"temperature": 0.7}
         layer = AmazonBedrockChatGenerator(
-            model="anthropic.claude-3-5-sonnet-20240620-v1:0", generation_kwargs=generation_kwargs
+            model="global.anthropic.claude-sonnet-4-6", generation_kwargs=generation_kwargs
         )
         assert layer.generation_kwargs == generation_kwargs
 
@@ -276,7 +276,7 @@ class TestAmazonBedrockChatGenerator:
         )
 
         generator = AmazonBedrockChatGenerator(
-            model="anthropic.claude-3-5-sonnet-20240620-v1:0",
+            model="global.anthropic.claude-sonnet-4-6",
             generation_kwargs={"temperature": 0.7, "stopSequences": ["eviscerate"]},
             streaming_callback=print_streaming_chunk,
             tools=[tool],
@@ -303,7 +303,7 @@ class TestAmazonBedrockChatGenerator:
                         "aws_session_token": {"type": "env_var", "env_vars": ["AWS_SESSION_TOKEN"], "strict": False},
                         "aws_region_name": {"type": "env_var", "env_vars": ["AWS_DEFAULT_REGION"], "strict": False},
                         "aws_profile_name": {"type": "env_var", "env_vars": ["AWS_PROFILE"], "strict": False},
-                        "model": "anthropic.claude-3-5-sonnet-20240620-v1:0",
+                        "model": "global.anthropic.claude-sonnet-4-6",
                         "generation_kwargs": {"temperature": 0.7, "stopSequences": ["eviscerate"]},
                         "streaming_callback": "haystack.components.generators.utils.print_streaming_chunk",
                         "boto3_config": None,
@@ -335,7 +335,7 @@ class TestAmazonBedrockChatGenerator:
         assert pipeline_dict == expected_dict
 
     def test_prepare_request_params_tool_config(self, top_song_tool_config, mock_boto3_session, set_env_variables):
-        generator = AmazonBedrockChatGenerator(model="anthropic.claude-3-5-sonnet-20240620-v1:0")
+        generator = AmazonBedrockChatGenerator(model="global.anthropic.claude-sonnet-4-6")
         request_params, _ = generator._prepare_request_params(
             messages=[ChatMessage.from_user("What's the capital of France?")],
             generation_kwargs={"toolConfig": top_song_tool_config},
@@ -346,7 +346,7 @@ class TestAmazonBedrockChatGenerator:
 
     def test_prepare_request_params_guardrail_config(self, mock_boto3_session, set_env_variables):
         generator = AmazonBedrockChatGenerator(
-            model="anthropic.claude-3-5-sonnet-20240620-v1:0",
+            model="global.anthropic.claude-sonnet-4-6",
             guardrail_config={"guardrailIdentifier": "test", "guardrailVersion": "test"},
         )
         request_params, _ = generator._prepare_request_params(
@@ -374,7 +374,7 @@ class TestAmazonBedrockChatGenerator:
         toolset = Toolset([population_tool])
 
         generator = AmazonBedrockChatGenerator(
-            model="anthropic.claude-3-5-sonnet-20240620-v1:0",
+            model="global.anthropic.claude-sonnet-4-6",
             tools=[weather_tool, toolset],
         )
 
@@ -398,7 +398,7 @@ class TestAmazonBedrockChatGenerator:
         )
         toolset = Toolset([population_tool])
 
-        generator = AmazonBedrockChatGenerator(model="anthropic.claude-3-5-sonnet-20240620-v1:0")
+        generator = AmazonBedrockChatGenerator(model="global.anthropic.claude-sonnet-4-6")
         request_params, _ = generator._prepare_request_params(
             messages=[ChatMessage.from_user("What's the capital of France?")],
             tools=[weather_tool, toolset],
@@ -487,7 +487,7 @@ class TestAmazonBedrockChatGenerator:
     def test_prepare_request_params_with_flattened_generation_kwargs(
         self, mock_boto3_session, set_env_variables, generation_kwargs, additional_model_request_fields
     ):
-        generator = AmazonBedrockChatGenerator(model="anthropic.claude-3-5-sonnet-20240620-v1:0")
+        generator = AmazonBedrockChatGenerator(model="global.anthropic.claude-sonnet-4-6")
         request_params, _ = generator._prepare_request_params(
             messages=[ChatMessage.from_user("What's the capital of France?")],
             generation_kwargs=generation_kwargs,
@@ -969,7 +969,7 @@ class TestAmazonBedrockChatGeneratorInference:
     def test_live_run_with_guardrail(self, streaming_callback):
         messages = [ChatMessage.from_user("Should I invest in Tesla or Apple?")]
         component = AmazonBedrockChatGenerator(
-            model="anthropic.claude-3-5-sonnet-20240620-v1:0",
+            model="global.anthropic.claude-sonnet-4-6",
             guardrail_config={
                 "guardrailIdentifier": os.getenv("AWS_BEDROCK_GUARDRAIL_ID"),
                 "guardrailVersion": os.getenv("AWS_BEDROCK_GUARDRAIL_VERSION"),

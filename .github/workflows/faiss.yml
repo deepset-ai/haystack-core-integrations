@@ -10,29 +10,56 @@ on:
       - "integrations/faiss/**"
       - "!integrations/faiss/*.md"
       - ".github/workflows/faiss.yml"
+  push:
+    branches:
+      - main
+    paths:
+      - "integrations/faiss/**"
+      - "!integrations/faiss/*.md"
+      - ".github/workflows/faiss.yml"
 
 concurrency:
-  group: faiss-${{ github.head_ref }}
+  group: faiss-${{ github.head_ref || github.sha }}
   cancel-in-progress: true
 
 env:
   PYTHONUNBUFFERED: "1"
   FORCE_COLOR: "1"
+  TEST_MATRIX_OS: '["ubuntu-latest"]'
+  TEST_MATRIX_PYTHON: '["3.10", "3.14"]'
 
 defaults:
   run:
     working-directory: integrations/faiss
 
 jobs:
+  compute-test-matrix:
+    runs-on: ubuntu-slim
+    defaults:
+      run:
+        working-directory: .
+    outputs:
+      os: ${{ steps.set.outputs.os }}
+      python-version: ${{ steps.set.outputs.python-version }}
+    steps:
+      - id: set
+        run: |
+          echo 'os=${{ github.event_name == 'push' && '["ubuntu-latest"]' || env.TEST_MATRIX_OS }}' >> "$GITHUB_OUTPUT"
+          echo 'python-version=${{ github.event_name == 'push' && '["3.10"]' || env.TEST_MATRIX_PYTHON }}' >> "$GITHUB_OUTPUT"
+
   run:
     name: Python ${{ matrix.python-version }} on ${{ startsWith(matrix.os, 'macos-') && 'macOS' || startsWith(matrix.os, 'windows-') && 'Windows' || 'Linux' }}
+    needs: compute-test-matrix
+    permissions:
+      contents: write
+      pull-requests: write
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
         # FAISS wheels are most reliable on Linux in CI.
-        os: [ubuntu-latest] #[ubuntu-latest, windows-latest, macos-latest]
-        python-version: ["3.10", "3.14"]
+        os: ${{ fromJSON(needs.compute-test-matrix.outputs.os) }}
+        python-version: ${{ fromJSON(needs.compute-test-matrix.outputs.python-version) }}
 
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -43,14 +70,26 @@ jobs:
           python-version: ${{ matrix.python-version }}
 
       - name: Install Hatch
-        run: pip install hatch "virtualenv<21.0.0"
+        run: pip install hatch
 
       - name: Lint
         if: matrix.python-version == '3.10' && runner.os == 'Linux'
         run: hatch run fmt-check && hatch run test:types
 
-      - name: Run tests
-        run: hatch run test:cov-retry
+      - name: Run unit tests
+        run: hatch run test:unit-cov-retry
+
+      # On PR: generates coverage comment artifact. On push to main: stores coverage baseline on data branch.
+      - name: Store unit tests coverage
+        if: matrix.python-version == '3.10' && runner.os == 'Linux' && github.event_name != 'schedule'
+        uses: py-cov-action/python-coverage-comment-action@7188638f871f721a365d644f505d1ff3df20d683 # v3.40
+        with:
+          GITHUB_TOKEN: ${{ github.token }}
+          COVERAGE_PATH: integrations/faiss
+          SUBPROJECT_ID: faiss
+          COMMENT_ARTIFACT_NAME: coverage-comment-faiss
+
+      # No integration tests yet — add integration-cov-append-retry + combined coverage step when needed
 
       - name: Run unit tests with lowest direct dependencies
         if: matrix.python-version == '3.10' && runner.os == 'Linux'

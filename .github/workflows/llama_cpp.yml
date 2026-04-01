@@ -10,13 +10,20 @@ on:
       - "integrations/llama_cpp/**"
       - "!integrations/llama_cpp/*.md"
       - ".github/workflows/llama_cpp.yml"
+  push:
+    branches:
+      - main
+    paths:
+      - "integrations/llama_cpp/**"
+      - "!integrations/llama_cpp/*.md"
+      - ".github/workflows/llama_cpp.yml"
 
 defaults:
   run:
     working-directory: integrations/llama_cpp
 
 concurrency:
-  group: llama_cpp-${{ github.head_ref }}
+  group: llama_cpp-${{ github.head_ref || github.sha }}
   cancel-in-progress: true
 
 env:
@@ -24,28 +31,44 @@ env:
   FORCE_COLOR: "1"
 
 jobs:
+  compute-test-matrix:
+    runs-on: ubuntu-slim
+    defaults:
+      run:
+        working-directory: .
+    outputs:
+      matrix: ${{ steps.set.outputs.matrix }}
+    steps:
+      - id: set
+        run: |
+          if [ "${{ github.event_name }}" = "push" ]; then
+            echo 'matrix=[{"os":"ubuntu-latest","python-version":"3.10"}]' >> "$GITHUB_OUTPUT"
+          else
+            MATRIX='['
+            MATRIX+='{"os":"ubuntu-latest","python-version":"3.10"},'
+            MATRIX+='{"os":"ubuntu-latest","python-version":"3.14"},'
+            MATRIX+='{"os":"windows-latest","python-version":"3.10"},'
+            MATRIX+='{"os":"windows-latest","python-version":"3.14"},'
+            # On macOS, pre-built wheels for 3.14 are not available and installing from source
+            # might fail due to missing dependencies (CMake fails with "OpenMP not found").
+            # We test with 3.12 instead because pre-built wheels are available for this version.            
+            MATRIX+='{"os":"macos-latest","python-version":"3.10"},'
+            MATRIX+='{"os":"macos-latest","python-version":"3.12"}'
+            MATRIX+=']'
+            echo "matrix=$MATRIX" >> "$GITHUB_OUTPUT"
+          fi
+
   run:
     name: Python ${{ matrix.python-version }} on ${{ startsWith(matrix.os, 'macos-') && 'macOS' || startsWith(matrix.os, 'windows-') && 'Windows' || 'Linux' }}
+    needs: compute-test-matrix
+    permissions:
+      contents: write
+      pull-requests: write
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - os: ubuntu-latest
-            python-version: "3.10"
-          - os: ubuntu-latest
-            python-version: "3.14"
-          - os: windows-latest
-            python-version: "3.10"
-          - os: windows-latest
-            python-version: "3.14"
-
-        # on macOS, we test with 3.10 and 3.12 because pre-built wheels are only available for these Python versions
-        # and installing from source might fail due to missing dependencies (CMake fails with "OpenMP not found")
-          - os: macos-latest
-            python-version: "3.10"
-          - os: macos-latest
-            python-version: "3.12"
+        include: ${{ fromJSON(needs.compute-test-matrix.outputs.matrix) }}
 
     steps:
       - name: Support longpaths
@@ -61,16 +84,39 @@ jobs:
           python-version: ${{ matrix.python-version }}
 
       - name: Install Hatch
-        run: pip install hatch "virtualenv<21.0.0"
+        run: pip install hatch
 
       - name: Lint
         if: matrix.python-version == '3.10' && runner.os == 'Linux'
         run: hatch run fmt-check && hatch run test:types
 
-      - name: Run tests
-        run: hatch run test:cov-retry
+      - name: Run unit tests
+        run: hatch run test:unit-cov-retry
+
+      # On PR: generates coverage comment artifact. On push to main: stores coverage baseline on data branch.
+      - name: Store unit tests coverage
+        if: matrix.python-version == '3.10' && runner.os == 'Linux' && github.event_name != 'schedule'
+        uses: py-cov-action/python-coverage-comment-action@7188638f871f721a365d644f505d1ff3df20d683 # v3.40
+        with:
+          GITHUB_TOKEN: ${{ github.token }}
+          COVERAGE_PATH: integrations/llama_cpp
+          SUBPROJECT_ID: llama_cpp
+          COMMENT_ARTIFACT_NAME: coverage-comment-llama_cpp
+
+      - name: Run integration tests
+        run: hatch run test:integration-cov-append-retry
+
+      - name: Store combined coverage
+        if: github.event_name == 'push'
+        uses: py-cov-action/python-coverage-comment-action@7188638f871f721a365d644f505d1ff3df20d683 # v3.40
+        with:
+          GITHUB_TOKEN: ${{ github.token }}
+          COVERAGE_PATH: integrations/llama_cpp
+          SUBPROJECT_ID: llama_cpp-combined
+          COMMENT_ARTIFACT_NAME: coverage-comment-llama_cpp-combined
 
       - name: Run unit tests with lowest direct dependencies
+        if: github.event_name != 'push'
         run: |
           hatch run uv pip compile pyproject.toml --resolution lowest-direct --output-file requirements_lowest_direct.txt
           hatch -e test env run -- uv pip install -r requirements_lowest_direct.txt
