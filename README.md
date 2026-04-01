@@ -4,8 +4,8 @@
 
 | Name                                                                              |    Stmts |     Miss |   Branch |   BrPart |   Cover |   Missing |
 |---------------------------------------------------------------------------------- | -------: | -------: | -------: | -------: | ------: | --------: |
-| src/haystack\_integrations/components/fetchers/firecrawl/firecrawl\_crawler.py    |       64 |        0 |       16 |        2 |     98% |131->133, 133->exit |
-| src/haystack\_integrations/components/websearch/firecrawl/firecrawl\_websearch.py |       72 |        0 |       18 |        4 |     96% |77->79, 79->exit, 141->144, 191->168 |
+| src/haystack\_integrations/components/fetchers/firecrawl/firecrawl\_crawler.py    |       64 |        0 |       16 |        2 |     98% |131-\>133, 133-\>exit |
+| src/haystack\_integrations/components/websearch/firecrawl/firecrawl\_websearch.py |       72 |        0 |       18 |        4 |     96% |77-\>79, 79-\>exit, 141-\>144, 191-\>168 |
 | **TOTAL**                                                                         |  **136** |    **0** |   **34** |    **6** | **96%** |           |
 
 
