@@ -44,8 +44,8 @@ jobs:
     steps:
       - id: set
         run: |
-          echo 'os=${{ github.event_name == 'push' && '["ubuntu-latest"]' || env.TEST_MATRIX_OS }}' >> $GITHUB_OUTPUT
-          echo 'python-version=${{ github.event_name == 'push' && '["3.10"]' || env.TEST_MATRIX_PYTHON }}' >> $GITHUB_OUTPUT
+          echo 'os=${{ github.event_name == 'push' && '["ubuntu-latest"]' || env.TEST_MATRIX_OS }}' >> "$GITHUB_OUTPUT"
+          echo 'python-version=${{ github.event_name == 'push' && '["3.10"]' || env.TEST_MATRIX_PYTHON }}' >> "$GITHUB_OUTPUT"
 
   run:
     name: Python ${{ matrix.python-version }} on ${{ startsWith(matrix.os, 'macos-') && 'macOS' || startsWith(matrix.os, 'windows-') && 'Windows' || 'Linux' }}
@@ -85,7 +85,8 @@ jobs:
 
       - name: Install LibreOffice headless (Windows)
         if: runner.os == 'Windows'
-        run: | 
+        shell: pwsh
+        run: |
           choco install libreoffice -y
           echo "C:\Program Files\LibreOffice\program" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
 
