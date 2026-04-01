@@ -4,7 +4,7 @@
 
 | Name                                                                                   |    Stmts |     Miss |   Branch |   BrPart |   Cover |   Missing |
 |--------------------------------------------------------------------------------------- | -------: | -------: | -------: | -------: | ------: | --------: |
-| src/haystack\_integrations/components/embedders/optimum/\_backend.py                   |      150 |        6 |       38 |        6 |     94% |96-101, 107-108, 196->exit, 199->exit, 232->235, 267 |
+| src/haystack\_integrations/components/embedders/optimum/\_backend.py                   |      150 |        6 |       38 |        6 |     94% |96-101, 107-108, 196-\>exit, 199-\>exit, 232-\>235, 267 |
 | src/haystack\_integrations/components/embedders/optimum/optimization.py                |       38 |       10 |       10 |        2 |     62% |48-49, 76-84 |
 | src/haystack\_integrations/components/embedders/optimum/optimum\_document\_embedder.py |       52 |        1 |       12 |        1 |     97% |       150 |
 | src/haystack\_integrations/components/embedders/optimum/optimum\_text\_embedder.py     |       37 |        1 |        6 |        1 |     95% |       130 |
