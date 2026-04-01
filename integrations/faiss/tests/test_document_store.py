@@ -21,7 +21,7 @@ from haystack.testing.document_store import (
 
 from haystack_integrations.document_stores.faiss import FAISSDocumentStore
 
-
+@pytest.mark.integration
 class TestFAISSDocumentStore(
     CountDocumentsTest,
     DeleteDocumentsTest,

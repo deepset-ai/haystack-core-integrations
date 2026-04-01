@@ -31,6 +31,11 @@ def populated_store(document_store):
     return document_store
 
 
+def test_invalid_document_store_type():
+    with pytest.raises(ValueError, match="document_store must be an instance of FAISSDocumentStore"):
+        FAISSEmbeddingRetriever(document_store="not_a_store")  # type: ignore[arg-type]                 
+
+@pytest.mark.integration
 class TestFAISSEmbeddingRetriever:
     def test_run_with_query_embedding_only(self, populated_store):
         retriever = FAISSEmbeddingRetriever(document_store=populated_store, top_k=2)
@@ -111,10 +116,6 @@ class TestFAISSEmbeddingRetriever:
 
         assert len(result["documents"]) >= 1
         assert all(d.meta["category"] == "A" for d in result["documents"])
-
-    def test_invalid_document_store_type(self):
-        with pytest.raises(ValueError, match="document_store must be an instance of FAISSDocumentStore"):
-            FAISSEmbeddingRetriever(document_store="not_a_store")  # type: ignore[arg-type]
 
     def test_run_in_pipeline(self, populated_store):
         """End-to-end: FAISSEmbeddingRetriever wired into a Haystack Pipeline."""
