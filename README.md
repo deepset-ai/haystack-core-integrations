@@ -4,7 +4,7 @@
 
 | Name                                                                           |    Stmts |     Miss |   Branch |   BrPart |   Cover |   Missing |
 |------------------------------------------------------------------------------- | -------: | -------: | -------: | -------: | ------: | --------: |
-| src/haystack\_integrations/components/translators/lara/document\_translator.py |       73 |        0 |       24 |        2 |     98% |126->exit, 209->212 |
+| src/haystack\_integrations/components/translators/lara/document\_translator.py |       73 |        0 |       24 |        2 |     98% |126-\>exit, 209-\>212 |
 | **TOTAL**                                                                      |   **73** |    **0** |   **24** |    **2** | **98%** |           |
 
 
