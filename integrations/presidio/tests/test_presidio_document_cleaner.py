@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import logging
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 from haystack import Document
@@ -28,17 +28,21 @@ class TestPresidioDocumentCleaner:
     def test_to_dict(self):
         cleaner = PresidioDocumentCleaner(language="en", entities=["EMAIL_ADDRESS"], score_threshold=0.5)
         data = component_to_dict(cleaner, "PresidioDocumentCleaner")
-        assert (
-            data["type"]
-            == "haystack_integrations.components.preprocessors.presidio.presidio_document_cleaner.PresidioDocumentCleaner"
+        expected_type = (
+            "haystack_integrations.components.preprocessors.presidio"
+            ".presidio_document_cleaner.PresidioDocumentCleaner"
         )
+        assert data["type"] == expected_type
         assert data["init_parameters"]["language"] == "en"
         assert data["init_parameters"]["entities"] == ["EMAIL_ADDRESS"]
         assert data["init_parameters"]["score_threshold"] == 0.5
 
     def test_from_dict(self):
         data = {
-            "type": "haystack_integrations.components.preprocessors.presidio.presidio_document_cleaner.PresidioDocumentCleaner",
+            "type": (
+                "haystack_integrations.components.preprocessors.presidio"
+                ".presidio_document_cleaner.PresidioDocumentCleaner"
+            ),
             "init_parameters": {"language": "de", "entities": ["PERSON"], "score_threshold": 0.6},
         }
         cleaner = component_from_dict(PresidioDocumentCleaner, data, "PresidioDocumentCleaner")

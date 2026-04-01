@@ -22,16 +22,20 @@ class TestPresidioEntityExtractor:
     def test_to_dict(self):
         extractor = PresidioEntityExtractor(language="en", entities=["PERSON"], score_threshold=0.6)
         data = component_to_dict(extractor, "PresidioEntityExtractor")
-        assert (
-            data["type"]
-            == "haystack_integrations.components.preprocessors.presidio.presidio_entity_extractor.PresidioEntityExtractor"
+        expected_type = (
+            "haystack_integrations.components.preprocessors.presidio"
+            ".presidio_entity_extractor.PresidioEntityExtractor"
         )
+        assert data["type"] == expected_type
         assert data["init_parameters"]["entities"] == ["PERSON"]
         assert data["init_parameters"]["score_threshold"] == 0.6
 
     def test_from_dict(self):
         data = {
-            "type": "haystack_integrations.components.preprocessors.presidio.presidio_entity_extractor.PresidioEntityExtractor",
+            "type": (
+                "haystack_integrations.components.preprocessors.presidio"
+                ".presidio_entity_extractor.PresidioEntityExtractor"
+            ),
             "init_parameters": {"language": "en", "entities": ["EMAIL_ADDRESS"], "score_threshold": 0.5},
         }
         extractor = component_from_dict(PresidioEntityExtractor, data, "PresidioEntityExtractor")

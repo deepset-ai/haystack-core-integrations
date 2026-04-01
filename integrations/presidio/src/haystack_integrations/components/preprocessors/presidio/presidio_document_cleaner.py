@@ -50,7 +50,7 @@ class PresidioDocumentCleaner:
             List of PII entity types to detect and anonymize (e.g. `["PERSON", "EMAIL_ADDRESS"]`).
             If `None`, all supported entity types are used.
         :param score_threshold:
-            Minimum confidence score (0–1) for a detected entity to be anonymized. Defaults to `0.35`.
+            Minimum confidence score (0-1) for a detected entity to be anonymized. Defaults to `0.35`.
         """
         self.language = language
         self.entities = entities
