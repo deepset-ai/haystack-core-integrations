@@ -2,13 +2,15 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-# ruff: noqa: S110
+# ruff: noqa: S110, E402
 
 import uuid
 
 import pytest
 import pytest_asyncio
 from haystack.dataclasses import ByteStream, Document
+
+pytest.importorskip("haystack.testing.document_store_async")
 
 from haystack.testing.document_store import (
     CountDocumentsByFilterAsyncTest,
