@@ -81,6 +81,8 @@ jobs:
           COVERAGE_PATH: integrations/pyversity
           SUBPROJECT_ID: pyversity
           COMMENT_ARTIFACT_NAME: coverage-comment-pyversity
+          MINIMUM_GREEN: 90
+          MINIMUM_ORANGE: 60
 
       # No integration tests yet — add integration-cov-append-retry + combined coverage step when needed
 

@@ -75,3 +75,5 @@ jobs:
           GITHUB_PR_RUN_ID: ${{ github.event.workflow_run.id }}
           SUBPROJECT_ID: ${{ steps.integration.outputs.name }}
           COMMENT_ARTIFACT_NAME: coverage-comment-${{ steps.integration.outputs.name }}
+          MINIMUM_GREEN: 90
+          MINIMUM_ORANGE: 60

@@ -102,6 +102,35 @@ def update_labeler(name: str, *, repo_root: Path) -> str:
     return str(labeler_path.relative_to(repo_root))
 
 
+def update_coverage_comment_workflow(name: str, *, repo_root: Path) -> str:
+    """Insert a workflow trigger entry in CI_coverage_comment.yml in alphabetical order. Returns the relative path."""
+    workflow_path = repo_root / ".github" / "workflows" / "CI_coverage_comment.yml"
+    content = workflow_path.read_text()
+
+    new_entry = f'      - "Test / {name}"'
+
+    # Find all existing workflow trigger entries and insert in sorted order
+    entry_pattern = re.compile(r'^      - "Test / ([^"]+)"', re.MULTILINE)
+    matches = list(entry_pattern.finditer(content))
+
+    insert_pos = None
+    for match in matches:
+        if match.group(1) > name:
+            insert_pos = match.start()
+            break
+
+    if insert_pos is not None:
+        content = content[:insert_pos] + new_entry + "\n" + content[insert_pos:]
+    else:
+        # Insert after the last entry (before the `types:` line)
+        last_match = matches[-1]
+        insert_pos = last_match.end()
+        content = content[:insert_pos] + "\n" + new_entry + content[insert_pos:]
+
+    workflow_path.write_text(content)
+    return str(workflow_path.relative_to(repo_root))
+
+
 def update_root_readme(
     name: str,
     component_type: str,

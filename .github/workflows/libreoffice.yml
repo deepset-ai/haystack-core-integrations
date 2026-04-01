@@ -106,6 +106,8 @@ jobs:
           COVERAGE_PATH: integrations/libreoffice
           SUBPROJECT_ID: libreoffice
           COMMENT_ARTIFACT_NAME: coverage-comment-libreoffice
+          MINIMUM_GREEN: 90
+          MINIMUM_ORANGE: 60
 
       - name: Run integration tests
         run: hatch run test:integration-cov-append-retry
@@ -118,6 +120,8 @@ jobs:
           COVERAGE_PATH: integrations/libreoffice
           SUBPROJECT_ID: libreoffice-combined
           COMMENT_ARTIFACT_NAME: coverage-comment-libreoffice-combined
+          MINIMUM_GREEN: 90
+          MINIMUM_ORANGE: 60
 
       - name: Run unit tests with lowest direct dependencies
         if: github.event_name != 'push'

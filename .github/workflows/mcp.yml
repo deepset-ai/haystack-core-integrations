@@ -106,6 +106,8 @@ jobs:
           COVERAGE_PATH: integrations/mcp
           SUBPROJECT_ID: mcp
           COMMENT_ARTIFACT_NAME: coverage-comment-mcp
+          MINIMUM_GREEN: 90
+          MINIMUM_ORANGE: 60
 
       - name: Run integration tests
         run: hatch run test:integration-cov-append-retry
@@ -118,6 +120,8 @@ jobs:
           COVERAGE_PATH: integrations/mcp
           SUBPROJECT_ID: mcp-combined
           COMMENT_ARTIFACT_NAME: coverage-comment-mcp-combined
+          MINIMUM_GREEN: 90
+          MINIMUM_ORANGE: 60
 
       - name: Run unit tests with lowest direct dependencies
         if: github.event_name != 'push'

@@ -93,6 +93,8 @@ jobs:
           COVERAGE_PATH: integrations/cohere
           SUBPROJECT_ID: cohere
           COMMENT_ARTIFACT_NAME: coverage-comment-cohere
+          MINIMUM_GREEN: 90
+          MINIMUM_ORANGE: 60
 
       - name: Run integration tests
         run: hatch run test:integration-cov-append-retry
@@ -105,6 +107,8 @@ jobs:
           COVERAGE_PATH: integrations/cohere
           SUBPROJECT_ID: cohere-combined
           COMMENT_ARTIFACT_NAME: coverage-comment-cohere-combined
+          MINIMUM_GREEN: 90
+          MINIMUM_ORANGE: 60
 
       - name: Run unit tests with lowest direct dependencies
         if: github.event_name != 'push'

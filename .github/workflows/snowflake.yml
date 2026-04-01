@@ -92,6 +92,8 @@ jobs:
           COVERAGE_PATH: integrations/snowflake
           SUBPROJECT_ID: snowflake
           COMMENT_ARTIFACT_NAME: coverage-comment-snowflake
+          MINIMUM_GREEN: 90
+          MINIMUM_ORANGE: 60
 
       # No integration tests yet — add integration-cov-append-retry + combined coverage step when needed
 

@@ -89,6 +89,8 @@ jobs:
           COVERAGE_PATH: integrations/mongodb_atlas
           SUBPROJECT_ID: mongodb_atlas
           COMMENT_ARTIFACT_NAME: coverage-comment-mongodb_atlas
+          MINIMUM_GREEN: 90
+          MINIMUM_ORANGE: 60
 
       - name: Run integration tests
         run: hatch run test:integration-cov-append-retry
@@ -101,6 +103,8 @@ jobs:
           COVERAGE_PATH: integrations/mongodb_atlas
           SUBPROJECT_ID: mongodb_atlas-combined
           COMMENT_ARTIFACT_NAME: coverage-comment-mongodb_atlas-combined
+          MINIMUM_GREEN: 90
+          MINIMUM_ORANGE: 60
 
       - name: Run unit tests with lowest direct dependencies
         if: github.event_name != 'push'

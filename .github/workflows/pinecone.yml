@@ -92,6 +92,8 @@ jobs:
           COVERAGE_PATH: integrations/pinecone
           SUBPROJECT_ID: pinecone
           COMMENT_ARTIFACT_NAME: coverage-comment-pinecone
+          MINIMUM_GREEN: 90
+          MINIMUM_ORANGE: 60
 
       - name: Run integration tests
         env:
@@ -106,6 +108,8 @@ jobs:
           COVERAGE_PATH: integrations/pinecone
           SUBPROJECT_ID: pinecone-combined
           COMMENT_ARTIFACT_NAME: coverage-comment-pinecone-combined
+          MINIMUM_GREEN: 90
+          MINIMUM_ORANGE: 60
 
       - name: Run unit tests with lowest direct dependencies
         if: github.event_name != 'push'
