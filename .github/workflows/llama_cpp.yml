@@ -42,7 +42,7 @@ jobs:
       - id: set
         run: |
           if [ "${{ github.event_name }}" = "push" ]; then
-            echo 'matrix=[{"os":"ubuntu-latest","python-version":"3.10"}]' >> $GITHUB_OUTPUT
+            echo 'matrix=[{"os":"ubuntu-latest","python-version":"3.10"}]' >> "$GITHUB_OUTPUT"
           else
             MATRIX='['
             MATRIX+='{"os":"ubuntu-latest","python-version":"3.10"},'
@@ -55,7 +55,7 @@ jobs:
             MATRIX+='{"os":"macos-latest","python-version":"3.10"},'
             MATRIX+='{"os":"macos-latest","python-version":"3.12"}'
             MATRIX+=']'
-            echo "matrix=$MATRIX" >> $GITHUB_OUTPUT
+            echo "matrix=$MATRIX" >> "$GITHUB_OUTPUT"
           fi
 
   run:

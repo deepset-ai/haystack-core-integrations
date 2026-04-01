@@ -65,8 +65,8 @@ jobs:
           fi
 
           for file in $FILES; do
-            python .github/utils/pyproject_to_requirements.py $file >> ${{ env.REQUIREMENTS_FILE }}
-            echo "" >> ${{ env.REQUIREMENTS_FILE }}
+            python .github/utils/pyproject_to_requirements.py "$file" >> "${{ env.REQUIREMENTS_FILE }}"
+            echo "" >> "${{ env.REQUIREMENTS_FILE }}"
           done
 
       - name: Check Licenses
