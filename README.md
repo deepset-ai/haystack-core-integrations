@@ -6,7 +6,7 @@
 |--------------------------------------------------------------------------------- | -------: | -------: | -------: | -------: | ------: | --------: |
 | src/haystack\_integrations/components/embedders/watsonx/document\_embedder.py    |       54 |        1 |        8 |        0 |     98% |       129 |
 | src/haystack\_integrations/components/embedders/watsonx/text\_embedder.py        |       40 |        1 |        4 |        0 |     98% |       111 |
-| src/haystack\_integrations/components/generators/watsonx/chat/chat\_generator.py |      162 |        5 |       52 |        6 |     95% |328, 384->381, 397, 520, 553, 562 |
+| src/haystack\_integrations/components/generators/watsonx/chat/chat\_generator.py |      162 |        5 |       52 |        6 |     95% |328, 384-\>381, 397, 520, 553, 562 |
 | src/haystack\_integrations/components/generators/watsonx/generator.py            |       47 |        0 |        4 |        0 |    100% |           |
 | **TOTAL**                                                                        |  **303** |    **7** |   **68** |    **6** | **96%** |           |
 
