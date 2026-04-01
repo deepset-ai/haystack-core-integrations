@@ -4,7 +4,7 @@
 
 | Name                                                                                  |    Stmts |     Miss |   Branch |   BrPart |   Cover |   Missing |
 |-------------------------------------------------------------------------------------- | -------: | -------: | -------: | -------: | ------: | --------: |
-| src/haystack\_integrations/components/generators/llama\_stack/chat/chat\_generator.py |       31 |        0 |        4 |        1 |     97% |  194->196 |
+| src/haystack\_integrations/components/generators/llama\_stack/chat/chat\_generator.py |       31 |        0 |        4 |        1 |     97% | 194-\>196 |
 | **TOTAL**                                                                             |   **31** |    **0** |    **4** |    **1** | **97%** |           |
 
 
