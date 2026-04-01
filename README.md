@@ -4,10 +4,10 @@
 
 | Name                                                                                       |    Stmts |     Miss |   Branch |   BrPart |   Cover |   Missing |
 |------------------------------------------------------------------------------------------- | -------: | -------: | -------: | -------: | ------: | --------: |
-| src/haystack\_integrations/components/generators/anthropic/chat/chat\_generator.py         |      157 |       31 |       58 |        8 |     74% |205, 270, 303-304, 347->346, 351->354, 362, 371->376, 373, 409-449 |
-| src/haystack\_integrations/components/generators/anthropic/chat/utils.py                   |      232 |       28 |      148 |       21 |     84% |120->129, 127-128, 201-216, 220-221, 225, 233, 253->252, 284->290, 285->287, 287->290, 313-314, 320-321, 328->331, 383, 395->402, 447-455, 460->462, 463, 465, 468->477, 482-483 |
-| src/haystack\_integrations/components/generators/anthropic/chat/vertex\_chat\_generator.py |       43 |        0 |        6 |        1 |     98% |  188->191 |
-| src/haystack\_integrations/components/generators/anthropic/generator.py                    |       95 |       35 |       42 |        4 |     51% |110, 143->145, 169, 192-229, 238->260 |
+| src/haystack\_integrations/components/generators/anthropic/chat/chat\_generator.py         |      157 |       31 |       58 |        8 |     74% |205, 270, 303-304, 347-\>346, 351-\>354, 362, 371-\>376, 373, 409-449 |
+| src/haystack\_integrations/components/generators/anthropic/chat/utils.py                   |      232 |       28 |      148 |       21 |     84% |120-\>129, 127-128, 201-216, 220-221, 225, 233, 253-\>252, 284-\>290, 285-\>287, 287-\>290, 313-314, 320-321, 328-\>331, 383, 395-\>402, 447-455, 460-\>462, 463, 465, 468-\>477, 482-483 |
+| src/haystack\_integrations/components/generators/anthropic/chat/vertex\_chat\_generator.py |       43 |        0 |        6 |        1 |     98% | 188-\>191 |
+| src/haystack\_integrations/components/generators/anthropic/generator.py                    |       95 |       35 |       42 |        4 |     51% |110, 143-\>145, 169, 192-229, 238-\>260 |
 | **TOTAL**                                                                                  |  **527** |   **94** |  **254** |   **34** | **76%** |           |
 
 
