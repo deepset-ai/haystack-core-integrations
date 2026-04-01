@@ -4,7 +4,7 @@
 
 | Name                                                                                 |    Stmts |     Miss |   Branch |   BrPart |   Cover |   Missing |
 |------------------------------------------------------------------------------------- | -------: | -------: | -------: | -------: | ------: | --------: |
-| src/haystack\_integrations/components/converters/markitdown/markitdown\_converter.py |       35 |        0 |        8 |        1 |     98% |    92->98 |
+| src/haystack\_integrations/components/converters/markitdown/markitdown\_converter.py |       35 |        0 |        8 |        1 |     98% |   92-\>98 |
 | **TOTAL**                                                                            |   **35** |    **0** |    **8** |    **1** | **98%** |           |
 
 
