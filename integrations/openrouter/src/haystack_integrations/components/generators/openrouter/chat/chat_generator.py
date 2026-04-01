@@ -18,6 +18,7 @@ logger = logging.getLogger(__name__)
 class OpenRouterChatGenerator(OpenAIChatGenerator):
     """
     Enables text generation using OpenRouter generative models.
+
     For supported models, see [OpenRouter docs](https://openrouter.ai/models).
 
     Users can pass any text generation parameters valid for the OpenRouter chat completion API
@@ -71,8 +72,7 @@ class OpenRouterChatGenerator(OpenAIChatGenerator):
         http_client_kwargs: dict[str, Any] | None = None,
     ) -> None:
         """
-        Creates an instance of OpenRouterChatGenerator. Unless specified otherwise,
-        the default model is `openai/gpt-5-mini`.
+        Creates an instance of OpenRouterChatGenerator.
 
         :param api_key:
             The OpenRouter API key.

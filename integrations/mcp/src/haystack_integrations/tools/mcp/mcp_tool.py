@@ -4,7 +4,10 @@
 
 import asyncio
 import concurrent.futures
+import io
 import json
+import sys
+import tempfile
 import threading
 import warnings
 from abc import ABC, abstractmethod
@@ -435,7 +438,17 @@ class StdioClient(MCPClient):
         logger.debug(f"PROCESS: Connecting to stdio server with command: {self.command}")
 
         server_params = StdioServerParameters(command=self.command, args=self.args, env=self.env)
-        stdio_transport = await self.exit_stack.enter_async_context(stdio_client(server_params))
+
+        # In notebook environments, sys.stderr is a custom object without a real file descriptor, which causes MCP stdio
+        # connection to fail. We detect this and set the MCP server's errlog to a temp file instead.
+        errlog = sys.stderr
+        try:
+            sys.stderr.fileno()
+        except (io.UnsupportedOperation, AttributeError, OSError):
+            errlog = tempfile.NamedTemporaryFile(mode="w", suffix="-mcp-stderr.log", delete=False)
+            logger.warning("MCP server stderr redirected to {path}", path=errlog.name)
+
+        stdio_transport = await self.exit_stack.enter_async_context(stdio_client(server_params, errlog=errlog))
         return await self._initialize_session_with_transport(stdio_transport, f"stdio server (command: {self.command})")
 
 

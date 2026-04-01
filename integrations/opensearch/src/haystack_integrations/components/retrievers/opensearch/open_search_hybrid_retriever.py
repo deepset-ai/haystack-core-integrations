@@ -114,8 +114,9 @@ class OpenSearchHybridRetriever:
         **kwargs: Any,
     ) -> None:
         """
-        Initialize the OpenSearchHybridRetriever, a super component to retrieve documents from OpenSearch using
-        both embedding-based and keyword-based retrieval methods.
+        Initialize the OpenSearchHybridRetriever using both embedding-based and keyword-based retrieval methods.
+
+        This is a super component to retrieve documents from OpenSearch using both retrieval methods.
 
         We don't explicitly define all the init parameters of the components in the constructor, for each
         of the components, since that would be around 20+ parameters. Instead, we define the most important ones
@@ -242,7 +243,9 @@ class OpenSearchHybridRetriever:
 
     if TYPE_CHECKING:
 
-        def warm_up(self) -> None: ...
+        def warm_up(self) -> None:
+            """Warm up the underlying pipeline components."""
+            ...
 
         def run(
             self,
@@ -251,7 +254,9 @@ class OpenSearchHybridRetriever:
             filters_embedding: dict[str, Any] | None = None,
             top_k_bm25: int | None = None,
             top_k_embedding: int | None = None,
-        ) -> dict[str, list[Document]]: ...
+        ) -> dict[str, list[Document]]:
+            """Run the hybrid retrieval pipeline and return retrieved documents."""
+            ...
 
     def _create_pipeline(self, data: dict[str, Any]) -> Pipeline:
         """
@@ -328,6 +333,7 @@ class OpenSearchHybridRetriever:
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "OpenSearchHybridRetriever":
+        """Deserialize an OpenSearchHybridRetriever from a dictionary."""
         # deserialize the document store
         doc_store = OpenSearchDocumentStore.from_dict(data["init_parameters"]["document_store"])
         data["init_parameters"]["document_store"] = doc_store

@@ -10,7 +10,14 @@ import pytest
 from haystack import Document
 from haystack.document_stores.errors import MissingDocumentError
 from haystack.document_stores.types import DuplicatePolicy
-from haystack.testing.document_store import DocumentStoreBaseExtendedTests
+from haystack.testing.document_store import (
+    CountDocumentsByFilterTest,
+    CountUniqueMetadataByFilterTest,
+    DocumentStoreBaseExtendedTests,
+    GetMetadataFieldMinMaxTest,
+    GetMetadataFieldsInfoTest,
+    GetMetadataFieldUniqueValuesTest,
+)
 
 from haystack_integrations.document_stores.astra import AstraDocumentStore
 
@@ -135,7 +142,14 @@ def test_get_metadata_field_unique_values(mock_astra_client):
     os.environ.get("ASTRA_DB_APPLICATION_TOKEN", "") == "", reason="ASTRA_DB_APPLICATION_TOKEN env var not set"
 )
 @pytest.mark.skipif(os.environ.get("ASTRA_DB_API_ENDPOINT", "") == "", reason="ASTRA_DB_API_ENDPOINT env var not set")
-class TestDocumentStore(DocumentStoreBaseExtendedTests):
+class TestDocumentStore(
+    DocumentStoreBaseExtendedTests,
+    CountDocumentsByFilterTest,
+    CountUniqueMetadataByFilterTest,
+    GetMetadataFieldsInfoTest,
+    GetMetadataFieldMinMaxTest,
+    GetMetadataFieldUniqueValuesTest,
+):
     """
     Common test cases will be provided by `DocumentStoreBaseExtendedTests` but
     you can add more to this class.
@@ -291,80 +305,6 @@ class TestDocumentStore(DocumentStoreBaseExtendedTests):
 
         TestDocumentStore.assert_documents_are_equal([result[0]], [docs[0]])
         TestDocumentStore.assert_documents_are_equal([result[1]], [docs[1]])
-
-    def test_count_documents_by_filter(self, document_store: AstraDocumentStore):
-        docs = [
-            Document(id="1", content="Doc 1", meta={"category": "news", "status": "published", "priority": 3}),
-            Document(id="2", content="Doc 2", meta={"category": "docs", "status": "draft", "priority": 1}),
-            Document(id="3", content="Doc 3", meta={"category": "news", "status": "published", "priority": 5}),
-        ]
-        document_store.write_documents(docs)
-
-        count = document_store.count_documents_by_filter(
-            {"field": "meta.status", "operator": "==", "value": "published"}
-        )
-
-        assert count == 2
-
-    def test_count_unique_metadata_by_filter(self, document_store: AstraDocumentStore):
-        docs = [
-            Document(id="1", content="Doc 1", meta={"category": "news", "status": "published", "priority": 1}),
-            Document(id="2", content="Doc 2", meta={"category": "docs", "status": "published", "priority": 2}),
-            Document(id="3", content="Doc 3", meta={"category": "news", "status": "published", "priority": 2}),
-            Document(id="4", content="Doc 4", meta={"category": "faq", "status": "draft", "priority": 3}),
-        ]
-        document_store.write_documents(docs)
-
-        counts = document_store.count_unique_metadata_by_filter(
-            {"field": "meta.status", "operator": "==", "value": "published"},
-            ["category", "priority"],
-        )
-
-        assert counts == {"category": 2, "priority": 2}
-
-    def test_get_metadata_fields_info(self, document_store: AstraDocumentStore):
-        docs = [
-            Document(id="1", content="Doc 1", meta={"category": "news", "status": "published", "priority": 1}),
-            Document(id="2", content="Doc 2", meta={"category": "docs", "status": "draft", "priority": 2}),
-        ]
-        document_store.write_documents(docs)
-
-        fields_info = document_store.get_metadata_fields_info()
-
-        assert fields_info == {
-            "content": {"type": "text"},
-            "category": {"type": "keyword"},
-            "status": {"type": "keyword"},
-            "priority": {"type": "long"},
-        }
-
-    def test_get_metadata_field_min_max(self, document_store: AstraDocumentStore):
-        docs = [
-            Document(id="1", content="Doc 1", meta={"priority": 3}),
-            Document(id="2", content="Doc 2", meta={"priority": 1}),
-            Document(id="3", content="Doc 3", meta={"priority": 7}),
-        ]
-        document_store.write_documents(docs)
-
-        result = document_store.get_metadata_field_min_max("priority")
-
-        assert result == {"min": 1, "max": 7}
-
-    def test_get_metadata_field_unique_values(self, document_store: AstraDocumentStore):
-        docs = [
-            Document(id="1", content="Doc 1", meta={"category": "alpha"}),
-            Document(id="2", content="Doc 2", meta={"category": "beta"}),
-            Document(id="3", content="Doc 3", meta={"category": "alphabet"}),
-            Document(id="4", content="Doc 4", meta={"category": "gamma"}),
-        ]
-        document_store.write_documents(docs)
-
-        values, total_count = document_store.get_metadata_field_unique_values(
-            "category", search_term="alp", from_=0, size=10
-        )
-
-        assert values == ["alpha", "alphabet"]
-        assert total_count == 2
 
     @pytest.mark.skip(reason="Unsupported filter operator not.")
     def test_not_operator(self, document_store, filterable_docs):

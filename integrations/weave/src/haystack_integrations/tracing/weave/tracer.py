@@ -42,6 +42,7 @@ class WeaveSpan(Span):
         self._attributes[key] = value
 
     def set_tags(self, tags: dict[str, Any]) -> None:
+        """Set multiple tags at once by iterating over the provided dictionary."""
         for k, v in tags.items():
             self.set_tag(k, v)
 
@@ -56,9 +57,11 @@ class WeaveSpan(Span):
         return {"weave.call_id": self._call.id, "weave.run_id": getattr(self._call, "run_id", "")}
 
     def set_call(self, call: Call) -> None:
+        """Set the underlying Weave Call object for this span."""
         self._call = call
 
     def get_attributes(self) -> dict[str, Any]:
+        """Return the accumulated attributes dictionary for this span."""
         return self._attributes
 
 
@@ -92,6 +95,7 @@ class WeaveTracer(Tracer):
 
     @staticmethod
     def create_call(attributes: dict, client: WeaveClient, parent_span: WeaveSpan | None, operation_name: str) -> Call:
+        """Create and return a Weave Call from the given span attributes and client."""
         comp_name = attributes.pop("haystack.component.name", "")
         comp_type = attributes.pop("haystack.component.type", "")
         comp_input = attributes.pop("haystack.component.input", {})

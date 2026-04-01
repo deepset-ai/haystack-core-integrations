@@ -2,6 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+
 import pytest
 from haystack.dataclasses import Document
 from haystack.document_stores.errors import DocumentStoreError
@@ -59,6 +60,53 @@ class TestDocumentStoreAsync:
 
         assert len(res) == 5
         assert all("functional" in doc.content for doc in res)
+
+    @pytest.mark.asyncio
+    async def test_bm25_retrieval_with_fuzziness(
+        self, document_store: OpenSearchDocumentStore, test_documents: list[Document]
+    ):
+        document_store.write_documents(test_documents)
+
+        query_with_typo = "functinal"
+        # Query without fuzziness to search for the exact match
+        res = await document_store._bm25_retrieval_async(query_with_typo, top_k=3, fuzziness="0")
+        # Nothing is found as the query contains a typo
+        assert res == []
+
+        # Query with fuzziness with the same query
+        res = await document_store._bm25_retrieval_async(query_with_typo, top_k=3, fuzziness="1")
+        assert len(res) == 3
+        assert "functional" in res[0].content
+        assert "functional" in res[1].content
+        assert "functional" in res[2].content
+
+    @pytest.mark.asyncio
+    async def test_bm25_retrieval_with_fuzziness_overflow(self, document_store: OpenSearchDocumentStore, caplog):
+        """
+        Test that a long query with fuzziness="AUTO" that exceeds OpenSearch's maxClauseCount
+        is automatically retried with fuzziness=0 instead of raising an error.
+        """
+        # Build an index vocabulary of similar 5-character words. With fuzziness="AUTO",
+        # 5-char words get edit distance 1, so each query term fuzzy-matches many similar
+        # indexed terms, causing clause expansion beyond the default maxClauseCount (1024).
+        # With fuzziness=0, each term produces exactly 1 clause, staying well under the limit.
+        words = [f"foo{chr(97 + i)}{chr(97 + j)}" for i in range(20) for j in range(26)]  # 520 words
+
+        chunk_size = 52
+        docs = [
+            Document(content=" ".join(words[i : i + chunk_size]), id=str(idx))
+            for idx, i in enumerate(range(0, len(words), chunk_size))
+        ]
+        document_store.write_documents(docs)
+
+        # Query with a subset of words. With fuzziness="AUTO", each 5-char term expands
+        # to match ~45 similar indexed terms, pushing total clauses well above 1024.
+        long_query = " ".join(words[:100])
+
+        # This should not raise: the too_many_clauses error is caught and retried with fuzziness=0
+        res = await document_store._bm25_retrieval_async(long_query, top_k=3, fuzziness="AUTO")
+        assert isinstance(res, list)
+        assert "Retrying with fuzziness=0" in caplog.text
 
     @pytest.mark.asyncio
     async def test_bm25_retrieval_with_filters(

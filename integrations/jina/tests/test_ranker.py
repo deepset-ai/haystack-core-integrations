@@ -38,10 +38,17 @@ class TestJinaRanker:
         assert embedder.model == "jina-reranker-v1-base-en"
 
     def test_init_with_parameters(self):
-        embedder = JinaRanker(api_key=Secret.from_token("fake-api-key"), model="model", top_k=64, score_threshold=0.5)
+        embedder = JinaRanker(
+            api_key=Secret.from_token("fake-api-key"),
+            model="model",
+            base_url="https://my.custom.url/v1/rerank",
+            top_k=64,
+            score_threshold=0.5,
+        )
 
         assert embedder.api_key == Secret.from_token("fake-api-key")
         assert embedder.model == "model"
+        assert embedder.base_url == "https://my.custom.url/v1/rerank"
         assert embedder.top_k == 64
         assert embedder.score_threshold == 0.5
 
@@ -59,6 +66,7 @@ class TestJinaRanker:
             "init_parameters": {
                 "api_key": {"env_vars": ["JINA_API_KEY"], "strict": True, "type": "env_var"},
                 "model": "jina-reranker-v1-base-en",
+                "base_url": "https://api.jina.ai/v1/rerank",
                 "top_k": None,
                 "score_threshold": None,
             },
@@ -66,13 +74,14 @@ class TestJinaRanker:
 
     def test_to_dict_with_custom_init_parameters(self, monkeypatch):
         monkeypatch.setenv("JINA_API_KEY", "fake-api-key")
-        component = JinaRanker(model="model", top_k=64, score_threshold=0.5)
+        component = JinaRanker(model="model", top_k=64, score_threshold=0.5, base_url="https://my.custom.url/v1/rerank")
         data = component.to_dict()
         assert data == {
             "type": "haystack_integrations.components.rankers.jina.ranker.JinaRanker",
             "init_parameters": {
                 "api_key": {"env_vars": ["JINA_API_KEY"], "strict": True, "type": "env_var"},
                 "model": "model",
+                "base_url": "https://my.custom.url/v1/rerank",
                 "top_k": 64,
                 "score_threshold": 0.5,
             },

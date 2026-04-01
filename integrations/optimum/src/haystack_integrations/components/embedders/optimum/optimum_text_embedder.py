@@ -16,9 +16,10 @@ from .quantization import OptimumEmbedderQuantizationConfig
 @component
 class OptimumTextEmbedder:
     """
-    A component to embed text using models loaded with the
-    [HuggingFace Optimum](https://huggingface.co/docs/optimum/index) library,
-    leveraging the ONNX runtime for high-speed inference.
+    A component to embed text using models loaded with the HuggingFace Optimum library.
+
+    Uses the [HuggingFace Optimum](https://huggingface.co/docs/optimum/index) library and leverages the ONNX
+    runtime for high-speed inference.
 
     Usage example:
     ```python

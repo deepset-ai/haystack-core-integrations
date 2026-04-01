@@ -11,8 +11,10 @@ from optimum.onnxruntime.configuration import AutoOptimizationConfig, Optimizati
 
 class OptimumEmbedderOptimizationMode(Enum):
     """
-    [ONXX Optimization modes](https://huggingface.co/docs/optimum/onnxruntime/usage_guides/optimization)
-    support by the Optimum Embedders.
+    ONNX Optimization modes supported by the Optimum Embedders.
+
+    See [Optimum ONNX optimization docs](https://huggingface.co/docs/optimum/onnxruntime/usage_guides/optimization)
+    for more details.
     """
 
     #: Basic general optimizations.

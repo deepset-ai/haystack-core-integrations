@@ -94,6 +94,7 @@ class WeaveConnector:
 
     @component.output_types(pipeline_name=str)
     def run(self) -> dict[str, str]:
+        """Run the WeaveConnector, initializing the tracer if needed."""
         if self.tracer is None:
             self.warm_up()
         # NOTE: this is a no-op component - it simply triggers the Tracer to sends traces to Weights & Biases

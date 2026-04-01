@@ -426,7 +426,7 @@ class TestAmazonBedrockChatGeneratorUtils:
                 ],
                 name=None,
                 meta={
-                    "model": "anthropic.claude-3-5-sonnet-20240620-v1:0",
+                    "model": "global.anthropic.claude-sonnet-4-6",
                     "index": 0,
                     "finish_reason": "tool_use",
                     "usage": {"prompt_tokens": 366, "completion_tokens": 134, "total_tokens": 500},
@@ -493,7 +493,7 @@ class TestAmazonBedrockChatGeneratorUtils:
         ]
 
     def test_extract_replies_from_text_response(self, mock_boto3_session):
-        model = "anthropic.claude-3-5-sonnet-20240620-v1:0"
+        model = "global.anthropic.claude-sonnet-4-6"
         text_response = {
             "output": {"message": {"role": "assistant", "content": [{"text": "This is a test response"}]}},
             "stopReason": "end_turn",
@@ -526,7 +526,7 @@ class TestAmazonBedrockChatGeneratorUtils:
         }
 
     def test_extract_replies_from_tool_response(self, mock_boto3_session):
-        model = "anthropic.claude-3-5-sonnet-20240620-v1:0"
+        model = "global.anthropic.claude-sonnet-4-6"
         tool_response = {
             "output": {
                 "message": {
@@ -560,7 +560,7 @@ class TestAmazonBedrockChatGeneratorUtils:
         }
 
     def test_extract_replies_from_text_mixed_response(self, mock_boto3_session):
-        model = "anthropic.claude-3-5-sonnet-20240620-v1:0"
+        model = "global.anthropic.claude-sonnet-4-6"
         mixed_response = {
             "output": {
                 "message": {
@@ -598,7 +598,7 @@ class TestAmazonBedrockChatGeneratorUtils:
         }
 
     def test_extract_replies_from_multi_tool_response(self, mock_boto3_session):
-        model = "anthropic.claude-3-5-sonnet-20240620-v1:0"
+        model = "global.anthropic.claude-sonnet-4-6"
         response_body = {
             "ResponseMetadata": {
                 "RequestId": "0ba58797-2194-4779-9a53-597c24ce337a",
@@ -658,7 +658,7 @@ class TestAmazonBedrockChatGeneratorUtils:
             ],
             name=None,
             meta={
-                "model": "anthropic.claude-3-5-sonnet-20240620-v1:0",
+                "model": "global.anthropic.claude-sonnet-4-6",
                 "index": 0,
                 "finish_reason": "tool_calls",
                 "usage": {
@@ -759,7 +759,7 @@ class TestAmazonBedrockChatGeneratorUtils:
         assert replies[0] == expected_message
 
     def test_extract_replies_with_guardrail(self, mock_boto3_session):
-        model = "anthropic.claude-3-5-sonnet-20240620-v1:0"
+        model = "global.anthropic.claude-sonnet-4-6"
 
         trace = {
             "guardrail": {
@@ -919,7 +919,7 @@ class TestAmazonBedrockChatGeneratorUtils:
         """
         Test that process_streaming_response correctly handles streaming events and accumulates responses
         """
-        model = "anthropic.claude-3-5-sonnet-20240620-v1:0"
+        model = "global.anthropic.claude-sonnet-4-6"
         type_ = (
             "haystack_integrations.components.generators.amazon_bedrock.chat.chat_generator.AmazonBedrockChatGenerator"
         )
@@ -1199,7 +1199,7 @@ class TestAmazonBedrockChatGeneratorUtils:
             assert "reasoning_contents" not in chunk.meta
 
     def test_parse_streaming_response_with_two_tool_calls(self, mock_boto3_session):
-        model = "anthropic.claude-3-5-sonnet-20240620-v1:0"
+        model = "global.anthropic.claude-sonnet-4-6"
         type_ = (
             "haystack_integrations.components.generators.amazon_bedrock.chat.chat_generator.AmazonBedrockChatGenerator"
         )
@@ -1266,7 +1266,7 @@ class TestAmazonBedrockChatGeneratorUtils:
                     ),
                 ],
                 meta={
-                    "model": "anthropic.claude-3-5-sonnet-20240620-v1:0",
+                    "model": "global.anthropic.claude-sonnet-4-6",
                     "index": 0,
                     "finish_reason": "tool_calls",
                     "usage": {
@@ -1284,7 +1284,7 @@ class TestAmazonBedrockChatGeneratorUtils:
         assert replies == expected_messages
 
     def test_parse_streaming_response_with_guardrail(self, mock_boto3_session):
-        model = "anthropic.claude-3-5-sonnet-20240620-v1:0"
+        model = "global.anthropic.claude-sonnet-4-6"
         type_ = (
             "haystack_integrations.components.generators.amazon_bedrock.chat.chat_generator.AmazonBedrockChatGenerator"
         )
@@ -1371,7 +1371,7 @@ class TestAmazonBedrockChatGeneratorUtils:
             StreamingChunk(
                 content="Certainly! I",
                 meta={
-                    "model": "anthropic.claude-3-5-sonnet-20240620-v1:0",
+                    "model": "global.anthropic.claude-sonnet-4-6",
                     "received_at": "2025-07-31T08:46:07.072764+00:00",
                 },
                 index=0,
@@ -1380,7 +1380,7 @@ class TestAmazonBedrockChatGeneratorUtils:
             StreamingChunk(
                 content=" can help",
                 meta={
-                    "model": "anthropic.claude-3-5-sonnet-20240620-v1:0",
+                    "model": "global.anthropic.claude-sonnet-4-6",
                     "received_at": "2025-07-31T08:46:07.111264+00:00",
                 },
                 index=0,
@@ -1388,7 +1388,7 @@ class TestAmazonBedrockChatGeneratorUtils:
             StreamingChunk(
                 content=" you print",
                 meta={
-                    "model": "anthropic.claude-3-5-sonnet-20240620-v1:0",
+                    "model": "global.anthropic.claude-sonnet-4-6",
                     "received_at": "2025-07-31T08:46:07.162575+00:00",
                 },
                 index=0,
@@ -1396,7 +1396,7 @@ class TestAmazonBedrockChatGeneratorUtils:
             StreamingChunk(
                 content=' "Hello World"',
                 meta={
-                    "model": "anthropic.claude-3-5-sonnet-20240620-v1:0",
+                    "model": "global.anthropic.claude-sonnet-4-6",
                     "received_at": "2025-07-31T08:46:07.215535+00:00",
                 },
                 index=0,
@@ -1404,7 +1404,7 @@ class TestAmazonBedrockChatGeneratorUtils:
             StreamingChunk(
                 content=" using the available",
                 meta={
-                    "model": "anthropic.claude-3-5-sonnet-20240620-v1:0",
+                    "model": "global.anthropic.claude-sonnet-4-6",
                     "received_at": "2025-07-31T08:46:07.270642+00:00",
                 },
                 index=0,
@@ -1412,7 +1412,7 @@ class TestAmazonBedrockChatGeneratorUtils:
             StreamingChunk(
                 content=' "',
                 meta={
-                    "model": "anthropic.claude-3-5-sonnet-20240620-v1:0",
+                    "model": "global.anthropic.claude-sonnet-4-6",
                     "received_at": "2025-07-31T08:46:07.349415+00:00",
                 },
                 index=0,
@@ -1420,7 +1420,7 @@ class TestAmazonBedrockChatGeneratorUtils:
             StreamingChunk(
                 content='hello_world" tool',
                 meta={
-                    "model": "anthropic.claude-3-5-sonnet-20240620-v1:0",
+                    "model": "global.anthropic.claude-sonnet-4-6",
                     "received_at": "2025-07-31T08:46:07.426891+00:00",
                 },
                 index=0,
@@ -1428,7 +1428,7 @@ class TestAmazonBedrockChatGeneratorUtils:
             StreamingChunk(
                 content=". This tool is",
                 meta={
-                    "model": "anthropic.claude-3-5-sonnet-20240620-v1:0",
+                    "model": "global.anthropic.claude-sonnet-4-6",
                     "received_at": "2025-07-31T08:46:07.495910+00:00",
                 },
                 index=0,
@@ -1436,7 +1436,7 @@ class TestAmazonBedrockChatGeneratorUtils:
             StreamingChunk(
                 content=' designed to print "',
                 meta={
-                    "model": "anthropic.claude-3-5-sonnet-20240620-v1:0",
+                    "model": "global.anthropic.claude-sonnet-4-6",
                     "received_at": "2025-07-31T08:46:07.527426+00:00",
                 },
                 index=0,
@@ -1444,7 +1444,7 @@ class TestAmazonBedrockChatGeneratorUtils:
             StreamingChunk(
                 content='Hello World" an',
                 meta={
-                    "model": "anthropic.claude-3-5-sonnet-20240620-v1:0",
+                    "model": "global.anthropic.claude-sonnet-4-6",
                     "received_at": "2025-07-31T08:46:07.590629+00:00",
                 },
                 index=0,
@@ -1452,7 +1452,7 @@ class TestAmazonBedrockChatGeneratorUtils:
             StreamingChunk(
                 content="d doesn't require any parameters",
                 meta={
-                    "model": "anthropic.claude-3-5-sonnet-20240620-v1:0",
+                    "model": "global.anthropic.claude-sonnet-4-6",
                     "received_at": "2025-07-31T08:46:07.682261+00:00",
                 },
                 index=0,
@@ -1460,7 +1460,7 @@ class TestAmazonBedrockChatGeneratorUtils:
             StreamingChunk(
                 content=". Let",
                 meta={
-                    "model": "anthropic.claude-3-5-sonnet-20240620-v1:0",
+                    "model": "global.anthropic.claude-sonnet-4-6",
                     "received_at": "2025-07-31T08:46:07.790526+00:00",
                 },
                 index=0,
@@ -1468,7 +1468,7 @@ class TestAmazonBedrockChatGeneratorUtils:
             StreamingChunk(
                 content="'s go ahead an",
                 meta={
-                    "model": "anthropic.claude-3-5-sonnet-20240620-v1:0",
+                    "model": "global.anthropic.claude-sonnet-4-6",
                     "received_at": "2025-07-31T08:46:07.845332+00:00",
                 },
                 index=0,
@@ -1476,7 +1476,7 @@ class TestAmazonBedrockChatGeneratorUtils:
             StreamingChunk(
                 content="d use",
                 meta={
-                    "model": "anthropic.claude-3-5-sonnet-20240620-v1:0",
+                    "model": "global.anthropic.claude-sonnet-4-6",
                     "received_at": "2025-07-31T08:46:07.990588+00:00",
                 },
                 index=0,
@@ -1484,7 +1484,7 @@ class TestAmazonBedrockChatGeneratorUtils:
             StreamingChunk(
                 content=" it.",
                 meta={
-                    "model": "anthropic.claude-3-5-sonnet-20240620-v1:0",
+                    "model": "global.anthropic.claude-sonnet-4-6",
                     "received_at": "2025-07-31T08:46:07.994309+00:00",
                 },
                 index=0,
@@ -1492,14 +1492,14 @@ class TestAmazonBedrockChatGeneratorUtils:
             StreamingChunk(
                 content="",
                 meta={
-                    "model": "anthropic.claude-3-5-sonnet-20240620-v1:0",
+                    "model": "global.anthropic.claude-sonnet-4-6",
                     "received_at": "2025-07-31T08:46:08.359127+00:00",
                 },
             ),
             StreamingChunk(
                 content="",
                 meta={
-                    "model": "anthropic.claude-3-5-sonnet-20240620-v1:0",
+                    "model": "global.anthropic.claude-sonnet-4-6",
                     "received_at": "2025-07-31T08:46:08.359912+00:00",
                 },
                 index=1,
@@ -1510,7 +1510,7 @@ class TestAmazonBedrockChatGeneratorUtils:
             StreamingChunk(
                 content="",
                 meta={
-                    "model": "anthropic.claude-3-5-sonnet-20240620-v1:0",
+                    "model": "global.anthropic.claude-sonnet-4-6",
                     "received_at": "2025-07-31T08:46:08.361612+00:00",
                 },
                 index=1,
@@ -1519,14 +1519,14 @@ class TestAmazonBedrockChatGeneratorUtils:
             StreamingChunk(
                 content="",
                 meta={
-                    "model": "anthropic.claude-3-5-sonnet-20240620-v1:0",
+                    "model": "global.anthropic.claude-sonnet-4-6",
                     "received_at": "2025-07-31T08:46:08.592175+00:00",
                 },
             ),
             StreamingChunk(
                 content="",
                 meta={
-                    "model": "anthropic.claude-3-5-sonnet-20240620-v1:0",
+                    "model": "global.anthropic.claude-sonnet-4-6",
                     "received_at": "2025-07-31T08:46:08.592175+00:00",
                 },
                 finish_reason="tool_calls",
@@ -1534,7 +1534,7 @@ class TestAmazonBedrockChatGeneratorUtils:
             StreamingChunk(
                 content="",
                 meta={
-                    "model": "anthropic.claude-3-5-sonnet-20240620-v1:0",
+                    "model": "global.anthropic.claude-sonnet-4-6",
                     "received_at": "2025-07-31T08:46:08.596700+00:00",
                     "usage": {"prompt_tokens": 349, "completion_tokens": 84, "total_tokens": 433},
                 },
@@ -1557,7 +1557,7 @@ class TestAmazonBedrockChatGeneratorUtils:
         assert tool_call.arguments == {}
 
         # Verify meta information
-        assert message._meta["model"] == "anthropic.claude-3-5-sonnet-20240620-v1:0"
+        assert message._meta["model"] == "global.anthropic.claude-sonnet-4-6"
         assert message._meta["index"] == 0
         assert message._meta["finish_reason"] == "tool_calls"
         assert message._meta["usage"] == {"completion_tokens": 84, "prompt_tokens": 349, "total_tokens": 433}

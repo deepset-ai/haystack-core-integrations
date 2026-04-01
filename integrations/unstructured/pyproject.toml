@@ -69,7 +69,8 @@ dependencies = [
 unit = 'pytest -m "not integration" {args:tests}'
 integration = 'pytest -m "integration" {args:tests}'
 all = 'pytest {args:tests}'
-cov-retry = 'pytest --cov=haystack_integrations --reruns 3 --reruns-delay 30 -x {args:tests}'
+unit-cov-retry = 'pytest --cov=haystack_integrations --reruns 3 --reruns-delay 30 -x -m "not integration" {args:tests}'
+integration-cov-append-retry = 'pytest --cov=haystack_integrations --cov-append --reruns 3 --reruns-delay 30 -x -m "integration" {args:tests}'
 
 types = "mypy -p haystack_integrations.components.converters.unstructured {args}"
 
@@ -91,6 +92,13 @@ select = [
   "ARG",
   "B",
   "C",
+  "D102",   # Missing docstring in public method
+  "D103",   # Missing docstring in public function
+  "D205",   # 1 blank line required between summary line and description
+  "D209",   # Closing triple quotes go to new line
+  "D213",   # summary lines must be positioned on the second physical line of the docstring
+  "D417",   # Missing argument descriptions in the docstring
+  "D419",   # Docstring is empty
   "DTZ",
   "E",
   "EM",
@@ -139,11 +147,12 @@ ban-relative-imports = "parents"
 
 [tool.ruff.lint.per-file-ignores]
 # Tests can use magic values, assertions, and relative imports
-"tests/**/*" = ["ANN", "PLR2004", "S101", "TID252"]
+"tests/**/*" = ["D", "ANN", "PLR2004", "S101", "TID252"]
 
 [tool.coverage.run]
 source = ["haystack_integrations"]
 branch = true
+relative_files = true
 parallel = true
 
 [tool.coverage.report]

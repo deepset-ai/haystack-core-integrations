@@ -19,6 +19,7 @@ classifiers = [
   "Programming Language :: Python :: 3.11",
   "Programming Language :: Python :: 3.12",
   "Programming Language :: Python :: 3.13",
+  "Programming Language :: Python :: 3.14",
   "Programming Language :: Python :: Implementation :: CPython",
   "Programming Language :: Python :: Implementation :: PyPy",
 ]
@@ -27,8 +28,8 @@ dependencies = [
   "hanlp>=2.1.1",
   # the following pins can be removed once HanLP supports transformers 5
   "transformers>=4.1.1,<5",
-  # tokenizers is a dependency of transformers. The following version is the first one which supports Python 3.13.
-  "tokenizers>=0.20.2",
+  # tokenizers is a dependency of transformers. The following version is the first one which supports Python 3.14.
+  "tokenizers>=0.21.0",
 ]
 
 [project.urls]
@@ -70,7 +71,8 @@ dependencies = [
 unit = 'pytest -m "not integration" {args:tests}'
 integration = 'pytest -m "integration" {args:tests}'
 all = 'pytest {args:tests}'
-cov-retry = 'pytest --cov=haystack_integrations --reruns 3 --reruns-delay 30 -x {args:tests}'
+unit-cov-retry = 'pytest --cov=haystack_integrations --reruns 3 --reruns-delay 30 -x -m "not integration" {args:tests}'
+integration-cov-append-retry = 'pytest --cov=haystack_integrations --cov-append --reruns 3 --reruns-delay 30 -x -m "integration" {args:tests}'
 types = """mypy -p haystack_integrations.components.preprocessors.hanlp {args}"""
 
 [tool.mypy]
@@ -164,6 +166,7 @@ ban-relative-imports = "parents"
 [tool.coverage.run]
 source = ["haystack_integrations"]
 branch = true
+relative_files = true
 parallel = false
 
 [tool.coverage.report]
