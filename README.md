@@ -4,7 +4,7 @@
 
 | Name                                                                    |    Stmts |     Miss |   Branch |   BrPart |   Cover |   Missing |
 |------------------------------------------------------------------------ | -------: | -------: | -------: | -------: | ------: | --------: |
-| src/haystack\_integrations/components/converters/kreuzberg/converter.py |      184 |        3 |       70 |        2 |     98% |222->231, 284->289, 540-542 |
+| src/haystack\_integrations/components/converters/kreuzberg/converter.py |      184 |        3 |       70 |        2 |     98% |222-\>231, 284-\>289, 540-542 |
 | src/haystack\_integrations/components/converters/kreuzberg/utils.py     |       36 |        1 |       10 |        1 |     96% |        57 |
 | **TOTAL**                                                               |  **220** |    **4** |   **80** |    **3** | **98%** |           |
 
