@@ -4,7 +4,7 @@
 
 | Name                                                                |    Stmts |     Miss |   Branch |   BrPart |   Cover |   Missing |
 |-------------------------------------------------------------------- | -------: | -------: | -------: | -------: | ------: | --------: |
-| src/haystack\_integrations/components/evaluators/ragas/evaluator.py |       98 |       15 |       30 |        9 |     80% |154, 172, 185-187, 190, 198->exit, 203->exit, 227->exit, 243-244, 246-248, 250-253 |
+| src/haystack\_integrations/components/evaluators/ragas/evaluator.py |       98 |       15 |       30 |        9 |     80% |154, 172, 185-187, 190, 198-\>exit, 203-\>exit, 227-\>exit, 243-244, 246-248, 250-253 |
 | **TOTAL**                                                           |   **98** |   **15** |   **30** |    **9** | **80%** |           |
 
 
