@@ -59,7 +59,6 @@ dependencies = [
     "pytest-asyncio",
     "pytest-cov",
     "pytest-rerunfailures",
-    "haystack-ai @ git+https://github.com/deepset-ai/haystack.git@main",
     "mypy",
     "pip"
 ]

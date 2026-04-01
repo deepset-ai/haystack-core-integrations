@@ -10,8 +10,6 @@ import pytest
 import pytest_asyncio
 from haystack.dataclasses import ByteStream, Document
 
-pytest.importorskip("haystack.testing.document_store_async", reason="Requires haystack with async mixin test classes")
-
 from haystack.testing.document_store import (
     CountDocumentsByFilterAsyncTest,
     CountUniqueMetadataByFilterAsyncTest,
