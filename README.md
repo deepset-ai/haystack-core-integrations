@@ -4,7 +4,7 @@
 
 | Name                                                                              |    Stmts |     Miss |   Branch |   BrPart |   Cover |   Missing |
 |---------------------------------------------------------------------------------- | -------: | -------: | -------: | -------: | ------: | --------: |
-| src/haystack\_integrations/components/connectors/jina/reader.py                   |       46 |        4 |       10 |        4 |     86% |66->68, 124->127, 135-136, 140-141 |
+| src/haystack\_integrations/components/connectors/jina/reader.py                   |       46 |        4 |       10 |        4 |     86% |66-\>68, 124-\>127, 135-136, 140-141 |
 | src/haystack\_integrations/components/connectors/jina/reader\_mode.py             |       15 |        0 |        2 |        0 |    100% |           |
 | src/haystack\_integrations/components/embedders/jina/document\_embedder.py        |       83 |        7 |       26 |        4 |     90% |108, 134, 148-149, 185, 224, 226 |
 | src/haystack\_integrations/components/embedders/jina/document\_image\_embedder.py |       86 |       11 |       22 |        4 |     84% |113, 179-188, 201, 205-206, 238 |
