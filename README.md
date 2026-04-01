@@ -4,7 +4,7 @@
 
 | Name                                                                        |    Stmts |     Miss |   Branch |   BrPart |   Cover |   Missing |
 |---------------------------------------------------------------------------- | -------: | -------: | -------: | -------: | ------: | --------: |
-| src/haystack\_integrations/components/websearch/tavily/tavily\_websearch.py |       55 |        4 |       20 |        6 |     87% |73->75, 75->exit, 98-99, 128-129, 132->135, 156->149 |
+| src/haystack\_integrations/components/websearch/tavily/tavily\_websearch.py |       55 |        4 |       20 |        6 |     87% |73-\>75, 75-\>exit, 98-99, 128-129, 132-\>135, 156-\>149 |
 | **TOTAL**                                                                   |   **55** |    **4** |   **20** |    **6** | **87%** |           |
 
 
