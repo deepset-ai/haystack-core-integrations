@@ -74,7 +74,7 @@ class PresidioTextCleaner:
                     entities=self.entities,
                     score_threshold=self.score_threshold,
                 )
-                anonymized = self._anonymizer.anonymize(text=text, analyzer_results=analyzer_results)
+                anonymized = self._anonymizer.anonymize(text=text, analyzer_results=analyzer_results)  # type: ignore[arg-type]
                 cleaned.append(anonymized.text)
             except Exception as e:
                 logger.warning(

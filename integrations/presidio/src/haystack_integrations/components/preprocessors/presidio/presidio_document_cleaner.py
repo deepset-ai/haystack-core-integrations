@@ -80,7 +80,7 @@ class PresidioDocumentCleaner:
                     entities=self.entities,
                     score_threshold=self.score_threshold,
                 )
-                anonymized = self._anonymizer.anonymize(text=doc.content, analyzer_results=analyzer_results)
+                anonymized = self._anonymizer.anonymize(text=doc.content, analyzer_results=analyzer_results)  # type: ignore[arg-type]
                 cleaned.append(Document(content=anonymized.text, meta=doc.meta.copy()))
             except Exception as e:
                 logger.warning(
