@@ -29,8 +29,7 @@ class TestPresidioDocumentCleaner:
         cleaner = PresidioDocumentCleaner(language="en", entities=["EMAIL_ADDRESS"], score_threshold=0.5)
         data = component_to_dict(cleaner, "PresidioDocumentCleaner")
         expected_type = (
-            "haystack_integrations.components.preprocessors.presidio"
-            ".presidio_document_cleaner.PresidioDocumentCleaner"
+            "haystack_integrations.components.preprocessors.presidio.presidio_document_cleaner.PresidioDocumentCleaner"
         )
         assert data["type"] == expected_type
         assert data["init_parameters"]["language"] == "en"

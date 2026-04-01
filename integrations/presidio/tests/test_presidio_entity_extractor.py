@@ -23,8 +23,7 @@ class TestPresidioEntityExtractor:
         extractor = PresidioEntityExtractor(language="en", entities=["PERSON"], score_threshold=0.6)
         data = component_to_dict(extractor, "PresidioEntityExtractor")
         expected_type = (
-            "haystack_integrations.components.preprocessors.presidio"
-            ".presidio_entity_extractor.PresidioEntityExtractor"
+            "haystack_integrations.components.preprocessors.presidio.presidio_entity_extractor.PresidioEntityExtractor"
         )
         assert data["type"] == expected_type
         assert data["init_parameters"]["entities"] == ["PERSON"]
