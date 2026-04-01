@@ -4,8 +4,8 @@
 
 | Name                                                                            |    Stmts |     Miss |   Branch |   BrPart |   Cover |   Missing |
 |-------------------------------------------------------------------------------- | -------: | -------: | -------: | -------: | ------: | --------: |
-| src/haystack\_integrations/components/embedders/nvidia/document\_embedder.py    |      101 |        6 |       32 |        5 |     92% |110, 127->exit, 130-131, 138, 142, 254 |
-| src/haystack\_integrations/components/embedders/nvidia/text\_embedder.py        |       75 |        6 |       24 |        5 |     89% |93, 116->exit, 119-120, 127, 131, 206 |
+| src/haystack\_integrations/components/embedders/nvidia/document\_embedder.py    |      101 |        6 |       32 |        5 |     92% |110, 127-\>exit, 130-131, 138, 142, 254 |
+| src/haystack\_integrations/components/embedders/nvidia/text\_embedder.py        |       75 |        6 |       24 |        5 |     89% |93, 116-\>exit, 119-120, 127, 131, 206 |
 | src/haystack\_integrations/components/embedders/nvidia/truncate.py              |       15 |        0 |        2 |        0 |    100% |           |
 | src/haystack\_integrations/components/generators/nvidia/chat/chat\_generator.py |       17 |        0 |        0 |        0 |    100% |           |
 | src/haystack\_integrations/components/generators/nvidia/generator.py            |       56 |       23 |       14 |        2 |     53% |93, 97-114, 121, 134-137, 159, 171-173, 187-193 |
@@ -13,7 +13,7 @@
 | src/haystack\_integrations/components/rankers/nvidia/truncate.py                |        9 |        0 |        0 |        0 |    100% |           |
 | src/haystack\_integrations/utils/nvidia/client.py                               |       16 |        2 |        2 |        1 |     83% |     28-29 |
 | src/haystack\_integrations/utils/nvidia/models.py                               |       29 |        9 |        4 |        0 |     61% | 36, 40-53 |
-| src/haystack\_integrations/utils/nvidia/nim\_backend.py                         |      109 |       18 |       30 |        5 |     83% |91-94, 125-128, 147->149, 149->152, 170->172, 175-177, 196-199, 203-205 |
+| src/haystack\_integrations/utils/nvidia/nim\_backend.py                         |      109 |       18 |       30 |        5 |     83% |91-94, 125-128, 147-\>149, 149-\>152, 170-\>172, 175-177, 196-199, 203-205 |
 | src/haystack\_integrations/utils/nvidia/utils.py                                |       46 |        0 |       24 |        0 |    100% |           |
 | **TOTAL**                                                                       |  **571** |   **69** |  **170** |   **21** | **86%** |           |
 
