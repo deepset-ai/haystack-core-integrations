@@ -4,11 +4,11 @@
 
 | Name                                                                              |    Stmts |     Miss |   Branch |   BrPart |   Cover |   Missing |
 |---------------------------------------------------------------------------------- | -------: | -------: | -------: | -------: | ------: | --------: |
-| src/haystack\_integrations/components/retrievers/pgvector/embedding\_retriever.py |       44 |        4 |        6 |        3 |     86% |89-90, 93-94, 134->136 |
+| src/haystack\_integrations/components/retrievers/pgvector/embedding\_retriever.py |       44 |        4 |        6 |        3 |     86% |89-90, 93-94, 134-\>136 |
 | src/haystack\_integrations/components/retrievers/pgvector/keyword\_retriever.py   |       37 |        2 |        4 |        1 |     93% |     69-70 |
-| src/haystack\_integrations/document\_stores/pgvector/converters.py                |       42 |        2 |       18 |        3 |     92% |31->41, 34, 67 |
-| src/haystack\_integrations/document\_stores/pgvector/document\_store.py           |      716 |       81 |      182 |       44 |     86% |163-164, 167-168, 237-238, 248-249, 253->exit, 258->exit, 281-285, 292-297, 302->exit, 307->exit, 330-334, 341-346, 364-365, 378->380, 421->423, 612-613, 617-618, 635-636, 654, 668-673, 691, 707-712, 740, 765, 871->876, 895-901, 928->933, 930-931, 952-958, 973, 996, 1062->1066, 1084-1086, 1104->1108, 1126-1128, 1153->1158, 1176-1178, 1203->1208, 1226-1228, 1343-1344, 1356->1359, 1454->1457, 1480, 1505, 1521-1525, 1573, 1593-1594, 1627-1628, 1655, 1662, 1678, 1688, 1832-1833, 1837-1838, 1889-1890 |
-| src/haystack\_integrations/document\_stores/pgvector/filters.py                   |      149 |        4 |       62 |        3 |     97% |82->85, 246-247, 253-254 |
+| src/haystack\_integrations/document\_stores/pgvector/converters.py                |       42 |        2 |       18 |        3 |     92% |31-\>41, 34, 67 |
+| src/haystack\_integrations/document\_stores/pgvector/document\_store.py           |      716 |       81 |      182 |       44 |     86% |163-164, 167-168, 237-238, 248-249, 253-\>exit, 258-\>exit, 281-285, 292-297, 302-\>exit, 307-\>exit, 330-334, 341-346, 364-365, 378-\>380, 421-\>423, 612-613, 617-618, 635-636, 654, 668-673, 691, 707-712, 740, 765, 871-\>876, 895-901, 928-\>933, 930-931, 952-958, 973, 996, 1062-\>1066, 1084-1086, 1104-\>1108, 1126-1128, 1153-\>1158, 1176-1178, 1203-\>1208, 1226-1228, 1343-1344, 1356-\>1359, 1454-\>1457, 1480, 1505, 1521-1525, 1573, 1593-1594, 1627-1628, 1655, 1662, 1678, 1688, 1832-1833, 1837-1838, 1889-1890 |
+| src/haystack\_integrations/document\_stores/pgvector/filters.py                   |      149 |        4 |       62 |        3 |     97% |82-\>85, 246-247, 253-254 |
 | **TOTAL**                                                                         |  **988** |   **93** |  **272** |   **54** | **88%** |           |
 
 
