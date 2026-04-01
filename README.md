@@ -4,12 +4,12 @@
 
 | Name                                                                        |    Stmts |     Miss |   Branch |   BrPart |   Cover |   Missing |
 |---------------------------------------------------------------------------- | -------: | -------: | -------: | -------: | ------: | --------: |
-| src/haystack\_integrations/components/connectors/github/file\_editor.py     |      132 |       19 |       28 |        7 |     79% |117->121, 169, 171, 187, 205-208, 222-225, 239-242, 264-268, 274->277, 285 |
-| src/haystack\_integrations/components/connectors/github/issue\_commenter.py |       61 |        1 |       12 |        2 |     96% |69->73, 116 |
-| src/haystack\_integrations/components/connectors/github/issue\_viewer.py    |       66 |        0 |       10 |        1 |     99% |  198->202 |
-| src/haystack\_integrations/components/connectors/github/pr\_creator.py      |      138 |       78 |       20 |        3 |     44% |72->76, 89-90, 101-108, 112-122, 127-143, 156-196, 208-218, 244 |
-| src/haystack\_integrations/components/connectors/github/repo\_forker.py     |      122 |       21 |       24 |        4 |     79% |87->91, 117-126, 156-159, 280-292, 296->301 |
-| src/haystack\_integrations/components/connectors/github/repo\_viewer.py     |       88 |        9 |       24 |        6 |     85% |114, 159->162, 170, 220-223, 225, 236-237 |
+| src/haystack\_integrations/components/connectors/github/file\_editor.py     |      132 |       19 |       28 |        7 |     79% |117-\>121, 169, 171, 187, 205-208, 222-225, 239-242, 264-268, 274-\>277, 285 |
+| src/haystack\_integrations/components/connectors/github/issue\_commenter.py |       61 |        1 |       12 |        2 |     96% |69-\>73, 116 |
+| src/haystack\_integrations/components/connectors/github/issue\_viewer.py    |       66 |        0 |       10 |        1 |     99% | 198-\>202 |
+| src/haystack\_integrations/components/connectors/github/pr\_creator.py      |      138 |       78 |       20 |        3 |     44% |72-\>76, 89-90, 101-108, 112-122, 127-143, 156-196, 208-218, 244 |
+| src/haystack\_integrations/components/connectors/github/repo\_forker.py     |      122 |       21 |       24 |        4 |     79% |87-\>91, 117-126, 156-159, 280-292, 296-\>301 |
+| src/haystack\_integrations/components/connectors/github/repo\_viewer.py     |       88 |        9 |       24 |        6 |     85% |114, 159-\>162, 170, 220-223, 225, 236-237 |
 | src/haystack\_integrations/prompts/github/context\_prompt.py                |        1 |        0 |        0 |        0 |    100% |           |
 | src/haystack\_integrations/prompts/github/file\_editor\_prompt.py           |        2 |        0 |        0 |        0 |    100% |           |
 | src/haystack\_integrations/prompts/github/issue\_commenter\_prompt.py       |        2 |        0 |        0 |        0 |    100% |           |
