@@ -7,7 +7,8 @@ from qdrant_client.http import models
 from haystack_integrations.document_stores.qdrant import QdrantDocumentStore
 
 
-class TestQdrantStoreBaseTests(FilterDocumentsTest):
+@pytest.mark.integration
+class TestQdrantFilters(FilterDocumentsTest):
     @pytest.fixture
     def document_store(self) -> QdrantDocumentStore:
         return QdrantDocumentStore(
