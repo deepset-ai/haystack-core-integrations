@@ -9,7 +9,7 @@
 | src/haystack\_integrations/components/embedders/fastembed/fastembed\_sparse\_document\_embedder.py |       43 |        0 |       10 |        0 |    100% |           |
 | src/haystack\_integrations/components/embedders/fastembed/fastembed\_sparse\_text\_embedder.py     |       29 |        0 |        6 |        0 |    100% |           |
 | src/haystack\_integrations/components/embedders/fastembed/fastembed\_text\_embedder.py             |       30 |        0 |        6 |        0 |    100% |           |
-| src/haystack\_integrations/components/rankers/fastembed/ranker.py                                  |       60 |        1 |       18 |        1 |     97% |116, 122->exit |
+| src/haystack\_integrations/components/rankers/fastembed/ranker.py                                  |       60 |        1 |       18 |        1 |     97% |116, 122-\>exit |
 | **TOTAL**                                                                                          |  **250** |    **1** |   **58** |    **1** | **99%** |           |
 
 
