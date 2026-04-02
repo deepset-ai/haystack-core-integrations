@@ -20,9 +20,7 @@ TYPE = "haystack_integrations.components.embedders.amazon_bedrock.document_embed
 
 class TestAmazonBedrockDocumentEmbedder:
     def test_init(self, mock_boto3_session, set_env_variables):
-        embedder = AmazonBedrockDocumentEmbedder(
-            model="cohere.embed-english-v3", input_type="fake_input_type"
-        )
+        embedder = AmazonBedrockDocumentEmbedder(model="cohere.embed-english-v3", input_type="fake_input_type")
 
         assert embedder.model == "cohere.embed-english-v3"
         assert embedder.kwargs == {"input_type": "fake_input_type"}
@@ -70,9 +68,7 @@ class TestAmazonBedrockDocumentEmbedder:
             )
 
     @pytest.mark.parametrize("boto3_config", [None, {"read_timeout": 1000}])
-    def test_to_dict(
-        self, mock_boto3_session: Any, boto3_config: dict[str, Any] | None
-    ):
+    def test_to_dict(self, mock_boto3_session: Any, boto3_config: dict[str, Any] | None):
         embedder = AmazonBedrockDocumentEmbedder(
             model="cohere.embed-english-v3",
             input_type="search_document",
@@ -120,9 +116,7 @@ class TestAmazonBedrockDocumentEmbedder:
         assert embedder.to_dict() == expected_dict
 
     @pytest.mark.parametrize("boto3_config", [None, {"read_timeout": 1000}])
-    def test_from_dict(
-        self, mock_boto3_session: Any, boto3_config: dict[str, Any] | None
-    ):
+    def test_from_dict(self, mock_boto3_session: Any, boto3_config: dict[str, Any] | None):
         data = {
             "type": TYPE,
             "init_parameters": {
@@ -188,9 +182,7 @@ class TestAmazonBedrockDocumentEmbedder:
 
         with patch.object(embedder._client, "invoke_model") as mock_invoke_model:
             mock_invoke_model.side_effect = ClientError(
-                error_response={
-                    "Error": {"Code": "some_code", "Message": "some_message"}
-                },
+                error_response={"Error": {"Code": "some_code", "Message": "some_message"}},
                 operation_name="some_operation",
             )
 
@@ -256,9 +248,7 @@ class TestAmazonBedrockDocumentEmbedder:
         assert result[1].embedding == [0.4, 0.5, 0.6]
 
     def test_embed_cohere_batching(self, mock_boto3_session):
-        embedder = AmazonBedrockDocumentEmbedder(
-            model="cohere.embed-english-v3", batch_size=2
-        )
+        embedder = AmazonBedrockDocumentEmbedder(model="cohere.embed-english-v3", batch_size=2)
 
         mock_response = {
             "body": io.StringIO('{"embeddings": [[0.1, 0.2, 0.3], [0.4, 0.5, 0.6]]}'),
@@ -306,22 +296,10 @@ class TestAmazonBedrockDocumentEmbedder:
             result = embedder._embed_titan(documents=docs)
 
         assert mock_client.invoke_model.call_count == 2
-        assert (
-            mock_client.invoke_model.call_args_list[0][1]["modelId"]
-            == "amazon.titan-embed-text-v1"
-        )
-        assert (
-            mock_client.invoke_model.call_args_list[0][1]["body"]
-            == '{"inputText": "some text"}'
-        )
-        assert (
-            mock_client.invoke_model.call_args_list[1][1]["modelId"]
-            == "amazon.titan-embed-text-v1"
-        )
-        assert (
-            mock_client.invoke_model.call_args_list[1][1]["body"]
-            == '{"inputText": "some other text"}'
-        )
+        assert mock_client.invoke_model.call_args_list[0][1]["modelId"] == "amazon.titan-embed-text-v1"
+        assert mock_client.invoke_model.call_args_list[0][1]["body"] == '{"inputText": "some text"}'
+        assert mock_client.invoke_model.call_args_list[1][1]["modelId"] == "amazon.titan-embed-text-v1"
+        assert mock_client.invoke_model.call_args_list[1][1]["body"] == '{"inputText": "some other text"}'
 
         for i, doc in enumerate(result):
             assert doc.content == docs[i].content

@@ -64,9 +64,7 @@ class TestS3Downloader:
         assert d.file_extensions == [".pdf", ".txt"]
 
     @pytest.mark.parametrize("boto3_config", [None, {"read_timeout": 10}])
-    def test_to_dict(
-        self, mock_boto3_session: Any, tmp_path, boto3_config: dict[str, Any] | None
-    ):
+    def test_to_dict(self, mock_boto3_session: Any, tmp_path, boto3_config: dict[str, Any] | None):
         d = S3Downloader(file_root_path=str(tmp_path), boto3_config=boto3_config)
         expected = {
             "type": TYPE,
@@ -108,9 +106,7 @@ class TestS3Downloader:
         assert d.to_dict() == expected
 
     @pytest.mark.parametrize("boto3_config", [None, {"read_timeout": 10}])
-    def test_from_dict(
-        self, mock_boto3_session: Any, tmp_path, boto3_config: dict[str, Any] | None
-    ):
+    def test_from_dict(self, mock_boto3_session: Any, tmp_path, boto3_config: dict[str, Any] | None):
         data = {
             "type": TYPE,
             "init_parameters": {
@@ -220,12 +216,8 @@ class TestS3Downloader:
         assert len(out["documents"]) == 1
         assert out["documents"][0].meta["file_name"] == "a.txt"
 
-    def test_run_with_input_file_meta_key(
-        self, tmp_path, mock_s3_storage, mock_boto3_session
-    ):
-        d = S3Downloader(
-            file_root_path=str(tmp_path), file_name_meta_key="custom_file_key"
-        )
+    def test_run_with_input_file_meta_key(self, tmp_path, mock_s3_storage, mock_boto3_session):
+        d = S3Downloader(file_root_path=str(tmp_path), file_name_meta_key="custom_file_key")
         d._storage = mock_s3_storage
 
         docs = [Document(meta={"file_id": str(uuid4()), "custom_file_key": "a.txt"})]
@@ -234,9 +226,7 @@ class TestS3Downloader:
         assert len(out["documents"]) == 1
         assert out["documents"][0].meta["custom_file_key"] == "a.txt"
 
-    def test_run_with_s3_key_generation_function(
-        self, tmp_path, mock_s3_storage, mock_boto3_session
-    ):
+    def test_run_with_s3_key_generation_function(self, tmp_path, mock_s3_storage, mock_boto3_session):
         d = S3Downloader(
             file_root_path=str(tmp_path),
             s3_key_generation_function=s3_key_generation_function,
@@ -281,9 +271,7 @@ class TestS3Downloader:
         monkeypatch.setenv("S3_DOWNLOADER_PREFIX", "")
         docs = [
             Document(meta={"file_id": str(uuid4()), "file_name": "text-sample.txt"}),
-            Document(
-                meta={"file_id": str(uuid4()), "file_name": "document-sample.pdf"}
-            ),
+            Document(meta={"file_id": str(uuid4()), "file_name": "document-sample.pdf"}),
         ]
 
         out = d.run(documents=docs)
@@ -339,9 +327,7 @@ class TestS3Downloader:
         not os.environ.get("S3_DOWNLOADER_BUCKET", None),
         reason="Export an env var called `S3_DOWNLOADER_BUCKET` containing the S3 bucket to run this test.",
     )
-    def test_live_run_with_s3_key_generation_function_and_file_extensions(
-        self, tmp_path
-    ):
+    def test_live_run_with_s3_key_generation_function_and_file_extensions(self, tmp_path):
         # the file in the s3 bucket has this key: "dog.jpg_suffix"
 
         d = S3Downloader(

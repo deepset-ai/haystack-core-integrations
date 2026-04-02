@@ -12,9 +12,7 @@ from haystack_integrations.components.rankers.amazon_bedrock import AmazonBedroc
 
 @pytest.fixture
 def mock_aws_session():
-    with patch(
-        "haystack_integrations.components.rankers.amazon_bedrock.ranker.get_aws_session"
-    ) as mock_session:
+    with patch("haystack_integrations.components.rankers.amazon_bedrock.ranker.get_aws_session") as mock_session:
         mock_client = MagicMock()
         mock_session.return_value.client.return_value = mock_client
         yield mock_client

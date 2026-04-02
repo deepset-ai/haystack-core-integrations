@@ -67,9 +67,7 @@ def tools():
 
 class TestAmazonBedrockChatGeneratorUtils:
     def test_format_tools(self, tools):
-        formatted_tool = _format_tools(
-            tools, tools_cachepoint_config={"type": "default"}
-        )
+        formatted_tool = _format_tools(tools, tools_cachepoint_config={"type": "default"})
         assert formatted_tool == {
             "tools": [
                 {
@@ -143,9 +141,7 @@ class TestAmazonBedrockChatGeneratorUtils:
             }
         }
 
-    def test_convert_file_content_to_bedrock_format_document_empty_sanitized_name(
-        self, test_files_path
-    ):
+    def test_convert_file_content_to_bedrock_format_document_empty_sanitized_name(self, test_files_path):
         file_content = FileContent(
             base64_data=base64.b64encode(b"This is a test file content."),
             mime_type="application/pdf",
@@ -184,30 +180,22 @@ class TestAmazonBedrockChatGeneratorUtils:
 
     def test_format_messages(self):
         messages = [
-            ChatMessage.from_system(
-                "\\nYou are a helpful assistant, be super brief in your responses."
-            ),
+            ChatMessage.from_system("\\nYou are a helpful assistant, be super brief in your responses."),
             ChatMessage.from_user("What's the capital of France?"),
             ChatMessage.from_assistant("The capital of France is Paris."),
             ChatMessage.from_user("What is the weather in Paris?"),
             ChatMessage.from_assistant(
-                tool_calls=[
-                    ToolCall(id="123", tool_name="weather", arguments={"city": "Paris"})
-                ]
+                tool_calls=[ToolCall(id="123", tool_name="weather", arguments={"city": "Paris"})]
             ),
             ChatMessage.from_tool(
                 tool_result="Sunny and 25°C",
-                origin=ToolCall(
-                    id="123", tool_name="weather", arguments={"city": "Paris"}
-                ),
+                origin=ToolCall(id="123", tool_name="weather", arguments={"city": "Paris"}),
             ),
             ChatMessage.from_assistant("The weather in Paris is sunny and 25°C."),
         ]
         formatted_system_prompts, formatted_messages = _format_messages(messages)
         assert formatted_system_prompts == [
-            {
-                "text": "\\nYou are a helpful assistant, be super brief in your responses."
-            }
+            {"text": "\\nYou are a helpful assistant, be super brief in your responses."}
         ]
         assert formatted_messages == [
             {"role": "user", "content": [{"text": "What's the capital of France?"}]},
@@ -255,27 +243,19 @@ class TestAmazonBedrockChatGeneratorUtils:
             ),
             ChatMessage.from_user("What is the weather in Paris?", meta=meta),
             ChatMessage.from_assistant(
-                tool_calls=[
-                    ToolCall(id="123", tool_name="weather", arguments={"city": "Paris"})
-                ],
+                tool_calls=[ToolCall(id="123", tool_name="weather", arguments={"city": "Paris"})],
                 meta=meta,
             ),
             ChatMessage.from_tool(
                 tool_result="Sunny and 25°C",
-                origin=ToolCall(
-                    id="123", tool_name="weather", arguments={"city": "Paris"}
-                ),
+                origin=ToolCall(id="123", tool_name="weather", arguments={"city": "Paris"}),
                 meta=meta,
             ),
-            ChatMessage.from_assistant(
-                "The weather in Paris is sunny and 25°C.", meta=meta
-            ),
+            ChatMessage.from_assistant("The weather in Paris is sunny and 25°C.", meta=meta),
         ]
         formatted_system_prompts, formatted_messages = _format_messages(messages)
         assert formatted_system_prompts == [
-            {
-                "text": "\\nYou are a helpful assistant, be super brief in your responses."
-            },
+            {"text": "\\nYou are a helpful assistant, be super brief in your responses."},
             {"cachePoint": {"type": "default"}},
         ]
         assert formatted_messages == [
@@ -322,8 +302,7 @@ class TestAmazonBedrockChatGeneratorUtils:
 
     def test_format_messages_tool_result_with_image(self):
         base64_image = (
-            "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/"
-            "PchI7wAAAABJRU5ErkJggg=="
+            "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg=="
         )
 
         messages = [
@@ -355,9 +334,7 @@ class TestAmazonBedrockChatGeneratorUtils:
         assert formatted_messages == [
             {
                 "role": "user",
-                "content": [
-                    {"text": "Retrieve the image and describe it in max 5 words."}
-                ],
+                "content": [{"text": "Retrieve the image and describe it in max 5 words."}],
             },
             {
                 "role": "assistant",
@@ -382,9 +359,7 @@ class TestAmazonBedrockChatGeneratorUtils:
                                 {
                                     "image": {
                                         "format": "png",
-                                        "source": {
-                                            "bytes": base64.b64decode(base64_image)
-                                        },
+                                        "source": {"bytes": base64.b64decode(base64_image)},
                                     }
                                 },
                             ],
@@ -426,9 +401,7 @@ class TestAmazonBedrockChatGeneratorUtils:
 
         tool_call_message = ChatMessage.from_assistant(
             "This is a test message with a tool call.",
-            tool_calls=[
-                ToolCall(id="123", tool_name="test_tool", arguments={"key": "value"})
-            ],
+            tool_calls=[ToolCall(id="123", tool_name="test_tool", arguments={"key": "value"})],
             reasoning=ReasoningContent(
                 reasoning_text="This is the reasoning behind the tool call.",
                 extra={
@@ -461,9 +434,7 @@ class TestAmazonBedrockChatGeneratorUtils:
 
         tool_call_message_with_redacted = ChatMessage.from_assistant(
             "This is a test message with a tool call.",
-            tool_calls=[
-                ToolCall(id="123", tool_name="test_tool", arguments={"key": "value"})
-            ],
+            tool_calls=[ToolCall(id="123", tool_name="test_tool", arguments={"key": "value"})],
             reasoning=ReasoningContent(
                 reasoning_text="[REDACTED]",
                 extra={},
@@ -495,9 +466,7 @@ class TestAmazonBedrockChatGeneratorUtils:
 
         base64_image = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+ip1sAAAAASUVORK5CYII="
         image_content = ImageContent(base64_image)
-        image_message = ChatMessage.from_user(
-            content_parts=["This is a test message.", image_content]
-        )
+        image_message = ChatMessage.from_user(content_parts=["This is a test message.", image_content])
         formatted_message = _format_user_message(image_message)
         assert formatted_message == {
             "role": "user",
@@ -515,9 +484,7 @@ class TestAmazonBedrockChatGeneratorUtils:
     def test_format_user_message_errors(self):
         base64_image = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+ip1sAAAAASUVORK5CYII="
 
-        image_content_unsupported_format = ImageContent(
-            base64_image, mime_type="image/tiff"
-        )
+        image_content_unsupported_format = ImageContent(base64_image, mime_type="image/tiff")
         image_message = ChatMessage.from_user(
             content_parts=["This is a test message.", image_content_unsupported_format]
         )
@@ -735,9 +702,7 @@ class TestAmazonBedrockChatGeneratorUtils:
                 "message": {
                     "role": "assistant",
                     "content": [
-                        {
-                            "text": "Let me help you with that. I'll use the search tool to find the answer."
-                        },
+                        {"text": "Let me help you with that. I'll use the search tool to find the answer."},
                         {
                             "toolUse": {
                                 "toolUseId": "456",
@@ -754,10 +719,7 @@ class TestAmazonBedrockChatGeneratorUtils:
 
         replies = _parse_completion_response(mixed_response, model)
         assert len(replies) == 1
-        assert (
-            replies[0].text
-            == "Let me help you with that. I'll use the search tool to find the answer."
-        )
+        assert replies[0].text == "Let me help you with that. I'll use the search tool to find the answer."
         tool_content = replies[0].tool_call
         assert tool_content.id == "456"
         assert tool_content.tool_name == "search_tool"
@@ -857,9 +819,7 @@ class TestAmazonBedrockChatGeneratorUtils:
         )
         assert replies[0] == expected_message
 
-    def test_extract_replies_from_one_tool_response_with_thinking(
-        self, mock_boto3_session
-    ):
+    def test_extract_replies_from_one_tool_response_with_thinking(self, mock_boto3_session):
         model = "arn:aws:bedrock:us-east-1::inference-profile/us.anthropic.claude-3-7-sonnet-20250219-v1:0"
         response_body = {
             "ResponseMetadata": {
@@ -976,9 +936,7 @@ class TestAmazonBedrockChatGeneratorUtils:
                                 "contextualGroundingPolicyUnits": 0,
                                 "contentPolicyImageUnits": 0,
                             },
-                            "guardrailCoverage": {
-                                "textCharacters": {"guarded": 48, "total": 48}
-                            },
+                            "guardrailCoverage": {"textCharacters": {"guarded": 48, "total": 48}},
                         },
                     }
                 },
@@ -1002,9 +960,7 @@ class TestAmazonBedrockChatGeneratorUtils:
             "output": {
                 "message": {
                     "role": "assistant",
-                    "content": [
-                        {"text": "Sorry, the model cannot answer this question."}
-                    ],
+                    "content": [{"text": "Sorry, the model cannot answer this question."}],
                 }
             },
             "stopReason": "guardrail_intervened",
@@ -1118,9 +1074,7 @@ class TestAmazonBedrockChatGeneratorUtils:
                             )
                         }
                     ],
-                    "location": {
-                        "documentPage": {"documentIndex": 0, "start": 1, "end": 2}
-                    },
+                    "location": {"documentPage": {"documentIndex": 0, "start": 1, "end": 2}},
                 }
             ],
         }
@@ -1131,8 +1085,7 @@ class TestAmazonBedrockChatGeneratorUtils:
         """
         model = "global.anthropic.claude-sonnet-4-6"
         type_ = (
-            "haystack_integrations.components.generators.amazon_bedrock.chat."
-            "chat_generator.AmazonBedrockChatGenerator"
+            "haystack_integrations.components.generators.amazon_bedrock.chat.chat_generator.AmazonBedrockChatGenerator"
         )
         base_meta = {"model": model, "received_at": ANY}
         streaming_chunks = []
@@ -1302,12 +1255,8 @@ class TestAmazonBedrockChatGeneratorUtils:
                 component_info=c_info,
                 index=0,
             ),
-            StreamingChunk(
-                content=" the weather", meta=base_meta, component_info=c_info, index=0
-            ),
-            StreamingChunk(
-                content=" in Berlin. To", meta=base_meta, component_info=c_info, index=0
-            ),
+            StreamingChunk(content=" the weather", meta=base_meta, component_info=c_info, index=0),
+            StreamingChunk(content=" in Berlin. To", meta=base_meta, component_info=c_info, index=0),
             StreamingChunk(
                 content=" get this information, I'll",
                 meta=base_meta,
@@ -1320,18 +1269,10 @@ class TestAmazonBedrockChatGeneratorUtils:
                 component_info=c_info,
                 index=0,
             ),
-            StreamingChunk(
-                content=" to me.", meta=base_meta, component_info=c_info, index=0
-            ),
-            StreamingChunk(
-                content=" Let me fetch", meta=base_meta, component_info=c_info, index=0
-            ),
-            StreamingChunk(
-                content=" that data for", meta=base_meta, component_info=c_info, index=0
-            ),
-            StreamingChunk(
-                content=" you.", meta=base_meta, component_info=c_info, index=0
-            ),
+            StreamingChunk(content=" to me.", meta=base_meta, component_info=c_info, index=0),
+            StreamingChunk(content=" Let me fetch", meta=base_meta, component_info=c_info, index=0),
+            StreamingChunk(content=" that data for", meta=base_meta, component_info=c_info, index=0),
+            StreamingChunk(content=" you.", meta=base_meta, component_info=c_info, index=0),
             StreamingChunk(content="", meta=base_meta, component_info=c_info),
             StreamingChunk(
                 content="",
@@ -1415,13 +1356,10 @@ class TestAmazonBedrockChatGeneratorUtils:
         assert len(replies) == 1
         assert replies == expected_messages
 
-    def test_process_streaming_response_one_tool_call_with_thinking(
-        self, mock_boto3_session
-    ):
+    def test_process_streaming_response_one_tool_call_with_thinking(self, mock_boto3_session):
         model = "arn:aws:bedrock:us-east-1::inference-profile/us.anthropic.claude-sonnet-4-20250514-v1:0"
         type_ = (
-            "haystack_integrations.components.generators.amazon_bedrock.chat."
-            "chat_generator.AmazonBedrockChatGenerator"
+            "haystack_integrations.components.generators.amazon_bedrock.chat.chat_generator.AmazonBedrockChatGenerator"
         )
         streaming_chunks = []
 
@@ -1432,11 +1370,7 @@ class TestAmazonBedrockChatGeneratorUtils:
             {"messageStart": {"role": "assistant"}},
             {
                 "contentBlockDelta": {
-                    "delta": {
-                        "reasoningContent": {
-                            "text": "The user is asking about the weather"
-                        }
-                    },
+                    "delta": {"reasoningContent": {"text": "The user is asking about the weather"}},
                     "contentBlockIndex": 0,
                 }
             },
@@ -1454,9 +1388,7 @@ class TestAmazonBedrockChatGeneratorUtils:
             },
             {
                 "contentBlockDelta": {
-                    "delta": {
-                        "reasoningContent": {"text": " weather function that takes"}
-                    },
+                    "delta": {"reasoningContent": {"text": " weather function that takes"}},
                     "contentBlockIndex": 0,
                 }
             },
@@ -1474,19 +1406,13 @@ class TestAmazonBedrockChatGeneratorUtils:
             },
             {
                 "contentBlockDelta": {
-                    "delta": {
-                        "reasoningContent": {"text": "d as the city, so I have all"}
-                    },
+                    "delta": {"reasoningContent": {"text": "d as the city, so I have all"}},
                     "contentBlockIndex": 0,
                 }
             },
             {
                 "contentBlockDelta": {
-                    "delta": {
-                        "reasoningContent": {
-                            "text": " the required parameters to make the"
-                        }
-                    },
+                    "delta": {"reasoningContent": {"text": " the required parameters to make the"}},
                     "contentBlockIndex": 0,
                 }
             },
@@ -1564,9 +1490,7 @@ class TestAmazonBedrockChatGeneratorUtils:
             },
         ]
 
-        replies = _parse_streaming_response(
-            events, test_callback, model, ComponentInfo(type=type_)
-        )
+        replies = _parse_streaming_response(events, test_callback, model, ComponentInfo(type=type_))
 
         expected_messages = [
             ChatMessage.from_assistant(
@@ -1612,8 +1536,7 @@ class TestAmazonBedrockChatGeneratorUtils:
     def test_parse_streaming_response_with_two_tool_calls(self, mock_boto3_session):
         model = "global.anthropic.claude-sonnet-4-6"
         type_ = (
-            "haystack_integrations.components.generators.amazon_bedrock.chat."
-            "chat_generator.AmazonBedrockChatGenerator"
+            "haystack_integrations.components.generators.amazon_bedrock.chat.chat_generator.AmazonBedrockChatGenerator"
         )
         streaming_chunks = []
 
@@ -1752,9 +1675,7 @@ class TestAmazonBedrockChatGeneratorUtils:
             },
         ]
 
-        replies = _parse_streaming_response(
-            events, test_callback, model, ComponentInfo(type=type_)
-        )
+        replies = _parse_streaming_response(events, test_callback, model, ComponentInfo(type=type_))
         expected_messages = [
             ChatMessage.from_assistant(
                 text="To answer your question about the weather in Berlin and Paris, I'll need to use the "
@@ -1793,8 +1714,7 @@ class TestAmazonBedrockChatGeneratorUtils:
     def test_parse_streaming_response_with_guardrail(self, mock_boto3_session):
         model = "global.anthropic.claude-sonnet-4-6"
         type_ = (
-            "haystack_integrations.components.generators.amazon_bedrock.chat."
-            "chat_generator.AmazonBedrockChatGenerator"
+            "haystack_integrations.components.generators.amazon_bedrock.chat.chat_generator.AmazonBedrockChatGenerator"
         )
         streaming_chunks = []
 
@@ -1824,9 +1744,7 @@ class TestAmazonBedrockChatGeneratorUtils:
                                     "contextualGroundingPolicyUnits": 0,
                                     "contentPolicyImageUnits": 0,
                                 },
-                                "guardrailCoverage": {
-                                    "textCharacters": {"guarded": 48, "total": 48}
-                                },
+                                "guardrailCoverage": {"textCharacters": {"guarded": 48, "total": 48}},
                             },
                         }
                     },
@@ -1857,9 +1775,7 @@ class TestAmazonBedrockChatGeneratorUtils:
         def test_callback(chunk: StreamingChunk):
             streaming_chunks.append(chunk)
 
-        replies = _parse_streaming_response(
-            events, test_callback, model, ComponentInfo(type=type_)
-        )
+        replies = _parse_streaming_response(events, test_callback, model, ComponentInfo(type=type_))
 
         expected_messages = [
             ChatMessage.from_assistant(
@@ -2124,16 +2040,12 @@ class TestAmazonBedrockChatGeneratorUtils:
             ValueError,
             match="`guardrailIdentifier` and `guardrailVersion` fields are required",
         ):
-            _validate_guardrail_config(
-                guardrail_config={"guardrailIdentifier": "test"}, streaming=False
-            )
+            _validate_guardrail_config(guardrail_config={"guardrailIdentifier": "test"}, streaming=False)
         with pytest.raises(
             ValueError,
             match="`guardrailIdentifier` and `guardrailVersion` fields are required",
         ):
-            _validate_guardrail_config(
-                guardrail_config={"guardrailVersion": "test"}, streaming=False
-            )
+            _validate_guardrail_config(guardrail_config={"guardrailVersion": "test"}, streaming=False)
         with pytest.raises(
             ValueError,
             match="`streamProcessingMode` field is only supported for streaming",
@@ -2172,7 +2084,5 @@ class TestAmazonBedrockChatGeneratorUtils:
         ):
             _validate_and_format_cache_point({"type": "invalid"})
 
-        with pytest.raises(
-            ValueError, match=r"Cache point can only contain 'type' and 'ttl' keys."
-        ):
+        with pytest.raises(ValueError, match=r"Cache point can only contain 'type' and 'ttl' keys."):
             _validate_and_format_cache_point({"type": "default", "invalid": "config"})

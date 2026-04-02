@@ -190,9 +190,7 @@ class TestAmazonBedrockTextEmbedder:
 
         with patch.object(embedder._client, "invoke_model") as mock_invoke_model:
             mock_invoke_model.side_effect = ClientError(
-                error_response={
-                    "Error": {"Code": "some_code", "Message": "some_message"}
-                },
+                error_response={"Error": {"Code": "some_code", "Message": "some_message"}},
                 operation_name="some_operation",
             )
 

@@ -142,9 +142,7 @@ def mixed_tools():
 @pytest.fixture
 def chat_messages():
     messages = [
-        ChatMessage.from_system(
-            "\\nYou are a helpful assistant, be super brief in your responses."
-        ),
+        ChatMessage.from_system("\\nYou are a helpful assistant, be super brief in your responses."),
         ChatMessage.from_user("What's the capital of France?"),
     ]
     return messages
@@ -242,9 +240,7 @@ class TestAmazonBedrockChatGenerator:
         assert generator.to_dict() == expected_dict
 
     @pytest.mark.parametrize("boto3_config", [None, {"read_timeout": 1000}])
-    def test_from_dict(
-        self, mock_boto3_session: Any, boto3_config: dict[str, Any] | None
-    ):
+    def test_from_dict(self, mock_boto3_session: Any, boto3_config: dict[str, Any] | None):
         """
         Test that the from_dict method returns the correct object
         """
@@ -291,9 +287,7 @@ class TestAmazonBedrockChatGenerator:
         assert generator.streaming_callback == print_streaming_chunk
         assert generator.boto3_config == boto3_config
 
-    def test_default_constructor(
-        self, mock_boto3_session, mock_aioboto3_session, set_env_variables
-    ):
+    def test_default_constructor(self, mock_boto3_session, mock_aioboto3_session, set_env_variables):
         """
         Test that the default constructor sets the correct values
         """
@@ -422,25 +416,17 @@ class TestAmazonBedrockChatGenerator:
 
         assert pipeline_dict == expected_dict
 
-    def test_prepare_request_params_tool_config(
-        self, top_song_tool_config, mock_boto3_session, set_env_variables
-    ):
-        generator = AmazonBedrockChatGenerator(
-            model="global.anthropic.claude-sonnet-4-6"
-        )
+    def test_prepare_request_params_tool_config(self, top_song_tool_config, mock_boto3_session, set_env_variables):
+        generator = AmazonBedrockChatGenerator(model="global.anthropic.claude-sonnet-4-6")
         request_params, _ = generator._prepare_request_params(
             messages=[ChatMessage.from_user("What's the capital of France?")],
             generation_kwargs={"toolConfig": top_song_tool_config},
             tools=None,
         )
-        assert request_params["messages"] == [
-            {"content": [{"text": "What's the capital of France?"}], "role": "user"}
-        ]
+        assert request_params["messages"] == [{"content": [{"text": "What's the capital of France?"}], "role": "user"}]
         assert request_params["toolConfig"] == top_song_tool_config
 
-    def test_prepare_request_params_guardrail_config(
-        self, mock_boto3_session, set_env_variables
-    ):
+    def test_prepare_request_params_guardrail_config(self, mock_boto3_session, set_env_variables):
         generator = AmazonBedrockChatGenerator(
             model="global.anthropic.claude-sonnet-4-6",
             guardrail_config={
@@ -451,20 +437,14 @@ class TestAmazonBedrockChatGenerator:
         request_params, _ = generator._prepare_request_params(
             messages=[ChatMessage.from_user("What's the capital of France?")],
         )
-        assert request_params["messages"] == [
-            {"content": [{"text": "What's the capital of France?"}], "role": "user"}
-        ]
+        assert request_params["messages"] == [{"content": [{"text": "What's the capital of France?"}], "role": "user"}]
         assert request_params["guardrailConfig"] == {
             "guardrailIdentifier": "test",
             "guardrailVersion": "test",
         }
 
-    def test_prepare_request_params_output_config(
-        self, mock_boto3_session, set_env_variables
-    ):
-        generator = AmazonBedrockChatGenerator(
-            model="global.anthropic.claude-sonnet-4-6"
-        )
+    def test_prepare_request_params_output_config(self, mock_boto3_session, set_env_variables):
+        generator = AmazonBedrockChatGenerator(model="global.anthropic.claude-sonnet-4-6")
         request_params, _ = generator._prepare_request_params(
             messages=[ChatMessage.from_user("Hello")],
             generation_kwargs={"outputConfig": {"textFormat": "json"}},
@@ -505,9 +485,7 @@ class TestAmazonBedrockChatGenerator:
 
         assert generator.tools == [weather_tool, toolset]
 
-    def test_prepare_request_params_with_mixed_tools(
-        self, mock_boto3_session, set_env_variables
-    ):
+    def test_prepare_request_params_with_mixed_tools(self, mock_boto3_session, set_env_variables):
         def tool_fn(city: str) -> str:
             return city
 
@@ -533,9 +511,7 @@ class TestAmazonBedrockChatGenerator:
         )
         toolset = Toolset([population_tool])
 
-        generator = AmazonBedrockChatGenerator(
-            model="global.anthropic.claude-sonnet-4-6"
-        )
+        generator = AmazonBedrockChatGenerator(model="global.anthropic.claude-sonnet-4-6")
         request_params, _ = generator._prepare_request_params(
             messages=[ChatMessage.from_user("What's the capital of France?")],
             tools=[weather_tool, toolset],
@@ -628,9 +604,7 @@ class TestAmazonBedrockChatGenerator:
         generation_kwargs,
         additional_model_request_fields,
     ):
-        generator = AmazonBedrockChatGenerator(
-            model="global.anthropic.claude-sonnet-4-6"
-        )
+        generator = AmazonBedrockChatGenerator(model="global.anthropic.claude-sonnet-4-6")
         request_params, _ = generator._prepare_request_params(
             messages=[ChatMessage.from_user("What's the capital of France?")],
             generation_kwargs=generation_kwargs,
@@ -639,10 +613,7 @@ class TestAmazonBedrockChatGenerator:
         if not additional_model_request_fields:
             assert "additionalModelRequestFields" not in request_params
         else:
-            assert (
-                request_params["additionalModelRequestFields"]
-                == additional_model_request_fields
-            )
+            assert request_params["additionalModelRequestFields"] == additional_model_request_fields
 
 
 # In the CI, those tests are skipped if AWS Authentication fails
@@ -659,16 +630,10 @@ class TestAmazonBedrockChatGeneratorInference:
         assert len(replies) > 0, "No replies received"
 
         first_reply = replies[0]
-        assert isinstance(
-            first_reply, ChatMessage
-        ), "First reply is not a ChatMessage instance"
+        assert isinstance(first_reply, ChatMessage), "First reply is not a ChatMessage instance"
         assert first_reply.text, "First reply has no content"
-        assert ChatMessage.is_from(
-            first_reply, ChatRole.ASSISTANT
-        ), "First reply is not from the assistant"
-        assert (
-            "paris" in first_reply.text.lower()
-        ), "First reply does not contain 'paris'"
+        assert ChatMessage.is_from(first_reply, ChatRole.ASSISTANT), "First reply is not from the assistant"
+        assert "paris" in first_reply.text.lower(), "First reply does not contain 'paris'"
         assert first_reply.meta, "First reply has no metadata"
 
         if first_reply.meta and "usage" in first_reply.meta:
@@ -680,9 +645,7 @@ class TestAmazonBedrockChatGeneratorInference:
 
         messages = [ChatMessage.from_user("Return response in JSON format")]
 
-        response = client.run(
-            messages, generation_kwargs={"outputConfig": {"textFormat": "json"}}
-        )
+        response = client.run(messages, generation_kwargs={"outputConfig": {"textFormat": "json"}})
 
         assert "replies" in response
         assert len(response["replies"]) > 0
@@ -697,9 +660,7 @@ class TestAmazonBedrockChatGeneratorInference:
         image_path = test_files_path / "apple.jpg"
         image_content = ImageContent.from_file_path(image_path, size=(100, 100))
 
-        chat_message = ChatMessage.from_user(
-            content_parts=["What's in the image? Max 5 words.", image_content]
-        )
+        chat_message = ChatMessage.from_user(content_parts=["What's in the image? Max 5 words.", image_content])
 
         response = client.run([chat_message])
 
@@ -714,9 +675,7 @@ class TestAmazonBedrockChatGeneratorInference:
         client = AmazonBedrockChatGenerator(model=model_name)
 
         file_path = test_files_path / "sample_pdf_1.pdf"
-        file_content = FileContent.from_file_path(
-            file_path, extra={"citations": {"enabled": True}}
-        )
+        file_content = FileContent.from_file_path(file_path, extra={"citations": {"enabled": True}})
 
         chat_message = ChatMessage.from_user(
             content_parts=[
@@ -741,9 +700,7 @@ class TestAmazonBedrockChatGeneratorInference:
         file_path = test_files_path / "video.mp4"
         file_content = FileContent.from_file_path(file_path)
 
-        chat_message = ChatMessage.from_user(
-            content_parts=["What's in the video? Max 5 words.", file_content]
-        )
+        chat_message = ChatMessage.from_user(content_parts=["What's in the video? Max 5 words.", file_content])
 
         response = client.run([chat_message])
 
@@ -754,15 +711,11 @@ class TestAmazonBedrockChatGeneratorInference:
         assert "earth" in first_reply.text.lower()
 
     @pytest.mark.parametrize("model_name", MODELS_TO_TEST_WITH_IMAGE_TOOL_OUTPUT)
-    def test_live_run_agent_with_images_in_tool_result(
-        self, model_name, test_files_path
-    ):
+    def test_live_run_agent_with_images_in_tool_result(self, model_name, test_files_path):
         def retrieve_image():
             return [
                 TextContent("Here is the retrieved image."),
-                ImageContent.from_file_path(
-                    test_files_path / "apple.jpg", size=(100, 100)
-                ),
+                ImageContent.from_file_path(test_files_path / "apple.jpg", size=(100, 100)),
             ]
 
         image_retriever_tool = create_tool_from_function(
@@ -778,9 +731,7 @@ class TestAmazonBedrockChatGeneratorInference:
             tools=[image_retriever_tool],
         )
 
-        user_message = ChatMessage.from_user(
-            "Retrieve the image and describe it in max 5 words."
-        )
+        user_message = ChatMessage.from_user("Retrieve the image and describe it in max 5 words.")
         result = agent.run(messages=[user_message])
 
         assert "apple" in result["last_message"].text.lower()
@@ -799,30 +750,20 @@ class TestAmazonBedrockChatGeneratorInference:
             if not paris_found_in_response:
                 paris_found_in_response = "paris" in chunk.content.lower()
 
-        client = AmazonBedrockChatGenerator(
-            model=model_name, streaming_callback=streaming_callback
-        )
+        client = AmazonBedrockChatGenerator(model=model_name, streaming_callback=streaming_callback)
         response = client.run(chat_messages)
 
         assert streaming_callback_called, "Streaming callback was not called"
-        assert (
-            paris_found_in_response
-        ), "The streaming callback response did not contain 'paris'"
+        assert paris_found_in_response, "The streaming callback response did not contain 'paris'"
         replies = response["replies"]
         assert isinstance(replies, list), "Replies is not a list"
         assert len(replies) > 0, "No replies received"
 
         first_reply = replies[0]
-        assert isinstance(
-            first_reply, ChatMessage
-        ), "First reply is not a ChatMessage instance"
+        assert isinstance(first_reply, ChatMessage), "First reply is not a ChatMessage instance"
         assert first_reply.text, "First reply has no content"
-        assert ChatMessage.is_from(
-            first_reply, ChatRole.ASSISTANT
-        ), "First reply is not from the assistant"
-        assert (
-            "paris" in first_reply.text.lower()
-        ), "First reply does not contain 'paris'"
+        assert ChatMessage.is_from(first_reply, ChatRole.ASSISTANT), "First reply is not from the assistant"
+        assert "paris" in first_reply.text.lower(), "First reply does not contain 'paris'"
         assert first_reply.meta, "First reply has no metadata"
 
     @pytest.mark.parametrize("model_name", MODELS_TO_TEST_WITH_TOOLS)
@@ -831,9 +772,7 @@ class TestAmazonBedrockChatGeneratorInference:
         Integration test that the AmazonBedrockChatGenerator component can run with tools. Here we are using the
         Haystack tools parameter to pass the tool configuration to the model.
         """
-        initial_messages = [
-            ChatMessage.from_user("What's the weather like in Paris and Berlin?")
-        ]
+        initial_messages = [ChatMessage.from_user("What's the weather like in Paris and Berlin?")]
         component = AmazonBedrockChatGenerator(model=model_name, tools=tools)
         results = component.run(messages=initial_messages)
 
@@ -847,12 +786,8 @@ class TestAmazonBedrockChatGeneratorInference:
                 break
 
         assert tool_call_message is not None, "No message with tool call found"
-        assert isinstance(
-            tool_call_message, ChatMessage
-        ), "Tool message is not a ChatMessage instance"
-        assert ChatMessage.is_from(
-            tool_call_message, ChatRole.ASSISTANT
-        ), "Tool message is not from the assistant"
+        assert isinstance(tool_call_message, ChatMessage), "Tool message is not a ChatMessage instance"
+        assert ChatMessage.is_from(tool_call_message, ChatRole.ASSISTANT), "Tool message is not from the assistant"
 
         tool_calls = tool_call_message.tool_calls
         assert len(tool_calls) == 2
@@ -864,8 +799,7 @@ class TestAmazonBedrockChatGeneratorInference:
 
         # Mock the response we'd get from ToolInvoker
         tool_result_messages = [
-            ChatMessage.from_tool(tool_result="22° C", origin=tool_call)
-            for tool_call in tool_calls
+            ChatMessage.from_tool(tool_result="22° C", origin=tool_call) for tool_call in tool_calls
         ]
 
         new_messages = [*initial_messages, tool_call_message, *tool_result_messages]
@@ -885,9 +819,7 @@ class TestAmazonBedrockChatGeneratorInference:
         This tests that the LLM can correctly invoke tools from both a standalone Tool and a Toolset.
         """
         initial_messages = [
-            ChatMessage.from_user(
-                "What's the weather like in Paris and what is the population of Berlin?"
-            )
+            ChatMessage.from_user("What's the weather like in Paris and what is the population of Berlin?")
         ]
         component = AmazonBedrockChatGenerator(model=model_name, tools=mixed_tools)
         results = component.run(messages=initial_messages)
@@ -902,12 +834,8 @@ class TestAmazonBedrockChatGeneratorInference:
                 break
 
         assert tool_call_message is not None, "No message with tool call found"
-        assert isinstance(
-            tool_call_message, ChatMessage
-        ), "Tool message is not a ChatMessage instance"
-        assert ChatMessage.is_from(
-            tool_call_message, ChatRole.ASSISTANT
-        ), "Tool message is not from the assistant"
+        assert isinstance(tool_call_message, ChatMessage), "Tool message is not a ChatMessage instance"
+        assert ChatMessage.is_from(tool_call_message, ChatRole.ASSISTANT), "Tool message is not from the assistant"
 
         tool_calls = tool_call_message.tool_calls
         assert len(tool_calls) == 2, f"Expected 2 tool calls, got {len(tool_calls)}"
@@ -932,9 +860,7 @@ class TestAmazonBedrockChatGeneratorInference:
                 result = "The weather in Paris is sunny and 32°C"
             else:  # population
                 result = "The population of Berlin is 2.2 million"
-            tool_result_messages.append(
-                ChatMessage.from_tool(tool_result=result, origin=tool_call)
-            )
+            tool_result_messages.append(ChatMessage.from_tool(tool_result=result, origin=tool_call))
 
         new_messages = [*initial_messages, tool_call_message, *tool_result_messages]
         results = component.run(new_messages)
@@ -968,9 +894,9 @@ class TestAmazonBedrockChatGeneratorInference:
         results = component.run(messages=initial_messages)
 
         assert len(results["replies"]) > 0, "No replies received"
-        assert any(
-            reply.reasoning is not None for reply in results["replies"]
-        ), "No reasoning found in any of the replies"
+        assert any(reply.reasoning is not None for reply in results["replies"]), (
+            "No reasoning found in any of the replies"
+        )
 
     @pytest.mark.parametrize("model_name", MODELS_TO_TEST_WITH_THINKING_TOOLS_STREAMING)
     def test_live_run_with_tool_call_and_thinking(self, model_name, tools):
@@ -1004,16 +930,10 @@ class TestAmazonBedrockChatGeneratorInference:
                 break
 
         assert tool_call_message is not None, "No message with tool call found"
-        assert isinstance(
-            tool_call_message, ChatMessage
-        ), "Tool message is not a ChatMessage instance"
-        assert ChatMessage.is_from(
-            tool_call_message, ChatRole.ASSISTANT
-        ), "Tool message is not from the assistant"
+        assert isinstance(tool_call_message, ChatMessage), "Tool message is not a ChatMessage instance"
+        assert ChatMessage.is_from(tool_call_message, ChatRole.ASSISTANT), "Tool message is not from the assistant"
 
-        assert (
-            tool_call_message.reasoning is not None
-        ), "Tool message does not contain reasoning"
+        assert tool_call_message.reasoning is not None, "Tool message does not contain reasoning"
 
         tool_calls = tool_call_message.tool_calls
         assert len(tool_calls) == 1
@@ -1024,8 +944,7 @@ class TestAmazonBedrockChatGeneratorInference:
 
         # Mock the response we'd get from ToolInvoker
         tool_result_messages = [
-            ChatMessage.from_tool(tool_result="22° C", origin=tool_call)
-            for tool_call in tool_calls
+            ChatMessage.from_tool(tool_result="22° C", origin=tool_call) for tool_call in tool_calls
         ]
 
         new_messages = [*initial_messages, tool_call_message, *tool_result_messages]
@@ -1064,16 +983,10 @@ class TestAmazonBedrockChatGeneratorInference:
                 break
 
         assert tool_call_message is not None, "No message with tool call found"
-        assert isinstance(
-            tool_call_message, ChatMessage
-        ), "Tool message is not a ChatMessage instance"
-        assert ChatMessage.is_from(
-            tool_call_message, ChatRole.ASSISTANT
-        ), "Tool message is not from the assistant"
+        assert isinstance(tool_call_message, ChatMessage), "Tool message is not a ChatMessage instance"
+        assert ChatMessage.is_from(tool_call_message, ChatRole.ASSISTANT), "Tool message is not from the assistant"
 
-        assert (
-            tool_call_message.reasoning is not None
-        ), "Tool message does not contain reasoning"
+        assert tool_call_message.reasoning is not None, "Tool message does not contain reasoning"
 
         tool_calls = tool_call_message.tool_calls
         assert len(tool_calls) == 1
@@ -1084,8 +997,7 @@ class TestAmazonBedrockChatGeneratorInference:
 
         # Mock the response we'd get from ToolInvoker
         tool_result_messages = [
-            ChatMessage.from_tool(tool_result="22° C", origin=tool_call)
-            for tool_call in tool_calls
+            ChatMessage.from_tool(tool_result="22° C", origin=tool_call) for tool_call in tool_calls
         ]
 
         new_messages = [*initial_messages, tool_call_message, *tool_result_messages]
@@ -1103,12 +1015,8 @@ class TestAmazonBedrockChatGeneratorInference:
         Integration test that the AmazonBedrockChatGenerator component can run with the Haystack tools parameter.
         and the streaming_callback parameter to get the streaming response.
         """
-        initial_messages = [
-            ChatMessage.from_user("What's the weather like in Paris and Berlin?")
-        ]
-        component = AmazonBedrockChatGenerator(
-            model=model_name, tools=tools, streaming_callback=print_streaming_chunk
-        )
+        initial_messages = [ChatMessage.from_user("What's the weather like in Paris and Berlin?")]
+        component = AmazonBedrockChatGenerator(model=model_name, tools=tools, streaming_callback=print_streaming_chunk)
         results = component.run(messages=initial_messages)
 
         assert len(results["replies"]) > 0, "No replies received"
@@ -1121,12 +1029,8 @@ class TestAmazonBedrockChatGeneratorInference:
                 break
 
         assert tool_call_message is not None, "No message with tool call found"
-        assert isinstance(
-            tool_call_message, ChatMessage
-        ), "Tool message is not a ChatMessage instance"
-        assert ChatMessage.is_from(
-            tool_call_message, ChatRole.ASSISTANT
-        ), "Tool message is not from the assistant"
+        assert isinstance(tool_call_message, ChatMessage), "Tool message is not a ChatMessage instance"
+        assert ChatMessage.is_from(tool_call_message, ChatRole.ASSISTANT), "Tool message is not from the assistant"
 
         tool_calls = tool_call_message.tool_calls
         for tool_call in tool_calls:
@@ -1137,8 +1041,7 @@ class TestAmazonBedrockChatGeneratorInference:
 
         # Mock the response we'd get from ToolInvoker
         tool_result_messages = [
-            ChatMessage.from_tool(tool_result="22° C", origin=tool_call)
-            for tool_call in tool_calls
+            ChatMessage.from_tool(tool_result="22° C", origin=tool_call) for tool_call in tool_calls
         ]
 
         new_messages = [*initial_messages, tool_call_message, *tool_result_messages]
@@ -1151,19 +1054,13 @@ class TestAmazonBedrockChatGeneratorInference:
         assert "paris" in final_message.text.lower()
         assert "berlin" in final_message.text.lower()
 
-    @pytest.mark.parametrize(
-        "model_name", STREAMING_TOOL_MODELS[:1]
-    )  # just one model is enough
-    def test_live_run_with_tool_with_no_args_streaming(
-        self, tool_with_no_parameters, model_name
-    ):
+    @pytest.mark.parametrize("model_name", STREAMING_TOOL_MODELS[:1])  # just one model is enough
+    def test_live_run_with_tool_with_no_args_streaming(self, tool_with_no_parameters, model_name):
         """
         Integration test that the AmazonBedrockChatGenerator component can run with a tool that has no arguments and
         streaming.
         """
-        initial_messages = [
-            ChatMessage.from_user("Print Hello World using the print hello world tool.")
-        ]
+        initial_messages = [ChatMessage.from_user("Print Hello World using the print hello world tool.")]
         component = AmazonBedrockChatGenerator(
             model=model_name,
             tools=[tool_with_no_parameters],
@@ -1199,8 +1096,7 @@ class TestAmazonBedrockChatGeneratorInference:
         assert "hello" in final_message.text.lower()
 
     @pytest.mark.skipif(
-        not os.getenv("AWS_BEDROCK_GUARDRAIL_ID")
-        or not os.getenv("AWS_BEDROCK_GUARDRAIL_VERSION"),
+        not os.getenv("AWS_BEDROCK_GUARDRAIL_ID") or not os.getenv("AWS_BEDROCK_GUARDRAIL_VERSION"),
         reason=(
             "Export AWS_BEDROCK_GUARDRAIL_ID and AWS_BEDROCK_GUARDRAIL_VERSION environment variables corresponding"
             "to a Bedrock Guardrail to run this test."
@@ -1221,25 +1117,16 @@ class TestAmazonBedrockChatGeneratorInference:
         results = component.run(messages=messages)
 
         assert results["replies"][0].meta["finish_reason"] == "content_filter"
-        assert (
-            results["replies"][0].text
-            == "Sorry, the model cannot answer this question."
-        )
+        assert results["replies"][0].text == "Sorry, the model cannot answer this question."
         assert "trace" in results["replies"][0].meta
         assert "guardrail" in results["replies"][0].meta["trace"]
 
     @pytest.mark.parametrize("streaming_callback", [None, print_streaming_chunk])
     @pytest.mark.parametrize("model_name", MODELS_TO_TEST_WITH_PROMPT_CACHING)
-    def test_prompt_caching_live_run_with_user_message(
-        self, model_name, streaming_callback
-    ):
-        generator = AmazonBedrockChatGenerator(
-            model=model_name, streaming_callback=streaming_callback
-        )
+    def test_prompt_caching_live_run_with_user_message(self, model_name, streaming_callback):
+        generator = AmazonBedrockChatGenerator(model=model_name, streaming_callback=streaming_callback)
 
-        system_message = ChatMessage.from_system(
-            "Always respond with: 'Life is beautiful' (and nothing else)."
-        )
+        system_message = ChatMessage.from_system("Always respond with: 'Life is beautiful' (and nothing else).")
 
         user_message = ChatMessage.from_user(
             "User message that should be long enough to cache. " * 100,
@@ -1254,36 +1141,23 @@ class TestAmazonBedrockChatGeneratorInference:
 
         # tests run in parallel based on the workflow matrix, so this request should either hit the cache (read tokens)
         # or populate it (write tokens)
-        assert (
-            usage["cache_read_input_tokens"] > 1000
-            or usage["cache_write_input_tokens"] > 1000
-        )
+        assert usage["cache_read_input_tokens"] > 1000 or usage["cache_write_input_tokens"] > 1000
         assert "cache_details" in usage
 
-    @pytest.mark.parametrize(
-        "model_name", MODELS_TO_TEST_WITH_TOOLS[:1]
-    )  # just one model is enough
+    @pytest.mark.parametrize("model_name", MODELS_TO_TEST_WITH_TOOLS[:1])  # just one model is enough
     def test_pipeline_with_amazon_bedrock_chat_generator(self, model_name, tools):
         """
         Test that the AmazonBedrockChatGenerator component can be used in a pipeline
         """
 
         pipeline = Pipeline()
-        pipeline.add_component(
-            "generator", AmazonBedrockChatGenerator(model=model_name, tools=tools)
-        )
+        pipeline.add_component("generator", AmazonBedrockChatGenerator(model=model_name, tools=tools))
         pipeline.add_component("tool_invoker", ToolInvoker(tools=tools))
 
         pipeline.connect("generator", "tool_invoker")
 
         results = pipeline.run(
-            data={
-                "generator": {
-                    "messages": [
-                        ChatMessage.from_user("What's the weather like in Paris?")
-                    ]
-                }
-            }
+            data={"generator": {"messages": [ChatMessage.from_user("What's the weather like in Paris?")]}}
         )
 
         assert (
@@ -1314,16 +1188,10 @@ class TestAmazonBedrockChatGeneratorAsyncInference:
         assert len(replies) > 0, "No replies received"
 
         first_reply = replies[0]
-        assert isinstance(
-            first_reply, ChatMessage
-        ), "First reply is not a ChatMessage instance"
+        assert isinstance(first_reply, ChatMessage), "First reply is not a ChatMessage instance"
         assert first_reply.text, "First reply has no content"
-        assert ChatMessage.is_from(
-            first_reply, ChatRole.ASSISTANT
-        ), "First reply is not from the assistant"
-        assert (
-            "paris" in first_reply.text.lower()
-        ), "First reply does not contain 'paris'"
+        assert ChatMessage.is_from(first_reply, ChatRole.ASSISTANT), "First reply is not from the assistant"
+        assert "paris" in first_reply.text.lower(), "First reply does not contain 'paris'"
         assert first_reply.meta, "First reply has no metadata"
 
         if first_reply.meta and "usage" in first_reply.meta:
@@ -1336,25 +1204,17 @@ class TestAmazonBedrockChatGeneratorAsyncInference:
         """
         Integration test that the AmazonBedrockChatGenerator component can run asynchronously with tools
         """
-        initial_messages = [
-            ChatMessage.from_user("What's the weather like in Paris and Berlin?")
-        ]
+        initial_messages = [ChatMessage.from_user("What's the weather like in Paris and Berlin?")]
         component = AmazonBedrockChatGenerator(model=model_name, tools=tools)
         results = await component.run_async(messages=initial_messages)
 
         assert len(results["replies"]) > 0, "No replies received"
 
         # Find the message with tool calls
-        tool_call_message = next(
-            (msg for msg in results["replies"] if msg.tool_calls), None
-        )
+        tool_call_message = next((msg for msg in results["replies"] if msg.tool_calls), None)
         assert tool_call_message is not None, "No message with tool call found"
-        assert isinstance(
-            tool_call_message, ChatMessage
-        ), "Tool message is not a ChatMessage instance"
-        assert ChatMessage.is_from(
-            tool_call_message, ChatRole.ASSISTANT
-        ), "Tool message is not from the assistant"
+        assert isinstance(tool_call_message, ChatMessage), "Tool message is not a ChatMessage instance"
+        assert ChatMessage.is_from(tool_call_message, ChatRole.ASSISTANT), "Tool message is not from the assistant"
 
         tool_calls = tool_call_message.tool_calls
         for tool_call in tool_calls:
@@ -1365,8 +1225,7 @@ class TestAmazonBedrockChatGeneratorAsyncInference:
 
         # Mock the response we'd get from ToolInvoker
         tool_result_messages = [
-            ChatMessage.from_tool(tool_result="22° C", origin=tool_call)
-            for tool_call in tool_calls
+            ChatMessage.from_tool(tool_result="22° C", origin=tool_call) for tool_call in tool_calls
         ]
         new_messages = [*initial_messages, tool_call_message, *tool_result_messages]
         results = await component.run_async(new_messages)
@@ -1396,36 +1255,24 @@ class TestAmazonBedrockChatGeneratorAsyncInference:
                 paris_found_in_response = "paris" in chunk.content.lower()
 
         client = AmazonBedrockChatGenerator(model=model_name)
-        response = await client.run_async(
-            chat_messages, streaming_callback=streaming_callback
-        )
+        response = await client.run_async(chat_messages, streaming_callback=streaming_callback)
 
         assert streaming_callback_called, "Streaming callback was not called"
-        assert (
-            paris_found_in_response
-        ), "The streaming callback response did not contain 'paris'"
+        assert paris_found_in_response, "The streaming callback response did not contain 'paris'"
         replies = response["replies"]
         assert isinstance(replies, list), "Replies is not a list"
         assert len(replies) > 0, "No replies received"
 
         first_reply = replies[0]
-        assert isinstance(
-            first_reply, ChatMessage
-        ), "First reply is not a ChatMessage instance"
+        assert isinstance(first_reply, ChatMessage), "First reply is not a ChatMessage instance"
         assert first_reply.text, "First reply has no content"
-        assert ChatMessage.is_from(
-            first_reply, ChatRole.ASSISTANT
-        ), "First reply is not from the assistant"
-        assert (
-            "paris" in first_reply.text.lower()
-        ), "First reply does not contain 'paris'"
+        assert ChatMessage.is_from(first_reply, ChatRole.ASSISTANT), "First reply is not from the assistant"
+        assert "paris" in first_reply.text.lower(), "First reply does not contain 'paris'"
         assert first_reply.meta, "First reply has no metadata"
 
     @pytest.mark.asyncio
     @pytest.mark.parametrize("model_name", STREAMING_TOOL_MODELS)
-    async def test_async_live_run_with_multi_tool_calls_streaming(
-        self, model_name, tools
-    ):
+    async def test_async_live_run_with_multi_tool_calls_streaming(self, model_name, tools):
         """
         Integration test that the AmazonBedrockChatGenerator component can run asynchronously with tools and streaming
         """
@@ -1433,27 +1280,17 @@ class TestAmazonBedrockChatGeneratorAsyncInference:
         async def streaming_callback(chunk: StreamingChunk):
             print(chunk, flush=True, end="")  # noqa: T201
 
-        initial_messages = [
-            ChatMessage.from_user("What's the weather like in Paris and Berlin?")
-        ]
-        component = AmazonBedrockChatGenerator(
-            model=model_name, tools=tools, streaming_callback=streaming_callback
-        )
+        initial_messages = [ChatMessage.from_user("What's the weather like in Paris and Berlin?")]
+        component = AmazonBedrockChatGenerator(model=model_name, tools=tools, streaming_callback=streaming_callback)
         results = await component.run_async(messages=initial_messages)
 
         assert len(results["replies"]) > 0, "No replies received"
 
         # Find the message with tool calls
-        tool_call_message = next(
-            (msg for msg in results["replies"] if msg.tool_calls), None
-        )
+        tool_call_message = next((msg for msg in results["replies"] if msg.tool_calls), None)
         assert tool_call_message is not None, "No message with tool call found"
-        assert isinstance(
-            tool_call_message, ChatMessage
-        ), "Tool message is not a ChatMessage instance"
-        assert ChatMessage.is_from(
-            tool_call_message, ChatRole.ASSISTANT
-        ), "Tool message is not from the assistant"
+        assert isinstance(tool_call_message, ChatMessage), "Tool message is not a ChatMessage instance"
+        assert ChatMessage.is_from(tool_call_message, ChatRole.ASSISTANT), "Tool message is not from the assistant"
 
         tool_calls = tool_call_message.tool_calls
         for tool_call in tool_calls:
@@ -1464,8 +1301,7 @@ class TestAmazonBedrockChatGeneratorAsyncInference:
 
         # Mock the response we'd get from ToolInvoker
         tool_result_messages = [
-            ChatMessage.from_tool(tool_result="22° C", origin=tool_call)
-            for tool_call in tool_calls
+            ChatMessage.from_tool(tool_result="22° C", origin=tool_call) for tool_call in tool_calls
         ]
         new_messages = [*initial_messages, tool_call_message, *tool_result_messages]
         results = await component.run_async(new_messages)

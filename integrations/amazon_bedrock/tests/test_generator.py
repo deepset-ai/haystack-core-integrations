@@ -220,9 +220,7 @@ def test_constructor_with_empty_model():
         ("mistral.mistral-medium-v8:0", MistralAdapter),  # artificial
     ],
 )
-def test_get_model_adapter(
-    model: str, expected_model_adapter: type[BedrockModelAdapter] | None
-):
+def test_get_model_adapter(model: str, expected_model_adapter: type[BedrockModelAdapter] | None):
     """
     Test that the correct model adapter is returned for a given model
     """
@@ -248,9 +246,7 @@ def test_get_model_adapter_with_model_family(
     """
     Test that the correct model adapter is returned for a given model model_family
     """
-    model_adapter = AmazonBedrockGenerator.get_model_adapter(
-        model="arn:123435423", model_family=model_family
-    )
+    model_adapter = AmazonBedrockGenerator.get_model_adapter(model="arn:123435423", model_family=model_family)
     assert model_adapter == expected_model_adapter
 
 
@@ -259,9 +255,7 @@ def test_get_model_adapter_with_invalid_model_family():
     Test that an error is raised when an invalid model_family is provided
     """
     with pytest.raises(AmazonBedrockConfigurationError):
-        AmazonBedrockGenerator.get_model_adapter(
-            model="arn:123435423", model_family="invalid"
-        )
+        AmazonBedrockGenerator.get_model_adapter(model="arn:123435423", model_family="invalid")
 
 
 def test_get_model_adapter_auto_detect_family_fails():
@@ -302,9 +296,7 @@ class TestAnthropicClaudeAdapter:
         assert adapter.use_messages_api is True
 
     def test_use_messages_api_false(self) -> None:
-        adapter = AnthropicClaudeAdapter(
-            model_kwargs={"use_messages_api": False}, max_length=100
-        )
+        adapter = AnthropicClaudeAdapter(model_kwargs={"use_messages_api": False}, max_length=100)
         assert adapter.use_messages_api is False
 
 
@@ -444,15 +436,11 @@ class TestAnthropicClaudeAdapterMessagesAPI:
                 {"text": "This is a single response."},
             ]
         }
-        expected_responses = [
-            "<thinking>This is a thinking part.</thinking>\n\nThis is a single response."
-        ]
+        expected_responses = ["<thinking>This is a thinking part.</thinking>\n\nThis is a single response."]
         assert adapter.get_responses(response_body) == expected_responses
 
     def test_get_responses_with_thinking_include_thinking_false(self) -> None:
-        adapter = AnthropicClaudeAdapter(
-            model_kwargs={"include_thinking": False}, max_length=99
-        )
+        adapter = AnthropicClaudeAdapter(model_kwargs={"include_thinking": False}, max_length=99)
         response_body = {
             "content": [
                 {"thinking": "This is a thinking part.", "type": "thinking"},
@@ -463,24 +451,18 @@ class TestAnthropicClaudeAdapterMessagesAPI:
         assert adapter.get_responses(response_body) == expected_responses
 
     def test_get_responses_with_thinking_custom_thinking_tag(self) -> None:
-        adapter = AnthropicClaudeAdapter(
-            model_kwargs={"thinking_tag": "custom"}, max_length=99
-        )
+        adapter = AnthropicClaudeAdapter(model_kwargs={"thinking_tag": "custom"}, max_length=99)
         response_body = {
             "content": [
                 {"thinking": "This is a thinking part.", "type": "thinking"},
                 {"text": "This is a single response."},
             ]
         }
-        expected_responses = [
-            "<custom>This is a thinking part.</custom>\n\nThis is a single response."
-        ]
+        expected_responses = ["<custom>This is a thinking part.</custom>\n\nThis is a single response."]
         assert adapter.get_responses(response_body) == expected_responses
 
     def test_get_responses_with_thinking_no_thinking_tag(self) -> None:
-        adapter = AnthropicClaudeAdapter(
-            model_kwargs={"thinking_tag": None}, max_length=99
-        )
+        adapter = AnthropicClaudeAdapter(model_kwargs={"thinking_tag": None}, max_length=99)
         response_body = {
             "content": [
                 {"thinking": "This is a thinking part.", "type": "thinking"},
@@ -499,9 +481,7 @@ class TestAnthropicClaudeAdapterMessagesAPI:
                 {"text": "This is a single response."},
             ]
         }
-        expected_responses = [
-            "<thinking>This is a thinking part.</thinking>\n\nThis is a single response."
-        ]
+        expected_responses = ["<thinking>This is a thinking part.</thinking>\n\nThis is a single response."]
         assert adapter.get_responses(response_body) == expected_responses
 
     def test_get_stream_responses(self) -> None:
@@ -509,11 +489,7 @@ class TestAnthropicClaudeAdapterMessagesAPI:
         streaming_callback_mock = MagicMock()
 
         stream_mock.__iter__.return_value = [
-            {
-                "chunk": {
-                    "bytes": b'{"type": "content_block_start", "content_block": {"type": "text"}, "index": 0}'
-                }
-            },
+            {"chunk": {"bytes": b'{"type": "content_block_start", "content_block": {"type": "text"}, "index": 0}'}},
             {"chunk": {"bytes": b'{"delta": {"text": " This"}}'}},
             {"chunk": {"bytes": b'{"delta": {"text": " is"}}'}},
             {"chunk": {"bytes": b'{"delta": {"text": " a"}}'}},
@@ -523,28 +499,15 @@ class TestAnthropicClaudeAdapterMessagesAPI:
 
         adapter = AnthropicClaudeAdapter(model_kwargs={}, max_length=99)
         expected_responses = ["This is a single response."]
-        assert (
-            adapter.get_stream_responses(stream_mock, streaming_callback_mock)
-            == expected_responses
-        )
+        assert adapter.get_stream_responses(stream_mock, streaming_callback_mock) == expected_responses
 
         streaming_callback_mock.assert_has_calls(
             [
-                call(
-                    StreamingChunk(content=" This", meta={"delta": {"text": " This"}})
-                ),
+                call(StreamingChunk(content=" This", meta={"delta": {"text": " This"}})),
                 call(StreamingChunk(content=" is", meta={"delta": {"text": " is"}})),
                 call(StreamingChunk(content=" a", meta={"delta": {"text": " a"}})),
-                call(
-                    StreamingChunk(
-                        content=" single", meta={"delta": {"text": " single"}}
-                    )
-                ),
-                call(
-                    StreamingChunk(
-                        content=" response.", meta={"delta": {"text": " response."}}
-                    )
-                ),
+                call(StreamingChunk(content=" single", meta={"delta": {"text": " single"}})),
+                call(StreamingChunk(content=" response.", meta={"delta": {"text": " response."}})),
             ]
         )
 
@@ -556,10 +519,7 @@ class TestAnthropicClaudeAdapterMessagesAPI:
 
         adapter = AnthropicClaudeAdapter(model_kwargs={}, max_length=99)
         expected_responses = [""]
-        assert (
-            adapter.get_stream_responses(stream_mock, streaming_callback_mock)
-            == expected_responses
-        )
+        assert adapter.get_stream_responses(stream_mock, streaming_callback_mock) == expected_responses
 
         streaming_callback_mock.assert_not_called()
 
@@ -568,21 +528,13 @@ class TestAnthropicClaudeAdapterMessagesAPI:
         streaming_callback_mock = MagicMock()
 
         stream_mock.__iter__.return_value = [
-            {
-                "chunk": {
-                    "bytes": b'{"type": "content_block_start", "content_block": {"type": "thinking"}, "index": 0}'
-                }
-            },
+            {"chunk": {"bytes": b'{"type": "content_block_start", "content_block": {"type": "thinking"}, "index": 0}'}},
             {"chunk": {"bytes": b'{"delta": {"thinking": "This"}}'}},
             {"chunk": {"bytes": b'{"delta": {"thinking": " is"}}'}},
             {"chunk": {"bytes": b'{"delta": {"thinking": " a"}}'}},
             {"chunk": {"bytes": b'{"delta": {"thinking": " thinking"}}'}},
             {"chunk": {"bytes": b'{"delta": {"thinking": " part."}}'}},
-            {
-                "chunk": {
-                    "bytes": b'{"type": "content_block_start", "content_block": {"type": "text"}, "index": 1}'
-                }
-            },
+            {"chunk": {"bytes": b'{"type": "content_block_start", "content_block": {"type": "text"}, "index": 1}'}},
             {"chunk": {"bytes": b'{"delta": {"text": "This"}}'}},
             {"chunk": {"bytes": b'{"delta": {"text": " is"}}'}},
             {"chunk": {"bytes": b'{"delta": {"text": " a"}}'}},
@@ -591,13 +543,8 @@ class TestAnthropicClaudeAdapterMessagesAPI:
         ]
 
         adapter = AnthropicClaudeAdapter(model_kwargs={}, max_length=99)
-        expected_responses = [
-            "<thinking>This is a thinking part.</thinking>\n\nThis is a single response."
-        ]
-        assert (
-            adapter.get_stream_responses(stream_mock, streaming_callback_mock)
-            == expected_responses
-        )
+        expected_responses = ["<thinking>This is a thinking part.</thinking>\n\nThis is a single response."]
+        assert adapter.get_stream_responses(stream_mock, streaming_callback_mock) == expected_responses
 
         streaming_callback_mock.assert_has_calls(
             [
@@ -611,23 +558,11 @@ class TestAnthropicClaudeAdapterMessagesAPI:
                         },
                     )
                 ),
-                call(
-                    StreamingChunk(content="This", meta={"delta": {"thinking": "This"}})
-                ),
-                call(
-                    StreamingChunk(content=" is", meta={"delta": {"thinking": " is"}})
-                ),
+                call(StreamingChunk(content="This", meta={"delta": {"thinking": "This"}})),
+                call(StreamingChunk(content=" is", meta={"delta": {"thinking": " is"}})),
                 call(StreamingChunk(content=" a", meta={"delta": {"thinking": " a"}})),
-                call(
-                    StreamingChunk(
-                        content=" thinking", meta={"delta": {"thinking": " thinking"}}
-                    )
-                ),
-                call(
-                    StreamingChunk(
-                        content=" part.", meta={"delta": {"thinking": " part."}}
-                    )
-                ),
+                call(StreamingChunk(content=" thinking", meta={"delta": {"thinking": " thinking"}})),
+                call(StreamingChunk(content=" part.", meta={"delta": {"thinking": " part."}})),
                 call(
                     StreamingChunk(
                         content="</thinking>\n\n",
@@ -641,16 +576,8 @@ class TestAnthropicClaudeAdapterMessagesAPI:
                 call(StreamingChunk(content="This", meta={"delta": {"text": "This"}})),
                 call(StreamingChunk(content=" is", meta={"delta": {"text": " is"}})),
                 call(StreamingChunk(content=" a", meta={"delta": {"text": " a"}})),
-                call(
-                    StreamingChunk(
-                        content=" single", meta={"delta": {"text": " single"}}
-                    )
-                ),
-                call(
-                    StreamingChunk(
-                        content=" response.", meta={"delta": {"text": " response."}}
-                    )
-                ),
+                call(StreamingChunk(content=" single", meta={"delta": {"text": " single"}})),
+                call(StreamingChunk(content=" response.", meta={"delta": {"text": " response."}})),
             ]
         )
 
@@ -659,21 +586,13 @@ class TestAnthropicClaudeAdapterMessagesAPI:
         streaming_callback_mock = MagicMock()
 
         stream_mock.__iter__.return_value = [
-            {
-                "chunk": {
-                    "bytes": b'{"type": "content_block_start", "content_block": {"type": "thinking"}, "index": 0}'
-                }
-            },
+            {"chunk": {"bytes": b'{"type": "content_block_start", "content_block": {"type": "thinking"}, "index": 0}'}},
             {"chunk": {"bytes": b'{"delta": {"thinking": "This"}}'}},
             {"chunk": {"bytes": b'{"delta": {"thinking": " is"}}'}},
             {"chunk": {"bytes": b'{"delta": {"thinking": " a"}}'}},
             {"chunk": {"bytes": b'{"delta": {"thinking": " thinking"}}'}},
             {"chunk": {"bytes": b'{"delta": {"thinking": " part."}}'}},
-            {
-                "chunk": {
-                    "bytes": b'{"type": "content_block_start", "content_block": {"type": "text"}, "index": 1}'
-                }
-            },
+            {"chunk": {"bytes": b'{"type": "content_block_start", "content_block": {"type": "text"}, "index": 1}'}},
             {"chunk": {"bytes": b'{"delta": {"text": "This"}}'}},
             {"chunk": {"bytes": b'{"delta": {"text": " is"}}'}},
             {"chunk": {"bytes": b'{"delta": {"text": " a"}}'}},
@@ -681,30 +600,17 @@ class TestAnthropicClaudeAdapterMessagesAPI:
             {"chunk": {"bytes": b'{"delta": {"text": " response."}}'}},
         ]
 
-        adapter = AnthropicClaudeAdapter(
-            model_kwargs={"include_thinking": False}, max_length=99
-        )
+        adapter = AnthropicClaudeAdapter(model_kwargs={"include_thinking": False}, max_length=99)
         expected_responses = ["This is a single response."]
-        assert (
-            adapter.get_stream_responses(stream_mock, streaming_callback_mock)
-            == expected_responses
-        )
+        assert adapter.get_stream_responses(stream_mock, streaming_callback_mock) == expected_responses
 
         streaming_callback_mock.assert_has_calls(
             [
                 call(StreamingChunk(content="This", meta={"delta": {"text": "This"}})),
                 call(StreamingChunk(content=" is", meta={"delta": {"text": " is"}})),
                 call(StreamingChunk(content=" a", meta={"delta": {"text": " a"}})),
-                call(
-                    StreamingChunk(
-                        content=" single", meta={"delta": {"text": " single"}}
-                    )
-                ),
-                call(
-                    StreamingChunk(
-                        content=" response.", meta={"delta": {"text": " response."}}
-                    )
-                ),
+                call(StreamingChunk(content=" single", meta={"delta": {"text": " single"}})),
+                call(StreamingChunk(content=" response.", meta={"delta": {"text": " response."}})),
             ]
         )
 
@@ -713,21 +619,13 @@ class TestAnthropicClaudeAdapterMessagesAPI:
         streaming_callback_mock = MagicMock()
 
         stream_mock.__iter__.return_value = [
-            {
-                "chunk": {
-                    "bytes": b'{"type": "content_block_start", "content_block": {"type": "thinking"}, "index": 0}'
-                }
-            },
+            {"chunk": {"bytes": b'{"type": "content_block_start", "content_block": {"type": "thinking"}, "index": 0}'}},
             {"chunk": {"bytes": b'{"delta": {"thinking": "This"}}'}},
             {"chunk": {"bytes": b'{"delta": {"thinking": " is"}}'}},
             {"chunk": {"bytes": b'{"delta": {"thinking": " a"}}'}},
             {"chunk": {"bytes": b'{"delta": {"thinking": " thinking"}}'}},
             {"chunk": {"bytes": b'{"delta": {"thinking": " part."}}'}},
-            {
-                "chunk": {
-                    "bytes": b'{"type": "content_block_start", "content_block": {"type": "text"}, "index": 1}'
-                }
-            },
+            {"chunk": {"bytes": b'{"type": "content_block_start", "content_block": {"type": "text"}, "index": 1}'}},
             {"chunk": {"bytes": b'{"delta": {"text": "This"}}'}},
             {"chunk": {"bytes": b'{"delta": {"text": " is"}}'}},
             {"chunk": {"bytes": b'{"delta": {"text": " a"}}'}},
@@ -735,16 +633,9 @@ class TestAnthropicClaudeAdapterMessagesAPI:
             {"chunk": {"bytes": b'{"delta": {"text": " response."}}'}},
         ]
 
-        adapter = AnthropicClaudeAdapter(
-            model_kwargs={"thinking_tag": "custom"}, max_length=99
-        )
-        expected_responses = [
-            "<custom>This is a thinking part.</custom>\n\nThis is a single response."
-        ]
-        assert (
-            adapter.get_stream_responses(stream_mock, streaming_callback_mock)
-            == expected_responses
-        )
+        adapter = AnthropicClaudeAdapter(model_kwargs={"thinking_tag": "custom"}, max_length=99)
+        expected_responses = ["<custom>This is a thinking part.</custom>\n\nThis is a single response."]
+        assert adapter.get_stream_responses(stream_mock, streaming_callback_mock) == expected_responses
 
         streaming_callback_mock.assert_has_calls(
             [
@@ -758,23 +649,11 @@ class TestAnthropicClaudeAdapterMessagesAPI:
                         },
                     )
                 ),
-                call(
-                    StreamingChunk(content="This", meta={"delta": {"thinking": "This"}})
-                ),
-                call(
-                    StreamingChunk(content=" is", meta={"delta": {"thinking": " is"}})
-                ),
+                call(StreamingChunk(content="This", meta={"delta": {"thinking": "This"}})),
+                call(StreamingChunk(content=" is", meta={"delta": {"thinking": " is"}})),
                 call(StreamingChunk(content=" a", meta={"delta": {"thinking": " a"}})),
-                call(
-                    StreamingChunk(
-                        content=" thinking", meta={"delta": {"thinking": " thinking"}}
-                    )
-                ),
-                call(
-                    StreamingChunk(
-                        content=" part.", meta={"delta": {"thinking": " part."}}
-                    )
-                ),
+                call(StreamingChunk(content=" thinking", meta={"delta": {"thinking": " thinking"}})),
+                call(StreamingChunk(content=" part.", meta={"delta": {"thinking": " part."}})),
                 call(
                     StreamingChunk(
                         content="</custom>\n\n",
@@ -788,16 +667,8 @@ class TestAnthropicClaudeAdapterMessagesAPI:
                 call(StreamingChunk(content="This", meta={"delta": {"text": "This"}})),
                 call(StreamingChunk(content=" is", meta={"delta": {"text": " is"}})),
                 call(StreamingChunk(content=" a", meta={"delta": {"text": " a"}})),
-                call(
-                    StreamingChunk(
-                        content=" single", meta={"delta": {"text": " single"}}
-                    )
-                ),
-                call(
-                    StreamingChunk(
-                        content=" response.", meta={"delta": {"text": " response."}}
-                    )
-                ),
+                call(StreamingChunk(content=" single", meta={"delta": {"text": " single"}})),
+                call(StreamingChunk(content=" response.", meta={"delta": {"text": " response."}})),
             ]
         )
 
@@ -806,21 +677,13 @@ class TestAnthropicClaudeAdapterMessagesAPI:
         streaming_callback_mock = MagicMock()
 
         stream_mock.__iter__.return_value = [
-            {
-                "chunk": {
-                    "bytes": b'{"type": "content_block_start", "content_block": {"type": "thinking"}, "index": 0}'
-                }
-            },
+            {"chunk": {"bytes": b'{"type": "content_block_start", "content_block": {"type": "thinking"}, "index": 0}'}},
             {"chunk": {"bytes": b'{"delta": {"thinking": "This"}}'}},
             {"chunk": {"bytes": b'{"delta": {"thinking": " is"}}'}},
             {"chunk": {"bytes": b'{"delta": {"thinking": " a"}}'}},
             {"chunk": {"bytes": b'{"delta": {"thinking": " thinking"}}'}},
             {"chunk": {"bytes": b'{"delta": {"thinking": " part."}}'}},
-            {
-                "chunk": {
-                    "bytes": b'{"type": "content_block_start", "content_block": {"type": "text"}, "index": 1}'
-                }
-            },
+            {"chunk": {"bytes": b'{"type": "content_block_start", "content_block": {"type": "text"}, "index": 1}'}},
             {"chunk": {"bytes": b'{"delta": {"text": "This"}}'}},
             {"chunk": {"bytes": b'{"delta": {"text": " is"}}'}},
             {"chunk": {"bytes": b'{"delta": {"text": " a"}}'}},
@@ -828,14 +691,9 @@ class TestAnthropicClaudeAdapterMessagesAPI:
             {"chunk": {"bytes": b'{"delta": {"text": " response."}}'}},
         ]
 
-        adapter = AnthropicClaudeAdapter(
-            model_kwargs={"thinking_tag": None}, max_length=99
-        )
+        adapter = AnthropicClaudeAdapter(model_kwargs={"thinking_tag": None}, max_length=99)
         expected_responses = ["This is a thinking part.\n\nThis is a single response."]
-        assert (
-            adapter.get_stream_responses(stream_mock, streaming_callback_mock)
-            == expected_responses
-        )
+        assert adapter.get_stream_responses(stream_mock, streaming_callback_mock) == expected_responses
 
         streaming_callback_mock.assert_has_calls(
             [
@@ -849,23 +707,11 @@ class TestAnthropicClaudeAdapterMessagesAPI:
                         },
                     )
                 ),
-                call(
-                    StreamingChunk(content="This", meta={"delta": {"thinking": "This"}})
-                ),
-                call(
-                    StreamingChunk(content=" is", meta={"delta": {"thinking": " is"}})
-                ),
+                call(StreamingChunk(content="This", meta={"delta": {"thinking": "This"}})),
+                call(StreamingChunk(content=" is", meta={"delta": {"thinking": " is"}})),
                 call(StreamingChunk(content=" a", meta={"delta": {"thinking": " a"}})),
-                call(
-                    StreamingChunk(
-                        content=" thinking", meta={"delta": {"thinking": " thinking"}}
-                    )
-                ),
-                call(
-                    StreamingChunk(
-                        content=" part.", meta={"delta": {"thinking": " part."}}
-                    )
-                ),
+                call(StreamingChunk(content=" thinking", meta={"delta": {"thinking": " thinking"}})),
+                call(StreamingChunk(content=" part.", meta={"delta": {"thinking": " part."}})),
                 call(
                     StreamingChunk(
                         content="\n\n",
@@ -879,16 +725,8 @@ class TestAnthropicClaudeAdapterMessagesAPI:
                 call(StreamingChunk(content="This", meta={"delta": {"text": "This"}})),
                 call(StreamingChunk(content=" is", meta={"delta": {"text": " is"}})),
                 call(StreamingChunk(content=" a", meta={"delta": {"text": " a"}})),
-                call(
-                    StreamingChunk(
-                        content=" single", meta={"delta": {"text": " single"}}
-                    )
-                ),
-                call(
-                    StreamingChunk(
-                        content=" response.", meta={"delta": {"text": " response."}}
-                    )
-                ),
+                call(StreamingChunk(content=" single", meta={"delta": {"text": " single"}})),
+                call(StreamingChunk(content=" response.", meta={"delta": {"text": " response."}})),
             ]
         )
 
@@ -906,21 +744,13 @@ class TestAnthropicClaudeAdapterMessagesAPI:
                     )
                 }
             },
-            {
-                "chunk": {
-                    "bytes": b'{"type": "content_block_start", "content_block": {"type": "thinking"}, "index": 1}'
-                }
-            },
+            {"chunk": {"bytes": b'{"type": "content_block_start", "content_block": {"type": "thinking"}, "index": 1}'}},
             {"chunk": {"bytes": b'{"delta": {"thinking": "This"}}'}},
             {"chunk": {"bytes": b'{"delta": {"thinking": " is"}}'}},
             {"chunk": {"bytes": b'{"delta": {"thinking": " a"}}'}},
             {"chunk": {"bytes": b'{"delta": {"thinking": " thinking"}}'}},
             {"chunk": {"bytes": b'{"delta": {"thinking": " part."}}'}},
-            {
-                "chunk": {
-                    "bytes": b'{"type": "content_block_start", "content_block": {"type": "text"}, "index": 2}'
-                }
-            },
+            {"chunk": {"bytes": b'{"type": "content_block_start", "content_block": {"type": "text"}, "index": 2}'}},
             {"chunk": {"bytes": b'{"delta": {"text": "This"}}'}},
             {"chunk": {"bytes": b'{"delta": {"text": " is"}}'}},
             {"chunk": {"bytes": b'{"delta": {"text": " a"}}'}},
@@ -929,13 +759,8 @@ class TestAnthropicClaudeAdapterMessagesAPI:
         ]
 
         adapter = AnthropicClaudeAdapter(model_kwargs={}, max_length=99)
-        expected_responses = [
-            "<thinking>This is a thinking part.</thinking>\n\nThis is a single response."
-        ]
-        assert (
-            adapter.get_stream_responses(stream_mock, streaming_callback_mock)
-            == expected_responses
-        )
+        expected_responses = ["<thinking>This is a thinking part.</thinking>\n\nThis is a single response."]
+        assert adapter.get_stream_responses(stream_mock, streaming_callback_mock) == expected_responses
 
         streaming_callback_mock.assert_has_calls(
             [
@@ -949,23 +774,11 @@ class TestAnthropicClaudeAdapterMessagesAPI:
                         },
                     )
                 ),
-                call(
-                    StreamingChunk(content="This", meta={"delta": {"thinking": "This"}})
-                ),
-                call(
-                    StreamingChunk(content=" is", meta={"delta": {"thinking": " is"}})
-                ),
+                call(StreamingChunk(content="This", meta={"delta": {"thinking": "This"}})),
+                call(StreamingChunk(content=" is", meta={"delta": {"thinking": " is"}})),
                 call(StreamingChunk(content=" a", meta={"delta": {"thinking": " a"}})),
-                call(
-                    StreamingChunk(
-                        content=" thinking", meta={"delta": {"thinking": " thinking"}}
-                    )
-                ),
-                call(
-                    StreamingChunk(
-                        content=" part.", meta={"delta": {"thinking": " part."}}
-                    )
-                ),
+                call(StreamingChunk(content=" thinking", meta={"delta": {"thinking": " thinking"}})),
+                call(StreamingChunk(content=" part.", meta={"delta": {"thinking": " part."}})),
                 call(
                     StreamingChunk(
                         content="</thinking>\n\n",
@@ -979,25 +792,15 @@ class TestAnthropicClaudeAdapterMessagesAPI:
                 call(StreamingChunk(content="This", meta={"delta": {"text": "This"}})),
                 call(StreamingChunk(content=" is", meta={"delta": {"text": " is"}})),
                 call(StreamingChunk(content=" a", meta={"delta": {"text": " a"}})),
-                call(
-                    StreamingChunk(
-                        content=" single", meta={"delta": {"text": " single"}}
-                    )
-                ),
-                call(
-                    StreamingChunk(
-                        content=" response.", meta={"delta": {"text": " response."}}
-                    )
-                ),
+                call(StreamingChunk(content=" single", meta={"delta": {"text": " single"}})),
+                call(StreamingChunk(content=" response.", meta={"delta": {"text": " response."}})),
             ]
         )
 
 
 class TestAnthropicClaudeAdapterNoMessagesAPI:
     def test_prepare_body_with_default_params(self) -> None:
-        layer = AnthropicClaudeAdapter(
-            model_kwargs={"use_messages_api": False}, max_length=99
-        )
+        layer = AnthropicClaudeAdapter(model_kwargs={"use_messages_api": False}, max_length=99)
         prompt = "Hello, how are you?"
         expected_body = {
             "prompt": "\n\nHuman: Hello, how are you?\n\nAssistant:",
@@ -1010,9 +813,7 @@ class TestAnthropicClaudeAdapterNoMessagesAPI:
         assert body == expected_body
 
     def test_prepare_body_with_custom_inference_params(self) -> None:
-        layer = AnthropicClaudeAdapter(
-            model_kwargs={"use_messages_api": False}, max_length=99
-        )
+        layer = AnthropicClaudeAdapter(model_kwargs={"use_messages_api": False}, max_length=99)
         prompt = "Hello, how are you?"
         expected_body = {
             "prompt": "\n\nHuman: Hello, how are you?\n\nAssistant:",
@@ -1084,24 +885,18 @@ class TestAnthropicClaudeAdapterNoMessagesAPI:
             "top_k": 5,
         }
 
-        body = layer.prepare_body(
-            prompt, temperature=0.7, top_p=0.8, top_k=5, max_tokens_to_sample=50
-        )
+        body = layer.prepare_body(prompt, temperature=0.7, top_p=0.8, top_k=5, max_tokens_to_sample=50)
 
         assert body == expected_body
 
     def test_get_responses(self) -> None:
-        adapter = AnthropicClaudeAdapter(
-            model_kwargs={"use_messages_api": False}, max_length=99
-        )
+        adapter = AnthropicClaudeAdapter(model_kwargs={"use_messages_api": False}, max_length=99)
         response_body = {"completion": "This is a single response."}
         expected_responses = ["This is a single response."]
         assert adapter.get_responses(response_body) == expected_responses
 
     def test_get_responses_leading_whitespace(self) -> None:
-        adapter = AnthropicClaudeAdapter(
-            model_kwargs={"use_messages_api": False}, max_length=99
-        )
+        adapter = AnthropicClaudeAdapter(model_kwargs={"use_messages_api": False}, max_length=99)
         response_body = {"completion": "\n\t This is a single response."}
         expected_responses = ["This is a single response."]
         assert adapter.get_responses(response_body) == expected_responses
@@ -1118,14 +913,9 @@ class TestAnthropicClaudeAdapterNoMessagesAPI:
             {"chunk": {"bytes": b'{"completion": " response."}'}},
         ]
 
-        adapter = AnthropicClaudeAdapter(
-            model_kwargs={"use_messages_api": False}, max_length=99
-        )
+        adapter = AnthropicClaudeAdapter(model_kwargs={"use_messages_api": False}, max_length=99)
         expected_responses = ["This is a single response."]
-        assert (
-            adapter.get_stream_responses(stream_mock, streaming_callback_mock)
-            == expected_responses
-        )
+        assert adapter.get_stream_responses(stream_mock, streaming_callback_mock) == expected_responses
 
         streaming_callback_mock.assert_has_calls(
             [
@@ -1133,11 +923,7 @@ class TestAnthropicClaudeAdapterNoMessagesAPI:
                 call(StreamingChunk(content=" is", meta={"completion": " is"})),
                 call(StreamingChunk(content=" a", meta={"completion": " a"})),
                 call(StreamingChunk(content=" single", meta={"completion": " single"})),
-                call(
-                    StreamingChunk(
-                        content=" response.", meta={"completion": " response."}
-                    )
-                ),
+                call(StreamingChunk(content=" response.", meta={"completion": " response."})),
             ]
         )
 
@@ -1147,14 +933,9 @@ class TestAnthropicClaudeAdapterNoMessagesAPI:
 
         stream_mock.__iter__.return_value = []
 
-        adapter = AnthropicClaudeAdapter(
-            model_kwargs={"use_messages_api": False}, max_length=99
-        )
+        adapter = AnthropicClaudeAdapter(model_kwargs={"use_messages_api": False}, max_length=99)
         expected_responses = [""]
-        assert (
-            adapter.get_stream_responses(stream_mock, streaming_callback_mock)
-            == expected_responses
-        )
+        assert adapter.get_stream_responses(stream_mock, streaming_callback_mock) == expected_responses
 
         streaming_callback_mock.assert_not_called()
 
@@ -1243,9 +1024,7 @@ class TestMistralAdapter:
             "top_k": 5,
         }
 
-        body = layer.prepare_body(
-            prompt, temperature=0.7, top_p=0.8, top_k=5, max_tokens=50
-        )
+        body = layer.prepare_body(prompt, temperature=0.7, top_p=0.8, top_k=5, max_tokens=50)
 
         assert body == expected_body
 
@@ -1269,32 +1048,15 @@ class TestMistralAdapter:
 
         adapter = MistralAdapter(model_kwargs={}, max_length=99)
         expected_responses = ["This is a single response."]
-        assert (
-            adapter.get_stream_responses(stream_mock, streaming_callback_mock)
-            == expected_responses
-        )
+        assert adapter.get_stream_responses(stream_mock, streaming_callback_mock) == expected_responses
 
         streaming_callback_mock.assert_has_calls(
             [
-                call(
-                    StreamingChunk(
-                        content=" This", meta={"outputs": [{"text": " This"}]}
-                    )
-                ),
-                call(
-                    StreamingChunk(content=" is", meta={"outputs": [{"text": " is"}]})
-                ),
+                call(StreamingChunk(content=" This", meta={"outputs": [{"text": " This"}]})),
+                call(StreamingChunk(content=" is", meta={"outputs": [{"text": " is"}]})),
                 call(StreamingChunk(content=" a", meta={"outputs": [{"text": " a"}]})),
-                call(
-                    StreamingChunk(
-                        content=" single", meta={"outputs": [{"text": " single"}]}
-                    )
-                ),
-                call(
-                    StreamingChunk(
-                        content=" response.", meta={"outputs": [{"text": " response."}]}
-                    )
-                ),
+                call(StreamingChunk(content=" single", meta={"outputs": [{"text": " single"}]})),
+                call(StreamingChunk(content=" response.", meta={"outputs": [{"text": " response."}]})),
             ]
         )
 
@@ -1304,16 +1066,11 @@ class TestMistralAdapter:
 
         stream_mock.__iter__.return_value = []
 
-        streaming_callback_mock.side_effect = (
-            lambda token_received, **kwargs: token_received
-        )
+        streaming_callback_mock.side_effect = lambda token_received, **kwargs: token_received
 
         adapter = MistralAdapter(model_kwargs={}, max_length=99)
         expected_responses = [""]
-        assert (
-            adapter.get_stream_responses(stream_mock, streaming_callback_mock)
-            == expected_responses
-        )
+        assert adapter.get_stream_responses(stream_mock, streaming_callback_mock) == expected_responses
 
         streaming_callback_mock.assert_not_called()
 
@@ -1480,19 +1237,12 @@ class TestCohereCommandAdapter:
             {"chunk": {"bytes": b'{"text": " a"}'}},
             {"chunk": {"bytes": b'{"text": " single"}'}},
             {"chunk": {"bytes": b'{"text": " response."}'}},
-            {
-                "chunk": {
-                    "bytes": b'{"finish_reason": "MAX_TOKENS", "is_finished": true}'
-                }
-            },
+            {"chunk": {"bytes": b'{"finish_reason": "MAX_TOKENS", "is_finished": true}'}},
         ]
 
         adapter = CohereCommandAdapter(model_kwargs={}, max_length=99)
         expected_responses = ["This is a single response."]
-        assert (
-            adapter.get_stream_responses(stream_mock, streaming_callback_mock)
-            == expected_responses
-        )
+        assert adapter.get_stream_responses(stream_mock, streaming_callback_mock) == expected_responses
 
         streaming_callback_mock.assert_has_calls(
             [
@@ -1518,10 +1268,7 @@ class TestCohereCommandAdapter:
 
         adapter = CohereCommandAdapter(model_kwargs={}, max_length=99)
         expected_responses = [""]
-        assert (
-            adapter.get_stream_responses(stream_mock, streaming_callback_mock)
-            == expected_responses
-        )
+        assert adapter.get_stream_responses(stream_mock, streaming_callback_mock) == expected_responses
 
         streaming_callback_mock.assert_not_called()
 
@@ -1641,9 +1388,7 @@ class TestCohereCommandRAdapter:
     def test_extract_completions_from_response(self) -> None:
         adapter = CohereCommandRAdapter(model_kwargs={}, max_length=100)
         response_body = {"text": "response"}
-        completions = adapter._extract_completions_from_response(
-            response_body=response_body
-        )
+        completions = adapter._extract_completions_from_response(response_body=response_body)
         assert completions == ["response"]
 
     def test_build_chunk(self) -> None:
@@ -1768,17 +1513,13 @@ class TestAI21LabsJurassic2Adapter:
 
     def test_get_responses(self) -> None:
         adapter = AI21LabsJurassic2Adapter(model_kwargs={}, max_length=99)
-        response_body = {
-            "completions": [{"data": {"text": "This is a single response."}}]
-        }
+        response_body = {"completions": [{"data": {"text": "This is a single response."}}]}
         expected_responses = ["This is a single response."]
         assert adapter.get_responses(response_body) == expected_responses
 
     def test_get_responses_leading_whitespace(self) -> None:
         adapter = AI21LabsJurassic2Adapter(model_kwargs={}, max_length=99)
-        response_body = {
-            "completions": [{"data": {"text": "\n\t This is a single response."}}]
-        }
+        response_body = {"completions": [{"data": {"text": "\n\t This is a single response."}}]}
         expected_responses = ["This is a single response."]
         assert adapter.get_responses(response_body) == expected_responses
 
@@ -1925,10 +1666,7 @@ class TestAmazonTitanAdapter:
 
         adapter = AmazonTitanAdapter(model_kwargs={}, max_length=99)
         expected_responses = ["This is a single response."]
-        assert (
-            adapter.get_stream_responses(stream_mock, streaming_callback_mock)
-            == expected_responses
-        )
+        assert adapter.get_stream_responses(stream_mock, streaming_callback_mock) == expected_responses
 
         streaming_callback_mock.assert_has_calls(
             [
@@ -1936,11 +1674,7 @@ class TestAmazonTitanAdapter:
                 call(StreamingChunk(content=" is", meta={"outputText": " is"})),
                 call(StreamingChunk(content=" a", meta={"outputText": " a"})),
                 call(StreamingChunk(content=" single", meta={"outputText": " single"})),
-                call(
-                    StreamingChunk(
-                        content=" response.", meta={"outputText": " response."}
-                    )
-                ),
+                call(StreamingChunk(content=" response.", meta={"outputText": " response."})),
             ]
         )
 
@@ -1952,10 +1686,7 @@ class TestAmazonTitanAdapter:
 
         adapter = AmazonTitanAdapter(model_kwargs={}, max_length=99)
         expected_responses = [""]
-        assert (
-            adapter.get_stream_responses(stream_mock, streaming_callback_mock)
-            == expected_responses
-        )
+        assert adapter.get_stream_responses(stream_mock, streaming_callback_mock) == expected_responses
 
         streaming_callback_mock.assert_not_called()
 
@@ -2060,10 +1791,7 @@ class TestMetaLlamaAdapter:
 
         adapter = MetaLlamaAdapter(model_kwargs={}, max_length=99)
         expected_responses = ["This is a single response."]
-        assert (
-            adapter.get_stream_responses(stream_mock, streaming_callback_mock)
-            == expected_responses
-        )
+        assert adapter.get_stream_responses(stream_mock, streaming_callback_mock) == expected_responses
 
         streaming_callback_mock.assert_has_calls(
             [
@@ -2071,11 +1799,7 @@ class TestMetaLlamaAdapter:
                 call(StreamingChunk(content=" is", meta={"generation": " is"})),
                 call(StreamingChunk(content=" a", meta={"generation": " a"})),
                 call(StreamingChunk(content=" single", meta={"generation": " single"})),
-                call(
-                    StreamingChunk(
-                        content=" response.", meta={"generation": " response."}
-                    )
-                ),
+                call(StreamingChunk(content=" response.", meta={"generation": " response."})),
             ]
         )
 
@@ -2087,10 +1811,7 @@ class TestMetaLlamaAdapter:
 
         adapter = MetaLlamaAdapter(model_kwargs={}, max_length=99)
         expected_responses = [""]
-        assert (
-            adapter.get_stream_responses(stream_mock, streaming_callback_mock)
-            == expected_responses
-        )
+        assert adapter.get_stream_responses(stream_mock, streaming_callback_mock) == expected_responses
 
         streaming_callback_mock.assert_not_called()
 
@@ -2100,9 +1821,7 @@ class TestMetaLlamaAdapter:
 
         # Create a proper mock for the response body
         mock_body = MagicMock()
-        mock_body.read.return_value = (
-            b'{"content": [{"type": "text", "text": "test response"}]}'
-        )
+        mock_body.read.return_value = b'{"content": [{"type": "text", "text": "test response"}]}'
 
         mock_response = {
             "body": mock_body,
