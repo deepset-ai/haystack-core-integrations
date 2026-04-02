@@ -13,6 +13,7 @@ import numpy as np
 from elastic_transport import NodeConfig
 from haystack import default_from_dict, default_to_dict, logging
 from haystack.dataclasses import Document
+from haystack.dataclasses.sparse_embedding import SparseEmbedding
 from haystack.document_stores.errors import DocumentStoreError, DuplicateDocumentError
 from haystack.document_stores.types import DuplicatePolicy
 from haystack.utils import Secret
@@ -444,6 +445,22 @@ class ElasticsearchDocumentStore:
 
         return Document.from_dict(data)
 
+    @staticmethod
+    def _sparse_embedding_to_es_vector(indices: list[int], values: list[float]) -> dict[str, float]:
+        """
+        Converts sparse embedding indices and values to Elasticsearch sparse_vector format.
+
+        :param indices: Sparse embedding indices.
+        :param values: Sparse embedding values.
+        :returns: Sparse embedding in Elasticsearch sparse_vector format.
+        :raises ValueError: If indices or values are empty.
+        """
+        if not indices or not values:
+            msg = "query_sparse_embedding must contain non-empty indices and values"
+            raise ValueError(msg)
+
+        return {str(idx): val for idx, val in zip(indices, values, strict=True)}
+
     def _handle_sparse_embedding(self, doc_dict: dict[str, Any], doc_id: str) -> None:
         """
         Extracts the sparse_embedding from a document dict and converts it to the Elasticsearch sparse_vector format.
@@ -457,9 +474,9 @@ class ElasticsearchDocumentStore:
         if not sparse_embedding:
             return
         if self._sparse_vector_field:
-            doc_dict[self._sparse_vector_field] = {
-                str(idx): val for idx, val in zip(sparse_embedding["indices"], sparse_embedding["values"], strict=True)
-            }
+            doc_dict[self._sparse_vector_field] = self._sparse_embedding_to_es_vector(
+                sparse_embedding["indices"], sparse_embedding["values"]
+            )
         else:
             logger.warning(
                 "Document {doc_id} has the `sparse_embedding` field set, "
@@ -1077,6 +1094,98 @@ class ElasticsearchDocumentStore:
 
         if filters:
             search_body["knn"]["filter"] = _normalize_filters(filters)
+
+        return await self._search_documents_async(**search_body)
+
+    def _sparse_vector_retrieval(
+        self,
+        query_sparse_embedding: SparseEmbedding,
+        *,
+        filters: dict[str, Any] | None = None,
+        top_k: int = 10,
+    ) -> list[Document]:
+        """
+        Retrieves documents using sparse vector similarity search.
+
+        :param query_sparse_embedding: Sparse embedding to search for.
+        :param filters: Optional filters to narrow down the search space.
+        :param top_k: Maximum number of documents to return.
+        :returns: List of Documents most similar to query_sparse_embedding.
+        :raises ValueError: If sparse retrieval is not configured or the query sparse embedding is empty.
+        """
+        if not self._sparse_vector_field:
+            msg = "sparse_vector_field must be set for sparse vector retrieval"
+            raise ValueError(msg)
+
+        query_vector = self._sparse_embedding_to_es_vector(
+            query_sparse_embedding.indices, query_sparse_embedding.values
+        )
+        sparse_vector_query: dict[str, Any] = {
+            "field": self._sparse_vector_field,
+            "query_vector": query_vector,
+        }
+
+        body: dict[str, Any] = {
+            "size": top_k,
+            "query": {
+                "bool": {
+                    "must": [
+                        {
+                            "sparse_vector": sparse_vector_query,
+                        }
+                    ]
+                }
+            },
+        }
+
+        if filters:
+            body["query"]["bool"]["filter"] = _normalize_filters(filters)
+
+        return self._search_documents(**body)
+
+    async def _sparse_vector_retrieval_async(
+        self,
+        query_sparse_embedding: SparseEmbedding,
+        *,
+        filters: dict[str, Any] | None = None,
+        top_k: int = 10,
+    ) -> list[Document]:
+        """
+        Asynchronously retrieves documents using sparse vector similarity search.
+
+        :param query_sparse_embedding: Sparse embedding to search for.
+        :param filters: Optional filters to narrow down the search space.
+        :param top_k: Maximum number of documents to return.
+        :returns: List of Documents most similar to query_sparse_embedding.
+        :raises ValueError: If sparse retrieval is not configured or the query sparse embedding is empty.
+        """
+        self._ensure_initialized()
+
+        if not self._sparse_vector_field:
+            msg = "sparse_vector_field must be set for sparse vector retrieval"
+            raise ValueError(msg)
+
+        query_vector = self._sparse_embedding_to_es_vector(
+            query_sparse_embedding.indices, query_sparse_embedding.values
+        )
+        search_body: dict[str, Any] = {
+            "size": top_k,
+            "query": {
+                "bool": {
+                    "must": [
+                        {
+                            "sparse_vector": {
+                                "field": self._sparse_vector_field,
+                                "query_vector": query_vector,
+                            }
+                        }
+                    ]
+                }
+            },
+        }
+
+        if filters:
+            search_body["query"]["bool"]["filter"] = _normalize_filters(filters)
 
         return await self._search_documents_async(**search_body)
 
