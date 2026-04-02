@@ -321,7 +321,10 @@ class TestAmazonBedrockChatGeneratorUtils:
         ]
 
     def test_format_messages_tool_result_with_image(self):
-        base64_image = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg=="
+        base64_image = (
+            "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/"
+            "PchI7wAAAABJRU5ErkJggg=="
+        )
 
         messages = [
             ChatMessage.from_user("Retrieve the image and describe it in max 5 words."),
@@ -1602,7 +1605,10 @@ class TestAmazonBedrockChatGeneratorUtils:
 
     def test_parse_streaming_response_with_two_tool_calls(self, mock_boto3_session):
         model = "global.anthropic.claude-sonnet-4-6"
-        type_ = "haystack_integrations.components.generators.amazon_bedrock.chat.chat_generator.AmazonBedrockChatGenerator"
+        type_ = (
+            "haystack_integrations.components.generators.amazon_bedrock.chat."
+            "chat_generator.AmazonBedrockChatGenerator"
+        )
         streaming_chunks = []
 
         def test_callback(chunk: StreamingChunk):
@@ -1780,7 +1786,10 @@ class TestAmazonBedrockChatGeneratorUtils:
 
     def test_parse_streaming_response_with_guardrail(self, mock_boto3_session):
         model = "global.anthropic.claude-sonnet-4-6"
-        type_ = "haystack_integrations.components.generators.amazon_bedrock.chat.chat_generator.AmazonBedrockChatGenerator"
+        type_ = (
+            "haystack_integrations.components.generators.amazon_bedrock.chat."
+            "chat_generator.AmazonBedrockChatGenerator"
+        )
         streaming_chunks = []
 
         trace = {
