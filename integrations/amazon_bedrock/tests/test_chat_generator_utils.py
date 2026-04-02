@@ -1130,7 +1130,10 @@ class TestAmazonBedrockChatGeneratorUtils:
         Test that process_streaming_response correctly handles streaming events and accumulates responses
         """
         model = "global.anthropic.claude-sonnet-4-6"
-        type_ = "haystack_integrations.components.generators.amazon_bedrock.chat.chat_generator.AmazonBedrockChatGenerator"
+        type_ = (
+            "haystack_integrations.components.generators.amazon_bedrock.chat."
+            "chat_generator.AmazonBedrockChatGenerator"
+        )
         base_meta = {"model": model, "received_at": ANY}
         streaming_chunks = []
 
@@ -1416,7 +1419,10 @@ class TestAmazonBedrockChatGeneratorUtils:
         self, mock_boto3_session
     ):
         model = "arn:aws:bedrock:us-east-1::inference-profile/us.anthropic.claude-sonnet-4-20250514-v1:0"
-        type_ = "haystack_integrations.components.generators.amazon_bedrock.chat.chat_generator.AmazonBedrockChatGenerator"
+        type_ = (
+            "haystack_integrations.components.generators.amazon_bedrock.chat."
+            "chat_generator.AmazonBedrockChatGenerator"
+        )
         streaming_chunks = []
 
         def test_callback(chunk: StreamingChunk):
