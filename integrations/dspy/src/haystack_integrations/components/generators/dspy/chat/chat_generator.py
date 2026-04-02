@@ -47,8 +47,7 @@ def _get_dspy_module_class(module_type: str) -> type:
 @component
 class DSPySignatureChatGenerator:
     """
-    A Haystack chat generator component that uses DSPy signatures and modules
-    for structured generation.
+    A Haystack chat generator component that uses DSPy signatures and modules for structured generation.
 
     Accepts and returns `ChatMessage` objects, making it compatible with
     Haystack chat pipelines.
