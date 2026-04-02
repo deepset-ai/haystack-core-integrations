@@ -422,6 +422,10 @@ class AmazonBedrockChatGenerator:
 
         # Any remaining kwargs go to additionalModelRequestFields
         additional_fields = merged_kwargs if merged_kwargs else None
+        
+        if output_config:
+            additional_fields = additional_fields or {}
+            additional_fields["outputConfig"] = output_config
 
         # Format messages to Bedrock format
         system_prompts, messages_list = _format_messages(messages)
@@ -437,8 +441,6 @@ class AmazonBedrockChatGenerator:
             params["toolConfig"] = tool_config
         if additional_fields:
             params["additionalModelRequestFields"] = additional_fields
-        if output_config:
-            params["outputConfig"] = output_config
         if self.guardrail_config:
             params["guardrailConfig"] = self.guardrail_config
 
