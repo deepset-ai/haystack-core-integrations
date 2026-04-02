@@ -466,7 +466,7 @@ class AmazonBedrockChatGenerator:
         _check_duplicate_tool_names(flattened_tools)
         tool_config = merged_kwargs.pop("toolConfig", None)
         # Remove unsupported outputConfig (not supported by Bedrock Converse API)
-        merged_kwargs.pop("outputConfig", None)
+        _ = merged_kwargs.pop("outputConfig", None)
         if flattened_tools:
             # Format Haystack tools to Bedrock format
             tool_config = _format_tools(
