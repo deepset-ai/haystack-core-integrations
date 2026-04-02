@@ -1,0 +1,70 @@
+[build-system]
+requires = ["hatchling", "hatch-vcs"]
+build-backend = "hatchling.build"
+
+[project]
+name = "oracle-haystack"
+dynamic = ["version"]
+description = "Oracle AI Vector Search DocumentStore integration for Haystack"
+readme = "README.md"
+requires-python = ">=3.10"
+license = "Apache-2.0"
+keywords = ["haystack", "oracle", "vector search", "document store", "RAG", "OCI"]
+authors = [{ name = "deepset GmbH", email = "info@deepset.ai" }]
+classifiers = [
+  "License :: OSI Approved :: Apache Software License",
+  "Development Status :: 3 - Alpha",
+  "Programming Language :: Python",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Programming Language :: Python :: Implementation :: CPython",
+]
+dependencies = [
+  "haystack-ai>=2.0.0",
+  "oracledb>=2.1.0,<3.0.0",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8.0.0",
+  "pytest-asyncio>=0.23.0",
+  "pytest-mock>=3.12.0",
+  "ruff>=0.4.0",
+  "mypy>=1.9.0",
+]
+
+[project.urls]
+"Source Code" = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/oracle"
+"Bug Tracker" = "https://github.com/deepset-ai/haystack-core-integrations/issues"
+
+[tool.hatch.version]
+source = "vcs"
+fallback-version = "0.1.0"
+
+[tool.hatch.version.raw-options]
+root = "../.."
+version_scheme = "no-guess-dev"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/haystack_integrations"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+markers = [
+  "unit: fast tests, no Oracle connection required",
+  "integration: require a live Oracle 23ai instance",
+]
+
+[tool.ruff]
+line-length = 120
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B"]
+
+[tool.mypy]
+python_version = "3.10"
+disallow_untyped_defs = true
+ignore_missing_imports = true
