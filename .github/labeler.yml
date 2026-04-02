@@ -279,7 +279,6 @@ topic:DX:
             "CONTRIBUTING.md",
             ".pre-commit-config.yaml",
             ".gitignore",
-            "requirements.txt",
           ]
 topic:security:
   - changed-files:

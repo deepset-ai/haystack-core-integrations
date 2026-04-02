@@ -11,6 +11,7 @@ from utils.naming import folder_to_package, get_module_path, validate_name
 from utils.scaffold import (
     create_integration_files,
     create_workflow,
+    update_coverage_comment_workflow,
     update_labeler,
     update_root_readme,
 )
@@ -135,6 +136,9 @@ def main():
 
     labeler_path = update_labeler(name, repo_root=REPO_ROOT)
     print(f"  Updated: {labeler_path}")
+
+    coverage_path = update_coverage_comment_workflow(name, repo_root=REPO_ROOT)
+    print(f"  Updated: {coverage_path}")
 
     readme_path = update_root_readme(name, component_type, TYPE_LABELS, repo_root=REPO_ROOT)
     print(f"  Updated: {readme_path}")
