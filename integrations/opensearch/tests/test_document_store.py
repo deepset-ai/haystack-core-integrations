@@ -857,7 +857,6 @@ class TestDocumentStore(
         unique_priorities_filtered, _ = document_store.get_metadata_field_unique_values("meta.priority", "Doc 1", 10)
         assert set(unique_priorities_filtered) == {"1"}
 
-    @pytest.mark.integration
     def test_write_with_routing(self, document_store: OpenSearchDocumentStore):
         """Test writing documents with routing metadata"""
         docs = [
@@ -884,7 +883,6 @@ class TestDocumentStore(
 
         assert retrieved_by_id["3"].meta == {}
 
-    @pytest.mark.integration
     def test_delete_with_routing(self, document_store: OpenSearchDocumentStore):
         """Test deleting documents with routing"""
         docs = [
@@ -899,7 +897,6 @@ class TestDocumentStore(
 
         assert document_store.count_documents() == 1
 
-    @pytest.mark.integration
     def test_metadata_search_fuzzy_mode(self, document_store: OpenSearchDocumentStore):
         """Test metadata search in fuzzy mode."""
         docs = [
@@ -928,7 +925,6 @@ class TestDocumentStore(
         categories = [row.get("category", "").lower() for row in result]
         assert any("python" in cat for cat in categories)
 
-    @pytest.mark.integration
     def test_metadata_search_strict_mode(self, document_store: OpenSearchDocumentStore):
         """Test metadata search in strict mode."""
         docs = [
@@ -951,7 +947,6 @@ class TestDocumentStore(
         assert all(isinstance(row, dict) for row in result)
         assert all("category" in row for row in result)
 
-    @pytest.mark.integration
     def test_metadata_search_multiple_fields(self, document_store: OpenSearchDocumentStore):
         """Test metadata search across multiple fields."""
         docs = [
@@ -976,7 +971,6 @@ class TestDocumentStore(
         for row in result:
             assert all(key in ["category", "status"] for key in row.keys())
 
-    @pytest.mark.integration
     def test_metadata_search_comma_separated_query(self, document_store: OpenSearchDocumentStore):
         """Test metadata search with comma-separated query parts."""
         docs = [
@@ -998,7 +992,6 @@ class TestDocumentStore(
         assert len(result) > 0
         assert all(isinstance(row, dict) for row in result)
 
-    @pytest.mark.integration
     def test_metadata_search_top_k(self, document_store: OpenSearchDocumentStore):
         """Test metadata search respects top_k parameter."""
         docs = [Document(content=f"Doc {i}", meta={"category": "Python", "index": i}) for i in range(15)]
@@ -1015,7 +1008,6 @@ class TestDocumentStore(
         assert isinstance(result, list)
         assert len(result) <= 5
 
-    @pytest.mark.integration
     def test_metadata_search_with_filters(self, document_store: OpenSearchDocumentStore):
         """Test metadata search with additional filters."""
         docs = [
@@ -1039,7 +1031,6 @@ class TestDocumentStore(
         # Should only return documents with priority == 1
         assert len(result) >= 1
 
-    @pytest.mark.integration
     def test_metadata_search_empty_fields(self, document_store: OpenSearchDocumentStore):
         """Test metadata search with empty fields list returns empty result."""
         docs = [
@@ -1057,7 +1048,6 @@ class TestDocumentStore(
         assert isinstance(result, list)
         assert len(result) == 0
 
-    @pytest.mark.integration
     def test_metadata_search_deduplication(self, document_store: OpenSearchDocumentStore):
         """Test that metadata search deduplicates results."""
         docs = [

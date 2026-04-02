@@ -264,7 +264,6 @@ class TestDocumentStoreAsync:
         assert updated_count == 0
         assert await document_store.count_documents_async() == 2
 
-    @pytest.mark.integration
     async def test_search_embeddings_async(self, document_store: ChromaDocumentStore):
         query_embedding = TEST_EMBEDDING_1
         documents = [
