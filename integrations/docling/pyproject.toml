@@ -35,6 +35,7 @@ classifiers = [
 dependencies = [
   "haystack-ai>=2.8.0,<3.0.0",
   "docling>=2.32.0,<3.0.0",
+  "lxml>=6.0.2",
 ]
 
 [project.urls]
