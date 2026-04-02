@@ -140,6 +140,76 @@ class TestElasticsearchDocumentStoreAsync:
         assert results[0].content == "Most similar document"
 
     @pytest.mark.asyncio
+    async def test_sparse_vector_retrieval_async(self):
+        store = ElasticsearchDocumentStore(
+            hosts=["http://localhost:9200"], index="test_async_sparse_retrieval", sparse_vector_field="sparse_vec"
+        )
+        await store.async_client.options(ignore_status=[400, 404]).indices.delete(index="test_async_sparse_retrieval")
+
+        docs = [
+            Document(
+                content="Most similar sparse document",
+                sparse_embedding=SparseEmbedding(indices=[0, 1], values=[0.9, 0.9]),
+            ),
+            Document(
+                content="Less similar sparse document",
+                sparse_embedding=SparseEmbedding(indices=[2, 3], values=[0.8, 0.8]),
+            ),
+        ]
+        await store.write_documents_async(docs)
+
+        results = await store._sparse_vector_retrieval_async(
+            query_sparse_embedding=SparseEmbedding(indices=[0, 1], values=[1.0, 1.0]),
+            top_k=1,
+        )
+        assert len(results) == 1
+        assert results[0].content == "Most similar sparse document"
+
+        await store.async_client.indices.delete(index="test_async_sparse_retrieval")
+
+    @pytest.mark.asyncio
+    async def test_sparse_vector_retrieval_async_with_filters(self):
+        store = ElasticsearchDocumentStore(
+            hosts=["http://localhost:9200"],
+            index="test_async_sparse_retrieval_filters",
+            sparse_vector_field="sparse_vec",
+        )
+        await store.async_client.options(ignore_status=[400, 404]).indices.delete(
+            index="test_async_sparse_retrieval_filters"
+        )
+
+        docs = [
+            Document(
+                content="Most similar sparse document",
+                sparse_embedding=SparseEmbedding(indices=[0, 1], values=[0.9, 0.9]),
+                meta={"type": "match"},
+            ),
+            Document(
+                content="Filtered out sparse document",
+                sparse_embedding=SparseEmbedding(indices=[0, 1], values=[0.95, 0.95]),
+                meta={"type": "other"},
+            ),
+        ]
+        await store.write_documents_async(docs)
+
+        results = await store._sparse_vector_retrieval_async(
+            query_sparse_embedding=SparseEmbedding(indices=[0, 1], values=[1.0, 1.0]),
+            filters={"field": "type", "operator": "==", "value": "match"},
+            top_k=2,
+        )
+        assert len(results) == 1
+        assert results[0].content == "Most similar sparse document"
+
+        await store.async_client.indices.delete(index="test_async_sparse_retrieval_filters")
+
+    @pytest.mark.asyncio
+    async def test_sparse_vector_retrieval_async_requires_sparse_vector_field(self, document_store):
+        with pytest.raises(ValueError, match="sparse_vector_field must be set for sparse vector retrieval"):
+            await document_store._sparse_vector_retrieval_async(
+                query_sparse_embedding=SparseEmbedding(indices=[0, 1], values=[1.0, 1.0])
+            )
+
+    @pytest.mark.asyncio
     async def test_write_documents_async_invalid_document_type(self, document_store):
         """Test write_documents with invalid document type"""
         invalid_docs = [{"id": "1", "content": "test"}]  # Dictionary instead of Document object

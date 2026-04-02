@@ -574,6 +574,69 @@ class TestDocumentStore(
         with pytest.raises(BadRequestError):
             document_store._embedding_retrieval(query_embedding=[0.1, 0.1])
 
+    def test_sparse_vector_retrieval(self):
+        store = ElasticsearchDocumentStore(
+            hosts=["http://localhost:9200"], index="test_sparse_retrieval", sparse_vector_field="sparse_vec"
+        )
+        store.client.options(ignore_status=[400, 404]).indices.delete(index="test_sparse_retrieval")
+
+        docs = [
+            Document(
+                content="Most similar sparse document",
+                sparse_embedding=SparseEmbedding(indices=[0, 1], values=[0.9, 0.9]),
+            ),
+            Document(
+                content="Less similar sparse document",
+                sparse_embedding=SparseEmbedding(indices=[2, 3], values=[0.8, 0.8]),
+            ),
+        ]
+        store.write_documents(docs)
+
+        results = store._sparse_vector_retrieval(
+            query_sparse_embedding=SparseEmbedding(indices=[0, 1], values=[1.0, 1.0]),
+            top_k=1,
+        )
+        assert len(results) == 1
+        assert results[0].content == "Most similar sparse document"
+
+        store.client.indices.delete(index="test_sparse_retrieval")
+
+    def test_sparse_vector_retrieval_with_filters(self):
+        store = ElasticsearchDocumentStore(
+            hosts=["http://localhost:9200"], index="test_sparse_retrieval_filters", sparse_vector_field="sparse_vec"
+        )
+        store.client.options(ignore_status=[400, 404]).indices.delete(index="test_sparse_retrieval_filters")
+
+        docs = [
+            Document(
+                content="Most similar sparse document",
+                sparse_embedding=SparseEmbedding(indices=[0, 1], values=[0.9, 0.9]),
+                meta={"type": "match"},
+            ),
+            Document(
+                content="Filtered out sparse document",
+                sparse_embedding=SparseEmbedding(indices=[0, 1], values=[0.95, 0.95]),
+                meta={"type": "other"},
+            ),
+        ]
+        store.write_documents(docs)
+
+        results = store._sparse_vector_retrieval(
+            query_sparse_embedding=SparseEmbedding(indices=[0, 1], values=[1.0, 1.0]),
+            filters={"field": "type", "operator": "==", "value": "match"},
+            top_k=2,
+        )
+        assert len(results) == 1
+        assert results[0].content == "Most similar sparse document"
+
+        store.client.indices.delete(index="test_sparse_retrieval_filters")
+
+    def test_sparse_vector_retrieval_requires_sparse_vector_field(self, document_store: ElasticsearchDocumentStore):
+        with pytest.raises(ValueError, match="sparse_vector_field must be set for sparse vector retrieval"):
+            document_store._sparse_vector_retrieval(
+                query_sparse_embedding=SparseEmbedding(indices=[0, 1], values=[1.0, 1.0])
+            )
+
     def test_write_documents_different_embedding_sizes_fail(self, document_store: ElasticsearchDocumentStore):
         """
         Test that write_documents fails if the documents have different embedding sizes.
