@@ -12,7 +12,9 @@ from haystack_integrations.components.rankers.amazon_bedrock import AmazonBedroc
 
 @pytest.fixture
 def mock_aws_session():
-    with patch("haystack_integrations.components.rankers.amazon_bedrock.ranker.get_aws_session") as mock_session:
+    with patch(
+        "haystack_integrations.components.rankers.amazon_bedrock.ranker.get_aws_session"
+    ) as mock_session:
         mock_client = MagicMock()
         mock_session.return_value.client.return_value = mock_client
         yield mock_client
@@ -39,7 +41,12 @@ def test_bedrock_ranker_run(mock_aws_session):
         aws_region_name=Secret.from_token("us-west-2"),
     )
 
-    mock_response = {"results": [{"index": 0, "relevanceScore": 0.9}, {"index": 1, "relevanceScore": 0.7}]}
+    mock_response = {
+        "results": [
+            {"index": 0, "relevanceScore": 0.9},
+            {"index": 1, "relevanceScore": 0.7},
+        ]
+    }
 
     mock_aws_session.rerank.return_value = mock_response
 
