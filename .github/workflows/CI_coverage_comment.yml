@@ -42,6 +42,7 @@ on:
       - "Test / optimum"
       - "Test / paddleocr"
       - "Test / pgvector"
+      - "Test / presidio"
       - "Test / pinecone"
       - "Test / pyversity"
       - "Test / qdrant"
