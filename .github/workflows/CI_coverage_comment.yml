@@ -52,6 +52,7 @@ on:
       - "Test / togetherai"
       - "Test / unstructured"
       - "Test / valkey"
+      - "Test / vllm"
       - "Test / watsonx"
       - "Test / weave"
       - "Test / weaviate"
