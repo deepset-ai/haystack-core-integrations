@@ -267,7 +267,7 @@ def test_client_initialization_with_api_key_string(_mock_async_es, _mock_es):
     assert async_call_args[1]["api_key"] == "test_api_key"
 
 
-def test_sparse_vector_retrieval_uses_weighted_tokens_query():
+def test_sparse_vector_retrieval_uses_sparse_vector_query():
     store = ElasticsearchDocumentStore(hosts="some hosts", sparse_vector_field="sparse_vec")
 
     with patch.object(store, "_search_documents", return_value=[]) as mock_search:
@@ -281,13 +281,13 @@ def test_sparse_vector_retrieval_uses_weighted_tokens_query():
     search_kwargs = mock_search.call_args.kwargs
     assert search_kwargs["size"] == 3
     assert search_kwargs["query"]["bool"]["must"] == [
-        {"weighted_tokens": {"sparse_vec": {"tokens": {"0": 0.5, "2": 0.7}}}}
+        {"sparse_vector": {"field": "sparse_vec", "query_vector": {"0": 0.5, "2": 0.7}}}
     ]
     assert search_kwargs["query"]["bool"]["filter"] == {"bool": {"must": {"term": {"type": "match"}}}}
 
 
 @pytest.mark.asyncio
-async def test_sparse_vector_retrieval_async_uses_weighted_tokens_query():
+async def test_sparse_vector_retrieval_async_uses_sparse_vector_query():
     store = ElasticsearchDocumentStore(hosts="some hosts", sparse_vector_field="sparse_vec")
     store._initialized = True
     store._search_documents_async = AsyncMock(return_value=[])  # type: ignore[method-assign]
@@ -302,7 +302,7 @@ async def test_sparse_vector_retrieval_async_uses_weighted_tokens_query():
         query={
             "bool": {
                 "must": [
-                    {"weighted_tokens": {"sparse_vec": {"tokens": {"1": 0.4, "3": 0.9}}}},
+                    {"sparse_vector": {"field": "sparse_vec", "query_vector": {"1": 0.4, "3": 0.9}}},
                 ]
             }
         },

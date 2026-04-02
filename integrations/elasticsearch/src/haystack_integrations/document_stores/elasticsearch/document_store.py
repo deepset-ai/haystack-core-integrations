@@ -495,8 +495,6 @@ class ElasticsearchDocumentStore:
         """
         Builds the Elasticsearch search body for sparse vector retrieval.
 
-        Elasticsearch 8.11 supports sparse vectors through the weighted_tokens query.
-
         :param query_sparse_embedding: Sparse embedding to search for.
         :param filters: Optional filters to narrow down the search space.
         :param top_k: Maximum number of documents to return.
@@ -516,10 +514,9 @@ class ElasticsearchDocumentStore:
                 "bool": {
                     "must": [
                         {
-                            "weighted_tokens": {
-                                self._sparse_vector_field: {
-                                    "tokens": query_vector,
-                                }
+                            "sparse_vector": {
+                                "field": self._sparse_vector_field,
+                                "query_vector": query_vector,
                             }
                         }
                     ]
