@@ -674,7 +674,6 @@ class TestDocumentStoreAsync:
         )
         assert set(unique_priorities_filtered) == {"1"}
 
-    @pytest.mark.integration
     @pytest.mark.asyncio
     async def test_metadata_search_async_fuzzy_mode(self, document_store: OpenSearchDocumentStore):
         """Test async metadata search in fuzzy mode."""
@@ -698,7 +697,6 @@ class TestDocumentStoreAsync:
         assert all(isinstance(row, dict) for row in result)
         assert all("category" in row for row in result)
 
-    @pytest.mark.integration
     @pytest.mark.asyncio
     async def test_metadata_search_async_strict_mode(self, document_store: OpenSearchDocumentStore):
         """Test async metadata search in strict mode."""
@@ -721,7 +719,6 @@ class TestDocumentStoreAsync:
         assert all(isinstance(row, dict) for row in result)
         assert all("category" in row for row in result)
 
-    @pytest.mark.integration
     @pytest.mark.asyncio
     async def test_metadata_search_async_multiple_fields(self, document_store: OpenSearchDocumentStore):
         """Test async metadata search across multiple fields."""
@@ -746,7 +743,6 @@ class TestDocumentStoreAsync:
         for row in result:
             assert all(key in ["category", "status"] for key in row.keys())
 
-    @pytest.mark.integration
     @pytest.mark.asyncio
     async def test_metadata_search_async_top_k(self, document_store: OpenSearchDocumentStore):
         """Test async metadata search respects top_k parameter."""
@@ -764,7 +760,6 @@ class TestDocumentStoreAsync:
         assert isinstance(result, list)
         assert len(result) <= 5
 
-    @pytest.mark.integration
     @pytest.mark.asyncio
     async def test_metadata_search_async_comma_separated_query(self, document_store: OpenSearchDocumentStore):
         """Test async metadata search with comma-separated query parts."""
@@ -787,7 +782,6 @@ class TestDocumentStoreAsync:
         assert len(result) > 0
         assert all(isinstance(row, dict) for row in result)
 
-    @pytest.mark.integration
     @pytest.mark.asyncio
     async def test_metadata_search_async_with_filters(self, document_store: OpenSearchDocumentStore):
         """Test async metadata search with additional filters."""
@@ -812,7 +806,6 @@ class TestDocumentStoreAsync:
         # Should only return documents with priority == 1
         assert len(result) >= 1
 
-    @pytest.mark.integration
     @pytest.mark.asyncio
     async def test_metadata_search_async_empty_fields(self, document_store: OpenSearchDocumentStore):
         """Test async metadata search with empty fields list returns empty result."""
@@ -831,7 +824,6 @@ class TestDocumentStoreAsync:
         assert isinstance(result, list)
         assert len(result) == 0
 
-    @pytest.mark.integration
     @pytest.mark.asyncio
     async def test_metadata_search_async_deduplication(self, document_store: OpenSearchDocumentStore):
         """Test that async metadata search deduplicates results."""
@@ -890,7 +882,6 @@ class TestDocumentStoreAsync:
         with pytest.raises(DocumentStoreError, match="Failed to execute SQL query"):
             await document_store._query_sql_async(invalid_query)
 
-    @pytest.mark.integration
     @pytest.mark.asyncio
     async def test_query_sql_async_with_fetch_size(self, document_store: OpenSearchDocumentStore):
         """Test async SQL query with fetch_size parameter"""
@@ -917,7 +908,6 @@ class TestDocumentStoreAsync:
         assert len(result["datarows"]) <= 5
         assert result.get("cursor") is not None
 
-    @pytest.mark.integration
     @pytest.mark.asyncio
     async def test_query_sql_async_pagination_flow(self, document_store: OpenSearchDocumentStore):
         """Test async pagination flow with fetch_size"""

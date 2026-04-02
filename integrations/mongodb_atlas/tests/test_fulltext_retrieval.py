@@ -4,7 +4,7 @@
 
 import os
 from time import sleep
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 from haystack import Document
@@ -13,9 +13,11 @@ from haystack.utils import Secret
 from haystack_integrations.document_stores.mongodb_atlas import MongoDBAtlasDocumentStore
 
 
-def get_document_store(**kwargs):
+def get_document_store(connection_string=None, **kwargs):
+    if connection_string is None:
+        connection_string = Secret.from_env_var("MONGO_CONNECTION_STRING_2")
     return MongoDBAtlasDocumentStore(
-        mongo_connection_string=Secret.from_env_var("MONGO_CONNECTION_STRING_2"),
+        mongo_connection_string=connection_string,
         database_name="haystack_test",
         collection_name="test_collection",
         vector_search_index="cosine_index",
@@ -24,36 +26,12 @@ def get_document_store(**kwargs):
     )
 
 
-@pytest.mark.skipif(
-    not os.environ.get("MONGO_CONNECTION_STRING_2"),
-    reason="No MongoDB Atlas connection string provided",
+@patch(
+    "haystack_integrations.document_stores.mongodb_atlas.document_store.MongoDBAtlasDocumentStore._ensure_connection_setup"
 )
-@pytest.mark.integration
-class TestFullTextRetrieval:
-    @pytest.fixture(scope="class")
-    def document_store(self) -> MongoDBAtlasDocumentStore:
-        return get_document_store()
-
-    @pytest.fixture(autouse=True, scope="class")
-    def setup_teardown(self, document_store):
-        document_store._ensure_connection_setup()
-        document_store._collection.delete_many({})
-        document_store.write_documents(
-            [
-                Document(content="The quick brown fox chased the dog", meta={"meta_field": "right_value"}),
-                Document(content="The fox was brown", meta={"meta_field": "right_value"}),
-                Document(content="The lazy dog"),
-                Document(content="fox fox fox"),
-            ]
-        )
-
-        # Wait for documents to be indexed
-        sleep(5)
-
-        yield
-
-    def test_pipeline_correctly_passes_parameters(self, document_store):
-        document_store = get_document_store()
+class TestFullTextRetrievalUnit:
+    def test_pipeline_correctly_passes_parameters(self, _mock_setup):
+        document_store = get_document_store(connection_string=Secret.from_token("test"))
         mock_collection = MagicMock()
         document_store._collection = mock_collection
         mock_collection.aggregate.return_value = []
@@ -98,9 +76,9 @@ class TestFullTextRetrieval:
         # Explicitly verify that the path in the text search is using the content_field
         assert actual_pipeline[0]["$search"]["compound"]["must"][0]["text"]["path"] == document_store.content_field
 
-    def test_pipeline_with_custom_content_field(self, document_store):
+    def test_pipeline_with_custom_content_field(self, _mock_setup):
         # Create a document store with a custom content field
-        document_store = get_document_store(content_field="custom_text")
+        document_store = get_document_store(connection_string=Secret.from_token("test"), content_field="custom_text")
         mock_collection = MagicMock()
         document_store._collection = mock_collection
         mock_collection.aggregate.return_value = []
@@ -124,6 +102,35 @@ class TestFullTextRetrieval:
         assert "$limit" in actual_pipeline[2]
         assert "$addFields" in actual_pipeline[3]
         assert "$project" in actual_pipeline[4]
+
+
+@pytest.mark.skipif(
+    not os.environ.get("MONGO_CONNECTION_STRING_2"),
+    reason="No MongoDB Atlas connection string provided",
+)
+@pytest.mark.integration
+class TestFullTextRetrieval:
+    @pytest.fixture(scope="class")
+    def document_store(self) -> MongoDBAtlasDocumentStore:
+        return get_document_store()
+
+    @pytest.fixture(autouse=True, scope="class")
+    def setup_teardown(self, document_store):
+        document_store._ensure_connection_setup()
+        document_store._collection.delete_many({})
+        document_store.write_documents(
+            [
+                Document(content="The quick brown fox chased the dog", meta={"meta_field": "right_value"}),
+                Document(content="The fox was brown", meta={"meta_field": "right_value"}),
+                Document(content="The lazy dog"),
+                Document(content="fox fox fox"),
+            ]
+        )
+
+        # Wait for documents to be indexed
+        sleep(5)
+
+        yield
 
     def test_query_retrieval(self, document_store: MongoDBAtlasDocumentStore):
         results = document_store._fulltext_retrieval(query="fox", top_k=2)
