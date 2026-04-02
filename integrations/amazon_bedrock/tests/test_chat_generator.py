@@ -355,6 +355,15 @@ class TestAmazonBedrockChatGenerator:
         assert request_params["messages"] == [{"content": [{"text": "What's the capital of France?"}], "role": "user"}]
         assert request_params["guardrailConfig"] == {"guardrailIdentifier": "test", "guardrailVersion": "test"}
 
+    def test_prepare_request_params_output_config(self, mock_boto3_session, set_env_variables):
+        generator = AmazonBedrockChatGenerator(model="global.anthropic.claude-sonnet-4-6")
+        request_params, _ = generator._prepare_request_params(
+            messages=[ChatMessage.from_user("Hello")],
+            generation_kwargs={"outputConfig": {"textFormat": "json"}},
+        )
+        assert "outputConfig" in request_params
+        assert request_params["outputConfig"] == {"textFormat": "json"}
+
     def test_init_with_mixed_tools(self, mock_boto3_session, set_env_variables):
         def tool_fn(city: str) -> str:
             return city
@@ -522,6 +531,24 @@ class TestAmazonBedrockChatGeneratorInference:
         if first_reply.meta and "usage" in first_reply.meta:
             assert "prompt_tokens" in first_reply.meta["usage"]
             assert "completion_tokens" in first_reply.meta["usage"]
+
+    def test_run_with_output_config(self):
+        client = AmazonBedrockChatGenerator(
+            model="global.anthropic.claude-sonnet-4-6"
+        )
+
+        messages = [ChatMessage.from_user("Return response in JSON format")]
+
+        response = client.run(
+            messages,
+            generation_kwargs={"outputConfig": {"textFormat": "json"}}
+        )
+
+        assert "replies" in response
+        assert len(response["replies"]) > 0
+
+        reply = response["replies"][0]
+        assert reply.text is not None
 
     @pytest.mark.parametrize("model_name", MODELS_TO_TEST_WITH_IMAGE_INPUT)
     def test_run_with_image_input(self, model_name, test_files_path):
