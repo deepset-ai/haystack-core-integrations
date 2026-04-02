@@ -485,6 +485,53 @@ class ElasticsearchDocumentStore:
                 doc_id=doc_id,
             )
 
+    def _create_sparse_retrieval_body(
+        self,
+        query_sparse_embedding: SparseEmbedding,
+        *,
+        filters: dict[str, Any] | None = None,
+        top_k: int = 10,
+    ) -> dict[str, Any]:
+        """
+        Builds the Elasticsearch search body for sparse vector retrieval.
+
+        Elasticsearch 8.11 supports sparse vectors through the weighted_tokens query.
+
+        :param query_sparse_embedding: Sparse embedding to search for.
+        :param filters: Optional filters to narrow down the search space.
+        :param top_k: Maximum number of documents to return.
+        :returns: Search body for Elasticsearch.
+        :raises ValueError: If sparse retrieval is not configured or the query sparse embedding is empty.
+        """
+        if not self._sparse_vector_field:
+            msg = "sparse_vector_field must be set for sparse vector retrieval"
+            raise ValueError(msg)
+
+        query_vector = self._sparse_embedding_to_es_vector(
+            query_sparse_embedding.indices, query_sparse_embedding.values
+        )
+        body: dict[str, Any] = {
+            "size": top_k,
+            "query": {
+                "bool": {
+                    "must": [
+                        {
+                            "weighted_tokens": {
+                                self._sparse_vector_field: {
+                                    "tokens": query_vector,
+                                }
+                            }
+                        }
+                    ]
+                }
+            },
+        }
+
+        if filters:
+            body["query"]["bool"]["filter"] = _normalize_filters(filters)
+
+        return body
+
     def write_documents(
         self,
         documents: list[Document],
@@ -1113,34 +1160,11 @@ class ElasticsearchDocumentStore:
         :returns: List of Documents most similar to query_sparse_embedding.
         :raises ValueError: If sparse retrieval is not configured or the query sparse embedding is empty.
         """
-        if not self._sparse_vector_field:
-            msg = "sparse_vector_field must be set for sparse vector retrieval"
-            raise ValueError(msg)
-
-        query_vector = self._sparse_embedding_to_es_vector(
-            query_sparse_embedding.indices, query_sparse_embedding.values
+        body = self._create_sparse_retrieval_body(
+            query_sparse_embedding=query_sparse_embedding,
+            filters=filters,
+            top_k=top_k,
         )
-        sparse_vector_query: dict[str, Any] = {
-            "field": self._sparse_vector_field,
-            "query_vector": query_vector,
-        }
-
-        body: dict[str, Any] = {
-            "size": top_k,
-            "query": {
-                "bool": {
-                    "must": [
-                        {
-                            "sparse_vector": sparse_vector_query,
-                        }
-                    ]
-                }
-            },
-        }
-
-        if filters:
-            body["query"]["bool"]["filter"] = _normalize_filters(filters)
-
         return self._search_documents(**body)
 
     async def _sparse_vector_retrieval_async(
@@ -1160,33 +1184,11 @@ class ElasticsearchDocumentStore:
         :raises ValueError: If sparse retrieval is not configured or the query sparse embedding is empty.
         """
         self._ensure_initialized()
-
-        if not self._sparse_vector_field:
-            msg = "sparse_vector_field must be set for sparse vector retrieval"
-            raise ValueError(msg)
-
-        query_vector = self._sparse_embedding_to_es_vector(
-            query_sparse_embedding.indices, query_sparse_embedding.values
+        search_body = self._create_sparse_retrieval_body(
+            query_sparse_embedding=query_sparse_embedding,
+            filters=filters,
+            top_k=top_k,
         )
-        search_body: dict[str, Any] = {
-            "size": top_k,
-            "query": {
-                "bool": {
-                    "must": [
-                        {
-                            "sparse_vector": {
-                                "field": self._sparse_vector_field,
-                                "query_vector": query_vector,
-                            }
-                        }
-                    ]
-                }
-            },
-        }
-
-        if filters:
-            search_body["query"]["bool"]["filter"] = _normalize_filters(filters)
-
         return await self._search_documents_async(**search_body)
 
     def count_documents_by_filter(self, filters: dict[str, Any]) -> int:

@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import random
-from unittest.mock import Mock, patch
+from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 from elasticsearch.exceptions import BadRequestError  # type: ignore[import-not-found]
@@ -265,6 +265,48 @@ def test_client_initialization_with_api_key_string(_mock_async_es, _mock_es):
     async_call_args = _mock_async_es.call_args
     assert async_call_args[0][0] == "testhost"  # hosts
     assert async_call_args[1]["api_key"] == "test_api_key"
+
+
+def test_sparse_vector_retrieval_uses_weighted_tokens_query():
+    store = ElasticsearchDocumentStore(hosts="some hosts", sparse_vector_field="sparse_vec")
+
+    with patch.object(store, "_search_documents", return_value=[]) as mock_search:
+        store._sparse_vector_retrieval(
+            query_sparse_embedding=SparseEmbedding(indices=[0, 2], values=[0.5, 0.7]),
+            filters={"field": "type", "operator": "==", "value": "match"},
+            top_k=3,
+        )
+
+    mock_search.assert_called_once()
+    search_kwargs = mock_search.call_args.kwargs
+    assert search_kwargs["size"] == 3
+    assert search_kwargs["query"]["bool"]["must"] == [
+        {"weighted_tokens": {"sparse_vec": {"tokens": {"0": 0.5, "2": 0.7}}}}
+    ]
+    assert search_kwargs["query"]["bool"]["filter"] == {"bool": {"must": {"term": {"type": "match"}}}}
+
+
+@pytest.mark.asyncio
+async def test_sparse_vector_retrieval_async_uses_weighted_tokens_query():
+    store = ElasticsearchDocumentStore(hosts="some hosts", sparse_vector_field="sparse_vec")
+    store._initialized = True
+    store._search_documents_async = AsyncMock(return_value=[])  # type: ignore[method-assign]
+
+    await store._sparse_vector_retrieval_async(
+        query_sparse_embedding=SparseEmbedding(indices=[1, 3], values=[0.4, 0.9]),
+        top_k=2,
+    )
+
+    store._search_documents_async.assert_awaited_once_with(  # type: ignore[attr-defined]
+        size=2,
+        query={
+            "bool": {
+                "must": [
+                    {"weighted_tokens": {"sparse_vec": {"tokens": {"1": 0.4, "3": 0.9}}}},
+                ]
+            }
+        },
+    )
 
 
 @pytest.mark.integration
