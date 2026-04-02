@@ -413,6 +413,8 @@ class AmazonBedrockChatGenerator:
         flattened_tools = flatten_tools_or_toolsets(tools)
         _check_duplicate_tool_names(flattened_tools)
         tool_config = merged_kwargs.pop("toolConfig", None)
+        # Extract outputConfig for structured output support
+        output_config = merged_kwargs.pop("outputConfig", None)
         if flattened_tools:
             # Format Haystack tools to Bedrock format
             tool_config = _format_tools(flattened_tools, tools_cachepoint_config=self.tools_cachepoint_config)
@@ -434,6 +436,8 @@ class AmazonBedrockChatGenerator:
             params["toolConfig"] = tool_config
         if additional_fields:
             params["additionalModelRequestFields"] = additional_fields
+        if output_config:
+            params["outputConfig"] = output_config
         if self.guardrail_config:
             params["guardrailConfig"] = self.guardrail_config
 
