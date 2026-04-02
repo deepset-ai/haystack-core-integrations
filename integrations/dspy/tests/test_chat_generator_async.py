@@ -13,7 +13,6 @@ def mock_dspy_module():
     """
     with (
         patch("haystack_integrations.components.generators.dspy.chat.chat_generator.dspy.LM") as mock_lm_class,
-        patch("haystack_integrations.components.generators.dspy.chat.chat_generator.dspy.configure"),
         patch(
             "haystack_integrations.components.generators.dspy.chat.chat_generator.dspy.ChainOfThought"
         ) as mock_cot_class,

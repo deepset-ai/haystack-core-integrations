@@ -8,7 +8,7 @@ from haystack.dataclasses import ChatMessage
 from haystack_integrations.components.generators.dspy.chat.chat_generator import (
     VALID_MODULE_TYPES,
     DSPySignatureChatGenerator,
-    _configure_dspy_lm,
+    _create_dspy_lm,
     _get_dspy_module_class,
 )
 
@@ -20,7 +20,6 @@ def mock_dspy_module():
     """
     with (
         patch("haystack_integrations.components.generators.dspy.chat.chat_generator.dspy.LM") as mock_lm_class,
-        patch("haystack_integrations.components.generators.dspy.chat.chat_generator.dspy.configure"),
         patch(
             "haystack_integrations.components.generators.dspy.chat.chat_generator.dspy.ChainOfThought"
         ) as mock_cot_class,
@@ -82,46 +81,41 @@ class TestGetDspyModuleClass:
             _get_dspy_module_class("BadType")
 
 
-class TestConfigureDspyLm:
-    @patch("dspy.configure")
+class TestCreateDspyLm:
     @patch("dspy.LM")
-    def test_creates_lm_and_configures(self, mock_lm_class, mock_configure):
+    def test_creates_lm(self, mock_lm_class):
         mock_lm = MagicMock()
         mock_lm_class.return_value = mock_lm
 
-        result = _configure_dspy_lm(model="openai/gpt-5-mini")
+        result = _create_dspy_lm(model="openai/gpt-5-mini")
 
         mock_lm_class.assert_called_once_with(model="openai/gpt-5-mini")
-        mock_configure.assert_called_once_with(lm=mock_lm)
         assert result is mock_lm
 
-    @patch("dspy.configure")
     @patch("dspy.LM")
-    def test_passes_extra_kwargs(self, mock_lm_class, mock_configure):
+    def test_passes_extra_kwargs(self, mock_lm_class):
         mock_lm = MagicMock()
         mock_lm_class.return_value = mock_lm
 
-        _configure_dspy_lm(model="openai/gpt-5-mini", temperature=0.7, max_tokens=100)
+        _create_dspy_lm(model="openai/gpt-5-mini", temperature=0.7, max_tokens=100)
 
         mock_lm_class.assert_called_once_with(model="openai/gpt-5-mini", temperature=0.7, max_tokens=100)
 
-    @patch("dspy.configure")
     @patch("dspy.LM")
-    def test_passes_api_base(self, mock_lm_class, mock_configure):
+    def test_passes_api_base(self, mock_lm_class):
         mock_lm = MagicMock()
         mock_lm_class.return_value = mock_lm
 
-        _configure_dspy_lm(model="openai/local-model", api_base="http://localhost:8000")
+        _create_dspy_lm(model="openai/local-model", api_base="http://localhost:8000")
 
         mock_lm_class.assert_called_once_with(model="openai/local-model", api_base="http://localhost:8000")
 
-    @patch("dspy.configure")
     @patch("dspy.LM")
-    def test_omits_api_base_when_none(self, mock_lm_class, mock_configure):
+    def test_omits_api_base_when_none(self, mock_lm_class):
         mock_lm = MagicMock()
         mock_lm_class.return_value = mock_lm
 
-        _configure_dspy_lm(model="openai/gpt-5-mini")
+        _create_dspy_lm(model="openai/gpt-5-mini")
 
         mock_lm_class.assert_called_once_with(model="openai/gpt-5-mini")
 

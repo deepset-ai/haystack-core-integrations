@@ -8,9 +8,9 @@ from haystack.dataclasses import ChatMessage, ChatRole
 VALID_MODULE_TYPES = {"Predict", "ChainOfThought", "ReAct"}
 
 
-def _configure_dspy_lm(model: str, api_base: str | None = None, **kwargs: Any) -> dspy.LM:
+def _create_dspy_lm(model: str, api_base: str | None = None, **kwargs: Any) -> dspy.LM:
     """
-    Create and configure a DSPy language model.
+    Create a DSPy language model instance.
 
     :param model: Model identifier (e.g. `"openai/gpt-5-mini"`).
     :param api_base: Optional base URL for the API (useful for local models).
@@ -20,9 +20,7 @@ def _configure_dspy_lm(model: str, api_base: str | None = None, **kwargs: Any) -
     lm_kwargs: dict[str, Any] = {"model": model, **kwargs}
     if api_base is not None:
         lm_kwargs["api_base"] = api_base
-    lm = dspy.LM(**lm_kwargs)
-    dspy.configure(lm=lm)
-    return lm
+    return dspy.LM(**lm_kwargs)
 
 
 def _get_dspy_module_class(module_type: str) -> type:
@@ -120,7 +118,7 @@ class DSPySignatureChatGenerator:
         self.module_kwargs = module_kwargs or {}
         self.input_mapping = input_mapping
 
-        self._lm = _configure_dspy_lm(
+        self._lm = _create_dspy_lm(
             model=self.model,
             api_base=self.api_base,
             **self.generation_kwargs,
@@ -128,6 +126,7 @@ class DSPySignatureChatGenerator:
 
         module_class = _get_dspy_module_class(self.module_type)
         self._module = module_class(self.signature, **self.module_kwargs)
+        self._module.set_lm(self._lm)
 
     def _build_dspy_inputs(self, prompt: str, **kwargs: Any) -> dict[str, Any]:
         """Build the input dict for the DSPy module call."""
