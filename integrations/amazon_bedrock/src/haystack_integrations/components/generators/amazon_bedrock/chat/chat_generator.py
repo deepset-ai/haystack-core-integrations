@@ -39,8 +39,8 @@ class AmazonBedrockChatGenerator:
     """
     Completes chats using LLMs hosted on Amazon Bedrock available via the Bedrock Converse API.
 
-    For example, to use the Anthropic Claude 3 Sonnet model, initialize this component with the
-    'anthropic.claude-3-5-sonnet-20240620-v1:0' model name.
+    For example, to use the Anthropic Claude 4.6 Sonnet model, initialize this component with the
+    'global.anthropic.claude-sonnet-4-6' model name.
 
     **Usage example**
 
@@ -53,7 +53,7 @@ class AmazonBedrockChatGenerator:
                 ChatMessage.from_user("What's Natural Language Processing?")]
 
 
-    client = AmazonBedrockChatGenerator(model="anthropic.claude-3-5-sonnet-20240620-v1:0",
+    client = AmazonBedrockChatGenerator(model="global.anthropic.claude-sonnet-4-6",
                                         streaming_callback=print_streaming_chunk)
     client.run(messages, generation_kwargs={"max_tokens": 512})
     ```
@@ -64,7 +64,7 @@ class AmazonBedrockChatGenerator:
     from haystack.dataclasses import ChatMessage, ImageContent
     from haystack_integrations.components.generators.amazon_bedrock import AmazonBedrockChatGenerator
 
-    generator = AmazonBedrockChatGenerator(model="anthropic.claude-3-5-sonnet-20240620-v1:0")
+    generator = AmazonBedrockChatGenerator(model="global.anthropic.claude-sonnet-4-6")
 
     image_content = ImageContent.from_file_path(file_path="apple.jpg")
 
@@ -107,7 +107,7 @@ class AmazonBedrockChatGenerator:
 
     # Initialize generator with tool
     client = AmazonBedrockChatGenerator(
-        model="anthropic.claude-3-5-sonnet-20240620-v1:0",
+        model="global.anthropic.claude-sonnet-4-6",
         tools=[weather_tool]
     )
 
@@ -205,7 +205,9 @@ class AmazonBedrockChatGenerator:
             function that handles the streaming chunks. The callback function receives a
             [StreamingChunk](https://docs.haystack.deepset.ai/docs/data-classes#streamingchunk) object and switches
             the streaming mode on.
-        :param boto3_config: The configuration for the boto3 client.
+        :param boto3_config: Dictionary of configuration options for the underlying Boto3 client.
+            Can be used to tune [retry behavior](https://docs.aws.amazon.com/boto3/latest/guide/retries.html)
+            and other low-level settings like timeouts and connection management.
         :param tools: A list of Tool and/or Toolset objects, or a single Toolset for which the model can prepare calls.
             Each tool should have a unique name.
         :param guardrail_config: Optional configuration for a guardrail that has been created in Amazon Bedrock.

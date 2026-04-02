@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import random
-from unittest.mock import patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from haystack.dataclasses.document import Document
@@ -17,7 +17,7 @@ from haystack.testing.document_store import (
     GetMetadataFieldsInfoTest,
     GetMetadataFieldUniqueValuesTest,
 )
-from opensearchpy.exceptions import RequestError
+from opensearchpy.exceptions import RequestError, TransportError
 
 from haystack_integrations.document_stores.opensearch import OpenSearchDocumentStore
 from haystack_integrations.document_stores.opensearch.document_store import DEFAULT_MAX_CHUNK_BYTES
@@ -224,6 +224,155 @@ def test_routing_in_delete(mock_bulk, _mock_opensearch_client):
     assert "_routing" not in actions[2]
 
 
+@patch("haystack_integrations.document_stores.opensearch.document_store.OpenSearch")
+def test_bm25_retrieval_retries_with_fuzziness_zero_on_too_many_clauses(_mock_opensearch_client, caplog):
+    store = OpenSearchDocumentStore(hosts="testhost")
+    store._client = MagicMock()
+
+    too_many_clauses_error = TransportError(
+        500, "search_phase_execution_exception", "too_many_clauses: maxClauseCount is set to 1024"
+    )
+    store._client.search.side_effect = [
+        too_many_clauses_error,
+        {"hits": {"hits": []}},
+    ]
+
+    results = store._bm25_retrieval("a very long query", fuzziness="AUTO")
+
+    assert results == []
+    assert store._client.search.call_count == 2
+    # Verify the retry used fuzziness=0
+    second_call_body = store._client.search.call_args_list[1].kwargs["body"]
+    assert second_call_body["query"]["bool"]["must"][0]["multi_match"]["fuzziness"] == 0
+    assert "Retrying with fuzziness=0" in caplog.text
+
+
+@patch("haystack_integrations.document_stores.opensearch.document_store.OpenSearch")
+def test_bm25_retrieval_no_retry_when_fuzziness_already_zero(_mock_opensearch_client):
+    store = OpenSearchDocumentStore(hosts="testhost")
+    store._client = MagicMock()
+
+    too_many_clauses_error = TransportError(
+        500, "search_phase_execution_exception", "too_many_clauses: maxClauseCount is set to 1024"
+    )
+    store._client.search.side_effect = too_many_clauses_error
+
+    with pytest.raises(TransportError):
+        store._bm25_retrieval("a very long query", fuzziness=0)
+
+    assert store._client.search.call_count == 1
+
+
+@patch("haystack_integrations.document_stores.opensearch.document_store.OpenSearch")
+def test_bm25_retrieval_no_retry_with_custom_query(_mock_opensearch_client):
+    store = OpenSearchDocumentStore(hosts="testhost")
+    store._client = MagicMock()
+
+    too_many_clauses_error = TransportError(
+        500, "search_phase_execution_exception", "too_many_clauses: maxClauseCount is set to 1024"
+    )
+    store._client.search.side_effect = too_many_clauses_error
+
+    custom_query = {"query": {"match": {"content": "$query"}}}
+    with pytest.raises(TransportError):
+        store._bm25_retrieval("a very long query", fuzziness="AUTO", custom_query=custom_query)
+
+    assert store._client.search.call_count == 1
+
+
+@patch("haystack_integrations.document_stores.opensearch.document_store.OpenSearch")
+def test_bm25_retrieval_reraises_other_transport_errors(_mock_opensearch_client):
+    store = OpenSearchDocumentStore(hosts="testhost")
+    store._client = MagicMock()
+
+    other_error = TransportError(500, "parsing_exception", {"error": {"reason": "some other error"}})
+    store._client.search.side_effect = other_error
+
+    with pytest.raises(TransportError):
+        store._bm25_retrieval("some query", fuzziness="AUTO")
+
+    assert store._client.search.call_count == 1
+
+
+@pytest.mark.asyncio
+@patch("haystack_integrations.document_stores.opensearch.document_store.AsyncOpenSearch")
+@patch("haystack_integrations.document_stores.opensearch.document_store.OpenSearch")
+async def test_bm25_retrieval_async_retries_with_fuzziness_zero_on_too_many_clauses(
+    _mock_opensearch_client, _mock_async_client, caplog
+):
+    store = OpenSearchDocumentStore(hosts="testhost")
+    store._async_client = AsyncMock()
+
+    too_many_clauses_error = TransportError(
+        500, "search_phase_execution_exception", "too_many_clauses: maxClauseCount is set to 1024"
+    )
+    store._async_client.search.side_effect = [
+        too_many_clauses_error,
+        {"hits": {"hits": []}},
+    ]
+
+    results = await store._bm25_retrieval_async("a very long query", fuzziness="AUTO")
+
+    assert results == []
+    assert store._async_client.search.call_count == 2
+    second_call_body = store._async_client.search.call_args_list[1].kwargs["body"]
+    assert second_call_body["query"]["bool"]["must"][0]["multi_match"]["fuzziness"] == 0
+    assert "Retrying with fuzziness=0" in caplog.text
+
+
+@pytest.mark.asyncio
+@patch("haystack_integrations.document_stores.opensearch.document_store.AsyncOpenSearch")
+@patch("haystack_integrations.document_stores.opensearch.document_store.OpenSearch")
+async def test_bm25_retrieval_async_no_retry_when_fuzziness_already_zero(_mock_opensearch_client, _mock_async_client):
+    store = OpenSearchDocumentStore(hosts="testhost")
+    store._async_client = AsyncMock()
+
+    too_many_clauses_error = TransportError(
+        500, "search_phase_execution_exception", "too_many_clauses: maxClauseCount is set to 1024"
+    )
+    store._async_client.search.side_effect = too_many_clauses_error
+
+    with pytest.raises(TransportError):
+        await store._bm25_retrieval_async("a very long query", fuzziness=0)
+
+    assert store._async_client.search.call_count == 1
+
+
+@pytest.mark.asyncio
+@patch("haystack_integrations.document_stores.opensearch.document_store.AsyncOpenSearch")
+@patch("haystack_integrations.document_stores.opensearch.document_store.OpenSearch")
+async def test_bm25_retrieval_async_no_retry_with_custom_query(_mock_opensearch_client, _mock_async_client):
+    store = OpenSearchDocumentStore(hosts="testhost")
+    store._async_client = AsyncMock()
+
+    too_many_clauses_error = TransportError(
+        500, "search_phase_execution_exception", "too_many_clauses: maxClauseCount is set to 1024"
+    )
+    store._async_client.search.side_effect = too_many_clauses_error
+
+    custom_query = {"query": {"match": {"content": "$query"}}}
+    with pytest.raises(TransportError):
+        await store._bm25_retrieval_async("a very long query", fuzziness="AUTO", custom_query=custom_query)
+
+    assert store._async_client.search.call_count == 1
+
+
+@pytest.mark.asyncio
+@patch("haystack_integrations.document_stores.opensearch.document_store.AsyncOpenSearch")
+@patch("haystack_integrations.document_stores.opensearch.document_store.OpenSearch")
+async def test_bm25_retrieval_async_reraises_other_transport_errors(_mock_opensearch_client, _mock_async_client):
+    store = OpenSearchDocumentStore(hosts="testhost")
+    store._async_client = AsyncMock()
+
+    other_error = TransportError(500, "parsing_exception", {"error": {"reason": "some other error"}})
+    store._async_client.search.side_effect = other_error
+
+    with pytest.raises(TransportError):
+        await store._bm25_retrieval_async("some query", fuzziness="AUTO")
+
+    assert store._async_client.search.call_count == 1
+
+
 @pytest.mark.integration
 class TestDocumentStore(
     CountDocumentsByFilterTest,
@@ -332,6 +481,33 @@ class TestDocumentStore(
         assert "functional" in res[0].content
         assert "functional" in res[1].content
         assert "functional" in res[2].content
+
+    def test_bm25_retrieval_with_fuzziness_overflow(self, document_store: OpenSearchDocumentStore, caplog):
+        """
+        Test that a long query with fuzziness="AUTO" that exceeds OpenSearch's maxClauseCount
+        is automatically retried with fuzziness=0 instead of raising an error.
+        """
+        # Build an index vocabulary of similar 5-character words. With fuzziness="AUTO",
+        # 5-char words get edit distance 1, so each query term fuzzy-matches many similar
+        # indexed terms, causing clause expansion beyond the default maxClauseCount (1024).
+        # With fuzziness=0, each term produces exactly 1 clause, staying well under the limit.
+        words = [f"foo{chr(97 + i)}{chr(97 + j)}" for i in range(20) for j in range(26)]  # 520 words
+
+        chunk_size = 52
+        docs = [
+            Document(content=" ".join(words[i : i + chunk_size]), id=str(idx))
+            for idx, i in enumerate(range(0, len(words), chunk_size))
+        ]
+        document_store.write_documents(docs)
+
+        # Query with a subset of words. With fuzziness="AUTO", each 5-char term expands
+        # to match ~45 similar indexed terms, pushing total clauses well above 1024.
+        long_query = " ".join(words[:100])
+
+        # This should not raise: the too_many_clauses error is caught and retried with fuzziness=0
+        res = document_store._bm25_retrieval(long_query, top_k=3, fuzziness="AUTO")
+        assert isinstance(res, list)
+        assert "Retrying with fuzziness=0" in caplog.text
 
     def test_bm25_retrieval_with_filters(self, document_store: OpenSearchDocumentStore, test_documents: list[Document]):
         document_store.write_documents(test_documents)
@@ -681,7 +857,6 @@ class TestDocumentStore(
         unique_priorities_filtered, _ = document_store.get_metadata_field_unique_values("meta.priority", "Doc 1", 10)
         assert set(unique_priorities_filtered) == {"1"}
 
-    @pytest.mark.integration
     def test_write_with_routing(self, document_store: OpenSearchDocumentStore):
         """Test writing documents with routing metadata"""
         docs = [
@@ -708,7 +883,6 @@ class TestDocumentStore(
 
         assert retrieved_by_id["3"].meta == {}
 
-    @pytest.mark.integration
     def test_delete_with_routing(self, document_store: OpenSearchDocumentStore):
         """Test deleting documents with routing"""
         docs = [
@@ -723,7 +897,6 @@ class TestDocumentStore(
 
         assert document_store.count_documents() == 1
 
-    @pytest.mark.integration
     def test_metadata_search_fuzzy_mode(self, document_store: OpenSearchDocumentStore):
         """Test metadata search in fuzzy mode."""
         docs = [
@@ -752,7 +925,6 @@ class TestDocumentStore(
         categories = [row.get("category", "").lower() for row in result]
         assert any("python" in cat for cat in categories)
 
-    @pytest.mark.integration
     def test_metadata_search_strict_mode(self, document_store: OpenSearchDocumentStore):
         """Test metadata search in strict mode."""
         docs = [
@@ -775,7 +947,6 @@ class TestDocumentStore(
         assert all(isinstance(row, dict) for row in result)
         assert all("category" in row for row in result)
 
-    @pytest.mark.integration
     def test_metadata_search_multiple_fields(self, document_store: OpenSearchDocumentStore):
         """Test metadata search across multiple fields."""
         docs = [
@@ -800,7 +971,6 @@ class TestDocumentStore(
         for row in result:
             assert all(key in ["category", "status"] for key in row.keys())
 
-    @pytest.mark.integration
     def test_metadata_search_comma_separated_query(self, document_store: OpenSearchDocumentStore):
         """Test metadata search with comma-separated query parts."""
         docs = [
@@ -822,7 +992,6 @@ class TestDocumentStore(
         assert len(result) > 0
         assert all(isinstance(row, dict) for row in result)
 
-    @pytest.mark.integration
     def test_metadata_search_top_k(self, document_store: OpenSearchDocumentStore):
         """Test metadata search respects top_k parameter."""
         docs = [Document(content=f"Doc {i}", meta={"category": "Python", "index": i}) for i in range(15)]
@@ -839,7 +1008,6 @@ class TestDocumentStore(
         assert isinstance(result, list)
         assert len(result) <= 5
 
-    @pytest.mark.integration
     def test_metadata_search_with_filters(self, document_store: OpenSearchDocumentStore):
         """Test metadata search with additional filters."""
         docs = [
@@ -863,7 +1031,6 @@ class TestDocumentStore(
         # Should only return documents with priority == 1
         assert len(result) >= 1
 
-    @pytest.mark.integration
     def test_metadata_search_empty_fields(self, document_store: OpenSearchDocumentStore):
         """Test metadata search with empty fields list returns empty result."""
         docs = [
@@ -881,7 +1048,6 @@ class TestDocumentStore(
         assert isinstance(result, list)
         assert len(result) == 0
 
-    @pytest.mark.integration
     def test_metadata_search_deduplication(self, document_store: OpenSearchDocumentStore):
         """Test that metadata search deduplicates results."""
         docs = [

@@ -14,7 +14,7 @@ from haystack.document_stores.errors import DocumentStoreError, DuplicateDocumen
 from haystack.document_stores.types import DuplicatePolicy
 from haystack.utils.auth import Secret
 from haystack.utils.misc import _normalize_metadata_field_name
-from opensearchpy import AsyncHttpConnection, AsyncOpenSearch, OpenSearch
+from opensearchpy import AsyncHttpConnection, AsyncOpenSearch, OpenSearch, TransportError
 from opensearchpy.helpers import async_bulk, bulk
 
 from haystack_integrations.document_stores.opensearch.auth import AsyncAWSAuth, AWSAuth
@@ -559,6 +559,7 @@ class OpenSearchDocumentStore:
     def _deserialize_document(hit: dict[str, Any]) -> Document:
         """
         Creates a Document from the search hit provided.
+
         This is mostly useful in self.filter_documents().
         """
         data = hit["_source"]
@@ -978,7 +979,27 @@ class OpenSearchDocumentStore:
             all_terms_must_match=all_terms_must_match,
             custom_query=custom_query,
         )
-        documents = self._search_documents(search_params)
+        try:
+            documents = self._search_documents(search_params)
+        except TransportError as e:
+            if "too_many_clauses" in f"{e.info} {e.error}" and fuzziness not in (0, "0") and custom_query is None:
+                logger.warning(
+                    "BM25 query with fuzziness='{fuzziness}' exceeded OpenSearch's clause limit. "
+                    "Retrying with fuzziness=0 (exact matching). Consider reducing query length or "
+                    "setting fuzziness=0 explicitly if this occurs frequently.",
+                    fuzziness=fuzziness,
+                )
+                search_params = self._prepare_bm25_search_request(
+                    query=query,
+                    filters=filters,
+                    fuzziness=0,
+                    top_k=top_k,
+                    all_terms_must_match=all_terms_must_match,
+                    custom_query=custom_query,
+                )
+                documents = self._search_documents(search_params)
+            else:
+                raise
         OpenSearchDocumentStore._postprocess_bm25_search_results(results=documents, scale_score=scale_score)
         return documents
 
@@ -1018,7 +1039,27 @@ class OpenSearchDocumentStore:
             all_terms_must_match=all_terms_must_match,
             custom_query=custom_query,
         )
-        documents = await self._search_documents_async(search_params)
+        try:
+            documents = await self._search_documents_async(search_params)
+        except TransportError as e:
+            if "too_many_clauses" in f"{e.info} {e.error}" and fuzziness not in (0, "0") and custom_query is None:
+                logger.warning(
+                    "BM25 query with fuzziness='{fuzziness}' exceeded OpenSearch's clause limit. "
+                    "Retrying with fuzziness=0 (exact matching). Consider reducing query length or "
+                    "setting fuzziness=0 explicitly if this occurs frequently.",
+                    fuzziness=fuzziness,
+                )
+                search_params = self._prepare_bm25_search_request(
+                    query=query,
+                    filters=filters,
+                    fuzziness=0,
+                    top_k=top_k,
+                    all_terms_must_match=all_terms_must_match,
+                    custom_query=custom_query,
+                )
+                documents = await self._search_documents_async(search_params)
+            else:
+                raise
         OpenSearchDocumentStore._postprocess_bm25_search_results(results=documents, scale_score=scale_score)
         return documents
 
@@ -1482,6 +1523,7 @@ class OpenSearchDocumentStore:
     ) -> list[Document]:
         """
         Retrieves documents that are most similar to the query embedding using a vector similarity metric.
+
         It uses the OpenSearch's Approximate k-Nearest Neighbors search algorithm.
 
         This method is not meant to be part of the public interface of
@@ -1513,8 +1555,9 @@ class OpenSearchDocumentStore:
         search_kwargs: dict[str, Any] | None = None,
     ) -> list[Document]:
         """
-        Asynchronously retrieves documents that are most similar to the query embedding using a vector similarity
-        metric. It uses the OpenSearch's Approximate k-Nearest Neighbors search algorithm.
+        Asynchronously retrieves documents most similar to the query embedding using a vector similarity metric.
+
+        It uses the OpenSearch's Approximate k-Nearest Neighbors search algorithm.
 
         This method is not meant to be part of the public interface of
         `OpenSearchDocumentStore` nor called directly.
@@ -1641,8 +1684,7 @@ class OpenSearchDocumentStore:
 
     def count_unique_metadata_by_filter(self, filters: dict[str, Any], metadata_fields: list[str]) -> dict[str, int]:
         """
-        Returns the number of unique values for each specified metadata field of the documents
-        that match the provided filters.
+        Returns the number of unique values for each specified metadata field of the documents that match the filters.
 
         :param filters: The filters to apply to count documents.
             For filter syntax, see [Haystack metadata filtering](https://docs.haystack.deepset.ai/docs/metadata-filtering)
@@ -1685,8 +1727,7 @@ class OpenSearchDocumentStore:
         self, filters: dict[str, Any], metadata_fields: list[str]
     ) -> dict[str, int]:
         """
-        Asynchronously returns the number of unique values for each specified metadata field of the documents
-        that match the provided filters.
+        Asynchronously returns the number of unique values for each specified metadata field matching the filters.
 
         :param filters: The filters to apply to count documents.
             For filter syntax, see [Haystack metadata filtering](https://docs.haystack.deepset.ai/docs/metadata-filtering)
@@ -1862,6 +1903,7 @@ class OpenSearchDocumentStore:
     ) -> tuple[list[str], dict[str, Any] | None]:
         """
         Returns unique values for a metadata field, optionally filtered by a search term in the content.
+
         Uses composite aggregations for proper pagination beyond 10k results.
 
         :param metadata_field: The metadata field to get unique values for.
@@ -1927,6 +1969,7 @@ class OpenSearchDocumentStore:
     ) -> tuple[list[str], dict[str, Any] | None]:
         """
         Asynchronously returns unique values for a metadata field, optionally filtered by a search term in the content.
+
         Uses composite aggregations for proper pagination beyond 10k results.
 
         :param metadata_field: The metadata field to get unique values for.

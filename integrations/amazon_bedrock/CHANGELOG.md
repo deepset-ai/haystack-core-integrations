@@ -1,5 +1,19 @@
 # Changelog
 
+## [integrations/amazon_bedrock-v6.7.1] - 2026-03-25
+
+### 📚 Documentation
+
+- Better docstring for boto3_config explaining retries (#3042)
+
+
+## [integrations/amazon_bedrock-v6.7.0] - 2026-03-24
+
+### 🚀 Features
+
+- Add configurable environment variable names to `S3FileDownloader` init params (#3015)
+
+
 ## [integrations/amazon_bedrock-v6.6.0] - 2026-03-23
 
 ### 🚀 Features

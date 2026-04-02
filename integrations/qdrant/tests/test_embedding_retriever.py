@@ -12,7 +12,7 @@ from haystack_integrations.components.retrievers.qdrant import (
 from haystack_integrations.document_stores.qdrant import QdrantDocumentStore
 
 
-class TestQdrantRetriever(FilterableDocsFixtureMixin):
+class TestQdrantRetriever:
     def test_init_default(self):
         document_store = QdrantDocumentStore(location=":memory:", index="test", use_sparse_embeddings=False)
         retriever = QdrantEmbeddingRetriever(document_store=document_store)
@@ -118,6 +118,9 @@ class TestQdrantRetriever(FilterableDocsFixtureMixin):
         assert retriever._group_by is None
         assert retriever._group_size is None
 
+
+@pytest.mark.integration
+class TestQdrantEmbeddingRetrieverIntegration(FilterableDocsFixtureMixin):
     def test_run(self, filterable_docs: list[Document]):
         document_store = QdrantDocumentStore(location=":memory:", index="Boi", use_sparse_embeddings=False)
 

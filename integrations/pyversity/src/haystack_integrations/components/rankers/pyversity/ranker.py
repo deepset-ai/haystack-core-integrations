@@ -2,7 +2,8 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""Haystack integration for `pyversity <https://github.com/Pringled/pyversity>`_.
+"""
+Haystack integration for `pyversity <https://github.com/Pringled/pyversity>`_.
 
 Wraps pyversity's diversification algorithms as a Haystack ``@component``,
 making it easy to drop result diversification into any Haystack pipeline.

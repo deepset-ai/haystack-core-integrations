@@ -1,0 +1,13 @@
+loaders:
+  - modules:
+      - haystack_integrations.components.converters.markitdown.markitdown_converter
+    search_path: [../src]
+processors:
+  - type: filter
+    documented_only: true
+    skip_empty_modules: true
+renderer:
+  description: Markitdown integration for Haystack
+  id: integrations-markitdown
+  filename: markitdown.md
+  title: Markitdown

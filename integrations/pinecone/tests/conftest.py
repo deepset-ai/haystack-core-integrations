@@ -94,8 +94,15 @@ async def document_store_async(request):
         await original_delete_documents(filters)
         await asyncio.sleep(DELETE_SLEEP_TIME_IN_SECONDS)
 
+    original_delete_all_documents = store.delete_all_documents_async
+
+    async def delete_all_documents_and_wait_async():
+        await original_delete_all_documents()
+        await asyncio.sleep(DELETE_SLEEP_TIME_IN_SECONDS)
+
     store.write_documents_async = write_documents_and_wait_async
     store.delete_documents_async = delete_documents_and_wait_async
+    store.delete_all_documents_async = delete_all_documents_and_wait_async
 
     yield store
     try:

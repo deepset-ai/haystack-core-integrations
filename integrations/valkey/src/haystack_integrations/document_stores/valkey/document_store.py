@@ -280,6 +280,7 @@ class ValkeyDocumentStore(DocumentStore):
             raise ValkeyDocumentStoreError(msg) from e
 
     def close(self) -> None:
+        """Close the synchronous Valkey client connection."""
         if self._client:
             try:
                 self._client.close()
@@ -289,6 +290,7 @@ class ValkeyDocumentStore(DocumentStore):
         self._client = None
 
     async def close_async(self) -> None:
+        """Close the asynchronous Valkey client connection."""
         if self._async_client:
             try:
                 await self._async_client.close()

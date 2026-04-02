@@ -21,6 +21,7 @@ logger = logging.getLogger(__name__)
 class SnowflakeTableRetriever:
     """
     Connects to a Snowflake database to execute a SQL query using ADBC and Polars.
+
     Returns the results as a Pandas DataFrame (converted from a Polars DataFrame)
     along with a Markdown-formatted string.
     For more information, see [Polars documentation](https://docs.pola.rs/api/python/dev/reference/api/polars.read_database_uri.html).
@@ -116,6 +117,8 @@ class SnowflakeTableRetriever:
         oauth_authorization_url: str | None = None,
     ) -> None:
         """
+        Initialize SnowflakeTableRetriever with connection and authentication parameters.
+
         :param user: User's login.
         :param account: Snowflake account identifier.
         :param authenticator: Authentication method. Required. Options: "SNOWFLAKE" (password),
@@ -316,6 +319,7 @@ class SnowflakeTableRetriever:
     def _polars_to_md(data: pl.DataFrame) -> str:
         """
         Converts a Polars DataFrame to a Markdown-formatted string.
+
         Uses Polars' built-in table formatting for efficient conversion.
 
         :param data: The Polars DataFrame to convert.
@@ -339,6 +343,7 @@ class SnowflakeTableRetriever:
     def _execute_query_with_connector(self, query: str) -> pl.DataFrame | None:
         """
         Executes a query using snowflake-connector-python directly (for JWT authentication).
+
         This bypasses ADBC compatibility issues.
 
         :param query: SQL query to execute.
@@ -401,7 +406,8 @@ class SnowflakeTableRetriever:
 
     @staticmethod
     def _empty_response() -> dict[str, DataFrame | str]:
-        """Returns a standardized empty response.
+        """
+        Returns a standardized empty response.
 
         :returns:
             A dictionary with the following keys:

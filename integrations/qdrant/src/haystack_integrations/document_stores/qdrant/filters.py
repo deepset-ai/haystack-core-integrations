@@ -9,7 +9,8 @@ from qdrant_client.http import models
 def convert_filters_to_qdrant(
     filter_term: list[dict[str, Any]] | dict[str, Any] | models.Filter | None = None,
 ) -> models.Filter | None:
-    """Converts Haystack filters to the format used by Qdrant.
+    """
+    Converts Haystack filters to the format used by Qdrant.
 
     :param filter_term: the haystack filter to be converted to qdrant.
     :returns: a single Qdrant Filter or None.
@@ -228,6 +229,7 @@ def _build_gte_condition(key: str, value: str | float | int) -> models.Condition
 
 
 def is_datetime_string(value: str) -> bool:
+    """Return True if the given string can be parsed as an ISO 8601 datetime, False otherwise."""
     try:
         datetime.fromisoformat(value)
         return True
