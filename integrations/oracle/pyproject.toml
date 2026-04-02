@@ -41,14 +41,34 @@ dev = [
 
 [tool.hatch.version]
 source = "vcs"
+tag-pattern = 'integrations\/oracle-v(?P<version>.*)'
 fallback-version = "0.1.0"
 
 [tool.hatch.version.raw-options]
 root = "../.."
-version_scheme = "no-guess-dev"
+git_describe_command = 'git describe --tags --match="integrations/oracle-v[0-9]*"'
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/haystack_integrations"]
+
+[tool.hatch.envs.default]
+installer = "uv"
+dependencies = ["haystack-pydoc-tools", "ruff"]
+
+[tool.hatch.envs.default.scripts]
+docs = ["haystack-pydoc pydoc/config_docusaurus.yml"]
+fmt = "ruff check --fix {args}; ruff format {args}"
+
+[tool.hatch.envs.test]
+dependencies = [
+  "pytest>=8.0.0",
+  "pytest-asyncio>=0.23.0",
+  "pytest-mock>=3.12.0",
+]
+
+[tool.hatch.envs.test.scripts]
+unit = "pytest tests/unit/ -v"
+integration = "pytest tests/integration/ -v"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
