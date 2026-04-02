@@ -3,11 +3,21 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import asyncio
+import threading
 from collections.abc import Coroutine
-from concurrent.futures import ThreadPoolExecutor
 from typing import Any, Literal, TypeVar
+from uuid import UUID
+
+from cognee.modules.users.methods import get_user  # type: ignore[import-untyped]
 
 T = TypeVar("T")
+
+# Persistent background event loop for run_sync when called from an async context.
+# A single loop is reused so that cognee's internal asyncio.Lock objects stay bound
+# to one event loop across multiple run_sync calls.
+_background_loop: asyncio.AbstractEventLoop | None = None
+_background_thread: threading.Thread | None = None
+_lock = threading.Lock()
 
 CogneeSearchType = Literal[
     "GRAPH_COMPLETION",
@@ -27,27 +37,47 @@ CogneeSearchType = Literal[
 ]
 
 
+def _get_background_loop() -> asyncio.AbstractEventLoop:
+    """Return a persistent background event loop running in a daemon thread."""
+    global _background_loop, _background_thread  # noqa: PLW0603
+
+    with _lock:
+        if _background_loop is None or _background_loop.is_closed():
+            _background_loop = asyncio.new_event_loop()
+            _background_thread = threading.Thread(target=_background_loop.run_forever, daemon=True)
+            _background_thread.start()
+    return _background_loop
+
+
 def run_sync(coro: Coroutine[Any, Any, T]) -> T:
     """
     Run an async coroutine from a synchronous context.
 
     If no event loop is running, uses asyncio.run() directly.
-    If already inside an async context, runs the coroutine in a separate thread
-    to avoid blocking the existing event loop.
+    If already inside an async context, submits the coroutine to a persistent
+    background event loop so that cognee's internal asyncio.Lock objects remain
+    bound to a single loop across calls.
     """
     try:
         asyncio.get_running_loop()
     except RuntimeError:
         return asyncio.run(coro)
 
-    # Already in an async context — run in a thread to avoid nested loop issues
-    with ThreadPoolExecutor(max_workers=1) as pool:
-        future = pool.submit(asyncio.run, coro)
-        return future.result()
+    # Already in an async context — submit to the persistent background loop
+    loop = _get_background_loop()
+    future = asyncio.run_coroutine_threadsafe(coro, loop)
+    return future.result()
 
 
 def extract_text(item: Any) -> str:
-    """Best-effort text extraction from a Cognee search result item."""
+    """
+    Best-effort text extraction from a Cognee search result item.
+
+    Cognee search results may contain items of various types depending on the
+    search strategy: plain ``str`` for LLM completions, ``dict`` with keys like
+    *content*/*text*/*description*/*name*, or cognee model objects (e.g.
+    ``DataPoint`` subclasses) carrying the same attributes.
+    """
     if isinstance(item, str):
         return item
 
@@ -63,3 +93,22 @@ def extract_text(item: Any) -> str:
                 return item[key]
 
     return str(item)
+
+
+async def _get_cognee_user(user_id: str) -> Any:
+    """
+    Resolve a user_id string to a cognee User object.
+
+    Converts the given UUID string to a cognee User via ``cognee.modules.users.methods.get_user``.
+
+    :param user_id: UUID string identifying the cognee user.
+    :returns: A cognee ``User`` object.
+    :raises ValueError: If user_id is not a valid UUID or the user is not found.
+    """
+    try:
+        uid = UUID(user_id)
+    except ValueError as e:
+        msg = f"Invalid user_id: '{user_id}' is not a valid UUID."
+        raise ValueError(msg) from e
+
+    return await get_user(uid)

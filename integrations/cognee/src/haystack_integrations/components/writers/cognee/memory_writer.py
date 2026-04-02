@@ -32,6 +32,8 @@ class CogneeWriter:
 
     def __init__(self, *, dataset_name: str = "haystack", auto_cognify: bool = True):
         """
+        Initialize the CogneeWriter.
+
         :param dataset_name: Name of the Cognee dataset to add documents to.
         :param auto_cognify: If True, automatically runs `cognee.cognify()` after adding
             documents to process them into the knowledge engine.
@@ -69,6 +71,7 @@ class CogneeWriter:
         return {"documents_written": written}
 
     def to_dict(self) -> dict[str, Any]:
+        """Serialize this component to a dictionary."""
         return default_to_dict(
             self,
             dataset_name=self.dataset_name,
@@ -77,4 +80,5 @@ class CogneeWriter:
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "CogneeWriter":
+        """Deserialize a component from a dictionary."""
         return default_from_dict(cls, data)

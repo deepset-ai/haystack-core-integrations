@@ -53,6 +53,8 @@ class CogneeCognifier:
 
     def __init__(self, dataset_name: str | list[str] | None = None):
         """
+        Initialize the CogneeCognifier.
+
         :param dataset_name: Optional Cognee dataset name(s) to cognify. Accepts a single
             name, a list of names, or None to cognify all pending datasets.
         """
@@ -78,8 +80,10 @@ class CogneeCognifier:
         return {"cognified": True}
 
     def to_dict(self) -> dict[str, Any]:
+        """Serialize this component to a dictionary."""
         return default_to_dict(self, dataset_name=self.dataset_name)
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "CogneeCognifier":
+        """Deserialize a component from a dictionary."""
         return default_from_dict(cls, data)

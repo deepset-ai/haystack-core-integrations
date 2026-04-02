@@ -35,6 +35,8 @@ class CogneeRetriever:
         self, search_type: CogneeSearchType = "GRAPH_COMPLETION", top_k: int = 10, dataset_name: str | None = None
     ):
         """
+        Initialize the CogneeRetriever.
+
         :param search_type: Cognee search type. One of: GRAPH_COMPLETION, CHUNKS,
             SUMMARIES, INSIGHTS, etc.
         :param top_k: Maximum number of results to return.
@@ -45,7 +47,7 @@ class CogneeRetriever:
         self.dataset_name = dataset_name
 
     @component.output_types(documents=list[Document])
-    def run(self, query: str, top_k: int | None = None) -> dict[str, Any]:
+    def run(self, query: str, top_k: int | None = None) -> dict[str, list[Document]]:
         """
         Search Cognee's memory and return matching documents.
 
@@ -76,6 +78,7 @@ class CogneeRetriever:
         return {"documents": documents}
 
     def to_dict(self) -> dict[str, Any]:
+        """Serialize this component to a dictionary."""
         return default_to_dict(
             self,
             search_type=self.search_type,
@@ -85,6 +88,7 @@ class CogneeRetriever:
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "CogneeRetriever":
+        """Deserialize a component from a dictionary."""
         return default_from_dict(cls, data)
 
 
