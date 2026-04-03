@@ -49,8 +49,7 @@ class TestSQLAlchemyTableRetrieverSerialization:
         )
         d = retriever.to_dict()
         expected_type = (
-            "haystack_integrations.components.retrievers.sqlalchemy"
-            ".sqlalchemy_table_retriever.SQLAlchemyTableRetriever"
+            "haystack_integrations.components.retrievers.sqlalchemy.sqlalchemy_table_retriever.SQLAlchemyTableRetriever"
         )
         assert d["type"] == expected_type
         params = d["init_parameters"]
@@ -104,10 +103,7 @@ class TestSQLAlchemyTableRetrieverRun:
 
     def test_max_row_limit(self, monkeypatch):
         init_sql = (
-            "CREATE TABLE t (x INTEGER);"
-            "INSERT INTO t VALUES (1);"
-            "INSERT INTO t VALUES (2);"
-            "INSERT INTO t VALUES (3)"
+            "CREATE TABLE t (x INTEGER);INSERT INTO t VALUES (1);INSERT INTO t VALUES (2);INSERT INTO t VALUES (3)"
         )
         retriever = SQLAlchemyTableRetriever(
             drivername="sqlite",
