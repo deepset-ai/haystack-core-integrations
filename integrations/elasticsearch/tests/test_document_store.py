@@ -4,6 +4,7 @@
 
 import random
 from unittest.mock import AsyncMock, Mock, patch
+from uuid import uuid4
 
 import pytest
 from elasticsearch.exceptions import BadRequestError  # type: ignore[import-not-found]
@@ -617,10 +618,10 @@ class TestDocumentStore(
             document_store._embedding_retrieval(query_embedding=[0.1, 0.1])
 
     def test_sparse_vector_retrieval(self):
+        index = f"test_sparse_retrieval_{uuid4().hex}"
         store = ElasticsearchDocumentStore(
-            hosts=["http://localhost:9200"], index="test_sparse_retrieval", sparse_vector_field="sparse_vec"
+            hosts=["http://localhost:9200"], index=index, sparse_vector_field="sparse_vec"
         )
-        store.client.options(ignore_status=[400, 404]).indices.delete(index="test_sparse_retrieval")
 
         docs = [
             Document(
@@ -641,13 +642,13 @@ class TestDocumentStore(
         assert len(results) == 1
         assert results[0].content == "Most similar sparse document"
 
-        store.client.indices.delete(index="test_sparse_retrieval")
+        store.client.indices.delete(index=index)
 
     def test_sparse_vector_retrieval_with_filters(self):
+        index = f"test_sparse_retrieval_filters_{uuid4().hex}"
         store = ElasticsearchDocumentStore(
-            hosts=["http://localhost:9200"], index="test_sparse_retrieval_filters", sparse_vector_field="sparse_vec"
+            hosts=["http://localhost:9200"], index=index, sparse_vector_field="sparse_vec"
         )
-        store.client.options(ignore_status=[400, 404]).indices.delete(index="test_sparse_retrieval_filters")
 
         docs = [
             Document(
@@ -671,7 +672,7 @@ class TestDocumentStore(
         assert len(results) == 1
         assert results[0].content == "Most similar sparse document"
 
-        store.client.indices.delete(index="test_sparse_retrieval_filters")
+        store.client.indices.delete(index=index)
 
     def test_sparse_vector_retrieval_requires_sparse_vector_field(self, document_store: ElasticsearchDocumentStore):
         with pytest.raises(ValueError, match="sparse_vector_field must be set for sparse vector retrieval"):

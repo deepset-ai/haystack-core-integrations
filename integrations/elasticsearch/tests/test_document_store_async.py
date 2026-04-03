@@ -2,6 +2,8 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+from uuid import uuid4
+
 import pytest
 from haystack.dataclasses.document import Document
 from haystack.dataclasses.sparse_embedding import SparseEmbedding
@@ -141,10 +143,10 @@ class TestElasticsearchDocumentStoreAsync:
 
     @pytest.mark.asyncio
     async def test_sparse_vector_retrieval_async(self):
+        index = f"test_async_sparse_retrieval_{uuid4().hex}"
         store = ElasticsearchDocumentStore(
-            hosts=["http://localhost:9200"], index="test_async_sparse_retrieval", sparse_vector_field="sparse_vec"
+            hosts=["http://localhost:9200"], index=index, sparse_vector_field="sparse_vec"
         )
-        await store.async_client.options(ignore_status=[400, 404]).indices.delete(index="test_async_sparse_retrieval")
 
         docs = [
             Document(
@@ -165,17 +167,15 @@ class TestElasticsearchDocumentStoreAsync:
         assert len(results) == 1
         assert results[0].content == "Most similar sparse document"
 
-        await store.async_client.indices.delete(index="test_async_sparse_retrieval")
+        await store.async_client.indices.delete(index=index)
 
     @pytest.mark.asyncio
     async def test_sparse_vector_retrieval_async_with_filters(self):
+        index = f"test_async_sparse_retrieval_filters_{uuid4().hex}"
         store = ElasticsearchDocumentStore(
             hosts=["http://localhost:9200"],
-            index="test_async_sparse_retrieval_filters",
+            index=index,
             sparse_vector_field="sparse_vec",
-        )
-        await store.async_client.options(ignore_status=[400, 404]).indices.delete(
-            index="test_async_sparse_retrieval_filters"
         )
 
         docs = [
@@ -200,7 +200,7 @@ class TestElasticsearchDocumentStoreAsync:
         assert len(results) == 1
         assert results[0].content == "Most similar sparse document"
 
-        await store.async_client.indices.delete(index="test_async_sparse_retrieval_filters")
+        await store.async_client.indices.delete(index=index)
 
     @pytest.mark.asyncio
     async def test_sparse_vector_retrieval_async_requires_sparse_vector_field(self, document_store):
