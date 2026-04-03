@@ -122,6 +122,17 @@ def test_run_json_minimal() -> None:
     meta_extractor_mock.extract_dl_doc_meta.assert_called_once_with(dl_doc=dl_doc)
 
 
+def test_legacy_import_path() -> None:
+    import warnings
+
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        from docling_haystack.converter import DoclingConverter as LegacyDoclingConverter
+
+    assert LegacyDoclingConverter is DoclingConverter
+    assert any(issubclass(w.category, DeprecationWarning) and "docling_haystack.converter" in str(w.message) for w in caught)
+
+
 def test_component_from_dict_legacy_nulls() -> None:
     # Before the public-attribute refactor, default serialization couldn't find
     # the _-prefixed attributes and fell back to the init defaults, so

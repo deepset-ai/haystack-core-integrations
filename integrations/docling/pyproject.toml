@@ -44,7 +44,7 @@ Issues = "https://github.com/deepset-ai/haystack-core-integrations/issues"
 Source = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/docling"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/haystack_integrations"]
+packages = ["src/haystack_integrations", "src/docling_haystack"]
 
 [tool.hatch.version]
 source = "vcs"
