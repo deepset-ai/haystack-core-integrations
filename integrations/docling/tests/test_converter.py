@@ -122,6 +122,32 @@ def test_run_json_minimal() -> None:
     meta_extractor_mock.extract_dl_doc_meta.assert_called_once_with(dl_doc=dl_doc)
 
 
+def test_component_from_dict_legacy_nulls() -> None:
+    # Before the public-attribute refactor, default serialization couldn't find
+    # the _-prefixed attributes and fell back to the init defaults, so
+    # convert_kwargs and md_export_kwargs were always serialized as null.
+    # Verify that such a serialized dict still deserializes correctly.
+    legacy_data = {
+        "type": "haystack_integrations.components.converters.docling.converter.DoclingConverter",
+        "init_parameters": {
+            "converter": None,
+            "convert_kwargs": None,
+            "export_type": "doc_chunks",
+            "md_export_kwargs": None,
+            "chunker": None,
+            "meta_extractor": None,
+        },
+    }
+    restored = component_from_dict(DoclingConverter, legacy_data, "docling_converter")
+
+    assert restored.convert_kwargs == {}
+    assert restored.md_export_kwargs == {"image_placeholder": ""}
+    assert restored.export_type == ExportType.DOC_CHUNKS
+    assert restored.converter is None
+    assert restored.chunker is None
+    assert restored.meta_extractor is None
+
+
 def test_component_to_dict_defaults() -> None:
     converter = DoclingConverter()
     data = component_to_dict(converter, "docling_converter")
