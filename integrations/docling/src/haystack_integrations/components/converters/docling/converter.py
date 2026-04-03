@@ -1,6 +1,7 @@
 """Docling Haystack converter module."""
 
 import json
+import warnings
 from abc import ABC, abstractmethod
 from collections.abc import Iterable
 from enum import Enum
@@ -98,20 +99,48 @@ class DoclingConverter:
     @component.output_types(documents=list[Document])
     def run(
         self,
-        paths: Iterable[Path | str],
+        sources: Iterable[Path | str] | None = None,
+        meta: dict[str, Any] | list[dict[str, Any]] | None = None,
+        paths: Iterable[Path | str] | None = None,
     ) -> dict[str, list[Document]]:
         """
         Run the DoclingConverter.
 
-        :param paths: The input document locations, either as local paths or URLs.
+        :param sources: The input document locations, either as local paths or URLs.
+        :param meta: Optional metadata to merge into each output document. Pass a single
+            dict to apply the same fields to all documents, or a list of dicts (one per
+            source) to apply different fields per source document.
+        :param paths: Deprecated. Use `sources` instead.
         :returns:
             A dictionary with key `"documents"` containing the output Haystack Documents.
+        :raises ValueError: If `meta` is a list whose length does not match the number of sources.
         :raises RuntimeError: If an unexpected `export_type` is encountered.
         """
+        if paths is not None:
+            warnings.warn(
+                "The 'paths' parameter is deprecated. Use 'sources' instead.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+            if sources is None:
+                sources = paths
+
+        if sources is None:
+            msg = "Either 'sources' or the deprecated 'paths' parameter must be provided."
+            raise ValueError(msg)
+
+        sources_list = list(sources)
+
+        if isinstance(meta, list) and len(meta) != len(sources_list):
+            msg = f"The length of 'meta' ({len(meta)}) must match the number of sources ({len(sources_list)})."
+            raise ValueError(msg)
+
         documents: list[Document] = []
-        for filepath in paths:
+        for i, source in enumerate(sources_list):
+            source_meta: dict[str, Any] = meta[i] if isinstance(meta, list) else (meta or {})
+
             dl_doc = self._converter_instance.convert(
-                source=filepath,
+                source=source,
                 **self.convert_kwargs,
             ).document
 
@@ -120,7 +149,7 @@ class DoclingConverter:
                 hs_docs = [
                     Document(
                         content=self._chunker_instance.contextualize(chunk=chunk),
-                        meta=self._meta_extractor_instance.extract_chunk_meta(chunk=chunk),
+                        meta={**self._meta_extractor_instance.extract_chunk_meta(chunk=chunk), **source_meta},
                     )
                     for chunk in chunk_iter
                 ]
@@ -128,16 +157,17 @@ class DoclingConverter:
             elif self.export_type == ExportType.MARKDOWN:
                 hs_doc = Document(
                     content=dl_doc.export_to_markdown(**self.md_export_kwargs),
-                    meta=self._meta_extractor_instance.extract_dl_doc_meta(dl_doc=dl_doc),
+                    meta={**self._meta_extractor_instance.extract_dl_doc_meta(dl_doc=dl_doc), **source_meta},
                 )
                 documents.append(hs_doc)
             elif self.export_type == ExportType.JSON:
                 hs_doc = Document(
                     content=json.dumps(dl_doc.export_to_dict()),
-                    meta=self._meta_extractor_instance.extract_dl_doc_meta(dl_doc=dl_doc),
+                    meta={**self._meta_extractor_instance.extract_dl_doc_meta(dl_doc=dl_doc), **source_meta},
                 )
                 documents.append(hs_doc)
             else:
                 err_msg = f"Unexpected export type: {self.export_type}"
                 raise RuntimeError(err_msg)
+
         return {"documents": documents}
