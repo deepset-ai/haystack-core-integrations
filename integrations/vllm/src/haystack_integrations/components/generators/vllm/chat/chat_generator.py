@@ -1,18 +1,15 @@
 import asyncio
+import json
 from typing import Any
 
-from haystack import default_from_dict, default_to_dict
+from haystack import default_from_dict, default_to_dict, logging
 from haystack.components.generators.chat.openai import (
-    OpenAIChatGenerator,
     _check_finish_reason,
     _convert_chat_completion_chunk_to_streaming_chunk,
 )
-from haystack.components.generators.chat.openai import (
-    _convert_chat_completion_to_chat_message as _openai_convert_chat_completion_to_chat_message,
-)
-from haystack.components.generators.utils import _convert_streaming_chunks_to_chat_message
+from haystack.components.generators.utils import _convert_streaming_chunks_to_chat_message, _serialize_object
 from haystack.core.component import component
-from haystack.dataclasses import ChatMessage
+from haystack.dataclasses import ChatMessage, ToolCall
 from haystack.dataclasses.chat_message import ReasoningContent
 from haystack.dataclasses.streaming_chunk import (
     AsyncStreamingCallbackT,
@@ -22,37 +19,66 @@ from haystack.dataclasses.streaming_chunk import (
     SyncStreamingCallbackT,
     select_streaming_callback,
 )
-from haystack.tools import ToolsType, deserialize_tools_or_toolset_inplace, serialize_tools_or_toolset
+from haystack.tools import (
+    ToolsType,
+    _check_duplicate_tool_names,
+    deserialize_tools_or_toolset_inplace,
+    flatten_tools_or_toolsets,
+    serialize_tools_or_toolset,
+    warm_up_tools,
+)
 from haystack.utils import Secret, deserialize_callable, serialize_callable
-from openai import AsyncStream, Stream
+from haystack.utils.http_client import init_http_client
+from openai import AsyncOpenAI, AsyncStream, OpenAI, Stream
 from openai.types.chat import ChatCompletion, ChatCompletionChunk
 from openai.types.chat.chat_completion import Choice
+
+logger = logging.getLogger(__name__)
 
 
 def _convert_chat_completion_to_chat_message(completion: ChatCompletion, choice: Choice) -> ChatMessage:
     """
-    Converts the non-streaming response from the vLLM API to a ChatMessage.
-
-    Delegates to the OpenAI converter for standard fields (text, tool calls, meta) and adds
-    reasoning content if present in the response.
+    Convert a vLLM chat completion response to a ChatMessage, including reasoning content if present.
 
     :param completion: The completion returned by the vLLM API.
     :param choice: The choice returned by the vLLM API.
     :return: The ChatMessage.
     """
-    message = _openai_convert_chat_completion_to_chat_message(completion, choice)
-    reasoning_text = getattr(choice.message, "reasoning", None)
-    if not reasoning_text:
-        return message
-    return ChatMessage.from_assistant(
-        text=message.text,
-        tool_calls=message.tool_calls,
-        meta=message.meta,
-        reasoning=ReasoningContent(reasoning_text=reasoning_text),
-    )
+    message = choice.message
+    text = message.content
+
+    tool_calls = []
+    if message.tool_calls:
+        for tc in message.tool_calls:
+            if not hasattr(tc, "function"):
+                continue
+            try:
+                arguments = json.loads(tc.function.arguments)
+                tool_calls.append(ToolCall(id=tc.id, tool_name=tc.function.name, arguments=arguments))
+            except json.JSONDecodeError:
+                logger.warning(
+                    "vLLM returned a malformed JSON string for tool call arguments. This tool call "
+                    "will be skipped. Tool call ID: {_id}, Tool name: {_name}, Arguments: {_arguments}",
+                    _id=tc.id,
+                    _name=tc.function.name,
+                    _arguments=tc.function.arguments,
+                )
+
+    meta: dict[str, Any] = {
+        "model": completion.model,
+        "index": choice.index,
+        "finish_reason": choice.finish_reason,
+        "usage": _serialize_object(completion.usage),
+    }
+
+    reasoning_text = getattr(message, "reasoning", None)
+    reasoning = ReasoningContent(reasoning_text=reasoning_text) if reasoning_text else None
+
+    return ChatMessage.from_assistant(text=text, tool_calls=tool_calls, meta=meta, reasoning=reasoning)
 
 
-class VLLMChatGenerator(OpenAIChatGenerator):
+@component
+class VLLMChatGenerator:
     """
     A component for generating chat completions using models served with [vLLM](https://docs.vllm.ai/).
 
@@ -208,20 +234,46 @@ class VLLMChatGenerator(OpenAIChatGenerator):
             A dictionary of keyword arguments to configure a custom `httpx.Client` or `httpx.AsyncClient`.
             For more information, see the [HTTPX documentation](https://www.python-httpx.org/api/#client).
         """
-
         api_key = api_key if api_key and api_key.resolve_value() else Secret.from_token("placeholder-api-key")
 
-        super(VLLMChatGenerator, self).__init__(  # noqa: UP008
-            api_key=api_key,
-            model=model,
-            streaming_callback=streaming_callback,
-            api_base_url=api_base_url,
-            generation_kwargs=generation_kwargs,
-            timeout=timeout,
-            max_retries=max_retries,
-            tools=tools,
-            http_client_kwargs=http_client_kwargs,
+        self.model = model
+        self.api_key = api_key
+        self.streaming_callback = streaming_callback
+        self.api_base_url = api_base_url
+        self.generation_kwargs = generation_kwargs or {}
+        self.timeout = timeout
+        self.max_retries = max_retries
+        self.tools = tools
+        self.http_client_kwargs = http_client_kwargs
+
+        _check_duplicate_tool_names(flatten_tools_or_toolsets(self.tools))
+
+        self._client: OpenAI | None = None
+        self._async_client: AsyncOpenAI | None = None
+        self._is_warmed_up = False
+
+    def warm_up(self) -> None:
+        """Create the OpenAI clients and warm up tools."""
+        if self._is_warmed_up:
+            return
+
+        client_kwargs: dict[str, Any] = {
+            "api_key": self.api_key.resolve_value(),
+            "base_url": self.api_base_url,
+        }
+        if self.timeout is not None:
+            client_kwargs["timeout"] = self.timeout
+        if self.max_retries is not None:
+            client_kwargs["max_retries"] = self.max_retries
+
+        self._client = OpenAI(
+            http_client=init_http_client(self.http_client_kwargs, async_client=False), **client_kwargs
         )
+        self._async_client = AsyncOpenAI(
+            http_client=init_http_client(self.http_client_kwargs, async_client=True), **client_kwargs
+        )
+        warm_up_tools(self.tools)
+        self._is_warmed_up = True
 
     def to_dict(self) -> dict[str, Any]:
         """
@@ -260,10 +312,37 @@ class VLLMChatGenerator(OpenAIChatGenerator):
             data["init_parameters"]["streaming_callback"] = deserialize_callable(serialized_callback_handler)
         return default_from_dict(cls, data)
 
+    def _prepare_api_call(
+        self,
+        messages: list[ChatMessage],
+        streaming_callback: StreamingCallbackT | None,
+        generation_kwargs: dict[str, Any] | None,
+        tools: ToolsType | None,
+    ) -> dict[str, Any]:
+        """Build the kwargs dict for the OpenAI chat completions API call."""
+        generation_kwargs = {**self.generation_kwargs, **(generation_kwargs or {})}
+
+        openai_formatted_messages = [message.to_openai_dict_format() for message in messages]
+
+        flattened_tools = flatten_tools_or_toolsets(tools or self.tools)
+        _check_duplicate_tool_names(flattened_tools)
+        tool_definitions = None
+        if flattened_tools:
+            tool_definitions = [{"type": "function", "function": t.tool_spec} for t in flattened_tools]
+
+        api_kwargs: dict[str, Any] = {
+            "model": self.model,
+            "messages": openai_formatted_messages,
+            "stream": streaming_callback is not None,
+            **generation_kwargs,
+        }
+        if tool_definitions:
+            api_kwargs["tools"] = tool_definitions
+
+        return api_kwargs
+
     def _handle_stream_response(self, chat_completion: Stream, callback: SyncStreamingCallbackT) -> list[ChatMessage]:
-        """
-        Handle a synchronous streaming response, extracting reasoning content from vLLM's reasoning chunks.
-        """
+        """Handle a synchronous streaming response, extracting reasoning content from vLLM's reasoning chunks."""
         component_info = ComponentInfo.from_component(self)
         chunks: list[StreamingChunk] = []
         for chunk in chat_completion:
@@ -287,7 +366,6 @@ class VLLMChatGenerator(OpenAIChatGenerator):
                     },
                 )
             else:
-                # delegate non-reasoning chunks to OpenAIChatGenerator converter
                 streaming_chunk = _convert_chat_completion_chunk_to_streaming_chunk(
                     chunk=chunk, previous_chunks=chunks, component_info=component_info
                 )
@@ -300,9 +378,7 @@ class VLLMChatGenerator(OpenAIChatGenerator):
     async def _handle_async_stream_response(
         self, chat_completion: AsyncStream[ChatCompletionChunk], callback: AsyncStreamingCallbackT
     ) -> list[ChatMessage]:
-        """
-        Handle an asynchronous streaming response, extracting reasoning content from vLLM's reasoning chunks.
-        """
+        """Handle an asynchronous streaming response, extracting reasoning content from vLLM's reasoning chunks."""
         component_info = ComponentInfo.from_component(self)
         chunks: list[StreamingChunk] = []
         try:
@@ -327,7 +403,6 @@ class VLLMChatGenerator(OpenAIChatGenerator):
                         },
                     )
                 else:
-                    # delegate non-reasoning chunks to OpenAIChatGenerator converter
                     streaming_chunk = _convert_chat_completion_chunk_to_streaming_chunk(
                         chunk=chunk, previous_chunks=chunks, component_info=component_info
                     )
@@ -341,8 +416,7 @@ class VLLMChatGenerator(OpenAIChatGenerator):
         return [_convert_streaming_chunks_to_chat_message(chunks=chunks)]
 
     @component.output_types(replies=list[ChatMessage])
-    # tools_strict is intentionally omitted: vLLM does not support it
-    def run(  # type: ignore[override]
+    def run(
         self,
         messages: list[ChatMessage],
         streaming_callback: StreamingCallbackT | None = None,
@@ -370,33 +444,26 @@ class VLLMChatGenerator(OpenAIChatGenerator):
             A dictionary with the following key:
             - `replies`: A list containing the generated responses as ChatMessage instances.
         """
-        resolved_callback = select_streaming_callback(
-            init_callback=self.streaming_callback, runtime_callback=streaming_callback, requires_async=False
-        )
-
-        # Streaming: OpenAIChatGenerator handles this correctly.
-        if resolved_callback is not None:
-            return super().run(messages, streaming_callback, generation_kwargs, tools=tools, tools_strict=False)
-
-        # Non-streaming: handle reasoning.
         if not self._is_warmed_up:
             self.warm_up()
 
         if len(messages) == 0:
             return {"replies": []}
 
-        api_args = self._prepare_api_call(
-            messages=messages,
-            streaming_callback=None,
-            generation_kwargs=generation_kwargs,
-            tools=tools,
-            tools_strict=False,
+        streaming_callback = select_streaming_callback(
+            init_callback=self.streaming_callback, runtime_callback=streaming_callback, requires_async=False
         )
-        openai_endpoint = api_args.pop("openai_endpoint")
-        chat_completion = getattr(self.client.chat.completions, openai_endpoint)(**api_args)
-        completions = [
-            _convert_chat_completion_to_chat_message(chat_completion, choice) for choice in chat_completion.choices
-        ]
+
+        api_kwargs = self._prepare_api_call(messages, streaming_callback, generation_kwargs, tools)
+        assert self._client is not None  # noqa: S101
+        chat_completion = self._client.chat.completions.create(**api_kwargs)
+
+        if streaming_callback is not None:
+            completions = self._handle_stream_response(chat_completion, streaming_callback)
+        else:
+            completions = [
+                _convert_chat_completion_to_chat_message(chat_completion, choice) for choice in chat_completion.choices
+            ]
 
         for message in completions:
             _check_finish_reason(message.meta)
@@ -404,8 +471,7 @@ class VLLMChatGenerator(OpenAIChatGenerator):
         return {"replies": completions}
 
     @component.output_types(replies=list[ChatMessage])
-    # tools_strict is intentionally omitted: vLLM does not support it
-    async def run_async(  # type: ignore[override]
+    async def run_async(
         self,
         messages: list[ChatMessage],
         streaming_callback: StreamingCallbackT | None = None,
@@ -434,35 +500,26 @@ class VLLMChatGenerator(OpenAIChatGenerator):
             A dictionary with the following key:
             - `replies`: A list containing the generated responses as ChatMessage instances.
         """
-        # Streaming: OpenAIChatGenerator handles this correctly.
-        resolved_callback = select_streaming_callback(
-            init_callback=self.streaming_callback, runtime_callback=streaming_callback, requires_async=True
-        )
-
-        if resolved_callback is not None:
-            return await super().run_async(
-                messages, streaming_callback, generation_kwargs, tools=tools, tools_strict=False
-            )
-
-        # Non-streaming: handle reasoning.
         if not self._is_warmed_up:
             self.warm_up()
 
         if len(messages) == 0:
             return {"replies": []}
 
-        api_args = self._prepare_api_call(
-            messages=messages,
-            streaming_callback=None,
-            generation_kwargs=generation_kwargs,
-            tools=tools,
-            tools_strict=False,
+        streaming_callback = select_streaming_callback(
+            init_callback=self.streaming_callback, runtime_callback=streaming_callback, requires_async=True
         )
-        openai_endpoint = api_args.pop("openai_endpoint")
-        chat_completion = await getattr(self.async_client.chat.completions, openai_endpoint)(**api_args)
-        completions = [
-            _convert_chat_completion_to_chat_message(chat_completion, choice) for choice in chat_completion.choices
-        ]
+
+        api_kwargs = self._prepare_api_call(messages, streaming_callback, generation_kwargs, tools)
+        assert self._async_client is not None  # noqa: S101
+        chat_completion = await self._async_client.chat.completions.create(**api_kwargs)
+
+        if streaming_callback is not None:
+            completions = await self._handle_async_stream_response(chat_completion, streaming_callback)
+        else:
+            completions = [
+                _convert_chat_completion_to_chat_message(chat_completion, choice) for choice in chat_completion.choices
+            ]
 
         for message in completions:
             _check_finish_reason(message.meta)

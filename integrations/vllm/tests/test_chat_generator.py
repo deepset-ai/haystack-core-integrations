@@ -237,6 +237,36 @@ class TestConvertChatCompletionToChatMessage:
         assert message.tool_calls[0].tool_name == "weather"
         assert message.tool_calls[0].arguments == {"city": "Paris"}
 
+    def test_skips_malformed_tool_call_arguments(self):
+        completion = ChatCompletion(
+            id="test-id",
+            model="Qwen/Qwen3-0.6B",
+            object="chat.completion",
+            choices=[
+                Choice(
+                    finish_reason="tool_calls",
+                    logprobs=None,
+                    index=0,
+                    message=ChatCompletionMessage(
+                        role="assistant",
+                        tool_calls=[
+                            {
+                                "id": "call_bad",
+                                "type": "function",
+                                "function": {"name": "weather", "arguments": "not-valid-json"},
+                            }
+                        ],
+                    ),
+                )
+            ],
+            created=int(datetime.now(tz=timezone.utc).timestamp()),
+            usage={"prompt_tokens": 10, "completion_tokens": 20, "total_tokens": 30},
+        )
+
+        message = _convert_chat_completion_to_chat_message(completion, completion.choices[0])
+
+        assert len(message.tool_calls) == 0
+
 
 class TestVLLMChatGeneratorInit:
     def test_init_default(self):
@@ -245,19 +275,20 @@ class TestVLLMChatGeneratorInit:
         assert component.model == "Qwen/Qwen3-0.6B"
         assert component.streaming_callback is None
         assert not component.generation_kwargs
-        assert component.client.base_url == "http://localhost:8000/v1/"
+        assert component.api_base_url == "http://localhost:8000/v1"
+        assert component._client is None
 
     def test_init_with_api_key_from_env(self, monkeypatch):
         monkeypatch.setenv("VLLM_API_KEY", "test-vllm-key")
         component = VLLMChatGenerator(model="Qwen/Qwen3-0.6B")
 
-        assert component.client.api_key == "test-vllm-key"
+        assert component.api_key.resolve_value() == "test-vllm-key"
 
     def test_init_without_api_key_uses_placeholder(self, monkeypatch):
         monkeypatch.delenv("VLLM_API_KEY", raising=False)
         component = VLLMChatGenerator(model="Qwen/Qwen3-0.6B")
 
-        assert component.client.api_key == "placeholder-api-key"
+        assert component.api_key.resolve_value() == "placeholder-api-key"
 
     def test_init_with_parameters(self):
         component = VLLMChatGenerator(
@@ -269,10 +300,39 @@ class TestVLLMChatGeneratorInit:
             max_retries=3,
         )
 
-        assert component.client.api_key == "my-key"
+        assert component._client is None
+        assert component._async_client is None
+        assert not component._is_warmed_up
+        assert component.tools is None
+        assert component.http_client_kwargs is None
+        assert component.streaming_callback is None
+        assert component.api_base_url == "http://my-server:8000/v1"
+        assert component.model == "Qwen/Qwen3-0.6B"
+        assert component.api_key.resolve_value() == "my-key"
         assert component.generation_kwargs == {"max_tokens": 512, "temperature": 0.7}
-        assert component.client.timeout == 60.0
-        assert component.client.max_retries == 3
+        assert component.timeout == 60.0
+        assert component.max_retries == 3
+
+
+class TestVLLMChatGeneratorWarmUp:
+    def test_warm_up_creates_clients(self):
+        component = VLLMChatGenerator(model="Qwen/Qwen3-0.6B", timeout=30.0, max_retries=2)
+        assert component._client is None
+
+        component.warm_up()
+
+        assert component._client is not None
+        assert component._async_client is not None
+        assert component._is_warmed_up is True
+
+    def test_warm_up_is_idempotent(self):
+        component = VLLMChatGenerator(model="Qwen/Qwen3-0.6B")
+        component.warm_up()
+        first_client = component._client
+
+        component.warm_up()
+
+        assert component._client is first_client
 
 
 class TestVLLMChatGeneratorSerde:
@@ -310,6 +370,25 @@ class TestVLLMChatGeneratorSerde:
         assert isinstance(component, VLLMChatGenerator)
         assert component.model == "Qwen/Qwen3-0.6B"
         assert component.generation_kwargs == {"max_tokens": 512}
+
+    def test_from_dict_with_streaming_callback(self):
+        data = {
+            "type": ("haystack_integrations.components.generators.vllm.chat.chat_generator.VLLMChatGenerator"),
+            "init_parameters": {
+                "model": "Qwen/Qwen3-0.6B",
+                "api_key": {"type": "env_var", "env_vars": ["VLLM_API_KEY"], "strict": False},
+                "api_base_url": "http://localhost:8000/v1",
+                "generation_kwargs": {},
+                "streaming_callback": "haystack.components.generators.utils.print_streaming_chunk",
+                "tools": None,
+                "timeout": None,
+                "max_retries": None,
+                "http_client_kwargs": None,
+            },
+        }
+        component = VLLMChatGenerator.from_dict(data)
+
+        assert component.streaming_callback is not None
 
 
 class TestVLLMChatGeneratorRun:
@@ -371,6 +450,10 @@ class TestVLLMChatGeneratorRun:
 
 @pytest.mark.asyncio
 class TestVLLMChatGeneratorRunAsync:
+    async def test_run_async_empty_messages(self):
+        component = VLLMChatGenerator(model="Qwen/Qwen3-0.6B")
+        assert await component.run_async([]) == {"replies": []}
+
     async def test_run_async(self, mock_async_chat_completion):  # noqa: ARG002
         component = VLLMChatGenerator(model="Qwen/Qwen3-0.6B")
         response = await component.run_async([ChatMessage.from_user("Hello")])
