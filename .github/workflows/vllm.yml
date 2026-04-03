@@ -79,10 +79,11 @@ jobs:
           VLLM_VERSION="$(curl -s https://api.github.com/repos/vllm-project/vllm/releases/latest | jq -r .tag_name | sed 's/^v//')"
           export VLLM_VERSION
           echo "Installing vLLM ${VLLM_VERSION} (CPU)"
-          hatch run -- uv pip install "vllm==${VLLM_VERSION}" --extra-index-url "https://wheels.vllm.ai/releases/${VLLM_VERSION}/cpu/"
+          hatch run -- uv pip install "vllm==${VLLM_VERSION}" --extra-index-url "https://wheels.vllm.ai/releases/${VLLM_VERSION}/cpu/" --index-strategy unsafe-best-match
 
       - name: Start vLLM server
         env:
+          VLLM_TARGET_DEVICE: "cpu"
           VLLM_CPU_KVCACHE_SPACE: "4"
         run: |
           nohup hatch run -- vllm serve ${{ env.VLLM_MODEL }} \
