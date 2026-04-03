@@ -79,7 +79,7 @@ integration = 'pytest -m "integration" {args:tests}'
 all = 'pytest {args:tests}'
 cov-retry = 'pytest --cov=haystack_integrations --reruns 3 --reruns-delay 30 -x {args:tests}'
 unit-cov-retry = 'pytest --cov=haystack_integrations --reruns 3 --reruns-delay 30 -x -m "not integration" {args:tests}'
-integration-cov-append-retry = 'pytest --cov=haystack_integrations --cov-append --reruns 3 --reruns-delay 30 -x -m "integration" {args:tests}'
+integration-cov-append-retry = "bash -c 'pytest --cov=haystack_integrations --cov-append --reruns 3 --reruns-delay 30 -x -m integration {args:tests}; ret=$?; [ $ret -eq 5 ] && exit 0 || exit $ret'"
 types = "mypy -p haystack_integrations.components.converters.docling {args}"
 
 [tool.mypy]
