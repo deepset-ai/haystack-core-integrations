@@ -159,6 +159,7 @@ ban-relative-imports = "parents"
 source = ["haystack_integrations"]
 branch = true
 parallel = false
+relative_files = true
 
 [tool.coverage.report]
 omit = ["*/tests/*", "*/__init__.py"]
