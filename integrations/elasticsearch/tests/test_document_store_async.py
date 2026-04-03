@@ -2,13 +2,31 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+from uuid import uuid4
+
 import pytest
+from elasticsearch import Elasticsearch
 from haystack.dataclasses.document import Document
 from haystack.dataclasses.sparse_embedding import SparseEmbedding
 from haystack.document_stores.errors import DocumentStoreError
 from haystack.document_stores.types import DuplicatePolicy
 
 from haystack_integrations.document_stores.elasticsearch import ElasticsearchDocumentStore
+
+
+def _supports_sparse_vector_query() -> bool:
+    try:
+        version = Elasticsearch(["http://localhost:9200"]).info()["version"]["number"]
+        major, minor, patch = (int(x) for x in version.split(".")[:3])
+    except Exception:
+        return False
+    return (major, minor, patch) >= (8, 15, 0)
+
+
+requires_sparse_vector_query = pytest.mark.skipif(
+    not _supports_sparse_vector_query(),
+    reason="Elasticsearch sparse_vector query requires Elasticsearch >= 8.15.0",
+)
 
 
 @pytest.mark.integration
@@ -140,6 +158,76 @@ class TestElasticsearchDocumentStoreAsync:
         assert results[0].content == "Most similar document"
 
     @pytest.mark.asyncio
+    @requires_sparse_vector_query
+    async def test_sparse_vector_retrieval_async(self):
+        index = f"test_async_sparse_retrieval_{uuid4().hex}"
+        store = ElasticsearchDocumentStore(
+            hosts=["http://localhost:9200"], index=index, sparse_vector_field="sparse_vec"
+        )
+
+        docs = [
+            Document(
+                content="Most similar sparse document",
+                sparse_embedding=SparseEmbedding(indices=[0, 1], values=[0.9, 0.9]),
+            ),
+            Document(
+                content="Less similar sparse document",
+                sparse_embedding=SparseEmbedding(indices=[2, 3], values=[0.8, 0.8]),
+            ),
+        ]
+        await store.write_documents_async(docs)
+
+        results = await store._sparse_vector_retrieval_async(
+            query_sparse_embedding=SparseEmbedding(indices=[0, 1], values=[1.0, 1.0]),
+            top_k=1,
+        )
+        assert len(results) == 1
+        assert results[0].content == "Most similar sparse document"
+
+        await store.async_client.indices.delete(index=index)
+
+    @pytest.mark.asyncio
+    @requires_sparse_vector_query
+    async def test_sparse_vector_retrieval_async_with_filters(self):
+        index = f"test_async_sparse_retrieval_filters_{uuid4().hex}"
+        store = ElasticsearchDocumentStore(
+            hosts=["http://localhost:9200"],
+            index=index,
+            sparse_vector_field="sparse_vec",
+        )
+
+        docs = [
+            Document(
+                content="Most similar sparse document",
+                sparse_embedding=SparseEmbedding(indices=[0, 1], values=[0.9, 0.9]),
+                meta={"type": "match"},
+            ),
+            Document(
+                content="Filtered out sparse document",
+                sparse_embedding=SparseEmbedding(indices=[0, 1], values=[0.95, 0.95]),
+                meta={"type": "other"},
+            ),
+        ]
+        await store.write_documents_async(docs)
+
+        results = await store._sparse_vector_retrieval_async(
+            query_sparse_embedding=SparseEmbedding(indices=[0, 1], values=[1.0, 1.0]),
+            filters={"field": "type", "operator": "==", "value": "match"},
+            top_k=2,
+        )
+        assert len(results) == 1
+        assert results[0].content == "Most similar sparse document"
+
+        await store.async_client.indices.delete(index=index)
+
+    @pytest.mark.asyncio
+    async def test_sparse_vector_retrieval_async_requires_sparse_vector_field(self, document_store):
+        with pytest.raises(ValueError, match="sparse_vector_field must be set for sparse vector retrieval"):
+            await document_store._sparse_vector_retrieval_async(
+                query_sparse_embedding=SparseEmbedding(indices=[0, 1], values=[1.0, 1.0])
+            )
+
+    @pytest.mark.asyncio
     async def test_write_documents_async_invalid_document_type(self, document_store):
         """Test write_documents with invalid document type"""
         invalid_docs = [{"id": "1", "content": "test"}]  # Dictionary instead of Document object
@@ -152,12 +240,81 @@ class TestElasticsearchDocumentStoreAsync:
         doc = Document(id="1", content="test", sparse_embedding=SparseEmbedding(indices=[0, 1], values=[0.5, 0.5]))
 
         await document_store.write_documents_async([doc])
-        assert "but storing sparse embeddings in Elasticsearch is not currently supported." in caplog.text
+        assert "but `sparse_vector_field` is not configured" in caplog.text
 
         results = await document_store.filter_documents_async()
         assert len(results) == 1
         assert results[0].id == "1"
         assert not hasattr(results[0], "sparse_embedding") or results[0].sparse_embedding is None
+
+    @pytest.mark.asyncio
+    async def test_write_documents_async_with_sparse_vectors(self):
+        """Test write_documents with document containing sparse_embedding field"""
+        store = ElasticsearchDocumentStore(
+            hosts=["http://localhost:9200"], index="test_async_sparse", sparse_vector_field="sparse_vec"
+        )
+        await store.async_client.options(ignore_status=[400, 404]).indices.delete(index="test_async_sparse")
+
+        doc = Document(id="1", content="test", sparse_embedding=SparseEmbedding(indices=[0, 1], values=[0.5, 0.5]))
+        await store.write_documents_async([doc])
+
+        # check ES natively
+        raw_doc = await store.async_client.get(index="test_async_sparse", id="1")
+        assert raw_doc["_source"]["sparse_vec"] == {"0": 0.5, "1": 0.5}
+
+        # check retrieval
+        results = await store.filter_documents_async()
+        assert len(results) == 1
+        assert results[0].sparse_embedding is not None
+        assert results[0].sparse_embedding.indices == [0, 1]
+        assert results[0].sparse_embedding.values == [0.5, 0.5]
+
+        await store.async_client.indices.delete(index="test_async_sparse")
+
+    @pytest.mark.asyncio
+    async def test_write_documents_async_with_non_contiguous_sparse_indices(self):
+        store = ElasticsearchDocumentStore(
+            hosts=["http://localhost:9200"], index="test_async_sparse_noncontiguous", sparse_vector_field="sparse_vec"
+        )
+        await store.async_client.options(ignore_status=[400, 404]).indices.delete(
+            index="test_async_sparse_noncontiguous"
+        )
+
+        doc = Document(
+            id="1", content="test", sparse_embedding=SparseEmbedding(indices=[100, 5, 42], values=[0.1, 0.9, 0.5])
+        )
+        await store.write_documents_async([doc])
+
+        results = await store.filter_documents_async()
+        assert len(results) == 1
+        assert results[0].sparse_embedding is not None
+        assert results[0].sparse_embedding.indices == [5, 42, 100]
+        assert results[0].sparse_embedding.values == [0.9, 0.5, 0.1]
+
+        await store.async_client.indices.delete(index="test_async_sparse_noncontiguous")
+
+    @pytest.mark.asyncio
+    async def test_write_documents_async_mixed_sparse_and_non_sparse(self):
+        store = ElasticsearchDocumentStore(
+            hosts=["http://localhost:9200"], index="test_async_sparse_mixed", sparse_vector_field="sparse_vec"
+        )
+        await store.async_client.options(ignore_status=[400, 404]).indices.delete(index="test_async_sparse_mixed")
+
+        docs = [
+            Document(
+                id="1", content="with sparse", sparse_embedding=SparseEmbedding(indices=[0, 1], values=[0.5, 0.5])
+            ),
+            Document(id="2", content="without sparse"),
+        ]
+        await store.write_documents_async(docs)
+
+        results = sorted(await store.filter_documents_async(), key=lambda d: d.id)
+        assert len(results) == 2
+        assert results[0].sparse_embedding is not None
+        assert results[0].sparse_embedding.indices == [0, 1]
+        assert results[1].sparse_embedding is None
+
+        await store.async_client.indices.delete(index="test_async_sparse_mixed")
 
     @pytest.mark.asyncio
     async def test_delete_all_documents_async(self, document_store):
