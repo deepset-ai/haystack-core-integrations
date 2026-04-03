@@ -64,23 +64,22 @@ class DoclingConverter:
         """
         Create a Docling Haystack converter.
 
-        Args:
-            converter: The Docling `DocumentConverter` to use; if not set, a system
-                default is used.
-            convert_kwargs: Any parameters to pass to Docling conversion; if not set, a
-                system default is used.
-            export_type: The export mode to use:
-                * `ExportType.MARKDOWN` captures each input document as a single
-                  markdown `Document`.
-                * `ExportType.DOC_CHUNKS` (default) first chunks each input document
-                  and then returns one `Document` per chunk.
-                * `ExportType.JSON` serializes the full Docling document to a JSON string.
-            md_export_kwargs: Any parameters to pass to Markdown export (applicable in
-                case of `ExportType.MARKDOWN`).
-            chunker: The Docling chunker instance to use; if not set, a system default
-                is used.
-            meta_extractor: The extractor instance to use for populating the output
-                document metadata; if not set, a system default is used.
+        :param converter: The Docling `DocumentConverter` to use; if not set, a system
+            default is used.
+        :param convert_kwargs: Any parameters to pass to Docling conversion; if not set, a
+            system default is used.
+        :param export_type: The export mode to use:
+            * `ExportType.MARKDOWN` captures each input document as a single
+              markdown `Document`.
+            * `ExportType.DOC_CHUNKS` (default) first chunks each input document
+              and then returns one `Document` per chunk.
+            * `ExportType.JSON` serializes the full Docling document to a JSON string.
+        :param md_export_kwargs: Any parameters to pass to Markdown export (applicable in
+            case of `ExportType.MARKDOWN`).
+        :param chunker: The Docling chunker instance to use; if not set, a system default
+            is used.
+        :param meta_extractor: The extractor instance to use for populating the output
+            document metadata; if not set, a system default is used.
         """
         self._converter = converter or DocumentConverter()
         self._convert_kwargs = convert_kwargs if convert_kwargs is not None else {}
@@ -98,11 +97,10 @@ class DoclingConverter:
         """
         Run the DoclingConverter.
 
-        Args:
-            paths: The input document locations, either as local paths or URLs.
-
-        Returns:
-            list[Document]: The output Haystack Documents.
+        :param paths: The input document locations, either as local paths or URLs.
+        :returns:
+            A dictionary with key `"documents"` containing the output Haystack Documents.
+        :raises RuntimeError: If an unexpected `export_type` is encountered.
         """
         documents: list[Document] = []
         for filepath in paths:
