@@ -76,10 +76,17 @@ jobs:
 
       - name: Install vLLM (CPU)
         run: |
+          # vLLM on PyPI is GPU-only and requires CUDA, so it won't run on CPU-only systems.
+          # CPU wheels are not published to PyPI; they are only available as direct downloads from GitHub releases.
+          # We fetch the latest release and install the appropriate x86 CPU wheel.
+          # The --torch-backend cpu flag ensures uv installs PyTorch from the official CPU-only index,
+          # since the required torch+cpu builds are also not available on PyPI.
           VLLM_VERSION="$(curl -s https://api.github.com/repos/vllm-project/vllm/releases/latest | jq -r .tag_name | sed 's/^v//')"
           export VLLM_VERSION
           echo "Installing vLLM ${VLLM_VERSION} (CPU)"
-          hatch run -- uv pip install "https://github.com/vllm-project/vllm/releases/download/v${VLLM_VERSION}/vllm-${VLLM_VERSION}+cpu-cp38-abi3-manylinux_2_35_x86_64.whl" --extra-index-url https://download.pytorch.org/whl/cpu --index-strategy unsafe-best-match
+          hatch run -- uv pip install \
+            "https://github.com/vllm-project/vllm/releases/download/v${VLLM_VERSION}/vllm-${VLLM_VERSION}+cpu-cp38-abi3-manylinux_2_35_x86_64.whl" \
+            --torch-backend cpu
 
       - name: Start vLLM server
         env:
@@ -94,8 +101,8 @@ jobs:
             --enable-auto-tool-choice \
             --tool-call-parser hermes &
 
-          # Wait for the vLLM server to be ready with a timeout of 600 seconds
-          timeout=600
+          # Wait for the vLLM server to be ready with a timeout of 300 seconds
+          timeout=300
           while [ $timeout -gt 0 ] && ! curl -sSf http://localhost:8000/health > /dev/null 2>&1; do
             echo "Waiting for vLLM server to start..."
             sleep 10
