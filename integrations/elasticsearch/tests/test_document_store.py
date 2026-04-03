@@ -7,6 +7,7 @@ from unittest.mock import AsyncMock, Mock, patch
 from uuid import uuid4
 
 import pytest
+from elasticsearch import Elasticsearch
 from elasticsearch.exceptions import BadRequestError  # type: ignore[import-not-found]
 from haystack.dataclasses.document import Document
 from haystack.dataclasses.sparse_embedding import SparseEmbedding
@@ -24,6 +25,21 @@ from haystack.utils import Secret
 from haystack.utils.auth import TokenSecret
 
 from haystack_integrations.document_stores.elasticsearch import ElasticsearchDocumentStore
+
+
+def _supports_sparse_vector_query() -> bool:
+    try:
+        version = Elasticsearch(["http://localhost:9200"]).info()["version"]["number"]
+        major, minor, patch = (int(x) for x in version.split(".")[:3])
+    except Exception:
+        return False
+    return (major, minor, patch) >= (8, 15, 0)
+
+
+requires_sparse_vector_query = pytest.mark.skipif(
+    not _supports_sparse_vector_query(),
+    reason="Elasticsearch sparse_vector query requires Elasticsearch >= 8.15.0",
+)
 
 
 @patch("haystack_integrations.document_stores.elasticsearch.document_store.Elasticsearch")
@@ -617,6 +633,7 @@ class TestDocumentStore(
         with pytest.raises(BadRequestError):
             document_store._embedding_retrieval(query_embedding=[0.1, 0.1])
 
+    @requires_sparse_vector_query
     def test_sparse_vector_retrieval(self):
         index = f"test_sparse_retrieval_{uuid4().hex}"
         store = ElasticsearchDocumentStore(
@@ -644,6 +661,7 @@ class TestDocumentStore(
 
         store.client.indices.delete(index=index)
 
+    @requires_sparse_vector_query
     def test_sparse_vector_retrieval_with_filters(self):
         index = f"test_sparse_retrieval_filters_{uuid4().hex}"
         store = ElasticsearchDocumentStore(

@@ -5,12 +5,28 @@
 from uuid import uuid4
 
 import pytest
+from elasticsearch import Elasticsearch
 from haystack.dataclasses.document import Document
 from haystack.dataclasses.sparse_embedding import SparseEmbedding
 from haystack.document_stores.errors import DocumentStoreError
 from haystack.document_stores.types import DuplicatePolicy
 
 from haystack_integrations.document_stores.elasticsearch import ElasticsearchDocumentStore
+
+
+def _supports_sparse_vector_query() -> bool:
+    try:
+        version = Elasticsearch(["http://localhost:9200"]).info()["version"]["number"]
+        major, minor, patch = (int(x) for x in version.split(".")[:3])
+    except Exception:
+        return False
+    return (major, minor, patch) >= (8, 15, 0)
+
+
+requires_sparse_vector_query = pytest.mark.skipif(
+    not _supports_sparse_vector_query(),
+    reason="Elasticsearch sparse_vector query requires Elasticsearch >= 8.15.0",
+)
 
 
 @pytest.mark.integration
@@ -142,6 +158,7 @@ class TestElasticsearchDocumentStoreAsync:
         assert results[0].content == "Most similar document"
 
     @pytest.mark.asyncio
+    @requires_sparse_vector_query
     async def test_sparse_vector_retrieval_async(self):
         index = f"test_async_sparse_retrieval_{uuid4().hex}"
         store = ElasticsearchDocumentStore(
@@ -170,6 +187,7 @@ class TestElasticsearchDocumentStoreAsync:
         await store.async_client.indices.delete(index=index)
 
     @pytest.mark.asyncio
+    @requires_sparse_vector_query
     async def test_sparse_vector_retrieval_async_with_filters(self):
         index = f"test_async_sparse_retrieval_filters_{uuid4().hex}"
         store = ElasticsearchDocumentStore(
