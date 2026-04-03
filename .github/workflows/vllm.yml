@@ -32,7 +32,8 @@ env:
   VLLM_MODEL: "Qwen/Qwen3-0.6B"
   # we only test on Ubuntu to keep vLLM server running simple
   TEST_MATRIX_OS: '["ubuntu-latest"]'
-  TEST_MATRIX_PYTHON: '["3.10", "3.14"]'
+  # numba not compatible with Python 3.14
+  TEST_MATRIX_PYTHON: '["3.10", "3.13"]'
 
 jobs:
   compute-test-matrix:
@@ -75,9 +76,10 @@ jobs:
 
       - name: Install vLLM (CPU)
         run: |
-          export VLLM_VERSION=$(curl -s https://api.github.com/repos/vllm-project/vllm/releases/latest | jq -r .tag_name | sed 's/^v//')
+          VLLM_VERSION="$(curl -s https://api.github.com/repos/vllm-project/vllm/releases/latest | jq -r .tag_name | sed 's/^v//')"
+          export VLLM_VERSION
           echo "Installing vLLM ${VLLM_VERSION} (CPU)"
-          hatch run -- uv pip install "vllm==${VLLM_VERSION}" --extra-index-url https://wheels.vllm.ai/releases/${VLLM_VERSION}/cpu/
+          hatch run -- uv pip install "vllm==${VLLM_VERSION}" --extra-index-url "https://wheels.vllm.ai/releases/${VLLM_VERSION}/cpu/"
 
       - name: Start vLLM server
         env:
@@ -92,12 +94,12 @@ jobs:
             --tool-call-parser hermes \
             > vllm.log 2>&1 &
 
-          # Wait for the vLLM server to be ready with a timeout of 120 seconds
-          timeout=120
+          # Wait for the vLLM server to be ready with a timeout of 300 seconds
+          timeout=300
           while [ $timeout -gt 0 ] && ! curl -sSf http://localhost:8000/health > /dev/null 2>&1; do
             echo "Waiting for vLLM server to start..."
-            sleep 5
-            ((timeout-=5))
+            sleep 10
+            ((timeout-=10))
           done
 
           if [ $timeout -eq 0 ]; then
