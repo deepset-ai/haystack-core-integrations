@@ -130,7 +130,9 @@ def test_legacy_import_path() -> None:
         from docling_haystack.converter import DoclingConverter as LegacyDoclingConverter
 
     assert LegacyDoclingConverter is DoclingConverter
-    assert any(issubclass(w.category, DeprecationWarning) and "docling_haystack.converter" in str(w.message) for w in caught)
+    assert any(
+        issubclass(w.category, DeprecationWarning) and "docling_haystack.converter" in str(w.message) for w in caught
+    )
 
 
 def test_component_from_dict_legacy_nulls() -> None:
