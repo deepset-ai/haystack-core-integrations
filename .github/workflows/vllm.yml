@@ -73,15 +73,23 @@ jobs:
       - name: Install Hatch
         run: pip install hatch
 
-      - name: Install vLLM and start server
+      - name: Install vLLM (CPU)
         run: |
-          pip install vllm
+          export VLLM_VERSION=$(curl -s https://api.github.com/repos/vllm-project/vllm/releases/latest | jq -r .tag_name | sed 's/^v//')
+          echo "Installing vLLM ${VLLM_VERSION} (CPU)"
+          hatch shell
+          uvpip install "vllm==${VLLM_VERSION}" --extra-index-url https://wheels.vllm.ai/releases/${VLLM_VERSION}/cpu/
 
+      - name: Start vLLM server
+        env:
+          VLLM_CPU_KVCACHE_SPACE: "4"
+        run: |
+          hatch shell
           nohup vllm serve ${{ env.VLLM_MODEL }} \
             --reasoning-parser qwen3 \
             --max-model-len 1024 \
             --enforce-eager \
-            --dtype half \
+            --dtype bfloat16 \
             --enable-auto-tool-choice \
             --tool-call-parser hermes \
             > vllm.log 2>&1 &
