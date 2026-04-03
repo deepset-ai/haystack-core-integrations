@@ -81,13 +81,19 @@ class DoclingConverter:
         :param meta_extractor: The extractor instance to use for populating the output
             document metadata; if not set, a system default is used.
         """
-        self._converter = converter or DocumentConverter()
-        self._convert_kwargs = convert_kwargs if convert_kwargs is not None else {}
-        self._export_type = export_type
-        self._md_export_kwargs = md_export_kwargs if md_export_kwargs is not None else {"image_placeholder": ""}
-        if self._export_type == ExportType.DOC_CHUNKS:
-            self._chunker = chunker or HybridChunker()
-        self._meta_extractor = meta_extractor or MetaExtractor()
+        # Public attributes match init parameter names 1:1 for default serialization.
+        self.converter = converter
+        self.convert_kwargs = convert_kwargs if convert_kwargs is not None else {}
+        self.export_type = ExportType(export_type)
+        self.md_export_kwargs = md_export_kwargs if md_export_kwargs is not None else {"image_placeholder": ""}
+        self.chunker = chunker
+        self.meta_extractor = meta_extractor
+
+        # Resolved instances used internally at runtime.
+        self._converter_instance = converter or DocumentConverter()
+        if self.export_type == ExportType.DOC_CHUNKS:
+            self._chunker_instance = chunker or HybridChunker()
+        self._meta_extractor_instance = meta_extractor or MetaExtractor()
 
     @component.output_types(documents=list[Document])
     def run(
@@ -104,34 +110,34 @@ class DoclingConverter:
         """
         documents: list[Document] = []
         for filepath in paths:
-            dl_doc = self._converter.convert(
+            dl_doc = self._converter_instance.convert(
                 source=filepath,
-                **self._convert_kwargs,
+                **self.convert_kwargs,
             ).document
 
-            if self._export_type == ExportType.DOC_CHUNKS:
-                chunk_iter = self._chunker.chunk(dl_doc=dl_doc)
+            if self.export_type == ExportType.DOC_CHUNKS:
+                chunk_iter = self._chunker_instance.chunk(dl_doc=dl_doc)
                 hs_docs = [
                     Document(
-                        content=self._chunker.contextualize(chunk=chunk),
-                        meta=self._meta_extractor.extract_chunk_meta(chunk=chunk),
+                        content=self._chunker_instance.contextualize(chunk=chunk),
+                        meta=self._meta_extractor_instance.extract_chunk_meta(chunk=chunk),
                     )
                     for chunk in chunk_iter
                 ]
                 documents.extend(hs_docs)
-            elif self._export_type == ExportType.MARKDOWN:
+            elif self.export_type == ExportType.MARKDOWN:
                 hs_doc = Document(
-                    content=dl_doc.export_to_markdown(**self._md_export_kwargs),
-                    meta=self._meta_extractor.extract_dl_doc_meta(dl_doc=dl_doc),
+                    content=dl_doc.export_to_markdown(**self.md_export_kwargs),
+                    meta=self._meta_extractor_instance.extract_dl_doc_meta(dl_doc=dl_doc),
                 )
                 documents.append(hs_doc)
-            elif self._export_type == ExportType.JSON:
+            elif self.export_type == ExportType.JSON:
                 hs_doc = Document(
                     content=json.dumps(dl_doc.export_to_dict()),
-                    meta=self._meta_extractor.extract_dl_doc_meta(dl_doc=dl_doc),
+                    meta=self._meta_extractor_instance.extract_dl_doc_meta(dl_doc=dl_doc),
                 )
                 documents.append(hs_doc)
             else:
-                err_msg = f"Unexpected export type: {self._export_type}"
+                err_msg = f"Unexpected export type: {self.export_type}"
                 raise RuntimeError(err_msg)
         return {"documents": documents}

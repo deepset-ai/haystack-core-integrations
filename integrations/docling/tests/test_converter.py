@@ -3,6 +3,8 @@ from types import SimpleNamespace
 from typing import Any
 from unittest.mock import MagicMock
 
+from haystack.core.serialization import component_from_dict, component_to_dict
+
 from haystack_integrations.components.converters.docling import DoclingConverter, ExportType
 
 
@@ -118,3 +120,57 @@ def test_run_json_minimal() -> None:
     converter_mock.convert.assert_called_once()
     dl_doc.export_to_dict.assert_called_once_with()
     meta_extractor_mock.extract_dl_doc_meta.assert_called_once_with(dl_doc=dl_doc)
+
+
+def test_component_to_dict_defaults() -> None:
+    converter = DoclingConverter()
+    data = component_to_dict(converter, "docling_converter")
+
+    init_params = data["init_parameters"]
+    assert init_params["converter"] is None
+    assert init_params["convert_kwargs"] == {}
+    assert init_params["export_type"] == ExportType.DOC_CHUNKS
+    assert init_params["md_export_kwargs"] == {"image_placeholder": ""}
+    assert init_params["chunker"] is None
+    assert init_params["meta_extractor"] is None
+
+
+def test_component_to_dict_custom_params() -> None:
+    converter = DoclingConverter(
+        convert_kwargs={"raises_on_error": False},
+        export_type=ExportType.MARKDOWN,
+        md_export_kwargs={"image_placeholder": "[img]"},
+    )
+    data = component_to_dict(converter, "docling_converter")
+
+    init_params = data["init_parameters"]
+    assert init_params["convert_kwargs"] == {"raises_on_error": False}
+    assert init_params["export_type"] == ExportType.MARKDOWN
+    assert init_params["md_export_kwargs"] == {"image_placeholder": "[img]"}
+
+
+def test_component_from_dict_defaults() -> None:
+    converter = DoclingConverter()
+    data = component_to_dict(converter, "docling_converter")
+    restored = component_from_dict(DoclingConverter, data, "docling_converter")
+
+    assert restored.converter is None
+    assert restored.convert_kwargs == {}
+    assert restored.export_type == ExportType.DOC_CHUNKS
+    assert restored.md_export_kwargs == {"image_placeholder": ""}
+    assert restored.chunker is None
+    assert restored.meta_extractor is None
+
+
+def test_component_from_dict_custom_params() -> None:
+    converter = DoclingConverter(
+        convert_kwargs={"raises_on_error": False},
+        export_type=ExportType.JSON,
+        md_export_kwargs={"image_placeholder": "[img]"},
+    )
+    data = component_to_dict(converter, "docling_converter")
+    restored = component_from_dict(DoclingConverter, data, "docling_converter")
+
+    assert restored.convert_kwargs == {"raises_on_error": False}
+    assert restored.export_type == ExportType.JSON
+    assert restored.md_export_kwargs == {"image_placeholder": "[img]"}
