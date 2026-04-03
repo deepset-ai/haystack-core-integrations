@@ -777,6 +777,7 @@ class TestDocumentStore(
             index="default",
             mappings=custom_mapping,
         )
+
     def test_delete_all_documents_index_recreation(self, document_store: ElasticsearchDocumentStore):
         # populate the index with some documents
         docs = [Document(id="1", content="A first document"), Document(id="2", content="Second document")]
