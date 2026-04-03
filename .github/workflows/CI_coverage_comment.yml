@@ -1,4 +1,4 @@
-name: Add comment about test coverage to PRs
+name: Core / Add comment about test coverage to PRs
 
 on:
   workflow_run:

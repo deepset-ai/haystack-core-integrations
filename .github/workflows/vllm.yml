@@ -29,7 +29,9 @@ concurrency:
 env:
   PYTHONUNBUFFERED: "1"
   FORCE_COLOR: "1"
-  TEST_MATRIX_OS: '["ubuntu-latest", "windows-latest", "macos-latest"]'
+  VLLM_MODEL: "Qwen/Qwen3-0.6B"
+  # we only test on Ubuntu to keep vLLM server running simple
+  TEST_MATRIX_OS: '["ubuntu-latest"]'
   TEST_MATRIX_PYTHON: '["3.10", "3.14"]'
 
 jobs:
@@ -44,8 +46,8 @@ jobs:
     steps:
       - id: set
         run: |
-          echo 'os=${{ github.event_name == 'push' && '["ubuntu-latest"]' || env.TEST_MATRIX_OS }}' >> $GITHUB_OUTPUT
-          echo 'python-version=${{ github.event_name == 'push' && '["3.10"]' || env.TEST_MATRIX_PYTHON }}' >> $GITHUB_OUTPUT
+          echo 'os=${{ github.event_name == 'push' && '["ubuntu-latest"]' || env.TEST_MATRIX_OS }}' >> "$GITHUB_OUTPUT"
+          echo 'python-version=${{ github.event_name == 'push' && '["3.10"]' || env.TEST_MATRIX_PYTHON }}' >> "$GITHUB_OUTPUT"
 
   run:
     name: Python ${{ matrix.python-version }} on ${{ startsWith(matrix.os, 'macos-') && 'macOS' || startsWith(matrix.os, 'windows-') && 'Windows' || 'Linux' }}
@@ -61,11 +63,6 @@ jobs:
         python-version: ${{ fromJSON(needs.compute-test-matrix.outputs.python-version) }}
 
     steps:
-      - name: Support longpaths
-        if: matrix.os == 'windows-latest'
-        working-directory: .
-        run: git config --system core.longpaths true
-
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: Set up Python ${{ matrix.python-version }}
@@ -74,7 +71,37 @@ jobs:
           python-version: ${{ matrix.python-version }}
 
       - name: Install Hatch
-        run: pip install --upgrade hatch
+        run: pip install hatch
+
+      - name: Install vLLM and start server
+        run: |
+          pip install vllm
+
+          nohup vllm serve ${{ env.VLLM_MODEL }} \
+            --reasoning-parser qwen3 \
+            --max-model-len 1024 \
+            --enforce-eager \
+            --dtype half \
+            --enable-auto-tool-choice \
+            --tool-call-parser hermes \
+            > vllm.log 2>&1 &
+
+          # Wait for the vLLM server to be ready with a timeout of 120 seconds
+          timeout=120
+          while [ $timeout -gt 0 ] && ! curl -sSf http://localhost:8000/health > /dev/null 2>&1; do
+            echo "Waiting for vLLM server to start..."
+            sleep 5
+            ((timeout-=5))
+          done
+
+          if [ $timeout -eq 0 ]; then
+            echo "Timed out waiting for vLLM server to start."
+            cat vllm.log
+            exit 1
+          fi
+
+          echo "vLLM server started successfully."
+
       - name: Lint
         if: matrix.python-version == '3.10' && runner.os == 'Linux'
         run: hatch run fmt-check && hatch run test:types
@@ -121,7 +148,6 @@ jobs:
           hatch env prune
           hatch -e test env run -- uv pip install git+https://github.com/deepset-ai/haystack.git@main
           hatch run test:unit
-
 
   notify-slack-on-failure:
     needs: run

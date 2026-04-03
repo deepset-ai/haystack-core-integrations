@@ -1,22 +1,17 @@
+import asyncio
 from typing import Any
 
-import asyncio
-
-from openai import AsyncStream, Stream
-from openai.types.chat import ChatCompletion, ChatCompletionChunk
-from openai.types.chat.chat_completion import Choice
-
-from haystack.components.generators.chat.openai import OpenAIChatGenerator
+from haystack import default_from_dict, default_to_dict
 from haystack.components.generators.chat.openai import (
+    OpenAIChatGenerator,
     _check_finish_reason,
     _convert_chat_completion_chunk_to_streaming_chunk,
+)
+from haystack.components.generators.chat.openai import (
     _convert_chat_completion_to_chat_message as _openai_convert_chat_completion_to_chat_message,
 )
 from haystack.components.generators.utils import _convert_streaming_chunks_to_chat_message
-from haystack import default_from_dict, default_to_dict
 from haystack.core.component import component
-from haystack.tools import deserialize_tools_or_toolset_inplace, serialize_tools_or_toolset
-from haystack.utils import deserialize_callable, serialize_callable
 from haystack.dataclasses import ChatMessage
 from haystack.dataclasses.chat_message import ReasoningContent
 from haystack.dataclasses.streaming_chunk import (
@@ -27,8 +22,11 @@ from haystack.dataclasses.streaming_chunk import (
     SyncStreamingCallbackT,
     select_streaming_callback,
 )
-from haystack.tools import ToolsType
-from haystack.utils import Secret
+from haystack.tools import ToolsType, deserialize_tools_or_toolset_inplace, serialize_tools_or_toolset
+from haystack.utils import Secret, deserialize_callable, serialize_callable
+from openai import AsyncStream, Stream
+from openai.types.chat import ChatCompletion, ChatCompletionChunk
+from openai.types.chat.chat_completion import Choice
 
 
 def _convert_chat_completion_to_chat_message(completion: ChatCompletion, choice: Choice) -> ChatMessage:
@@ -65,7 +63,7 @@ class VLLMChatGenerator(OpenAIChatGenerator):
     Before using this component, start a vLLM server:
 
     ```bash
-    vllm serve Qwen/Qwen/Qwen3-4B-Instruct-2507
+    vllm serve Qwen/Qwen3-4B-Instruct-2507
     ```
 
     For reasoning models, start the server with the appropriate reasoning parser:
@@ -73,6 +71,15 @@ class VLLMChatGenerator(OpenAIChatGenerator):
     ```bash
     vllm serve Qwen/Qwen3-0.6B --reasoning-parser qwen3
     ```
+
+    For tool calling, the server must be started with `--enable-auto-tool-choice` and `--tool-call-parser`:
+
+    ```bash
+    vllm serve Qwen/Qwen3-0.6B --enable-auto-tool-choice --tool-call-parser hermes
+    ```
+
+    The available tool call parsers depend on the model. See the
+    [vLLM tool calling docs](https://docs.vllm.ai/en/stable/features/tool_calling/) for the full list.
 
     For details on server options, see the [vLLM CLI docs](https://docs.vllm.ai/en/stable/cli/serve/).
 
@@ -112,6 +119,27 @@ class VLLMChatGenerator(OpenAIChatGenerator):
     )
     ```
 
+    ### Usage example with tool calling
+
+    To use tool calling, start the vLLM server with `--enable-auto-tool-choice` and `--tool-call-parser`.
+
+    ```python
+    from haystack.dataclasses import ChatMessage
+    from haystack.tools import tool
+    from haystack_integrations.components.generators.vllm import VLLMChatGenerator
+
+    @tool
+    def weather(city: str) -> str:
+        \"\"\"Get the weather in a given city.\"\"\"
+        return f"The weather in {city} is sunny"
+
+    generator = VLLMChatGenerator(model="Qwen/Qwen3-0.6B", tools=[weather])
+
+    messages = [ChatMessage.from_user("What is the weather in Paris?")]
+    response = generator.run(messages=messages)
+    print(response["replies"][0].tool_calls)
+    ```
+
     ### Usage example with reasoning models
 
     To use reasoning models, start the vLLM server with `--reasoning-parser`.
@@ -135,7 +163,7 @@ class VLLMChatGenerator(OpenAIChatGenerator):
         self,
         *,
         model: str,
-        api_key: Secret | None = Secret.from_env_var("VLLM_API_KEY", strict=False),  # noqa: B008
+        api_key: Secret | None = Secret.from_env_var("VLLM_API_KEY", strict=False),
         streaming_callback: StreamingCallbackT | None = None,
         api_base_url: str = "http://localhost:8000/v1",
         generation_kwargs: dict[str, Any] | None = None,
@@ -198,7 +226,7 @@ class VLLMChatGenerator(OpenAIChatGenerator):
     def to_dict(self) -> dict[str, Any]:
         """
         Serialize this component to a dictionary.
-        
+
         :returns:
             The serialized component as a dictionary.
         """
@@ -220,7 +248,7 @@ class VLLMChatGenerator(OpenAIChatGenerator):
     def from_dict(cls, data: dict[str, Any]) -> "VLLMChatGenerator":
         """
         Deserialize this component from a dictionary.
-        
+
         :param data: The dictionary representation of this component.
         :returns:
             The deserialized component instance.
@@ -232,16 +260,14 @@ class VLLMChatGenerator(OpenAIChatGenerator):
             data["init_parameters"]["streaming_callback"] = deserialize_callable(serialized_callback_handler)
         return default_from_dict(cls, data)
 
-    def _handle_stream_response(
-        self, chat_completion: Stream, callback: SyncStreamingCallbackT
-    ) -> list[ChatMessage]:
+    def _handle_stream_response(self, chat_completion: Stream, callback: SyncStreamingCallbackT) -> list[ChatMessage]:
         """
         Handle a synchronous streaming response, extracting reasoning content from vLLM's reasoning chunks.
         """
         component_info = ComponentInfo.from_component(self)
         chunks: list[StreamingChunk] = []
         for chunk in chat_completion:
-            assert len(chunk.choices) <= 1
+            assert len(chunk.choices) <= 1  # noqa: S101
 
             reasoning_text = None
             if chunk.choices:
@@ -254,8 +280,11 @@ class VLLMChatGenerator(OpenAIChatGenerator):
                     index=0,
                     start=not any(c.reasoning for c in chunks),
                     component_info=component_info,
-                    meta={"model": chunk.model, "index": chunk.choices[0].index,
-                          "finish_reason": chunk.choices[0].finish_reason},
+                    meta={
+                        "model": chunk.model,
+                        "index": chunk.choices[0].index,
+                        "finish_reason": chunk.choices[0].finish_reason,
+                    },
                 )
             else:
                 # delegate non-reasoning chunks to OpenAIChatGenerator converter
@@ -278,7 +307,7 @@ class VLLMChatGenerator(OpenAIChatGenerator):
         chunks: list[StreamingChunk] = []
         try:
             async for chunk in chat_completion:
-                assert len(chunk.choices) <= 1
+                assert len(chunk.choices) <= 1  # noqa: S101
 
                 reasoning_text = None
                 if chunk.choices:
@@ -291,8 +320,11 @@ class VLLMChatGenerator(OpenAIChatGenerator):
                         index=0,
                         start=not any(c.reasoning for c in chunks),
                         component_info=component_info,
-                        meta={"model": chunk.model, "index": chunk.choices[0].index,
-                              "finish_reason": chunk.choices[0].finish_reason},
+                        meta={
+                            "model": chunk.model,
+                            "index": chunk.choices[0].index,
+                            "finish_reason": chunk.choices[0].finish_reason,
+                        },
                     )
                 else:
                     # delegate non-reasoning chunks to OpenAIChatGenerator converter
@@ -309,7 +341,8 @@ class VLLMChatGenerator(OpenAIChatGenerator):
         return [_convert_streaming_chunks_to_chat_message(chunks=chunks)]
 
     @component.output_types(replies=list[ChatMessage])
-    def run(
+    # tools_strict is intentionally omitted: vLLM does not support it
+    def run(  # type: ignore[override]
         self,
         messages: list[ChatMessage],
         streaming_callback: StreamingCallbackT | None = None,
@@ -362,8 +395,7 @@ class VLLMChatGenerator(OpenAIChatGenerator):
         openai_endpoint = api_args.pop("openai_endpoint")
         chat_completion = getattr(self.client.chat.completions, openai_endpoint)(**api_args)
         completions = [
-            _convert_chat_completion_to_chat_message(chat_completion, choice)
-            for choice in chat_completion.choices
+            _convert_chat_completion_to_chat_message(chat_completion, choice) for choice in chat_completion.choices
         ]
 
         for message in completions:
@@ -372,7 +404,8 @@ class VLLMChatGenerator(OpenAIChatGenerator):
         return {"replies": completions}
 
     @component.output_types(replies=list[ChatMessage])
-    async def run_async(
+    # tools_strict is intentionally omitted: vLLM does not support it
+    async def run_async(  # type: ignore[override]
         self,
         messages: list[ChatMessage],
         streaming_callback: StreamingCallbackT | None = None,
@@ -428,8 +461,7 @@ class VLLMChatGenerator(OpenAIChatGenerator):
         openai_endpoint = api_args.pop("openai_endpoint")
         chat_completion = await getattr(self.async_client.chat.completions, openai_endpoint)(**api_args)
         completions = [
-            _convert_chat_completion_to_chat_message(chat_completion, choice)
-            for choice in chat_completion.choices
+            _convert_chat_completion_to_chat_message(chat_completion, choice) for choice in chat_completion.choices
         ]
 
         for message in completions:

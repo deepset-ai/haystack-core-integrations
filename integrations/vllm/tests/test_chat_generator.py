@@ -2,18 +2,20 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+import json
 from collections.abc import Iterator
 from datetime import datetime, timezone
+from typing import Annotated
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from haystack.dataclasses import ChatMessage, ToolCall
+from haystack.tools import tool
+from haystack.utils.auth import Secret
 from openai import AsyncStream, Stream
 from openai.types.chat import ChatCompletion, ChatCompletionChunk, chat_completion_chunk
 from openai.types.chat.chat_completion import Choice
 from openai.types.chat.chat_completion_message import ChatCompletionMessage
-
-from haystack.dataclasses import ChatMessage
-from haystack.utils.auth import Secret
 
 from haystack_integrations.components.generators.vllm.chat.chat_generator import (
     VLLMChatGenerator,
@@ -68,9 +70,7 @@ def completion():
 
 @pytest.fixture
 def completion_with_reasoning(completion):
-    completion.choices[0].message.reasoning = (
-        "The user asked about the capital of France. I know it's Paris."
-    )
+    completion.choices[0].message.reasoning = "The user asked about the capital of France. I know it's Paris."
     return completion
 
 
@@ -156,44 +156,34 @@ def mock_streaming_completion(streaming_chunks):
 @pytest.fixture
 def mock_streaming_completion_with_reasoning(streaming_chunks_with_reasoning):
     with patch("openai.resources.chat.completions.Completions.create") as mock:
-        mock.return_value = MockStream(
-            streaming_chunks_with_reasoning, cast_to=None, response=None, client=None
-        )
+        mock.return_value = MockStream(streaming_chunks_with_reasoning, cast_to=None, response=None, client=None)
         yield mock
 
 
 @pytest.fixture
 def mock_async_chat_completion(completion):
-    with patch(
-        "openai.resources.chat.completions.AsyncCompletions.create", new_callable=AsyncMock
-    ) as mock:
+    with patch("openai.resources.chat.completions.AsyncCompletions.create", new_callable=AsyncMock) as mock:
         mock.return_value = completion
         yield mock
 
 
 @pytest.fixture
 def mock_async_chat_completion_with_reasoning(completion_with_reasoning):
-    with patch(
-        "openai.resources.chat.completions.AsyncCompletions.create", new_callable=AsyncMock
-    ) as mock:
+    with patch("openai.resources.chat.completions.AsyncCompletions.create", new_callable=AsyncMock) as mock:
         mock.return_value = completion_with_reasoning
         yield mock
 
 
 @pytest.fixture
 def mock_async_streaming_completion(streaming_chunks):
-    with patch(
-        "openai.resources.chat.completions.AsyncCompletions.create", new_callable=AsyncMock
-    ) as mock:
+    with patch("openai.resources.chat.completions.AsyncCompletions.create", new_callable=AsyncMock) as mock:
         mock.return_value = AsyncMockStream(streaming_chunks)
         yield mock
 
 
 @pytest.fixture
 def mock_async_streaming_completion_with_reasoning(streaming_chunks_with_reasoning):
-    with patch(
-        "openai.resources.chat.completions.AsyncCompletions.create", new_callable=AsyncMock
-    ) as mock:
+    with patch("openai.resources.chat.completions.AsyncCompletions.create", new_callable=AsyncMock) as mock:
         mock.return_value = AsyncMockStream(streaming_chunks_with_reasoning)
         yield mock
 
@@ -302,9 +292,7 @@ class TestVLLMChatGeneratorSerde:
 
     def test_from_dict(self):
         data = {
-            "type": (
-                "haystack_integrations.components.generators.vllm.chat.chat_generator.VLLMChatGenerator"
-            ),
+            "type": ("haystack_integrations.components.generators.vllm.chat.chat_generator.VLLMChatGenerator"),
             "init_parameters": {
                 "model": "Qwen/Qwen3-0.6B",
                 "api_key": {"type": "env_var", "env_vars": ["VLLM_API_KEY"], "strict": False},
@@ -325,7 +313,7 @@ class TestVLLMChatGeneratorSerde:
 
 
 class TestVLLMChatGeneratorRun:
-    def test_run(self, mock_chat_completion):
+    def test_run(self, mock_chat_completion):  # noqa: ARG002
         component = VLLMChatGenerator(model="Qwen/Qwen3-0.6B")
         response = component.run([ChatMessage.from_user("What's the capital of France")])
 
@@ -333,7 +321,7 @@ class TestVLLMChatGeneratorRun:
         assert response["replies"][0].text == "Paris is the capital of France."
         assert response["replies"][0].reasoning is None
 
-    def test_run_with_reasoning(self, mock_chat_completion_with_reasoning):
+    def test_run_with_reasoning(self, mock_chat_completion_with_reasoning):  # noqa: ARG002
         component = VLLMChatGenerator(model="Qwen/Qwen3-0.6B")
         response = component.run([ChatMessage.from_user("What's the capital of France")])
 
@@ -357,22 +345,22 @@ class TestVLLMChatGeneratorRun:
         component = VLLMChatGenerator(model="Qwen/Qwen3-0.6B")
         assert component.run([]) == {"replies": []}
 
-    def test_run_streaming(self, mock_streaming_completion):
+    def test_run_streaming(self, mock_streaming_completion):  # noqa: ARG002
         chunks_received = []
         component = VLLMChatGenerator(
             model="Qwen/Qwen3-0.6B",
-            streaming_callback=lambda c: chunks_received.append(c),
+            streaming_callback=chunks_received.append,
         )
         response = component.run([ChatMessage.from_user("Hello")])
 
         assert len(chunks_received) > 0
         assert len(response["replies"]) == 1
 
-    def test_run_streaming_with_reasoning(self, mock_streaming_completion_with_reasoning):
+    def test_run_streaming_with_reasoning(self, mock_streaming_completion_with_reasoning):  # noqa: ARG002
         chunks_received = []
         component = VLLMChatGenerator(
             model="Qwen/Qwen3-0.6B",
-            streaming_callback=lambda c: chunks_received.append(c),
+            streaming_callback=chunks_received.append,
         )
         response = component.run([ChatMessage.from_user("Hello")])
 
@@ -381,9 +369,9 @@ class TestVLLMChatGeneratorRun:
         assert response["replies"][0].reasoning is not None
 
 
+@pytest.mark.asyncio
 class TestVLLMChatGeneratorRunAsync:
-    @pytest.mark.asyncio
-    async def test_run_async(self, mock_async_chat_completion):
+    async def test_run_async(self, mock_async_chat_completion):  # noqa: ARG002
         component = VLLMChatGenerator(model="Qwen/Qwen3-0.6B")
         response = await component.run_async([ChatMessage.from_user("Hello")])
 
@@ -391,8 +379,7 @@ class TestVLLMChatGeneratorRunAsync:
         assert response["replies"][0].text == "Paris is the capital of France."
         assert response["replies"][0].reasoning is None
 
-    @pytest.mark.asyncio
-    async def test_run_async_with_reasoning(self, mock_async_chat_completion_with_reasoning):
+    async def test_run_async_with_reasoning(self, mock_async_chat_completion_with_reasoning):  # noqa: ARG002
         component = VLLMChatGenerator(model="Qwen/Qwen3-0.6B")
         response = await component.run_async([ChatMessage.from_user("Hello")])
 
@@ -400,8 +387,7 @@ class TestVLLMChatGeneratorRunAsync:
         assert reply.reasoning is not None
         assert "capital of France" in reply.reasoning.reasoning_text
 
-    @pytest.mark.asyncio
-    async def test_run_async_streaming(self, mock_async_streaming_completion):
+    async def test_run_async_streaming(self, mock_async_streaming_completion):  # noqa: ARG002
         chunks_received = []
 
         async def callback(chunk):
@@ -413,8 +399,7 @@ class TestVLLMChatGeneratorRunAsync:
         assert len(chunks_received) > 0
         assert len(response["replies"]) == 1
 
-    @pytest.mark.asyncio
-    async def test_run_async_streaming_with_reasoning(self, mock_async_streaming_completion_with_reasoning):
+    async def test_run_async_streaming_with_reasoning(self, mock_async_streaming_completion_with_reasoning):  # noqa: ARG002
         chunks_received = []
 
         async def callback(chunk):
@@ -435,9 +420,7 @@ NO_THINKING_KWARGS = {"extra_body": {"chat_template_kwargs": {"enable_thinking":
 class TestVLLMChatGeneratorLiveRun:
     def test_live_run(self):
         component = VLLMChatGenerator(model="Qwen/Qwen3-0.6B", generation_kwargs=NO_THINKING_KWARGS)
-        response = component.run(
-            [ChatMessage.from_user("What is the capital of France? Answer in one word.")]
-        )
+        response = component.run([ChatMessage.from_user("What is the capital of France? Answer in one word.")])
 
         assert len(response["replies"]) == 1
         reply = response["replies"][0]
@@ -449,11 +432,9 @@ class TestVLLMChatGeneratorLiveRun:
         component = VLLMChatGenerator(
             model="Qwen/Qwen3-0.6B",
             generation_kwargs=NO_THINKING_KWARGS,
-            streaming_callback=lambda c: chunks_received.append(c),
+            streaming_callback=chunks_received.append,
         )
-        response = component.run(
-            [ChatMessage.from_user("What is the capital of France? Answer in one word.")]
-        )
+        response = component.run([ChatMessage.from_user("What is the capital of France? Answer in one word.")])
 
         assert len(chunks_received) > 0
         assert len(response["replies"]) == 1
@@ -464,14 +445,64 @@ class TestVLLMChatGeneratorLiveRun:
             model="Qwen/Qwen3-0.6B",
             generation_kwargs={"max_tokens": 500},
         )
-        response = component.run(
-            [ChatMessage.from_user("What is 2+2? Answer briefly.")]
-        )
+        response = component.run([ChatMessage.from_user("What is 2+2? Answer briefly.")])
 
         reply = response["replies"][0]
         assert reply.reasoning is not None
         assert len(reply.reasoning.reasoning_text) > 0
         assert reply.text is not None
+
+    def test_live_run_with_tools(self):
+
+        @tool
+        def weather(city: Annotated[str, "The city to get the weather for"]) -> str:
+            """Get the weather in a given city."""
+            return f"The weather in {city} is sunny"
+
+        component = VLLMChatGenerator(
+            model="Qwen/Qwen3-0.6B",
+            generation_kwargs=NO_THINKING_KWARGS,
+            tools=[weather],
+        )
+        response = component.run([ChatMessage.from_user("What is the weather in Paris?")])
+
+        assert len(response["replies"]) == 1
+        message = response["replies"][0]
+        assert message.tool_calls
+        tool_call = message.tool_call
+        assert isinstance(tool_call, ToolCall)
+        assert tool_call.tool_name == "weather"
+        assert tool_call.arguments == {"city": "Paris"}
+
+    def test_live_run_with_structured_output(self):
+        response_format = {
+            "type": "json_schema",
+            "json_schema": {
+                "name": "capital_info",
+                "strict": True,
+                "schema": {
+                    "type": "object",
+                    "properties": {"capital": {"type": "string"}, "population": {"type": "number"}},
+                    "required": ["capital", "population"],
+                },
+            },
+        }
+        component = VLLMChatGenerator(
+            model="Qwen/Qwen3-0.6B",
+            generation_kwargs={**NO_THINKING_KWARGS, "response_format": response_format},
+        )
+        response = component.run(
+            [ChatMessage.from_user("What's the capital of France and its population? Respond in JSON.")]
+        )
+
+        assert len(response["replies"]) == 1
+        response_data = json.loads(response["replies"][0].text)
+        assert isinstance(response_data, dict)
+        assert "capital" in response_data
+        assert isinstance(response_data["capital"], str)
+        assert "population" in response_data
+        assert isinstance(response_data["population"], (int, float))
+        assert response_data["capital"].lower() == "paris"
 
     @pytest.mark.asyncio
     async def test_live_run_async(self):
