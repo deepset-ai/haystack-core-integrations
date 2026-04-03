@@ -21,6 +21,7 @@ on:
 jobs:
   release-on-pypi:
     runs-on: ubuntu-latest
+    environment: pypi
     permissions:
       id-token: write
 
@@ -37,7 +38,7 @@ jobs:
           python-version: "3.12"
 
       - name: Install dependencies
-        run: pip install hatch "virtualenv<21.0.0" requests
+        run: pip install hatch requests
 
       - name: Validate version number
         run: python .github/utils/validate_version.py --tag ${{ github.ref_name }}
