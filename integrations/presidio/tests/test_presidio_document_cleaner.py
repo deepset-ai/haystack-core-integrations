@@ -1,0 +1,155 @@
+# SPDX-FileCopyrightText: 2022-present deepset GmbH <info@deepset.ai>
+#
+# SPDX-License-Identifier: Apache-2.0
+
+import logging
+from unittest.mock import MagicMock
+
+import pytest
+from haystack import Document
+from haystack.core.serialization import component_from_dict, component_to_dict
+
+from haystack_integrations.components.preprocessors.presidio import PresidioDocumentCleaner
+
+
+class TestPresidioDocumentCleaner:
+    def test_init_defaults(self):
+        cleaner = PresidioDocumentCleaner()
+        assert cleaner.language == "en"
+        assert cleaner.entities is None
+        assert cleaner.score_threshold == 0.35
+
+    def test_init_custom_params(self):
+        cleaner = PresidioDocumentCleaner(language="de", entities=["PERSON"], score_threshold=0.7)
+        assert cleaner.language == "de"
+        assert cleaner.entities == ["PERSON"]
+        assert cleaner.score_threshold == 0.7
+
+    def test_to_dict(self):
+        cleaner = PresidioDocumentCleaner(language="en", entities=["EMAIL_ADDRESS"], score_threshold=0.5)
+        data = component_to_dict(cleaner, "PresidioDocumentCleaner")
+        expected_type = (
+            "haystack_integrations.components.preprocessors.presidio.presidio_document_cleaner.PresidioDocumentCleaner"
+        )
+        assert data["type"] == expected_type
+        assert data["init_parameters"]["language"] == "en"
+        assert data["init_parameters"]["entities"] == ["EMAIL_ADDRESS"]
+        assert data["init_parameters"]["score_threshold"] == 0.5
+
+    def test_from_dict(self):
+        data = {
+            "type": (
+                "haystack_integrations.components.preprocessors.presidio"
+                ".presidio_document_cleaner.PresidioDocumentCleaner"
+            ),
+            "init_parameters": {"language": "de", "entities": ["PERSON"], "score_threshold": 0.6},
+        }
+        cleaner = component_from_dict(PresidioDocumentCleaner, data, "PresidioDocumentCleaner")
+        assert cleaner.language == "de"
+        assert cleaner.entities == ["PERSON"]
+        assert cleaner.score_threshold == 0.6
+
+    def test_run_anonymizes_pii(self):
+        cleaner = PresidioDocumentCleaner()
+        mock_result = MagicMock()
+        mock_result.text = "My name is <PERSON> and email is <EMAIL_ADDRESS>"
+        cleaner._anonymizer = MagicMock()
+        cleaner._anonymizer.anonymize.return_value = mock_result
+        cleaner._analyzer = MagicMock()
+        cleaner._analyzer.analyze.return_value = []
+
+        docs = [Document(content="My name is John and email is john@example.com")]
+        result = cleaner.run(documents=docs)
+
+        assert len(result["documents"]) == 1
+        assert result["documents"][0].content == "My name is <PERSON> and email is <EMAIL_ADDRESS>"
+
+    def test_run_preserves_metadata(self):
+        cleaner = PresidioDocumentCleaner()
+        mock_result = MagicMock()
+        mock_result.text = "Hello <PERSON>"
+        cleaner._anonymizer = MagicMock()
+        cleaner._anonymizer.anonymize.return_value = mock_result
+        cleaner._analyzer = MagicMock()
+        cleaner._analyzer.analyze.return_value = []
+
+        docs = [Document(content="Hello John", meta={"source": "email", "page": 1})]
+        result = cleaner.run(documents=docs)
+
+        assert result["documents"][0].meta["source"] == "email"
+        assert result["documents"][0].meta["page"] == 1
+
+    def test_run_does_not_mutate_original(self):
+        cleaner = PresidioDocumentCleaner()
+        mock_result = MagicMock()
+        mock_result.text = "Hello <PERSON>"
+        cleaner._anonymizer = MagicMock()
+        cleaner._anonymizer.anonymize.return_value = mock_result
+        cleaner._analyzer = MagicMock()
+        cleaner._analyzer.analyze.return_value = []
+
+        original = Document(content="Hello John")
+        cleaner.run(documents=[original])
+
+        assert original.content == "Hello John"
+
+    def test_run_passes_through_none_content(self):
+        cleaner = PresidioDocumentCleaner()
+        doc = Document(content=None, meta={"source": "test"})
+        result = cleaner.run(documents=[doc])
+
+        assert len(result["documents"]) == 1
+        assert result["documents"][0].content is None
+        assert result["documents"][0].meta["source"] == "test"
+
+    def test_run_skips_on_error(self, caplog):
+        cleaner = PresidioDocumentCleaner()
+        cleaner._analyzer = MagicMock()
+        cleaner._analyzer.analyze.side_effect = Exception("Analyzer error")
+
+        doc = Document(content="Some text with PII")
+        with caplog.at_level(logging.WARNING):
+            result = cleaner.run(documents=[doc])
+
+        assert len(result["documents"]) == 1
+        assert result["documents"][0].content == "Some text with PII"
+        assert "Could not anonymize" in caplog.text
+
+    def test_run_multiple_documents(self):
+        cleaner = PresidioDocumentCleaner()
+        mock_result = MagicMock()
+        mock_result.text = "cleaned"
+        cleaner._anonymizer = MagicMock()
+        cleaner._anonymizer.anonymize.return_value = mock_result
+        cleaner._analyzer = MagicMock()
+        cleaner._analyzer.analyze.return_value = []
+
+        docs = [Document(content=f"doc {i}") for i in range(3)]
+        result = cleaner.run(documents=docs)
+
+        assert len(result["documents"]) == 3
+
+    def test_run_passes_language_and_entities_to_analyzer(self):
+        cleaner = PresidioDocumentCleaner(language="de", entities=["PERSON"], score_threshold=0.8)
+        mock_result = MagicMock()
+        mock_result.text = "cleaned"
+        cleaner._anonymizer = MagicMock()
+        cleaner._anonymizer.anonymize.return_value = mock_result
+        cleaner._analyzer = MagicMock()
+        cleaner._analyzer.analyze.return_value = []
+
+        cleaner.run(documents=[Document(content="Hello John")])
+
+        cleaner._analyzer.analyze.assert_called_once_with(
+            text="Hello John", language="de", entities=["PERSON"], score_threshold=0.8
+        )
+
+    @pytest.mark.integration
+    def test_run_integration(self):
+        cleaner = PresidioDocumentCleaner()
+        docs = [Document(content="My name is John Smith and my email is john@example.com")]
+        result = cleaner.run(documents=docs)
+
+        assert len(result["documents"]) == 1
+        assert "John Smith" not in result["documents"][0].content
+        assert "john@example.com" not in result["documents"][0].content

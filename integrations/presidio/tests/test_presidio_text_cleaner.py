@@ -1,0 +1,95 @@
+# SPDX-FileCopyrightText: 2022-present deepset GmbH <info@deepset.ai>
+#
+# SPDX-License-Identifier: Apache-2.0
+
+import logging
+from unittest.mock import MagicMock
+
+import pytest
+from haystack.core.serialization import component_from_dict, component_to_dict
+
+from haystack_integrations.components.preprocessors.presidio import PresidioTextCleaner
+
+
+class TestPresidioTextCleaner:
+    def test_init_defaults(self):
+        cleaner = PresidioTextCleaner()
+        assert cleaner.language == "en"
+        assert cleaner.entities is None
+        assert cleaner.score_threshold == 0.35
+
+    def test_to_dict(self):
+        cleaner = PresidioTextCleaner(language="en", entities=["PHONE_NUMBER"], score_threshold=0.5)
+        data = component_to_dict(cleaner, "PresidioTextCleaner")
+        assert (
+            data["type"]
+            == "haystack_integrations.components.preprocessors.presidio.presidio_text_cleaner.PresidioTextCleaner"
+        )
+        assert data["init_parameters"]["entities"] == ["PHONE_NUMBER"]
+
+    def test_from_dict(self):
+        data = {
+            "type": "haystack_integrations.components.preprocessors.presidio.presidio_text_cleaner.PresidioTextCleaner",
+            "init_parameters": {"language": "en", "entities": None, "score_threshold": 0.4},
+        }
+        cleaner = component_from_dict(PresidioTextCleaner, data, "PresidioTextCleaner")
+        assert cleaner.score_threshold == 0.4
+
+    def test_run_anonymizes_pii(self):
+        cleaner = PresidioTextCleaner()
+        mock_result = MagicMock()
+        mock_result.text = "Call me at <PHONE_NUMBER>"
+        cleaner._anonymizer = MagicMock()
+        cleaner._anonymizer.anonymize.return_value = mock_result
+        cleaner._analyzer = MagicMock()
+        cleaner._analyzer.analyze.return_value = []
+
+        result = cleaner.run(texts=["Call me at 212-555-1234"])
+
+        assert result["texts"][0] == "Call me at <PHONE_NUMBER>"
+
+    def test_run_multiple_texts(self):
+        cleaner = PresidioTextCleaner()
+        mock_result = MagicMock()
+        mock_result.text = "cleaned"
+        cleaner._anonymizer = MagicMock()
+        cleaner._anonymizer.anonymize.return_value = mock_result
+        cleaner._analyzer = MagicMock()
+        cleaner._analyzer.analyze.return_value = []
+
+        result = cleaner.run(texts=["text 1", "text 2", "text 3"])
+
+        assert len(result["texts"]) == 3
+
+    def test_run_skips_on_error(self, caplog):
+        cleaner = PresidioTextCleaner()
+        cleaner._analyzer = MagicMock()
+        cleaner._analyzer.analyze.side_effect = Exception("error")
+
+        with caplog.at_level(logging.WARNING):
+            result = cleaner.run(texts=["My name is John"])
+
+        assert result["texts"][0] == "My name is John"
+        assert "Could not anonymize" in caplog.text
+
+    def test_run_empty_text(self):
+        cleaner = PresidioTextCleaner()
+        mock_result = MagicMock()
+        mock_result.text = ""
+        cleaner._anonymizer = MagicMock()
+        cleaner._anonymizer.anonymize.return_value = mock_result
+        cleaner._analyzer = MagicMock()
+        cleaner._analyzer.analyze.return_value = []
+
+        result = cleaner.run(texts=[""])
+
+        assert result["texts"][0] == ""
+
+    @pytest.mark.integration
+    def test_run_integration(self):
+        cleaner = PresidioTextCleaner()
+        result = cleaner.run(texts=["Hi, I am Alice and my phone is 212-555-5678"])
+
+        assert len(result["texts"]) == 1
+        assert "Alice" not in result["texts"][0]
+        assert "212-555-5678" not in result["texts"][0]
