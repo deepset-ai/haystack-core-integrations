@@ -5,7 +5,12 @@ from botocore.config import Config
 from botocore.eventstream import EventStream
 from botocore.exceptions import ClientError
 from haystack import component, default_from_dict, default_to_dict, logging
-from haystack.dataclasses import ChatMessage, ComponentInfo, StreamingCallbackT, select_streaming_callback
+from haystack.dataclasses import (
+    ChatMessage,
+    ComponentInfo,
+    StreamingCallbackT,
+    select_streaming_callback,
+)
 from haystack.tools import (
     ToolsType,
     _check_duplicate_tool_names,
@@ -14,7 +19,10 @@ from haystack.tools import (
     serialize_tools_or_toolset,
 )
 from haystack.utils.auth import Secret
-from haystack.utils.callable_serialization import deserialize_callable, serialize_callable
+from haystack.utils.callable_serialization import (
+    deserialize_callable,
+    serialize_callable,
+)
 
 from haystack_integrations.common.amazon_bedrock.errors import (
     AmazonBedrockConfigurationError,
@@ -164,13 +172,11 @@ class AmazonBedrockChatGenerator:
     def __init__(
         self,
         model: str,
-        aws_access_key_id: Secret | None = Secret.from_env_var(["AWS_ACCESS_KEY_ID"], strict=False),  # noqa: B008
-        aws_secret_access_key: Secret | None = Secret.from_env_var(  # noqa: B008
-            ["AWS_SECRET_ACCESS_KEY"], strict=False
-        ),
-        aws_session_token: Secret | None = Secret.from_env_var(["AWS_SESSION_TOKEN"], strict=False),  # noqa: B008
-        aws_region_name: Secret | None = Secret.from_env_var(["AWS_DEFAULT_REGION"], strict=False),  # noqa: B008
-        aws_profile_name: Secret | None = Secret.from_env_var(["AWS_PROFILE"], strict=False),  # noqa: B008
+        aws_access_key_id: Secret | None = None,
+        aws_secret_access_key: Secret | None = None,
+        aws_session_token: Secret | None = None,
+        aws_region_name: Secret | None = None,
+        aws_profile_name: Secret | None = None,
         generation_kwargs: dict[str, Any] | None = None,
         streaming_callback: StreamingCallbackT | None = None,
         boto3_config: dict[str, Any] | None = None,
@@ -236,6 +242,22 @@ class AmazonBedrockChatGenerator:
             msg = "'model' cannot be None or empty string"
             raise ValueError(msg)
         self.model = model
+        if aws_access_key_id is None:
+            aws_access_key_id = Secret.from_env_var(["AWS_ACCESS_KEY_ID"], strict=False)
+
+        if aws_secret_access_key is None:
+            aws_secret_access_key = Secret.from_env_var(
+                ["AWS_SECRET_ACCESS_KEY"], strict=False
+            )
+
+        if aws_session_token is None:
+            aws_session_token = Secret.from_env_var(["AWS_SESSION_TOKEN"], strict=False)
+
+        if aws_region_name is None:
+            aws_region_name = Secret.from_env_var(["AWS_DEFAULT_REGION"], strict=False)
+
+        if aws_profile_name is None:
+            aws_profile_name = Secret.from_env_var(["AWS_PROFILE"], strict=False)
         self.aws_access_key_id = aws_access_key_id
         self.aws_secret_access_key = aws_secret_access_key
         self.aws_session_token = aws_session_token
@@ -247,18 +269,23 @@ class AmazonBedrockChatGenerator:
         _check_duplicate_tool_names(flatten_tools_or_toolsets(tools))
         self.tools = tools
 
-        _validate_guardrail_config(guardrail_config=guardrail_config, streaming=streaming_callback is not None)
+        _validate_guardrail_config(
+            guardrail_config=guardrail_config, streaming=streaming_callback is not None
+        )
         self.guardrail_config = guardrail_config
 
         self.tools_cachepoint_config = (
-            _validate_and_format_cache_point(tools_cachepoint_config) if tools_cachepoint_config else None
+            _validate_and_format_cache_point(tools_cachepoint_config)
+            if tools_cachepoint_config
+            else None
         )
 
         def resolve_secret(secret: Secret | None) -> str | None:
             return secret.resolve_value() if secret else None
 
         config = Config(
-            user_agent_extra="x-client-framework:haystack", **(self.boto3_config if self.boto3_config else {})
+            user_agent_extra="x-client-framework:haystack",
+            **(self.boto3_config if self.boto3_config else {}),
         )
 
         try:
@@ -300,13 +327,31 @@ class AmazonBedrockChatGenerator:
 
         try:
             self.async_session = get_aws_session(
-                aws_access_key_id=self.aws_access_key_id.resolve_value() if self.aws_access_key_id else None,
-                aws_secret_access_key=(
-                    self.aws_secret_access_key.resolve_value() if self.aws_secret_access_key else None
+                aws_access_key_id=(
+                    self.aws_access_key_id.resolve_value()
+                    if self.aws_access_key_id
+                    else None
                 ),
-                aws_session_token=self.aws_session_token.resolve_value() if self.aws_session_token else None,
-                aws_region_name=self.aws_region_name.resolve_value() if self.aws_region_name else None,
-                aws_profile_name=self.aws_profile_name.resolve_value() if self.aws_profile_name else None,
+                aws_secret_access_key=(
+                    self.aws_secret_access_key.resolve_value()
+                    if self.aws_secret_access_key
+                    else None
+                ),
+                aws_session_token=(
+                    self.aws_session_token.resolve_value()
+                    if self.aws_session_token
+                    else None
+                ),
+                aws_region_name=(
+                    self.aws_region_name.resolve_value()
+                    if self.aws_region_name
+                    else None
+                ),
+                aws_profile_name=(
+                    self.aws_profile_name.resolve_value()
+                    if self.aws_profile_name
+                    else None
+                ),
                 async_mode=True,
             )
             return self.async_session
@@ -325,7 +370,11 @@ class AmazonBedrockChatGenerator:
         :returns:
             Dictionary with serialized data.
         """
-        callback_name = serialize_callable(self.streaming_callback) if self.streaming_callback else None
+        callback_name = (
+            serialize_callable(self.streaming_callback)
+            if self.streaming_callback
+            else None
+        )
         return default_to_dict(
             self,
             aws_access_key_id=self.aws_access_key_id,
@@ -360,7 +409,9 @@ class AmazonBedrockChatGenerator:
 
         serialized_callback_handler = init_params.get("streaming_callback")
         if serialized_callback_handler:
-            data["init_parameters"]["streaming_callback"] = deserialize_callable(serialized_callback_handler)
+            data["init_parameters"]["streaming_callback"] = deserialize_callable(
+                serialized_callback_handler
+            )
         deserialize_tools_or_toolset_inplace(data["init_parameters"], key="tools")
         return default_from_dict(cls, data)
 
@@ -385,6 +436,7 @@ class AmazonBedrockChatGenerator:
             - `stopSequences`: List of stop sequences to stop generation.
             - `temperature`: Sampling temperature.
             - `topP`: Nucleus sampling parameter.
+            - `outputConfig`: Configuration for structured output (e.g., JSON schema via textFormat).
         :param tools: A list of Tool and/or Toolset objects, or a single Toolset for which the model can prepare calls.
             Each tool should have a unique name.
         :param requires_async: Boolean flag to indicate if an async-compatible streaming callback function is needed.
@@ -413,9 +465,13 @@ class AmazonBedrockChatGenerator:
         flattened_tools = flatten_tools_or_toolsets(tools)
         _check_duplicate_tool_names(flattened_tools)
         tool_config = merged_kwargs.pop("toolConfig", None)
+        # Remove unsupported outputConfig (not supported by Bedrock Converse API)
+        _ = merged_kwargs.pop("outputConfig", None)
         if flattened_tools:
             # Format Haystack tools to Bedrock format
-            tool_config = _format_tools(flattened_tools, tools_cachepoint_config=self.tools_cachepoint_config)
+            tool_config = _format_tools(
+                flattened_tools, tools_cachepoint_config=self.tools_cachepoint_config
+            )
 
         # Any remaining kwargs go to additionalModelRequestFields
         additional_fields = merged_kwargs if merged_kwargs else None
@@ -447,10 +503,14 @@ class AmazonBedrockChatGenerator:
 
         return params, callback
 
-    def _resolve_flattened_generation_kwargs(self, generation_kwargs: dict[str, Any]) -> dict[str, Any]:
+    def _resolve_flattened_generation_kwargs(
+        self, generation_kwargs: dict[str, Any]
+    ) -> dict[str, Any]:
         generation_kwargs = generation_kwargs.copy()
 
-        disable_parallel_tool_use = generation_kwargs.pop("disable_parallel_tool_use", None)
+        disable_parallel_tool_use = generation_kwargs.pop(
+            "disable_parallel_tool_use", None
+        )
         parallel_tool_use = generation_kwargs.pop("parallel_tool_use", None)
 
         if disable_parallel_tool_use is not None and parallel_tool_use is not None:
@@ -497,6 +557,7 @@ class AmazonBedrockChatGenerator:
             - `stopSequences`: List of stop sequences to stop generation.
             - `temperature`: Sampling temperature.
             - `topP`: Nucleus sampling parameter.
+            - `outputConfig`: Configuration for structured output (e.g., JSON schema via textFormat).
         :param tools: A list of Tool and/or Toolset objects, or a single Toolset for which the model can prepare calls.
             Each tool should have a unique name.
 
@@ -558,6 +619,7 @@ class AmazonBedrockChatGenerator:
             - `stopSequences`: List of stop sequences to stop generation.
             - `temperature`: Sampling temperature.
             - `topP`: Nucleus sampling parameter.
+            - `outputConfig`: Configuration for structured output (e.g., JSON schema via textFormat).
         :param tools: A list of Tool and/or Toolset objects, or a single Toolset for which the model can prepare calls.
             Each tool should have a unique name.
 
@@ -581,7 +643,8 @@ class AmazonBedrockChatGenerator:
             # Note: https://aioboto3.readthedocs.io/en/latest/usage.html
             # we need to create a new client for each request
             config = Config(
-                user_agent_extra="x-client-framework:haystack", **(self.boto3_config if self.boto3_config else {})
+                user_agent_extra="x-client-framework:haystack",
+                **(self.boto3_config if self.boto3_config else {}),
             )
             async with session.client("bedrock-runtime", config=config) as async_client:
                 if callback:

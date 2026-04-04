@@ -6,10 +6,20 @@ from haystack import Pipeline
 from haystack.components.agents import Agent
 from haystack.components.generators.utils import print_streaming_chunk
 from haystack.components.tools import ToolInvoker
-from haystack.dataclasses import ChatMessage, ChatRole, FileContent, ImageContent, StreamingChunk, TextContent, ToolCall
+from haystack.dataclasses import (
+    ChatMessage,
+    ChatRole,
+    FileContent,
+    ImageContent,
+    StreamingChunk,
+    TextContent,
+    ToolCall,
+)
 from haystack.tools import Tool, Toolset, create_tool_from_function
 
-from haystack_integrations.components.generators.amazon_bedrock import AmazonBedrockChatGenerator
+from haystack_integrations.components.generators.amazon_bedrock import (
+    AmazonBedrockChatGenerator,
+)
 
 CLASS_TYPE = "haystack_integrations.components.generators.amazon_bedrock.chat.chat_generator.AmazonBedrockChatGenerator"
 MODELS_TO_TEST = [
@@ -58,9 +68,7 @@ MODELS_TO_TEST_WITH_THINKING_TOOLS_STREAMING = [
     "global.anthropic.claude-sonnet-4-6",
 ]
 
-MODELS_TO_TEST_WITH_PROMPT_CACHING = [
-    "us.amazon.nova-micro-v1:0"  # cheap, fast model
-]
+MODELS_TO_TEST_WITH_PROMPT_CACHING = ["us.amazon.nova-micro-v1:0"]  # cheap, fast model
 
 
 def hello_world():
@@ -90,7 +98,11 @@ def population(city: str):
 
 @pytest.fixture
 def tools():
-    tool_parameters = {"type": "object", "properties": {"city": {"type": "string"}}, "required": ["city"]}
+    tool_parameters = {
+        "type": "object",
+        "properties": {"city": {"type": "string"}},
+        "required": ["city"],
+    }
     tool = Tool(
         name="weather",
         description="useful to determine the weather in a given location",
@@ -106,13 +118,21 @@ def mixed_tools():
     weather_tool = Tool(
         name="weather",
         description="useful to determine the weather in a given location",
-        parameters={"type": "object", "properties": {"city": {"type": "string"}}, "required": ["city"]},
+        parameters={
+            "type": "object",
+            "properties": {"city": {"type": "string"}},
+            "required": ["city"],
+        },
         function=weather,
     )
     population_tool = Tool(
         name="population",
         description="useful to determine the population of a given location",
-        parameters={"type": "object", "properties": {"city": {"type": "string"}}, "required": ["city"]},
+        parameters={
+            "type": "object",
+            "properties": {"city": {"type": "string"}},
+            "required": ["city"],
+        },
         function=population,
     )
     toolset = Toolset([population_tool])
@@ -171,22 +191,48 @@ class TestAmazonBedrockChatGenerator:
             generation_kwargs={"temperature": 0.7},
             streaming_callback=print_streaming_chunk,
             boto3_config=boto3_config,
-            guardrail_config={"guardrailIdentifier": "test", "guardrailVersion": "test"},
+            guardrail_config={
+                "guardrailIdentifier": "test",
+                "guardrailVersion": "test",
+            },
         )
         expected_dict = {
             "type": CLASS_TYPE,
             "init_parameters": {
-                "aws_access_key_id": {"type": "env_var", "env_vars": ["AWS_ACCESS_KEY_ID"], "strict": False},
-                "aws_secret_access_key": {"type": "env_var", "env_vars": ["AWS_SECRET_ACCESS_KEY"], "strict": False},
-                "aws_session_token": {"type": "env_var", "env_vars": ["AWS_SESSION_TOKEN"], "strict": False},
-                "aws_region_name": {"type": "env_var", "env_vars": ["AWS_DEFAULT_REGION"], "strict": False},
-                "aws_profile_name": {"type": "env_var", "env_vars": ["AWS_PROFILE"], "strict": False},
+                "aws_access_key_id": {
+                    "type": "env_var",
+                    "env_vars": ["AWS_ACCESS_KEY_ID"],
+                    "strict": False,
+                },
+                "aws_secret_access_key": {
+                    "type": "env_var",
+                    "env_vars": ["AWS_SECRET_ACCESS_KEY"],
+                    "strict": False,
+                },
+                "aws_session_token": {
+                    "type": "env_var",
+                    "env_vars": ["AWS_SESSION_TOKEN"],
+                    "strict": False,
+                },
+                "aws_region_name": {
+                    "type": "env_var",
+                    "env_vars": ["AWS_DEFAULT_REGION"],
+                    "strict": False,
+                },
+                "aws_profile_name": {
+                    "type": "env_var",
+                    "env_vars": ["AWS_PROFILE"],
+                    "strict": False,
+                },
                 "model": "cohere.command-r-plus-v1:0",
                 "generation_kwargs": {"temperature": 0.7},
                 "streaming_callback": "haystack.components.generators.utils.print_streaming_chunk",
                 "boto3_config": boto3_config,
                 "tools": None,
-                "guardrail_config": {"guardrailIdentifier": "test", "guardrailVersion": "test"},
+                "guardrail_config": {
+                    "guardrailIdentifier": "test",
+                    "guardrailVersion": "test",
+                },
                 "tools_cachepoint_config": None,
             },
         }
@@ -202,15 +248,31 @@ class TestAmazonBedrockChatGenerator:
             {
                 "type": CLASS_TYPE,
                 "init_parameters": {
-                    "aws_access_key_id": {"type": "env_var", "env_vars": ["AWS_ACCESS_KEY_ID"], "strict": False},
+                    "aws_access_key_id": {
+                        "type": "env_var",
+                        "env_vars": ["AWS_ACCESS_KEY_ID"],
+                        "strict": False,
+                    },
                     "aws_secret_access_key": {
                         "type": "env_var",
                         "env_vars": ["AWS_SECRET_ACCESS_KEY"],
                         "strict": False,
                     },
-                    "aws_session_token": {"type": "env_var", "env_vars": ["AWS_SESSION_TOKEN"], "strict": False},
-                    "aws_region_name": {"type": "env_var", "env_vars": ["AWS_DEFAULT_REGION"], "strict": False},
-                    "aws_profile_name": {"type": "env_var", "env_vars": ["AWS_PROFILE"], "strict": False},
+                    "aws_session_token": {
+                        "type": "env_var",
+                        "env_vars": ["AWS_SESSION_TOKEN"],
+                        "strict": False,
+                    },
+                    "aws_region_name": {
+                        "type": "env_var",
+                        "env_vars": ["AWS_DEFAULT_REGION"],
+                        "strict": False,
+                    },
+                    "aws_profile_name": {
+                        "type": "env_var",
+                        "env_vars": ["AWS_PROFILE"],
+                        "strict": False,
+                    },
                     "model": "global.anthropic.claude-sonnet-4-6",
                     "generation_kwargs": {"temperature": 0.7},
                     "streaming_callback": "haystack.components.generators.utils.print_streaming_chunk",
@@ -250,7 +312,8 @@ class TestAmazonBedrockChatGenerator:
         """
         generation_kwargs = {"temperature": 0.7}
         layer = AmazonBedrockChatGenerator(
-            model="global.anthropic.claude-sonnet-4-6", generation_kwargs=generation_kwargs
+            model="global.anthropic.claude-sonnet-4-6",
+            generation_kwargs=generation_kwargs,
         )
         assert layer.generation_kwargs == generation_kwargs
 
@@ -294,17 +357,36 @@ class TestAmazonBedrockChatGenerator:
                 "generator": {
                     "type": CLASS_TYPE,
                     "init_parameters": {
-                        "aws_access_key_id": {"type": "env_var", "env_vars": ["AWS_ACCESS_KEY_ID"], "strict": False},
+                        "aws_access_key_id": {
+                            "type": "env_var",
+                            "env_vars": ["AWS_ACCESS_KEY_ID"],
+                            "strict": False,
+                        },
                         "aws_secret_access_key": {
                             "type": "env_var",
                             "env_vars": ["AWS_SECRET_ACCESS_KEY"],
                             "strict": False,
                         },
-                        "aws_session_token": {"type": "env_var", "env_vars": ["AWS_SESSION_TOKEN"], "strict": False},
-                        "aws_region_name": {"type": "env_var", "env_vars": ["AWS_DEFAULT_REGION"], "strict": False},
-                        "aws_profile_name": {"type": "env_var", "env_vars": ["AWS_PROFILE"], "strict": False},
+                        "aws_session_token": {
+                            "type": "env_var",
+                            "env_vars": ["AWS_SESSION_TOKEN"],
+                            "strict": False,
+                        },
+                        "aws_region_name": {
+                            "type": "env_var",
+                            "env_vars": ["AWS_DEFAULT_REGION"],
+                            "strict": False,
+                        },
+                        "aws_profile_name": {
+                            "type": "env_var",
+                            "env_vars": ["AWS_PROFILE"],
+                            "strict": False,
+                        },
                         "model": "global.anthropic.claude-sonnet-4-6",
-                        "generation_kwargs": {"temperature": 0.7, "stopSequences": ["eviscerate"]},
+                        "generation_kwargs": {
+                            "temperature": 0.7,
+                            "stopSequences": ["eviscerate"],
+                        },
                         "streaming_callback": "haystack.components.generators.utils.print_streaming_chunk",
                         "boto3_config": None,
                         "tools": [
@@ -347,13 +429,28 @@ class TestAmazonBedrockChatGenerator:
     def test_prepare_request_params_guardrail_config(self, mock_boto3_session, set_env_variables):
         generator = AmazonBedrockChatGenerator(
             model="global.anthropic.claude-sonnet-4-6",
-            guardrail_config={"guardrailIdentifier": "test", "guardrailVersion": "test"},
+            guardrail_config={
+                "guardrailIdentifier": "test",
+                "guardrailVersion": "test",
+            },
         )
         request_params, _ = generator._prepare_request_params(
             messages=[ChatMessage.from_user("What's the capital of France?")],
         )
         assert request_params["messages"] == [{"content": [{"text": "What's the capital of France?"}], "role": "user"}]
-        assert request_params["guardrailConfig"] == {"guardrailIdentifier": "test", "guardrailVersion": "test"}
+        assert request_params["guardrailConfig"] == {
+            "guardrailIdentifier": "test",
+            "guardrailVersion": "test",
+        }
+
+    def test_prepare_request_params_output_config(self, mock_boto3_session, set_env_variables):
+        generator = AmazonBedrockChatGenerator(model="global.anthropic.claude-sonnet-4-6")
+        request_params, _ = generator._prepare_request_params(
+            messages=[ChatMessage.from_user("Hello")],
+            generation_kwargs={"outputConfig": {"textFormat": "json"}},
+        )
+        assert "outputConfig" in request_params
+        assert request_params["outputConfig"] == {"textFormat": "json"}
 
     def test_init_with_mixed_tools(self, mock_boto3_session, set_env_variables):
         def tool_fn(city: str) -> str:
@@ -362,13 +459,21 @@ class TestAmazonBedrockChatGenerator:
         weather_tool = Tool(
             name="weather",
             description="Weather lookup",
-            parameters={"type": "object", "properties": {"city": {"type": "string"}}, "required": ["city"]},
+            parameters={
+                "type": "object",
+                "properties": {"city": {"type": "string"}},
+                "required": ["city"],
+            },
             function=tool_fn,
         )
         population_tool = Tool(
             name="population",
             description="Population lookup",
-            parameters={"type": "object", "properties": {"city": {"type": "string"}}, "required": ["city"]},
+            parameters={
+                "type": "object",
+                "properties": {"city": {"type": "string"}},
+                "required": ["city"],
+            },
             function=tool_fn,
         )
         toolset = Toolset([population_tool])
@@ -387,13 +492,21 @@ class TestAmazonBedrockChatGenerator:
         weather_tool = Tool(
             name="weather",
             description="Weather lookup",
-            parameters={"type": "object", "properties": {"city": {"type": "string"}}, "required": ["city"]},
+            parameters={
+                "type": "object",
+                "properties": {"city": {"type": "string"}},
+                "required": ["city"],
+            },
             function=tool_fn,
         )
         population_tool = Tool(
             name="population",
             description="Population lookup",
-            parameters={"type": "object", "properties": {"city": {"type": "string"}}, "required": ["city"]},
+            parameters={
+                "type": "object",
+                "properties": {"city": {"type": "string"}},
+                "required": ["city"],
+            },
             function=tool_fn,
         )
         toolset = Toolset([population_tool])
@@ -485,7 +598,11 @@ class TestAmazonBedrockChatGenerator:
         ],
     )
     def test_prepare_request_params_with_flattened_generation_kwargs(
-        self, mock_boto3_session, set_env_variables, generation_kwargs, additional_model_request_fields
+        self,
+        mock_boto3_session,
+        set_env_variables,
+        generation_kwargs,
+        additional_model_request_fields,
     ):
         generator = AmazonBedrockChatGenerator(model="global.anthropic.claude-sonnet-4-6")
         request_params, _ = generator._prepare_request_params(
@@ -523,6 +640,19 @@ class TestAmazonBedrockChatGeneratorInference:
             assert "prompt_tokens" in first_reply.meta["usage"]
             assert "completion_tokens" in first_reply.meta["usage"]
 
+    def test_run_with_output_config(self):
+        client = AmazonBedrockChatGenerator(model="global.anthropic.claude-sonnet-4-6")
+
+        messages = [ChatMessage.from_user("Return response in JSON format")]
+
+        response = client.run(messages, generation_kwargs={"outputConfig": {"textFormat": "json"}})
+
+        assert "replies" in response
+        assert len(response["replies"]) > 0
+
+        reply = response["replies"][0]
+        assert reply.text is not None
+
     @pytest.mark.parametrize("model_name", MODELS_TO_TEST_WITH_IMAGE_INPUT)
     def test_run_with_image_input(self, model_name, test_files_path):
         client = AmazonBedrockChatGenerator(model=model_name)
@@ -548,7 +678,10 @@ class TestAmazonBedrockChatGeneratorInference:
         file_content = FileContent.from_file_path(file_path, extra={"citations": {"enabled": True}})
 
         chat_message = ChatMessage.from_user(
-            content_parts=["Is this document a paper on Large Language Models? Respond briefly", file_content]
+            content_parts=[
+                "Is this document a paper on Large Language Models? Respond briefly",
+                file_content,
+            ]
         )
 
         response = client.run([chat_message])
@@ -586,7 +719,9 @@ class TestAmazonBedrockChatGeneratorInference:
             ]
 
         image_retriever_tool = create_tool_from_function(
-            name="retrieve_image", description="Tool to retrieve an image", function=retrieve_image
+            name="retrieve_image",
+            description="Tool to retrieve an image",
+            function=retrieve_image,
         )
         image_retriever_tool.outputs_to_string = {"raw_result": True}
 
@@ -927,7 +1062,9 @@ class TestAmazonBedrockChatGeneratorInference:
         """
         initial_messages = [ChatMessage.from_user("Print Hello World using the print hello world tool.")]
         component = AmazonBedrockChatGenerator(
-            model=model_name, tools=[tool_with_no_parameters], streaming_callback=print_streaming_chunk
+            model=model_name,
+            tools=[tool_with_no_parameters],
+            streaming_callback=print_streaming_chunk,
         )
         results = component.run(messages=initial_messages)
 
@@ -992,7 +1129,8 @@ class TestAmazonBedrockChatGeneratorInference:
         system_message = ChatMessage.from_system("Always respond with: 'Life is beautiful' (and nothing else).")
 
         user_message = ChatMessage.from_user(
-            "User message that should be long enough to cache. " * 100, meta={"cachePoint": {"type": "default"}}
+            "User message that should be long enough to cache. " * 100,
+            meta={"cachePoint": {"type": "default"}},
         )
         messages = [system_message, user_message]
         result = generator.run(messages=messages)
