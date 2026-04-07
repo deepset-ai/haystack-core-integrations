@@ -52,7 +52,7 @@ def _get_logical_condition_nested_path(condition: dict[str, Any], nested_fields:
         elif "operator" in c and "conditions" in c:
             paths.add(_get_logical_condition_nested_path(c, nested_fields))
         else:
-            return None        
+            return None
     if len(paths) == 1:
         return next(iter(paths))
     return None
@@ -63,7 +63,8 @@ def _group_nested_conditions(
     nested_fields: set[str],
     operator: str,
 ) -> list[dict[str, Any]]:
-    """Group conditions by nested path and wrap each group in a ``nested`` query.
+    """
+    Group conditions by nested path and wrap each group in a ``nested`` query.
 
     Both direct comparisons and logical sub-groups whose leaves all target the
     same nested path are absorbed into the group so that they match within the
