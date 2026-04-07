@@ -148,7 +148,7 @@ class TestCohereTextEmbedder:
         text = "The food was delicious"
         result = embedder.run(text=text)
 
-        assert len(result["embedding"]) == 4096
+        assert len(result["embedding"]) == 1536
         assert all(isinstance(x, float) for x in result["embedding"])
 
     @pytest.mark.asyncio
@@ -162,5 +162,5 @@ class TestCohereTextEmbedder:
         text = "The food was delicious"
         result = await embedder.run_async(text=text)
 
-        assert len(result["embedding"]) == 4096
+        assert len(result["embedding"]) == 1536
         assert all(isinstance(x, float) for x in result["embedding"])
