@@ -16,6 +16,7 @@ from haystack.dataclasses import (
 )
 from haystack.tools import Tool
 
+from haystack_integrations.common.amazon_bedrock.errors import AmazonBedrockInferenceError
 from haystack_integrations.components.generators.amazon_bedrock.chat.utils import (
     _convert_file_content_to_bedrock_format,
     _convert_streaming_chunks_to_chat_message,
@@ -25,6 +26,7 @@ from haystack_integrations.components.generators.amazon_bedrock.chat.utils impor
     _format_user_message,
     _parse_completion_response,
     _parse_streaming_response,
+    _parse_structured_output,
     _validate_and_format_cache_point,
     _validate_guardrail_config,
 )
@@ -2086,3 +2088,18 @@ class TestAmazonBedrockChatGeneratorUtils:
 
         with pytest.raises(ValueError, match=r"Cache point can only contain 'type' and 'ttl' keys."):
             _validate_and_format_cache_point({"type": "default", "invalid": "config"})
+
+    def test_parse_structured_output_valid_json(self):
+        reply = ChatMessage.from_assistant('{"name": "Alice", "age": 30}')
+        result = _parse_structured_output([reply])
+        assert result[0].meta["structured_output"] == {"name": "Alice", "age": 30}
+
+    def test_parse_structured_output_invalid_json(self):
+        reply = ChatMessage.from_assistant("not valid json")
+        with pytest.raises(AmazonBedrockInferenceError, match="invalid JSON"):
+            _parse_structured_output([reply])
+
+    def test_parse_structured_output_reply_without_text(self):
+        reply = ChatMessage.from_assistant(tool_calls=[ToolCall(id="1", tool_name="fn", arguments={})])
+        result = _parse_structured_output([reply])
+        assert "structured_output" not in result[0].meta
