@@ -28,7 +28,7 @@ class TestCohereTextEmbedder:
         embedder = CohereTextEmbedder()
 
         assert embedder.api_key == Secret.from_env_var(["COHERE_API_KEY", "CO_API_KEY"])
-        assert embedder.model == "embed-english-v2.0"
+        assert embedder.model == "embed-v4.0"
         assert embedder.input_type == "search_query"
         assert embedder.api_base_url == COHERE_API_URL
         assert embedder.truncate == "END"
@@ -65,7 +65,7 @@ class TestCohereTextEmbedder:
             "type": "haystack_integrations.components.embedders.cohere.text_embedder.CohereTextEmbedder",
             "init_parameters": {
                 "api_key": {"env_vars": ["COHERE_API_KEY", "CO_API_KEY"], "strict": True, "type": "env_var"},
-                "model": "embed-english-v2.0",
+                "model": "embed-v4.0",
                 "input_type": "search_query",
                 "api_base_url": COHERE_API_URL,
                 "truncate": "END",
@@ -108,7 +108,7 @@ class TestCohereTextEmbedder:
             "type": "haystack_integrations.components.embedders.cohere.text_embedder.CohereTextEmbedder",
             "init_parameters": {
                 "api_key": {"env_vars": ["COHERE_API_KEY", "CO_API_KEY"], "strict": True, "type": "env_var"},
-                "model": "embed-english-v2.0",
+                "model": "embed-v4.0",
                 "input_type": "search_query",
                 "api_base_url": COHERE_API_URL,
                 "truncate": "END",
@@ -120,7 +120,7 @@ class TestCohereTextEmbedder:
 
         embedder = CohereTextEmbedder.from_dict(component_dict)
         assert embedder.api_key == Secret.from_env_var(["COHERE_API_KEY", "CO_API_KEY"])
-        assert embedder.model == "embed-english-v2.0"
+        assert embedder.model == "embed-v4.0"
         assert embedder.input_type == "search_query"
         assert embedder.api_base_url == COHERE_API_URL
         assert embedder.truncate == "END"
