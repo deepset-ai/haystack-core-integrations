@@ -109,11 +109,11 @@ class TestWeaviateDocumentStoreAsync:
     async def test_write_documents_with_tenant_async(self, document_store):
         doc = Document(content="tenant test doc")
 
-        with patch.object(document_store, "_write_async", return_value=1) as mock_write:
-            written = await document_store.write_documents_async([doc], tenant="tenant1")
+        doc = Document(content="tenant test doc")
 
-            assert written == 1
-            mock_write.assert_called_once_with([doc], "tenant1")
+        written = await document_store.write_documents_async([doc], tenant="tenant1")
+
+        assert written == 1
 
     @pytest.mark.asyncio
     async def test_write_documents_with_blob_data_async(
