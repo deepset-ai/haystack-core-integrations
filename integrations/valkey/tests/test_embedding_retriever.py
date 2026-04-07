@@ -2,6 +2,8 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+from unittest.mock import AsyncMock, Mock
+
 import pytest
 from haystack import Document
 from haystack.document_stores.types import FilterPolicy
@@ -25,6 +27,18 @@ def document_store():
 
 
 @pytest.fixture
+def mock_store():
+    """A ValkeyDocumentStore that doesn't connect to any server, for unit tests."""
+    return ValkeyDocumentStore(
+        nodes_list=[("localhost", 6379)],
+        index_name="test_retriever",
+        embedding_dim=3,
+        distance_metric="cosine",
+        metadata_fields={"category": str, "priority": int},
+    )
+
+
+@pytest.fixture
 def sample_documents():
     return [
         Document(content="Document 1", embedding=[0.1, 0.2, 0.3], meta={"category": "A", "priority": 1}),
@@ -33,34 +47,30 @@ def sample_documents():
     ]
 
 
-class TestValkeyEmbeddingRetriever:
-    @pytest.mark.integration
-    def test_init(self, document_store):
-        retriever = ValkeyEmbeddingRetriever(document_store=document_store)
-        assert retriever.document_store == document_store
+class TestValkeyEmbeddingRetrieverUnit:
+    def test_init(self, mock_store):
+        retriever = ValkeyEmbeddingRetriever(document_store=mock_store)
+        assert retriever.document_store == mock_store
         assert retriever.filters == {}
         assert retriever.top_k == 10
         assert retriever.filter_policy == FilterPolicy.REPLACE
 
-    @pytest.mark.integration
-    def test_init_with_parameters(self, document_store):
+    def test_init_with_parameters(self, mock_store):
         filters = {"field": "meta.category", "operator": "==", "value": "A"}
         retriever = ValkeyEmbeddingRetriever(
-            document_store=document_store, filters=filters, top_k=5, filter_policy=FilterPolicy.MERGE
+            document_store=mock_store, filters=filters, top_k=5, filter_policy=FilterPolicy.MERGE
         )
         assert retriever.filters == filters
         assert retriever.top_k == 5
         assert retriever.filter_policy == FilterPolicy.MERGE
 
-    @pytest.mark.integration
     def test_init_invalid_document_store(self):
         with pytest.raises(ValueError, match="document_store must be an instance of ValkeyDocumentStore"):
             ValkeyEmbeddingRetriever(document_store="not_a_store")
 
-    @pytest.mark.integration
-    def test_to_dict(self, document_store):
+    def test_to_dict(self, mock_store):
         retriever = ValkeyEmbeddingRetriever(
-            document_store=document_store,
+            document_store=mock_store,
             filters={"field": "meta.category", "operator": "==", "value": "A"},
             top_k=5,
         )
@@ -72,12 +82,11 @@ class TestValkeyEmbeddingRetriever:
         assert result["init_parameters"]["filters"] == {"field": "meta.category", "operator": "==", "value": "A"}
         assert result["init_parameters"]["top_k"] == 5
 
-    @pytest.mark.integration
-    def test_from_dict(self, document_store):
+    def test_from_dict(self, mock_store):
         data = {
             "type": "haystack_integrations.components.retrievers.valkey.embedding_retriever.ValkeyEmbeddingRetriever",
             "init_parameters": {
-                "document_store": document_store.to_dict(),
+                "document_store": mock_store.to_dict(),
                 "filters": {"field": "meta.category", "operator": "==", "value": "A"},
                 "top_k": 5,
                 "filter_policy": "replace",
@@ -88,6 +97,25 @@ class TestValkeyEmbeddingRetriever:
         assert retriever.filters == {"field": "meta.category", "operator": "==", "value": "A"}
         assert retriever.top_k == 5
 
+    def test_run(self, mock_store):
+        mock_store._embedding_retrieval = Mock(return_value=[Document(content="result", score=0.9)])
+        retriever = ValkeyEmbeddingRetriever(document_store=mock_store, top_k=2)
+        result = retriever.run(query_embedding=[0.1, 0.2, 0.3])
+        assert "documents" in result
+        assert len(result["documents"]) == 1
+        mock_store._embedding_retrieval.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_run_async(self, mock_store):
+        mock_store._embedding_retrieval_async = AsyncMock(return_value=[Document(content="result", score=0.9)])
+        retriever = ValkeyEmbeddingRetriever(document_store=mock_store, top_k=2)
+        result = await retriever.run_async(query_embedding=[0.1, 0.2, 0.3])
+        assert "documents" in result
+        assert len(result["documents"]) == 1
+        mock_store._embedding_retrieval_async.assert_called_once()
+
+
+class TestValkeyEmbeddingRetriever:
     @pytest.mark.integration
     def test_run(self, document_store, sample_documents):
         document_store.write_documents(sample_documents)

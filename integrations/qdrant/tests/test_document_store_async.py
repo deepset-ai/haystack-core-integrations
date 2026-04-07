@@ -18,7 +18,102 @@ from haystack_integrations.document_stores.qdrant.document_store import (
 )
 
 
-class TestQdrantDocumentStore:
+@pytest.mark.asyncio
+class TestQdrantDocumentStoreAsyncUnit:
+    async def test_query_hybrid_search_batch_failure_async(self):
+        document_store = QdrantDocumentStore(location=":memory:", use_sparse_embeddings=True)
+        await document_store._initialize_async_client()
+        sparse_embedding = SparseEmbedding(indices=[0, 1, 2, 3], values=[0.1, 0.8, 0.05, 0.33])
+        embedding = [0.1] * 768
+
+        with patch.object(document_store._async_client, "query_points", side_effect=Exception("query_points")):
+            with pytest.raises(QdrantStoreError):
+                await document_store._query_hybrid_async(
+                    query_sparse_embedding=sparse_embedding, query_embedding=embedding
+                )
+
+    async def test_set_up_collection_with_dimension_mismatch_async(self):
+        document_store = QdrantDocumentStore(location=":memory:", use_sparse_embeddings=False, similarity="cosine")
+        await document_store._initialize_async_client()
+        # Mock collection info with different vector size
+        mock_collection_info = MagicMock()
+        mock_collection_info.config.params.vectors = MagicMock()
+        mock_collection_info.config.params.vectors.distance = rest.Distance.COSINE
+        mock_collection_info.config.params.vectors.size = 512
+
+        with (
+            patch.object(document_store._async_client, "collection_exists", return_value=True),
+            patch.object(document_store._async_client, "get_collection", return_value=mock_collection_info),
+        ):
+            with pytest.raises(ValueError, match="different vector size"):
+                await document_store._set_up_collection_async("test_collection", 768, False, "cosine", False, False)
+
+    async def test_set_up_collection_with_existing_incompatible_collection_async(self):
+        document_store = QdrantDocumentStore(location=":memory:", use_sparse_embeddings=True)
+        await document_store._initialize_async_client()
+        # Mock collection info with named vectors but missing DENSE_VECTORS_NAME
+        mock_collection_info = MagicMock()
+        mock_collection_info.config.params.vectors = {"some_other_vector": MagicMock()}
+
+        with (
+            patch.object(document_store._async_client, "collection_exists", return_value=True),
+            patch.object(document_store._async_client, "get_collection", return_value=mock_collection_info),
+        ):
+            with pytest.raises(QdrantStoreError, match="created outside of Haystack"):
+                await document_store._set_up_collection_async("test_collection", 768, False, "cosine", True, False)
+
+    async def test_set_up_collection_use_sparse_embeddings_true_without_named_vectors_async(self):
+        """Test that an error is raised when use_sparse_embeddings is True but collection doesn't have named vectors"""
+        document_store = QdrantDocumentStore(location=":memory:", use_sparse_embeddings=True)
+        await document_store._initialize_async_client()
+
+        # Mock collection info without named vectors
+        mock_collection_info = MagicMock()
+        mock_collection_info.config.params.vectors = MagicMock(spec=rest.VectorsConfig)
+
+        with (
+            patch.object(document_store._async_client, "collection_exists", return_value=True),
+            patch.object(document_store._async_client, "get_collection", return_value=mock_collection_info),
+        ):
+            with pytest.raises(QdrantStoreError, match="without sparse embedding vectors"):
+                await document_store._set_up_collection_async("test_collection", 768, False, "cosine", True, False)
+
+    async def test_set_up_collection_use_sparse_embeddings_false_with_named_vectors_async(self):
+        """Test that an error is raised when use_sparse_embeddings is False but collection has named vectors"""
+        document_store = QdrantDocumentStore(location=":memory:", use_sparse_embeddings=False)
+        await document_store._initialize_async_client()
+        # Mock collection info with named vectors
+        mock_collection_info = MagicMock()
+        mock_collection_info.config.params.vectors = {DENSE_VECTORS_NAME: MagicMock()}
+
+        with (
+            patch.object(document_store._async_client, "collection_exists", return_value=True),
+            patch.object(document_store._async_client, "get_collection", return_value=mock_collection_info),
+        ):
+            with pytest.raises(QdrantStoreError, match="with sparse embedding vectors"):
+                await document_store._set_up_collection_async("test_collection", 768, False, "cosine", False, False)
+
+    async def test_set_up_collection_with_distance_mismatch_async(self):
+        document_store = QdrantDocumentStore(location=":memory:", use_sparse_embeddings=False, similarity="cosine")
+        await document_store._initialize_async_client()
+
+        # Mock collection info with different distance
+        mock_collection_info = MagicMock()
+        mock_collection_info.config.params.vectors = MagicMock()
+        mock_collection_info.config.params.vectors.distance = rest.Distance.DOT
+        mock_collection_info.config.params.vectors.size = 768
+
+        with (
+            patch.object(document_store._async_client, "collection_exists", return_value=True),
+            patch.object(document_store._async_client, "get_collection", return_value=mock_collection_info),
+        ):
+            with pytest.raises(ValueError, match="different similarity"):
+                await document_store._set_up_collection_async("test_collection", 768, False, "cosine", False, False)
+
+
+@pytest.mark.integration
+@pytest.mark.asyncio
+class TestQdrantDocumentStoreAsync:
     @pytest.fixture
     def document_store(self) -> QdrantDocumentStore:
         return QdrantDocumentStore(
@@ -30,7 +125,6 @@ class TestQdrantDocumentStore:
             progress_bar=False,
         )
 
-    @pytest.mark.asyncio
     async def test_write_documents_async(self, document_store: QdrantDocumentStore):
         docs = [Document(id="1")]
 
@@ -39,7 +133,6 @@ class TestQdrantDocumentStore:
         with pytest.raises(DuplicateDocumentError):
             await document_store.write_documents_async(docs, DuplicatePolicy.FAIL)
 
-    @pytest.mark.asyncio
     async def test_sparse_configuration_async(self):
         document_store = QdrantDocumentStore(
             ":memory:",
@@ -58,7 +151,6 @@ class TestQdrantDocumentStore:
         assert hasattr(sparse_config[SPARSE_VECTORS_NAME], "modifier")
         assert sparse_config[SPARSE_VECTORS_NAME].modifier == rest.Modifier.IDF
 
-    @pytest.mark.asyncio
     async def test_query_hybrid_async(self, generate_sparse_embedding):
         document_store = QdrantDocumentStore(location=":memory:", use_sparse_embeddings=True, progress_bar=False)
 
@@ -83,7 +175,6 @@ class TestQdrantDocumentStore:
             assert document.sparse_embedding
             assert document.embedding
 
-    @pytest.mark.asyncio
     async def test_query_hybrid_with_group_by_async(self, generate_sparse_embedding):
         document_store = QdrantDocumentStore(location=":memory:", use_sparse_embeddings=True, progress_bar=False)
 
@@ -117,7 +208,6 @@ class TestQdrantDocumentStore:
             assert document.sparse_embedding
             assert document.embedding
 
-    @pytest.mark.asyncio
     async def test_query_hybrid_fail_without_sparse_embedding_async(self, document_store):
         sparse_embedding = SparseEmbedding(indices=[0, 1, 2, 3], values=[0.1, 0.8, 0.05, 0.33])
         embedding = [0.1] * 768
@@ -128,103 +218,6 @@ class TestQdrantDocumentStore:
                 query_embedding=embedding,
             )
 
-    @pytest.mark.asyncio
-    async def test_query_hybrid_search_batch_failure_async(self):
-        document_store = QdrantDocumentStore(location=":memory:", use_sparse_embeddings=True)
-        await document_store._initialize_async_client()
-        sparse_embedding = SparseEmbedding(indices=[0, 1, 2, 3], values=[0.1, 0.8, 0.05, 0.33])
-        embedding = [0.1] * 768
-
-        with patch.object(document_store._async_client, "query_points", side_effect=Exception("query_points")):
-            with pytest.raises(QdrantStoreError):
-                await document_store._query_hybrid_async(
-                    query_sparse_embedding=sparse_embedding, query_embedding=embedding
-                )
-
-    @pytest.mark.asyncio
-    async def test_set_up_collection_with_dimension_mismatch_async(self):
-        document_store = QdrantDocumentStore(location=":memory:", use_sparse_embeddings=False, similarity="cosine")
-        await document_store._initialize_async_client()
-        # Mock collection info with different vector size
-        mock_collection_info = MagicMock()
-        mock_collection_info.config.params.vectors = MagicMock()
-        mock_collection_info.config.params.vectors.distance = rest.Distance.COSINE
-        mock_collection_info.config.params.vectors.size = 512
-
-        with (
-            patch.object(document_store._async_client, "collection_exists", return_value=True),
-            patch.object(document_store._async_client, "get_collection", return_value=mock_collection_info),
-        ):
-            with pytest.raises(ValueError, match="different vector size"):
-                await document_store._set_up_collection_async("test_collection", 768, False, "cosine", False, False)
-
-    @pytest.mark.asyncio
-    async def test_set_up_collection_with_existing_incompatible_collection_async(self):
-        document_store = QdrantDocumentStore(location=":memory:", use_sparse_embeddings=True)
-        await document_store._initialize_async_client()
-        # Mock collection info with named vectors but missing DENSE_VECTORS_NAME
-        mock_collection_info = MagicMock()
-        mock_collection_info.config.params.vectors = {"some_other_vector": MagicMock()}
-
-        with (
-            patch.object(document_store._async_client, "collection_exists", return_value=True),
-            patch.object(document_store._async_client, "get_collection", return_value=mock_collection_info),
-        ):
-            with pytest.raises(QdrantStoreError, match="created outside of Haystack"):
-                await document_store._set_up_collection_async("test_collection", 768, False, "cosine", True, False)
-
-    @pytest.mark.asyncio
-    async def test_set_up_collection_use_sparse_embeddings_true_without_named_vectors_async(self):
-        """Test that an error is raised when use_sparse_embeddings is True but collection doesn't have named vectors"""
-        document_store = QdrantDocumentStore(location=":memory:", use_sparse_embeddings=True)
-        await document_store._initialize_async_client()
-
-        # Mock collection info without named vectors
-        mock_collection_info = MagicMock()
-        mock_collection_info.config.params.vectors = MagicMock(spec=rest.VectorsConfig)
-
-        with (
-            patch.object(document_store._async_client, "collection_exists", return_value=True),
-            patch.object(document_store._async_client, "get_collection", return_value=mock_collection_info),
-        ):
-            with pytest.raises(QdrantStoreError, match="without sparse embedding vectors"):
-                await document_store._set_up_collection_async("test_collection", 768, False, "cosine", True, False)
-
-    @pytest.mark.asyncio
-    async def test_set_up_collection_use_sparse_embeddings_false_with_named_vectors_async(self):
-        """Test that an error is raised when use_sparse_embeddings is False but collection has named vectors"""
-        document_store = QdrantDocumentStore(location=":memory:", use_sparse_embeddings=False)
-        await document_store._initialize_async_client()
-        # Mock collection info with named vectors
-        mock_collection_info = MagicMock()
-        mock_collection_info.config.params.vectors = {DENSE_VECTORS_NAME: MagicMock()}
-
-        with (
-            patch.object(document_store._async_client, "collection_exists", return_value=True),
-            patch.object(document_store._async_client, "get_collection", return_value=mock_collection_info),
-        ):
-            with pytest.raises(QdrantStoreError, match="with sparse embedding vectors"):
-                await document_store._set_up_collection_async("test_collection", 768, False, "cosine", False, False)
-
-    @pytest.mark.asyncio
-    async def test_set_up_collection_with_distance_mismatch_async(self):
-        document_store = QdrantDocumentStore(location=":memory:", use_sparse_embeddings=False, similarity="cosine")
-        await document_store._initialize_async_client()
-
-        # Mock collection info with different distance
-        mock_collection_info = MagicMock()
-        mock_collection_info.config.params.vectors = MagicMock()
-        mock_collection_info.config.params.vectors.distance = rest.Distance.DOT
-        mock_collection_info.config.params.vectors.size = 768
-
-        with (
-            patch.object(document_store._async_client, "collection_exists", return_value=True),
-            patch.object(document_store._async_client, "get_collection", return_value=mock_collection_info),
-        ):
-            with pytest.raises(ValueError, match="different similarity"):
-                await document_store._set_up_collection_async("test_collection", 768, False, "cosine", False, False)
-
-    @pytest.mark.asyncio
     async def test_delete_all_documents_async_no_index_recreation(self, document_store):
         await document_store._initialize_async_client()
 
@@ -240,7 +233,6 @@ class TestQdrantDocumentStore:
         await document_store.write_documents_async(docs)
         assert await document_store.count_documents_async() == 5
 
-    @pytest.mark.asyncio
     async def test_delete_all_documents_async_index_recreation(self, document_store):
         await document_store._initialize_async_client()
 
@@ -264,7 +256,6 @@ class TestQdrantDocumentStore:
         await document_store.write_documents_async(docs)
         assert await document_store.count_documents_async() == 5
 
-    @pytest.mark.asyncio
     async def test_delete_by_filter_async(self, document_store: QdrantDocumentStore):
         docs = [
             Document(content="Doc 1", meta={"category": "A", "year": 2023}),
@@ -295,7 +286,6 @@ class TestQdrantDocumentStore:
         assert deleted_count == 1
         assert await document_store.count_documents_async() == 0
 
-    @pytest.mark.asyncio
     async def test_delete_by_filter_async_no_matches(self, document_store: QdrantDocumentStore):
         docs = [
             Document(content="Doc 1", meta={"category": "A"}),
@@ -311,7 +301,6 @@ class TestQdrantDocumentStore:
         assert deleted_count == 0
         assert await document_store.count_documents_async() == 2
 
-    @pytest.mark.asyncio
     async def test_delete_by_filter_async_advanced_filters(self, document_store: QdrantDocumentStore):
         docs = [
             Document(content="Doc 1", meta={"category": "A", "year": 2023, "status": "draft"}),
@@ -347,7 +336,6 @@ class TestQdrantDocumentStore:
         assert deleted_count == 2
         assert await document_store.count_documents_async() == 0
 
-    @pytest.mark.asyncio
     async def test_update_by_filter_async(self, document_store: QdrantDocumentStore):
         docs = [
             Document(content="Doc 1", meta={"category": "A", "status": "draft"}),
@@ -383,7 +371,6 @@ class TestQdrantDocumentStore:
         assert len(draft_docs) == 1
         assert draft_docs[0].meta["category"] == "B"
 
-    @pytest.mark.asyncio
     async def test_update_by_filter_async_multiple_fields(self, document_store: QdrantDocumentStore):
         docs = [
             Document(content="Doc 1", meta={"category": "A", "year": 2023}),
@@ -413,7 +400,6 @@ class TestQdrantDocumentStore:
             assert doc.meta["category"] == "A"
             assert doc.meta["year"] == 2023  # Existing field preserved
 
-    @pytest.mark.asyncio
     async def test_update_by_filter_async_no_matches(self, document_store: QdrantDocumentStore):
         docs = [
             Document(content="Doc 1", meta={"category": "A"}),
@@ -429,7 +415,6 @@ class TestQdrantDocumentStore:
         assert updated_count == 0
         assert await document_store.count_documents_async() == 2
 
-    @pytest.mark.asyncio
     async def test_update_by_filter_async_advanced_filters(self, document_store: QdrantDocumentStore):
         docs = [
             Document(content="Doc 1", meta={"category": "A", "year": 2023, "status": "draft"}),
@@ -462,7 +447,6 @@ class TestQdrantDocumentStore:
         assert published_docs[0].meta["category"] == "A"
         assert published_docs[0].meta["year"] == 2023
 
-    @pytest.mark.asyncio
     async def test_update_by_filter_async_preserves_vectors(self, document_store: QdrantDocumentStore):
         """Test that update_by_filter_async preserves document embeddings."""
         docs = [
@@ -487,7 +471,6 @@ class TestQdrantDocumentStore:
         assert updated_docs[0].embedding is not None
         assert len(updated_docs[0].embedding) == 768
 
-    @pytest.mark.asyncio
     async def test_count_documents_by_filter_async(self, document_store: QdrantDocumentStore):
         """Test counting documents with filters (async)."""
         docs = [
@@ -520,7 +503,6 @@ class TestQdrantDocumentStore:
         )
         assert count == 1
 
-    @pytest.mark.asyncio
     async def test_get_metadata_fields_info_async(self, document_store: QdrantDocumentStore):
         """Test getting metadata field information (async)."""
         docs = [
@@ -533,7 +515,6 @@ class TestQdrantDocumentStore:
         # Should return empty dict or field info depending on Qdrant collection setup
         assert isinstance(fields_info, dict)
 
-    @pytest.mark.asyncio
     async def test_get_metadata_field_min_max_async(self, document_store: QdrantDocumentStore):
         """Test getting min/max values for a metadata field (async)."""
         docs = [
@@ -547,7 +528,6 @@ class TestQdrantDocumentStore:
         assert result.get("min") == 0.3
         assert result.get("max") == 0.8
 
-    @pytest.mark.asyncio
     async def test_count_unique_metadata_by_filter_async(self, document_store: QdrantDocumentStore):
         """Test counting unique metadata field values (async)."""
         docs = [
@@ -561,7 +541,6 @@ class TestQdrantDocumentStore:
         result = await document_store.count_unique_metadata_by_filter_async(filters={}, metadata_fields=["category"])
         assert result == {"category": 3}
 
-    @pytest.mark.asyncio
     async def test_count_unique_metadata_by_filter_async_multiple_fields(self, document_store: QdrantDocumentStore):
         """Test counting unique values for multiple metadata fields (async)."""
         docs = [
@@ -576,7 +555,6 @@ class TestQdrantDocumentStore:
         )
         assert result == {"category": 2, "status": 2}
 
-    @pytest.mark.asyncio
     async def test_count_unique_metadata_by_filter_async_with_filter(self, document_store: QdrantDocumentStore):
         """Test counting unique metadata field values with filtering (async)."""
         docs = [
@@ -592,7 +570,6 @@ class TestQdrantDocumentStore:
         )
         assert result == {"category": 2}
 
-    @pytest.mark.asyncio
     async def test_get_metadata_field_unique_values_async(self, document_store: QdrantDocumentStore):
         """Test getting unique metadata field values (async)."""
         docs = [
@@ -607,7 +584,6 @@ class TestQdrantDocumentStore:
         assert len(values) == 3
         assert set(values) == {"A", "B", "C"}
 
-    @pytest.mark.asyncio
     async def test_get_metadata_field_unique_values_async_pagination(self, document_store: QdrantDocumentStore):
         """Test getting unique metadata field values with pagination (async)."""
         docs = [Document(content=f"Doc {i}", meta={"value": i % 5}) for i in range(10)]
@@ -624,7 +600,6 @@ class TestQdrantDocumentStore:
         # Values should not overlap
         assert set(values_page_1) != set(values_page_2)
 
-    @pytest.mark.asyncio
     async def test_get_metadata_field_unique_values_async_with_filter(self, document_store: QdrantDocumentStore):
         """Test getting unique metadata field values with filtering (async)."""
         docs = [

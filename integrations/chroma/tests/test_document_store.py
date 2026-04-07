@@ -42,53 +42,7 @@ def clear_chroma_system_cache():
     SharedSystemClient.clear_system_cache()
 
 
-class TestDocumentStore(
-    CountDocumentsTest,
-    DeleteDocumentsTest,
-    FilterDocumentsTest,
-    FilterableDocsFixtureMixin,
-    UpdateByFilterTest,
-    DeleteAllTest,
-    DeleteByFilterTest,
-    CountDocumentsByFilterTest,
-    CountUniqueMetadataByFilterTest,
-    GetMetadataFieldsInfoTest,
-    GetMetadataFieldMinMaxTest,
-    GetMetadataFieldUniqueValuesTest,
-):
-    """
-    Common test cases will be provided by `DocumentStoreBaseTests` but
-    you can add more to this class.
-    """
-
-    @pytest.fixture
-    def document_store(self, embedding_function) -> ChromaDocumentStore:
-        """
-        This is the most basic requirement for the child class: provide
-        an instance of this document store so the base class can use it.
-        """
-        with mock.patch(
-            "haystack_integrations.document_stores.chroma.document_store.get_embedding_function"
-        ) as get_func:
-            get_func.return_value = embedding_function
-            return ChromaDocumentStore(embedding_function="test_function", collection_name=str(uuid.uuid1()))
-
-    def assert_documents_are_equal(self, received: list[Document], expected: list[Document]):
-        """
-        Assert that two lists of Documents are equal.
-        This is used in every test, if a Document Store implementation has a different behaviour
-        it should override this method.
-
-        This can happen for example when the Document Store sets a score to returned Documents.
-        Since we can't know what the score will be, we can't compare the Documents reliably.
-        """
-        received.sort(key=operator.attrgetter("id"))
-        expected.sort(key=operator.attrgetter("id"))
-
-        for doc_received, doc_expected in zip(received, expected, strict=True):
-            assert doc_received.content == doc_expected.content
-            assert doc_received.meta == doc_expected.meta
-
+class TestDocumentStoreUnit:
     def test_init_in_memory(self):
         store = ChromaDocumentStore()
 
@@ -121,17 +75,6 @@ class TestDocumentStore(
         with pytest.raises(ValueError):
             store = ChromaDocumentStore(persist_path="./path/to/local/store", host="localhost")
             store._ensure_initialized()
-
-    def test_client_settings_applied(self, clear_chroma_system_cache):
-        """
-        Chroma's in-memory client uses a singleton pattern with an internal cache.
-        Once a client is created with certain settings, Chroma rejects creating another
-        with different settings in the same process. We clear the cache before and after
-        this test to avoid conflicts with other tests that use default settings.
-        """
-        store = ChromaDocumentStore(client_settings={"anonymized_telemetry": False})
-        store._ensure_initialized()
-        assert store._client.get_settings().anonymized_telemetry is False
 
     def test_to_dict(self, request):
         ds = ChromaDocumentStore(
@@ -181,6 +124,66 @@ class TestDocumentStore(
     def test_same_collection_name_reinitialization(self):
         ChromaDocumentStore("test_1")
         ChromaDocumentStore("test_1")
+
+
+@pytest.mark.integration
+class TestDocumentStore(
+    CountDocumentsTest,
+    DeleteDocumentsTest,
+    FilterDocumentsTest,
+    FilterableDocsFixtureMixin,
+    UpdateByFilterTest,
+    DeleteAllTest,
+    DeleteByFilterTest,
+    CountDocumentsByFilterTest,
+    CountUniqueMetadataByFilterTest,
+    GetMetadataFieldsInfoTest,
+    GetMetadataFieldMinMaxTest,
+    GetMetadataFieldUniqueValuesTest,
+):
+    """
+    Common test cases will be provided by `DocumentStoreBaseTests` but
+    you can add more to this class.
+    """
+
+    @pytest.fixture
+    def document_store(self, embedding_function) -> ChromaDocumentStore:
+        """
+        This is the most basic requirement for the child class: provide
+        an instance of this document store so the base class can use it.
+        """
+        with mock.patch(
+            "haystack_integrations.document_stores.chroma.document_store.get_embedding_function"
+        ) as get_func:
+            get_func.return_value = embedding_function
+            return ChromaDocumentStore(embedding_function="test_function", collection_name=str(uuid.uuid1()))
+
+    def assert_documents_are_equal(self, received: list[Document], expected: list[Document]):
+        """
+        Assert that two lists of Documents are equal.
+        This is used in every test, if a Document Store implementation has a different behaviour
+        it should override this method.
+
+        This can happen for example when the Document Store sets a score to returned Documents.
+        Since we can't know what the score will be, we can't compare the Documents reliably.
+        """
+        received.sort(key=operator.attrgetter("id"))
+        expected.sort(key=operator.attrgetter("id"))
+
+        for doc_received, doc_expected in zip(received, expected, strict=True):
+            assert doc_received.content == doc_expected.content
+            assert doc_received.meta == doc_expected.meta
+
+    def test_client_settings_applied(self, clear_chroma_system_cache):
+        """
+        Chroma's in-memory client uses a singleton pattern with an internal cache.
+        Once a client is created with certain settings, Chroma rejects creating another
+        with different settings in the same process. We clear the cache before and after
+        this test to avoid conflicts with other tests that use default settings.
+        """
+        store = ChromaDocumentStore(client_settings={"anonymized_telemetry": False})
+        store._ensure_initialized()
+        assert store._client.get_settings().anonymized_telemetry is False
 
     def test_distance_metric_initialization(self):
         store = ChromaDocumentStore("test_2", distance_function="cosine")
@@ -445,7 +448,6 @@ class TestDocumentStore(
     def test_not_operator(self, document_store, filterable_docs):
         pass
 
-    @pytest.mark.integration
     def test_search(self):
         document_store = ChromaDocumentStore()
         documents = [
@@ -491,7 +493,6 @@ class TestDocumentStore(
         document_store.write_documents(docs)
         assert document_store.count_documents() == 2
 
-    @pytest.mark.integration
     def test_search_embeddings(self, document_store: ChromaDocumentStore):
         query_embedding = TEST_EMBEDDING_1
         documents = [
@@ -515,6 +516,7 @@ class TestDocumentStore(
         assert len(result_empty_filters[0]) == 2
 
 
+@pytest.mark.integration
 class TestMetadataOperations:
     """Test new metadata query operations for ChromaDocumentStore"""
 

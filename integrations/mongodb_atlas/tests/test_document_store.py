@@ -272,7 +272,6 @@ class TestDocumentStore(
         assert len(values_page) == 1
         assert values_page[0] in ["alpha", "beta", "gamma"]
 
-    @pytest.mark.integration
     def test_custom_embedding_field(self):
         """Test that the custom embedding field is correctly used in the document store."""
         # Create a document store with a custom embedding field
@@ -315,7 +314,6 @@ class TestDocumentStore(
         finally:
             database[collection_name].drop()
 
-    @pytest.mark.integration
     def test_custom_content_field(self):
         """Test that the custom content field is correctly used in the document store."""
         # Create a document store with a custom content field

@@ -1,5 +1,27 @@
 # Changelog
 
+## [integrations/opensearch-v7.1.0] - 2026-04-01
+
+### 🚀 Features
+
+- *(opensearch)* Handle errors due to clause overflow caused by fuzziness (#3068)
+
+### 🚜 Refactor
+
+- Weaviate, chroma, elasticsearch, opensearch, azure_ai_search use `_normalize_metadata_field_name` from haystack.utils (#2953)
+
+### 🧪 Testing
+
+- `OpensearchDocumentStore` use more Mixin tests (#3002)
+- Test compatible integrations with python 3.14; update pyproject (#3001)
+- Track test coverage for all integrations (#3065)
+
+### 🧹 Chores
+
+- Add ANN ruff ruleset to llama_cpp, llama_stack, mcp, meta_llama, mistral, mongodb_atlas, nvidia, ollama, openrouter, opensearch (#2991)
+- Enforce ruff docstring rules in integrations 31-40 (openrouter, opensearch, optimum, paddleocr, pgvector, pinecone, pyversity, qdrant, ragas, snowflake) (#3011)
+
+
 ## [integrations/opensearch-v7.0.0] - 2026-03-19
 
 ### 🐛 Bug Fixes

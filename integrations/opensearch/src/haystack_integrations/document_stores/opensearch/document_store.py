@@ -14,7 +14,7 @@ from haystack.document_stores.errors import DocumentStoreError, DuplicateDocumen
 from haystack.document_stores.types import DuplicatePolicy
 from haystack.utils.auth import Secret
 from haystack.utils.misc import _normalize_metadata_field_name
-from opensearchpy import AsyncHttpConnection, AsyncOpenSearch, OpenSearch
+from opensearchpy import AsyncHttpConnection, AsyncOpenSearch, OpenSearch, TransportError
 from opensearchpy.helpers import async_bulk, bulk
 
 from haystack_integrations.document_stores.opensearch.auth import AsyncAWSAuth, AWSAuth
@@ -979,7 +979,27 @@ class OpenSearchDocumentStore:
             all_terms_must_match=all_terms_must_match,
             custom_query=custom_query,
         )
-        documents = self._search_documents(search_params)
+        try:
+            documents = self._search_documents(search_params)
+        except TransportError as e:
+            if "too_many_clauses" in f"{e.info} {e.error}" and fuzziness not in (0, "0") and custom_query is None:
+                logger.warning(
+                    "BM25 query with fuzziness='{fuzziness}' exceeded OpenSearch's clause limit. "
+                    "Retrying with fuzziness=0 (exact matching). Consider reducing query length or "
+                    "setting fuzziness=0 explicitly if this occurs frequently.",
+                    fuzziness=fuzziness,
+                )
+                search_params = self._prepare_bm25_search_request(
+                    query=query,
+                    filters=filters,
+                    fuzziness=0,
+                    top_k=top_k,
+                    all_terms_must_match=all_terms_must_match,
+                    custom_query=custom_query,
+                )
+                documents = self._search_documents(search_params)
+            else:
+                raise
         OpenSearchDocumentStore._postprocess_bm25_search_results(results=documents, scale_score=scale_score)
         return documents
 
@@ -1019,7 +1039,27 @@ class OpenSearchDocumentStore:
             all_terms_must_match=all_terms_must_match,
             custom_query=custom_query,
         )
-        documents = await self._search_documents_async(search_params)
+        try:
+            documents = await self._search_documents_async(search_params)
+        except TransportError as e:
+            if "too_many_clauses" in f"{e.info} {e.error}" and fuzziness not in (0, "0") and custom_query is None:
+                logger.warning(
+                    "BM25 query with fuzziness='{fuzziness}' exceeded OpenSearch's clause limit. "
+                    "Retrying with fuzziness=0 (exact matching). Consider reducing query length or "
+                    "setting fuzziness=0 explicitly if this occurs frequently.",
+                    fuzziness=fuzziness,
+                )
+                search_params = self._prepare_bm25_search_request(
+                    query=query,
+                    filters=filters,
+                    fuzziness=0,
+                    top_k=top_k,
+                    all_terms_must_match=all_terms_must_match,
+                    custom_query=custom_query,
+                )
+                documents = await self._search_documents_async(search_params)
+            else:
+                raise
         OpenSearchDocumentStore._postprocess_bm25_search_results(results=documents, scale_score=scale_score)
         return documents
 
