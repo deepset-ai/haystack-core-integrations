@@ -143,17 +143,13 @@ class DoclingConverter:
                     tmp.write(source.data)
                     tmp_path = Path(tmp.name)
                 try:
-                    dl_doc = self._converter_instance.convert(
-                        source=tmp_path, **self.convert_kwargs
-                    ).document
+                    dl_doc = self._converter_instance.convert(source=tmp_path, **self.convert_kwargs).document
                 finally:
                     os.unlink(tmp_path)
                 # merge ByteStream meta (e.g. file_path, mime_type) with user-supplied meta
                 merged_meta = {**source.meta, **source_meta}
             else:
-                dl_doc = self._converter_instance.convert(
-                    source=source, **self.convert_kwargs
-                ).document
+                dl_doc = self._converter_instance.convert(source=source, **self.convert_kwargs).document
                 merged_meta = source_meta
 
             if self.export_type == ExportType.DOC_CHUNKS:
