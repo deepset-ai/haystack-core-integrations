@@ -1,5 +1,6 @@
 from unittest.mock import patch
 
+import aiobotocore.session
 import pytest
 from botocore.exceptions import BotoCoreError
 
@@ -10,13 +11,10 @@ from haystack_integrations.common.amazon_bedrock.utils import aws_configured, ge
 class TestGetAwsSession:
     def test_async_session_no_profile(self):
         session = get_aws_session(async_mode=True)
-        import aiobotocore.session
-
         assert isinstance(session, aiobotocore.session.AioSession)
 
     def test_async_session_with_profile(self):
         session = get_aws_session(async_mode=True, aws_profile_name="my-profile")
-        import aiobotocore.session
 
         assert isinstance(session, aiobotocore.session.AioSession)
         assert session.get_config_variable("profile") == "my-profile"
