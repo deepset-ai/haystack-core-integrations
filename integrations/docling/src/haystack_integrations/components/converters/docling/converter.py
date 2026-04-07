@@ -104,7 +104,7 @@ class DoclingConverter:
         self,
         sources: list[str | Path | ByteStream] | None = None,
         meta: dict[str, Any] | list[dict[str, Any]] | None = None,
-        paths: list[str | Path] | None = None,
+        paths: list[str | Path | ByteStream] | None = None,
     ) -> dict[str, list[Document]]:
         """
         Run the DoclingConverter.
