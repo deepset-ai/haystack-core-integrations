@@ -108,6 +108,11 @@ integration:hanlp:
       - any-glob-to-any-file: "integrations/hanlp/**/*"
       - any-glob-to-any-file: ".github/workflows/hanlp.yml"
 
+integration:hpc-ai:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/hpc_ai/**/*"
+      - any-glob-to-any-file: ".github/workflows/hpc_ai.yml"
+
 integration:jina:
   - changed-files:
       - any-glob-to-any-file: "integrations/jina/**/*"

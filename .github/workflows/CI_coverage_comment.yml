@@ -23,6 +23,7 @@ on:
       - "Test / github"
       - "Test / google-genai"
       - "Test / hanlp"
+      - "Test / hpc_ai"
       - "Test / jina"
       - "Test / kreuzberg"
       - "Test / langfuse"

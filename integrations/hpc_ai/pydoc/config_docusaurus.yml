@@ -1,0 +1,13 @@
+loaders:
+  - modules:
+      - haystack_integrations.components.generators.hpc_ai.chat.chat_generator
+    search_path: [../src]
+processors:
+  - type: filter
+    documented_only: true
+    skip_empty_modules: true
+renderer:
+  description: HPC-AI integration for Haystack
+  id: integrations-hpc-ai
+  filename: hpc_ai.md
+  title: HPC-AI
