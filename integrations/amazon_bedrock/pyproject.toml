@@ -174,11 +174,6 @@ omit = ["*/tests/*", "*/__init__.py"]
 show_missing = true
 exclude_lines = ["no cov", "if __name__ == .__main__.:", "if TYPE_CHECKING:"]
 
-[tool.uv]
-# aiobotocore 2.25.1 pins botocore<1.40.62 but works fine with newer botocore in practice.
-# outputConfig support in the Bedrock Converse API requires botocore>=1.42.84.
-# Override the transitive constraint so uv can resolve the dependency graph.
-override-dependencies = ["botocore>=1.42.84", "boto3>=1.42.84"]
 
 [tool.pytest.ini_options]
 addopts = "--strict-markers"
