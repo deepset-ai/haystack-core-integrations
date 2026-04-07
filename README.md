@@ -4,9 +4,9 @@
 
 | Name                                                                    |    Stmts |     Miss |   Branch |   BrPart |   Cover |   Missing |
 |------------------------------------------------------------------------ | -------: | -------: | -------: | -------: | ------: | --------: |
-| src/haystack\_integrations/components/converters/kreuzberg/converter.py |      184 |        3 |       70 |        2 |     98% |222-\>231, 284-\>289, 540-542 |
-| src/haystack\_integrations/components/converters/kreuzberg/utils.py     |       36 |        1 |       10 |        1 |     96% |        57 |
-| **TOTAL**                                                               |  **220** |    **4** |   **80** |    **3** | **98%** |           |
+| src/haystack\_integrations/components/converters/kreuzberg/converter.py |      190 |        3 |       76 |        3 |     98% |223-\>232, 273-\>275, 287-\>292, 543-545 |
+| src/haystack\_integrations/components/converters/kreuzberg/utils.py     |       38 |        1 |       10 |        1 |     96% |        70 |
+| **TOTAL**                                                               |  **228** |    **4** |   **86** |    **4** | **97%** |           |
 
 
 ## Setup coverage badge
