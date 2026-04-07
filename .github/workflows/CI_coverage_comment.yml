@@ -15,6 +15,7 @@ on:
       - "Test / cohere"
       - "Test / cometapi"
       - "Test / deepeval"
+      - "Test / dspy"
       - "Test / elasticsearch"
       - "Test / faiss"
       - "Test / fastembed"
