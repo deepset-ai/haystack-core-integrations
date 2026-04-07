@@ -35,7 +35,7 @@ dependencies = [
 # Installing from source might fail due to missing dependencies (CMake fails with "OpenMP not found")
 [tool.uv]
 index-strategy = "unsafe-best-match"  # this ensures that packages are not only searched in the below index but also in PyPI
-override-dependencies = ["llama-cpp-python!=0.3.20"] # this version is broken on the additional index
+override-dependencies = ["llama-cpp-python!=0.3.20; sys_platform == 'darwin'"] # this version is broken on the additional macOS index
 [[tool.uv.index]]
 name = "llama-cpp-python-macos"
 url = "https://abetlen.github.io/llama-cpp-python/whl/metal/"
