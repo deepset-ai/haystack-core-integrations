@@ -144,6 +144,54 @@ def document_store_embedding_dim_4_no_emb_returned_faiss():
 
 
 @pytest.fixture
+def document_store_nested():
+    """
+    OpenSearch document store with explicit nested fields.
+    """
+    hosts = ["https://localhost:9200"]
+    index = _get_unique_index_name()
+
+    store = OpenSearchDocumentStore(
+        hosts=hosts,
+        index=index,
+        http_auth=("admin", "SecureHaystack!2026"),
+        verify_certs=False,
+        embedding_dim=768,
+        return_embedding=False,
+        nested_fields=["refs", "tags"],
+    )
+    store._ensure_initialized()
+    yield store
+
+    assert store._client
+    store._client.indices.delete(index=index, params={"ignore": [400, 404]})
+
+
+@pytest.fixture
+def document_store_wildcard_nested():
+    """
+    OpenSearch document store with wildcard nested field auto-detection.
+    """
+    hosts = ["https://localhost:9200"]
+    index = _get_unique_index_name()
+
+    store = OpenSearchDocumentStore(
+        hosts=hosts,
+        index=index,
+        http_auth=("admin", "SecureHaystack!2026"),
+        verify_certs=False,
+        embedding_dim=768,
+        return_embedding=False,
+        nested_fields=["*"],
+    )
+    store._ensure_initialized()
+    yield store
+
+    assert store._client
+    store._client.indices.delete(index=index, params={"ignore": [400, 404]})
+
+
+@pytest.fixture
 def test_documents():
     return [
         Document(
