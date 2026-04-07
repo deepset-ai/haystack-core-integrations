@@ -4,6 +4,8 @@ import pytest
 import pytest_asyncio
 from haystack import Document
 from haystack.dataclasses import SparseEmbedding
+from haystack.document_stores.errors import DuplicateDocumentError
+from haystack.document_stores.types import DuplicatePolicy
 from haystack.testing.document_store import (
     CountDocumentsByFilterAsyncTest,
     CountUniqueMetadataByFilterAsyncTest,
@@ -144,6 +146,25 @@ class TestQdrantDocumentStoreAsync(
             progress_bar=False,
         )
         yield store
+
+    def assert_documents_are_equal(self, received: list[Document], expected: list[Document]):
+        assert len(received) == len(expected)
+        assert {doc.id for doc in received} == {doc.id for doc in expected}
+
+    @pytest.mark.asyncio
+    async def test_write_documents_async(self, document_store: QdrantDocumentStore):
+        docs = [Document(id="1")]
+        assert await document_store.write_documents_async(docs) == 1
+        with pytest.raises(DuplicateDocumentError):
+            await document_store.write_documents_async(docs, DuplicatePolicy.FAIL)
+
+    @pytest.mark.asyncio
+    async def test_count_not_empty_async(self, document_store: QdrantDocumentStore):
+        # Override needed: base class mixin is missing `self`, causing fixture injection failure
+        await document_store.write_documents_async(
+            [Document(content="test doc 1"), Document(content="test doc 2"), Document(content="test doc 3")]
+        )
+        assert await document_store.count_documents_async() == 3
 
     async def test_sparse_configuration_async(self):
         document_store = QdrantDocumentStore(
