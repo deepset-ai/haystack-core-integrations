@@ -27,18 +27,22 @@ classifiers = [
     "Programming Language :: Python :: Implementation :: PyPy",
 ]
 dependencies = [
-    "haystack-ai>=2.22.0",
-    "llama-cpp-python>=0.2.87"
+    "haystack-ai>=2.22.0", "llama-cpp-python>=0.2.87"
 ]
 
-# On macOS GitHub runners, we use a custom index to download pre-built wheels.
-# Installing from source might fail due to missing dependencies (CMake fails with "OpenMP not found")
-[tool.uv]
-index-strategy = "unsafe-best-match"  # this ensures that packages are not only searched in the below index but also in PyPI
-override-dependencies = ["llama-cpp-python!=0.3.20; sys_platform == 'darwin'"] # this version is broken on the additional macOS index
+# On macOS, building `llama-cpp-python` from source often fails on GitHub runners (CMake: "OpenMP not found"), so we 
+# pull pre-built Metal wheels from a custom index. Linux/Windows resolve normally from PyPI.
 [[tool.uv.index]]
 name = "llama-cpp-python-macos"
 url = "https://abetlen.github.io/llama-cpp-python/whl/metal/"
+explicit = true
+[tool.uv.sources]
+llama-cpp-python = [
+    { index = "llama-cpp-python-macos", marker = "sys_platform == 'darwin'" },
+]
+[tool.uv]
+# 0.3.20 is broken on the Metal index
+override-dependencies = ["llama-cpp-python!=0.3.20; sys_platform == 'darwin'"]
 
 [project.urls]
 Documentation = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/llama_cpp#readme"
