@@ -26,12 +26,16 @@ classifiers = [
     "Programming Language :: Python :: Implementation :: CPython",
     "Programming Language :: Python :: Implementation :: PyPy",
 ]
-dependencies = ["haystack-ai>=2.22.0", "llama-cpp-python>=0.2.87"]
+dependencies = [
+    "haystack-ai>=2.22.0",
+    "llama-cpp-python>=0.2.87"
+]
 
 # On macOS GitHub runners, we use a custom index to download pre-built wheels.
 # Installing from source might fail due to missing dependencies (CMake fails with "OpenMP not found")
 [tool.uv]
 index-strategy = "unsafe-best-match"  # this ensures that packages are not only searched in the below index but also in PyPI
+override-dependencies = ["llama-cpp-python!=0.3.20"] # this version is broken on the additional index
 [[tool.uv.index]]
 name = "llama-cpp-python-macos"
 url = "https://abetlen.github.io/llama-cpp-python/whl/metal/"
