@@ -37,6 +37,7 @@ from .utils import (
     _is_batch_error,
     _serialize_annotations,
     _serialize_images,
+    _serialize_keywords,
     _serialize_warnings,
 )
 
@@ -267,11 +268,21 @@ class KreuzbergConverter:
 
         Flattens kreuzberg's metadata fields and enriches with top-level result attributes.
 
-        Fields already present in `result.metadata` (`quality_score`,
-        `output_format`, `keywords`) are passed through as-is - they
-        don't need separate serialization. None values are filtered out.
+        As of kreuzberg 4.7, fields like `output_format`, `quality_score`, and
+        `extracted_keywords` are top-level attributes on `ExtractionResult` rather
+        than entries in `result.metadata`, so they're explicitly merged in here.
+        None values are filtered out.
         """
         meta: dict[str, Any] = {k: v for k, v in result.metadata.items() if v is not None}
+
+        # Top-level ExtractionResult attrs that used to live in `metadata` (kreuzberg < 4.7).
+        # `extracted_keywords` is exposed under the legacy `keywords` key for back-compat.
+        if (output_format := getattr(result, "output_format", None)) is not None:
+            meta["output_format"] = output_format
+        if (quality_score := getattr(result, "quality_score", None)) is not None:
+            meta["quality_score"] = quality_score
+        if extracted_keywords := getattr(result, "extracted_keywords", None):
+            meta["keywords"] = _serialize_keywords(extracted_keywords)
 
         if result.processing_warnings:
             meta["processing_warnings"] = _serialize_warnings(result.processing_warnings)
