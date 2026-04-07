@@ -711,10 +711,9 @@ class PineconeDocumentStore:
                 )
                 embedding = self._dummy_vector
 
-            if document.meta:
-                document = self._discard_invalid_meta(document)
+            filtered_meta = self._discard_invalid_meta(document).meta if document.meta else {}
 
-            metadata = dict(document.meta) if document.meta else {}
+            metadata = dict(filtered_meta) if filtered_meta else {}
 
             # we save content as metadata
             if document.content is not None:
