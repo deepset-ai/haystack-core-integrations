@@ -4,7 +4,7 @@
 
 from typing import Any
 
-import aioboto3
+import aiobotocore.session
 import boto3
 from botocore.exceptions import BotoCoreError
 
@@ -27,7 +27,7 @@ def get_aws_session(
     aws_profile_name: str | None = None,
     async_mode: bool = False,
     **kwargs: Any,
-) -> boto3.Session | aioboto3.Session:
+) -> boto3.Session | aiobotocore.session.AioSession:
     """
     Creates an AWS Session with the given parameters.
 
@@ -46,13 +46,10 @@ def get_aws_session(
     """
     try:
         if async_mode:
-            return aioboto3.Session(
-                aws_access_key_id=aws_access_key_id,
-                aws_secret_access_key=aws_secret_access_key,
-                aws_session_token=aws_session_token,
-                region_name=aws_region_name,
-                profile_name=aws_profile_name,
-            )
+            session = aiobotocore.session.AioSession()
+            if aws_profile_name:
+                session.set_config_variable("profile", aws_profile_name)
+            return session
 
         return boto3.Session(
             aws_access_key_id=aws_access_key_id,

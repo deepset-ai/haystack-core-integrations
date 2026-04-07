@@ -23,7 +23,7 @@ classifiers = [
   "Programming Language :: Python :: Implementation :: CPython",
   "Programming Language :: Python :: Implementation :: PyPy",
 ]
-dependencies = ["haystack-ai>=2.24.1", "boto3>=1.42.84", "aioboto3>=14.0.0"]
+dependencies = ["haystack-ai>=2.24.1", "boto3>=1.42.84", "aiobotocore>=3.4.0"]
 
 
 
@@ -88,7 +88,7 @@ disallow_incomplete_defs = true
 [[tool.mypy.overrides]]
 # unfortunately, unofficial type stubs do not play well with some features of Bedrock
 module = [
-"aioboto3.*",
+"aiobotocore.*",
 "botocore.*",
 "boto3.*",
 ]
