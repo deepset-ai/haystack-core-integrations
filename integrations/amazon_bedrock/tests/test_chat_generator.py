@@ -4,6 +4,7 @@ from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from botocore.exceptions import ClientError
 from haystack import Pipeline
 from haystack.components.agents import Agent
 from haystack.components.generators.utils import print_streaming_chunk
@@ -19,6 +20,7 @@ from haystack.dataclasses import (
 )
 from haystack.tools import Tool, Toolset, create_tool_from_function
 
+from haystack_integrations.common.amazon_bedrock.errors import AmazonBedrockInferenceError
 from haystack_integrations.components.generators.amazon_bedrock import (
     AmazonBedrockChatGenerator,
 )
@@ -712,9 +714,6 @@ class TestAmazonBedrockChatGenerator:
         assert result["replies"][0].text == "Paris"
 
     def test_run_client_error(self, mock_boto3_session, set_env_variables):
-        from botocore.exceptions import ClientError
-
-        from haystack_integrations.common.amazon_bedrock.errors import AmazonBedrockInferenceError
 
         generator = AmazonBedrockChatGenerator(model="global.anthropic.claude-sonnet-4-6")
         generator.client = MagicMock()
@@ -730,9 +729,7 @@ class TestAmazonBedrockChatGenerator:
         def callback(chunk: StreamingChunk):
             chunks.append(chunk)
 
-        generator = AmazonBedrockChatGenerator(
-            model="global.anthropic.claude-sonnet-4-6", streaming_callback=callback
-        )
+        generator = AmazonBedrockChatGenerator(model="global.anthropic.claude-sonnet-4-6", streaming_callback=callback)
         generator.client = MagicMock()
         events = [
             {"messageStart": {"role": "assistant"}},
@@ -749,7 +746,6 @@ class TestAmazonBedrockChatGenerator:
         assert len(chunks) > 0
 
     def test_run_with_json_schema_parses_structured_output(self, mock_boto3_session, set_env_variables):
-        from haystack_integrations.common.amazon_bedrock.errors import AmazonBedrockInferenceError  # noqa: F401
 
         generator = AmazonBedrockChatGenerator(model="global.anthropic.claude-sonnet-4-6")
         generator.client = MagicMock()
