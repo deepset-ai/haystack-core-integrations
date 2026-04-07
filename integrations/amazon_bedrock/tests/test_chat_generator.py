@@ -1518,3 +1518,47 @@ class TestAmazonBedrockChatGeneratorAsyncInference:
         assert len(final_message.text) > 0
         assert "paris" in final_message.text.lower()
         assert "berlin" in final_message.text.lower()
+
+    @pytest.mark.asyncio
+    async def test_async_run_with_structured_output(self):
+        """
+        Test that run_async returns structured JSON output validated against a schema.
+        """
+        client = AmazonBedrockChatGenerator(model="global.anthropic.claude-sonnet-4-6")
+
+        messages = [ChatMessage.from_user("Extract the person's name and age from: 'Alice is 30 years old.'")]
+        schema = {
+            "type": "object",
+            "properties": {
+                "name": {"type": "string"},
+                "age": {"type": "integer"},
+            },
+            "required": ["name", "age"],
+            "additionalProperties": False,
+        }
+
+        response = await client.run_async(
+            messages,
+            generation_kwargs={
+                "json_schema": {
+                    "name": "person",
+                    "description": "A person's name and age",
+                    "schema": schema,
+                }
+            },
+        )
+
+        assert "replies" in response
+        assert len(response["replies"]) > 0
+
+        reply = response["replies"][0]
+        assert reply.text is not None
+
+        parsed = json.loads(reply.text)
+        assert isinstance(parsed, dict)
+
+        assert "structured_output" in reply.meta
+        assert reply.meta["structured_output"] == parsed
+
+        assert isinstance(reply.meta["structured_output"].get("name"), str)
+        assert isinstance(reply.meta["structured_output"].get("age"), int)
