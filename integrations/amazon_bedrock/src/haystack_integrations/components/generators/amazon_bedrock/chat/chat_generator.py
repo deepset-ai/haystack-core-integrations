@@ -248,9 +248,7 @@ class AmazonBedrockChatGenerator:
             aws_access_key_id = Secret.from_env_var(["AWS_ACCESS_KEY_ID"], strict=False)
 
         if aws_secret_access_key is None:
-            aws_secret_access_key = Secret.from_env_var(
-                ["AWS_SECRET_ACCESS_KEY"], strict=False
-            )
+            aws_secret_access_key = Secret.from_env_var(["AWS_SECRET_ACCESS_KEY"], strict=False)
 
         if aws_session_token is None:
             aws_session_token = Secret.from_env_var(["AWS_SESSION_TOKEN"], strict=False)
@@ -271,15 +269,11 @@ class AmazonBedrockChatGenerator:
         _check_duplicate_tool_names(flatten_tools_or_toolsets(tools))
         self.tools = tools
 
-        _validate_guardrail_config(
-            guardrail_config=guardrail_config, streaming=streaming_callback is not None
-        )
+        _validate_guardrail_config(guardrail_config=guardrail_config, streaming=streaming_callback is not None)
         self.guardrail_config = guardrail_config
 
         self.tools_cachepoint_config = (
-            _validate_and_format_cache_point(tools_cachepoint_config)
-            if tools_cachepoint_config
-            else None
+            _validate_and_format_cache_point(tools_cachepoint_config) if tools_cachepoint_config else None
         )
 
         def resolve_secret(secret: Secret | None) -> str | None:
@@ -329,31 +323,13 @@ class AmazonBedrockChatGenerator:
 
         try:
             self.async_session = get_aws_session(
-                aws_access_key_id=(
-                    self.aws_access_key_id.resolve_value()
-                    if self.aws_access_key_id
-                    else None
-                ),
+                aws_access_key_id=(self.aws_access_key_id.resolve_value() if self.aws_access_key_id else None),
                 aws_secret_access_key=(
-                    self.aws_secret_access_key.resolve_value()
-                    if self.aws_secret_access_key
-                    else None
+                    self.aws_secret_access_key.resolve_value() if self.aws_secret_access_key else None
                 ),
-                aws_session_token=(
-                    self.aws_session_token.resolve_value()
-                    if self.aws_session_token
-                    else None
-                ),
-                aws_region_name=(
-                    self.aws_region_name.resolve_value()
-                    if self.aws_region_name
-                    else None
-                ),
-                aws_profile_name=(
-                    self.aws_profile_name.resolve_value()
-                    if self.aws_profile_name
-                    else None
-                ),
+                aws_session_token=(self.aws_session_token.resolve_value() if self.aws_session_token else None),
+                aws_region_name=(self.aws_region_name.resolve_value() if self.aws_region_name else None),
+                aws_profile_name=(self.aws_profile_name.resolve_value() if self.aws_profile_name else None),
                 async_mode=True,
             )
             return self.async_session
@@ -372,11 +348,7 @@ class AmazonBedrockChatGenerator:
         :returns:
             Dictionary with serialized data.
         """
-        callback_name = (
-            serialize_callable(self.streaming_callback)
-            if self.streaming_callback
-            else None
-        )
+        callback_name = serialize_callable(self.streaming_callback) if self.streaming_callback else None
         return default_to_dict(
             self,
             aws_access_key_id=self.aws_access_key_id,
@@ -411,9 +383,7 @@ class AmazonBedrockChatGenerator:
 
         serialized_callback_handler = init_params.get("streaming_callback")
         if serialized_callback_handler:
-            data["init_parameters"]["streaming_callback"] = deserialize_callable(
-                serialized_callback_handler
-            )
+            data["init_parameters"]["streaming_callback"] = deserialize_callable(serialized_callback_handler)
         deserialize_tools_or_toolset_inplace(data["init_parameters"], key="tools")
         return default_from_dict(cls, data)
 
@@ -489,9 +459,7 @@ class AmazonBedrockChatGenerator:
         json_schema = merged_kwargs.pop("json_schema", None)
         if flattened_tools:
             # Format Haystack tools to Bedrock format
-            tool_config = _format_tools(
-                flattened_tools, tools_cachepoint_config=self.tools_cachepoint_config
-            )
+            tool_config = _format_tools(flattened_tools, tools_cachepoint_config=self.tools_cachepoint_config)
 
         # Any remaining kwargs go to additionalModelRequestFields
         additional_fields = merged_kwargs if merged_kwargs else None
@@ -545,14 +513,10 @@ class AmazonBedrockChatGenerator:
 
         return params, callback
 
-    def _resolve_flattened_generation_kwargs(
-        self, generation_kwargs: dict[str, Any]
-    ) -> dict[str, Any]:
+    def _resolve_flattened_generation_kwargs(self, generation_kwargs: dict[str, Any]) -> dict[str, Any]:
         generation_kwargs = generation_kwargs.copy()
 
-        disable_parallel_tool_use = generation_kwargs.pop(
-            "disable_parallel_tool_use", None
-        )
+        disable_parallel_tool_use = generation_kwargs.pop("disable_parallel_tool_use", None)
         parallel_tool_use = generation_kwargs.pop("parallel_tool_use", None)
 
         if disable_parallel_tool_use is not None and parallel_tool_use is not None:

@@ -477,9 +477,7 @@ class TestAmazonBedrockChatGenerator:
             }
         }
 
-    def test_prepare_request_params_json_schema_missing_schema_key(
-        self, mock_boto3_session, set_env_variables
-    ):
+    def test_prepare_request_params_json_schema_missing_schema_key(self, mock_boto3_session, set_env_variables):
         generator = AmazonBedrockChatGenerator(model="global.anthropic.claude-sonnet-4-6")
         with pytest.raises(ValueError, match="'json_schema' must contain a 'schema' key"):
             generator._prepare_request_params(
@@ -679,11 +677,7 @@ class TestAmazonBedrockChatGeneratorInference:
 
         client = AmazonBedrockChatGenerator(model="global.anthropic.claude-sonnet-4-6")
 
-        messages = [
-            ChatMessage.from_user(
-                "Extract the person's name and age from: 'Alice is 30 years old.'"
-            )
-        ]
+        messages = [ChatMessage.from_user("Extract the person's name and age from: 'Alice is 30 years old.'")]
         schema = {
             "type": "object",
             "properties": {
