@@ -1,3 +1,4 @@
+import json
 import os
 from typing import Any
 
@@ -443,14 +444,48 @@ class TestAmazonBedrockChatGenerator:
             "guardrailVersion": "test",
         }
 
-    def test_prepare_request_params_output_config(self, mock_boto3_session, set_env_variables):
+    def test_prepare_request_params_json_schema(self, mock_boto3_session, set_env_variables):
+
         generator = AmazonBedrockChatGenerator(model="global.anthropic.claude-sonnet-4-6")
+        schema = {
+            "type": "object",
+            "properties": {"name": {"type": "string"}, "age": {"type": "integer"}},
+            "required": ["name", "age"],
+            "additionalProperties": False,
+        }
         request_params, _ = generator._prepare_request_params(
             messages=[ChatMessage.from_user("Hello")],
-            generation_kwargs={"outputConfig": {"textFormat": "json"}},
+            generation_kwargs={
+                "json_schema": {
+                    "name": "person",
+                    "description": "A person's name and age",
+                    "schema": schema,
+                }
+            },
         )
         assert "outputConfig" in request_params
-        assert request_params["outputConfig"] == {"textFormat": "json"}
+        assert request_params["outputConfig"] == {
+            "textFormat": {
+                "type": "json_schema",
+                "structure": {
+                    "jsonSchema": {
+                        "name": "person",
+                        "description": "A person's name and age",
+                        "schema": json.dumps(schema),
+                    }
+                },
+            }
+        }
+
+    def test_prepare_request_params_json_schema_missing_schema_key(
+        self, mock_boto3_session, set_env_variables
+    ):
+        generator = AmazonBedrockChatGenerator(model="global.anthropic.claude-sonnet-4-6")
+        with pytest.raises(ValueError, match="'json_schema' must contain a 'schema' key"):
+            generator._prepare_request_params(
+                messages=[ChatMessage.from_user("Hello")],
+                generation_kwargs={"json_schema": {"name": "test"}},
+            )
 
     def test_init_with_mixed_tools(self, mock_boto3_session, set_env_variables):
         def tool_fn(city: str) -> str:
@@ -640,18 +675,53 @@ class TestAmazonBedrockChatGeneratorInference:
             assert "prompt_tokens" in first_reply.meta["usage"]
             assert "completion_tokens" in first_reply.meta["usage"]
 
-    def test_run_with_output_config(self):
+    def test_run_with_structured_output(self):
+
         client = AmazonBedrockChatGenerator(model="global.anthropic.claude-sonnet-4-6")
 
-        messages = [ChatMessage.from_user("Return response in JSON format")]
+        messages = [
+            ChatMessage.from_user(
+                "Extract the person's name and age from: 'Alice is 30 years old.'"
+            )
+        ]
+        schema = {
+            "type": "object",
+            "properties": {
+                "name": {"type": "string"},
+                "age": {"type": "integer"},
+            },
+            "required": ["name", "age"],
+            "additionalProperties": False,
+        }
 
-        response = client.run(messages, generation_kwargs={"outputConfig": {"textFormat": "json"}})
+        response = client.run(
+            messages,
+            generation_kwargs={
+                "json_schema": {
+                    "name": "person",
+                    "description": "A person's name and age",
+                    "schema": schema,
+                }
+            },
+        )
 
         assert "replies" in response
         assert len(response["replies"]) > 0
 
         reply = response["replies"][0]
         assert reply.text is not None
+
+        # Response text must be valid JSON
+        parsed = json.loads(reply.text)
+        assert isinstance(parsed, dict)
+
+        # Parsed object is accessible via meta
+        assert "structured_output" in reply.meta
+        assert reply.meta["structured_output"] == parsed
+
+        # Schema fields are present with correct types
+        assert isinstance(reply.meta["structured_output"].get("name"), str)
+        assert isinstance(reply.meta["structured_output"].get("age"), int)
 
     @pytest.mark.parametrize("model_name", MODELS_TO_TEST_WITH_IMAGE_INPUT)
     def test_run_with_image_input(self, model_name, test_files_path):

@@ -25,6 +25,8 @@ from haystack.dataclasses import (
 )
 from haystack.tools import Tool
 
+from haystack_integrations.common.amazon_bedrock.errors import AmazonBedrockInferenceError
+
 logger = logging.getLogger(__name__)
 
 
@@ -710,6 +712,28 @@ async def _parse_streaming_response_async(
 
     replies = _convert_chunks_to_messages(chunks)
 
+    return replies
+
+
+def _parse_structured_output(replies: list[ChatMessage]) -> list[ChatMessage]:
+    """
+    Parse JSON structured output from model replies and store it in message metadata.
+
+    When structured output is requested via ``json_schema`` in ``generation_kwargs``, the model
+    returns JSON text. This function parses that JSON and stores the resulting object in
+    ``reply.meta["structured_output"]`` for each reply that contains text.
+
+    :param replies: List of ChatMessage objects returned by the model.
+    :returns: The same list with ``meta["structured_output"]`` populated on text replies.
+    :raises AmazonBedrockInferenceError: If the model's response is not valid JSON.
+    """
+    for reply in replies:
+        if reply.text:
+            try:
+                reply.meta["structured_output"] = json.loads(reply.text)
+            except json.JSONDecodeError as e:
+                msg = f"Structured output was requested but the model returned invalid JSON: {e}"
+                raise AmazonBedrockInferenceError(msg) from e
     return replies
 
 
