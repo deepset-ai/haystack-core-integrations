@@ -4,7 +4,7 @@
 
 | Name                                                                                |    Stmts |     Miss |   Branch |   BrPart |   Cover |   Missing |
 |------------------------------------------------------------------------------------ | -------: | -------: | -------: | -------: | ------: | --------: |
-| src/haystack\_integrations/components/embedders/cohere/document\_embedder.py        |       67 |        1 |       12 |        1 |     97% |       233 |
+| src/haystack\_integrations/components/embedders/cohere/document\_embedder.py        |       67 |        1 |       12 |        1 |     97% |       228 |
 | src/haystack\_integrations/components/embedders/cohere/document\_image\_embedder.py |      101 |        0 |       22 |        0 |    100% |           |
 | src/haystack\_integrations/components/embedders/cohere/embedding\_types.py          |       17 |        3 |        2 |        1 |     79% | 25, 35-36 |
 | src/haystack\_integrations/components/embedders/cohere/text\_embedder.py            |       43 |        0 |        2 |        0 |    100% |           |
