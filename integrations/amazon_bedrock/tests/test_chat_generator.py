@@ -1,6 +1,7 @@
 import json
 import os
 from typing import Any
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from haystack import Pipeline
@@ -647,6 +648,151 @@ class TestAmazonBedrockChatGenerator:
             assert "additionalModelRequestFields" not in request_params
         else:
             assert request_params["additionalModelRequestFields"] == additional_model_request_fields
+
+    def test_init_connection_error(self):
+        with patch("boto3.Session", side_effect=Exception("connection refused")):
+            with pytest.raises(Exception, match="Could not connect to Amazon Bedrock"):
+                AmazonBedrockChatGenerator(model="global.anthropic.claude-sonnet-4-6")
+
+    def test_get_async_session_creates_and_caches(self, mock_boto3_session, set_env_variables):
+        generator = AmazonBedrockChatGenerator(model="global.anthropic.claude-sonnet-4-6")
+        session1 = generator._get_async_session()
+        session2 = generator._get_async_session()
+        assert session1 is session2
+
+    def test_get_async_session_error(self, mock_boto3_session, set_env_variables):
+        generator = AmazonBedrockChatGenerator(model="global.anthropic.claude-sonnet-4-6")
+        with patch(
+            "haystack_integrations.components.generators.amazon_bedrock.chat.chat_generator.get_aws_session",
+            side_effect=Exception("bad creds"),
+        ):
+            with pytest.raises(Exception, match="Could not connect to Amazon Bedrock"):
+                generator._get_async_session()
+
+    def test_from_dict_without_stop_words_or_callback(self, mock_boto3_session):
+        generator = AmazonBedrockChatGenerator.from_dict(
+            {
+                "type": CLASS_TYPE,
+                "init_parameters": {
+                    "model": "global.anthropic.claude-sonnet-4-6",
+                },
+            }
+        )
+        assert generator.model == "global.anthropic.claude-sonnet-4-6"
+        assert generator.streaming_callback is None
+
+    def test_prepare_request_params_json_schema_without_description(self, mock_boto3_session, set_env_variables):
+        generator = AmazonBedrockChatGenerator(model="global.anthropic.claude-sonnet-4-6")
+        schema = {"type": "object", "properties": {"name": {"type": "string"}}}
+        request_params, _ = generator._prepare_request_params(
+            messages=[ChatMessage.from_user("Hello")],
+            generation_kwargs={"json_schema": {"name": "result", "schema": schema}},
+        )
+        json_schema_block = request_params["outputConfig"]["textFormat"]["structure"]["jsonSchema"]
+        assert "description" not in json_schema_block
+
+    def test_resolve_flattened_kwargs_both_parallel_flags_raises(self, mock_boto3_session, set_env_variables):
+        generator = AmazonBedrockChatGenerator(model="global.anthropic.claude-sonnet-4-6")
+        with pytest.raises(ValueError, match="Cannot set both disable_parallel_tool_use and parallel_tool_use"):
+            generator._resolve_flattened_generation_kwargs(
+                {"disable_parallel_tool_use": True, "parallel_tool_use": True}
+            )
+
+    def test_run_completion(self, mock_boto3_session, set_env_variables):
+        generator = AmazonBedrockChatGenerator(model="global.anthropic.claude-sonnet-4-6")
+        generator.client = MagicMock()
+        generator.client.converse.return_value = {
+            "output": {"message": {"role": "assistant", "content": [{"text": "Paris"}]}},
+            "stopReason": "end_turn",
+            "usage": {"inputTokens": 10, "outputTokens": 5},
+            "metrics": {"latencyMs": 100},
+        }
+        result = generator.run([ChatMessage.from_user("What's the capital of France?")])
+        assert len(result["replies"]) == 1
+        assert result["replies"][0].text == "Paris"
+
+    def test_run_client_error(self, mock_boto3_session, set_env_variables):
+        from botocore.exceptions import ClientError
+
+        from haystack_integrations.common.amazon_bedrock.errors import AmazonBedrockInferenceError
+
+        generator = AmazonBedrockChatGenerator(model="global.anthropic.claude-sonnet-4-6")
+        generator.client = MagicMock()
+        generator.client.converse.side_effect = ClientError(
+            {"Error": {"Code": "ThrottlingException", "Message": "Rate exceeded"}}, "Converse"
+        )
+        with pytest.raises(AmazonBedrockInferenceError):
+            generator.run([ChatMessage.from_user("Hello")])
+
+    def test_run_streaming(self, mock_boto3_session, set_env_variables):
+        chunks = []
+
+        def callback(chunk: StreamingChunk):
+            chunks.append(chunk)
+
+        generator = AmazonBedrockChatGenerator(
+            model="global.anthropic.claude-sonnet-4-6", streaming_callback=callback
+        )
+        generator.client = MagicMock()
+        events = [
+            {"messageStart": {"role": "assistant"}},
+            {"contentBlockDelta": {"delta": {"text": "Paris"}, "contentBlockIndex": 0}},
+            {"messageStop": {"stopReason": "end_turn"}},
+            {"metadata": {"usage": {"inputTokens": 5, "outputTokens": 3}, "metrics": {"latencyMs": 50}}},
+        ]
+        mock_stream = MagicMock()
+        mock_stream.__iter__ = MagicMock(return_value=iter(events))
+        generator.client.converse_stream.return_value = {"stream": mock_stream}
+
+        result = generator.run([ChatMessage.from_user("What's the capital of France?")])
+        assert len(result["replies"]) >= 1
+        assert len(chunks) > 0
+
+    def test_run_with_json_schema_parses_structured_output(self, mock_boto3_session, set_env_variables):
+        from haystack_integrations.common.amazon_bedrock.errors import AmazonBedrockInferenceError  # noqa: F401
+
+        generator = AmazonBedrockChatGenerator(model="global.anthropic.claude-sonnet-4-6")
+        generator.client = MagicMock()
+        generator.client.converse.return_value = {
+            "output": {"message": {"role": "assistant", "content": [{"text": '{"name": "Alice"}'}]}},
+            "stopReason": "end_turn",
+            "usage": {"inputTokens": 10, "outputTokens": 5},
+            "metrics": {"latencyMs": 100},
+        }
+        result = generator.run(
+            [ChatMessage.from_user("Return JSON")],
+            generation_kwargs={
+                "json_schema": {
+                    "name": "result",
+                    "schema": {"type": "object", "properties": {"name": {"type": "string"}}},
+                }
+            },
+        )
+        assert result["replies"][0].meta["structured_output"] == {"name": "Alice"}
+
+    @pytest.mark.asyncio
+    async def test_run_async_completion(self, mock_boto3_session, set_env_variables):
+        generator = AmazonBedrockChatGenerator(model="global.anthropic.claude-sonnet-4-6")
+        mock_response = {
+            "output": {"message": {"role": "assistant", "content": [{"text": "Paris"}]}},
+            "stopReason": "end_turn",
+            "usage": {"inputTokens": 10, "outputTokens": 5},
+            "metrics": {"latencyMs": 100},
+        }
+        mock_async_client = AsyncMock()
+        mock_async_client.converse.return_value = mock_response
+
+        mock_session = MagicMock()
+        mock_cm = MagicMock()
+        mock_cm.__aenter__ = AsyncMock(return_value=mock_async_client)
+        mock_cm.__aexit__ = AsyncMock(return_value=False)
+        mock_session.create_client.return_value = mock_cm
+
+        generator.async_session = mock_session
+
+        result = await generator.run_async([ChatMessage.from_user("What's the capital of France?")])
+        assert len(result["replies"]) == 1
+        assert result["replies"][0].text == "Paris"
 
 
 # In the CI, those tests are skipped if AWS Authentication fails
