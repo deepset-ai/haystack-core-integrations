@@ -1267,7 +1267,7 @@ class WeaviateDocumentStore:
         Deletes all documents that match the provided filters.
 
         :param filters: The filters to apply to select documents for deletion.
-            For filter syntax, see Haystack metadata filtering docs.
+            For filter syntax, see [Haystack metadata filtering](https://docs.haystack.deepset.ai/docs/metadata-filtering)
         :returns: The number of documents deleted.
         """
         validate_filters(filters)
@@ -1298,7 +1298,8 @@ class WeaviateDocumentStore:
         """
         Asynchronously deletes all documents that match the provided filters.
 
-        :param filters: Filters to select documents for deletion.
+        :param filters: The filters to apply to select documents for deletion.
+            For filter syntax, see [Haystack metadata filtering](https://docs.haystack.deepset.ai/docs/metadata-filtering)
         :returns: Number of deleted documents.
         """
         validate_filters(filters)
@@ -1329,9 +1330,10 @@ class WeaviateDocumentStore:
         """
         Updates metadata of all documents that match the provided filters.
 
-        :param filters: Filters to select documents for updating.
-        :param meta: Metadata fields to update.
-        :returns: Number of updated documents.
+        :param filters: The filters to apply to select documents for updating.
+            For filter syntax, see [Haystack metadata filtering](https://docs.haystack.deepset.ai/docs/metadata-filtering)
+        :param meta: The metadata fields to update. These will be merged with existing metadata.
+        :returns: The number of documents updated.
         """
         validate_filters(filters)
 
@@ -1340,8 +1342,7 @@ class WeaviateDocumentStore:
             raise ValueError(msg)
 
         try:
-            collection = self.collection  # ✅ FIX
-
+            collection = self.collection
             matching_objects = self._query_with_filters(filters)
             if not matching_objects:
                 return 0
@@ -1360,7 +1361,7 @@ class WeaviateDocumentStore:
                     if isinstance(obj.vector, list | dict):
                         vector = obj.vector
 
-                    collection.data.replace(  # ✅ FIX
+                    collection.data.replace(
                         uuid=obj.uuid,
                         properties=current_properties,
                         vector=vector,
