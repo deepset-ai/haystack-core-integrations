@@ -3,8 +3,8 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import os
-from dataclasses import replace
 import warnings
+from dataclasses import replace
 from typing import Any
 
 from haystack import Document, component, default_from_dict, default_to_dict, logging
