@@ -1,14 +1,17 @@
 """Docling Haystack converter module."""
 
 import json
+import os
+import tempfile
 import warnings
 from abc import ABC, abstractmethod
-from collections.abc import Iterable
 from enum import Enum
 from pathlib import Path
 from typing import Any
 
 from haystack import Document, component
+from haystack.components.converters.utils import normalize_metadata
+from haystack.dataclasses import ByteStream
 
 from docling.chunking import BaseChunk, BaseChunker, HybridChunker
 from docling.datamodel.document import DoclingDocument
@@ -99,17 +102,18 @@ class DoclingConverter:
     @component.output_types(documents=list[Document])
     def run(
         self,
-        sources: Iterable[Path | str] | None = None,
+        sources: list[str | Path | ByteStream] | None = None,
         meta: dict[str, Any] | list[dict[str, Any]] | None = None,
-        paths: Iterable[Path | str] | None = None,
+        paths: list[str | Path] | None = None,
     ) -> dict[str, list[Document]]:
         """
         Run the DoclingConverter.
 
-        :param sources: The input document locations, either as local paths or URLs.
+        :param sources: List of file paths, URLs, or ByteStream objects to convert.
         :param meta: Optional metadata to merge into each output document. Pass a single
             dict to apply the same fields to all documents, or a list of dicts (one per
             source) to apply different fields per source document.
+            If a source is a ByteStream, its own metadata is also merged into the output.
         :param paths: Deprecated. Use `sources` instead.
         :returns:
             A dictionary with key `"documents"` containing the output Haystack Documents.
@@ -129,27 +133,35 @@ class DoclingConverter:
             msg = "Either 'sources' or the deprecated 'paths' parameter must be provided."
             raise ValueError(msg)
 
-        sources_list = list(sources)
-
-        if isinstance(meta, list) and len(meta) != len(sources_list):
-            msg = f"The length of 'meta' ({len(meta)}) must match the number of sources ({len(sources_list)})."
-            raise ValueError(msg)
+        meta_list = normalize_metadata(meta=meta, sources_count=len(sources))
 
         documents: list[Document] = []
-        for i, source in enumerate(sources_list):
-            source_meta: dict[str, Any] = meta[i] if isinstance(meta, list) else (meta or {})
-
-            dl_doc = self._converter_instance.convert(
-                source=source,
-                **self.convert_kwargs,
-            ).document
+        for source, source_meta in zip(sources, meta_list, strict=True):
+            if isinstance(source, ByteStream):
+                # docling requires a file path; write ByteStream data to a temp file
+                with tempfile.NamedTemporaryFile(delete=False) as tmp:
+                    tmp.write(source.data)
+                    tmp_path = Path(tmp.name)
+                try:
+                    dl_doc = self._converter_instance.convert(
+                        source=tmp_path, **self.convert_kwargs
+                    ).document
+                finally:
+                    os.unlink(tmp_path)
+                # merge ByteStream meta (e.g. file_path, mime_type) with user-supplied meta
+                merged_meta = {**source.meta, **source_meta}
+            else:
+                dl_doc = self._converter_instance.convert(
+                    source=source, **self.convert_kwargs
+                ).document
+                merged_meta = source_meta
 
             if self.export_type == ExportType.DOC_CHUNKS:
                 chunk_iter = self._chunker_instance.chunk(dl_doc=dl_doc)
                 hs_docs = [
                     Document(
                         content=self._chunker_instance.contextualize(chunk=chunk),
-                        meta={**self._meta_extractor_instance.extract_chunk_meta(chunk=chunk), **source_meta},
+                        meta={**self._meta_extractor_instance.extract_chunk_meta(chunk=chunk), **merged_meta},
                     )
                     for chunk in chunk_iter
                 ]
@@ -157,13 +169,13 @@ class DoclingConverter:
             elif self.export_type == ExportType.MARKDOWN:
                 hs_doc = Document(
                     content=dl_doc.export_to_markdown(**self.md_export_kwargs),
-                    meta={**self._meta_extractor_instance.extract_dl_doc_meta(dl_doc=dl_doc), **source_meta},
+                    meta={**self._meta_extractor_instance.extract_dl_doc_meta(dl_doc=dl_doc), **merged_meta},
                 )
                 documents.append(hs_doc)
             elif self.export_type == ExportType.JSON:
                 hs_doc = Document(
                     content=json.dumps(dl_doc.export_to_dict()),
-                    meta={**self._meta_extractor_instance.extract_dl_doc_meta(dl_doc=dl_doc), **source_meta},
+                    meta={**self._meta_extractor_instance.extract_dl_doc_meta(dl_doc=dl_doc), **merged_meta},
                 )
                 documents.append(hs_doc)
             else:

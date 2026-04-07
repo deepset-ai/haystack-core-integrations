@@ -2,9 +2,10 @@ import json
 import warnings
 from types import SimpleNamespace
 from typing import Any
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 from haystack.core.serialization import component_from_dict, component_to_dict
+from haystack.dataclasses import ByteStream
 
 from haystack_integrations.components.converters.docling import DoclingConverter, ExportType
 
@@ -335,5 +336,34 @@ def test_run_meta_list_length_mismatch_raises() -> None:
 
     import pytest
 
-    with pytest.raises(ValueError, match="length of 'meta'"):
+    with pytest.raises(ValueError):
         converter.run(sources=["a.pdf", "b.pdf"], meta=[{"x": 1}])
+
+
+def test_run_with_bytestream_source() -> None:
+    converter_mock = MagicMock()
+    meta_extractor_mock = MagicMock()
+
+    dl_doc = MagicMock()
+    dl_doc.export_to_markdown.return_value = "markdown-content"
+    converter_mock.convert.return_value = SimpleNamespace(document=dl_doc)
+    meta_extractor_mock.extract_dl_doc_meta.return_value = {}
+
+    converter = DoclingConverter(
+        converter=converter_mock,
+        export_type=ExportType.MARKDOWN,
+        meta_extractor=meta_extractor_mock,
+    )
+
+    bytestream = ByteStream(data=b"%PDF-1.4 fake pdf content", meta={"file_path": "uploaded.pdf"})
+
+    with patch("os.unlink"):
+        result = converter.run(sources=[bytestream])
+
+    documents = result["documents"]
+    assert len(documents) == 1
+    # ByteStream meta is merged into the output document
+    assert documents[0].meta["file_path"] == "uploaded.pdf"
+    # docling was called with a temp file path, not the ByteStream directly
+    call_args = converter_mock.convert.call_args
+    assert call_args.kwargs["source"] != bytestream
