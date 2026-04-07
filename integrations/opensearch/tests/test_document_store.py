@@ -1412,16 +1412,12 @@ class TestDocumentStore(
     ):
         """A second write batch discovers new nested fields not seen in the first batch."""
         # First batch: only refs
-        document_store_wildcard_nested.write_documents(
-            [Document(content="d1", meta={"refs": [{"law": "bgb"}]})]
-        )
+        document_store_wildcard_nested.write_documents([Document(content="d1", meta={"refs": [{"law": "bgb"}]})])
         assert "refs" in document_store_wildcard_nested._resolved_nested_fields
         assert "tags" not in document_store_wildcard_nested._resolved_nested_fields
 
         # Second batch: introduces tags
-        document_store_wildcard_nested.write_documents(
-            [Document(content="d2", meta={"tags": [{"name": "sale"}]})]
-        )
+        document_store_wildcard_nested.write_documents([Document(content="d2", meta={"tags": [{"name": "sale"}]})])
         assert "tags" in document_store_wildcard_nested._resolved_nested_fields
 
         # Both nested fields are now filterable
