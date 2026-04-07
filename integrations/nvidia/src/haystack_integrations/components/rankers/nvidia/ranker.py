@@ -3,6 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import os
+from dataclasses import replace
 import warnings
 from typing import Any
 
@@ -236,11 +237,8 @@ class NvidiaRanker:
 
         # rank result is list[{index: int, logit: float}] sorted by logit
         sorted_indexes_and_scores = self.backend.rank(query_text=query_text, document_texts=document_texts)
-        sorted_documents = []
-        for item in sorted_indexes_and_scores[:top_k]:
-            # mutate (don't copy) the document because we're only updating the score
-            doc = documents[item["index"]]
-            doc.score = item["logit"]
-            sorted_documents.append(doc)
+        sorted_documents = [
+            replace(documents[item["index"]], score=item["logit"]) for item in sorted_indexes_and_scores[:top_k]
+        ]
 
         return {"documents": sorted_documents}
