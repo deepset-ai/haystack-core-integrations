@@ -362,12 +362,13 @@ class OpenSearchDocumentStore:
                     body={"properties": {field: {"type": "nested"}}},
                 )
                 self._resolved_nested_fields.add(field)
-            except RequestError:
+            except RequestError as e:
                 logger.warning(
-                    "Could not map field '{field}' as nested in index '{index}'. "
+                    "Could not map field '{field}' as nested in index '{index}': {error}. "
                     "If it was previously mapped as object, a full re-index is required.",
                     field=field,
                     index=self._index,
+                    error=str(e),
                 )
 
     async def _update_mapping_for_nested_fields_async(self, new_nested_fields: set[str]) -> None:
@@ -379,12 +380,13 @@ class OpenSearchDocumentStore:
                     body={"properties": {field: {"type": "nested"}}},
                 )
                 self._resolved_nested_fields.add(field)
-            except RequestError:
+            except RequestError as e:
                 logger.warning(
-                    "Could not map field '{field}' as nested in index '{index}'. "
+                    "Could not map field '{field}' as nested in index '{index}': {error}. "
                     "If it was previously mapped as object, a full re-index is required.",
                     field=field,
                     index=self._index,
+                    error=str(e),
                 )
 
     async def _ensure_index_exists_async(self) -> None:
