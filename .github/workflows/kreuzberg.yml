@@ -100,7 +100,7 @@ jobs:
         uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
           name: coverage-comment-kreuzberg
-          path: python-coverage-comment-action.txt
+          path: python-coverage-comment-action-kreuzberg.txt
 
       - name: Run integration tests
         run: hatch run test:integration-cov-append-retry
