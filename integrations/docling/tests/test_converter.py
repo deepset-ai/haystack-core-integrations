@@ -4,6 +4,8 @@ from types import SimpleNamespace
 from typing import Any
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 from haystack.core.serialization import component_from_dict, component_to_dict
 from haystack.dataclasses import ByteStream
 
@@ -333,8 +335,6 @@ def test_run_meta_list_length_mismatch_raises() -> None:
         export_type=ExportType.MARKDOWN,
         meta_extractor=meta_extractor_mock,
     )
-
-    import pytest
 
     with pytest.raises(ValueError):
         converter.run(sources=["a.pdf", "b.pdf"], meta=[{"x": 1}])

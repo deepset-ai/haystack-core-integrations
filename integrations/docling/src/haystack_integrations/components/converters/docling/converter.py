@@ -102,13 +102,14 @@ class DoclingConverter:
     @component.output_types(documents=list[Document])
     def run(
         self,
+        paths: list[str | Path] | None = None,
         sources: list[str | Path | ByteStream] | None = None,
         meta: dict[str, Any] | list[dict[str, Any]] | None = None,
-        paths: list[str | Path] | None = None,
     ) -> dict[str, list[Document]]:
         """
         Run the DoclingConverter.
 
+        :param paths: Deprecated. Use `sources` instead.
         :param sources: List of file paths, URLs, or ByteStream objects to convert.
         :param meta:
             Optional metadata to attach to the Documents.
@@ -117,7 +118,6 @@ class DoclingConverter:
             If it's a list, the length of the list must match the number of sources, because the two lists will
             be zipped.
             If a source is a ByteStream, its own metadata is also merged into the output.
-        :param paths: Deprecated. Use `sources` instead.
         :returns:
             A dictionary with key `"documents"` containing the output Haystack Documents.
         :raises ValueError: If `meta` is a list whose length does not match the number of sources.
