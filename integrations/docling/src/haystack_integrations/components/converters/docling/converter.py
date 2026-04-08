@@ -104,15 +104,18 @@ class DoclingConverter:
         self,
         sources: list[str | Path | ByteStream] | None = None,
         meta: dict[str, Any] | list[dict[str, Any]] | None = None,
-        paths: list[str | Path | ByteStream] | None = None,
+        paths: list[str | Path] | None = None,
     ) -> dict[str, list[Document]]:
         """
         Run the DoclingConverter.
 
         :param sources: List of file paths, URLs, or ByteStream objects to convert.
-        :param meta: Optional metadata to merge into each output document. Pass a single
-            dict to apply the same fields to all documents, or a list of dicts (one per
-            source) to apply different fields per source document.
+        :param meta:
+            Optional metadata to attach to the Documents.
+            This value can be either a list of dictionaries or a single dictionary.
+            If it's a single dictionary, its content is added to the metadata of all produced Documents.
+            If it's a list, the length of the list must match the number of sources, because the two lists will
+            be zipped.
             If a source is a ByteStream, its own metadata is also merged into the output.
         :param paths: Deprecated. Use `sources` instead.
         :returns:
@@ -127,7 +130,7 @@ class DoclingConverter:
                 stacklevel=2,
             )
             if sources is None:
-                sources = paths
+                sources = list(paths)  # type: ignore[arg-type]
 
         if sources is None:
             msg = "Either 'sources' or the deprecated 'paths' parameter must be provided."
@@ -147,7 +150,7 @@ class DoclingConverter:
                 finally:
                     os.unlink(tmp_path)
                 # merge ByteStream meta (e.g. file_path, mime_type) with user-supplied meta
-                merged_meta = {**source.meta, **source_meta}
+                merged_meta = {**(source.meta or {}), **source_meta}
             else:
                 dl_doc = self._converter_instance.convert(source=source, **self.convert_kwargs).document
                 merged_meta = source_meta
