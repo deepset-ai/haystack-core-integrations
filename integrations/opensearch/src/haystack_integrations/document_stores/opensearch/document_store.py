@@ -5,6 +5,7 @@
 # ruff: noqa: FBT001, FBT002   boolean-type-hint-positional-argument and boolean-default-value-positional-argument
 
 from collections.abc import Generator, Mapping
+from dataclasses import replace
 from math import exp
 from typing import Any, Literal
 
@@ -940,10 +941,12 @@ class OpenSearchDocumentStore:
         if not scale_score:
             return
 
-        for doc in results:
-            if doc.score is None:
-                continue
-            doc.score = float(1 / (1 + exp(-(doc.score / float(BM25_SCALING_FACTOR)))))
+        results = [
+            replace(doc, score=float(1 / (1 + exp(-(doc.score / float(BM25_SCALING_FACTOR))))))
+            if doc.score is not None
+            else doc
+            for doc in results
+        ]
 
     def _bm25_retrieval(
         self,

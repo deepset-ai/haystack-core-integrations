@@ -3,6 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 from copy import copy
+from dataclasses import replace
 from typing import Any, Literal
 
 from haystack import default_from_dict, default_to_dict, logging
@@ -310,8 +311,7 @@ class PineconeDocumentStore:
 
         # when simply filtering, we don't want to return any scores
         # furthermore, we are querying with a dummy vector, so the scores are meaningless
-        for doc in documents:
-            doc.score = None
+        documents = [replace(doc, score=None) for doc in documents]
 
         if len(documents) == TOP_K_LIMIT:
             logger.warning(
@@ -336,8 +336,7 @@ class PineconeDocumentStore:
             query_embedding=self._dummy_vector, filters=filters, top_k=TOP_K_LIMIT
         )
 
-        for doc in documents:
-            doc.score = None
+        documents = [replace(doc, score=None) for doc in documents]
 
         if len(documents) == TOP_K_LIMIT:
             logger.warning(
@@ -399,10 +398,8 @@ class PineconeDocumentStore:
         :param documents: List of documents to update.
         :param meta: Metadata fields to merge into each document's existing metadata.
         """
-        for document in documents:
-            if document.meta is None:
-                document.meta = {}
-            document.meta.update(meta)
+        for i, document in enumerate(documents):
+            documents[i] = replace(document, meta={**(document.meta or {}), **meta})
 
     def delete_by_filter(self, filters: dict[str, Any]) -> int:
         """
@@ -671,7 +668,7 @@ class PineconeDocumentStore:
         return documents
 
     @staticmethod
-    def _discard_invalid_meta(document: Document) -> None:
+    def _discard_invalid_meta(document: Document) -> Document:
         """
         Remove metadata fields with unsupported types from the document.
         """
@@ -697,7 +694,9 @@ class PineconeDocumentStore:
                 )
                 logger.warning(msg)
 
-            document.meta = new_meta
+            return replace(document, meta=new_meta)
+
+        return document
 
     def _convert_documents_to_pinecone_format(
         self, documents: list[Document]
@@ -712,10 +711,9 @@ class PineconeDocumentStore:
                 )
                 embedding = self._dummy_vector
 
-            if document.meta:
-                self._discard_invalid_meta(document)
+            filtered_meta = self._discard_invalid_meta(document).meta if document.meta else {}
 
-            metadata = dict(document.meta) if document.meta else {}
+            metadata = dict(filtered_meta) if filtered_meta else {}
 
             # we save content as metadata
             if document.content is not None:
