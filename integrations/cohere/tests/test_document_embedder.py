@@ -26,7 +26,7 @@ class TestCohereDocumentEmbedder:
         monkeypatch.setenv("COHERE_API_KEY", "test-api-key")
         embedder = CohereDocumentEmbedder()
         assert embedder.api_key == Secret.from_env_var(["COHERE_API_KEY", "CO_API_KEY"])
-        assert embedder.model == "embed-english-v2.0"
+        assert embedder.model == "embed-v4.0"
         assert embedder.input_type == "search_document"
         assert embedder.api_base_url == COHERE_API_URL
         assert embedder.truncate == "END"
@@ -70,7 +70,7 @@ class TestCohereDocumentEmbedder:
             "type": "haystack_integrations.components.embedders.cohere.document_embedder.CohereDocumentEmbedder",
             "init_parameters": {
                 "api_key": {"env_vars": ["COHERE_API_KEY", "CO_API_KEY"], "strict": True, "type": "env_var"},
-                "model": "embed-english-v2.0",
+                "model": "embed-v4.0",
                 "input_type": "search_document",
                 "api_base_url": COHERE_API_URL,
                 "truncate": "END",
@@ -122,7 +122,7 @@ class TestCohereDocumentEmbedder:
             "type": "haystack_integrations.components.embedders.cohere.document_embedder.CohereDocumentEmbedder",
             "init_parameters": {
                 "api_key": {"env_vars": ["COHERE_API_KEY", "CO_API_KEY"], "strict": True, "type": "env_var"},
-                "model": "embed-english-v2.0",
+                "model": "embed-v4.0",
                 "input_type": "search_document",
                 "api_base_url": COHERE_API_URL,
                 "truncate": "END",
@@ -137,7 +137,7 @@ class TestCohereDocumentEmbedder:
         }
         embedder = CohereDocumentEmbedder.from_dict(component_dict)
         assert embedder.api_key == Secret.from_env_var(["COHERE_API_KEY", "CO_API_KEY"])
-        assert embedder.model == "embed-english-v2.0"
+        assert embedder.model == "embed-v4.0"
         assert embedder.input_type == "search_document"
         assert embedder.api_base_url == COHERE_API_URL
         assert embedder.truncate == "END"
@@ -253,7 +253,7 @@ class TestCohereDocumentEmbedder:
     )
     @pytest.mark.integration
     def test_live_run(self):
-        embedder = CohereDocumentEmbedder(model="embed-english-v2.0", embedding_type=EmbeddingTypes.FLOAT)
+        embedder = CohereDocumentEmbedder(model="embed-v4.0", embedding_type=EmbeddingTypes.FLOAT)
 
         docs = [
             Document(content="I love cheese", meta={"topic": "Cuisine"}),
@@ -276,7 +276,7 @@ class TestCohereDocumentEmbedder:
     )
     @pytest.mark.integration
     async def test_live_run_async(self):
-        embedder = CohereDocumentEmbedder(model="embed-english-v2.0", embedding_type=EmbeddingTypes.FLOAT)
+        embedder = CohereDocumentEmbedder(model="embed-v4.0", embedding_type=EmbeddingTypes.FLOAT)
 
         docs = [
             Document(content="I love cheese", meta={"topic": "Cuisine"}),

@@ -1,5 +1,21 @@
 # Changelog
 
+## [integrations/cohere-v9.0.0] - 2026-04-07
+
+### 🐛 Bug Fixes
+
+- [**breaking**] Cohere Embedders - set embed-v4.0 as the default model (#3111)
+
+### 🧪 Testing
+
+- Test compatible integrations with python 3.14; update pyproject (#3001)
+- Track test coverage for all integrations (#3065)
+
+### 🧹 Chores
+
+- Enforce ruff docstring rules (D102/D103/D205/D209/D213/D417/D419) in first 10 integrations (#3008)
+
+
 ## [integrations/cohere-v8.1.0] - 2026-03-19
 
 ### 🚀 Features
