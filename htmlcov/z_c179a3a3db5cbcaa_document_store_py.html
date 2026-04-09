@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
-    <title>Coverage for src/haystack_integrations/document_stores/mongodb_atlas/document_store.py: 80%</title>
+    <title>Coverage for src/haystack_integrations/document_stores/mongodb_atlas/document_store.py: 79%</title>
     <link rel="icon" sizes="32x32" href="favicon_32_cb_c827f16f.png">
     <link rel="stylesheet" href="style_cb_9ff733b0.css" type="text/css">
     <script src="coverage_html_cb_dd2e7eb5.js" defer></script>
@@ -12,7 +12,7 @@
     <div class="content">
         <h1>
             <span class="text">Coverage for </span><b>src&#8201;/&#8201;haystack_integrations&#8201;/&#8201;document_stores&#8201;/&#8201;mongodb_atlas&#8201;/&#8201;document_store.py</b>:
-            <span class="pc_cov">80%</span>
+            <span class="pc_cov">79%</span>
         </h1>
         <aside id="help_panel_wrapper">
             <input id="help_panel_state" type="checkbox">
@@ -56,10 +56,10 @@
         </aside>
         <h2>
             <span class="text">540 statements &nbsp;</span>
-            <button type="button" class="run button_toggle_run" value="run" data-shortcut="r" title="Toggle lines run">436<span class="text"> run</span></button>
-            <button type="button" class="mis show_mis button_toggle_mis" value="mis" data-shortcut="m" title="Toggle lines missing">104<span class="text"> missing</span></button>
+            <button type="button" class="run button_toggle_run" value="run" data-shortcut="r" title="Toggle lines run">432<span class="text"> run</span></button>
+            <button type="button" class="mis show_mis button_toggle_mis" value="mis" data-shortcut="m" title="Toggle lines missing">108<span class="text"> missing</span></button>
             <button type="button" class="exc show_exc button_toggle_exc" value="exc" data-shortcut="x" title="Toggle lines excluded">0<span class="text"> excluded</span></button>
-            <button type="button" class="par run show_par button_toggle_par" value="par" data-shortcut="p" title="Toggle lines partially run">22<span class="text"> partial</span></button>
+            <button type="button" class="par run show_par button_toggle_par" value="par" data-shortcut="p" title="Toggle lines partially run">21<span class="text"> partial</span></button>
         </h2>
         <p class="text">
             <a id="prevFileLink" class="nav" href="z_900bb559b6b88417_full_text_retriever_py.html">&#xab; prev</a> &nbsp; &nbsp;
@@ -67,7 +67,7 @@
             <a id="nextFileLink" class="nav" href="z_c179a3a3db5cbcaa_filters_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.13.5">coverage.py v7.13.5</a>,
-            created at 2026-04-02 06:39 +0000
+            created at 2026-04-09 08:20 +0000
         </p>
         <aside class="hidden">
             <button type="button" class="button_next_chunk" data-shortcut="j"></button>
@@ -1192,11 +1192,11 @@
     <p class="run"><span class="n"><a id="t1108" href="#t1108">1108</a></span><span class="t">        <span class="key">assert</span> <span class="nam">self</span><span class="op">.</span><span class="nam">_collection</span> <span class="key">is</span> <span class="key">not</span> <span class="key">None</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t1109" href="#t1109">1109</a></span><span class="t">        <span class="key">try</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t1110" href="#t1110">1110</a></span><span class="t">            <span class="nam">documents</span> <span class="op">=</span> <span class="nam">list</span><span class="op">(</span><span class="nam">self</span><span class="op">.</span><span class="nam">_collection</span><span class="op">.</span><span class="nam">aggregate</span><span class="op">(</span><span class="nam">pipeline</span><span class="op">)</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t1111" href="#t1111">1111</a></span><span class="t">        <span class="key">except</span> <span class="nam">Exception</span> <span class="key">as</span> <span class="nam">e</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t1112" href="#t1112">1112</a></span><span class="t">            <span class="nam">error_msg</span> <span class="op">=</span> <span class="fst">f"</span><span class="fst">Failed to retrieve documents from MongoDB Atlas: </span><span class="op">{</span><span class="nam">e</span><span class="op">}</span><span class="fst">"</span>&nbsp;</span><span class="r"></span></p>
-    <p class="par run show_par"><span class="n"><a id="t1113" href="#t1113">1113</a></span><span class="t">            <span class="key">if</span> <span class="nam">filters</span><span class="op">:</span>&nbsp;</span><span class="r"><span class="annotate short">1113&#x202F;&#x219B;&#x202F;1114</span><span class="annotate long">line 1113 didn't jump to line 1114 because the condition on line 1113 was never true</span></span></p>
+    <p class="mis show_mis"><span class="n"><a id="t1111" href="#t1111">1111</a></span><span class="t">        <span class="key">except</span> <span class="nam">Exception</span> <span class="key">as</span> <span class="nam">e</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
+    <p class="mis show_mis"><span class="n"><a id="t1112" href="#t1112">1112</a></span><span class="t">            <span class="nam">error_msg</span> <span class="op">=</span> <span class="fst">f"</span><span class="fst">Failed to retrieve documents from MongoDB Atlas: </span><span class="op">{</span><span class="nam">e</span><span class="op">}</span><span class="fst">"</span>&nbsp;</span><span class="r"></span></p>
+    <p class="mis show_mis"><span class="n"><a id="t1113" href="#t1113">1113</a></span><span class="t">            <span class="key">if</span> <span class="nam">filters</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
     <p class="mis show_mis"><span class="n"><a id="t1114" href="#t1114">1114</a></span><span class="t">                <span class="nam">error_msg</span> <span class="op">+=</span> <span class="str">"\nEnsure fields in filters are included in the `full_text_search_index` configuration."</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t1115" href="#t1115">1115</a></span><span class="t">            <span class="key">raise</span> <span class="nam">DocumentStoreError</span><span class="op">(</span><span class="nam">error_msg</span><span class="op">)</span> <span class="key">from</span> <span class="nam">e</span>&nbsp;</span><span class="r"></span></p>
+    <p class="mis show_mis"><span class="n"><a id="t1115" href="#t1115">1115</a></span><span class="t">            <span class="key">raise</span> <span class="nam">DocumentStoreError</span><span class="op">(</span><span class="nam">error_msg</span><span class="op">)</span> <span class="key">from</span> <span class="nam">e</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t1116" href="#t1116">1116</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t1117" href="#t1117">1117</a></span><span class="t">        <span class="key">return</span> <span class="op">[</span><span class="nam">self</span><span class="op">.</span><span class="nam">_mongo_doc_to_haystack_doc</span><span class="op">(</span><span class="nam">doc</span><span class="op">)</span> <span class="key">for</span> <span class="nam">doc</span> <span class="key">in</span> <span class="nam">documents</span><span class="op">]</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t1118" href="#t1118">1118</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
@@ -1340,7 +1340,7 @@
             <a class="nav" href="z_c179a3a3db5cbcaa_filters_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.13.5">coverage.py v7.13.5</a>,
-            created at 2026-04-02 06:39 +0000
+            created at 2026-04-09 08:20 +0000
         </p>
     </div>
 </footer>
