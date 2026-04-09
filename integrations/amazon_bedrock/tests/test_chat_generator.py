@@ -696,7 +696,7 @@ class TestAmazonBedrockChatGenerator:
     def test_resolve_flattened_kwargs_both_parallel_flags_raises(self, mock_boto3_session, set_env_variables):
         generator = AmazonBedrockChatGenerator(model="global.anthropic.claude-sonnet-4-6")
         with pytest.raises(ValueError, match="Cannot set both disable_parallel_tool_use and parallel_tool_use"):
-            generator._resolve_flattened_generation_kwargs(
+            AmazonBedrockChatGenerator._resolve_flattened_generation_kwargs(
                 {"disable_parallel_tool_use": True, "parallel_tool_use": True}
             )
 

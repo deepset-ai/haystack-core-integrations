@@ -206,9 +206,33 @@ class AmazonBedrockChatGenerator:
         :param aws_session_token: AWS session token.
         :param aws_region_name: AWS region name. Make sure the region you set supports Amazon Bedrock.
         :param aws_profile_name: AWS profile name.
-        :param generation_kwargs: Keyword arguments sent to the model. These parameters are specific to a model.
-            You can find the model specific arguments in the AWS Bedrock API
-            [documentation](https://docs.aws.amazon.com/bedrock/latest/userguide/model-parameters.html).
+        :param generation_kwargs: Optional dictionary of generation parameters. Some common parameters are:
+            - `maxTokens`: Maximum number of tokens to generate.
+            - `stopSequences`: List of stop sequences to stop generation.
+            - `temperature`: Sampling temperature.
+            - `topP`: Nucleus sampling parameter.
+            - `response_format`: Request structured JSON output validated against a schema. Provide a dict with:
+                - `schema` (required): a JSON Schema dict describing the expected output structure.
+                - `name` (optional): a name for the schema, defaults to ``"response_schema"``.
+                - `description` (optional): a description of the schema.
+
+                Example::
+
+                    generation_kwargs={
+                        "response_format": {
+                            "name": "person",
+                            "schema": {
+                                "type": "object",
+                                "properties": {"name": {"type": "string"}, "age": {"type": "integer"}},
+                                "required": ["name", "age"],
+                                "additionalProperties": False,
+                            },
+                        }
+                    }
+
+                When set, the parsed JSON object is stored in ``reply.meta["structured_output"]``.
+                You can find the model specific arguments in the AWS Bedrock API[documentation](https://docs.aws.amazon.com/bedrock/latest/userguide/model-parameters.html).
+
         :param streaming_callback: A callback function called when a new token is received from the stream.
             By default, the model is not set up for streaming. To enable streaming, set this parameter to a callback
             function that handles the streaming chunks. The callback function receives a
@@ -376,53 +400,14 @@ class AmazonBedrockChatGenerator:
         tools: ToolsType | None = None,
         requires_async: bool = False,
     ) -> tuple[dict[str, Any], StreamingCallbackT | None]:
-        """
-        Prepares and formats parameters required to call the Amazon Bedrock Converse API.
 
-        This includes merging default and runtime generation parameters, formatting messages and tools, and
-        selecting the appropriate streaming callback.
-
-        :param messages: List of `ChatMessage` objects representing the conversation history.
-        :param streaming_callback: Optional streaming callback provided at runtime.
-        :param generation_kwargs: Optional dictionary of generation parameters. Some common parameters are:
-            - `maxTokens`: Maximum number of tokens to generate.
-            - `stopSequences`: List of stop sequences to stop generation.
-            - `temperature`: Sampling temperature.
-            - `topP`: Nucleus sampling parameter.
-            - `response_format`: Request structured JSON output validated against a schema. Provide a dict with:
-                - `schema` (required): a JSON Schema dict describing the expected output structure.
-                - `name` (optional): a name for the schema, defaults to ``"response_schema"``.
-                - `description` (optional): a description of the schema.
-
-                Example::
-
-                    generation_kwargs={
-                        "response_format": {
-                            "name": "person",
-                            "schema": {
-                                "type": "object",
-                                "properties": {"name": {"type": "string"}, "age": {"type": "integer"}},
-                                "required": ["name", "age"],
-                                "additionalProperties": False,
-                            },
-                        }
-                    }
-
-                When set, the parsed JSON object is stored in ``reply.meta["structured_output"]``.
-        :param tools: A list of Tool and/or Toolset objects, or a single Toolset for which the model can prepare calls.
-            Each tool should have a unique name.
-        :param requires_async: Boolean flag to indicate if an async-compatible streaming callback function is needed.
-
-        :returns:
-            A tuple of (API-ready parameter dictionary, streaming callback function).
-        """
         generation_kwargs = generation_kwargs or {}
 
         # Merge generation_kwargs with defaults
         merged_kwargs = self.generation_kwargs.copy()
         merged_kwargs.update(generation_kwargs)
 
-        merged_kwargs = self._resolve_flattened_generation_kwargs(merged_kwargs)
+        merged_kwargs = AmazonBedrockChatGenerator._resolve_flattened_generation_kwargs(merged_kwargs)
 
         # Extract known inference parameters
         # See https://docs.aws.amazon.com/bedrock/latest/APIReference/API_runtime_InferenceConfiguration.html
@@ -494,7 +479,8 @@ class AmazonBedrockChatGenerator:
 
         return params, callback
 
-    def _resolve_flattened_generation_kwargs(self, generation_kwargs: dict[str, Any]) -> dict[str, Any]:
+    @staticmethod
+    def _resolve_flattened_generation_kwargs(generation_kwargs: dict[str, Any]) -> dict[str, Any]:
         generation_kwargs = generation_kwargs.copy()
 
         disable_parallel_tool_use = generation_kwargs.pop("disable_parallel_tool_use", None)
