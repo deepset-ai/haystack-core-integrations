@@ -9,8 +9,8 @@
 | src/haystack\_integrations/components/embedders/google\_genai/multimodal\_document\_embedder.py |      144 |        6 |       52 |        7 |     93% |310-311, 330-\>333, 352-\>326, 372-\>375, 383-384, 387-392, 394-\>368 |
 | src/haystack\_integrations/components/embedders/google\_genai/text\_embedder.py                 |       46 |        0 |        4 |        1 |     98% | 170-\>173 |
 | src/haystack\_integrations/components/generators/google\_genai/chat/chat\_generator.py          |      155 |        1 |       36 |        1 |     99% |       560 |
-| src/haystack\_integrations/components/generators/google\_genai/chat/utils.py                    |      289 |       13 |      166 |       15 |     93% |222-223, 261-263, 270-\>278, 283-\>288, 327-329, 390-\>288, 453, 463-465, 503-\>537, 506-\>537, 533-\>507, 606-\>610, 653-\>624, 717-\>723, 723-\>709, 731 |
-| **TOTAL**                                                                                       |  **761** |   **24** |  **304** |   **29** | **95%** |           |
+| src/haystack\_integrations/components/generators/google\_genai/chat/utils.py                    |      295 |       13 |      170 |       15 |     93% |222-223, 261-263, 270-\>278, 283-\>288, 327-329, 390-\>288, 453, 463-465, 503-\>537, 506-\>537, 533-\>507, 612-\>616, 659-\>630, 729-\>735, 735-\>721, 743 |
+| **TOTAL**                                                                                       |  **767** |   **24** |  **308** |   **29** | **95%** |           |
 
 
 ## Setup coverage badge
