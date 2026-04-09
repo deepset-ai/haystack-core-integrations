@@ -544,8 +544,7 @@ class AmazonBedrockChatGenerator:
             - `stopSequences`: List of stop sequences to stop generation.
             - `temperature`: Sampling temperature.
             - `topP`: Nucleus sampling parameter.
-            - `response_format`: Request structured JSON output validated against a schema. See
-              :meth:`_prepare_request_params` for full details.
+            - `response_format`: Request structured JSON output validated against a schema.
         :param tools: A list of Tool and/or Toolset objects, or a single Toolset for which the model can prepare calls.
             Each tool should have a unique name.
 
