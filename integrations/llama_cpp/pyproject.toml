@@ -26,15 +26,9 @@ classifiers = [
     "Programming Language :: Python :: Implementation :: CPython",
     "Programming Language :: Python :: Implementation :: PyPy",
 ]
-dependencies = ["haystack-ai>=2.22.0", "llama-cpp-python>=0.2.87"]
-
-# On macOS GitHub runners, we use a custom index to download pre-built wheels.
-# Installing from source might fail due to missing dependencies (CMake fails with "OpenMP not found")
-[tool.uv]
-index-strategy = "unsafe-best-match"  # this ensures that packages are not only searched in the below index but also in PyPI
-[[tool.uv.index]]
-name = "llama-cpp-python-macos"
-url = "https://abetlen.github.io/llama-cpp-python/whl/metal/"
+dependencies = [
+    "haystack-ai>=2.22.0", "llama-cpp-python>=0.2.87"
+]
 
 [project.urls]
 Documentation = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/llama_cpp#readme"
@@ -75,7 +69,8 @@ dependencies = [
 unit = 'pytest -m "not integration" {args:tests}'
 integration = 'pytest -m "integration" {args:tests}'
 all = 'pytest {args:tests}'
-cov-retry = 'pytest --cov=haystack_integrations --reruns 3 --reruns-delay 30 -x {args:tests}'
+unit-cov-retry = 'pytest --cov=haystack_integrations --reruns 3 --reruns-delay 30 -x -m "not integration" {args:tests}'
+integration-cov-append-retry = 'pytest --cov=haystack_integrations --cov-append --reruns 3 --reruns-delay 30 -x -m "integration" {args:tests}'
 types = "mypy -p haystack_integrations.components.generators.llama_cpp {args}"
 
 [tool.mypy]
@@ -157,6 +152,7 @@ ban-relative-imports = "parents"
 [tool.coverage.run]
 source = ["haystack_integrations"]
 branch = true
+relative_files = true
 parallel = false
 
 

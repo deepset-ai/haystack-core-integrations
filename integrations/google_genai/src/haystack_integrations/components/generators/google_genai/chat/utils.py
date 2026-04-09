@@ -559,10 +559,16 @@ def _convert_google_genai_response_to_chatmessage(response: types.GenerateConten
 
     usage.update(_convert_usage_metadata_to_serializable(usage_metadata))
 
+    # Remap finish_reason to "tool_calls" when tool calls are present, since Google GenAI returns
+    # "STOP" for both normal completions and tool calls (no dedicated FUNCTION_CALL finish reason).
+    mapped_finish_reason = FINISH_REASON_MAPPING.get(finish_reason or "")
+    if mapped_finish_reason == "stop" and tool_calls:
+        mapped_finish_reason = "tool_calls"
+
     # Create meta with reasoning content and thought signatures if available
     meta: dict[str, Any] = {
         "model": model,
-        "finish_reason": FINISH_REASON_MAPPING.get(finish_reason or ""),
+        "finish_reason": mapped_finish_reason,
         "usage": usage,
     }
 
@@ -675,13 +681,19 @@ def _convert_google_chunk_to_streaming_chunk(
     # Determine the effective content: tool_calls and reasoning take priority.
     effective_content = "" if tool_calls or reasoning else content
 
+    # Remap finish_reason to "tool_calls" when tool calls are present, since Google GenAI returns
+    # "STOP" for both normal completions and tool calls (no dedicated FUNCTION_CALL finish reason).
+    mapped_finish_reason = FINISH_REASON_MAPPING.get(finish_reason or "")
+    if mapped_finish_reason == "stop" and tool_calls:
+        mapped_finish_reason = "tool_calls"
+
     return StreamingChunk(
         content=effective_content,
         tool_calls=tool_calls,
         component_info=component_info,
         index=index,
         start=start,
-        finish_reason=FINISH_REASON_MAPPING.get(finish_reason or ""),
+        finish_reason=mapped_finish_reason,
         meta=meta,
         reasoning=reasoning,
     )

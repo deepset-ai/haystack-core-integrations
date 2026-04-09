@@ -14,9 +14,11 @@ from haystack.dataclasses import (
     FileContent,
     ImageContent,
     ReasoningContent,
+    StreamingChunk,
     TextContent,
     ToolCall,
 )
+from haystack.tools import Tool
 from pydantic import BaseModel
 
 from haystack_integrations.components.generators.google_genai.chat.chat_generator import (
@@ -27,9 +29,12 @@ from haystack_integrations.components.generators.google_genai.chat.utils import 
     _convert_google_chunk_to_streaming_chunk,
     _convert_google_genai_response_to_chatmessage,
     _convert_message_to_google_genai_format,
+    _convert_tools_to_google_genai_format,
     _convert_usage_metadata_to_serializable,
     _process_response_format,
     _process_thinking_config,
+    _sanitize_tool_schema,
+    remove_key_from_schema,
 )
 
 
@@ -286,7 +291,7 @@ class TestStreamingChunkConversion:
         assert chunk.tool_calls[0].tool_name == "weather"
         assert chunk.tool_calls[0].arguments == '{"city": "Paris"}'
         assert chunk.tool_calls[0].id == "call_123"
-        assert chunk.finish_reason == "stop"
+        assert chunk.finish_reason == "tool_calls"
         assert chunk.index == 0
         assert "received_at" in chunk.meta
         assert chunk.component_info == component_info
@@ -332,7 +337,7 @@ class TestStreamingChunkConversion:
         assert len(chunk.tool_calls) == 1
         assert chunk.tool_calls[0].tool_name == "weather"
         assert chunk.tool_calls[0].arguments == '{"city": "London"}'
-        assert chunk.finish_reason == "stop"
+        assert chunk.finish_reason == "tool_calls"
         assert chunk.component_info == component_info
 
     def test_convert_google_chunk_to_streaming_chunk_empty_parts(self, monkeypatch):
@@ -508,7 +513,7 @@ class TestStreamingChunkConversion:
         assert streaming_chunk.content == ""
         assert streaming_chunk.tool_calls is not None
         assert len(streaming_chunk.tool_calls) == 6
-        assert streaming_chunk.finish_reason == "stop"
+        assert streaming_chunk.finish_reason == "tool_calls"
         assert streaming_chunk.index == 2
         assert "received_at" in streaming_chunk.meta
         assert streaming_chunk.meta["model"] == "gemini-2.5-flash"
@@ -591,6 +596,38 @@ class TestStreamingChunkConversion:
         assert "reasoning_deltas" not in streaming_chunk.meta
         assert streaming_chunk.content == ""
 
+    def test_convert_google_chunk_with_thought_signature(self, monkeypatch):
+        monkeypatch.setenv("GOOGLE_API_KEY", "test-api-key")
+        component = GoogleGenAIChatGenerator()
+        component_info = ComponentInfo.from_component(component)
+
+        mock_chunk = Mock()
+        mock_candidate = Mock()
+        mock_candidate.finish_reason = "STOP"
+        mock_chunk.candidates = [mock_candidate]
+
+        mock_content = Mock()
+        mock_part = Mock()
+        mock_part.text = "Here is my answer"
+        mock_part.function_call = None
+        mock_part.thought = False
+        mock_part.thought_signature = "sig_abc123"
+        mock_content.parts = [mock_part]
+        mock_candidate.content = mock_content
+
+        mock_chunk.usage_metadata = None
+
+        chunk = _convert_google_chunk_to_streaming_chunk(
+            chunk=mock_chunk, index=0, component_info=component_info, model="gemini-2.5-flash"
+        )
+
+        assert chunk.content == "Here is my answer"
+        assert "thought_signature_deltas" in chunk.meta
+        assert len(chunk.meta["thought_signature_deltas"]) == 1
+        assert chunk.meta["thought_signature_deltas"][0]["signature"] == "sig_abc123"
+        assert chunk.meta["thought_signature_deltas"][0]["has_text"] is True
+        assert chunk.meta["thought_signature_deltas"][0]["is_thought"] is False
+
     def test_aggregate_streaming_chunks_with_reasoning(self):
         """Test the _aggregate_streaming_chunks_with_reasoning function for reasoning content aggregation."""
 
@@ -629,6 +666,41 @@ class TestStreamingChunkConversion:
         assert result.meta["usage"]["completion_tokens"] == 13
         assert result.meta["usage"]["thoughts_token_count"] == 5
         assert result.meta["model"] == "gemini-2.5-pro"
+
+    def test_aggregate_streaming_chunks_with_thought_signatures_and_thinking_tokens(self, monkeypatch):
+        monkeypatch.setenv("GOOGLE_API_KEY", "test-api-key")
+        component_info = ComponentInfo.from_component(GoogleGenAIChatGenerator())
+
+        chunk1 = StreamingChunk(
+            content="Hello",
+            component_info=component_info,
+            index=0,
+            meta={"usage": {"prompt_tokens": 10, "completion_tokens": 5}},
+        )
+        chunk2 = StreamingChunk(
+            content=" world",
+            component_info=component_info,
+            index=1,
+            meta={
+                "usage": {"prompt_tokens": 10, "completion_tokens": 10, "thoughts_token_count": 42},
+                "thought_signature_deltas": [
+                    {
+                        "part_index": 0,
+                        "signature": "sig_xyz",
+                        "has_text": True,
+                        "has_function_call": False,
+                        "is_thought": False,
+                    }
+                ],
+            },
+        )
+
+        result = _aggregate_streaming_chunks_with_reasoning([chunk1, chunk2])
+
+        assert result.text == "Hello world"
+        assert result.meta["usage"]["thoughts_token_count"] == 42
+        assert "thought_signatures" in result.meta
+        assert result.meta["thought_signatures"][0]["signature"] == "sig_xyz"
 
 
 class TestConvertMessageToGoogleGenAI:
@@ -871,6 +943,46 @@ class TestConvertMessageToGoogleGenAI:
         assert google_content.parts[0].function_response.parts[1].inline_data.data == base64.b64decode(base64_str)
         assert len(google_content.parts[0].function_response.parts[1].inline_data.data) > 0
 
+    def test_convert_message_empty_content_raises(self):
+        message = ChatMessage.from_user("hello")
+        message._content = []
+        with pytest.raises(ValueError, match="must contain at least one content part"):
+            _convert_message_to_google_genai_format(message)
+
+    def test_convert_message_image_missing_mime_type(self):
+        # Use non-image bytes so MIME type cannot be auto-detected
+        base64_str = base64.b64encode(b"not an image").decode()
+        image = ImageContent(base64_image=base64_str, mime_type=None)
+        message = ChatMessage.from_user(content_parts=["Look at this", image])
+        with pytest.raises(ValueError, match="MIME type is required"):
+            _convert_message_to_google_genai_format(message)
+
+    def test_convert_message_image_unsupported_mime_type(self):
+        base64_str = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+ip1sAAAAASUVORK5CYII="
+        image = ImageContent(base64_image=base64_str, mime_type="image/bmp")
+        message = ChatMessage.from_user(content_parts=["Look at this", image])
+        with pytest.raises(ValueError, match="Unsupported image MIME type"):
+            _convert_message_to_google_genai_format(message)
+
+    def test_convert_message_image_in_assistant_message_raises(self, test_files_path):
+        apple_path = test_files_path / "apple.jpg"
+        image = ImageContent.from_file_path(apple_path, size=(100, 100))
+        message = ChatMessage.from_assistant("Here is an image")
+        message._content.append(image)
+        with pytest.raises(ValueError, match="ImageContent is only supported for user messages"):
+            _convert_message_to_google_genai_format(message)
+
+    def test_convert_system_message_uses_user_role(self):
+        message = ChatMessage.from_system("You are helpful")
+        google_content = _convert_message_to_google_genai_format(message)
+        assert google_content.role == "user"
+
+    def test_convert_message_unsupported_role_raises(self):
+        message = ChatMessage.from_user("hello")
+        message._role = "custom_role"
+        with pytest.raises(ValueError, match="Unsupported message role"):
+            _convert_message_to_google_genai_format(message)
+
     def test_convert_message_to_google_genai_format_invalid_tool_result_type(self):
         tool_call = ToolCall(id="123", tool_name="weather", arguments={"city": "Paris"})
         message = ChatMessage.from_tool(tool_result=256, origin=tool_call)
@@ -954,3 +1066,84 @@ class TestConvertGoogleGenAIToMessage:
         result2 = _convert_usage_metadata_to_serializable(usage_with_details)
         assert result2["prompt_token_count"] == 0
         assert result2["candidates_tokens_details"] == [{"modality": "TEXT", "token_count": 100}]
+
+
+class TestRemoveKeyFromSchema:
+    def test_remove_key_from_schema_in_nested_dict(self):
+        schema = {"type": "object", "title": "Foo", "properties": {"x": {"type": "string", "title": "X"}}}
+        result = remove_key_from_schema(schema, "title")
+        assert result == {"type": "object", "properties": {"x": {"type": "string"}}}
+
+    def test_remove_key_from_schema_in_list(self):
+        schema = [{"type": "string", "title": "A"}, {"type": "integer", "title": "B"}]
+        result = remove_key_from_schema(schema, "title")
+        assert result == [{"type": "string"}, {"type": "integer"}]
+
+    def test_remove_key_from_schema_scalar(self):
+        assert remove_key_from_schema("hello", "title") == "hello"
+        assert remove_key_from_schema(42, "title") == 42
+        assert remove_key_from_schema(None, "title") is None
+
+
+class TestSanitizeToolSchema:
+    def test_sanitize_tool_schema_removes_unsupported_keys(self):
+        schema = {
+            "type": "object",
+            "$schema": "http://json-schema.org/draft-07/schema#",
+            "additionalProperties": False,
+            "properties": {"x": {"type": "string"}},
+        }
+        result = _sanitize_tool_schema(schema)
+        assert "$schema" not in result
+        assert "additionalProperties" not in result
+        assert result["properties"] == {"x": {"type": "string"}}
+
+    def test_sanitize_tool_schema_expands_refs(self):
+        schema = {
+            "type": "object",
+            "$defs": {"Name": {"type": "string"}},
+            "properties": {"name": {"$ref": "#/$defs/Name"}},
+        }
+        result = _sanitize_tool_schema(schema)
+        assert "$defs" not in result
+        assert result["properties"]["name"] == {"type": "string"}
+
+
+class TestConvertToolsToGoogleGenAIFormat:
+    def test_convert_single_tool(self):
+        def dummy(x: str):
+            return x
+
+        tool = Tool(
+            name="my_tool",
+            description="A test tool",
+            parameters={"type": "object", "properties": {"x": {"type": "string"}}, "required": ["x"]},
+            function=dummy,
+        )
+        result = _convert_tools_to_google_genai_format([tool])
+        assert len(result) == 1
+        assert len(result[0].function_declarations) == 1
+        assert result[0].function_declarations[0].name == "my_tool"
+        assert result[0].function_declarations[0].description == "A test tool"
+
+    def test_convert_multiple_tools(self):
+        def dummy(x: str):
+            return x
+
+        tool1 = Tool(
+            name="tool_a",
+            description="First",
+            parameters={"type": "object", "properties": {"x": {"type": "string"}}},
+            function=dummy,
+        )
+        tool2 = Tool(
+            name="tool_b",
+            description="Second",
+            parameters={"type": "object", "properties": {"y": {"type": "integer"}}},
+            function=dummy,
+        )
+        result = _convert_tools_to_google_genai_format([tool1, tool2])
+        assert len(result) == 1
+        assert len(result[0].function_declarations) == 2
+        names = {fd.name for fd in result[0].function_declarations}
+        assert names == {"tool_a", "tool_b"}

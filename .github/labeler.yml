@@ -59,6 +59,11 @@ integration:deepeval:
       - any-glob-to-any-file: "integrations/deepeval/**/*"
       - any-glob-to-any-file: ".github/workflows/deepeval.yml"
 
+integration:docling:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/docling/**/*"
+      - any-glob-to-any-file: ".github/workflows/docling.yml"
+
 integration:elasticsearch:
   - changed-files:
       - any-glob-to-any-file: "integrations/elasticsearch/**/*"
@@ -274,7 +279,6 @@ topic:DX:
             "CONTRIBUTING.md",
             ".pre-commit-config.yaml",
             ".gitignore",
-            "requirements.txt",
           ]
 topic:security:
   - changed-files:

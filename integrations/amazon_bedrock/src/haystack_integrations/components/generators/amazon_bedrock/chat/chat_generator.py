@@ -39,8 +39,8 @@ class AmazonBedrockChatGenerator:
     """
     Completes chats using LLMs hosted on Amazon Bedrock available via the Bedrock Converse API.
 
-    For example, to use the Anthropic Claude 3 Sonnet model, initialize this component with the
-    'anthropic.claude-3-5-sonnet-20240620-v1:0' model name.
+    For example, to use the Anthropic Claude 4.6 Sonnet model, initialize this component with the
+    'global.anthropic.claude-sonnet-4-6' model name.
 
     **Usage example**
 
@@ -53,7 +53,7 @@ class AmazonBedrockChatGenerator:
                 ChatMessage.from_user("What's Natural Language Processing?")]
 
 
-    client = AmazonBedrockChatGenerator(model="anthropic.claude-3-5-sonnet-20240620-v1:0",
+    client = AmazonBedrockChatGenerator(model="global.anthropic.claude-sonnet-4-6",
                                         streaming_callback=print_streaming_chunk)
     client.run(messages, generation_kwargs={"max_tokens": 512})
     ```
@@ -64,7 +64,7 @@ class AmazonBedrockChatGenerator:
     from haystack.dataclasses import ChatMessage, ImageContent
     from haystack_integrations.components.generators.amazon_bedrock import AmazonBedrockChatGenerator
 
-    generator = AmazonBedrockChatGenerator(model="anthropic.claude-3-5-sonnet-20240620-v1:0")
+    generator = AmazonBedrockChatGenerator(model="global.anthropic.claude-sonnet-4-6")
 
     image_content = ImageContent.from_file_path(file_path="apple.jpg")
 
@@ -107,7 +107,7 @@ class AmazonBedrockChatGenerator:
 
     # Initialize generator with tool
     client = AmazonBedrockChatGenerator(
-        model="anthropic.claude-3-5-sonnet-20240620-v1:0",
+        model="global.anthropic.claude-sonnet-4-6",
         tools=[weather_tool]
     )
 

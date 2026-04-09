@@ -267,6 +267,37 @@ def test_client_initialization_with_api_key_string(_mock_async_es, _mock_es):
     assert async_call_args[1]["api_key"] == "test_api_key"
 
 
+@patch("haystack_integrations.document_stores.elasticsearch.document_store.Elasticsearch")
+def test_init_with_custom_mapping(mock_elasticsearch):
+    custom_mapping = {
+        "properties": {
+            "embedding": {"type": "dense_vector", "index": True, "similarity": "dot_product"},
+            "content": {"type": "text"},
+        },
+        "dynamic_templates": [
+            {
+                "strings": {
+                    "path_match": "*",
+                    "match_mapping_type": "string",
+                    "mapping": {
+                        "type": "keyword",
+                    },
+                }
+            }
+        ],
+    }
+    mock_client = Mock(
+        indices=Mock(create=Mock(), exists=Mock(return_value=False)),
+    )
+    mock_elasticsearch.return_value = mock_client
+
+    _ = ElasticsearchDocumentStore(hosts="http://testhost:9200", custom_mapping=custom_mapping).client
+    mock_client.indices.create.assert_called_once_with(
+        index="default",
+        mappings=custom_mapping,
+    )
+
+
 @pytest.mark.integration
 class TestDocumentStore(
     DocumentStoreBaseExtendedTests,
@@ -585,6 +616,7 @@ class TestDocumentStore(
 
         with pytest.raises(DocumentStoreError):
             document_store.write_documents(docs)
+
 
     def test_init_with_sparse_vector_field(self):
         store = ElasticsearchDocumentStore(

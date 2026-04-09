@@ -7,6 +7,7 @@ import copy
 # ruff: noqa: B008              function-call-in-default-argument
 # ruff: noqa: S101              disable checks for uses of the assert keyword
 from collections.abc import Mapping
+from dataclasses import replace
 from typing import Any, Literal
 
 import numpy as np
@@ -933,10 +934,12 @@ class ElasticsearchDocumentStore:
         documents = self._search_documents(**body)
 
         if scale_score:
-            for doc in documents:
-                if doc.score is None:
-                    continue
-                doc.score = float(1 / (1 + np.exp(-np.asarray(doc.score / BM25_SCALING_FACTOR))))
+            documents = [
+                replace(doc, score=float(1 / (1 + np.exp(-np.asarray(doc.score / BM25_SCALING_FACTOR)))))
+                if doc.score is not None
+                else doc
+                for doc in documents
+            ]
 
         return documents
 
@@ -991,9 +994,12 @@ class ElasticsearchDocumentStore:
         documents = await self._search_documents_async(**search_body)
 
         if scale_score:
-            for doc in documents:
-                if doc.score is not None:
-                    doc.score = float(1 / (1 + np.exp(-(doc.score / float(BM25_SCALING_FACTOR)))))
+            documents = [
+                replace(doc, score=float(1 / (1 + np.exp(-(doc.score / float(BM25_SCALING_FACTOR))))))
+                if doc.score is not None
+                else doc
+                for doc in documents
+            ]
 
         return documents
 

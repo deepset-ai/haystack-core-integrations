@@ -10,13 +10,20 @@ on:
       - "integrations/mcp/**"
       - "!integrations/mcp/*.md"
       - ".github/workflows/mcp.yml"
+  push:
+    branches:
+      - main
+    paths:
+      - "integrations/mcp/**"
+      - "!integrations/mcp/*.md"
+      - ".github/workflows/mcp.yml"
 
 defaults:
   run:
     working-directory: integrations/mcp
 
 concurrency:
-  group: mcp-${{ github.head_ref }}
+  group: mcp-${{ github.head_ref || github.sha }}
   cancel-in-progress: true
 
 env:
@@ -24,16 +31,36 @@ env:
   FORCE_COLOR: "1"
   BRAVE_API_KEY: ${{ secrets.BRAVE_API_KEY }}  
   OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+  TEST_MATRIX_OS: '["ubuntu-latest", "macos-latest", "windows-latest"]'
+  TEST_MATRIX_PYTHON: '["3.10", "3.14"]'
 
 jobs:
+  compute-test-matrix:
+    runs-on: ubuntu-slim
+    defaults:
+      run:
+        working-directory: .
+    outputs:
+      os: ${{ steps.set.outputs.os }}
+      python-version: ${{ steps.set.outputs.python-version }}
+    steps:
+      - id: set
+        run: |
+          echo 'os=${{ github.event_name == 'push' && '["ubuntu-latest"]' || env.TEST_MATRIX_OS }}' >> "$GITHUB_OUTPUT"
+          echo 'python-version=${{ github.event_name == 'push' && '["3.10"]' || env.TEST_MATRIX_PYTHON }}' >> "$GITHUB_OUTPUT"
+
   run:
     name: Python ${{ matrix.python-version }} on ${{ startsWith(matrix.os, 'macos-') && 'macOS' || startsWith(matrix.os, 'windows-') && 'Windows' || 'Linux' }}
+    needs: compute-test-matrix
+    permissions:
+      contents: write
+      pull-requests: write
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
-        python-version: ["3.10", "3.14"]  # MCP Python SDK is not compatible with Python<3.10
+        os: ${{ fromJSON(needs.compute-test-matrix.outputs.os) }}
+        python-version: ${{ fromJSON(needs.compute-test-matrix.outputs.python-version) }}
 
     steps:
       - name: Support longpaths
@@ -49,7 +76,7 @@ jobs:
           python-version: ${{ matrix.python-version }}
 
       - name: Install Hatch
-        run: pip install hatch "virtualenv<21.0.0"
+        run: pip install hatch
 
       - name: Set up Docker
         if: runner.os == 'Linux'
@@ -67,10 +94,43 @@ jobs:
         if: matrix.python-version == '3.10' && runner.os == 'Linux'
         run: hatch run fmt-check && hatch run test:types
 
-      - name: Run tests
-        run: hatch run test:cov-retry
+      - name: Run unit tests
+        run: hatch run test:unit-cov-retry
+
+      # On PR: posts coverage comment (directly on same-repo PRs; via artifact for fork PRs). On push to main: stores coverage baseline on data branch.
+      - name: Store unit tests coverage
+        id: coverage_comment
+        if: matrix.python-version == '3.10' && runner.os == 'Linux' && github.event_name != 'schedule'
+        uses: py-cov-action/python-coverage-comment-action@7188638f871f721a365d644f505d1ff3df20d683 # v3.40
+        with:
+          GITHUB_TOKEN: ${{ github.token }}
+          COVERAGE_PATH: integrations/mcp
+          SUBPROJECT_ID: mcp
+          MINIMUM_GREEN: 90
+          MINIMUM_ORANGE: 60
+
+      - name: Upload coverage comment to be posted
+        if: matrix.python-version == '3.10' && runner.os == 'Linux' && github.event_name == 'pull_request' && steps.coverage_comment.outputs.COMMENT_FILE_WRITTEN == 'true'
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        with:
+          name: coverage-comment-mcp
+          path: python-coverage-comment-action-mcp.txt
+
+      - name: Run integration tests
+        run: hatch run test:integration-cov-append-retry
+
+      - name: Store combined coverage
+        if: github.event_name == 'push'
+        uses: py-cov-action/python-coverage-comment-action@7188638f871f721a365d644f505d1ff3df20d683 # v3.40
+        with:
+          GITHUB_TOKEN: ${{ github.token }}
+          COVERAGE_PATH: integrations/mcp
+          SUBPROJECT_ID: mcp-combined
+          MINIMUM_GREEN: 90
+          MINIMUM_ORANGE: 60
 
       - name: Run unit tests with lowest direct dependencies
+        if: github.event_name != 'push'
         run: |
           hatch run uv pip compile pyproject.toml --resolution lowest-direct --output-file requirements_lowest_direct.txt
           hatch -e test env run -- uv pip install -r requirements_lowest_direct.txt
