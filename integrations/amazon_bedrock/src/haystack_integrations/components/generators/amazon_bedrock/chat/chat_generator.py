@@ -613,8 +613,6 @@ class AmazonBedrockChatGenerator:
 
         :returns:
             A dictionary containing the model-generated replies under the `"replies"` key.
-            When ``response_format`` is used, each reply's ``meta["structured_output"]`` contains the parsed
-            JSON object.
         :raises AmazonBedrockInferenceError:
             If the Bedrock inference API call fails or the model returns invalid JSON for structured output.
         """
