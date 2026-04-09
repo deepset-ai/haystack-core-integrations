@@ -447,7 +447,7 @@ class TestAmazonBedrockChatGenerator:
             "guardrailVersion": "test",
         }
 
-    def test_prepare_request_params_json_schema(self, mock_boto3_session, set_env_variables):
+    def test_prepare_request_params_response_format(self, mock_boto3_session, set_env_variables):
 
         generator = AmazonBedrockChatGenerator(model="global.anthropic.claude-sonnet-4-6")
         schema = {
@@ -459,7 +459,7 @@ class TestAmazonBedrockChatGenerator:
         request_params, _ = generator._prepare_request_params(
             messages=[ChatMessage.from_user("Hello")],
             generation_kwargs={
-                "json_schema": {
+                "response_format": {
                     "name": "person",
                     "description": "A person's name and age",
                     "schema": schema,
@@ -480,12 +480,12 @@ class TestAmazonBedrockChatGenerator:
             }
         }
 
-    def test_prepare_request_params_json_schema_missing_schema_key(self, mock_boto3_session, set_env_variables):
+    def test_prepare_request_params_response_format_missing_schema_key(self, mock_boto3_session, set_env_variables):
         generator = AmazonBedrockChatGenerator(model="global.anthropic.claude-sonnet-4-6")
-        with pytest.raises(ValueError, match="'json_schema' must contain a 'schema' key"):
+        with pytest.raises(ValueError, match="'response_format' must contain a 'schema' key"):
             generator._prepare_request_params(
                 messages=[ChatMessage.from_user("Hello")],
-                generation_kwargs={"json_schema": {"name": "test"}},
+                generation_kwargs={"response_format": {"name": "test"}},
             )
 
     def test_init_with_mixed_tools(self, mock_boto3_session, set_env_variables):
@@ -683,12 +683,12 @@ class TestAmazonBedrockChatGenerator:
         assert generator.model == "global.anthropic.claude-sonnet-4-6"
         assert generator.streaming_callback is None
 
-    def test_prepare_request_params_json_schema_without_description(self, mock_boto3_session, set_env_variables):
+    def test_prepare_request_params_response_format_without_description(self, mock_boto3_session, set_env_variables):
         generator = AmazonBedrockChatGenerator(model="global.anthropic.claude-sonnet-4-6")
         schema = {"type": "object", "properties": {"name": {"type": "string"}}}
         request_params, _ = generator._prepare_request_params(
             messages=[ChatMessage.from_user("Hello")],
-            generation_kwargs={"json_schema": {"name": "result", "schema": schema}},
+            generation_kwargs={"response_format": {"name": "result", "schema": schema}},
         )
         json_schema_block = request_params["outputConfig"]["textFormat"]["structure"]["jsonSchema"]
         assert "description" not in json_schema_block
@@ -745,27 +745,6 @@ class TestAmazonBedrockChatGenerator:
         assert len(result["replies"]) >= 1
         assert len(chunks) > 0
 
-    def test_run_with_json_schema_parses_structured_output(self, mock_boto3_session, set_env_variables):
-
-        generator = AmazonBedrockChatGenerator(model="global.anthropic.claude-sonnet-4-6")
-        generator.client = MagicMock()
-        generator.client.converse.return_value = {
-            "output": {"message": {"role": "assistant", "content": [{"text": '{"name": "Alice"}'}]}},
-            "stopReason": "end_turn",
-            "usage": {"inputTokens": 10, "outputTokens": 5},
-            "metrics": {"latencyMs": 100},
-        }
-        result = generator.run(
-            [ChatMessage.from_user("Return JSON")],
-            generation_kwargs={
-                "json_schema": {
-                    "name": "result",
-                    "schema": {"type": "object", "properties": {"name": {"type": "string"}}},
-                }
-            },
-        )
-        assert result["replies"][0].meta["structured_output"] == {"name": "Alice"}
-
     @pytest.mark.asyncio
     async def test_run_async_completion(self, mock_boto3_session, set_env_variables):
         generator = AmazonBedrockChatGenerator(model="global.anthropic.claude-sonnet-4-6")
@@ -814,50 +793,6 @@ class TestAmazonBedrockChatGeneratorInference:
         if first_reply.meta and "usage" in first_reply.meta:
             assert "prompt_tokens" in first_reply.meta["usage"]
             assert "completion_tokens" in first_reply.meta["usage"]
-
-    def test_run_with_structured_output(self):
-
-        client = AmazonBedrockChatGenerator(model="global.anthropic.claude-sonnet-4-6")
-
-        messages = [ChatMessage.from_user("Extract the person's name and age from: 'Alice is 30 years old.'")]
-        schema = {
-            "type": "object",
-            "properties": {
-                "name": {"type": "string"},
-                "age": {"type": "integer"},
-            },
-            "required": ["name", "age"],
-            "additionalProperties": False,
-        }
-
-        response = client.run(
-            messages,
-            generation_kwargs={
-                "json_schema": {
-                    "name": "person",
-                    "description": "A person's name and age",
-                    "schema": schema,
-                }
-            },
-        )
-
-        assert "replies" in response
-        assert len(response["replies"]) > 0
-
-        reply = response["replies"][0]
-        assert reply.text is not None
-
-        # Response text must be valid JSON
-        parsed = json.loads(reply.text)
-        assert isinstance(parsed, dict)
-
-        # Parsed object is accessible via meta
-        assert "structured_output" in reply.meta
-        assert reply.meta["structured_output"] == parsed
-
-        # Schema fields are present with correct types
-        assert isinstance(reply.meta["structured_output"].get("name"), str)
-        assert isinstance(reply.meta["structured_output"].get("age"), int)
 
     @pytest.mark.parametrize("model_name", MODELS_TO_TEST_WITH_IMAGE_INPUT)
     def test_run_with_image_input(self, model_name, test_files_path):
@@ -1540,7 +1475,7 @@ class TestAmazonBedrockChatGeneratorAsyncInference:
         response = await client.run_async(
             messages,
             generation_kwargs={
-                "json_schema": {
+                "response_format": {
                     "name": "person",
                     "description": "A person's name and age",
                     "schema": schema,

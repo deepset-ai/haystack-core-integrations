@@ -33,6 +33,9 @@ def get_aws_session(
 
     Checks if the provided AWS credentials are valid and can be used to connect to AWS.
 
+    For an async session we use AioSession, has a different API than boto3.Session, it doesn't accept credentials in
+    its constructor. The credentials instead are passed for each client at create_client() time.
+
     :param aws_access_key_id: AWS access key ID.
     :param aws_secret_access_key: AWS secret access key.
     :param aws_session_token: AWS session token.

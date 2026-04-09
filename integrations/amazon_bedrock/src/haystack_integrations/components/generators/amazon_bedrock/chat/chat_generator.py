@@ -36,7 +36,6 @@ from haystack_integrations.components.generators.amazon_bedrock.chat.utils impor
     _parse_completion_response,
     _parse_streaming_response,
     _parse_streaming_response_async,
-    _parse_structured_output,
     _validate_and_format_cache_point,
     _validate_guardrail_config,
 )
@@ -174,11 +173,13 @@ class AmazonBedrockChatGenerator:
     def __init__(
         self,
         model: str,
-        aws_access_key_id: Secret | None = None,
-        aws_secret_access_key: Secret | None = None,
-        aws_session_token: Secret | None = None,
-        aws_region_name: Secret | None = None,
-        aws_profile_name: Secret | None = None,
+        aws_access_key_id: Secret | None = Secret.from_env_var(["AWS_ACCESS_KEY_ID"], strict=False),  # noqa: B008
+        aws_secret_access_key: Secret | None = Secret.from_env_var(  # noqa: B008
+                ["AWS_SECRET_ACCESS_KEY"], strict=False
+            ),
+        aws_session_token: Secret | None = Secret.from_env_var(["AWS_SESSION_TOKEN"], strict=False),  # noqa: B008
+        aws_region_name: Secret | None = Secret.from_env_var(["AWS_DEFAULT_REGION"], strict=False),  # noqa: B008
+        aws_profile_name: Secret | None = Secret.from_env_var(["AWS_PROFILE"], strict=False),  # noqa: B008
         generation_kwargs: dict[str, Any] | None = None,
         streaming_callback: StreamingCallbackT | None = None,
         boto3_config: dict[str, Any] | None = None,
@@ -408,7 +409,7 @@ class AmazonBedrockChatGenerator:
             - `stopSequences`: List of stop sequences to stop generation.
             - `temperature`: Sampling temperature.
             - `topP`: Nucleus sampling parameter.
-            - `json_schema`: Request structured JSON output validated against a schema. Provide a dict with:
+            - `response_format`: Request structured JSON output validated against a schema. Provide a dict with:
                 - `schema` (required): a JSON Schema dict describing the expected output structure.
                 - `name` (optional): a name for the schema, defaults to ``"response_schema"``.
                 - `description` (optional): a description of the schema.
@@ -416,7 +417,7 @@ class AmazonBedrockChatGenerator:
                 Example::
 
                     generation_kwargs={
-                        "json_schema": {
+                        "response_format": {
                             "name": "person",
                             "schema": {
                                 "type": "object",
@@ -456,7 +457,7 @@ class AmazonBedrockChatGenerator:
         flattened_tools = flatten_tools_or_toolsets(tools)
         _check_duplicate_tool_names(flattened_tools)
         tool_config = merged_kwargs.pop("toolConfig", None)
-        json_schema = merged_kwargs.pop("json_schema", None)
+        response_format = merged_kwargs.pop("response_format", None)
         if flattened_tools:
             # Format Haystack tools to Bedrock format
             tool_config = _format_tools(flattened_tools, tools_cachepoint_config=self.tools_cachepoint_config)
@@ -464,19 +465,19 @@ class AmazonBedrockChatGenerator:
         # Any remaining kwargs go to additionalModelRequestFields
         additional_fields = merged_kwargs if merged_kwargs else None
 
-        # Build outputConfig from json_schema for structured output support.
+        # Build outputConfig from response_format for structured output support.
         # See https://docs.aws.amazon.com/bedrock/latest/userguide/structured-output.html
         output_config: dict[str, Any] | None = None
-        if json_schema is not None:
-            if "schema" not in json_schema:
-                msg = "'json_schema' must contain a 'schema' key with the JSON Schema dict."
+        if response_format is not None:
+            if "schema" not in response_format:
+                msg = "'response_format' must contain a 'schema' key with the JSON Schema dict."
                 raise ValueError(msg)
             json_schema_block: dict[str, Any] = {
-                "name": json_schema.get("name", "response_schema"),
-                "schema": json.dumps(json_schema["schema"]),
+                "name": response_format.get("name", "response_schema"),
+                "schema": json.dumps(response_format["schema"]),
             }
-            if "description" in json_schema:
-                json_schema_block["description"] = json_schema["description"]
+            if "description" in response_format:
+                json_schema_block["description"] = response_format["description"]
             output_config = {
                 "textFormat": {
                     "type": "json_schema",
@@ -563,14 +564,15 @@ class AmazonBedrockChatGenerator:
             - `stopSequences`: List of stop sequences to stop generation.
             - `temperature`: Sampling temperature.
             - `topP`: Nucleus sampling parameter.
-            - `json_schema`: Request structured JSON output validated against a schema. See
+            - `response_format`: Request structured JSON output validated against a schema. See
               :meth:`_prepare_request_params` for full details.
         :param tools: A list of Tool and/or Toolset objects, or a single Toolset for which the model can prepare calls.
             Each tool should have a unique name.
 
         :returns:
             A dictionary containing the model-generated replies under the `"replies"` key.
-            When ``json_schema`` is used, each reply's ``meta["structured_output"]`` contains the parsed JSON object.
+            When ``response_format`` is used, each reply's ``meta["structured_output"]`` contains the parsed
+            JSON object.
         :raises AmazonBedrockInferenceError:
             If the Bedrock inference API call fails or the model returns invalid JSON for structured output.
         """
@@ -605,9 +607,6 @@ class AmazonBedrockChatGenerator:
             msg = f"Could not perform inference for Amazon Bedrock model {self.model} due to:\n{exception}"
             raise AmazonBedrockInferenceError(msg) from exception
 
-        if "outputConfig" in params:
-            replies = _parse_structured_output(replies)
-
         return {"replies": replies}
 
     @component.output_types(replies=list[ChatMessage])
@@ -630,14 +629,14 @@ class AmazonBedrockChatGenerator:
             - `stopSequences`: List of stop sequences to stop generation.
             - `temperature`: Sampling temperature.
             - `topP`: Nucleus sampling parameter.
-            - `json_schema`: Request structured JSON output validated against a schema. See
-              :meth:`_prepare_request_params` for full details.
+            - `response_format`: Request structured JSON output validated against a schema.
         :param tools: A list of Tool and/or Toolset objects, or a single Toolset for which the model can prepare calls.
             Each tool should have a unique name.
 
         :returns:
             A dictionary containing the model-generated replies under the `"replies"` key.
-            When ``json_schema`` is used, each reply's ``meta["structured_output"]`` contains the parsed JSON object.
+            When ``response_format`` is used, each reply's ``meta["structured_output"]`` contains the parsed
+            JSON object.
         :raises AmazonBedrockInferenceError:
             If the Bedrock inference API call fails or the model returns invalid JSON for structured output.
         """
@@ -687,8 +686,5 @@ class AmazonBedrockChatGenerator:
         except ClientError as exception:
             msg = f"Could not perform inference for Amazon Bedrock model {self.model} due to:\n{exception}"
             raise AmazonBedrockInferenceError(msg) from exception
-
-        if "outputConfig" in params:
-            replies = _parse_structured_output(replies)
 
         return {"replies": replies}
