@@ -9,7 +9,8 @@ from typing import Annotated
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-from haystack.dataclasses import ChatMessage, ToolCall
+from haystack.components.generators.utils import print_streaming_chunk
+from haystack.dataclasses import ChatMessage
 from haystack.tools import tool
 from haystack.utils.auth import Secret
 from openai import AsyncStream, Stream
@@ -345,23 +346,27 @@ class TestVLLMChatGeneratorSerde:
         data = component.to_dict()
 
         assert data["init_parameters"]["model"] == "Qwen/Qwen3-0.6B"
+        assert data["init_parameters"]["api_key"] == {"env_vars": ["VLLM_API_KEY"], "strict": False, "type": "env_var"}
         assert data["init_parameters"]["api_base_url"] == "http://localhost:8000/v1"
         assert data["init_parameters"]["generation_kwargs"] == {"max_tokens": 512}
-        assert "organization" not in data["init_parameters"]
-        assert "tools_strict" not in data["init_parameters"]
+        assert data["init_parameters"]["http_client_kwargs"] is None
+        assert data["init_parameters"]["tools"] is None
+        assert data["init_parameters"]["timeout"] is None
+        assert data["init_parameters"]["max_retries"] is None
+        assert data["init_parameters"]["streaming_callback"] is None
 
     def test_from_dict(self):
         data = {
-            "type": ("haystack_integrations.components.generators.vllm.chat.chat_generator.VLLMChatGenerator"),
+            "type": "haystack_integrations.components.generators.vllm.chat.chat_generator.VLLMChatGenerator",
             "init_parameters": {
                 "model": "Qwen/Qwen3-0.6B",
                 "api_key": {"type": "env_var", "env_vars": ["VLLM_API_KEY"], "strict": False},
                 "api_base_url": "http://my-server:8000/v1",
                 "generation_kwargs": {"max_tokens": 512},
-                "streaming_callback": None,
+                "streaming_callback": "haystack.components.generators.utils.print_streaming_chunk",
                 "tools": None,
-                "timeout": None,
-                "max_retries": None,
+                "timeout": 30.0,
+                "max_retries": 5,
                 "http_client_kwargs": None,
             },
         }
@@ -370,10 +375,17 @@ class TestVLLMChatGeneratorSerde:
         assert isinstance(component, VLLMChatGenerator)
         assert component.model == "Qwen/Qwen3-0.6B"
         assert component.generation_kwargs == {"max_tokens": 512}
+        assert component.streaming_callback is print_streaming_chunk
+        assert component.api_base_url == "http://my-server:8000/v1"
+        assert component.api_key == Secret.from_env_var("VLLM_API_KEY", strict=False)
+        assert component.timeout == 30.0
+        assert component.max_retries == 5
+        assert component.http_client_kwargs is None
+        assert component.tools is None
 
     def test_from_dict_with_streaming_callback(self):
         data = {
-            "type": ("haystack_integrations.components.generators.vllm.chat.chat_generator.VLLMChatGenerator"),
+            "type": "haystack_integrations.components.generators.vllm.chat.chat_generator.VLLMChatGenerator",
             "init_parameters": {
                 "model": "Qwen/Qwen3-0.6B",
                 "api_key": {"type": "env_var", "env_vars": ["VLLM_API_KEY"], "strict": False},
@@ -535,7 +547,7 @@ class TestVLLMChatGeneratorLiveRun:
         assert len(reply.reasoning.reasoning_text) > 0
         assert reply.text is not None
 
-    def test_live_run_with_tools(self):
+    def test_live_run_with_reasoning_and_parallel_tool_calls(self):
 
         @tool
         def weather(city: Annotated[str, "The city to get the weather for"]) -> str:
@@ -544,18 +556,21 @@ class TestVLLMChatGeneratorLiveRun:
 
         component = VLLMChatGenerator(
             model="Qwen/Qwen3-0.6B",
-            generation_kwargs=NO_THINKING_KWARGS,
+            # generation_kwargs=NO_THINKING_KWARGS,
             tools=[weather],
         )
-        response = component.run([ChatMessage.from_user("What is the weather in Paris?")])
+        response = component.run([ChatMessage.from_user("What is the weather in Paris? And in Berlin?")])
 
         assert len(response["replies"]) == 1
         message = response["replies"][0]
-        assert message.tool_calls
-        tool_call = message.tool_call
-        assert isinstance(tool_call, ToolCall)
-        assert tool_call.tool_name == "weather"
-        assert tool_call.arguments == {"city": "Paris"}
+        assert message.reasoning is not None
+        assert len(message.reasoning.reasoning_text) > 0
+
+        tool_calls = message.tool_calls
+        assert tool_calls[0].tool_name == "weather"
+        assert tool_calls[0].arguments == {"city": "Paris"}
+        assert tool_calls[1].tool_name == "weather"
+        assert tool_calls[1].arguments == {"city": "Berlin"}
 
     def test_live_run_with_structured_output(self):
         response_format = {
