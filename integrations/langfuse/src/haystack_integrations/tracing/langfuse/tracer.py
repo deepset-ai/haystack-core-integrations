@@ -22,7 +22,8 @@ from haystack.tracing import utils as tracing_utils
 
 import langfuse
 from langfuse import LangfuseSpan as LangfuseClientSpan
-from langfuse.types import TraceContext, TraceMetadata
+from langfuse import propagate_attributes
+from langfuse.types import TraceContext
 
 logger = logging.getLogger(__name__)
 
@@ -61,7 +62,6 @@ class LangfuseSpan(Span):
         Initialize a LangfuseSpan instance.
 
         :param context_manager: The context manager from Langfuse created with
-        `langfuse.get_client().start_as_current_span` or
         `langfuse.get_client().start_as_current_observation`.
         """
         self._span = context_manager.__enter__()
@@ -297,33 +297,31 @@ class DefaultSpanHandler(SpanHandler):
             trace_context: TraceContext | None = cast(
                 TraceContext, {"trace_id": tracing_ctx.get("trace_id")} if tracing_ctx.get("trace_id") else None
             )
-            # Create a new trace when there's no parent span
-            span_context_manager = self.tracer.start_as_current_observation(
-                trace_context=trace_context,
-                name=context.trace_name,
-                version=tracing_ctx.get("version"),
-                as_type=root_span_type,
-            )
 
-            # Create LangfuseSpan which will handle entering the context manager
-            span = LangfuseSpan(span_context_manager)
-
-            # Build trace metadata from context
-            trace_metadata: TraceMetadata = {
-                "name": context.trace_name,
-                "user_id": tracing_ctx.get("user_id"),
-                "session_id": tracing_ctx.get("session_id"),
-                "version": tracing_ctx.get("version"),
-                "metadata": None,
-                "tags": tracing_ctx.get("tags"),
-                "public": context.public,
-                "release": None,
+            # Build propagation attributes (user_id, session_id, tags, version)
+            # propagate_attributes injects these into the observation and all children
+            prop_kwargs = {
+                k: v
+                for k, v in {
+                    "user_id": tracing_ctx.get("user_id"),
+                    "session_id": tracing_ctx.get("session_id"),
+                    "version": tracing_ctx.get("version"),
+                    "tags": tracing_ctx.get("tags"),
+                }.items()
+                if v is not None
             }
 
-            # Filter out None values and apply trace attributes
-            trace_attrs = {k: v for k, v in trace_metadata.items() if v is not None}
-            if trace_attrs:
-                span._span.update_trace(**trace_attrs)
+            with propagate_attributes(**prop_kwargs):
+                span_context_manager = self.tracer.start_as_current_observation(
+                    trace_context=trace_context,
+                    name=context.trace_name,
+                    version=tracing_ctx.get("version"),
+                    as_type=root_span_type,
+                )
+                span = LangfuseSpan(span_context_manager)
+
+            if context.public:
+                span._span.set_trace_as_public()
 
             return span
 
@@ -347,7 +345,7 @@ class DefaultSpanHandler(SpanHandler):
                 )
             )
         else:
-            return LangfuseSpan(self.tracer.start_as_current_span(name=context.name))
+            return LangfuseSpan(self.tracer.start_as_current_observation(name=context.name))
 
     def handle(self, span: LangfuseSpan, component_type: str | None) -> None:
         """Process and enrich a span after component execution."""
@@ -356,7 +354,7 @@ class DefaultSpanHandler(SpanHandler):
         if at_pipeline_level:
             coerced_input = tracing_utils.coerce_tag_value(span.get_data().get(_PIPELINE_INPUT_KEY))
             coerced_output = tracing_utils.coerce_tag_value(span.get_data().get(_PIPELINE_OUTPUT_KEY))
-            span.raw_span().update_trace(input=coerced_input, output=coerced_output)
+            span.raw_span().set_trace_io(input=coerced_input, output=coerced_output)
         # special case for ToolInvoker (to update the span name to be: `original_component_name - [tool_names]`)
         if component_type == "ToolInvoker":
             tool_names: list[str] = []
