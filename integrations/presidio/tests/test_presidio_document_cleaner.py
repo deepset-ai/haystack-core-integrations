@@ -106,6 +106,7 @@ class TestPresidioDocumentCleaner:
         cleaner = PresidioDocumentCleaner()
         cleaner._analyzer = MagicMock()
         cleaner._analyzer.analyze.side_effect = Exception("Analyzer error")
+        cleaner._anonymizer = MagicMock()
 
         doc = Document(content="Some text with PII")
         with caplog.at_level(logging.WARNING):
@@ -147,6 +148,7 @@ class TestPresidioDocumentCleaner:
     @pytest.mark.integration
     def test_run_integration(self):
         cleaner = PresidioDocumentCleaner()
+        cleaner.warm_up()
         docs = [Document(content="My name is John Smith and my email is john@example.com")]
         result = cleaner.run(documents=docs)
 

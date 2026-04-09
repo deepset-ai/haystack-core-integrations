@@ -2,8 +2,6 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from typing import Any
-
 from haystack import Document, component, logging
 from presidio_analyzer import AnalyzerEngine
 from presidio_anonymizer import AnonymizerEngine
@@ -22,6 +20,8 @@ class PresidioDocumentCleaner:
 
     Documents without text content are passed through unchanged.
 
+    Call `warm_up()` before running this component to load the Presidio analyzer and anonymizer engines.
+
     ### Usage example
 
     ```python
@@ -29,6 +29,7 @@ class PresidioDocumentCleaner:
     from haystack_integrations.components.preprocessors.presidio import PresidioDocumentCleaner
 
     cleaner = PresidioDocumentCleaner()
+    cleaner.warm_up()
     result = cleaner.run(documents=[Document(content="My name is John and my email is john@example.com")])
     print(result["documents"][0].content)
     # My name is <PERSON> and my email is <EMAIL_ADDRESS>
@@ -37,6 +38,7 @@ class PresidioDocumentCleaner:
 
     def __init__(
         self,
+        *,
         language: str = "en",
         entities: list[str] | None = None,
         score_threshold: float = 0.35,
@@ -46,20 +48,35 @@ class PresidioDocumentCleaner:
 
         :param language:
             Language code for PII detection. Defaults to `"en"`.
+            See [Presidio supported languages](https://microsoft.github.io/presidio/supported_languages/).
         :param entities:
             List of PII entity types to detect and anonymize (e.g. `["PERSON", "EMAIL_ADDRESS"]`).
             If `None`, all supported entity types are used.
+            See [Presidio supported entities](https://microsoft.github.io/presidio/supported_entities/).
         :param score_threshold:
             Minimum confidence score (0-1) for a detected entity to be anonymized. Defaults to `0.35`.
+            See [Presidio analyzer documentation](https://microsoft.github.io/presidio/analyzer/).
         """
         self.language = language
         self.entities = entities
         self.score_threshold = score_threshold
-        self._analyzer = AnalyzerEngine()
-        self._anonymizer = AnonymizerEngine()
+        self._analyzer: AnalyzerEngine | None = None
+        self._anonymizer: AnonymizerEngine | None = None
+
+    def warm_up(self) -> None:
+        """
+        Initializes the Presidio analyzer and anonymizer engines.
+
+        This method loads the underlying NLP models and should be called before `run()`.
+        In a Haystack Pipeline, this is called automatically before the first run.
+        """
+        if self._analyzer is None:
+            self._analyzer = AnalyzerEngine()
+        if self._anonymizer is None:
+            self._anonymizer = AnonymizerEngine()
 
     @component.output_types(documents=list[Document])
-    def run(self, documents: list[Document]) -> dict[str, Any]:
+    def run(self, documents: list[Document]) -> dict[str, list[Document]]:
         """
         Anonymizes PII in the provided Documents.
 
@@ -73,6 +90,9 @@ class PresidioDocumentCleaner:
             if doc.content is None:
                 cleaned.append(doc)
                 continue
+            if self._analyzer is None or self._anonymizer is None:
+                msg = "The component was not warmed up. Call warm_up() before running it."
+                raise RuntimeError(msg)
             try:
                 analyzer_results = self._analyzer.analyze(
                     text=doc.content,

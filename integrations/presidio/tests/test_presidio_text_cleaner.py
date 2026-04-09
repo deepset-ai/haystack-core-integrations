@@ -65,6 +65,7 @@ class TestPresidioTextCleaner:
         cleaner = PresidioTextCleaner()
         cleaner._analyzer = MagicMock()
         cleaner._analyzer.analyze.side_effect = Exception("error")
+        cleaner._anonymizer = MagicMock()
 
         with caplog.at_level(logging.WARNING):
             result = cleaner.run(texts=["My name is John"])
@@ -88,6 +89,7 @@ class TestPresidioTextCleaner:
     @pytest.mark.integration
     def test_run_integration(self):
         cleaner = PresidioTextCleaner()
+        cleaner.warm_up()
         result = cleaner.run(texts=["Hi, I am Alice and my phone is 212-555-5678"])
 
         assert len(result["texts"]) == 1

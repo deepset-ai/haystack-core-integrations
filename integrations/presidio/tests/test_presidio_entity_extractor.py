@@ -116,6 +116,7 @@ class TestPresidioEntityExtractor:
     @pytest.mark.integration
     def test_run_integration(self):
         extractor = PresidioEntityExtractor()
+        extractor.warm_up()
         docs = [Document(content="Contact Alice at alice@example.com")]
         result = extractor.run(documents=docs)
 
