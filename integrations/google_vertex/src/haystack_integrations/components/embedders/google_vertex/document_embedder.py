@@ -1,5 +1,6 @@
 import math
 import time
+from dataclasses import replace
 from typing import Any, Literal, Optional
 
 import vertexai
@@ -271,8 +272,7 @@ class VertexAIDocumentEmbedder:
             i += batch_size
             batch_number += 1
 
-        for doc, embeddings in zip(documents, all_embeddings):
-            doc.embedding = embeddings
+        documents = [replace(doc, embedding=emb) for doc, emb in zip(documents, all_embeddings)]
 
         return {"documents": documents}
 

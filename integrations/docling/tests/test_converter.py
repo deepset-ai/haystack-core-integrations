@@ -1,9 +1,12 @@
 import json
+import warnings
 from types import SimpleNamespace
 from typing import Any
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
+import pytest
 from haystack.core.serialization import component_from_dict, component_to_dict
+from haystack.dataclasses import ByteStream
 
 from haystack_integrations.components.converters.docling import DoclingConverter, ExportType
 
@@ -213,3 +216,153 @@ def test_component_from_dict_custom_params() -> None:
     assert restored.convert_kwargs == {"raises_on_error": False}
     assert restored.export_type == ExportType.JSON
     assert restored.md_export_kwargs == {"image_placeholder": "[img]"}
+
+
+def test_run_with_sources_parameter() -> None:
+    converter_mock = MagicMock()
+    chunker_mock = MagicMock()
+    meta_extractor_mock = MagicMock()
+
+    converter_mock.convert.return_value = SimpleNamespace(document="dl-doc")
+    chunker_mock.chunk.return_value = [SimpleNamespace(text="chunk-1")]
+    chunker_mock.contextualize.return_value = "contextualized-chunk-1"
+    meta_extractor_mock.extract_chunk_meta.return_value = {}
+
+    converter = DoclingConverter(
+        converter=converter_mock,
+        export_type=ExportType.DOC_CHUNKS,
+        chunker=chunker_mock,
+        meta_extractor=meta_extractor_mock,
+    )
+
+    result = converter.run(sources=["file.pdf"])
+    assert len(result["documents"]) == 1
+
+
+def test_run_paths_deprecated() -> None:
+    converter_mock = MagicMock()
+    chunker_mock = MagicMock()
+    meta_extractor_mock = MagicMock()
+
+    converter_mock.convert.return_value = SimpleNamespace(document="dl-doc")
+    chunker_mock.chunk.return_value = [SimpleNamespace(text="chunk-1")]
+    chunker_mock.contextualize.return_value = "contextualized-chunk-1"
+    meta_extractor_mock.extract_chunk_meta.return_value = {}
+
+    converter = DoclingConverter(
+        converter=converter_mock,
+        export_type=ExportType.DOC_CHUNKS,
+        chunker=chunker_mock,
+        meta_extractor=meta_extractor_mock,
+    )
+
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        result = converter.run(paths=["file.pdf"])
+
+    assert len(result["documents"]) == 1
+    assert any(issubclass(w.category, DeprecationWarning) and "paths" in str(w.message) for w in caught)
+
+
+def test_run_meta_single_dict_doc_chunks() -> None:
+    converter_mock = MagicMock()
+    chunker_mock = MagicMock()
+    meta_extractor_mock = MagicMock()
+
+    converter_mock.convert.side_effect = [
+        SimpleNamespace(document="dl-doc-a"),
+        SimpleNamespace(document="dl-doc-b"),
+    ]
+    chunker_mock.chunk.side_effect = lambda dl_doc: [SimpleNamespace(text=f"chunk-of-{dl_doc}")]
+    chunker_mock.contextualize.side_effect = lambda chunk: chunk.text
+    meta_extractor_mock.extract_chunk_meta.return_value = {"extractor_key": "extractor_val"}
+
+    converter = DoclingConverter(
+        converter=converter_mock,
+        export_type=ExportType.DOC_CHUNKS,
+        chunker=chunker_mock,
+        meta_extractor=meta_extractor_mock,
+    )
+
+    result = converter.run(sources=["a.pdf", "b.pdf"], meta={"custom": "value"})
+    documents = result["documents"]
+
+    assert len(documents) == 2
+    for doc in documents:
+        assert doc.meta["custom"] == "value"
+        assert doc.meta["extractor_key"] == "extractor_val"
+
+
+def test_run_meta_list_of_dicts_markdown() -> None:
+    converter_mock = MagicMock()
+    meta_extractor_mock = MagicMock()
+
+    dl_doc_a = MagicMock()
+    dl_doc_a.export_to_markdown.return_value = "markdown-a"
+    dl_doc_b = MagicMock()
+    dl_doc_b.export_to_markdown.return_value = "markdown-b"
+
+    converter_mock.convert.side_effect = [
+        SimpleNamespace(document=dl_doc_a),
+        SimpleNamespace(document=dl_doc_b),
+    ]
+    meta_extractor_mock.extract_dl_doc_meta.return_value = {}
+
+    converter = DoclingConverter(
+        converter=converter_mock,
+        export_type=ExportType.MARKDOWN,
+        meta_extractor=meta_extractor_mock,
+    )
+
+    result = converter.run(
+        sources=["a.pdf", "b.pdf"],
+        meta=[{"source_id": "doc-a"}, {"source_id": "doc-b"}],
+    )
+    documents = result["documents"]
+
+    assert len(documents) == 2
+    assert documents[0].meta["source_id"] == "doc-a"
+    assert documents[1].meta["source_id"] == "doc-b"
+
+
+def test_run_meta_list_length_mismatch_raises() -> None:
+    converter_mock = MagicMock()
+    meta_extractor_mock = MagicMock()
+
+    converter = DoclingConverter(
+        converter=converter_mock,
+        export_type=ExportType.MARKDOWN,
+        meta_extractor=meta_extractor_mock,
+    )
+
+    with pytest.raises(ValueError):
+        converter.run(sources=["a.pdf", "b.pdf"], meta=[{"x": 1}])
+
+
+def test_run_with_bytestream_source() -> None:
+    converter_mock = MagicMock()
+    meta_extractor_mock = MagicMock()
+
+    dl_doc = MagicMock()
+    dl_doc.export_to_markdown.return_value = "markdown-content"
+    converter_mock.convert.return_value = SimpleNamespace(document=dl_doc)
+    meta_extractor_mock.extract_dl_doc_meta.return_value = {}
+
+    converter = DoclingConverter(
+        converter=converter_mock,
+        export_type=ExportType.MARKDOWN,
+        meta_extractor=meta_extractor_mock,
+    )
+
+    bytestream = ByteStream(data=b"%PDF-1.4 fake pdf content", meta={"file_path": "uploaded.pdf"})
+
+    with patch("os.unlink"):
+        result = converter.run(sources=[bytestream])
+
+    documents = result["documents"]
+    assert len(documents) == 1
+    # ByteStream meta is merged into the output document
+    assert documents[0].meta["file_path"] == "uploaded.pdf"
+    # docling was called with a temp file path, not the ByteStream directly
+    call_args = converter_mock.convert.call_args
+    assert call_args.kwargs["source"] != bytestream

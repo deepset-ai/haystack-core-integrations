@@ -49,6 +49,19 @@ def _serialize_warnings(warnings: list[Any]) -> list[dict[str, str]]:
     return serialized
 
 
+def _serialize_keywords(keywords: list[Any]) -> list[dict[str, Any]]:
+    """Serialize kreuzberg `ExtractedKeyword` objects to plain dicts (PyO3 objects aren't picklable)."""
+    return [
+        {
+            "text": k.text,
+            "score": k.score,
+            "algorithm": k.algorithm,
+            "positions": list(k.positions) if k.positions is not None else None,
+        }
+        for k in keywords
+    ]
+
+
 def _serialize_annotations(annotations: list[Any]) -> list[dict[str, Any]]:
     """Serialize PDF annotations to plain dicts."""
     serialized = []
