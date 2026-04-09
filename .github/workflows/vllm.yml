@@ -32,7 +32,7 @@ env:
   VLLM_MODEL: "Qwen/Qwen3-0.6B"
   # we only test on Ubuntu to keep vLLM server running simple
   TEST_MATRIX_OS: '["ubuntu-latest"]'
-  # numba (required for running the vLLM server) is not compatible with Python 3.14
+  # vLLM is not compatible with Python 3.14. https://github.com/vllm-project/vllm/issues/34096
   TEST_MATRIX_PYTHON: '["3.10", "3.13"]'
 
 jobs:
