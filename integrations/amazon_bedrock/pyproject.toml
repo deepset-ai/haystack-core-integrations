@@ -23,7 +23,7 @@ classifiers = [
   "Programming Language :: Python :: Implementation :: CPython",
   "Programming Language :: Python :: Implementation :: PyPy",
 ]
-dependencies = ["haystack-ai>=2.24.1", "boto3>=1.42.84", "aiobotocore>=3.4.0"]
+dependencies = ["haystack-ai>=2.24.1", "boto3>=1.42.84,<2", "aiobotocore>=3.4.0,<4"]
 
 
 
