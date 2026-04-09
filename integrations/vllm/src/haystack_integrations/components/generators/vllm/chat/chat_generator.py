@@ -234,7 +234,6 @@ class VLLMChatGenerator:
             A dictionary of keyword arguments to configure a custom `httpx.Client` or `httpx.AsyncClient`.
             For more information, see the [HTTPX documentation](https://www.python-httpx.org/api/#client).
         """
-        api_key = api_key if api_key and api_key.resolve_value() else Secret.from_token("placeholder-api-key")
 
         self.model = model
         self.api_key = api_key
@@ -257,8 +256,10 @@ class VLLMChatGenerator:
         if self._is_warmed_up:
             return
 
+        api_key = self.api_key.resolve_value() if self.api_key else "placeholder-api-key"
+
         client_kwargs: dict[str, Any] = {
-            "api_key": self.api_key.resolve_value(),
+            "api_key": api_key,
             "base_url": self.api_base_url,
         }
         if self.timeout is not None:
