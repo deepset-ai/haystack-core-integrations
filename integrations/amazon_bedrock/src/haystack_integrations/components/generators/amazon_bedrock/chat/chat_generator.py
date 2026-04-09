@@ -310,12 +310,6 @@ class AmazonBedrockChatGenerator:
 
         try:
             self.async_session = get_aws_session(
-                aws_access_key_id=(self.aws_access_key_id.resolve_value() if self.aws_access_key_id else None),
-                aws_secret_access_key=(
-                    self.aws_secret_access_key.resolve_value() if self.aws_secret_access_key else None
-                ),
-                aws_session_token=(self.aws_session_token.resolve_value() if self.aws_session_token else None),
-                aws_region_name=(self.aws_region_name.resolve_value() if self.aws_region_name else None),
                 aws_profile_name=(self.aws_profile_name.resolve_value() if self.aws_profile_name else None),
                 async_mode=True,
             )
