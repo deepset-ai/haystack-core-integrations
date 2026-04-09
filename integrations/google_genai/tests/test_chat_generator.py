@@ -693,7 +693,7 @@ class TestGoogleGenAIChatGeneratorInference:
 
         assert len(results["replies"]) == 1
         message = results["replies"][0]
-        assert message.meta["finish_reason"] == "stop"
+        assert message.meta["finish_reason"] == "tool_calls"
 
         # Google GenAI should make tool calls for both cities
         assert len(message.tool_calls) == 2
