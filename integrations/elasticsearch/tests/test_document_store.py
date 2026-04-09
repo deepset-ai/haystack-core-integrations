@@ -617,7 +617,6 @@ class TestDocumentStore(
         with pytest.raises(DocumentStoreError):
             document_store.write_documents(docs)
 
-
     def test_init_with_sparse_vector_field(self):
         store = ElasticsearchDocumentStore(
             hosts=["http://localhost:9200"], index="test_init_sparse", sparse_vector_field="sparse_vec"
