@@ -83,7 +83,7 @@ jobs:
       - name: Run unit tests
         run: hatch run test:unit-cov-retry
 
-      # On PR: generates coverage comment artifact. On push to main: stores coverage baseline on data branch.
+      # On PR: posts coverage comment (directly on same-repo PRs; via artifact for fork PRs). On push to main: stores coverage baseline on data branch.
       - name: Store unit tests coverage
         id: coverage_comment
         if: matrix.python-version == '3.10' && runner.os == 'Linux' && github.event_name != 'schedule'

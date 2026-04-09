@@ -85,17 +85,24 @@ jobs:
       - name: Run unit tests
         run: hatch run test:unit-cov-retry
 
-      # On PR: generates coverage comment artifact. On push to main: stores coverage baseline on data branch.
+      # On PR: posts coverage comment (directly on same-repo PRs; via artifact for fork PRs). On push to main: stores coverage baseline on data branch.
       - name: Store unit tests coverage
+        id: coverage_comment
         if: matrix.python-version == '3.10' && runner.os == 'Linux' && github.event_name != 'schedule'
         uses: py-cov-action/python-coverage-comment-action@7188638f871f721a365d644f505d1ff3df20d683 # v3.40
         with:
           GITHUB_TOKEN: ${{ github.token }}
           COVERAGE_PATH: integrations/paddleocr
           SUBPROJECT_ID: paddleocr
-          COMMENT_ARTIFACT_NAME: coverage-comment-paddleocr
           MINIMUM_GREEN: 90
           MINIMUM_ORANGE: 60
+
+      - name: Upload coverage comment to be posted
+        if: matrix.python-version == '3.10' && runner.os == 'Linux' && github.event_name == 'pull_request' && steps.coverage_comment.outputs.COMMENT_FILE_WRITTEN == 'true'
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        with:
+          name: coverage-comment-paddleocr
+          path: python-coverage-comment-action-paddleocr.txt
 
       - name: Run integration tests
         run: hatch run test:integration-cov-append-retry
@@ -107,7 +114,6 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
           COVERAGE_PATH: integrations/paddleocr
           SUBPROJECT_ID: paddleocr-combined
-          COMMENT_ARTIFACT_NAME: coverage-comment-paddleocr-combined
           MINIMUM_GREEN: 90
           MINIMUM_ORANGE: 60
 
