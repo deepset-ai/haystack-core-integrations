@@ -614,7 +614,7 @@ class AmazonBedrockChatGenerator:
         :returns:
             A dictionary containing the model-generated replies under the `"replies"` key.
         :raises AmazonBedrockInferenceError:
-            If the Bedrock inference API call fails or the model returns invalid JSON for structured output.
+            If the Bedrock inference API call fails.
         """
         component_info = ComponentInfo.from_component(self)
 
