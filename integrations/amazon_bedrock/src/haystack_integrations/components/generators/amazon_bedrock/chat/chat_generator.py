@@ -245,20 +245,6 @@ class AmazonBedrockChatGenerator:
             msg = "'model' cannot be None or empty string"
             raise ValueError(msg)
         self.model = model
-        if aws_access_key_id is None:
-            aws_access_key_id = Secret.from_env_var(["AWS_ACCESS_KEY_ID"], strict=False)
-
-        if aws_secret_access_key is None:
-            aws_secret_access_key = Secret.from_env_var(["AWS_SECRET_ACCESS_KEY"], strict=False)
-
-        if aws_session_token is None:
-            aws_session_token = Secret.from_env_var(["AWS_SESSION_TOKEN"], strict=False)
-
-        if aws_region_name is None:
-            aws_region_name = Secret.from_env_var(["AWS_DEFAULT_REGION"], strict=False)
-
-        if aws_profile_name is None:
-            aws_profile_name = Secret.from_env_var(["AWS_PROFILE"], strict=False)
         self.aws_access_key_id = aws_access_key_id
         self.aws_secret_access_key = aws_secret_access_key
         self.aws_session_token = aws_session_token
