@@ -61,9 +61,6 @@ class MockSpan:
         # Return a new mock span for child spans
         return MockSpan(name=name or "child_span")
 
-    def set_trace_io(self, **kwargs):
-        self._data.update(kwargs)
-
     def set_trace_as_public(self):
         self._data["public"] = True
 

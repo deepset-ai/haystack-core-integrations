@@ -354,7 +354,7 @@ class DefaultSpanHandler(SpanHandler):
         if at_pipeline_level:
             coerced_input = tracing_utils.coerce_tag_value(span.get_data().get(_PIPELINE_INPUT_KEY))
             coerced_output = tracing_utils.coerce_tag_value(span.get_data().get(_PIPELINE_OUTPUT_KEY))
-            span.raw_span().set_trace_io(input=coerced_input, output=coerced_output)
+            span.raw_span().update(input=coerced_input, output=coerced_output)
         # special case for ToolInvoker (to update the span name to be: `original_component_name - [tool_names]`)
         if component_type == "ToolInvoker":
             tool_names: list[str] = []
