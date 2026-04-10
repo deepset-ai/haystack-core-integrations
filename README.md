@@ -6,9 +6,9 @@
 |-------------------------------------------------------------------------------- | -------: | -------: | -------: | -------: | ------: | --------: |
 | src/haystack\_integrations/components/embedders/ollama/document\_embedder.py    |       74 |        7 |       16 |        5 |     87% |100-104, 115, 177-178, 204, 239 |
 | src/haystack\_integrations/components/embedders/ollama/text\_embedder.py        |       24 |        0 |        0 |        0 |    100% |           |
-| src/haystack\_integrations/components/generators/ollama/chat/chat\_generator.py |      215 |        1 |       68 |        8 |     97% |62, 143-\>145, 145-\>147, 147-\>155, 410-\>414, 416-\>380, 479-\>483, 485-\>488 |
+| src/haystack\_integrations/components/generators/ollama/chat/chat\_generator.py |      227 |        3 |       72 |        9 |     96% |62, 143-\>145, 145-\>147, 147-\>155, 421-\>425, 427-\>384, 486-487, 501-\>505, 507-\>510 |
 | src/haystack\_integrations/components/generators/ollama/generator.py            |       71 |        0 |       12 |        4 |     95% |65-\>67, 67-\>75, 187-\>189, 223-\>220 |
-| **TOTAL**                                                                       |  **384** |    **8** |   **96** |   **17** | **95%** |           |
+| **TOTAL**                                                                       |  **396** |   **10** |  **100** |   **18** | **94%** |           |
 
 
 ## Setup coverage badge
