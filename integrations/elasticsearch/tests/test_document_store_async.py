@@ -8,6 +8,7 @@ from haystack.dataclasses.sparse_embedding import SparseEmbedding
 from haystack.document_stores.errors import DocumentStoreError
 from haystack.document_stores.types import DuplicatePolicy
 
+from haystack_integrations.components.retrievers.elasticsearch import ElasticsearchSparseEmbeddingRetriever
 from haystack_integrations.document_stores.elasticsearch import ElasticsearchDocumentStore
 
 
@@ -138,6 +139,168 @@ class TestElasticsearchDocumentStoreAsync:
         )
         assert len(results) == 1
         assert results[0].content == "Most similar document"
+
+    @pytest.mark.asyncio
+    async def test_sparse_embedding_retriever_async(self, sparse_document_store):
+        retriever = ElasticsearchSparseEmbeddingRetriever(document_store=sparse_document_store, top_k=1)
+
+        docs = [
+            Document(
+                content="Most similar sparse document",
+                sparse_embedding=SparseEmbedding(indices=[0, 1], values=[0.9, 0.9]),
+            ),
+            Document(
+                content="Less similar sparse document",
+                sparse_embedding=SparseEmbedding(indices=[2, 3], values=[0.8, 0.8]),
+            ),
+        ]
+        await sparse_document_store.write_documents_async(docs)
+
+        result = await retriever.run_async(query_sparse_embedding=SparseEmbedding(indices=[0, 1], values=[1.0, 1.0]))
+        assert len(result["documents"]) == 1
+        assert result["documents"][0].content == "Most similar sparse document"
+
+    @pytest.mark.asyncio
+    async def test_sparse_embedding_retriever_async_with_filters(self, sparse_document_store):
+        retriever = ElasticsearchSparseEmbeddingRetriever(document_store=sparse_document_store, top_k=2)
+
+        docs = [
+            Document(
+                content="Most similar sparse document",
+                sparse_embedding=SparseEmbedding(indices=[0, 1], values=[0.9, 0.9]),
+                meta={"type": "match"},
+            ),
+            Document(
+                content="Filtered out sparse document",
+                sparse_embedding=SparseEmbedding(indices=[0, 1], values=[0.95, 0.95]),
+                meta={"type": "other"},
+            ),
+        ]
+        await sparse_document_store.write_documents_async(docs)
+
+        result = await retriever.run_async(
+            query_sparse_embedding=SparseEmbedding(indices=[0, 1], values=[1.0, 1.0]),
+            filters={"field": "type", "operator": "==", "value": "match"},
+        )
+        assert len(result["documents"]) == 1
+        assert result["documents"][0].content == "Most similar sparse document"
+
+    @pytest.mark.asyncio
+    async def test_sparse_embedding_retriever_async_merge_filter_policy(self, sparse_document_store):
+        retriever = ElasticsearchSparseEmbeddingRetriever(
+            document_store=sparse_document_store,
+            top_k=10,
+            filters={"field": "meta.category", "operator": "==", "value": "science"},
+            filter_policy="merge",
+        )
+
+        docs = [
+            Document(
+                content="science + en: should match both filters",
+                sparse_embedding=SparseEmbedding(indices=[0, 1], values=[0.9, 0.9]),
+                meta={"category": "science", "lang": "en"},
+            ),
+            Document(
+                content="science + fr: blocked by runtime filter",
+                sparse_embedding=SparseEmbedding(indices=[0, 1], values=[0.9, 0.9]),
+                meta={"category": "science", "lang": "fr"},
+            ),
+            Document(
+                content="news + en: blocked by init filter",
+                sparse_embedding=SparseEmbedding(indices=[0, 1], values=[0.9, 0.9]),
+                meta={"category": "news", "lang": "en"},
+            ),
+        ]
+        await sparse_document_store.write_documents_async(docs)
+
+        result = await retriever.run_async(
+            query_sparse_embedding=SparseEmbedding(indices=[0, 1], values=[1.0, 1.0]),
+            filters={"field": "meta.lang", "operator": "==", "value": "en"},
+        )
+        assert len(result["documents"]) == 1
+        assert result["documents"][0].content == "science + en: should match both filters"
+
+    @pytest.mark.asyncio
+    async def test_sparse_embedding_retriever_async_empty_result(self, sparse_document_store):
+        retriever = ElasticsearchSparseEmbeddingRetriever(document_store=sparse_document_store, top_k=10)
+
+        # Docs use indices [0, 1]; query uses completely disjoint indices [2, 3]
+        await sparse_document_store.write_documents_async(
+            [
+                Document(
+                    content="Sparse doc",
+                    sparse_embedding=SparseEmbedding(indices=[0, 1], values=[0.9, 0.9]),
+                )
+            ]
+        )
+
+        result = await retriever.run_async(query_sparse_embedding=SparseEmbedding(indices=[2, 3], values=[1.0, 1.0]))
+        assert result["documents"] == []
+
+    @pytest.mark.asyncio
+    async def test_sparse_embedding_retriever_async_ignores_docs_without_sparse_embedding(self, sparse_document_store):
+        retriever = ElasticsearchSparseEmbeddingRetriever(document_store=sparse_document_store, top_k=10)
+
+        docs = [
+            Document(content="No sparse embedding"),
+            Document(content="Also no sparse embedding", embedding=[0.1, 0.2, 0.3]),
+        ]
+        await sparse_document_store.write_documents_async(docs)
+
+        # Documents are stored — count_documents sees them
+        assert await sparse_document_store.count_documents_async() == 2
+
+        # But sparse retrieval returns nothing — no sparse_vector field to match against
+        result = await retriever.run_async(query_sparse_embedding=SparseEmbedding(indices=[0, 1], values=[1.0, 1.0]))
+        assert result["documents"] == []
+
+    @pytest.mark.asyncio
+    async def test_sparse_embedding_retriever_async_round_trips_sparse_embedding(self, sparse_document_store):
+        retriever = ElasticsearchSparseEmbeddingRetriever(document_store=sparse_document_store, top_k=1)
+
+        # Use out-of-order indices to also verify they are sorted on retrieval
+        await sparse_document_store.write_documents_async(
+            [
+                Document(
+                    content="Sparse doc",
+                    sparse_embedding=SparseEmbedding(indices=[2, 0, 1], values=[0.5, 0.9, 0.8]),
+                )
+            ]
+        )
+
+        result = await retriever.run_async(
+            query_sparse_embedding=SparseEmbedding(indices=[0, 1, 2], values=[1.0, 1.0, 1.0])
+        )
+        assert len(result["documents"]) == 1
+        doc = result["documents"][0]
+        assert doc.sparse_embedding is not None
+        assert doc.sparse_embedding.indices == [0, 1, 2]
+        assert doc.sparse_embedding.values == [0.9, 0.8, 0.5]
+
+    @pytest.mark.asyncio
+    async def test_sparse_embedding_retriever_async_excludes_docs_without_sparse_embedding(self, sparse_document_store):
+        retriever = ElasticsearchSparseEmbeddingRetriever(document_store=sparse_document_store, top_k=10)
+
+        docs = [
+            Document(
+                content="Has sparse embedding",
+                sparse_embedding=SparseEmbedding(indices=[0, 1], values=[0.9, 0.9]),
+            ),
+            Document(content="No sparse embedding at all"),
+            Document(content="Also no sparse embedding", embedding=[0.1, 0.2, 0.3, 0.4]),
+        ]
+        await sparse_document_store.write_documents_async(docs)
+
+        result = await retriever.run_async(query_sparse_embedding=SparseEmbedding(indices=[0, 1], values=[1.0, 1.0]))
+        assert len(result["documents"]) == 1
+        assert result["documents"][0].content == "Has sparse embedding"
+
+    @pytest.mark.asyncio
+    async def test_sparse_vector_retrieval_async_requires_sparse_vector_field(self, document_store):
+        with pytest.raises(ValueError, match="sparse_vector_field must be set for sparse vector retrieval"):
+            await document_store._sparse_vector_retrieval_async(
+                query_sparse_embedding=SparseEmbedding(indices=[0, 1], values=[1.0, 1.0])
+            )
 
     @pytest.mark.asyncio
     async def test_write_documents_async_invalid_document_type(self, document_store):

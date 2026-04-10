@@ -2,8 +2,9 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+import dataclasses
 import random
-from unittest.mock import Mock, patch
+from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 from elasticsearch.exceptions import BadRequestError  # type: ignore[import-not-found]
@@ -22,6 +23,7 @@ from haystack.testing.document_store import (
 from haystack.utils import Secret
 from haystack.utils.auth import TokenSecret
 
+from haystack_integrations.components.retrievers.elasticsearch import ElasticsearchSparseEmbeddingRetriever
 from haystack_integrations.document_stores.elasticsearch import ElasticsearchDocumentStore
 
 
@@ -328,6 +330,101 @@ def test_init_with_custom_mapping(mock_elasticsearch):
     )
 
 
+def test_sparse_embedding_to_es_vector_mismatched_lengths():
+    with pytest.raises(ValueError):
+        ElasticsearchDocumentStore._sparse_embedding_to_es_vector(indices=[0, 1, 2], values=[0.5, 0.7])
+
+
+def test_sparse_embedding_to_es_vector_empty_inputs():
+    with pytest.raises(ValueError, match="non-empty"):
+        ElasticsearchDocumentStore._sparse_embedding_to_es_vector(indices=[], values=[])
+
+
+def test_sparse_vector_retrieval_builds_query_without_filters():
+    store = ElasticsearchDocumentStore(hosts="some hosts", sparse_vector_field="sparse_vec")
+
+    with patch.object(store, "_search_documents", return_value=[]) as mock_search:
+        store._sparse_vector_retrieval(
+            query_sparse_embedding=SparseEmbedding(indices=[0, 2], values=[0.5, 0.7]),
+            top_k=3,
+        )
+
+    mock_search.assert_called_once()
+    search_kwargs = mock_search.call_args.kwargs
+    assert search_kwargs["size"] == 3
+    assert search_kwargs["query"]["bool"]["must"] == [
+        {"sparse_vector": {"field": "sparse_vec", "query_vector": {"0": 0.5, "2": 0.7}}}
+    ]
+    assert "filter" not in search_kwargs["query"]["bool"]
+
+
+def test_sparse_vector_retrieval_builds_query_with_filters():
+    store = ElasticsearchDocumentStore(hosts="some hosts", sparse_vector_field="sparse_vec")
+
+    with patch.object(store, "_search_documents", return_value=[]) as mock_search:
+        store._sparse_vector_retrieval(
+            query_sparse_embedding=SparseEmbedding(indices=[0, 2], values=[0.5, 0.7]),
+            filters={"field": "type", "operator": "==", "value": "match"},
+            top_k=3,
+        )
+
+    mock_search.assert_called_once()
+    search_kwargs = mock_search.call_args.kwargs
+    assert search_kwargs["size"] == 3
+    assert search_kwargs["query"]["bool"]["must"] == [
+        {"sparse_vector": {"field": "sparse_vec", "query_vector": {"0": 0.5, "2": 0.7}}}
+    ]
+    assert search_kwargs["query"]["bool"]["filter"] == {"bool": {"must": {"term": {"type": "match"}}}}
+
+
+@pytest.mark.asyncio
+async def test_sparse_vector_retrieval_async_builds_query_without_filters():
+    store = ElasticsearchDocumentStore(hosts="some hosts", sparse_vector_field="sparse_vec")
+    store._initialized = True
+    store._search_documents_async = AsyncMock(return_value=[])  # type: ignore[method-assign]
+
+    await store._sparse_vector_retrieval_async(
+        query_sparse_embedding=SparseEmbedding(indices=[1, 3], values=[0.4, 0.9]),
+        top_k=2,
+    )
+
+    store._search_documents_async.assert_awaited_once_with(  # type: ignore[attr-defined]
+        size=2,
+        query={
+            "bool": {
+                "must": [
+                    {"sparse_vector": {"field": "sparse_vec", "query_vector": {"1": 0.4, "3": 0.9}}},
+                ]
+            }
+        },
+    )
+
+
+@pytest.mark.asyncio
+async def test_sparse_vector_retrieval_async_builds_query_with_filters():
+    store = ElasticsearchDocumentStore(hosts="some hosts", sparse_vector_field="sparse_vec")
+    store._initialized = True
+    store._search_documents_async = AsyncMock(return_value=[])  # type: ignore[method-assign]
+
+    await store._sparse_vector_retrieval_async(
+        query_sparse_embedding=SparseEmbedding(indices=[1, 3], values=[0.4, 0.9]),
+        filters={"field": "type", "operator": "==", "value": "match"},
+        top_k=2,
+    )
+
+    store._search_documents_async.assert_awaited_once_with(  # type: ignore[attr-defined]
+        size=2,
+        query={
+            "bool": {
+                "must": [
+                    {"sparse_vector": {"field": "sparse_vec", "query_vector": {"1": 0.4, "3": 0.9}}},
+                ],
+                "filter": {"bool": {"must": {"term": {"type": "match"}}}},
+            }
+        },
+    )
+
+
 @pytest.mark.integration
 class TestDocumentStore(
     DocumentStoreBaseExtendedTests,
@@ -383,8 +480,7 @@ class TestDocumentStore(
                 "name": doc.meta.get("name"),
             }
             expected_meta.append(r)
-        for doc in received:
-            doc.score = None
+        received = [dataclasses.replace(doc, score=None) for doc in received]
 
         super().assert_documents_are_equal(received, expected)
 
@@ -634,6 +730,158 @@ class TestDocumentStore(
 
         with pytest.raises(BadRequestError):
             document_store._embedding_retrieval(query_embedding=[0.1, 0.1])
+
+    def test_sparse_embedding_retriever(self, sparse_document_store):
+        retriever = ElasticsearchSparseEmbeddingRetriever(document_store=sparse_document_store, top_k=1)
+
+        docs = [
+            Document(
+                content="Most similar sparse document",
+                sparse_embedding=SparseEmbedding(indices=[0, 1], values=[0.9, 0.9]),
+            ),
+            Document(
+                content="Less similar sparse document",
+                sparse_embedding=SparseEmbedding(indices=[2, 3], values=[0.8, 0.8]),
+            ),
+        ]
+        sparse_document_store.write_documents(docs)
+
+        result = retriever.run(query_sparse_embedding=SparseEmbedding(indices=[0, 1], values=[1.0, 1.0]))
+        assert len(result["documents"]) == 1
+        assert result["documents"][0].content == "Most similar sparse document"
+
+    def test_sparse_embedding_retriever_with_filters(self, sparse_document_store):
+        retriever = ElasticsearchSparseEmbeddingRetriever(document_store=sparse_document_store, top_k=2)
+
+        docs = [
+            Document(
+                content="Most similar sparse document",
+                sparse_embedding=SparseEmbedding(indices=[0, 1], values=[0.9, 0.9]),
+                meta={"type": "match"},
+            ),
+            Document(
+                content="Filtered out sparse document",
+                sparse_embedding=SparseEmbedding(indices=[0, 1], values=[0.95, 0.95]),
+                meta={"type": "other"},
+            ),
+        ]
+        sparse_document_store.write_documents(docs)
+
+        result = retriever.run(
+            query_sparse_embedding=SparseEmbedding(indices=[0, 1], values=[1.0, 1.0]),
+            filters={"field": "type", "operator": "==", "value": "match"},
+        )
+        assert len(result["documents"]) == 1
+        assert result["documents"][0].content == "Most similar sparse document"
+
+    def test_sparse_embedding_retriever_merge_filter_policy(self, sparse_document_store):
+        retriever = ElasticsearchSparseEmbeddingRetriever(
+            document_store=sparse_document_store,
+            top_k=10,
+            filters={"field": "meta.category", "operator": "==", "value": "science"},
+            filter_policy="merge",
+        )
+
+        docs = [
+            Document(
+                content="science + en: should match both filters",
+                sparse_embedding=SparseEmbedding(indices=[0, 1], values=[0.9, 0.9]),
+                meta={"category": "science", "lang": "en"},
+            ),
+            Document(
+                content="science + fr: blocked by runtime filter",
+                sparse_embedding=SparseEmbedding(indices=[0, 1], values=[0.9, 0.9]),
+                meta={"category": "science", "lang": "fr"},
+            ),
+            Document(
+                content="news + en: blocked by init filter",
+                sparse_embedding=SparseEmbedding(indices=[0, 1], values=[0.9, 0.9]),
+                meta={"category": "news", "lang": "en"},
+            ),
+        ]
+        sparse_document_store.write_documents(docs)
+
+        result = retriever.run(
+            query_sparse_embedding=SparseEmbedding(indices=[0, 1], values=[1.0, 1.0]),
+            filters={"field": "meta.lang", "operator": "==", "value": "en"},
+        )
+        assert len(result["documents"]) == 1
+        assert result["documents"][0].content == "science + en: should match both filters"
+
+    def test_sparse_embedding_retriever_empty_result(self, sparse_document_store):
+        retriever = ElasticsearchSparseEmbeddingRetriever(document_store=sparse_document_store, top_k=10)
+
+        # Docs use indices [0, 1]; query uses completely disjoint indices [2, 3]
+        sparse_document_store.write_documents(
+            [
+                Document(
+                    content="Sparse doc",
+                    sparse_embedding=SparseEmbedding(indices=[0, 1], values=[0.9, 0.9]),
+                )
+            ]
+        )
+
+        result = retriever.run(query_sparse_embedding=SparseEmbedding(indices=[2, 3], values=[1.0, 1.0]))
+        assert result["documents"] == []
+
+    def test_sparse_embedding_retriever_ignores_docs_without_sparse_embedding(self, sparse_document_store):
+        retriever = ElasticsearchSparseEmbeddingRetriever(document_store=sparse_document_store, top_k=10)
+
+        docs = [
+            Document(content="No sparse embedding"),
+            Document(content="Also no sparse embedding", embedding=[0.1, 0.2, 0.3]),
+        ]
+        sparse_document_store.write_documents(docs)
+
+        # Documents are stored — count_documents sees them
+        assert sparse_document_store.count_documents() == 2
+
+        # But sparse retrieval returns nothing — no sparse_vector field to match against
+        result = retriever.run(query_sparse_embedding=SparseEmbedding(indices=[0, 1], values=[1.0, 1.0]))
+        assert result["documents"] == []
+
+    def test_sparse_embedding_retriever_round_trips_sparse_embedding(self, sparse_document_store):
+        retriever = ElasticsearchSparseEmbeddingRetriever(document_store=sparse_document_store, top_k=1)
+
+        # Use out-of-order indices to also verify they are sorted on retrieval
+        sparse_document_store.write_documents(
+            [
+                Document(
+                    content="Sparse doc",
+                    sparse_embedding=SparseEmbedding(indices=[2, 0, 1], values=[0.5, 0.9, 0.8]),
+                )
+            ]
+        )
+
+        result = retriever.run(query_sparse_embedding=SparseEmbedding(indices=[0, 1, 2], values=[1.0, 1.0, 1.0]))
+        assert len(result["documents"]) == 1
+        doc = result["documents"][0]
+        assert doc.sparse_embedding is not None
+        assert doc.sparse_embedding.indices == [0, 1, 2]
+        assert doc.sparse_embedding.values == [0.9, 0.8, 0.5]
+
+    def test_sparse_embedding_retriever_excludes_docs_without_sparse_embedding(self, sparse_document_store):
+        retriever = ElasticsearchSparseEmbeddingRetriever(document_store=sparse_document_store, top_k=10)
+
+        docs = [
+            Document(
+                content="Has sparse embedding",
+                sparse_embedding=SparseEmbedding(indices=[0, 1], values=[0.9, 0.9]),
+            ),
+            Document(content="No sparse embedding at all"),
+            Document(content="Also no sparse embedding", embedding=[0.1, 0.2, 0.3, 0.4]),
+        ]
+        sparse_document_store.write_documents(docs)
+
+        result = retriever.run(query_sparse_embedding=SparseEmbedding(indices=[0, 1], values=[1.0, 1.0]))
+        assert len(result["documents"]) == 1
+        assert result["documents"][0].content == "Has sparse embedding"
+
+    def test_sparse_vector_retrieval_requires_sparse_vector_field(self, document_store: ElasticsearchDocumentStore):
+        with pytest.raises(ValueError, match="sparse_vector_field must be set for sparse vector retrieval"):
+            document_store._sparse_vector_retrieval(
+                query_sparse_embedding=SparseEmbedding(indices=[0, 1], values=[1.0, 1.0])
+            )
 
     def test_write_documents_different_embedding_sizes_fail(self, document_store: ElasticsearchDocumentStore):
         """
