@@ -1,6 +1,7 @@
 """Docling Haystack converter module."""
 
 import json
+import mimetypes
 import warnings
 from abc import ABC, abstractmethod
 from enum import Enum
@@ -16,6 +17,27 @@ from docling.chunking import BaseChunk, BaseChunker, HybridChunker
 from docling.datamodel.document import DoclingDocument
 from docling.document_converter import DocumentConverter
 from docling_core.types.io import DocumentStream
+
+
+def _bytestream_to_document_stream(source: ByteStream) -> DocumentStream:
+    """Build a `DocumentStream` from a Haystack `ByteStream`.
+
+    Resolves the stream name by checking common metadata keys (`file_path`,
+    `filename`, `name`) and falling back to MIME-type extension guessing so
+    that docling can reliably detect the input format.
+    """
+    meta = source.meta or {}
+    raw_name = meta.get("file_path") or meta.get("filename") or meta.get("name")
+    if raw_name:
+        name = Path(raw_name).name
+        if not Path(name).suffix and source.mime_type:
+            ext = mimetypes.guess_extension(source.mime_type)
+            if ext:
+                name = f"{name}{ext}"
+    else:
+        ext = mimetypes.guess_extension(source.mime_type) if source.mime_type else ""
+        name = f"document{ext or ''}"
+    return DocumentStream(name=name, stream=BytesIO(source.data))
 
 
 class ExportType(str, Enum):
@@ -141,8 +163,7 @@ class DoclingConverter:
         documents: list[Document] = []
         for source, source_meta in zip(sources, meta_list, strict=True):
             if isinstance(source, ByteStream):
-                name = Path(source.meta.get("file_path", "document")).name if source.meta else "document"
-                doc_stream = DocumentStream(name=name, stream=BytesIO(source.data))
+                doc_stream = _bytestream_to_document_stream(source)
                 dl_doc = self._converter_instance.convert(source=doc_stream, **self.convert_kwargs).document
                 # merge ByteStream meta (e.g. file_path, mime_type) with user-supplied meta
                 merged_meta = {**(source.meta or {}), **source_meta}
