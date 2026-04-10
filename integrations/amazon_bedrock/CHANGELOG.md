@@ -1,5 +1,17 @@
 # Changelog
 
+## [integrations/amazon_bedrock-v6.8.0] - 2026-04-09
+
+### 🚀 Features
+
+- Add JSON structured output support to `BedrockChatGenerator` (#3108)
+
+### 🧪 Testing
+
+- Track test coverage for all integrations (#3065)
+- Bedrock - use Sonnet 4.6 due to 3.5 EOL (#3071)
+
+
 ## [integrations/amazon_bedrock-v6.7.1] - 2026-03-25
 
 ### 📚 Documentation

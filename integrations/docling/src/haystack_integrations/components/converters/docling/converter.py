@@ -1,14 +1,15 @@
 """Docling Haystack converter module."""
 
 import json
-import os
-import tempfile
+import mimetypes
 import warnings
 from abc import ABC, abstractmethod
 from enum import Enum
+from io import BytesIO
 from pathlib import Path
 from typing import Any
 
+from docling_core.types.io import DocumentStream
 from haystack import Document, component
 from haystack.components.converters.utils import normalize_metadata
 from haystack.dataclasses import ByteStream
@@ -16,6 +17,29 @@ from haystack.dataclasses import ByteStream
 from docling.chunking import BaseChunk, BaseChunker, HybridChunker
 from docling.datamodel.document import DoclingDocument
 from docling.document_converter import DocumentConverter
+
+
+def _bytestream_to_document_stream(source: ByteStream) -> DocumentStream:
+    """
+    Build a `DocumentStream` from a Haystack `ByteStream`.
+
+    Resolves the stream name by checking common metadata keys (`file_path`, `file_name`, `name`) and falling back to
+    MIME-type extension guessing so that docling can reliably detect the input format.
+    """
+    meta = source.meta or {}
+    raw_name = meta.get("file_path") or meta.get("file_name") or meta.get("name")
+
+    if raw_name:
+        name = Path(raw_name).name
+    else:
+        name = "document"
+
+    if not Path(name).suffix and source.mime_type:
+        ext = mimetypes.guess_extension(source.mime_type)
+        if ext:
+            name = f"{name}{ext}"
+
+    return DocumentStream(name=name, stream=BytesIO(source.data))
 
 
 class ExportType(str, Enum):
@@ -141,14 +165,8 @@ class DoclingConverter:
         documents: list[Document] = []
         for source, source_meta in zip(sources, meta_list, strict=True):
             if isinstance(source, ByteStream):
-                # docling requires a file path; write ByteStream data to a temp file
-                with tempfile.NamedTemporaryFile(delete=False) as tmp:
-                    tmp.write(source.data)
-                    tmp_path = Path(tmp.name)
-                try:
-                    dl_doc = self._converter_instance.convert(source=tmp_path, **self.convert_kwargs).document
-                finally:
-                    os.unlink(tmp_path)
+                doc_stream = _bytestream_to_document_stream(source)
+                dl_doc = self._converter_instance.convert(source=doc_stream, **self.convert_kwargs).document
                 # merge ByteStream meta (e.g. file_path, mime_type) with user-supplied meta
                 merged_meta = {**(source.meta or {}), **source_meta}
             else:
