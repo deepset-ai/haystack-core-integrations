@@ -37,7 +37,7 @@ class TestElasticsearchHybridRetriever:
                     "api_key": {"type": "env_var", "env_vars": ["ELASTIC_API_KEY"], "strict": False},
                     "api_key_id": {"type": "env_var", "env_vars": ["ELASTIC_API_KEY_ID"], "strict": False},
                     "embedding_similarity_function": "cosine",
-                    "sparse_vector_field": None
+                    "sparse_vector_field": None,
                 },
             },
             "embedder": {
