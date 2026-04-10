@@ -9,6 +9,7 @@ from io import BytesIO
 from pathlib import Path
 from typing import Any
 
+from docling_core.types.io import DocumentStream
 from haystack import Document, component
 from haystack.components.converters.utils import normalize_metadata
 from haystack.dataclasses import ByteStream
@@ -16,11 +17,11 @@ from haystack.dataclasses import ByteStream
 from docling.chunking import BaseChunk, BaseChunker, HybridChunker
 from docling.datamodel.document import DoclingDocument
 from docling.document_converter import DocumentConverter
-from docling_core.types.io import DocumentStream
 
 
 def _bytestream_to_document_stream(source: ByteStream) -> DocumentStream:
-    """Build a `DocumentStream` from a Haystack `ByteStream`.
+    """
+    Build a `DocumentStream` from a Haystack `ByteStream`.
 
     Resolves the stream name by checking common metadata keys (`file_path`, `file_name`, `name`) and falling back to
     MIME-type extension guessing so that docling can reliably detect the input format.
