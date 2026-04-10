@@ -7,7 +7,8 @@ from unittest.mock import patch
 import psycopg
 import pytest
 from haystack.dataclasses.document import ByteStream, Document
-from haystack.document_stores.errors import DocumentStoreError
+from haystack.document_stores.errors import DocumentStoreError, DuplicateDocumentError
+from haystack.document_stores.types import DuplicatePolicy
 from haystack.testing.document_store import (
     CountDocumentsByFilterAsyncTest,
     CountUniqueMetadataByFilterAsyncTest,
@@ -62,6 +63,13 @@ class TestDocumentStoreAsync(
                 assert received_doc.embedding == pytest.approx(expected_doc.embedding)
             received_doc.embedding, expected_doc.embedding = None, None
             assert received_doc == expected_doc
+
+    async def test_write_documents_async(self, document_store: PgvectorDocumentStore):
+        """pgvector default policy raises DuplicateDocumentError on duplicate writes."""
+        docs = [Document(id="1")]
+        assert await document_store.write_documents_async(docs) == 1
+        with pytest.raises(DuplicateDocumentError):
+            await document_store.write_documents_async(docs, DuplicatePolicy.FAIL)
 
     async def test_count_not_empty_async(self, document_store: PgvectorDocumentStore):
         """Override: mixin method is missing 'self', causing fixture injection to fail."""
