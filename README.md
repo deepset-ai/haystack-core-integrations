@@ -8,9 +8,9 @@
 | src/haystack\_integrations/components/retrievers/elasticsearch/elasticsearch\_hybrid\_retriever.py |       75 |        0 |       14 |        3 |     97% |340-\>344, 344-\>348, 348-\>352 |
 | src/haystack\_integrations/components/retrievers/elasticsearch/embedding\_retriever.py             |       35 |        2 |        4 |        1 |     92% |     72-73 |
 | src/haystack\_integrations/components/retrievers/elasticsearch/sql\_retriever.py                   |       53 |        0 |       14 |        0 |    100% |           |
-| src/haystack\_integrations/document\_stores/elasticsearch/document\_store.py                       |      509 |       40 |      146 |       26 |     90% |134-135, 294, 296, 366-\>358, 381-382, 399-400, 420, 447-\>452, 461-\>470, 464, 536-\>541, 548-\>558, 579-\>578, 582-583, 638-640, 730-732, 758-760, 786-788, 821-823, 856-858, 881-882, 903, 908, 940-941, 996-997, 999-\>1002, 1102-\>1101, 1139-\>1138, 1141-\>1138, 1175, 1217 |
+| src/haystack\_integrations/document\_stores/elasticsearch/document\_store.py                       |      526 |       39 |      152 |       23 |     91% |142-143, 310, 312, 382-\>374, 397-398, 415-416, 435, 494-\>499, 574-\>579, 608-\>607, 611-612, 667-669, 759-761, 787-789, 815-817, 850-852, 885-887, 910-911, 932, 937, 969-970, 1025-1026, 1028-\>1031, 1131-\>1130, 1168-\>1167, 1170-\>1167, 1204, 1246 |
 | src/haystack\_integrations/document\_stores/elasticsearch/filters.py                               |      135 |        5 |       72 |        4 |     96% |15-16, 51, 70, 73 |
-| **TOTAL**                                                                                          |  **843** |   **49** |  **254** |   **35** | **92%** |           |
+| **TOTAL**                                                                                          |  **860** |   **48** |  **260** |   **32** | **93%** |           |
 
 
 ## Setup coverage badge
