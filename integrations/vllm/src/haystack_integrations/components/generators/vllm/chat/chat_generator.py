@@ -256,7 +256,9 @@ class VLLMChatGenerator:
         if self._is_warmed_up:
             return
 
-        api_key = self.api_key.resolve_value() if self.api_key else "placeholder-api-key"
+        api_key = "placeholder-api-key"
+        if self.api_key and (resolved_value := self.api_key.resolve_value()):
+            api_key = resolved_value
 
         client_kwargs: dict[str, Any] = {
             "api_key": api_key,
