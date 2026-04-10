@@ -267,6 +267,70 @@ class TestUtils:
         assert streaming_chunks[1].start is False
         assert streaming_chunks[2].start is False
 
+    def test_handle_streaming_response_with_thinking(self):
+        ollama_chunks = [
+            ChatResponse(
+                model="qwen3:0.6b",
+                created_at="2025-07-31T15:27:09.265818Z",
+                done=False,
+                message=Message(role="assistant", content="", thinking="Let me think"),
+            ),
+            ChatResponse(
+                model="qwen3:0.6b",
+                created_at="2025-07-31T15:27:09.265818Z",
+                done=False,
+                message=Message(role="assistant", content="", thinking=" about this."),
+            ),
+            ChatResponse(
+                model="qwen3:0.6b",
+                created_at="2025-07-31T15:27:09.265818Z",
+                done=False,
+                message=Message(role="assistant", content="The capital"),
+            ),
+            ChatResponse(
+                model="qwen3:0.6b",
+                created_at="2025-07-31T15:27:09.265818Z",
+                done=False,
+                message=Message(role="assistant", content=" is Amman."),
+            ),
+            ChatResponse(
+                model="qwen3:0.6b",
+                created_at="2025-07-31T15:27:09.355211Z",
+                done=True,
+                done_reason="stop",
+                total_duration=1303416458,
+                load_duration=953922333,
+                prompt_eval_count=22,
+                prompt_eval_duration=254166208,
+                eval_count=3,
+                eval_duration=92965792,
+                message=Message(role="assistant", content=""),
+            ),
+        ]
+
+        generator = OllamaChatGenerator()
+        streaming_chunks = []
+
+        def test_callback(chunk: StreamingChunk):
+            streaming_chunks.append(chunk)
+
+        response = generator._handle_streaming_response(ollama_chunks, test_callback)
+        assert response["replies"][0].text == "The capital is Amman."
+        assert response["replies"][0].reasoning.reasoning_text == "Let me think about this."
+
+        assert len(streaming_chunks) == 5
+        # First reasoning chunk: start=True
+        assert streaming_chunks[0].start is True
+        assert streaming_chunks[0].reasoning.reasoning_text == "Let me think"
+        # Second reasoning chunk: start=False
+        assert streaming_chunks[1].start is False
+        # First content chunk after reasoning: start=True
+        assert streaming_chunks[2].start is True
+        assert streaming_chunks[2].content == "The capital"
+        # Remaining content chunks: start=False
+        assert streaming_chunks[3].start is False
+        assert streaming_chunks[4].start is False
+
     def test_handle_streaming_response_tool_calls(self):
         ollama_chunks = [
             ChatResponse(

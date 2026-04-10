@@ -376,6 +376,11 @@ class OllamaChatGenerator:
         id_order: list[str] = []
         tool_call_index: int = 0
 
+        # Track reasoning and content blocks to correctly set start=True on the first chunk of each block.
+        # This ensures print_streaming_chunk prints [REASONING] and [ASSISTANT] headers at the right time.
+        reasoning_started = False
+        content_started = False
+
         # Stream
         for index, raw in enumerate(response_iter):
             if raw.message.tool_calls:
@@ -383,7 +388,14 @@ class OllamaChatGenerator:
             chunk = _build_chunk(
                 chunk_response=raw, component_info=component_info, index=index, tool_call_index=tool_call_index
             )
-            start = index == 0 or bool(chunk.tool_calls)
+
+            if chunk.reasoning:
+                start = not reasoning_started or bool(chunk.tool_calls)
+                reasoning_started = True
+            else:
+                start = (not content_started) or bool(chunk.tool_calls)
+                content_started = True
+
             chunk = replace(chunk, start=start)
             chunks.append(chunk)
 
@@ -458,6 +470,11 @@ class OllamaChatGenerator:
         id_order: list[str] = []
         tool_call_index: int = 0
 
+        # Track reasoning and content blocks to correctly set start=True on the first chunk of each block.
+        # This ensures print_streaming_chunk prints [REASONING] and [ASSISTANT] headers at the right time.
+        reasoning_started = False
+        content_started = False
+
         # Stream
         index = 0
         async for raw in response_iter:
@@ -466,7 +483,14 @@ class OllamaChatGenerator:
             chunk = _build_chunk(
                 chunk_response=raw, component_info=component_info, index=index, tool_call_index=tool_call_index
             )
-            start = index == 0 or bool(chunk.tool_calls)
+
+            if chunk.reasoning:
+                start = not reasoning_started or bool(chunk.tool_calls)
+                reasoning_started = True
+            else:
+                start = (not content_started) or bool(chunk.tool_calls)
+                content_started = True
+
             chunk = replace(chunk, start=start)
             chunks.append(chunk)
 
