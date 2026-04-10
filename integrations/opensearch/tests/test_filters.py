@@ -369,6 +369,67 @@ nested_filters_data = [
             }
         },
     ),
+    # NOT of conditions on the same nested path
+    (
+        {
+            "operator": "NOT",
+            "conditions": [
+                {"field": "meta.refs.law", "operator": "==", "value": "bgb"},
+                {"field": "meta.refs.section", "operator": "==", "value": "1"},
+            ],
+        },
+        {"refs"},
+        {
+            "bool": {
+                "must_not": [
+                    {
+                        "bool": {
+                            "must": [
+                                {
+                                    "nested": {
+                                        "path": "refs",
+                                        "query": {
+                                            "bool": {
+                                                "must": [
+                                                    {"term": {"refs.law": "bgb"}},
+                                                    {"term": {"refs.section": "1"}},
+                                                ]
+                                            }
+                                        },
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                ]
+            }
+        },
+    ),
+    # NOT with mixed nested and flat fields
+    (
+        {
+            "operator": "NOT",
+            "conditions": [
+                {"field": "meta.refs.law", "operator": "==", "value": "bgb"},
+                {"field": "meta.status", "operator": "==", "value": "active"},
+            ],
+        },
+        {"refs"},
+        {
+            "bool": {
+                "must_not": [
+                    {
+                        "bool": {
+                            "must": [
+                                {"term": {"status": "active"}},
+                                {"nested": {"path": "refs", "query": {"term": {"refs.law": "bgb"}}}},
+                            ]
+                        }
+                    }
+                ]
+            }
+        },
+    ),
     # Range conditions on the same nested sub-field -> merged inside nested query
     (
         {

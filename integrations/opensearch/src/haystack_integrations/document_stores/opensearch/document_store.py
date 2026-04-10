@@ -90,7 +90,7 @@ class OpenSearchDocumentStore:
         use_ssl: bool | None = None,
         verify_certs: bool | None = None,
         timeout: int | None = None,
-        nested_fields: list[str] | None = None,
+        nested_fields: list[str] | Literal["*"] | None = None,
         **kwargs: Any,
     ) -> None:
         """
@@ -349,7 +349,7 @@ class OpenSearchDocumentStore:
             if not doc.meta:
                 continue
             for key, value in doc.meta.items():
-                if isinstance(value, list) and value and isinstance(value[0], dict):
+                if isinstance(value, list) and value and all(isinstance(elem, dict) for elem in value):
                     nested.add(key)
         return nested
 

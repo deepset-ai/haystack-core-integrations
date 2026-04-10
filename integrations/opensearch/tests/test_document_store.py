@@ -1455,6 +1455,38 @@ class TestDocumentStore(
         contents = sorted([r.content for r in results])
         assert contents == ["bgb doc", "stgb doc"]
 
+    def test_nested_fields_not_filter(self, document_store_nested: OpenSearchDocumentStore):
+        """NOT filter on nested sub-fields excludes matching documents."""
+        docs = [
+            Document(
+                content="bgb section 1",
+                meta={"refs": [{"law": "bgb", "section": "1"}]},
+            ),
+            Document(
+                content="bgb section 2",
+                meta={"refs": [{"law": "bgb", "section": "2"}]},
+            ),
+            Document(
+                content="stgb section 1",
+                meta={"refs": [{"law": "stgb", "section": "1"}]},
+            ),
+        ]
+        document_store_nested.write_documents(docs)
+
+        # NOT (refs.law == bgb AND refs.section == 1) — only the first doc has both in the same nested object
+        results = document_store_nested.filter_documents(
+            filters={
+                "operator": "NOT",
+                "conditions": [
+                    {"field": "meta.refs.law", "operator": "==", "value": "bgb"},
+                    {"field": "meta.refs.section", "operator": "==", "value": "1"},
+                ],
+            }
+        )
+        assert len(results) == 2
+        contents = sorted([r.content for r in results])
+        assert contents == ["bgb section 2", "stgb section 1"]
+
     def test_nested_fields_different_paths_filter(self, document_store_nested: OpenSearchDocumentStore):
         """AND filter across different nested paths works correctly."""
         docs = [
