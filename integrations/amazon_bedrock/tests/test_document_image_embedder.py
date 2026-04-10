@@ -12,7 +12,9 @@ from haystack_integrations.common.amazon_bedrock.errors import (
     AmazonBedrockConfigurationError,
     AmazonBedrockInferenceError,
 )
-from haystack_integrations.components.embedders.amazon_bedrock import AmazonBedrockDocumentImageEmbedder
+from haystack_integrations.components.embedders.amazon_bedrock import (
+    AmazonBedrockDocumentImageEmbedder,
+)
 
 TYPE = (
     "haystack_integrations.components.embedders.amazon_bedrock."
@@ -22,7 +24,11 @@ TYPE = (
 
 @pytest.fixture
 def image_paths(test_files_path):
-    return [test_files_path / "apple.jpg", test_files_path / "haystack-logo.png", test_files_path / "sample_pdf_1.pdf"]
+    return [
+        test_files_path / "apple.jpg",
+        test_files_path / "haystack-logo.png",
+        test_files_path / "sample_pdf_1.pdf",
+    ]
 
 
 class TestAmazonBedrockDocumentImageEmbedder:
@@ -76,11 +82,31 @@ class TestAmazonBedrockDocumentImageEmbedder:
         expected_dict = {
             "type": TYPE,
             "init_parameters": {
-                "aws_access_key_id": {"type": "env_var", "env_vars": ["AWS_ACCESS_KEY_ID"], "strict": False},
-                "aws_secret_access_key": {"type": "env_var", "env_vars": ["AWS_SECRET_ACCESS_KEY"], "strict": False},
-                "aws_session_token": {"type": "env_var", "env_vars": ["AWS_SESSION_TOKEN"], "strict": False},
-                "aws_region_name": {"type": "env_var", "env_vars": ["AWS_DEFAULT_REGION"], "strict": False},
-                "aws_profile_name": {"type": "env_var", "env_vars": ["AWS_PROFILE"], "strict": False},
+                "aws_access_key_id": {
+                    "type": "env_var",
+                    "env_vars": ["AWS_ACCESS_KEY_ID"],
+                    "strict": False,
+                },
+                "aws_secret_access_key": {
+                    "type": "env_var",
+                    "env_vars": ["AWS_SECRET_ACCESS_KEY"],
+                    "strict": False,
+                },
+                "aws_session_token": {
+                    "type": "env_var",
+                    "env_vars": ["AWS_SESSION_TOKEN"],
+                    "strict": False,
+                },
+                "aws_region_name": {
+                    "type": "env_var",
+                    "env_vars": ["AWS_DEFAULT_REGION"],
+                    "strict": False,
+                },
+                "aws_profile_name": {
+                    "type": "env_var",
+                    "env_vars": ["AWS_PROFILE"],
+                    "strict": False,
+                },
                 "model": "cohere.embed-english-v3",
                 "file_path_meta_field": "file_path",
                 "embedding_types": ["float"],
@@ -98,11 +124,31 @@ class TestAmazonBedrockDocumentImageEmbedder:
         data = {
             "type": TYPE,
             "init_parameters": {
-                "aws_access_key_id": {"type": "env_var", "env_vars": ["AWS_ACCESS_KEY_ID"], "strict": False},
-                "aws_secret_access_key": {"type": "env_var", "env_vars": ["AWS_SECRET_ACCESS_KEY"], "strict": False},
-                "aws_session_token": {"type": "env_var", "env_vars": ["AWS_SESSION_TOKEN"], "strict": False},
-                "aws_region_name": {"type": "env_var", "env_vars": ["AWS_DEFAULT_REGION"], "strict": False},
-                "aws_profile_name": {"type": "env_var", "env_vars": ["AWS_PROFILE"], "strict": False},
+                "aws_access_key_id": {
+                    "type": "env_var",
+                    "env_vars": ["AWS_ACCESS_KEY_ID"],
+                    "strict": False,
+                },
+                "aws_secret_access_key": {
+                    "type": "env_var",
+                    "env_vars": ["AWS_SECRET_ACCESS_KEY"],
+                    "strict": False,
+                },
+                "aws_session_token": {
+                    "type": "env_var",
+                    "env_vars": ["AWS_SESSION_TOKEN"],
+                    "strict": False,
+                },
+                "aws_region_name": {
+                    "type": "env_var",
+                    "env_vars": ["AWS_DEFAULT_REGION"],
+                    "strict": False,
+                },
+                "aws_profile_name": {
+                    "type": "env_var",
+                    "env_vars": ["AWS_PROFILE"],
+                    "strict": False,
+                },
                 "model": "cohere.embed-english-v3",
                 "embedding_types": ["float"],
                 "root_path": None,

@@ -39,7 +39,12 @@ def test_bedrock_ranker_run(mock_aws_session):
         aws_region_name=Secret.from_token("us-west-2"),
     )
 
-    mock_response = {"results": [{"index": 0, "relevanceScore": 0.9}, {"index": 1, "relevanceScore": 0.7}]}
+    mock_response = {
+        "results": [
+            {"index": 0, "relevanceScore": 0.9},
+            {"index": 1, "relevanceScore": 0.7},
+        ]
+    }
 
     mock_aws_session.rerank.return_value = mock_response
 

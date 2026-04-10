@@ -256,6 +256,7 @@ The script takes care of the full setup in one step:
   source package, tests, pydoc config, example components, and a README).
 - Creates a GitHub Actions CI workflow at `.github/workflows/<name>.yml`.
 - Adds label rules to `.github/labeler.yml`.
+- Registers the new workflow in `.github/workflows/CI_coverage_comment.yml` so PR coverage comments work automatically.
 - Adds the new integration to the table in the root `README.md`.
 
 Once the script finishes, follow the printed next-steps to fill in your component code, add dependencies, and
