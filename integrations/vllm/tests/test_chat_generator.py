@@ -52,6 +52,44 @@ class AsyncMockStream(AsyncStream[ChatCompletionChunk]):
         raise StopAsyncIteration
 
 
+def _make_reasoning_chunk(text):
+    chunk = ChatCompletionChunk(
+        id="test-id",
+        model=MODEL,
+        object="chat.completion.chunk",
+        choices=[
+            chat_completion_chunk.Choice(
+                finish_reason=None,
+                logprobs=None,
+                index=0,
+                delta=chat_completion_chunk.ChoiceDelta(content=None, role=None),
+            )
+        ],
+        created=int(datetime.now(tz=timezone.utc).timestamp()),
+        usage=None,
+    )
+    chunk.choices[0].delta.reasoning = text
+    return chunk
+
+
+def _make_content_chunk(text, finish_reason=None):
+    return ChatCompletionChunk(
+        id="test-id",
+        model=MODEL,
+        object="chat.completion.chunk",
+        choices=[
+            chat_completion_chunk.Choice(
+                finish_reason=finish_reason,
+                logprobs=None,
+                index=0,
+                delta=chat_completion_chunk.ChoiceDelta(content=text, role=None),
+            )
+        ],
+        created=int(datetime.now(tz=timezone.utc).timestamp()),
+        usage=None,
+    )
+
+
 @pytest.fixture
 def completion():
     return ChatCompletion(
@@ -78,64 +116,6 @@ def completion_with_reasoning(completion):
 
 
 @pytest.fixture
-def streaming_chunks():
-    chunks = [
-        ChatCompletionChunk(
-            id="test-id",
-            model=MODEL,
-            object="chat.completion.chunk",
-            choices=[
-                chat_completion_chunk.Choice(
-                    finish_reason=None,
-                    logprobs=None,
-                    index=0,
-                    delta=chat_completion_chunk.ChoiceDelta(content="Hello", role="assistant"),
-                )
-            ],
-            created=int(datetime.now(tz=timezone.utc).timestamp()),
-            usage=None,
-        ),
-        ChatCompletionChunk(
-            id="test-id",
-            model=MODEL,
-            object="chat.completion.chunk",
-            choices=[
-                chat_completion_chunk.Choice(
-                    finish_reason="stop",
-                    logprobs=None,
-                    index=0,
-                    delta=chat_completion_chunk.ChoiceDelta(content=None, role=None),
-                )
-            ],
-            created=int(datetime.now(tz=timezone.utc).timestamp()),
-            usage=None,
-        ),
-    ]
-    return chunks
-
-
-@pytest.fixture
-def streaming_chunks_with_reasoning(streaming_chunks):
-    reasoning_chunk = ChatCompletionChunk(
-        id="test-id",
-        model=MODEL,
-        object="chat.completion.chunk",
-        choices=[
-            chat_completion_chunk.Choice(
-                finish_reason=None,
-                logprobs=None,
-                index=0,
-                delta=chat_completion_chunk.ChoiceDelta(content=None, role="assistant"),
-            )
-        ],
-        created=int(datetime.now(tz=timezone.utc).timestamp()),
-        usage=None,
-    )
-    reasoning_chunk.choices[0].delta.reasoning = "Let me think about this."
-    return [reasoning_chunk, *streaming_chunks]
-
-
-@pytest.fixture
 def mock_chat_completion(completion):
     with patch("openai.resources.chat.completions.Completions.create") as mock:
         mock.return_value = completion
@@ -150,20 +130,6 @@ def mock_chat_completion_with_reasoning(completion_with_reasoning):
 
 
 @pytest.fixture
-def mock_streaming_completion(streaming_chunks):
-    with patch("openai.resources.chat.completions.Completions.create") as mock:
-        mock.return_value = MockStream(streaming_chunks, cast_to=None, response=None, client=None)
-        yield mock
-
-
-@pytest.fixture
-def mock_streaming_completion_with_reasoning(streaming_chunks_with_reasoning):
-    with patch("openai.resources.chat.completions.Completions.create") as mock:
-        mock.return_value = MockStream(streaming_chunks_with_reasoning, cast_to=None, response=None, client=None)
-        yield mock
-
-
-@pytest.fixture
 def mock_async_chat_completion(completion):
     with patch("openai.resources.chat.completions.AsyncCompletions.create", new_callable=AsyncMock) as mock:
         mock.return_value = completion
@@ -174,20 +140,6 @@ def mock_async_chat_completion(completion):
 def mock_async_chat_completion_with_reasoning(completion_with_reasoning):
     with patch("openai.resources.chat.completions.AsyncCompletions.create", new_callable=AsyncMock) as mock:
         mock.return_value = completion_with_reasoning
-        yield mock
-
-
-@pytest.fixture
-def mock_async_streaming_completion(streaming_chunks):
-    with patch("openai.resources.chat.completions.AsyncCompletions.create", new_callable=AsyncMock) as mock:
-        mock.return_value = AsyncMockStream(streaming_chunks)
-        yield mock
-
-
-@pytest.fixture
-def mock_async_streaming_completion_with_reasoning(streaming_chunks_with_reasoning):
-    with patch("openai.resources.chat.completions.AsyncCompletions.create", new_callable=AsyncMock) as mock:
-        mock.return_value = AsyncMockStream(streaming_chunks_with_reasoning)
         yield mock
 
 
@@ -432,28 +384,60 @@ class TestVLLMChatGeneratorRun:
         component = VLLMChatGenerator(model=MODEL)
         assert component.run([]) == {"replies": []}
 
-    def test_run_streaming(self, mock_streaming_completion):  # noqa: ARG002
+    def test_run_streaming(self):
+        openai_chunks = [
+            _make_content_chunk("Hello", finish_reason="stop"),
+        ]
+
         chunks_received = []
-        component = VLLMChatGenerator(
-            model=MODEL,
-            streaming_callback=chunks_received.append,
-        )
-        response = component.run([ChatMessage.from_user("Hello")])
+        component = VLLMChatGenerator(model=MODEL, streaming_callback=chunks_received.append)
+        component.warm_up()
+
+        with patch("openai.resources.chat.completions.Completions.create") as mock:
+            mock.return_value = MockStream(openai_chunks, cast_to=None, response=None, client=None)
+            response = component.run([ChatMessage.from_user("Hello")])
 
         assert len(chunks_received) > 0
         assert len(response["replies"]) == 1
+        assert response["replies"][0].text == "Hello"
 
-    def test_run_streaming_with_reasoning(self, mock_streaming_completion_with_reasoning):  # noqa: ARG002
-        chunks_received = []
-        component = VLLMChatGenerator(
-            model=MODEL,
-            streaming_callback=chunks_received.append,
-        )
-        response = component.run([ChatMessage.from_user("Hello")])
+    def test_run_streaming_with_reasoning(self):
+        """Test that streaming with reasoning correctly sets start=True on the first reasoning and content chunks."""
+        openai_chunks = [
+            _make_reasoning_chunk("Okay"),
+            _make_reasoning_chunk(", the"),
+            _make_reasoning_chunk(" capital"),
+            _make_reasoning_chunk(" is Paris.\n"),
+            _make_content_chunk("\n\n"),
+            _make_content_chunk("Paris"),
+            _make_content_chunk(None, finish_reason="stop"),
+        ]
 
-        reasoning_chunks = [c for c in chunks_received if c.reasoning]
-        assert len(reasoning_chunks) > 0
-        assert response["replies"][0].reasoning is not None
+        streaming_chunks = []
+        component = VLLMChatGenerator(model=MODEL, streaming_callback=streaming_chunks.append)
+        component.warm_up()
+
+        with patch("openai.resources.chat.completions.Completions.create") as mock:
+            mock.return_value = MockStream(openai_chunks, cast_to=None, response=None, client=None)
+            result = component.run([ChatMessage.from_user("Hello")])
+
+        assert result["replies"][0].text == "\n\nParis"
+        assert result["replies"][0].reasoning.reasoning_text == "Okay, the capital is Paris.\n"
+
+        assert len(streaming_chunks) == 7
+        # chunk 0: first reasoning chunk -> start=True
+        assert streaming_chunks[0].reasoning is not None
+        assert streaming_chunks[0].start is True
+        # chunks 1-3: subsequent reasoning chunks -> start=False
+        for i in range(1, 4):
+            assert streaming_chunks[i].reasoning is not None
+            assert streaming_chunks[i].start is False
+        # chunk 4: first content chunk after reasoning -> start=True
+        assert streaming_chunks[4].content == "\n\n"
+        assert streaming_chunks[4].start is True
+        # chunks 5-6: subsequent content chunks -> start=False
+        assert streaming_chunks[5].start is False
+        assert streaming_chunks[6].start is False
 
 
 @pytest.mark.asyncio
@@ -478,30 +462,64 @@ class TestVLLMChatGeneratorRunAsync:
         assert reply.reasoning is not None
         assert "capital of France" in reply.reasoning.reasoning_text
 
-    async def test_run_async_streaming(self, mock_async_streaming_completion):  # noqa: ARG002
+    async def test_run_async_streaming(self):
+        openai_chunks = [
+            _make_content_chunk("Hello", finish_reason="stop"),
+        ]
+
         chunks_received = []
 
         async def callback(chunk):
             chunks_received.append(chunk)
 
         component = VLLMChatGenerator(model=MODEL, streaming_callback=callback)
-        response = await component.run_async([ChatMessage.from_user("Hello")])
+        component.warm_up()
+
+        with patch("openai.resources.chat.completions.AsyncCompletions.create", new_callable=AsyncMock) as mock:
+            mock.return_value = AsyncMockStream(openai_chunks)
+            response = await component.run_async([ChatMessage.from_user("Hello")])
 
         assert len(chunks_received) > 0
         assert len(response["replies"]) == 1
+        assert response["replies"][0].text == "Hello"
 
-    async def test_run_async_streaming_with_reasoning(self, mock_async_streaming_completion_with_reasoning):  # noqa: ARG002
-        chunks_received = []
+    async def test_run_async_streaming_with_reasoning(self):
+        """Test that async streaming with reasoning sets start=True on first reasoning and content chunks."""
+        openai_chunks = [
+            _make_reasoning_chunk("Okay"),
+            _make_reasoning_chunk(", the"),
+            _make_reasoning_chunk(" capital"),
+            _make_reasoning_chunk(" is Paris.\n"),
+            _make_content_chunk("\n\n"),
+            _make_content_chunk("Paris"),
+            _make_content_chunk(None, finish_reason="stop"),
+        ]
+
+        streaming_chunks = []
 
         async def callback(chunk):
-            chunks_received.append(chunk)
+            streaming_chunks.append(chunk)
 
         component = VLLMChatGenerator(model=MODEL, streaming_callback=callback)
-        response = await component.run_async([ChatMessage.from_user("Hello")])
+        component.warm_up()
 
-        reasoning_chunks = [c for c in chunks_received if c.reasoning]
-        assert len(reasoning_chunks) > 0
-        assert response["replies"][0].reasoning is not None
+        with patch("openai.resources.chat.completions.AsyncCompletions.create", new_callable=AsyncMock) as mock:
+            mock.return_value = AsyncMockStream(openai_chunks)
+            result = await component.run_async([ChatMessage.from_user("Hello")])
+
+        assert result["replies"][0].text == "\n\nParis"
+        assert result["replies"][0].reasoning.reasoning_text == "Okay, the capital is Paris.\n"
+
+        assert len(streaming_chunks) == 7
+        assert streaming_chunks[0].reasoning is not None
+        assert streaming_chunks[0].start is True
+        for i in range(1, 4):
+            assert streaming_chunks[i].reasoning is not None
+            assert streaming_chunks[i].start is False
+        assert streaming_chunks[4].content == "\n\n"
+        assert streaming_chunks[4].start is True
+        assert streaming_chunks[5].start is False
+        assert streaming_chunks[6].start is False
 
 
 NO_THINKING_KWARGS = {"extra_body": {"chat_template_kwargs": {"enable_thinking": False}}}

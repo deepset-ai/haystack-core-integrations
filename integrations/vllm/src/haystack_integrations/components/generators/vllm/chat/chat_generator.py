@@ -1,4 +1,5 @@
 import asyncio
+import dataclasses
 import json
 from typing import Any
 
@@ -348,6 +349,12 @@ class VLLMChatGenerator:
         """Handle a synchronous streaming response, extracting reasoning content from vLLM's reasoning chunks."""
         component_info = ComponentInfo.from_component(self)
         chunks: list[StreamingChunk] = []
+
+        # track reasoning and content blocks. We use these flags to detect the transition and mark start=True
+        # on the first chunk of each block
+        reasoning_started = False
+        content_started = False
+
         for chunk in chat_completion:
             assert len(chunk.choices) <= 1  # noqa: S101
 
@@ -360,7 +367,7 @@ class VLLMChatGenerator:
                     content="",
                     reasoning=ReasoningContent(reasoning_text=reasoning_text),
                     index=0,
-                    start=not any(c.reasoning for c in chunks),
+                    start=not reasoning_started,
                     component_info=component_info,
                     meta={
                         "model": chunk.model,
@@ -368,10 +375,16 @@ class VLLMChatGenerator:
                         "finish_reason": chunk.choices[0].finish_reason,
                     },
                 )
+                reasoning_started = True
             else:
                 streaming_chunk = _convert_chat_completion_chunk_to_streaming_chunk(
                     chunk=chunk, previous_chunks=chunks, component_info=component_info
                 )
+                # _convert_chat_completion_chunk_to_streaming_chunk doesn't know about reasoning chunks
+                # We set start=True on the first content chunk after reasoning.
+                if reasoning_started and not content_started:
+                    streaming_chunk = dataclasses.replace(streaming_chunk, start=True)
+                    content_started = True
 
             chunks.append(streaming_chunk)
             callback(streaming_chunk)
@@ -384,6 +397,8 @@ class VLLMChatGenerator:
         """Handle an asynchronous streaming response, extracting reasoning content from vLLM's reasoning chunks."""
         component_info = ComponentInfo.from_component(self)
         chunks: list[StreamingChunk] = []
+        reasoning_started = False
+        content_started = False
         try:
             async for chunk in chat_completion:
                 assert len(chunk.choices) <= 1  # noqa: S101
@@ -397,7 +412,7 @@ class VLLMChatGenerator:
                         content="",
                         reasoning=ReasoningContent(reasoning_text=reasoning_text),
                         index=0,
-                        start=not any(c.reasoning for c in chunks),
+                        start=not reasoning_started,
                         component_info=component_info,
                         meta={
                             "model": chunk.model,
@@ -405,10 +420,14 @@ class VLLMChatGenerator:
                             "finish_reason": chunk.choices[0].finish_reason,
                         },
                     )
+                    reasoning_started = True
                 else:
                     streaming_chunk = _convert_chat_completion_chunk_to_streaming_chunk(
                         chunk=chunk, previous_chunks=chunks, component_info=component_info
                     )
+                    if reasoning_started and not content_started:
+                        streaming_chunk = dataclasses.replace(streaming_chunk, start=True)
+                        content_started = True
 
                 chunks.append(streaming_chunk)
                 await callback(streaming_chunk)
