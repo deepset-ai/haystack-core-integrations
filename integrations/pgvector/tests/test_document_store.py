@@ -51,11 +51,12 @@ class TestDocumentStore(
         assert fields_info == {"content": {"type": "text"}}
 
     def test_get_metadata_field_min_max_empty_collection(self, document_store: PgvectorDocumentStore):
-        """PgvectorDocumentStore raises ValueError when the field doesn't exist in the store."""
+        """Returns None min/max when the field doesn't exist in the store."""
         assert document_store.count_documents() == 0
 
-        with pytest.raises(ValueError, match="not found in document store"):
-            document_store.get_metadata_field_min_max("priority")
+        result = document_store.get_metadata_field_min_max("priority")
+        assert result["min"] is None
+        assert result["max"] is None
 
     def test_write_documents(self, document_store: PgvectorDocumentStore):
         docs = [Document(id="1")]
