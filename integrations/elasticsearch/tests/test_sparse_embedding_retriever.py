@@ -27,6 +27,11 @@ def test_init_default():
         ElasticsearchSparseEmbeddingRetriever(document_store=mock_store, filter_policy="keep")
 
 
+def test_init_wrong_document_store_type():
+    with pytest.raises(ValueError, match="document_store must be an instance of ElasticsearchDocumentStore"):
+        ElasticsearchSparseEmbeddingRetriever(document_store=Mock())
+
+
 @patch("haystack_integrations.document_stores.elasticsearch.document_store.Elasticsearch")
 def test_to_dict(_mock_elasticsearch_client):
     document_store = ElasticsearchDocumentStore(hosts="some fake host", sparse_vector_field="sparse_vec")
@@ -157,21 +162,22 @@ async def test_run_async():
     assert res["documents"][0].content == "test document"
 
 
-@pytest.mark.asyncio
-async def test_run_init_params_async():
+def test_run_init_params():
+    """Init-time filters and top_k are passed through when no runtime params are provided."""
     mock_store = Mock(spec=ElasticsearchDocumentStore)
-    mock_store._sparse_vector_retrieval_async.return_value = [Document(content="test document")]
+    mock_store._sparse_vector_retrieval.return_value = [Document(content="test document")]
+    init_filters = {"field": "meta.source", "operator": "==", "value": "wiki"}
     retriever = ElasticsearchSparseEmbeddingRetriever(
         document_store=mock_store,
-        filters={"some": "filter"},
+        filters=init_filters,
         top_k=3,
         filter_policy=FilterPolicy.MERGE,
     )
     query_sparse_embedding = SparseEmbedding(indices=[0, 1], values=[0.5, 0.7])
-    res = await retriever.run_async(query_sparse_embedding=query_sparse_embedding)
-    mock_store._sparse_vector_retrieval_async.assert_called_once_with(
+    res = retriever.run(query_sparse_embedding=query_sparse_embedding)
+    mock_store._sparse_vector_retrieval.assert_called_once_with(
         query_sparse_embedding=query_sparse_embedding,
-        filters={"some": "filter"},
+        filters=init_filters,
         top_k=3,
     )
     assert len(res) == 1
@@ -179,27 +185,62 @@ async def test_run_init_params_async():
     assert res["documents"][0].content == "test document"
 
 
-@pytest.mark.asyncio
-async def test_run_time_params_async():
+def test_run_replace_filter_policy():
+    """Runtime filter replaces init filter under REPLACE policy."""
     mock_store = Mock(spec=ElasticsearchDocumentStore)
-    mock_store._sparse_vector_retrieval_async.return_value = [Document(content="test document")]
+    mock_store._sparse_vector_retrieval.return_value = []
     retriever = ElasticsearchSparseEmbeddingRetriever(
         document_store=mock_store,
-        filters={"some": "filter"},
-        top_k=3,
+        filters={"field": "meta.source", "operator": "==", "value": "wiki"},
+        top_k=5,
+        filter_policy=FilterPolicy.REPLACE,
+    )
+    runtime_filters = {"field": "meta.lang", "operator": "==", "value": "en"}
+    retriever.run(
+        query_sparse_embedding=SparseEmbedding(indices=[0, 1], values=[0.5, 0.7]),
+        filters=runtime_filters,
+    )
+    mock_store._sparse_vector_retrieval.assert_called_once_with(
+        query_sparse_embedding=SparseEmbedding(indices=[0, 1], values=[0.5, 0.7]),
+        filters=runtime_filters,
+        top_k=5,
+    )
+
+
+def test_run_merge_filter_policy():
+    """Runtime filter is AND-combined with init filter under MERGE policy."""
+    mock_store = Mock(spec=ElasticsearchDocumentStore)
+    mock_store._sparse_vector_retrieval.return_value = []
+    init_filters = {"field": "meta.source", "operator": "==", "value": "wiki"}
+    runtime_filters = {"field": "meta.lang", "operator": "==", "value": "en"}
+    retriever = ElasticsearchSparseEmbeddingRetriever(
+        document_store=mock_store,
+        filters=init_filters,
+        top_k=5,
         filter_policy=FilterPolicy.MERGE,
     )
-    query_sparse_embedding = SparseEmbedding(indices=[0, 1], values=[0.5, 0.7])
-    res = await retriever.run_async(
-        query_sparse_embedding=query_sparse_embedding,
-        filters={"another": "filter"},
-        top_k=1,
+    retriever.run(
+        query_sparse_embedding=SparseEmbedding(indices=[0, 1], values=[0.5, 0.7]),
+        filters=runtime_filters,
     )
-    mock_store._sparse_vector_retrieval_async.assert_called_once_with(
-        query_sparse_embedding=query_sparse_embedding,
-        filters={"another": "filter"},
-        top_k=1,
+    mock_store._sparse_vector_retrieval.assert_called_once_with(
+        query_sparse_embedding=SparseEmbedding(indices=[0, 1], values=[0.5, 0.7]),
+        filters={"operator": "AND", "conditions": [init_filters, runtime_filters]},
+        top_k=5,
     )
-    assert len(res) == 1
-    assert len(res["documents"]) == 1
-    assert res["documents"][0].content == "test document"
+
+
+def test_run_runtime_top_k_overrides():
+    """top_k passed at run time overrides the init-time default."""
+    mock_store = Mock(spec=ElasticsearchDocumentStore)
+    mock_store._sparse_vector_retrieval.return_value = []
+    retriever = ElasticsearchSparseEmbeddingRetriever(document_store=mock_store, top_k=10)
+    retriever.run(
+        query_sparse_embedding=SparseEmbedding(indices=[0, 1], values=[0.5, 0.7]),
+        top_k=2,
+    )
+    mock_store._sparse_vector_retrieval.assert_called_once_with(
+        query_sparse_embedding=SparseEmbedding(indices=[0, 1], values=[0.5, 0.7]),
+        filters={},
+        top_k=2,
+    )

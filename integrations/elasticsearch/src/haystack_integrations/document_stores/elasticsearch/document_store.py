@@ -478,9 +478,6 @@ class ElasticsearchDocumentStore:
             doc_dict[self._sparse_vector_field] = self._sparse_embedding_to_es_vector(
                 sparse_embedding["indices"], sparse_embedding["values"]
             )
-            doc_dict[self._sparse_vector_field] = {
-                str(idx): val for idx, val in zip(sparse_embedding["indices"], sparse_embedding["values"], strict=True)
-            }
         else:
             logger.warning(
                 "Document {doc_id} has the `sparse_embedding` field set, "
