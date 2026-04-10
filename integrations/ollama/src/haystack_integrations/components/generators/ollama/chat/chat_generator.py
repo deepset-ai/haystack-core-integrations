@@ -376,8 +376,7 @@ class OllamaChatGenerator:
         id_order: list[str] = []
         tool_call_index: int = 0
 
-        # Track reasoning and content blocks to correctly set start=True on the first chunk of each block.
-        # This ensures print_streaming_chunk prints [REASONING] and [ASSISTANT] headers at the right time.
+        # track reasoning and content blocks to correctly set start=True on the first chunk of each block
         reasoning_started = False
         content_started = False
 
@@ -470,8 +469,7 @@ class OllamaChatGenerator:
         id_order: list[str] = []
         tool_call_index: int = 0
 
-        # Track reasoning and content blocks to correctly set start=True on the first chunk of each block.
-        # This ensures print_streaming_chunk prints [REASONING] and [ASSISTANT] headers at the right time.
+        # track reasoning and content blocks to correctly set start=True on the first chunk of each block
         reasoning_started = False
         content_started = False
 
