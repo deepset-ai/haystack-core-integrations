@@ -12,8 +12,8 @@ def normalize_filters(filters: dict[str, Any], nested_fields: set[str] | None = 
     Converts Haystack filters in OpenSearch compatible filters.
 
     :param filters: Haystack filter dictionary.
-    :param nested_fields: Set of metadata field paths that are mapped as ``nested`` type in OpenSearch.
-        When provided, conditions targeting sub-fields of these paths are wrapped in ``nested`` queries.
+    :param nested_fields: Set of metadata field paths that are mapped as `nested` type in OpenSearch.
+        When provided, conditions targeting sub-fields of these paths are wrapped in `nested` queries.
     """
     if not isinstance(filters, dict):
         msg = "Filters must be a dictionary"
@@ -64,7 +64,7 @@ def _group_nested_conditions(
     operator: str,
 ) -> list[dict[str, Any]]:
     """
-    Group conditions by nested path and wrap each group in a ``nested`` query.
+    Group conditions by nested path and wrap each group in a `nested` query.
 
     Both direct comparisons and logical sub-groups whose leaves all target the
     same nested path are absorbed into the group so that they match within the
