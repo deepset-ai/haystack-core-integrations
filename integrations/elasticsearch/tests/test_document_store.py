@@ -60,6 +60,36 @@ def test_init_with_custom_mapping_injects_sparse_vector():
     assert store._custom_mapping["properties"]["my_sparse_vec"] == {"type": "sparse_vector"}
 
 
+def test_handle_sparse_embedding_no_op_when_absent():
+    store = ElasticsearchDocumentStore(hosts="testhost")
+    doc_dict = {"id": "doc-1", "content": "hello"}
+    store._handle_sparse_embedding(doc_dict, "doc-1")
+    assert doc_dict == {"id": "doc-1", "content": "hello"}
+
+
+def test_handle_sparse_embedding_converts_to_es_format():
+    store = ElasticsearchDocumentStore(hosts="testhost", sparse_vector_field="my_sparse")
+    doc_dict = {
+        "id": "doc-1",
+        "sparse_embedding": {"indices": [0, 5], "values": [0.3, 0.7]},
+    }
+    store._handle_sparse_embedding(doc_dict, "doc-1")
+    assert "sparse_embedding" not in doc_dict
+    assert doc_dict["my_sparse"] == {"0": 0.3, "5": 0.7}
+
+
+def test_handle_sparse_embedding_warns_when_no_field_configured(caplog):
+    store = ElasticsearchDocumentStore(hosts="testhost")
+    doc_dict = {
+        "id": "doc-1",
+        "content": "hello",
+        "sparse_embedding": {"indices": [0, 1], "values": [0.5, 0.5]},
+    }
+    store._handle_sparse_embedding(doc_dict, "doc-1")
+    assert "but `sparse_vector_field` is not configured" in caplog.text
+    assert "sparse_embedding" not in doc_dict
+
+
 @patch("haystack_integrations.document_stores.elasticsearch.document_store.Elasticsearch")
 def test_headers_are_supported(_mock_es_client):
     _ = ElasticsearchDocumentStore(
