@@ -461,7 +461,7 @@ def test_get_default_mappings_with_nested_fields(_mock_opensearch_client):
 
 @patch("haystack_integrations.document_stores.opensearch.document_store.OpenSearch")
 def test_get_default_mappings_with_wildcard(_mock_opensearch_client):
-    store = OpenSearchDocumentStore(hosts="testhost", nested_fields=["*"])
+    store = OpenSearchDocumentStore(hosts="testhost", nested_fields="*")
     props = store._mappings["properties"]
     for val in props.values():
         assert val.get("type") != "nested"
@@ -483,16 +483,16 @@ def test_populate_nested_fields_from_mapping(_mock_opensearch_client):
 
 @patch("haystack_integrations.document_stores.opensearch.document_store.OpenSearch")
 def test_resolved_nested_fields_with_wildcard(_mock_opensearch_client):
-    store = OpenSearchDocumentStore(hosts="testhost", nested_fields=["*"])
+    store = OpenSearchDocumentStore(hosts="testhost", nested_fields="*")
     assert store._resolved_nested_fields == set()
-    assert store._nested_fields == ["*"]
+    assert store._nested_fields == "*"
 
 
 @patch("haystack_integrations.document_stores.opensearch.document_store.OpenSearch")
 @patch("haystack_integrations.document_stores.opensearch.document_store.bulk")
 def test_wildcard_nested_fields_detected_on_write(mock_bulk, _mock_opensearch_client):
     mock_bulk.return_value = (2, [])
-    store = OpenSearchDocumentStore(hosts="testhost", nested_fields=["*"])
+    store = OpenSearchDocumentStore(hosts="testhost", nested_fields="*")
     store._client = MagicMock()
     store._initialized = True
 
@@ -521,7 +521,7 @@ def test_wildcard_nested_fields_detected_on_write(mock_bulk, _mock_opensearch_cl
 @patch("haystack_integrations.document_stores.opensearch.document_store.bulk")
 def test_wildcard_nested_fields_incremental_detection(mock_bulk, _mock_opensearch_client):
     mock_bulk.return_value = (1, [])
-    store = OpenSearchDocumentStore(hosts="testhost", nested_fields=["*"])
+    store = OpenSearchDocumentStore(hosts="testhost", nested_fields="*")
     store._client = MagicMock()
     store._initialized = True
 

@@ -129,10 +129,10 @@ class OpenSearchDocumentStore:
         :param use_ssl: Whether to use SSL. Defaults to None
         :param verify_certs: Whether to verify certificates. Defaults to None
         :param timeout: Timeout in seconds. Defaults to None
-        :param nested_fields: List of metadata field paths (without the ``meta.`` prefix) that should be mapped
-            as OpenSearch ``nested`` type, enabling multi-condition filtering on array-of-objects fields.
-            Pass ``["*"]`` to auto-detect ``list[dict]`` fields and map them as nested from
-            the first ``write_documents`` batch.
+        :param nested_fields: List of metadata field paths (without the `meta.` prefix) that should be mapped
+            as OpenSearch `nested` type, enabling multi-condition filtering on array-of-objects fields.
+            Pass `"*"` to auto-detect `list[dict]` fields and map them as nested from
+            the first `write_documents` batch.
             When the index already exists, nested fields are discovered from the live mapping.
             Defaults to None (no nested support).
         :param **kwargs: Optional arguments that ``OpenSearch`` takes. For the full list of supported kwargs,
@@ -155,7 +155,7 @@ class OpenSearchDocumentStore:
         self._kwargs = kwargs
 
         self._resolved_nested_fields: set[str] = set()
-        if nested_fields and nested_fields != ["*"]:
+        if nested_fields and nested_fields != "*":
             self._resolved_nested_fields = set(nested_fields)
 
         # Client is initialized lazily to prevent side effects when
@@ -181,7 +181,7 @@ class OpenSearchDocumentStore:
         }
         if self._method:
             default_mappings["properties"]["embedding"]["method"] = self._method
-        if self._nested_fields and self._nested_fields != ["*"]:
+        if self._nested_fields and self._nested_fields != "*":
             for field in self._nested_fields:
                 default_mappings["properties"][field] = {"type": "nested"}
         return default_mappings
@@ -333,7 +333,7 @@ class OpenSearchDocumentStore:
         live_nested = self._extract_nested_fields_from_mapping(mapping_properties)
         self._resolved_nested_fields.update(live_nested)
 
-        if self._nested_fields and self._nested_fields != ["*"]:
+        if self._nested_fields and self._nested_fields != "*":
             declared_but_not_nested = set(self._nested_fields) - live_nested
             for field in declared_but_not_nested:
                 logger.warning(
@@ -610,7 +610,7 @@ class OpenSearchDocumentStore:
         """
         self._ensure_initialized()
 
-        if self._nested_fields == ["*"] and documents:
+        if self._nested_fields == "*" and documents:
             detected_nested_fields = self._detect_nested_fields_from_documents(documents)
             new_nested_fields = detected_nested_fields - self._resolved_nested_fields
             if new_nested_fields:
@@ -644,7 +644,7 @@ class OpenSearchDocumentStore:
         await self._ensure_initialized_async()
         assert self._async_client is not None
 
-        if self._nested_fields == ["*"] and documents:
+        if self._nested_fields == "*" and documents:
             detected_nested_fields = self._detect_nested_fields_from_documents(documents)
             new_nested_fields = detected_nested_fields - self._resolved_nested_fields
             if new_nested_fields:

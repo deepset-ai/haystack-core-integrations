@@ -182,7 +182,7 @@ def document_store_wildcard_nested():
         verify_certs=False,
         embedding_dim=768,
         return_embedding=False,
-        nested_fields=["*"],
+        nested_fields="*",
     )
     store._ensure_initialized()
     yield store
