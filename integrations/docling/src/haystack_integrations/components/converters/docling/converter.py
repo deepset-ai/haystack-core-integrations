@@ -1,11 +1,10 @@
 """Docling Haystack converter module."""
 
 import json
-import os
-import tempfile
 import warnings
 from abc import ABC, abstractmethod
 from enum import Enum
+from io import BytesIO
 from pathlib import Path
 from typing import Any
 
@@ -16,6 +15,7 @@ from haystack.dataclasses import ByteStream
 from docling.chunking import BaseChunk, BaseChunker, HybridChunker
 from docling.datamodel.document import DoclingDocument
 from docling.document_converter import DocumentConverter
+from docling_core.types.io import DocumentStream
 
 
 class ExportType(str, Enum):
@@ -141,14 +141,9 @@ class DoclingConverter:
         documents: list[Document] = []
         for source, source_meta in zip(sources, meta_list, strict=True):
             if isinstance(source, ByteStream):
-                # docling requires a file path; write ByteStream data to a temp file
-                with tempfile.NamedTemporaryFile(delete=False) as tmp:
-                    tmp.write(source.data)
-                    tmp_path = Path(tmp.name)
-                try:
-                    dl_doc = self._converter_instance.convert(source=tmp_path, **self.convert_kwargs).document
-                finally:
-                    os.unlink(tmp_path)
+                name = Path(source.meta.get("file_path", "document")).name if source.meta else "document"
+                doc_stream = DocumentStream(name=name, stream=BytesIO(source.data))
+                dl_doc = self._converter_instance.convert(source=doc_stream, **self.convert_kwargs).document
                 # merge ByteStream meta (e.g. file_path, mime_type) with user-supplied meta
                 merged_meta = {**(source.meta or {}), **source_meta}
             else:

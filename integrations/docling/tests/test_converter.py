@@ -1,10 +1,12 @@
 import json
 import warnings
+from io import BytesIO
 from types import SimpleNamespace
 from typing import Any
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
+from docling_core.types.io import DocumentStream
 from haystack.core.serialization import component_from_dict, component_to_dict
 from haystack.dataclasses import ByteStream
 
@@ -356,13 +358,15 @@ def test_run_with_bytestream_source() -> None:
 
     bytestream = ByteStream(data=b"%PDF-1.4 fake pdf content", meta={"file_path": "uploaded.pdf"})
 
-    with patch("os.unlink"):
-        result = converter.run(sources=[bytestream])
+    result = converter.run(sources=[bytestream])
 
     documents = result["documents"]
     assert len(documents) == 1
     # ByteStream meta is merged into the output document
     assert documents[0].meta["file_path"] == "uploaded.pdf"
-    # docling was called with a temp file path, not the ByteStream directly
+    # docling was called with a DocumentStream, not a temp file path
     call_args = converter_mock.convert.call_args
-    assert call_args.kwargs["source"] != bytestream
+    passed_source = call_args.kwargs["source"]
+    assert isinstance(passed_source, DocumentStream)
+    assert passed_source.name == "uploaded.pdf"
+    assert isinstance(passed_source.stream, BytesIO)
