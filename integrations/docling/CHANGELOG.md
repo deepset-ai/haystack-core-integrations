@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/docling-v0.3.0] - 2026-04-10
+
+### 🚀 Features
+
+- (docling) Drop temp files for ByteStream sources (#3130)
+
+
 ## [integrations/docling-v0.2.0] - 2026-04-08
 
 ### 🚀 Features
