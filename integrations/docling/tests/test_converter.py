@@ -386,8 +386,8 @@ class TestBytestreamToDocumentStream:
         ds = _bytestream_to_document_stream(bs)
         assert ds.name == "report.pdf"
 
-    def test_uses_filename_key(self) -> None:
-        bs = ByteStream(data=b"data", meta={"filename": "slide-deck.pptx"})
+    def test_uses_file_name_key(self) -> None:
+        bs = ByteStream(data=b"data", meta={"file_name": "slide-deck.pptx"})
         ds = _bytestream_to_document_stream(bs)
         assert ds.name == "slide-deck.pptx"
 
@@ -396,13 +396,13 @@ class TestBytestreamToDocumentStream:
         ds = _bytestream_to_document_stream(bs)
         assert ds.name == "notes.docx"
 
-    def test_file_path_takes_priority_over_filename(self) -> None:
-        bs = ByteStream(data=b"data", meta={"file_path": "real.pdf", "filename": "other.pdf"})
+    def test_file_path_takes_priority_over_file_name(self) -> None:
+        bs = ByteStream(data=b"data", meta={"file_path": "real.pdf", "file_name": "other.pdf"})
         ds = _bytestream_to_document_stream(bs)
         assert ds.name == "real.pdf"
 
-    def test_filename_takes_priority_over_name(self) -> None:
-        bs = ByteStream(data=b"data", meta={"filename": "chosen.pdf", "name": "ignored.pdf"})
+    def test_file_name_takes_priority_over_name(self) -> None:
+        bs = ByteStream(data=b"data", meta={"file_name": "chosen.pdf", "name": "ignored.pdf"})
         ds = _bytestream_to_document_stream(bs)
         assert ds.name == "chosen.pdf"
 

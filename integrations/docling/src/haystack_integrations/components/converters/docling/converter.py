@@ -22,12 +22,11 @@ from docling_core.types.io import DocumentStream
 def _bytestream_to_document_stream(source: ByteStream) -> DocumentStream:
     """Build a `DocumentStream` from a Haystack `ByteStream`.
 
-    Resolves the stream name by checking common metadata keys (`file_path`,
-    `filename`, `name`) and falling back to MIME-type extension guessing so
-    that docling can reliably detect the input format.
+    Resolves the stream name by checking common metadata keys (`file_path`, `file_name`, `name`) and falling back to
+    MIME-type extension guessing so that docling can reliably detect the input format.
     """
     meta = source.meta or {}
-    raw_name = meta.get("file_path") or meta.get("filename") or meta.get("name")
+    raw_name = meta.get("file_path") or meta.get("file_name") or meta.get("name")
     if raw_name:
         name = Path(raw_name).name
         if not Path(name).suffix and source.mime_type:
