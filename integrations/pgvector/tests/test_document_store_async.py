@@ -46,6 +46,25 @@ class TestDocumentStoreAsync(
     GetMetadataFieldMinMaxAsyncTest,
     GetMetadataFieldUniqueValuesAsyncTest,
 ):
+    @staticmethod
+    def assert_documents_are_equal(received: list[Document], expected: list[Document]):
+        """
+        Embeddings lose float32 precision when round-tripped through pgvector, so we
+        compare them approximately and then do an exact equality check on the rest.
+        """
+        import pytest
+
+        assert len(received) == len(expected)
+        received.sort(key=lambda x: x.id)
+        expected.sort(key=lambda x: x.id)
+        for received_doc, expected_doc in zip(received, expected, strict=True):
+            if received_doc.embedding is None:
+                assert expected_doc.embedding is None
+            else:
+                assert received_doc.embedding == pytest.approx(expected_doc.embedding)
+            received_doc.embedding, expected_doc.embedding = None, None
+            assert received_doc == expected_doc
+
     async def test_write_blob(self, document_store: PgvectorDocumentStore):
         bytestream = ByteStream(b"test", meta={"meta_key": "meta_value"}, mime_type="mime_type")
         docs = [Document(id="1", blob=bytestream)]
