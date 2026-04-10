@@ -8,6 +8,7 @@ from unittest.mock import Mock, patch
 import pytest
 from elasticsearch.exceptions import BadRequestError  # type: ignore[import-not-found]
 from haystack.dataclasses.document import Document
+from haystack.dataclasses.sparse_embedding import SparseEmbedding
 from haystack.document_stores.errors import DocumentStoreError, DuplicateDocumentError
 from haystack.document_stores.types import DuplicatePolicy
 from haystack.testing.document_store import (
@@ -28,6 +29,48 @@ from haystack_integrations.document_stores.elasticsearch import ElasticsearchDoc
 def test_init_is_lazy(_mock_es_client):
     ElasticsearchDocumentStore(hosts="testhost")
     _mock_es_client.assert_not_called()
+
+
+def test_init_with_special_fields_raises_error():
+    with pytest.raises(ValueError, match=r"sparse_vector_field 'content' conflicts with a reserved field name\."):
+        ElasticsearchDocumentStore(sparse_vector_field="content")
+
+
+def test_init_with_custom_mapping_injects_sparse_vector():
+    custom_mapping = {"properties": {"some_field": {"type": "text"}}}
+    store = ElasticsearchDocumentStore(custom_mapping=custom_mapping, sparse_vector_field="my_sparse_vec")
+    assert "my_sparse_vec" in store._custom_mapping["properties"]
+    assert store._custom_mapping["properties"]["my_sparse_vec"] == {"type": "sparse_vector"}
+
+
+def test_handle_sparse_embedding_no_op_when_absent():
+    store = ElasticsearchDocumentStore(hosts="testhost")
+    doc_dict = {"id": "doc-1", "content": "hello"}
+    store._handle_sparse_embedding(doc_dict, "doc-1")
+    assert doc_dict == {"id": "doc-1", "content": "hello"}
+
+
+def test_handle_sparse_embedding_converts_to_es_format():
+    store = ElasticsearchDocumentStore(hosts="testhost", sparse_vector_field="my_sparse")
+    doc_dict = {
+        "id": "doc-1",
+        "sparse_embedding": {"indices": [0, 5], "values": [0.3, 0.7]},
+    }
+    store._handle_sparse_embedding(doc_dict, "doc-1")
+    assert "sparse_embedding" not in doc_dict
+    assert doc_dict["my_sparse"] == {"0": 0.3, "5": 0.7}
+
+
+def test_handle_sparse_embedding_warns_when_no_field_configured(caplog):
+    store = ElasticsearchDocumentStore(hosts="testhost")
+    doc_dict = {
+        "id": "doc-1",
+        "content": "hello",
+        "sparse_embedding": {"indices": [0, 1], "values": [0.5, 0.5]},
+    }
+    store._handle_sparse_embedding(doc_dict, "doc-1")
+    assert "but `sparse_vector_field` is not configured" in caplog.text
+    assert "sparse_embedding" not in doc_dict
 
 
 @patch("haystack_integrations.document_stores.elasticsearch.document_store.Elasticsearch")
@@ -69,6 +112,7 @@ def test_to_dict():
             "custom_mapping": None,
             "index": "default",
             "embedding_similarity_function": "cosine",
+            "sparse_vector_field": None,
         },
     }
 
@@ -83,6 +127,7 @@ def test_from_dict():
             "api_key": None,
             "api_key_id": None,
             "embedding_similarity_function": "cosine",
+            "sparse_vector_field": None,
         },
     }
     document_store = ElasticsearchDocumentStore.from_dict(data)
@@ -90,6 +135,7 @@ def test_from_dict():
     assert document_store._index == "default"
     assert document_store._custom_mapping is None
     assert document_store._api_key is None
+    assert document_store._sparse_vector_field is None
     assert document_store._api_key_id is None
     assert document_store._embedding_similarity_function == "cosine"
 
@@ -134,6 +180,7 @@ def test_from_dict_with_api_keys_env_vars():
             "api_key": {"type": "env_var", "env_vars": ["ELASTIC_API_KEY"], "strict": False},
             "api_key_id": {"type": "env_var", "env_vars": ["ELASTIC_API_KEY_ID"], "strict": False},
             "embedding_similarity_function": "cosine",
+            "sparse_vector_field": None,
         },
     }
 
@@ -152,12 +199,30 @@ def test_from_dict_with_api_keys_str():
             "api_key": "my_api_key",
             "api_key_id": "my_api_key_id",
             "embedding_similarity_function": "cosine",
+            "sparse_vector_field": None,
         },
     }
 
     document_store = ElasticsearchDocumentStore.from_dict(data)
     assert document_store._api_key == "my_api_key"
     assert document_store._api_key_id == "my_api_key_id"
+
+
+def test_from_dict_without_sparse_vector_field():
+    data = {
+        "type": "haystack_integrations.document_stores.elasticsearch.document_store.ElasticsearchDocumentStore",
+        "init_parameters": {
+            "hosts": "some hosts",
+            "custom_mapping": None,
+            "index": "default",
+            "api_key": "my_api_key",
+            "api_key_id": "my_api_key_id",
+            "embedding_similarity_function": "cosine",
+        },
+    }
+
+    document_store = ElasticsearchDocumentStore.from_dict(data)
+    assert document_store._sparse_vector_field is None
 
 
 def test_api_key_validation_only_api_key():
@@ -232,6 +297,37 @@ def test_client_initialization_with_api_key_string(_mock_async_es, _mock_es):
     assert async_call_args[1]["api_key"] == "test_api_key"
 
 
+@patch("haystack_integrations.document_stores.elasticsearch.document_store.Elasticsearch")
+def test_init_with_custom_mapping(mock_elasticsearch):
+    custom_mapping = {
+        "properties": {
+            "embedding": {"type": "dense_vector", "index": True, "similarity": "dot_product"},
+            "content": {"type": "text"},
+        },
+        "dynamic_templates": [
+            {
+                "strings": {
+                    "path_match": "*",
+                    "match_mapping_type": "string",
+                    "mapping": {
+                        "type": "keyword",
+                    },
+                }
+            }
+        ],
+    }
+    mock_client = Mock(
+        indices=Mock(create=Mock(), exists=Mock(return_value=False)),
+    )
+    mock_elasticsearch.return_value = mock_client
+
+    _ = ElasticsearchDocumentStore(hosts="http://testhost:9200", custom_mapping=custom_mapping).client
+    mock_client.indices.create.assert_called_once_with(
+        index="default",
+        mappings=custom_mapping,
+    )
+
+
 @pytest.mark.integration
 class TestDocumentStore(
     DocumentStoreBaseExtendedTests,
@@ -300,6 +396,81 @@ class TestDocumentStore(
         assert document_store.write_documents(docs) == 1
         with pytest.raises(DuplicateDocumentError):
             document_store.write_documents(docs, DuplicatePolicy.FAIL)
+
+    def test_write_documents_with_sparse_vectors(self):
+        store = ElasticsearchDocumentStore(
+            hosts=["http://localhost:9200"], index="test_sync_sparse", sparse_vector_field="sparse_vec"
+        )
+        store.client.options(ignore_status=[400, 404]).indices.delete(index="test_sync_sparse")
+
+        doc = Document(id="1", content="test", sparse_embedding=SparseEmbedding(indices=[0, 1], values=[0.5, 0.5]))
+        store.write_documents([doc])
+
+        # check ES natively
+        raw_doc = store.client.get(index="test_sync_sparse", id="1")
+        assert raw_doc["_source"]["sparse_vec"] == {"0": 0.5, "1": 0.5}
+
+        # check retrieval reconstruction
+        results = store.filter_documents()
+        assert len(results) == 1
+        assert results[0].sparse_embedding is not None
+        assert results[0].sparse_embedding.indices == [0, 1]
+        assert results[0].sparse_embedding.values == [0.5, 0.5]
+
+        store.client.indices.delete(index="test_sync_sparse")
+
+    def test_write_documents_with_non_contiguous_sparse_indices(self):
+        store = ElasticsearchDocumentStore(
+            hosts=["http://localhost:9200"], index="test_sync_sparse_noncontiguous", sparse_vector_field="sparse_vec"
+        )
+        store.client.options(ignore_status=[400, 404]).indices.delete(index="test_sync_sparse_noncontiguous")
+
+        doc = Document(
+            id="1", content="test", sparse_embedding=SparseEmbedding(indices=[100, 5, 42], values=[0.1, 0.9, 0.5])
+        )
+        store.write_documents([doc])
+
+        results = store.filter_documents()
+        assert len(results) == 1
+        assert results[0].sparse_embedding is not None
+        assert results[0].sparse_embedding.indices == [5, 42, 100]
+        assert results[0].sparse_embedding.values == [0.9, 0.5, 0.1]
+
+        store.client.indices.delete(index="test_sync_sparse_noncontiguous")
+
+    def test_write_documents_mixed_sparse_and_non_sparse(self):
+        store = ElasticsearchDocumentStore(
+            hosts=["http://localhost:9200"], index="test_sync_sparse_mixed", sparse_vector_field="sparse_vec"
+        )
+        store.client.options(ignore_status=[400, 404]).indices.delete(index="test_sync_sparse_mixed")
+
+        docs = [
+            Document(
+                id="1", content="with sparse", sparse_embedding=SparseEmbedding(indices=[0, 1], values=[0.5, 0.5])
+            ),
+            Document(id="2", content="without sparse"),
+        ]
+        store.write_documents(docs)
+
+        results = sorted(store.filter_documents(), key=lambda d: d.id)
+        assert len(results) == 2
+        assert results[0].sparse_embedding is not None
+        assert results[0].sparse_embedding.indices == [0, 1]
+        assert results[1].sparse_embedding is None
+
+        store.client.indices.delete(index="test_sync_sparse_mixed")
+
+    def test_write_documents_with_sparse_embedding_warning(self, document_store, caplog):
+        """Test write_documents with document containing sparse_embedding field"""
+        doc = Document(id="1", content="test", sparse_embedding=SparseEmbedding(indices=[0, 1], values=[0.5, 0.5]))
+
+        document_store.write_documents([doc])
+        assert "but `sparse_vector_field` is not configured" in caplog.text
+
+        results = document_store.filter_documents()
+        assert len(results) == 1
+        assert results[0].id == "1"
+        assert not hasattr(results[0], "sparse_embedding") or results[0].sparse_embedding is None
 
     def test_bm25_retrieval(self, document_store: ElasticsearchDocumentStore):
         document_store.write_documents(
@@ -475,6 +646,13 @@ class TestDocumentStore(
 
         with pytest.raises(DocumentStoreError):
             document_store.write_documents(docs)
+
+    def test_init_with_sparse_vector_field(self):
+        store = ElasticsearchDocumentStore(
+            hosts=["http://localhost:9200"], index="test_init_sparse", sparse_vector_field="sparse_vec"
+        )
+        assert "sparse_vec" in store._default_mappings["properties"]
+        assert store._default_mappings["properties"]["sparse_vec"]["type"] == "sparse_vector"
 
     @patch("haystack_integrations.document_stores.elasticsearch.document_store.Elasticsearch")
     def test_init_with_custom_mapping(self, mock_elasticsearch):

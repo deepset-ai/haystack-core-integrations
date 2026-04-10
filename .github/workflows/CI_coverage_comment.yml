@@ -1,4 +1,4 @@
-name: Add comment about test coverage to PRs
+name: Core / Add comment about test coverage to PRs
 
 on:
   workflow_run:
@@ -15,6 +15,7 @@ on:
       - "Test / cohere"
       - "Test / cometapi"
       - "Test / deepeval"
+      - "Test / dspy"
       - "Test / elasticsearch"
       - "Test / faiss"
       - "Test / fastembed"
@@ -51,6 +52,7 @@ on:
       - "Test / togetherai"
       - "Test / unstructured"
       - "Test / valkey"
+      - "Test / vllm"
       - "Test / watsonx"
       - "Test / weave"
       - "Test / weaviate"
@@ -75,3 +77,5 @@ jobs:
           GITHUB_PR_RUN_ID: ${{ github.event.workflow_run.id }}
           SUBPROJECT_ID: ${{ steps.integration.outputs.name }}
           COMMENT_ARTIFACT_NAME: coverage-comment-${{ steps.integration.outputs.name }}
+          MINIMUM_GREEN: 90
+          MINIMUM_ORANGE: 60

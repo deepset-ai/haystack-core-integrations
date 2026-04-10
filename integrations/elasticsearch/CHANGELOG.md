@@ -1,5 +1,31 @@
 # Changelog
 
+## [integrations/elasticsearch-v5.4.0] - 2026-04-10
+
+### 🐛 Bug Fixes
+
+- Replace in-place dataclass mutations in document stores (#3114)
+
+### 🚜 Refactor
+
+- Weaviate, chroma, elasticsearch, opensearch, azure_ai_search use `_normalize_metadata_field_name` from haystack.utils (#2953)
+
+### 🧪 Testing
+
+- `ElasticSearchDocumentStore` relying on `Mixin` tests (#2995)
+- Test compatible integrations with python 3.14; update pyproject (#3001)
+- Track test coverage for all integrations (#3065)
+- Better categorize some Document Stores tests (#3085)
+
+### 🧹 Chores
+
+- Enable ANN ruff ruleset for elasticsearch integration (#2986)
+- Enforce ruff docstring rules (D102/D103/D205/D209/D213/D417/D419) in integrations 11-20 (#3009)
+
+### 🌀 Miscellaneous
+
+- ElasticHybridRetriever (#3127)
+
 ## [integrations/elasticsearch-v5.3.0] - 2026-03-10
 
 ### 🚀 Features

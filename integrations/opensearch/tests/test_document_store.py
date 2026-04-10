@@ -52,6 +52,7 @@ def test_to_dict(_mock_opensearch_client):
             "use_ssl": None,
             "verify_certs": None,
             "timeout": None,
+            "nested_fields": None,
         },
     }
 
@@ -371,6 +372,184 @@ async def test_bm25_retrieval_async_reraises_other_transport_errors(_mock_opense
         await store._bm25_retrieval_async("some query", fuzziness="AUTO")
 
     assert store._async_client.search.call_count == 1
+
+
+@patch("haystack_integrations.document_stores.opensearch.document_store.OpenSearch")
+def test_to_dict_with_nested_fields(_mock_opensearch_client):
+    document_store = OpenSearchDocumentStore(hosts="some hosts", nested_fields=["attributes", "tags"])
+    res = document_store.to_dict()
+    assert res["init_parameters"]["nested_fields"] == ["attributes", "tags"]
+    props = res["init_parameters"]["mappings"]["properties"]
+    assert props["attributes"] == {"type": "nested"}
+    assert props["tags"] == {"type": "nested"}
+
+
+@patch("haystack_integrations.document_stores.opensearch.document_store.OpenSearch")
+def test_from_dict_with_nested_fields(_mock_opensearch_client):
+    data = {
+        "type": "haystack_integrations.document_stores.opensearch.document_store.OpenSearchDocumentStore",
+        "init_parameters": {
+            "hosts": "some hosts",
+            "index": "default",
+            "nested_fields": ["attributes"],
+            "http_auth": ("admin", "admin"),
+        },
+    }
+    document_store = OpenSearchDocumentStore.from_dict(data)
+    assert document_store._nested_fields == ["attributes"]
+    assert document_store._resolved_nested_fields == {"attributes"}
+
+
+@patch("haystack_integrations.document_stores.opensearch.document_store.OpenSearch")
+def test_detect_nested_fields_from_documents(_mock_opensearch_client):
+    docs = [
+        Document(
+            content="doc1",
+            meta={
+                "attributes": [{"color": "red"}, {"color": "blue"}],
+                "tags": [{"name": "sale"}],
+                "status": "active",
+                "scores": [1, 2, 3],
+            },
+        ),
+        Document(content="doc2", meta={"other_nested": [{"key": "val"}]}),
+        Document(content="doc3"),
+    ]
+    result = OpenSearchDocumentStore._detect_nested_fields_from_documents(docs)
+    assert result == {"attributes", "tags", "other_nested"}
+
+
+@patch("haystack_integrations.document_stores.opensearch.document_store.OpenSearch")
+def test_detect_nested_fields_empty_list(_mock_opensearch_client):
+    docs = [Document(content="doc1", meta={"items": []})]
+    result = OpenSearchDocumentStore._detect_nested_fields_from_documents(docs)
+    assert result == set()
+
+
+@patch("haystack_integrations.document_stores.opensearch.document_store.OpenSearch")
+def test_extract_nested_fields_from_mapping(_mock_opensearch_client):
+    mapping_properties = {
+        "attributes": {"type": "nested"},
+        "tags": {"type": "nested"},
+        "content": {"type": "text"},
+        "embedding": {"type": "knn_vector", "dimension": 768},
+        "status": {"type": "keyword"},
+    }
+    result = OpenSearchDocumentStore._extract_nested_fields_from_mapping(mapping_properties)
+    assert result == {"attributes", "tags"}
+
+
+@patch("haystack_integrations.document_stores.opensearch.document_store.OpenSearch")
+def test_extract_nested_fields_from_mapping_none_nested(_mock_opensearch_client):
+    mapping_properties = {
+        "content": {"type": "text"},
+        "status": {"type": "keyword"},
+    }
+    result = OpenSearchDocumentStore._extract_nested_fields_from_mapping(mapping_properties)
+    assert result == set()
+
+
+@patch("haystack_integrations.document_stores.opensearch.document_store.OpenSearch")
+def test_get_default_mappings_with_nested_fields(_mock_opensearch_client):
+    store = OpenSearchDocumentStore(hosts="testhost", nested_fields=["attributes", "tags"])
+    props = store._mappings["properties"]
+    assert props["attributes"] == {"type": "nested"}
+    assert props["tags"] == {"type": "nested"}
+    assert props["content"] == {"type": "text"}
+    assert "embedding" in props
+
+
+@patch("haystack_integrations.document_stores.opensearch.document_store.OpenSearch")
+def test_get_default_mappings_with_wildcard(_mock_opensearch_client):
+    store = OpenSearchDocumentStore(hosts="testhost", nested_fields="*")
+    props = store._mappings["properties"]
+    for val in props.values():
+        assert val.get("type") != "nested"
+
+
+@patch("haystack_integrations.document_stores.opensearch.document_store.OpenSearch")
+def test_populate_nested_fields_from_mapping(_mock_opensearch_client):
+    store = OpenSearchDocumentStore(hosts="testhost", nested_fields=["attributes"])
+    assert store._resolved_nested_fields == {"attributes"}
+
+    mapping_properties = {
+        "attributes": {"type": "nested"},
+        "tags": {"type": "nested"},
+        "content": {"type": "text"},
+    }
+    store._populate_nested_fields_from_mapping(mapping_properties)
+    assert store._resolved_nested_fields == {"attributes", "tags"}
+
+
+@patch("haystack_integrations.document_stores.opensearch.document_store.OpenSearch")
+def test_resolved_nested_fields_with_wildcard(_mock_opensearch_client):
+    store = OpenSearchDocumentStore(hosts="testhost", nested_fields="*")
+    assert store._resolved_nested_fields == set()
+    assert store._nested_fields == "*"
+
+
+@patch("haystack_integrations.document_stores.opensearch.document_store.OpenSearch")
+@patch("haystack_integrations.document_stores.opensearch.document_store.bulk")
+def test_wildcard_nested_fields_detected_on_write(mock_bulk, _mock_opensearch_client):
+    mock_bulk.return_value = (2, [])
+    store = OpenSearchDocumentStore(hosts="testhost", nested_fields="*")
+    store._client = MagicMock()
+    store._initialized = True
+
+    docs = [
+        Document(
+            content="doc1",
+            meta={
+                "refs": [{"law": "bgb", "section": "1"}],
+                "tags": [{"name": "important"}],
+                "status": "active",
+            },
+        ),
+        Document(content="doc2", meta={"refs": [{"law": "stgb"}]}),
+    ]
+
+    store.write_documents(docs)
+
+    assert "refs" in store._resolved_nested_fields
+    assert "tags" in store._resolved_nested_fields
+    assert "status" not in store._resolved_nested_fields
+    # put_mapping should have been called for each detected nested field
+    assert store._client.indices.put_mapping.call_count == 2
+
+
+@patch("haystack_integrations.document_stores.opensearch.document_store.OpenSearch")
+@patch("haystack_integrations.document_stores.opensearch.document_store.bulk")
+def test_wildcard_nested_fields_incremental_detection(mock_bulk, _mock_opensearch_client):
+    mock_bulk.return_value = (1, [])
+    store = OpenSearchDocumentStore(hosts="testhost", nested_fields="*")
+    store._client = MagicMock()
+    store._initialized = True
+
+    # First batch: detects "refs"
+    store.write_documents([Document(content="d1", meta={"refs": [{"law": "bgb"}]})])
+    assert store._resolved_nested_fields == {"refs"}
+    assert store._client.indices.put_mapping.call_count == 1
+
+    # Second batch: detects "tags" (refs already known)
+    store.write_documents([Document(content="d2", meta={"refs": [{"law": "stgb"}], "tags": [{"name": "x"}]})])
+    assert store._resolved_nested_fields == {"refs", "tags"}
+    assert store._client.indices.put_mapping.call_count == 2  # only one additional call for "tags"
+
+
+@patch("haystack_integrations.document_stores.opensearch.document_store.OpenSearch")
+@patch("haystack_integrations.document_stores.opensearch.document_store.bulk")
+def test_explicit_nested_fields_no_detection_on_write(mock_bulk, _mock_opensearch_client):
+    mock_bulk.return_value = (1, [])
+    store = OpenSearchDocumentStore(hosts="testhost", nested_fields=["refs"])
+    store._client = MagicMock()
+    store._initialized = True
+
+    store.write_documents([Document(content="d1", meta={"tags": [{"name": "x"}]})])
+
+    # "tags" should NOT be added because we used explicit nested_fields, not wildcard
+    assert "tags" not in store._resolved_nested_fields
+    assert store._resolved_nested_fields == {"refs"}
+    store._client.indices.put_mapping.assert_not_called()
 
 
 @pytest.mark.integration
@@ -857,7 +1036,6 @@ class TestDocumentStore(
         unique_priorities_filtered, _ = document_store.get_metadata_field_unique_values("meta.priority", "Doc 1", 10)
         assert set(unique_priorities_filtered) == {"1"}
 
-    @pytest.mark.integration
     def test_write_with_routing(self, document_store: OpenSearchDocumentStore):
         """Test writing documents with routing metadata"""
         docs = [
@@ -884,7 +1062,6 @@ class TestDocumentStore(
 
         assert retrieved_by_id["3"].meta == {}
 
-    @pytest.mark.integration
     def test_delete_with_routing(self, document_store: OpenSearchDocumentStore):
         """Test deleting documents with routing"""
         docs = [
@@ -899,7 +1076,6 @@ class TestDocumentStore(
 
         assert document_store.count_documents() == 1
 
-    @pytest.mark.integration
     def test_metadata_search_fuzzy_mode(self, document_store: OpenSearchDocumentStore):
         """Test metadata search in fuzzy mode."""
         docs = [
@@ -928,7 +1104,6 @@ class TestDocumentStore(
         categories = [row.get("category", "").lower() for row in result]
         assert any("python" in cat for cat in categories)
 
-    @pytest.mark.integration
     def test_metadata_search_strict_mode(self, document_store: OpenSearchDocumentStore):
         """Test metadata search in strict mode."""
         docs = [
@@ -951,7 +1126,6 @@ class TestDocumentStore(
         assert all(isinstance(row, dict) for row in result)
         assert all("category" in row for row in result)
 
-    @pytest.mark.integration
     def test_metadata_search_multiple_fields(self, document_store: OpenSearchDocumentStore):
         """Test metadata search across multiple fields."""
         docs = [
@@ -976,7 +1150,6 @@ class TestDocumentStore(
         for row in result:
             assert all(key in ["category", "status"] for key in row.keys())
 
-    @pytest.mark.integration
     def test_metadata_search_comma_separated_query(self, document_store: OpenSearchDocumentStore):
         """Test metadata search with comma-separated query parts."""
         docs = [
@@ -998,7 +1171,6 @@ class TestDocumentStore(
         assert len(result) > 0
         assert all(isinstance(row, dict) for row in result)
 
-    @pytest.mark.integration
     def test_metadata_search_top_k(self, document_store: OpenSearchDocumentStore):
         """Test metadata search respects top_k parameter."""
         docs = [Document(content=f"Doc {i}", meta={"category": "Python", "index": i}) for i in range(15)]
@@ -1015,7 +1187,6 @@ class TestDocumentStore(
         assert isinstance(result, list)
         assert len(result) <= 5
 
-    @pytest.mark.integration
     def test_metadata_search_with_filters(self, document_store: OpenSearchDocumentStore):
         """Test metadata search with additional filters."""
         docs = [
@@ -1039,7 +1210,6 @@ class TestDocumentStore(
         # Should only return documents with priority == 1
         assert len(result) >= 1
 
-    @pytest.mark.integration
     def test_metadata_search_empty_fields(self, document_store: OpenSearchDocumentStore):
         """Test metadata search with empty fields list returns empty result."""
         docs = [
@@ -1057,7 +1227,6 @@ class TestDocumentStore(
         assert isinstance(result, list)
         assert len(result) == 0
 
-    @pytest.mark.integration
     def test_metadata_search_deduplication(self, document_store: OpenSearchDocumentStore):
         """Test that metadata search deduplicates results."""
         docs = [
@@ -1113,3 +1282,227 @@ class TestDocumentStore(
         invalid_query = "SELECT * FROM non_existent_index"
         with pytest.raises(DocumentStoreError, match="Failed to execute SQL query"):
             document_store._query_sql(invalid_query)
+
+    def test_explicit_nested_fields_filter(self, document_store_nested: OpenSearchDocumentStore):
+        """Filtering on explicitly declared nested fields returns correct documents."""
+        docs = [
+            Document(
+                content="doc about bgb 1a",
+                meta={"refs": [{"law": "bgb", "section": "1", "paragraph": "a"}], "status": "active"},
+            ),
+            Document(
+                content="doc about bgb 2",
+                meta={"refs": [{"law": "bgb", "section": "2"}], "status": "active"},
+            ),
+            Document(
+                content="doc about stgb",
+                meta={"refs": [{"law": "stgb", "section": "1"}], "status": "active"},
+            ),
+        ]
+        document_store_nested.write_documents(docs)
+
+        # Filter for refs.law == bgb
+        results = document_store_nested.filter_documents(
+            filters={"field": "meta.refs.law", "operator": "==", "value": "bgb"}
+        )
+        assert len(results) == 2
+        assert all("bgb" in str(doc.meta["refs"]) for doc in results)
+
+    def test_explicit_nested_fields_combined_filter(self, document_store_nested: OpenSearchDocumentStore):
+        """AND filter across sub-fields of the same nested path matches within the same array element."""
+        docs = [
+            Document(
+                content="bgb section 1",
+                meta={"refs": [{"law": "bgb", "section": "1"}, {"law": "stgb", "section": "2"}]},
+            ),
+            Document(
+                content="bgb section 2",
+                meta={"refs": [{"law": "bgb", "section": "2"}]},
+            ),
+            Document(
+                content="stgb section 1",
+                meta={"refs": [{"law": "stgb", "section": "1"}]},
+            ),
+        ]
+        document_store_nested.write_documents(docs)
+
+        # Filter: refs.law == bgb AND refs.section == 1 (must match within same nested object)
+        results = document_store_nested.filter_documents(
+            filters={
+                "operator": "AND",
+                "conditions": [
+                    {"field": "meta.refs.law", "operator": "==", "value": "bgb"},
+                    {"field": "meta.refs.section", "operator": "==", "value": "1"},
+                ],
+            }
+        )
+        assert len(results) == 1
+        assert results[0].content == "bgb section 1"
+
+    def test_explicit_nested_fields_mixed_nested_and_flat(self, document_store_nested: OpenSearchDocumentStore):
+        """Filtering on both nested and flat fields works correctly."""
+        docs = [
+            Document(content="d1", meta={"refs": [{"law": "bgb"}], "status": "active"}),
+            Document(content="d2", meta={"refs": [{"law": "bgb"}], "status": "inactive"}),
+            Document(content="d3", meta={"refs": [{"law": "stgb"}], "status": "active"}),
+        ]
+        document_store_nested.write_documents(docs)
+
+        results = document_store_nested.filter_documents(
+            filters={
+                "operator": "AND",
+                "conditions": [
+                    {"field": "meta.refs.law", "operator": "==", "value": "bgb"},
+                    {"field": "meta.status", "operator": "==", "value": "active"},
+                ],
+            }
+        )
+        assert len(results) == 1
+        assert results[0].content == "d1"
+
+    def test_wildcard_nested_fields_auto_detection(self, document_store_wildcard_nested: OpenSearchDocumentStore):
+        """With nested_fields=['*'], writing docs with list[dict] metadata auto-detects and maps nested fields."""
+        assert document_store_wildcard_nested._resolved_nested_fields == set()
+
+        docs = [
+            Document(content="d1", meta={"refs": [{"law": "bgb", "section": "1"}], "status": "active"}),
+            Document(content="d2", meta={"refs": [{"law": "stgb"}], "tags": [{"name": "important"}]}),
+        ]
+        document_store_wildcard_nested.write_documents(docs)
+
+        # After writing, nested fields should be detected
+        assert "refs" in document_store_wildcard_nested._resolved_nested_fields
+        assert "tags" in document_store_wildcard_nested._resolved_nested_fields
+        assert "status" not in document_store_wildcard_nested._resolved_nested_fields
+
+    def test_wildcard_nested_fields_filter(self, document_store_wildcard_nested: OpenSearchDocumentStore):
+        """With wildcard auto-detection, nested filtering works correctly."""
+        docs = [
+            Document(content="bgb section 1", meta={"refs": [{"law": "bgb", "section": "1"}]}),
+            Document(content="bgb section 2", meta={"refs": [{"law": "bgb", "section": "2"}]}),
+            Document(content="stgb section 1", meta={"refs": [{"law": "stgb", "section": "1"}]}),
+        ]
+        document_store_wildcard_nested.write_documents(docs)
+
+        # Nested AND filter on refs.law + refs.section
+        results = document_store_wildcard_nested.filter_documents(
+            filters={
+                "operator": "AND",
+                "conditions": [
+                    {"field": "meta.refs.law", "operator": "==", "value": "bgb"},
+                    {"field": "meta.refs.section", "operator": "==", "value": "1"},
+                ],
+            }
+        )
+        assert len(results) == 1
+        assert results[0].content == "bgb section 1"
+
+    def test_wildcard_nested_fields_incremental_detection(
+        self, document_store_wildcard_nested: OpenSearchDocumentStore
+    ):
+        """A second write batch discovers new nested fields not seen in the first batch."""
+        # First batch: only refs
+        document_store_wildcard_nested.write_documents([Document(content="d1", meta={"refs": [{"law": "bgb"}]})])
+        assert "refs" in document_store_wildcard_nested._resolved_nested_fields
+        assert "tags" not in document_store_wildcard_nested._resolved_nested_fields
+
+        # Second batch: introduces tags
+        document_store_wildcard_nested.write_documents([Document(content="d2", meta={"tags": [{"name": "sale"}]})])
+        assert "tags" in document_store_wildcard_nested._resolved_nested_fields
+
+        # Both nested fields are now filterable
+        results = document_store_wildcard_nested.filter_documents(
+            filters={"field": "meta.refs.law", "operator": "==", "value": "bgb"}
+        )
+        assert len(results) == 1
+        assert results[0].content == "d1"
+
+        results = document_store_wildcard_nested.filter_documents(
+            filters={"field": "meta.tags.name", "operator": "==", "value": "sale"}
+        )
+        assert len(results) == 1
+        assert results[0].content == "d2"
+
+    def test_nested_fields_or_filter(self, document_store_nested: OpenSearchDocumentStore):
+        """OR filter on nested sub-fields works correctly."""
+        docs = [
+            Document(content="bgb doc", meta={"refs": [{"law": "bgb"}]}),
+            Document(content="stgb doc", meta={"refs": [{"law": "stgb"}]}),
+            Document(content="other doc", meta={"refs": [{"law": "zpo"}]}),
+        ]
+        document_store_nested.write_documents(docs)
+
+        results = document_store_nested.filter_documents(
+            filters={
+                "operator": "OR",
+                "conditions": [
+                    {"field": "meta.refs.law", "operator": "==", "value": "bgb"},
+                    {"field": "meta.refs.law", "operator": "==", "value": "stgb"},
+                ],
+            }
+        )
+        assert len(results) == 2
+        contents = sorted([r.content for r in results])
+        assert contents == ["bgb doc", "stgb doc"]
+
+    def test_nested_fields_not_filter(self, document_store_nested: OpenSearchDocumentStore):
+        """NOT filter on nested sub-fields excludes matching documents."""
+        docs = [
+            Document(
+                content="bgb section 1",
+                meta={"refs": [{"law": "bgb", "section": "1"}]},
+            ),
+            Document(
+                content="bgb section 2",
+                meta={"refs": [{"law": "bgb", "section": "2"}]},
+            ),
+            Document(
+                content="stgb section 1",
+                meta={"refs": [{"law": "stgb", "section": "1"}]},
+            ),
+        ]
+        document_store_nested.write_documents(docs)
+
+        # NOT (refs.law == bgb AND refs.section == 1) — only the first doc has both in the same nested object
+        results = document_store_nested.filter_documents(
+            filters={
+                "operator": "NOT",
+                "conditions": [
+                    {"field": "meta.refs.law", "operator": "==", "value": "bgb"},
+                    {"field": "meta.refs.section", "operator": "==", "value": "1"},
+                ],
+            }
+        )
+        assert len(results) == 2
+        contents = sorted([r.content for r in results])
+        assert contents == ["bgb section 2", "stgb section 1"]
+
+    def test_nested_fields_different_paths_filter(self, document_store_nested: OpenSearchDocumentStore):
+        """AND filter across different nested paths works correctly."""
+        docs = [
+            Document(
+                content="both",
+                meta={"refs": [{"law": "bgb"}], "tags": [{"name": "important"}]},
+            ),
+            Document(
+                content="refs only",
+                meta={"refs": [{"law": "bgb"}], "tags": [{"name": "unimportant"}]},
+            ),
+            Document(
+                content="tags only",
+                meta={"refs": [{"law": "stgb"}], "tags": [{"name": "important"}]},
+            ),
+        ]
+        document_store_nested.write_documents(docs)
+
+        results = document_store_nested.filter_documents(
+            filters={
+                "operator": "AND",
+                "conditions": [
+                    {"field": "meta.refs.law", "operator": "==", "value": "bgb"},
+                    {"field": "meta.tags.name", "operator": "==", "value": "important"},
+                ],
+            }
+        )
+        assert len(results) == 1
+        assert results[0].content == "both"
