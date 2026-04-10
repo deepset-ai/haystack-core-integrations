@@ -52,8 +52,6 @@ class TestDocumentStoreAsync(
         Embeddings lose float32 precision when round-tripped through pgvector, so we
         compare them approximately and then do an exact equality check on the rest.
         """
-        import pytest
-
         assert len(received) == len(expected)
         received.sort(key=lambda x: x.id)
         expected.sort(key=lambda x: x.id)
@@ -64,6 +62,13 @@ class TestDocumentStoreAsync(
                 assert received_doc.embedding == pytest.approx(expected_doc.embedding)
             received_doc.embedding, expected_doc.embedding = None, None
             assert received_doc == expected_doc
+
+    async def test_count_not_empty_async(self, document_store: PgvectorDocumentStore):
+        """Override: mixin method is missing 'self', causing fixture injection to fail."""
+        await document_store.write_documents_async(
+            [Document(content="test doc 1"), Document(content="test doc 2"), Document(content="test doc 3")]
+        )
+        assert await document_store.count_documents_async() == 3
 
     async def test_write_blob(self, document_store: PgvectorDocumentStore):
         bytestream = ByteStream(b"test", meta={"meta_key": "meta_value"}, mime_type="mime_type")
