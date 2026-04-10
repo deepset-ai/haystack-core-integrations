@@ -1669,7 +1669,7 @@ class PgvectorDocumentStore:
         :param records: List of database records containing 'meta' field.
         :returns: A dictionary mapping field names to their type information.
         """
-        fields_info: dict[str, dict[str, str]] = {"content": {"type": "text"}}
+        fields_info: dict[str, dict[str, str]] = {}
 
         # Analyze metadata from all documents
         for record in records:
@@ -1846,15 +1846,14 @@ class PgvectorDocumentStore:
         :returns: A dictionary with 'min' and 'max' keys containing the minimum and maximum values.
             For numeric fields (integer, real), returns numeric min/max.
             For text fields, returns lexicographic min/max based on database collation.
-        :raises ValueError: If the field doesn't exist or has no values.
+            Returns ``{"min": None, "max": None}`` when the field has no values or the store is empty.
         """
         normalized_field = PgvectorDocumentStore._normalize_metadata_field_name(metadata_field)
 
         # Get field type information from metadata fields info
         fields_info = self.get_metadata_fields_info()
         if normalized_field not in fields_info:
-            msg = f"Metadata field '{metadata_field}' not found in document store"
-            raise ValueError(msg)
+            return {"min": None, "max": None}
 
         field_type = fields_info[normalized_field]["type"]
         sql_query = self._build_min_max_query(normalized_field, field_type)
@@ -1879,15 +1878,14 @@ class PgvectorDocumentStore:
         :returns: A dictionary with 'min' and 'max' keys containing the minimum and maximum values.
             For numeric fields (integer, real), returns numeric min/max.
             For text fields, returns lexicographic min/max based on database collation.
-        :raises ValueError: If the field doesn't exist or has no values.
+            Returns ``{"min": None, "max": None}`` when the field has no values or the store is empty.
         """
         normalized_field = PgvectorDocumentStore._normalize_metadata_field_name(metadata_field)
 
         # Get field type information from metadata fields info
         fields_info = await self.get_metadata_fields_info_async()
         if normalized_field not in fields_info:
-            msg = f"Metadata field '{metadata_field}' not found in document store"
-            raise ValueError(msg)
+            return {"min": None, "max": None}
 
         field_type = fields_info[normalized_field]["type"]
         sql_query = self._build_min_max_query(normalized_field, field_type)
