@@ -28,15 +28,17 @@ def _bytestream_to_document_stream(source: ByteStream) -> DocumentStream:
     """
     meta = source.meta or {}
     raw_name = meta.get("file_path") or meta.get("file_name") or meta.get("name")
+
     if raw_name:
         name = Path(raw_name).name
-        if not Path(name).suffix and source.mime_type:
-            ext = mimetypes.guess_extension(source.mime_type)
-            if ext:
-                name = f"{name}{ext}"
     else:
-        ext = mimetypes.guess_extension(source.mime_type) if source.mime_type else ""
-        name = f"document{ext or ''}"
+        name = "document"
+
+    if not Path(name).suffix and source.mime_type:
+        ext = mimetypes.guess_extension(source.mime_type)
+        if ext:
+            name = f"{name}{ext}"
+
     return DocumentStream(name=name, stream=BytesIO(source.data))
 
 
