@@ -2161,8 +2161,8 @@ class OpenSearchDocumentStore:
                 body["fetch_size"] = fetch_size
 
             response_data = self._client.transport.perform_request(
-                method="POST",
-                url="/_plugins/_sql",
+                "POST",
+                "/_plugins/_sql",
                 body=body,
             )
 
@@ -2194,8 +2194,8 @@ class OpenSearchDocumentStore:
                 body["fetch_size"] = fetch_size
 
             response_data = await self._async_client.transport.perform_request(
-                method="POST",
-                url="/_plugins/_sql",
+                "POST",
+                "/_plugins/_sql",
                 body=body,
             )
 
