@@ -1,14 +1,18 @@
 import json
+import mimetypes
 import warnings
+from io import BytesIO
 from types import SimpleNamespace
 from typing import Any
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
+from docling_core.types.io import DocumentStream
 from haystack.core.serialization import component_from_dict, component_to_dict
 from haystack.dataclasses import ByteStream
 
 from haystack_integrations.components.converters.docling import DoclingConverter, ExportType
+from haystack_integrations.components.converters.docling.converter import _bytestream_to_document_stream
 
 
 def test_run_doc_chunks_minimal() -> None:
@@ -356,13 +360,84 @@ def test_run_with_bytestream_source() -> None:
 
     bytestream = ByteStream(data=b"%PDF-1.4 fake pdf content", meta={"file_path": "uploaded.pdf"})
 
-    with patch("os.unlink"):
-        result = converter.run(sources=[bytestream])
+    result = converter.run(sources=[bytestream])
 
     documents = result["documents"]
     assert len(documents) == 1
     # ByteStream meta is merged into the output document
     assert documents[0].meta["file_path"] == "uploaded.pdf"
-    # docling was called with a temp file path, not the ByteStream directly
+    # docling was called with a DocumentStream, not a temp file path
     call_args = converter_mock.convert.call_args
-    assert call_args.kwargs["source"] != bytestream
+    passed_source = call_args.kwargs["source"]
+    assert isinstance(passed_source, DocumentStream)
+    assert passed_source.name == "uploaded.pdf"
+    assert isinstance(passed_source.stream, BytesIO)
+
+
+class TestBytestreamToDocumentStream:
+    def test_uses_file_path(self) -> None:
+        bs = ByteStream(data=b"data", meta={"file_path": "report.pdf"})
+        ds = _bytestream_to_document_stream(bs)
+        assert ds.name == "report.pdf"
+        assert ds.stream.read() == b"data"
+
+    def test_strips_directory_from_file_path(self) -> None:
+        bs = ByteStream(data=b"data", meta={"file_path": "/some/deep/path/report.pdf"})
+        ds = _bytestream_to_document_stream(bs)
+        assert ds.name == "report.pdf"
+
+    def test_uses_file_name_key(self) -> None:
+        bs = ByteStream(data=b"data", meta={"file_name": "slide-deck.pptx"})
+        ds = _bytestream_to_document_stream(bs)
+        assert ds.name == "slide-deck.pptx"
+
+    def test_uses_name_key(self) -> None:
+        bs = ByteStream(data=b"data", meta={"name": "notes.docx"})
+        ds = _bytestream_to_document_stream(bs)
+        assert ds.name == "notes.docx"
+
+    def test_file_path_takes_priority_over_file_name(self) -> None:
+        bs = ByteStream(data=b"data", meta={"file_path": "real.pdf", "file_name": "other.pdf"})
+        ds = _bytestream_to_document_stream(bs)
+        assert ds.name == "real.pdf"
+
+    def test_file_name_takes_priority_over_name(self) -> None:
+        bs = ByteStream(data=b"data", meta={"file_name": "chosen.pdf", "name": "ignored.pdf"})
+        ds = _bytestream_to_document_stream(bs)
+        assert ds.name == "chosen.pdf"
+
+    def test_guesses_extension_from_mime_type(self) -> None:
+        mime = "application/pdf"
+        expected_ext = mimetypes.guess_extension(mime)
+        bs = ByteStream(data=b"data", meta={"file_path": "report"}, mime_type=mime)
+        ds = _bytestream_to_document_stream(bs)
+        assert ds.name == f"report{expected_ext}"
+
+    def test_keeps_extension_when_present(self) -> None:
+        # mime_type should not override an already-present extension
+        bs = ByteStream(data=b"data", meta={"file_path": "report.pdf"}, mime_type="text/plain")
+        ds = _bytestream_to_document_stream(bs)
+        assert ds.name == "report.pdf"
+
+    def test_no_meta_no_mime_type(self) -> None:
+        bs = ByteStream(data=b"data")
+        ds = _bytestream_to_document_stream(bs)
+        assert ds.name == "document"
+
+    def test_no_meta_with_mime_type(self) -> None:
+        mime = "application/pdf"
+        expected_ext = mimetypes.guess_extension(mime)
+        bs = ByteStream(data=b"data", mime_type=mime)
+        ds = _bytestream_to_document_stream(bs)
+        assert ds.name == f"document{expected_ext}"
+
+    def test_empty_meta_no_mime_type(self) -> None:
+        bs = ByteStream(data=b"data", meta={})
+        ds = _bytestream_to_document_stream(bs)
+        assert ds.name == "document"
+
+    def test_returns_document_stream_with_bytesio(self) -> None:
+        bs = ByteStream(data=b"hello", meta={"file_path": "f.pdf"})
+        ds = _bytestream_to_document_stream(bs)
+        assert isinstance(ds, DocumentStream)
+        assert isinstance(ds.stream, BytesIO)

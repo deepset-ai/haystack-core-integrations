@@ -2,6 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 from .bm25_retriever import ElasticsearchBM25Retriever
+from .elasticsearch_hybrid_retriever import ElasticsearchHybridRetriever
 from .embedding_retriever import ElasticsearchEmbeddingRetriever
 from .sparse_embedding_retriever import ElasticsearchSparseEmbeddingRetriever
 from .sql_retriever import ElasticsearchSQLRetriever
@@ -9,6 +10,7 @@ from .sql_retriever import ElasticsearchSQLRetriever
 __all__ = [
     "ElasticsearchBM25Retriever",
     "ElasticsearchEmbeddingRetriever",
+    "ElasticsearchHybridRetriever",
     "ElasticsearchSQLRetriever",
     "ElasticsearchSparseEmbeddingRetriever",
 ]

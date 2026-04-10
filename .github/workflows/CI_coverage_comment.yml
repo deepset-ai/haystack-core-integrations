@@ -1,4 +1,4 @@
-name: Add comment about test coverage to PRs
+name: Core / Add comment about test coverage to PRs
 
 on:
   workflow_run:
@@ -52,6 +52,7 @@ on:
       - "Test / togetherai"
       - "Test / unstructured"
       - "Test / valkey"
+      - "Test / vllm"
       - "Test / watsonx"
       - "Test / weave"
       - "Test / weaviate"
