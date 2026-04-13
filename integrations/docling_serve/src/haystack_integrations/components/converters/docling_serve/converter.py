@@ -182,7 +182,7 @@ class DoclingServeConverter:
         url = f"{self.base_url}{_SOURCE_CONVERT_PATH}"
         payload: dict[str, Any] = {
             "options": self.convert_options,
-            "http_sources": [{"url": source_url}],
+            "sources": [{"kind": "http", "url": source_url}],
         }
 
         with httpx.Client(timeout=self.timeout) as client:
@@ -218,7 +218,7 @@ class DoclingServeConverter:
         url = f"{self.base_url}{_SOURCE_CONVERT_PATH}"
         payload: dict[str, Any] = {
             "options": self.convert_options,
-            "http_sources": [{"url": source_url}],
+            "sources": [{"kind": "http", "url": source_url}],
         }
 
         async with httpx.AsyncClient(timeout=self.timeout) as client:

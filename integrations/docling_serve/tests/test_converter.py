@@ -202,7 +202,7 @@ class TestRunWithURL:
         call_kwargs = mock_post.call_args
         assert "/v1/convert/source" in call_kwargs.args[0]
         body = call_kwargs.kwargs["json"]
-        assert body["http_sources"] == [{"url": url}]
+        assert body["sources"] == [{"kind": "http", "url": url}]
 
     def test_http_url_detected(self):
         converter = DoclingServeConverter(api_key=None)
