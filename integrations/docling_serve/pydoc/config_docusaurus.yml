@@ -9,5 +9,5 @@ processors:
 renderer:
   description: Docling Serve integration for Haystack
   id: integrations-docling_serve
-  filename: docling-serve.md
+  filename: docling_serve.md
   title: Docling Serve
