@@ -49,13 +49,19 @@ class TestPresidioDocumentCleaner:
         assert cleaner.entities == ["PERSON"]
         assert cleaner.score_threshold == 0.6
 
+    def _make_cleaner_with_mocks(self, **kwargs):
+        """Return a cleaner with mocked engines so unit tests don't load real NLP models."""
+        cleaner = PresidioDocumentCleaner(**kwargs)
+        cleaner._analyzer = MagicMock()
+        cleaner._anonymizer = MagicMock()
+        cleaner._is_warmed_up = True
+        return cleaner
+
     def test_run_anonymizes_pii(self):
-        cleaner = PresidioDocumentCleaner()
+        cleaner = self._make_cleaner_with_mocks()
         mock_result = MagicMock()
         mock_result.text = "My name is <PERSON> and email is <EMAIL_ADDRESS>"
-        cleaner._anonymizer = MagicMock()
         cleaner._anonymizer.anonymize.return_value = mock_result
-        cleaner._analyzer = MagicMock()
         cleaner._analyzer.analyze.return_value = []
 
         docs = [Document(content="My name is John and email is john@example.com")]
@@ -65,12 +71,10 @@ class TestPresidioDocumentCleaner:
         assert result["documents"][0].content == "My name is <PERSON> and email is <EMAIL_ADDRESS>"
 
     def test_run_preserves_metadata(self):
-        cleaner = PresidioDocumentCleaner()
+        cleaner = self._make_cleaner_with_mocks()
         mock_result = MagicMock()
         mock_result.text = "Hello <PERSON>"
-        cleaner._anonymizer = MagicMock()
         cleaner._anonymizer.anonymize.return_value = mock_result
-        cleaner._analyzer = MagicMock()
         cleaner._analyzer.analyze.return_value = []
 
         docs = [Document(content="Hello John", meta={"source": "email", "page": 1})]
@@ -80,12 +84,10 @@ class TestPresidioDocumentCleaner:
         assert result["documents"][0].meta["page"] == 1
 
     def test_run_does_not_mutate_original(self):
-        cleaner = PresidioDocumentCleaner()
+        cleaner = self._make_cleaner_with_mocks()
         mock_result = MagicMock()
         mock_result.text = "Hello <PERSON>"
-        cleaner._anonymizer = MagicMock()
         cleaner._anonymizer.anonymize.return_value = mock_result
-        cleaner._analyzer = MagicMock()
         cleaner._analyzer.analyze.return_value = []
 
         original = Document(content="Hello John")
@@ -94,7 +96,7 @@ class TestPresidioDocumentCleaner:
         assert original.content == "Hello John"
 
     def test_run_passes_through_none_content(self):
-        cleaner = PresidioDocumentCleaner()
+        cleaner = self._make_cleaner_with_mocks()
         doc = Document(content=None, meta={"source": "test"})
         result = cleaner.run(documents=[doc])
 
@@ -103,10 +105,8 @@ class TestPresidioDocumentCleaner:
         assert result["documents"][0].meta["source"] == "test"
 
     def test_run_skips_on_error(self, caplog):
-        cleaner = PresidioDocumentCleaner()
-        cleaner._analyzer = MagicMock()
+        cleaner = self._make_cleaner_with_mocks()
         cleaner._analyzer.analyze.side_effect = Exception("Analyzer error")
-        cleaner._anonymizer = MagicMock()
 
         doc = Document(content="Some text with PII")
         with caplog.at_level(logging.WARNING):
@@ -117,12 +117,10 @@ class TestPresidioDocumentCleaner:
         assert "Could not anonymize" in caplog.text
 
     def test_run_multiple_documents(self):
-        cleaner = PresidioDocumentCleaner()
+        cleaner = self._make_cleaner_with_mocks()
         mock_result = MagicMock()
         mock_result.text = "cleaned"
-        cleaner._anonymizer = MagicMock()
         cleaner._anonymizer.anonymize.return_value = mock_result
-        cleaner._analyzer = MagicMock()
         cleaner._analyzer.analyze.return_value = []
 
         docs = [Document(content=f"doc {i}") for i in range(3)]
@@ -131,12 +129,10 @@ class TestPresidioDocumentCleaner:
         assert len(result["documents"]) == 3
 
     def test_run_passes_language_and_entities_to_analyzer(self):
-        cleaner = PresidioDocumentCleaner(language="de", entities=["PERSON"], score_threshold=0.8)
+        cleaner = self._make_cleaner_with_mocks(language="de", entities=["PERSON"], score_threshold=0.8)
         mock_result = MagicMock()
         mock_result.text = "cleaned"
-        cleaner._anonymizer = MagicMock()
         cleaner._anonymizer.anonymize.return_value = mock_result
-        cleaner._analyzer = MagicMock()
         cleaner._analyzer.analyze.return_value = []
 
         cleaner.run(documents=[Document(content="Hello John")])

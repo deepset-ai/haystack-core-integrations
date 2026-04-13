@@ -18,7 +18,8 @@ class PresidioTextCleaner:
     a new list of strings with PII replaced by entity type placeholders (e.g. `<PERSON>`).
     Useful for sanitizing user queries before they are sent to an LLM.
 
-    Call `warm_up()` before running this component to load the Presidio analyzer and anonymizer engines.
+    The analyzer and anonymizer engines are loaded on the first call to `run()`,
+    or by calling `warm_up()` explicitly beforehand.
 
     ### Usage example
 
@@ -26,7 +27,6 @@ class PresidioTextCleaner:
     from haystack_integrations.components.preprocessors.presidio import PresidioTextCleaner
 
     cleaner = PresidioTextCleaner()
-    cleaner.warm_up()
     result = cleaner.run(texts=["Hi, I am John Smith, call me at 212-555-1234"])
     print(result["texts"][0])
     # Hi, I am <PERSON>, call me at <PHONE_NUMBER>
@@ -45,7 +45,7 @@ class PresidioTextCleaner:
 
         :param language:
             Language code for PII detection. Defaults to `"en"`.
-            See [Presidio supported languages](https://microsoft.github.io/presidio/supported_languages/).
+            See [Presidio supported languages](https://microsoft.github.io/presidio/analyzer/languages/).
         :param entities:
             List of PII entity types to detect and anonymize (e.g. `["PERSON", "PHONE_NUMBER"]`).
             If `None`, all supported entity types are used.
@@ -59,18 +59,22 @@ class PresidioTextCleaner:
         self.score_threshold = score_threshold
         self._analyzer: AnalyzerEngine | None = None
         self._anonymizer: AnonymizerEngine | None = None
+        self._is_warmed_up = False
 
     def warm_up(self) -> None:
         """
         Initializes the Presidio analyzer and anonymizer engines.
 
-        This method loads the underlying NLP models and should be called before `run()`.
-        In a Haystack Pipeline, this is called automatically before the first run.
+        This method loads the underlying NLP models. In a Haystack Pipeline,
+        this is called automatically before the first run.
         """
-        if self._analyzer is None:
-            self._analyzer = AnalyzerEngine()
-        if self._anonymizer is None:
-            self._anonymizer = AnonymizerEngine()
+        if self._is_warmed_up:
+            return
+
+        self._analyzer = AnalyzerEngine()
+        self._anonymizer = AnonymizerEngine()
+
+        self._is_warmed_up = True
 
     @component.output_types(texts=list[str])
     def run(self, texts: list[str]) -> dict[str, list[str]]:
@@ -82,19 +86,19 @@ class PresidioTextCleaner:
         :returns:
             A dictionary with key `texts` containing the cleaned strings.
         """
-        if self._analyzer is None or self._anonymizer is None:
-            msg = "The component was not warmed up. Call warm_up() before running it."
-            raise RuntimeError(msg)
+        if not self._is_warmed_up:
+            self.warm_up()
+
         cleaned: list[str] = []
         for text in texts:
             try:
-                analyzer_results = self._analyzer.analyze(
+                analyzer_results = self._analyzer.analyze(  # type: ignore[union-attr]
                     text=text,
                     language=self.language,
                     entities=self.entities,
                     score_threshold=self.score_threshold,
                 )
-                anonymized = self._anonymizer.anonymize(text=text, analyzer_results=analyzer_results)  # type: ignore[arg-type]
+                anonymized = self._anonymizer.anonymize(text=text, analyzer_results=analyzer_results)  # type: ignore[arg-type, union-attr]
                 cleaned.append(anonymized.text)
             except Exception as e:
                 logger.warning(

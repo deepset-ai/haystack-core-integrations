@@ -19,6 +19,13 @@ class TestPresidioEntityExtractor:
         assert extractor.entities is None
         assert extractor.score_threshold == 0.35
 
+    def _make_extractor_with_mocks(self, **kwargs):
+        """Return an extractor with a mocked analyzer so unit tests don't load real NLP models."""
+        extractor = PresidioEntityExtractor(**kwargs)
+        extractor._analyzer = MagicMock()
+        extractor._is_warmed_up = True
+        return extractor
+
     def test_to_dict(self):
         extractor = PresidioEntityExtractor(language="en", entities=["PERSON"], score_threshold=0.6)
         data = component_to_dict(extractor, "PresidioEntityExtractor")
@@ -41,13 +48,12 @@ class TestPresidioEntityExtractor:
         assert extractor.entities == ["EMAIL_ADDRESS"]
 
     def test_run_extracts_entities_into_metadata(self):
-        extractor = PresidioEntityExtractor()
+        extractor = self._make_extractor_with_mocks()
         mock_entity = MagicMock()
         mock_entity.entity_type = "PERSON"
         mock_entity.start = 11
         mock_entity.end = 15
         mock_entity.score = 0.85
-        extractor._analyzer = MagicMock()
         extractor._analyzer.analyze.return_value = [mock_entity]
 
         docs = [Document(content="My name is John")]
@@ -61,8 +67,7 @@ class TestPresidioEntityExtractor:
         assert entities[0]["score"] == 0.85
 
     def test_run_does_not_mutate_original(self):
-        extractor = PresidioEntityExtractor()
-        extractor._analyzer = MagicMock()
+        extractor = self._make_extractor_with_mocks()
         extractor._analyzer.analyze.return_value = []
 
         original = Document(content="Hello John", meta={"source": "test"})
@@ -71,7 +76,7 @@ class TestPresidioEntityExtractor:
         assert "entities" not in original.meta
 
     def test_run_passes_through_none_content(self):
-        extractor = PresidioEntityExtractor()
+        extractor = self._make_extractor_with_mocks()
         doc = Document(content=None, meta={"source": "test"})
         result = extractor.run(documents=[doc])
 
@@ -79,8 +84,7 @@ class TestPresidioEntityExtractor:
         assert "entities" not in result["documents"][0].meta
 
     def test_run_empty_entities(self):
-        extractor = PresidioEntityExtractor()
-        extractor._analyzer = MagicMock()
+        extractor = self._make_extractor_with_mocks()
         extractor._analyzer.analyze.return_value = []
 
         docs = [Document(content="No PII here")]
@@ -89,8 +93,7 @@ class TestPresidioEntityExtractor:
         assert result["documents"][0].meta["entities"] == []
 
     def test_run_skips_on_error(self, caplog):
-        extractor = PresidioEntityExtractor()
-        extractor._analyzer = MagicMock()
+        extractor = self._make_extractor_with_mocks()
         extractor._analyzer.analyze.side_effect = Exception("Analyzer error")
 
         doc = Document(content="Some text")
@@ -102,8 +105,7 @@ class TestPresidioEntityExtractor:
         assert "Could not extract entities" in caplog.text
 
     def test_run_preserves_existing_metadata(self):
-        extractor = PresidioEntityExtractor()
-        extractor._analyzer = MagicMock()
+        extractor = self._make_extractor_with_mocks()
         extractor._analyzer.analyze.return_value = []
 
         docs = [Document(content="Hello", meta={"page": 3, "author": "Bob"})]

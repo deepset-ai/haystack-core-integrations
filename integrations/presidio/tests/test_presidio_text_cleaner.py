@@ -35,13 +35,19 @@ class TestPresidioTextCleaner:
         cleaner = component_from_dict(PresidioTextCleaner, data, "PresidioTextCleaner")
         assert cleaner.score_threshold == 0.4
 
+    def _make_cleaner_with_mocks(self, **kwargs):
+        """Return a cleaner with mocked engines so unit tests don't load real NLP models."""
+        cleaner = PresidioTextCleaner(**kwargs)
+        cleaner._analyzer = MagicMock()
+        cleaner._anonymizer = MagicMock()
+        cleaner._is_warmed_up = True
+        return cleaner
+
     def test_run_anonymizes_pii(self):
-        cleaner = PresidioTextCleaner()
+        cleaner = self._make_cleaner_with_mocks()
         mock_result = MagicMock()
         mock_result.text = "Call me at <PHONE_NUMBER>"
-        cleaner._anonymizer = MagicMock()
         cleaner._anonymizer.anonymize.return_value = mock_result
-        cleaner._analyzer = MagicMock()
         cleaner._analyzer.analyze.return_value = []
 
         result = cleaner.run(texts=["Call me at 212-555-1234"])
@@ -49,12 +55,10 @@ class TestPresidioTextCleaner:
         assert result["texts"][0] == "Call me at <PHONE_NUMBER>"
 
     def test_run_multiple_texts(self):
-        cleaner = PresidioTextCleaner()
+        cleaner = self._make_cleaner_with_mocks()
         mock_result = MagicMock()
         mock_result.text = "cleaned"
-        cleaner._anonymizer = MagicMock()
         cleaner._anonymizer.anonymize.return_value = mock_result
-        cleaner._analyzer = MagicMock()
         cleaner._analyzer.analyze.return_value = []
 
         result = cleaner.run(texts=["text 1", "text 2", "text 3"])
@@ -62,10 +66,8 @@ class TestPresidioTextCleaner:
         assert len(result["texts"]) == 3
 
     def test_run_skips_on_error(self, caplog):
-        cleaner = PresidioTextCleaner()
-        cleaner._analyzer = MagicMock()
+        cleaner = self._make_cleaner_with_mocks()
         cleaner._analyzer.analyze.side_effect = Exception("error")
-        cleaner._anonymizer = MagicMock()
 
         with caplog.at_level(logging.WARNING):
             result = cleaner.run(texts=["My name is John"])
@@ -74,12 +76,10 @@ class TestPresidioTextCleaner:
         assert "Could not anonymize" in caplog.text
 
     def test_run_empty_text(self):
-        cleaner = PresidioTextCleaner()
+        cleaner = self._make_cleaner_with_mocks()
         mock_result = MagicMock()
         mock_result.text = ""
-        cleaner._anonymizer = MagicMock()
         cleaner._anonymizer.anonymize.return_value = mock_result
-        cleaner._analyzer = MagicMock()
         cleaner._analyzer.analyze.return_value = []
 
         result = cleaner.run(texts=[""])

@@ -20,7 +20,8 @@ class PresidioDocumentCleaner:
 
     Documents without text content are passed through unchanged.
 
-    Call `warm_up()` before running this component to load the Presidio analyzer and anonymizer engines.
+    The analyzer and anonymizer engines are loaded on the first call to `run()`,
+    or by calling `warm_up()` explicitly beforehand.
 
     ### Usage example
 
@@ -29,7 +30,6 @@ class PresidioDocumentCleaner:
     from haystack_integrations.components.preprocessors.presidio import PresidioDocumentCleaner
 
     cleaner = PresidioDocumentCleaner()
-    cleaner.warm_up()
     result = cleaner.run(documents=[Document(content="My name is John and my email is john@example.com")])
     print(result["documents"][0].content)
     # My name is <PERSON> and my email is <EMAIL_ADDRESS>
@@ -48,7 +48,7 @@ class PresidioDocumentCleaner:
 
         :param language:
             Language code for PII detection. Defaults to `"en"`.
-            See [Presidio supported languages](https://microsoft.github.io/presidio/supported_languages/).
+            See [Presidio supported languages](https://microsoft.github.io/presidio/analyzer/languages/).
         :param entities:
             List of PII entity types to detect and anonymize (e.g. `["PERSON", "EMAIL_ADDRESS"]`).
             If `None`, all supported entity types are used.
@@ -62,18 +62,22 @@ class PresidioDocumentCleaner:
         self.score_threshold = score_threshold
         self._analyzer: AnalyzerEngine | None = None
         self._anonymizer: AnonymizerEngine | None = None
+        self._is_warmed_up = False
 
     def warm_up(self) -> None:
         """
         Initializes the Presidio analyzer and anonymizer engines.
 
-        This method loads the underlying NLP models and should be called before `run()`.
-        In a Haystack Pipeline, this is called automatically before the first run.
+        This method loads the underlying NLP models. In a Haystack Pipeline,
+        this is called automatically before the first run.
         """
-        if self._analyzer is None:
-            self._analyzer = AnalyzerEngine()
-        if self._anonymizer is None:
-            self._anonymizer = AnonymizerEngine()
+        if self._is_warmed_up:
+            return
+
+        self._analyzer = AnalyzerEngine()
+        self._anonymizer = AnonymizerEngine()
+
+        self._is_warmed_up = True
 
     @component.output_types(documents=list[Document])
     def run(self, documents: list[Document]) -> dict[str, list[Document]]:
@@ -85,22 +89,22 @@ class PresidioDocumentCleaner:
         :returns:
             A dictionary with key `documents` containing the cleaned Documents.
         """
+        if not self._is_warmed_up:
+            self.warm_up()
+
         cleaned: list[Document] = []
         for doc in documents:
             if doc.content is None:
                 cleaned.append(doc)
                 continue
-            if self._analyzer is None or self._anonymizer is None:
-                msg = "The component was not warmed up. Call warm_up() before running it."
-                raise RuntimeError(msg)
             try:
-                analyzer_results = self._analyzer.analyze(
+                analyzer_results = self._analyzer.analyze(  # type: ignore[union-attr]
                     text=doc.content,
                     language=self.language,
                     entities=self.entities,
                     score_threshold=self.score_threshold,
                 )
-                anonymized = self._anonymizer.anonymize(text=doc.content, analyzer_results=analyzer_results)  # type: ignore[arg-type]
+                anonymized = self._anonymizer.anonymize(text=doc.content, analyzer_results=analyzer_results)  # type: ignore[arg-type, union-attr]
                 cleaned.append(Document(content=anonymized.text, meta=doc.meta.copy()))
             except Exception as e:
                 logger.warning(

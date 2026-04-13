@@ -21,7 +21,8 @@ class PresidioEntityExtractor:
 
     Original Documents are not mutated. Documents without text content are passed through unchanged.
 
-    Call `warm_up()` before running this component to load the Presidio analyzer engine.
+    The analyzer engine is loaded on the first call to `run()`,
+    or by calling `warm_up()` explicitly beforehand.
 
     ### Usage example
 
@@ -30,7 +31,6 @@ class PresidioEntityExtractor:
     from haystack_integrations.components.preprocessors.presidio import PresidioEntityExtractor
 
     extractor = PresidioEntityExtractor()
-    extractor.warm_up()
     result = extractor.run(documents=[Document(content="Contact Alice at alice@example.com")])
     print(result["documents"][0].meta["entities"])
     # [{"entity_type": "PERSON", "start": 8, "end": 13, "score": 0.85},
@@ -50,7 +50,7 @@ class PresidioEntityExtractor:
 
         :param language:
             Language code for PII detection. Defaults to `"en"`.
-            See [Presidio supported languages](https://microsoft.github.io/presidio/supported_languages/).
+            See [Presidio supported languages](https://microsoft.github.io/presidio/analyzer/languages/).
         :param entities:
             List of PII entity types to detect (e.g. `["PERSON", "EMAIL_ADDRESS"]`).
             If `None`, all supported entity types are detected.
@@ -63,16 +63,21 @@ class PresidioEntityExtractor:
         self.entities = entities
         self.score_threshold = score_threshold
         self._analyzer: AnalyzerEngine | None = None
+        self._is_warmed_up = False
 
     def warm_up(self) -> None:
         """
         Initializes the Presidio analyzer engine.
 
-        This method loads the underlying NLP models and should be called before `run()`.
-        In a Haystack Pipeline, this is called automatically before the first run.
+        This method loads the underlying NLP models. In a Haystack Pipeline,
+        this is called automatically before the first run.
         """
-        if self._analyzer is None:
-            self._analyzer = AnalyzerEngine()
+        if self._is_warmed_up:
+            return
+
+        self._analyzer = AnalyzerEngine()
+
+        self._is_warmed_up = True
 
     @component.output_types(documents=list[Document])
     def run(self, documents: list[Document]) -> dict[str, list[Document]]:
@@ -85,16 +90,16 @@ class PresidioEntityExtractor:
             A dictionary with key `documents` containing Documents with detected entities
             stored in metadata under the key `"entities"`.
         """
+        if not self._is_warmed_up:
+            self.warm_up()
+
         result_docs: list[Document] = []
         for doc in documents:
             if doc.content is None:
                 result_docs.append(doc)
                 continue
-            if self._analyzer is None:
-                msg = "The component was not warmed up. Call warm_up() before running it."
-                raise RuntimeError(msg)
             try:
-                analyzer_results = self._analyzer.analyze(
+                analyzer_results = self._analyzer.analyze(  # type: ignore[union-attr]
                     text=doc.content,
                     language=self.language,
                     entities=self.entities,
