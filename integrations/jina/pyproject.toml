@@ -26,7 +26,7 @@ classifiers = [
   "Programming Language :: Python :: Implementation :: CPython",
   "Programming Language :: Python :: Implementation :: PyPy",
 ]
-dependencies = ["httpx>=0.24.0", "httpcore>=1.0.8", "haystack-ai>=2.22.0"]
+dependencies = ["httpx>=0.28.0", "haystack-ai>=2.22.0"]
 
 [project.urls]
 Documentation = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/jina#readme"
