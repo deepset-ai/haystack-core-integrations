@@ -118,7 +118,10 @@ class _FilterTranslator:
             inner = self.translate(filters["conditions"][0], params, counter)
             return f"(NOT {inner})"
 
-        # Comparison leaf
+        # Comparison leaf — op is guaranteed to be a comparison operator string at this point
+        if not isinstance(op, str):
+            msg = f"Unsupported or missing filter operator: {op}"
+            raise ValueError(msg)
         field: str = filters["field"]
         value: Any = filters["value"]
         col = self._field_to_sql(field, value)
