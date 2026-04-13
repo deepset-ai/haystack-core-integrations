@@ -6,7 +6,7 @@ from typing import Any
 
 from haystack import component, default_from_dict, default_to_dict
 from haystack.dataclasses import Document
-from haystack.document_stores.types.filter_policy import FilterPolicy, apply_filter_policy
+from haystack.document_stores.types import FilterPolicy, apply_filter_policy
 
 from haystack_integrations.document_stores.falkor_db import FalkorDBDocumentStore
 

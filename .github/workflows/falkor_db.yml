@@ -59,9 +59,11 @@ jobs:
       matrix:
         os: ${{ fromJSON(needs.compute-test-matrix.outputs.os) }}
         python-version: ${{ fromJSON(needs.compute-test-matrix.outputs.python-version) }}
+    # Docker services are only supported on Linux GitHub Actions runners.
+    # Windows and macOS runners do not support the `services:` block.
     services:
       falkordb:
-        image: falkordb/falkordb:latest
+        image: ${{ runner.os == 'Linux' && 'falkordb/falkordb:latest' || '' }}
         ports:
           - 6379:6379
         options: >-
@@ -112,6 +114,9 @@ jobs:
           path: python-coverage-comment-action-falkor_db.txt
 
       - name: Run integration tests
+        # Integration tests require a live FalkorDB instance via Docker.
+        # Docker services are only available on Linux runners.
+        if: runner.os == 'Linux'
         env:
           FALKORDB_HOST: localhost
           FALKORDB_PORT: 6379
