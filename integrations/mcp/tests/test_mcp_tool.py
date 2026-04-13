@@ -384,6 +384,24 @@ class TestMCPTool:
             else:
                 assert errlog is mock_stderr
 
+    @pytest.mark.asyncio
+    async def test_mcp_client_aclose_clears_references_even_when_cleanup_fails(self, caplog):
+        """Test that client cleanup always clears connection state, even if exit_stack cleanup raises."""
+        client = StdioClient(command="echo")
+        client.session = MagicMock()
+        client.stdio = MagicMock()
+        client.write = MagicMock()
+        client.exit_stack = MagicMock()
+        client.exit_stack.aclose = AsyncMock(side_effect=RuntimeError("cleanup failed"))
+
+        with caplog.at_level("WARNING"):
+            await client.aclose()
+
+        assert any("Error during MCP client cleanup: cleanup failed" in record.message for record in caplog.records)
+        assert client.session is None
+        assert client.stdio is None
+        assert client.write is None
+
     @pytest.mark.skipif("OPENAI_API_KEY" not in os.environ, reason="OPENAI_API_KEY not set")
     @pytest.mark.integration
     def test_pipeline_warmup_with_mcp_tool(self):
