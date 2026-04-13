@@ -13,7 +13,6 @@ import torch
 from haystack.utils import Secret, deserialize_secrets_inplace
 from haystack.utils.hf import HFModelType, check_valid_model, deserialize_hf_model_kwargs, serialize_hf_model_kwargs
 from huggingface_hub import hf_hub_download
-from sentence_transformers.sentence_transformer.modules import Pooling as SentenceTransformerPoolingLayer
 from tqdm import tqdm
 from transformers import AutoTokenizer
 from transformers.modeling_outputs import BaseModelOutput
@@ -27,6 +26,15 @@ from optimum.onnxruntime import (
 from .optimization import OptimumEmbedderOptimizationConfig
 from .pooling import OptimumEmbedderPooling
 from .quantization import OptimumEmbedderQuantizationConfig
+
+# for sentence-transformers Pooling, we use the new module path if available. It also ships correct types
+# we also keep compatibility with older versions of sentence-transformers
+try:
+    from sentence_transformers.sentence_transformer.modules import Pooling as SentenceTransformerPoolingLayer
+except ImportError:
+    from sentence_transformers.models import (  # type: ignore[import-not-found, no-redef]
+        Pooling as SentenceTransformerPoolingLayer,
+    )
 
 
 @dataclass
