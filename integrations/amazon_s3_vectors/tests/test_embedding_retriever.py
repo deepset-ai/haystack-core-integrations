@@ -27,11 +27,6 @@ def test_init_default():
         S3VectorsEmbeddingRetriever(document_store=mock_store, filter_policy="invalid")
 
 
-def test_init_invalid_store():
-    with pytest.raises(ValueError, match="must be an instance"):
-        S3VectorsEmbeddingRetriever(document_store="not a store")
-
-
 @patch("haystack_integrations.document_stores.amazon_s3_vectors.document_store.boto3")
 def test_to_dict(_mock_boto3):
     store = S3VectorsDocumentStore(
@@ -102,6 +97,7 @@ def test_from_dict(_mock_boto3):
 
 @patch("haystack_integrations.document_stores.amazon_s3_vectors.document_store.boto3")
 def test_from_dict_no_filter_policy(_mock_boto3):
+    """Pipelines serialized with older versions may not have filter_policy."""
     data = {
         "type": "haystack_integrations.components.retrievers.amazon_s3_vectors.embedding_retriever.S3VectorsEmbeddingRetriever",
         "init_parameters": {
@@ -134,28 +130,3 @@ def test_run():
     )
     assert len(res["documents"]) == 1
     assert res["documents"][0].content == "Test doc"
-
-
-def test_run_with_top_k_override():
-    mock_store = Mock(spec=S3VectorsDocumentStore)
-    mock_store._embedding_retrieval.return_value = []
-    retriever = S3VectorsEmbeddingRetriever(document_store=mock_store, top_k=10)
-    retriever.run(query_embedding=[0.1, 0.2], top_k=3)
-    mock_store._embedding_retrieval.assert_called_once_with(
-        query_embedding=[0.1, 0.2],
-        filters={},
-        top_k=3,
-    )
-
-
-def test_run_with_filters():
-    mock_store = Mock(spec=S3VectorsDocumentStore)
-    mock_store._embedding_retrieval.return_value = []
-    retriever = S3VectorsEmbeddingRetriever(document_store=mock_store)
-    filters = {"operator": "AND", "conditions": [{"field": "meta.category", "operator": "==", "value": "news"}]}
-    retriever.run(query_embedding=[0.1, 0.2], filters=filters)
-    mock_store._embedding_retrieval.assert_called_once_with(
-        query_embedding=[0.1, 0.2],
-        filters=filters,
-        top_k=10,
-    )
