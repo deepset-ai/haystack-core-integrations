@@ -30,7 +30,7 @@ from haystack_integrations.tools.mcp.mcp_toolset import (
 
 # Import in-memory transport and fixtures
 from .mcp_memory_transport import InMemoryServerInfo
-from .mcp_servers_fixtures import calculator_mcp, echo_mcp, state_calculator_mcp
+from .mcp_servers_fixtures import calculator_mcp, echo_mcp, image_mcp, state_calculator_mcp
 
 logger = logging.getLogger(__name__)
 
@@ -151,6 +151,16 @@ class TestMCPToolset:
         echo_tool = toolset.tools[0]
         assert echo_tool.name == "echo"
         assert "Echo the input text." in echo_tool.description
+
+    async def test_toolset_invoke_returns_raw_json_string_without_outputs_to_state(self, echo_toolset):
+        """Test that toolset-created tools keep the raw MCP JSON when no state output parsing is configured."""
+        echo_tool = echo_toolset.tools[0]
+
+        result = echo_tool.invoke(text="Hello MCP!")
+        parsed = json.loads(result)
+
+        assert parsed["content"][0]["text"] == "Hello MCP!"
+        assert parsed["isError"] is False
 
     async def test_toolset_with_filtered_tools(self, calculator_toolset_with_tool_filter):
         """Test if the MCPToolset correctly filters tools based on tool_names parameter."""
@@ -325,6 +335,41 @@ class TestMCPToolset:
         result = add_tool.invoke(a=20, b=22)
 
         assert result == {"result": 42}
+
+    async def test_toolset_returns_full_response_for_non_text_content_with_outputs_to_state(self, mcp_tool_cleanup):
+        """Test that toolset-created tools preserve full MCP payloads when there is no text content to parse."""
+        server_info = InMemoryServerInfo(server=image_mcp._mcp_server)
+        toolset = MCPToolset(
+            server_info=server_info,
+            tool_names=["image_tool"],
+            eager_connect=True,
+            outputs_to_state={"image_tool": {"image_payload": {}}},
+        )
+        mcp_tool_cleanup(toolset)
+
+        image_tool = toolset.tools[0]
+        result = image_tool.invoke()
+
+        assert isinstance(result, dict)
+        assert result["content"][0]["type"] == "image"
+        assert result["structuredContent"]["result"][0]["type"] == "image"
+        assert result["isError"] is False
+
+    async def test_toolset_returns_raw_text_when_outputs_to_state_content_is_not_json(self, mcp_tool_cleanup):
+        """Test that toolset-created tools preserve plain text when JSON decoding is not possible."""
+        server_info = InMemoryServerInfo(server=echo_mcp._mcp_server)
+        toolset = MCPToolset(
+            server_info=server_info,
+            tool_names=["echo"],
+            eager_connect=True,
+            outputs_to_state={"echo": {"echo_payload": {}}},
+        )
+        mcp_tool_cleanup(toolset)
+
+        echo_tool = toolset.tools[0]
+        result = echo_tool.invoke(text="Hello MCP!")
+
+        assert result == "Hello MCP!"
 
     async def test_toolset_state_config_serde(self, calculator_toolset_with_state_config, mcp_tool_cleanup):
         """Test serialization and deserialization of MCPToolset with state configuration."""

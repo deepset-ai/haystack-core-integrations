@@ -20,7 +20,7 @@ from haystack_integrations.tools.mcp import (
 from haystack_integrations.tools.mcp.mcp_tool import StdioClient
 
 from .mcp_memory_transport import InMemoryServerInfo
-from .mcp_servers_fixtures import calculator_mcp, echo_mcp, state_calculator_mcp
+from .mcp_servers_fixtures import calculator_mcp, echo_mcp, image_mcp, state_calculator_mcp
 
 
 @tool
@@ -86,6 +86,39 @@ class TestMCPTool:
         echo_result = mcp_echo_tool.invoke(text="Hello MCP!")
         echo_result = json.loads(echo_result)
         assert echo_result["content"][0]["text"] == "Hello MCP!"
+
+    def test_mcp_tool_outputs_to_state_falls_back_to_full_response_for_non_text_content(self, mcp_tool_cleanup):
+        """Test that non-text MCP content returns the full parsed response when state output is enabled."""
+        server_info = InMemoryServerInfo(server=image_mcp._mcp_server)
+        tool = MCPTool(
+            name="image_tool",
+            server_info=server_info,
+            eager_connect=True,
+            outputs_to_state={"image_payload": {}},
+        )
+        mcp_tool_cleanup(tool)
+
+        result = tool.invoke()
+
+        assert isinstance(result, dict)
+        assert result["content"][0]["type"] == "image"
+        assert result["structuredContent"]["result"][0]["type"] == "image"
+        assert result["isError"] is False
+
+    def test_mcp_tool_outputs_to_state_returns_raw_text_when_text_is_not_json(self, mcp_tool_cleanup):
+        """Test that plain text content is returned as-is when state output parsing cannot decode JSON."""
+        server_info = InMemoryServerInfo(server=echo_mcp._mcp_server)
+        tool = MCPTool(
+            name="echo",
+            server_info=server_info,
+            eager_connect=True,
+            outputs_to_state={"echo_payload": {}},
+        )
+        mcp_tool_cleanup(tool)
+
+        result = tool.invoke(text="Hello MCP!")
+
+        assert result == "Hello MCP!"
 
     def test_mcp_tool_error_handling(self, mcp_error_tool):
         """Test error handling with the in-memory server."""
@@ -207,6 +240,22 @@ class TestMCPTool:
         assert "a" not in tool.parameters["properties"]
         assert "a" not in tool.parameters.get("required", [])
         # Verify that "b" is still present (not removed)
+        assert "b" in tool.parameters["properties"]
+        assert "b" in tool.parameters["required"]
+
+    def test_mcp_tool_eager_state_mapping_removes_inputs_from_schema(self, mcp_tool_cleanup):
+        """Test that eager MCPTool initialization removes state-injected params from its public schema."""
+        server_info = InMemoryServerInfo(server=calculator_mcp._mcp_server)
+        tool = MCPTool(
+            name="add",
+            server_info=server_info,
+            eager_connect=True,
+            inputs_from_state={"state_a": "a"},
+        )
+        mcp_tool_cleanup(tool)
+
+        assert "a" not in tool.parameters["properties"]
+        assert "a" not in tool.parameters.get("required", [])
         assert "b" in tool.parameters["properties"]
         assert "b" in tool.parameters["required"]
 
