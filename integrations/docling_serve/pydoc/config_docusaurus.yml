@@ -7,7 +7,7 @@ processors:
     documented_only: true
     skip_empty_modules: true
 renderer:
-  description: DoclingServe integration for Haystack
-  id: integrations-docling-serve
+  description: Docling Serve integration for Haystack
+  id: integrations-docling_serve
   filename: docling_serve.md
-  title: DoclingServe
+  title: Docling Serve
