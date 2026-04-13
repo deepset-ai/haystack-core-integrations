@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/cohere-v9.1.0] - 2026-04-13
+
+### 🚀 Features
+
+- *(cohere)* Add async support to CohereRanker (#3143)
+
+
 ## [integrations/cohere-v9.0.0] - 2026-04-07
 
 ### 🐛 Bug Fixes
