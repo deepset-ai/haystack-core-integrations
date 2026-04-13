@@ -140,6 +140,13 @@ class TestElasticsearchDocumentStoreAsync:
         assert results[0].content == "Most similar document"
 
     @pytest.mark.asyncio
+    async def test_sparse_vector_retrieval_async_requires_sparse_vector_field(self, document_store):
+        with pytest.raises(ValueError, match="sparse_vector_field must be set for sparse vector retrieval"):
+            await document_store._sparse_vector_retrieval_async(
+                query_sparse_embedding=SparseEmbedding(indices=[0, 1], values=[1.0, 1.0])
+            )
+
+    @pytest.mark.asyncio
     async def test_write_documents_async_invalid_document_type(self, document_store):
         """Test write_documents with invalid document type"""
         invalid_docs = [{"id": "1", "content": "test"}]  # Dictionary instead of Document object
