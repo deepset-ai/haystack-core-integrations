@@ -2,19 +2,23 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-import base64
 import json
+import mimetypes
 from enum import Enum
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlparse
 
 import httpx
 from haystack import Document, component, default_from_dict, default_to_dict, logging
 from haystack.components.converters.utils import normalize_metadata
 from haystack.dataclasses import ByteStream
-from haystack.utils import Secret
+from haystack.utils import Secret, deserialize_secrets_inplace
 
 logger = logging.getLogger(__name__)
+
+_FILE_CONVERT_PATH = "/v1/convert/file"
+_SOURCE_CONVERT_PATH = "/v1/convert/source"
 
 
 class ExportType(str, Enum):
@@ -31,6 +35,24 @@ class ExportType(str, Enum):
     JSON = "json"
 
 
+def _is_url(source: str) -> bool:
+    parsed = urlparse(source)
+    return parsed.scheme in ("http", "https")
+
+
+def _resolve_filename(source: str | Path | ByteStream) -> str:
+    """Extract a filename for a source, used as a hint to docling-serve for format detection."""
+    if isinstance(source, ByteStream):
+        meta = source.meta or {}
+        raw = meta.get("file_path") or meta.get("file_name") or meta.get("name")
+        return Path(raw).name if raw else "document"
+    return Path(source).name
+
+
+def _guess_mime_type(filename: str) -> str:
+    return mimetypes.guess_type(filename)[0] or "application/octet-stream"
+
+
 @component
 class DoclingServeConverter:
     """
@@ -42,7 +64,10 @@ class DoclingServeConverter:
     formats. Unlike the local `DoclingConverter`, this component has no heavy ML dependencies — all processing
     happens on the remote server.
 
-    Supports both synchronous (`run`) and asynchronous (`arun`) execution.
+    Local files and ByteStreams are uploaded via the ``/v1/convert/file`` endpoint. URL strings are sent to
+    ``/v1/convert/source``.
+
+    Supports both synchronous (`run`) and asynchronous (`run_async`) execution.
 
     ### Usage example
 
@@ -62,7 +87,7 @@ class DoclingServeConverter:
         export_type: ExportType = ExportType.MARKDOWN,
         convert_options: dict[str, Any] | None = None,
         timeout: float = 120.0,
-        api_key: Secret | None = None,
+        api_key: Secret | None = Secret.from_env_var("DOCLING_SERVE_API_KEY", strict=False),
     ) -> None:
         """
         Initializes the DoclingServeConverter.
@@ -76,14 +101,17 @@ class DoclingServeConverter:
             Optional dictionary of conversion options passed directly to the DoclingServe API
             (e.g. `{"do_ocr": True, "ocr_engine": "tesseract"}`).
             See [DoclingServe options](https://github.com/docling-project/docling-serve/blob/main/docs/usage.md).
+            Note: `to_formats` is set automatically based on `export_type` and should not be included here.
         :param timeout:
             HTTP request timeout in seconds. Defaults to `120.0`.
         :param api_key:
-            Optional API key for authenticating with a secured DoclingServe instance.
+            API key for authenticating with a secured DoclingServe instance. Reads from the
+            `DOCLING_SERVE_API_KEY` environment variable by default. Set to `None` to disable
+            authentication.
         """
         self.base_url = base_url.rstrip("/")
         self.export_type = ExportType(export_type)
-        self.convert_options = convert_options or {}
+        self.convert_options = dict(convert_options) if convert_options else {}
         self.timeout = timeout
         self.api_key = api_key
 
@@ -113,39 +141,19 @@ class DoclingServeConverter:
         :returns:
             A new `DoclingServeConverter` instance.
         """
-        if api_key := data.get("init_parameters", {}).get("api_key"):
-            data["init_parameters"]["api_key"] = Secret.from_dict(api_key)
+        deserialize_secrets_inplace(data.get("init_parameters", {}), keys=["api_key"])
         return default_from_dict(cls, data)
 
     def _headers(self) -> dict[str, str]:
         headers: dict[str, str] = {}
         if self.api_key:
-            headers["Authorization"] = f"Bearer {self.api_key.resolve_value()}"
+            resolved = self.api_key.resolve_value()
+            if resolved:
+                headers["X-Api-Key"] = resolved
         return headers
 
     def _to_format(self) -> str:
         return {"markdown": "md", "text": "text", "json": "json"}[self.export_type.value]
-
-    def _build_payload(self, source_entry: dict[str, Any]) -> dict[str, Any]:
-        options = {**self.convert_options, "to_formats": [self._to_format()]}
-        return {"options": options, "sources": [source_entry]}
-
-    def _source_entry(self, source: str | Path | ByteStream) -> tuple[dict[str, Any], dict[str, Any]]:
-        """
-        Convert a source to a DoclingServe API source entry.
-
-        :returns:
-            A tuple of (source_entry dict, extra_meta dict from ByteStream if applicable).
-        """
-        if isinstance(source, str) and source.startswith(("http://", "https://")):
-            return {"kind": "http", "url": source}, {}
-        if isinstance(source, ByteStream):
-            b64 = base64.b64encode(source.data).decode()
-            filename = (source.meta or {}).get("file_name", "document")
-            return {"kind": "file", "base64_string": b64, "filename": filename}, source.meta or {}
-        path = Path(source)
-        b64 = base64.b64encode(path.read_bytes()).decode()
-        return {"kind": "file", "base64_string": b64, "filename": path.name}, {}
 
     def _extract_content(self, data: dict[str, Any]) -> str | None:
         doc = data.get("document", {})
@@ -158,6 +166,68 @@ class DoclingServeConverter:
             return json.dumps(content) if content is not None else None
         return None
 
+    def _post_file(self, client: httpx.Client, source: str | Path | ByteStream) -> dict[str, Any]:
+        filename = _resolve_filename(source)
+        file_bytes = source.data if isinstance(source, ByteStream) else Path(source).read_bytes()
+        mime_type = (
+            (source.mime_type or _guess_mime_type(filename))
+            if isinstance(source, ByteStream)
+            else _guess_mime_type(filename)
+        )
+        options = {**self.convert_options, "to_formats": self._to_format()}
+        response = client.post(
+            f"{self.base_url}{_FILE_CONVERT_PATH}",
+            files={"files": (filename, file_bytes, mime_type)},
+            data=options,
+            headers=self._headers(),
+        )
+        response.raise_for_status()
+        return response.json()
+
+    def _post_url(self, client: httpx.Client, url: str) -> dict[str, Any]:
+        payload: dict[str, Any] = {
+            "options": {**self.convert_options, "to_formats": [self._to_format()]},
+            "sources": [{"kind": "http", "url": url}],
+        }
+        response = client.post(
+            f"{self.base_url}{_SOURCE_CONVERT_PATH}",
+            json=payload,
+            headers=self._headers(),
+        )
+        response.raise_for_status()
+        return response.json()
+
+    async def _apost_file(self, client: httpx.AsyncClient, source: str | Path | ByteStream) -> dict[str, Any]:
+        filename = _resolve_filename(source)
+        file_bytes = source.data if isinstance(source, ByteStream) else Path(source).read_bytes()
+        mime_type = (
+            (source.mime_type or _guess_mime_type(filename))
+            if isinstance(source, ByteStream)
+            else _guess_mime_type(filename)
+        )
+        options = {**self.convert_options, "to_formats": self._to_format()}
+        response = await client.post(
+            f"{self.base_url}{_FILE_CONVERT_PATH}",
+            files={"files": (filename, file_bytes, mime_type)},
+            data=options,
+            headers=self._headers(),
+        )
+        response.raise_for_status()
+        return response.json()
+
+    async def _apost_url(self, client: httpx.AsyncClient, url: str) -> dict[str, Any]:
+        payload: dict[str, Any] = {
+            "options": {**self.convert_options, "to_formats": [self._to_format()]},
+            "sources": [{"kind": "http", "url": url}],
+        }
+        response = await client.post(
+            f"{self.base_url}{_SOURCE_CONVERT_PATH}",
+            json=payload,
+            headers=self._headers(),
+        )
+        response.raise_for_status()
+        return response.json()
+
     @component.output_types(documents=list[Document])
     def run(
         self,
@@ -169,7 +239,8 @@ class DoclingServeConverter:
 
         :param sources:
             List of sources to convert. Each item can be a URL string, a local file path, or a
-            `ByteStream`.
+            `ByteStream`. URL strings are sent to `/v1/convert/source`; all other sources are
+            uploaded to `/v1/convert/file`.
         :param meta:
             Optional metadata to attach to the output Documents. Can be a single dict applied to
             all documents, or a list of dicts with one entry per source.
@@ -178,34 +249,39 @@ class DoclingServeConverter:
         """
         meta_list = normalize_metadata(meta=meta, sources_count=len(sources))
         documents: list[Document] = []
-        headers = self._headers()
 
         with httpx.Client(timeout=self.timeout) as client:
             for source, source_meta in zip(sources, meta_list, strict=True):
+                bytestream_meta = source.meta or {} if isinstance(source, ByteStream) else {}
+                merged_meta = {**bytestream_meta, **source_meta}
                 try:
-                    source_entry, bytestream_meta = self._source_entry(source)
-                    payload = self._build_payload(source_entry)
-                    response = client.post(
-                        f"{self.base_url}/v1/convert/source",
-                        json=payload,
-                        headers=headers,
-                    )
-                    response.raise_for_status()
-                    content = self._extract_content(response.json())
+                    if isinstance(source, str) and _is_url(source):
+                        result = self._post_url(client, source)
+                    else:
+                        result = self._post_file(client, source)
+                    content = self._extract_content(result)
                     if content is not None:
-                        documents.append(Document(content=content, meta={**bytestream_meta, **source_meta}))
+                        documents.append(Document(content=content, meta=merged_meta))
                     else:
                         logger.warning("No content returned for source {source}.", source=source)
-                except Exception as e:
+                except httpx.HTTPStatusError as e:
                     logger.warning(
-                        "Could not convert source {source}. Skipping it. Error: {error}",
+                        "DoclingServe returned HTTP {status} for {source}: {body}",
+                        status=e.response.status_code,
+                        source=source,
+                        body=e.response.text,
+                    )
+                except httpx.HTTPError as e:
+                    logger.warning(
+                        "Could not connect to DoclingServe for {source}. Skipping it. Error: {error}",
                         source=source,
                         error=e,
                     )
 
         return {"documents": documents}
 
-    async def arun(
+    @component.output_types(documents=list[Document])
+    async def run_async(
         self,
         sources: list[str | Path | ByteStream],
         meta: dict[str, Any] | list[dict[str, Any]] | None = None,
@@ -218,7 +294,8 @@ class DoclingServeConverter:
 
         :param sources:
             List of sources to convert. Each item can be a URL string, a local file path, or a
-            `ByteStream`.
+            `ByteStream`. URL strings are sent to `/v1/convert/source`; all other sources are
+            uploaded to `/v1/convert/file`.
         :param meta:
             Optional metadata to attach to the output Documents.
         :returns:
@@ -226,27 +303,31 @@ class DoclingServeConverter:
         """
         meta_list = normalize_metadata(meta=meta, sources_count=len(sources))
         documents: list[Document] = []
-        headers = self._headers()
 
         async with httpx.AsyncClient(timeout=self.timeout) as client:
             for source, source_meta in zip(sources, meta_list, strict=True):
+                bytestream_meta = source.meta or {} if isinstance(source, ByteStream) else {}
+                merged_meta = {**bytestream_meta, **source_meta}
                 try:
-                    source_entry, bytestream_meta = self._source_entry(source)
-                    payload = self._build_payload(source_entry)
-                    response = await client.post(
-                        f"{self.base_url}/v1/convert/source",
-                        json=payload,
-                        headers=headers,
-                    )
-                    response.raise_for_status()
-                    content = self._extract_content(response.json())
+                    if isinstance(source, str) and _is_url(source):
+                        result = await self._apost_url(client, source)
+                    else:
+                        result = await self._apost_file(client, source)
+                    content = self._extract_content(result)
                     if content is not None:
-                        documents.append(Document(content=content, meta={**bytestream_meta, **source_meta}))
+                        documents.append(Document(content=content, meta=merged_meta))
                     else:
                         logger.warning("No content returned for source {source}.", source=source)
-                except Exception as e:
+                except httpx.HTTPStatusError as e:
                     logger.warning(
-                        "Could not convert source {source}. Skipping it. Error: {error}",
+                        "DoclingServe returned HTTP {status} for {source}: {body}",
+                        status=e.response.status_code,
+                        source=source,
+                        body=e.response.text,
+                    )
+                except httpx.HTTPError as e:
+                    logger.warning(
+                        "Could not connect to DoclingServe for {source}. Skipping it. Error: {error}",
                         source=source,
                         error=e,
                     )
