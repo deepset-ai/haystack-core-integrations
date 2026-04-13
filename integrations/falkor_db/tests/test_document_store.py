@@ -2,9 +2,9 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-import pytest
 from unittest.mock import MagicMock, patch
 
+import pytest
 from haystack.dataclasses import Document
 from haystack.document_stores.errors import DuplicateDocumentError
 from haystack.document_stores.types import DuplicatePolicy
@@ -28,11 +28,11 @@ class TestFalkorDBDocumentStore:
         with pytest.raises(ValueError, match="is not supported by FalkorDBDocumentStore"):
             FalkorDBDocumentStore(similarity="dot_product")  # type: ignore
 
-    def test_write_documents_empty(self, mock_falkordb):
+    def test_write_documents_empty(self, _mock_falkordb):
         store = FalkorDBDocumentStore()
         assert store.write_documents([]) == 0
 
-    def test_write_documents_invalid_type(self, mock_falkordb):
+    def test_write_documents_invalid_type(self, _mock_falkordb):
         store = FalkorDBDocumentStore()
         with pytest.raises(ValueError, match="expects a list of Documents"):
             store.write_documents([{"content": "not a document"}])  # type: ignore
@@ -42,7 +42,7 @@ class TestFalkorDBDocumentStore:
         store = FalkorDBDocumentStore()
         doc = Document(id="1", content="Hello", meta={"year": 2024})
 
-        def mock_query(cypher, params=None):
+        def mock_query(cypher, _params=None):
             m = MagicMock()
             if "RETURN d.id" in cypher:
                 m.result_set = []
@@ -66,7 +66,7 @@ class TestFalkorDBDocumentStore:
         store = FalkorDBDocumentStore()
         doc = Document(id="1", content="Hello")
 
-        def mock_query(cypher, params=None):
+        def mock_query(cypher, _params=None):
             m = MagicMock()
             if "RETURN d.id" in cypher:
                 m.result_set = [["1"]]  # ID already exists
@@ -84,7 +84,7 @@ class TestFalkorDBDocumentStore:
         store = FalkorDBDocumentStore()
         doc = Document(id="1", content="Hello")
 
-        def mock_query(cypher, params=None):
+        def mock_query(cypher, _params=None):
             m = MagicMock()
             if "RETURN d.id" in cypher:
                 m.result_set = [["1"]]
@@ -138,7 +138,7 @@ class TestFalkorDBDocumentStore:
         assert "WHERE" not in cypher
         assert "MATCH (d:Document) RETURN d" in cypher
 
-    def test_filter_documents_invalid(self, mock_falkordb):
+    def test_filter_documents_invalid(self, _mock_falkordb):
         store = FalkorDBDocumentStore()
         with pytest.raises(ValueError, match="Invalid filter syntax"):
             store.filter_documents({"wrong": "syntax"})
@@ -301,7 +301,7 @@ class TestFalkorDBDocumentStore:
             store._cypher_retrieval("MATCH (d) RETURN d")
 
     def test_init_verify_connectivity_and_already_initialized(self, mock_falkordb):
-        _, _, mock_graph = mock_falkordb
+        _, _, _mock_graph = mock_falkordb
         store = FalkorDBDocumentStore(verify_connectivity=True)
         assert store._initialized is True
 
@@ -309,7 +309,7 @@ class TestFalkorDBDocumentStore:
         store._ensure_connected()
 
     def test_ensure_connected_recreate_index_exception(self, mock_falkordb):
-        mock_client_class, mock_client, mock_graph = mock_falkordb
+        _mock_client_class, mock_client, _mock_graph = mock_falkordb
         mock_client.delete.side_effect = Exception("Graph not found")
 
         store = FalkorDBDocumentStore(recreate_index=True)
@@ -318,7 +318,7 @@ class TestFalkorDBDocumentStore:
         mock_client.delete.assert_called_once()
 
     def test_ensure_schema_exceptions(self, mock_falkordb):
-        mock_client_class, mock_client, mock_graph = mock_falkordb
+        _mock_client_class, _mock_client, mock_graph = mock_falkordb
         mock_graph.query.side_effect = Exception("Index error")
 
         # Should gracefully ignore already existing indexes
@@ -331,13 +331,14 @@ class TestFalkorDBDocumentStore:
         store = FalkorDBDocumentStore()
 
         # Side effect: existing ID ok, but MERGE raises Exception
-        def mock_query(cypher, params=None):
+        def mock_query(cypher, _params=None):
             if "RETURN d.id" in cypher:
                 m = MagicMock()
                 m.result_set = []
                 return m
             elif "MERGE" in cypher:
-                raise Exception("DB Down")
+                msg = "DB Down"
+                raise Exception(msg)
 
         mock_graph.query.side_effect = mock_query
 
@@ -400,7 +401,7 @@ class TestFalkorDBDocumentStore:
         cypher = mock_graph.query.call_args[0][0]
         assert "WHERE (d.tag IN $p0 AND NOT (d.status IN $p1))" in cypher
 
-    def test_filter_documents_unsupported_operator(self, mock_falkordb):
+    def test_filter_documents_unsupported_operator(self, _mock_falkordb):
         store = FalkorDBDocumentStore()
         filters = {"field": "tag", "operator": "contains", "value": "old"}
         with pytest.raises(ValueError, match="Unsupported filter operator: 'contains'"):
@@ -415,7 +416,7 @@ class TestFalkorDBDocumentStore:
         ]
 
         # Test SKIP drops the duplicate quietly
-        def mock_query(cypher, params=None):
+        def mock_query(_cypher, _params=None):
             m = MagicMock()
             m.result_set = []
             return m
@@ -431,7 +432,8 @@ class TestFalkorDBDocumentStore:
 
         # Mock a native FalkorDB node object layout
         class MockNode:
-            properties = {"id": "real_node_1", "content": "hello"}
+            def __init__(self):
+                self.properties = {"id": "real_node_1", "content": "hello"}
 
         # Mock a random unrecognizable object
         class RandomObj:

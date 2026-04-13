@@ -3,16 +3,16 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import os
-import pytest
 
+import pytest
 from haystack.dataclasses import Document
 from haystack.document_stores.types import DuplicatePolicy
 
-from haystack_integrations.document_stores.falkor_db import FalkorDBDocumentStore
 from haystack_integrations.components.retrievers.falkor_db import (
-    FalkorDBEmbeddingRetriever,
     FalkorDBCypherRetriever,
+    FalkorDBEmbeddingRetriever,
 )
+from haystack_integrations.document_stores.falkor_db import FalkorDBDocumentStore
 
 
 @pytest.fixture
@@ -27,7 +27,7 @@ def falkordb_document_store():
     yield store
 
     # Teardown
-    store._g.query(f"MATCH (n) DETACH DELETE n")
+    store._g.query("MATCH (n) DETACH DELETE n")
 
 
 @pytest.mark.integration

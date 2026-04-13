@@ -2,17 +2,18 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-import pytest
 from unittest.mock import MagicMock
 
+import pytest
+from haystack.core.errors import DeserializationError
 from haystack.dataclasses import Document
 from haystack.document_stores.types.filter_policy import FilterPolicy
 
-from haystack_integrations.document_stores.falkor_db import FalkorDBDocumentStore
 from haystack_integrations.components.retrievers.falkor_db import (
-    FalkorDBEmbeddingRetriever,
     FalkorDBCypherRetriever,
+    FalkorDBEmbeddingRetriever,
 )
+from haystack_integrations.document_stores.falkor_db import FalkorDBDocumentStore
 
 
 class TestFalkorDBEmbeddingRetriever:
@@ -99,7 +100,7 @@ class TestFalkorDBEmbeddingRetriever:
 
     def test_from_dict_without_document_store(self):
         data = {"type": "FalkorDBEmbeddingRetriever", "init_parameters": {}}
-        with pytest.raises(Exception):
+        with pytest.raises(DeserializationError):
             FalkorDBEmbeddingRetriever.from_dict(data)
 
 
@@ -156,5 +157,5 @@ class TestFalkorDBCypherRetriever:
 
     def test_from_dict_without_document_store(self):
         data = {"type": "FalkorDBCypherRetriever", "init_parameters": {}}
-        with pytest.raises(Exception):
+        with pytest.raises(DeserializationError):
             FalkorDBCypherRetriever.from_dict(data)
