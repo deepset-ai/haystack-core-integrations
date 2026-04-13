@@ -63,9 +63,14 @@ def _resolve_headers(headers: dict[str, str | Secret] | None) -> dict[str, str] 
     return resolved_headers
 
 
-def extract_first_text_element(result: str) -> str:
-    # Per MCP spec, content[] may contain TextContent, ImageContent, AudioContent, etc.
-    # Parse only first TextContent block (ToolInvoker requires dict, not list).
+def extract_first_text_element(result: str) -> str | dict[str, Any]:
+    """
+    Return the first text content block from an MCP tool response.
+
+    MCP tool responses may include mixed content types such as text, image, or
+    audio blocks. This helper extracts the first text block because the tool
+    invoker expects a single parsed payload rather than the full content list.
+    """
     parsed: dict = json.loads(result)
     content: list = parsed.get("content", [])
     for block in content:
@@ -74,8 +79,9 @@ def extract_first_text_element(result: str) -> str:
             try:
                 return json.loads(text)
             except (json.JSONDecodeError, TypeError):
-                # No TextContent found, return full parsed response as fallback
                 return text
+    # No TextContent found, return full parsed response as fallback
+    return parsed
 
 
 class AsyncExecutor:
