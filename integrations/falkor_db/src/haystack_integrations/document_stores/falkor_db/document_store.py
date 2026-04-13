@@ -184,17 +184,14 @@ class FalkorDBDocumentStore:
         except Exception:
             logger.debug("Property index on %s(id) already exists — skipping creation.", self._node_label)
 
-        # FalkorDB-native vector index — equivalent to Neo4j's db.index.vector.createNodeIndex.
+        # FalkorDB-native vector index syntax (different from Neo4j)
         try:
-            self._g.query(
-                "CALL db.idx.vector.createNodeIndex($label, $prop, $dim, $metric)",
-                {
-                    "label": self._node_label,
-                    "prop": self._embedding_field,
-                    "dim": self._embedding_dim,
-                    "metric": self._similarity,
-                },
+            cypher = (
+                f"CREATE VECTOR INDEX FOR (d:{self._node_label}) "
+                f"ON (d.{self._embedding_field}) "
+                f"OPTIONS {{dimension: {self._embedding_dim}, similarityFunction: '{self._similarity}'}}"
             )
+            self._g.query(cypher)
         except Exception:
             logger.debug(
                 "Vector index on %s(%s) already exists — skipping creation.",
