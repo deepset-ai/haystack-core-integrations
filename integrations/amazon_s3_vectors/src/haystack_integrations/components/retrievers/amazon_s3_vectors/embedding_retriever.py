@@ -113,9 +113,11 @@ class S3VectorsEmbeddingRetriever:
 
         :param query_embedding: Embedding of the query.
         :param filters: Filters applied to the retrieved Documents. The way runtime filters are applied depends on
-            the ``filter_policy`` chosen at retriever initialization.
-        :param top_k: Maximum number of Documents to return.
+            the ``filter_policy`` chosen at retriever initialization. Filters are applied server-side during
+            the vector search.
+        :param top_k: Maximum number of Documents to return. S3 Vectors caps this at 100.
         :returns: A dictionary with key ``"documents"`` containing the retrieved Documents.
+            Returned documents will not contain embeddings.
         """
         filters = apply_filter_policy(self.filter_policy, self.filters, filters)
         top_k = top_k or self.top_k
