@@ -97,3 +97,16 @@ class TestDSPySignatureChatGeneratorAsync:
         )
         with pytest.raises(ValueError, match="messages"):
             await component.run_async(messages=[])
+
+    @pytest.mark.asyncio
+    async def test_run_async_with_wrong_output_field(self, mock_dspy_module):
+        prediction = MagicMock(spec=["answer", "keys"])
+        prediction.keys.return_value = ["answer"]
+        mock_dspy_module.acall.return_value = prediction
+        component = DSPySignatureChatGenerator(
+            signature="question -> answer",
+            output_field="nonexistent",
+        )
+        messages = [ChatMessage.from_user("Hello")]
+        with pytest.raises(ValueError, match="Output field 'nonexistent' not found"):
+            await component.run_async(messages=messages)
