@@ -1,0 +1,15 @@
+loaders:
+  - modules:
+      - haystack_integrations.document_stores.falkor_db.document_store
+      - haystack_integrations.components.retrievers.falkor_db.embedding_retriever
+      - haystack_integrations.components.retrievers.falkor_db.cypher_retriever
+    search_path: [../src]
+processors:
+  - type: filter
+    documented_only: true
+    skip_empty_modules: true
+renderer:
+  description: FalkorDB integration for Haystack — GraphRAG document store, embedding retriever, and Cypher retriever
+  id: integrations-falkor_db
+  filename: falkor-db.md
+  title: FalkorDB
