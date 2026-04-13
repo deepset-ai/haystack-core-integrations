@@ -20,6 +20,7 @@ def document_store(request, monkeypatch):
         vector_function=vector_function,
         recreate_table=recreate_table,
         search_strategy=search_strategy,
+        create_extension=True,
     )
 
     yield store
@@ -43,6 +44,7 @@ def document_store_w_hnsw_index(request, monkeypatch):
         vector_function=vector_function,
         recreate_table=recreate_table,
         search_strategy=search_strategy,
+        create_extension=True,
     )
     yield store
 
