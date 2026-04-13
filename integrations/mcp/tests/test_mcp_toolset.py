@@ -30,7 +30,7 @@ from haystack_integrations.tools.mcp.mcp_toolset import (
 
 # Import in-memory transport and fixtures
 from .mcp_memory_transport import InMemoryServerInfo
-from .mcp_servers_fixtures import calculator_mcp, echo_mcp
+from .mcp_servers_fixtures import calculator_mcp, echo_mcp, state_calculator_mcp
 
 logger = logging.getLogger(__name__)
 
@@ -291,6 +291,22 @@ class TestMCPToolset:
         assert subtract_tool.outputs_to_state == {"diff_result": {}}
         assert add_tool.outputs_to_string is not None
         assert subtract_tool.outputs_to_string is None
+
+    async def test_toolset_invoke_returns_parsed_dict_when_outputs_to_state_configured(self, mcp_tool_cleanup):
+        """Test that toolset-created tools parse MCP text content into dicts for state updates."""
+        server_info = InMemoryServerInfo(server=state_calculator_mcp._mcp_server)
+        toolset = MCPToolset(
+            server_info=server_info,
+            tool_names=["state_add"],
+            eager_connect=True,
+            outputs_to_state={"state_add": {"result": {"source": "result"}}},
+        )
+        mcp_tool_cleanup(toolset)
+
+        add_tool = toolset.tools[0]
+        result = add_tool.invoke(a=20, b=22)
+
+        assert result == {"result": 42}
 
     async def test_toolset_state_config_serde(self, calculator_toolset_with_state_config, mcp_tool_cleanup):
         """Test serialization and deserialization of MCPToolset with state configuration."""
