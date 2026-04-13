@@ -261,6 +261,12 @@ class DoclingServeConverter:
 
                 documents.append(_extract_document(result, source_name, merged_meta))
 
+            except (FileNotFoundError, TypeError) as e:
+                logger.warning(
+                    "Could not prepare source {source}: {error}",
+                    source=source_name,
+                    error=str(e),
+                )
             except httpx.HTTPStatusError as e:
                 body = e.response.text
                 logger.warning(
@@ -313,6 +319,12 @@ class DoclingServeConverter:
 
                 documents.append(_extract_document(result, source_name, merged_meta))
 
+            except (FileNotFoundError, TypeError) as e:
+                logger.warning(
+                    "Could not prepare source {source}: {error}",
+                    source=source_name,
+                    error=str(e),
+                )
             except httpx.HTTPStatusError as e:
                 body = e.response.text
                 logger.warning(

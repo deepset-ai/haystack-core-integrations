@@ -2,6 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+import logging
 import os
 from unittest.mock import patch
 
@@ -369,6 +370,28 @@ class TestRunErrorHandling:
         assert len(result["documents"]) == 1
         assert result["documents"][0].meta["source_file"] == str(good_file)
 
+    def test_missing_file_logged_and_skipped(self, caplog):
+        good_file = "good.pdf"
+        missing_file = "missing.pdf"
+        converter = DoclingServeConverter(api_key=None)
+
+        def mock_read_bytes(path):
+            if path.name == missing_file:
+                raise FileNotFoundError("File not found")
+            return b"good"
+
+        with patch(
+            "haystack_integrations.components.converters.docling_serve.converter.Path.read_bytes",
+            autospec=True,
+            side_effect=mock_read_bytes,
+        ), patch("httpx.Client.post", return_value=_mock_response()):
+            with caplog.at_level(logging.WARNING):
+                result = converter.run(sources=[str(missing_file), str(good_file)])
+
+        assert len(result["documents"]) == 1
+        assert result["documents"][0].meta["source_file"] == str(good_file)
+        assert "Could not prepare source" in caplog.text
+
 
 class TestRunWithTextContentFallback:
     def test_falls_back_to_text_content(self, tmp_path):
@@ -451,6 +474,29 @@ class TestRunAsync:
             result = await converter.run_async(sources=[str(test_file)])
 
         assert result["documents"] == []
+
+    @pytest.mark.asyncio
+    async def test_missing_file_logged_and_skipped(self, caplog):
+        good_file = "good.pdf"
+        missing_file = "missing.pdf"
+        converter = DoclingServeConverter(api_key=None)
+
+        def mock_read_bytes(path):
+            if path.name == missing_file:
+                raise FileNotFoundError("File not found")
+            return b"good"
+
+        with patch(
+            "haystack_integrations.components.converters.docling_serve.converter.Path.read_bytes",
+            autospec=True,
+            side_effect=mock_read_bytes,
+        ), patch("httpx.AsyncClient.post", return_value=_mock_response()):
+            with caplog.at_level(logging.WARNING):
+                result = await converter.run_async(sources=[str(missing_file), str(good_file)])
+
+        assert len(result["documents"]) == 1
+        assert result["documents"][0].meta["source_file"] == str(good_file)
+        assert "Could not prepare source" in caplog.text
 
 
 class TestMixedSources:
