@@ -4,6 +4,7 @@
 
 import base64
 import json
+from dataclasses import replace
 from typing import Any, Literal
 
 import boto3
@@ -13,6 +14,7 @@ from haystack.dataclasses import ByteStream, Document
 from haystack.document_stores.errors import DocumentStoreError
 from haystack.document_stores.types import DuplicatePolicy
 from haystack.utils.auth import Secret, deserialize_secrets_inplace
+from haystack.utils.filters import document_matches_filter
 
 from .filters import _normalize_filters, _validate_filters
 
@@ -315,12 +317,13 @@ class S3VectorsDocumentStore:
         :param filters: Haystack-format filters to apply.
         :returns: A list of matching Documents.
         """
-        logger.warning(
-            "S3 Vectors does not support standalone filtered listing. "
-            "filter_documents() will fetch ALL vectors and apply filters client-side, "
-            "which can be very slow for large indexes. "
-            "Prefer using S3VectorsEmbeddingRetriever with filters for efficient filtered retrieval."
-        )
+        if filters:
+            logger.warning(
+                "S3 Vectors does not support standalone filtered listing. "
+                "filter_documents() will fetch ALL vectors and apply filters client-side, "
+                "which can be very slow for large indexes. "
+                "Prefer using S3VectorsEmbeddingRetriever with filters for efficient filtered retrieval."
+            )
 
         client = self._get_client()
 
@@ -347,7 +350,7 @@ class S3VectorsDocumentStore:
 
         if filters:
             _validate_filters(filters)
-            documents = _apply_filters_in_memory(documents, filters)
+            documents = [doc for doc in documents if document_matches_filter(filters=filters, document=doc)]
 
         return documents
 
@@ -425,24 +428,11 @@ class S3VectorsDocumentStore:
 
         documents = []
         for v in result.get("vectors", []):
-            metadata = v.get("metadata", {})
-            content = metadata.pop(_CONTENT_KEY, None)
+            doc = self._s3_vector_to_document(v)
 
-            # Remove other internal keys from user-facing metadata
-            blob_data = metadata.pop(_BLOB_DATA_KEY, None)
-            blob_meta = metadata.pop(_BLOB_META_KEY, None)
-            blob_mime_type = metadata.pop(_BLOB_MIME_TYPE_KEY, None)
-
-            blob = None
-            if blob_data is not None:
-                blob = ByteStream(
-                    data=base64.b64decode(blob_data) if isinstance(blob_data, str) else blob_data,
-                    meta=blob_meta or {},
-                    mime_type=blob_mime_type,
-                )
-
-            raw_distance = v.get("distance")
+            # Compute score from distance
             score = None
+            raw_distance = v.get("distance")
             if raw_distance is not None:
                 if distance_metric == "cosine":
                     score = 1.0 - raw_distance
@@ -450,14 +440,8 @@ class S3VectorsDocumentStore:
                     # euclidean: negate so higher = more similar
                     score = -raw_distance
 
-            doc = Document(
-                id=v["key"],
-                content=content,
-                meta=metadata,
-                blob=blob,
-                score=score,
-            )
-            documents.append(doc)
+            # query_vectors does not return vector data; attach score
+            documents.append(replace(doc, embedding=None, score=score))
 
         return documents
 
@@ -538,68 +522,3 @@ class S3VectorsDocumentStore:
             embedding=embedding,
             blob=blob,
         )
-
-
-def _apply_filters_in_memory(documents: list[Document], filters: dict[str, Any]) -> list[Document]:
-    """
-    Apply Haystack filters to a list of Documents in memory.
-
-    This is used by ``filter_documents`` since S3 Vectors doesn't support
-    standalone metadata queries without a vector search.
-    """
-    return [doc for doc in documents if _document_matches(doc, filters)]
-
-
-def _document_matches(doc: Document, filters: dict[str, Any]) -> bool:
-    """Check if a single Document matches the given Haystack filter."""
-    if "operator" in filters and "conditions" in filters:
-        operator = filters["operator"]
-        conditions = filters["conditions"]
-        if operator == "AND":
-            return all(_document_matches(doc, c) for c in conditions)
-        if operator == "OR":
-            return any(_document_matches(doc, c) for c in conditions)
-        msg = f"Unknown logical operator '{operator}'"
-        raise ValueError(msg)
-
-    if "field" in filters:
-        field = filters["field"]
-        operator = filters["operator"]
-        value = filters["value"]
-
-        # Resolve the field value from the Document
-        if field.startswith("meta."):
-            field_name = field[5:]
-            doc_value = doc.meta.get(field_name) if doc.meta else None
-        elif field == "content":
-            doc_value = doc.content
-        elif field == "id":
-            doc_value = doc.id
-        else:
-            doc_value = doc.meta.get(field) if doc.meta else None
-
-        return _compare(doc_value, operator, value)
-
-    return True
-
-
-def _compare(doc_value: Any, operator: str, filter_value: Any) -> bool:
-    """Perform a comparison between a document field value and a filter value."""
-    if operator == "==":
-        return doc_value == filter_value
-    if operator == "!=":
-        return doc_value != filter_value
-    if operator == ">":
-        return doc_value is not None and doc_value > filter_value
-    if operator == ">=":
-        return doc_value is not None and doc_value >= filter_value
-    if operator == "<":
-        return doc_value is not None and doc_value < filter_value
-    if operator == "<=":
-        return doc_value is not None and doc_value <= filter_value
-    if operator == "in":
-        return doc_value is not None and doc_value in filter_value
-    if operator == "not in":
-        return doc_value is not None and doc_value not in filter_value
-    msg = f"Unknown comparison operator '{operator}'"
-    raise ValueError(msg)
