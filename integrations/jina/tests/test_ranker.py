@@ -1,32 +1,28 @@
 # SPDX-FileCopyrightText: 2023-present deepset GmbH <info@deepset.ai>
 #
 # SPDX-License-Identifier: Apache-2.0
-import json
 import os
 from unittest.mock import patch
 
+import httpx
 import pytest
-import requests
 from haystack import Document
 from haystack.utils import Secret
 
 from haystack_integrations.components.rankers.jina import JinaRanker
 
 
-def mock_session_post_response(*args, **kwargs):  # noqa: ARG001
+def mock_httpx_post_response(*args, **kwargs):  # noqa: ARG001
     model = kwargs["json"]["model"]
     documents = kwargs["json"]["documents"]
-    mock_response = requests.Response()
-    mock_response.status_code = 200
     results = [
         {"index": i, "relevance_score": len(documents) - i, "document": {"text": doc}}
         for i, doc in enumerate(documents)
     ]
-    mock_response._content = json.dumps(
-        {"model": model, "usage": {"total_tokens": 4, "prompt_tokens": 4}, "results": results}
-    ).encode()
-
-    return mock_response
+    return httpx.Response(
+        200,
+        json={"model": model, "usage": {"total_tokens": 4, "prompt_tokens": 4}, "results": results},
+    )
 
 
 class TestJinaRanker:
@@ -97,7 +93,7 @@ class TestJinaRanker:
         query = "What is a transformer?"
 
         model = "jina-ranker"
-        with patch("requests.sessions.Session.post", side_effect=mock_session_post_response):
+        with patch("httpx.Client.post", side_effect=mock_httpx_post_response):
             ranker = JinaRanker(
                 api_key=Secret.from_token("fake-api-key"),
                 model=model,
@@ -125,7 +121,7 @@ class TestJinaRanker:
         query = "What is a transformer?"
 
         model = "jina-ranker"
-        with patch("requests.sessions.Session.post", side_effect=mock_session_post_response):
+        with patch("httpx.Client.post", side_effect=mock_httpx_post_response):
             ranker = JinaRanker(
                 api_key=Secret.from_token("fake-api-key"),
                 model=model,
@@ -140,6 +136,44 @@ class TestJinaRanker:
         # returned docs carry scores
         for doc in result["documents"]:
             assert doc.score is not None
+
+    @pytest.mark.asyncio
+    async def test_run_async(self):
+        docs = [
+            Document(content="I love cheese"),
+            Document(content="A transformer is a deep learning architecture"),
+            Document(content="A transformer is something"),
+            Document(content="A transformer is not good"),
+        ]
+        query = "What is a transformer?"
+
+        model = "jina-ranker"
+        with patch("httpx.AsyncClient.post", side_effect=mock_httpx_post_response):
+            ranker = JinaRanker(
+                api_key=Secret.from_token("fake-api-key"),
+                model=model,
+            )
+
+            result = await ranker.run_async(query=query, documents=docs)
+
+        ranked_documents = result["documents"]
+        metadata = result["meta"]
+
+        assert isinstance(ranked_documents, list)
+        assert len(ranked_documents) == len(docs)
+        for i, doc in enumerate(ranked_documents):
+            assert isinstance(doc, Document)
+            assert doc.score == len(ranked_documents) - i
+        assert metadata == {"model": model, "usage": {"prompt_tokens": 4, "total_tokens": 4}}
+
+    @pytest.mark.asyncio
+    async def test_run_async_on_empty_docs(self):
+        ranker = JinaRanker(api_key=Secret.from_token("fake-api-key"))
+
+        result = await ranker.run_async(query="a", documents=[])
+
+        assert result["documents"] is not None
+        assert not result["documents"]
 
     def test_run_wrong_input_format(self):
         ranker = JinaRanker(api_key=Secret.from_token("fake-api-key"))
@@ -167,6 +201,32 @@ class TestJinaRanker:
         ]
 
         result = ranker.run(query="What is the capital of France?", documents=docs, top_k=2)
+
+        assert "documents" in result
+        ranked_docs = result["documents"]
+        assert len(ranked_docs) == 2
+        assert all(isinstance(doc, Document) for doc in ranked_docs)
+        assert all(doc.score is not None for doc in ranked_docs)
+        assert ranked_docs[0].score >= ranked_docs[1].score
+        assert "Paris" in ranked_docs[0].content
+
+        assert "meta" in result
+        assert isinstance(result["meta"], dict)
+        assert "model" in result["meta"]
+        assert "usage" in result["meta"]
+
+    @pytest.mark.skipif(not os.environ.get("JINA_API_KEY", None), reason="JINA_API_KEY env var not set")
+    @pytest.mark.integration
+    @pytest.mark.asyncio
+    async def test_run_async_integration(self):
+        ranker = JinaRanker(model="jina-reranker-v1-base-en")
+        docs = [
+            Document(content="Paris is the capital of France."),
+            Document(content="Bananas are yellow fruits."),
+            Document(content="Berlin is the capital of Germany."),
+        ]
+
+        result = await ranker.run_async(query="What is the capital of France?", documents=docs, top_k=2)
 
         assert "documents" in result
         ranked_docs = result["documents"]
