@@ -200,6 +200,26 @@ class TestMCPTool:
         assert new_tool._inputs_from_state == {"state_a": "a"}
         assert new_tool._outputs_to_state == {"result": {"source": "output"}}
 
+    @pytest.mark.skipif(
+        not hasattr(__import__("haystack.tools", fromlist=["Tool"]).Tool, "_get_valid_inputs"),
+        reason="Requires Haystack >= 2.22.0 for inputs_from_state validation",
+    )
+    def test_mcp_tool_lazy_invalid_parameter_raises_on_warm_up(self, mcp_tool_cleanup):
+        """Test that lazy MCPTool defers invalid inputs_from_state validation until warm_up()."""
+        server_info = InMemoryServerInfo(server=calculator_mcp._mcp_server)
+        tool = MCPTool(
+            name="add",
+            server_info=server_info,
+            eager_connect=False,
+            inputs_from_state={"state_key": "non_existent_param"},
+        )
+        mcp_tool_cleanup(tool)
+
+        assert tool.parameters == {"type": "object", "properties": {}, "additionalProperties": True}
+
+        with pytest.raises(ValueError, match="unknown parameter"):
+            tool.warm_up()
+
     @pytest.mark.asyncio
     async def test_mcp_tool_ainvoke_matches_invoke_with_outputs_to_state(self, mcp_tool_cleanup):
         """Test that sync and async invocation paths return the same parsed state output."""
