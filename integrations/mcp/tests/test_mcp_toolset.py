@@ -407,6 +407,29 @@ class TestMCPToolset:
                 },
             )
 
+    @pytest.mark.skipif(
+        not hasattr(__import__("haystack.tools", fromlist=["Tool"]).Tool, "_get_valid_inputs"),
+        reason="Requires Haystack >= 2.22.0 for inputs_from_state validation",
+    )
+    async def test_toolset_lazy_invalid_parameter_raises_on_warm_up(self, mcp_tool_cleanup):
+        """Test that lazy toolsets defer invalid inputs_from_state validation until warm_up()."""
+        server_info = InMemoryServerInfo(server=calculator_mcp._mcp_server)
+        toolset = MCPToolset(
+            server_info=server_info,
+            tool_names=["add"],
+            eager_connect=False,
+            inputs_from_state={
+                "add": {"state_key": "non_existent_param"},
+            },
+        )
+        mcp_tool_cleanup(toolset)
+
+        assert len(toolset.tools) == 1
+        assert toolset.tools[0].name.startswith("mcp_not_connected_placeholder_")
+
+        with pytest.raises(ValueError, match="unknown parameter"):
+            toolset.warm_up()
+
     async def test_toolset_no_state_config(self, calculator_toolset):
         """Test that tools have no state config when none is provided."""
         toolset = calculator_toolset
