@@ -1,11 +1,5 @@
 # Changelog
 
-## [integrations/opensearch-v7.2.1] - 2026-04-10
-
-### 🐛 Bug Fixes
-
-- *(opensearch)* Pass positional args to `transport.perform_request` in `_query_sql` and `_query_sql_async` to fix compatibility with `ddtrace` Elasticsearch instrumentation (#PIP-226)
-
 ## [integrations/opensearch-v7.2.0] - 2026-04-10
 
 ### 🚀 Features
