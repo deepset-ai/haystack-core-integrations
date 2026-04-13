@@ -345,10 +345,11 @@ class TestDSPySignatureChatGenerator:
         response = component.run(chat_messages, generation_kwargs={"temperature": 0.9})
 
         _, kwargs = mock_dspy_module.call_args
-        assert kwargs["config"] == {"temperature": 0.9}
+        assert kwargs["config"] == {"max_tokens": 10, "temperature": 0.9}
 
         assert isinstance(response, dict)
         assert "replies" in response
+        assert "metadata" in response
         assert len(response["replies"]) == 1
         assert all(isinstance(reply, ChatMessage) for reply in response["replies"])
 
