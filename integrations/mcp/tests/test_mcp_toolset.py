@@ -172,6 +172,24 @@ class TestMCPToolset:
         assert tool.name == "add"
         assert "Add two integers." in tool.description
 
+    async def test_toolset_warm_up_replaces_placeholder_and_is_idempotent(self, mcp_tool_cleanup):
+        """Test lazy toolsets swap the placeholder tool for real tools exactly once."""
+        server_info = InMemoryServerInfo(server=calculator_mcp._mcp_server)
+        toolset = MCPToolset(server_info=server_info, eager_connect=False)
+        mcp_tool_cleanup(toolset)
+
+        assert len(toolset.tools) == 1
+        assert toolset.tools[0].name.startswith("mcp_not_connected_placeholder_")
+
+        toolset.warm_up()
+        warmed_tool_names = [tool.name for tool in toolset.tools]
+
+        assert set(warmed_tool_names) == {"add", "subtract", "divide_by_zero"}
+        assert not any(name.startswith("mcp_not_connected_placeholder_") for name in warmed_tool_names)
+
+        toolset.warm_up()
+        assert [tool.name for tool in toolset.tools] == warmed_tool_names
+
     async def test_toolset_serde(self, calculator_toolset):
         """Test serialization and deserialization of MCPToolset."""
         toolset = calculator_toolset
