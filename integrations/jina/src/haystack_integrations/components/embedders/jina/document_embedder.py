@@ -233,12 +233,12 @@ class JinaDocumentEmbedder:
                 desc="Calculating embeddings",
             ):
                 batch = texts_to_embed[i : i + batch_size]
-                resp = await client.post(
+                response = await client.post(
                     self.base_url,
                     json={"input": batch, "model": self.model_name, **(parameters or {})},
                     headers=self._headers,
                 )
-                self._process_batch_response(resp.json(), all_embeddings, metadata)
+                self._process_batch_response(response.json(), all_embeddings, metadata)
 
         return all_embeddings, metadata
 
