@@ -2,6 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+import os
 from unittest.mock import patch
 
 import httpx
@@ -475,3 +476,25 @@ class TestMixedSources:
         assert len(result["documents"]) == 2
         assert result["documents"][0].meta["type"] == "local"
         assert result["documents"][1].meta["type"] == "remote"
+
+
+@pytest.mark.integration
+class TestIntegration:
+    @pytest.mark.skipif(
+        not os.environ.get("DOCLING_SERVE_URL"),
+        reason="Set DOCLING_SERVE_URL to run integration tests (e.g. http://localhost:5001)",
+    )
+    def test_convert_file(self, tmp_path):
+        """Convert a simple text file against a running docling-serve instance."""
+        test_file = tmp_path / "hello.md"
+        test_file.write_text("# Hello\n\nThis is a test document.")
+
+        url = os.environ["DOCLING_SERVE_URL"]
+        converter = DoclingServeConverter(base_url=url, api_key=None)
+        result = converter.run(sources=[str(test_file)])
+
+        assert len(result["documents"]) == 1
+        doc = result["documents"][0]
+        assert doc.content
+        assert doc.meta["conversion_status"] == "success"
+        assert doc.meta["processing_time"] > 0
