@@ -1,0 +1,14 @@
+loaders:
+  - modules:
+      - haystack_integrations.components.retrievers.amazon_s3_vectors.embedding_retriever
+      - haystack_integrations.document_stores.amazon_s3_vectors.document_store
+    search_path: [../src]
+processors:
+  - type: filter
+    documented_only: true
+    skip_empty_modules: true
+renderer:
+  description: Amazon S3 Vectors integration for Haystack
+  id: integrations-amazon_s3_vectors
+  filename: amazon-s3-vectors.md
+  title: Amazon S3 Vectors
