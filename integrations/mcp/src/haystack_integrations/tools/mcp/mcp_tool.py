@@ -63,7 +63,7 @@ def _resolve_headers(headers: dict[str, str | Secret] | None) -> dict[str, str] 
     return resolved_headers
 
 
-def extract_first_text(result: str) -> str:
+def extract_first_text_element(result: str) -> str:
     # Per MCP spec, content[] may contain TextContent, ImageContent, AudioContent, etc.
     # Parse only first TextContent block (ToolInvoker requires dict, not list).
     parsed: dict = json.loads(result)
@@ -1103,7 +1103,7 @@ class MCPTool(Tool):
             # Parse JSON to dict only when outputs_to_state is configured.
             # ToolInvoker requires dict for _merge_tool_outputs(); ToolCallResult.result expects str otherwise.
             if self.outputs_to_state:
-                return self.extract_first_text(result)
+                return extract_first_text_element(result)
 
             return result
         except (MCPError, TimeoutError) as e:
@@ -1134,7 +1134,7 @@ class MCPTool(Tool):
             # Parse JSON to dict only when outputs_to_state is configured.
             # ToolInvoker requires dict for _merge_tool_outputs(); ToolCallResult.result expects str otherwise.
             if self.outputs_to_state:
-                return extract_first_text(result)
+                return extract_first_text_element(result)
 
             return result
         except asyncio.TimeoutError as e:

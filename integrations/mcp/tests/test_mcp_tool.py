@@ -15,7 +15,7 @@ from haystack_integrations.tools.mcp import (
     MCPTool,
     StdioServerInfo,
 )
-from haystack_integrations.tools.mcp.mcp_tool import StdioClient
+from haystack_integrations.tools.mcp.mcp_tool import StdioClient, extract_first_text_element
 
 from .mcp_memory_transport import InMemoryServerInfo
 from .mcp_servers_fixtures import calculator_mcp, echo_mcp
@@ -25,6 +25,23 @@ from .mcp_servers_fixtures import calculator_mcp, echo_mcp
 def simple_haystack_tool(name: str) -> str:
     """A simple Haystack tool for comparison."""
     return f"Hello, {name}!"
+
+
+def test_extract_first_text_element():
+    """Test that extract_first_text skips non-text blocks and parses the first text block."""
+    result = json.dumps(
+        {
+            "content": [
+                {"type": "image", "data": "ignored"},
+                {"type": "text", "text": '{"answer": 42}'},
+                {"type": "text", "text": '{"answer": 7}'},
+            ]
+        }
+    )
+
+    extracted = extract_first_text_element(result)
+
+    assert extracted == {"answer": 42}
 
 
 class TestMCPTool:
