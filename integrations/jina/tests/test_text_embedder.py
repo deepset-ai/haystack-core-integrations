@@ -173,13 +173,14 @@ class TestJinaTextEmbedder:
             "usage": {"prompt_tokens": 6, "total_tokens": 6},
         }
 
-    def test_run_async_wrong_input_format(self):
+    @pytest.mark.asyncio
+    async def test_run_async_wrong_input_format(self):
         embedder = JinaTextEmbedder(api_key=Secret.from_token("fake-api-key"))
 
         list_integers_input = [1, 2, 3]
 
         with pytest.raises(TypeError, match="JinaTextEmbedder expects a string as an input"):
-            embedder.run(text=list_integers_input)
+            await embedder.run_async(text=list_integers_input)
 
     @pytest.mark.skipif(not os.environ.get("JINA_API_KEY", None), reason="JINA_API_KEY env var not set")
     @pytest.mark.integration
