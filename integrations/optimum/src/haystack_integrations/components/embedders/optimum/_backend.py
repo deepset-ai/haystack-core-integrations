@@ -13,7 +13,7 @@ import torch
 from haystack.utils import Secret, deserialize_secrets_inplace
 from haystack.utils.hf import HFModelType, check_valid_model, deserialize_hf_model_kwargs, serialize_hf_model_kwargs
 from huggingface_hub import hf_hub_download
-from sentence_transformers.models import Pooling as SentenceTransformerPoolingLayer
+from sentence_transformers.sentence_transformer.modules import Pooling as SentenceTransformerPoolingLayer
 from tqdm import tqdm
 from transformers import AutoTokenizer
 from transformers.modeling_outputs import BaseModelOutput
