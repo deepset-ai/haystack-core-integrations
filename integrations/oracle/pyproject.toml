@@ -58,17 +58,27 @@ dependencies = ["haystack-pydoc-tools", "ruff"]
 [tool.hatch.envs.default.scripts]
 docs = ["haystack-pydoc pydoc/config_docusaurus.yml"]
 fmt = "ruff check --fix {args}; ruff format {args}"
+fmt-check = "ruff check {args} && ruff format --check {args}"
 
 [tool.hatch.envs.test]
 dependencies = [
-  "pytest>=8.0.0",
-  "pytest-asyncio>=0.23.0",
-  "pytest-mock>=3.12.0",
+  "pytest",
+  "pytest-asyncio",
+  "pytest-cov",
+  "pytest-rerunfailures",
+  "pytest-mock",
+  "mypy",
+  "pip",
 ]
 
 [tool.hatch.envs.test.scripts]
-unit = "pytest tests/unit/ -v"
-integration = "pytest tests/integration/ -v"
+unit = 'pytest -m "not integration" {args:tests}'
+integration = 'pytest -m "integration" {args:tests}'
+all = 'pytest {args:tests}'
+unit-cov-retry = 'pytest --cov=haystack_integrations --reruns 3 --reruns-delay 30 -x -m "not integration" {args:tests}'
+integration-cov-append-retry = 'pytest --cov=haystack_integrations --cov-append --reruns 3 --reruns-delay 30 -x -m "integration" {args:tests}'
+types = "mypy -p haystack_integrations.document_stores.oracle -p haystack_integrations.components.retrievers.oracle {args}"
+
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -85,6 +95,7 @@ line-length = 120
 select = ["E", "F", "I", "B"]
 
 [tool.mypy]
-python_version = "3.10"
-disallow_untyped_defs = true
-ignore_missing_imports = true
+install_types = true
+non_interactive = true
+check_untyped_defs = true
+disallow_incomplete_defs = true
