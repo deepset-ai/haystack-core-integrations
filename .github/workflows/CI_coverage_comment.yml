@@ -48,6 +48,7 @@ on:
       - "Test / ragas"
       - "Test / snowflake"
       - "Test / stackit"
+      - "Test / supabase"
       - "Test / tavily"
       - "Test / togetherai"
       - "Test / unstructured"

@@ -233,6 +233,11 @@ integration:stackit:
       - any-glob-to-any-file: "integrations/stackit/**/*"
       - any-glob-to-any-file: ".github/workflows/stackit.yml"
 
+integration:supabase:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/supabase/**/*"
+      - any-glob-to-any-file: ".github/workflows/supabase.yml"
+
 integration:tavily:
   - changed-files:
       - any-glob-to-any-file: "integrations/tavily/**/*"
