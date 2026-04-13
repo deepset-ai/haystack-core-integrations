@@ -2,6 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+from dataclasses import replace
 import logging
 from collections.abc import AsyncGenerator
 from pathlib import Path
@@ -100,7 +101,7 @@ class TestWeaviateDocumentStoreAsync:
         assert await document_store.write_documents_async([doc]) == 1
         assert await document_store.count_documents_async() == 1
 
-        doc.content = "test doc 2"
+        doc = replace(doc, content="test doc 2")
         assert await document_store.write_documents_async([doc]) == 1
         assert await document_store.count_documents_async() == 1
 

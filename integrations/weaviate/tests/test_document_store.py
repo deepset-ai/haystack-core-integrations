@@ -3,6 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import base64
+from dataclasses import replace
 import logging
 import os
 from collections.abc import Generator
@@ -373,7 +374,7 @@ class TestWeaviateDocumentStore(
         assert document_store.write_documents([doc]) == 1
         assert document_store.count_documents() == 1
 
-        doc.content = "test doc 2"
+        doc = replace(doc, content="test doc 2")
         assert document_store.write_documents([doc]) == 1
         assert document_store.count_documents() == 1
 
