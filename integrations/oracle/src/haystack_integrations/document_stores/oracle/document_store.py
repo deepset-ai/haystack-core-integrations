@@ -113,7 +113,7 @@ class _FilterTranslator:
             raise ValueError(msg)
         field: str = filters["field"]
         value: Any = filters["value"]
-        col = self._field_to_sql(field, value)
+        col = _FilterTranslator._field_to_sql(field, value)
 
         if op in ("in", "not in"):
             placeholders = []
@@ -131,7 +131,8 @@ class _FilterTranslator:
         sql_op = self._OP_MAP[op]
         return f"{col} {sql_op} :{pname}"
 
-    def _field_to_sql(self, field: str, value: Any) -> str:
+    @staticmethod
+    def _field_to_sql(field: str, value: Any) -> str:
         if field == "id":
             return "id"
         if field == "content":
@@ -285,7 +286,7 @@ class OracleDocumentStore:
             cur.execute(sql)
             conn.commit()
 
-    async def acreate_hnsw_index(self) -> None:
+    async def create_hnsw_index_async(self) -> None:
         await asyncio.to_thread(self.create_hnsw_index)
 
     def write_documents(
@@ -304,7 +305,8 @@ class OracleDocumentStore:
         msg = f"Unknown DuplicatePolicy: {policy}"
         raise ValueError(msg)
 
-    def _to_row(self, doc: Document) -> tuple[str, str | None, str, bytes | None]:
+    @staticmethod
+    def _to_row(doc: Document) -> tuple[str, str | None, str, bytes | None]:
         """Convert a Document to (id, text, metadata_json, embedding_bytes).
 
         Haystack IDs are stored verbatim in a VARCHAR2(64) column, so any
@@ -319,7 +321,7 @@ class OracleDocumentStore:
         return doc_id, text, meta, emb
 
     def _to_named_row(self, doc: Document) -> dict[str, Any]:
-        doc_id, text, meta, emb = self._to_row(doc)
+        doc_id, text, meta, emb = OracleDocumentStore._to_row(doc)
         return {"doc_id": doc_id, "doc_text": text, "doc_meta": meta, "doc_emb": emb}
 
     def _insert_documents(self, documents: list[Document]) -> int:
@@ -373,14 +375,15 @@ class OracleDocumentStore:
             conn.commit()
         return written
 
-    async def awrite_documents(
+    async def write_documents_async(
         self,
         documents: list[Document],
         policy: DuplicatePolicy = DuplicatePolicy.NONE,
     ) -> int:
         return await asyncio.to_thread(self.write_documents, documents, policy)
 
-    def _build_where(self, filters: dict[str, Any] | None) -> tuple[str, dict[str, Any]]:
+    @staticmethod
+    def _build_where(filters: dict[str, Any] | None) -> tuple[str, dict[str, Any]]:
         if not filters:
             return "", {}
         params: dict[str, Any] = {}
@@ -389,12 +392,12 @@ class OracleDocumentStore:
         return f"WHERE {fragment}", params
 
     def filter_documents(self, filters: dict[str, Any] | None = None) -> list[Document]:
-        where, params = self._build_where(filters)
+        where, params = OracleDocumentStore._build_where(filters)
         sql = f"SELECT id, text, metadata FROM {self.table_name} {where}"
         with self._get_connection() as conn, conn.cursor() as cur:
             cur.execute(sql, params)
             rows = cur.fetchall()
-        return [self._row_to_document(r) for r in rows]
+        return [OracleDocumentStore._row_to_document(r) for r in rows]
 
     async def afilter_documents(self, filters: dict[str, Any] | None = None) -> list[Document]:
         return await asyncio.to_thread(self.filter_documents, filters)
@@ -409,7 +412,7 @@ class OracleDocumentStore:
             cur.execute(sql, params)
             conn.commit()
 
-    async def adelete_documents(self, document_ids: list[str]) -> None:
+    async def delete_documents_async(self, document_ids: list[str]) -> None:
         await asyncio.to_thread(self.delete_documents, document_ids)
 
     def count_documents(self) -> int:
@@ -419,7 +422,7 @@ class OracleDocumentStore:
             row = cur.fetchone()
         return row[0] if row else 0
 
-    async def acount_documents(self) -> int:
+    async def count_documents_async(self) -> int:
         return await asyncio.to_thread(self.count_documents)
 
     def _embedding_retrieval(
@@ -446,7 +449,7 @@ class OracleDocumentStore:
             rows = cur.fetchall()
         return [self._row_to_document(r, with_score=True) for r in rows]
 
-    async def _async_embedding_retrieval(
+    async def _embedding_retrieval_async(
         self,
         query_embedding: list[float],
         *,
@@ -460,8 +463,8 @@ class OracleDocumentStore:
             top_k=top_k,
         )
 
-
-    def _row_to_document(self, row: tuple, *, with_score: bool = False) -> Document:
+    @staticmethod
+    def _row_to_document(row: tuple, *, with_score: bool = False) -> Document:
         if with_score:
             raw_id, text, metadata_raw, score = row
         else:

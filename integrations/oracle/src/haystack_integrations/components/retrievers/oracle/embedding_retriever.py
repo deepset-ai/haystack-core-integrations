@@ -82,7 +82,7 @@ class OracleEmbeddingRetriever:
     ) -> dict[str, list[Document]]:
         """Async variant of :meth:`run`."""
         merged = _merge_filters(self.filters, filters)
-        docs = await self.document_store._async_embedding_retrieval(
+        docs = await self.document_store._embedding_retrieval_async(
             query_embedding,
             filters=merged,
             top_k=top_k if top_k is not None else self.top_k,
