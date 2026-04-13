@@ -6,7 +6,7 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
-from botocore.exceptions import ClientError
+from botocore.exceptions import BotoCoreError, ClientError
 from haystack.dataclasses import ByteStream
 from haystack.utils import Secret
 
@@ -190,7 +190,7 @@ class TestAmazonTextractConverterWarmUp:
 
     @patch(
         "haystack_integrations.components.converters.amazon_textract.converter.boto3.Session",
-        side_effect=Exception("bad config"),
+        side_effect=BotoCoreError(),
     )
     def test_warm_up_configuration_error(self, _mock_session_cls):
         converter = AmazonTextractConverter(

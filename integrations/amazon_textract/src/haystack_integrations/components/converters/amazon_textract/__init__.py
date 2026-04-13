@@ -2,6 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from haystack_integrations.components.converters.amazon_textract.converter import AmazonTextractConverter
+from .converter import AmazonTextractConverter
+from .errors import AmazonTextractConfigurationError
 
-__all__ = ["AmazonTextractConverter"]
+__all__ = ["AmazonTextractConfigurationError", "AmazonTextractConverter"]

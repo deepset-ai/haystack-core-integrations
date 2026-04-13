@@ -2,7 +2,6 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-import os
 from pathlib import Path
 from typing import Any
 
@@ -14,9 +13,7 @@ from haystack.components.converters.utils import get_bytestream_from_source, nor
 from haystack.dataclasses import ByteStream
 from haystack.utils import Secret, deserialize_secrets_inplace
 
-from haystack_integrations.components.converters.amazon_textract.errors import (
-    AmazonTextractConfigurationError,
-)
+from .errors import AmazonTextractConfigurationError
 
 logger = logging.getLogger(__name__)
 
@@ -125,7 +122,7 @@ class AmazonTextractConverter:
                 **(self.boto3_config if self.boto3_config else {}),
             )
             self._client = session.client("textract", config=config)
-        except Exception as e:
+        except BotoCoreError as e:
             msg = (
                 "Could not connect to AWS Textract. Make sure the AWS environment is configured correctly. "
                 "See https://boto3.amazonaws.com/v1/documentation/api/latest/guide/quickstart.html#configuration"
@@ -180,7 +177,7 @@ class AmazonTextractConverter:
 
                 merged_metadata = {**bytestream.meta, **metadata}
                 if not self.store_full_path and (file_path := bytestream.meta.get("file_path")):
-                    merged_metadata["file_path"] = os.path.basename(file_path)
+                    merged_metadata["file_path"] = Path(file_path).name
 
                 doc = self._create_document(response, merged_metadata)
                 documents.append(doc)

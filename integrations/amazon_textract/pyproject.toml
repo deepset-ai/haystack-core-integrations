@@ -28,7 +28,6 @@ classifiers = [
   "Programming Language :: Python :: 3.13",
   "Programming Language :: Python :: 3.14",
   "Programming Language :: Python :: Implementation :: CPython",
-  "Programming Language :: Python :: Implementation :: PyPy",
 ]
 dependencies = [
     "haystack-ai>=2.24.1",
@@ -63,7 +62,6 @@ fmt-check = "ruff check {args} && ruff format --check {args}"
 [tool.hatch.envs.test]
 dependencies = [
     "pytest",
-    "pytest-asyncio",
     "pytest-cov",
     "pytest-rerunfailures",
     "mypy",
@@ -173,7 +171,7 @@ exclude_lines = ["no cov", "if __name__ == .__main__.:", "if TYPE_CHECKING:"]
 [tool.pytest.ini_options]
 addopts = "--strict-markers"
 markers = [
+  "unit: unit tests",
   "integration: integration tests",
 ]
 log_cli = true
-asyncio_default_fixture_loop_scope = "function"
