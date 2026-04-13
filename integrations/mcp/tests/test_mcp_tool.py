@@ -1,6 +1,7 @@
 import io
 import json
 import os
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -13,6 +14,7 @@ from haystack.tools.from_function import tool
 
 from haystack_integrations.tools.mcp import (
     MCPTool,
+    MCPToolNotFoundError,
     StdioServerInfo,
 )
 from haystack_integrations.tools.mcp.mcp_tool import StdioClient
@@ -94,6 +96,47 @@ class TestMCPTool:
         error_message = str(exc_info.value)
         # The first part of the message comes from ToolInvocationError's formatting
         assert "Failed to invoke Tool `divide_by_zero`" in error_message
+
+    def test_mcp_tool_lazy_missing_tool_raises_with_available_tools(self, mcp_tool_cleanup):
+        """Test that lazy warm-up surfaces missing-tool errors with the available tool names."""
+        server_info = InMemoryServerInfo(server=calculator_mcp._mcp_server)
+        tool = MCPTool(name="multiply", server_info=server_info, eager_connect=False)
+        mcp_tool_cleanup(tool)
+
+        mock_worker = MagicMock()
+        mock_worker.tools.return_value = [
+            SimpleNamespace(name="add"),
+            SimpleNamespace(name="subtract"),
+            SimpleNamespace(name="divide_by_zero"),
+        ]
+
+        with (
+            patch("haystack_integrations.tools.mcp.mcp_tool._MCPClientSessionManager", return_value=mock_worker),
+            pytest.raises(MCPToolNotFoundError) as exc_info,
+        ):
+            tool.warm_up()
+
+        assert exc_info.value.tool_name == "multiply"
+        assert set(exc_info.value.available_tools) == {"add", "subtract", "divide_by_zero"}
+
+    def test_mcp_tool_lazy_no_tools_server_raises_tool_not_found(self, mcp_tool_cleanup):
+        """Test that lazy warm-up fails cleanly when the server exposes no tools."""
+        server_info = InMemoryServerInfo(server=calculator_mcp._mcp_server)
+        tool = MCPTool(name="anything", server_info=server_info, eager_connect=False)
+        mcp_tool_cleanup(tool)
+
+        mock_worker = MagicMock()
+        mock_worker.tools.return_value = []
+
+        with (
+            patch("haystack_integrations.tools.mcp.mcp_tool._MCPClientSessionManager", return_value=mock_worker),
+            pytest.raises(MCPToolNotFoundError) as exc_info,
+        ):
+            tool.warm_up()
+
+        assert str(exc_info.value) == "No tools available on server"
+        assert exc_info.value.tool_name == "anything"
+        assert exc_info.value.available_tools == []
 
     def test_mcp_tool_serde(self, mcp_tool_cleanup):
         """Test serialization and deserialization of MCPTool with in-memory server."""
@@ -219,6 +262,24 @@ class TestMCPTool:
 
         with pytest.raises(ValueError, match="unknown parameter"):
             tool.warm_up()
+
+    def test_mcp_tool_invoke_auto_warms_up_once(self, mcp_tool_cleanup):
+        """Test that lazy MCPTool initializes on first invoke and reuses that connection."""
+        server_info = InMemoryServerInfo(server=calculator_mcp._mcp_server)
+        tool = MCPTool(name="add", server_info=server_info, eager_connect=False)
+        mcp_tool_cleanup(tool)
+
+        assert tool.parameters == {"type": "object", "properties": {}, "additionalProperties": True}
+
+        with patch.object(tool, "_connect_and_initialize", wraps=tool._connect_and_initialize) as mock_connect:
+            first_result = json.loads(tool.invoke(a=20, b=22))
+            second_result = json.loads(tool.invoke(a=1, b=2))
+
+        assert first_result["content"][0]["text"] == "42"
+        assert second_result["content"][0]["text"] == "3"
+        assert "a" in tool.parameters["properties"]
+        assert "b" in tool.parameters["properties"]
+        assert mock_connect.call_count == 1
 
     @pytest.mark.asyncio
     async def test_mcp_tool_ainvoke_matches_invoke_with_outputs_to_state(self, mcp_tool_cleanup):
