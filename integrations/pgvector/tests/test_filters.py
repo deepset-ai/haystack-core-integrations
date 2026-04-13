@@ -17,6 +17,7 @@ from haystack_integrations.document_stores.pgvector.filters import (
     _treat_meta_field,
     _validate_filters,
 )
+from dataclasses import replace
 
 
 def _render(composed: Composed) -> str:
@@ -42,7 +43,8 @@ class TestFilters(FilterDocumentsTest):
             else:
                 assert received_doc.embedding == pytest.approx(expected_doc.embedding)
 
-            received_doc.embedding, expected_doc.embedding = None, None
+            received_doc = replace(received_doc, embedding=None)
+            expected_doc = replace(expected_doc, embedding=None)
             assert received_doc == expected_doc
 
     @pytest.mark.skip(reason="NOT operator is not supported in PgvectorDocumentStore")
