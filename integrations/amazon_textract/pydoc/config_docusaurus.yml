@@ -9,5 +9,5 @@ processors:
 renderer:
   description: Amazon Textract integration for Haystack
   id: integrations-amazon_textract
-  filename: amazon-textract.md
+  filename: amazon_textract.md
   title: Amazon Textract
