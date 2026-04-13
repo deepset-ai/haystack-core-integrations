@@ -2160,6 +2160,10 @@ class OpenSearchDocumentStore:
             if fetch_size is not None:
                 body["fetch_size"] = fetch_size
 
+            # NOTE: method and url must be passed as positional args (not keyword args).
+            # ddtrace's Elasticsearch instrumentation patch wraps perform_request and unpacks
+            # the first two positional args as `method, target = args`. Passing them as
+            # keyword args results in an empty `args` tuple and raises a ValueError.
             response_data = self._client.transport.perform_request(
                 "POST",
                 "/_plugins/_sql",
@@ -2193,6 +2197,10 @@ class OpenSearchDocumentStore:
             if fetch_size is not None:
                 body["fetch_size"] = fetch_size
 
+            # NOTE: method and url must be passed as positional args (not keyword args).
+            # ddtrace's Elasticsearch instrumentation patch wraps perform_request and unpacks
+            # the first two positional args as `method, target = args`. Passing them as
+            # keyword args results in an empty `args` tuple and raises a ValueError.
             response_data = await self._async_client.transport.perform_request(
                 "POST",
                 "/_plugins/_sql",
