@@ -106,14 +106,21 @@ class CohereRanker:
         deserialize_secrets_inplace(data["init_parameters"], keys=["api_key"])
         return default_from_dict(cls, data)
 
-    def _prepare_cohere_input_docs(self, documents: list[Document]) -> list[str]:
+    def _prepare_cohere_input_docs(self, documents: list[Document], top_k: int | None = None) -> tuple[list[str], int]:
         """
-        Prepare the input by concatenating the document text with the metadata fields specified.
+        Validate parameters and prepare the input by concatenating the document text with the metadata fields.
 
         :param documents: The list of Document objects.
+        :param top_k: The maximum number of documents to return. Falls back to self.top_k if None.
 
-        :return: A list of strings to be given as input to Cohere model.
+        :return: A tuple of (list of strings to be given as input to Cohere model, resolved top_k).
+        :raises ValueError: If `top_k` is not > 0.
         """
+        top_k = top_k or self.top_k
+        if top_k <= 0:
+            msg = f"top_k must be > 0, but got {top_k}"
+            raise ValueError(msg)
+
         concatenated_input_list = []
         for doc in documents:
             meta_values_to_embed = [
@@ -122,24 +129,15 @@ class CohereRanker:
             concatenated_input = self.meta_data_separator.join([*meta_values_to_embed, doc.content or ""])
             concatenated_input_list.append(concatenated_input)
 
-        return concatenated_input_list
-
-    def _validate_and_prepare(self, documents: list[Document], top_k: int | None = None) -> tuple[list[str], int]:
-        top_k = top_k or self.top_k
-        if top_k <= 0:
-            msg = f"top_k must be > 0, but got {top_k}"
-            raise ValueError(msg)
-
-        cohere_input_docs = self._prepare_cohere_input_docs(documents)
-        if len(cohere_input_docs) > MAX_NUM_DOCS_FOR_COHERE_RANKER:
+        if len(concatenated_input_list) > MAX_NUM_DOCS_FOR_COHERE_RANKER:
             logger.warning(
                 f"The Cohere reranking endpoint only supports {MAX_NUM_DOCS_FOR_COHERE_RANKER} documents.\
                 The number of documents has been truncated to {MAX_NUM_DOCS_FOR_COHERE_RANKER} \
-                from {len(cohere_input_docs)}."
+                from {len(concatenated_input_list)}."
             )
-            cohere_input_docs = cohere_input_docs[:MAX_NUM_DOCS_FOR_COHERE_RANKER]
+            concatenated_input_list = concatenated_input_list[:MAX_NUM_DOCS_FOR_COHERE_RANKER]
 
-        return cohere_input_docs, top_k
+        return concatenated_input_list, top_k
 
     @staticmethod
     def _build_result(response: Any, documents: list[Document]) -> dict[str, list[Document]]:
@@ -168,7 +166,7 @@ class CohereRanker:
 
         :raises ValueError: If `top_k` is not > 0.
         """
-        cohere_input_docs, top_k = self._validate_and_prepare(documents, top_k)
+        cohere_input_docs, top_k = self._prepare_cohere_input_docs(documents, top_k)
 
         response = self._cohere_client.rerank(
             model=self.model_name,
@@ -201,7 +199,7 @@ class CohereRanker:
 
         :raises ValueError: If `top_k` is not > 0.
         """
-        cohere_input_docs, top_k = self._validate_and_prepare(documents, top_k)
+        cohere_input_docs, top_k = self._prepare_cohere_input_docs(documents, top_k)
 
         response = await self._cohere_async_client.rerank(
             model=self.model_name,

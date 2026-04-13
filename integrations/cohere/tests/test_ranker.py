@@ -185,7 +185,7 @@ class TestCohereRanker:
             for i in range(5)
         ]
 
-        texts = component._prepare_cohere_input_docs(documents=documents)
+        texts, top_k = component._prepare_cohere_input_docs(documents=documents)
 
         assert texts == [
             "meta_value_1 0\nmeta_value_2 5\ndocument number 0",
@@ -194,6 +194,7 @@ class TestCohereRanker:
             "meta_value_1 3\nmeta_value_2 8\ndocument number 3",
             "meta_value_1 4\nmeta_value_2 9\ndocument number 4",
         ]
+        assert top_k == 10
 
     def test_prepare_cohere_input_docs_custom_separator(self, monkeypatch):
         monkeypatch.setenv("CO_API_KEY", "test-api-key")
@@ -210,7 +211,7 @@ class TestCohereRanker:
             for i in range(5)
         ]
 
-        texts = component._prepare_cohere_input_docs(documents=documents)
+        texts, top_k = component._prepare_cohere_input_docs(documents=documents)
 
         assert texts == [
             "meta_value_1 0 meta_value_2 5 document number 0",
@@ -219,13 +220,14 @@ class TestCohereRanker:
             "meta_value_1 3 meta_value_2 8 document number 3",
             "meta_value_1 4 meta_value_2 9 document number 4",
         ]
+        assert top_k == 10
 
     def test_prepare_cohere_input_docs_no_meta_data(self, monkeypatch):
         monkeypatch.setenv("CO_API_KEY", "test-api-key")
         component = CohereRanker(meta_fields_to_embed=["meta_field_1", "meta_field_2"], meta_data_separator=" ")
         documents = [Document(content=f"document number {i}") for i in range(5)]
 
-        texts = component._prepare_cohere_input_docs(documents=documents)
+        texts, top_k = component._prepare_cohere_input_docs(documents=documents)
 
         assert texts == [
             "document number 0",
@@ -234,15 +236,17 @@ class TestCohereRanker:
             "document number 3",
             "document number 4",
         ]
+        assert top_k == 10
 
     def test_prepare_cohere_input_docs_no_docs(self, monkeypatch):
         monkeypatch.setenv("CO_API_KEY", "test-api-key")
         component = CohereRanker(meta_fields_to_embed=["meta_field_1", "meta_field_2"], meta_data_separator=" ")
         documents = []
 
-        texts = component._prepare_cohere_input_docs(documents=documents)
+        texts, top_k = component._prepare_cohere_input_docs(documents=documents)
 
         assert texts == []
+        assert top_k == 10
 
     def test_run_negative_topk_in_init(self, monkeypatch):
         monkeypatch.setenv("CO_API_KEY", "test-api-key")
