@@ -28,12 +28,6 @@ _DISTANCE_ORDER: dict[str, str] = {
 
 _SAFE_TABLE_NAME = re.compile(r"^[A-Za-z_][A-Za-z0-9_$#]{0,127}$")
 
-
-# ---------------------------------------------------------------------------
-# Connection config
-# ---------------------------------------------------------------------------
-
-
 @dataclass
 class OracleConnectionConfig:
     """Connection parameters for Oracle Database.
@@ -66,11 +60,6 @@ class OracleConnectionConfig:
     def from_dict(cls, data: dict[str, Any]) -> "OracleConnectionConfig":
         deserialize_secrets_inplace(data, keys=["password", "wallet_password"])
         return cls(**data)
-
-
-# ---------------------------------------------------------------------------
-# Filter translator
-# ---------------------------------------------------------------------------
 
 
 class _FilterTranslator:
@@ -160,11 +149,6 @@ class _FilterTranslator:
         return json_path
 
 
-# ---------------------------------------------------------------------------
-# Document store
-# ---------------------------------------------------------------------------
-
-
 class OracleDocumentStore:
     """Haystack DocumentStore backed by Oracle AI Vector Search.
 
@@ -230,9 +214,6 @@ class OracleDocumentStore:
         if create_index:
             self.create_hnsw_index()
 
-    # ------------------------------------------------------------------
-    # Connection pool
-    # ------------------------------------------------------------------
 
     def _get_pool(self) -> oracledb.ConnectionPool:
         if self._pool is not None:
@@ -272,10 +253,6 @@ class OracleDocumentStore:
             except Exception:
                 pass
 
-    # ------------------------------------------------------------------
-    # DDL
-    # ------------------------------------------------------------------
-
     def _ensure_table(self) -> None:
         sql = f"""
             CREATE TABLE IF NOT EXISTS {self.table_name} (
@@ -310,10 +287,6 @@ class OracleDocumentStore:
 
     async def acreate_hnsw_index(self) -> None:
         await asyncio.to_thread(self.create_hnsw_index)
-
-    # ------------------------------------------------------------------
-    # Write
-    # ------------------------------------------------------------------
 
     def write_documents(
         self,
@@ -407,10 +380,6 @@ class OracleDocumentStore:
     ) -> int:
         return await asyncio.to_thread(self.write_documents, documents, policy)
 
-    # ------------------------------------------------------------------
-    # Filter
-    # ------------------------------------------------------------------
-
     def _build_where(self, filters: dict[str, Any] | None) -> tuple[str, dict[str, Any]]:
         if not filters:
             return "", {}
@@ -430,10 +399,6 @@ class OracleDocumentStore:
     async def afilter_documents(self, filters: dict[str, Any] | None = None) -> list[Document]:
         return await asyncio.to_thread(self.filter_documents, filters)
 
-    # ------------------------------------------------------------------
-    # Delete
-    # ------------------------------------------------------------------
-
     def delete_documents(self, document_ids: list[str]) -> None:
         if not document_ids:
             return
@@ -447,10 +412,6 @@ class OracleDocumentStore:
     async def adelete_documents(self, document_ids: list[str]) -> None:
         await asyncio.to_thread(self.delete_documents, document_ids)
 
-    # ------------------------------------------------------------------
-    # Count
-    # ------------------------------------------------------------------
-
     def count_documents(self) -> int:
         sql = f"SELECT COUNT(*) FROM {self.table_name}"
         with self._get_connection() as conn, conn.cursor() as cur:
@@ -460,10 +421,6 @@ class OracleDocumentStore:
 
     async def acount_documents(self) -> int:
         return await asyncio.to_thread(self.count_documents)
-
-    # ------------------------------------------------------------------
-    # Embedding retrieval
-    # ------------------------------------------------------------------
 
     def _embedding_retrieval(
         self,
@@ -503,9 +460,6 @@ class OracleDocumentStore:
             top_k=top_k,
         )
 
-    # ------------------------------------------------------------------
-    # Row conversion
-    # ------------------------------------------------------------------
 
     def _row_to_document(self, row: tuple, *, with_score: bool = False) -> Document:
         if with_score:
@@ -534,10 +488,6 @@ class OracleDocumentStore:
             embedding=None,
             blob=None,
         )
-
-    # ------------------------------------------------------------------
-    # Serialization
-    # ------------------------------------------------------------------
 
     def to_dict(self) -> dict[str, Any]:
         return default_to_dict(
