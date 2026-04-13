@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 import logging
+from dataclasses import replace
 from typing import Any, Literal
 
 import numpy as np
@@ -456,7 +457,8 @@ ORDER BY score ASC
         for row in result.result_set:
             node, score = row[0], row[1]
             doc = _node_to_document(node)
-            doc.score = self._scale_to_unit_interval(float(score)) if scale_score else float(score)
+            final_score = self._scale_to_unit_interval(float(score)) if scale_score else float(score)
+            doc = replace(doc, score=final_score)
             documents.append(doc)
         return documents
 
