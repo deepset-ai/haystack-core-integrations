@@ -127,7 +127,7 @@ class DoclingServeConverter:
         self.base_url = base_url
         self.api_key = api_key
         self.timeout = timeout
-        self.convert_options = convert_options or {}
+        self.convert_options = dict(convert_options) if convert_options else {}
 
     def to_dict(self) -> dict[str, Any]:
         """Serialize the component to a dictionary."""
@@ -156,6 +156,7 @@ class DoclingServeConverter:
 
     def _convert_file_sync(
         self,
+        client: httpx.Client,
         source: str | Path | ByteStream,
         headers: dict[str, str],
     ) -> dict[str, Any]:
@@ -163,18 +164,18 @@ class DoclingServeConverter:
         filename, file_bytes, mime_type = _build_file_upload(source)
         url = f"{self.base_url}{_FILE_CONVERT_PATH}"
 
-        with httpx.Client(timeout=self.timeout) as client:
-            response = client.post(
-                url,
-                files={"files": (filename, file_bytes, mime_type)},
-                data=self.convert_options,
-                headers=headers,
-            )
-            response.raise_for_status()
-            return response.json()
+        response = client.post(
+            url,
+            files={"files": (filename, file_bytes, mime_type)},
+            data=self.convert_options,
+            headers=headers,
+        )
+        response.raise_for_status()
+        return response.json()
 
     def _convert_url_sync(
         self,
+        client: httpx.Client,
         source_url: str,
         headers: dict[str, str],
     ) -> dict[str, Any]:
@@ -185,13 +186,13 @@ class DoclingServeConverter:
             "sources": [{"kind": "http", "url": source_url}],
         }
 
-        with httpx.Client(timeout=self.timeout) as client:
-            response = client.post(url, json=payload, headers=headers)
-            response.raise_for_status()
-            return response.json()
+        response = client.post(url, json=payload, headers=headers)
+        response.raise_for_status()
+        return response.json()
 
     async def _convert_file_async(
         self,
+        client: httpx.AsyncClient,
         source: str | Path | ByteStream,
         headers: dict[str, str],
     ) -> dict[str, Any]:
@@ -199,18 +200,18 @@ class DoclingServeConverter:
         filename, file_bytes, mime_type = _build_file_upload(source)
         url = f"{self.base_url}{_FILE_CONVERT_PATH}"
 
-        async with httpx.AsyncClient(timeout=self.timeout) as client:
-            response = await client.post(
-                url,
-                files={"files": (filename, file_bytes, mime_type)},
-                data=self.convert_options,
-                headers=headers,
-            )
-            response.raise_for_status()
-            return response.json()
+        response = await client.post(
+            url,
+            files={"files": (filename, file_bytes, mime_type)},
+            data=self.convert_options,
+            headers=headers,
+        )
+        response.raise_for_status()
+        return response.json()
 
     async def _convert_url_async(
         self,
+        client: httpx.AsyncClient,
         source_url: str,
         headers: dict[str, str],
     ) -> dict[str, Any]:
@@ -221,10 +222,9 @@ class DoclingServeConverter:
             "sources": [{"kind": "http", "url": source_url}],
         }
 
-        async with httpx.AsyncClient(timeout=self.timeout) as client:
-            response = await client.post(url, json=payload, headers=headers)
-            response.raise_for_status()
-            return response.json()
+        response = await client.post(url, json=payload, headers=headers)
+        response.raise_for_status()
+        return response.json()
 
     @component.output_types(documents=list[Document])
     def run(
@@ -249,32 +249,33 @@ class DoclingServeConverter:
         headers = self._build_headers()
         documents: list[Document] = []
 
-        for source, source_meta in zip(sources, meta_list, strict=True):
-            source_name = _resolve_source_name(source)
-            merged_meta = {**(source.meta if isinstance(source, ByteStream) else {}), **source_meta}
+        with httpx.Client(timeout=self.timeout) as client:
+            for source, source_meta in zip(sources, meta_list, strict=True):
+                source_name = _resolve_source_name(source)
+                merged_meta = {**(source.meta if isinstance(source, ByteStream) else {}), **source_meta}
 
-            try:
-                if isinstance(source, str) and _is_url(source):
-                    result = self._convert_url_sync(source, headers)
-                else:
-                    result = self._convert_file_sync(source, headers)
+                try:
+                    if isinstance(source, str) and _is_url(source):
+                        result = self._convert_url_sync(client, source, headers)
+                    else:
+                        result = self._convert_file_sync(client, source, headers)
 
-                documents.append(_extract_document(result, source_name, merged_meta))
+                    documents.append(_extract_document(result, source_name, merged_meta))
 
-            except httpx.HTTPStatusError as e:
-                body = e.response.text
-                logger.warning(
-                    "docling-serve returned HTTP {status} for {source}: {body}",
-                    status=e.response.status_code,
-                    source=source_name,
-                    body=body,
-                )
-            except httpx.HTTPError as e:
-                logger.warning(
-                    "Failed to call docling-serve for {source}: {error}",
-                    source=source_name,
-                    error=str(e),
-                )
+                except httpx.HTTPStatusError as e:
+                    body = e.response.text
+                    logger.warning(
+                        "docling-serve returned HTTP {status} for {source}: {body}",
+                        status=e.response.status_code,
+                        source=source_name,
+                        body=body,
+                    )
+                except httpx.HTTPError as e:
+                    logger.warning(
+                        "Failed to call docling-serve for {source}: {error}",
+                        source=source_name,
+                        error=str(e),
+                    )
 
         return {"documents": documents}
 
@@ -301,31 +302,32 @@ class DoclingServeConverter:
         headers = self._build_headers()
         documents: list[Document] = []
 
-        for source, source_meta in zip(sources, meta_list, strict=True):
-            source_name = _resolve_source_name(source)
-            merged_meta = {**(source.meta if isinstance(source, ByteStream) else {}), **source_meta}
+        async with httpx.AsyncClient(timeout=self.timeout) as client:
+            for source, source_meta in zip(sources, meta_list, strict=True):
+                source_name = _resolve_source_name(source)
+                merged_meta = {**(source.meta if isinstance(source, ByteStream) else {}), **source_meta}
 
-            try:
-                if isinstance(source, str) and _is_url(source):
-                    result = await self._convert_url_async(source, headers)
-                else:
-                    result = await self._convert_file_async(source, headers)
+                try:
+                    if isinstance(source, str) and _is_url(source):
+                        result = await self._convert_url_async(client, source, headers)
+                    else:
+                        result = await self._convert_file_async(client, source, headers)
 
-                documents.append(_extract_document(result, source_name, merged_meta))
+                    documents.append(_extract_document(result, source_name, merged_meta))
 
-            except httpx.HTTPStatusError as e:
-                body = e.response.text
-                logger.warning(
-                    "docling-serve returned HTTP {status} for {source}: {body}",
-                    status=e.response.status_code,
-                    source=source_name,
-                    body=body,
-                )
-            except httpx.HTTPError as e:
-                logger.warning(
-                    "Failed to call docling-serve for {source}: {error}",
-                    source=source_name,
-                    error=str(e),
-                )
+                except httpx.HTTPStatusError as e:
+                    body = e.response.text
+                    logger.warning(
+                        "docling-serve returned HTTP {status} for {source}: {body}",
+                        status=e.response.status_code,
+                        source=source_name,
+                        body=body,
+                    )
+                except httpx.HTTPError as e:
+                    logger.warning(
+                        "Failed to call docling-serve for {source}: {error}",
+                        source=source_name,
+                        error=str(e),
+                    )
 
         return {"documents": documents}
