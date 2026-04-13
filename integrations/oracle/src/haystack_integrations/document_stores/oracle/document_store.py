@@ -28,6 +28,7 @@ _DISTANCE_ORDER: dict[str, str] = {
 
 _SAFE_TABLE_NAME = re.compile(r"^[A-Za-z_][A-Za-z0-9_$#]{0,127}$")
 
+
 @dataclass
 class OracleConnectionConfig:
     """Connection parameters for Oracle Database.
@@ -214,7 +215,6 @@ class OracleDocumentStore:
             self._ensure_table()
         if create_index:
             self.create_hnsw_index()
-
 
     def _get_pool(self) -> oracledb.ConnectionPool:
         if self._pool is not None:
