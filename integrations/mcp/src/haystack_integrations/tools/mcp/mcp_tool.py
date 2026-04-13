@@ -63,15 +63,15 @@ def _resolve_headers(headers: dict[str, str | Secret] | None) -> dict[str, str] 
     return resolved_headers
 
 
-def extract_first_text_element(result: str) -> str | dict[str, Any]:
+def _extract_first_text_element(tool_call_result: str) -> str | dict[str, Any]:
     """
-    Return the first text content block from an MCP tool response.
+    Return the first text content block from an MCP tool call result.
 
-    MCP tool responses may include mixed content types such as text, image, or
+    MCP tool call results may include mixed content types such as text, image, or
     audio blocks. This helper extracts the first text block because the tool
     invoker expects a single parsed payload rather than the full content list.
     """
-    parsed: dict = json.loads(result)
+    parsed: dict = json.loads(tool_call_result)
     content: list = parsed.get("content", [])
     for block in content:
         if isinstance(block, dict) and block.get("type") == "text":
@@ -1109,7 +1109,7 @@ class MCPTool(Tool):
             # Parse JSON to dict only when outputs_to_state is configured.
             # ToolInvoker requires dict for _merge_tool_outputs(); ToolCallResult.result expects str otherwise.
             if self.outputs_to_state:
-                return extract_first_text_element(result)
+                return _extract_first_text_element(result)
 
             return result
         except (MCPError, TimeoutError) as e:
@@ -1140,7 +1140,7 @@ class MCPTool(Tool):
             # Parse JSON to dict only when outputs_to_state is configured.
             # ToolInvoker requires dict for _merge_tool_outputs(); ToolCallResult.result expects str otherwise.
             if self.outputs_to_state:
-                return extract_first_text_element(result)
+                return _extract_first_text_element(result)
 
             return result
         except asyncio.TimeoutError as e:

@@ -15,7 +15,7 @@ from haystack_integrations.tools.mcp import (
     MCPTool,
     StdioServerInfo,
 )
-from haystack_integrations.tools.mcp.mcp_tool import StdioClient, extract_first_text_element
+from haystack_integrations.tools.mcp.mcp_tool import StdioClient, _extract_first_text_element
 
 from .mcp_memory_transport import InMemoryServerInfo
 from .mcp_servers_fixtures import calculator_mcp, echo_mcp
@@ -27,19 +27,21 @@ def simple_haystack_tool(name: str) -> str:
     return f"Hello, {name}!"
 
 
+# from https://modelcontextprotocol.io/specification/draft/server/tools#output-schema
+EXAMPLE_MCP_TOOL_CALL_RESULT = {
+    "content": [{"type": "text", "text": '{"temperature": 22.5, "conditions": "Partly cloudy", "humidity": 65}'}],
+    "structuredContent": {"temperature": 22.5, "conditions": "Partly cloudy", "humidity": 65},
+}
+
+
 def test_extract_first_text_element():
     """Test that extract_first_text skips non-text blocks and parses the first text block."""
-    result = json.dumps(
-        {
-            "content": [
-                {"type": "image", "data": "ignored"},
-                {"type": "text", "text": '{"answer": 42}'},
-                {"type": "text", "text": '{"answer": 7}'},
-            ]
-        }
-    )
+    tool_call_result = EXAMPLE_MCP_TOOL_CALL_RESULT
+    tool_call_result["content"].insert(0, {"type": "image", "data": "ignored"})
+    tool_call_result["content"].insert(1, {"type": "text", "text": '{"answer": 42}'})  # target
+    tool_call_result = json.dumps(tool_call_result)
 
-    extracted = extract_first_text_element(result)
+    extracted = _extract_first_text_element(tool_call_result)
 
     assert extracted == {"answer": 42}
 
