@@ -44,8 +44,8 @@ jobs:
     steps:
       - id: set
         run: |
-          echo 'os=${{ github.event_name == 'push' && '["ubuntu-latest"]' || env.TEST_MATRIX_OS }}' >> $GITHUB_OUTPUT
-          echo 'python-version=${{ github.event_name == 'push' && '["3.10"]' || env.TEST_MATRIX_PYTHON }}' >> $GITHUB_OUTPUT
+          echo "os=${{ github.event_name == 'push' && '["ubuntu-latest"]' || env.TEST_MATRIX_OS }}" >> $GITHUB_OUTPUT
+          echo "python-version=${{ github.event_name == 'push' && '["3.10"]' || env.TEST_MATRIX_PYTHON }}" >> $GITHUB_OUTPUT
 
   run:
     name: Python ${{ matrix.python-version }} on ${{ startsWith(matrix.os, 'macos-') && 'macOS' || startsWith(matrix.os, 'windows-') && 'Windows' || 'Linux' }}
@@ -59,11 +59,9 @@ jobs:
       matrix:
         os: ${{ fromJSON(needs.compute-test-matrix.outputs.os) }}
         python-version: ${{ fromJSON(needs.compute-test-matrix.outputs.python-version) }}
-    # Docker services are only supported on Linux GitHub Actions runners.
-    # Windows and macOS runners do not support the `services:` block.
     services:
       falkordb:
-        image: ${{ runner.os == 'Linux' && 'falkordb/falkordb:latest' || '' }}
+        image: falkordb/falkordb:latest
         ports:
           - 6379:6379
         options: >-

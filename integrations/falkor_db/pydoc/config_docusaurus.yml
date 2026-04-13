@@ -11,5 +11,5 @@ processors:
 renderer:
   description: FalkorDB integration for Haystack — GraphRAG document store, embedding retriever, and Cypher retriever
   id: integrations-falkor_db
-  filename: falkor-db.md
+  filename: falkor_db.md
   title: FalkorDB
