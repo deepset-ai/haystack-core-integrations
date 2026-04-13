@@ -457,7 +457,7 @@ class ElasticsearchDocumentStore:
         :raises ValueError: If indices or values are empty.
         """
         if not indices or not values:
-            msg = "query_sparse_embedding must contain non-empty indices and values"
+            msg = "sparse_embedding must contain non-empty indices and values"
             raise ValueError(msg)
 
         return {str(idx): val for idx, val in zip(indices, values, strict=True)}
@@ -473,6 +473,8 @@ class ElasticsearchDocumentStore:
             return
         sparse_embedding = doc_dict.pop("sparse_embedding")
         if not sparse_embedding:
+            return
+        if not sparse_embedding.get("indices"):
             return
         if self._sparse_vector_field:
             doc_dict[self._sparse_vector_field] = self._sparse_embedding_to_es_vector(

@@ -19,6 +19,7 @@ def test_init_default():
     assert retriever._document_store == mock_store
     assert retriever._filters == {}
     assert retriever._top_k == 10
+    assert retriever._filter_policy == FilterPolicy.REPLACE
 
     retriever = ElasticsearchSparseEmbeddingRetriever(document_store=mock_store, filter_policy="replace")
     assert retriever._filter_policy == FilterPolicy.REPLACE

@@ -14,7 +14,11 @@ from haystack_integrations.document_stores.elasticsearch import ElasticsearchDoc
 @pytest.fixture(scope="session")
 def supports_sparse_vector_query() -> bool:
     try:
-        version = Elasticsearch(["http://localhost:9200"]).info()["version"]["number"]
+        client = Elasticsearch(["http://localhost:9200"])
+        try:
+            version = client.info()["version"]["number"]
+        finally:
+            client.close()
         major, minor, patch = (int(x) for x in version.split(".")[:3])
     except Exception:
         return False
