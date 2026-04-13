@@ -362,6 +362,9 @@ UNWIND $docs AS doc
 MERGE (d:{self._node_label} {{id: doc.id}})
 ON CREATE SET d += doc
 ON MATCH SET d += doc
+FOREACH (_ IN CASE WHEN doc.{self._embedding_field} IS NOT NULL THEN [1] ELSE [] END |
+    SET d.{self._embedding_field} = vecf32(doc.{self._embedding_field})
+)
 RETURN count(d) AS n
 """
         else:
@@ -371,6 +374,9 @@ RETURN count(d) AS n
 UNWIND $docs AS doc
 MERGE (d:{self._node_label} {{id: doc.id}})
 ON CREATE SET d += doc
+FOREACH (_ IN CASE WHEN doc.{self._embedding_field} IS NOT NULL THEN [1] ELSE [] END |
+    SET d.{self._embedding_field} = vecf32(doc.{self._embedding_field})
+)
 RETURN count(d) AS n
 """
 
