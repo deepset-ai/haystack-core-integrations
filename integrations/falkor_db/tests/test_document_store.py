@@ -28,11 +28,13 @@ class TestFalkorDBDocumentStore:
         with pytest.raises(ValueError, match="is not supported by FalkorDBDocumentStore"):
             FalkorDBDocumentStore(similarity="dot_product")  # type: ignore
 
-    def test_write_documents_empty(self, _mock_falkordb):
+    @pytest.mark.usefixtures("mock_falkordb")
+    def test_write_documents_empty(self):
         store = FalkorDBDocumentStore()
         assert store.write_documents([]) == 0
 
-    def test_write_documents_invalid_type(self, _mock_falkordb):
+    @pytest.mark.usefixtures("mock_falkordb")
+    def test_write_documents_invalid_type(self):
         store = FalkorDBDocumentStore()
         with pytest.raises(ValueError, match="expects a list of Documents"):
             store.write_documents([{"content": "not a document"}])  # type: ignore
@@ -138,7 +140,8 @@ class TestFalkorDBDocumentStore:
         assert "WHERE" not in cypher
         assert "MATCH (d:Document) RETURN d" in cypher
 
-    def test_filter_documents_invalid(self, _mock_falkordb):
+    @pytest.mark.usefixtures("mock_falkordb")
+    def test_filter_documents_invalid(self):
         store = FalkorDBDocumentStore()
         with pytest.raises(ValueError, match="Invalid filter syntax"):
             store.filter_documents({"wrong": "syntax"})
@@ -401,7 +404,8 @@ class TestFalkorDBDocumentStore:
         cypher = mock_graph.query.call_args[0][0]
         assert "WHERE (d.tag IN $p0 AND NOT (d.status IN $p1))" in cypher
 
-    def test_filter_documents_unsupported_operator(self, _mock_falkordb):
+    @pytest.mark.usefixtures("mock_falkordb")
+    def test_filter_documents_unsupported_operator(self):
         store = FalkorDBDocumentStore()
         filters = {"field": "tag", "operator": "contains", "value": "old"}
         with pytest.raises(ValueError, match="Unsupported filter operator: 'contains'"):
