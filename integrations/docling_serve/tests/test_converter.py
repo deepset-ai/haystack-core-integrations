@@ -498,3 +498,23 @@ class TestIntegration:
         assert doc.content
         assert doc.meta["conversion_status"] == "success"
         assert doc.meta["processing_time"] > 0
+
+    @pytest.mark.skipif(
+        not os.environ.get("DOCLING_SERVE_URL"),
+        reason="Set DOCLING_SERVE_URL to run integration tests (e.g. http://localhost:5001)",
+    )
+    def test_convert_url(self):
+        """Convert a URL source against a running docling-serve instance.
+
+        This tests the /v1/convert/source endpoint with the v1 sources format
+        (discriminated union with "kind": "http").
+        """
+        url = os.environ["DOCLING_SERVE_URL"]
+        converter = DoclingServeConverter(base_url=url, api_key=None)
+        result = converter.run(sources=["https://raw.githubusercontent.com/deepset-ai/haystack/main/README.md"])
+
+        assert len(result["documents"]) == 1
+        doc = result["documents"][0]
+        assert doc.content
+        assert doc.meta["conversion_status"] == "success"
+        assert doc.meta["processing_time"] > 0

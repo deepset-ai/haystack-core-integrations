@@ -101,7 +101,25 @@ jobs:
           name: coverage-comment-docling_serve
           path: python-coverage-comment-action-docling_serve.txt
 
+      - name: Start docling-serve
+        if: runner.os == 'Linux'
+        run: |
+          docker run -d --name docling-serve -p 5001:5001 ghcr.io/docling-project/docling-serve-cpu:latest
+          echo "Waiting for docling-serve to be ready..."
+          for i in $(seq 1 60); do
+            if curl -sf http://localhost:5001/health > /dev/null 2>&1; then
+              echo "docling-serve is ready"
+              break
+            fi
+            echo "Attempt $i/60 - waiting 10s..."
+            sleep 10
+          done
+          curl -sf http://localhost:5001/health || (echo "docling-serve failed to start" && docker logs docling-serve && exit 1)
+
       - name: Run integration tests
+        if: runner.os == 'Linux'
+        env:
+          DOCLING_SERVE_URL: http://localhost:5001
         run: hatch run test:integration-cov-append-retry
 
       - name: Store combined coverage
