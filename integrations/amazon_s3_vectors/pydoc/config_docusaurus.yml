@@ -10,5 +10,5 @@ processors:
 renderer:
   description: Amazon S3 Vectors integration for Haystack
   id: integrations-amazon_s3_vectors
-  filename: amazon-s3-vectors.md
+  filename: amazon_s3_vectors.md
   title: Amazon S3 Vectors
