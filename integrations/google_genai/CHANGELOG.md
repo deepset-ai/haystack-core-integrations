@@ -1,5 +1,16 @@
 # Changelog
 
+## [integrations/google_genai-v4.0.1] - 2026-04-13
+
+### 🐛 Bug Fixes
+
+- Fix GoogleGenAIMultimodalDocumentEmbedder input format (#3136)
+
+### 🧪 Testing
+
+- Google GenAI - test_live_run_with_parallel_tools should use tool_calls finish reason (#3125)
+
+
 ## [integrations/google_genai-v4.0.0] - 2026-04-09
 
 ### 🐛 Bug Fixes
