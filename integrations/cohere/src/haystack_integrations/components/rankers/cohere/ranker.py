@@ -4,7 +4,7 @@ from typing import Any
 from haystack import Document, component, default_from_dict, default_to_dict, logging
 from haystack.utils import Secret, deserialize_secrets_inplace
 
-import cohere
+from cohere import AsyncClientV2, ClientV2
 
 logger = logging.getLogger(__name__)
 
@@ -63,7 +63,10 @@ class CohereRanker:
         self.meta_data_separator = meta_data_separator
         self.max_tokens_per_doc = max_tokens_per_doc
 
-        self._cohere_client = cohere.ClientV2(
+        self._cohere_client = ClientV2(
+            api_key=self.api_key.resolve_value(), base_url=self.api_base_url, client_name="haystack"
+        )
+        self._cohere_async_client = AsyncClientV2(
             api_key=self.api_key.resolve_value(), base_url=self.api_base_url, client_name="haystack"
         )
 
@@ -121,6 +124,33 @@ class CohereRanker:
 
         return concatenated_input_list
 
+    def _validate_and_prepare(self, documents: list[Document], top_k: int | None = None) -> tuple[list[str], int]:
+        top_k = top_k or self.top_k
+        if top_k <= 0:
+            msg = f"top_k must be > 0, but got {top_k}"
+            raise ValueError(msg)
+
+        cohere_input_docs = self._prepare_cohere_input_docs(documents)
+        if len(cohere_input_docs) > MAX_NUM_DOCS_FOR_COHERE_RANKER:
+            logger.warning(
+                f"The Cohere reranking endpoint only supports {MAX_NUM_DOCS_FOR_COHERE_RANKER} documents.\
+                The number of documents has been truncated to {MAX_NUM_DOCS_FOR_COHERE_RANKER} \
+                from {len(cohere_input_docs)}."
+            )
+            cohere_input_docs = cohere_input_docs[:MAX_NUM_DOCS_FOR_COHERE_RANKER]
+
+        return cohere_input_docs, top_k
+
+    @staticmethod
+    def _build_result(response: Any, documents: list[Document]) -> dict[str, list[Document]]:
+        indices = [output.index for output in response.results]
+        scores = [output.relevance_score for output in response.results]
+        sorted_docs = []
+        for idx, score in zip(indices, scores, strict=True):
+            doc = documents[idx]
+            sorted_docs.append(replace(doc, score=score))
+        return {"documents": sorted_docs}
+
     @component.output_types(documents=list[Document])
     def run(self, query: str, documents: list[Document], top_k: int | None = None) -> dict[str, list[Document]]:
         """
@@ -138,19 +168,7 @@ class CohereRanker:
 
         :raises ValueError: If `top_k` is not > 0.
         """
-        top_k = top_k or self.top_k
-        if top_k <= 0:
-            msg = f"top_k must be > 0, but got {top_k}"
-            raise ValueError(msg)
-
-        cohere_input_docs = self._prepare_cohere_input_docs(documents)
-        if len(cohere_input_docs) > MAX_NUM_DOCS_FOR_COHERE_RANKER:
-            logger.warning(
-                f"The Cohere reranking endpoint only supports {MAX_NUM_DOCS_FOR_COHERE_RANKER} documents.\
-                The number of documents has been truncated to {MAX_NUM_DOCS_FOR_COHERE_RANKER} \
-                from {len(cohere_input_docs)}."
-            )
-            cohere_input_docs = cohere_input_docs[:MAX_NUM_DOCS_FOR_COHERE_RANKER]
+        cohere_input_docs, top_k = self._validate_and_prepare(documents, top_k)
 
         response = self._cohere_client.rerank(
             model=self.model_name,
@@ -159,10 +177,37 @@ class CohereRanker:
             max_tokens_per_doc=self.max_tokens_per_doc,
             top_n=top_k,
         )
-        indices = [output.index for output in response.results]
-        scores = [output.relevance_score for output in response.results]
-        sorted_docs = []
-        for idx, score in zip(indices, scores, strict=True):
-            doc = documents[idx]
-            sorted_docs.append(replace(doc, score=score))
-        return {"documents": sorted_docs}
+        return self._build_result(response, documents)
+
+    @component.output_types(documents=list[Document])
+    async def run_async(
+        self, query: str, documents: list[Document], top_k: int | None = None
+    ) -> dict[str, list[Document]]:
+        """
+        Asynchronously re-rank the list of documents based on the query.
+
+        This is the asynchronous version of the `run` method. It has the same parameters and return values
+        but can be used with `await` in async code.
+
+        :param query:
+            Query string.
+        :param documents:
+            List of Documents.
+        :param top_k:
+            The maximum number of Documents you want the Ranker to return.
+        :returns:
+            A dictionary with the following keys:
+            - `documents`: List of Documents most similar to the given query in descending order of similarity.
+
+        :raises ValueError: If `top_k` is not > 0.
+        """
+        cohere_input_docs, top_k = self._validate_and_prepare(documents, top_k)
+
+        response = await self._cohere_async_client.rerank(
+            model=self.model_name,
+            query=query,
+            documents=cohere_input_docs,
+            max_tokens_per_doc=self.max_tokens_per_doc,
+            top_n=top_k,
+        )
+        return self._build_result(response, documents)

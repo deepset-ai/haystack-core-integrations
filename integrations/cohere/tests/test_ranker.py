@@ -35,6 +35,24 @@ def mock_ranker_response():
         yield mock_ranker_response
 
 
+@pytest.fixture
+def mock_async_ranker_response():
+    with patch("cohere.AsyncClientV2.rerank", autospec=True) as mock_ranker_response:
+        mock_response = Mock()
+
+        mock_ranker_res_obj1 = Mock()
+        mock_ranker_res_obj1.index = 2
+        mock_ranker_res_obj1.relevance_score = 0.98
+
+        mock_ranker_res_obj2 = Mock()
+        mock_ranker_res_obj2.index = 1
+        mock_ranker_res_obj2.relevance_score = 0.95
+
+        mock_response.results = [mock_ranker_res_obj1, mock_ranker_res_obj2]
+        mock_ranker_response.return_value = mock_response
+        yield mock_ranker_response
+
+
 class TestCohereRanker:
     def test_init_default(self, monkeypatch):
         monkeypatch.setenv("CO_API_KEY", "test-api-key")
@@ -316,6 +334,34 @@ class TestCohereRanker:
         for doc in reranked_docs:
             assert doc.score is not None
 
+    @pytest.mark.asyncio
+    async def test_run_async(self, monkeypatch, mock_async_ranker_response):  # noqa: ARG002
+        monkeypatch.setenv("CO_API_KEY", "test-api-key")
+        ranker = CohereRanker(top_k=2)
+        query = "test"
+        documents = [
+            Document(id="abcd", content="doc1", meta={"meta_field": "meta_value_1"}),
+            Document(id="efgh", content="doc2", meta={"meta_field": "meta_value_2"}),
+            Document(id="ijkl", content="doc3", meta={"meta_field": "meta_value_3"}),
+        ]
+        ranker_results = await ranker.run_async(query, documents, 2)
+
+        assert isinstance(ranker_results, dict)
+        reranked_docs = ranker_results["documents"]
+        assert reranked_docs == [
+            Document(id="ijkl", content="doc3", meta={"meta_field": "meta_value_3"}, score=0.98),
+            Document(id="efgh", content="doc2", meta={"meta_field": "meta_value_2"}, score=0.95),
+        ]
+
+    @pytest.mark.asyncio
+    async def test_run_async_negative_topk(self, monkeypatch):
+        monkeypatch.setenv("CO_API_KEY", "test-api-key")
+        ranker = CohereRanker(top_k=-2)
+        query = "test"
+        documents = [Document(content="doc1"), Document(content="doc2"), Document(content="doc3")]
+        with pytest.raises(ValueError, match=r"top_k must be > 0, but got *"):
+            await ranker.run_async(query, documents)
+
     @pytest.mark.skipif(
         not os.environ.get("COHERE_API_KEY", None) and not os.environ.get("CO_API_KEY", None),
         reason="Export an env var called COHERE_API_KEY/CO_API_KEY containing the Cohere API key to run this test.",
@@ -361,5 +407,29 @@ class TestCohereRanker:
         assert isinstance(ranker_result, dict)
         assert isinstance(ranker_result["documents"], list)
         assert len(ranker_result["documents"]) == 3
+        assert all(isinstance(doc, Document) for doc in ranker_result["documents"])
+        assert set(result_documents_contents) == set(expected_documents_content)
+
+    @pytest.mark.skipif(
+        not os.environ.get("COHERE_API_KEY", None) and not os.environ.get("CO_API_KEY", None),
+        reason="Export an env var called COHERE_API_KEY/CO_API_KEY containing the Cohere API key to run this test.",
+    )
+    @pytest.mark.integration
+    @pytest.mark.asyncio
+    async def test_live_run_async(self):
+        component = CohereRanker()
+        documents = [
+            Document(id="abcd", content="Paris is in France"),
+            Document(id="efgh", content="Berlin is in Germany"),
+            Document(id="ijkl", content="Lyon is in France"),
+        ]
+
+        ranker_result = await component.run_async("Cities in France", documents, 2)
+        expected_documents_content = ["Paris is in France", "Lyon is in France"]
+        result_documents_contents = [doc.content for doc in ranker_result["documents"]]
+
+        assert isinstance(ranker_result, dict)
+        assert isinstance(ranker_result["documents"], list)
+        assert len(ranker_result["documents"]) == 2
         assert all(isinstance(doc, Document) for doc in ranker_result["documents"])
         assert set(result_documents_contents) == set(expected_documents_content)
