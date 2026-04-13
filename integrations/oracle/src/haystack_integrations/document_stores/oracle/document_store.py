@@ -484,7 +484,7 @@ class OracleDocumentStore:
             meta = {}
 
         return Document(
-            id=raw_id.upper(),
+            id=raw_id,
             content=text,
             meta=meta,
             score=float(score) if score is not None else None,
