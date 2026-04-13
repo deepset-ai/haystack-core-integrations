@@ -207,6 +207,6 @@ def test_hnsw_index_creation(store):
 async def test_async_write_and_retrieve(store):
     doc_id = uuid4().hex.upper()[:32]
     doc = Document(id=doc_id, content="async test", meta={}, embedding=[0.5, 0.5, 0.0, 0.0])
-    await store.awrite_documents([doc])
-    results = await store._async_embedding_retrieval([0.5, 0.5, 0.0, 0.0], top_k=1)
+    await store.write_documents_async([doc])
+    results = await store._embedding_retrieval_async([0.5, 0.5, 0.0, 0.0], top_k=1)
     assert len(results) >= 1

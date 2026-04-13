@@ -14,7 +14,7 @@ def mock_store():
     store = MagicMock(spec=OracleDocumentStore)
     store.distance_metric = "COSINE"
     store._embedding_retrieval.return_value = [Document(id="A" * 32, content="hi")]
-    store._async_embedding_retrieval.return_value = [Document(id="A" * 32, content="hi")]
+    store._embedding_retrieval_async.return_value = [Document(id="A" * 32, content="hi")]
     store.to_dict.return_value = {
         "type": "haystack_integrations.document_stores.oracle.document_store.OracleDocumentStore",
         "init_parameters": {
@@ -83,5 +83,5 @@ def test_to_dict_from_dict_roundtrip(mock_store, monkeypatch):
 async def test_run_async_calls_async_retrieval(mock_store):
     retriever = OracleEmbeddingRetriever(document_store=mock_store, top_k=5)
     result = await retriever.run_async(query_embedding=[0.1, 0.2, 0.3, 0.4])
-    mock_store._async_embedding_retrieval.assert_called_once()
+    mock_store._embedding_retrieval_async.assert_called_once()
     assert "documents" in result

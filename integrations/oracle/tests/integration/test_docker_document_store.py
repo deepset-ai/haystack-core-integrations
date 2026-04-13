@@ -293,8 +293,8 @@ def test_embedding_retrieval_with_filter(store):
 @pytest.mark.asyncio
 async def test_async_write_and_count(store):
     doc = _doc(_uid("M001"))
-    await store.awrite_documents([doc])
-    count = await store.acount_documents()
+    await store.write_documents_async([doc])
+    count = await store.count_documents_async()
     assert count >= 1
 
 
@@ -303,8 +303,8 @@ async def test_async_write_and_count(store):
 async def test_async_filter_documents(store):
     tag = _uid("N")[:8]
     doc = _doc(_uid("N001"), meta={"tag": tag})
-    await store.awrite_documents([doc])
-    results = await store.afilter_documents(filters={"field": "meta.tag", "operator": "==", "value": tag})
+    await store.write_documents_async([doc])
+    results = await store.filter_documents_async(filters={"field": "meta.tag", "operator": "==", "value": tag})
     assert len(results) == 1
 
 
@@ -312,7 +312,7 @@ async def test_async_filter_documents(store):
 @pytest.mark.asyncio
 async def test_async_delete_documents(store):
     doc_id = _uid("O001")
-    await store.awrite_documents([_doc(doc_id)])
-    await store.adelete_documents([doc_id])
-    results = await store.afilter_documents(filters={"field": "id", "operator": "==", "value": doc_id})
+    await store.write_documents_async([_doc(doc_id)])
+    await store.delete_documents_async([doc_id])
+    results = await store.filter_documents_async(filters={"field": "id", "operator": "==", "value": doc_id})
     assert len(results) == 0

@@ -399,7 +399,7 @@ class OracleDocumentStore:
             rows = cur.fetchall()
         return [OracleDocumentStore._row_to_document(r) for r in rows]
 
-    async def afilter_documents(self, filters: dict[str, Any] | None = None) -> list[Document]:
+    async def filter_documents_async(self, filters: dict[str, Any] | None = None) -> list[Document]:
         return await asyncio.to_thread(self.filter_documents, filters)
 
     def delete_documents(self, document_ids: list[str]) -> None:
