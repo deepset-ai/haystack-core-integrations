@@ -22,7 +22,12 @@ def falkordb_document_store():
 
     # recreate_index=True drops the graph data on init
     store = FalkorDBDocumentStore(
-        host=host, port=port, graph_name="haystack_test", recreate_index=True, verify_connectivity=True
+        host=host,
+        port=port,
+        embedding_dim=3,
+        graph_name="haystack_test",
+        recreate_index=True,
+        verify_connectivity=True,
     )
     yield store
 
