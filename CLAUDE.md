@@ -251,7 +251,7 @@ use APOC (e.g. `apoc.do.when`, `apoc.create.uuids`, bulk-write helpers) must be 
 
 ### 3.1 — `FalkorDBEmbeddingRetriever`
 
-- [ ] **Objective:** Retrieves documents using semantic vector similarity via FalkorDB's native vector index.
+- [x] **Objective:** Retrieves documents using semantic vector similarity via FalkorDB's native vector index.
 
 - **Target Files (to create/modify):**
   - `integrations/falkor_db/src/haystack_integrations/components/retrievers/falkor_db/embedding_retriever.py` ← **CREATE**
@@ -303,7 +303,7 @@ use APOC (e.g. `apoc.do.when`, `apoc.create.uuids`, bulk-write helpers) must be 
 
 ### 3.2 — `FalkorDBCypherRetriever` (Dynamic Retriever)
 
-- [ ] **Objective:** A power-user retriever that executes an arbitrary OpenCypher query against the graph
+- [x] **Objective:** A power-user retriever that executes an arbitrary OpenCypher query against the graph
   and maps results back to Haystack `Document` objects. Enables GraphRAG traversal patterns.
 
 - **Target Files (to create/modify):**
@@ -342,7 +342,7 @@ use APOC (e.g. `apoc.do.when`, `apoc.create.uuids`, bulk-write helpers) must be 
 
 ### 3.3 — Top-level `__init__.py` exports
 
-- [ ] **Objective:** Ensure all three public classes are importable from their respective top-level
+- [x] **Objective:** Ensure all three public classes are importable from their respective top-level
   namespace packages, following the pattern of other integrations.
 
 - **Target Files:**

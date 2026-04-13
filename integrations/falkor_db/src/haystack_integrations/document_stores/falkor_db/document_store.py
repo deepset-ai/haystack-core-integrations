@@ -5,9 +5,9 @@
 from __future__ import annotations
 
 import logging
-from enum import Enum
-from typing import Any
+from typing import Any, Literal
 
+import numpy as np
 from haystack import default_from_dict, default_to_dict
 from haystack.dataclasses import Document
 from haystack.document_stores.errors import DocumentStoreError, DuplicateDocumentError
@@ -16,10 +16,7 @@ from haystack.utils import Secret
 
 logger = logging.getLogger(__name__)
 
-# Number of documents sent per UNWIND batch to avoid memory spikes.
-_WRITE_BATCH_SIZE = 100
-
-# Haystack filter operators that map to Cypher comparison operators.
+# Haystack filter operators → Cypher comparison operators.
 _COMPARISON_OPS: dict[str, str] = {
     "==": "=",
     "!=": "<>",
@@ -29,34 +26,34 @@ _COMPARISON_OPS: dict[str, str] = {
     "<=": "<=",
 }
 
-
-class SimilarityFunction(str, Enum):
-    """
-    Similarity functions supported by FalkorDB's vector index.
-
-    FalkorDB currently supports cosine and euclidean (L2) distance.
-    """
-
-    COSINE = "cosine"
-    EUCLIDEAN = "euclidean"
+SimilarityFunction = Literal["cosine", "euclidean"]
 
 
 class FalkorDBDocumentStore:
     """
-    A Haystack DocumentStore backed by FalkorDB — a high-performance graph database
-    optimised for GraphRAG workloads.
+    A Haystack DocumentStore backed by FalkorDB — a high-performance graph database.
 
-    Documents are stored as ``(:Document)`` nodes in a named FalkorDB graph.
-    Vector search is performed via FalkorDB's native vector index (no APOC required).
-    All bulk writes use ``UNWIND`` + ``MERGE`` for safe, idiomatic OpenCypher upserts.
+    Optimised for GraphRAG workloads.
+
+    Documents are stored as graph nodes (labelled ``Document`` by default) in a named
+    FalkorDB graph.  Document properties, including ``meta`` fields, are stored
+    **flat** at the same level as ``id`` and ``content`` — exactly the same layout as
+    the ``neo4j-haystack`` reference integration.
+
+    Vector search is performed via FalkorDB's native vector index —
+    **no APOC is required**.  All bulk writes use ``UNWIND`` + ``MERGE`` for safe,
+    idiomatic OpenCypher upserts.
 
     Usage example:
+
     ```python
     from haystack_integrations.document_stores.falkor_db import FalkorDBDocumentStore
     from haystack.dataclasses import Document
 
-    store = FalkorDBDocumentStore(host="localhost", port=6379, graph_name="haystack")
-    store.write_documents([Document(content="Hello, GraphRAG!")])
+    store = FalkorDBDocumentStore(host="localhost", port=6379)
+    store.write_documents([
+        Document(content="Hello, GraphRAG!", meta={"year": 2024}),
+    ])
     print(store.count_documents())  # 1
     ```
     """
@@ -69,9 +66,13 @@ class FalkorDBDocumentStore:
         graph_name: str = "haystack",
         username: str | None = None,
         password: Secret | None = None,
+        node_label: str = "Document",
         embedding_dim: int = 768,
-        similarity: SimilarityFunction | str = SimilarityFunction.COSINE,
+        embedding_field: str = "embedding",
+        similarity: SimilarityFunction = "cosine",
+        write_batch_size: int = 100,
         recreate_index: bool = False,
+        verify_connectivity: bool = False,
     ) -> None:
         """
         Create a new FalkorDBDocumentStore.
@@ -83,30 +84,51 @@ class FalkorDBDocumentStore:
         :param username: Optional username for FalkorDB authentication.
         :param password: Optional :class:`haystack.utils.Secret` holding the FalkorDB
             password. The secret value is resolved lazily on first connection.
-        :param embedding_dim: Dimensionality of the vector embeddings stored in this
-            graph. Used when creating the vector index. Defaults to ``768``.
-        :param similarity: Similarity / distance function used by the vector index.
-            Must be a :class:`SimilarityFunction` value or its string equivalent.
-            Defaults to ``"cosine"``.
+        :param node_label: Label used for document nodes in the graph.
+            Defaults to ``"Document"``.
+        :param embedding_dim: Dimensionality of the vector embeddings. Used when
+            creating the vector index. Defaults to ``768``.
+        :param embedding_field: Name of the node property that stores the embedding
+            vector. Defaults to ``"embedding"``.
+        :param similarity: Similarity function for the vector index.  Accepted values
+            are ``"cosine"`` (default) and ``"euclidean"``.
+        :param write_batch_size: Number of documents written per ``UNWIND`` batch.
+            Defaults to ``100``.
         :param recreate_index: When ``True`` the existing graph (and all its data) is
-            dropped and recreated on initialisation. Useful for testing. Defaults to
-            ``False``.
+            dropped and recreated on initialisation. Useful for tests.
+            Defaults to ``False``.
+        :param verify_connectivity: When ``True`` a connectivity probe is run
+            immediately in ``__init__`` — raises if the server is unreachable.
+            Defaults to ``False`` (lazy connection).
+        :raises ValueError: If ``similarity`` is not ``"cosine"`` or ``"euclidean"``.
         """
+        if similarity not in ("cosine", "euclidean"):
+            msg = (
+                f"Provided similarity '{similarity}' is not supported by FalkorDBDocumentStore. "
+                "Please choose one of: 'cosine', 'euclidean'."
+            )
+            raise ValueError(msg)
+
         self._host = host
         self._port = port
         self._graph_name = graph_name
         self._username = username
         self._password = password
+        self._node_label = node_label
         self._embedding_dim = embedding_dim
-        self._similarity = (
-            SimilarityFunction(similarity) if isinstance(similarity, str) else similarity
-        )
+        self._embedding_field = embedding_field
+        self._similarity: SimilarityFunction = similarity
+        self._write_batch_size = write_batch_size
         self._recreate_index = recreate_index
+        self._verify_connectivity = verify_connectivity
 
         # Lazy — populated on first use via _ensure_connected().
         self._client: Any | None = None
         self._graph: Any | None = None
         self._initialized: bool = False
+
+        if verify_connectivity:
+            self._ensure_connected()
 
     # ------------------------------------------------------------------
     # Internal connection helpers
@@ -116,13 +138,13 @@ class FalkorDBDocumentStore:
         """
         Lazily open the FalkorDB connection and set up the graph schema.
 
-        This is called at the start of every public method so that the store
-        remains serialisable without an active connection.
+        Called at the start of every public method so the store remains
+        serialisable without an active database connection.
         """
         if self._initialized:
             return
 
-        import falkordb  # noqa: PLC0415 — intentional lazy import
+        import falkordb  # type: ignore[import-untyped,import-not-found]  # noqa: PLC0415
 
         password_value = self._password.resolve_value() if self._password is not None else None
 
@@ -136,38 +158,48 @@ class FalkorDBDocumentStore:
         if self._recreate_index:
             try:
                 self._client.delete(self._graph_name)
-            except Exception:  # noqa: BLE001 — graph may not exist yet
-                pass
+            except Exception:
+                logger.debug("Graph '%s' could not be deleted (may not exist yet).", self._graph_name)
 
         self._graph = self._client.select_graph(self._graph_name)
         self._ensure_schema()
         self._initialized = True
 
+    @property
+    def _g(self) -> Any:
+        """Return the active FalkorDB Graph object, guaranteed non-None after _ensure_connected."""
+        assert self._graph is not None, "_ensure_connected() must be called first"  # noqa: S101
+        return self._graph
+
     def _ensure_schema(self) -> None:
         """
-        Create the node index and vector index if they do not already exist.
+        Create the property index and vector index if they do not already exist.
 
-        Uses only standard OpenCypher / FalkorDB-native syntax — no APOC.
+        Uses only standard OpenCypher / FalkorDB-native syntax — **no APOC**.
         """
-        # Property index on :Document(id) for fast MERGE lookups.
+        # Property index on (:node_label {id}) for fast MERGE lookups.
         try:
-            self._graph.query("CREATE INDEX FOR (d:Document) ON (d.id)")
-        except Exception:  # noqa: BLE001 — index may already exist
-            pass
+            self._g.query(f"CREATE INDEX FOR (d:{self._node_label}) ON (d.id)")
+        except Exception:
+            logger.debug("Property index on %s(id) already exists — skipping creation.", self._node_label)
 
-        # FalkorDB vector index: CALL db.idx.vector.createNodeIndex(label, property, dim, metric)
+        # FalkorDB-native vector index — equivalent to Neo4j's db.index.vector.createNodeIndex.
         try:
-            self._graph.query(
+            self._g.query(
                 "CALL db.idx.vector.createNodeIndex($label, $prop, $dim, $metric)",
                 {
-                    "label": "Document",
-                    "prop": "embedding",
+                    "label": self._node_label,
+                    "prop": self._embedding_field,
                     "dim": self._embedding_dim,
-                    "metric": self._similarity.value,
+                    "metric": self._similarity,
                 },
             )
-        except Exception:  # noqa: BLE001 — index may already exist
-            pass
+        except Exception:
+            logger.debug(
+                "Vector index on %s(%s) already exists — skipping creation.",
+                self._node_label,
+                self._embedding_field,
+            )
 
     # ------------------------------------------------------------------
     # Haystack DocumentStore protocol
@@ -177,10 +209,10 @@ class FalkorDBDocumentStore:
         """
         Return the number of documents currently stored in the graph.
 
-        :returns: Integer count of ``(:Document)`` nodes.
+        :returns: Integer count of document nodes.
         """
         self._ensure_connected()
-        result = self._graph.query("MATCH (d:Document) RETURN count(d) AS n")
+        result = self._g.query(f"MATCH (d:{self._node_label}) RETURN count(d) AS n")
         rows = result.result_set
         return int(rows[0][0]) if rows else 0
 
@@ -202,12 +234,12 @@ class FalkorDBDocumentStore:
 
         if filters:
             where_clause, params = _convert_filters(filters)
-            cypher = f"MATCH (d:Document) WHERE {where_clause} RETURN d"
+            cypher = f"MATCH (d:{self._node_label}) WHERE {where_clause} RETURN d"
         else:
-            cypher = "MATCH (d:Document) RETURN d"
+            cypher = f"MATCH (d:{self._node_label}) RETURN d"
             params = {}
 
-        result = self._graph.query(cypher, params)
+        result = self._g.query(cypher, params)
         return [_node_to_document(row[0]) for row in result.result_set]
 
     def write_documents(
@@ -218,88 +250,136 @@ class FalkorDBDocumentStore:
         """
         Write documents to the FalkorDB graph using ``UNWIND`` + ``MERGE`` for batching.
 
-        Batch size is capped at :data:`_WRITE_BATCH_SIZE` (100) per query to avoid
-        memory pressure.  No APOC is used — all upsert logic is expressed in standard
-        OpenCypher ``ON CREATE SET`` / ``ON MATCH SET`` clauses.
+        Document ``meta`` fields are stored **flat** at the same level as ``id`` and
+        ``content`` — no prefix is added.  This matches the layout used by the
+        ``neo4j-haystack`` reference integration.
 
-        :param documents: List of :class:`haystack.dataclasses.Document` objects to write.
-        :param policy: How to handle documents whose ``id`` already exists in the store.
+        :param documents: List of :class:`haystack.dataclasses.Document` objects.
+        :param policy: How to handle documents whose ``id`` already exists.
             Defaults to :attr:`DuplicatePolicy.NONE` (treated as FAIL).
-        :raises ValueError: If ``documents`` is not a list of ``Document`` objects.
-        :raises DuplicateDocumentError: If ``policy`` is FAIL / NONE and a duplicate ID
-            is encountered.
-        :raises DocumentStoreError: If any other error occurs during the write.
-        :returns: Number of documents written (or updated).
+        :raises ValueError: If ``documents`` contains non-Document elements.
+        :raises DuplicateDocumentError: If ``policy`` is FAIL / NONE and a duplicate
+            ID is encountered.
+        :raises DocumentStoreError: If any other DB error occurs.
+        :returns: Number of documents written or updated.
         """
         self._ensure_connected()
 
-        if not documents:
-            return 0
+        for doc in documents:
+            if not isinstance(doc, Document):
+                msg = f"write_documents() expects a list of Documents but got an element of type {type(doc)}."
+                raise ValueError(msg)
 
-        if not isinstance(documents[0], Document):
-            msg = "param 'documents' must contain a list of objects of type Document"
-            raise ValueError(msg)
+        if not documents:
+            logger.warning("Calling FalkorDBDocumentStore.write_documents() with an empty list.")
+            return 0
 
         if policy == DuplicatePolicy.NONE:
             policy = DuplicatePolicy.FAIL
 
+        document_objects = self._handle_duplicate_documents(documents, policy)
+
         written = 0
-        for batch_start in range(0, len(documents), _WRITE_BATCH_SIZE):
-            batch = documents[batch_start : batch_start + _WRITE_BATCH_SIZE]
+        for batch_start in range(0, len(document_objects), self._write_batch_size):
+            batch = document_objects[batch_start : batch_start + self._write_batch_size]
             written += self._write_batch(batch, policy)
 
         return written
 
+    def _handle_duplicate_documents(
+        self,
+        documents: list[Document],
+        policy: DuplicatePolicy,
+    ) -> list[Document]:
+        """
+        Mirrors neo4j-haystack: drops intra-batch duplicates and for SKIP/FAIL checks existing IDs.
+
+        Checks for IDs that already exist in the database.
+
+        :param documents: All documents to write.
+        :param policy: Duplicate handling policy.
+        :returns: Filtered list ready for batch writing.
+        :raises DuplicateDocumentError: When ``policy`` is FAIL and existing IDs found.
+        """
+        if policy in (DuplicatePolicy.SKIP, DuplicatePolicy.FAIL):
+            # Step 1: deduplicate within the incoming list itself.
+            documents = self._drop_duplicate_documents(documents)
+
+            # Step 2: find which IDs already exist in the DB.
+            ids = [doc.id for doc in documents]
+            existing = self._g.query(
+                f"UNWIND $ids AS id MATCH (d:{self._node_label} {{id: id}}) RETURN d.id",
+                {"ids": ids},
+            )
+            ids_exist_in_db: list[str] = [row[0] for row in existing.result_set]
+
+            if ids_exist_in_db and policy == DuplicatePolicy.FAIL:
+                msg = f"Document with ids '{', '.join(ids_exist_in_db)}' already exists in graph '{self._graph_name}'."
+                raise DuplicateDocumentError(msg)
+
+            # For SKIP: remove those that already exist.
+            if ids_exist_in_db:
+                existing_set = set(ids_exist_in_db)
+                documents = [d for d in documents if d.id not in existing_set]
+
+        return documents
+
+    def _drop_duplicate_documents(self, documents: list[Document]) -> list[Document]:
+        """
+        Drop duplicate documents (by ID) within the provided list.
+
+        :param documents: Input list — may contain repeated IDs.
+        :returns: Deduplicated list preserving first-occurrence order.
+        """
+        seen_ids: set[str] = set()
+        unique: list[Document] = []
+        for doc in documents:
+            if doc.id in seen_ids:
+                logger.info(
+                    "Duplicate Documents: Document with id '%s' already present in the batch — skipping.",
+                    doc.id,
+                )
+                continue
+            unique.append(doc)
+            seen_ids.add(doc.id)
+        return unique
+
     def _write_batch(self, documents: list[Document], policy: DuplicatePolicy) -> int:
         """
-        Write a single batch of documents using UNWIND.
+        Write a single batch of documents using a single UNWIND query.
 
-        :param documents: Batch of documents (≤ _WRITE_BATCH_SIZE).
-        :param policy: Duplicate handling policy.
-        :returns: Number of documents successfully written / updated.
+        By the time this is called, duplicate handling has already been performed by
+        :meth:`_handle_duplicate_documents`.
+
+        :param documents: Batch of Documents (≤ ``write_batch_size``).
+        :param policy: Duplicate policy — only OVERWRITE needs a different Cypher template.
+        :returns: Number of nodes created or updated.
         """
-        docs_data = [_document_to_node_props(doc) for doc in documents]
+        records = [_document_to_falkordb_record(doc) for doc in documents]
 
         if policy == DuplicatePolicy.OVERWRITE:
-            cypher = """
+            # ON MATCH SET applies the full map (including updated fields).
+            cypher = f"""
 UNWIND $docs AS doc
-MERGE (d:Document {id: doc.id})
+MERGE (d:{self._node_label} {{id: doc.id}})
 ON CREATE SET d += doc
 ON MATCH SET d += doc
 RETURN count(d) AS n
 """
-        elif policy == DuplicatePolicy.SKIP:
-            cypher = """
-UNWIND $docs AS doc
-MERGE (d:Document {id: doc.id})
-ON CREATE SET d += doc
-RETURN count(d) AS n
-"""
         else:
-            # FAIL policy: detect pre-existing nodes before writing.
-            ids = [d["id"] for d in docs_data]
-            existing = self._graph.query(
-                "UNWIND $ids AS id MATCH (d:Document {id: id}) RETURN d.id",
-                {"ids": ids},
-            )
-            existing_ids = {row[0] for row in existing.result_set}
-            if existing_ids:
-                msg = f"IDs {sorted(existing_ids)!r} already exist in the document store."
-                raise DuplicateDocumentError(msg)
-
-            cypher = """
+            # FAIL already filtered duplicates above; SKIP excluded them.
+            # In both remaining cases we only write truly-new nodes.
+            cypher = f"""
 UNWIND $docs AS doc
-MERGE (d:Document {id: doc.id})
+MERGE (d:{self._node_label} {{id: doc.id}})
 ON CREATE SET d += doc
 RETURN count(d) AS n
 """
 
         try:
-            result = self._graph.query(cypher, {"docs": docs_data})
+            result = self._g.query(cypher, {"docs": records})
             rows = result.result_set
             return int(rows[0][0]) if rows else len(documents)
-        except DuplicateDocumentError:
-            raise
         except Exception as exc:
             msg = f"Failed to write documents to FalkorDB: {exc}"
             raise DocumentStoreError(msg) from exc
@@ -313,8 +393,8 @@ RETURN count(d) AS n
         self._ensure_connected()
         if not document_ids:
             return
-        self._graph.query(
-            "UNWIND $ids AS id MATCH (d:Document {id: id}) DETACH DELETE d",
+        self._g.query(
+            f"UNWIND $ids AS id MATCH (d:{self._node_label} {{id: id}}) DETACH DELETE d",
             {"ids": document_ids},
         )
 
@@ -327,17 +407,23 @@ RETURN count(d) AS n
         query_embedding: list[float],
         top_k: int = 10,
         filters: dict[str, Any] | None = None,
+        scale_score: bool = True,
     ) -> list[Document]:
         """
         Retrieve documents by vector similarity using FalkorDB's native vector index.
 
-        The query uses ``CALL db.idx.vector.queryNodes`` — FalkorDB's OpenCypher
-        extension for ANN search.  No APOC is required.
+        Uses ``CALL db.idx.vector.queryNodes`` — FalkorDB's OpenCypher extension for
+        ANN search.  **No APOC is required.**
+
+        Cosine scores are returned in ``[-1, 1]``; when ``scale_score=True`` they are
+        scaled to ``[0, 1]`` using the same formula as neo4j-haystack:
+        ``(score + 1) / 2``.  Euclidean scores are transformed with a sigmoid.
 
         :param query_embedding: Query vector as a plain Python list of floats.
         :param top_k: Maximum number of results to return.
         :param filters: Optional Haystack filters applied as a ``WHERE`` predicate
-            inside the vector search result set.
+            on the vector search result set (post-filter).
+        :param scale_score: Whether to scale the raw similarity score to ``[0, 1]``.
         :returns: List of :class:`Document` objects ordered by similarity (best first).
         """
         self._ensure_connected()
@@ -345,7 +431,7 @@ RETURN count(d) AS n
         if filters:
             where_clause, filter_params = _convert_filters(filters)
             cypher = f"""
-CALL db.idx.vector.queryNodes('Document', 'embedding', $top_k, vecf32($query_embedding))
+CALL db.idx.vector.queryNodes('{self._node_label}', '{self._embedding_field}', $top_k, vecf32($query_embedding))
 YIELD node AS d, score
 WHERE {where_clause}
 RETURN d, score
@@ -357,20 +443,20 @@ ORDER BY score ASC
                 **filter_params,
             }
         else:
-            cypher = """
-CALL db.idx.vector.queryNodes('Document', 'embedding', $top_k, vecf32($query_embedding))
+            cypher = f"""
+CALL db.idx.vector.queryNodes('{self._node_label}', '{self._embedding_field}', $top_k, vecf32($query_embedding))
 YIELD node AS d, score
 RETURN d, score
 ORDER BY score ASC
 """
             params = {"top_k": top_k, "query_embedding": query_embedding}
 
-        result = self._graph.query(cypher, params)
+        result = self._g.query(cypher, params)
         documents = []
         for row in result.result_set:
             node, score = row[0], row[1]
             doc = _node_to_document(node)
-            doc.score = float(score)
+            doc.score = self._scale_to_unit_interval(float(score)) if scale_score else float(score)
             documents.append(doc)
         return documents
 
@@ -382,8 +468,8 @@ ORDER BY score ASC
         """
         Execute an arbitrary OpenCypher query and map the results to Documents.
 
-        Each result row must contain at least one node or map that can be coerced
-        into a :class:`Document`.  The first element of each row is used.
+        The first element of each result row is converted to a
+        :class:`haystack.dataclasses.Document`.
 
         :param cypher_query: A valid OpenCypher query string.
         :param parameters: Optional query parameters (``$param`` placeholders).
@@ -392,11 +478,26 @@ ORDER BY score ASC
         """
         self._ensure_connected()
         try:
-            result = self._graph.query(cypher_query, parameters or {})
+            result = self._g.query(cypher_query, parameters or {})
             return [_node_to_document(row[0]) for row in result.result_set]
         except Exception as exc:
             msg = f"Cypher query failed: {exc}"
             raise DocumentStoreError(msg) from exc
+
+    def _scale_to_unit_interval(self, score: float) -> float:
+        """
+        Scale a raw similarity score to the unit interval ``[0, 1]``.
+
+        Mirrors the scaling formula used in neo4j-haystack:
+        - Cosine: ``(score + 1) / 2``
+        - Euclidean: sigmoid ``1 / (1 + exp(-score / 100))``
+
+        :param score: Raw score returned by the vector index.
+        :returns: Scaled score in ``[0, 1]``.
+        """
+        if self._similarity == "cosine":
+            return (score + 1) / 2
+        return float(1 / (1 + np.exp(-score / 100)))
 
     # ------------------------------------------------------------------
     # Serialisation
@@ -415,13 +516,17 @@ ORDER BY score ASC
             graph_name=self._graph_name,
             username=self._username,
             password=self._password.to_dict() if self._password is not None else None,
+            node_label=self._node_label,
             embedding_dim=self._embedding_dim,
-            similarity=self._similarity.value,
+            embedding_field=self._embedding_field,
+            similarity=self._similarity,
+            write_batch_size=self._write_batch_size,
             recreate_index=self._recreate_index,
+            verify_connectivity=self._verify_connectivity,
         )
 
     @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "FalkorDBDocumentStore":
+    def from_dict(cls, data: dict[str, Any]) -> FalkorDBDocumentStore:
         """
         Deserialise a FalkorDBDocumentStore from a dictionary.
 
@@ -439,66 +544,50 @@ ORDER BY score ASC
 # ---------------------------------------------------------------------------
 
 
-def _document_to_node_props(doc: Document) -> dict[str, Any]:
+def _document_to_falkordb_record(doc: Document) -> dict[str, Any]:
     """
-    Convert a Haystack Document to a flat dict suitable for storing as node properties.
+    Convert a Haystack Document to a flat dict for storage as FalkorDB node properties.
 
-    FalkorDB stores float arrays natively, so embeddings are passed as-is.
-    Metadata is flattened into top-level properties with a ``meta_`` prefix to
-    avoid collisions with reserved property names (``id``, ``content``, ``score``).
+    Mirrors the ``_DefaultDocumentMarshaller`` from neo4j-haystack:
+
+    - ``meta`` fields are stored **at the same level** as ``id`` and ``content``
+      (i.e. **no** ``meta_`` prefix).
+    - The ``score`` field is excluded — it is a retrieval-time value, not stored data.
+    - ``Document.to_dict(flatten=True)`` is used so nested ``meta`` dicts are
+      also flattened (e.g. ``{"meta": {"a": {"b": 1}}}`` → ``{"a.b": 1}``).
 
     :param doc: The document to convert.
     :returns: Flat dictionary of node properties.
     """
-    props: dict[str, Any] = {"id": doc.id}
+    doc_dict = doc.to_dict(flatten=True)
 
-    if doc.content is not None:
-        props["content"] = doc.content
+    # Remove runtime-only / non-serialisable fields.
+    doc_dict.pop("score", None)
+    doc_dict.pop("sparse_embedding", None)
 
-    if doc.embedding is not None:
-        props["embedding"] = doc.embedding
-
-    if doc.meta:
-        for key, value in doc.meta.items():
-            props[f"meta_{key}"] = value
-
-    return props
+    # Filter out None values — FalkorDB nodes don't need null properties stored.
+    return {k: v for k, v in doc_dict.items() if v is not None}
 
 
 def _node_to_document(node: Any) -> Document:
     """
-    Convert a FalkorDB graph node (or property map) back to a Haystack Document.
+    Convert a FalkorDB graph node back to a Haystack Document.
 
-    :param node: A FalkorDB ``Node`` object or a ``dict``-like mapping.
+    Because properties are stored flat (see :func:`_document_to_falkordb_record`),
+    reconstruction uses ``Document.from_dict`` directly — the same approach taken
+    by neo4j-haystack's ``_neo4j_record_to_document``.
+
+    :param node: A FalkorDB ``Node`` object or a plain ``dict``.
     :returns: Reconstructed :class:`haystack.dataclasses.Document`.
     """
-    # FalkorDB Node objects expose their properties via .properties dict.
     if hasattr(node, "properties"):
-        props: dict[str, Any] = dict(node.properties)
+        record: dict[str, Any] = dict(node.properties)
     elif isinstance(node, dict):
-        props = node
+        record = node
     else:
-        props = {}
+        record = {}
 
-    doc_id: str = props.pop("id", "")
-    content: str | None = props.pop("content", None)
-    embedding: list[float] | None = props.pop("embedding", None)
-    score: float | None = props.pop("score", None)
-
-    # Re-assemble metadata from the ``meta_`` prefixed properties.
-    meta: dict[str, Any] = {}
-    remaining = dict(props)
-    for key in list(remaining):
-        if key.startswith("meta_"):
-            meta[key[5:]] = remaining.pop(key)
-
-    return Document(
-        id=doc_id,
-        content=content,
-        embedding=list(embedding) if embedding is not None else None,
-        score=score,
-        meta=meta,
-    )
+    return Document.from_dict(record)
 
 
 def _convert_filters(filters: dict[str, Any]) -> tuple[str, dict[str, Any]]:
@@ -506,15 +595,16 @@ def _convert_filters(filters: dict[str, Any]) -> tuple[str, dict[str, Any]]:
     Translate a Haystack filter dict into an OpenCypher ``WHERE`` sub-expression.
 
     Supports the full Haystack filter DSL:
-    - Logical operators: ``AND``, ``OR``, ``NOT``
-    - Comparison operators: ``==``, ``!=``, ``>``, ``>=``, ``<``, ``<=``
-    - Membership operators: ``in``, ``not in``
+
+    - Logical: ``AND``, ``OR``, ``NOT``
+    - Comparison: ``==``, ``!=``, ``>``, ``>=``, ``<``, ``<=``
+    - Membership: ``in``, ``not in``
 
     All values are passed as named query parameters to prevent injection.
 
     :param filters: A Haystack filter dictionary.
     :returns: Tuple of ``(where_clause_string, params_dict)``.
-    :raises ValueError: If an unsupported operator or malformed filter is found.
+    :raises ValueError: If an unsupported operator or malformed filter is provided.
     """
     params: dict[str, Any] = {}
     clause = _build_clause(filters, params, counter=[0])
@@ -550,13 +640,9 @@ def _build_clause(node: dict[str, Any], params: dict[str, Any], counter: list[in
     field: str = node.get("field", "")
     value: Any = node.get("value")
 
-    # Map Haystack field names to Cypher property access.
-    # Top-level fields (content, id) are accessed directly; metadata fields
-    # are stored with a ``meta_`` prefix (see _document_to_node_props).
-    if field in ("id", "content", "embedding"):
-        cypher_field = f"d.{field}"
-    else:
-        cypher_field = f"d.meta_{field}"
+    # Because meta fields are stored flat (no prefix), all fields map to d.<field>.
+    # Top-level Document fields (id, content, embedding) are among them too.
+    cypher_field = f"d.{field}"
 
     param_name = f"p{counter[0]}"
     counter[0] += 1
