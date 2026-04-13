@@ -144,7 +144,7 @@ use APOC (e.g. `apoc.do.when`, `apoc.create.uuids`, bulk-write helpers) must be 
 
 ### 2.1 — Implement `FalkorDBDocumentStore`
 
-- [ ] **Objective:** A fully `DocumentStore`-protocol-compliant class that stores Haystack `Document`
+- [x] **Objective:** A fully `DocumentStore`-protocol-compliant class that stores Haystack `Document`
   objects as graph nodes in FalkorDB, with full CRUD, filtering, and UNWIND-based batch writes.
 
 - **Target Files (to create/modify):**
@@ -520,4 +520,4 @@ tests require a live FalkorDB container.*
 
 ---
 
-*Last updated: 2026-04-13 — Phase 1 complete. Ready for Phase 2.*
+*Last updated: 2026-04-13 — Phase 1 ✅ Phase 2 ✅. Ready for Phase 3.*
