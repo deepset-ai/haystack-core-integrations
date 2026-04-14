@@ -19,10 +19,9 @@ def _create_openai_clients(
     """
     Build sync and async OpenAI clients pointing at a vLLM server.
 
-    A placeholder api key is used when the user did not supply one and no `VLLM_API_KEY` env var is
-    set, because the OpenAI client requires a non-empty value. `timeout` and `max_retries` are only
-    forwarded when provided: when None, the OpenAI client's own defaults apply and no `OPENAI_*`
-    env vars are read.
+    A placeholder api key is used when the user did not supply one and no `VLLM_API_KEY` env var is set, because the
+    OpenAI client requires a non-empty value.
+    `timeout` and `max_retries` are only forwarded when provided: when None, the OpenAI client's own defaults apply.
     """
     resolved_api_key = "placeholder-api-key"
     if api_key is not None and (value := api_key.resolve_value()):

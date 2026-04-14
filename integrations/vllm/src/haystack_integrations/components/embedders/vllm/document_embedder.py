@@ -31,7 +31,7 @@ class VLLMDocumentEmbedder:
     Before using this component, start a vLLM server with an embedding model:
 
     ```bash
-    vllm serve intfloat/e5-mistral-7b-instruct
+    vllm serve google/embeddinggemma-300m
     ```
 
     For details on server options, see the [vLLM CLI docs](https://docs.vllm.ai/en/stable/cli/serve/).
@@ -44,7 +44,7 @@ class VLLMDocumentEmbedder:
 
     doc = Document(content="I love pizza!")
 
-    document_embedder = VLLMDocumentEmbedder(model="intfloat/e5-mistral-7b-instruct")
+    document_embedder = VLLMDocumentEmbedder(model="google/embeddinggemma-300m")
 
     result = document_embedder.run([doc])
     print(result["documents"][0].embedding)
@@ -57,8 +57,8 @@ class VLLMDocumentEmbedder:
 
     ```python
     document_embedder = VLLMDocumentEmbedder(
-        model="jinaai/jina-embeddings-v3",
-        extra_parameters={"dimensions": 32, "truncate_prompt_tokens": 256},
+        model="google/embeddinggemma-300m",
+        extra_parameters={"truncate_prompt_tokens": 256, "truncation_side": "right"},
     )
     ```
     """
@@ -71,6 +71,7 @@ class VLLMDocumentEmbedder:
         api_base_url: str = "http://localhost:8000/v1",
         prefix: str = "",
         suffix: str = "",
+        dimensions: int | None = None,
         batch_size: int = 32,
         progress_bar: bool = True,
         meta_fields_to_embed: list[str] | None = None,
@@ -84,16 +85,21 @@ class VLLMDocumentEmbedder:
         """
         Creates an instance of VLLMDocumentEmbedder.
 
-        :param model: The name of the model served by vLLM (e.g., "intfloat/e5-mistral-7b-instruct").
+        :param model: The name of the model served by vLLM. Check
+        [vLLM's documentation](https://docs.vllm.ai/en/stable/models/pooling_models) for more information.
         :param api_key: The vLLM API key. Defaults to the `VLLM_API_KEY` environment variable.
             Only required if the vLLM server was started with `--api-key`.
         :param api_base_url: The base URL of the vLLM server.
         :param prefix: A string to add at the beginning of each text.
         :param suffix: A string to add at the end of each text.
-        :param batch_size: Number of Documents to encode at once.
-        :param progress_bar: Whether to show a progress bar. Disable in production to keep logs clean.
-        :param meta_fields_to_embed: List of meta fields to embed along with the Document text.
-        :param embedding_separator: Separator used to concatenate the meta fields to the Document text.
+        :param dimensions: The number of dimensions of the resulting embedding. Only models trained with
+            Matryoshka Representation Learning support this parameter. See
+            [vLLMs documentation](https://docs.vllm.ai/en/stable/models/pooling_models/embed/#matryoshka-embeddings)
+            for more information.
+        :param batch_size: Number of documents to encode at once.
+        :param progress_bar: Whether to show a progress bar.
+        :param meta_fields_to_embed: List of meta fields to embed along with the document text.
+        :param embedding_separator: Separator used to concatenate the meta fields to the document text.
         :param timeout: Timeout in seconds for vLLM client calls. If not set, the OpenAI client default applies.
         :param max_retries: Maximum number of retries for failed requests. If not set, the OpenAI client
             default applies.
@@ -104,15 +110,15 @@ class VLLMDocumentEmbedder:
             the component logs the error and continues processing the remaining documents.
         :param extra_parameters: Additional parameters forwarded as `extra_body` to the vLLM embeddings
             endpoint. Use this to pass parameters not part of the standard OpenAI Embeddings API, such as
-            `dimensions` (for Matryoshka models), `truncate_prompt_tokens`, `truncation_side`,
-            `additional_data`, `use_activation`, etc. See the
-            [vLLM Embeddings API docs](https://docs.vllm.ai/en/stable/models/pooling_models.html#openai-compatible-embeddings-api).
+            `truncate_prompt_tokens`, `truncation_side`, etc. See the
+            [vLLM Embeddings API docs](https://docs.vllm.ai/en/stable/models/pooling_models/embed/#openai-compatible-embeddings-api).
         """
         self.model = model
         self.api_key = api_key
         self.api_base_url = api_base_url
         self.prefix = prefix
         self.suffix = suffix
+        self.dimensions = dimensions
         self.batch_size = batch_size
         self.progress_bar = progress_bar
         self.meta_fields_to_embed = meta_fields_to_embed or []
@@ -149,10 +155,11 @@ class VLLMDocumentEmbedder:
         return default_to_dict(
             self,
             model=self.model,
-            api_key=self.api_key.to_dict() if self.api_key else None,
+            api_key=self.api_key,
             api_base_url=self.api_base_url,
             prefix=self.prefix,
             suffix=self.suffix,
+            dimensions=self.dimensions,
             batch_size=self.batch_size,
             progress_bar=self.progress_bar,
             meta_fields_to_embed=self.meta_fields_to_embed,
@@ -183,6 +190,8 @@ class VLLMDocumentEmbedder:
 
     def _prepare_input(self, inputs: list[str]) -> dict[str, Any]:
         kwargs: dict[str, Any] = {"model": self.model, "input": inputs, "encoding_format": "float"}
+        if self.dimensions is not None:
+            kwargs["dimensions"] = self.dimensions
         if self.extra_parameters:
             kwargs["extra_body"] = self.extra_parameters
         return kwargs

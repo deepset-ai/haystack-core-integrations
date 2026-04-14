@@ -33,6 +33,7 @@ class TestVLLMTextEmbedder:
         assert embedder.model == MODEL
         assert embedder.prefix == ""
         assert embedder.suffix == ""
+        assert embedder.dimensions is None
         assert embedder.timeout is None
         assert embedder.max_retries is None
         assert embedder.http_client_kwargs is None
@@ -48,6 +49,7 @@ class TestVLLMTextEmbedder:
             api_base_url="http://my-vllm-server:8000/v1",
             prefix="START",
             suffix="END",
+            dimensions=64,
             timeout=10.0,
             max_retries=2,
             http_client_kwargs={"proxy": "https://proxy.example.com"},
@@ -58,6 +60,7 @@ class TestVLLMTextEmbedder:
         assert embedder.model == MODEL
         assert embedder.prefix == "START"
         assert embedder.suffix == "END"
+        assert embedder.dimensions == 64
         assert embedder.timeout == 10.0
         assert embedder.max_retries == 2
         assert embedder.http_client_kwargs == {"proxy": "https://proxy.example.com"}
@@ -90,6 +93,7 @@ class TestVLLMTextEmbedder:
                 "api_base_url": "http://localhost:8000/v1",
                 "prefix": "",
                 "suffix": "",
+                "dimensions": None,
                 "timeout": None,
                 "max_retries": None,
                 "http_client_kwargs": None,
@@ -107,26 +111,30 @@ class TestVLLMTextEmbedder:
                 "api_base_url": "http://localhost:8000/v1",
                 "prefix": "",
                 "suffix": "",
+                "dimensions": 32,
                 "timeout": None,
                 "max_retries": None,
                 "http_client_kwargs": None,
-                "extra_parameters": {"dimensions": 32},
+                "extra_parameters": None,
             },
         }
         embedder = VLLMTextEmbedder.from_dict(data)
         assert embedder.api_key == Secret.from_env_var("VLLM_API_KEY", strict=False)
         assert embedder.model == MODEL
         assert embedder.api_base_url == "http://localhost:8000/v1"
-        assert embedder.extra_parameters == {"dimensions": 32}
+        assert embedder.dimensions == 32
 
-    def test_prepare_input_adds_extra_body(self):
-        embedder = VLLMTextEmbedder(model=MODEL, prefix="[", suffix="]", extra_parameters={"dimensions": 32})
+    def test_prepare_input_adds_dimensions_and_extra_body(self):
+        embedder = VLLMTextEmbedder(
+            model=MODEL, prefix="[", suffix="]", dimensions=32, extra_parameters={"truncate_prompt_tokens": 256}
+        )
         kwargs = embedder._prepare_input("hello")
         assert kwargs == {
             "model": MODEL,
             "input": "[hello]",
             "encoding_format": "float",
-            "extra_body": {"dimensions": 32},
+            "dimensions": 32,
+            "extra_body": {"truncate_prompt_tokens": 256},
         }
 
     def test_run_wrong_input_format(self):
@@ -135,7 +143,7 @@ class TestVLLMTextEmbedder:
             embedder.run(text=["text_1", "text_2"])
 
     def test_run_with_mock(self):
-        embedder = VLLMTextEmbedder(model=MODEL, prefix="[", suffix="]", extra_parameters={"dimensions": 2})
+        embedder = VLLMTextEmbedder(model=MODEL, prefix="[", suffix="]", dimensions=2)
         embedder._client = MagicMock()
         embedder._client.embeddings.create.return_value = _fake_response([[0.1, 0.2]])
         embedder._is_warmed_up = True
@@ -144,7 +152,7 @@ class TestVLLMTextEmbedder:
 
         call_kwargs = embedder._client.embeddings.create.call_args.kwargs
         assert call_kwargs["input"] == "[hello]"
-        assert call_kwargs["extra_body"] == {"dimensions": 2}
+        assert call_kwargs["dimensions"] == 2
         assert result == {
             "embedding": [0.1, 0.2],
             "meta": {"model": "fake-model", "usage": {"prompt_tokens": 5, "total_tokens": 5}},

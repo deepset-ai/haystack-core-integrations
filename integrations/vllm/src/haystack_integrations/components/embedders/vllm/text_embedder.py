@@ -25,7 +25,7 @@ class VLLMTextEmbedder:
     Before using this component, start a vLLM server with an embedding model:
 
     ```bash
-    vllm serve intfloat/e5-mistral-7b-instruct
+    vllm serve google/embeddinggemma-300m
     ```
 
     For details on server options, see the [vLLM CLI docs](https://docs.vllm.ai/en/stable/cli/serve/).
@@ -35,7 +35,7 @@ class VLLMTextEmbedder:
     ```python
     from haystack_integrations.components.embedders.vllm import VLLMTextEmbedder
 
-    text_embedder = VLLMTextEmbedder(model="intfloat/e5-mistral-7b-instruct")
+    text_embedder = VLLMTextEmbedder(model="google/embeddinggemma-300m")
     print(text_embedder.run("I love pizza!"))
     ```
 
@@ -46,8 +46,8 @@ class VLLMTextEmbedder:
 
     ```python
     text_embedder = VLLMTextEmbedder(
-        model="jinaai/jina-embeddings-v3",
-        extra_parameters={"dimensions": 32, "truncate_prompt_tokens": 256},
+        model="google/embeddinggemma-300m",
+        extra_parameters={"truncate_prompt_tokens": 256, "truncation_side": "right"},
     )
     ```
     """
@@ -60,6 +60,7 @@ class VLLMTextEmbedder:
         api_base_url: str = "http://localhost:8000/v1",
         prefix: str = "",
         suffix: str = "",
+        dimensions: int | None = None,
         timeout: float | None = None,
         max_retries: int | None = None,
         http_client_kwargs: dict[str, Any] | None = None,
@@ -74,6 +75,10 @@ class VLLMTextEmbedder:
         :param api_base_url: The base URL of the vLLM server.
         :param prefix: A string to add at the beginning of each text to embed.
         :param suffix: A string to add at the end of each text to embed.
+        :param dimensions: The number of dimensions of the resulting embedding. Only models trained with
+            Matryoshka Representation Learning support this parameter. See
+            [vLLMs documentation](https://docs.vllm.ai/en/stable/models/pooling_models/embed/#matryoshka-embeddings)
+            for more information.
         :param timeout: Timeout in seconds for vLLM client calls. If not set, the OpenAI client default applies.
         :param max_retries: Maximum number of retries for failed requests. If not set, the OpenAI client
             default applies.
@@ -82,15 +87,15 @@ class VLLMTextEmbedder:
             [HTTPX documentation](https://www.python-httpx.org/api/#client).
         :param extra_parameters: Additional parameters forwarded as `extra_body` to the vLLM embeddings
             endpoint. Use this to pass parameters not part of the standard OpenAI Embeddings API, such as
-            `dimensions` (for Matryoshka models), `truncate_prompt_tokens`, `truncation_side`,
-            `additional_data`, `use_activation`, etc. See the
-            [vLLM Embeddings API docs](https://docs.vllm.ai/en/stable/models/pooling_models.html#openai-compatible-embeddings-api).
+            `truncate_prompt_tokens`, `truncation_side`, `additional_data`, `use_activation`, etc. See the
+            [vLLM Embeddings API docs](https://docs.vllm.ai/en/stable/models/pooling_models/embed/#openai-compatible-embeddings-api).
         """
         self.model = model
         self.api_key = api_key
         self.api_base_url = api_base_url
         self.prefix = prefix
         self.suffix = suffix
+        self.dimensions = dimensions
         self.timeout = timeout
         self.max_retries = max_retries
         self.http_client_kwargs = http_client_kwargs
@@ -126,6 +131,7 @@ class VLLMTextEmbedder:
             api_base_url=self.api_base_url,
             prefix=self.prefix,
             suffix=self.suffix,
+            dimensions=self.dimensions,
             timeout=self.timeout,
             max_retries=self.max_retries,
             http_client_kwargs=self.http_client_kwargs,
@@ -150,6 +156,8 @@ class VLLMTextEmbedder:
             "input": self.prefix + text + self.suffix,
             "encoding_format": "float",
         }
+        if self.dimensions is not None:
+            kwargs["dimensions"] = self.dimensions
         if self.extra_parameters:
             kwargs["extra_body"] = self.extra_parameters
         return kwargs

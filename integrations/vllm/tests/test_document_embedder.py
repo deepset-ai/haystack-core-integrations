@@ -39,6 +39,7 @@ class TestVLLMDocumentEmbedder:
         assert embedder.api_base_url == "http://localhost:8000/v1"
         assert embedder.prefix == ""
         assert embedder.suffix == ""
+        assert embedder.dimensions is None
         assert embedder.batch_size == 32
         assert embedder.progress_bar is True
         assert embedder.meta_fields_to_embed == []
@@ -56,6 +57,7 @@ class TestVLLMDocumentEmbedder:
             api_base_url="http://my-vllm-server:8000/v1",
             prefix="START",
             suffix="END",
+            dimensions=64,
             batch_size=64,
             progress_bar=False,
             meta_fields_to_embed=["test_field"],
@@ -67,6 +69,7 @@ class TestVLLMDocumentEmbedder:
         assert embedder.api_base_url == "http://my-vllm-server:8000/v1"
         assert embedder.prefix == "START"
         assert embedder.suffix == "END"
+        assert embedder.dimensions == 64
         assert embedder.batch_size == 64
         assert embedder.progress_bar is False
         assert embedder.meta_fields_to_embed == ["test_field"]
@@ -101,6 +104,7 @@ class TestVLLMDocumentEmbedder:
                 "api_base_url": "http://localhost:8000/v1",
                 "prefix": "",
                 "suffix": "",
+                "dimensions": None,
                 "batch_size": 32,
                 "progress_bar": True,
                 "meta_fields_to_embed": [],
@@ -123,6 +127,7 @@ class TestVLLMDocumentEmbedder:
                 "api_base_url": "http://localhost:8000/v1",
                 "prefix": "",
                 "suffix": "",
+                "dimensions": 32,
                 "batch_size": 32,
                 "progress_bar": True,
                 "meta_fields_to_embed": [],
@@ -131,7 +136,7 @@ class TestVLLMDocumentEmbedder:
                 "max_retries": None,
                 "http_client_kwargs": None,
                 "raise_on_failure": False,
-                "extra_parameters": {"dimensions": 32},
+                "extra_parameters": None,
             },
         }
         embedder = VLLMDocumentEmbedder.from_dict(data)
@@ -139,7 +144,7 @@ class TestVLLMDocumentEmbedder:
         assert embedder.model == MODEL
         assert embedder.api_base_url == "http://localhost:8000/v1"
         assert embedder.batch_size == 32
-        assert embedder.extra_parameters == {"dimensions": 32}
+        assert embedder.dimensions == 32
 
     def test_prepare_texts_to_embed(self):
         embedder = VLLMDocumentEmbedder(
@@ -149,14 +154,15 @@ class TestVLLMDocumentEmbedder:
         texts = embedder._prepare_texts_to_embed([doc])
         assert texts == {doc.id: "[ML | hello]"}
 
-    def test_prepare_input_adds_extra_body(self):
-        embedder = VLLMDocumentEmbedder(model=MODEL, extra_parameters={"dimensions": 32})
+    def test_prepare_input_adds_dimensions_and_extra_body(self):
+        embedder = VLLMDocumentEmbedder(model=MODEL, dimensions=32, extra_parameters={"truncate_prompt_tokens": 256})
         kwargs = embedder._prepare_input(["a", "b"])
         assert kwargs == {
             "model": MODEL,
             "input": ["a", "b"],
             "encoding_format": "float",
-            "extra_body": {"dimensions": 32},
+            "dimensions": 32,
+            "extra_body": {"truncate_prompt_tokens": 256},
         }
 
     def test_run_wrong_input_format(self):
