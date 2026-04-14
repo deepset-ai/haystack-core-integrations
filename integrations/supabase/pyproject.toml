@@ -142,7 +142,7 @@ ban-relative-imports = "parents"
 "tests/**/*" = ["PLR2004", "S101", "TID252", "D", "ANN"]
 
 [tool.coverage.run]
-source = ["haystack_integrations"]
+source = ["haystack_integrations.document_stores.supabase", "haystack_integrations.components.retrievers.supabase"]
 branch = true
 parallel = false
 relative_files = true
