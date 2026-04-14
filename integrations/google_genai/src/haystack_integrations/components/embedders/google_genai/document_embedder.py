@@ -8,7 +8,6 @@ from typing import Any, Literal
 from google.genai import types
 from haystack import Document, component, default_from_dict, default_to_dict, logging
 from haystack.utils import Secret, deserialize_secrets_inplace
-from more_itertools import batched
 from tqdm import tqdm
 
 from haystack_integrations.components.common.google_genai.utils import _get_client
@@ -204,10 +203,11 @@ class GoogleGenAIDocumentEmbedder:
 
         all_embeddings = []
         meta: dict[str, Any] = {}
-        for batch in tqdm(
-            batched(texts_to_embed, batch_size), disable=not self._progress_bar, desc="Calculating embeddings"
+        for i in tqdm(
+            range(0, len(texts_to_embed), batch_size), disable=not self._progress_bar, desc="Calculating embeddings"
         ):
-            args: dict[str, Any] = {"model": self._model, "contents": list(batch)}
+            batch = texts_to_embed[i : i + batch_size]
+            args: dict[str, Any] = {"model": self._model, "contents": batch}
             if resolved_config:
                 args["config"] = resolved_config
 
@@ -235,10 +235,11 @@ class GoogleGenAIDocumentEmbedder:
 
         all_embeddings = []
         meta: dict[str, Any] = {}
-        for batch in tqdm(
-            batched(texts_to_embed, batch_size), disable=not self._progress_bar, desc="Calculating embeddings"
+        for i in tqdm(
+            range(0, len(texts_to_embed), batch_size), disable=not self._progress_bar, desc="Calculating embeddings"
         ):
-            args: dict[str, Any] = {"model": self._model, "contents": list(batch)}
+            batch = texts_to_embed[i : i + batch_size]
+            args: dict[str, Any] = {"model": self._model, "contents": batch}
             if self._config:
                 args["config"] = types.EmbedContentConfig(**self._config) if self._config else None
 
