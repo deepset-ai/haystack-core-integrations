@@ -78,7 +78,8 @@ class TestSQLAlchemyTableRetrieverRun:
     @pytest.fixture()
     def retriever_with_data(self):
         init_sql = [
-            "CREATE TABLE employees (id INTEGER PRIMARY KEY, name TEXT NOT NULL, department TEXT NOT NULL, salary INTEGER NOT NULL)",
+            "CREATE TABLE employees (id INTEGER PRIMARY KEY, name TEXT NOT NULL,"
+            " department TEXT NOT NULL, salary INTEGER NOT NULL)",
             "INSERT INTO employees VALUES (1, 'Alice', 'Engineering', 95000)",
             "INSERT INTO employees VALUES (2, 'Bob', 'Marketing', 72000)",
             "INSERT INTO employees VALUES (3, 'Carol', 'Engineering', 88000)",
