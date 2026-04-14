@@ -15,7 +15,7 @@ from haystack_integrations.tools.mcp import (
     MCPTool,
     StdioServerInfo,
 )
-from haystack_integrations.tools.mcp.mcp_tool import StdioClient
+from haystack_integrations.tools.mcp.mcp_tool import StdioClient, _extract_first_text_element
 
 from .mcp_memory_transport import InMemoryServerInfo
 from .mcp_servers_fixtures import calculator_mcp, echo_mcp
@@ -25,6 +25,25 @@ from .mcp_servers_fixtures import calculator_mcp, echo_mcp
 def simple_haystack_tool(name: str) -> str:
     """A simple Haystack tool for comparison."""
     return f"Hello, {name}!"
+
+
+# from https://modelcontextprotocol.io/specification/draft/server/tools#output-schema
+EXAMPLE_MCP_TOOL_CALL_RESULT = {
+    "content": [{"type": "text", "text": '{"temperature": 22.5, "conditions": "Partly cloudy", "humidity": 65}'}],
+    "structuredContent": {"temperature": 22.5, "conditions": "Partly cloudy", "humidity": 65},
+}
+
+
+def test_extract_first_text_element():
+    """Test that extract_first_text skips non-text blocks and parses the first text block."""
+    tool_call_result = EXAMPLE_MCP_TOOL_CALL_RESULT
+    tool_call_result["content"].insert(0, {"type": "image", "data": "ignored"})
+    tool_call_result["content"].insert(1, {"type": "text", "text": '{"answer": 42}'})  # target
+    tool_call_result = json.dumps(tool_call_result)
+
+    extracted = _extract_first_text_element(tool_call_result)
+
+    assert extracted == {"answer": 42}
 
 
 class TestMCPTool:
@@ -236,7 +255,7 @@ class TestMCPTool:
             else:
                 assert errlog is mock_stderr
 
-    @pytest.mark.skipif("OPENAI_API_KEY" not in os.environ, reason="OPENAI_API_KEY not set")
+    @pytest.mark.skipif(not os.environ.get("OPENAI_API_KEY"), reason="OPENAI_API_KEY not set")
     @pytest.mark.integration
     def test_pipeline_warmup_with_mcp_tool(self):
         """Test lazy connection with Pipeline.warm_up() - replicates time_pipeline.py."""
@@ -259,7 +278,7 @@ class TestMCPTool:
             if tool:
                 tool.close()
 
-    @pytest.mark.skipif("OPENAI_API_KEY" not in os.environ, reason="OPENAI_API_KEY not set")
+    @pytest.mark.skipif(not os.environ.get("OPENAI_API_KEY"), reason="OPENAI_API_KEY not set")
     @pytest.mark.integration
     def test_agent_with_state_mapping(self):
         """Test Agent with MCPTool using state-mapping to inject location from state."""
