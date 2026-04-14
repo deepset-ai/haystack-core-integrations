@@ -168,6 +168,10 @@ class SQLAlchemyTableRetriever:
         if not self._warmed_up:
             self.warm_up()
 
+        if self._engine is None:  # pragma: no cover
+            msg = "Engine is not initialized."
+            raise RuntimeError(msg)
+
         try:
             with self._engine.connect() as conn:
                 result = conn.execute(text(query))
