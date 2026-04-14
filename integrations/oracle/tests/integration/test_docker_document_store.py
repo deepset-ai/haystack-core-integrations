@@ -15,6 +15,8 @@ on teardown, so tests are fully isolated from any other state in the DB.
 
 from __future__ import annotations
 
+import socket
+
 import pytest
 from haystack.dataclasses import Document
 from haystack.document_stores.errors import DuplicateDocumentError
@@ -31,6 +33,21 @@ _PASSWORD = "haystack"
 _DSN = "localhost:1521/freepdb1"
 _TABLE = "hs_docker_test"
 _DIM = 4
+
+
+def _oracle_reachable() -> bool:
+    """Return True if the local Oracle Docker container is accepting connections."""
+    try:
+        with socket.create_connection(("localhost", 1521), timeout=2):
+            return True
+    except OSError:
+        return False
+
+
+pytestmark = pytest.mark.skipif(
+    not _oracle_reachable(),
+    reason="Local Oracle container not reachable on localhost:1521",
+)
 
 
 @pytest.fixture(scope="module")

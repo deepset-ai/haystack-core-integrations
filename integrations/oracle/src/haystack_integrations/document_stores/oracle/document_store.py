@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2023-present deepset GmbH <info@deepset.ai>
+#
+# SPDX-License-Identifier: Apache-2.0
+
 from __future__ import annotations
 
 import array as _array
@@ -17,14 +21,6 @@ from haystack.document_stores.types import DuplicatePolicy
 from haystack.utils import Secret, deserialize_secrets_inplace
 
 logger = logging.getLogger(__name__)
-
-# Oracle vector_distance() returns negative dot product for DOT metric,
-# so lower values = more similar for all three metrics → always ASC.
-_DISTANCE_ORDER: dict[str, str] = {
-    "COSINE": "ASC",
-    "EUCLIDEAN": "ASC",
-    "DOT": "ASC",
-}
 
 _SAFE_TABLE_NAME = re.compile(r"^[A-Za-z_][A-Za-z0-9_$#]{0,127}$")
 
@@ -296,7 +292,7 @@ class OracleDocumentStore:
     ) -> int:
         if not documents:
             return 0
-        if policy == DuplicatePolicy.NONE:
+        if policy in (DuplicatePolicy.NONE, DuplicatePolicy.FAIL):
             return self._insert_documents(documents)
         if policy == DuplicatePolicy.SKIP:
             return self._skip_duplicate_documents(documents)
@@ -306,8 +302,8 @@ class OracleDocumentStore:
         raise ValueError(msg)
 
     @staticmethod
-    def _to_row(doc: Document) -> tuple[str, str | None, str, bytes | None]:
-        """Convert a Document to (id, text, metadata_json, embedding_bytes).
+    def _to_row(doc: Document) -> tuple[str, str | None, str, _array.array | None]:
+        """Convert a Document to (id, text, metadata_json, embedding_array).
 
         Haystack IDs are stored verbatim in a VARCHAR2(64) column, so any
         string ID (UUID, SHA-256 hash, or custom) is accepted without conversion.
@@ -315,12 +311,13 @@ class OracleDocumentStore:
         doc_id = doc.id
         text = doc.content
         meta = json.dumps(doc.meta or {})
-        emb: bytes | None = None
+        emb: _array.array | None = None
         if doc.embedding is not None:
-            emb = _array.array("f", doc.embedding)  # type: ignore[assignment]
+            emb = _array.array("f", doc.embedding)
         return doc_id, text, meta, emb
 
-    def _to_named_row(self, doc: Document) -> dict[str, Any]:
+    @staticmethod
+    def _to_named_row(doc: Document) -> dict[str, Any]:
         doc_id, text, meta, emb = OracleDocumentStore._to_row(doc)
         return {"doc_id": doc_id, "doc_text": text, "doc_meta": meta, "doc_emb": emb}
 
@@ -329,7 +326,7 @@ class OracleDocumentStore:
             INSERT INTO {self.table_name} (id, text, metadata, embedding)
             VALUES (:doc_id, :doc_text, :doc_meta, :doc_emb)
         """
-        rows = [self._to_named_row(d) for d in documents]
+        rows = [OracleDocumentStore._to_named_row(d) for d in documents]
         try:
             with self._get_connection() as conn, conn.cursor() as cur:
                 cur.executemany(sql, rows)
@@ -350,7 +347,7 @@ class OracleDocumentStore:
                 INSERT (id, text, metadata, embedding)
                 VALUES (s.id, :doc_text, :doc_meta, :doc_emb)
         """
-        rows = [self._to_named_row(d) for d in documents]
+        rows = [OracleDocumentStore._to_named_row(d) for d in documents]
         with self._get_connection() as conn, conn.cursor() as cur:
             count_before = conn.cursor().execute(f"SELECT COUNT(*) FROM {self.table_name}").fetchone()[0]
             cur.executemany(sql, rows)
@@ -368,7 +365,7 @@ class OracleDocumentStore:
                 INSERT (id, text, metadata, embedding)
                 VALUES (s.id, :doc_text, :doc_meta, :doc_emb)
         """
-        rows = [self._to_named_row(d) for d in documents]
+        rows = [OracleDocumentStore._to_named_row(d) for d in documents]
         with self._get_connection() as conn, conn.cursor() as cur:
             cur.executemany(sql, rows)
             written = cur.rowcount
@@ -432,8 +429,10 @@ class OracleDocumentStore:
         filters: dict[str, Any] | None = None,
         top_k: int = 10,
     ) -> list[Document]:
-        order = _DISTANCE_ORDER[self.distance_metric]
-        where, params = self._build_where(filters)
+        # Oracle vector_distance() returns lower values for more similar vectors
+        # across all metrics (COSINE, EUCLIDEAN, DOT) → always sort ASC.
+        order = "ASC"
+        where, params = OracleDocumentStore._build_where(filters)
         sql = f"""
             SELECT id, text, metadata,
                    vector_distance(embedding, :query_vec, {self.distance_metric}) AS score
@@ -447,7 +446,7 @@ class OracleDocumentStore:
         with self._get_connection() as conn, conn.cursor() as cur:
             cur.execute(sql, params)
             rows = cur.fetchall()
-        return [self._row_to_document(r, with_score=True) for r in rows]
+        return [OracleDocumentStore._row_to_document(r, with_score=True) for r in rows]
 
     async def _embedding_retrieval_async(
         self,

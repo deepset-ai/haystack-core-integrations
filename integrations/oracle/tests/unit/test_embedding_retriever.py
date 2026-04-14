@@ -4,6 +4,7 @@ from unittest.mock import MagicMock
 
 import pytest
 from haystack.dataclasses import Document
+from haystack.document_stores.types import FilterPolicy
 
 from haystack_integrations.components.retrievers.oracle import OracleEmbeddingRetriever
 from haystack_integrations.document_stores.oracle import OracleDocumentStore
@@ -44,14 +45,27 @@ def mock_store():
 def test_run_calls_embedding_retrieval(mock_store):
     retriever = OracleEmbeddingRetriever(document_store=mock_store, top_k=5)
     result = retriever.run(query_embedding=[0.1, 0.2, 0.3, 0.4])
-    mock_store._embedding_retrieval.assert_called_once_with([0.1, 0.2, 0.3, 0.4], filters=None, top_k=5)
+    mock_store._embedding_retrieval.assert_called_once_with([0.1, 0.2, 0.3, 0.4], filters={}, top_k=5)
     assert len(result["documents"]) == 1
 
 
-def test_run_merges_filters(mock_store):
+def test_run_replace_policy_uses_runtime_filters(mock_store):
     retriever = OracleEmbeddingRetriever(
         document_store=mock_store,
         filters={"field": "meta.lang", "operator": "==", "value": "en"},
+        filter_policy=FilterPolicy.REPLACE,
+    )
+    runtime_filters = {"field": "meta.year", "operator": ">", "value": 2020}
+    retriever.run(query_embedding=[0.1, 0.2, 0.3, 0.4], filters=runtime_filters)
+    call_filters = mock_store._embedding_retrieval.call_args.kwargs["filters"]
+    assert call_filters == runtime_filters
+
+
+def test_run_merge_policy_combines_filters(mock_store):
+    retriever = OracleEmbeddingRetriever(
+        document_store=mock_store,
+        filters={"field": "meta.lang", "operator": "==", "value": "en"},
+        filter_policy=FilterPolicy.MERGE,
     )
     retriever.run(
         query_embedding=[0.1, 0.2, 0.3, 0.4],
@@ -77,11 +91,19 @@ def test_to_dict_from_dict_roundtrip(mock_store, monkeypatch):
     d = retriever.to_dict()
     assert d["init_parameters"]["top_k"] == 7
     assert d["init_parameters"]["filters"] == {"field": "meta.x", "operator": "==", "value": "y"}
+    assert d["init_parameters"]["filter_policy"] == "replace"
+
+
+def test_invalid_document_store_raises_type_error():
+    with pytest.raises(TypeError, match="must be an instance of OracleDocumentStore"):
+        OracleEmbeddingRetriever(document_store="not_a_store")
 
 
 @pytest.mark.asyncio
 async def test_run_async_calls_async_retrieval(mock_store):
     retriever = OracleEmbeddingRetriever(document_store=mock_store, top_k=5)
     result = await retriever.run_async(query_embedding=[0.1, 0.2, 0.3, 0.4])
-    mock_store._embedding_retrieval_async.assert_called_once()
+    mock_store._embedding_retrieval_async.assert_called_once_with(
+        [0.1, 0.2, 0.3, 0.4], filters={}, top_k=5
+    )
     assert "documents" in result

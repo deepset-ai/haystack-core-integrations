@@ -1,27 +1,17 @@
+# SPDX-FileCopyrightText: 2023-present deepset GmbH <info@deepset.ai>
+#
+# SPDX-License-Identifier: Apache-2.0
+
 from __future__ import annotations
 
 from typing import Any
 
 from haystack import component, default_from_dict, default_to_dict
 from haystack.dataclasses import Document
+from haystack.document_stores.types import FilterPolicy
+from haystack.document_stores.types.filter_policy import apply_filter_policy
 
 from haystack_integrations.document_stores.oracle import OracleDocumentStore
-
-
-def _merge_filters(
-    base: dict[str, Any] | None,
-    override: dict[str, Any] | None,
-) -> dict[str, Any] | None:
-    """AND-merge two Haystack filter dicts. Returns None if both are empty."""
-    base = base or {}
-    override = override or {}
-    if not base and not override:
-        return None
-    if not base:
-        return override
-    if not override:
-        return base
-    return {"operator": "AND", "conditions": [base, override]}
 
 
 @component
@@ -43,10 +33,17 @@ class OracleEmbeddingRetriever:
         document_store: OracleDocumentStore,
         filters: dict[str, Any] | None = None,
         top_k: int = 10,
+        filter_policy: FilterPolicy = FilterPolicy.REPLACE,
     ) -> None:
+        if not isinstance(document_store, OracleDocumentStore):
+            msg = "document_store must be an instance of OracleDocumentStore"
+            raise TypeError(msg)
         self.document_store = document_store
         self.filters = filters or {}
         self.top_k = top_k
+        self.filter_policy = (
+            FilterPolicy.from_str(filter_policy) if isinstance(filter_policy, str) else filter_policy
+        )
 
     @component.output_types(documents=list[Document])
     def run(
@@ -59,16 +56,16 @@ class OracleEmbeddingRetriever:
 
         Args:
             query_embedding: Dense float vector from an embedder component.
-            filters: Runtime filters, AND-merged with constructor filters.
+            filters: Runtime filters, merged with constructor filters according to filter_policy.
             top_k: Override the constructor top_k for this call.
 
         Returns:
             ``{"documents": [Document, ...]}``
         """
-        merged = _merge_filters(self.filters, filters)
+        filters = apply_filter_policy(self.filter_policy, self.filters, filters)
         docs = self.document_store._embedding_retrieval(
             query_embedding,
-            filters=merged,
+            filters=filters,
             top_k=top_k if top_k is not None else self.top_k,
         )
         return {"documents": docs}
@@ -81,10 +78,10 @@ class OracleEmbeddingRetriever:
         top_k: int | None = None,
     ) -> dict[str, list[Document]]:
         """Async variant of :meth:`run`."""
-        merged = _merge_filters(self.filters, filters)
+        filters = apply_filter_policy(self.filter_policy, self.filters, filters)
         docs = await self.document_store._embedding_retrieval_async(
             query_embedding,
-            filters=merged,
+            filters=filters,
             top_k=top_k if top_k is not None else self.top_k,
         )
         return {"documents": docs}
@@ -95,6 +92,7 @@ class OracleEmbeddingRetriever:
             document_store=self.document_store.to_dict(),
             filters=self.filters,
             top_k=self.top_k,
+            filter_policy=self.filter_policy.value,
         )
 
     @classmethod
@@ -102,4 +100,8 @@ class OracleEmbeddingRetriever:
         params = data.get("init_parameters", {})
         if "document_store" in params:
             params["document_store"] = OracleDocumentStore.from_dict(params["document_store"])
+        # Pipelines serialized with old versions of the component might not
+        # have the filter_policy field.
+        if filter_policy := params.get("filter_policy"):
+            params["filter_policy"] = FilterPolicy.from_str(filter_policy)
         return default_from_dict(cls, data)
