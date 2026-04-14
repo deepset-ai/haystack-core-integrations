@@ -253,7 +253,7 @@ class NvidiaDocumentEmbedder:
         if not self._initialized:
             self.warm_up()
 
-        elif not isinstance(documents, list) or (documents and not isinstance(documents[0], Document)):
+        if not isinstance(documents, list) or (documents and not isinstance(documents[0], Document)):
             msg = (
                 "NvidiaDocumentEmbedder expects a list of Documents as input."
                 "In case you want to embed a string, please use the NvidiaTextEmbedder."
