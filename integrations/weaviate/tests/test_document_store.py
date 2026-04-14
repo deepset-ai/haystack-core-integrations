@@ -3,10 +3,10 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import base64
-from dataclasses import replace
 import logging
 import os
 from collections.abc import Generator
+from dataclasses import replace
 from unittest.mock import MagicMock, patch
 
 import pytest
