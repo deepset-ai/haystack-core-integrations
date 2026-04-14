@@ -8,7 +8,7 @@ from dataclasses import replace
 from pathlib import Path
 from typing import Any, Literal
 
-from google.genai.types import EmbedContentConfig, Part
+from google.genai.types import Content, EmbedContentConfig, Part
 from haystack import Document, component, logging
 from haystack.components.converters.image.image_utils import (
     _batch_convert_pdf_pages_to_images,
@@ -17,7 +17,6 @@ from haystack.components.converters.image.image_utils import (
 )
 from haystack.dataclasses import ByteStream
 from haystack.utils.auth import Secret
-from more_itertools import batched
 from tqdm import tqdm
 from tqdm.asyncio import tqdm as async_tqdm
 from typing_extensions import NotRequired, TypedDict
@@ -323,10 +322,11 @@ class GoogleGenAIMultimodalDocumentEmbedder:
 
         all_embeddings: list[list[float] | None] = []
         meta: dict[str, Any] = {}
-        for batch in tqdm(
-            batched(parts_to_embed, batch_size), disable=not self._progress_bar, desc="Calculating embeddings"
+        for i in tqdm(
+            range(0, len(parts_to_embed), batch_size), disable=not self._progress_bar, desc="Calculating embeddings"
         ):
-            args: dict[str, Any] = {"model": self._model, "contents": batch}
+            batch = parts_to_embed[i : i + batch_size]
+            args: dict[str, Any] = {"model": self._model, "contents": [Content(parts=[p]) for p in batch]}
             if resolved_config:
                 args["config"] = resolved_config
 
@@ -365,10 +365,11 @@ class GoogleGenAIMultimodalDocumentEmbedder:
 
         all_embeddings: list[list[float] | None] = []
         meta: dict[str, Any] = {}
-        async for batch in async_tqdm(
-            batched(parts_to_embed, batch_size), disable=not self._progress_bar, desc="Calculating embeddings"
+        async for i in async_tqdm(
+            range(0, len(parts_to_embed), batch_size), disable=not self._progress_bar, desc="Calculating embeddings"
         ):
-            args: dict[str, Any] = {"model": self._model, "contents": batch}
+            batch = parts_to_embed[i : i + batch_size]
+            args: dict[str, Any] = {"model": self._model, "contents": [Content(parts=[p]) for p in batch]}
             if resolved_config:
                 args["config"] = resolved_config
 

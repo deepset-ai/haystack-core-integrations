@@ -53,6 +53,7 @@ class TestOpenSearchHybridRetriever:
                     "use_ssl": None,
                     "verify_certs": None,
                     "timeout": None,
+                    "nested_fields": None,
                 },
             },
             "embedder": {

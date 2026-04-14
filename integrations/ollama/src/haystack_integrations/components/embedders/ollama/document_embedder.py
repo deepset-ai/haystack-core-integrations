@@ -1,4 +1,5 @@
 import asyncio
+from dataclasses import replace
 from typing import Any
 
 from haystack import Document, component
@@ -209,8 +210,7 @@ class OllamaDocumentEmbedder:
             texts_to_embed=texts_to_embed, batch_size=self.batch_size, generation_kwargs=generation_kwargs
         )
 
-        for doc, emb in zip(documents, embeddings, strict=True):
-            doc.embedding = emb
+        documents = [replace(doc, embedding=emb) for doc, emb in zip(documents, embeddings, strict=True)]
 
         return {"documents": documents, "meta": {"model": self.model}}
 
@@ -245,7 +245,6 @@ class OllamaDocumentEmbedder:
             texts_to_embed=texts_to_embed, batch_size=self.batch_size, generation_kwargs=generation_kwargs
         )
 
-        for doc, emb in zip(documents, embeddings, strict=True):
-            doc.embedding = emb
+        documents = [replace(doc, embedding=emb) for doc, emb in zip(documents, embeddings, strict=True)]
 
         return {"documents": documents, "meta": {"model": self.model}}

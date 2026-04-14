@@ -63,6 +63,7 @@ def test_to_dict(_mock_opensearch_client):
                     "use_ssl": None,
                     "verify_certs": None,
                     "timeout": None,
+                    "nested_fields": None,
                 },
                 "type": "haystack_integrations.document_stores.opensearch.document_store.OpenSearchDocumentStore",
             },

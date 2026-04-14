@@ -1,4 +1,4 @@
-name: Github workflows linter
+name: Core / Github workflows linter
 
 on:
   pull_request:

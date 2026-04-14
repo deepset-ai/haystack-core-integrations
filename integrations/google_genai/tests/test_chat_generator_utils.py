@@ -291,7 +291,7 @@ class TestStreamingChunkConversion:
         assert chunk.tool_calls[0].tool_name == "weather"
         assert chunk.tool_calls[0].arguments == '{"city": "Paris"}'
         assert chunk.tool_calls[0].id == "call_123"
-        assert chunk.finish_reason == "stop"
+        assert chunk.finish_reason == "tool_calls"
         assert chunk.index == 0
         assert "received_at" in chunk.meta
         assert chunk.component_info == component_info
@@ -337,7 +337,7 @@ class TestStreamingChunkConversion:
         assert len(chunk.tool_calls) == 1
         assert chunk.tool_calls[0].tool_name == "weather"
         assert chunk.tool_calls[0].arguments == '{"city": "London"}'
-        assert chunk.finish_reason == "stop"
+        assert chunk.finish_reason == "tool_calls"
         assert chunk.component_info == component_info
 
     def test_convert_google_chunk_to_streaming_chunk_empty_parts(self, monkeypatch):
@@ -513,7 +513,7 @@ class TestStreamingChunkConversion:
         assert streaming_chunk.content == ""
         assert streaming_chunk.tool_calls is not None
         assert len(streaming_chunk.tool_calls) == 6
-        assert streaming_chunk.finish_reason == "stop"
+        assert streaming_chunk.finish_reason == "tool_calls"
         assert streaming_chunk.index == 2
         assert "received_at" in streaming_chunk.meta
         assert streaming_chunk.meta["model"] == "gemini-2.5-flash"
