@@ -382,7 +382,7 @@ class TestMCPToolset:
             assert tool.outputs_to_state is None
             assert tool.outputs_to_string is None
 
-    @pytest.mark.skipif("OPENAI_API_KEY" not in os.environ, reason="OPENAI_API_KEY not set")
+    @pytest.mark.skipif(not os.environ.get("OPENAI_API_KEY"), reason="OPENAI_API_KEY not set")
     @pytest.mark.integration
     async def test_pipeline_warmup_with_mcp_toolset(self):
         """Test lazy connection with Pipeline.warm_up() - replicates time_pipeline.py."""
