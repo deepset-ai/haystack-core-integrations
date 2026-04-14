@@ -2,6 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+import pytest
 from haystack.utils import Secret
 
 import haystack_integrations.components.retrievers.sqlalchemy.sqlalchemy_table_retriever as module
@@ -74,6 +75,27 @@ class TestSQLAlchemyTableRetrieverSerialization:
 
 
 class TestSQLAlchemyTableRetrieverRun:
+    @pytest.fixture()
+    def retriever_with_data(self):
+        init_sql = (
+            "CREATE TABLE employees ("
+            "  id INTEGER PRIMARY KEY,"
+            "  name TEXT NOT NULL,"
+            "  department TEXT NOT NULL,"
+            "  salary INTEGER NOT NULL"
+            ");"
+            "INSERT INTO employees VALUES (1, 'Alice', 'Engineering', 95000);"
+            "INSERT INTO employees VALUES (2, 'Bob', 'Marketing', 72000);"
+            "INSERT INTO employees VALUES (3, 'Carol', 'Engineering', 88000)"
+        )
+        retriever = SQLAlchemyTableRetriever(
+            drivername="sqlite",
+            database=":memory:",
+            init_script=init_sql,
+        )
+        retriever.warm_up()
+        return retriever
+
     def test_run_empty_query(self):
         retriever = SQLAlchemyTableRetriever(drivername="sqlite", database=":memory:")
         result = retriever.run(query="")
@@ -81,18 +103,26 @@ class TestSQLAlchemyTableRetrieverRun:
         assert result["dataframe"].empty
         assert result["table"] == ""
 
-    def test_run_returns_dataframe(self):
-        retriever = SQLAlchemyTableRetriever(drivername="sqlite", database=":memory:")
-        retriever.warm_up()
-        result = retriever.run(query="SELECT 1 AS value")
-        assert not result["dataframe"].empty
+    def test_run_returns_dataframe(self, retriever_with_data):
+        result = retriever_with_data.run(query="SELECT * FROM employees ORDER BY id")
+        df = result["dataframe"]
         assert result["error"] == ""
+        assert list(df.columns) == ["id", "name", "department", "salary"]
+        assert len(df) == 3
+        assert df.iloc[0]["name"] == "Alice"
+        assert df.iloc[1]["department"] == "Marketing"
+        assert df.iloc[2]["salary"] == 88000
 
-    def test_run_returns_markdown(self):
-        retriever = SQLAlchemyTableRetriever(drivername="sqlite", database=":memory:")
-        retriever.warm_up()
-        result = retriever.run(query="SELECT 1 AS value")
-        assert "|" in result["table"]
+    def test_run_returns_markdown(self, retriever_with_data):
+        result = retriever_with_data.run(query="SELECT * FROM employees ORDER BY id")
+        expected = (
+            "| id | name | department | salary |\n"
+            "| --- | --- | --- | --- |\n"
+            "| 1 | Alice | Engineering | 95000 |\n"
+            "| 2 | Bob | Marketing | 72000 |\n"
+            "| 3 | Carol | Engineering | 88000 |"
+        )
+        assert result["table"] == expected
 
     def test_run_sql_error(self):
         retriever = SQLAlchemyTableRetriever(drivername="sqlite", database=":memory:")
