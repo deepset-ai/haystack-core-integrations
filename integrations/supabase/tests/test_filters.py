@@ -2,6 +2,8 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+from dataclasses import replace
+
 import pytest
 from haystack.dataclasses.document import Document
 from haystack.testing.document_store import FilterDocumentsTest
@@ -22,8 +24,7 @@ class TestFilters(FilterDocumentsTest):
             else:
                 assert received_doc.embedding == pytest.approx(expected_doc.embedding)
 
-            received_doc.embedding, expected_doc.embedding = None, None
-            assert received_doc == expected_doc
+            assert replace(received_doc, embedding=None) == replace(expected_doc, embedding=None)
 
     @pytest.mark.skip(reason="NOT operator is not supported in PgvectorDocumentStore")
     def test_not_operator(self, document_store, filterable_docs): ...
