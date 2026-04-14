@@ -255,7 +255,7 @@ class TestMCPTool:
             else:
                 assert errlog is mock_stderr
 
-    @pytest.mark.skipif("OPENAI_API_KEY" not in os.environ, reason="OPENAI_API_KEY not set")
+    @pytest.mark.skipif(not os.environ.get("OPENAI_API_KEY"), reason="OPENAI_API_KEY not set")
     @pytest.mark.integration
     def test_pipeline_warmup_with_mcp_tool(self):
         """Test lazy connection with Pipeline.warm_up() - replicates time_pipeline.py."""
@@ -278,7 +278,7 @@ class TestMCPTool:
             if tool:
                 tool.close()
 
-    @pytest.mark.skipif("OPENAI_API_KEY" not in os.environ, reason="OPENAI_API_KEY not set")
+    @pytest.mark.skipif(not os.environ.get("OPENAI_API_KEY"), reason="OPENAI_API_KEY not set")
     @pytest.mark.integration
     def test_agent_with_state_mapping(self):
         """Test Agent with MCPTool using state-mapping to inject location from state."""
