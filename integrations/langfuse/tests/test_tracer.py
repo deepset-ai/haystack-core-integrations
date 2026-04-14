@@ -64,6 +64,12 @@ class MockSpan:
     def set_trace_as_public(self):
         self._data["public"] = True
 
+    def set_trace_io(self, *, input=None, output=None):
+        if input is not None:
+            self._data["input"] = input
+        if output is not None:
+            self._data["output"] = output
+
     def generation(self, name=None):
         # Return a new mock span for generation spans
         return MockSpan(name=name or "generation_span")
@@ -266,6 +272,24 @@ class TestDefaultSpanHandler:
             assert isinstance(result, LangfuseSpan)
         finally:
             tracing_context_var.reset(token)
+
+    def test_create_span_root_trace_public(self):
+        """Test that public=True calls set_trace_as_public on the span."""
+        mock_client = Mock()
+        mock_client.start_as_current_observation = Mock(return_value=MockContextManager())
+
+        handler = DefaultSpanHandler()
+        handler.init_tracer(mock_client)
+
+        context = MagicMock(spec=SpanContext)
+        context.parent_span = None
+        context.trace_name = "public_trace"
+        context.operation_name = "haystack.pipeline.run"
+        context.public = True
+
+        result = handler.create_span(context)
+
+        assert result.raw_span()._data.get("public") is True
 
     def test_handle_generator(self):
         mock_span = Mock()
