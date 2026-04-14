@@ -30,7 +30,7 @@ from haystack_integrations.tools.mcp.mcp_toolset import (
 
 # Import in-memory transport and fixtures
 from .mcp_memory_transport import InMemoryServerInfo
-from .mcp_servers_fixtures import calculator_mcp, echo_mcp
+from .mcp_servers_fixtures import calculator_mcp, echo_mcp, image_mcp, state_calculator_mcp
 
 logger = logging.getLogger(__name__)
 
@@ -152,6 +152,16 @@ class TestMCPToolset:
         assert echo_tool.name == "echo"
         assert "Echo the input text." in echo_tool.description
 
+    async def test_toolset_invoke_returns_raw_json_string_without_outputs_to_state(self, echo_toolset):
+        """Test that toolset-created tools keep the raw MCP JSON when no state output parsing is configured."""
+        echo_tool = echo_toolset.tools[0]
+
+        result = echo_tool.invoke(text="Hello MCP!")
+        parsed = json.loads(result)
+
+        assert parsed["content"][0]["text"] == "Hello MCP!"
+        assert parsed["isError"] is False
+
     async def test_toolset_with_filtered_tools(self, calculator_toolset_with_tool_filter):
         """Test if the MCPToolset correctly filters tools based on tool_names parameter."""
         toolset = calculator_toolset_with_tool_filter
@@ -171,6 +181,24 @@ class TestMCPToolset:
         tool = toolset.tools[0]
         assert tool.name == "add"
         assert "Add two integers." in tool.description
+
+    async def test_toolset_warm_up_replaces_placeholder_and_is_idempotent(self, mcp_tool_cleanup):
+        """Test lazy toolsets swap the placeholder tool for real tools exactly once."""
+        server_info = InMemoryServerInfo(server=calculator_mcp._mcp_server)
+        toolset = MCPToolset(server_info=server_info, eager_connect=False)
+        mcp_tool_cleanup(toolset)
+
+        assert len(toolset.tools) == 1
+        assert toolset.tools[0].name.startswith("mcp_not_connected_placeholder_")
+
+        toolset.warm_up()
+        warmed_tool_names = [tool.name for tool in toolset.tools]
+
+        assert set(warmed_tool_names) == {"add", "subtract", "divide_by_zero"}
+        assert not any(name.startswith("mcp_not_connected_placeholder_") for name in warmed_tool_names)
+
+        toolset.warm_up()
+        assert [tool.name for tool in toolset.tools] == warmed_tool_names
 
     async def test_toolset_serde(self, calculator_toolset):
         """Test serialization and deserialization of MCPToolset."""
@@ -292,6 +320,59 @@ class TestMCPToolset:
         assert add_tool.outputs_to_string is not None
         assert subtract_tool.outputs_to_string is None
 
+    async def test_toolset_invoke_returns_parsed_dict_when_outputs_to_state_configured(self, mcp_tool_cleanup):
+        """Test that toolset-created tools parse MCP text content into dicts for state updates."""
+        server_info = InMemoryServerInfo(server=state_calculator_mcp._mcp_server)
+        toolset = MCPToolset(
+            server_info=server_info,
+            tool_names=["state_add"],
+            eager_connect=True,
+            outputs_to_state={"state_add": {"result": {"source": "result"}}},
+        )
+        mcp_tool_cleanup(toolset)
+
+        add_tool = toolset.tools[0]
+        result = add_tool.invoke(a=20, b=22)
+
+        assert result == {"result": 42}
+
+    async def test_toolset_returns_full_response_for_non_text_content_with_outputs_to_state(self, mcp_tool_cleanup):
+        """Test that toolset-created tools preserve full MCP payloads when there is no text content to parse."""
+        server_info = InMemoryServerInfo(server=image_mcp._mcp_server)
+        toolset = MCPToolset(
+            server_info=server_info,
+            tool_names=["image_tool"],
+            eager_connect=True,
+            outputs_to_state={"image_tool": {"image_payload": {}}},
+        )
+        mcp_tool_cleanup(toolset)
+
+        image_tool = toolset.tools[0]
+        result = image_tool.invoke()
+
+        assert isinstance(result, dict)
+        assert len(result["content"]) == 1
+        assert result["content"][0]["type"] == "image"
+        assert result["content"][0]["data"] == "ZmFrZQ=="
+        assert result["content"][0]["mimeType"] == "image/png"
+        assert result["isError"] is False
+
+    async def test_toolset_returns_raw_text_when_outputs_to_state_content_is_not_json(self, mcp_tool_cleanup):
+        """Test that toolset-created tools preserve plain text when JSON decoding is not possible."""
+        server_info = InMemoryServerInfo(server=echo_mcp._mcp_server)
+        toolset = MCPToolset(
+            server_info=server_info,
+            tool_names=["echo"],
+            eager_connect=True,
+            outputs_to_state={"echo": {"echo_payload": {}}},
+        )
+        mcp_tool_cleanup(toolset)
+
+        echo_tool = toolset.tools[0]
+        result = echo_tool.invoke(text="Hello MCP!")
+
+        assert result == "Hello MCP!"
+
     async def test_toolset_state_config_serde(self, calculator_toolset_with_state_config, mcp_tool_cleanup):
         """Test serialization and deserialization of MCPToolset with state configuration."""
         toolset = calculator_toolset_with_state_config
@@ -373,6 +454,29 @@ class TestMCPToolset:
                 },
             )
 
+    @pytest.mark.skipif(
+        not hasattr(__import__("haystack.tools", fromlist=["Tool"]).Tool, "_get_valid_inputs"),
+        reason="Requires Haystack >= 2.22.0 for inputs_from_state validation",
+    )
+    async def test_toolset_lazy_invalid_parameter_raises_on_warm_up(self, mcp_tool_cleanup):
+        """Test that lazy toolsets defer invalid inputs_from_state validation until warm_up()."""
+        server_info = InMemoryServerInfo(server=calculator_mcp._mcp_server)
+        toolset = MCPToolset(
+            server_info=server_info,
+            tool_names=["add"],
+            eager_connect=False,
+            inputs_from_state={
+                "add": {"state_key": "non_existent_param"},
+            },
+        )
+        mcp_tool_cleanup(toolset)
+
+        assert len(toolset.tools) == 1
+        assert toolset.tools[0].name.startswith("mcp_not_connected_placeholder_")
+
+        with pytest.raises(ValueError, match="unknown parameter"):
+            toolset.warm_up()
+
     async def test_toolset_no_state_config(self, calculator_toolset):
         """Test that tools have no state config when none is provided."""
         toolset = calculator_toolset
@@ -382,7 +486,7 @@ class TestMCPToolset:
             assert tool.outputs_to_state is None
             assert tool.outputs_to_string is None
 
-    @pytest.mark.skipif("OPENAI_API_KEY" not in os.environ, reason="OPENAI_API_KEY not set")
+    @pytest.mark.skipif(not os.environ.get("OPENAI_API_KEY"), reason="OPENAI_API_KEY not set")
     @pytest.mark.integration
     async def test_pipeline_warmup_with_mcp_toolset(self):
         """Test lazy connection with Pipeline.warm_up() - replicates time_pipeline.py."""
