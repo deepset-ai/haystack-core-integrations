@@ -85,13 +85,13 @@ jobs:
 
       # On PR: generates coverage comment artifact. On push to main: stores coverage baseline on data branch.
       - name: Store unit tests coverage
+        id: coverage_comment
         if: matrix.python-version == '3.10' && runner.os == 'Linux' && github.event_name != 'schedule'
         uses: py-cov-action/python-coverage-comment-action@7188638f871f721a365d644f505d1ff3df20d683 # v3.40
         with:
           GITHUB_TOKEN: ${{ github.token }}
           COVERAGE_PATH: integrations/sqlalchemy
           SUBPROJECT_ID: sqlalchemy
-          COMMENT_ARTIFACT_NAME: coverage-comment-sqlalchemy
           MINIMUM_GREEN: 90
           MINIMUM_ORANGE: 60
 
