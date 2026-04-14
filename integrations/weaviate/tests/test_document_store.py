@@ -6,6 +6,7 @@ import base64
 import logging
 import os
 from collections.abc import Generator
+from dataclasses import replace
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -373,7 +374,7 @@ class TestWeaviateDocumentStore(
         assert document_store.write_documents([doc]) == 1
         assert document_store.count_documents() == 1
 
-        doc.content = "test doc 2"
+        doc = replace(doc, content="test doc 2")
         assert document_store.write_documents([doc]) == 1
         assert document_store.count_documents() == 1
 
