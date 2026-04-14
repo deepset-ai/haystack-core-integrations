@@ -29,7 +29,7 @@ class TestSQLAlchemyTableRetrieverInit:
             host="localhost",
             port=5432,
             database="mydb",
-            init_script="CREATE TABLE t (x INTEGER)",
+            init_script=["CREATE TABLE t (x INTEGER)"],
         )
         assert retriever.drivername == "postgresql+psycopg2"
         assert retriever.username == "user"
@@ -37,7 +37,7 @@ class TestSQLAlchemyTableRetrieverInit:
         assert retriever.host == "localhost"
         assert retriever.port == 5432
         assert retriever.database == "mydb"
-        assert retriever.init_script == "CREATE TABLE t (x INTEGER)"
+        assert retriever.init_script == ["CREATE TABLE t (x INTEGER)"]
 
 
 class TestSQLAlchemyTableRetrieverSerialization:
@@ -77,17 +77,12 @@ class TestSQLAlchemyTableRetrieverSerialization:
 class TestSQLAlchemyTableRetrieverRun:
     @pytest.fixture()
     def retriever_with_data(self):
-        init_sql = (
-            "CREATE TABLE employees ("
-            "  id INTEGER PRIMARY KEY,"
-            "  name TEXT NOT NULL,"
-            "  department TEXT NOT NULL,"
-            "  salary INTEGER NOT NULL"
-            ");"
-            "INSERT INTO employees VALUES (1, 'Alice', 'Engineering', 95000);"
-            "INSERT INTO employees VALUES (2, 'Bob', 'Marketing', 72000);"
-            "INSERT INTO employees VALUES (3, 'Carol', 'Engineering', 88000)"
-        )
+        init_sql = [
+            "CREATE TABLE employees (id INTEGER PRIMARY KEY, name TEXT NOT NULL, department TEXT NOT NULL, salary INTEGER NOT NULL)",
+            "INSERT INTO employees VALUES (1, 'Alice', 'Engineering', 95000)",
+            "INSERT INTO employees VALUES (2, 'Bob', 'Marketing', 72000)",
+            "INSERT INTO employees VALUES (3, 'Carol', 'Engineering', 88000)",
+        ]
         retriever = SQLAlchemyTableRetriever(
             drivername="sqlite",
             database=":memory:",
@@ -95,6 +90,13 @@ class TestSQLAlchemyTableRetrieverRun:
         )
         retriever.warm_up()
         return retriever
+
+    def test_run_non_string_query(self):
+        retriever = SQLAlchemyTableRetriever(drivername="sqlite", database=":memory:")
+        result = retriever.run(query=123)  # type: ignore[arg-type]
+        assert result["error"] == "query is not a string"
+        assert result["dataframe"].empty
+        assert result["table"] == ""
 
     def test_run_empty_query(self):
         retriever = SQLAlchemyTableRetriever(drivername="sqlite", database=":memory:")
@@ -132,9 +134,12 @@ class TestSQLAlchemyTableRetrieverRun:
         assert result["dataframe"].empty
 
     def test_max_row_limit(self, monkeypatch):
-        init_sql = (
-            "CREATE TABLE t (x INTEGER);INSERT INTO t VALUES (1);INSERT INTO t VALUES (2);INSERT INTO t VALUES (3)"
-        )
+        init_sql = [
+            "CREATE TABLE t (x INTEGER)",
+            "INSERT INTO t VALUES (1)",
+            "INSERT INTO t VALUES (2)",
+            "INSERT INTO t VALUES (3)",
+        ]
         retriever = SQLAlchemyTableRetriever(
             drivername="sqlite",
             database=":memory:",
@@ -146,7 +151,7 @@ class TestSQLAlchemyTableRetrieverRun:
         assert len(result["dataframe"]) == 2
 
     def test_warm_up_with_init_script(self):
-        init_sql = "CREATE TABLE greetings (msg TEXT); INSERT INTO greetings VALUES ('hello')"
+        init_sql = ["CREATE TABLE greetings (msg TEXT)", "INSERT INTO greetings VALUES ('hello')"]
         retriever = SQLAlchemyTableRetriever(
             drivername="sqlite",
             database=":memory:",

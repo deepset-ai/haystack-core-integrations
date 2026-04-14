@@ -48,7 +48,7 @@ class SQLAlchemyTableRetriever:
         host: str | None = None,
         port: int | None = None,
         database: str | None = None,
-        init_script: str | None = None,
+        init_script: list[str] | None = None,
     ) -> None:
         """
         Initialize SQLAlchemyTableRetriever.
@@ -60,9 +60,9 @@ class SQLAlchemyTableRetriever:
         :param host: Database host.
         :param port: Database port.
         :param database: Database name or path (e.g., ``":memory:"`` for SQLite in-memory).
-        :param init_script: Optional SQL statements executed once on ``warm_up()``
-            (e.g., to create tables or insert seed data). Multiple statements should be
-            separated by semicolons.
+        :param init_script: Optional list of SQL statements executed once on ``warm_up()``
+            (e.g., to create tables or insert seed data). Each statement should be a
+            separate string in the list.
         """
         self.drivername = drivername
         self.username = username
@@ -101,7 +101,7 @@ class SQLAlchemyTableRetriever:
 
         if self.init_script:
             with self._engine.connect() as conn:
-                for stmt in self.init_script.split(";"):
+                for stmt in self.init_script:
                     stripped = stmt.strip()
                     if stripped:
                         conn.execute(text(stripped))
@@ -158,15 +158,15 @@ class SQLAlchemyTableRetriever:
             - ``table``: A Markdown-formatted string of the results.
             - ``error``: An error message if the query failed, otherwise an empty string.
         """
+        if not isinstance(query, str):
+            logger.warning("Query is not a string, returning empty DataFrame")
+            return {"dataframe": DataFrame(), "table": "", "error": "query is not a string"}
+
         if not query:
             return {"dataframe": DataFrame(), "table": "", "error": "empty query"}
 
         if not self._warmed_up:
             self.warm_up()
-
-        if self._engine is None:
-            msg = "Engine is not initialized. Call warm_up() first."
-            raise RuntimeError(msg)
 
         try:
             with self._engine.connect() as conn:
