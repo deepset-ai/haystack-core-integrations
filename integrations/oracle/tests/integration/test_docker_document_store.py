@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2023-present deepset GmbH <info@deepset.ai>
+#
+# SPDX-License-Identifier: Apache-2.0
+
 """Integration tests against a local Oracle 23ai instance started via Docker.
 
 Start the container before running:
