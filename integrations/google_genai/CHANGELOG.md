@@ -1,5 +1,34 @@
 # Changelog
 
+## [integrations/google_genai-v4.0.1] - 2026-04-13
+
+### 🐛 Bug Fixes
+
+- Fix GoogleGenAIMultimodalDocumentEmbedder input format (#3136)
+
+### 🧪 Testing
+
+- Google GenAI - test_live_run_with_parallel_tools should use tool_calls finish reason (#3125)
+
+
+## [integrations/google_genai-v4.0.0] - 2026-04-09
+
+### 🐛 Bug Fixes
+
+- *(google-genai)* Remap finish_reason to tool_calls when response contains tool calls (#3102)
+
+### 🧪 Testing
+
+- Test compatible integrations with python 3.14; update pyproject (#3001)
+- Track test coverage for all integrations (#3065)
+- Add unit tests for Google GenAI integration (#3092)
+
+### 🧹 Chores
+
+- Add ANN type annotations to google_genai, hanlp, jina, langfuse, lara (#2990)
+- Enforce ruff docstring rules (D102/D103/D205/D209/D213/D417/D419) in integrations 11-20 (#3009)
+
+
 ## [integrations/google_genai-v3.11.0] - 2026-03-12
 
 ### 🚀 Features

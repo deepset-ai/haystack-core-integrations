@@ -69,11 +69,31 @@ class TestS3Downloader:
         expected = {
             "type": TYPE,
             "init_parameters": {
-                "aws_access_key_id": {"type": "env_var", "env_vars": ["AWS_ACCESS_KEY_ID"], "strict": False},
-                "aws_secret_access_key": {"type": "env_var", "env_vars": ["AWS_SECRET_ACCESS_KEY"], "strict": False},
-                "aws_region_name": {"type": "env_var", "env_vars": ["AWS_DEFAULT_REGION"], "strict": False},
-                "aws_session_token": {"type": "env_var", "env_vars": ["AWS_SESSION_TOKEN"], "strict": False},
-                "aws_profile_name": {"type": "env_var", "env_vars": ["AWS_PROFILE"], "strict": False},
+                "aws_access_key_id": {
+                    "type": "env_var",
+                    "env_vars": ["AWS_ACCESS_KEY_ID"],
+                    "strict": False,
+                },
+                "aws_secret_access_key": {
+                    "type": "env_var",
+                    "env_vars": ["AWS_SECRET_ACCESS_KEY"],
+                    "strict": False,
+                },
+                "aws_region_name": {
+                    "type": "env_var",
+                    "env_vars": ["AWS_DEFAULT_REGION"],
+                    "strict": False,
+                },
+                "aws_session_token": {
+                    "type": "env_var",
+                    "env_vars": ["AWS_SESSION_TOKEN"],
+                    "strict": False,
+                },
+                "aws_profile_name": {
+                    "type": "env_var",
+                    "env_vars": ["AWS_PROFILE"],
+                    "strict": False,
+                },
                 "file_root_path": str(tmp_path),
                 "file_extensions": None,
                 "max_cache_size": 100,
@@ -90,11 +110,31 @@ class TestS3Downloader:
         data = {
             "type": TYPE,
             "init_parameters": {
-                "aws_access_key_id": {"type": "env_var", "env_vars": ["AWS_ACCESS_KEY_ID"], "strict": False},
-                "aws_secret_access_key": {"type": "env_var", "env_vars": ["AWS_SECRET_ACCESS_KEY"], "strict": False},
-                "aws_region_name": {"type": "env_var", "env_vars": ["AWS_DEFAULT_REGION"], "strict": False},
-                "aws_session_token": {"type": "env_var", "env_vars": ["AWS_SESSION_TOKEN"], "strict": False},
-                "aws_profile_name": {"type": "env_var", "env_vars": ["AWS_PROFILE"], "strict": False},
+                "aws_access_key_id": {
+                    "type": "env_var",
+                    "env_vars": ["AWS_ACCESS_KEY_ID"],
+                    "strict": False,
+                },
+                "aws_secret_access_key": {
+                    "type": "env_var",
+                    "env_vars": ["AWS_SECRET_ACCESS_KEY"],
+                    "strict": False,
+                },
+                "aws_region_name": {
+                    "type": "env_var",
+                    "env_vars": ["AWS_DEFAULT_REGION"],
+                    "strict": False,
+                },
+                "aws_session_token": {
+                    "type": "env_var",
+                    "env_vars": ["AWS_SESSION_TOKEN"],
+                    "strict": False,
+                },
+                "aws_profile_name": {
+                    "type": "env_var",
+                    "env_vars": ["AWS_PROFILE"],
+                    "strict": False,
+                },
                 "file_root_path": str(tmp_path),
                 "s3_key_generation_function": None,
                 "s3_bucket_name_env": "S3_DOWNLOADER_BUCKET",
@@ -116,11 +156,31 @@ class TestS3Downloader:
         expected = {
             "type": TYPE,
             "init_parameters": {
-                "aws_access_key_id": {"type": "env_var", "env_vars": ["AWS_ACCESS_KEY_ID"], "strict": False},
-                "aws_secret_access_key": {"type": "env_var", "env_vars": ["AWS_SECRET_ACCESS_KEY"], "strict": False},
-                "aws_region_name": {"type": "env_var", "env_vars": ["AWS_DEFAULT_REGION"], "strict": False},
-                "aws_session_token": {"type": "env_var", "env_vars": ["AWS_SESSION_TOKEN"], "strict": False},
-                "aws_profile_name": {"type": "env_var", "env_vars": ["AWS_PROFILE"], "strict": False},
+                "aws_access_key_id": {
+                    "type": "env_var",
+                    "env_vars": ["AWS_ACCESS_KEY_ID"],
+                    "strict": False,
+                },
+                "aws_secret_access_key": {
+                    "type": "env_var",
+                    "env_vars": ["AWS_SECRET_ACCESS_KEY"],
+                    "strict": False,
+                },
+                "aws_region_name": {
+                    "type": "env_var",
+                    "env_vars": ["AWS_DEFAULT_REGION"],
+                    "strict": False,
+                },
+                "aws_session_token": {
+                    "type": "env_var",
+                    "env_vars": ["AWS_SESSION_TOKEN"],
+                    "strict": False,
+                },
+                "aws_profile_name": {
+                    "type": "env_var",
+                    "env_vars": ["AWS_PROFILE"],
+                    "strict": False,
+                },
                 "file_root_path": str(tmp_path),
                 "file_extensions": [".txt"],
                 "max_cache_size": 400,
@@ -167,7 +227,10 @@ class TestS3Downloader:
         assert out["documents"][0].meta["custom_file_key"] == "a.txt"
 
     def test_run_with_s3_key_generation_function(self, tmp_path, mock_s3_storage, mock_boto3_session):
-        d = S3Downloader(file_root_path=str(tmp_path), s3_key_generation_function=s3_key_generation_function)
+        d = S3Downloader(
+            file_root_path=str(tmp_path),
+            s3_key_generation_function=s3_key_generation_function,
+        )
         d._storage = mock_s3_storage
 
         docs = [Document(meta={"file_id": str(uuid4()), "file_name": "a.txt"})]

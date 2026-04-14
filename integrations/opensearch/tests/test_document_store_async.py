@@ -909,6 +909,64 @@ class TestDocumentStoreAsync:
         assert result.get("cursor") is not None
 
     @pytest.mark.asyncio
+    async def test_explicit_nested_fields_filter(self, document_store_nested: OpenSearchDocumentStore):
+        """Filtering on explicitly declared nested fields returns correct documents (async)."""
+        docs = [
+            Document(
+                content="doc about bgb 1a",
+                meta={"refs": [{"law": "bgb", "section": "1", "paragraph": "a"}], "status": "active"},
+            ),
+            Document(
+                content="doc about bgb 2",
+                meta={"refs": [{"law": "bgb", "section": "2"}], "status": "active"},
+            ),
+            Document(
+                content="doc about stgb",
+                meta={"refs": [{"law": "stgb", "section": "1"}], "status": "active"},
+            ),
+        ]
+        await document_store_nested.write_documents_async(docs)
+
+        results = await document_store_nested.filter_documents_async(
+            filters={"field": "meta.refs.law", "operator": "==", "value": "bgb"}
+        )
+        assert len(results) == 2
+        assert all("bgb" in str(doc.meta["refs"]) for doc in results)
+
+    @pytest.mark.asyncio
+    async def test_explicit_nested_fields_combined_filter(self, document_store_nested: OpenSearchDocumentStore):
+        """AND filter across sub-fields of the same nested path matches within the same array element (async)."""
+        docs = [
+            Document(
+                content="bgb section 1",
+                meta={"refs": [{"law": "bgb", "section": "1"}, {"law": "stgb", "section": "2"}]},
+            ),
+            Document(
+                content="bgb section 2",
+                meta={"refs": [{"law": "bgb", "section": "2"}]},
+            ),
+            Document(
+                content="stgb section 1",
+                meta={"refs": [{"law": "stgb", "section": "1"}]},
+            ),
+        ]
+        await document_store_nested.write_documents_async(docs)
+
+        # Filter: refs.law == bgb AND refs.section == 1 (must match within same nested object)
+        results = await document_store_nested.filter_documents_async(
+            filters={
+                "operator": "AND",
+                "conditions": [
+                    {"field": "meta.refs.law", "operator": "==", "value": "bgb"},
+                    {"field": "meta.refs.section", "operator": "==", "value": "1"},
+                ],
+            }
+        )
+        assert len(results) == 1
+        assert results[0].content == "bgb section 1"
+
+    @pytest.mark.integration
+    @pytest.mark.asyncio
     async def test_query_sql_async_pagination_flow(self, document_store: OpenSearchDocumentStore):
         """Test async pagination flow with fetch_size"""
         # Create enough documents to require pagination
