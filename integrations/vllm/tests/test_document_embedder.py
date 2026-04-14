@@ -1,7 +1,6 @@
 # SPDX-FileCopyrightText: 2022-present deepset GmbH <info@deepset.ai>
 #
 # SPDX-License-Identifier: Apache-2.0
-import os
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -13,7 +12,8 @@ from openai.types.create_embedding_response import Usage
 
 from haystack_integrations.components.embedders.vllm import VLLMDocumentEmbedder
 
-MODEL = "intfloat/e5-mistral-7b-instruct"
+MODEL = "sergeyzh/rubert-tiny-turbo"
+API_BASE_URL = "http://localhost:8001/v1"
 
 
 def _fake_response(embeddings: list[list[float]], prompt_tokens: int = 1, total_tokens: int = 1):
@@ -143,8 +143,18 @@ class TestVLLMDocumentEmbedder:
         assert embedder.api_key == Secret.from_env_var("VLLM_API_KEY", strict=False)
         assert embedder.model == MODEL
         assert embedder.api_base_url == "http://localhost:8000/v1"
-        assert embedder.batch_size == 32
+        assert embedder.prefix == ""
+        assert embedder.suffix == ""
         assert embedder.dimensions == 32
+        assert embedder.batch_size == 32
+        assert embedder.progress_bar is True
+        assert embedder.meta_fields_to_embed == []
+        assert embedder.embedding_separator == "\n"
+        assert embedder.timeout is None
+        assert embedder.max_retries is None
+        assert embedder.http_client_kwargs is None
+        assert embedder.raise_on_failure is False
+        assert embedder.extra_parameters is None
 
     def test_prepare_texts_to_embed(self):
         embedder = VLLMDocumentEmbedder(
@@ -224,13 +234,9 @@ class TestVLLMDocumentEmbedder:
 
         assert [d.embedding for d in result["documents"]] == [[0.5], [0.6]]
 
-    @pytest.mark.skipif(
-        not os.environ.get("VLLM_API_BASE_URL", None),
-        reason="Export VLLM_API_BASE_URL pointing to a running vLLM embedding server to run this test.",
-    )
     @pytest.mark.integration
     def test_run(self):
-        embedder = VLLMDocumentEmbedder(model=MODEL, api_base_url=os.environ["VLLM_API_BASE_URL"])
+        embedder = VLLMDocumentEmbedder(model=MODEL, api_base_url=API_BASE_URL)
 
         docs = [
             Document(content="I love cheese", meta={"topic": "Cuisine"}),

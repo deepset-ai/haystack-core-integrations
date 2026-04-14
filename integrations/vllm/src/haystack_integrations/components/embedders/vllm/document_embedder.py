@@ -86,7 +86,7 @@ class VLLMDocumentEmbedder:
         Creates an instance of VLLMDocumentEmbedder.
 
         :param model: The name of the model served by vLLM. Check
-        [vLLM's documentation](https://docs.vllm.ai/en/stable/models/pooling_models) for more information.
+        [vLLM documentation](https://docs.vllm.ai/en/stable/models/pooling_models) for more information.
         :param api_key: The vLLM API key. Defaults to the `VLLM_API_KEY` environment variable.
             Only required if the vLLM server was started with `--api-key`.
         :param api_base_url: The base URL of the vLLM server.
@@ -94,7 +94,7 @@ class VLLMDocumentEmbedder:
         :param suffix: A string to add at the end of each text.
         :param dimensions: The number of dimensions of the resulting embedding. Only models trained with
             Matryoshka Representation Learning support this parameter. See
-            [vLLMs documentation](https://docs.vllm.ai/en/stable/models/pooling_models/embed/#matryoshka-embeddings)
+            [vLLM documentation](https://docs.vllm.ai/en/stable/models/pooling_models/embed/#matryoshka-embeddings)
             for more information.
         :param batch_size: Number of documents to encode at once.
         :param progress_bar: Whether to show a progress bar.

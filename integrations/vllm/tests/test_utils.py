@@ -8,7 +8,6 @@ from haystack_integrations.common.vllm.utils import _create_openai_clients
 
 
 def test_create_openai_clients_placeholder_when_no_key():
-    """When api_key is None or unresolved, a placeholder is used."""
     sync_client, async_client = _create_openai_clients(
         api_key=None, api_base_url="http://localhost:8000/v1", timeout=None, max_retries=None, http_client_kwargs=None
     )
@@ -18,7 +17,6 @@ def test_create_openai_clients_placeholder_when_no_key():
 
 
 def test_create_openai_clients_uses_resolved_key_and_forwards_options():
-    """When api_key resolves, it's used; timeout/max_retries forwarded only when set."""
     sync_client, _ = _create_openai_clients(
         api_key=Secret.from_token("real-key"),
         api_base_url="http://vllm:8000/v1",

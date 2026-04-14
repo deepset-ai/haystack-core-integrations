@@ -77,7 +77,7 @@ class VLLMTextEmbedder:
         :param suffix: A string to add at the end of each text to embed.
         :param dimensions: The number of dimensions of the resulting embedding. Only models trained with
             Matryoshka Representation Learning support this parameter. See
-            [vLLMs documentation](https://docs.vllm.ai/en/stable/models/pooling_models/embed/#matryoshka-embeddings)
+            [vLLM documentation](https://docs.vllm.ai/en/stable/models/pooling_models/embed/#matryoshka-embeddings)
             for more information.
         :param timeout: Timeout in seconds for vLLM client calls. If not set, the OpenAI client default applies.
         :param max_retries: Maximum number of retries for failed requests. If not set, the OpenAI client
