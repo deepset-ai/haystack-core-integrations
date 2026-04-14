@@ -64,7 +64,7 @@ class MockSpan:
     def set_trace_as_public(self):
         self._data["public"] = True
 
-    def set_trace_io(self, *, input=None, output=None):
+    def set_trace_io(self, *, input=None, output=None):  # noqa: A002
         if input is not None:
             self._data["input"] = input
         if output is not None:
