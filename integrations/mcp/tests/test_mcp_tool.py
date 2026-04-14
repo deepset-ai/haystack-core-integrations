@@ -120,8 +120,10 @@ class TestMCPTool:
         result = tool.invoke()
 
         assert isinstance(result, dict)
+        assert len(result["content"]) == 1
         assert result["content"][0]["type"] == "image"
-        assert result["structuredContent"]["result"][0]["type"] == "image"
+        assert result["content"][0]["data"] == "ZmFrZQ=="
+        assert result["content"][0]["mimeType"] == "image/png"
         assert result["isError"] is False
 
     def test_mcp_tool_outputs_to_state_returns_raw_text_when_text_is_not_json(self, mcp_tool_cleanup):
