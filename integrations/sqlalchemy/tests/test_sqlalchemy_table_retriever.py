@@ -43,10 +43,12 @@ class TestSQLAlchemyTableRetrieverInit:
 class TestSQLAlchemyTableRetrieverSerialization:
     def test_to_dict(self):
         password = Secret.from_env_var("DB_PASSWORD")
+        init_script = ["CREATE TABLE t (x INTEGER)", "INSERT INTO t VALUES (1)"]
         retriever = SQLAlchemyTableRetriever(
             drivername="sqlite",
             database=":memory:",
             password=password,
+            init_script=init_script,
         )
         d = retriever.to_dict()
         expected_type = (
@@ -57,14 +59,17 @@ class TestSQLAlchemyTableRetrieverSerialization:
         assert params["drivername"] == "sqlite"
         assert params["database"] == ":memory:"
         assert params["password"]["type"] == "env_var"
+        assert params["init_script"] == init_script
 
     def test_from_dict(self, monkeypatch):
         monkeypatch.setenv("DB_PASSWORD", "secret")
         password = Secret.from_env_var("DB_PASSWORD")
+        init_script = ["CREATE TABLE t (x INTEGER)", "INSERT INTO t VALUES (1)"]
         retriever = SQLAlchemyTableRetriever(
             drivername="sqlite",
             database=":memory:",
             password=password,
+            init_script=init_script,
         )
         d = retriever.to_dict()
         restored = SQLAlchemyTableRetriever.from_dict(d)
@@ -72,6 +77,7 @@ class TestSQLAlchemyTableRetrieverSerialization:
         assert restored.database == ":memory:"
         assert restored.password is not None
         assert restored.password.resolve_value() == "secret"
+        assert restored.init_script == init_script
 
 
 class TestSQLAlchemyTableRetrieverRun:
@@ -99,9 +105,10 @@ class TestSQLAlchemyTableRetrieverRun:
         assert result["dataframe"].empty
         assert result["table"] == ""
 
-    def test_run_empty_query(self):
+    @pytest.mark.parametrize("query", ["", "   ", "\t", "\n"])
+    def test_run_empty_query(self, query):
         retriever = SQLAlchemyTableRetriever(drivername="sqlite", database=":memory:")
-        result = retriever.run(query="")
+        result = retriever.run(query=query)
         assert result["error"] == "empty query"
         assert result["dataframe"].empty
         assert result["table"] == ""
@@ -150,18 +157,6 @@ class TestSQLAlchemyTableRetrieverRun:
         retriever.warm_up()
         result = retriever.run(query="SELECT * FROM t")
         assert len(result["dataframe"]) == 2
-
-    def test_warm_up_with_init_script(self):
-        init_sql = ["CREATE TABLE greetings (msg TEXT)", "INSERT INTO greetings VALUES ('hello')"]
-        retriever = SQLAlchemyTableRetriever(
-            drivername="sqlite",
-            database=":memory:",
-            init_script=init_sql,
-        )
-        retriever.warm_up()
-        result = retriever.run(query="SELECT * FROM greetings")
-        assert not result["dataframe"].empty
-        assert result["dataframe"].iloc[0]["msg"] == "hello"
 
     def test_warm_up_idempotent(self):
         retriever = SQLAlchemyTableRetriever(drivername="sqlite", database=":memory:")

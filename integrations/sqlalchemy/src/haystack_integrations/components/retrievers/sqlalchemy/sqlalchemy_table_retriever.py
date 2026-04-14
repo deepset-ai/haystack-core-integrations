@@ -162,7 +162,7 @@ class SQLAlchemyTableRetriever:
             logger.warning("Query is not a string, returning empty DataFrame")
             return {"dataframe": DataFrame(), "table": "", "error": "query is not a string"}
 
-        if not query:
+        if not query.strip():
             return {"dataframe": DataFrame(), "table": "", "error": "empty query"}
 
         if not self._warmed_up:
