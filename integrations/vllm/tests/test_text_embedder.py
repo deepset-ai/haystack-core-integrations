@@ -10,7 +10,7 @@ from openai.types.create_embedding_response import Usage
 
 from haystack_integrations.components.embedders.vllm import VLLMTextEmbedder
 
-MODEL = "sergeyzh/rubert-tiny-turbo"
+MODEL = "sentence-transformers/all-MiniLM-L6-v2"
 API_BASE_URL = "http://localhost:8001/v1"
 
 
@@ -175,8 +175,16 @@ class TestVLLMTextEmbedder:
         assert result["embedding"] == [0.3, 0.4]
 
     @pytest.mark.integration
-    def test_run(self):
+    def test_live_run(self):
         embedder = VLLMTextEmbedder(model=MODEL, api_base_url=API_BASE_URL)
         result = embedder.run("The food was delicious")
+        assert isinstance(result["embedding"], list)
+        assert all(isinstance(x, float) for x in result["embedding"])
+
+    @pytest.mark.asyncio
+    @pytest.mark.integration
+    async def test_live_run_async(self):
+        embedder = VLLMTextEmbedder(model=MODEL, api_base_url=API_BASE_URL)
+        result = await embedder.run_async("The food was delicious")
         assert isinstance(result["embedding"], list)
         assert all(isinstance(x, float) for x in result["embedding"])

@@ -30,6 +30,7 @@ env:
   PYTHONUNBUFFERED: "1"
   FORCE_COLOR: "1"
   VLLM_MODEL: "Qwen/Qwen3-0.6B"
+  VLLM_EMBEDDING_MODEL: "sentence-transformers/all-MiniLM-L6-v2"
   # we only test on Ubuntu to keep vLLM server running simple
   TEST_MATRIX_OS: '["ubuntu-latest"]'
   # vLLM is not compatible with Python 3.14. https://github.com/vllm-project/vllm/issues/34096
@@ -88,12 +89,13 @@ jobs:
             "https://github.com/vllm-project/vllm/releases/download/v${VLLM_VERSION}/vllm-${VLLM_VERSION}+cpu-cp38-abi3-manylinux_2_35_x86_64.whl" \
             --torch-backend cpu
 
-      - name: Start vLLM server
+      - name: Start vLLM chat server
         env:
           VLLM_TARGET_DEVICE: "cpu"
           VLLM_CPU_KVCACHE_SPACE: "4"
         run: |
           nohup hatch run -- vllm serve ${{ env.VLLM_MODEL }} \
+            --port 8000 \
             --reasoning-parser qwen3 \
             --max-model-len 1024 \
             --enforce-eager \
@@ -102,20 +104,45 @@ jobs:
             --tool-call-parser hermes \
             --max-num-seqs 1 &
 
-          # Wait for the vLLM server to be ready with a timeout of 300 seconds
+          # Wait for the vLLM chat server to be ready with a timeout of 300 seconds
           timeout=300
           while [ $timeout -gt 0 ] && ! curl -sSf http://localhost:8000/health > /dev/null 2>&1; do
-            echo "Waiting for vLLM server to start..."
+            echo "Waiting for vLLM chat server to start..."
             sleep 10
             ((timeout-=10))
           done
 
           if [ $timeout -eq 0 ]; then
-            echo "Timed out waiting for vLLM server to start."
+            echo "Timed out waiting for vLLM chat server to start."
             exit 1
           fi
 
-          echo "vLLM server started successfully."
+          echo "vLLM chat server started successfully."
+
+      - name: Start vLLM embedding server
+        env:
+          VLLM_TARGET_DEVICE: "cpu"
+          VLLM_CPU_KVCACHE_SPACE: "4"
+        run: |
+          nohup hatch run -- vllm serve ${{ env.VLLM_EMBEDDING_MODEL }} \
+            --port 8001 \
+            --enforce-eager \
+            --max-num-seqs 1 &
+
+          # Wait for the vLLM embedding server to be ready with a timeout of 300 seconds
+          timeout=300
+          while [ $timeout -gt 0 ] && ! curl -sSf http://localhost:8001/health > /dev/null 2>&1; do
+            echo "Waiting for vLLM embedding server to start..."
+            sleep 10
+            ((timeout-=10))
+          done
+
+          if [ $timeout -eq 0 ]; then
+            echo "Timed out waiting for vLLM embedding server to start."
+            exit 1
+          fi
+
+          echo "vLLM embedding server started successfully."
 
       - name: Lint
         if: matrix.python-version == '3.10' && runner.os == 'Linux'

@@ -3,6 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 from unittest.mock import AsyncMock, MagicMock
 
+import numpy as np
 import pytest
 from haystack import Document
 from haystack.utils import Secret
@@ -12,7 +13,7 @@ from openai.types.create_embedding_response import Usage
 
 from haystack_integrations.components.embedders.vllm import VLLMDocumentEmbedder
 
-MODEL = "sergeyzh/rubert-tiny-turbo"
+MODEL = "sentence-transformers/all-MiniLM-L6-v2"
 API_BASE_URL = "http://localhost:8001/v1"
 
 
@@ -235,15 +236,42 @@ class TestVLLMDocumentEmbedder:
         assert [d.embedding for d in result["documents"]] == [[0.5], [0.6]]
 
     @pytest.mark.integration
-    def test_run(self):
+    def test_live_run(self):
         embedder = VLLMDocumentEmbedder(model=MODEL, api_base_url=API_BASE_URL)
 
         docs = [
-            Document(content="I love cheese", meta={"topic": "Cuisine"}),
-            Document(content="A transformer is a deep learning architecture", meta={"topic": "ML"}),
+            Document(content="I love cheese"),
+            Document(content="Cheddar is my favorite food"),
+            Document(content="A transformer is a deep learning architecture"),
         ]
 
         result = embedder.run(docs)
+        docs_with_embeddings = result["documents"]
+
+        assert len(docs_with_embeddings) == len(docs)
+        for doc in docs_with_embeddings:
+            assert isinstance(doc.embedding, list)
+            assert isinstance(doc.embedding[0], float)
+
+        embeddings = [np.array(d.embedding) for d in docs_with_embeddings]
+
+        def cosine_similarity(a: np.ndarray, b: np.ndarray) -> float:
+            return float(np.dot(a, b) / (np.linalg.norm(a) * np.linalg.norm(b)))
+
+        assert cosine_similarity(embeddings[0], embeddings[1]) > cosine_similarity(embeddings[0], embeddings[2])
+
+    @pytest.mark.integration
+    @pytest.mark.asyncio
+    async def test_live_run_async(self):
+        embedder = VLLMDocumentEmbedder(model=MODEL, api_base_url=API_BASE_URL)
+
+        docs = [
+            Document(content="I love cheese"),
+            Document(content="Cheddar is my favorite food"),
+            Document(content="A transformer is a deep learning architecture"),
+        ]
+
+        result = await embedder.run_async(docs)
         docs_with_embeddings = result["documents"]
 
         assert len(docs_with_embeddings) == len(docs)
