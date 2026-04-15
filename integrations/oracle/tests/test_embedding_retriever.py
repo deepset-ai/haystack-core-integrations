@@ -23,7 +23,7 @@ def mock_store():
         "init_parameters": {
             "connection_config": {
                 "user": "u",
-                "password": {"type": "token", "token": "p"},
+                "password": {"type": "env_var", "env_vars": ["ORACLE_PASSWORD"], "strict": False},
                 "dsn": "localhost/xe",
                 "wallet_location": None,
                 "wallet_password": None,
@@ -94,6 +94,13 @@ def test_to_dict_from_dict_roundtrip(mock_store):
     assert d["init_parameters"]["top_k"] == 7
     assert d["init_parameters"]["filters"] == {"field": "meta.x", "operator": "==", "value": "y"}
     assert d["init_parameters"]["filter_policy"] == "replace"
+
+    restored = OracleEmbeddingRetriever.from_dict(d)
+    assert restored.top_k == 7
+    assert restored.filters == {"field": "meta.x", "operator": "==", "value": "y"}
+    assert restored.filter_policy == FilterPolicy.REPLACE
+    assert restored.document_store.table_name == "test_docs"
+    assert restored.document_store.embedding_dim == 4
 
 
 def test_invalid_document_store_raises_type_error():
