@@ -14,7 +14,8 @@ from haystack_integrations.document_stores.oracle import OracleDocumentStore
 
 @component
 class OracleEmbeddingRetriever:
-    """Retrieves documents from an OracleDocumentStore using vector similarity.
+    """
+    Retrieves documents from an OracleDocumentStore using vector similarity.
 
     Use inside a Haystack pipeline after a text embedder::
 
@@ -48,7 +49,8 @@ class OracleEmbeddingRetriever:
         filters: dict[str, Any] | None = None,
         top_k: int | None = None,
     ) -> dict[str, list[Document]]:
-        """Retrieve documents by vector similarity.
+        """
+        Retrieve documents by vector similarity.
 
         Args:
             query_embedding: Dense float vector from an embedder component.

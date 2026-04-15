@@ -25,7 +25,8 @@ _SAFE_TABLE_NAME = re.compile(r"^[A-Za-z_][A-Za-z0-9_$#]{0,127}$")
 
 @dataclass
 class OracleConnectionConfig:
-    """Connection parameters for Oracle Database.
+    """
+    Connection parameters for Oracle Database.
 
     Supports both thin (direct TCP) and thick (wallet / ADB-S) modes.
     Thin mode requires no Oracle Instant Client; thick mode is activated
@@ -58,7 +59,8 @@ class OracleConnectionConfig:
 
 
 class _FilterTranslator:
-    """Translates Haystack 2.x filter dicts into Oracle SQL WHERE fragments.
+    """
+    Translates Haystack 2.x filter dicts into Oracle SQL WHERE fragments.
 
     Example input:
         {"operator": "AND", "conditions": [
@@ -146,7 +148,8 @@ class _FilterTranslator:
 
 
 class OracleDocumentStore:
-    """Haystack DocumentStore backed by Oracle AI Vector Search.
+    """
+    Haystack DocumentStore backed by Oracle AI Vector Search.
 
     Requires Oracle Database 23ai or later (for VECTOR data type and
     IF NOT EXISTS DDL support).
@@ -262,7 +265,8 @@ class OracleDocumentStore:
             conn.commit()
 
     def create_hnsw_index(self) -> None:
-        """Create an HNSW vector index on the embedding column.
+        """
+        Create an HNSW vector index on the embedding column.
 
         Safe to call multiple times — uses IF NOT EXISTS.
         """
@@ -301,7 +305,8 @@ class OracleDocumentStore:
 
     @staticmethod
     def _to_row(doc: Document) -> tuple[str, str | None, str, _array.array | None]:
-        """Convert a Document to (id, text, metadata_json, embedding_array).
+        """
+        Convert a Document to (id, text, metadata_json, embedding_array).
 
         Haystack IDs are stored verbatim in a VARCHAR2(64) column, so any
         string ID (UUID, SHA-256 hash, or custom) is accepted without conversion.
