@@ -2,7 +2,6 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-import socket
 import uuid
 from unittest.mock import MagicMock
 
@@ -18,20 +17,6 @@ from haystack_integrations.document_stores.oracle import OracleConnectionConfig,
 _USER = "haystack"
 _PASSWORD = "haystack"
 _DSN = "localhost:1521/freepdb1"
-
-
-def _oracle_reachable() -> bool:
-    try:
-        with socket.create_connection(("localhost", 1521), timeout=2):
-            return True
-    except OSError:
-        return False
-
-
-_skip_no_oracle = pytest.mark.skipif(
-    not _oracle_reachable(),
-    reason="Local Oracle container not reachable on localhost:1521",
-)
 
 
 def _doc(doc_id: str, content: str = "hello", meta: dict | None = None, embedding: list[float] | None = None):
@@ -59,15 +44,15 @@ def _make_store(table: str, embedding_dim: int) -> OracleDocumentStore:
     )
 
 
-# ---------------------------------------------------------------------------
-# Unit tests — mocked pool, no Oracle connection required
-# ---------------------------------------------------------------------------
+@pytest.mark.integration
+class TestOracleDocumentStore(DocumentStoreBaseTests):
+    # ------------------------------------------------------------------
+    # Helpers and fixtures for mock-based tests
+    # ------------------------------------------------------------------
 
-
-@pytest.mark.unit
-class TestOracleDocumentStoreUnit:
     @staticmethod
-    def _doc(content="hello", embedding=None, doc_id="AABB" * 8):
+    def _mock_doc(content="hello", embedding=None, doc_id="AABB" * 8):
+        """Lightweight document builder for mock-based tests."""
         return Document(id=doc_id, content=content, meta={"k": "v"}, embedding=embedding)
 
     @pytest.fixture
@@ -93,7 +78,7 @@ class TestOracleDocumentStoreUnit:
         return pool, conn, cursor
 
     @pytest.fixture
-    def store(self, mock_pool, monkeypatch):
+    def mock_store(self, mock_pool, monkeypatch):
         monkeypatch.setenv("ORACLE_PASSWORD", "p")
         return OracleDocumentStore(
             connection_config=OracleConnectionConfig(
@@ -106,132 +91,9 @@ class TestOracleDocumentStoreUnit:
             create_table_if_not_exists=False,
         )
 
-    def test_write_documents_none_policy_calls_insert(self, store, mock_pool):
-        _, _, cursor = mock_pool
-        store.write_documents([self._doc()], policy=DuplicatePolicy.NONE)
-        cursor.executemany.assert_called_once()
-        sql = cursor.executemany.call_args[0][0]
-        assert "INSERT INTO" in sql
-        assert ":doc_id" in sql
-
-    def test_write_documents_none_policy_duplicate_raises(self, store, mock_pool):
-        import oracledb as _oracledb
-
-        _, _, cursor = mock_pool
-        cursor.executemany.side_effect = _oracledb.IntegrityError("ORA-00001")
-        with pytest.raises(DuplicateDocumentError):
-            store.write_documents([self._doc()], policy=DuplicatePolicy.NONE)
-
-    def test_write_documents_skip_policy_uses_merge_not_matched(self, store, mock_pool):
-        _, _, cursor = mock_pool
-        store.write_documents([self._doc()], policy=DuplicatePolicy.SKIP)
-        sql = cursor.executemany.call_args[0][0]
-        assert "MERGE INTO" in sql
-        assert "WHEN NOT MATCHED" in sql
-        assert "WHEN MATCHED" not in sql
-
-    def test_write_documents_overwrite_policy_uses_full_merge(self, store, mock_pool):
-        _, _, cursor = mock_pool
-        store.write_documents([self._doc()], policy=DuplicatePolicy.OVERWRITE)
-        sql = cursor.executemany.call_args[0][0]
-        assert "MERGE INTO" in sql
-        assert "WHEN MATCHED" in sql
-        assert "WHEN NOT MATCHED" in sql
-
-    def test_write_documents_returns_count(self, store, mock_pool):
-        count = store.write_documents([self._doc(), self._doc(doc_id="CCDD" * 8)], policy=DuplicatePolicy.NONE)
-        assert count == 2
-
-    def test_write_documents_empty_list_returns_zero(self, store, mock_pool):
-        _, _, cursor = mock_pool
-        count = store.write_documents([], policy=DuplicatePolicy.NONE)
-        assert count == 0
-        cursor.executemany.assert_not_called()
-
-    def test_filter_documents_no_filter_fetches_all(self, store, mock_pool):
-        _, _, cursor = mock_pool
-        cursor.fetchall.return_value = [
-            ("AABB" * 8, "hello", '{"k": "v"}'),
-            ("CCDD" * 8, "world", "{}"),
-        ]
-        docs = store.filter_documents()
-        assert len(docs) == 2
-        sql = cursor.execute.call_args[0][0]
-        assert "WHERE" not in sql
-
-    def test_filter_documents_equality_filter_produces_correct_sql(self, store, mock_pool):
-        _, _, cursor = mock_pool
-        cursor.fetchall.return_value = []
-        store.filter_documents(filters={"field": "meta.author", "operator": "==", "value": "Alice"})
-        sql, params = cursor.execute.call_args[0]
-        assert "JSON_VALUE(metadata, '$.author') = :p0" in sql
-        assert params["p0"] == "Alice"
-
-    def test_filter_documents_and_filter(self, store, mock_pool):
-        _, _, cursor = mock_pool
-        cursor.fetchall.return_value = []
-        store.filter_documents(
-            filters={
-                "operator": "AND",
-                "conditions": [
-                    {"field": "meta.lang", "operator": "==", "value": "en"},
-                    {"field": "meta.year", "operator": ">", "value": 2020},
-                ],
-            }
-        )
-        sql, params = cursor.execute.call_args[0]
-        assert "AND" in sql
-        assert len(params) == 2
-
-    def test_delete_documents_builds_correct_sql(self, store, mock_pool):
-        _, _, cursor = mock_pool
-        store.delete_documents(["AABB" * 8, "CCDD" * 8])
-        sql = cursor.execute.call_args[0][0]
-        assert "DELETE FROM" in sql
-        assert "IN (:p0, :p1)" in sql
-
-    def test_delete_documents_empty_list_is_noop(self, store, mock_pool):
-        _, _, cursor = mock_pool
-        store.delete_documents([])
-        cursor.execute.assert_not_called()
-
-    def test_count_documents_returns_value(self, store, mock_pool):
-        _, _, cursor = mock_pool
-        cursor.fetchone.return_value = (42,)
-        assert store.count_documents() == 42
-
-    def test_to_dict_does_not_expose_plain_password(self, store):
-        d = store.to_dict()
-        pw = d["init_parameters"]["connection_config"]["password"]
-        assert isinstance(pw, dict)
-        assert pw.get("type") == "env_var"
-
-    def test_from_dict_roundtrip(self, store):
-        d = store.to_dict()
-        restored = OracleDocumentStore.from_dict(d)
-        assert restored.table_name == store.table_name
-        assert restored.embedding_dim == store.embedding_dim
-        assert restored.distance_metric == store.distance_metric
-
-    def test_create_hnsw_index_sql(self, store, mock_pool):
-        _, _, cursor = mock_pool
-        store.create_hnsw_index()
-        sql = cursor.execute.call_args[0][0]
-        assert "CREATE VECTOR INDEX" in sql
-        assert "HNSW" in sql
-        assert str(store.hnsw_neighbors) in sql
-        assert str(store.hnsw_ef_construction) in sql
-
-
-# ---------------------------------------------------------------------------
-# Integration tests — require a live Oracle 23ai Docker instance
-# ---------------------------------------------------------------------------
-
-
-@pytest.mark.integration
-@_skip_no_oracle
-class TestOracleDocumentStore(DocumentStoreBaseTests):
-    """Sync tests: mixin contract + Oracle-specific behaviour."""
+    # ------------------------------------------------------------------
+    # Fixtures for integration tests
+    # ------------------------------------------------------------------
 
     @pytest.fixture
     def document_store(self):
@@ -252,6 +114,10 @@ class TestOracleDocumentStore(DocumentStoreBaseTests):
         with s._get_connection() as conn, conn.cursor() as cur:
             cur.execute(f"DROP TABLE {table} PURGE")
             conn.commit()
+
+    # ------------------------------------------------------------------
+    # Mixin overrides
+    # ------------------------------------------------------------------
 
     def assert_documents_are_equal(self, received: list[Document], expected: list[Document]) -> None:
         # filter_documents does not SELECT the embedding column — ignore it when comparing
@@ -351,7 +217,130 @@ class TestOracleDocumentStore(DocumentStoreBaseTests):
     @pytest.mark.skip(reason="OracleDocumentStore does not validate input types in write_documents")
     def test_write_documents_invalid_input(self, document_store): ...
 
-    # Oracle-specific sync tests
+    # ------------------------------------------------------------------
+    # Mock-based tests — verify SQL generation without a live DB
+    # ------------------------------------------------------------------
+
+    def test_write_documents_none_policy_calls_insert(self, mock_store, mock_pool):
+        _, _, cursor = mock_pool
+        mock_store.write_documents([self._mock_doc()], policy=DuplicatePolicy.NONE)
+        cursor.executemany.assert_called_once()
+        sql = cursor.executemany.call_args[0][0]
+        assert "INSERT INTO" in sql
+        assert ":doc_id" in sql
+
+    def test_write_documents_none_policy_duplicate_raises(self, mock_store, mock_pool):
+        import oracledb as _oracledb
+
+        _, _, cursor = mock_pool
+        cursor.executemany.side_effect = _oracledb.IntegrityError("ORA-00001")
+        with pytest.raises(DuplicateDocumentError):
+            mock_store.write_documents([self._mock_doc()], policy=DuplicatePolicy.NONE)
+
+    def test_write_documents_skip_policy_uses_merge_not_matched(self, mock_store, mock_pool):
+        _, _, cursor = mock_pool
+        mock_store.write_documents([self._mock_doc()], policy=DuplicatePolicy.SKIP)
+        sql = cursor.executemany.call_args[0][0]
+        assert "MERGE INTO" in sql
+        assert "WHEN NOT MATCHED" in sql
+        assert "WHEN MATCHED" not in sql
+
+    def test_write_documents_overwrite_policy_uses_full_merge(self, mock_store, mock_pool):
+        _, _, cursor = mock_pool
+        mock_store.write_documents([self._mock_doc()], policy=DuplicatePolicy.OVERWRITE)
+        sql = cursor.executemany.call_args[0][0]
+        assert "MERGE INTO" in sql
+        assert "WHEN MATCHED" in sql
+        assert "WHEN NOT MATCHED" in sql
+
+    def test_write_documents_returns_count(self, mock_store, mock_pool):
+        count = mock_store.write_documents(
+            [self._mock_doc(), self._mock_doc(doc_id="CCDD" * 8)], policy=DuplicatePolicy.NONE
+        )
+        assert count == 2
+
+    def test_write_documents_empty_list_no_db_call(self, mock_store, mock_pool):
+        _, _, cursor = mock_pool
+        assert mock_store.write_documents([], policy=DuplicatePolicy.NONE) == 0
+        cursor.executemany.assert_not_called()
+
+    def test_filter_documents_no_filter_fetches_all(self, mock_store, mock_pool):
+        _, _, cursor = mock_pool
+        cursor.fetchall.return_value = [
+            ("AABB" * 8, "hello", '{"k": "v"}'),
+            ("CCDD" * 8, "world", "{}"),
+        ]
+        docs = mock_store.filter_documents()
+        assert len(docs) == 2
+        sql = cursor.execute.call_args[0][0]
+        assert "WHERE" not in sql
+
+    def test_filter_documents_equality_filter_produces_correct_sql(self, mock_store, mock_pool):
+        _, _, cursor = mock_pool
+        cursor.fetchall.return_value = []
+        mock_store.filter_documents(filters={"field": "meta.author", "operator": "==", "value": "Alice"})
+        sql, params = cursor.execute.call_args[0]
+        assert "JSON_VALUE(metadata, '$.author') = :p0" in sql
+        assert params["p0"] == "Alice"
+
+    def test_filter_documents_and_filter(self, mock_store, mock_pool):
+        _, _, cursor = mock_pool
+        cursor.fetchall.return_value = []
+        mock_store.filter_documents(
+            filters={
+                "operator": "AND",
+                "conditions": [
+                    {"field": "meta.lang", "operator": "==", "value": "en"},
+                    {"field": "meta.year", "operator": ">", "value": 2020},
+                ],
+            }
+        )
+        sql, params = cursor.execute.call_args[0]
+        assert "AND" in sql
+        assert len(params) == 2
+
+    def test_delete_documents_builds_correct_sql(self, mock_store, mock_pool):
+        _, _, cursor = mock_pool
+        mock_store.delete_documents(["AABB" * 8, "CCDD" * 8])
+        sql = cursor.execute.call_args[0][0]
+        assert "DELETE FROM" in sql
+        assert "IN (:p0, :p1)" in sql
+
+    def test_delete_documents_empty_list_is_noop(self, mock_store, mock_pool):
+        _, _, cursor = mock_pool
+        mock_store.delete_documents([])
+        cursor.execute.assert_not_called()
+
+    def test_count_documents_returns_value(self, mock_store, mock_pool):
+        _, _, cursor = mock_pool
+        cursor.fetchone.return_value = (42,)
+        assert mock_store.count_documents() == 42
+
+    def test_to_dict_does_not_expose_plain_password(self, mock_store):
+        d = mock_store.to_dict()
+        pw = d["init_parameters"]["connection_config"]["password"]
+        assert isinstance(pw, dict)
+        assert pw.get("type") == "env_var"
+
+    def test_from_dict_roundtrip(self, mock_store):
+        d = mock_store.to_dict()
+        restored = OracleDocumentStore.from_dict(d)
+        assert restored.table_name == mock_store.table_name
+        assert restored.embedding_dim == mock_store.embedding_dim
+        assert restored.distance_metric == mock_store.distance_metric
+
+    def test_create_hnsw_index_sql(self, mock_store, mock_pool):
+        _, _, cursor = mock_pool
+        mock_store.create_hnsw_index()
+        sql = cursor.execute.call_args[0][0]
+        assert "CREATE VECTOR INDEX" in sql
+        assert "HNSW" in sql
+        assert str(mock_store.hnsw_neighbors) in sql
+        assert str(mock_store.hnsw_ef_construction) in sql
+
+    # ------------------------------------------------------------------
+    # Integration-only sync tests
+    # ------------------------------------------------------------------
 
     def test_write_documents_empty_list_returns_zero(self, document_store):
         assert document_store.write_documents([]) == 0
@@ -447,7 +436,6 @@ class TestOracleDocumentStore(DocumentStoreBaseTests):
 
 
 @pytest.mark.integration
-@_skip_no_oracle
 class TestOracleDocumentStoreAsync:
     """Async API surface tests."""
 
