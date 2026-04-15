@@ -7,17 +7,17 @@
 | src/haystack\_integrations/common/amazon\_bedrock/errors.py                                  |        4 |        0 |        0 |        0 |    100% |           |
 | src/haystack\_integrations/common/amazon\_bedrock/utils.py                                   |       21 |        0 |        4 |        0 |    100% |           |
 | src/haystack\_integrations/common/s3/errors.py                                               |        3 |        0 |        0 |        0 |    100% |           |
-| src/haystack\_integrations/common/s3/utils.py                                                |       49 |       35 |        8 |        0 |     25% |43-53, 68-100, 124-133 |
-| src/haystack\_integrations/components/downloaders/s3/s3\_downloader.py                       |       93 |       18 |       20 |        8 |     73% |94-98, 133-135, 156, 161, 176, 196-199, 205, 230-235, 272 |
+| src/haystack\_integrations/common/s3/utils.py                                                |       49 |        0 |        8 |        0 |    100% |           |
+| src/haystack\_integrations/components/downloaders/s3/s3\_downloader.py                       |       93 |        4 |       20 |        3 |     94% |133-\>exit, 156, 176, 234-235 |
 | src/haystack\_integrations/components/embedders/amazon\_bedrock/document\_embedder.py        |      101 |        6 |       20 |        2 |     93% |171, 217-219, 253-254 |
-| src/haystack\_integrations/components/embedders/amazon\_bedrock/document\_image\_embedder.py |      123 |       22 |       32 |        6 |     79% |235-243, 253, 261-262, 266-267, 271-291, 303, 313-315 |
+| src/haystack\_integrations/components/embedders/amazon\_bedrock/document\_image\_embedder.py |      123 |        4 |       32 |        2 |     96% |266-267, 274-278 |
 | src/haystack\_integrations/components/embedders/amazon\_bedrock/text\_embedder.py            |       63 |        3 |       14 |        3 |     92% |146, 148-\>153, 173-174 |
 | src/haystack\_integrations/components/generators/amazon\_bedrock/adapters.py                 |      144 |        2 |       22 |        2 |     98% |60-\>58, 255-\>257, 407-408 |
 | src/haystack\_integrations/components/generators/amazon\_bedrock/chat/chat\_generator.py     |      167 |       11 |       42 |        2 |     93% |557-558, 631-637, 647-649 |
 | src/haystack\_integrations/components/generators/amazon\_bedrock/chat/utils.py               |      303 |       20 |      180 |       19 |     91% |87, 202, 210-\>207, 213-214, 243-\>241, 335-336, 382-383, 419-\>421, 443-\>515, 445-\>515, 485-\>471, 488-\>471, 491-\>489, 497-\>504, 500-\>504, 542-\>630, 583-\>630, 613-\>623, 627-\>630, 671-\>678, 700-713 |
-| src/haystack\_integrations/components/generators/amazon\_bedrock/generator.py                |       94 |       13 |       16 |        3 |     85% |149-151, 180-185, 220-227, 242-244, 318 |
-| src/haystack\_integrations/components/rankers/amazon\_bedrock/ranker.py                      |       79 |       13 |       12 |        3 |     82% |94-95, 119-124, 196-197, 209-214, 256-257, 259-260 |
-| **TOTAL**                                                                                    | **1244** |  **143** |  **370** |   **48** | **87%** |           |
+| src/haystack\_integrations/components/generators/amazon\_bedrock/generator.py                |       94 |        0 |       16 |        0 |    100% |           |
+| src/haystack\_integrations/components/rankers/amazon\_bedrock/ranker.py                      |       79 |        0 |       12 |        0 |    100% |           |
+| **TOTAL**                                                                                    | **1244** |   **50** |  **370** |   **33** | **94%** |           |
 
 
 ## Setup coverage badge
