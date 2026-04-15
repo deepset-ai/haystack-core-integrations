@@ -3,7 +3,6 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import uuid
-from unittest.mock import MagicMock
 
 import oracledb as _oracledb
 import pytest
@@ -31,20 +30,6 @@ def _uid(suffix: str = "") -> str:
     return f"{base}{suffix.upper():>4}"[:32]
 
 
-def _make_store(table: str, embedding_dim: int) -> OracleDocumentStore:
-    return OracleDocumentStore(
-        connection_config=OracleConnectionConfig(
-            user=_USER,
-            password=Secret.from_token(_PASSWORD),
-            dsn=_DSN,
-        ),
-        table_name=table,
-        embedding_dim=embedding_dim,
-        distance_metric="COSINE",
-        create_table_if_not_exists=True,
-    )
-
-
 @pytest.mark.integration
 class TestOracleDocumentStore(DocumentStoreBaseTests):
     @staticmethod
@@ -53,60 +38,20 @@ class TestOracleDocumentStore(DocumentStoreBaseTests):
         return Document(id=doc_id, content=content, meta={"k": "v"}, embedding=embedding)
 
     @pytest.fixture
-    def mock_pool(self, monkeypatch):
-        """Patch oracledb.create_pool to return a mock pool with a mock connection/cursor."""
-        cursor = MagicMock()
-        cursor.fetchall.return_value = []
-        cursor.fetchone.return_value = (0,)
-        cursor.rowcount = 1
-
-        conn = MagicMock()
-        conn.cursor.return_value.__enter__ = lambda _: cursor
-        conn.cursor.return_value.__exit__ = MagicMock(return_value=False)
-
-        pool = MagicMock()
-        pool.acquire.return_value.__enter__ = lambda _: conn
-        pool.acquire.return_value.__exit__ = MagicMock(return_value=False)
-
-        monkeypatch.setattr(
-            "haystack_integrations.document_stores.oracle.document_store.oracledb.create_pool",
-            lambda **_: pool,
-        )
-        return pool, conn, cursor
-
-    @pytest.fixture
-    def mock_store(self, monkeypatch):
-        monkeypatch.setenv("ORACLE_PASSWORD", "p")
-        return OracleDocumentStore(
-            connection_config=OracleConnectionConfig(
-                user="u",
-                password=Secret.from_env_var("ORACLE_PASSWORD"),
-                dsn="localhost/xe",
-            ),
-            table_name="test_docs",
-            embedding_dim=4,
-            create_table_if_not_exists=False,
-        )
-
-    # ------------------------------------------------------------------
-    # Fixtures for integration tests
-    # ------------------------------------------------------------------
-
-    @pytest.fixture
     def document_store(self):
-        """768-dim store required by the mixin's filterable_docs fixture."""
+        """768-dim store — overrides the mixin's NotImplementedError stub."""
         table = f"hs_sync_{uuid.uuid4().hex[:8]}"
-        s = _make_store(table, embedding_dim=768)
-        yield s
-        with s._get_connection() as conn, conn.cursor() as cur:
-            cur.execute(f"DROP TABLE {table} PURGE")
-            conn.commit()
-
-    @pytest.fixture
-    def embedding_store(self):
-        """4-dim store for embedding-retrieval and HNSW tests."""
-        table = f"hs_emb_{uuid.uuid4().hex[:8]}"
-        s = _make_store(table, embedding_dim=4)
+        s = OracleDocumentStore(
+            connection_config=OracleConnectionConfig(
+                user=_USER,
+                password=Secret.from_token(_PASSWORD),
+                dsn=_DSN,
+            ),
+            table_name=table,
+            embedding_dim=768,
+            distance_metric="COSINE",
+            create_table_if_not_exists=True,
+        )
         yield s
         with s._get_connection() as conn, conn.cursor() as cur:
             cur.execute(f"DROP TABLE {table} PURGE")
@@ -135,7 +80,7 @@ class TestOracleDocumentStore(DocumentStoreBaseTests):
         self.assert_documents_are_equal(document_store.filter_documents(), [doc])
 
     # Skipped: FilterError not raised
-    # Our _FilterTranslator raises ValueError/KeyError; these tests expect
+    # Our FilterTranslator raises ValueError/KeyError; these tests expect
     # haystack.document_stores.errors.FilterError.
 
     @pytest.mark.skip(reason="OracleDocumentStore does not raise FilterError for type mismatches")
@@ -218,70 +163,70 @@ class TestOracleDocumentStore(DocumentStoreBaseTests):
     # Mock-based tests — verify SQL generation without a live DB
     # ------------------------------------------------------------------
 
-    def test_write_documents_none_policy_calls_insert(self, mock_store, mock_pool):
+    def test_write_documents_none_policy_calls_insert(self, patched_store, mock_pool):
         _, _, cursor = mock_pool
-        mock_store.write_documents([self._mock_doc()], policy=DuplicatePolicy.NONE)
+        patched_store.write_documents([self._mock_doc()], policy=DuplicatePolicy.NONE)
         cursor.executemany.assert_called_once()
         sql = cursor.executemany.call_args[0][0]
         assert "INSERT INTO" in sql
         assert ":doc_id" in sql
 
-    def test_write_documents_none_policy_duplicate_raises(self, mock_store, mock_pool):
+    def test_write_documents_none_policy_duplicate_raises(self, patched_store, mock_pool):
         _, _, cursor = mock_pool
         cursor.executemany.side_effect = _oracledb.IntegrityError("ORA-00001")
         with pytest.raises(DuplicateDocumentError):
-            mock_store.write_documents([self._mock_doc()], policy=DuplicatePolicy.NONE)
+            patched_store.write_documents([self._mock_doc()], policy=DuplicatePolicy.NONE)
 
-    def test_write_documents_skip_policy_uses_merge_not_matched(self, mock_store, mock_pool):
+    def test_write_documents_skip_policy_uses_merge_not_matched(self, patched_store, mock_pool):
         _, _, cursor = mock_pool
-        mock_store.write_documents([self._mock_doc()], policy=DuplicatePolicy.SKIP)
+        patched_store.write_documents([self._mock_doc()], policy=DuplicatePolicy.SKIP)
         sql = cursor.executemany.call_args[0][0]
         assert "MERGE INTO" in sql
         assert "WHEN NOT MATCHED" in sql
         assert "WHEN MATCHED" not in sql
 
-    def test_write_documents_overwrite_policy_uses_full_merge(self, mock_store, mock_pool):
+    def test_write_documents_overwrite_policy_uses_full_merge(self, patched_store, mock_pool):
         _, _, cursor = mock_pool
-        mock_store.write_documents([self._mock_doc()], policy=DuplicatePolicy.OVERWRITE)
+        patched_store.write_documents([self._mock_doc()], policy=DuplicatePolicy.OVERWRITE)
         sql = cursor.executemany.call_args[0][0]
         assert "MERGE INTO" in sql
         assert "WHEN MATCHED" in sql
         assert "WHEN NOT MATCHED" in sql
 
-    def test_write_documents_returns_count(self, mock_store, mock_pool):  # noqa: ARG002
-        count = mock_store.write_documents(
+    def test_write_documents_returns_count(self, patched_store, mock_pool):  # noqa: ARG002
+        count = patched_store.write_documents(
             [self._mock_doc(), self._mock_doc(doc_id="CCDD" * 8)], policy=DuplicatePolicy.NONE
         )
         assert count == 2
 
-    def test_write_documents_empty_list_no_db_call(self, mock_store, mock_pool):
+    def test_write_documents_empty_list_no_db_call(self, patched_store, mock_pool):
         _, _, cursor = mock_pool
-        assert mock_store.write_documents([], policy=DuplicatePolicy.NONE) == 0
+        assert patched_store.write_documents([], policy=DuplicatePolicy.NONE) == 0
         cursor.executemany.assert_not_called()
 
-    def test_filter_documents_no_filter_fetches_all(self, mock_store, mock_pool):
+    def test_filter_documents_no_filter_fetches_all(self, patched_store, mock_pool):
         _, _, cursor = mock_pool
         cursor.fetchall.return_value = [
             ("AABB" * 8, "hello", '{"k": "v"}'),
             ("CCDD" * 8, "world", "{}"),
         ]
-        docs = mock_store.filter_documents()
+        docs = patched_store.filter_documents()
         assert len(docs) == 2
         sql = cursor.execute.call_args[0][0]
         assert "WHERE" not in sql
 
-    def test_filter_documents_equality_filter_produces_correct_sql(self, mock_store, mock_pool):
+    def test_filter_documents_equality_filter_produces_correct_sql(self, patched_store, mock_pool):
         _, _, cursor = mock_pool
         cursor.fetchall.return_value = []
-        mock_store.filter_documents(filters={"field": "meta.author", "operator": "==", "value": "Alice"})
+        patched_store.filter_documents(filters={"field": "meta.author", "operator": "==", "value": "Alice"})
         sql, params = cursor.execute.call_args[0]
         assert "JSON_VALUE(metadata, '$.author') = :p0" in sql
         assert params["p0"] == "Alice"
 
-    def test_filter_documents_and_filter(self, mock_store, mock_pool):
+    def test_filter_documents_and_filter(self, patched_store, mock_pool):
         _, _, cursor = mock_pool
         cursor.fetchall.return_value = []
-        mock_store.filter_documents(
+        patched_store.filter_documents(
             filters={
                 "operator": "AND",
                 "conditions": [
@@ -294,44 +239,44 @@ class TestOracleDocumentStore(DocumentStoreBaseTests):
         assert "AND" in sql
         assert len(params) == 2
 
-    def test_delete_documents_builds_correct_sql(self, mock_store, mock_pool):
+    def test_delete_documents_builds_correct_sql(self, patched_store, mock_pool):
         _, _, cursor = mock_pool
-        mock_store.delete_documents(["AABB" * 8, "CCDD" * 8])
+        patched_store.delete_documents(["AABB" * 8, "CCDD" * 8])
         sql = cursor.execute.call_args[0][0]
         assert "DELETE FROM" in sql
         assert "IN (:p0, :p1)" in sql
 
-    def test_delete_documents_empty_list_is_noop(self, mock_store, mock_pool):
+    def test_delete_documents_empty_list_is_noop(self, patched_store, mock_pool):
         _, _, cursor = mock_pool
-        mock_store.delete_documents([])
+        patched_store.delete_documents([])
         cursor.execute.assert_not_called()
 
-    def test_count_documents_returns_value(self, mock_store, mock_pool):
+    def test_count_documents_returns_value(self, patched_store, mock_pool):
         _, _, cursor = mock_pool
         cursor.fetchone.return_value = (42,)
-        assert mock_store.count_documents() == 42
+        assert patched_store.count_documents() == 42
 
-    def test_to_dict_does_not_expose_plain_password(self, mock_store):
-        d = mock_store.to_dict()
+    def test_to_dict_does_not_expose_plain_password(self, patched_store):
+        d = patched_store.to_dict()
         pw = d["init_parameters"]["connection_config"]["password"]
         assert isinstance(pw, dict)
         assert pw.get("type") == "env_var"
 
-    def test_from_dict_roundtrip(self, mock_store):
-        d = mock_store.to_dict()
+    def test_from_dict_roundtrip(self, patched_store):
+        d = patched_store.to_dict()
         restored = OracleDocumentStore.from_dict(d)
-        assert restored.table_name == mock_store.table_name
-        assert restored.embedding_dim == mock_store.embedding_dim
-        assert restored.distance_metric == mock_store.distance_metric
+        assert restored.table_name == patched_store.table_name
+        assert restored.embedding_dim == patched_store.embedding_dim
+        assert restored.distance_metric == patched_store.distance_metric
 
-    def test_create_hnsw_index_sql(self, mock_store, mock_pool):
+    def test_create_hnsw_index_sql(self, patched_store, mock_pool):
         _, _, cursor = mock_pool
-        mock_store.create_hnsw_index()
+        patched_store.create_hnsw_index()
         sql = cursor.execute.call_args[0][0]
         assert "CREATE VECTOR INDEX" in sql
         assert "HNSW" in sql
-        assert str(mock_store.hnsw_neighbors) in sql
-        assert str(mock_store.hnsw_ef_construction) in sql
+        assert str(patched_store.hnsw_neighbors) in sql
+        assert str(patched_store.hnsw_ef_construction) in sql
 
     # ------------------------------------------------------------------
     # Integration-only sync tests
@@ -434,45 +379,36 @@ class TestOracleDocumentStore(DocumentStoreBaseTests):
 class TestOracleDocumentStoreAsync:
     """Async API surface tests."""
 
-    @pytest.fixture
-    def document_store(self):
-        table = f"hs_async_{uuid.uuid4().hex[:8]}"
-        s = _make_store(table, embedding_dim=4)
-        yield s
-        with s._get_connection() as conn, conn.cursor() as cur:
-            cur.execute(f"DROP TABLE {table} PURGE")
-            conn.commit()
-
     @pytest.mark.asyncio
-    async def test_async_write_and_count(self, document_store):
+    async def test_async_write_and_count(self, embedding_store):
         doc = _doc(_uid("M001"))
-        await document_store.write_documents_async([doc])
-        count = await document_store.count_documents_async()
+        await embedding_store.write_documents_async([doc])
+        count = await embedding_store.count_documents_async()
         assert count >= 1
 
     @pytest.mark.asyncio
-    async def test_async_filter_documents(self, document_store):
+    async def test_async_filter_documents(self, embedding_store):
         tag = _uid("N")[:8]
         doc = _doc(_uid("N001"), meta={"tag": tag})
-        await document_store.write_documents_async([doc])
-        results = await document_store.filter_documents_async(
+        await embedding_store.write_documents_async([doc])
+        results = await embedding_store.filter_documents_async(
             filters={"field": "meta.tag", "operator": "==", "value": tag}
         )
         assert len(results) == 1
 
     @pytest.mark.asyncio
-    async def test_async_delete_documents(self, document_store):
+    async def test_async_delete_documents(self, embedding_store):
         doc_id = _uid("O001")
-        await document_store.write_documents_async([_doc(doc_id)])
-        await document_store.delete_documents_async([doc_id])
-        results = await document_store.filter_documents_async(
+        await embedding_store.write_documents_async([_doc(doc_id)])
+        await embedding_store.delete_documents_async([doc_id])
+        results = await embedding_store.filter_documents_async(
             filters={"field": "id", "operator": "==", "value": doc_id}
         )
         assert len(results) == 0
 
     @pytest.mark.asyncio
-    async def test_async_write_and_retrieve(self, document_store):
+    async def test_async_write_and_retrieve(self, embedding_store):
         doc_id = _uid("P001")
-        await document_store.write_documents_async([_doc(doc_id, embedding=[0.5, 0.5, 0.0, 0.0])])
-        results = await document_store._embedding_retrieval_async([0.5, 0.5, 0.0, 0.0], top_k=1)
+        await embedding_store.write_documents_async([_doc(doc_id, embedding=[0.5, 0.5, 0.0, 0.0])])
+        results = await embedding_store._embedding_retrieval_async([0.5, 0.5, 0.0, 0.0], top_k=1)
         assert len(results) >= 1

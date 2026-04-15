@@ -2,46 +2,10 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from unittest.mock import MagicMock
-
 import pytest
-from haystack.dataclasses import Document
 from haystack.document_stores.types import FilterPolicy
 
 from haystack_integrations.components.retrievers.oracle import OracleEmbeddingRetriever
-from haystack_integrations.document_stores.oracle import OracleDocumentStore
-
-
-@pytest.fixture()
-def mock_store():
-    store = MagicMock(spec=OracleDocumentStore)
-    store.distance_metric = "COSINE"
-    store._embedding_retrieval.return_value = [Document(id="A" * 32, content="hi")]
-    store._embedding_retrieval_async.return_value = [Document(id="A" * 32, content="hi")]
-    store.to_dict.return_value = {
-        "type": "haystack_integrations.document_stores.oracle.document_store.OracleDocumentStore",
-        "init_parameters": {
-            "connection_config": {
-                "user": "u",
-                "password": {"type": "env_var", "env_vars": ["ORACLE_PASSWORD"], "strict": False},
-                "dsn": "localhost/xe",
-                "wallet_location": None,
-                "wallet_password": None,
-                "min_connections": 1,
-                "max_connections": 5,
-            },
-            "table_name": "test_docs",
-            "embedding_dim": 4,
-            "distance_metric": "COSINE",
-            "create_table_if_not_exists": False,
-            "create_index": False,
-            "hnsw_neighbors": 32,
-            "hnsw_ef_construction": 200,
-            "hnsw_accuracy": 95,
-            "hnsw_parallel": 4,
-        },
-    }
-    return store
 
 
 def test_run_calls_embedding_retrieval(mock_store):
