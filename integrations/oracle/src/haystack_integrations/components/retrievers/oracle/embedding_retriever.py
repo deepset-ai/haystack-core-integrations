@@ -2,8 +2,6 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from __future__ import annotations
-
 from typing import Any
 
 from haystack import component, default_from_dict, default_to_dict
@@ -41,9 +39,7 @@ class OracleEmbeddingRetriever:
         self.document_store = document_store
         self.filters = filters or {}
         self.top_k = top_k
-        self.filter_policy = (
-            FilterPolicy.from_str(filter_policy) if isinstance(filter_policy, str) else filter_policy
-        )
+        self.filter_policy = FilterPolicy.from_str(filter_policy) if isinstance(filter_policy, str) else filter_policy
 
     @component.output_types(documents=list[Document])
     def run(

@@ -2,8 +2,6 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from __future__ import annotations
-
 from unittest.mock import MagicMock
 
 import pytest
@@ -107,7 +105,5 @@ def test_invalid_document_store_raises_type_error():
 async def test_run_async_calls_async_retrieval(mock_store):
     retriever = OracleEmbeddingRetriever(document_store=mock_store, top_k=5)
     result = await retriever.run_async(query_embedding=[0.1, 0.2, 0.3, 0.4])
-    mock_store._embedding_retrieval_async.assert_called_once_with(
-        [0.1, 0.2, 0.3, 0.4], filters={}, top_k=5
-    )
+    mock_store._embedding_retrieval_async.assert_called_once_with([0.1, 0.2, 0.3, 0.4], filters={}, top_k=5)
     assert "documents" in result
