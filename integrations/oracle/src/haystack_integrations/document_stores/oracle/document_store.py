@@ -9,7 +9,7 @@ import logging
 import re
 import threading
 from dataclasses import dataclass
-from typing import Any, ClassVar, Literal
+from typing import Any, Literal
 
 import oracledb
 from haystack import default_from_dict, default_to_dict
@@ -17,6 +17,8 @@ from haystack.dataclasses import Document
 from haystack.document_stores.errors import DuplicateDocumentError
 from haystack.document_stores.types import DuplicatePolicy
 from haystack.utils import Secret, deserialize_secrets_inplace
+
+from .filters import FilterTranslator
 
 logger = logging.getLogger(__name__)
 
@@ -70,95 +72,6 @@ class OracleConnectionConfig:
         """
         deserialize_secrets_inplace(data, keys=["password", "wallet_password"])
         return cls(**data)
-
-
-class _FilterTranslator:
-    """
-    Translates Haystack 2.x filter dicts into Oracle SQL WHERE fragments.
-
-    Example input:
-        {"operator": "AND", "conditions": [
-            {"field": "meta.author", "operator": "==", "value": "Alice"},
-            {"field": "meta.year",   "operator": ">",  "value": 2020},
-        ]}
-
-    Example output SQL fragment:
-        (JSON_VALUE(metadata, '$.author') = :p0
-         AND TO_NUMBER(JSON_VALUE(metadata, '$.year')) > :p1)
-
-    Params dict is mutated in-place; caller passes an empty dict and uses it
-    for cursor.execute / cursor.executemany bindings.
-    """
-
-    _OP_MAP: ClassVar[dict[str, str]] = {
-        "==": "=",
-        "!=": "!=",
-        ">": ">",
-        ">=": ">=",
-        "<": "<",
-        "<=": "<=",
-    }
-
-    def translate(
-        self,
-        filters: dict[str, Any],
-        params: dict[str, Any],
-        counter: list[int],
-    ) -> str:
-        op = filters.get("operator")
-
-        # Logical nodes
-        if op == "AND":
-            parts = [self.translate(c, params, counter) for c in filters["conditions"]]
-            return "(" + " AND ".join(parts) + ")"
-        if op == "OR":
-            parts = [self.translate(c, params, counter) for c in filters["conditions"]]
-            return "(" + " OR ".join(parts) + ")"
-        if op == "NOT":
-            inner = self.translate(filters["conditions"][0], params, counter)
-            return f"(NOT {inner})"
-
-        # Comparison leaf — op is guaranteed to be a comparison operator string at this point
-        if not isinstance(op, str):
-            msg = f"Unsupported or missing filter operator: {op}"
-            raise ValueError(msg)
-        field: str = filters["field"]
-        value: Any = filters["value"]
-        col = _FilterTranslator._field_to_sql(field, value)
-
-        if op in ("in", "not in"):
-            placeholders = []
-            for v in value:
-                pname = f"p{counter[0]}"
-                counter[0] += 1
-                params[pname] = v
-                placeholders.append(f":{pname}")
-            sql_op = "IN" if op == "in" else "NOT IN"
-            return f"{col} {sql_op} ({', '.join(placeholders)})"
-
-        pname = f"p{counter[0]}"
-        counter[0] += 1
-        params[pname] = value
-        sql_op = self._OP_MAP[op]
-        return f"{col} {sql_op} :{pname}"
-
-    @staticmethod
-    def _field_to_sql(field: str, value: Any) -> str:
-        if field == "id":
-            return "id"
-        if field == "content":
-            return "text"
-        if field.startswith("meta."):
-            key = field[len("meta.") :]
-            json_path = f"JSON_VALUE(metadata, '$.{key}')"
-            if isinstance(value, (int, float)) and not isinstance(value, bool):
-                return f"TO_NUMBER({json_path})"
-            return json_path
-        # Fallback: treat as top-level JSON key
-        json_path = f"JSON_VALUE(metadata, '$.{field}')"
-        if isinstance(value, (int, float)) and not isinstance(value, bool):
-            return f"TO_NUMBER({json_path})"
-        return json_path
 
 
 class OracleDocumentStore:
@@ -421,7 +334,7 @@ class OracleDocumentStore:
             return "", {}
         params: dict[str, Any] = {}
         counter = [0]
-        fragment = _FilterTranslator().translate(filters, params, counter)
+        fragment = FilterTranslator().translate(filters, params, counter)
         return f"WHERE {fragment}", params
 
     def filter_documents(self, filters: dict[str, Any] | None = None) -> list[Document]:

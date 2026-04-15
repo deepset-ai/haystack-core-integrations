@@ -2,13 +2,13 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from haystack_integrations.document_stores.oracle.document_store import _FilterTranslator
+from haystack_integrations.document_stores.oracle.filters import FilterTranslator
 
 
 def _translate(filters):
     params = {}
     counter = [0]
-    sql = _FilterTranslator().translate(filters, params, counter)
+    sql = FilterTranslator().translate(filters, params, counter)
     return sql, params
 
 
