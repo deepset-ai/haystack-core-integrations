@@ -5,6 +5,7 @@
 import uuid
 from unittest.mock import MagicMock
 
+import oracledb as _oracledb
 import pytest
 from haystack.dataclasses import Document
 from haystack.document_stores.errors import DuplicateDocumentError
@@ -46,7 +47,6 @@ def _make_store(table: str, embedding_dim: int) -> OracleDocumentStore:
 
 @pytest.mark.integration
 class TestOracleDocumentStore(DocumentStoreBaseTests):
-
     @staticmethod
     def _mock_doc(content="hello", embedding=None, doc_id="AABB" * 8):
         """Lightweight document builder for mock-based tests."""
@@ -61,21 +61,21 @@ class TestOracleDocumentStore(DocumentStoreBaseTests):
         cursor.rowcount = 1
 
         conn = MagicMock()
-        conn.cursor.return_value.__enter__ = lambda s: cursor
+        conn.cursor.return_value.__enter__ = lambda _: cursor
         conn.cursor.return_value.__exit__ = MagicMock(return_value=False)
 
         pool = MagicMock()
-        pool.acquire.return_value.__enter__ = lambda s: conn
+        pool.acquire.return_value.__enter__ = lambda _: conn
         pool.acquire.return_value.__exit__ = MagicMock(return_value=False)
 
         monkeypatch.setattr(
             "haystack_integrations.document_stores.oracle.document_store.oracledb.create_pool",
-            lambda **kw: pool,
+            lambda **_: pool,
         )
         return pool, conn, cursor
 
     @pytest.fixture
-    def mock_store(self, mock_pool, monkeypatch):
+    def mock_store(self, monkeypatch):
         monkeypatch.setenv("ORACLE_PASSWORD", "p")
         return OracleDocumentStore(
             connection_config=OracleConnectionConfig(
@@ -227,8 +227,6 @@ class TestOracleDocumentStore(DocumentStoreBaseTests):
         assert ":doc_id" in sql
 
     def test_write_documents_none_policy_duplicate_raises(self, mock_store, mock_pool):
-        import oracledb as _oracledb
-
         _, _, cursor = mock_pool
         cursor.executemany.side_effect = _oracledb.IntegrityError("ORA-00001")
         with pytest.raises(DuplicateDocumentError):
@@ -250,7 +248,7 @@ class TestOracleDocumentStore(DocumentStoreBaseTests):
         assert "WHEN MATCHED" in sql
         assert "WHEN NOT MATCHED" in sql
 
-    def test_write_documents_returns_count(self, mock_store, mock_pool):
+    def test_write_documents_returns_count(self, mock_store, mock_pool):  # noqa: ARG002
         count = mock_store.write_documents(
             [self._mock_doc(), self._mock_doc(doc_id="CCDD" * 8)], policy=DuplicatePolicy.NONE
         )

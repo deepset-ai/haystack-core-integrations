@@ -38,7 +38,7 @@ def test_in_operator():
 
 
 def test_not_in_operator():
-    sql, params = _translate({"field": "meta.lang", "operator": "not in", "value": ["xx", "yy"]})
+    sql, _ = _translate({"field": "meta.lang", "operator": "not in", "value": ["xx", "yy"]})
     assert "NOT IN (:p0, :p1)" in sql
 
 
@@ -58,7 +58,7 @@ def test_and_logical():
 
 
 def test_or_logical():
-    sql, params = _translate(
+    sql, _ = _translate(
         {
             "operator": "OR",
             "conditions": [
@@ -71,7 +71,7 @@ def test_or_logical():
 
 
 def test_not_logical():
-    sql, params = _translate(
+    sql, _ = _translate(
         {
             "operator": "NOT",
             "conditions": [{"field": "meta.hidden", "operator": "==", "value": True}],
@@ -102,28 +102,28 @@ def test_nested_and_or():
 
 
 def test_id_field_maps_to_id_column():
-    sql, params = _translate({"field": "id", "operator": "==", "value": "ABCD1234"})
+    sql, _ = _translate({"field": "id", "operator": "==", "value": "ABCD1234"})
     assert "id = :p0" in sql
 
 
 def test_content_field_maps_to_text():
-    sql, params = _translate({"field": "content", "operator": "==", "value": "hello"})
+    sql, _ = _translate({"field": "content", "operator": "==", "value": "hello"})
     assert "text = :p0" in sql
 
 
 def test_numeric_value_wraps_in_to_number():
-    sql, params = _translate({"field": "meta.count", "operator": ">=", "value": 5})
+    sql, _ = _translate({"field": "meta.count", "operator": ">=", "value": 5})
     assert "TO_NUMBER(" in sql
     assert ">= :p0" in sql
 
 
 def test_nested_meta_key():
-    sql, params = _translate({"field": "meta.author.city", "operator": "==", "value": "NYC"})
+    sql, _ = _translate({"field": "meta.author.city", "operator": "==", "value": "NYC"})
     assert "'$.author.city'" in sql
 
 
 def test_param_counter_increments_correctly():
-    sql, params = _translate(
+    _, params = _translate(
         {
             "operator": "AND",
             "conditions": [

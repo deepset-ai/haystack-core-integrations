@@ -9,7 +9,7 @@ import logging
 import re
 import threading
 from dataclasses import dataclass
-from typing import Any, Literal
+from typing import Any, ClassVar, Literal
 
 import oracledb
 from haystack import default_from_dict, default_to_dict
@@ -42,6 +42,12 @@ class OracleConnectionConfig:
     max_connections: int = 5
 
     def to_dict(self) -> dict[str, Any]:
+        """
+        Serializes the component to a dictionary.
+
+        :returns:
+            Dictionary with serialized data.
+        """
         return {
             "user": self.user,
             "password": self.password.to_dict(),
@@ -54,6 +60,14 @@ class OracleConnectionConfig:
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "OracleConnectionConfig":
+        """
+        Deserializes the component from a dictionary.
+
+        :param data:
+            Dictionary to deserialize from.
+        :returns:
+            Deserialized component.
+        """
         deserialize_secrets_inplace(data, keys=["password", "wallet_password"])
         return cls(**data)
 
@@ -76,7 +90,7 @@ class _FilterTranslator:
     for cursor.execute / cursor.executemany bindings.
     """
 
-    _OP_MAP: dict[str, str] = {
+    _OP_MAP: ClassVar[dict[str, str]] = {
         "==": "=",
         "!=": "!=",
         ">": ">",
@@ -192,7 +206,8 @@ class OracleDocumentStore:
             )
             raise ValueError(msg)
         if embedding_dim <= 0:
-            raise ValueError(f"embedding_dim must be a positive integer, got {embedding_dim}")
+            msg = f"embedding_dim must be a positive integer, got {embedding_dim}"
+            raise ValueError(msg)
 
         self.connection_config = connection_config
         self.table_name = table_name
@@ -249,7 +264,7 @@ class OracleDocumentStore:
             try:
                 self._pool.close()
             except Exception:
-                pass
+                logger.warning("Failed to close Oracle connection pool during cleanup.", exc_info=True)
 
     def _ensure_table(self) -> None:
         sql = f"""
@@ -285,6 +300,7 @@ class OracleDocumentStore:
             conn.commit()
 
     async def create_hnsw_index_async(self) -> None:
+        """Async variant of create_hnsw_index."""
         await asyncio.to_thread(self.create_hnsw_index)
 
     def write_documents(
@@ -292,6 +308,15 @@ class OracleDocumentStore:
         documents: list[Document],
         policy: DuplicatePolicy = DuplicatePolicy.NONE,
     ) -> int:
+        """
+        Writes documents to the document store.
+
+        :param documents: A list of Documents to write to the document store.
+        :param policy: The duplicate policy to use when writing documents.
+        :raises DuplicateDocumentError: If a document with the same id already exists in the document store
+            and the policy is set to `DuplicatePolicy.FAIL` or `DuplicatePolicy.NONE`.
+        :returns: The number of documents written to the document store.
+        """
         if not documents:
             return 0
         if policy in (DuplicatePolicy.NONE, DuplicatePolicy.FAIL):
@@ -335,9 +360,8 @@ class OracleDocumentStore:
                 cur.executemany(sql, rows)
                 conn.commit()
         except oracledb.IntegrityError as exc:
-            raise DuplicateDocumentError(
-                f"Document already exists. Use DuplicatePolicy.OVERWRITE or SKIP. Original error: {exc}"
-            ) from exc
+            msg = f"Document already exists. Use DuplicatePolicy.OVERWRITE or SKIP. Original error: {exc}"
+            raise DuplicateDocumentError(msg) from exc
         return len(rows)
 
     def _skip_duplicate_documents(self, documents: list[Document]) -> int:
@@ -380,6 +404,15 @@ class OracleDocumentStore:
         documents: list[Document],
         policy: DuplicatePolicy = DuplicatePolicy.NONE,
     ) -> int:
+        """
+        Asynchronously writes documents to the document store.
+
+        :param documents: A list of Documents to write to the document store.
+        :param policy: The duplicate policy to use when writing documents.
+        :raises DuplicateDocumentError: If a document with the same id already exists in the document store
+            and the policy is set to `DuplicatePolicy.FAIL` or `DuplicatePolicy.NONE`.
+        :returns: The number of documents written to the document store.
+        """
         return await asyncio.to_thread(self.write_documents, documents, policy)
 
     @staticmethod
@@ -392,6 +425,15 @@ class OracleDocumentStore:
         return f"WHERE {fragment}", params
 
     def filter_documents(self, filters: dict[str, Any] | None = None) -> list[Document]:
+        """
+        Returns the documents that match the filters provided.
+
+        For a detailed specification of the filters,
+        refer to the [documentation](https://docs.haystack.deepset.ai/docs/metadata-filtering)
+
+        :param filters: The filters to apply to the document list.
+        :returns: A list of Documents that match the given filters.
+        """
         where, params = OracleDocumentStore._build_where(filters)
         sql = f"SELECT id, text, metadata FROM {self.table_name} {where}"
         with self._get_connection() as conn, conn.cursor() as cur:
@@ -400,9 +442,23 @@ class OracleDocumentStore:
         return [OracleDocumentStore._row_to_document(r) for r in rows]
 
     async def filter_documents_async(self, filters: dict[str, Any] | None = None) -> list[Document]:
+        """
+        Asynchronously returns the documents that match the filters provided.
+
+        For a detailed specification of the filters,
+        refer to the [documentation](https://docs.haystack.deepset.ai/docs/metadata-filtering)
+
+        :param filters: The filters to apply to the document list.
+        :returns: A list of Documents that match the given filters.
+        """
         return await asyncio.to_thread(self.filter_documents, filters)
 
     def delete_documents(self, document_ids: list[str]) -> None:
+        """
+        Deletes documents that match the provided `document_ids` from the document store.
+
+        :param document_ids: the document ids to delete
+        """
         if not document_ids:
             return
         placeholders = ", ".join(f":p{i}" for i in range(len(document_ids)))
@@ -413,9 +469,20 @@ class OracleDocumentStore:
             conn.commit()
 
     async def delete_documents_async(self, document_ids: list[str]) -> None:
+        """
+        Asynchronously deletes documents that match the provided `document_ids` from the document store.
+
+        :param document_ids: the document ids to delete
+        """
         await asyncio.to_thread(self.delete_documents, document_ids)
 
     def count_documents(self) -> int:
+        """
+        Returns how many documents are present in the document store.
+
+        :returns:
+            Number of documents in the document store.
+        """
         sql = f"SELECT COUNT(*) FROM {self.table_name}"
         with self._get_connection() as conn, conn.cursor() as cur:
             cur.execute(sql)
@@ -423,6 +490,12 @@ class OracleDocumentStore:
         return row[0] if row else 0
 
     async def count_documents_async(self) -> int:
+        """
+        Asynchronously returns how many documents are present in the document store.
+
+        :returns:
+            Number of documents in the document store.
+        """
         return await asyncio.to_thread(self.count_documents)
 
     def _embedding_retrieval(
@@ -495,6 +568,12 @@ class OracleDocumentStore:
         )
 
     def to_dict(self) -> dict[str, Any]:
+        """
+        Serializes the component to a dictionary.
+
+        :returns:
+            Dictionary with serialized data.
+        """
         return default_to_dict(
             self,
             connection_config=self.connection_config.to_dict(),
@@ -511,6 +590,14 @@ class OracleDocumentStore:
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "OracleDocumentStore":
+        """
+        Deserializes the component from a dictionary.
+
+        :param data:
+            Dictionary to deserialize from.
+        :returns:
+            Deserialized component.
+        """
         params = data.get("init_parameters", {})
         if "connection_config" in params:
             params["connection_config"] = OracleConnectionConfig.from_dict(params["connection_config"])

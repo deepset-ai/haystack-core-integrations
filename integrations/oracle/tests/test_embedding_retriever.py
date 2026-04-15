@@ -84,7 +84,7 @@ def test_run_top_k_override(mock_store):
     assert mock_store._embedding_retrieval.call_args.kwargs["top_k"] == 3
 
 
-def test_to_dict_from_dict_roundtrip(mock_store, monkeypatch):
+def test_to_dict_from_dict_roundtrip(mock_store):
     retriever = OracleEmbeddingRetriever(
         document_store=mock_store,
         top_k=7,

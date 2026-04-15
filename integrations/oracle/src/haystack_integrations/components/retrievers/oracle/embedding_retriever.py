@@ -85,6 +85,12 @@ class OracleEmbeddingRetriever:
         return {"documents": docs}
 
     def to_dict(self) -> dict[str, Any]:
+        """
+        Serializes the component to a dictionary.
+
+        :returns:
+            Dictionary with serialized data.
+        """
         return default_to_dict(
             self,
             document_store=self.document_store.to_dict(),
@@ -95,6 +101,14 @@ class OracleEmbeddingRetriever:
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "OracleEmbeddingRetriever":
+        """
+        Deserializes the component from a dictionary.
+
+        :param data:
+            Dictionary to deserialize from.
+        :returns:
+            Deserialized component.
+        """
         params = data.get("init_parameters", {})
         if "document_store" in params:
             params["document_store"] = OracleDocumentStore.from_dict(params["document_store"])
