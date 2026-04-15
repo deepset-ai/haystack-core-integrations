@@ -532,6 +532,58 @@ class ElasticsearchDocumentStore:
 
         return body
 
+    def _create_sparse_retrieval_inference_body(
+        self,
+        query: str,
+        inference_id: str,
+        *,
+        filters: dict[str, Any] | None = None,
+        top_k: int = 10,
+    ) -> dict[str, Any]:
+        """
+        Builds the Elasticsearch search body for sparse vector retrieval using inference.
+
+        :param query: Query text to use for inference-based sparse retrieval.
+        :param inference_id: Identifier of the inference model to use.
+        :param filters: Optional filters to narrow down the search space.
+        :param top_k: Maximum number of documents to return.
+        :returns: Search body for Elasticsearch.
+        :raises ValueError: If sparse retrieval is not configured or the query or inference_id is empty.
+        """
+        if not self._sparse_vector_field:
+            msg = "sparse_vector_field must be set for sparse vector retrieval"
+            raise ValueError(msg)
+
+        if not query:
+            msg = "query must be a non-empty string for inference-based sparse retrieval"
+            raise ValueError(msg)
+
+        if not inference_id:
+            msg = "inference_id must be provided for inference-based sparse retrieval"
+            raise ValueError(msg)
+
+        body: dict[str, Any] = {
+            "size": top_k,
+            "query": {
+                "bool": {
+                    "must": [
+                        {
+                            "sparse_vector": {
+                                "field": self._sparse_vector_field,
+                                "query": query,
+                                "inference_id": inference_id,
+                            }
+                        }
+                    ]
+                }
+            },
+        }
+
+        if filters:
+            body["query"]["bool"]["filter"] = _normalize_filters(filters)
+
+        return body
+
     def write_documents(
         self,
         documents: list[Document],
@@ -1191,6 +1243,57 @@ class ElasticsearchDocumentStore:
         self._ensure_initialized()
         search_body = self._create_sparse_retrieval_body(
             query_sparse_embedding=query_sparse_embedding,
+            filters=filters,
+            top_k=top_k,
+        )
+        return await self._search_documents_async(**search_body)
+
+    def _sparse_vector_retrieval_inference(
+        self,
+        query: str,
+        inference_id: str,
+        *,
+        filters: dict[str, Any] | None = None,
+        top_k: int = 10,
+    ) -> list[Document]:
+        """
+        Retrieves documents using sparse vector inference search.
+
+        :param query: Query text to use for inference-based sparse retrieval.
+        :param inference_id: Identifier of the inference model to use.
+        :param filters: Optional filters to narrow down the search space.
+        :param top_k: Maximum number of documents to return.
+        :returns: List of Documents most similar to the inference query.
+        """
+        body = self._create_sparse_retrieval_inference_body(
+            query=query,
+            inference_id=inference_id,
+            filters=filters,
+            top_k=top_k,
+        )
+        return self._search_documents(**body)
+
+    async def _sparse_vector_retrieval_inference_async(
+        self,
+        query: str,
+        inference_id: str,
+        *,
+        filters: dict[str, Any] | None = None,
+        top_k: int = 10,
+    ) -> list[Document]:
+        """
+        Asynchronously retrieves documents using sparse vector inference search.
+
+        :param query: Query text to use for inference-based sparse retrieval.
+        :param inference_id: Identifier of the inference model to use.
+        :param filters: Optional filters to narrow down the search space.
+        :param top_k: Maximum number of documents to return.
+        :returns: List of Documents most similar to the inference query.
+        """
+        self._ensure_initialized()
+        search_body = self._create_sparse_retrieval_inference_body(
+            query=query,
+            inference_id=inference_id,
             filters=filters,
             top_k=top_k,
         )

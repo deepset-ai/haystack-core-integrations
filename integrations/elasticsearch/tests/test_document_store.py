@@ -357,6 +357,21 @@ def test_sparse_vector_retrieval_builds_query_without_filters():
     assert "filter" not in search_kwargs["query"]["bool"]
 
 
+def test_sparse_vector_retrieval_inference_builds_query_without_filters():
+    store = ElasticsearchDocumentStore(hosts="some hosts", sparse_vector_field="sparse_vec")
+
+    with patch.object(store, "_search_documents", return_value=[]) as mock_search:
+        store._sparse_vector_retrieval_inference(query="Find Berlin", inference_id="ELSER", top_k=3)
+
+    mock_search.assert_called_once()
+    search_kwargs = mock_search.call_args.kwargs
+    assert search_kwargs["size"] == 3
+    assert search_kwargs["query"]["bool"]["must"] == [
+        {"sparse_vector": {"field": "sparse_vec", "query": "Find Berlin", "inference_id": "ELSER"}}
+    ]
+    assert "filter" not in search_kwargs["query"]["bool"]
+
+
 def test_sparse_vector_retrieval_builds_query_with_filters():
     store = ElasticsearchDocumentStore(hosts="some hosts", sparse_vector_field="sparse_vec")
 
@@ -393,6 +408,30 @@ async def test_sparse_vector_retrieval_async_builds_query_without_filters():
             "bool": {
                 "must": [
                     {"sparse_vector": {"field": "sparse_vec", "query_vector": {"1": 0.4, "3": 0.9}}},
+                ]
+            }
+        },
+    )
+
+
+@pytest.mark.asyncio
+async def test_sparse_vector_retrieval_inference_async_builds_query_without_filters():
+    store = ElasticsearchDocumentStore(hosts="some hosts", sparse_vector_field="sparse_vec")
+    store._initialized = True
+    store._search_documents_async = AsyncMock(return_value=[])  # type: ignore[method-assign]
+
+    await store._sparse_vector_retrieval_inference_async(
+        query="Find Berlin",
+        inference_id="ELSER",
+        top_k=2,
+    )
+
+    store._search_documents_async.assert_awaited_once_with(  # type: ignore[attr-defined]
+        size=2,
+        query={
+            "bool": {
+                "must": [
+                    {"sparse_vector": {"field": "sparse_vec", "query": "Find Berlin", "inference_id": "ELSER"}},
                 ]
             }
         },
