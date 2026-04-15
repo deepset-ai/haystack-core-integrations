@@ -30,7 +30,6 @@ dependencies = [
 dev = [
   "pytest>=8.0.0",
   "pytest-asyncio>=0.23.0",
-  "pytest-mock>=3.12.0",
   "ruff>=0.4.0",
   "mypy>=1.9.0",
 ]
@@ -66,7 +65,6 @@ dependencies = [
   "pytest-asyncio",
   "pytest-cov",
   "pytest-rerunfailures",
-  "pytest-mock",
   "mypy",
   "pip",
 ]
@@ -81,18 +79,89 @@ types = "mypy -p haystack_integrations.document_stores.oracle -p haystack_integr
 
 
 [tool.pytest.ini_options]
-testpaths = ["tests"]
+minversion = "6.0"
+markers = ["unit: unit tests", "integration: integration tests"]
 asyncio_mode = "auto"
-markers = [
-  "unit: fast tests, no Oracle connection required",
-  "integration: require a live Oracle 23ai instance",
-]
+asyncio_default_fixture_loop_scope = "class"
 
 [tool.ruff]
 line-length = 120
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "B"]
+select = [
+  "A",
+  "ANN",
+  "ARG",
+  "B",
+  "C",
+  "D102",   # Missing docstring in public method
+  "D103",   # Missing docstring in public function
+  "D205",   # 1 blank line required between summary line and description
+  "D209",   # Closing triple quotes go to new line
+  "D213",   # summary lines must be positioned on the second physical line of the docstring
+  "D417",   # Missing argument descriptions in the docstring
+  "D419",   # Docstring is empty
+  "DTZ",
+  "E",
+  "EM",
+  "F",
+  "FBT",
+  "I",
+  "ICN",
+  "ISC",
+  "N",
+  "PLC",
+  "PLE",
+  "PLR",
+  "PLW",
+  "Q",
+  "RUF",
+  "S",
+  "T",
+  "TID",
+  "UP",
+  "W",
+  "YTT",
+]
+ignore = [
+  # Allow non-abstract empty methods in abstract base classes
+  "B027",
+  # Allow boolean positional values in function calls, like `dict.get(... True)`
+  "FBT003",
+  # Ignore checks for possible passwords
+  "S105",
+  "S106",
+  "S107",
+  # Ignore complexity
+  "C901",
+  "PLR0911",
+  "PLR0912",
+  "PLR0913",
+  "PLR0915",
+  # Allow `Any` - used legitimately for dynamic types and SDK boundaries
+  "ANN401",
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["haystack_integrations"]
+
+[tool.ruff.lint.flake8-tidy-imports]
+ban-relative-imports = "parents"
+
+[tool.ruff.lint.per-file-ignores]
+# Tests can use magic values, assertions, relative imports, and don't need type annotations
+"tests/**/*" = ["D", "PLR2004", "S101", "TID252", "ANN"]
+
+[tool.coverage.run]
+source = ["haystack_integrations"]
+branch = true
+relative_files = true
+parallel = false
+
+[tool.coverage.report]
+omit = ["*/tests/*", "*/__init__.py"]
+show_missing = true
+exclude_lines = ["no cov", "if __name__ == .__main__.:", "if TYPE_CHECKING:"]
 
 [tool.mypy]
 install_types = true

@@ -46,9 +46,6 @@ def _make_store(table: str, embedding_dim: int) -> OracleDocumentStore:
 
 @pytest.mark.integration
 class TestOracleDocumentStore(DocumentStoreBaseTests):
-    # ------------------------------------------------------------------
-    # Helpers and fixtures for mock-based tests
-    # ------------------------------------------------------------------
 
     @staticmethod
     def _mock_doc(content="hello", embedding=None, doc_id="AABB" * 8):
