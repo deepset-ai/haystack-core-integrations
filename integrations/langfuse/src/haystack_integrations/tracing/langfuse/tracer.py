@@ -469,6 +469,7 @@ class LangfuseTracer(Tracer):
 
         tracing_ctx = tracing_context_var.get({})
 
+        # we need to properly exit context managers
         with contextlib.ExitStack() as stack:
             if is_root_span:
                 # propagate_attributes sets trace_name and other trace-level metadata on the root
@@ -476,10 +477,10 @@ class LangfuseTracer(Tracer):
                 stack.enter_context(
                     propagate_attributes(
                         trace_name=self._name,
-                        user_id=tracing_ctx.get("user_id") or None,
-                        session_id=tracing_ctx.get("session_id") or None,
-                        version=tracing_ctx.get("version") or None,
-                        tags=tracing_ctx.get("tags") or None,
+                        user_id=tracing_ctx.get("user_id") if tracing_ctx.get("user_id") is not None else None,
+                        session_id=tracing_ctx.get("session_id") if tracing_ctx.get("session_id") is not None else None,
+                        version=tracing_ctx.get("version") if tracing_ctx.get("version") is not None else None,
+                        tags=tracing_ctx.get("tags") if tracing_ctx.get("tags") is not None else None,
                     )
                 )
 

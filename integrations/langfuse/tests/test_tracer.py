@@ -64,12 +64,6 @@ class MockSpan:
     def set_trace_as_public(self):
         self._data["public"] = True
 
-    def set_trace_io(self, *, input=None, output=None):  # noqa: A002
-        if input is not None:
-            self._data["input"] = input
-        if output is not None:
-            self._data["output"] = output
-
     def generation(self, name=None):
         # Return a new mock span for generation spans
         return MockSpan(name=name or "generation_span")
@@ -630,15 +624,42 @@ class TestLangfuseTracer:
             # Check that the span is cleaned up after tracing
             assert tracer.current_span() is None, "There should be no active span after tracing completes"
 
-    # check that update method is called on the span instance with the provided key value pairs
-    def test_update_span_with_pipeline_input_output_data(self):
-        with patch("haystack_integrations.tracing.langfuse.tracer.langfuse.get_client"):
-            tracer = LangfuseTracer(tracer=MockLangfuseClient(), name="Haystack", public=False)
-            with tracer.trace(operation_name="operation_name", tags={"haystack.pipeline.input_data": "hello"}) as span:
-                assert span.raw_span()._data["metadata"] == {"haystack.pipeline.input_data": "hello"}
+    def test_pipeline_input_output_written_to_root_observation(self):
+        tracer = LangfuseTracer(tracer=MockLangfuseClient(), name="Haystack", public=False)
+        with tracer.trace(
+            operation_name="operation_name",
+            tags={
+                "haystack.pipeline.input_data": "hello",
+                "haystack.pipeline.output_data": "bye",
+            },
+        ) as span:
+            pass
 
-            with tracer.trace(operation_name="operation_name", tags={"haystack.pipeline.output_data": "bye"}) as span:
-                assert span.raw_span()._data["metadata"] == {"haystack.pipeline.output_data": "bye"}
+        # MockSpan._update_data mirrors kwargs into _data, so after the context exits
+        # we can verify update(input=..., output=...) was actually called.
+        assert span.raw_span()._data["input"] == "hello"
+        assert span.raw_span()._data["output"] == "bye"
+
+    def test_propagate_attributes_called_with_tracing_ctx_vars(self):
+        token = tracing_context_var.set(
+            {"user_id": "user123", "session_id": "sess456", "version": "v1", "tags": ["tag1"]}
+        )
+        try:
+            with patch("haystack_integrations.tracing.langfuse.tracer.propagate_attributes") as mock_propagate:
+                mock_propagate.return_value.__enter__ = Mock(return_value=None)
+                mock_propagate.return_value.__exit__ = Mock(return_value=False)
+                tracer = LangfuseTracer(tracer=MockLangfuseClient(), name="MyPipeline", public=False)
+                with tracer.trace(operation_name="haystack.pipeline.run"):
+                    pass
+                mock_propagate.assert_called_once_with(
+                    trace_name="MyPipeline",
+                    user_id="user123",
+                    session_id="sess456",
+                    version="v1",
+                    tags=["tag1"],
+                )
+        finally:
+            tracing_context_var.reset(token)
 
     def test_trace_generation(self):
         with patch("haystack_integrations.tracing.langfuse.tracer.langfuse.get_client"):
