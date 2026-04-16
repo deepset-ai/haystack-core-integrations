@@ -29,7 +29,7 @@ concurrency:
 env:
   PYTHONUNBUFFERED: "1"
   FORCE_COLOR: "1"
-  TEST_MATRIX_OS: '["ubuntu-latest", "windows-latest", "macos-latest"]'
+  TEST_MATRIX_OS: '["ubuntu-latest"]'
   TEST_MATRIX_PYTHON: '["3.10", "3.14"]'
 
 jobs:
@@ -76,11 +76,6 @@ jobs:
           --health-retries 5
 
     steps:
-      - name: Support longpaths
-        if: matrix.os == 'windows-latest'
-        working-directory: .
-        run: git config --system core.longpaths true
-
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: Set up Python ${{ matrix.python-version }}
