@@ -4,7 +4,6 @@
 
 import os
 from time import sleep
-from unittest.mock import MagicMock, patch
 
 import pytest
 from haystack import Document
@@ -13,29 +12,11 @@ from haystack.utils import Secret
 from haystack_integrations.document_stores.mongodb_atlas import MongoDBAtlasDocumentStore
 
 
-def get_document_store(connection_string=None, **kwargs):
-    if connection_string is None:
-        connection_string = Secret.from_env_var("MONGO_CONNECTION_STRING_2")
-    return MongoDBAtlasDocumentStore(
-        mongo_connection_string=connection_string,
-        database_name="haystack_test",
-        collection_name="test_collection",
-        vector_search_index="cosine_index",
-        full_text_search_index="full_text_index",
-        **kwargs,
-    )
-
-
-@patch(
-    "haystack_integrations.document_stores.mongodb_atlas.document_store.MongoDBAtlasDocumentStore._ensure_connection_setup"
-)
 class TestFullTextRetrievalUnit:
-    def test_pipeline_correctly_passes_parameters(self, _mock_setup):
-        document_store = get_document_store(connection_string=Secret.from_token("test"))
-        mock_collection = MagicMock()
-        document_store._collection = mock_collection
-        mock_collection.aggregate.return_value = []
-        document_store._fulltext_retrieval(
+    def test_pipeline_correctly_passes_parameters(self, mocked_store):
+        store, collection = mocked_store
+
+        store._fulltext_retrieval(
             query=["spam", "eggs"],
             fuzzy={"maxEdits": 1},
             match_criteria="any",
@@ -44,10 +25,8 @@ class TestFullTextRetrievalUnit:
             top_k=5,
         )
 
-        # Assert aggregate was called with the correct pipeline
-        assert mock_collection.aggregate.called
-        actual_pipeline = mock_collection.aggregate.call_args[0][0]
-        expected_pipeline = [
+        pipeline = collection.aggregate.call_args[0][0]
+        assert pipeline == [
             {
                 "$search": {
                     "compound": {
@@ -63,7 +42,7 @@ class TestFullTextRetrievalUnit:
                             }
                         ]
                     },
-                    "index": "full_text_index",
+                    "index": "idx",
                 }
             },
             {"$match": {"meta.meta_field": {"$eq": "right_value"}}},
@@ -72,36 +51,14 @@ class TestFullTextRetrievalUnit:
             {"$project": {"_id": 0}},
         ]
 
-        assert actual_pipeline == expected_pipeline
-        # Explicitly verify that the path in the text search is using the content_field
-        assert actual_pipeline[0]["$search"]["compound"]["must"][0]["text"]["path"] == document_store.content_field
+    def test_pipeline_with_custom_content_field(self, mocked_store):
+        store, collection = mocked_store
+        store.content_field = "custom_text"
 
-    def test_pipeline_with_custom_content_field(self, _mock_setup):
-        # Create a document store with a custom content field
-        document_store = get_document_store(connection_string=Secret.from_token("test"), content_field="custom_text")
-        mock_collection = MagicMock()
-        document_store._collection = mock_collection
-        mock_collection.aggregate.return_value = []
+        store._fulltext_retrieval(query="test query", top_k=3)
 
-        # Execute the fulltext retrieval with the custom content field
-        document_store._fulltext_retrieval(
-            query="test query",
-            top_k=3,
-        )
-
-        # Assert aggregate was called with the correct pipeline
-        assert mock_collection.aggregate.called
-        actual_pipeline = mock_collection.aggregate.call_args[0][0]
-
-        # Verify the text search path is set to the custom content field
-        # This is crucial - the path should use self.content_field, not be hardcoded to "content"
-        assert actual_pipeline[0]["$search"]["compound"]["must"][0]["text"]["path"] == "custom_text"
-
-        # Verify the pipeline structure
-        assert len(actual_pipeline) == 5
-        assert "$limit" in actual_pipeline[2]
-        assert "$addFields" in actual_pipeline[3]
-        assert "$project" in actual_pipeline[4]
+        pipeline = collection.aggregate.call_args[0][0]
+        assert pipeline[0]["$search"]["compound"]["must"][0]["text"]["path"] == "custom_text"
 
 
 @pytest.mark.skipif(
@@ -112,7 +69,13 @@ class TestFullTextRetrievalUnit:
 class TestFullTextRetrieval:
     @pytest.fixture(scope="class")
     def document_store(self) -> MongoDBAtlasDocumentStore:
-        return get_document_store()
+        return MongoDBAtlasDocumentStore(
+            mongo_connection_string=Secret.from_env_var("MONGO_CONNECTION_STRING_2"),
+            database_name="haystack_test",
+            collection_name="test_collection",
+            vector_search_index="cosine_index",
+            full_text_search_index="full_text_index",
+        )
 
     @pytest.fixture(autouse=True, scope="class")
     def setup_teardown(self, document_store):
