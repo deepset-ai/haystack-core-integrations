@@ -9,11 +9,11 @@ from haystack.core.errors import DeserializationError
 from haystack.dataclasses import Document
 from haystack.document_stores.types.filter_policy import FilterPolicy
 
-from haystack_integrations.components.retrievers.falkor_db import (
+from haystack_integrations.components.retrievers.falkordb import (
     FalkorDBCypherRetriever,
     FalkorDBEmbeddingRetriever,
 )
-from haystack_integrations.document_stores.falkor_db import FalkorDBDocumentStore
+from haystack_integrations.document_stores.falkordb import FalkorDBDocumentStore
 
 
 class TestFalkorDBEmbeddingRetriever:

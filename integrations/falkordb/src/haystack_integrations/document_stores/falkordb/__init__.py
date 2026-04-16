@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from haystack_integrations.document_stores.falkor_db.document_store import (
+from haystack_integrations.document_stores.falkordb.document_store import (
     FalkorDBDocumentStore,
     SimilarityFunction,
 )

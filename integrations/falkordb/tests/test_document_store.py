@@ -10,7 +10,7 @@ from haystack.document_stores.errors import DuplicateDocumentError
 from haystack.document_stores.types import DuplicatePolicy
 from haystack.utils import Secret
 
-from haystack_integrations.document_stores.falkor_db import FalkorDBDocumentStore
+from haystack_integrations.document_stores.falkordb import FalkorDBDocumentStore
 
 
 @pytest.fixture

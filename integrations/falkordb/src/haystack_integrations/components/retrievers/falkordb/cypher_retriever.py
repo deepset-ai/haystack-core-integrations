@@ -7,7 +7,7 @@ from typing import Any
 from haystack import component, default_from_dict, default_to_dict
 from haystack.dataclasses import Document
 
-from haystack_integrations.document_stores.falkor_db import FalkorDBDocumentStore
+from haystack_integrations.document_stores.falkordb import FalkorDBDocumentStore
 
 
 @component
@@ -24,8 +24,8 @@ class FalkorDBCypherRetriever:
 
     Usage example:
     ```python
-    from haystack_integrations.document_stores.falkor_db import FalkorDBDocumentStore
-    from haystack_integrations.components.retrievers.falkor_db import FalkorDBCypherRetriever
+    from haystack_integrations.document_stores.falkordb import FalkorDBDocumentStore
+    from haystack_integrations.components.retrievers.falkordb import FalkorDBCypherRetriever
 
     store = FalkorDBDocumentStore(host="localhost", port=6379)
     retriever = FalkorDBCypherRetriever(
@@ -48,41 +48,17 @@ class FalkorDBCypherRetriever:
 
         :param document_store: The FalkorDBDocumentStore instance.
         :param custom_cypher_query: A static OpenCypher query to execute. Can be
-            overridden at runtime by passing ``query`` to ``run()``.
+            overridden at runtime by passing `query` to `run()`.
         :raises ValueError: If the provided `document_store` is not a `FalkorDBDocumentStore`.
         """
         if not isinstance(document_store, FalkorDBDocumentStore):
             msg = "document_store must be an instance of FalkorDBDocumentStore"
             raise ValueError(msg)
 
-        self._document_store = document_store
-        self._custom_cypher_query = custom_cypher_query
+        self.document_store = document_store
+        self.custom_cypher_query = custom_cypher_query
 
-    def to_dict(self) -> dict[str, Any]:
-        """
-        Serialise this component to a dictionary.
 
-        :returns: Dictionary representation of this retriever's configuration.
-        """
-        data = default_to_dict(
-            self,
-            custom_cypher_query=self._custom_cypher_query,
-        )
-        data["init_parameters"]["document_store"] = self._document_store.to_dict()
-        return data
-
-    @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "FalkorDBCypherRetriever":
-        """
-        Deserialise this component from a dictionary.
-
-        :param data: Dictionary previously produced by :meth:`to_dict`.
-        :returns: A new :class:`FalkorDBCypherRetriever` instance.
-        """
-        init_params = data.get("init_parameters", {})
-        if "document_store" in init_params:
-            init_params["document_store"] = FalkorDBDocumentStore.from_dict(init_params["document_store"])
-        return default_from_dict(cls, data)
 
     @component.output_types(documents=list[Document])
     def run(
@@ -93,21 +69,21 @@ class FalkorDBCypherRetriever:
         """
         Retrieve documents by executing an OpenCypher query.
 
-        If a ``query`` is provided here, it overrides the ``custom_cypher_query``
+        If a `query` is provided here, it overrides the `custom_cypher_query`
         set during initialisation.
 
         :param query: Optional OpenCypher query string.
         :param parameters: Optional dictionary of query parameters (referenced as
-            ``$param_name`` in the Cypher string).
+            `$param_name` in the Cypher string).
         :raises ValueError: If no query string is provided (both here and at init).
         :returns: Dictionary containing a `"documents"` key with the retrieved documents.
         """
-        cypher = query or self._custom_cypher_query
+        cypher = query or self.custom_cypher_query
         if not cypher:
             msg = "A Cypher query string must be provided either at init or at runtime."
             raise ValueError(msg)
 
-        docs = self._document_store._cypher_retrieval(
+        docs = self.document_store._cypher_retrieval(
             cypher_query=cypher,
             parameters=parameters,
         )

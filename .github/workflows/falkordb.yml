@@ -1,29 +1,29 @@
 # This workflow comes from https://github.com/ofek/hatch-mypyc
 # https://github.com/ofek/hatch-mypyc/blob/5a198c0ba8660494d02716cfc9d79ce4adfb1442/.github/workflows/test.yml
-name: Test / falkor_db
+name: Test / falkordb
 
 on:
   schedule:
     - cron: "0 0 * * *"
   pull_request:
     paths:
-      - "integrations/falkor_db/**"
-      - "!integrations/falkor_db/*.md"
-      - ".github/workflows/falkor_db.yml"
+      - "integrations/falkordb/**"
+      - "!integrations/falkordb/*.md"
+      - ".github/workflows/falkordb.yml"
   push:
     branches:
       - main
     paths:
-      - "integrations/falkor_db/**"
-      - "!integrations/falkor_db/*.md"
-      - ".github/workflows/falkor_db.yml"
+      - "integrations/falkordb/**"
+      - "!integrations/falkordb/*.md"
+      - ".github/workflows/falkordb.yml"
 
 defaults:
   run:
-    working-directory: integrations/falkor_db
+    working-directory: integrations/falkordb
 
 concurrency:
-  group: falkor_db-${{ github.head_ref || github.sha }}
+  group: falkordb-${{ github.head_ref || github.sha }}
   cancel-in-progress: true
 
 env:
@@ -99,8 +99,8 @@ jobs:
         uses: py-cov-action/python-coverage-comment-action@7188638f871f721a365d644f505d1ff3df20d683 # v3.40
         with:
           GITHUB_TOKEN: ${{ github.token }}
-          COVERAGE_PATH: integrations/falkor_db
-          SUBPROJECT_ID: falkor_db
+          COVERAGE_PATH: integrations/falkordb
+          SUBPROJECT_ID: falkordb
           MINIMUM_GREEN: 90
           MINIMUM_ORANGE: 60
 
@@ -108,8 +108,8 @@ jobs:
         if: matrix.python-version == '3.10' && runner.os == 'Linux' && github.event_name == 'pull_request' && steps.coverage_comment.outputs.COMMENT_FILE_WRITTEN == 'true'
         uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
-          name: coverage-comment-falkor_db
-          path: python-coverage-comment-action-falkor_db.txt
+          name: coverage-comment-falkordb
+          path: python-coverage-comment-action-falkordb.txt
 
       - name: Run integration tests
         # Integration tests require a live FalkorDB instance via Docker.
@@ -125,8 +125,8 @@ jobs:
         uses: py-cov-action/python-coverage-comment-action@7188638f871f721a365d644f505d1ff3df20d683 # v3.40
         with:
           GITHUB_TOKEN: ${{ github.token }}
-          COVERAGE_PATH: integrations/falkor_db
-          SUBPROJECT_ID: falkor_db-combined
+          COVERAGE_PATH: integrations/falkordb
+          SUBPROJECT_ID: falkordb-combined
           MINIMUM_GREEN: 90
           MINIMUM_ORANGE: 60
 

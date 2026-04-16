@@ -75,10 +75,10 @@ integration:faiss:
       - any-glob-to-any-file: ".github/workflows/faiss.yml"
 
 
-integration:falkor-db:
+integration:falkordb:
   - changed-files:
-      - any-glob-to-any-file: "integrations/falkor_db/**/*"
-      - any-glob-to-any-file: ".github/workflows/falkor_db.yml"
+      - any-glob-to-any-file: "integrations/falkordb/**/*"
+      - any-glob-to-any-file: ".github/workflows/falkordb.yml"
 
 integration:fastembed:
   - changed-files:
