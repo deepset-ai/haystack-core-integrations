@@ -57,10 +57,7 @@ class TestOracleDocumentStore(DocumentStoreBaseTests):
             cur.execute(f"DROP TABLE {table} PURGE")
             conn.commit()
 
-    # ------------------------------------------------------------------
-    # Mixin overrides
-    # ------------------------------------------------------------------
-
+    # Mixin override
     def assert_documents_are_equal(self, received: list[Document], expected: list[Document]) -> None:
         # filter_documents does not SELECT the embedding column — ignore it when comparing
         assert len(received) == len(expected)
@@ -71,6 +68,7 @@ class TestOracleDocumentStore(DocumentStoreBaseTests):
             assert r.content == e.content
             assert r.meta == e.meta
 
+    # Mixin override
     def test_write_documents(self, document_store: OracleDocumentStore) -> None:
         # Default policy is NONE — a second write of the same doc raises DuplicateDocumentError
         doc = Document(content="test doc")
@@ -79,34 +77,20 @@ class TestOracleDocumentStore(DocumentStoreBaseTests):
             document_store.write_documents([doc])
         self.assert_documents_are_equal(document_store.filter_documents(), [doc])
 
-    # Skipped: Oracle NULL semantics differ from Python None semantics.
-    # In Oracle, NULL != x evaluates to NULL (excluded), not True.
-    # Python: None != x is True, so these tests include missing-field docs
-    # in the expected result, but Oracle excludes them.
+    # test_comparison_equal_with_none     → IS NULL
+    # test_comparison_not_equal_with_none → IS NOT NULL
+    # test_comparison_not_equal           → col != x OR IS NULL
+    # test_comparison_not_in              → IS NULL OR NOT IN
 
-    @pytest.mark.skip(reason="Oracle SQL 'col = NULL' never matches; requires IS NULL")
-    def test_comparison_equal_with_none(self, document_store, filterable_docs): ...
-
-    @pytest.mark.skip(reason="Oracle SQL 'col != NULL' never matches; requires IS NOT NULL")
-    def test_comparison_not_equal_with_none(self, document_store, filterable_docs): ...
-
-    @pytest.mark.skip(reason="Oracle excludes NULL rows from != comparisons; Python None != x is True")
-    def test_comparison_not_equal(self, document_store, filterable_docs): ...
-
-    @pytest.mark.skip(reason="Oracle excludes NULL rows from NOT IN; Python None not in [...] is True")
-    def test_comparison_not_in(self, document_store, filterable_docs): ...
-
-    @pytest.mark.skip(reason="Oracle excludes NULL rows from NOT operator; Python not (None == x) is True")
+    @pytest.mark.skip(
+        reason="Oracle NULL propagation in NOT(...) cannot match Python 'not (None == x) is True' semantics"
+    )
     def test_not_operator(self, document_store, filterable_docs): ...
 
     # Skipped: input validation not implemented
 
     @pytest.mark.skip(reason="OracleDocumentStore does not validate input types in write_documents")
     def test_write_documents_invalid_input(self, document_store): ...
-
-    # ------------------------------------------------------------------
-    # Mock-based tests — verify SQL generation without a live DB
-    # ------------------------------------------------------------------
 
     def test_write_documents_none_policy_calls_insert(self, patched_store, mock_pool):
         _, _, cursor = mock_pool
@@ -222,10 +206,6 @@ class TestOracleDocumentStore(DocumentStoreBaseTests):
         assert "HNSW" in sql
         assert str(patched_store.hnsw_neighbors) in sql
         assert str(patched_store.hnsw_ef_construction) in sql
-
-    # ------------------------------------------------------------------
-    # Integration-only sync tests
-    # ------------------------------------------------------------------
 
     def test_write_documents_empty_list_returns_zero(self, document_store):
         assert document_store.write_documents([]) == 0
