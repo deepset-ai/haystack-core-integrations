@@ -35,9 +35,9 @@ class OracleConnectionConfig:
     automatically when *wallet_location* is provided.
     """
 
-    user: str
+    user: Secret
     password: Secret
-    dsn: str
+    dsn: Secret
     wallet_location: str | None = None
     wallet_password: Secret | None = None
     min_connections: int = 1
@@ -51,9 +51,9 @@ class OracleConnectionConfig:
             Dictionary with serialized data.
         """
         return {
-            "user": self.user,
+            "user": self.user.to_dict(),
             "password": self.password.to_dict(),
-            "dsn": self.dsn,
+            "dsn": self.dsn.to_dict(),
             "wallet_location": self.wallet_location,
             "wallet_password": self.wallet_password.to_dict() if self.wallet_password else None,
             "min_connections": self.min_connections,
@@ -70,7 +70,7 @@ class OracleConnectionConfig:
         :returns:
             Deserialized component.
         """
-        deserialize_secrets_inplace(data, keys=["password", "wallet_password"])
+        deserialize_secrets_inplace(data, keys=["user", "password", "dsn", "wallet_password"])
         return cls(**data)
 
 
@@ -90,9 +90,9 @@ class OracleDocumentStore:
 
         store = OracleDocumentStore(
             connection_config=OracleConnectionConfig(
-                user="scott",
+                user=Secret.from_env_var("ORACLE_USER"),
                 password=Secret.from_env_var("ORACLE_PASSWORD"),
-                dsn="localhost:1521/freepdb1",
+                dsn=Secret.from_env_var("ORACLE_DSN"),
             ),
             embedding_dim=1536,
         )
@@ -152,9 +152,9 @@ class OracleDocumentStore:
             password = cfg.password.resolve_value()
 
             connect_kwargs: dict[str, Any] = {
-                "user": cfg.user,
+                "user": cfg.user.resolve_value(),
                 "password": password,
-                "dsn": cfg.dsn,
+                "dsn": cfg.dsn.resolve_value(),
                 "min": cfg.min_connections,
                 "max": cfg.max_connections,
                 "increment": 1,

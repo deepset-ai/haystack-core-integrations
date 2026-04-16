@@ -26,9 +26,9 @@ from haystack_integrations.components.retrievers.oracle import OracleEmbeddingRe
 
 # Configure the connection
 config = OracleConnectionConfig(
-    user="haystack",
+    user=Secret.from_env_var("ORACLE_USER"),
     password=Secret.from_env_var("ORACLE_PASSWORD"),
-    dsn="localhost:1521/freepdb1",
+    dsn=Secret.from_env_var("ORACLE_DSN"),
 )
 
 # Create the document store
@@ -56,9 +56,9 @@ print(results["documents"])
 
 ```python
 config = OracleConnectionConfig(
-    user="admin",
+    user=Secret.from_env_var("ORACLE_USER"),
     password=Secret.from_env_var("ORACLE_PASSWORD"),
-    dsn="mydb_high",
+    dsn=Secret.from_env_var("ORACLE_DSN"),
     wallet_location="/path/to/wallet",
     wallet_password=Secret.from_env_var("WALLET_PASSWORD"),
 )

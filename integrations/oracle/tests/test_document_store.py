@@ -43,9 +43,9 @@ class TestOracleDocumentStore(DocumentStoreBaseTests):
         table = f"hs_sync_{uuid.uuid4().hex[:8]}"
         s = OracleDocumentStore(
             connection_config=OracleConnectionConfig(
-                user=_USER,
+                user=Secret.from_token(_USER),
                 password=Secret.from_token(_PASSWORD),
-                dsn=_DSN,
+                dsn=Secret.from_token(_DSN),
             ),
             table_name=table,
             embedding_dim=768,
