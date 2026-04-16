@@ -1,6 +1,8 @@
 loaders:
   - modules:
       - haystack_integrations.components.generators.vllm.chat.chat_generator
+      - haystack_integrations.components.embedders.vllm.text_embedder
+      - haystack_integrations.components.embedders.vllm.document_embedder
     search_path: [../src]
 processors:
   - type: filter

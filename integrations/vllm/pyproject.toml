@@ -22,7 +22,7 @@ classifiers = [
   "Programming Language :: Python :: Implementation :: CPython",
   "Programming Language :: Python :: Implementation :: PyPy",
 ]
-dependencies = ["haystack-ai>=2.23.0", "openai"]
+dependencies = ["haystack-ai>=2.23.0", "openai", "more_itertools>=9.0.0", "tqdm>=4.48.0"]
 
 [project.urls]
 Documentation = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/vllm#readme"
@@ -66,7 +66,7 @@ integration = 'pytest -m "integration" {args:tests}'
 all = 'pytest {args:tests}'
 unit-cov-retry = 'pytest --cov=haystack_integrations --reruns 3 --reruns-delay 30 -x -m "not integration" {args:tests}'
 integration-cov-append-retry = 'pytest --cov=haystack_integrations --cov-append --reruns 3 --reruns-delay 30 -x -m "integration" {args:tests}'
-types = "mypy -p haystack_integrations.components.generators.vllm {args}"
+types = "mypy -p haystack_integrations.components.generators.vllm -p haystack_integrations.components.embedders.vllm -p haystack_integrations.common.vllm {args}"
 
 [tool.mypy]
 install_types = true
