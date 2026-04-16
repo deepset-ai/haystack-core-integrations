@@ -284,8 +284,10 @@ class OracleDocumentStore:
         return len(rows)
 
     def _skip_duplicate_documents(self, documents: list[Document]) -> int:
-        # MERGE rowcount in Oracle reflects rows touched, not just inserted.
-        # Count before/after to return an accurate number of newly written docs.
+        # For a MERGE with WHEN NOT MATCHED only, Oracle reports 0 rows affected
+        # for existing documents and 1 for each new insert. oracledb sums these
+        # across executemany iterations, so cur.rowcount equals the number of
+        # newly written documents.
         sql = f"""
             MERGE INTO {self.table_name} t
             USING (SELECT :doc_id AS id FROM dual) s ON (t.id = s.id)
@@ -295,11 +297,10 @@ class OracleDocumentStore:
         """
         rows = [OracleDocumentStore._to_named_row(d) for d in documents]
         with self._get_connection() as conn, conn.cursor() as cur:
-            count_before = conn.cursor().execute(f"SELECT COUNT(*) FROM {self.table_name}").fetchone()[0]
             cur.executemany(sql, rows)
-            count_after = conn.cursor().execute(f"SELECT COUNT(*) FROM {self.table_name}").fetchone()[0]
+            written = cur.rowcount
             conn.commit()
-        return count_after - count_before
+        return written
 
     def _upsert_documents(self, documents: list[Document]) -> int:
         sql = f"""
