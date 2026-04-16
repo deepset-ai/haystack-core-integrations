@@ -7,7 +7,7 @@ from haystack_integrations.document_stores.supabase import SupabasePgVectorDocum
 
 @pytest.fixture
 def document_store(request, monkeypatch):
-    monkeypatch.setenv("SUPABASE_DB_URL", "postgresql://postgres:postgres@localhost:54322/postgres")
+    monkeypatch.setenv("SUPABASE_DB_URL", "postgresql://postgres:postgres@localhost:5432/postgres")
     table_name = f"haystack_{request.node.name}"
     embedding_dimension = 768
     vector_function = "cosine_similarity"
