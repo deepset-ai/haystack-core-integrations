@@ -165,6 +165,7 @@ class TestRetriever:
         )
         res = retriever.run(**case["run_input"], filters=run_filter)
 
+        # as the both init and run filters are filtering the same field, the run filter takes precedence
         getattr(mock_store, case["sync_method"]).assert_called_once_with(
             **case["run_input"], **case["store_call_extras"], filters=run_filter, top_k=10
         )
@@ -191,6 +192,7 @@ class TestRetriever:
         )
         res = await retriever.run_async(**case["run_input"], filters=run_filter)
 
+        # as the both init and run filters are filtering the same field, the run filter takes precedence
         getattr(mock_store, case["async_method"]).assert_called_once_with(
             **case["run_input"], **case["store_call_extras"], filters=run_filter, top_k=10
         )

@@ -117,4 +117,12 @@ class TestFullTextRetrievalUnit:
         await store._fulltext_retrieval_async(query="test query", top_k=3)
 
         pipeline = store._collection_async.aggregate.call_args[0][0]
+        # This is crucial - the path should use self.content_field, not be hardcoded to "content"
         assert pipeline[0]["$search"]["compound"]["must"][0]["text"]["path"] == "custom_text"
+
+        # Verify the pipeline structure
+        assert len(pipeline) == 5
+        assert "$match" in pipeline[1]
+        assert "$limit" in pipeline[2]
+        assert "$addFields" in pipeline[3]
+        assert "$project" in pipeline[4]

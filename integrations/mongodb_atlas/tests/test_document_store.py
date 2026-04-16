@@ -207,18 +207,20 @@ class TestMongoDBDocumentStoreConversion:
         haystack_doc = Document(content="test content", embedding=[0.1, 0.2, 0.3], meta={"test_meta": "test_value"})
         mongo_doc = custom_store._haystack_doc_to_mongo_doc(haystack_doc)
 
+        # Check field mapping
         assert mongo_doc["custom_text"] == "test content"
         assert "content" not in mongo_doc
         assert mongo_doc["custom_vector"] == [0.1, 0.2, 0.3]
         assert "embedding" not in mongo_doc
         assert mongo_doc["meta"] == {"test_meta": "test_value"}
 
+        # Test mongo_doc_to_haystack_doc
         converted_doc = {
             "id": "test_id",
             "custom_text": "test content from mongo",
             "custom_vector": [0.4, 0.5, 0.6],
             "meta": {"mongo_meta": "mongo_value"},
-            "_id": "mongodb_internal_id",
+            "_id": "mongodb_internal_id",  # This should be removed
         }
         haystack_doc = custom_store._mongo_doc_to_haystack_doc(converted_doc)
 
@@ -393,9 +395,11 @@ class TestDocumentStore(
         document_store.write_documents(docs)
         assert document_store.count_documents() == 2
 
+        # Delete all documents with collection recreation
         document_store.delete_all_documents(recreate_collection=True)
         assert document_store.count_documents() == 0
 
+        # Verify collection still exists and we can write to it
         new_docs = [Document(id="3", content="third doc")]
         document_store.write_documents(new_docs)
         assert document_store.count_documents() == 1

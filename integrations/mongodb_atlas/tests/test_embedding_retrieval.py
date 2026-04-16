@@ -1,14 +1,6 @@
 # SPDX-FileCopyrightText: 2023-present deepset GmbH <info@deepset.ai>
 #
 # SPDX-License-Identifier: Apache-2.0
-#
-# The `cosine_index` used below is expected to be configured with a filter on the `content` field:
-#   {
-#     "fields": [
-#       {"type": "vector", "path": "embedding", "numDimensions": 768, "similarity": "cosine"},
-#       {"type": "filter", "path": "content"}
-#     ]
-#   }
 import os
 
 import pytest
@@ -65,6 +57,24 @@ class TestEmbeddingRetrieval:
             make_store()._embedding_retrieval(query_embedding=[0.1] * 4)
 
     def test_embedding_retrieval_with_filters(self, make_store):
+        """
+        Note: we can combine embedding retrieval with filters
+        because the `cosine_index` vector_search_index was created with the `content` field as the filter field.
+        {
+        "fields": [
+            {
+            "type": "vector",
+            "path": "embedding",
+            "numDimensions": 768,
+            "similarity": "cosine"
+            },
+            {
+            "type": "filter",
+            "path": "content"
+            }
+        ]
+        }
+        """
         filters = {"field": "content", "operator": "!=", "value": "Document A"}
         results = make_store()._embedding_retrieval(query_embedding=[0.1] * 768, top_k=2, filters=filters)
         assert len(results) == 2
