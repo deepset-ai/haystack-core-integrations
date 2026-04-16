@@ -4,8 +4,11 @@
 
 | Name                                                                          |    Stmts |     Miss |   Branch |   BrPart |   Cover |   Missing |
 |------------------------------------------------------------------------------ | -------: | -------: | -------: | -------: | ------: | --------: |
-| src/haystack\_integrations/components/generators/vllm/chat/chat\_generator.py |      165 |        7 |       52 |        7 |     94% |55, 262, 269, 271, 315-\>317, 362-\>365, 407-\>410, 434-436 |
-| **TOTAL**                                                                     |  **165** |    **7** |   **52** |    **7** | **94%** |           |
+| src/haystack\_integrations/common/vllm/utils.py                               |       16 |        0 |        6 |        0 |    100% |           |
+| src/haystack\_integrations/components/embedders/vllm/document\_embedder.py    |      122 |        7 |       30 |        1 |     93% |221-226, 281 |
+| src/haystack\_integrations/components/embedders/vllm/text\_embedder.py        |       56 |        0 |       12 |        0 |    100% |           |
+| src/haystack\_integrations/components/generators/vllm/chat/chat\_generator.py |      156 |        4 |       46 |        4 |     96% |56, 304-\>306, 351-\>354, 396-\>399, 423-425 |
+| **TOTAL**                                                                     |  **350** |   **11** |   **94** |    **5** | **96%** |           |
 
 
 ## Setup coverage badge
