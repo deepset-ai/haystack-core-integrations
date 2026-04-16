@@ -1,20 +1,34 @@
 # Changelog
 
-## [integrations/fastembed-v2.1.0] - 2026-02-13
+## [integrations/fastembed-v2.2.0] - 2026-04-16
+
+### 🚀 Features
+
+- Update `FastembedRanker` to auto call `warm_up` on first run (#2834)
+- Add FastembedLateInteractionRanker for ColBERT late-interaction reranking (#3135)
+
+### 🐛 Bug Fixes
+
+- Replace in-place dataclass mutations with dataclasses.replace() (#3112)
 
 ### 📚 Documentation
 
 - *(fastembed)* Remove explicit warm_up from examples (#2830)
+- Simplify pydoc configs (#2855)
+
+### 🧪 Testing
+
+- Track test coverage for all integrations (#3065)
+
+### 🧹 Chores
+
+- Add ANN type annotations to faiss, fastembed, firecrawl, github, google_ai (#2988)
+- Enforce ruff docstring rules (D102/D103/D205/D209/D213/D417/D419) in integrations 11-20 (#3009)
 
 ### 🌀 Miscellaneous
 
-- Automatically call warm_up() if model is not loaded in FastembedRanker
-- Remove explicit call to warm_up() in ranker_example.py
-- Add unit tests
 - Fix typing issue
 - Fix tying
-- Update docstrings
-- Remove explicit warm_up calls from integration tests
 
 ## [integrations/fastembed-v2.0.0] - 2026-01-12
 
