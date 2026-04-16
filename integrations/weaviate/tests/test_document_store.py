@@ -7,13 +7,15 @@ import logging
 import os
 from collections.abc import Generator
 from dataclasses import replace
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+import weaviate
 from dateutil import parser
 from haystack.dataclasses.byte_stream import ByteStream
 from haystack.dataclasses.document import Document
-from haystack.document_stores.errors import DocumentStoreError
+from haystack.document_stores.errors import DocumentStoreError, DuplicateDocumentError
+from haystack.document_stores.types.policy import DuplicatePolicy
 from haystack.testing.document_store import (
     CountDocumentsByFilterTest,
     CountUniqueMetadataByFilterTest,
@@ -46,8 +48,152 @@ from haystack_integrations.document_stores.weaviate.document_store import (
 
 @patch("haystack_integrations.document_stores.weaviate.document_store.weaviate.WeaviateClient")
 def test_init_is_lazy(_mock_client):
-    _ = WeaviateDocumentStore()
+    WeaviateDocumentStore()
     _mock_client.assert_not_called()
+
+
+def test_client_raises_without_auth_for_cloud_url():
+    ds = WeaviateDocumentStore(url="something.weaviate.cloud")
+    with pytest.raises(ValueError, match="Auth credentials are required"):
+        ds.client  # noqa: B018
+
+
+@pytest.mark.asyncio
+async def test_async_client_raises_without_auth_for_cloud_url():
+    ds = WeaviateDocumentStore(url="something.weaviate.cloud")
+    with pytest.raises(ValueError, match="Auth credentials are required"):
+        await ds.async_client
+
+
+@patch("haystack_integrations.document_stores.weaviate.document_store.weaviate.connect_to_weaviate_cloud")
+def test_client_connects_to_weaviate_cloud(mock_connect, monkeypatch):
+    monkeypatch.setenv("WEAVIATE_API_KEY", "my_api_key")
+    mock_client = MagicMock()
+    mock_client.collections.exists.return_value = True
+    mock_connect.return_value = mock_client
+
+    ds = WeaviateDocumentStore(
+        url="rAnD0m.something.weaviate.cloud",
+        auth_client_secret=AuthApiKey(),
+        additional_headers={"X-HuggingFace-Api-Key": "k"},
+    )
+    assert ds.client is mock_client
+
+    mock_connect.assert_called_once()
+    _args, kwargs = mock_connect.call_args
+    assert kwargs["headers"] == {"X-HuggingFace-Api-Key": "k"}
+
+
+@pytest.mark.asyncio
+@patch("haystack_integrations.document_stores.weaviate.document_store.weaviate.use_async_with_weaviate_cloud")
+async def test_async_client_connects_to_weaviate_cloud(mock_connect, monkeypatch):
+    monkeypatch.setenv("WEAVIATE_API_KEY", "my_api_key")
+    mock_client = MagicMock()
+
+    async def connect() -> None:
+        return None
+
+    async def exists(_name: str) -> bool:
+        return True
+
+    mock_client.connect = connect
+    mock_client.collections.exists = exists
+    mock_connect.return_value = mock_client
+
+    ds = WeaviateDocumentStore(url="rAnD0m.something.weaviate.cloud", auth_client_secret=AuthApiKey())
+    assert await ds.async_client is mock_client
+    mock_connect.assert_called_once()
+
+
+def test_to_data_object_with_sparse_embedding_logs_warning(caplog):
+    doc = Document(content="test doc")
+    doc_dict = doc.to_dict()
+    doc_dict["sparse_embedding"] = {"indices": [0, 1], "values": [0.1, 0.2]}
+    with patch.object(Document, "to_dict", return_value=doc_dict), caplog.at_level(logging.WARNING):
+        data = WeaviateDocumentStore._to_data_object(doc)
+    assert "sparse_embedding" not in data
+    assert "sparse_embedding" in caplog.text
+
+
+def test_embedding_retrieval_raises_when_distance_and_certainty_both_set():
+    ds = WeaviateDocumentStore()
+    with pytest.raises(ValueError, match="Can't use 'distance' and 'certainty'"):
+        ds._embedding_retrieval(query_embedding=[0.1], distance=0.5, certainty=0.5)
+
+
+def test_handle_failed_objects_raises_document_store_error():
+    failed_obj = MagicMock()
+    failed_obj.object_.properties = {"_original_id": "doc-1"}
+    failed_obj.message = "boom"
+    with pytest.raises(DocumentStoreError, match=r"doc-1.*boom"):
+        WeaviateDocumentStore._handle_failed_objects([failed_obj])
+
+
+def test_to_document_handles_vector_variants():
+    data_no_vec = DataObject(properties={"_original_id": "1", "content": "x", "score": None}, vector=None)
+    assert WeaviateDocumentStore._to_document(data_no_vec).embedding is None
+
+    data_list_vec = DataObject(properties={"_original_id": "2", "content": "y", "score": None}, vector=[0.1, 0.2])
+    assert WeaviateDocumentStore._to_document(data_list_vec).embedding == [0.1, 0.2]
+
+
+def test_delete_by_filter_wraps_errors():
+    ds = WeaviateDocumentStore()
+    collection = MagicMock()
+    ds._collection = collection
+    filters = {"field": "meta.x", "operator": "==", "value": 1}
+
+    collection.data.delete_many.side_effect = weaviate.exceptions.WeaviateQueryError("bad", "GRPC")
+    with pytest.raises(DocumentStoreError, match="bad"):
+        ds.delete_by_filter(filters)
+
+    collection.data.delete_many.side_effect = RuntimeError("boom")
+    with pytest.raises(DocumentStoreError, match="boom"):
+        ds.delete_by_filter(filters)
+
+
+def test_update_by_filter_wraps_errors():
+    ds = WeaviateDocumentStore()
+    collection = MagicMock()
+    ds._collection = collection
+    filters = {"field": "meta.x", "operator": "==", "value": 1}
+
+    with pytest.raises(ValueError, match="Meta must be a dictionary"):
+        ds.update_by_filter(filters, meta="not-a-dict")  # type: ignore[arg-type]
+
+    obj = MagicMock(uuid="u", properties={"_original_id": "doc-1"}, vector=None)
+    collection.config.get.return_value.properties = [MagicMock(name="content")]
+    collection.query.fetch_objects.return_value = MagicMock(objects=[obj])
+    collection.data.replace.side_effect = RuntimeError("replace failed")
+    with pytest.raises(DocumentStoreError, match="doc-1"):
+        ds.update_by_filter(filters, {"category": "new"})
+
+
+@pytest.mark.asyncio
+async def test_write_documents_async_with_skip_and_fail_policies():
+    ds = WeaviateDocumentStore()
+    collection = MagicMock()
+    collection.data.exists = AsyncMock(return_value=True)
+    dup_error = weaviate.exceptions.UnexpectedStatusCodeError.__new__(weaviate.exceptions.UnexpectedStatusCodeError)
+    collection.data.insert = AsyncMock(side_effect=dup_error)
+
+    async def _get_collection():
+        return collection
+
+    with patch.object(
+        WeaviateDocumentStore, "async_collection", new_callable=lambda: property(lambda _self: _get_collection())
+    ):
+        doc = Document(content="x")
+
+        assert await ds.write_documents_async([doc], policy=DuplicatePolicy.SKIP) == 1
+        collection.data.insert.assert_not_called()
+
+        collection.data.exists = AsyncMock(return_value=False)
+        with pytest.raises(DuplicateDocumentError, match=doc.id):
+            await ds.write_documents_async([doc], policy=DuplicatePolicy.FAIL)
+
+        with pytest.raises(ValueError, match="Expected a Document"):
+            await ds.write_documents_async(["not-a-doc"], policy=DuplicatePolicy.FAIL)  # type: ignore[list-item]
 
 
 @pytest.mark.integration
@@ -144,7 +290,7 @@ class TestWeaviateDocumentStore(
 
         # Trigger the actual database connection by accessing the `client` property so we
         # can assert the setup was good
-        _ = ds.client
+        ds.client  # noqa: B018
 
         # Verify client is created with correct parameters
         mock_weaviate_client_class.assert_called_once_with(
