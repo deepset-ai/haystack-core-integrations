@@ -23,20 +23,19 @@ from haystack.utils import Secret
 from haystack_integrations.document_stores.mongodb_atlas import MongoDBAtlasDocumentStore
 
 
-@pytest.mark.parametrize("client_cls", ["MongoClient", "AsyncMongoClient"])
-def test_init_is_lazy(client_cls):
-    with patch(f"haystack_integrations.document_stores.mongodb_atlas.document_store.{client_cls}") as mock_client:
-        MongoDBAtlasDocumentStore(
-            mongo_connection_string=Secret.from_token("test"),
-            database_name="database_name",
-            collection_name="collection_name",
-            vector_search_index="cosine_index",
-            full_text_search_index="full_text_index",
-        )
-        mock_client.assert_not_called()
-
-
 class TestMongoDBDocumentStoreInit:
+    @pytest.mark.parametrize("client_cls", ["MongoClient", "AsyncMongoClient"])
+    def test_init_is_lazy(self, client_cls):
+        with patch(f"haystack_integrations.document_stores.mongodb_atlas.document_store.{client_cls}") as mock_client:
+            MongoDBAtlasDocumentStore(
+                mongo_connection_string=Secret.from_token("test"),
+                database_name="database_name",
+                collection_name="collection_name",
+                vector_search_index="cosine_index",
+                full_text_search_index="full_text_index",
+            )
+            mock_client.assert_not_called()
+
     def test_invalid_collection_name_raises(self):
         with pytest.raises(ValueError, match="Invalid collection name"):
             MongoDBAtlasDocumentStore(
@@ -71,7 +70,7 @@ class TestEnsureConnectionSetup:
                 local_store._ensure_connection_setup()
 
 
-class TestMongoDBDocumentStoreMocks:
+class TestMongoDBDocumentStoreUnit:
     def test_count_documents_by_filter(self, mocked_store):
         store, collection = mocked_store
         collection.count_documents.return_value = 5

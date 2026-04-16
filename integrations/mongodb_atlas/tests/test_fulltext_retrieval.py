@@ -25,6 +25,8 @@ class TestFullTextRetrievalUnit:
             top_k=5,
         )
 
+        # Assert aggregate was called with the correct pipeline
+        assert collection.aggregate.called
         pipeline = collection.aggregate.call_args[0][0]
         assert pipeline == [
             {
@@ -51,13 +53,22 @@ class TestFullTextRetrievalUnit:
             {"$project": {"_id": 0}},
         ]
 
+        # Explicitly verify that the path in the text search is using the content_field
+        assert pipeline[0]["$search"]["compound"]["must"][0]["text"]["path"] == store.content_field
+
     def test_pipeline_with_custom_content_field(self, mocked_store):
+        # Configure the store with a custom content field
         store, collection = mocked_store
         store.content_field = "custom_text"
 
+        # Execute the fulltext retrieval with the custom content field
         store._fulltext_retrieval(query="test query", top_k=3)
 
+        # Assert aggregate was called with the correct pipeline
+        assert collection.aggregate.called
         pipeline = collection.aggregate.call_args[0][0]
+
+        # Verify the text search path is set to the custom content field
         # This is crucial - the path should use self.content_field, not be hardcoded to "content"
         assert pipeline[0]["$search"]["compound"]["must"][0]["text"]["path"] == "custom_text"
 

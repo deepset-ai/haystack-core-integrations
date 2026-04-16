@@ -100,6 +100,7 @@ class TestFullTextRetrieval:
 
 class TestFullTextRetrievalUnit:
     async def test_pipeline_with_custom_content_field(self):
+        # Create a document store with a custom content field
         store = MongoDBAtlasDocumentStore(
             mongo_connection_string=Secret.from_token("test"),
             database_name="test_db",
@@ -114,9 +115,14 @@ class TestFullTextRetrievalUnit:
         store._collection_async.aggregate = AsyncMock(return_value=cursor)
         store._ensure_connection_setup_async = AsyncMock()
 
+        # Execute the fulltext retrieval with the custom content field
         await store._fulltext_retrieval_async(query="test query", top_k=3)
 
+        # Assert aggregate was called with the correct pipeline
+        assert store._collection_async.aggregate.called
         pipeline = store._collection_async.aggregate.call_args[0][0]
+
+        # Verify the text search path is set to the custom content field
         # This is crucial - the path should use self.content_field, not be hardcoded to "content"
         assert pipeline[0]["$search"]["compound"]["must"][0]["text"]["path"] == "custom_text"
 

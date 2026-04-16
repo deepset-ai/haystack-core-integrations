@@ -32,7 +32,7 @@ class TestEnsureConnectionSetupAsync:
                 await local_store._ensure_connection_setup_async()
 
 
-class TestMongoDBDocumentStoreAsyncMocks:
+class TestMongoDBDocumentStoreAsyncUnit:
     async def test_get_metadata_fields_info(self, mocked_store_async):
         store, collection = mocked_store_async
         cursor = MagicMock()
@@ -186,12 +186,14 @@ class TestDocumentStoreAsync(FilterableDocsFixtureMixin):
         await document_store.write_documents_async(docs)
         assert await document_store.count_documents_async() == 3
 
+        # Delete documents with category="A"
         deleted_count = await document_store.delete_by_filter_async(
             filters={"field": "meta.category", "operator": "==", "value": "A"}
         )
         assert deleted_count == 2
         assert await document_store.count_documents_async() == 1
 
+        # Verify the remaining document is the one with category="B"
         remaining_docs = await document_store.filter_documents_async()
         assert len(remaining_docs) == 1
         assert remaining_docs[0].meta["category"] == "B"
@@ -205,11 +207,13 @@ class TestDocumentStoreAsync(FilterableDocsFixtureMixin):
         await document_store.write_documents_async(docs)
         assert await document_store.count_documents_async() == 3
 
+        # Update documents with category="A" to have status="published"
         updated_count = await document_store.update_by_filter_async(
             filters={"field": "meta.category", "operator": "==", "value": "A"}, meta={"status": "published"}
         )
         assert updated_count == 2
 
+        # Verify the updated documents have the new metadata
         published_docs = await document_store.filter_documents_async(
             filters={"field": "meta.status", "operator": "==", "value": "published"}
         )
@@ -218,6 +222,7 @@ class TestDocumentStoreAsync(FilterableDocsFixtureMixin):
             assert doc.meta["status"] == "published"
             assert doc.meta["category"] == "A"
 
+        # Verify documents with category="B" were not updated
         unpublished_docs = await document_store.filter_documents_async(
             filters={"field": "meta.category", "operator": "==", "value": "B"}
         )
@@ -241,9 +246,11 @@ class TestDocumentStoreAsync(FilterableDocsFixtureMixin):
         await document_store.write_documents_async(docs)
         assert await document_store.count_documents_async() == 2
 
+        # Delete all documents with collection recreation
         await document_store.delete_all_documents_async(recreate_collection=True)
         assert await document_store.count_documents_async() == 0
 
+        # Verify collection still exists and we can write to it
         new_docs = [Document(id="3", content="third doc")]
         await document_store.write_documents_async(new_docs)
         assert await document_store.count_documents_async() == 1
@@ -285,6 +292,7 @@ class TestDocumentStoreAsync(FilterableDocsFixtureMixin):
         )
         assert distinct_counts_a["category"] == 1
         assert distinct_counts_a["status"] == 2
+        # Category A docs have priorities 1, 1, 3 -> 2 unique values
         assert distinct_counts_a["priority"] == 2
 
     async def test_get_metadata_fields_info_async(self, document_store: MongoDBAtlasDocumentStore):
