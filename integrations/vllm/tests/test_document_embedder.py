@@ -6,6 +6,7 @@ from unittest.mock import AsyncMock, MagicMock
 import numpy as np
 import pytest
 from haystack import Document
+from haystack.core.serialization import component_from_dict, component_to_dict
 from haystack.utils import Secret
 from openai import APIError
 from openai.types import CreateEmbeddingResponse, Embedding
@@ -96,7 +97,7 @@ class TestVLLMDocumentEmbedder:
     def test_to_dict(self, monkeypatch):
         monkeypatch.delenv("VLLM_API_KEY", raising=False)
 
-        component_dict = VLLMDocumentEmbedder(model=MODEL).to_dict()
+        component_dict = component_to_dict(VLLMDocumentEmbedder(model=MODEL), "embedder")
         assert component_dict == {
             "type": "haystack_integrations.components.embedders.vllm.document_embedder.VLLMDocumentEmbedder",
             "init_parameters": {
@@ -140,7 +141,7 @@ class TestVLLMDocumentEmbedder:
                 "extra_parameters": None,
             },
         }
-        embedder = VLLMDocumentEmbedder.from_dict(data)
+        embedder = component_from_dict(VLLMDocumentEmbedder, data, "embedder")
         assert embedder.api_key == Secret.from_env_var("VLLM_API_KEY", strict=False)
         assert embedder.model == MODEL
         assert embedder.api_base_url == "http://localhost:8000/v1"

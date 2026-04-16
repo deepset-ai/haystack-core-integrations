@@ -4,6 +4,7 @@
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
+from haystack.core.serialization import component_from_dict, component_to_dict
 from haystack.utils import Secret
 from openai.types import CreateEmbeddingResponse, Embedding
 from openai.types.create_embedding_response import Usage
@@ -84,7 +85,7 @@ class TestVLLMTextEmbedder:
     def test_to_dict(self, monkeypatch):
         monkeypatch.delenv("VLLM_API_KEY", raising=False)
 
-        component_dict = VLLMTextEmbedder(model=MODEL).to_dict()
+        component_dict = component_to_dict(VLLMTextEmbedder(model=MODEL), "embedder")
         assert component_dict == {
             "type": "haystack_integrations.components.embedders.vllm.text_embedder.VLLMTextEmbedder",
             "init_parameters": {
@@ -118,7 +119,7 @@ class TestVLLMTextEmbedder:
                 "extra_parameters": None,
             },
         }
-        embedder = VLLMTextEmbedder.from_dict(data)
+        embedder = component_from_dict(VLLMTextEmbedder, data, "embedder")
         assert embedder.api_key == Secret.from_env_var("VLLM_API_KEY", strict=False)
         assert embedder.model == MODEL
         assert embedder.api_base_url == "http://localhost:8000/v1"

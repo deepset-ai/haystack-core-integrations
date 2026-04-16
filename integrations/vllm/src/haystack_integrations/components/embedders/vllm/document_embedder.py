@@ -5,7 +5,7 @@
 from dataclasses import replace
 from typing import Any
 
-from haystack import Document, component, default_from_dict, default_to_dict, logging
+from haystack import Document, component, logging
 from haystack.utils import Secret
 from more_itertools import batched
 from openai import APIError, AsyncOpenAI, OpenAI
@@ -145,36 +145,6 @@ class VLLMDocumentEmbedder:
             http_client_kwargs=self.http_client_kwargs,
         )
         self._is_warmed_up = True
-
-    def to_dict(self) -> dict[str, Any]:
-        """
-        Serialize this component to a dictionary.
-
-        :returns: The serialized component as a dictionary.
-        """
-        return default_to_dict(
-            self,
-            model=self.model,
-            api_key=self.api_key,
-            api_base_url=self.api_base_url,
-            prefix=self.prefix,
-            suffix=self.suffix,
-            dimensions=self.dimensions,
-            batch_size=self.batch_size,
-            progress_bar=self.progress_bar,
-            meta_fields_to_embed=self.meta_fields_to_embed,
-            embedding_separator=self.embedding_separator,
-            timeout=self.timeout,
-            max_retries=self.max_retries,
-            http_client_kwargs=self.http_client_kwargs,
-            raise_on_failure=self.raise_on_failure,
-            extra_parameters=self.extra_parameters,
-        )
-
-    @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "VLLMDocumentEmbedder":
-        """Deserialize this component from a dictionary."""
-        return default_from_dict(cls, data)
 
     def _prepare_texts_to_embed(self, documents: list[Document]) -> dict[str, str]:
         """Concatenate each Document's text with the selected meta fields."""

@@ -4,7 +4,7 @@
 
 from typing import Any
 
-from haystack import component, default_from_dict, default_to_dict
+from haystack import component
 from haystack.utils import Secret
 from openai import AsyncOpenAI, OpenAI
 from openai.types import CreateEmbeddingResponse
@@ -117,31 +117,6 @@ class VLLMTextEmbedder:
             http_client_kwargs=self.http_client_kwargs,
         )
         self._is_warmed_up = True
-
-    def to_dict(self) -> dict[str, Any]:
-        """
-        Serialize this component to a dictionary.
-
-        :returns: The serialized component as a dictionary.
-        """
-        return default_to_dict(
-            self,
-            model=self.model,
-            api_key=self.api_key.to_dict() if self.api_key else None,
-            api_base_url=self.api_base_url,
-            prefix=self.prefix,
-            suffix=self.suffix,
-            dimensions=self.dimensions,
-            timeout=self.timeout,
-            max_retries=self.max_retries,
-            http_client_kwargs=self.http_client_kwargs,
-            extra_parameters=self.extra_parameters,
-        )
-
-    @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "VLLMTextEmbedder":
-        """Deserialize this component from a dictionary."""
-        return default_from_dict(cls, data)
 
     def _prepare_input(self, text: str) -> dict[str, Any]:
         if not isinstance(text, str):
