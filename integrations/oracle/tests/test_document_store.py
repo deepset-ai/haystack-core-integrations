@@ -81,16 +81,10 @@ class TestOracleDocumentStore(DocumentStoreBaseTests):
     # test_comparison_not_equal_with_none → IS NOT NULL
     # test_comparison_not_equal           → col != x OR IS NULL
     # test_comparison_not_in              → IS NULL OR NOT IN
-
     @pytest.mark.skip(
         reason="Oracle NULL propagation in NOT(...) cannot match Python 'not (None == x) is True' semantics"
     )
     def test_not_operator(self, document_store, filterable_docs): ...
-
-    # Skipped: input validation not implemented
-
-    @pytest.mark.skip(reason="OracleDocumentStore does not validate input types in write_documents")
-    def test_write_documents_invalid_input(self, document_store): ...
 
     def test_write_documents_none_policy_calls_insert(self, patched_store, mock_pool):
         _, _, cursor = mock_pool

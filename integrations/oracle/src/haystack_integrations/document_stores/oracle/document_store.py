@@ -230,6 +230,12 @@ class OracleDocumentStore:
             and the policy is set to `DuplicatePolicy.FAIL` or `DuplicatePolicy.NONE`.
         :returns: The number of documents written to the document store.
         """
+        if not isinstance(documents, list):
+            msg = "write_documents expects a list of Document objects."
+            raise ValueError(msg)
+        if documents and not isinstance(documents[0], Document):
+            msg = "write_documents expects a list of Document objects."
+            raise ValueError(msg)
         if not documents:
             return 0
         if policy in (DuplicatePolicy.NONE, DuplicatePolicy.FAIL):
