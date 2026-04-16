@@ -7,6 +7,7 @@ from time import sleep
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
+import pytest_asyncio
 from haystack import Document
 from haystack.utils import Secret
 
@@ -17,8 +18,9 @@ from haystack_integrations.document_stores.mongodb_atlas import MongoDBAtlasDocu
     not os.environ.get("MONGO_CONNECTION_STRING_2"), reason="No MongoDBAtlas connection string provided"
 )
 @pytest.mark.integration
+@pytest.mark.asyncio(loop_scope="class")
 class TestFullTextRetrieval:
-    @pytest.fixture
+    @pytest_asyncio.fixture(scope="class", loop_scope="class")
     async def document_store(self) -> MongoDBAtlasDocumentStore:
         store = MongoDBAtlasDocumentStore(
             mongo_connection_string=Secret.from_env_var("MONGO_CONNECTION_STRING_2"),
@@ -34,7 +36,7 @@ class TestFullTextRetrieval:
             if store._connection_async:
                 await store._connection_async.close()
 
-    @pytest.fixture(autouse=True)
+    @pytest_asyncio.fixture(autouse=True, scope="class", loop_scope="class")
     async def setup_teardown(self, document_store):
         await document_store._collection_async.delete_many({})
         await document_store.write_documents_async(
