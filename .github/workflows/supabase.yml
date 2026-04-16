@@ -60,6 +60,21 @@ jobs:
         os: ${{ fromJSON(needs.compute-test-matrix.outputs.os) }}
         python-version: ${{ fromJSON(needs.compute-test-matrix.outputs.python-version) }}
 
+    services:
+      pgvector:
+        image: pgvector/pgvector:pg17
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
     steps:
       - name: Support longpaths
         if: matrix.os == 'windows-latest'
@@ -101,22 +116,10 @@ jobs:
           name: coverage-comment-supabase
           path: python-coverage-comment-action-supabase.txt
 
-      - name: Setup Supabase CLI
-        if: runner.os == 'Linux'
-        uses: supabase/setup-cli@v1
-        with:
-          version: latest
-
-      - name: Start Supabase
-        if: runner.os == 'Linux'
-        run: |
-          supabase init
-          supabase start
-
       - name: Run integration tests
         if: runner.os == 'Linux'
         env:
-          SUPABASE_DB_URL: "postgresql://postgres:postgres@localhost:54322/postgres"
+          SUPABASE_DB_URL: "postgresql://postgres:postgres@localhost:5432/postgres"
         run: hatch run test:integration-cov-append-retry
 
       - name: Store combined coverage

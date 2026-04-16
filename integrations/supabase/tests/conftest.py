@@ -31,7 +31,7 @@ def document_store(request, monkeypatch):
 
 @pytest.fixture
 def document_store_w_hnsw_index(request, monkeypatch):
-    monkeypatch.setenv("SUPABASE_DB_URL", "postgresql://postgres:postgres@localhost:54322/postgres")
+    monkeypatch.setenv("SUPABASE_DB_URL", "postgresql://postgres:postgres@localhost:5432/postgres")
     table_name = f"haystack_hnsw_{request.node.name}"
     embedding_dimension = 768
     vector_function = "cosine_similarity"
