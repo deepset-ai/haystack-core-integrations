@@ -210,7 +210,7 @@ class RagasEvaluator:
                 actual_type = type(err["input"]).__name__
                 example = self._get_example_input(haystack_field)
                 error_message = (
-                    f"Validation error occured while running RagasEvaluator Component:\n"
+                    f"Validation error occurred while running RagasEvaluator Component:\n"
                     f"The '{haystack_field}' field expected '{type_desc}', "
                     f"but got '{actual_type}'.\n"
                     f"Hint: Provide {example}"
