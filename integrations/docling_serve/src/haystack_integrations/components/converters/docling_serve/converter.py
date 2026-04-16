@@ -34,8 +34,9 @@ class ExportType(str, Enum):
 @component
 class DoclingServeConverter:
     """
-    Converts documents to Haystack Documents using a [DoclingServe](https://github.com/docling-project/docling-serve)
-    server.
+    Converts documents to Haystack Documents using a DoclingServe server.
+
+    See [DoclingServe](https://github.com/docling-project/docling-serve).
 
     DoclingServe hosts Docling in a scalable HTTP server, supporting PDFs, Office documents, HTML, and many other
     formats. Unlike the local `DoclingConverter`, this component has no heavy ML dependencies — all processing

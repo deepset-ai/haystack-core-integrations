@@ -4,11 +4,9 @@
 
 import json
 import logging
-from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-from haystack import Document
 from haystack.dataclasses import ByteStream
 from haystack.utils import Secret
 
@@ -82,10 +80,12 @@ class TestDoclingServeConverterSerialization:
         assert converter.export_type == ExportType.JSON
         assert converter.timeout == 60.0
 
-    def test_to_dict_with_api_key(self):
-        converter = DoclingServeConverter(api_key=Secret.from_token("test-key"))
+    def test_to_dict_with_api_key(self, monkeypatch):
+        monkeypatch.setenv("DOCLING_API_KEY", "test-key")
+        converter = DoclingServeConverter(api_key=Secret.from_env_var("DOCLING_API_KEY"))
         data = converter.to_dict()
         assert data["init_parameters"]["api_key"] is not None
+        assert data["init_parameters"]["api_key"]["type"] == "env_var"
 
     def test_roundtrip(self):
         converter = DoclingServeConverter(
@@ -207,7 +207,7 @@ class TestDoclingServeConverterRun:
     def test_run_bytestream_meta_merged(self):
         converter = DoclingServeConverter()
         mock_resp = _mock_response("text")
-        bs = ByteStream(data=b"bytes", meta={"file_path": "/tmp/doc.pdf"})
+        bs = ByteStream(data=b"bytes", meta={"file_path": "doc.pdf"})
 
         with patch("httpx.Client") as mock_client_cls:
             mock_client = MagicMock()
@@ -219,7 +219,7 @@ class TestDoclingServeConverterRun:
             result = converter.run(sources=[bs], meta={"page": 1})
 
         doc = result["documents"][0]
-        assert doc.meta["file_path"] == "/tmp/doc.pdf"
+        assert doc.meta["file_path"] == "doc.pdf"
         assert doc.meta["page"] == 1
 
     def test_run_skips_on_http_error(self, caplog):

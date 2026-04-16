@@ -1,0 +1,13 @@
+loaders:
+  - modules:
+      - haystack_integrations.components.converters.docling_serve.converter
+    search_path: [../src]
+processors:
+  - type: filter
+    documented_only: true
+    skip_empty_modules: true
+renderer:
+  description: DoclingServe integration for Haystack
+  id: integrations-docling-serve
+  filename: docling_serve.md
+  title: DoclingServe
