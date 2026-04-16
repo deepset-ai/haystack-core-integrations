@@ -79,61 +79,6 @@ class TestOracleDocumentStore(DocumentStoreBaseTests):
             document_store.write_documents([doc])
         self.assert_documents_are_equal(document_store.filter_documents(), [doc])
 
-    # Skipped: FilterError not raised
-    # Our FilterTranslator raises ValueError/KeyError; these tests expect
-    # haystack.document_stores.errors.FilterError.
-
-    @pytest.mark.skip(reason="OracleDocumentStore does not raise FilterError for type mismatches")
-    def test_comparison_greater_than_with_string(self, document_store, filterable_docs): ...
-
-    @pytest.mark.skip(reason="OracleDocumentStore does not raise FilterError for type mismatches")
-    def test_comparison_greater_than_with_list(self, document_store, filterable_docs): ...
-
-    @pytest.mark.skip(reason="OracleDocumentStore does not raise FilterError for type mismatches")
-    def test_comparison_greater_than_equal_with_string(self, document_store, filterable_docs): ...
-
-    @pytest.mark.skip(reason="OracleDocumentStore does not raise FilterError for type mismatches")
-    def test_comparison_greater_than_equal_with_list(self, document_store, filterable_docs): ...
-
-    @pytest.mark.skip(reason="OracleDocumentStore does not raise FilterError for type mismatches")
-    def test_comparison_less_than_with_string(self, document_store, filterable_docs): ...
-
-    @pytest.mark.skip(reason="OracleDocumentStore does not raise FilterError for type mismatches")
-    def test_comparison_less_than_with_list(self, document_store, filterable_docs): ...
-
-    @pytest.mark.skip(reason="OracleDocumentStore does not raise FilterError for type mismatches")
-    def test_comparison_less_than_equal_with_string(self, document_store, filterable_docs): ...
-
-    @pytest.mark.skip(reason="OracleDocumentStore does not raise FilterError for type mismatches")
-    def test_comparison_less_than_equal_with_list(self, document_store, filterable_docs): ...
-
-    @pytest.mark.skip(reason="OracleDocumentStore does not raise FilterError for non-list 'in' values")
-    def test_comparison_in_with_with_non_list(self, document_store, filterable_docs): ...
-
-    @pytest.mark.skip(reason="OracleDocumentStore does not raise FilterError for non-list 'in' values")
-    def test_comparison_in_with_with_non_list_iterable(self, document_store, filterable_docs): ...
-
-    @pytest.mark.skip(reason="OracleDocumentStore does not raise FilterError for non-list 'not in' values")
-    def test_comparison_not_in_with_with_non_list(self, document_store, filterable_docs): ...
-
-    @pytest.mark.skip(reason="OracleDocumentStore does not raise FilterError for non-list 'not in' values")
-    def test_comparison_not_in_with_with_non_list_iterable(self, document_store, filterable_docs): ...
-
-    @pytest.mark.skip(reason="OracleDocumentStore does not raise FilterError for malformed filters")
-    def test_missing_top_level_operator_key(self, document_store, filterable_docs): ...
-
-    @pytest.mark.skip(reason="OracleDocumentStore does not raise FilterError for malformed filters")
-    def test_missing_top_level_conditions_key(self, document_store, filterable_docs): ...
-
-    @pytest.mark.skip(reason="OracleDocumentStore does not raise FilterError for malformed filters")
-    def test_missing_condition_field_key(self, document_store, filterable_docs): ...
-
-    @pytest.mark.skip(reason="OracleDocumentStore does not raise FilterError for malformed filters")
-    def test_missing_condition_operator_key(self, document_store, filterable_docs): ...
-
-    @pytest.mark.skip(reason="OracleDocumentStore does not raise FilterError for malformed filters")
-    def test_missing_condition_value_key(self, document_store, filterable_docs): ...
-
     # Skipped: Oracle NULL semantics differ from Python None semantics.
     # In Oracle, NULL != x evaluates to NULL (excluded), not True.
     # Python: None != x is True, so these tests include missing-field docs
