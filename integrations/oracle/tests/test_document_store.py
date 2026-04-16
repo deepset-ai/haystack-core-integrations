@@ -283,6 +283,7 @@ class TestOracleDocumentStore(DocumentStoreBaseTests):
         """Calling _ensure_table() a second time must not raise."""
         document_store._ensure_table()
 
+
 @pytest.mark.integration
 class TestOracleDocumentStoreAsync:
     """Async API surface tests."""
