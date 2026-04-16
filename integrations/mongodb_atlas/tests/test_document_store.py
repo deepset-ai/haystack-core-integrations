@@ -2,7 +2,6 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-import logging
 import os
 from unittest.mock import MagicMock, patch
 
@@ -71,8 +70,8 @@ class TestEnsureConnectionSetup:
 
 
 class TestMongoDBDocumentStoreUnit:
-    def test_count_documents_by_filter(self, mocked_store):
-        store, collection = mocked_store
+    def test_count_documents_by_filter(self, mocked_store_collection):
+        store, collection = mocked_store_collection
         collection.count_documents.return_value = 5
 
         count = store.count_documents_by_filter({"field": "meta.type", "operator": "==", "value": "article"})
@@ -80,8 +79,8 @@ class TestMongoDBDocumentStoreUnit:
         assert count == 5
         assert collection.count_documents.call_args[0][0] == {"meta.type": {"$eq": "article"}}
 
-    def test_count_unique_metadata_by_filter(self, mocked_store):
-        store, collection = mocked_store
+    def test_count_unique_metadata_by_filter(self, mocked_store_collection):
+        store, collection = mocked_store_collection
         collection.aggregate.return_value = [{"category": [{"count": 3}], "author": [{"count": 5}]}]
 
         counts = store.count_unique_metadata_by_filter(
@@ -94,8 +93,8 @@ class TestMongoDBDocumentStoreUnit:
         assert "category" in pipeline[1]["$facet"]
         assert "author" in pipeline[1]["$facet"]
 
-    def test_get_metadata_fields_info(self, mocked_store):
-        store, collection = mocked_store
+    def test_get_metadata_fields_info(self, mocked_store_collection):
+        store, collection = mocked_store_collection
         cursor = MagicMock()
         collection.find.return_value = cursor
         cursor.sort.return_value = cursor
@@ -112,8 +111,8 @@ class TestMongoDBDocumentStoreUnit:
         assert fields_info["ratio"] == {"type": "float"}
         assert fields_info["is_valid"] == {"type": "boolean"}
 
-    def test_get_metadata_field_min_max(self, mocked_store):
-        store, collection = mocked_store
+    def test_get_metadata_field_min_max(self, mocked_store_collection):
+        store, collection = mocked_store_collection
         collection.aggregate.return_value = [{"min": 10, "max": 100}]
 
         result = store.get_metadata_field_min_max("number")
@@ -122,8 +121,8 @@ class TestMongoDBDocumentStoreUnit:
         pipeline = collection.aggregate.call_args[0][0]
         assert pipeline[0]["$group"]["min"] == {"$min": "$meta.number"}
 
-    def test_get_metadata_field_unique_values(self, mocked_store):
-        store, collection = mocked_store
+    def test_get_metadata_field_unique_values(self, mocked_store_collection):
+        store, collection = mocked_store_collection
         collection.aggregate.return_value = [{"count": [{"count": 5}], "values": [{"_id": "val1"}, {"_id": "val2"}]}]
 
         values, count = store.get_metadata_field_unique_values("category", search_term="val", size=2)
@@ -134,38 +133,6 @@ class TestMongoDBDocumentStoreUnit:
         assert pipeline[0]["$group"] == {"_id": "$meta.category"}
         assert pipeline[1]["$match"] == {"_id": {"$regex": "val", "$options": "i"}}
         assert pipeline[2]["$facet"]["values"][2]["$limit"] == 2
-
-
-class TestRetrievalUnit:
-    def test_embedding_retrieval_wraps_exception(self, mocked_store):
-        store, collection = mocked_store
-        collection.aggregate.side_effect = RuntimeError("boom")
-        with pytest.raises(DocumentStoreError, match="vector_search_index"):
-            store._embedding_retrieval(
-                query_embedding=[0.1, 0.2],
-                filters={"field": "meta.f", "operator": "==", "value": "x"},
-            )
-
-    def test_embedding_retrieval_uses_custom_embedding_field(self, mocked_store):
-        store, collection = mocked_store
-        store.embedding_field = "custom_vector"
-
-        store._embedding_retrieval(query_embedding=[0.1, 0.2, 0.3])
-
-        pipeline = collection.aggregate.call_args[0][0]
-        assert pipeline[0]["$vectorSearch"]["path"] == "custom_vector"
-
-    def test_fulltext_retrieval_wraps_exception(self, mocked_store):
-        store, collection = mocked_store
-        collection.aggregate.side_effect = RuntimeError("kapow")
-        with pytest.raises(DocumentStoreError, match="full_text_search_index"):
-            store._fulltext_retrieval(query="fox", filters={"field": "meta.f", "operator": "==", "value": "x"})
-
-    def test_fulltext_warns_when_synonyms_without_match_criteria(self, mocked_store, caplog):
-        store, _ = mocked_store
-        with caplog.at_level(logging.WARNING):
-            store._fulltext_retrieval(query="fox", synonyms="syn")
-        assert "matchCriteria" in caplog.text
 
 
 class TestMongoDBDocumentStoreConversion:

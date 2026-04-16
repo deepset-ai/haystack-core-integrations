@@ -2,19 +2,49 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+import logging
 import os
 from time import sleep
 
 import pytest
 from haystack import Document
+from haystack.document_stores.errors import DocumentStoreError
 from haystack.utils import Secret
 
 from haystack_integrations.document_stores.mongodb_atlas import MongoDBAtlasDocumentStore
 
 
 class TestFullTextRetrievalUnit:
-    def test_pipeline_correctly_passes_parameters(self, mocked_store):
-        store, collection = mocked_store
+    @pytest.mark.parametrize("query", ["", []])
+    def test_raises_for_empty_query(self, mocked_store_collection, query):
+        store, _ = mocked_store_collection
+        with pytest.raises(ValueError, match="query must not be empty"):
+            store._fulltext_retrieval(query=query)
+
+    def test_raises_for_empty_synonyms(self, mocked_store_collection):
+        store, _ = mocked_store_collection
+        with pytest.raises(ValueError, match="synonyms cannot be an empty string"):
+            store._fulltext_retrieval(query="fox", synonyms="")
+
+    def test_raises_when_synonyms_combined_with_fuzzy(self, mocked_store_collection):
+        store, _ = mocked_store_collection
+        with pytest.raises(ValueError, match="synonyms and fuzzy"):
+            store._fulltext_retrieval(query="fox", synonyms="wolf", fuzzy={"maxEdits": 1})
+
+    def test_wraps_exception_with_filters_hint(self, mocked_store_collection):
+        store, collection = mocked_store_collection
+        collection.aggregate.side_effect = RuntimeError("kapow")
+        with pytest.raises(DocumentStoreError, match="full_text_search_index"):
+            store._fulltext_retrieval(query="fox", filters={"field": "meta.f", "operator": "==", "value": "x"})
+
+    def test_warns_when_synonyms_without_match_criteria(self, mocked_store_collection, caplog):
+        store, _ = mocked_store_collection
+        with caplog.at_level(logging.WARNING):
+            store._fulltext_retrieval(query="fox", synonyms="syn")
+        assert "matchCriteria" in caplog.text
+
+    def test_pipeline_correctly_passes_parameters(self, mocked_store_collection):
+        store, collection = mocked_store_collection
 
         store._fulltext_retrieval(
             query=["spam", "eggs"],
@@ -56,9 +86,9 @@ class TestFullTextRetrievalUnit:
         # Explicitly verify that the path in the text search is using the content_field
         assert pipeline[0]["$search"]["compound"]["must"][0]["text"]["path"] == store.content_field
 
-    def test_pipeline_with_custom_content_field(self, mocked_store):
+    def test_pipeline_with_custom_content_field(self, mocked_store_collection):
         # Configure the store with a custom content field
-        store, collection = mocked_store
+        store, collection = mocked_store_collection
         store.content_field = "custom_text"
 
         # Execute the fulltext retrieval with the custom content field
@@ -142,16 +172,3 @@ class TestFullTextRetrieval:
         for doc in results:
             assert "fox" in doc.content
         assert results[0].score >= results[1].score
-
-    @pytest.mark.parametrize("query", ["", []])
-    def test_empty_query_raises_value_error(self, query: str | list, document_store: MongoDBAtlasDocumentStore):
-        with pytest.raises(ValueError):
-            document_store._fulltext_retrieval(query=query)
-
-    def test_empty_synonyms_raises_value_error(self, document_store: MongoDBAtlasDocumentStore):
-        with pytest.raises(ValueError):
-            document_store._fulltext_retrieval(query="fox", synonyms="")
-
-    def test_synonyms_and_fuzzy_raises_value_error(self, document_store: MongoDBAtlasDocumentStore):
-        with pytest.raises(ValueError):
-            document_store._fulltext_retrieval(query="fox", synonyms="wolf", fuzzy={"maxEdits": 1})

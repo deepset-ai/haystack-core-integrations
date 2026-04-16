@@ -27,7 +27,7 @@ def local_store():
 
 
 @pytest.fixture
-def mocked_store():
+def mocked_store_collection():
     with patch("haystack_integrations.document_stores.mongodb_atlas.document_store.MongoClient") as mock_cls:
         collection = MagicMock()
         collection.aggregate.return_value = []
@@ -41,7 +41,7 @@ def mocked_store():
 
 
 @pytest.fixture
-def mocked_store_async():
+def mocked_store_collection_async():
     with patch("haystack_integrations.document_stores.mongodb_atlas.document_store.AsyncMongoClient") as mock_cls:
         collection = MagicMock()
         cursor = MagicMock()

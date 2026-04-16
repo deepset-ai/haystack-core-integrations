@@ -9,6 +9,31 @@ from haystack.document_stores.errors import DocumentStoreError
 from haystack_integrations.document_stores.mongodb_atlas import MongoDBAtlasDocumentStore
 
 
+class TestEmbeddingRetrievalUnit:
+    def test_raises_for_empty_query_embedding(self, mocked_store_collection):
+        store, _ = mocked_store_collection
+        with pytest.raises(ValueError, match="Query embedding must not be empty"):
+            store._embedding_retrieval(query_embedding=[])
+
+    def test_wraps_exception_with_filters_hint(self, mocked_store_collection):
+        store, collection = mocked_store_collection
+        collection.aggregate.side_effect = RuntimeError("boom")
+        with pytest.raises(DocumentStoreError, match="vector_search_index"):
+            store._embedding_retrieval(
+                query_embedding=[0.1, 0.2],
+                filters={"field": "meta.f", "operator": "==", "value": "x"},
+            )
+
+    def test_uses_custom_embedding_field(self, mocked_store_collection):
+        store, collection = mocked_store_collection
+        store.embedding_field = "custom_vector"
+
+        store._embedding_retrieval(query_embedding=[0.1, 0.2, 0.3])
+
+        pipeline = collection.aggregate.call_args[0][0]
+        assert pipeline[0]["$vectorSearch"]["path"] == "custom_vector"
+
+
 @pytest.mark.skipif(
     not os.environ.get("MONGO_CONNECTION_STRING"),
     reason="No MongoDB Atlas connection string provided",
@@ -47,10 +72,6 @@ class TestEmbeddingRetrieval:
         assert results[0].content == "Document C"
         assert results[1].content == "Document B"
         assert results[0].score > results[1].score
-
-    def test_empty_query_embedding(self, make_store):
-        with pytest.raises(ValueError):
-            make_store()._embedding_retrieval(query_embedding=[])
 
     def test_query_embedding_wrong_dimension(self, make_store):
         with pytest.raises(DocumentStoreError):

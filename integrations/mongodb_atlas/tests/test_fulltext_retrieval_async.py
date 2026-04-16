@@ -2,6 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+import logging
 import os
 from time import sleep
 from unittest.mock import AsyncMock, MagicMock
@@ -9,6 +10,7 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 import pytest_asyncio
 from haystack import Document
+from haystack.document_stores.errors import DocumentStoreError
 from haystack.utils import Secret
 
 from haystack_integrations.document_stores.mongodb_atlas import MongoDBAtlasDocumentStore
@@ -82,23 +84,38 @@ class TestFullTextRetrieval:
             assert "fox" in doc.content
         assert results[0].score >= results[1].score
 
-    @pytest.mark.parametrize("query", ["", []])
-    async def test_empty_query_raises_value_error_async(
-        self, query: str | list, document_store: MongoDBAtlasDocumentStore
-    ):
-        with pytest.raises(ValueError):
-            await document_store._fulltext_retrieval_async(query=query)
-
-    async def test_empty_synonyms_raises_value_error_async(self, document_store: MongoDBAtlasDocumentStore):
-        with pytest.raises(ValueError):
-            await document_store._fulltext_retrieval_async(query="fox", synonyms="")
-
-    async def test_synonyms_and_fuzzy_raises_value_error_async(self, document_store: MongoDBAtlasDocumentStore):
-        with pytest.raises(ValueError):
-            await document_store._fulltext_retrieval_async(query="fox", synonyms="wolf", fuzzy={"maxEdits": 1})
-
 
 class TestFullTextRetrievalUnit:
+    @pytest.mark.parametrize("query", ["", []])
+    async def test_raises_for_empty_query(self, mocked_store_collection_async, query):
+        store, _ = mocked_store_collection_async
+        with pytest.raises(ValueError, match="query must not be empty"):
+            await store._fulltext_retrieval_async(query=query)
+
+    async def test_raises_for_empty_synonyms(self, mocked_store_collection_async):
+        store, _ = mocked_store_collection_async
+        with pytest.raises(ValueError, match="synonyms cannot be an empty string"):
+            await store._fulltext_retrieval_async(query="fox", synonyms="")
+
+    async def test_raises_when_synonyms_combined_with_fuzzy(self, mocked_store_collection_async):
+        store, _ = mocked_store_collection_async
+        with pytest.raises(ValueError, match="synonyms and fuzzy"):
+            await store._fulltext_retrieval_async(query="fox", synonyms="wolf", fuzzy={"maxEdits": 1})
+
+    async def test_wraps_exception_with_filters_hint(self, mocked_store_collection_async):
+        store, collection = mocked_store_collection_async
+        collection.aggregate = AsyncMock(side_effect=RuntimeError("kapow"))
+        with pytest.raises(DocumentStoreError, match="full_text_search_index"):
+            await store._fulltext_retrieval_async(
+                query="fox", filters={"field": "meta.f", "operator": "==", "value": "x"}
+            )
+
+    async def test_warns_when_synonyms_without_match_criteria(self, mocked_store_collection_async, caplog):
+        store, _ = mocked_store_collection_async
+        with caplog.at_level(logging.WARNING):
+            await store._fulltext_retrieval_async(query="fox", synonyms="syn")
+        assert "matchCriteria" in caplog.text
+
     async def test_pipeline_with_custom_content_field(self):
         # Create a document store with a custom content field
         store = MongoDBAtlasDocumentStore(
