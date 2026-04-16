@@ -47,6 +47,7 @@ on:
       - "Test / qdrant"
       - "Test / ragas"
       - "Test / snowflake"
+      - "Test / sqlalchemy"
       - "Test / stackit"
       - "Test / supabase"
       - "Test / tavily"
