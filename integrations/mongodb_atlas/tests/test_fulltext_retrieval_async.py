@@ -7,68 +7,37 @@ from time import sleep
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+import pytest_asyncio
 from haystack import Document
 from haystack.utils import Secret
 
 from haystack_integrations.document_stores.mongodb_atlas import MongoDBAtlasDocumentStore
 
 
-class AsyncDocumentStoreContext:
-    """Context manager for MongoDB Atlas document store with async support."""
-
-    def __init__(
-        self,
-        mongo_connection_string,
-        database_name,
-        collection_name,
-        vector_search_index,
-        full_text_search_index,
-        **kwargs,
-    ):
-        self.mongo_connection_string = mongo_connection_string
-        self.database_name = database_name
-        self.collection_name = collection_name
-        self.vector_search_index = vector_search_index
-        self.full_text_search_index = full_text_search_index
-        self.kwargs = kwargs
-        self.store = None
-
-    async def __aenter__(self):
-        self.store = MongoDBAtlasDocumentStore(
-            mongo_connection_string=self.mongo_connection_string,
-            database_name=self.database_name,
-            collection_name=self.collection_name,
-            vector_search_index=self.vector_search_index,
-            full_text_search_index=self.full_text_search_index,
-            **self.kwargs,
-        )
-        await self.store._ensure_connection_setup_async()
-        return self.store
-
-    async def __aexit__(self, exc_type, exc_val, exc_tb):
-        if self.store and self.store._connection_async:
-            await self.store._connection_async.close()
-
-
 @pytest.mark.skipif(
     not os.environ.get("MONGO_CONNECTION_STRING_2"), reason="No MongoDBAtlas connection string provided"
 )
 @pytest.mark.integration
+@pytest.mark.asyncio(loop_scope="class")
 class TestFullTextRetrieval:
-    @pytest.fixture
+    @pytest_asyncio.fixture(scope="class", loop_scope="class")
     async def document_store(self) -> MongoDBAtlasDocumentStore:
-        async with AsyncDocumentStoreContext(
+        store = MongoDBAtlasDocumentStore(
             mongo_connection_string=Secret.from_env_var("MONGO_CONNECTION_STRING_2"),
             database_name="haystack_test",
             collection_name="test_collection",
             vector_search_index="cosine_index",
             full_text_search_index="full_text_index",
-        ) as store:
+        )
+        await store._ensure_connection_setup_async()
+        try:
             yield store
+        finally:
+            if store._connection_async:
+                await store._connection_async.close()
 
-    @pytest.fixture
-    async def setup(self, document_store):
-        # clean up the collection and insert test documents
+    @pytest_asyncio.fixture(autouse=True, scope="class", loop_scope="class")
+    async def setup_teardown(self, document_store):
         await document_store._collection_async.delete_many({})
         await document_store.write_documents_async(
             [
