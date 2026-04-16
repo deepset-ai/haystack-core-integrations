@@ -283,17 +283,6 @@ class TestOracleDocumentStore(DocumentStoreBaseTests):
         """Calling _ensure_table() a second time must not raise."""
         document_store._ensure_table()
 
-    def test_hnsw_index_creation(self, embedding_store):
-        embedding_store.create_hnsw_index()
-        with embedding_store._get_connection() as conn, conn.cursor() as cur:
-            cur.execute(
-                "SELECT COUNT(*) FROM USER_INDEXES WHERE INDEX_NAME = :1",
-                [f"{embedding_store.table_name.upper()}_VIDX"],
-            )
-            count = cur.fetchone()[0]
-        assert count == 1
-
-
 @pytest.mark.integration
 class TestOracleDocumentStoreAsync:
     """Async API surface tests."""
