@@ -180,7 +180,7 @@ class VLLMRanker:
             msg = f"top_k must be > 0, but got {top_k}"
             raise ValueError(msg)
         resolved_top_k = top_k if top_k is not None else self.top_k
-        resolved_scores_threshold = score_threshold if score_threshold is not None else self.score_threshold
+        resolved_score_threshold = score_threshold if score_threshold is not None else self.score_threshold
         return resolved_top_k, resolved_score_threshold
 
     @component.output_types(documents=list[Document], meta=dict[str, Any])
