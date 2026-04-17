@@ -7,12 +7,16 @@ from typing import Any
 from unittest.mock import MagicMock
 
 import pytest
+from docling_core.types.doc.document import DocItemLabel, RefItem, SectionHeaderItem
 from docling_core.types.io import DocumentStream
 from haystack.core.serialization import component_from_dict, component_to_dict
 from haystack.dataclasses import ByteStream
 
 from haystack_integrations.components.converters.docling import DoclingConverter, ExportType
-from haystack_integrations.components.converters.docling.converter import _bytestream_to_document_stream
+from haystack_integrations.components.converters.docling.converter import (
+    _bytestream_to_document_stream,
+    _clamp_section_header_levels,
+)
 
 
 def test_run_doc_chunks_minimal() -> None:
@@ -441,3 +445,92 @@ class TestBytestreamToDocumentStream:
         ds = _bytestream_to_document_stream(bs)
         assert isinstance(ds, DocumentStream)
         assert isinstance(ds.stream, BytesIO)
+
+
+def _make_section_header(level: int) -> SectionHeaderItem:
+    """Build a SectionHeaderItem bypassing Pydantic validation, mirroring how Docling builds documents internally."""
+    return SectionHeaderItem.model_construct(
+        self_ref="#/texts/0",
+        orig="Heading text",
+        text="Heading text",
+        label=DocItemLabel.SECTION_HEADER,
+        level=level,
+    )
+
+
+class TestClampSectionHeaderLevels:
+    def test_caps_level_above_100(self) -> None:
+        dl_doc = MagicMock()
+        header = _make_section_header(level=110)
+        dl_doc.texts = [header]
+
+        _clamp_section_header_levels(dl_doc)
+
+        assert dl_doc.texts[0].level == 100
+
+    def test_leaves_level_at_100_unchanged(self) -> None:
+        dl_doc = MagicMock()
+        header = _make_section_header(level=100)
+        dl_doc.texts = [header]
+
+        _clamp_section_header_levels(dl_doc)
+
+        assert dl_doc.texts[0].level == 100
+
+    def test_leaves_level_below_100_unchanged(self) -> None:
+        dl_doc = MagicMock()
+        header = _make_section_header(level=3)
+        dl_doc.texts = [header]
+
+        _clamp_section_header_levels(dl_doc)
+
+        assert dl_doc.texts[0].level == 3
+
+    def test_non_section_header_items_are_not_modified(self) -> None:
+        dl_doc = MagicMock()
+        other_item = MagicMock(spec=[])
+        dl_doc.texts = [other_item]
+
+        _clamp_section_header_levels(dl_doc)
+
+        assert dl_doc.texts[0] is other_item
+
+    def test_multiple_items_only_caps_offending_ones(self) -> None:
+        dl_doc = MagicMock()
+        normal = _make_section_header(level=2)
+        over_limit = _make_section_header(level=110)
+        other_item = MagicMock(spec=[])
+        dl_doc.texts = [normal, over_limit, other_item]
+
+        _clamp_section_header_levels(dl_doc)
+
+        assert dl_doc.texts[0].level == 2
+        assert dl_doc.texts[1].level == 100
+        assert dl_doc.texts[2] is other_item
+
+
+def test_run_doc_chunks_with_high_section_header_level() -> None:
+    """DoclingConverter must not raise when the converted document contains a SectionHeaderItem with level > 100."""
+    converter_mock = MagicMock()
+    chunker_mock = MagicMock()
+    meta_extractor_mock = MagicMock()
+
+    dl_doc = MagicMock()
+    header = _make_section_header(level=110)
+    dl_doc.texts = [header]
+    converter_mock.convert.return_value = SimpleNamespace(document=dl_doc)
+    chunker_mock.chunk.return_value = [SimpleNamespace(text="chunk-1")]
+    chunker_mock.contextualize.return_value = "contextualized-chunk-1"
+    meta_extractor_mock.extract_chunk_meta.return_value = {}
+
+    converter = DoclingConverter(
+        converter=converter_mock,
+        export_type=ExportType.DOC_CHUNKS,
+        chunker=chunker_mock,
+        meta_extractor=meta_extractor_mock,
+    )
+
+    result = converter.run(sources=["document.docx"])
+
+    assert len(result["documents"]) == 1
+    assert dl_doc.texts[0].level == 100

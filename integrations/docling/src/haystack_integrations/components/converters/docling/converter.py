@@ -9,6 +9,7 @@ from io import BytesIO
 from pathlib import Path
 from typing import Any
 
+from docling_core.types.doc.document import SectionHeaderItem
 from docling_core.types.io import DocumentStream
 from haystack import Document, component
 from haystack.components.converters.utils import normalize_metadata
@@ -17,6 +18,22 @@ from haystack.dataclasses import ByteStream
 from docling.chunking import BaseChunk, BaseChunker, HybridChunker
 from docling.datamodel.document import DoclingDocument
 from docling.document_converter import DocumentConverter
+
+# Matches the upstream `LevelNumber` constraint: `Annotated[int, Field(ge=1, le=100)]`
+_MAX_SECTION_LEVEL = 100
+
+
+def _clamp_section_header_levels(dl_doc: DoclingDocument) -> None:
+    """
+    Cap any SectionHeaderItem.level that exceeds the upstream maximum (100) in-place.
+
+    Docling's DocumentConverter uses model_construct() internally, which bypasses Pydantic
+    validation and can produce SectionHeaderItem instances with level > 100. Subsequent
+    operations (chunking, export) that re-validate the model then raise a validation error.
+    """
+    for i, item in enumerate(dl_doc.texts):
+        if isinstance(item, SectionHeaderItem) and item.level > _MAX_SECTION_LEVEL:
+            dl_doc.texts[i] = item.model_copy(update={"level": _MAX_SECTION_LEVEL})
 
 
 def _bytestream_to_document_stream(source: ByteStream) -> DocumentStream:
@@ -172,6 +189,8 @@ class DoclingConverter:
             else:
                 dl_doc = self._converter_instance.convert(source=source, **self.convert_kwargs).document
                 merged_meta = source_meta
+
+            _clamp_section_header_levels(dl_doc)
 
             if self.export_type == ExportType.DOC_CHUNKS:
                 chunk_iter = self._chunker_instance.chunk(dl_doc=dl_doc)
