@@ -703,6 +703,72 @@ class TestStreamingChunkConversion:
         assert result.meta["thought_signatures"][0]["signature"] == "sig_xyz"
 
 
+    def test_convert_google_chunk_to_streaming_chunk_with_cached_tokens(self, monkeypatch):
+        """cached_content_token_count from usage_metadata is included in the streaming chunk's usage."""
+        monkeypatch.setenv("GOOGLE_API_KEY", "test-api-key")
+        component_info = ComponentInfo.from_component(GoogleGenAIChatGenerator())
+
+        mock_usage = Mock()
+        mock_usage.prompt_token_count = 1000
+        mock_usage.candidates_token_count = 10
+        mock_usage.total_token_count = 1010
+        mock_usage.thoughts_token_count = None
+        mock_usage.cached_content_token_count = 800
+
+        mock_part = Mock()
+        mock_part.text = "The answer is 4."
+        mock_part.function_call = None
+        mock_part.thought = False
+        mock_part.thought_signature = None
+        mock_content = Mock()
+        mock_content.parts = [mock_part]
+        mock_candidate = Mock()
+        mock_candidate.content = mock_content
+        mock_candidate.finish_reason = "STOP"
+
+        mock_chunk = Mock()
+        mock_chunk.candidates = [mock_candidate]
+        mock_chunk.usage_metadata = mock_usage
+
+        chunk = _convert_google_chunk_to_streaming_chunk(mock_chunk, 0, component_info, "gemini-2.5-flash")
+
+        assert chunk.meta["usage"]["prompt_tokens"] == 1000
+        assert chunk.meta["usage"]["completion_tokens"] == 10
+        assert chunk.meta["usage"]["total_tokens"] == 1010
+        assert chunk.meta["usage"]["cached_content_token_count"] == 800
+
+    def test_aggregate_streaming_chunks_with_cached_tokens(self, monkeypatch):
+        """cached_content_token_count from the final chunk is propagated to the aggregated message."""
+        monkeypatch.setenv("GOOGLE_API_KEY", "test-api-key")
+        component_info = ComponentInfo.from_component(GoogleGenAIChatGenerator())
+
+        chunk1 = StreamingChunk(
+            content="Hello",
+            component_info=component_info,
+            index=0,
+            meta={"usage": {"prompt_tokens": 1000, "completion_tokens": 5, "total_tokens": 1005}},
+        )
+        final_chunk = StreamingChunk(
+            content=" world",
+            component_info=component_info,
+            index=1,
+            meta={
+                "usage": {
+                    "prompt_tokens": 1000,
+                    "completion_tokens": 10,
+                    "total_tokens": 1010,
+                    "cached_content_token_count": 800,
+                },
+                "model": "gemini-2.5-flash",
+            },
+        )
+
+        result = _aggregate_streaming_chunks_with_reasoning([chunk1, final_chunk])
+
+        assert result.text == "Hello world"
+        assert result.meta["usage"]["cached_content_token_count"] == 800
+
+
 class TestConvertMessageToGoogleGenAI:
     def test_convert_message_to_google_genai_format_complex(self):
         """
