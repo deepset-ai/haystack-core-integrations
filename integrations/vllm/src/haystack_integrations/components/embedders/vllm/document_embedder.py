@@ -241,7 +241,7 @@ class VLLMDocumentEmbedder:
             raise TypeError(msg)
 
     @component.output_types(documents=list[Document], meta=dict[str, Any])
-    def run(self, documents: list[Document]) -> dict[str, Any]:
+    def run(self, documents: list[Document]) -> dict[str, list[Document] | dict[str, Any]]:
         """
         Embed a list of Documents.
 
@@ -267,7 +267,7 @@ class VLLMDocumentEmbedder:
         return {"documents": new_documents, "meta": meta}
 
     @component.output_types(documents=list[Document], meta=dict[str, Any])
-    async def run_async(self, documents: list[Document]) -> dict[str, Any]:
+    async def run_async(self, documents: list[Document]) -> dict[str, list[Document] | dict[str, Any]]:
         """
         Asynchronously embed a list of Documents.
 

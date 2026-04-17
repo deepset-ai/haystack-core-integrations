@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/vllm-v1.1.0] - 2026-04-17
+
+### 🚀 Features
+
+- Add VLLMRanker (#3174)
+
+
 ## [integrations/vllm-v1.0.0] - 2026-04-16
 
 ### 🚀 Features
