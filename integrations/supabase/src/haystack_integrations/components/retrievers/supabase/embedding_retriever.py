@@ -8,7 +8,6 @@ from haystack import component, default_from_dict
 from haystack.document_stores.types import FilterPolicy
 
 from haystack_integrations.components.retrievers.pgvector import PgvectorEmbeddingRetriever
-from haystack_integrations.document_stores.pgvector.document_store import VALID_VECTOR_FUNCTIONS
 from haystack_integrations.document_stores.supabase import SupabasePgvectorDocumentStore
 
 
@@ -91,18 +90,12 @@ class SupabasePgvectorEmbeddingRetriever(PgvectorEmbeddingRetriever):
             msg = "document_store must be an instance of SupabasePgvectorDocumentStore"
             raise ValueError(msg)
 
-        if vector_function and vector_function not in VALID_VECTOR_FUNCTIONS:
-            msg = f"vector_function must be one of {VALID_VECTOR_FUNCTIONS}"
-            raise ValueError(msg)
-
-        # Set attributes directly rather than calling super().__init__() because Haystack's
-        # @component metaclass wraps __init__, making super() fail across two @component classes.
-        self.document_store = document_store
-        self.filters = filters or {}
-        self.top_k = top_k
-        self.vector_function = vector_function or document_store.vector_function
-        self.filter_policy = (
-            filter_policy if isinstance(filter_policy, FilterPolicy) else FilterPolicy.from_str(filter_policy)
+        super(SupabasePgvectorEmbeddingRetriever, self).__init__(  # noqa: UP008
+            document_store=document_store,
+            filters=filters,
+            top_k=top_k,
+            vector_function=vector_function,
+            filter_policy=filter_policy,
         )
 
     @classmethod
