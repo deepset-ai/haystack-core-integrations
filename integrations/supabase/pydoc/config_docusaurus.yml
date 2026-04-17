@@ -1,6 +1,7 @@
 loaders:
   - modules:
       - haystack_integrations.document_stores.supabase.document_store
+      - haystack_integrations.components.retrievers.supabase.embedding_retriever
     search_path: [../src]
 processors:
   - type: filter
