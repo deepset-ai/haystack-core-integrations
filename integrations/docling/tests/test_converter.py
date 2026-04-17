@@ -26,14 +26,14 @@ def test_run_doc_chunks_minimal() -> None:
     meta_extractor_mock = MagicMock()
 
     converter_mock.convert.side_effect = [
-        SimpleNamespace(document="dl-doc-for-file-a.pdf"),
-        SimpleNamespace(document="dl-doc-for-file-b.pdf"),
+        SimpleNamespace(document=SimpleNamespace(texts=[], name="dl-doc-for-file-a.pdf")),
+        SimpleNamespace(document=SimpleNamespace(texts=[], name="dl-doc-for-file-b.pdf")),
     ]
 
     def chunk_side_effect(dl_doc: Any) -> list[SimpleNamespace]:
         return [
-            SimpleNamespace(text=f"chunk-1-of-{dl_doc}"),
-            SimpleNamespace(text=f"chunk-2-of-{dl_doc}"),
+            SimpleNamespace(text=f"chunk-1-of-{dl_doc.name}"),
+            SimpleNamespace(text=f"chunk-2-of-{dl_doc.name}"),
         ]
 
     chunker_mock.chunk.side_effect = chunk_side_effect
@@ -231,7 +231,7 @@ def test_run_with_sources_parameter() -> None:
     chunker_mock = MagicMock()
     meta_extractor_mock = MagicMock()
 
-    converter_mock.convert.return_value = SimpleNamespace(document="dl-doc")
+    converter_mock.convert.return_value = SimpleNamespace(document=SimpleNamespace(texts=[]))
     chunker_mock.chunk.return_value = [SimpleNamespace(text="chunk-1")]
     chunker_mock.contextualize.return_value = "contextualized-chunk-1"
     meta_extractor_mock.extract_chunk_meta.return_value = {}
@@ -252,7 +252,7 @@ def test_run_paths_deprecated() -> None:
     chunker_mock = MagicMock()
     meta_extractor_mock = MagicMock()
 
-    converter_mock.convert.return_value = SimpleNamespace(document="dl-doc")
+    converter_mock.convert.return_value = SimpleNamespace(document=SimpleNamespace(texts=[]))
     chunker_mock.chunk.return_value = [SimpleNamespace(text="chunk-1")]
     chunker_mock.contextualize.return_value = "contextualized-chunk-1"
     meta_extractor_mock.extract_chunk_meta.return_value = {}
@@ -278,10 +278,10 @@ def test_run_meta_single_dict_doc_chunks() -> None:
     meta_extractor_mock = MagicMock()
 
     converter_mock.convert.side_effect = [
-        SimpleNamespace(document="dl-doc-a"),
-        SimpleNamespace(document="dl-doc-b"),
+        SimpleNamespace(document=SimpleNamespace(texts=[], name="dl-doc-a")),
+        SimpleNamespace(document=SimpleNamespace(texts=[], name="dl-doc-b")),
     ]
-    chunker_mock.chunk.side_effect = lambda dl_doc: [SimpleNamespace(text=f"chunk-of-{dl_doc}")]
+    chunker_mock.chunk.side_effect = lambda dl_doc: [SimpleNamespace(text=f"chunk-of-{dl_doc.name}")]
     chunker_mock.contextualize.side_effect = lambda chunk: chunk.text
     meta_extractor_mock.extract_chunk_meta.return_value = {"extractor_key": "extractor_val"}
 
