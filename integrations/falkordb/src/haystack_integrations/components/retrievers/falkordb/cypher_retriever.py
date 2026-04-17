@@ -58,6 +58,17 @@ class FalkorDBCypherRetriever:
         self.document_store = document_store
         self.custom_cypher_query = custom_cypher_query
 
+    def to_dict(self) -> dict[str, Any]:
+        return default_to_dict(
+            self,
+            document_store=self.document_store.to_dict(),
+            custom_cypher_query=self.custom_cypher_query,
+        )
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "FalkorDBCypherRetriever":
+        return default_from_dict(cls, data)
+
 
 
     @component.output_types(documents=list[Document])

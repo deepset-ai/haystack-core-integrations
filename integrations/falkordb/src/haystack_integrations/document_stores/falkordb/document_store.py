@@ -12,7 +12,7 @@ import math
 from haystack import default_from_dict, default_to_dict
 from haystack.dataclasses import Document
 from haystack.document_stores.errors import DocumentStoreError, DuplicateDocumentError
-from haystack.document_stores.types import DuplicatePolicy
+from haystack.document_stores.types import DocumentStore, DuplicatePolicy
 from haystack.utils import Secret
 from redis.exceptions import ResponseError
 import falkordb  # type: ignore[import-untyped,import-not-found]  # noqa: PLC0415
@@ -32,7 +32,7 @@ _COMPARISON_OPS: dict[str, str] = {
 SimilarityFunction = Literal["cosine", "euclidean"]
 
 
-class FalkorDBDocumentStore:
+class FalkorDBDocumentStore(DocumentStore):
     """
     A Haystack DocumentStore backed by FalkorDB — a high-performance graph database.
 
@@ -74,7 +74,7 @@ class FalkorDBDocumentStore:
         embedding_field: str = "embedding",
         similarity: SimilarityFunction = "cosine",
         write_batch_size: int = 100,
-        recreate_index: bool = False,
+        recreate_graph: bool = False,
         verify_connectivity: bool = False,
     ) -> None:
         """
@@ -95,7 +95,7 @@ class FalkorDBDocumentStore:
         :param similarity: Similarity function for the vector index.  Accepted values
             are `"cosine"` and `"euclidean"`.
         :param write_batch_size: Number of documents written per `UNWIND` batch.
-        :param recreate_index: When `True` the existing graph (and all its data) is
+        :param recreate_graph: When `True` the existing graph (and all its data) is
             dropped and recreated on initialisation. Useful for tests.
         :param verify_connectivity: When `True` a connectivity probe is run
             immediately in `__init__` — raises if the server is unreachable.
@@ -118,16 +118,37 @@ class FalkorDBDocumentStore:
         self.embedding_field = embedding_field
         self.similarity: SimilarityFunction = similarity
         self.write_batch_size = write_batch_size
-        self.recreate_index = recreate_index
+        self.recreate_graph = recreate_graph
         self.verify_connectivity = verify_connectivity
 
-        # Lazy — populated on first use via _ensure_connected().
-        self._client: Any | None = None
-        self._graph: Any | None = None
-        self._initialized: bool = False
+        # Lazy — populated on first use via ensure_connected().
+        self.client: Any | None = None
+        self.graph: Any | None = None
+        self.initialized: bool = False
 
         if verify_connectivity:
             self._ensure_connected()
+
+    def to_dict(self) -> dict[str, Any]:
+        return default_to_dict(
+            self,
+            host=self.host,
+            port=self.port,
+            graph_name=self.graph_name,
+            username=self.username,
+            password=self.password,
+            node_label=self.node_label,
+            embedding_dim=self.embedding_dim,
+            embedding_field=self.embedding_field,
+            similarity=self.similarity,
+            write_batch_size=self.write_batch_size,
+            recreate_graph=self.recreate_graph,
+            verify_connectivity=self.verify_connectivity,
+        )
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> FalkorDBDocumentStore:
+        return default_from_dict(cls, data)
 
     # ------------------------------------------------------------------
     # Internal connection helpers
@@ -140,28 +161,27 @@ class FalkorDBDocumentStore:
         Called at the start of every public method so the store remains
         serialisable without an active database connection.
         """
-        if self._initialized:
+        if self.initialized:
             return
-
 
         password_value = self.password.resolve_value() if self.password is not None else None
 
-        self._client = falkordb.FalkorDB(
+        self.client = falkordb.FalkorDB(
             host=self.host,
             port=self.port,
             username=self.username,
             password=password_value,
         )
 
-        if self.recreate_index:
+        if self.recreate_graph:
             try:
-                self._client.delete(self.graph_name)
+                self.client.delete(self.graph_name)
             except Exception:
                 logger.debug("Graph '%s' could not be deleted (may not exist yet).", self.graph_name)
 
-        self._graph = self._client.select_graph(self.graph_name)
+        self.graph = self.client.select_graph(self.graph_name)
         self._ensure_schema()
-        self._initialized = True
+        self.initialized = True
 
 
     def _ensure_schema(self) -> None:
@@ -172,7 +192,7 @@ class FalkorDBDocumentStore:
         """
         # Property index on (:node_label {id}) for fast MERGE lookups.
         try:
-            self._graph.query(f"CREATE INDEX FOR (d:{self.node_label}) ON (d.id)")
+            self.graph.query(f"CREATE INDEX FOR (d:{self.node_label}) ON (d.id)")
         except ResponseError as e:
             if "already indexed" in str(e).lower() or "already exists" in str(e).lower():
                 logger.debug("Property index on %s(id) already exists — skipping creation.", self.node_label)
@@ -186,7 +206,7 @@ class FalkorDBDocumentStore:
                 f"ON (d.{self.embedding_field}) "
                 f"OPTIONS {{dimension: {self.embedding_dim}, similarityFunction: '{self.similarity}'}}"
             )
-            self._graph.query(cypher)
+            self.graph.query(cypher)
         except ResponseError as e:
             if "already indexed" in str(e).lower() or "already exists" in str(e).lower():
                 logger.debug(
@@ -208,7 +228,7 @@ class FalkorDBDocumentStore:
         :returns: Integer count of document nodes.
         """
         self._ensure_connected()
-        result = self._graph.query(f"MATCH (d:{self.node_label}) RETURN count(d) AS n")
+        result = self.graph.query(f"MATCH (d:{self.node_label}) RETURN count(d) AS n")
         rows = result.result_set
         return int(rows[0][0]) if rows else 0
 
@@ -223,8 +243,11 @@ class FalkorDBDocumentStore:
         :raises ValueError: If the filter dict is malformed.
         """
         self._ensure_connected()
+        if not filters:
+            result = self.graph.query(f"MATCH (d:{self.node_label}) RETURN d")
+            return [_node_to_document(row[0]) for row in result.result_set]
 
-        if filters is not None and "operator" not in filters:
+        if "operator" not in filters:
             msg = "Invalid filter syntax. See https://docs.haystack.deepset.ai/docs/metadata-filtering"
             raise ValueError(msg)
 
@@ -235,7 +258,7 @@ class FalkorDBDocumentStore:
             cypher = f"MATCH (d:{self.node_label}) RETURN d"
             params = {}
 
-        result = self._graph.query(cypher, params)
+        result = self.graph.query(cypher, params)
         return [_node_to_document(row[0]) for row in result.result_set]
 
     def write_documents(
@@ -301,7 +324,7 @@ class FalkorDBDocumentStore:
 
             # Step 2: find which IDs already exist in the DB.
             ids = [doc.id for doc in documents]
-            existing = self._graph.query(
+            existing = self.graph.query(
                 f"UNWIND $ids AS id MATCH (d:{self.node_label} {{id: id}}) RETURN d.id",
                 {"ids": ids},
             )
@@ -358,7 +381,7 @@ UNWIND $docs AS doc
 MERGE (d:{self.node_label} {{id: doc.id}})
 ON CREATE SET d += doc
 ON MATCH SET d += doc
-FOREACH (_ IN CASE WHEN doc.{self.embedding_field} IS NOT NULL THEN [1] ELSE [] END |
+FOREACH (x IN CASE WHEN doc.{self.embedding_field} IS NOT NULL THEN [1] ELSE [] END |
     SET d.{self.embedding_field} = vecf32(doc.{self.embedding_field})
 )
 RETURN count(d) AS n
@@ -370,14 +393,14 @@ RETURN count(d) AS n
 UNWIND $docs AS doc
 MERGE (d:{self.node_label} {{id: doc.id}})
 ON CREATE SET d += doc
-FOREACH (_ IN CASE WHEN doc.{self.embedding_field} IS NOT NULL THEN [1] ELSE [] END |
+FOREACH (x IN CASE WHEN doc.{self.embedding_field} IS NOT NULL THEN [1] ELSE [] END |
     SET d.{self.embedding_field} = vecf32(doc.{self.embedding_field})
 )
 RETURN count(d) AS n
 """
 
         try:
-            result = self._graph.query(cypher, {"docs": records})
+            result = self.graph.query(cypher, {"docs": records})
             rows = result.result_set
             return int(rows[0][0]) if rows else len(documents)
         except Exception as exc:
@@ -393,7 +416,7 @@ RETURN count(d) AS n
         self._ensure_connected()
         if not document_ids:
             return
-        self._graph.query(
+        self.graph.query(
             f"UNWIND $ids AS id MATCH (d:{self.node_label} {{id: id}}) DETACH DELETE d",
             {"ids": document_ids},
         )
@@ -451,7 +474,7 @@ ORDER BY score DESC
 """
             params = {"top_k": top_k, "query_embedding": query_embedding}
 
-        result = self._graph.query(cypher, params)
+        result = self.graph.query(cypher, params)
         documents = []
         for row in result.result_set:
             node, score = row[0], row[1]
@@ -479,7 +502,7 @@ ORDER BY score DESC
         """
         self._ensure_connected()
         try:
-            result = self._graph.query(cypher_query, parameters or {})
+            result = self.graph.query(cypher_query, parameters or {})
             return [_node_to_document(row[0]) for row in result.result_set]
         except Exception as exc:
             msg = f"Cypher query failed: {exc}"

@@ -95,8 +95,8 @@ class TestFalkorDBEmbeddingRetriever:
         )
         data_real = retriever_real.to_dict()
         new_retriever = FalkorDBEmbeddingRetriever.from_dict(data_real)
-        assert new_retriever._top_k == 5
-        assert new_retriever._filter_policy == FilterPolicy.MERGE
+        assert new_retriever.top_k == 5
+        assert new_retriever.filter_policy == FilterPolicy.MERGE
 
     def test_from_dict_without_document_store(self):
         data = {"type": "FalkorDBEmbeddingRetriever", "init_parameters": {}}
@@ -153,7 +153,7 @@ class TestFalkorDBCypherRetriever:
         assert data["init_parameters"]["custom_cypher_query"] == "MATCH (d) RETURN d"
 
         new_retriever = FalkorDBCypherRetriever.from_dict(data)
-        assert new_retriever._custom_cypher_query == "MATCH (d) RETURN d"
+        assert new_retriever.custom_cypher_query == "MATCH (d) RETURN d"
 
     def test_from_dict_without_document_store(self):
         data = {"type": "FalkorDBCypherRetriever", "init_parameters": {}}

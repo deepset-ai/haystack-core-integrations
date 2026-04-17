@@ -29,13 +29,13 @@ class TestDocumentStore(DocumentStoreBaseTests):
             port=port,
             graph_name=graph_name,
             embedding_dim=768,
-            recreate_index=True,
+            recreate_graph=True,
             verify_connectivity=True,
         )
         yield store
         
         # Teardown: delete the graph
         try:
-            store._client.delete(graph_name)
+            store.client.delete(graph_name)
         except Exception:
             pass

@@ -26,7 +26,7 @@ def falkordb_document_store():
         port=port,
         embedding_dim=3,
         graph_name="haystack_test",
-        recreate_index=True,
+        recreate_graph=True,
         verify_connectivity=True,
     )
     yield store

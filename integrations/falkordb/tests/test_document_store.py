@@ -223,30 +223,30 @@ class TestFalkorDBDocumentStore:
             embedding_field="vector",
             similarity="euclidean",
             write_batch_size=50,
-            recreate_index=True,
+            recreate_graph=True,
             verify_connectivity=False,
         )
         data = store.to_dict()
         assert data["init_parameters"]["host"] == "falkor.test"
 
         new_store = FalkorDBDocumentStore.from_dict(data)
-        assert new_store._host == "falkor.test"
-        assert new_store._port == 9999
-        assert new_store._graph_name == "my_graph"
-        assert new_store._username == "admin"
-        assert new_store._password is not None
-        assert new_store._node_label == "CustomDoc"
-        assert new_store._embedding_dim == 1536
-        assert new_store._embedding_field == "vector"
-        assert new_store._similarity == "euclidean"
-        assert new_store._write_batch_size == 50
-        assert new_store._recreate_index is True
+        assert new_store.host == "falkor.test"
+        assert new_store.port == 9999
+        assert new_store.graph_name == "my_graph"
+        assert new_store.username == "admin"
+        assert new_store.password is not None
+        assert new_store.node_label == "CustomDoc"
+        assert new_store.embedding_dim == 1536
+        assert new_store.embedding_field == "vector"
+        assert new_store.similarity == "euclidean"
+        assert new_store.write_batch_size == 50
+        assert new_store.recreate_graph is True
 
     def test_from_dict_without_password(self):
         store_to_serialize = FalkorDBDocumentStore(host="localhost")
         data = store_to_serialize.to_dict()
         new_store = FalkorDBDocumentStore.from_dict(data)
-        assert new_store._password is None
+        assert new_store.password is None
 
     def test_password_not_exposed_in_to_dict(self):
         store = FalkorDBDocumentStore(password=Secret.from_env_var("FALKOR_PWD", strict=False))
@@ -296,8 +296,9 @@ class TestFalkorDBDocumentStore:
         assert docs[0].id == "doc_1"
 
     def test_cypher_retrieval_error(self, mock_falkordb):
-        _, _, mock_graph = mock_falkordb
+        _mock_client_class, _mock_client, mock_graph = mock_falkordb
         store = FalkorDBDocumentStore()
+        store._ensure_connected()  # Initialize first so schema check passes
 
         mock_graph.query.side_effect = Exception("Graph error")
         with pytest.raises(Exception, match="Cypher query failed"):
@@ -306,7 +307,7 @@ class TestFalkorDBDocumentStore:
     def test_init_verify_connectivity_and_already_initialized(self, mock_falkordb):
         _, _, _mock_graph = mock_falkordb
         store = FalkorDBDocumentStore(verify_connectivity=True)
-        assert store._initialized is True
+        assert store.initialized is True
 
         # Second call should return early
         store._ensure_connected()
@@ -315,14 +316,16 @@ class TestFalkorDBDocumentStore:
         _mock_client_class, mock_client, _mock_graph = mock_falkordb
         mock_client.delete.side_effect = Exception("Graph not found")
 
-        store = FalkorDBDocumentStore(recreate_index=True)
+        store = FalkorDBDocumentStore(recreate_graph=True)
         store._ensure_connected()
         # Should catch and pass
         mock_client.delete.assert_called_once()
 
     def test_ensure_schema_exceptions(self, mock_falkordb):
+        from redis.exceptions import ResponseError
         _mock_client_class, _mock_client, mock_graph = mock_falkordb
-        mock_graph.query.side_effect = Exception("Index error")
+        # Simulate "already exists" error which should be caught
+        mock_graph.query.side_effect = ResponseError("Index already exists")
 
         # Should gracefully ignore already existing indexes
         store = FalkorDBDocumentStore()

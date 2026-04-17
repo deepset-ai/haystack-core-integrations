@@ -63,6 +63,19 @@ class FalkorDBEmbeddingRetriever:
         self.top_k = top_k
         self.filter_policy = FilterPolicy(filter_policy) if isinstance(filter_policy, str) else filter_policy
 
+    def to_dict(self) -> dict[str, Any]:
+        return default_to_dict(
+            self,
+            document_store=self.document_store.to_dict(),
+            filters=self.filters,
+            top_k=self.top_k,
+            filter_policy=self.filter_policy.value,
+        )
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "FalkorDBEmbeddingRetriever":
+        return default_from_dict(cls, data)
+
     
     @component.output_types(documents=list[Document])
     def run(
