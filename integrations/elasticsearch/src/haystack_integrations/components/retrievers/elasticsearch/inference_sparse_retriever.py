@@ -1,16 +1,15 @@
 # SPDX-FileCopyrightText: 2023-present deepset GmbH <info@deepset.ai>
 #
 # SPDX-License-Identifier: Apache-2.0
+
 from typing import Any
 
-from haystack import component, default_from_dict, default_to_dict, logging
+from haystack import component, default_from_dict, default_to_dict
 from haystack.dataclasses import Document
 from haystack.document_stores.types import FilterPolicy
 from haystack.document_stores.types.filter_policy import apply_filter_policy
 
 from haystack_integrations.document_stores.elasticsearch.document_store import ElasticsearchDocumentStore
-
-logger = logging.getLogger(__name__)
 
 
 @component
@@ -19,9 +18,8 @@ class ElasticsearchInferenceSparseRetriever:
     ElasticsearchInferenceSparseRetriever retrieves documents using Elasticsearch sparse vector inference search.
 
     Usage example:
+
     ```python
-    from haystack.dataclasses import Document
-    from haystack.dataclasses.sparse_embedding import SparseEmbedding
     from haystack_integrations.document_stores.elasticsearch import ElasticsearchDocumentStore
     from haystack_integrations.components.retrievers.elasticsearch import ElasticsearchInferenceSparseRetriever
 
@@ -51,7 +49,8 @@ class ElasticsearchInferenceSparseRetriever:
         :param filters: Filters applied to the retrieved Documents.
         :param top_k: Maximum number of Documents to return.
         :param filter_policy: Policy to determine how filters are applied.
-        :raises ValueError: If `document_store` is not an instance of ElasticsearchDocumentStore.
+        :raises ValueError: If `document_store` is not an instance of ElasticsearchDocumentStore or
+            `inference_id` is empty.
         """
         if not isinstance(document_store, ElasticsearchDocumentStore):
             msg = "document_store must be an instance of ElasticsearchDocumentStore"

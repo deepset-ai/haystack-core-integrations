@@ -3,10 +3,12 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import asyncio
+import os
 import uuid
 
 import pytest
 from elasticsearch import Elasticsearch
+from haystack.utils import Secret
 
 from haystack_integrations.document_stores.elasticsearch import ElasticsearchDocumentStore
 
@@ -78,6 +80,46 @@ def document_store():
     store.client.close()
     if store._async_client is not None:
         asyncio.run(store._async_client.close())
+
+
+@pytest.fixture
+def inference_sparse_document_store():
+    """
+    Document store fixture for ElasticsearchInferenceSparseRetriever integration tests.
+
+    Connects to a managed Elastic Cloud instance. Requires three environment variables:
+      - ELASTICSEARCH_URL
+            cluster endpoint, e.g. https://my-cluster.es.io:443
+      - ELASTIC_API_KEY
+            base64-encoded API key
+      - ELASTICSEARCH_INFERENCE_ID
+            deployed inference endpoint, e.g. ".elser-2-elasticsearch"
+
+    Tests that use this fixture are skipped automatically when the variables are absent.
+    """
+    url = os.environ.get("ELASTICSEARCH_URL")
+    api_key = os.environ.get("ELASTIC_API_KEY")
+    inference_id = os.environ.get("ELASTICSEARCH_INFERENCE_ID")
+
+    if not all([url, api_key, inference_id]):
+        pytest.skip("Set ELASTICSEARCH_URL, ELASTIC_API_KEY and ELASTICSEARCH_INFERENCE_ID to run inference tests")
+
+    index = f"test_inference_sparse_{uuid.uuid4().hex}"
+    store = ElasticsearchDocumentStore(
+        hosts=url,
+        api_key=Secret.from_token(api_key),
+        index=index,
+        sparse_vector_field="sparse_vec",
+    )
+    try:
+        store._ensure_initialized()
+        yield store, inference_id
+    finally:
+        if store._client is not None:
+            store.client.options(ignore_status=[400, 404]).indices.delete(index=index)
+            store.client.close()
+        if store._async_client is not None:
+            asyncio.run(store._async_client.close())
 
 
 @pytest.fixture

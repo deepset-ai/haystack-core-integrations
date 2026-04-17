@@ -1,6 +1,7 @@
 # SPDX-FileCopyrightText: 2023-present deepset GmbH <info@deepset.ai>
 #
 # SPDX-License-Identifier: Apache-2.0
+
 import copy
 
 # ruff: noqa: FBT002, FBT001    boolean-type-hint-positional-argument and boolean-default-value-positional-argument
@@ -438,11 +439,18 @@ class ElasticsearchDocumentStore:
 
         if self._sparse_vector_field and self._sparse_vector_field in data:
             es_sparse = data.pop(self._sparse_vector_field)
-            sorted_items = sorted(es_sparse.items(), key=lambda x: int(x[0]))
-            data["sparse_embedding"] = {
-                "indices": [int(k) for k, _ in sorted_items],
-                "values": [v for _, v in sorted_items],
-            }
+            try:
+                # Haystack SparseEmbedding requires integer indices. Documents indexed via
+                # Haystack use numeric string keys ("0", "1", ...). Documents indexed by an
+                # ES inference pipeline (e.g. ELSER) use token-string keys ("berlin", ...) which
+                # cannot be mapped to integer indices, so sparse_embedding is left unset.
+                sorted_items = sorted(es_sparse.items(), key=lambda x: int(x[0]))
+                data["sparse_embedding"] = {
+                    "indices": [int(k) for k, _ in sorted_items],
+                    "values": [v for _, v in sorted_items],
+                }
+            except ValueError:
+                pass
 
         return Document.from_dict(data)
 
@@ -548,7 +556,7 @@ class ElasticsearchDocumentStore:
         :param filters: Optional filters to narrow down the search space.
         :param top_k: Maximum number of documents to return.
         :returns: Search body for Elasticsearch.
-        :raises ValueError: If sparse retrieval is not configured or the query or inference_id is empty.
+        :raises ValueError: If sparse retrieval is not configured or the query is empty.
         """
         if not self._sparse_vector_field:
             msg = "sparse_vector_field must be set for sparse vector retrieval"
@@ -556,10 +564,6 @@ class ElasticsearchDocumentStore:
 
         if not query:
             msg = "query must be a non-empty string for inference-based sparse retrieval"
-            raise ValueError(msg)
-
-        if not inference_id:
-            msg = "inference_id must be provided for inference-based sparse retrieval"
             raise ValueError(msg)
 
         body: dict[str, Any] = {
