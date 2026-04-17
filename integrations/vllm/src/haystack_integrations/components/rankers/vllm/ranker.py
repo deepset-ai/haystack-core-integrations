@@ -74,7 +74,8 @@ class VLLMRanker:
         Creates an instance of VLLMRanker.
 
         :param model: The name of the reranker model served by vLLM. Check
-            [vLLM documentation](https://docs.vllm.ai/en/stable/models/pooling_models) for more information.
+            [vLLM documentation](https://docs.vllm.ai/en/stable/models/pooling_models/scoring/#supported-models) for
+            information on supported models.
         :param api_key: The vLLM API key. Defaults to the `VLLM_API_KEY` environment variable.
             Only required if the vLLM server was started with `--api-key`.
         :param api_base_url: The base URL of the vLLM server.
@@ -90,7 +91,7 @@ class VLLMRanker:
         :param extra_parameters: Additional parameters merged into the request body sent to the vLLM
             `/rerank` endpoint. Use this to pass parameters not part of the standard rerank API, such as
             `truncate_prompt_tokens`. See the
-            [vLLM Pooling Models docs](https://docs.vllm.ai/en/stable/models/pooling_models/).
+            [vLLM docs](https://docs.vllm.ai/en/stable/models/pooling_models/scoring/#rerank-api) for more information.
 
         :raises ValueError: If `top_k` is not > 0.
         """
@@ -159,7 +160,7 @@ class VLLMRanker:
         resp: dict[str, Any],
         documents: list[Document],
         score_threshold: float | None,
-    ) -> dict[str, Any]:
+    ) -> dict[str, list[Document] | dict[str, Any]]:
         if "results" not in resp:
             msg = resp.get("detail") or f"Unexpected response from vLLM rerank endpoint: {resp}"
             raise RuntimeError(msg)
@@ -189,7 +190,7 @@ class VLLMRanker:
         documents: list[Document],
         top_k: int | None = None,
         score_threshold: float | None = None,
-    ) -> dict[str, Any]:
+    ) -> dict[str, list[Document] | dict[str, Any]]:
         """
         Returns a list of Documents ranked by their similarity to the given query.
 
@@ -225,7 +226,7 @@ class VLLMRanker:
         documents: list[Document],
         top_k: int | None = None,
         score_threshold: float | None = None,
-    ) -> dict[str, Any]:
+    ) -> dict[str, list[Document] | dict[str, Any]]:
         """
         Asynchronously returns a list of Documents ranked by their similarity to the given query.
 
