@@ -2,7 +2,7 @@ from unittest.mock import patch
 
 import pytest
 
-from haystack_integrations.document_stores.supabase import SupabasePgVectorDocumentStore
+from haystack_integrations.document_stores.supabase import SupabasePgvectorDocumentStore
 
 
 @pytest.fixture
@@ -14,7 +14,7 @@ def document_store(request, monkeypatch):
     recreate_table = True
     search_strategy = "exact_nearest_neighbor"
 
-    store = SupabasePgVectorDocumentStore(
+    store = SupabasePgvectorDocumentStore(
         table_name=table_name,
         embedding_dimension=embedding_dimension,
         vector_function=vector_function,
@@ -38,7 +38,7 @@ def document_store_w_hnsw_index(request, monkeypatch):
     recreate_table = True
     search_strategy = "hnsw"
 
-    store = SupabasePgVectorDocumentStore(
+    store = SupabasePgvectorDocumentStore(
         table_name=table_name,
         embedding_dimension=embedding_dimension,
         vector_function=vector_function,
@@ -75,7 +75,7 @@ def mock_store(patches_for_unit_tests, monkeypatch):  # noqa: ARG001  patches ar
     recreate_table = True
     search_strategy = "exact_nearest_neighbor"
 
-    store = SupabasePgVectorDocumentStore(
+    store = SupabasePgvectorDocumentStore(
         table_name=table_name,
         embedding_dimension=embedding_dimension,
         vector_function=vector_function,

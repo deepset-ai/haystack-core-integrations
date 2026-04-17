@@ -9,7 +9,7 @@ from haystack.document_stores.types import FilterPolicy
 from haystack.utils.auth import EnvVarSecret
 
 from haystack_integrations.components.retrievers.supabase import SupabasePgvectorEmbeddingRetriever
-from haystack_integrations.document_stores.supabase import SupabasePgVectorDocumentStore
+from haystack_integrations.document_stores.supabase import SupabasePgvectorDocumentStore
 
 
 class TestEmbeddingRetriever:
@@ -38,7 +38,7 @@ class TestEmbeddingRetriever:
         assert retriever.vector_function == "l2_distance"
 
     def test_init_invalid_document_store(self):
-        with pytest.raises(ValueError, match="must be an instance of SupabasePgVectorDocumentStore"):
+        with pytest.raises(ValueError, match="must be an instance of SupabasePgvectorDocumentStore"):
             SupabasePgvectorEmbeddingRetriever(document_store="not a store")
 
     def test_to_dict(self, mock_store):
@@ -55,7 +55,7 @@ class TestEmbeddingRetriever:
             "init_parameters": {
                 "document_store": {
                     "type": (
-                        "haystack_integrations.document_stores.supabase.document_store.SupabasePgVectorDocumentStore"
+                        "haystack_integrations.document_stores.supabase.document_store.SupabasePgvectorDocumentStore"
                     ),
                     "init_parameters": {
                         "connection_string": {"env_vars": ["SUPABASE_DB_URL"], "strict": True, "type": "env_var"},
@@ -94,7 +94,7 @@ class TestEmbeddingRetriever:
             "init_parameters": {
                 "document_store": {
                     "type": (
-                        "haystack_integrations.document_stores.supabase.document_store.SupabasePgVectorDocumentStore"
+                        "haystack_integrations.document_stores.supabase.document_store.SupabasePgvectorDocumentStore"
                     ),
                     "init_parameters": {
                         "connection_string": {"env_vars": ["SUPABASE_DB_URL"], "strict": True, "type": "env_var"},
@@ -121,7 +121,7 @@ class TestEmbeddingRetriever:
         retriever = SupabasePgvectorEmbeddingRetriever.from_dict(data)
         document_store = retriever.document_store
 
-        assert isinstance(document_store, SupabasePgVectorDocumentStore)
+        assert isinstance(document_store, SupabasePgvectorDocumentStore)
         assert isinstance(document_store.connection_string, EnvVarSecret)
         assert not document_store.create_extension
         assert document_store.table_name == "haystack_test_to_dict"
@@ -141,7 +141,7 @@ class TestEmbeddingRetriever:
         assert retriever.vector_function == "l2_distance"
 
     def test_run(self):
-        mock_store = Mock(spec=SupabasePgVectorDocumentStore)
+        mock_store = Mock(spec=SupabasePgvectorDocumentStore)
         mock_store.vector_function = "cosine_similarity"
         doc = Document(content="Test doc", embedding=[0.1, 0.2])
         mock_store._embedding_retrieval.return_value = [doc]
@@ -157,7 +157,7 @@ class TestEmbeddingRetriever:
 
     @pytest.mark.asyncio
     async def test_run_async(self):
-        mock_store = Mock(spec=SupabasePgVectorDocumentStore)
+        mock_store = Mock(spec=SupabasePgvectorDocumentStore)
         mock_store.vector_function = "cosine_similarity"
         doc = Document(content="Test doc", embedding=[0.1, 0.2])
         mock_store._embedding_retrieval_async.return_value = [doc]

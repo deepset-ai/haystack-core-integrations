@@ -10,7 +10,7 @@ from haystack.utils.auth import Secret, deserialize_secrets_inplace
 from haystack_integrations.document_stores.pgvector import PgvectorDocumentStore
 
 
-class SupabasePgVectorDocumentStore(PgvectorDocumentStore):
+class SupabasePgvectorDocumentStore(PgvectorDocumentStore):
     """
     A Document Store for Supabase, using PostgreSQL with the pgvector extension.
 
@@ -45,7 +45,7 @@ class SupabasePgVectorDocumentStore(PgvectorDocumentStore):
         keyword_index_name: str = "haystack_keyword_index",
     ) -> None:
         """
-        Creates a new SupabasePgVectorDocumentStore instance.
+        Creates a new SupabasePgvectorDocumentStore instance.
 
         :param connection_string: The connection string for the Supabase PostgreSQL database, defined as an
             environment variable. Default: `SUPABASE_DB_URL`. Format:
@@ -111,7 +111,7 @@ class SupabasePgVectorDocumentStore(PgvectorDocumentStore):
         )
 
     @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "SupabasePgVectorDocumentStore":
+    def from_dict(cls, data: dict[str, Any]) -> "SupabasePgvectorDocumentStore":
         """
         Deserializes the component from a dictionary.
 

@@ -21,7 +21,7 @@ from haystack.testing.document_store import (
     WriteDocumentsTest,
 )
 
-from haystack_integrations.document_stores.supabase import SupabasePgVectorDocumentStore
+from haystack_integrations.document_stores.supabase import SupabasePgvectorDocumentStore
 
 
 @pytest.mark.integration
@@ -39,27 +39,27 @@ class TestDocumentStore(
     GetMetadataFieldMinMaxTest,
     GetMetadataFieldUniqueValuesTest,
 ):
-    def test_get_metadata_fields_info_empty_collection(self, document_store: SupabasePgVectorDocumentStore):
-        """SupabasePgVectorDocumentStore always includes 'content' in fields info, even for empty stores."""
+    def test_get_metadata_fields_info_empty_collection(self, document_store: SupabasePgvectorDocumentStore):
+        """SupabasePgvectorDocumentStore always includes 'content' in fields info, even for empty stores."""
         assert document_store.count_documents() == 0
 
         fields_info = document_store.get_metadata_fields_info()
         assert fields_info == {"content": {"type": "text"}}
 
-    def test_get_metadata_field_min_max_empty_collection(self, document_store: SupabasePgVectorDocumentStore):
-        """SupabasePgVectorDocumentStore raises ValueError when the field doesn't exist in the store."""
+    def test_get_metadata_field_min_max_empty_collection(self, document_store: SupabasePgvectorDocumentStore):
+        """SupabasePgvectorDocumentStore raises ValueError when the field doesn't exist in the store."""
         assert document_store.count_documents() == 0
 
         with pytest.raises(ValueError, match="not found in document store"):
             document_store.get_metadata_field_min_max("priority")
 
-    def test_write_documents(self, document_store: SupabasePgVectorDocumentStore):
+    def test_write_documents(self, document_store: SupabasePgvectorDocumentStore):
         docs = [Document(id="1")]
         assert document_store.write_documents(docs) == 1
         with pytest.raises(DuplicateDocumentError):
             document_store.write_documents(docs, DuplicatePolicy.FAIL)
 
-    def test_write_blob(self, document_store: SupabasePgVectorDocumentStore):
+    def test_write_blob(self, document_store: SupabasePgvectorDocumentStore):
         bytestream = ByteStream(b"test", meta={"meta_key": "meta_value"}, mime_type="mime_type")
         docs = [Document(id="1", blob=bytestream)]
         document_store.write_documents(docs)
@@ -81,7 +81,7 @@ def test_delete_table_first_call(document_store):
 def test_init(monkeypatch):
     monkeypatch.setenv("SUPABASE_DB_URL", "some_connection_string")
 
-    document_store = SupabasePgVectorDocumentStore(
+    document_store = SupabasePgvectorDocumentStore(
         create_extension=True,
         schema_name="my_schema",
         table_name="my_table",
@@ -114,7 +114,7 @@ def test_init(monkeypatch):
 def test_init_defaults(monkeypatch):
     monkeypatch.setenv("SUPABASE_DB_URL", "some_connection_string")
 
-    document_store = SupabasePgVectorDocumentStore()
+    document_store = SupabasePgvectorDocumentStore()
 
     assert not document_store.create_extension
     assert document_store.schema_name == "public"
@@ -129,7 +129,7 @@ def test_init_defaults(monkeypatch):
 def test_to_dict(monkeypatch):
     monkeypatch.setenv("SUPABASE_DB_URL", "some_connection_string")
 
-    document_store = SupabasePgVectorDocumentStore(
+    document_store = SupabasePgvectorDocumentStore(
         table_name="my_table",
         embedding_dimension=512,
         vector_type="halfvec",
@@ -144,7 +144,7 @@ def test_to_dict(monkeypatch):
     )
 
     assert document_store.to_dict() == {
-        "type": "haystack_integrations.document_stores.supabase.document_store.SupabasePgVectorDocumentStore",
+        "type": "haystack_integrations.document_stores.supabase.document_store.SupabasePgvectorDocumentStore",
         "init_parameters": {
             "connection_string": {"env_vars": ["SUPABASE_DB_URL"], "strict": True, "type": "env_var"},
             "create_extension": False,
@@ -170,7 +170,7 @@ def test_from_dict(monkeypatch):
     monkeypatch.setenv("SUPABASE_DB_URL", "some_connection_string")
 
     data = {
-        "type": "haystack_integrations.document_stores.supabase.document_store.SupabasePgVectorDocumentStore",
+        "type": "haystack_integrations.document_stores.supabase.document_store.SupabasePgvectorDocumentStore",
         "init_parameters": {
             "connection_string": {"env_vars": ["SUPABASE_DB_URL"], "strict": True, "type": "env_var"},
             "create_extension": False,
@@ -190,9 +190,9 @@ def test_from_dict(monkeypatch):
         },
     }
 
-    document_store = SupabasePgVectorDocumentStore.from_dict(data)
+    document_store = SupabasePgvectorDocumentStore.from_dict(data)
 
-    assert isinstance(document_store, SupabasePgVectorDocumentStore)
+    assert isinstance(document_store, SupabasePgvectorDocumentStore)
     assert not document_store.create_extension
     assert document_store.table_name == "my_table"
     assert document_store.schema_name == "public"
