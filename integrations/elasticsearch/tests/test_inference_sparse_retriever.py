@@ -274,7 +274,7 @@ def _index_documents_with_inference(client, index: str, inference_id: str, docum
         input=[doc["content"] for doc in documents],
     )
     embeddings = [item["embedding"] for item in response["sparse_embedding"]]
-    for doc, sparse_embedding in zip(documents, embeddings):
+    for doc, sparse_embedding in zip(documents, embeddings, strict=False):
         doc_id = doc.get("id", uuid.uuid4().hex)
         # Haystack's Document.to_dict() flattens meta keys to the top level, so _normalize_filters
         # strips the "meta." prefix when building ES queries. Mirror that here.
