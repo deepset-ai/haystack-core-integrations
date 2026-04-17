@@ -27,6 +27,8 @@ from haystack.testing.document_store import (
 )
 
 from haystack_integrations.document_stores.chroma import ChromaDocumentStore
+from haystack_integrations.document_stores.chroma.errors import ChromaDocumentStoreConfigError
+from haystack_integrations.document_stores.chroma.utils import get_embedding_function
 
 
 @pytest.fixture
@@ -40,6 +42,11 @@ def clear_chroma_system_cache():
     SharedSystemClient.clear_system_cache()
     yield
     SharedSystemClient.clear_system_cache()
+
+
+def test_get_embedding_function_invalid_name_raises():
+    with pytest.raises(ChromaDocumentStoreConfigError, match="Invalid function name"):
+        get_embedding_function("NonExistentEmbeddingFunction")
 
 
 class TestDocumentStoreUnit:
