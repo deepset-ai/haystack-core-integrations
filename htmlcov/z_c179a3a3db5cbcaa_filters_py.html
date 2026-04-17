@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
-    <title>Coverage for src/haystack_integrations/document_stores/mongodb_atlas/filters.py: 93%</title>
+    <title>Coverage for src/haystack_integrations/document_stores/mongodb_atlas/filters.py: 100%</title>
     <link rel="icon" sizes="32x32" href="favicon_32_cb_c827f16f.png">
     <link rel="stylesheet" href="style_cb_9ff733b0.css" type="text/css">
     <script src="coverage_html_cb_dd2e7eb5.js" defer></script>
@@ -12,7 +12,7 @@
     <div class="content">
         <h1>
             <span class="text">Coverage for </span><b>src&#8201;/&#8201;haystack_integrations&#8201;/&#8201;document_stores&#8201;/&#8201;mongodb_atlas&#8201;/&#8201;filters.py</b>:
-            <span class="pc_cov">93%</span>
+            <span class="pc_cov">100%</span>
         </h1>
         <aside id="help_panel_wrapper">
             <input id="help_panel_state" type="checkbox">
@@ -56,10 +56,10 @@
         </aside>
         <h2>
             <span class="text">87 statements &nbsp;</span>
-            <button type="button" class="run button_toggle_run" value="run" data-shortcut="r" title="Toggle lines run">81<span class="text"> run</span></button>
-            <button type="button" class="mis show_mis button_toggle_mis" value="mis" data-shortcut="m" title="Toggle lines missing">6<span class="text"> missing</span></button>
+            <button type="button" class="run button_toggle_run" value="run" data-shortcut="r" title="Toggle lines run">87<span class="text"> run</span></button>
+            <button type="button" class="mis show_mis button_toggle_mis" value="mis" data-shortcut="m" title="Toggle lines missing">0<span class="text"> missing</span></button>
             <button type="button" class="exc show_exc button_toggle_exc" value="exc" data-shortcut="x" title="Toggle lines excluded">0<span class="text"> excluded</span></button>
-            <button type="button" class="par run show_par button_toggle_par" value="par" data-shortcut="p" title="Toggle lines partially run">3<span class="text"> partial</span></button>
+            <button type="button" class="par run show_par button_toggle_par" value="par" data-shortcut="p" title="Toggle lines partially run">0<span class="text"> partial</span></button>
         </h2>
         <p class="text">
             <a id="prevFileLink" class="nav" href="z_c179a3a3db5cbcaa_document_store_py.html">&#xab; prev</a> &nbsp; &nbsp;
@@ -67,7 +67,7 @@
             <a id="nextFileLink" class="nav" href="index.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.13.5">coverage.py v7.13.5</a>,
-            created at 2026-04-13 14:25 +0000
+            created at 2026-04-17 10:04 +0000
         </p>
         <aside class="hidden">
             <button type="button" class="button_next_chunk" data-shortcut="j"></button>
@@ -97,13 +97,13 @@
     <p class="pln"><span class="n"><a id="t13" href="#t13">13</a></span><span class="t">    <span class="str">"""</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t14" href="#t14">14</a></span><span class="t"><span class="str">    Converts Haystack filters to MongoDB filters.</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t15" href="#t15">15</a></span><span class="t"><span class="str">    """</span>&nbsp;</span><span class="r"></span></p>
-    <p class="par run show_par"><span class="n"><a id="t16" href="#t16">16</a></span><span class="t">    <span class="key">if</span> <span class="key">not</span> <span class="nam">isinstance</span><span class="op">(</span><span class="nam">filters</span><span class="op">,</span> <span class="nam">dict</span><span class="op">)</span><span class="op">:</span>&nbsp;</span><span class="r"><span class="annotate short">16&#x202F;&#x219B;&#x202F;17</span><span class="annotate long">line 16 didn't jump to line 17 because the condition on line 16 was never true</span></span></p>
-    <p class="mis show_mis"><span class="n"><a id="t17" href="#t17">17</a></span><span class="t">        <span class="nam">msg</span> <span class="op">=</span> <span class="str">"Filters must be a dictionary"</span>&nbsp;</span><span class="r"></span></p>
-    <p class="mis show_mis"><span class="n"><a id="t18" href="#t18">18</a></span><span class="t">        <span class="key">raise</span> <span class="nam">FilterError</span><span class="op">(</span><span class="nam">msg</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t16" href="#t16">16</a></span><span class="t">    <span class="key">if</span> <span class="key">not</span> <span class="nam">isinstance</span><span class="op">(</span><span class="nam">filters</span><span class="op">,</span> <span class="nam">dict</span><span class="op">)</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t17" href="#t17">17</a></span><span class="t">        <span class="nam">msg</span> <span class="op">=</span> <span class="str">"Filters must be a dictionary"</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t18" href="#t18">18</a></span><span class="t">        <span class="key">raise</span> <span class="nam">FilterError</span><span class="op">(</span><span class="nam">msg</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t19" href="#t19">19</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
-    <p class="par run show_par"><span class="n"><a id="t20" href="#t20">20</a></span><span class="t">    <span class="key">if</span> <span class="str">"operator"</span> <span class="key">not</span> <span class="key">in</span> <span class="nam">filters</span> <span class="key">and</span> <span class="str">"conditions"</span> <span class="key">not</span> <span class="key">in</span> <span class="nam">filters</span><span class="op">:</span>&nbsp;</span><span class="r"><span class="annotate short">20&#x202F;&#x219B;&#x202F;21</span><span class="annotate long">line 20 didn't jump to line 21 because the condition on line 20 was never true</span></span></p>
-    <p class="mis show_mis"><span class="n"><a id="t21" href="#t21">21</a></span><span class="t">        <span class="nam">msg</span> <span class="op">=</span> <span class="str">"Invalid filter syntax. See https://docs.haystack.deepset.ai/docs/metadata-filtering for details."</span>&nbsp;</span><span class="r"></span></p>
-    <p class="mis show_mis"><span class="n"><a id="t22" href="#t22">22</a></span><span class="t">        <span class="key">raise</span> <span class="nam">ValueError</span><span class="op">(</span><span class="nam">msg</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t20" href="#t20">20</a></span><span class="t">    <span class="key">if</span> <span class="str">"operator"</span> <span class="key">not</span> <span class="key">in</span> <span class="nam">filters</span> <span class="key">and</span> <span class="str">"conditions"</span> <span class="key">not</span> <span class="key">in</span> <span class="nam">filters</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t21" href="#t21">21</a></span><span class="t">        <span class="nam">msg</span> <span class="op">=</span> <span class="str">"Invalid filter syntax. See https://docs.haystack.deepset.ai/docs/metadata-filtering for details."</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t22" href="#t22">22</a></span><span class="t">        <span class="key">raise</span> <span class="nam">ValueError</span><span class="op">(</span><span class="nam">msg</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t23" href="#t23">23</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t24" href="#t24">24</a></span><span class="t">    <span class="key">if</span> <span class="str">"field"</span> <span class="key">in</span> <span class="nam">filters</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t25" href="#t25">25</a></span><span class="t">        <span class="key">return</span> <span class="nam">_parse_comparison_condition</span><span class="op">(</span><span class="nam">filters</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
@@ -131,13 +131,13 @@
     <p class="run"><span class="n"><a id="t47" href="#t47">47</a></span><span class="t">        <span class="key">return</span> <span class="op">{</span><span class="str">"$and"</span><span class="op">:</span> <span class="nam">conditions</span><span class="op">}</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t48" href="#t48">48</a></span><span class="t">    <span class="key">elif</span> <span class="nam">operator</span> <span class="op">==</span> <span class="str">"OR"</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t49" href="#t49">49</a></span><span class="t">        <span class="key">return</span> <span class="op">{</span><span class="str">"$or"</span><span class="op">:</span> <span class="nam">conditions</span><span class="op">}</span>&nbsp;</span><span class="r"></span></p>
-    <p class="par run show_par"><span class="n"><a id="t50" href="#t50">50</a></span><span class="t">    <span class="key">elif</span> <span class="nam">operator</span> <span class="op">==</span> <span class="str">"NOT"</span><span class="op">:</span>&nbsp;</span><span class="r"><span class="annotate short">50&#x202F;&#x219B;&#x202F;55</span><span class="annotate long">line 50 didn't jump to line 55 because the condition on line 50 was always true</span></span></p>
+    <p class="run"><span class="n"><a id="t50" href="#t50">50</a></span><span class="t">    <span class="key">elif</span> <span class="nam">operator</span> <span class="op">==</span> <span class="str">"NOT"</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t51" href="#t51">51</a></span><span class="t">        <span class="com"># MongoDB doesn't support our NOT operator (logical NAND) directly.</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t52" href="#t52">52</a></span><span class="t">        <span class="com"># we combine $nor and $and to achieve the same effect.</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t53" href="#t53">53</a></span><span class="t">        <span class="key">return</span> <span class="op">{</span><span class="str">"$nor"</span><span class="op">:</span> <span class="op">[</span><span class="op">{</span><span class="str">"$and"</span><span class="op">:</span> <span class="nam">conditions</span><span class="op">}</span><span class="op">]</span><span class="op">}</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t54" href="#t54">54</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
-    <p class="mis show_mis"><span class="n"><a id="t55" href="#t55">55</a></span><span class="t">    <span class="nam">msg</span> <span class="op">=</span> <span class="fst">f"</span><span class="fst">Unknown logical operator '</span><span class="op">{</span><span class="nam">operator</span><span class="op">}</span><span class="fst">'. Valid operators are: 'AND', 'OR', 'NOT'</span><span class="fst">"</span>&nbsp;</span><span class="r"></span></p>
-    <p class="mis show_mis"><span class="n"><a id="t56" href="#t56">56</a></span><span class="t">    <span class="key">raise</span> <span class="nam">FilterError</span><span class="op">(</span><span class="nam">msg</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t55" href="#t55">55</a></span><span class="t">    <span class="nam">msg</span> <span class="op">=</span> <span class="fst">f"</span><span class="fst">Unknown logical operator '</span><span class="op">{</span><span class="nam">operator</span><span class="op">}</span><span class="fst">'. Valid operators are: 'AND', 'OR', 'NOT'</span><span class="fst">"</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t56" href="#t56">56</a></span><span class="t">    <span class="key">raise</span> <span class="nam">FilterError</span><span class="op">(</span><span class="nam">msg</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t57" href="#t57">57</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t58" href="#t58">58</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t59" href="#t59">59</a></span><span class="t"><span class="key">def</span> <span class="nam">_parse_comparison_condition</span><span class="op">(</span><span class="nam">condition</span><span class="op">:</span> <span class="nam">dict</span><span class="op">[</span><span class="nam">str</span><span class="op">,</span> <span class="nam">Any</span><span class="op">]</span><span class="op">)</span> <span class="op">-></span> <span class="nam">dict</span><span class="op">[</span><span class="nam">str</span><span class="op">,</span> <span class="nam">Any</span><span class="op">]</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
@@ -239,7 +239,7 @@
             <a class="nav" href="index.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.13.5">coverage.py v7.13.5</a>,
-            created at 2026-04-13 14:25 +0000
+            created at 2026-04-17 10:04 +0000
         </p>
     </div>
 </footer>
