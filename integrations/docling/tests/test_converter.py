@@ -7,7 +7,7 @@ from typing import Any
 from unittest.mock import MagicMock
 
 import pytest
-from docling_core.types.doc.document import DocItemLabel, RefItem, SectionHeaderItem
+from docling_core.types.doc.document import DocItemLabel, SectionHeaderItem
 from docling_core.types.io import DocumentStream
 from haystack.core.serialization import component_from_dict, component_to_dict
 from haystack.dataclasses import ByteStream
