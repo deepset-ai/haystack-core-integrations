@@ -138,14 +138,14 @@ class VLLMTextEmbedder:
         return kwargs
 
     @staticmethod
-    def _prepare_output(response: CreateEmbeddingResponse) -> dict[str, Any]:
+    def _prepare_output(response: CreateEmbeddingResponse) -> dict[str, list[float] | dict[str, Any]]:
         return {
             "embedding": response.data[0].embedding,
             "meta": {"model": response.model, "usage": dict(response.usage)},
         }
 
     @component.output_types(embedding=list[float], meta=dict[str, Any])
-    def run(self, text: str) -> dict[str, Any]:
+    def run(self, text: str) -> dict[str, list[float] | dict[str, Any]]:
         """
         Embed a single string.
 
@@ -162,7 +162,7 @@ class VLLMTextEmbedder:
         return self._prepare_output(response)
 
     @component.output_types(embedding=list[float], meta=dict[str, Any])
-    async def run_async(self, text: str) -> dict[str, Any]:
+    async def run_async(self, text: str) -> dict[str, list[float] | dict[str, Any]]:
         """
         Asynchronously embed a single string.
 

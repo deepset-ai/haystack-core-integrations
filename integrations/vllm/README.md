@@ -27,3 +27,10 @@ vLLM-metal does not support embedding models. On macOS, you can run the embeddin
 docker run --rm -p 8001:8000 -e VLLM_CPU_OMP_THREADS_BIND=0-3 vllm/vllm-openai-cpu:latest \
     --model sentence-transformers/all-MiniLM-L6-v2 --enforce-eager
 ```
+
+To run the ranker server, use CPU Docker image:
+```bash
+# ranker server (port 8002)
+docker run --rm -p 8002:8000 -e VLLM_CPU_OMP_THREADS_BIND=0-3 vllm/vllm-openai-cpu:latest \
+    --model BAAI/bge-reranker-base --enforce-eager
+```
