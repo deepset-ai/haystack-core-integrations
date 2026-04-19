@@ -25,6 +25,22 @@ logger = logging.getLogger(__name__)
 _SAFE_TABLE_NAME = re.compile(r"^[A-Za-z_][A-Za-z0-9_$#]{0,127}$")
 
 
+def _try_parse_number(value: Any) -> Any:
+    """Attempt to parse a string as a number.
+
+    Returns int for whole numbers, float for decimals, or the
+    original value when conversion is not possible.
+    """
+    if value is None:
+        return None
+    try:
+        f = float(value)
+        i = int(f)
+        return i if f == i else f
+    except (ValueError, TypeError):
+        return value
+
+
 @dataclass
 class OracleConnectionConfig:
     """
@@ -191,6 +207,20 @@ class OracleDocumentStore:
         with self._get_connection() as conn, conn.cursor() as cur:
             cur.execute(sql)
             conn.commit()
+            
+        self._ensure_keyword_index()
+
+    def _ensure_keyword_index(self) -> None:
+        index_name = f"{self.table_name}_search_idx"
+        if len(index_name) > 128:
+            index_name = index_name[:128]
+        try:
+            with self._get_connection() as conn, conn.cursor() as cur:
+                cur.execute(f"BEGIN DBMS_SEARCH.CREATE_INDEX('{index_name}'); "
+                            f"DBMS_SEARCH.ADD_SOURCE('{index_name}', '{self.table_name}'); END;")
+                conn.commit()
+        except oracledb.DatabaseError:
+            pass
 
     def create_hnsw_index(self) -> None:
         """
@@ -355,7 +385,7 @@ class OracleDocumentStore:
         :returns: A list of Documents that match the given filters.
         """
         where, params = OracleDocumentStore._build_where(filters)
-        sql = f"SELECT id, text, metadata FROM {self.table_name} {where}"
+        sql = f"SELECT id, text, JSON_SERIALIZE(metadata) AS metadata FROM {self.table_name} {where}"
         with self._get_connection() as conn, conn.cursor() as cur:
             cur.execute(sql, params)
             rows = cur.fetchall()
@@ -418,6 +448,198 @@ class OracleDocumentStore:
         """
         return await asyncio.to_thread(self.count_documents)
 
+    def delete_table(self) -> None:
+        """Deletes the document store table."""
+        with self._get_connection() as conn, conn.cursor() as cur:
+            try:
+                cur.execute(f"DROP TABLE {self.table_name} PURGE")
+            except oracledb.DatabaseError:
+                pass
+            index_name = f"{self.table_name}_search_idx"
+            if len(index_name) > 128:
+                index_name = index_name[:128]
+            try:
+                cur.execute(f"BEGIN DBMS_SEARCH.DROP_INDEX('{index_name}'); END;")
+            except oracledb.DatabaseError:
+                pass
+            conn.commit()
+
+    async def delete_table_async(self) -> None:
+        await asyncio.to_thread(self.delete_table)
+
+    def delete_all_documents(self) -> None:
+        """Deletes all documents from the document store."""
+        with self._get_connection() as conn, conn.cursor() as cur:
+            cur.execute(f"TRUNCATE TABLE {self.table_name}")
+            conn.commit()
+
+    async def delete_all_documents_async(self) -> None:
+        await asyncio.to_thread(self.delete_all_documents)
+
+    def count_documents_by_filter(self, filters: dict[str, Any]) -> int:
+        """
+        Returns the number of documents that match the provided filters.
+        """
+        where, params = OracleDocumentStore._build_where(filters)
+        sql = f"SELECT COUNT(*) FROM {self.table_name} {where}"
+        with self._get_connection() as conn, conn.cursor() as cur:
+            cur.execute(sql, params)
+            row = cur.fetchone()
+        return row[0] if row else 0
+
+    async def count_documents_by_filter_async(self, filters: dict[str, Any]) -> int:
+        return await asyncio.to_thread(self.count_documents_by_filter, filters)
+
+    def delete_by_filter(self, filters: dict[str, Any]) -> int:
+        """Deletes documents matching the provided filters and returns the count."""
+        if not filters:
+            return 0
+        where, params = OracleDocumentStore._build_where(filters)
+        sql = f"DELETE FROM {self.table_name} {where}"
+        with self._get_connection() as conn, conn.cursor() as cur:
+            cur.execute(sql, params)
+            deleted = cur.rowcount
+            conn.commit()
+        return deleted
+
+    async def delete_by_filter_async(self, filters: dict[str, Any]) -> int:
+        return await asyncio.to_thread(self.delete_by_filter, filters)
+
+    def update_by_filter(self, filters: dict[str, Any], meta: dict[str, Any]) -> int:
+        """Updates the metadata of documents matching the filters."""
+        if not meta:
+            raise ValueError("meta must be a non-empty dictionary")
+        where, params = OracleDocumentStore._build_where(filters)
+        sql = f"UPDATE {self.table_name} SET metadata = JSON_MERGEPATCH(metadata, :meta_patch) {where}"
+        params["meta_patch"] = json.dumps(meta)
+        with self._get_connection() as conn, conn.cursor() as cur:
+            cur.execute(sql, params)
+            updated = cur.rowcount
+            conn.commit()
+        return updated
+
+    async def update_by_filter_async(self, filters: dict[str, Any], meta: dict[str, Any]) -> int:
+        return await asyncio.to_thread(self.update_by_filter, filters, meta)
+
+    def count_unique_metadata_by_filter(self, filters: dict[str, Any], metadata_fields: list[str]) -> dict[str, int]:
+        if not metadata_fields:
+            raise ValueError("metadata_fields must be a non-empty list of strings")
+        where, params = OracleDocumentStore._build_where(filters)
+        results = {}
+        with self._get_connection() as conn, conn.cursor() as cur:
+            for field in metadata_fields:
+                field_path = field[5:] if field.startswith("meta.") else field
+                sql = f"SELECT COUNT(DISTINCT JSON_VALUE(metadata, '$.{field_path}')) FROM {self.table_name} {where}"
+                cur.execute(sql, params)
+                row = cur.fetchone()
+                results[field] = row[0] if row else 0
+        return results
+
+    async def count_unique_metadata_by_filter_async(self, filters: dict[str, Any], metadata_fields: list[str]) -> dict[str, int]:
+        return await asyncio.to_thread(self.count_unique_metadata_by_filter, filters, metadata_fields)
+
+    def get_metadata_fields_info(self) -> dict[str, dict[str, str]]:
+        """Return a mapping of metadata field names to their detected types.
+
+        Uses Oracle's ``JSON_DATAGUIDE`` aggregate to introspect the
+        stored metadata column.  Returns an empty dict when the table
+        has no documents.
+        """
+        sql = f"SELECT JSON_DATAGUIDE(metadata) FROM {self.table_name}"
+        with self._get_connection() as conn, conn.cursor() as cur:
+            cur.execute(sql)
+            row = cur.fetchone()
+            if not row or not row[0]:
+                return {}
+            raw_guide = row[0].read() if hasattr(row[0], "read") else row[0]
+            if not raw_guide:
+                return {}
+            fields: dict[str, dict[str, str]] = {}
+            dataguide = json.loads(raw_guide)
+            for path_info in dataguide:
+                path = path_info.get("o:path", "")
+                if path.startswith("$."):
+                    field_name = path[2:]
+                    type_str = path_info.get("type", "string")
+                    if type_str == "string":
+                        type_str = "text"
+                    fields[field_name] = {"type": type_str}
+            return fields
+
+    def get_metadata_field_min_max(self, metadata_field: str) -> dict[str, Any]:
+        """Return the min and max values of a metadata field.
+
+        Returns ``{"min": None, "max": None}`` when the table is empty
+        or the field does not exist.  Numeric strings returned by
+        ``JSON_VALUE`` are automatically converted to ``int`` / ``float``.
+
+        The method first attempts numeric comparison via ``TO_NUMBER``
+        so that ``MAX(1, 5, 10)`` returns ``10`` rather than ``"5"``
+        (which would win under lexicographic string ordering).  If the
+        field contains non-numeric values, it falls back to plain
+        string comparison.
+        """
+        field_path = metadata_field[5:] if metadata_field.startswith("meta.") else metadata_field
+        jv = f"JSON_VALUE(metadata, '$.{field_path}')"
+        # Try numeric comparison first — correct ordering for ints/floats.
+        sql_num = (
+            f"SELECT MIN(TO_NUMBER({jv})), MAX(TO_NUMBER({jv})) "
+            f"FROM {self.table_name} WHERE {jv} IS NOT NULL"
+        )
+        with self._get_connection() as conn, conn.cursor() as cur:
+            try:
+                cur.execute(sql_num)
+                row = cur.fetchone()
+                if row and row[0] is not None:
+                    return {"min": _try_parse_number(row[0]), "max": _try_parse_number(row[1])}
+            except oracledb.DatabaseError:
+                pass
+            # Fall back to string comparison for non-numeric fields.
+            sql_str = f"SELECT MIN({jv}), MAX({jv}) FROM {self.table_name}"
+            cur.execute(sql_str)
+            row = cur.fetchone()
+            if not row or row[0] is None or row[1] is None:
+                return {"min": None, "max": None}
+            return {"min": _try_parse_number(row[0]), "max": _try_parse_number(row[1])}
+
+    def get_metadata_field_unique_values(self, metadata_field: str, search_term: str | None = None, from_: int = 0, size: int | None = None) -> tuple[list[str], int]:
+        field_path = metadata_field[5:] if metadata_field.startswith("meta.") else metadata_field
+        base_sql = f"FROM {self.table_name} WHERE JSON_VALUE(metadata, '$.{field_path}') IS NOT NULL"
+        params = []
+        if search_term:
+            base_sql += f" AND (text LIKE :1 OR JSON_VALUE(metadata, '$.{field_path}') LIKE :1)"
+            params.append(f"%{search_term}%")
+            
+        sql_count = f"SELECT COUNT(DISTINCT JSON_VALUE(metadata, '$.{field_path}')) {base_sql}"
+        with self._get_connection() as conn, conn.cursor() as cur:
+            cur.execute(sql_count, params)
+            total = cur.fetchone()[0] or 0
+            
+            sql_vals = f"SELECT DISTINCT JSON_VALUE(metadata, '$.{field_path}') {base_sql} ORDER BY 1"
+            if size is not None:
+                sql_vals += f" OFFSET {from_} ROWS FETCH NEXT {size} ROWS ONLY"
+            else:
+                sql_vals += f" OFFSET {from_} ROWS"
+            cur.execute(sql_vals, params)
+            rows = cur.fetchall()
+            return [str(r[0]) for r in rows], total
+
+    async def get_metadata_fields_info_async(self) -> dict[str, dict[str, str]]:
+        """Async variant of :meth:`get_metadata_fields_info`."""
+        return await asyncio.to_thread(self.get_metadata_fields_info)
+
+    async def get_metadata_field_min_max_async(self, metadata_field: str) -> dict[str, Any]:
+        """Async variant of :meth:`get_metadata_field_min_max`."""
+        return await asyncio.to_thread(self.get_metadata_field_min_max, metadata_field)
+
+    async def get_metadata_field_unique_values_async(
+        self, metadata_field: str, search_term: str | None = None, from_: int = 0, size: int | None = None
+    ) -> tuple[list[str], int]:
+        """Async variant of :meth:`get_metadata_field_unique_values`."""
+        return await asyncio.to_thread(
+            self.get_metadata_field_unique_values, metadata_field, search_term, from_, size
+        )
+
     def _embedding_retrieval(
         self,
         query_embedding: list[float],
@@ -430,7 +652,7 @@ class OracleDocumentStore:
         order = "ASC"
         where, params = OracleDocumentStore._build_where(filters)
         sql = f"""
-            SELECT id, text, metadata,
+            SELECT id, text, JSON_SERIALIZE(metadata) AS metadata,
                    vector_distance(embedding, :query_vec, {self.distance_metric}) AS score
             FROM {self.table_name}
             {where}
@@ -457,6 +679,42 @@ class OracleDocumentStore:
             filters=filters,
             top_k=top_k,
         )
+
+    def _keyword_retrieval(
+        self, query: str, *, filters: dict[str, Any] | None = None, top_k: int = 10
+    ) -> list[Document]:
+        index_name = f"{self.table_name}_search_idx"
+        if len(index_name) > 128:
+            index_name = index_name[:128]
+        where, params = OracleDocumentStore._build_where(filters)
+        where_cond = where.replace("WHERE", "WHERE t.") if where else ""
+        sql = f"""
+            WITH hits AS (
+                SELECT JSON_VALUE(METADATA, '$.KEY.ID') AS hit_id, SCORE(1) AS score
+                FROM {index_name}
+                WHERE CONTAINS(DATA, :query, 1) > 0
+                ORDER BY score DESC
+                FETCH APPROX FIRST :top_k ROWS ONLY
+            )
+            SELECT t.id, t.text, JSON_SERIALIZE(t.metadata) AS metadata, hits.score
+            FROM hits
+            JOIN {self.table_name} t ON t.id = hits.hit_id
+            {where_cond}
+            ORDER BY hits.score DESC
+        """
+        params["query"] = query
+        params["top_k"] = top_k
+        with self._get_connection() as conn, conn.cursor() as cur:
+            try:
+                cur.execute(sql, params)
+            except oracledb.DatabaseError as e:
+                logger.warning(f"Keyword retrieval failed: {e}")
+                return []
+            rows = cur.fetchall()
+            return [OracleDocumentStore._row_to_document(r, with_score=True) for r in rows]
+
+    async def _keyword_retrieval_async(self, query: str, *, filters: dict[str, Any] | None = None, top_k: int = 10) -> list[Document]:
+        return await asyncio.to_thread(self._keyword_retrieval, query, filters=filters, top_k=top_k)
 
     @staticmethod
     def _row_to_document(row: tuple, *, with_score: bool = False) -> Document:

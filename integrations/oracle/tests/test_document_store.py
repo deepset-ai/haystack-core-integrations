@@ -9,7 +9,21 @@ import pytest
 from haystack.dataclasses import Document
 from haystack.document_stores.errors import DuplicateDocumentError
 from haystack.document_stores.types import DuplicatePolicy
-from haystack.testing.document_store import DocumentStoreBaseTests
+from haystack.testing.document_store import (
+    CountDocumentsByFilterTest,
+    CountDocumentsByFilterAsyncTest,
+    CountUniqueMetadataByFilterTest,
+    CountUniqueMetadataByFilterAsyncTest,
+    DeleteAllTest,
+    DeleteByFilterTest,
+    DeleteDocumentsTest,
+    DocumentStoreBaseTests,
+    GetMetadataFieldMinMaxTest,
+    GetMetadataFieldsInfoTest,
+    GetMetadataFieldUniqueValuesTest,
+    UpdateByFilterTest,
+    UpdateByFilterAsyncTest,
+)
 from haystack.utils import Secret
 
 from haystack_integrations.document_stores.oracle import OracleConnectionConfig, OracleDocumentStore
@@ -31,7 +45,21 @@ def _uid(suffix: str = "") -> str:
 
 
 @pytest.mark.integration
-class TestOracleDocumentStore(DocumentStoreBaseTests):
+class TestOracleDocumentStore(
+    DocumentStoreBaseTests,
+    CountDocumentsByFilterTest,
+    CountDocumentsByFilterAsyncTest,
+    CountUniqueMetadataByFilterTest,
+    CountUniqueMetadataByFilterAsyncTest,
+    DeleteAllTest,
+    DeleteByFilterTest,
+    DeleteDocumentsTest,
+    GetMetadataFieldMinMaxTest,
+    GetMetadataFieldsInfoTest,
+    GetMetadataFieldUniqueValuesTest,
+    UpdateByFilterTest,
+    UpdateByFilterAsyncTest,
+):
     @staticmethod
     def _mock_doc(content="hello", embedding=None, doc_id="AABB" * 8):
         """Lightweight document builder for mock-based tests."""
