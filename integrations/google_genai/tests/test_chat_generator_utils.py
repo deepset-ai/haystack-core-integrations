@@ -729,7 +729,12 @@ class TestStreamingChunkConversion:
         mock_chunk.candidates = [mock_candidate]
         mock_chunk.usage_metadata = mock_usage
 
-        chunk = _convert_google_chunk_to_streaming_chunk(mock_chunk, 0, component_info, "gemini-2.5-flash")
+        chunk = _convert_google_chunk_to_streaming_chunk(
+            chunk=mock_chunk,
+            candidate_index=0,
+            component_info=component_info,
+            model="gemini-2.5-flash",
+        )
 
         assert chunk.meta["usage"]["prompt_tokens"] == 1000
         assert chunk.meta["usage"]["completion_tokens"] == 10

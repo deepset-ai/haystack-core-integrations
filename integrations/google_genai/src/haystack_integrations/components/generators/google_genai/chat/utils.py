@@ -550,12 +550,9 @@ def _convert_google_genai_response_to_chatmessage(response: types.GenerateConten
         usage["thoughts_token_count"] = usage_metadata.thoughts_token_count
 
     # Add cached content token count if available (implicit or explicit context caching)
-    if (
-        usage_metadata
-        and hasattr(usage_metadata, "cached_content_token_count")
-        and usage_metadata.cached_content_token_count
-    ):
-        usage["cached_content_token_count"] = usage_metadata.cached_content_token_count
+    cached_content_token_count = getattr(usage_metadata, "cached_content_token_count", None) if usage_metadata else None
+    if cached_content_token_count is not None:
+        usage["cached_content_token_count"] = cached_content_token_count
 
     usage.update(_convert_usage_metadata_to_serializable(usage_metadata))
 
@@ -626,12 +623,9 @@ def _convert_google_chunk_to_streaming_chunk(
         usage["thoughts_token_count"] = usage_metadata.thoughts_token_count
 
     # Add cached content token count if available (context caching)
-    if (
-        usage_metadata
-        and hasattr(usage_metadata, "cached_content_token_count")
-        and usage_metadata.cached_content_token_count
-    ):
-        usage["cached_content_token_count"] = usage_metadata.cached_content_token_count
+    cached_content_token_count = getattr(usage_metadata, "cached_content_token_count", None) if usage_metadata else None
+    if cached_content_token_count is not None:
+        usage["cached_content_token_count"] = cached_content_token_count
 
     if candidate.content and candidate.content.parts:
         tc_index = -1
