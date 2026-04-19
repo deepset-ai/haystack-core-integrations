@@ -10,10 +10,10 @@ from haystack.dataclasses import Document
 from haystack.document_stores.errors import DuplicateDocumentError
 from haystack.document_stores.types import DuplicatePolicy
 from haystack.testing.document_store import (
-    CountDocumentsByFilterTest,
     CountDocumentsByFilterAsyncTest,
-    CountUniqueMetadataByFilterTest,
+    CountDocumentsByFilterTest,
     CountUniqueMetadataByFilterAsyncTest,
+    CountUniqueMetadataByFilterTest,
     DeleteAllTest,
     DeleteByFilterTest,
     DeleteDocumentsTest,
@@ -21,8 +21,8 @@ from haystack.testing.document_store import (
     GetMetadataFieldMinMaxTest,
     GetMetadataFieldsInfoTest,
     GetMetadataFieldUniqueValuesTest,
-    UpdateByFilterTest,
     UpdateByFilterAsyncTest,
+    UpdateByFilterTest,
 )
 from haystack.utils import Secret
 

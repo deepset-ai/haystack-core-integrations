@@ -23,10 +23,12 @@ from .filters import FilterTranslator
 logger = logging.getLogger(__name__)
 
 _SAFE_TABLE_NAME = re.compile(r"^[A-Za-z_][A-Za-z0-9_$#]{0,127}$")
+MAX_INDEX_NAME_LEN = 128
 
 
 def _try_parse_number(value: Any) -> Any:
-    """Attempt to parse a string as a number.
+    """
+    Attempt to parse a string as a number.
 
     Returns int for whole numbers, float for decimals, or the
     original value when conversion is not possible.
@@ -207,17 +209,19 @@ class OracleDocumentStore:
         with self._get_connection() as conn, conn.cursor() as cur:
             cur.execute(sql)
             conn.commit()
-            
+
         self._ensure_keyword_index()
 
     def _ensure_keyword_index(self) -> None:
         index_name = f"{self.table_name}_search_idx"
-        if len(index_name) > 128:
-            index_name = index_name[:128]
+        if len(index_name) > MAX_INDEX_NAME_LEN:
+            index_name = index_name[:MAX_INDEX_NAME_LEN]
         try:
             with self._get_connection() as conn, conn.cursor() as cur:
-                cur.execute(f"BEGIN DBMS_SEARCH.CREATE_INDEX('{index_name}'); "
-                            f"DBMS_SEARCH.ADD_SOURCE('{index_name}', '{self.table_name}'); END;")
+                cur.execute(
+                    f"BEGIN DBMS_SEARCH.CREATE_INDEX('{index_name}'); "
+                    f"DBMS_SEARCH.ADD_SOURCE('{index_name}', '{self.table_name}'); END;"
+                )
                 conn.commit()
         except oracledb.DatabaseError:
             pass
@@ -456,8 +460,8 @@ class OracleDocumentStore:
             except oracledb.DatabaseError:
                 pass
             index_name = f"{self.table_name}_search_idx"
-            if len(index_name) > 128:
-                index_name = index_name[:128]
+            if len(index_name) > MAX_INDEX_NAME_LEN:
+                index_name = index_name[:MAX_INDEX_NAME_LEN]
             try:
                 cur.execute(f"BEGIN DBMS_SEARCH.DROP_INDEX('{index_name}'); END;")
             except oracledb.DatabaseError:
@@ -465,6 +469,7 @@ class OracleDocumentStore:
             conn.commit()
 
     async def delete_table_async(self) -> None:
+        """Async variant of :meth:`delete_table`."""
         await asyncio.to_thread(self.delete_table)
 
     def delete_all_documents(self) -> None:
@@ -474,6 +479,7 @@ class OracleDocumentStore:
             conn.commit()
 
     async def delete_all_documents_async(self) -> None:
+        """Async variant of :meth:`delete_all_documents`."""
         await asyncio.to_thread(self.delete_all_documents)
 
     def count_documents_by_filter(self, filters: dict[str, Any]) -> int:
@@ -488,6 +494,7 @@ class OracleDocumentStore:
         return row[0] if row else 0
 
     async def count_documents_by_filter_async(self, filters: dict[str, Any]) -> int:
+        """Async variant of :meth:`count_documents_by_filter`."""
         return await asyncio.to_thread(self.count_documents_by_filter, filters)
 
     def delete_by_filter(self, filters: dict[str, Any]) -> int:
@@ -503,12 +510,14 @@ class OracleDocumentStore:
         return deleted
 
     async def delete_by_filter_async(self, filters: dict[str, Any]) -> int:
+        """Async variant of :meth:`delete_by_filter`."""
         return await asyncio.to_thread(self.delete_by_filter, filters)
 
     def update_by_filter(self, filters: dict[str, Any], meta: dict[str, Any]) -> int:
         """Updates the metadata of documents matching the filters."""
         if not meta:
-            raise ValueError("meta must be a non-empty dictionary")
+            msg = "meta must be a non-empty dictionary"
+            raise ValueError(msg)
         where, params = OracleDocumentStore._build_where(filters)
         sql = f"UPDATE {self.table_name} SET metadata = JSON_MERGEPATCH(metadata, :meta_patch) {where}"
         params["meta_patch"] = json.dumps(meta)
@@ -519,11 +528,14 @@ class OracleDocumentStore:
         return updated
 
     async def update_by_filter_async(self, filters: dict[str, Any], meta: dict[str, Any]) -> int:
+        """Async variant of :meth:`update_by_filter`."""
         return await asyncio.to_thread(self.update_by_filter, filters, meta)
 
     def count_unique_metadata_by_filter(self, filters: dict[str, Any], metadata_fields: list[str]) -> dict[str, int]:
+        """Counts the unique occurrences of metadata fields."""
         if not metadata_fields:
-            raise ValueError("metadata_fields must be a non-empty list of strings")
+            msg = "metadata_fields must be a non-empty list of strings"
+            raise ValueError(msg)
         where, params = OracleDocumentStore._build_where(filters)
         results = {}
         with self._get_connection() as conn, conn.cursor() as cur:
@@ -535,11 +547,15 @@ class OracleDocumentStore:
                 results[field] = row[0] if row else 0
         return results
 
-    async def count_unique_metadata_by_filter_async(self, filters: dict[str, Any], metadata_fields: list[str]) -> dict[str, int]:
+    async def count_unique_metadata_by_filter_async(
+        self, filters: dict[str, Any], metadata_fields: list[str]
+    ) -> dict[str, int]:
+        """Async variant of :meth:`count_unique_metadata_by_filter`."""
         return await asyncio.to_thread(self.count_unique_metadata_by_filter, filters, metadata_fields)
 
     def get_metadata_fields_info(self) -> dict[str, dict[str, str]]:
-        """Return a mapping of metadata field names to their detected types.
+        """
+        Return a mapping of metadata field names to their detected types.
 
         Uses Oracle's ``JSON_DATAGUIDE`` aggregate to introspect the
         stored metadata column.  Returns an empty dict when the table
@@ -567,7 +583,8 @@ class OracleDocumentStore:
             return fields
 
     def get_metadata_field_min_max(self, metadata_field: str) -> dict[str, Any]:
-        """Return the min and max values of a metadata field.
+        """
+        Return the min and max values of a metadata field.
 
         Returns ``{"min": None, "max": None}`` when the table is empty
         or the field does not exist.  Numeric strings returned by
@@ -582,10 +599,7 @@ class OracleDocumentStore:
         field_path = metadata_field[5:] if metadata_field.startswith("meta.") else metadata_field
         jv = f"JSON_VALUE(metadata, '$.{field_path}')"
         # Try numeric comparison first — correct ordering for ints/floats.
-        sql_num = (
-            f"SELECT MIN(TO_NUMBER({jv})), MAX(TO_NUMBER({jv})) "
-            f"FROM {self.table_name} WHERE {jv} IS NOT NULL"
-        )
+        sql_num = f"SELECT MIN(TO_NUMBER({jv})), MAX(TO_NUMBER({jv})) FROM {self.table_name} WHERE {jv} IS NOT NULL"
         with self._get_connection() as conn, conn.cursor() as cur:
             try:
                 cur.execute(sql_num)
@@ -602,19 +616,22 @@ class OracleDocumentStore:
                 return {"min": None, "max": None}
             return {"min": _try_parse_number(row[0]), "max": _try_parse_number(row[1])}
 
-    def get_metadata_field_unique_values(self, metadata_field: str, search_term: str | None = None, from_: int = 0, size: int | None = None) -> tuple[list[str], int]:
+    def get_metadata_field_unique_values(
+        self, metadata_field: str, search_term: str | None = None, from_: int = 0, size: int | None = None
+    ) -> tuple[list[str], int]:
+        """Return unique values for a specific metadata field."""
         field_path = metadata_field[5:] if metadata_field.startswith("meta.") else metadata_field
         base_sql = f"FROM {self.table_name} WHERE JSON_VALUE(metadata, '$.{field_path}') IS NOT NULL"
         params = []
         if search_term:
             base_sql += f" AND (text LIKE :1 OR JSON_VALUE(metadata, '$.{field_path}') LIKE :1)"
             params.append(f"%{search_term}%")
-            
+
         sql_count = f"SELECT COUNT(DISTINCT JSON_VALUE(metadata, '$.{field_path}')) {base_sql}"
         with self._get_connection() as conn, conn.cursor() as cur:
             cur.execute(sql_count, params)
             total = cur.fetchone()[0] or 0
-            
+
             sql_vals = f"SELECT DISTINCT JSON_VALUE(metadata, '$.{field_path}') {base_sql} ORDER BY 1"
             if size is not None:
                 sql_vals += f" OFFSET {from_} ROWS FETCH NEXT {size} ROWS ONLY"
@@ -636,9 +653,7 @@ class OracleDocumentStore:
         self, metadata_field: str, search_term: str | None = None, from_: int = 0, size: int | None = None
     ) -> tuple[list[str], int]:
         """Async variant of :meth:`get_metadata_field_unique_values`."""
-        return await asyncio.to_thread(
-            self.get_metadata_field_unique_values, metadata_field, search_term, from_, size
-        )
+        return await asyncio.to_thread(self.get_metadata_field_unique_values, metadata_field, search_term, from_, size)
 
     def _embedding_retrieval(
         self,
@@ -684,8 +699,8 @@ class OracleDocumentStore:
         self, query: str, *, filters: dict[str, Any] | None = None, top_k: int = 10
     ) -> list[Document]:
         index_name = f"{self.table_name}_search_idx"
-        if len(index_name) > 128:
-            index_name = index_name[:128]
+        if len(index_name) > MAX_INDEX_NAME_LEN:
+            index_name = index_name[:MAX_INDEX_NAME_LEN]
         where, params = OracleDocumentStore._build_where(filters)
         where_cond = where.replace("WHERE", "WHERE t.") if where else ""
         sql = f"""
@@ -713,7 +728,9 @@ class OracleDocumentStore:
             rows = cur.fetchall()
             return [OracleDocumentStore._row_to_document(r, with_score=True) for r in rows]
 
-    async def _keyword_retrieval_async(self, query: str, *, filters: dict[str, Any] | None = None, top_k: int = 10) -> list[Document]:
+    async def _keyword_retrieval_async(
+        self, query: str, *, filters: dict[str, Any] | None = None, top_k: int = 10
+    ) -> list[Document]:
         return await asyncio.to_thread(self._keyword_retrieval, query, filters=filters, top_k=top_k)
 
     @staticmethod
