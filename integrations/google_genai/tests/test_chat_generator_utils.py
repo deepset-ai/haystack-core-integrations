@@ -702,7 +702,6 @@ class TestStreamingChunkConversion:
         assert "thought_signatures" in result.meta
         assert result.meta["thought_signatures"][0]["signature"] == "sig_xyz"
 
-
     def test_convert_google_chunk_to_streaming_chunk_with_cached_tokens(self, monkeypatch):
         """cached_content_token_count from usage_metadata is included in the streaming chunk's usage."""
         monkeypatch.setenv("GOOGLE_API_KEY", "test-api-key")
