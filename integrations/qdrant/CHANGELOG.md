@@ -1,5 +1,11 @@
 # Changelog
 
+## [Unreleased]
+
+### 🧪 Testing
+
+- Replace in-place `Document` dataclass mutations with `dataclasses.replace()` in sparse embedding retriever tests (#3180)
+
 ## [integrations/qdrant-v10.3.0] - 2026-03-23
 
 ### 📚 Documentation

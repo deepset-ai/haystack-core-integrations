@@ -1,3 +1,5 @@
+import dataclasses
+
 import pytest
 from haystack.dataclasses import Document, SparseEmbedding
 from haystack.document_stores.types import FilterPolicy
@@ -153,9 +155,9 @@ class TestQdrantSparseEmbeddingRetrieverIntegration(FilterableDocsFixtureMixin):
         document_store = QdrantDocumentStore(location=":memory:", index="Boi", use_sparse_embeddings=True)
 
         # Add fake sparse embedding to documents
-        for doc in filterable_docs:
-            doc.sparse_embedding = generate_sparse_embedding()
-
+        filterable_docs = [
+            dataclasses.replace(doc, sparse_embedding=generate_sparse_embedding()) for doc in filterable_docs
+        ]
         document_store.write_documents(filterable_docs)
         retriever = QdrantSparseEmbeddingRetriever(document_store=document_store)
         sparse_embedding = SparseEmbedding(indices=[0, 1, 2, 3], values=[0.1, 0.8, 0.05, 0.33])
@@ -173,9 +175,10 @@ class TestQdrantSparseEmbeddingRetrieverIntegration(FilterableDocsFixtureMixin):
         document_store = QdrantDocumentStore(location=":memory:", index="Boi", use_sparse_embeddings=True)
 
         # Add fake sparse embedding to documents
-        for index, doc in enumerate(filterable_docs):
-            doc.sparse_embedding = generate_sparse_embedding()
-            doc.meta = {"group_field": index // 2}  # So at least two docs have same group each time
+        filterable_docs = [
+            dataclasses.replace(doc, sparse_embedding=generate_sparse_embedding(), meta={"group_field": index // 2})
+            for index, doc in enumerate(filterable_docs)
+        ]  # So at least two docs have same group each time
         document_store.write_documents(filterable_docs)
         retriever = QdrantSparseEmbeddingRetriever(document_store=document_store)
         sparse_embedding = SparseEmbedding(indices=[0, 1, 2, 3], values=[0.1, 0.8, 0.05, 0.33])
@@ -197,9 +200,9 @@ class TestQdrantSparseEmbeddingRetrieverIntegration(FilterableDocsFixtureMixin):
         document_store = QdrantDocumentStore(location=":memory:", index="Boi", use_sparse_embeddings=True)
 
         # Add fake sparse embedding to documents
-        for doc in filterable_docs:
-            doc.sparse_embedding = generate_sparse_embedding()
-
+        filterable_docs = [
+            dataclasses.replace(doc, sparse_embedding=generate_sparse_embedding()) for doc in filterable_docs
+        ]
         await document_store.write_documents_async(filterable_docs)
         retriever = QdrantSparseEmbeddingRetriever(document_store=document_store)
         sparse_embedding = SparseEmbedding(indices=[0, 1, 2, 3], values=[0.1, 0.8, 0.05, 0.33])
@@ -218,9 +221,10 @@ class TestQdrantSparseEmbeddingRetrieverIntegration(FilterableDocsFixtureMixin):
         document_store = QdrantDocumentStore(location=":memory:", index="Boi", use_sparse_embeddings=True)
 
         # Add fake sparse embedding to documents
-        for index, doc in enumerate(filterable_docs):
-            doc.sparse_embedding = generate_sparse_embedding()
-            doc.meta = {"group_field": index // 2}  # So at least two docs have same group each time
+        filterable_docs = [
+            dataclasses.replace(doc, sparse_embedding=generate_sparse_embedding(), meta={"group_field": index // 2})
+            for index, doc in enumerate(filterable_docs)
+        ]  # So at least two docs have same group each time
         await document_store.write_documents_async(filterable_docs)
         retriever = QdrantSparseEmbeddingRetriever(document_store=document_store)
         sparse_embedding = SparseEmbedding(indices=[0, 1, 2, 3], values=[0.1, 0.8, 0.05, 0.33])
