@@ -13,8 +13,9 @@ logger = logging.getLogger(__name__)
 @component
 class PresidioEntityExtractor:
     """
-    Detects PII entities in Haystack Documents using
-    [Microsoft Presidio Analyzer](https://microsoft.github.io/presidio/).
+    Detects PII entities in Haystack Documents using Microsoft Presidio Analyzer.
+
+    See [Presidio Analyzer](https://microsoft.github.io/presidio/) for details.
 
     Accepts a list of Documents and returns new Documents with detected PII entities stored
     in each Document's metadata under the key `"entities"`. Each entry in the list contains
