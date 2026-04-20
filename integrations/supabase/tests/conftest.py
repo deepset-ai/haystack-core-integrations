@@ -2,16 +2,19 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+import os
 from unittest.mock import patch
 
 import pytest
 
 from haystack_integrations.document_stores.supabase import SupabasePgvectorDocumentStore
 
+SUPABASE_DB_URL = os.environ.get("SUPABASE_DB_URL", "postgresql://postgres:postgres@localhost:5432/postgres")
+
 
 @pytest.fixture
 def document_store(request, monkeypatch):
-    monkeypatch.setenv("SUPABASE_DB_URL", "postgresql://postgres:postgres@localhost:5432/postgres")
+    monkeypatch.setenv("SUPABASE_DB_URL", SUPABASE_DB_URL)
     table_name = f"haystack_{request.node.name}"
     embedding_dimension = 768
     vector_function = "cosine_similarity"
@@ -35,7 +38,7 @@ def document_store(request, monkeypatch):
 
 @pytest.fixture
 def document_store_w_hnsw_index(request, monkeypatch):
-    monkeypatch.setenv("SUPABASE_DB_URL", "postgresql://postgres:postgres@localhost:5432/postgres")
+    monkeypatch.setenv("SUPABASE_DB_URL", SUPABASE_DB_URL)
     table_name = f"haystack_hnsw_{request.node.name}"
     embedding_dimension = 768
     vector_function = "cosine_similarity"
