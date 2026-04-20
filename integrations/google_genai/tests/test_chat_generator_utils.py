@@ -731,7 +731,7 @@ class TestStreamingChunkConversion:
 
         chunk = _convert_google_chunk_to_streaming_chunk(
             chunk=mock_chunk,
-            candidate_index=0,
+            index=0,
             component_info=component_info,
             model="gemini-2.5-flash",
         )
