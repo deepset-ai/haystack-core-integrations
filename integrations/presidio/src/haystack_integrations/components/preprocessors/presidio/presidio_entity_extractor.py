@@ -13,7 +13,8 @@ logger = logging.getLogger(__name__)
 @component
 class PresidioEntityExtractor:
     """
-    Detects PII entities in Haystack Documents using [Microsoft Presidio Analyzer](https://microsoft.github.io/presidio/).
+    Detects PII entities in Haystack Documents using
+    [Microsoft Presidio Analyzer](https://microsoft.github.io/presidio/).
 
     Accepts a list of Documents and returns new Documents with detected PII entities stored
     in each Document's metadata under the key `"entities"`. Each entry in the list contains
@@ -117,7 +118,7 @@ class PresidioEntityExtractor:
                 result_docs.append(replace(doc, meta={**doc.meta, "entities": entities}))
             except Exception as e:
                 logger.warning(
-                    "Could not extract entities from document {doc_id}. Skipping extraction, keeping document. Error: {error}",
+                    "Could not extract entities from {doc_id}. Skipping extraction, keeping document. Error: {error}",
                     doc_id=doc.id,
                     error=e,
                 )
