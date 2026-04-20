@@ -340,6 +340,33 @@ def test_sparse_embedding_to_es_vector_empty_inputs():
         ElasticsearchDocumentStore._sparse_embedding_to_es_vector(indices=[], values=[])
 
 
+def test_deserialize_document_with_numeric_string_keys():
+    # Documents written by Haystack use numeric string keys ("0", "1", ...)
+    store = ElasticsearchDocumentStore(hosts="testhost", sparse_vector_field="sparse_vec")
+    hit = {
+        "_source": {"id": "doc-1", "content": "Berlin", "sparse_vec": {"0": 0.9, "2": 0.5, "1": 0.7}},
+        "_score": 1.0,
+    }
+    doc = store._deserialize_document(hit)
+    assert doc.sparse_embedding is not None
+    assert doc.sparse_embedding.indices == [0, 1, 2]
+    assert doc.sparse_embedding.values == [0.9, 0.7, 0.5]
+
+
+def test_deserialize_document_with_elser_string_token_keys():
+    # Documents indexed by an ES inference pipeline (ELSER) use token-string keys ("berlin", ...)
+    # which cannot map to integer indices — sparse_embedding is left as None
+    store = ElasticsearchDocumentStore(hosts="testhost", sparse_vector_field="sparse_vec")
+    hit = {
+        "_source": {"id": "doc-1", "content": "Berlin", "sparse_vec": {"berlin": 3.5, "capital": 2.1}},
+        "_score": 1.0,
+    }
+    doc = store._deserialize_document(hit)
+    assert doc.content == "Berlin"
+    assert doc.score == 1.0
+    assert doc.sparse_embedding is None
+
+
 def test_sparse_vector_retrieval_builds_query_without_filters():
     store = ElasticsearchDocumentStore(hosts="some hosts", sparse_vector_field="sparse_vec")
 
