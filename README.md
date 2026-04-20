@@ -4,16 +4,17 @@
 
 | Name                                                                                           |    Stmts |     Miss |   Branch |   BrPart |   Cover |   Missing |
 |----------------------------------------------------------------------------------------------- | -------: | -------: | -------: | -------: | ------: | --------: |
-| src/haystack\_integrations/components/retrievers/opensearch/bm25\_retriever.py                 |       79 |       12 |       28 |        6 |     81% |102-103, 171, 180-\>183, 273-274, 283, 340-341, 348-351 |
-| src/haystack\_integrations/components/retrievers/opensearch/embedding\_retriever.py            |       85 |       15 |       36 |       12 |     76% |110-111, 248, 250, 251-\>253, 262-263, 279, 374, 376, 377-\>379, 379-\>381, 381-\>384, 388-389, 403-406 |
-| src/haystack\_integrations/components/retrievers/opensearch/metadata\_retriever.py             |       82 |        4 |       16 |        2 |     94% |257-258, 371-372 |
-| src/haystack\_integrations/components/retrievers/opensearch/open\_search\_hybrid\_retriever.py |       77 |        0 |       14 |        3 |     97% |346-\>350, 350-\>354, 354-\>358 |
-| src/haystack\_integrations/components/retrievers/opensearch/sql\_retriever.py                  |       53 |       30 |       14 |        0 |     37% |111-134, 166-189 |
-| src/haystack\_integrations/document\_stores/opensearch/auth.py                                 |       63 |        7 |        4 |        0 |     90% |66-69, 168-173 |
+| src/haystack\_integrations/components/retrievers/opensearch/bm25\_retriever.py                 |       70 |        3 |       20 |        4 |     92% |173, 182-\>185, 279, 340 |
+| src/haystack\_integrations/components/retrievers/opensearch/embedding\_retriever.py            |       76 |        6 |       28 |       10 |     85% |250, 252, 253-\>255, 275, 370, 372, 373-\>375, 375-\>377, 377-\>380, 395 |
+| src/haystack\_integrations/components/retrievers/opensearch/metadata\_retriever.py             |       77 |        0 |       12 |        0 |    100% |           |
+| src/haystack\_integrations/components/retrievers/opensearch/open\_search\_hybrid\_retriever.py |       77 |        0 |       14 |        0 |    100% |           |
+| src/haystack\_integrations/components/retrievers/opensearch/sql\_retriever.py                  |       44 |       20 |        6 |        0 |     52% |113-130, 162-179 |
+| src/haystack\_integrations/components/retrievers/opensearch/utils.py                           |        8 |        0 |        4 |        0 |    100% |           |
+| src/haystack\_integrations/document\_stores/opensearch/auth.py                                 |       63 |        0 |        4 |        0 |    100% |           |
 | src/haystack\_integrations/document\_stores/opensearch/document\_store.py                      |      734 |      437 |      236 |       21 |     39% |206-217, 271-\>274, 289-\>291, 293, 312-326, 339, 366-367, 376-385, 394-408, 422-425, 431-434, 440-443, 449-453, 458-468, 490-491, 503-505, 516-517, 519-\>522, 530-\>540, 533, 566-589, 616-\>619, 644-659, 668-674, 748-751, 758, 775-807, 819-844, 858-875, 888-904, 918-944, 958-984, 997-999, 1032, 1038-\>1041, 1048, 1208-1260, 1287-1294, 1313-1324, 1339-1351, 1416-1456, 1521-1561, 1573-1625, 1648-1658, 1681-1692, 1705, 1709, 1719-1724, 1734-1739, 1752-1756, 1762-1771, 1789-1795, 1809-1834, 1852-1877, 1905-1912, 1938-1945, 1952, 1969-1971, 1981-1989, 1999-2007, 2030-2073, 2096-2139, 2160-\>2167, 2174-2176, 2197-\>2204, 2211-2213 |
 | src/haystack\_integrations/document\_stores/opensearch/filters.py                              |      189 |       51 |      112 |       14 |     74% |19-20, 28, 55, 138, 141, 156-165, 169-187, 196, 200-205, 207-208, 218, 222-227, 229-230, 240, 242-249, 251-252, 258-259, 264-267 |
 | src/haystack\_integrations/document\_stores/opensearch/opensearch\_scripts.py                  |        1 |        0 |        0 |        0 |    100% |           |
-| **TOTAL**                                                                                      | **1363** |  **556** |  **460** |   **58** | **57%** |           |
+| **TOTAL**                                                                                      | **1339** |  **517** |  **436** |   **49** | **59%** |           |
 
 
 ## Setup coverage badge
