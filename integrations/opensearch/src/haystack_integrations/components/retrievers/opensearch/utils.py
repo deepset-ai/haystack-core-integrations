@@ -2,13 +2,12 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from typing import Any
 
 from haystack_integrations.document_stores.opensearch import OpenSearchDocumentStore
 
 
 def _resolve_document_store(
-    runtime_document_store: Any,
+    runtime_document_store: OpenSearchDocumentStore | None,
     default_document_store: OpenSearchDocumentStore,
 ) -> OpenSearchDocumentStore:
     """
