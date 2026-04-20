@@ -1,3 +1,6 @@
+from dataclasses import replace
+from unittest.mock import AsyncMock, Mock
+
 import pytest
 from haystack.dataclasses import Document
 from haystack.document_stores.types import FilterPolicy
@@ -5,6 +8,7 @@ from haystack.testing.document_store import (
     FilterableDocsFixtureMixin,
     _random_embeddings,
 )
+from qdrant_client.http import models as rest
 
 from haystack_integrations.components.retrievers.qdrant import (
     QdrantEmbeddingRetriever,
@@ -13,6 +17,10 @@ from haystack_integrations.document_stores.qdrant import QdrantDocumentStore
 
 
 class TestQdrantRetriever:
+    def test_init_raises_when_document_store_is_not_qdrant(self):
+        with pytest.raises(ValueError, match="must be an instance of QdrantDocumentStore"):
+            QdrantEmbeddingRetriever(document_store="not a document store")
+
     def test_init_default(self):
         document_store = QdrantDocumentStore(location=":memory:", index="test", use_sparse_embeddings=False)
         retriever = QdrantEmbeddingRetriever(document_store=document_store)
@@ -118,6 +126,67 @@ class TestQdrantRetriever:
         assert retriever._group_by is None
         assert retriever._group_size is None
 
+    def test_run(self):
+        mock_store = Mock(spec=QdrantDocumentStore)
+        mock_store._query_by_embedding.return_value = [Document(content="doc", embedding=[0.1, 0.2])]
+
+        retriever = QdrantEmbeddingRetriever(
+            document_store=mock_store,
+            filters={"field": "meta.name", "operator": "==", "value": "foo"},
+            top_k=7,
+            scale_score=True,
+            return_embedding=True,
+            score_threshold=0.2,
+        )
+        res = retriever.run(query_embedding=[0.5, 0.7], top_k=3)
+
+        call_kwargs = mock_store._query_by_embedding.call_args.kwargs
+        assert call_kwargs["query_embedding"] == [0.5, 0.7]
+        assert call_kwargs["top_k"] == 3
+        assert call_kwargs["scale_score"] is True
+        assert call_kwargs["return_embedding"] is True
+        assert call_kwargs["score_threshold"] == 0.2
+        assert call_kwargs["filters"] == {"field": "meta.name", "operator": "==", "value": "foo"}
+        assert res["documents"][0].content == "doc"
+
+    @pytest.mark.asyncio
+    async def test_run_async(self):
+        mock_store = Mock(spec=QdrantDocumentStore)
+        mock_store._query_by_embedding_async = AsyncMock(return_value=[Document(content="doc", embedding=[0.1])])
+
+        retriever = QdrantEmbeddingRetriever(document_store=mock_store)
+        res = await retriever.run_async(query_embedding=[0.5])
+
+        mock_store._query_by_embedding_async.assert_awaited_once()
+        assert res["documents"][0].content == "doc"
+
+    def test_run_raises_when_merge_with_native_init_filter(self):
+        document_store = QdrantDocumentStore(location=":memory:", index="test")
+        retriever = QdrantEmbeddingRetriever(
+            document_store=document_store,
+            filters=rest.Filter(must=[]),
+            filter_policy=FilterPolicy.MERGE,
+        )
+        with pytest.raises(ValueError, match="Native Qdrant filters"):
+            retriever.run(query_embedding=[0.1])
+
+    def test_run_raises_when_merge_with_native_runtime_filter(self):
+        document_store = QdrantDocumentStore(location=":memory:", index="test")
+        retriever = QdrantEmbeddingRetriever(document_store=document_store, filter_policy=FilterPolicy.MERGE)
+        with pytest.raises(ValueError, match="Native Qdrant filters"):
+            retriever.run(query_embedding=[0.1], filters=rest.Filter(must=[]))
+
+    @pytest.mark.asyncio
+    async def test_run_async_raises_when_merge_with_native_filter(self):
+        document_store = QdrantDocumentStore(location=":memory:", index="test")
+        retriever = QdrantEmbeddingRetriever(
+            document_store=document_store,
+            filters=rest.Filter(must=[]),
+            filter_policy=FilterPolicy.MERGE,
+        )
+        with pytest.raises(ValueError, match="Native Qdrant filters"):
+            await retriever.run_async(query_embedding=[0.1])
+
 
 @pytest.mark.integration
 class TestQdrantEmbeddingRetrieverIntegration(FilterableDocsFixtureMixin):
@@ -208,8 +277,10 @@ class TestQdrantEmbeddingRetrieverIntegration(FilterableDocsFixtureMixin):
     def test_run_with_group_by(self, filterable_docs: list[Document]):
         document_store = QdrantDocumentStore(location=":memory:", index="Boi", use_sparse_embeddings=True)
         # Add group_field metadata to documents
-        for index, doc in enumerate(filterable_docs):
-            doc.meta = {"group_field": index // 2}  # So at least two docs have same group each time
+        filterable_docs = [
+            replace(doc, meta={"group_field": index // 2})  # So at least two docs have same group each time
+            for index, doc in enumerate(filterable_docs)
+        ]
         document_store.write_documents(filterable_docs)
 
         retriever = QdrantEmbeddingRetriever(document_store=document_store)
@@ -315,8 +386,10 @@ class TestQdrantEmbeddingRetrieverIntegration(FilterableDocsFixtureMixin):
     async def test_run_with_group_by_async(self, filterable_docs: list[Document]):
         document_store = QdrantDocumentStore(location=":memory:", index="Boi", use_sparse_embeddings=True)
         # Add group_field metadata to documents
-        for index, doc in enumerate(filterable_docs):
-            doc.meta = {"group_field": index // 2}  # So at least two docs have same group each time
+        filterable_docs = [
+            replace(doc, meta={"group_field": index // 2})  # So at least two docs have same group each time
+            for index, doc in enumerate(filterable_docs)
+        ]
         await document_store.write_documents_async(filterable_docs)
 
         retriever = QdrantEmbeddingRetriever(document_store=document_store)
