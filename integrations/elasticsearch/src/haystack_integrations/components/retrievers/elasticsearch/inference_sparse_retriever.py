@@ -13,34 +13,20 @@ from haystack_integrations.document_stores.elasticsearch.document_store import E
 
 
 @component
-class ElasticsearchEmbeddingRetriever:
+class ElasticsearchInferenceSparseRetriever:
     """
-    ElasticsearchEmbeddingRetriever retrieves documents from the ElasticsearchDocumentStore using vector similarity.
+    ElasticsearchInferenceSparseRetriever retrieves documents using Elasticsearch sparse vector inference search.
 
     Usage example:
+
     ```python
-    from haystack import Document
-    from haystack.components.embedders import SentenceTransformersTextEmbedder
     from haystack_integrations.document_stores.elasticsearch import ElasticsearchDocumentStore
-    from haystack_integrations.components.retrievers.elasticsearch import ElasticsearchEmbeddingRetriever
+    from haystack_integrations.components.retrievers.elasticsearch import ElasticsearchInferenceSparseRetriever
 
-    document_store = ElasticsearchDocumentStore(hosts="http://localhost:9200")
-    retriever = ElasticsearchEmbeddingRetriever(document_store=document_store)
+    document_store = ElasticsearchDocumentStore(hosts="http://localhost:9200", sparse_vector_field="sparse_vec")
+    retriever = ElasticsearchInferenceSparseRetriever(document_store=document_store, inference_id="ELSER")
 
-    # Add documents to DocumentStore
-    documents = [
-        Document(text="My name is Carla and I live in Berlin"),
-        Document(text="My name is Paul and I live in New York"),
-        Document(text="My name is Silvano and I live in Matera"),
-        Document(text="My name is Usagi Tsukino and I live in Tokyo"),
-    ]
-    document_store.write_documents(documents)
-
-    te = SentenceTransformersTextEmbedder()
-    te.warm_up()
-    query_embeddings = te.run("Who lives in Berlin?")["embedding"]
-
-    result = retriever.run(query=query_embeddings)
+    result = retriever.run(query="Find documents about Berlin")
     for doc in result["documents"]:
         print(doc.content)
     ```
@@ -50,33 +36,34 @@ class ElasticsearchEmbeddingRetriever:
         self,
         *,
         document_store: ElasticsearchDocumentStore,
+        inference_id: str,
         filters: dict[str, Any] | None = None,
         top_k: int = 10,
-        num_candidates: int | None = None,
         filter_policy: str | FilterPolicy = FilterPolicy.REPLACE,
     ) -> None:
         """
-        Create the ElasticsearchEmbeddingRetriever component.
+        Create the ElasticsearchInferenceSparseRetriever component.
 
         :param document_store: An instance of ElasticsearchDocumentStore.
+        :param inference_id: The Elasticsearch inference model identifier used for sparse vector inference search.
         :param filters: Filters applied to the retrieved Documents.
-            Filters are applied during the approximate KNN search to ensure that top_k matching documents are returned.
         :param top_k: Maximum number of Documents to return.
-        :param num_candidates: Number of approximate nearest neighbor candidates on each shard. Defaults to top_k * 10.
-            Increasing this value will improve search accuracy at the cost of slower search speeds.
-            You can read more about it in the Elasticsearch
-            [documentation](https://www.elastic.co/guide/en/elasticsearch/reference/current/knn-search.html#tune-approximate-knn-for-speed-accuracy)
         :param filter_policy: Policy to determine how filters are applied.
-        :raises ValueError: If `document_store` is not an instance of ElasticsearchDocumentStore.
+        :raises ValueError: If `document_store` is not an instance of ElasticsearchDocumentStore or
+            `inference_id` is empty.
         """
         if not isinstance(document_store, ElasticsearchDocumentStore):
             msg = "document_store must be an instance of ElasticsearchDocumentStore"
             raise ValueError(msg)
 
+        if not inference_id:
+            msg = "inference_id must be provided"
+            raise ValueError(msg)
+
         self._document_store = document_store
+        self._inference_id = inference_id
         self._filters = filters or {}
         self._top_k = top_k
-        self._num_candidates = num_candidates
         self._filter_policy = FilterPolicy.from_str(filter_policy) if isinstance(filter_policy, str) else filter_policy
 
     def to_dict(self) -> dict[str, Any]:
@@ -88,15 +75,15 @@ class ElasticsearchEmbeddingRetriever:
         """
         return default_to_dict(
             self,
+            document_store=self._document_store.to_dict(),
+            inference_id=self._inference_id,
             filters=self._filters,
             top_k=self._top_k,
-            num_candidates=self._num_candidates,
             filter_policy=self._filter_policy.value,
-            document_store=self._document_store.to_dict(),
         )
 
     @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "ElasticsearchEmbeddingRetriever":
+    def from_dict(cls, data: dict[str, Any]) -> "ElasticsearchInferenceSparseRetriever":
         """
         Deserializes the component from a dictionary.
 
@@ -108,58 +95,58 @@ class ElasticsearchEmbeddingRetriever:
         data["init_parameters"]["document_store"] = ElasticsearchDocumentStore.from_dict(
             data["init_parameters"]["document_store"]
         )
-        # Pipelines serialized with old versions of the component might not
-        # have the filter_policy field.
         if filter_policy := data["init_parameters"].get("filter_policy"):
             data["init_parameters"]["filter_policy"] = FilterPolicy.from_str(filter_policy)
         return default_from_dict(cls, data)
 
     @component.output_types(documents=list[Document])
     def run(
-        self, query_embedding: list[float], filters: dict[str, Any] | None = None, top_k: int | None = None
+        self,
+        query: str,
+        filters: dict[str, Any] | None = None,
+        top_k: int | None = None,
     ) -> dict[str, list[Document]]:
         """
-        Retrieve documents using a vector similarity metric.
+        Retrieve documents using inference-based sparse vector search.
 
-        :param query_embedding: Embedding of the query.
+        :param query: Query text to use for inference-based sparse retrieval.
         :param filters: Filters applied when fetching documents from the Document Store.
-            Filters are applied during the approximate kNN search to ensure the Retriever returns
-              `top_k` matching documents.
             The way runtime filters are applied depends on the `filter_policy` selected when initializing the Retriever.
         :param top_k: Maximum number of documents to return.
         :returns: A dictionary with the following keys:
-            - `documents`: List of `Document`s most similar to the given `query_embedding`
+            - `documents`: List of `Document`s most similar to the given `query`
         """
         filters = apply_filter_policy(self._filter_policy, self._filters, filters)
-        docs = self._document_store._embedding_retrieval(
-            query_embedding=query_embedding,
+        docs = self._document_store._sparse_vector_retrieval_inference(
+            query=query,
+            inference_id=self._inference_id,
             filters=filters,
             top_k=top_k or self._top_k,
-            num_candidates=self._num_candidates,
         )
         return {"documents": docs}
 
     @component.output_types(documents=list[Document])
     async def run_async(
-        self, query_embedding: list[float], filters: dict[str, Any] | None = None, top_k: int | None = None
+        self,
+        query: str,
+        filters: dict[str, Any] | None = None,
+        top_k: int | None = None,
     ) -> dict[str, list[Document]]:
         """
-        Asynchronously retrieve documents using a vector similarity metric.
+        Asynchronously retrieve documents using inference-based sparse vector search.
 
-        :param query_embedding: Embedding of the query.
+        :param query: Query text to use for inference-based sparse retrieval.
         :param filters: Filters applied when fetching documents from the Document Store.
-            Filters are applied during the approximate kNN search to ensure the Retriever returns
-              `top_k` matching documents.
             The way runtime filters are applied depends on the `filter_policy` selected when initializing the Retriever.
         :param top_k: Maximum number of documents to return.
         :returns: A dictionary with the following keys:
-            - `documents`: List of `Document`s that match the query.
+            - `documents`: List of `Document`s most similar to the given `query`
         """
         filters = apply_filter_policy(self._filter_policy, self._filters, filters)
-        docs = await self._document_store._embedding_retrieval_async(
-            query_embedding=query_embedding,
+        docs = await self._document_store._sparse_vector_retrieval_inference_async(
+            query=query,
+            inference_id=self._inference_id,
             filters=filters,
             top_k=top_k or self._top_k,
-            num_candidates=self._num_candidates,
         )
         return {"documents": docs}
