@@ -9,13 +9,15 @@ from dataclasses import replace
 from typing import Any, Literal
 
 import math
+from datetime import datetime
 from haystack import default_from_dict, default_to_dict
 from haystack.dataclasses import Document
 from haystack.document_stores.errors import DocumentStoreError, DuplicateDocumentError
+from haystack.errors import FilterError
 from haystack.document_stores.types import DocumentStore, DuplicatePolicy
 from haystack.utils import Secret
 from redis.exceptions import ResponseError
-import falkordb  # type: ignore[import-untyped,import-not-found]  # noqa: PLC0415
+import falkordb  # type: ignore[import-untyped,import-not-found]
 
 logger = logging.getLogger(__name__)
 
@@ -175,7 +177,8 @@ class FalkorDBDocumentStore(DocumentStore):
 
         if self.recreate_graph:
             try:
-                self.client.delete(self.graph_name)
+                # In falkordb-py, delete() is a method of the Graph object
+                self.client.select_graph(self.graph_name).delete()
             except Exception:
                 logger.debug("Graph '%s' could not be deleted (may not exist yet).", self.graph_name)
 
@@ -244,19 +247,15 @@ class FalkorDBDocumentStore(DocumentStore):
         """
         self._ensure_connected()
         if not filters:
-            result = self.graph.query(f"MATCH (d:{self.node_label}) RETURN d")
+            result = self.graph.query(f"MATCH (d:{self.node_label}) RETURN d ORDER BY d.id")
             return [_node_to_document(row[0]) for row in result.result_set]
 
         if "operator" not in filters:
             msg = "Invalid filter syntax. See https://docs.haystack.deepset.ai/docs/metadata-filtering"
-            raise ValueError(msg)
+            raise FilterError(msg)
 
-        if filters:
-            where_clause, params = _convert_filters(filters)
-            cypher = f"MATCH (d:{self.node_label}) WHERE {where_clause} RETURN d"
-        else:
-            cypher = f"MATCH (d:{self.node_label}) RETURN d"
-            params = {}
+        where_clause, params = _convert_filters(filters)
+        cypher = f"MATCH (d:{self.node_label}) WHERE {where_clause} RETURN d ORDER BY d.id"
 
         result = self.graph.query(cypher, params)
         return [_node_to_document(row[0]) for row in result.result_set]
@@ -402,7 +401,7 @@ RETURN count(d) AS n
         try:
             result = self.graph.query(cypher, {"docs": records})
             rows = result.result_set
-            return int(rows[0][0]) if rows else len(documents)
+            return int(rows[0][0]) if rows else 0
         except Exception as exc:
             msg = f"Failed to write documents to FalkorDB: {exc}"
             raise DocumentStoreError(msg) from exc
@@ -470,7 +469,7 @@ ORDER BY score DESC
 CALL db.idx.vector.queryNodes('{self.node_label}', '{self.embedding_field}', $top_k, vecf32($query_embedding))
 YIELD node AS d, score
 RETURN d, score
-ORDER BY score DESC
+ORDER BY score DESC, d.id ASC
 """
             params = {"top_k": top_k, "query_embedding": query_embedding}
 
@@ -502,6 +501,8 @@ ORDER BY score DESC
         """
         self._ensure_connected()
         try:
+            # We don't force ORDER BY here as the query is custom, 
+            # but we ensured everything else is stable.
             result = self.graph.query(cypher_query, parameters or {})
             return [_node_to_document(row[0]) for row in result.result_set]
         except Exception as exc:
@@ -532,34 +533,31 @@ def _document_to_falkordb_record(doc: Document) -> dict[str, Any]:
     """
     Convert a Haystack Document to a flat dict for storage as FalkorDB node properties.
 
-    Mirrors the `_DefaultDocumentMarshaller` from neo4j-haystack:
-
-    - `meta` fields are stored **at the same level** as `id` and `content`
-      (i.e. **no** `meta_` prefix).
-    - The `score` field is excluded — it is a retrieval-time value, not stored data.
-    - `Document.to_dict(flatten=True)` is used so nested `meta` dicts are
-      also flattened (e.g. `{"meta": {"a": {"b": 1}}}` → `{"a.b": 1}`).
+    - `meta` fields are stored **at the same level** as `id` and `content`.
+    - `id`, `content`, `embedding` are top-level.
+    - All other metadata keys are flattened into the root.
 
     :param doc: The document to convert.
     :returns: Flat dictionary of node properties.
     """
-    doc_dict = doc.to_dict(flatten=True)
-
-    # Remove runtime-only / non-serialisable fields.
-    doc_dict.pop("score", None)
-    doc_dict.pop("sparse_embedding", None)
+    record = {
+        "id": doc.id,
+        "content": doc.content,
+        "embedding": doc.embedding,
+    }
+    if doc.meta:
+        record.update(doc.meta)
 
     # Filter out None values — FalkorDB nodes don't need null properties stored.
-    return {k: v for k, v in doc_dict.items() if v is not None}
+    return {k: v for k, v in record.items() if v is not None}
 
 
 def _node_to_document(node: Any) -> Document:
     """
     Convert a FalkorDB graph node back to a Haystack Document.
 
-    Because properties are stored flat (see :func:`_document_to_falkordb_record`),
-    reconstruction uses `Document.from_dict` directly — the same approach taken
-    by neo4j-haystack's `_neo4j_record_to_document`.
+    Properties that are not part of the standard Document schema are moved
+    into the `meta` dictionary.
 
     :param node: A FalkorDB `Node` object or a plain `dict`.
     :returns: Reconstructed :class:`haystack.dataclasses.Document`.
@@ -571,7 +569,17 @@ def _node_to_document(node: Any) -> Document:
     else:
         record = {}
 
-    return Document.from_dict(record)
+    # Standard Document fields
+    id = record.pop("id", None)
+    content = record.pop("content", None)
+    embedding = record.pop("embedding", None)
+    score = record.pop("score", None)
+
+    # Everything else is metadata
+    # sparse_embedding is also popped if present (not supported by falkordb yet)
+    record.pop("sparse_embedding", None)
+
+    return Document(id=id, content=content, embedding=embedding, meta=record, score=score)
 
 
 def _convert_filters(filters: dict[str, Any]) -> tuple[str, dict[str, Any]]:
@@ -610,38 +618,81 @@ def _build_clause(node: dict[str, Any], params: dict[str, Any], counter: list[in
     # Logical / grouping operators
     # ------------------------------------------------------------------
     if operator.upper() in ("AND", "OR"):
+        if "conditions" not in node:
+            raise FilterError(f"Logical operator '{operator}' requires a 'conditions' key")
         sub_clauses = [_build_clause(c, params, counter) for c in node["conditions"]]
         joiner = f" {operator.upper()} "
         return f"({joiner.join(sub_clauses)})"
 
     if operator.upper() == "NOT":
-        inner = _build_clause(node["conditions"][0], params, counter)
+        if "conditions" not in node:
+            raise FilterError("Logical operator 'NOT' requires a 'conditions' key")
+        sub_clauses = [_build_clause(c, params, counter) for c in node["conditions"]]
+        inner = " AND ".join(sub_clauses)
         return f"NOT ({inner})"
 
     # ------------------------------------------------------------------
     # Leaf (comparison / membership) operators
     # ------------------------------------------------------------------
-    field: str = node.get("field", "")
-    value: Any = node.get("value")
+    if "field" not in node:
+        raise FilterError(f"Comparison operator '{operator}' requires a 'field' key")
+    if "value" not in node:
+        raise FilterError(f"Comparison operator '{operator}' requires a 'value' key")
+
+    field: str = node["field"]
+    value: Any = node["value"]
 
     # Because meta fields are stored flat (no prefix), all fields map to d.<field>.
-    # Top-level Document fields (id, content, embedding) are among them too.
-    cypher_field = f"d.{field}"
+    # We strip 'meta.' from the field name if Haystack adds it.
+    actual_field = field[5:] if field.startswith("meta.") else field
+    cypher_field = f"d.{actual_field}"
 
     param_name = f"p{counter[0]}"
     counter[0] += 1
 
-    if operator in _COMPARISON_OPS:
+    if operator == "==":
+        if value is None:
+            return f"{cypher_field} IS NULL"
         params[param_name] = value
-        return f"{cypher_field} {_COMPARISON_OPS[operator]} ${param_name}"
+        return f"coalesce({cypher_field} = ${param_name}, false)"
+
+    if operator == "!=":
+        if value is None:
+            return f"{cypher_field} IS NOT NULL"
+        params[param_name] = value
+        return f"coalesce({cypher_field} <> ${param_name}, true)"
+
+    if operator in _COMPARISON_OPS:
+        if value is None:
+            return "false"
+        if isinstance(value, list):
+            msg = f"Operator '{operator}' does not support list values"
+            raise FilterError(msg)
+        if isinstance(value, str):
+            try:
+                datetime.fromisoformat(value)
+            except ValueError:
+                msg = (
+                    f"Operator '{operator}' requires a numeric or ISO date value, "
+                    f"got non-ISO string: '{value}'"
+                )
+                raise FilterError(msg) from None
+        params[param_name] = value
+        return f"coalesce({cypher_field} {_COMPARISON_OPS[operator]} ${param_name}, false)"
 
     if operator == "in":
-        params[param_name] = list(value)
-        return f"{cypher_field} IN ${param_name}"
+        if not isinstance(value, list):
+            msg = f"Operator 'in' requires a list value, got {type(value).__name__}"
+            raise FilterError(msg)
+        params[param_name] = value
+        return f"coalesce({cypher_field} IN ${param_name}, false)"
 
     if operator == "not in":
-        params[param_name] = list(value)
-        return f"NOT ({cypher_field} IN ${param_name})"
+        if not isinstance(value, list):
+            msg = f"Operator 'not in' requires a list value, got {type(value).__name__}"
+            raise FilterError(msg)
+        params[param_name] = value
+        return f"coalesce(NOT ({cypher_field} IN ${param_name}), true)"
 
     msg = f"Unsupported filter operator: '{operator}'"
-    raise ValueError(msg)
+    raise FilterError(msg)

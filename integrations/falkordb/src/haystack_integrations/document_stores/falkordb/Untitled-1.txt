@@ -1,0 +1,367 @@
+[Skip to main content](https://docs.haystack.deepset.ai/docs/metadata-filtering#__docusaurus_skipToContent_fallback)
+[Haystack Documentation](https://docs.haystack.deepset.ai/)
+[2.27](https://docs.haystack.deepset.ai/docs/metadata-filtering)
+- [2.28-unstable](https://docs.haystack.deepset.ai/docs/next/metadata-filtering)
+- [2.27](https://docs.haystack.deepset.ai/docs/metadata-filtering)
+- [2.26](https://docs.haystack.deepset.ai/docs/2.26/metadata-filtering)
+- [2.25](https://docs.haystack.deepset.ai/docs/2.25/metadata-filtering)
+- [2.24](https://docs.haystack.deepset.ai/docs/2.24/metadata-filtering)
+- [2.23](https://docs.haystack.deepset.ai/docs/2.23/metadata-filtering)
+- 
+- [1.x archived documentation](https://docs.haystack.deepset.ai/docs/faq#where-can-i-find-tutorials-and-documentation-for-haystack-1x)
+- [2.x archived documentation](https://docs.haystack.deepset.ai/docs/faq#where-can-i-find-documentation-for-older-haystack-versions)
+[2.28-unstable](https://docs.haystack.deepset.ai/docs/next/metadata-filtering)
+[2.27](https://docs.haystack.deepset.ai/docs/metadata-filtering)
+[2.26](https://docs.haystack.deepset.ai/docs/2.26/metadata-filtering)
+[2.25](https://docs.haystack.deepset.ai/docs/2.25/metadata-filtering)
+[2.24](https://docs.haystack.deepset.ai/docs/2.24/metadata-filtering)
+[2.23](https://docs.haystack.deepset.ai/docs/2.23/metadata-filtering)
+[1.x archived documentation](https://docs.haystack.deepset.ai/docs/faq#where-can-i-find-tutorials-and-documentation-for-haystack-1x)
+[2.x archived documentation](https://docs.haystack.deepset.ai/docs/faq#where-can-i-find-documentation-for-older-haystack-versions)
+[Docs](https://docs.haystack.deepset.ai/docs/intro)
+[API Reference](https://docs.haystack.deepset.ai/reference/)
+[Contribute](https://github.com/deepset-ai/haystack/blob/main/docs-website/CONTRIBUTING.md)
+[GitHub](https://github.com/deepset-ai/haystack/tree/main/docs-website)
+- [Introduction](https://docs.haystack.deepset.ai/docs/intro)
+- [Overview](https://docs.haystack.deepset.ai/docs/installation)
+- [Haystack Concepts](https://docs.haystack.deepset.ai/docs/concepts-overview)[Haystack Concepts Overview](https://docs.haystack.deepset.ai/docs/concepts-overview)[Agents](https://docs.haystack.deepset.ai/docs/agents)[Components](https://docs.haystack.deepset.ai/docs/components)[Pipelines](https://docs.haystack.deepset.ai/docs/pipelines)[Data Classes](https://docs.haystack.deepset.ai/docs/data-classes)[Document Store](https://docs.haystack.deepset.ai/docs/document-store)[Metadata Filtering](https://docs.haystack.deepset.ai/docs/metadata-filtering)[Device Management](https://docs.haystack.deepset.ai/docs/device-management)[Secret Management](https://docs.haystack.deepset.ai/docs/secret-management)[Jinja Templates](https://docs.haystack.deepset.ai/docs/jinja-templates)[Introduction to Integrations](https://docs.haystack.deepset.ai/docs/integrations)[Experimental Package](https://docs.haystack.deepset.ai/docs/experimental-package)
+- [Haystack Concepts Overview](https://docs.haystack.deepset.ai/docs/concepts-overview)
+- [Agents](https://docs.haystack.deepset.ai/docs/agents)
+- [Components](https://docs.haystack.deepset.ai/docs/components)
+- [Pipelines](https://docs.haystack.deepset.ai/docs/pipelines)
+- [Data Classes](https://docs.haystack.deepset.ai/docs/data-classes)
+- [Document Store](https://docs.haystack.deepset.ai/docs/document-store)
+- [Metadata Filtering](https://docs.haystack.deepset.ai/docs/metadata-filtering)
+- [Device Management](https://docs.haystack.deepset.ai/docs/device-management)
+- [Secret Management](https://docs.haystack.deepset.ai/docs/secret-management)
+- [Jinja Templates](https://docs.haystack.deepset.ai/docs/jinja-templates)
+- [Introduction to Integrations](https://docs.haystack.deepset.ai/docs/integrations)
+- [Experimental Package](https://docs.haystack.deepset.ai/docs/experimental-package)
+- [Document Stores](https://docs.haystack.deepset.ai/docs/inmemorydocumentstore)
+- [Pipeline Components](https://docs.haystack.deepset.ai/docs/agent)
+- [Tools](https://docs.haystack.deepset.ai/docs/tool)
+- [Optimization](https://docs.haystack.deepset.ai/docs/evaluation)
+- [Development](https://docs.haystack.deepset.ai/docs/logging)
+[Introduction](https://docs.haystack.deepset.ai/docs/intro)
+[Overview](https://docs.haystack.deepset.ai/docs/installation)
+[Haystack Concepts](https://docs.haystack.deepset.ai/docs/concepts-overview)
+
+- [Haystack Concepts Overview](https://docs.haystack.deepset.ai/docs/concepts-overview)
+- [Agents](https://docs.haystack.deepset.ai/docs/agents)
+- [Components](https://docs.haystack.deepset.ai/docs/components)
+- [Pipelines](https://docs.haystack.deepset.ai/docs/pipelines)
+- [Data Classes](https://docs.haystack.deepset.ai/docs/data-classes)
+- [Document Store](https://docs.haystack.deepset.ai/docs/document-store)
+- [Metadata Filtering](https://docs.haystack.deepset.ai/docs/metadata-filtering)
+- [Device Management](https://docs.haystack.deepset.ai/docs/device-management)
+- [Secret Management](https://docs.haystack.deepset.ai/docs/secret-management)
+- [Jinja Templates](https://docs.haystack.deepset.ai/docs/jinja-templates)
+- [Introduction to Integrations](https://docs.haystack.deepset.ai/docs/integrations)
+- [Experimental Package](https://docs.haystack.deepset.ai/docs/experimental-package)
+[Haystack Concepts Overview](https://docs.haystack.deepset.ai/docs/concepts-overview)
+[Agents](https://docs.haystack.deepset.ai/docs/agents)
+[Components](https://docs.haystack.deepset.ai/docs/components)
+[Pipelines](https://docs.haystack.deepset.ai/docs/pipelines)
+[Data Classes](https://docs.haystack.deepset.ai/docs/data-classes)
+[Document Store](https://docs.haystack.deepset.ai/docs/document-store)
+[Metadata Filtering](https://docs.haystack.deepset.ai/docs/metadata-filtering)
+[Device Management](https://docs.haystack.deepset.ai/docs/device-management)
+[Secret Management](https://docs.haystack.deepset.ai/docs/secret-management)
+[Jinja Templates](https://docs.haystack.deepset.ai/docs/jinja-templates)
+[Introduction to Integrations](https://docs.haystack.deepset.ai/docs/integrations)
+[Experimental Package](https://docs.haystack.deepset.ai/docs/experimental-package)
+[Document Stores](https://docs.haystack.deepset.ai/docs/inmemorydocumentstore)
+[Pipeline Components](https://docs.haystack.deepset.ai/docs/agent)
+[Tools](https://docs.haystack.deepset.ai/docs/tool)
+[Optimization](https://docs.haystack.deepset.ai/docs/evaluation)
+[Development](https://docs.haystack.deepset.ai/docs/logging)
+- https://docs.haystack.deepset.ai/
+- Haystack Concepts
+- Metadata Filtering
+
+# Metadata Filtering
+
+This page provides a detailed explanation of how to apply metadata filters at query time.
+When you index documents into your Document Store, you can attach metadata to them. One example is the DocumentLanguageClassifier, which adds the language of the document's content to its metadata. Components like MetadataRouter can then route documents based on their metadata.
+
+```
+DocumentLanguageClassifier
+```
+
+
+```
+MetadataRouter
+```
+
+You can then use the metadata to filter your search queries, allowing you to narrow down the results by focusing on specific criteria. This ensures your Retriever fetches answers from the most relevant subset of your data.
+To illustrate how metadata filters work, imagine you have a set of annual reports from various companies. You may want to perform a search on just a specific year and just on a small selection of companies. This can reduce the workload of the Retriever and also ensure that you get more relevant results.
+
+## Filtering Types[​](https://docs.haystack.deepset.ai/docs/metadata-filtering#filtering-types)
+
+[​](https://docs.haystack.deepset.ai/docs/metadata-filtering#filtering-types)
+Filters are defined as a dictionary or nested dictionaries that can be of two types: Comparison or Logic.
+
+### Comparison[​](https://docs.haystack.deepset.ai/docs/metadata-filtering#comparison)
+[​](https://docs.haystack.deepset.ai/docs/metadata-filtering#comparison)
+Comparison operators help search your metadata fields according the specified conditions.
+Comparison dictionaries must contain the following keys:
+-field: the name of one of the meta fields of a document, such as meta.years.
+
+```
+field
+```
+
+
+```
+meta.years
+```
+
+-operator: must be one of the following:
+
+```
+operator
+```
+
+
+```
+- `==` - `!=` - `>` - `>=` - `<` - `<=` - `in` - `not in`
+```
+
+
+```
+- `==` - `!=` - `>` - `>=` - `<` - `<=` - `in` - `not in`
+```
+
+The available comparison operators may vary depending on the specific Document Store integration. For example, the ChromaDocumentStore supports two additional operators: contains and not contains. Find the details about the supported filters in the specific integration’s API reference.
+
+```
+ChromaDocumentStore
+```
+
+
+```
+contains
+```
+
+
+```
+not contains
+```
+
+-value: takes a single value or (in the case of "in" and “not in”) a list of values.
+
+```
+value
+```
+
+
+#### Example[​](https://docs.haystack.deepset.ai/docs/metadata-filtering#example)
+[​](https://docs.haystack.deepset.ai/docs/metadata-filtering#example)
+Here is an example of a simple filter in the form of a dictionary. The filter selects documents classified as “article” in the type meta field of the document:
+
+```
+type
+```
+
+
+```
+filters = {"field": "meta.type", "operator": "==", "value": "article"}
+```
+
+
+```
+filters = {"field": "meta.type", "operator": "==", "value": "article"}
+```
+
+### Logic[​](https://docs.haystack.deepset.ai/docs/metadata-filtering#logic)
+[​](https://docs.haystack.deepset.ai/docs/metadata-filtering#logic)
+Logical operators can be used to create a nested dictionary, allowing you to apply multiple fields as filter conditions. Logic dictionaries must contain the following keys:
+
+```
+fields
+```
+
+-operator: usually one of the following:
+
+```
+operator
+```
+
+
+```
+- `NOT` - `OR` - `AND`
+```
+
+
+```
+- `NOT` - `OR` - `AND`
+```
+
+The available logic operators may vary depending on the specific Document Store integration. For example, the ChromaDocumentStore doesn’t support the NOT operator. Find the details about the supported filters in the specific integration’s API reference.
+
+```
+ChromaDocumentStore
+```
+
+
+```
+NOT
+```
+
+-conditions: must be a list of dictionaries, either of type Comparison or Logic.
+
+```
+conditions
+```
+
+
+#### Nested Filter Example[​](https://docs.haystack.deepset.ai/docs/metadata-filtering#nested-filter-example)
+[​](https://docs.haystack.deepset.ai/docs/metadata-filtering#nested-filter-example)
+Here is a more complex filter that uses both Comparison and Logic to find documents where:
+- Meta field type is "article",
+- Meta field date is between 1420066800 and 1609455600 (a specific date range),
+- Meta field rating is greater than or equal to 3,
+- Documents are either classified as genre  ["economy", "politics"] OR the meta field publisher is "nytimes".
+
+```
+type
+```
+
+
+```
+date
+```
+
+
+```
+rating
+```
+
+
+```
+genre
+```
+
+
+```
+OR
+```
+
+
+```
+publisher
+```
+
+
+```
+filters = { "operator": "AND", "conditions": [ {"field": "meta.type", "operator": "==", "value": "article"}, {"field": "meta.date", "operator": ">=", "value": 1420066800}, {"field": "meta.date", "operator": "<", "value": 1609455600}, {"field": "meta.rating", "operator": ">=", "value": 3}, { "operator": "OR", "conditions": [ { "field": "meta.genre", "operator": "in", "value": ["economy", "politics"], }, {"field": "meta.publisher", "operator": "==", "value": "nytimes"}, ], }, ],}
+```
+
+
+```
+filters = { "operator": "AND", "conditions": [ {"field": "meta.type", "operator": "==", "value": "article"}, {"field": "meta.date", "operator": ">=", "value": 1420066800}, {"field": "meta.date", "operator": "<", "value": 1609455600}, {"field": "meta.rating", "operator": ">=", "value": 3}, { "operator": "OR", "conditions": [ { "field": "meta.genre", "operator": "in", "value": ["economy", "politics"], }, {"field": "meta.publisher", "operator": "==", "value": "nytimes"}, ], }, ],}
+```
+
+## Filters Usage[​](https://docs.haystack.deepset.ai/docs/metadata-filtering#filters-usage)
+
+[​](https://docs.haystack.deepset.ai/docs/metadata-filtering#filters-usage)
+Filters can be applied either through the Retriever class or directly within Document Stores.
+
+```
+Retriever
+```
+
+In the Retriever class, filters are passed through the filters argument. When working with a pipeline, filters can be provided to Pipeline.run(), which will automatically route them to the Retriever class (refer to the [pipelines documentation](https://docs.haystack.deepset.ai/docs/pipelines) for more information on working with pipelines).
+
+```
+Retriever
+```
+
+
+```
+filters
+```
+
+
+```
+Pipeline.run()
+```
+
+
+```
+Retriever
+```
+
+The example below shows how filters can be passed to Retrievers within a pipeline:
+
+```
+pipeline.run( data={ "retriever": { "query": "Why did the revenue increase?", "filters": { "operator": "AND", "conditions": [ {"field": "meta.years", "operator": "==", "value": "2019"}, { "field": "meta.companies", "operator": "in", "value": ["BMW", "Mercedes"], }, ], }, }, },)
+```
+
+
+```
+pipeline.run( data={ "retriever": { "query": "Why did the revenue increase?", "filters": { "operator": "AND", "conditions": [ {"field": "meta.years", "operator": "==", "value": "2019"}, { "field": "meta.companies", "operator": "in", "value": ["BMW", "Mercedes"], }, ], }, }, },)
+```
+
+In Document Stores, the filter_documents method is used to apply filters to stored documents, if the specific integration supports filtering.
+
+```
+filter_documents
+```
+
+The example below shows how filters can be passed to the QdrantDocumentStore:
+
+```
+QdrantDocumentStore
+```
+
+
+```
+filters = { "operator": "AND", "conditions": [ {"field": "meta.type", "operator": "==", "value": "article"}, {"field": "meta.genre", "operator": "in", "value": ["economy", "politics"]}, ],}results = QdrantDocumentStore.filter_documents(filters=filters)
+```
+
+
+```
+filters = { "operator": "AND", "conditions": [ {"field": "meta.type", "operator": "==", "value": "article"}, {"field": "meta.genre", "operator": "in", "value": ["economy", "politics"]}, ],}results = QdrantDocumentStore.filter_documents(filters=filters)
+```
+
+## Additional References[​](https://docs.haystack.deepset.ai/docs/metadata-filtering#additional-references)
+
+[​](https://docs.haystack.deepset.ai/docs/metadata-filtering#additional-references)
+📓 Tutorial: [Filtering Documents with Metadata](https://haystack.deepset.ai/tutorials/31_metadata_filtering)
+🧑‍🍳 Cookbook: [Extracting Metadata Filters from a Query](https://haystack.deepset.ai/cookbook/extracting_metadata_filters_from_a_user_query)
+[Edit this page](https://github.com/deepset-ai/haystack/tree/main/docs-website/versioned_docs/version-2.27/concepts/metadata-filtering.mdx)
+[PreviousCreating Custom Document Stores](https://docs.haystack.deepset.ai/docs/creating-custom-document-stores)
+[NextDevice Management](https://docs.haystack.deepset.ai/docs/device-management)
+- [Filtering Types](https://docs.haystack.deepset.ai/docs/metadata-filtering#filtering-types)[Comparison](https://docs.haystack.deepset.ai/docs/metadata-filtering#comparison)[Logic](https://docs.haystack.deepset.ai/docs/metadata-filtering#logic)
+- [Comparison](https://docs.haystack.deepset.ai/docs/metadata-filtering#comparison)
+- [Logic](https://docs.haystack.deepset.ai/docs/metadata-filtering#logic)
+- [Filters Usage](https://docs.haystack.deepset.ai/docs/metadata-filtering#filters-usage)
+- [Additional References](https://docs.haystack.deepset.ai/docs/metadata-filtering#additional-references)
+[Filtering Types](https://docs.haystack.deepset.ai/docs/metadata-filtering#filtering-types)
+- [Comparison](https://docs.haystack.deepset.ai/docs/metadata-filtering#comparison)
+- [Logic](https://docs.haystack.deepset.ai/docs/metadata-filtering#logic)
+[Comparison](https://docs.haystack.deepset.ai/docs/metadata-filtering#comparison)
+[Logic](https://docs.haystack.deepset.ai/docs/metadata-filtering#logic)
+[Filters Usage](https://docs.haystack.deepset.ai/docs/metadata-filtering#filters-usage)
+[Additional References](https://docs.haystack.deepset.ai/docs/metadata-filtering#additional-references)
+- [Tutorials](https://haystack.deepset.ai/tutorials)
+- [Cookbooks](https://haystack.deepset.ai/cookbook)
+[Tutorials](https://haystack.deepset.ai/tutorials)
+[Cookbooks](https://haystack.deepset.ai/cookbook)
+- [Integrations](https://haystack.deepset.ai/integrations)
+- [Platform - Try Free](https://landing.deepset.ai/deepset-studio-signup)
+- [Enterprise Support](https://landing.deepset.ai/deepset-studio-signup)
+[Integrations](https://haystack.deepset.ai/integrations)
+[Platform - Try Free](https://landing.deepset.ai/deepset-studio-signup)
+[Enterprise Support](https://landing.deepset.ai/deepset-studio-signup)
+- [About](https://deepset.ai/about)
+- [Careers](https://deepset.ai/careers)
+- [Blog](https://deepset.ai/blog)
+[About](https://deepset.ai/about)
+[Careers](https://deepset.ai/careers)
+[Blog](https://deepset.ai/blog)
+- [Privacy Policy](https://www.deepset.ai/privacy-policy)
+- [Imprint](https://www.deepset.ai/imprint)
+[Privacy Policy](https://www.deepset.ai/privacy-policy)
+[Imprint](https://www.deepset.ai/imprint)

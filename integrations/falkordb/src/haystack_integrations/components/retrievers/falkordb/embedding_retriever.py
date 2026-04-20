@@ -49,9 +49,9 @@ class FalkorDBEmbeddingRetriever:
 
         :param document_store: The FalkorDBDocumentStore instance.
         :param filters: Optional Haystack filters to narrow down the search space.
-        :param top_k: Maximum number of documents to retrieve. Defaults to `10`.
+        :param top_k: Maximum number of documents to retrieve.
         :param filter_policy: Policy to determine how runtime filters are combined with
-            initialization filters. Defaults to `FilterPolicy.REPLACE`.
+            initialization filters.
         :raises ValueError: If the provided `document_store` is not a `FalkorDBDocumentStore`.
         """
         if not isinstance(document_store, FalkorDBDocumentStore):

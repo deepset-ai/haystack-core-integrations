@@ -1,9 +1,3 @@
-# CLAUDE.md
+# CLAUDE.md — FalkorDB Haystack Integration: Execution Plan
 
-- Before you start working on this repository, read the AGENTS.md file and follow all the instructions.
-
-
-
-- Before you decide to change anything in falkordb integration base yourself on these doccumentations: 
-https://docs.haystack.deepset.ai/docs/serialization : Default Serialization Behaviour
-https://docs.haystack.deepset.ai/docs/metadata-filtering : for Metadata filtering
+> **⚠️ ALWAYS READ FIRST:** Before working in this repo, read `AGENTS.md` and follow ALL instructions there.

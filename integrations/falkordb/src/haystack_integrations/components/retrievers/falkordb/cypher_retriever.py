@@ -69,8 +69,6 @@ class FalkorDBCypherRetriever:
     def from_dict(cls, data: dict[str, Any]) -> "FalkorDBCypherRetriever":
         return default_from_dict(cls, data)
 
-
-
     @component.output_types(documents=list[Document])
     def run(
         self,
