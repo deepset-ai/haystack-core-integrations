@@ -112,5 +112,4 @@ class PresidioDocumentCleaner:
                     doc_id=doc.id,
                     error=e,
                 )
-                cleaned.append(doc)
         return {"documents": cleaned}

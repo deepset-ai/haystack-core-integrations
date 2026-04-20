@@ -117,7 +117,7 @@ class PresidioEntityExtractor:
                 result_docs.append(replace(doc, meta={**doc.meta, "entities": entities}))
             except Exception as e:
                 logger.warning(
-                    "Could not extract entities from document {doc_id}. Skipping it. Error: {error}",
+                    "Could not extract entities from document {doc_id}. Skipping extraction, keeping document. Error: {error}",
                     doc_id=doc.id,
                     error=e,
                 )

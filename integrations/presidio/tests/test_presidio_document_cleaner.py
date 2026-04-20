@@ -112,8 +112,7 @@ class TestPresidioDocumentCleaner:
         with caplog.at_level(logging.WARNING):
             result = cleaner.run(documents=[doc])
 
-        assert len(result["documents"]) == 1
-        assert result["documents"][0].content == "Some text with PII"
+        assert len(result["documents"]) == 0
         assert "Could not anonymize" in caplog.text
 
     def test_run_multiple_documents(self):
