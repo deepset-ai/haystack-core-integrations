@@ -67,7 +67,7 @@ def tools():
 
 class TestAmazonBedrockChatGeneratorUtils:
     def test_format_tools(self, tools):
-        formatted_tool = _format_tools(tools, tools_cachepoint_config={"type": "default"})
+        formatted_tool = _format_tools(tools, tools_cachepoint_config={"cachePoint": {"type": "default"}})
         assert formatted_tool == {
             "tools": [
                 {
