@@ -25,9 +25,7 @@ def _existing_exc() -> CollectionAlreadyExistsException:
 def mock_db():
     """Yields the mocked astrapy database; tests configure it before constructing AstraClient."""
     with mock.patch(CLIENT_PATH) as patched_client:
-        db = patched_client.return_value.get_database.return_value
-        db.create_collection.return_value = mock.MagicMock(name="collection")
-        yield db
+        yield patched_client.return_value.get_database.return_value
 
 
 @pytest.fixture
@@ -57,13 +55,13 @@ def test_query_response_get_returns_value():
 
 
 class TestAstraClientInit:
-    def test_creates_collection(self, client, mock_db):
-        mock_db.create_collection.assert_called_once_with(
+    def test_creates_collection(self, client):
+        client._astra_db.create_collection.assert_called_once_with(
             name="my_collection",
             dimension=4,
             indexing={"deny": ["metadata._node_content", "content"]},
         )
-        assert client._astra_db_collection is mock_db.create_collection.return_value
+        assert client._astra_db_collection is client._astra_db.create_collection.return_value
 
     @pytest.mark.parametrize(
         "pre_indexing,warning_match",
