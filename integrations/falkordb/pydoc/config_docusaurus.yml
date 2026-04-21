@@ -10,5 +10,6 @@ processors:
     skip_empty_modules: true
 renderer:
   description: FalkorDB integration for Haystack
+  id: integrations-falkordb
   filename: falkordb.md
   title: FalkorDB
