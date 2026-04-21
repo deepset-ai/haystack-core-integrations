@@ -37,10 +37,6 @@ def client(mock_db) -> AstraClient:  # noqa: ARG001
     return AstraClient(**CLIENT_KWARGS)
 
 
-def _existing_exc() -> CollectionAlreadyExistsException:
-    return CollectionAlreadyExistsException(text="exists", keyspace="default", collection_name="my_collection")
-
-
 def test_query_response_get_returns_value():
     match = Response("id1", "text", [0.1], {"k": "v"}, 0.9)
     assert QueryResponse(matches=[match]).get("matches") == [match]
@@ -63,7 +59,9 @@ class TestAstraClientInit:
         ],
     )
     def test_preexisting_collection_with_mismatched_indexing_warns(self, mock_db, pre_indexing, warning_match):
-        mock_db.create_collection.side_effect = _existing_exc()
+        mock_db.create_collection.side_effect = CollectionAlreadyExistsException(
+            text="exists", keyspace="default", collection_name="my_collection"
+        )
         mock_db.list_collections.return_value = [
             SimpleNamespace(name="my_collection", options=SimpleNamespace(indexing=pre_indexing))
         ]
@@ -72,7 +70,9 @@ class TestAstraClientInit:
         mock_db.get_collection.assert_called_once_with("my_collection")
 
     def test_preexisting_collection_with_matching_indexing_reuses_silently(self, mock_db):
-        mock_db.create_collection.side_effect = _existing_exc()
+        mock_db.create_collection.side_effect = CollectionAlreadyExistsException(
+            text="exists", keyspace="default", collection_name="my_collection"
+        )
         mock_db.list_collections.return_value = [
             SimpleNamespace(
                 name="my_collection",
@@ -83,7 +83,9 @@ class TestAstraClientInit:
         mock_db.get_collection.assert_called_once_with("my_collection")
 
     def test_unrelated_already_exists_reraises(self, mock_db):
-        mock_db.create_collection.side_effect = _existing_exc()
+        mock_db.create_collection.side_effect = CollectionAlreadyExistsException(
+            text="exists", keyspace="default", collection_name="my_collection"
+        )
         mock_db.list_collections.return_value = []
         with pytest.raises(CollectionAlreadyExistsException):
             AstraClient(**CLIENT_KWARGS)
