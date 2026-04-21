@@ -2,6 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+import copy
 from typing import Any, Literal
 
 from haystack import component, default_from_dict, default_to_dict
@@ -124,6 +125,7 @@ class SupabasePgvectorEmbeddingRetriever(PgvectorEmbeddingRetriever):
         :returns:
             Deserialized component.
         """
+        data = copy.deepcopy(data)
         doc_store_params = data["init_parameters"]["document_store"]
         data["init_parameters"]["document_store"] = SupabasePgvectorDocumentStore.from_dict(doc_store_params)
         if filter_policy := data["init_parameters"].get("filter_policy"):

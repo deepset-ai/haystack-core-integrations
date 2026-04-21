@@ -85,7 +85,9 @@ def test_init(monkeypatch):
         create_extension=True,
         schema_name="my_schema",
         table_name="my_table",
+        language="spanish",
         embedding_dimension=512,
+        vector_type="halfvec",
         vector_function="l2_distance",
         recreate_table=True,
         search_strategy="hnsw",
@@ -99,7 +101,9 @@ def test_init(monkeypatch):
     assert document_store.create_extension
     assert document_store.schema_name == "my_schema"
     assert document_store.table_name == "my_table"
+    assert document_store.language == "spanish"
     assert document_store.embedding_dimension == 512
+    assert document_store.vector_type == "halfvec"
     assert document_store.vector_function == "l2_distance"
     assert document_store.recreate_table
     assert document_store.search_strategy == "hnsw"
@@ -119,7 +123,9 @@ def test_init_defaults(monkeypatch):
     assert not document_store.create_extension
     assert document_store.schema_name == "public"
     assert document_store.table_name == "haystack_documents"
+    assert document_store.language == "english"
     assert document_store.embedding_dimension == 768
+    assert document_store.vector_type == "vector"
     assert document_store.vector_function == "cosine_similarity"
     assert not document_store.recreate_table
     assert document_store.search_strategy == "exact_nearest_neighbor"
