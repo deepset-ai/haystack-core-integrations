@@ -46,18 +46,19 @@ class TestDocumentStore(
     GetMetadataFieldUniqueValuesTest,
 ):
     def test_get_metadata_fields_info_empty_collection(self, document_store: PgvectorDocumentStore):
-        """PgvectorDocumentStore always includes 'content' in fields info, even for empty stores."""
+        """Returns empty dict when the store has no documents."""
         assert document_store.count_documents() == 0
 
         fields_info = document_store.get_metadata_fields_info()
-        assert fields_info == {"content": {"type": "text"}}
+        assert fields_info == {}
 
     def test_get_metadata_field_min_max_empty_collection(self, document_store: PgvectorDocumentStore):
-        """PgvectorDocumentStore raises ValueError when the field doesn't exist in the store."""
+        """Returns None min/max when the field doesn't exist in the store."""
         assert document_store.count_documents() == 0
 
-        with pytest.raises(ValueError, match="not found in document store"):
-            document_store.get_metadata_field_min_max("priority")
+        result = document_store.get_metadata_field_min_max("priority")
+        assert result["min"] is None
+        assert result["max"] is None
 
     def test_write_documents(self, document_store: PgvectorDocumentStore):
         docs = [Document(id="1")]
@@ -282,13 +283,13 @@ def test_infer_metadata_field_type(value, expected_type):
 
 def test_analyze_metadata_fields_skips_non_dict_meta():
     records = [{"meta": "not a dict"}, {"meta": None}]
-    assert PgvectorDocumentStore._analyze_metadata_fields_from_records(records) == {"content": {"type": "text"}}
+    assert PgvectorDocumentStore._analyze_metadata_fields_from_records(records) == {}
 
 
 def test_analyze_metadata_fields_defaults_null_first_value_to_text():
     records = [{"meta": {"tag": None}}, {"meta": {"tag": 42}}]
     result = PgvectorDocumentStore._analyze_metadata_fields_from_records(records)
-    assert result == {"content": {"type": "text"}, "tag": {"type": "text"}}
+    assert result == {"tag": {"type": "text"}}
 
 
 @pytest.mark.parametrize(
