@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/presidio-v2.0.0] - 2026-04-21
+
+### 🚜 Refactor
+
+- [**breaking**] Fix import path for entity extractor (#3190)
+
+
 ## [integrations/presidio-v1.0.0] - 2026-04-21
 
 ### 🚀 Features
