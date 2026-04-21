@@ -64,6 +64,22 @@ class TestElasticsearchDocumentStoreAsync(
         assert await document_store.count_documents_async() == 3
 
     @pytest.mark.asyncio
+    async def test_delete_documents_empty_document_store_async(self, document_store):
+        # Elasticsearch raises DocumentStoreError when deleting a non-existent document
+        # rather than silently ignoring it, so we override the mixin test here.
+        with pytest.raises(DocumentStoreError):
+            await document_store.delete_documents_async(["non_existing_id"])
+
+    @pytest.mark.asyncio
+    async def test_delete_documents_non_existing_document_async(self, document_store):
+        # Same as above: Elasticsearch raises on missing IDs rather than a no-op.
+        doc = Document(content="test doc")
+        await document_store.write_documents_async([doc])
+        assert await document_store.count_documents_async() == 1
+        with pytest.raises(DocumentStoreError):
+            await document_store.delete_documents_async(["non_existing_id"])
+
+    @pytest.mark.asyncio
     async def test_write_documents_async(self, document_store):
         docs = [Document(id="1", content="test")]
         assert await document_store.write_documents_async(docs) == 1
