@@ -61,9 +61,7 @@ def test_to_dict(mock_store):
         "type": t,
         "init_parameters": {
             "document_store": {
-                "type": (
-                    "haystack_integrations.document_stores.supabase.document_store.SupabasePgvectorDocumentStore"
-                ),
+                "type": ("haystack_integrations.document_stores.supabase.document_store.SupabasePgvectorDocumentStore"),
                 "init_parameters": {
                     "connection_string": {"env_vars": ["SUPABASE_DB_URL"], "strict": True, "type": "env_var"},
                     "create_extension": False,
@@ -97,9 +95,7 @@ def test_from_dict(monkeypatch):
         "type": t,
         "init_parameters": {
             "document_store": {
-                "type": (
-                    "haystack_integrations.document_stores.supabase.document_store.SupabasePgvectorDocumentStore"
-                ),
+                "type": ("haystack_integrations.document_stores.supabase.document_store.SupabasePgvectorDocumentStore"),
                 "init_parameters": {
                     "connection_string": {"env_vars": ["SUPABASE_DB_URL"], "strict": True, "type": "env_var"},
                     "create_extension": False,
@@ -151,9 +147,7 @@ def test_from_dict_without_filter_policy(monkeypatch):
         "type": t,
         "init_parameters": {
             "document_store": {
-                "type": (
-                    "haystack_integrations.document_stores.supabase.document_store.SupabasePgvectorDocumentStore"
-                ),
+                "type": ("haystack_integrations.document_stores.supabase.document_store.SupabasePgvectorDocumentStore"),
                 "init_parameters": {
                     "connection_string": {"env_vars": ["SUPABASE_DB_URL"], "strict": True, "type": "env_var"},
                     "table_name": "haystack_test_to_dict",
@@ -252,9 +246,7 @@ async def test_run_async_with_filters():
     )
     res = await retriever.run_async(query="test query", filters=runtime_filter)
 
-    mock_store._keyword_retrieval_async.assert_called_once_with(
-        query="test query", filters=merged_filter, top_k=10
-    )
+    mock_store._keyword_retrieval_async.assert_called_once_with(query="test query", filters=merged_filter, top_k=10)
     assert res == {"documents": [doc]}
 
 

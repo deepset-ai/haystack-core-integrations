@@ -54,17 +54,12 @@ def test_to_dict(mock_store):
         document_store=mock_store, filters={"field": "value"}, top_k=5, vector_function="l2_distance"
     )
     res = retriever.to_dict()
-    t = (
-        "haystack_integrations.components.retrievers.supabase"
-        ".embedding_retriever.SupabasePgvectorEmbeddingRetriever"
-    )
+    t = "haystack_integrations.components.retrievers.supabase.embedding_retriever.SupabasePgvectorEmbeddingRetriever"
     assert res == {
         "type": t,
         "init_parameters": {
             "document_store": {
-                "type": (
-                    "haystack_integrations.document_stores.supabase.document_store.SupabasePgvectorDocumentStore"
-                ),
+                "type": ("haystack_integrations.document_stores.supabase.document_store.SupabasePgvectorDocumentStore"),
                 "init_parameters": {
                     "connection_string": {"env_vars": ["SUPABASE_DB_URL"], "strict": True, "type": "env_var"},
                     "create_extension": False,
@@ -94,17 +89,12 @@ def test_to_dict(mock_store):
 @pytest.mark.usefixtures("patches_for_unit_tests")
 def test_from_dict(monkeypatch):
     monkeypatch.setenv("SUPABASE_DB_URL", "some-connection-string")
-    t = (
-        "haystack_integrations.components.retrievers.supabase"
-        ".embedding_retriever.SupabasePgvectorEmbeddingRetriever"
-    )
+    t = "haystack_integrations.components.retrievers.supabase.embedding_retriever.SupabasePgvectorEmbeddingRetriever"
     data = {
         "type": t,
         "init_parameters": {
             "document_store": {
-                "type": (
-                    "haystack_integrations.document_stores.supabase.document_store.SupabasePgvectorDocumentStore"
-                ),
+                "type": ("haystack_integrations.document_stores.supabase.document_store.SupabasePgvectorDocumentStore"),
                 "init_parameters": {
                     "connection_string": {"env_vars": ["SUPABASE_DB_URL"], "strict": True, "type": "env_var"},
                     "create_extension": False,
@@ -153,17 +143,12 @@ def test_from_dict(monkeypatch):
 @pytest.mark.usefixtures("patches_for_unit_tests")
 def test_from_dict_without_filter_policy(monkeypatch):
     monkeypatch.setenv("SUPABASE_DB_URL", "some-connection-string")
-    t = (
-        "haystack_integrations.components.retrievers.supabase"
-        ".embedding_retriever.SupabasePgvectorEmbeddingRetriever"
-    )
+    t = "haystack_integrations.components.retrievers.supabase.embedding_retriever.SupabasePgvectorEmbeddingRetriever"
     data = {
         "type": t,
         "init_parameters": {
             "document_store": {
-                "type": (
-                    "haystack_integrations.document_stores.supabase.document_store.SupabasePgvectorDocumentStore"
-                ),
+                "type": ("haystack_integrations.document_stores.supabase.document_store.SupabasePgvectorDocumentStore"),
                 "init_parameters": {
                     "connection_string": {"env_vars": ["SUPABASE_DB_URL"], "strict": True, "type": "env_var"},
                     "create_extension": False,
