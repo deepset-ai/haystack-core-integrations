@@ -141,7 +141,10 @@ class TestDocumentStoreUnit:
         store = ArcadeDBDocumentStore(url="http://host:2480/", database="db")
         assert store._url == "http://host:2480"
 
-    def test_auth_returns_none_when_secrets_unresolved(self, store):
+    def test_auth_returns_none_when_secrets_unresolved(self, store, monkeypatch):
+        monkeypatch.delenv("ARCADEDB_USERNAME", raising=False)
+        monkeypatch.delenv("ARCADEDB_PASSWORD", raising=False)
+
         assert store._auth() is None
 
     def test_auth_tuple_when_secrets_resolved(self, monkeypatch):
