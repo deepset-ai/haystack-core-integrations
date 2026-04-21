@@ -59,6 +59,7 @@ class FalkorDBCypherRetriever:
         self.custom_cypher_query = custom_cypher_query
 
     def to_dict(self) -> dict[str, Any]:
+        """Serialize this retriever to a dictionary."""
         return default_to_dict(
             self,
             document_store=self.document_store.to_dict(),
@@ -67,6 +68,7 @@ class FalkorDBCypherRetriever:
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "FalkorDBCypherRetriever":
+        """Deserialize a retriever from a dictionary."""
         return default_from_dict(cls, data)
 
     @component.output_types(documents=list[Document])

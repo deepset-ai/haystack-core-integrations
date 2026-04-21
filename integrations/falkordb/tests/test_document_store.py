@@ -2,15 +2,21 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+import logging
 import os
+
 import pytest
 from haystack.dataclasses import Document
 from haystack.testing.document_store import DocumentStoreBaseTests
+
 from haystack_integrations.components.retrievers.falkordb import (
     FalkorDBCypherRetriever,
     FalkorDBEmbeddingRetriever,
 )
 from haystack_integrations.document_stores.falkordb import FalkorDBDocumentStore
+
+logger = logging.getLogger(__name__)
+
 
 @pytest.mark.integration
 class TestDocumentStore(DocumentStoreBaseTests):
@@ -25,12 +31,10 @@ class TestDocumentStore(DocumentStoreBaseTests):
         equality is not possible. Sort both lists by id to compensate for non-deterministic
         graph traversal order, and compare only id/content/meta plus embedding presence.
         """
-        assert len(received) == len(expected), (
-            f"Expected {len(expected)} documents but got {len(received)}"
-        )
+        assert len(received) == len(expected), f"Expected {len(expected)} documents but got {len(received)}"
         received_sorted = sorted(received, key=lambda d: d.id)
         expected_sorted = sorted(expected, key=lambda d: d.id)
-        for recv, exp in zip(received_sorted, expected_sorted):
+        for recv, exp in zip(received_sorted, expected_sorted, strict=True):
             assert recv.id == exp.id
             assert recv.content == exp.content
             assert recv.meta == exp.meta
@@ -43,7 +47,6 @@ class TestDocumentStore(DocumentStoreBaseTests):
 
         # Use a unique graph name for each test to avoid interference
         graph_name = f"test_graph_{request.node.name[:30]}"
-        
         store = FalkorDBDocumentStore(
             host=host,
             port=port,
@@ -53,12 +56,11 @@ class TestDocumentStore(DocumentStoreBaseTests):
             verify_connectivity=True,
         )
         yield store
-        
         # Teardown: delete the graph
         try:
             store.client.select_graph(graph_name).delete()
         except Exception:
-            pass
+            logger.debug("Could not delete graph %s during teardown", graph_name)
 
     def test_write_documents(self, document_store):
         """
@@ -84,7 +86,7 @@ class TestDocumentStore(DocumentStoreBaseTests):
         try:
             store.client.select_graph("test_embedding_retrieval").delete()
         except Exception:
-            pass
+            logger.debug("Could not delete graph test_embedding_retrieval during teardown")
 
     def test_embedding_retrieval(self, embedding_store):
         docs = [
@@ -109,9 +111,7 @@ class TestDocumentStore(DocumentStoreBaseTests):
 
         retriever = FalkorDBCypherRetriever(
             document_store=document_store,
-            custom_cypher_query=(
-                "MATCH (:Document {id: $source_id})-[:REFERENCES]->(target:Document) RETURN target"
-            ),
+            custom_cypher_query=("MATCH (:Document {id: $source_id})-[:REFERENCES]->(target:Document) RETURN target"),
         )
         res = retriever.run(parameters={"source_id": "docA"})
 

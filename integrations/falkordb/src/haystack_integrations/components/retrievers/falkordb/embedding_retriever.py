@@ -64,6 +64,7 @@ class FalkorDBEmbeddingRetriever:
         self.filter_policy = FilterPolicy(filter_policy) if isinstance(filter_policy, str) else filter_policy
 
     def to_dict(self) -> dict[str, Any]:
+        """Serialize this retriever to a dictionary."""
         return default_to_dict(
             self,
             document_store=self.document_store.to_dict(),
@@ -74,9 +75,9 @@ class FalkorDBEmbeddingRetriever:
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "FalkorDBEmbeddingRetriever":
+        """Deserialize a retriever from a dictionary."""
         return default_from_dict(cls, data)
 
-    
     @component.output_types(documents=list[Document])
     def run(
         self,

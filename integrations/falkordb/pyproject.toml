@@ -85,6 +85,7 @@ disallow_incomplete_defs = true
 
 [tool.ruff]
 line-length = 120
+extend-exclude = ["scratch/"]
 
 [tool.ruff.lint]
 select = [

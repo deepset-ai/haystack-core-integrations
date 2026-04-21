@@ -5,18 +5,19 @@
 from __future__ import annotations
 
 import logging
+import math
 from dataclasses import replace
+from datetime import datetime
 from typing import Any, Literal
 
-import math
-from datetime import datetime
 from haystack import default_from_dict, default_to_dict
 from haystack.dataclasses import Document
 from haystack.document_stores.errors import DocumentStoreError, DuplicateDocumentError
-from haystack.errors import FilterError
 from haystack.document_stores.types import DocumentStore, DuplicatePolicy
+from haystack.errors import FilterError
 from haystack.utils import Secret
 from redis.exceptions import ResponseError
+
 import falkordb  # type: ignore[import-untyped,import-not-found]
 
 logger = logging.getLogger(__name__)
@@ -82,10 +83,10 @@ class FalkorDBDocumentStore(DocumentStore):
         """
         Create a new FalkorDBDocumentStore.
 
-        :param host: Hostname of the FalkorDB server. 
+        :param host: Hostname of the FalkorDB server.
         :param port: Port the FalkorDB server listens on.
         :param graph_name: Name of the FalkorDB graph to use. Each graph is an isolated
-            namespace. 
+            namespace.
         :param username: Optional username for FalkorDB authentication.
         :param password: Optional :class:`haystack.utils.Secret` holding the FalkorDB
             password. The secret value is resolved lazily on first connection.
@@ -93,7 +94,7 @@ class FalkorDBDocumentStore(DocumentStore):
         :param embedding_dim: Dimensionality of the vector embeddings. Used when
             creating the vector index.
         :param embedding_field: Name of the node property that stores the embedding
-            vector. 
+            vector.
         :param similarity: Similarity function for the vector index.  Accepted values
             are `"cosine"` and `"euclidean"`.
         :param write_batch_size: Number of documents written per `UNWIND` batch.
@@ -124,14 +125,15 @@ class FalkorDBDocumentStore(DocumentStore):
         self.verify_connectivity = verify_connectivity
 
         # Lazy — populated on first use via ensure_connected().
-        self.client: Any | None = None
-        self.graph: Any | None = None
+        self.client: Any = None
+        self.graph: Any = None
         self.initialized: bool = False
 
         if verify_connectivity:
             self._ensure_connected()
 
     def to_dict(self) -> dict[str, Any]:
+        """Serialize this document store to a dictionary."""
         return default_to_dict(
             self,
             host=self.host,
@@ -150,6 +152,7 @@ class FalkorDBDocumentStore(DocumentStore):
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> FalkorDBDocumentStore:
+        """Deserialize a document store from a dictionary."""
         return default_from_dict(cls, data)
 
     # ------------------------------------------------------------------
@@ -185,7 +188,6 @@ class FalkorDBDocumentStore(DocumentStore):
         self.graph = self.client.select_graph(self.graph_name)
         self._ensure_schema()
         self.initialized = True
-
 
     def _ensure_schema(self) -> None:
         """
@@ -235,7 +237,7 @@ class FalkorDBDocumentStore(DocumentStore):
         rows = result.result_set
         return int(rows[0][0]) if rows else 0
 
-    def filter_documents(self, filters: dict[str, Any] | None = None) -> list[Document]: 
+    def filter_documents(self, filters: dict[str, Any] | None = None) -> list[Document]:
         """
         Retrieve all documents that match the provided Haystack filters.
 
@@ -501,7 +503,7 @@ ORDER BY score DESC, d.id ASC
         """
         self._ensure_connected()
         try:
-            # We don't force ORDER BY here as the query is custom, 
+            # We don't force ORDER BY here as the query is custom,
             # but we ensured everything else is stable.
             result = self.graph.query(cypher_query, parameters or {})
             return [_node_to_document(row[0]) for row in result.result_set]
@@ -523,6 +525,7 @@ ORDER BY score DESC, d.id ASC
         if self.similarity == "cosine":
             return (score + 1) / 2
         return float(1 / (1 + math.exp(-score / 100)))
+
 
 # ---------------------------------------------------------------------------
 # Module-level helpers
@@ -570,7 +573,7 @@ def _node_to_document(node: Any) -> Document:
         record = {}
 
     # Standard Document fields
-    id = record.pop("id", None)
+    doc_id = record.pop("id", None)
     content = record.pop("content", None)
     embedding = record.pop("embedding", None)
     score = record.pop("score", None)
@@ -579,7 +582,7 @@ def _node_to_document(node: Any) -> Document:
     # sparse_embedding is also popped if present (not supported by falkordb yet)
     record.pop("sparse_embedding", None)
 
-    return Document(id=id, content=content, embedding=embedding, meta=record, score=score)
+    return Document(id=doc_id, content=content, embedding=embedding, meta=record, score=score)
 
 
 def _convert_filters(filters: dict[str, Any]) -> tuple[str, dict[str, Any]]:
@@ -619,14 +622,16 @@ def _build_clause(node: dict[str, Any], params: dict[str, Any], counter: list[in
     # ------------------------------------------------------------------
     if operator.upper() in ("AND", "OR"):
         if "conditions" not in node:
-            raise FilterError(f"Logical operator '{operator}' requires a 'conditions' key")
+            msg = f"Logical operator '{operator}' requires a 'conditions' key"
+            raise FilterError(msg)
         sub_clauses = [_build_clause(c, params, counter) for c in node["conditions"]]
         joiner = f" {operator.upper()} "
         return f"({joiner.join(sub_clauses)})"
 
     if operator.upper() == "NOT":
         if "conditions" not in node:
-            raise FilterError("Logical operator 'NOT' requires a 'conditions' key")
+            msg = "Logical operator 'NOT' requires a 'conditions' key"
+            raise FilterError(msg)
         sub_clauses = [_build_clause(c, params, counter) for c in node["conditions"]]
         inner = " AND ".join(sub_clauses)
         return f"NOT ({inner})"
@@ -635,9 +640,11 @@ def _build_clause(node: dict[str, Any], params: dict[str, Any], counter: list[in
     # Leaf (comparison / membership) operators
     # ------------------------------------------------------------------
     if "field" not in node:
-        raise FilterError(f"Comparison operator '{operator}' requires a 'field' key")
+        msg = f"Comparison operator '{operator}' requires a 'field' key"
+        raise FilterError(msg)
     if "value" not in node:
-        raise FilterError(f"Comparison operator '{operator}' requires a 'value' key")
+        msg = f"Comparison operator '{operator}' requires a 'value' key"
+        raise FilterError(msg)
 
     field: str = node["field"]
     value: Any = node["value"]
@@ -672,10 +679,7 @@ def _build_clause(node: dict[str, Any], params: dict[str, Any], counter: list[in
             try:
                 datetime.fromisoformat(value)
             except ValueError:
-                msg = (
-                    f"Operator '{operator}' requires a numeric or ISO date value, "
-                    f"got non-ISO string: '{value}'"
-                )
+                msg = f"Operator '{operator}' requires a numeric or ISO date value, got non-ISO string: '{value}'"
                 raise FilterError(msg) from None
         params[param_name] = value
         return f"coalesce({cypher_field} {_COMPARISON_OPS[operator]} ${param_name}, false)"
