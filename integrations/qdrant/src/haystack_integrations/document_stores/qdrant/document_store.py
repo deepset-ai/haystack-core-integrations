@@ -1,5 +1,6 @@
 import inspect
 from collections.abc import AsyncGenerator, Generator
+from dataclasses import replace
 from itertools import islice
 from typing import Any, ClassVar, cast
 
@@ -2486,15 +2487,17 @@ class QdrantDocumentStore:
         ]
 
         if scale_score:
-            for document in documents:
-                score = document.score
-                if score is None:
-                    continue
-                if self.similarity == "cosine":
-                    score = (score + 1) / 2
-                else:
-                    score = float(1 / (1 + exp(-score / 100)))
-                document.score = score
+            documents = [
+                replace(
+                    document,
+                    score=(document.score + 1) / 2
+                    if self.similarity == "cosine"
+                    else float(1 / (1 + exp(-document.score / 100))),
+                )
+                if document.score is not None
+                else document
+                for document in documents
+            ]
 
         return documents
 

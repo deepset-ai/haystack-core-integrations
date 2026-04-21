@@ -1,5 +1,27 @@
 # Changelog
 
+## [integrations/opensearch-v7.2.1] - 2026-04-13
+
+### 🐛 Bug Fixes
+
+- *(opensearch)* Pass positional args to transport.perform_request for ddtrace compatibility (#3132)
+
+
+## [integrations/opensearch-v7.2.0] - 2026-04-10
+
+### 🚀 Features
+
+- *(opensearch)* Add support for nested fields in OpenSearchDocumentStore (#3117)
+
+### 🐛 Bug Fixes
+
+- Replace in-place dataclass mutations in document stores (#3114)
+
+### 🧪 Testing
+
+- Better categorize some Document Stores tests (#3085)
+
+
 ## [integrations/opensearch-v7.1.0] - 2026-04-01
 
 ### 🚀 Features

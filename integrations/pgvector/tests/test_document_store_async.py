@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 import psycopg
 import pytest
@@ -10,6 +10,8 @@ from haystack.dataclasses.document import ByteStream, Document
 from haystack.document_stores.errors import DocumentStoreError, DuplicateDocumentError
 from haystack.document_stores.types import DuplicatePolicy
 from haystack.utils import Secret
+from psycopg import AsyncConnection, Error
+from psycopg.cursor_async import AsyncCursor
 from psycopg.sql import SQL
 
 from haystack_integrations.document_stores.pgvector import PgvectorDocumentStore
@@ -797,3 +799,62 @@ async def test_get_metadata_field_unique_values_async(document_store: PgvectorDo
     )
     assert set(unique_priorities_filtered) == {"1"}
     assert total_priorities_filtered == 1
+
+
+@pytest.mark.asyncio
+async def test_connection_is_valid_async_returns_true_on_success():
+    mock_connection = Mock(spec=AsyncConnection)
+    mock_connection.execute.return_value = None
+
+    assert await PgvectorDocumentStore._connection_is_valid_async(mock_connection) is True
+
+
+@pytest.mark.asyncio
+async def test_connection_is_valid_async_returns_false_when_execute_raises():
+    mock_connection = Mock(spec=AsyncConnection)
+    mock_connection.execute.side_effect = Error("connection dropped")
+
+    assert await PgvectorDocumentStore._connection_is_valid_async(mock_connection) is False
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "cursor",
+    [None, Mock(spec=AsyncCursor)],
+    ids=["cursor_is_none", "connection_is_none"],
+)
+async def test_execute_sql_async_raises_when_not_initialized(mock_store, cursor):
+    assert mock_store._async_connection is None
+    with pytest.raises(ValueError, match="cursor or the connection is not initialized"):
+        await mock_store._execute_sql_async(cursor=cursor, sql_query=SQL("SELECT 1"))
+
+
+@pytest.mark.asyncio
+async def test_execute_sql_async_converts_psycopg_error_to_document_store_error(
+    mock_store_with_mock_async_connection,
+):
+    mock_cursor = Mock(spec=AsyncCursor)
+    original_error = Error("connection broken")
+    mock_cursor.execute.side_effect = original_error
+
+    with pytest.raises(DocumentStoreError, match="write failed") as exc_info:
+        await mock_store_with_mock_async_connection._execute_sql_async(
+            cursor=mock_cursor,
+            sql_query=SQL("SELECT 1"),
+            error_msg="write failed",
+        )
+
+    mock_store_with_mock_async_connection._async_connection.rollback.assert_awaited_once_with()
+    assert exc_info.value.__cause__ is original_error
+
+
+@pytest.mark.asyncio
+async def test_write_documents_async_rejects_non_document_items(mock_store):
+    with pytest.raises(ValueError, match="must contain a list of objects of type Document"):
+        await mock_store.write_documents_async([{"not": "a document"}])
+
+
+@pytest.mark.asyncio
+async def test_count_unique_metadata_by_filter_async_rejects_empty_fields(mock_store):
+    with pytest.raises(ValueError, match="metadata_fields must be a non-empty list"):
+        await mock_store.count_unique_metadata_by_filter_async(filters={}, metadata_fields=[])
