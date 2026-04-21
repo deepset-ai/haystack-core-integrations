@@ -17,30 +17,28 @@ from haystack_integrations.document_stores.astra.astra_client import (
 CLIENT_PATH = "haystack_integrations.document_stores.astra.astra_client.AstraDBClient"
 
 
-def _existing_exc() -> CollectionAlreadyExistsException:
-    return CollectionAlreadyExistsException(text="exists", keyspace="default", collection_name="my_collection")
+CLIENT_KWARGS = {
+    "api_endpoint": "http://example.com",
+    "token": "test_token",
+    "collection_name": "my_collection",
+    "embedding_dimension": 4,
+    "similarity_function": "cosine",
+}
 
 
 @pytest.fixture
 def mock_db():
-    """Yields the mocked astrapy database; tests configure it before constructing AstraClient."""
     with mock.patch(CLIENT_PATH) as patched_client:
         yield patched_client.return_value.get_database.return_value
 
 
-def _make_client() -> AstraClient:
-    return AstraClient(
-        api_endpoint="http://example.com",
-        token="test_token",
-        collection_name="my_collection",
-        embedding_dimension=4,
-        similarity_function="cosine",
-    )
-
-
 @pytest.fixture
 def client(mock_db) -> AstraClient:  # noqa: ARG001
-    return _make_client()
+    return AstraClient(**CLIENT_KWARGS)
+
+
+def _existing_exc() -> CollectionAlreadyExistsException:
+    return CollectionAlreadyExistsException(text="exists", keyspace="default", collection_name="my_collection")
 
 
 def test_query_response_get_returns_value():
@@ -70,7 +68,7 @@ class TestAstraClientInit:
             SimpleNamespace(name="my_collection", options=SimpleNamespace(indexing=pre_indexing))
         ]
         with pytest.warns(UserWarning, match=warning_match):
-            _make_client()
+            AstraClient(**CLIENT_KWARGS)
         mock_db.get_collection.assert_called_once_with("my_collection")
 
     def test_preexisting_collection_with_matching_indexing_reuses_silently(self, mock_db):
@@ -81,14 +79,14 @@ class TestAstraClientInit:
                 options=SimpleNamespace(indexing={"deny": ["metadata._node_content", "content"]}),
             )
         ]
-        _make_client()
+        AstraClient(**CLIENT_KWARGS)
         mock_db.get_collection.assert_called_once_with("my_collection")
 
     def test_unrelated_already_exists_reraises(self, mock_db):
         mock_db.create_collection.side_effect = _existing_exc()
         mock_db.list_collections.return_value = []
         with pytest.raises(CollectionAlreadyExistsException):
-            _make_client()
+            AstraClient(**CLIENT_KWARGS)
 
 
 @pytest.mark.parametrize(
