@@ -4,7 +4,7 @@
 
 from typing import Any
 
-from haystack import component, default_from_dict
+from haystack import component, default_from_dict, default_to_dict
 from haystack.document_stores.types import FilterPolicy
 
 from haystack_integrations.components.retrievers.pgvector import PgvectorKeywordRetriever
@@ -78,6 +78,21 @@ class SupabasePgvectorKeywordRetriever(PgvectorKeywordRetriever):
             filters=filters,
             top_k=top_k,
             filter_policy=filter_policy,
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        """
+        Serializes the component to a dictionary.
+
+        :returns:
+            Dictionary with serialized data.
+        """
+        return default_to_dict(
+            self,
+            filters=self.filters,
+            top_k=self.top_k,
+            filter_policy=self.filter_policy.value,
+            document_store=self.document_store.to_dict(),
         )
 
     @classmethod
