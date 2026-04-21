@@ -2,7 +2,11 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""Unit tests for filter conversion (no Astra DB instance required)."""
+"""
+Unit tests for filter conversion
+
+Integration tests for filters are included in test_document_store.py
+"""
 
 import pytest
 from haystack.errors import FilterError
