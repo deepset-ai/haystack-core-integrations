@@ -4,8 +4,8 @@
 
 | Name                                                                             |    Stmts |     Miss |   Branch |   BrPart |   Cover |   Missing |
 |--------------------------------------------------------------------------------- | -------: | -------: | -------: | -------: | ------: | --------: |
-| src/haystack\_integrations/components/generators/aimlapi/chat/chat\_generator.py |       49 |       14 |       14 |        4 |     62% |178-187, 193-194, 206, 210 |
-| **TOTAL**                                                                        |   **49** |   **14** |   **14** |    **4** | **62%** |           |
+| src/haystack\_integrations/components/generators/aimlapi/chat/chat\_generator.py |       49 |        0 |       14 |        1 |     98% | 184-\>186 |
+| **TOTAL**                                                                        |   **49** |    **0** |   **14** |    **1** | **98%** |           |
 
 
 ## Setup coverage badge
