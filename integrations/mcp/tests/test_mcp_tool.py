@@ -1,9 +1,12 @@
+import asyncio
 import io
 import json
 import os
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from exceptiongroup import ExceptionGroup
 from haystack.components.agents import Agent
 from haystack.components.generators.chat import OpenAIChatGenerator
 from haystack.core.pipeline import Pipeline
@@ -13,18 +16,54 @@ from haystack.tools.from_function import tool
 
 from haystack_integrations.tools.mcp import (
     MCPTool,
+    MCPToolNotFoundError,
     StdioServerInfo,
 )
-from haystack_integrations.tools.mcp.mcp_tool import StdioClient
+from haystack_integrations.tools.mcp.mcp_tool import (
+    AsyncExecutor,
+    MCPClient,
+    MCPConnectionError,
+    MCPInvocationError,
+    StdioClient,
+    _extract_first_text_element,
+    _MCPClientSessionManager,
+)
 
 from .mcp_memory_transport import InMemoryServerInfo
-from .mcp_servers_fixtures import calculator_mcp, echo_mcp
+from .mcp_servers_fixtures import calculator_mcp, echo_mcp, image_mcp, state_calculator_mcp
 
 
 @tool
 def simple_haystack_tool(name: str) -> str:
     """A simple Haystack tool for comparison."""
     return f"Hello, {name}!"
+
+
+# from https://modelcontextprotocol.io/specification/draft/server/tools#output-schema
+EXAMPLE_MCP_TOOL_CALL_RESULT = {
+    "content": [{"type": "text", "text": '{"temperature": 22.5, "conditions": "Partly cloudy", "humidity": 65}'}],
+    "structuredContent": {"temperature": 22.5, "conditions": "Partly cloudy", "humidity": 65},
+}
+
+
+def test_extract_first_text_element():
+    """Test that extract_first_text skips non-text blocks and parses the first text block."""
+    tool_call_result = EXAMPLE_MCP_TOOL_CALL_RESULT
+    tool_call_result["content"].insert(0, {"type": "image", "data": "ignored"})
+    tool_call_result["content"].insert(1, {"type": "text", "text": '{"answer": 42}'})  # target
+    tool_call_result = json.dumps(tool_call_result)
+
+    extracted = _extract_first_text_element(tool_call_result)
+
+    assert extracted == {"answer": 42}
+
+
+def test_async_executor_run_raises_timeout_error():
+    async def slow() -> None:
+        await asyncio.sleep(0.05)
+
+    with pytest.raises(TimeoutError, match="timed out"):
+        AsyncExecutor.get_instance().run(slow(), timeout=0.01)
 
 
 class TestMCPTool:
@@ -85,6 +124,41 @@ class TestMCPTool:
         echo_result = json.loads(echo_result)
         assert echo_result["content"][0]["text"] == "Hello MCP!"
 
+    def test_mcp_tool_outputs_to_state_falls_back_to_full_response_for_non_text_content(self, mcp_tool_cleanup):
+        """Test that non-text MCP content returns the full parsed response when state output is enabled."""
+        server_info = InMemoryServerInfo(server=image_mcp._mcp_server)
+        tool = MCPTool(
+            name="image_tool",
+            server_info=server_info,
+            eager_connect=True,
+            outputs_to_state={"image_payload": {}},
+        )
+        mcp_tool_cleanup(tool)
+
+        result = tool.invoke()
+
+        assert isinstance(result, dict)
+        assert len(result["content"]) == 1
+        assert result["content"][0]["type"] == "image"
+        assert result["content"][0]["data"] == "ZmFrZQ=="
+        assert result["content"][0]["mimeType"] == "image/png"
+        assert result["isError"] is False
+
+    def test_mcp_tool_outputs_to_state_returns_raw_text_when_text_is_not_json(self, mcp_tool_cleanup):
+        """Test that plain text content is returned as-is when state output parsing cannot decode JSON."""
+        server_info = InMemoryServerInfo(server=echo_mcp._mcp_server)
+        tool = MCPTool(
+            name="echo",
+            server_info=server_info,
+            eager_connect=True,
+            outputs_to_state={"echo_payload": {}},
+        )
+        mcp_tool_cleanup(tool)
+
+        result = tool.invoke(text="Hello MCP!")
+
+        assert result == "Hello MCP!"
+
     def test_mcp_tool_error_handling(self, mcp_error_tool):
         """Test error handling with the in-memory server."""
         with pytest.raises(ToolInvocationError) as exc_info:
@@ -94,6 +168,47 @@ class TestMCPTool:
         error_message = str(exc_info.value)
         # The first part of the message comes from ToolInvocationError's formatting
         assert "Failed to invoke Tool `divide_by_zero`" in error_message
+
+    def test_mcp_tool_lazy_missing_tool_raises_with_available_tools(self, mcp_tool_cleanup):
+        """Test that lazy warm-up surfaces missing-tool errors with the available tool names."""
+        server_info = InMemoryServerInfo(server=calculator_mcp._mcp_server)
+        tool = MCPTool(name="multiply", server_info=server_info, eager_connect=False)
+        mcp_tool_cleanup(tool)
+
+        mock_worker = MagicMock()
+        mock_worker.tools.return_value = [
+            SimpleNamespace(name="add"),
+            SimpleNamespace(name="subtract"),
+            SimpleNamespace(name="divide_by_zero"),
+        ]
+
+        with (
+            patch("haystack_integrations.tools.mcp.mcp_tool._MCPClientSessionManager", return_value=mock_worker),
+            pytest.raises(MCPToolNotFoundError) as exc_info,
+        ):
+            tool.warm_up()
+
+        assert exc_info.value.tool_name == "multiply"
+        assert set(exc_info.value.available_tools) == {"add", "subtract", "divide_by_zero"}
+
+    def test_mcp_tool_lazy_no_tools_server_raises_tool_not_found(self, mcp_tool_cleanup):
+        """Test that lazy warm-up fails cleanly when the server exposes no tools."""
+        server_info = InMemoryServerInfo(server=calculator_mcp._mcp_server)
+        tool = MCPTool(name="anything", server_info=server_info, eager_connect=False)
+        mcp_tool_cleanup(tool)
+
+        mock_worker = MagicMock()
+        mock_worker.tools.return_value = []
+
+        with (
+            patch("haystack_integrations.tools.mcp.mcp_tool._MCPClientSessionManager", return_value=mock_worker),
+            pytest.raises(MCPToolNotFoundError) as exc_info,
+        ):
+            tool.warm_up()
+
+        assert str(exc_info.value) == "No tools available on server"
+        assert exc_info.value.tool_name == "anything"
+        assert exc_info.value.available_tools == []
 
     def test_mcp_tool_serde(self, mcp_tool_cleanup):
         """Test serialization and deserialization of MCPTool with in-memory server."""
@@ -167,6 +282,22 @@ class TestMCPTool:
         assert "b" in tool.parameters["properties"]
         assert "b" in tool.parameters["required"]
 
+    def test_mcp_tool_eager_state_mapping_removes_inputs_from_schema(self, mcp_tool_cleanup):
+        """Test that eager MCPTool initialization removes state-injected params from its public schema."""
+        server_info = InMemoryServerInfo(server=calculator_mcp._mcp_server)
+        tool = MCPTool(
+            name="add",
+            server_info=server_info,
+            eager_connect=True,
+            inputs_from_state={"state_a": "a"},
+        )
+        mcp_tool_cleanup(tool)
+
+        assert "a" not in tool.parameters["properties"]
+        assert "a" not in tool.parameters.get("required", [])
+        assert "b" in tool.parameters["properties"]
+        assert "b" in tool.parameters["required"]
+
     def test_mcp_tool_serde_with_state_mapping(self, mcp_tool_cleanup):
         """Test serialization and deserialization of MCPTool with state-mapping parameters."""
         server_info = InMemoryServerInfo(server=calculator_mcp._mcp_server)
@@ -199,6 +330,62 @@ class TestMCPTool:
         assert new_tool._outputs_to_string == {"source": "result"}
         assert new_tool._inputs_from_state == {"state_a": "a"}
         assert new_tool._outputs_to_state == {"result": {"source": "output"}}
+
+    @pytest.mark.skipif(
+        not hasattr(__import__("haystack.tools", fromlist=["Tool"]).Tool, "_get_valid_inputs"),
+        reason="Requires Haystack >= 2.22.0 for inputs_from_state validation",
+    )
+    def test_mcp_tool_lazy_invalid_parameter_raises_on_warm_up(self, mcp_tool_cleanup):
+        """Test that lazy MCPTool defers invalid inputs_from_state validation until warm_up()."""
+        server_info = InMemoryServerInfo(server=calculator_mcp._mcp_server)
+        tool = MCPTool(
+            name="add",
+            server_info=server_info,
+            eager_connect=False,
+            inputs_from_state={"state_key": "non_existent_param"},
+        )
+        mcp_tool_cleanup(tool)
+
+        assert tool.parameters == {"type": "object", "properties": {}, "additionalProperties": True}
+
+        with pytest.raises(ValueError, match="unknown parameter"):
+            tool.warm_up()
+
+    def test_mcp_tool_invoke_auto_warms_up_once(self, mcp_tool_cleanup):
+        """Test that lazy MCPTool initializes on first invoke and reuses that connection."""
+        server_info = InMemoryServerInfo(server=calculator_mcp._mcp_server)
+        tool = MCPTool(name="add", server_info=server_info, eager_connect=False)
+        mcp_tool_cleanup(tool)
+
+        assert tool.parameters == {"type": "object", "properties": {}, "additionalProperties": True}
+
+        with patch.object(tool, "_connect_and_initialize", wraps=tool._connect_and_initialize) as mock_connect:
+            first_result = json.loads(tool.invoke(a=20, b=22))
+            second_result = json.loads(tool.invoke(a=1, b=2))
+
+        assert first_result["content"][0]["text"] == "42"
+        assert second_result["content"][0]["text"] == "3"
+        assert "a" in tool.parameters["properties"]
+        assert "b" in tool.parameters["properties"]
+        assert mock_connect.call_count == 1
+
+    @pytest.mark.asyncio
+    async def test_mcp_tool_ainvoke_matches_invoke_with_outputs_to_state(self, mcp_tool_cleanup):
+        """Test that sync and async invocation paths return the same parsed state output."""
+        server_info = InMemoryServerInfo(server=state_calculator_mcp._mcp_server)
+        tool = MCPTool(
+            name="state_add",
+            server_info=server_info,
+            eager_connect=True,
+            outputs_to_state={"result": {"source": "result"}},
+        )
+        mcp_tool_cleanup(tool)
+
+        sync_result = tool.invoke(a=20, b=22)
+        async_result = await tool.ainvoke(a=20, b=22)
+
+        assert sync_result == {"result": 42}
+        assert async_result == sync_result
 
     @pytest.mark.asyncio
     @pytest.mark.parametrize(
@@ -236,7 +423,94 @@ class TestMCPTool:
             else:
                 assert errlog is mock_stderr
 
-    @pytest.mark.skipif("OPENAI_API_KEY" not in os.environ, reason="OPENAI_API_KEY not set")
+    @pytest.mark.asyncio
+    async def test_mcp_client_aclose_clears_references_even_when_cleanup_fails(self, caplog):
+        """Test that client cleanup always clears connection state, even if exit_stack cleanup raises."""
+        client = StdioClient(command="echo")
+        client.session = MagicMock()
+        client.stdio = MagicMock()
+        client.write = MagicMock()
+        client.exit_stack = MagicMock()
+        client.exit_stack.aclose = AsyncMock(side_effect=RuntimeError("cleanup failed"))
+
+        with caplog.at_level("WARNING"):
+            await client.aclose()
+
+        assert any("Error during MCP client cleanup: cleanup failed" in record.message for record in caplog.records)
+        assert client.session is None
+        assert client.stdio is None
+        assert client.write is None
+
+    @pytest.mark.asyncio
+    async def test_initialize_session_wraps_errors_as_connection_error(self):
+        client = StdioClient(command="echo")
+
+        with patch.object(client.exit_stack, "enter_async_context", new_callable=AsyncMock) as mock_enter:
+            mock_enter.side_effect = RuntimeError("boom")
+            with pytest.raises(MCPConnectionError, match="Failed to connect to ctx"):
+                await client._initialize_session_with_transport((MagicMock(), MagicMock()), "ctx")
+
+    def test_mcp_tool_eager_connect_surfaces_exception_group_inner_message(self):
+        server_info = InMemoryServerInfo(server=calculator_mcp._mcp_server)
+        err = ExceptionGroup("outer", [RuntimeError("inner details")])
+
+        with patch(
+            "haystack_integrations.tools.mcp.mcp_tool._MCPClientSessionManager",
+            side_effect=err,
+        ):
+            with pytest.raises(MCPConnectionError, match="inner details"):
+                MCPTool(name="add", server_info=server_info, eager_connect=True)
+
+    @pytest.mark.asyncio
+    async def test_mcp_tool_ainvoke_raises_timeout_error(self, mcp_tool_cleanup):
+        server_info = InMemoryServerInfo(server=calculator_mcp._mcp_server)
+        tool = MCPTool(name="add", server_info=server_info, eager_connect=True)
+        mcp_tool_cleanup(tool)
+
+        async def hanging(*_args, **_kwargs):
+            await asyncio.sleep(0.05)
+
+        tool._client.call_tool = hanging
+        tool._invocation_timeout = 0.01
+
+        with pytest.raises(TimeoutError, match="timed out"):
+            await tool.ainvoke(a=1, b=2)
+
+    @pytest.mark.asyncio
+    async def test_mcp_tool_ainvoke_wraps_unexpected_errors(self, mcp_tool_cleanup):
+        server_info = InMemoryServerInfo(server=calculator_mcp._mcp_server)
+        tool = MCPTool(name="add", server_info=server_info, eager_connect=True)
+        mcp_tool_cleanup(tool)
+
+        async def crash(*_args, **_kwargs):
+            message = "kaboom"
+            raise RuntimeError(message)
+
+        tool._client.call_tool = crash
+
+        with pytest.raises(MCPInvocationError, match="kaboom"):
+            await tool.ainvoke(a=1, b=2)
+
+    def test_mcp_tool_close_swallows_worker_stop_exceptions(self, mcp_tool_cleanup):
+        server_info = InMemoryServerInfo(server=calculator_mcp._mcp_server)
+        tool = MCPTool(name="add", server_info=server_info, eager_connect=True)
+        mcp_tool_cleanup(tool)
+
+        with patch.object(tool._worker, "stop", side_effect=RuntimeError("stop failed")):
+            tool.close()
+
+    def test_session_manager_propagates_connect_failures(self):
+        class BrokenClient(MCPClient):
+            async def connect(self):
+                message = "broken"
+                raise RuntimeError(message)
+
+        client = BrokenClient()
+
+        with pytest.raises(RuntimeError, match="broken"):
+            _MCPClientSessionManager(client, timeout=5.0)
+
+    @pytest.mark.skipif(not os.environ.get("OPENAI_API_KEY"), reason="OPENAI_API_KEY not set")
     @pytest.mark.integration
     def test_pipeline_warmup_with_mcp_tool(self):
         """Test lazy connection with Pipeline.warm_up() - replicates time_pipeline.py."""
@@ -259,7 +533,7 @@ class TestMCPTool:
             if tool:
                 tool.close()
 
-    @pytest.mark.skipif("OPENAI_API_KEY" not in os.environ, reason="OPENAI_API_KEY not set")
+    @pytest.mark.skipif(not os.environ.get("OPENAI_API_KEY"), reason="OPENAI_API_KEY not set")
     @pytest.mark.integration
     def test_agent_with_state_mapping(self):
         """Test Agent with MCPTool using state-mapping to inject location from state."""

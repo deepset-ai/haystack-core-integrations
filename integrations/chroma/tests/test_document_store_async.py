@@ -14,6 +14,23 @@ from haystack.testing.document_store import TEST_EMBEDDING_1
 from haystack_integrations.document_stores.chroma import ChromaDocumentStore
 
 
+@pytest.mark.asyncio
+class TestDocumentStoreAsyncUnit:
+    async def test_ensure_initialized_async_requires_host_and_port(self):
+        store = ChromaDocumentStore()
+        with pytest.raises(ValueError, match="Async support"):
+            await store._ensure_initialized_async()
+
+    async def test_ensure_initialized_async_invalid_client_settings_raises(self):
+        with mock.patch(
+            "haystack_integrations.document_stores.chroma.document_store.Settings",
+            side_effect=ValueError("bad setting"),
+        ):
+            store = ChromaDocumentStore(host="localhost", port=8000, client_settings={"foo": "bar"})
+            with pytest.raises(ValueError, match="Invalid client_settings"):
+                await store._ensure_initialized_async()
+
+
 @pytest.mark.skipif(
     sys.platform == "win32",
     reason="We do not run the Chroma server on Windows and async is only supported with HTTP connections",
@@ -264,7 +281,6 @@ class TestDocumentStoreAsync:
         assert updated_count == 0
         assert await document_store.count_documents_async() == 2
 
-    @pytest.mark.integration
     async def test_search_embeddings_async(self, document_store: ChromaDocumentStore):
         query_embedding = TEST_EMBEDDING_1
         documents = [

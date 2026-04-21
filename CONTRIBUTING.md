@@ -214,7 +214,8 @@ It's important your tests pass before contributing code. To run all the tests lo
 $ hatch run test:all
 ```
 
-> [!IMPORTANT] The command above will run ALL the tests, including integration tests; some of those often need you to
+> [!IMPORTANT]
+> The command above will run ALL the tests, including integration tests; some of those often need you to
 > run a certain service in background (e.g. a Vector Database) or provide credentials to external services (e.g. OpenAI)
 > in order to pass.
 
@@ -256,6 +257,7 @@ The script takes care of the full setup in one step:
   source package, tests, pydoc config, example components, and a README).
 - Creates a GitHub Actions CI workflow at `.github/workflows/<name>.yml`.
 - Adds label rules to `.github/labeler.yml`.
+- Registers the new workflow in `.github/workflows/CI_coverage_comment.yml` so PR coverage comments work automatically.
 - Adds the new integration to the table in the root `README.md`.
 
 Once the script finishes, follow the printed next-steps to fill in your component code, add dependencies, and
