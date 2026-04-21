@@ -272,8 +272,8 @@ class QdrantDocumentStore:
             # For in-memory stores: if the async client was already initialised,
             # share its underlying collections dict so both clients see the same data.
             if self.location == ":memory:" and self._async_client is not None:
-                self._client._client.collections = self._async_client._client.collections
-                self._client._client.aliases = self._async_client._client.aliases
+                self._client._client.collections = self._async_client._client.collections  # type: ignore[attr-defined]
+                self._client._client.aliases = self._async_client._client.aliases  # type: ignore[attr-defined]
                 return
             # Make sure the collection is properly set up
             self._set_up_collection(
@@ -299,8 +299,8 @@ class QdrantDocumentStore:
             # For in-memory stores: if the sync client was already initialised,
             # share its underlying collections dict so both clients see the same data.
             if self.location == ":memory:" and self._client is not None:
-                self._async_client._client.collections = self._client._client.collections
-                self._async_client._client.aliases = self._client._client.aliases
+                self._async_client._client.collections = self._client._client.collections  # type: ignore[attr-defined]
+                self._async_client._client.aliases = self._client._client.aliases  # type: ignore[attr-defined]
                 return
             await self._set_up_collection_async(
                 self.index,
