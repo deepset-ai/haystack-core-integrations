@@ -538,6 +538,74 @@ class TestAIMLAPIChatGenerator:
         assert loaded_generator.tools[0].description == generator.tools[0].description
         assert loaded_generator.tools[0].parameters == generator.tools[0].parameters
 
+    def test_prepare_api_call_with_tools(self, tools, monkeypatch):
+        monkeypatch.setenv("AIMLAPI_API_KEY", "fake-api-key")
+        component = AIMLAPIChatGenerator(tools=tools)
+        args = component._prepare_api_call(messages=[ChatMessage.from_user("hi")])
+
+        assert args["tools"] == [
+            {
+                "type": "function",
+                "function": {
+                    "name": "weather",
+                    "description": "useful to determine the weather in a given location",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {"city": {"type": "string"}},
+                        "required": ["city"],
+                    },
+                },
+            }
+        ]
+        assert "strict" not in args["tools"][0]["function"]
+        assert args["tools"][0]["function"]["parameters"].get("additionalProperties") is None
+
+    def test_prepare_api_call_with_tools_strict(self, tools, monkeypatch):
+        monkeypatch.setenv("AIMLAPI_API_KEY", "fake-api-key")
+        component = AIMLAPIChatGenerator(tools=tools)
+        args = component._prepare_api_call(messages=[ChatMessage.from_user("hi")], tools_strict=True)
+
+        function_spec = args["tools"][0]["function"]
+        assert function_spec["strict"] is True
+        assert function_spec["parameters"]["additionalProperties"] is False
+
+    def test_prepare_api_call_streaming_multiple_responses_raises(self, monkeypatch):
+        monkeypatch.setenv("AIMLAPI_API_KEY", "fake-api-key")
+        component = AIMLAPIChatGenerator()
+        with pytest.raises(ValueError, match="Cannot stream multiple responses"):
+            component._prepare_api_call(
+                messages=[ChatMessage.from_user("hi")],
+                streaming_callback=print_streaming_chunk,
+                generation_kwargs={"n": 2},
+            )
+
+    def test_prepare_api_call_with_response_format_non_streaming(self, monkeypatch):
+        monkeypatch.setenv("AIMLAPI_API_KEY", "fake-api-key")
+        component = AIMLAPIChatGenerator()
+        response_format = {"type": "json_object"}
+        args = component._prepare_api_call(
+            messages=[ChatMessage.from_user("hi")],
+            generation_kwargs={"response_format": response_format},
+        )
+
+        assert args["response_format"] == response_format
+        assert args["openai_endpoint"] == "parse"
+        assert "stream" not in args
+
+    def test_prepare_api_call_with_response_format_streaming(self, monkeypatch):
+        monkeypatch.setenv("AIMLAPI_API_KEY", "fake-api-key")
+        component = AIMLAPIChatGenerator()
+        response_format = {"type": "json_object"}
+        args = component._prepare_api_call(
+            messages=[ChatMessage.from_user("hi")],
+            streaming_callback=print_streaming_chunk,
+            generation_kwargs={"response_format": response_format},
+        )
+
+        assert args["response_format"] == response_format
+        assert args["openai_endpoint"] == "create"
+        assert args["stream"] is True
+
 
 class TestChatCompletionChunkConversion:
     def test_handle_stream_response(self):

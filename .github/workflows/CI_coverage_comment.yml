@@ -43,6 +43,7 @@ on:
       - "Test / paddleocr"
       - "Test / pgvector"
       - "Test / pinecone"
+      - "Test / presidio"
       - "Test / pyversity"
       - "Test / qdrant"
       - "Test / ragas"

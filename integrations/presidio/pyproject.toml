@@ -3,17 +3,14 @@ requires = ["hatchling", "hatch-vcs"]
 build-backend = "hatchling.build"
 
 [project]
-name = "valkey-haystack"
+name = "presidio-haystack"
 dynamic = ["version"]
-description = ''
+description = "Haystack integration for Microsoft Presidio — PII detection and anonymization"
 readme = "README.md"
 requires-python = ">=3.10"
 license = "Apache-2.0"
-keywords = []
-authors = [
-    { name = "Daria Korenieva", email = "daric2612@gmail.com" },
-    { name = "deepset GmbH", email = "info@deepset.ai" },
-]
+keywords = ["Haystack", "Presidio", "PII", "anonymization", "privacy", "NLP"]
+authors = [{ name = "deepset GmbH", email = "info@deepset.ai" }]
 classifiers = [
   "License :: OSI Approved :: Apache Software License",
   "Development Status :: 4 - Beta",
@@ -26,23 +23,27 @@ classifiers = [
   "Programming Language :: Python :: Implementation :: CPython",
   "Programming Language :: Python :: Implementation :: PyPy",
 ]
-dependencies = ["haystack-ai>=2.28.0", "valkey-glide>=2.2.0", "valkey-glide-sync>=2.2.0"]
+dependencies = [
+  "haystack-ai>=2.9.0",
+  "presidio-analyzer>=2.2.0",
+  "presidio-anonymizer>=2.2.0",
+]
 
 [project.urls]
-Documentation = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/valkey#readme"
+Documentation = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/presidio#readme"
 Issues = "https://github.com/deepset-ai/haystack-core-integrations/issues"
-Source = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/valkey"
+Source = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/presidio"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/haystack_integrations"]
 
 [tool.hatch.version]
 source = "vcs"
-tag-pattern = 'integrations\/valkey-v(?P<version>.*)'
+tag-pattern = 'integrations\/presidio-v(?P<version>.*)'
 
 [tool.hatch.version.raw-options]
 root = "../.."
-git_describe_command = 'git describe --tags --match="integrations/valkey-v[0-9]*"'
+git_describe_command = 'git describe --tags --match="integrations/presidio-v[0-9]*"'
 
 [tool.hatch.envs.default]
 installer = "uv"
@@ -50,7 +51,7 @@ dependencies = ["haystack-pydoc-tools", "ruff"]
 
 [tool.hatch.envs.default.scripts]
 docs = ["haystack-pydoc pydoc/config_docusaurus.yml"]
-fmt = "ruff check --fix {args} && ruff format {args}"
+fmt = "ruff check --fix {args}; ruff format {args}"
 fmt-check = "ruff check {args} && ruff format --check {args}"
 
 [tool.hatch.envs.test]
@@ -60,7 +61,7 @@ dependencies = [
     "pytest-cov",
     "pytest-rerunfailures",
     "mypy",
-    "pip"
+    "pip",
 ]
 
 [tool.hatch.envs.test.scripts]
@@ -69,8 +70,7 @@ integration = 'pytest -m "integration" {args:tests}'
 all = 'pytest {args:tests}'
 unit-cov-retry = 'pytest --cov=haystack_integrations --reruns 3 --reruns-delay 30 -x -m "not integration" {args:tests}'
 integration-cov-append-retry = 'pytest --cov=haystack_integrations --cov-append --reruns 3 --reruns-delay 30 -x -m "integration" {args:tests}'
-
-types = "mypy -p haystack_integrations.components.retrievers.valkey -p haystack_integrations.document_stores.valkey {args}"
+types = "mypy -p haystack_integrations.components.preprocessors.presidio {args} -p haystack_integrations.components.extractors.presidio {args}"
 
 [tool.mypy]
 install_types = true
@@ -78,73 +78,66 @@ non_interactive = true
 check_untyped_defs = true
 disallow_incomplete_defs = true
 
+[[tool.mypy.overrides]]
+module = [
+  "presidio_analyzer",
+  "presidio_analyzer.*",
+  "presidio_anonymizer",
+  "presidio_anonymizer.*",
+]
+ignore_missing_imports = true
 
 [tool.ruff]
-target-version = "py310"
 line-length = 120
 
 [tool.ruff.lint]
 select = [
-  "A",
-  "ANN",
-  "ARG",
-  "B",
-  "C",
-  "D102",   # Missing docstring in public method
-  "D103",   # Missing docstring in public function
-  "D205",   # 1 blank line required between summary line and description
-  "D209",   # Closing triple quotes go to new line
-  "D213",   # summary lines must be positioned on the second physical line of the docstring
-  "D417",   # Missing argument descriptions in the docstring
-  "D419",   # Docstring is empty
-  "DTZ",
-  "E",
-  "EM",
-  "F",
-  "FBT",
-  "I",
-  "ICN",
-  "ISC",
-  "N",
-  "PLC",
-  "PLE",
-  "PLR",
-  "PLW",
-  "Q",
-  "RUF",
-  "S",
-  "T",
-  "TID",
-  "UP",
-  "W",
-  "YTT",
+    "A",
+    "ANN",
+    "ARG",
+    "B",
+    "C",
+    "D102",
+    "D103",
+    "D205",
+    "D209",
+    "D213",
+    "D417",
+    "D419",
+    "DTZ",
+    "E",
+    "EM",
+    "F",
+    "I",
+    "ICN",
+    "ISC",
+    "N",
+    "PLC",
+    "PLE",
+    "PLR",
+    "PLW",
+    "Q",
+    "RUF",
+    "S",
+    "T",
+    "TID",
+    "UP",
+    "W",
+    "YTT",
 ]
 ignore = [
-  # Allow non-abstract empty methods in abstract base classes
-  "ANN401",
-  "B027",
-  # Allow boolean positional values in function calls, like `dict.get(... True)`
-  "FBT003",
-  # Ignore checks for possible passwords
-  "S105",
-  "S106",
-  "S107",
-  # Ignore complexity
-  "C901",
-  "PLR0911",
-  "PLR0912",
-  "PLR0913",
-  "PLR0915",
-  # Ignore unused params
-  "ARG002",
-  # Allow assertions
-  "S101",
+    "B027",
+    "B008",
+    "S105",
+    "S106",
+    "S107",
+    "C901",
+    "PLR0911",
+    "PLR0912",
+    "PLR0913",
+    "PLR0915",
+    "ANN401",
 ]
-unfixable = [
-  # Don't touch unused imports
-  "F401",
-]
-exclude = ["example"]
 
 [tool.ruff.lint.isort]
 known-first-party = ["haystack_integrations"]
@@ -153,9 +146,7 @@ known-first-party = ["haystack_integrations"]
 ban-relative-imports = "parents"
 
 [tool.ruff.lint.per-file-ignores]
-# Tests can use magic values, assertions, and relative imports
-"examples/**/*" = ["D", "ANN", "T201"]
-"tests/**/*" = ["D", "ANN", "PLR2004", "S101", "TID252"]
+"tests/**/*" = ["PLR2004", "S101", "TID252", "D", "ANN"]
 
 [tool.coverage.run]
 source = ["haystack_integrations"]
@@ -163,13 +154,15 @@ branch = true
 relative_files = true
 parallel = false
 
-
 [tool.coverage.report]
 omit = ["*/tests/*", "*/__init__.py"]
 show_missing = true
 exclude_lines = ["no cov", "if __name__ == .__main__.:", "if TYPE_CHECKING:"]
 
-
 [tool.pytest.ini_options]
-minversion = "6.0"
-markers = ["integration: integration tests"]
+addopts = "--strict-markers"
+markers = [
+  "integration: integration tests",
+]
+log_cli = true
+asyncio_default_fixture_loop_scope = "function"
