@@ -39,8 +39,7 @@ class TestPresidioEntityExtractor:
     def test_from_dict(self):
         data = {
             "type": (
-                "haystack_integrations.components.extractors.presidio"
-                ".presidio_entity_extractor.PresidioEntityExtractor"
+                "haystack_integrations.components.extractors.presidio.presidio_entity_extractor.PresidioEntityExtractor"
             ),
             "init_parameters": {"language": "en", "entities": ["EMAIL_ADDRESS"], "score_threshold": 0.5},
         }
