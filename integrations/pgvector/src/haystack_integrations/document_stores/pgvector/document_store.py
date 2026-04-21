@@ -1846,7 +1846,7 @@ class PgvectorDocumentStore:
         :returns: A dictionary with 'min' and 'max' keys containing the minimum and maximum values.
             For numeric fields (integer, real), returns numeric min/max.
             For text fields, returns lexicographic min/max based on database collation.
-            Returns ``{"min": None, "max": None}`` when the field has no values or the store is empty.
+            Returns `{"min": None, "max": None}` when the field has no values or the store is empty.
         """
         normalized_field = PgvectorDocumentStore._normalize_metadata_field_name(metadata_field)
 
