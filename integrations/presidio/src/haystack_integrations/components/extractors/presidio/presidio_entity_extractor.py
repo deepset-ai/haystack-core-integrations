@@ -30,7 +30,7 @@ class PresidioEntityExtractor:
 
     ```python
     from haystack import Document
-    from haystack_integrations.components.preprocessors.presidio import PresidioEntityExtractor
+    from haystack_integrations.components.extractors.presidio import PresidioEntityExtractor
 
     extractor = PresidioEntityExtractor()
     result = extractor.run(documents=[Document(content="Contact Alice at alice@example.com")])

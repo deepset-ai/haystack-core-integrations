@@ -3,7 +3,6 @@
 # SPDX-License-Identifier: Apache-2.0
 
 from haystack_integrations.components.preprocessors.presidio.presidio_document_cleaner import PresidioDocumentCleaner
-from haystack_integrations.components.preprocessors.presidio.presidio_entity_extractor import PresidioEntityExtractor
 from haystack_integrations.components.preprocessors.presidio.presidio_text_cleaner import PresidioTextCleaner
 
-__all__ = ["PresidioDocumentCleaner", "PresidioEntityExtractor", "PresidioTextCleaner"]
+__all__ = ["PresidioDocumentCleaner", "PresidioTextCleaner"]
