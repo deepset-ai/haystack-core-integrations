@@ -64,6 +64,11 @@ integration:docling:
       - any-glob-to-any-file: "integrations/docling/**/*"
       - any-glob-to-any-file: ".github/workflows/docling.yml"
 
+integration:e2b:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/e2b/**/*"
+      - any-glob-to-any-file: ".github/workflows/e2b.yml"
+
 integration:elasticsearch:
   - changed-files:
       - any-glob-to-any-file: "integrations/elasticsearch/**/*"
