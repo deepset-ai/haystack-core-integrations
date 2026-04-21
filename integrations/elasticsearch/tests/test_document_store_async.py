@@ -88,6 +88,13 @@ class TestElasticsearchDocumentStoreAsync(
             await document_store.write_documents_async(documents=[doc], policy=DuplicatePolicy.FAIL)
 
     @pytest.mark.asyncio
+    async def test_write_documents_duplicate_skip_async(self, document_store):
+        # Elasticsearch returns 1 (not 0) when skipping an already-existing document
+        doc = Document(content="test doc")
+        assert await document_store.write_documents_async([doc], policy=DuplicatePolicy.SKIP) == 1
+        assert await document_store.write_documents_async(documents=[doc], policy=DuplicatePolicy.SKIP) == 1
+
+    @pytest.mark.asyncio
     async def test_write_documents_async(self, document_store):
         docs = [Document(id="1", content="test")]
         assert await document_store.write_documents_async(docs) == 1
