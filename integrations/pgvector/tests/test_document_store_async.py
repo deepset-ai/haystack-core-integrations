@@ -9,13 +9,10 @@ import pytest
 from haystack.dataclasses.document import ByteStream, Document
 from haystack.document_stores.errors import DocumentStoreError, DuplicateDocumentError
 from haystack.document_stores.types import DuplicatePolicy
-from haystack.testing.document_store import (
-    CountDocumentsByFilterAsyncTest,
-    CountUniqueMetadataByFilterAsyncTest,
-    UpdateByFilterAsyncTest,
-)
 from haystack.testing.document_store_async import (
     CountDocumentsAsyncTest,
+    CountDocumentsByFilterAsyncTest,
+    CountUniqueMetadataByFilterAsyncTest,
     DeleteAllAsyncTest,
     DeleteByFilterAsyncTest,
     DeleteDocumentsAsyncTest,
@@ -23,6 +20,7 @@ from haystack.testing.document_store_async import (
     GetMetadataFieldMinMaxAsyncTest,
     GetMetadataFieldsInfoAsyncTest,
     GetMetadataFieldUniqueValuesAsyncTest,
+    UpdateByFilterAsyncTest,
     WriteDocumentsAsyncTest,
 )
 from haystack.utils import Secret
