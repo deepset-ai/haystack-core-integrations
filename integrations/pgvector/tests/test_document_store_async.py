@@ -245,7 +245,6 @@ async def test_create_table_if_not_exists():
         await conn.execute(f"DROP SCHEMA IF EXISTS {schema_name} CASCADE")
 
 
-
 @pytest.mark.asyncio
 async def test_connection_is_valid_async_returns_true_on_success():
     mock_connection = Mock(spec=AsyncConnection)
