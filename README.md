@@ -4,8 +4,8 @@
 
 | Name                                                                                        |    Stmts |     Miss |   Branch |   BrPart |   Cover |   Missing |
 |-------------------------------------------------------------------------------------------- | -------: | -------: | -------: | -------: | ------: | --------: |
+| src/haystack\_integrations/components/extractors/presidio/presidio\_entity\_extractor.py    |       34 |        5 |        8 |        1 |     81% | 77-82, 96 |
 | src/haystack\_integrations/components/preprocessors/presidio/presidio\_document\_cleaner.py |       35 |        6 |        8 |        1 |     79% | 74-80, 93 |
-| src/haystack\_integrations/components/preprocessors/presidio/presidio\_entity\_extractor.py |       34 |        5 |        8 |        1 |     81% | 77-82, 96 |
 | src/haystack\_integrations/components/preprocessors/presidio/presidio\_text\_cleaner.py     |       33 |        6 |        6 |        1 |     77% | 71-77, 90 |
 | **TOTAL**                                                                                   |  **102** |   **17** |   **22** |    **3** | **79%** |           |
 
