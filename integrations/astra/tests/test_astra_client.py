@@ -28,25 +28,19 @@ def mock_db():
         yield patched_client.return_value.get_database.return_value
 
 
+def _make_client() -> AstraClient:
+    return AstraClient(
+        api_endpoint="http://example.com",
+        token="test_token",
+        collection_name="my_collection",
+        embedding_dimension=4,
+        similarity_function="cosine",
+    )
+
+
 @pytest.fixture
 def client(mock_db) -> AstraClient:  # noqa: ARG001
-    return AstraClient(
-        api_endpoint="http://example.com",
-        token="test_token",
-        collection_name="my_collection",
-        embedding_dimension=4,
-        similarity_function="cosine",
-    )
-
-
-def _init_client() -> AstraClient:
-    return AstraClient(
-        api_endpoint="http://example.com",
-        token="test_token",
-        collection_name="my_collection",
-        embedding_dimension=4,
-        similarity_function="cosine",
-    )
+    return _make_client()
 
 
 def test_query_response_get_returns_value():
@@ -76,7 +70,7 @@ class TestAstraClientInit:
             SimpleNamespace(name="my_collection", options=SimpleNamespace(indexing=pre_indexing))
         ]
         with pytest.warns(UserWarning, match=warning_match):
-            _init_client()
+            _make_client()
         mock_db.get_collection.assert_called_once_with("my_collection")
 
     def test_preexisting_collection_with_matching_indexing_reuses_silently(self, mock_db):
@@ -87,14 +81,14 @@ class TestAstraClientInit:
                 options=SimpleNamespace(indexing={"deny": ["metadata._node_content", "content"]}),
             )
         ]
-        _init_client()
+        _make_client()
         mock_db.get_collection.assert_called_once_with("my_collection")
 
     def test_unrelated_already_exists_reraises(self, mock_db):
         mock_db.create_collection.side_effect = _existing_exc()
         mock_db.list_collections.return_value = []
         with pytest.raises(CollectionAlreadyExistsException):
-            _init_client()
+            _make_client()
 
 
 @pytest.mark.parametrize(

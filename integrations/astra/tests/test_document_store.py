@@ -61,13 +61,9 @@ def test_to_dict(mock_auth):  # noqa
         }
 
 
-@pytest.mark.usefixtures("mock_auth")
-@mock.patch("haystack_integrations.document_stores.astra.document_store.AstraClient")
-def test_count_documents_by_filter(mock_astra_client):
-    mock_index = mock_astra_client.return_value
+def test_count_documents_by_filter(mocked_store):
+    store, mock_index = mocked_store
     mock_index.count_documents.return_value = 2
-
-    store = AstraDocumentStore()
 
     count = store.count_documents_by_filter({"field": "meta.status", "operator": "==", "value": "draft"})
 
@@ -77,13 +73,9 @@ def test_count_documents_by_filter(mock_astra_client):
     )
 
 
-@pytest.mark.usefixtures("mock_auth")
-@mock.patch("haystack_integrations.document_stores.astra.document_store.AstraClient")
-def test_count_unique_metadata_by_filter(mock_astra_client):
-    mock_index = mock_astra_client.return_value
+def test_count_unique_metadata_by_filter(mocked_store):
+    store, mock_index = mocked_store
     mock_index.distinct.side_effect = [["news", "docs", ["docs", "faq"], None], [1, 2, 2]]
-
-    store = AstraDocumentStore()
 
     counts = store.count_unique_metadata_by_filter(
         {"field": "meta.status", "operator": "==", "value": "published"}, ["category", "priority"]
@@ -96,16 +88,12 @@ def test_count_unique_metadata_by_filter(mock_astra_client):
     ]
 
 
-@pytest.mark.usefixtures("mock_auth")
-@mock.patch("haystack_integrations.document_stores.astra.document_store.AstraClient")
-def test_get_metadata_fields_info(mock_astra_client):
-    mock_index = mock_astra_client.return_value
+def test_get_metadata_fields_info(mocked_store):
+    store, mock_index = mocked_store
     mock_index.find_documents.return_value = [
         {"content": "Doc 1", "meta": {"category": "news", "priority": 1, "active": True}},
         {"content": "Doc 2", "meta": {"category": "docs", "priority": 2.5, "tags": ["a", "b"]}},
     ]
-
-    store = AstraDocumentStore()
 
     fields_info = store.get_metadata_fields_info()
 
@@ -119,27 +107,17 @@ def test_get_metadata_fields_info(mock_astra_client):
     mock_index.find_documents.assert_called_once_with({}, projection={"content": 1, "meta": 1})
 
 
-@pytest.mark.usefixtures("mock_auth")
-@mock.patch("haystack_integrations.document_stores.astra.document_store.AstraClient")
-def test_get_metadata_field_min_max(mock_astra_client):
-    mock_index = mock_astra_client.return_value
+def test_get_metadata_field_min_max(mocked_store):
+    store, mock_index = mocked_store
     mock_index.distinct.return_value = [10, 3, 7]
 
-    store = AstraDocumentStore()
-
-    result = store.get_metadata_field_min_max("priority")
-
-    assert result == {"min": 3, "max": 10}
+    assert store.get_metadata_field_min_max("priority") == {"min": 3, "max": 10}
     mock_index.distinct.assert_called_once_with("meta.priority")
 
 
-@pytest.mark.usefixtures("mock_auth")
-@mock.patch("haystack_integrations.document_stores.astra.document_store.AstraClient")
-def test_get_metadata_field_unique_values(mock_astra_client):
-    mock_index = mock_astra_client.return_value
+def test_get_metadata_field_unique_values(mocked_store):
+    store, mock_index = mocked_store
     mock_index.distinct.return_value = ["Beta", "alpha", ["gamma", "alphabet"], None]
-
-    store = AstraDocumentStore()
 
     values, total_count = store.get_metadata_field_unique_values("category", search_term="alp", from_=0, size=5)
 
