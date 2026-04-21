@@ -1669,7 +1669,7 @@ class PgvectorDocumentStore:
         :param records: List of database records containing 'meta' field.
         :returns: A dictionary mapping field names to their type information.
         """
-        fields_info: dict[str, dict[str, str]] = {"content": {"type": "text"}}
+        fields_info: dict[str, dict[str, str]] = {}
 
         # Analyze metadata from all documents
         for record in records:
@@ -1706,7 +1706,6 @@ class PgvectorDocumentStore:
         Example return:
         ```python
         {
-            'content': {'type': 'text'},
             'category': {'type': 'text'},
             'status': {'type': 'text'},
             'priority': {'type': 'integer'},

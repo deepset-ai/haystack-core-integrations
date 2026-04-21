@@ -283,13 +283,13 @@ def test_infer_metadata_field_type(value, expected_type):
 
 def test_analyze_metadata_fields_skips_non_dict_meta():
     records = [{"meta": "not a dict"}, {"meta": None}]
-    assert PgvectorDocumentStore._analyze_metadata_fields_from_records(records) == {"content": {"type": "text"}}
+    assert PgvectorDocumentStore._analyze_metadata_fields_from_records(records) == {}
 
 
 def test_analyze_metadata_fields_defaults_null_first_value_to_text():
     records = [{"meta": {"tag": None}}, {"meta": {"tag": 42}}]
     result = PgvectorDocumentStore._analyze_metadata_fields_from_records(records)
-    assert result == {"content": {"type": "text"}, "tag": {"type": "text"}}
+    assert result == {"tag": {"type": "text"}}
 
 
 @pytest.mark.parametrize(
