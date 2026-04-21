@@ -214,7 +214,8 @@ It's important your tests pass before contributing code. To run all the tests lo
 $ hatch run test:all
 ```
 
-> [!IMPORTANT] The command above will run ALL the tests, including integration tests; some of those often need you to
+> [!IMPORTANT]
+> The command above will run ALL the tests, including integration tests; some of those often need you to
 > run a certain service in background (e.g. a Vector Database) or provide credentials to external services (e.g. OpenAI)
 > in order to pass.
 

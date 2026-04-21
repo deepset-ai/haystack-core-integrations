@@ -2,7 +2,10 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+from unittest import mock
+
 import pytest
+from haystack.dataclasses import Document
 from haystack.document_stores.types import FilterPolicy
 
 from haystack_integrations.components.retrievers.chroma import ChromaEmbeddingRetriever, ChromaQueryTextRetriever
@@ -102,6 +105,29 @@ class TestChromaQueryTextRetriever:
         assert retriever.top_k == 42
         assert retriever.filter_policy == FilterPolicy.REPLACE  # default even if not specified
 
+    def test_run_delegates_to_document_store_search(self):
+        ds = mock.Mock(spec=ChromaDocumentStore)
+        expected = [Document(content="hit")]
+        ds.search.return_value = [expected]
+        retriever = ChromaQueryTextRetriever(ds, top_k=5)
+
+        result = retriever.run(query="q")
+
+        ds.search.assert_called_once_with(["q"], 5, {})
+        assert result == {"documents": expected}
+
+    @pytest.mark.asyncio
+    async def test_run_async_delegates_to_document_store_search_async(self):
+        ds = mock.Mock(spec=ChromaDocumentStore)
+        expected = [Document(content="hit")]
+        ds.search_async = mock.AsyncMock(return_value=[expected])
+        retriever = ChromaQueryTextRetriever(ds, top_k=3)
+
+        result = await retriever.run_async(query="q")
+
+        ds.search_async.assert_awaited_once_with(["q"], 3, {})
+        assert result == {"documents": expected}
+
 
 class TestChromaEmbeddingRetriever:
     def test_init(self, request):
@@ -165,3 +191,47 @@ class TestChromaEmbeddingRetriever:
         assert retriever.filters == {"bar": "baz"}
         assert retriever.top_k == 42
         assert retriever.filter_policy == FilterPolicy.REPLACE
+
+    def test_from_dict_no_filter_policy(self, request):
+        data = {
+            "type": "haystack_integrations.components.retrievers.chroma.retriever.ChromaEmbeddingRetriever",
+            "init_parameters": {
+                "filters": {"bar": "baz"},
+                "top_k": 42,
+                "document_store": {
+                    "type": "haystack_integrations.document_stores.chroma.document_store.ChromaDocumentStore",
+                    "init_parameters": {
+                        "collection_name": "test_from_dict_no_filter_policy",
+                        "embedding_function": "HuggingFaceEmbeddingFunction",
+                        "persist_path": ".",
+                        "api_key": "1234567890",
+                        "distance_function": "l2",
+                    },
+                },
+            },
+        }
+        retriever = ChromaEmbeddingRetriever.from_dict(data)
+        assert retriever.filter_policy == FilterPolicy.REPLACE
+
+    def test_run_delegates_to_document_store_search_embeddings(self):
+        ds = mock.Mock(spec=ChromaDocumentStore)
+        expected = [Document(content="hit")]
+        ds.search_embeddings.return_value = [expected]
+        retriever = ChromaEmbeddingRetriever(ds, top_k=7)
+
+        result = retriever.run(query_embedding=[0.1, 0.2])
+
+        ds.search_embeddings.assert_called_once_with([[0.1, 0.2]], 7, {})
+        assert result == {"documents": expected}
+
+    @pytest.mark.asyncio
+    async def test_run_async_delegates_to_document_store_search_embeddings_async(self):
+        ds = mock.Mock(spec=ChromaDocumentStore)
+        expected = [Document(content="hit")]
+        ds.search_embeddings_async = mock.AsyncMock(return_value=[expected])
+        retriever = ChromaEmbeddingRetriever(ds, top_k=4)
+
+        result = await retriever.run_async(query_embedding=[0.5])
+
+        ds.search_embeddings_async.assert_awaited_once_with([[0.5]], 4, {})
+        assert result == {"documents": expected}
