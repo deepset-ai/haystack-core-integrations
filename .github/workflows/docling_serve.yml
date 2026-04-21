@@ -1,0 +1,90 @@
+name: Test / docling_serve
+
+on:
+  schedule:
+    - cron: "0 0 * * *"
+  pull_request:
+    paths:
+      - "integrations/docling_serve/**"
+      - "!integrations/docling_serve/*.md"
+      - ".github/workflows/docling_serve.yml"
+
+defaults:
+  run:
+    working-directory: integrations/docling_serve
+
+concurrency:
+  group: docling_serve-${{ github.head_ref }}
+  cancel-in-progress: true
+
+env:
+  PYTHONUNBUFFERED: "1"
+  FORCE_COLOR: "1"
+
+jobs:
+  run:
+    name: Python ${{ matrix.python-version }} on ${{ startsWith(matrix.os, 'macos-') && 'macOS' || startsWith(matrix.os, 'windows-') && 'Windows' || 'Linux' }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest]
+        python-version: ["3.10", "3.14"]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install Hatch
+        run: pip install hatch
+
+      - name: Lint
+        if: matrix.python-version == '3.10' && runner.os == 'Linux'
+        run: hatch run fmt-check && hatch run test:types
+
+      - name: Run unit tests
+        run: hatch run test:unit-cov-retry
+
+      - name: Store unit tests coverage
+        id: coverage_comment
+        if: matrix.python-version == '3.10' && runner.os == 'Linux'
+        uses: py-cov-action/python-coverage-comment-action@7188638f871f721a365d644f505d1ff3df20d683 # v3.40
+        with:
+          GITHUB_TOKEN: ${{ github.token }}
+          COVERAGE_PATH: integrations/docling_serve
+          SUBPROJECT_ID: docling_serve
+          MINIMUM_GREEN: 90
+          MINIMUM_ORANGE: 60
+
+      - name: Upload coverage comment to be posted
+        if: matrix.python-version == '3.10' && runner.os == 'Linux' && github.event_name == 'pull_request' && steps.coverage_comment.outputs.COMMENT_FILE_WRITTEN == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-comment-docling_serve
+          path: python-coverage-comment-action-docling_serve.txt
+
+      - name: Run unit tests with lowest direct dependencies
+        run: |
+          hatch run uv pip compile pyproject.toml --resolution lowest-direct --output-file requirements_lowest_direct.txt
+          hatch -e test env run -- uv pip install -r requirements_lowest_direct.txt
+          hatch run test:unit
+
+      - name: Nightly - run unit tests with Haystack main branch
+        if: github.event_name == 'schedule'
+        run: |
+          hatch env prune
+          hatch -e test env run -- uv pip install git+https://github.com/deepset-ai/haystack.git@main
+          hatch run test:unit
+
+  notify-slack-on-failure:
+    needs: run
+    if: failure() && github.event_name == 'schedule'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: deepset-ai/notify-slack-action@3cda73b77a148f16f703274198e7771340cf862b # v1
+        with:
+          slack-webhook-url: ${{ secrets.SLACK_WEBHOOK_URL_NOTIFICATIONS }}
