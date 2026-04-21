@@ -9,18 +9,16 @@ import uuid
 import pytest
 import pytest_asyncio
 from haystack.dataclasses import ByteStream, Document
-from haystack.testing.document_store import (
-    CountDocumentsByFilterAsyncTest,
-    CountUniqueMetadataByFilterAsyncTest,
-    UpdateByFilterAsyncTest,
-)
 from haystack.testing.document_store_async import (
     CountDocumentsAsyncTest,
+    CountDocumentsByFilterAsyncTest,
+    CountUniqueMetadataByFilterAsyncTest,
     DeleteAllAsyncTest,
     DeleteByFilterAsyncTest,
     DeleteDocumentsAsyncTest,
     GetMetadataFieldMinMaxAsyncTest,
     GetMetadataFieldUniqueValuesAsyncTest,
+    UpdateByFilterAsyncTest,
     WriteDocumentsAsyncTest,
 )
 
