@@ -76,12 +76,14 @@ jobs:
           --health-retries 5
 
     steps:
-      - name: Create pgvector extension
-        env:
-          PGPASSWORD: postgres
-        run: psql -h localhost -U postgres -d postgres -c "CREATE EXTENSION IF NOT EXISTS vector;"
-
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Create pgvector extension
+        run: >
+          docker run --rm --network host
+          -e PGPASSWORD=postgres
+          pgvector/pgvector:pg17
+          psql -h localhost -U postgres -d postgres -c "CREATE EXTENSION IF NOT EXISTS vector;"
 
       - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
