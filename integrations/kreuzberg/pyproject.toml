@@ -35,7 +35,7 @@ classifiers = [
 ]
 dependencies = [
     "haystack-ai>=2.22.0",
-    "kreuzberg>=4.4.6,<=4.7.4",
+    "kreuzberg>=4.4.6,<=4.7.4", # 4.7.4 is the last version with MIT license
 ]
 
 [project.urls]
