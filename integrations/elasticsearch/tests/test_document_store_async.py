@@ -56,6 +56,14 @@ class TestElasticsearchDocumentStoreAsync(
         assert {doc.id for doc in received} == {doc.id for doc in expected}
 
     @pytest.mark.asyncio
+    async def test_count_not_empty_async(self, document_store):
+        # Override needed: base class uses @staticmethod which breaks fixture injection
+        await document_store.write_documents_async(
+            [Document(content="test doc 1"), Document(content="test doc 2"), Document(content="test doc 3")]
+        )
+        assert await document_store.count_documents_async() == 3
+
+    @pytest.mark.asyncio
     async def test_write_documents_async(self, document_store):
         docs = [Document(id="1", content="test")]
         assert await document_store.write_documents_async(docs) == 1
@@ -133,7 +141,9 @@ class TestElasticsearchDocumentStoreAsync(
         await store.async_client.options(ignore_status=[400, 404]).indices.delete(index="test_async_sparse_mixed")
 
         docs = [
-            Document(id="1", content="with sparse", sparse_embedding=SparseEmbedding(indices=[0, 1], values=[0.5, 0.5])),
+            Document(
+                id="1", content="with sparse", sparse_embedding=SparseEmbedding(indices=[0, 1], values=[0.5, 0.5])
+            ),
             Document(id="2", content="without sparse"),
         ]
         await store.write_documents_async(docs)
