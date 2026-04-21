@@ -4,10 +4,10 @@
 
 | Name                                                                    |    Stmts |     Miss |   Branch |   BrPart |   Cover |   Missing |
 |------------------------------------------------------------------------ | -------: | -------: | -------: | -------: | ------: | --------: |
-| src/haystack\_integrations/document\_stores/arcadedb/converters.py      |       14 |       10 |        4 |        0 |     22% |14-23, 28-38 |
-| src/haystack\_integrations/document\_stores/arcadedb/document\_store.py |      336 |      274 |      128 |        1 |     14% |133-\>132, 142-146, 150-161, 165-170, 173-215, 234-238, 247-254, 263-264, 274-302, 314-323, 337-387, 390-397, 405-409, 415-416, 426-438, 449-463, 471-484, 494-512, 519-538, 546-556, 570-585, 606-640, 645-648, 653-664, 669-674 |
-| src/haystack\_integrations/document\_stores/arcadedb/filters.py         |       85 |       22 |       54 |       13 |     73% |32-33, 36, 40, 42, 49, 60-61, 79, 81-82, 84-85, 90-91, 97-98, 102-103, 115-117 |
-| **TOTAL**                                                               |  **435** |  **306** |  **186** |   **14** | **28%** |           |
+| src/haystack\_integrations/document\_stores/arcadedb/converters.py      |       14 |        5 |        4 |        0 |     61% |     28-38 |
+| src/haystack\_integrations/document\_stores/arcadedb/document\_store.py |      336 |       67 |      128 |       17 |     80% |170, 177-215, 237, 284-\>277, 292-\>275, 319-323, 353, 367-\>369, 375-385, 408-409, 415-416, 436-438, 459-463, 478-\>481, 483, 507-\>509, 527-\>530, 556, 570-585 |
+| src/haystack\_integrations/document\_stores/arcadedb/filters.py         |       85 |        0 |       54 |        0 |    100% |           |
+| **TOTAL**                                                               |  **435** |   **72** |  **186** |   **17** | **84%** |           |
 
 
 ## Setup coverage badge
