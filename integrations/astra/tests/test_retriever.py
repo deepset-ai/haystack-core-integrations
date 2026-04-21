@@ -125,6 +125,26 @@ def test_retriever_from_json_no_filter_policy(*_):
     assert retriever.filter_policy == FilterPolicy.REPLACE  # defaults to REPLACE
 
 
+def test_retriever_init_rejects_non_astra_document_store():
+    with pytest.raises(Exception, match="document_store must be an instance of AstraDocumentStore"):
+        AstraEmbeddingRetriever(document_store="not-a-store")  # type: ignore[arg-type]
+
+
+@patch.dict(
+    "os.environ",
+    {"ASTRA_DB_APPLICATION_TOKEN": "fake-token", "ASTRA_DB_API_ENDPOINT": "http://fake-url.apps.astra.datastax.com"},
+)
+@patch("haystack_integrations.document_stores.astra.document_store.AstraClient")
+def test_run_uses_runtime_top_k_and_filters(*_):
+    ds = AstraDocumentStore()
+    mock_doc = Document(content="test", id="1")
+    with patch.object(ds, "search", return_value=[mock_doc]) as mocked_search:
+        retriever = AstraEmbeddingRetriever(ds, top_k=5, filters={"lang": "en"}, filter_policy=FilterPolicy.REPLACE)
+        result = retriever.run(query_embedding=[0.1] * 768, filters={"year": 2024}, top_k=3)
+        assert result == {"documents": [mock_doc]}
+        mocked_search.assert_called_once_with([0.1] * 768, 3, filters={"year": 2024})
+
+
 @patch.dict(
     "os.environ",
     {"ASTRA_DB_APPLICATION_TOKEN": "fake-token", "ASTRA_DB_API_ENDPOINT": "http://fake-url.apps.astra.datastax.com"},
