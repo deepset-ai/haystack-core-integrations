@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/opensearch-v7.2.1] - 2026-04-13
+
+### 🐛 Bug Fixes
+
+- *(opensearch)* Pass positional args to transport.perform_request for ddtrace compatibility (#3132)
+
+
 ## [integrations/opensearch-v7.2.0] - 2026-04-10
 
 ### 🚀 Features

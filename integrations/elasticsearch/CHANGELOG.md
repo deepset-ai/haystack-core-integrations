@@ -1,5 +1,13 @@
 # Changelog
 
+## [integrations/elasticsearch-v5.5.0] - 2026-04-13
+
+### 🚀 Features
+
+- Add sparse vector storage to ElasticsearchDocumentStore (#2989)
+- Adds `ElasticsearchSparseEmbeddingRetriever`  or sparse embedding retrieval  (#3104)
+
+
 ## [integrations/elasticsearch-v5.4.0] - 2026-04-10
 
 ### 🐛 Bug Fixes

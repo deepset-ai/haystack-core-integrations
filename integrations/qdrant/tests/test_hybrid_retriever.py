@@ -3,6 +3,7 @@ from unittest.mock import Mock
 import pytest
 from haystack.dataclasses import Document, SparseEmbedding
 from haystack.document_stores.types import FilterPolicy
+from qdrant_client.http import models as rest
 
 from haystack_integrations.components.retrievers.qdrant import (
     QdrantHybridRetriever,
@@ -11,6 +12,10 @@ from haystack_integrations.document_stores.qdrant import QdrantDocumentStore
 
 
 class TestQdrantHybridRetriever:
+    def test_init_raises_when_document_store_is_not_qdrant(self):
+        with pytest.raises(ValueError, match="must be an instance of QdrantDocumentStore"):
+            QdrantHybridRetriever(document_store="not a document store")
+
     def test_init_default(self):
         document_store = QdrantDocumentStore(location=":memory:", index="test", use_sparse_embeddings=True)
         retriever = QdrantHybridRetriever(document_store=document_store)
@@ -244,3 +249,24 @@ class TestQdrantHybridRetriever:
         assert result["documents"][0].content == "Test doc"
         assert result["documents"][0].embedding == [0.1, 0.2]
         assert result["documents"][0].sparse_embedding == sparse_embedding
+
+    def test_run_raises_when_merge_with_native_filter(self):
+        document_store = QdrantDocumentStore(location=":memory:", index="test")
+        retriever = QdrantHybridRetriever(
+            document_store=document_store,
+            filters=rest.Filter(must=[]),
+            filter_policy=FilterPolicy.MERGE,
+        )
+        sparse = SparseEmbedding(indices=[0], values=[0.1])
+        with pytest.raises(ValueError, match="Native Qdrant filters"):
+            retriever.run(query_embedding=[0.1], query_sparse_embedding=sparse)
+
+    @pytest.mark.asyncio
+    async def test_run_async_raises_when_merge_with_native_filter(self):
+        document_store = QdrantDocumentStore(location=":memory:", index="test")
+        retriever = QdrantHybridRetriever(document_store=document_store, filter_policy=FilterPolicy.MERGE)
+        sparse = SparseEmbedding(indices=[0], values=[0.1])
+        with pytest.raises(ValueError, match="Native Qdrant filters"):
+            await retriever.run_async(
+                query_embedding=[0.1], query_sparse_embedding=sparse, filters=rest.Filter(must=[])
+            )

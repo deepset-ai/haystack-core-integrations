@@ -132,7 +132,7 @@ class NvidiaGenerator:
 
         if not self.is_hosted and not self._model:
             if self.backend.model:
-                self.model = self.backend.model
+                self._model = self.backend.model
             else:
                 self.default_model()
 

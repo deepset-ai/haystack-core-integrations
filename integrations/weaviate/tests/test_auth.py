@@ -2,6 +2,8 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+import pytest
+from haystack.core.errors import DeserializationError
 from weaviate.auth import AuthApiKey as WeaviateAuthApiKey
 from weaviate.auth import AuthBearerToken as WeaviateAuthBearerToken
 from weaviate.auth import AuthClientCredentials as WeaviateAuthClientCredentials
@@ -14,6 +16,11 @@ from haystack_integrations.document_stores.weaviate.auth import (
     AuthClientPassword,
     AuthCredentials,
 )
+
+
+def test_from_dict_raises_on_missing_type():
+    with pytest.raises(DeserializationError, match="Missing 'type'"):
+        AuthCredentials.from_dict({"init_parameters": {}})
 
 
 class TestAuthApiKey:

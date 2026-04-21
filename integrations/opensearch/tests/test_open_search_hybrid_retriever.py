@@ -142,6 +142,14 @@ class TestOpenSearchHybridRetriever:
         assert isinstance(hybrid, OpenSearchHybridRetriever)
         assert hybrid.to_dict()
 
+    def test_from_dict_without_optional_keys(self):
+        data = deepcopy(self.serialised)
+        del data["init_parameters"]["filter_policy_bm25"]
+        del data["init_parameters"]["filter_policy_embedding"]
+        del data["init_parameters"]["join_mode"]
+        hybrid = OpenSearchHybridRetriever.from_dict(data)
+        assert isinstance(hybrid, OpenSearchHybridRetriever)
+
     def test_run(self, mock_embedder):
         # mocked document store
         mock_store = Mock(spec=OpenSearchDocumentStore)
