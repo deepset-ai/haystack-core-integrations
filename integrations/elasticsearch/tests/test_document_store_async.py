@@ -79,7 +79,7 @@ class TestElasticsearchDocumentStoreAsync(
     @pytest.mark.asyncio
     async def test_write_documents_async_invalid_document_type(self, document_store):
         """Test write_documents with invalid document type"""
-        invalid_docs = [{"id": "1", "content": "test"}]
+        invalid_docs = [{"id": "1", "content": "test"}]  # Dictionary instead of Document object
         with pytest.raises(ValueError, match="param 'documents' must contain a list of objects of type Document"):
             await document_store.write_documents_async(invalid_docs)
 
@@ -87,6 +87,7 @@ class TestElasticsearchDocumentStoreAsync(
     async def test_write_documents_async_with_sparse_embedding_warning(self, document_store, caplog):
         """Test write_documents with document containing sparse_embedding field"""
         doc = Document(id="1", content="test", sparse_embedding=SparseEmbedding(indices=[0, 1], values=[0.5, 0.5]))
+
         await document_store.write_documents_async([doc])
         assert "but `sparse_vector_field` is not configured" in caplog.text
 
@@ -298,22 +299,29 @@ class TestElasticsearchDocumentStoreAsync(
         ]
         await document_store.write_documents_async(docs)
 
+        # SQL query returns raw JSON response from Elasticsearch SQL API
         sql_query = (
             f'SELECT content, category, status, priority FROM "{document_store._index}" '  # noqa: S608
             f"WHERE category = 'A' ORDER BY priority"
         )
         result = await document_store._query_sql_async(sql_query)
 
+        # Verify raw JSON response structure
         assert isinstance(result, dict)
         assert "columns" in result
         assert "rows" in result
+
+        # Verify we got 2 rows (documents with category A)
         assert len(result["rows"]) == 2
+
+        # Verify column structure
         column_names = [col["name"] for col in result["columns"]]
         assert "content" in column_names
         assert "category" in column_names
 
     @pytest.mark.asyncio
     async def test_query_sql_async_with_fetch_size(self, document_store: ElasticsearchDocumentStore):
+        """Test async SQL query with fetch_size parameter"""
         docs = [Document(content=f"Document {i}", meta={"category": "A", "index": i}) for i in range(15)]
         await document_store.write_documents_async(docs)
 
@@ -321,14 +329,18 @@ class TestElasticsearchDocumentStoreAsync(
             f'SELECT content, category FROM "{document_store._index}" '  # noqa: S608
             f"WHERE category = 'A'"
         )
+
+        # Test with fetch_size
         result = await document_store._query_sql_async(sql_query, fetch_size=5)
 
+        # Should return raw JSON response
         assert isinstance(result, dict)
         assert "columns" in result
         assert "rows" in result
 
     @pytest.mark.asyncio
     async def test_query_sql_async_error_handling(self, document_store: ElasticsearchDocumentStore):
+        """Test error handling for invalid SQL queries"""
         invalid_query = "SELECT * FROM non_existent_index"
         with pytest.raises(DocumentStoreError, match="Failed to execute SQL query"):
             await document_store._query_sql_async(invalid_query)
