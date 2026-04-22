@@ -2,11 +2,13 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+import dataclasses
+
 import pytest
 import pytest_asyncio
 from haystack.dataclasses.document import Document
 from haystack.dataclasses.sparse_embedding import SparseEmbedding
-from haystack.document_stores.errors import DocumentStoreError
+from haystack.document_stores.errors import DocumentStoreError, DuplicateDocumentError
 from haystack.document_stores.types import DuplicatePolicy
 from haystack.testing.document_store_async import (
     CountDocumentsAsyncTest,
@@ -57,8 +59,9 @@ class TestElasticsearchDocumentStoreAsync(
         await store.async_client.close()
 
     def assert_documents_are_equal(self, received: list[Document], expected: list[Document]):
-        assert len(received) == len(expected)
-        assert {doc.id for doc in received} == {doc.id for doc in expected}
+        # filter_documents_async() returns Documents with score populated; strip it before comparing
+        received = [dataclasses.replace(doc, score=None) for doc in received]
+        super().assert_documents_are_equal(received, expected)
 
     @pytest.mark.asyncio
     async def test_count_not_empty_async(self, document_store):
@@ -73,7 +76,7 @@ class TestElasticsearchDocumentStoreAsync(
         docs = [Document(id="1", content="test")]
         assert await document_store.write_documents_async(docs) == 1
         assert await document_store.count_documents_async() == 1
-        with pytest.raises(DocumentStoreError):
+        with pytest.raises(DuplicateDocumentError):
             await document_store.write_documents_async(docs, policy=DuplicatePolicy.FAIL)
 
     @pytest.mark.asyncio
