@@ -29,6 +29,7 @@ concurrency:
 env:
   PYTHONUNBUFFERED: "1"
   FORCE_COLOR: "1"
+  E2B_API_KEY: ${{ secrets.E2B_API_KEY }}
   TEST_MATRIX_OS: '["ubuntu-latest", "windows-latest", "macos-latest"]'
   TEST_MATRIX_PYTHON: '["3.10", "3.14"]'
 
@@ -102,6 +103,7 @@ jobs:
           path: python-coverage-comment-action-e2b.txt
 
       - name: Run integration tests
+        if: env.E2B_API_KEY != ''
         run: hatch run test:integration-cov-append-retry
 
       - name: Store combined coverage
