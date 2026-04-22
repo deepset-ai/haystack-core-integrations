@@ -1,13 +1,7 @@
 import os
+from unittest.mock import MagicMock, patch
 
 import pytest
-from openai import AsyncOpenAI
-from unittest.mock import MagicMock, patch
-from ragas.embeddings.base import embedding_factory
-from ragas.llms import llm_factory
-from ragas.metrics.base import SimpleBaseMetric
-from ragas.metrics.collections import AnswerRelevancy, ContextPrecision, Faithfulness
-from ragas.metrics.result import MetricResult
 from haystack import Document, Pipeline
 from haystack.components.builders import AnswerBuilder, ChatPromptBuilder
 from haystack.components.embedders import OpenAIDocumentEmbedder, OpenAITextEmbedder
@@ -15,6 +9,13 @@ from haystack.components.generators.chat import OpenAIChatGenerator
 from haystack.components.retrievers.in_memory import InMemoryEmbeddingRetriever
 from haystack.dataclasses import ChatMessage
 from haystack.document_stores.in_memory import InMemoryDocumentStore
+from openai import AsyncOpenAI
+from ragas.embeddings.base import embedding_factory
+from ragas.llms import llm_factory
+from ragas.metrics.base import SimpleBaseMetric
+from ragas.metrics.collections import AnswerRelevancy, ContextPrecision, Faithfulness
+from ragas.metrics.result import MetricResult
+
 from haystack_integrations.components.evaluators.ragas import RagasEvaluator
 
 
@@ -38,6 +39,7 @@ def make_llm_mock(model: str = "gpt-4o-mini", provider: str = "openai") -> Magic
     llm.model = model
     llm.provider = provider
     return llm
+
 
 def make_metric(name: str, score: float = 0.8, reason: str = "test reason") -> MagicMock:
     """Create a mock SimpleBaseMetric with a concrete ascore signature for inspect.signature."""
@@ -170,33 +172,40 @@ class TestRun:
 
 
 class TestSerialization:
-    def test_to_dict_type_field(self):
-        evaluator = RagasEvaluator(ragas_metrics=[ConcreteMetric()])
+    def test_to_dict(self):
+        evaluator = RagasEvaluator(
+            ragas_metrics=[ConcreteMetric(llm=make_llm_mock()), ConcreteMetric(name="another_metric")]
+        )
         data = evaluator.to_dict()
-        assert data["type"] == "haystack_integrations.components.evaluators.ragas.evaluator.RagasEvaluator"
+        assert data == {
+            "type": "haystack_integrations.components.evaluators.ragas.evaluator.RagasEvaluator",
+            "init_parameters": {
+                "ragas_metrics": [
+                    {
+                        "type": "tests.test_evaluator.ConcreteMetric",
+                        "name": "concrete_metric",
+                        "llm": {"model": "gpt-4o-mini", "provider": "openai"},
+                    },
+                    {"type": "tests.test_evaluator.ConcreteMetric", "name": "another_metric"},
+                ]
+            },
+        }
 
-    def test_to_dict_serializes_metric(self):
-        metric = ConcreteMetric(name="test_metric", llm=make_llm_mock())
-        data = RagasEvaluator(ragas_metrics=[metric]).to_dict()
-        serialized = data["init_parameters"]["ragas_metrics"][0]
-        assert serialized["name"] == "test_metric"
-        assert serialized["llm"] == {"model": "gpt-4o-mini", "provider": "openai"}
-
-    def test_to_dict_serializes_multiple_metrics(self):
-        metrics = [ConcreteMetric(name="m1"), ConcreteMetric(name="m2")]
-        data = RagasEvaluator(ragas_metrics=metrics).to_dict()
-        names = [m["name"] for m in data["init_parameters"]["ragas_metrics"]]
-        assert names == ["m1", "m2"]
-
-    def test_from_dict_reconstructs_evaluator(self, monkeypatch):
+    def test_from_dict(self, monkeypatch):
         monkeypatch.setenv("OPENAI_API_KEY", "test")
-        fake_llm = make_llm_mock()
-        evaluator = RagasEvaluator(ragas_metrics=[ConcreteMetric(name="concrete_metric", llm=fake_llm)])
-        data = evaluator.to_dict()
-
-        with patch("haystack_integrations.components.evaluators.ragas.utils.llm_factory", return_value=fake_llm):
-            reconstructed = RagasEvaluator.from_dict(data)
-
+        data = {
+            "type": "haystack_integrations.components.evaluators.ragas.evaluator.RagasEvaluator",
+            "init_parameters": {
+                "ragas_metrics": [
+                    {
+                        "type": "tests.test_evaluator.ConcreteMetric",
+                        "name": "concrete_metric",
+                        "llm": {"model": "gpt-4o-mini", "provider": "openai"},
+                    },
+                ],
+            },
+        }
+        reconstructed = RagasEvaluator.from_dict(data)
         assert len(reconstructed.metrics) == 1
         assert reconstructed.metrics[0].name == "concrete_metric"
 

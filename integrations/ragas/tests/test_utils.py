@@ -1,7 +1,9 @@
-import pytest
 from unittest.mock import MagicMock, patch
+
+import pytest
 from ragas.metrics.base import SimpleBaseMetric
 from ragas.metrics.result import MetricResult
+
 from haystack_integrations.components.evaluators.ragas.utils import _deserialize_metric, _serialize_metric
 
 
