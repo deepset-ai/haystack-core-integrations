@@ -99,7 +99,7 @@ class RagasEvaluator:
         data["init_parameters"]["ragas_metrics"] = [_deserialize_metric(m) for m in metrics_data]
         return default_from_dict(cls, data)
 
-    @component.output_types(result=dict)
+    @component.output_types(result=dict[str, MetricResult])
     def run(
         self,
         query: str | None = None,
@@ -109,7 +109,7 @@ class RagasEvaluator:
         multi_responses: list[str] | None = None,
         reference: str | None = None,
         rubrics: dict[str, str] | None = None,
-    ) -> dict[str, Any]:
+    ) -> dict[str, MetricResult]:
         """
         Evaluates the provided inputs against each metric and returns the results.
 
@@ -136,7 +136,7 @@ class RagasEvaluator:
                 reference=reference,
                 rubrics=rubrics,
             )
-        except (ValueError, ValidationError) as e:
+        except ValidationError as e:
             self._handle_conversion_error(e)
 
         results: dict[str, MetricResult] = {}
@@ -208,10 +208,7 @@ class RagasEvaluator:
         :params error: Original error.
         """
         if isinstance(error, ValidationError):
-            field_mapping = {
-                "user_input": "query",
-                "retrieved_contexts": "documents",
-            }
+            field_mapping = {"user_input": "query", "retrieved_contexts": "documents"}
             for err in error.errors():
                 # loc is a tuple of strings and ints but according to pydantic docs, the first element is a string
                 # https://docs.pydantic.dev/latest/errors/errors/
@@ -257,7 +254,7 @@ class RagasEvaluator:
             "query": "A string query like 'Question?'",
             "documents": "[Document(content='Example content')]",
             "reference_contexts": "['Example string 1', 'Example string 2']",
-            "response": "ChatMessage(_content='Hi', _role='assistant')",
+            "response": "ChatMessage.from_assistant('Hi')",
             "multi_responses": "['Response 1', 'Response 2']",
             "reference": "'A reference string'",
             "rubrics": "{'score1': 'high_similarity'}",
