@@ -16,8 +16,28 @@ from haystack.components.retrievers.in_memory import InMemoryEmbeddingRetriever
 from haystack.dataclasses import ChatMessage
 from haystack.document_stores.in_memory import InMemoryDocumentStore
 from haystack_integrations.components.evaluators.ragas import RagasEvaluator
-from tests.test_utils import ConcreteMetric, make_llm_mock
 
+
+class ConcreteMetric(SimpleBaseMetric):
+    """Minimal concrete SimpleBaseMetric for serialization tests."""
+
+    def __init__(self, name: str = "concrete_metric", llm=None, embeddings=None):
+        self.name = name
+        self.llm = llm
+        self.embeddings = embeddings
+
+    async def ascore(self, user_input: str, response: str) -> MetricResult:
+        return MetricResult(value=1.0, reason="test")
+
+    def score(self, **kwargs) -> MetricResult:
+        return MetricResult(value=1.0, reason="test")
+
+
+def make_llm_mock(model: str = "gpt-4o-mini", provider: str = "openai") -> MagicMock:
+    llm = MagicMock()
+    llm.model = model
+    llm.provider = provider
+    return llm
 
 def make_metric(name: str, score: float = 0.8, reason: str = "test reason") -> MagicMock:
     """Create a mock SimpleBaseMetric with a concrete ascore signature for inspect.signature."""
@@ -205,7 +225,7 @@ class TestSerialization:
             "init_parameters": {
                 "ragas_metrics": [
                     {
-                        "type": "tests.test_utils.ConcreteMetric",
+                        "type": "tests.test_evaluator.ConcreteMetric",
                         "name": "some_metric",
                         "llm": {"model": "gemini-pro", "provider": "google"},
                     }
