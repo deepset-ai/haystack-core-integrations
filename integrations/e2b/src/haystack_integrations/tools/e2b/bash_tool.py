@@ -46,6 +46,13 @@ class RunBashCommandTool(Tool):
                 result = sb.commands.run(command, timeout=timeout)
                 return f"exit_code: {result.exit_code}\nstdout:\n{result.stdout}\nstderr:\n{result.stderr}"
             except Exception as e:
+                # e2b raises CommandExitException for non-zero exit codes. That exception
+                # carries exit_code/stdout/stderr attributes — treat it as a valid result
+                # rather than an error so the LLM can see and react to the exit status.
+                if hasattr(e, "exit_code"):
+                    stdout = getattr(e, "stdout", "")
+                    stderr = getattr(e, "stderr", "")
+                    return f"exit_code: {e.exit_code}\nstdout:\n{stdout}\nstderr:\n{stderr}"  # type: ignore[union-attr]
                 msg = f"Failed to run bash command: {e}"
                 raise RuntimeError(msg) from e
 
