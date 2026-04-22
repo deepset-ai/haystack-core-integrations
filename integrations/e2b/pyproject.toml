@@ -23,7 +23,7 @@ classifiers = [
   "Programming Language :: Python :: Implementation :: CPython",
   "Programming Language :: Python :: Implementation :: PyPy",
 ]
-dependencies = ["haystack-ai>=2.19.0", "e2b>=1.0.0"]
+dependencies = ["haystack-ai>=2.19.0", "e2b>=2.0.0"]
 
 [project.urls]
 Documentation = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/e2b#readme"
@@ -58,7 +58,7 @@ dependencies = [
     "pytest-rerunfailures",
     "mypy",
     "pip",
-    "e2b",
+    "e2b>=2.0.0",
 ]
 
 [tool.hatch.envs.test.scripts]
