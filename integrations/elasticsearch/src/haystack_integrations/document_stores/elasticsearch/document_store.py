@@ -632,18 +632,14 @@ class ElasticsearchDocumentStore:
                 }
             )
 
-        try:
-            documents_written, errors = helpers.bulk(
-                client=self.client,
-                actions=elasticsearch_actions,
-                refresh=refresh,
-                index=self._index,
-                raise_on_error=False,
-                stats_only=False,
-            )
-        except Exception as e:
-            msg = f"Failed to write documents to Elasticsearch: {e!s}"
-            raise DocumentStoreError(msg) from e
+        documents_written, errors = helpers.bulk(
+            client=self.client,
+            actions=elasticsearch_actions,
+            refresh=refresh,
+            index=self._index,
+            raise_on_error=False,
+            stats_only=False,
+        )
 
         if errors:
             # with stats_only=False, errors is guaranteed to be a list of dicts
@@ -714,18 +710,14 @@ class ElasticsearchDocumentStore:
             }
             actions.append(action)
 
-        try:
-            documents_written, errors = await helpers.async_bulk(
-                client=self.async_client,
-                actions=actions,
-                index=self._index,
-                refresh=refresh,
-                raise_on_error=False,
-                stats_only=False,
-            )
-        except Exception as e:
-            msg = f"Failed to write documents to Elasticsearch: {e!s}"
-            raise DocumentStoreError(msg) from e
+        documents_written, errors = await helpers.async_bulk(
+            client=self.async_client,
+            actions=actions,
+            index=self._index,
+            refresh=refresh,
+            raise_on_error=False,
+            stats_only=False,
+        )
 
         if errors:
             # with stats_only=False, errors is guaranteed to be a list of dicts
@@ -762,17 +754,13 @@ class ElasticsearchDocumentStore:
             - `"wait_for"`: Wait for the next refresh cycle (default, ensures read-your-writes consistency).
             For more details, see the [Elasticsearch refresh documentation](https://www.elastic.co/docs/reference/elasticsearch/rest-apis/refresh-parameter).
         """
-        try:
-            helpers.bulk(
-                client=self.client,
-                actions=({"_op_type": "delete", "_id": id_} for id_ in document_ids),
-                refresh=refresh,
-                index=self._index,
-                raise_on_error=False,
-            )
-        except Exception as e:
-            msg = f"Failed to delete documents from Elasticsearch: {e!s}"
-            raise DocumentStoreError(msg) from e
+        helpers.bulk(
+            client=self.client,
+            actions=({"_op_type": "delete", "_id": id_} for id_ in document_ids),
+            refresh=refresh,
+            index=self._index,
+            raise_on_error=False,
+        )
 
     def _prepare_delete_all_request(self, *, is_async: bool, refresh: bool) -> dict[str, Any]:
         return {
@@ -797,17 +785,13 @@ class ElasticsearchDocumentStore:
         """
         self._ensure_initialized()
 
-        try:
-            await helpers.async_bulk(
-                client=self.async_client,
-                actions=({"_op_type": "delete", "_id": id_} for id_ in document_ids),
-                index=self._index,
-                refresh=refresh,
-                raise_on_error=False,
-            )
-        except Exception as e:
-            msg = f"Failed to delete documents from Elasticsearch: {e!s}"
-            raise DocumentStoreError(msg) from e
+        await helpers.async_bulk(
+            client=self.async_client,
+            actions=({"_op_type": "delete", "_id": id_} for id_ in document_ids),
+            index=self._index,
+            refresh=refresh,
+            raise_on_error=False,
+        )
 
     def delete_all_documents(self, recreate_index: bool = False, refresh: bool = True) -> None:
         """
