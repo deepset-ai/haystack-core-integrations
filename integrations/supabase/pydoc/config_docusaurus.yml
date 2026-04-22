@@ -1,0 +1,15 @@
+loaders:
+  - modules:
+      - haystack_integrations.document_stores.supabase.document_store
+      - haystack_integrations.components.retrievers.supabase.embedding_retriever
+      - haystack_integrations.components.retrievers.supabase.keyword_retriever
+    search_path: [../src]
+processors:
+  - type: filter
+    documented_only: true
+    skip_empty_modules: true
+renderer:
+  description: Supabase integration for Haystack
+  id: integrations-supabase
+  filename: supabase.md
+  title: Supabase
