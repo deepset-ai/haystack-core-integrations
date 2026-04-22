@@ -2,11 +2,10 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-import json
 from typing import Any
 from urllib.parse import quote
 
-import requests
+import httpx
 from haystack import Document, component, default_from_dict, default_to_dict
 from haystack.utils import Secret, deserialize_secrets_inplace
 
@@ -70,6 +69,7 @@ class JinaReaderConnector:
     def to_dict(self) -> dict[str, Any]:
         """
         Serializes the component to a dictionary.
+
         :returns:
             Dictionary with serialized data.
         """
@@ -84,6 +84,7 @@ class JinaReaderConnector:
     def from_dict(cls, data: dict[str, Any]) -> "JinaReaderConnector":
         """
         Deserializes the component from a dictionary.
+
         :param data:
             Dictionary to deserialize from.
         :returns:
@@ -103,6 +104,31 @@ class JinaReaderConnector:
         document = Document(content=content, meta=data)
         return document
 
+    def _prepare_request(self, query: str, headers: dict[str, str] | None = None) -> tuple[str, dict[str, str]]:
+        headers = headers or {}
+        headers["Authorization"] = f"Bearer {self.api_key.resolve_value()}"
+
+        if self.json_response:
+            headers["Accept"] = "application/json"
+
+        endpoint_url = READER_ENDPOINT_URL_BY_MODE[self.mode]
+        encoded_target = quote(query, safe="")
+        url = f"{endpoint_url}{encoded_target}"
+        return url, headers
+
+    def _parse_response(self, response: httpx.Response, query: str) -> dict[str, list[Document]]:
+        # raw response: we just return a single Document with text
+        if not self.json_response:
+            meta = {"content_type": response.headers["Content-Type"], "query": query}
+            return {"documents": [Document(content=response.text, meta=meta)]}
+
+        response_json = response.json().get("data", {})
+        if self.mode == JinaReaderMode.SEARCH:
+            documents = [self._json_to_document(record) for record in response_json]
+            return {"documents": documents}
+
+        return {"documents": [self._json_to_document(response_json)]}
+
     @component.output_types(documents=list[Document])
     def run(self, query: str, headers: dict[str, str] | None = None) -> dict[str, list[Document]]:
         """
@@ -116,26 +142,32 @@ class JinaReaderConnector:
             A dictionary with the following keys:
                 - `documents`: A list of `Document` objects.
         """
-        headers = headers or {}
-        headers["Authorization"] = f"Bearer {self.api_key.resolve_value()}"
+        url, request_headers = self._prepare_request(query, headers)
 
-        if self.json_response:
-            headers["Accept"] = "application/json"
+        with httpx.Client() as client:
+            response = client.get(url, headers=request_headers, timeout=60)
 
-        endpoint_url = READER_ENDPOINT_URL_BY_MODE[self.mode]
-        encoded_target = quote(query, safe="")
-        url = f"{endpoint_url}{encoded_target}"
+        return self._parse_response(response, query)
 
-        response = requests.get(url, headers=headers, timeout=60)
+    @component.output_types(documents=list[Document])
+    async def run_async(self, query: str, headers: dict[str, str] | None = None) -> dict[str, list[Document]]:
+        """
+        Asynchronously process the query/URL using the Jina AI reader service.
 
-        # raw response: we just return a single Document with text
-        if not self.json_response:
-            meta = {"content_type": response.headers["Content-Type"], "query": query}
-            return {"documents": [Document(content=response.text, meta=meta)]}
+        This is the asynchronous version of the `run` method. It has the same parameters and return values
+        but can be used with `await` in async code.
 
-        response_json = json.loads(response.content).get("data", {})
-        if self.mode == JinaReaderMode.SEARCH:
-            documents = [self._json_to_document(record) for record in response_json]
-            return {"documents": documents}
+        :param query: The query string or URL to process.
+        :param headers: Optional headers to include in the request for customization. Refer to the
+            [Jina Reader documentation](https://jina.ai/reader/) for more information.
 
-        return {"documents": [self._json_to_document(response_json)]}
+        :returns:
+            A dictionary with the following keys:
+                - `documents`: A list of `Document` objects.
+        """
+        url, request_headers = self._prepare_request(query, headers)
+
+        async with httpx.AsyncClient() as client:
+            response = await client.get(url, headers=request_headers, timeout=60)
+
+        return self._parse_response(response, query)

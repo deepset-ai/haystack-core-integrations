@@ -1,29 +1,25 @@
 # SPDX-FileCopyrightText: 2023-present deepset GmbH <info@deepset.ai>
 #
 # SPDX-License-Identifier: Apache-2.0
-import json
 import os
 from unittest.mock import patch
 
+import httpx
 import pytest
-import requests
 from haystack import Document
 from haystack.utils import Secret
 
 from haystack_integrations.components.embedders.jina import JinaDocumentEmbedder
 
 
-def mock_session_post_response(*args, **kwargs):  # noqa: ARG001
+def mock_httpx_post_response(*args, **kwargs):  # noqa: ARG001
     inputs = kwargs["json"]["input"]
     model = kwargs["json"]["model"]
-    mock_response = requests.Response()
-    mock_response.status_code = 200
     data = [{"object": "embedding", "index": i, "embedding": [0.1, 0.2, 0.3]} for i in range(len(inputs))]
-    mock_response._content = json.dumps(
-        {"model": model, "object": "list", "usage": {"total_tokens": 4, "prompt_tokens": 4}, "data": data}
-    ).encode()
-
-    return mock_response
+    return httpx.Response(
+        200,
+        json={"model": model, "object": "list", "usage": {"total_tokens": 4, "prompt_tokens": 4}, "data": data},
+    )
 
 
 class TestJinaDocumentEmbedder:
@@ -33,6 +29,7 @@ class TestJinaDocumentEmbedder:
 
         assert embedder.api_key == Secret.from_env_var("JINA_API_KEY")
         assert embedder.model_name == "jina-embeddings-v3"
+        assert embedder.base_url == "https://api.jina.ai/v1/embeddings"
         assert embedder.prefix == ""
         assert embedder.suffix == ""
         assert embedder.batch_size == 32
@@ -44,6 +41,7 @@ class TestJinaDocumentEmbedder:
         embedder = JinaDocumentEmbedder(
             api_key=Secret.from_token("fake-api-key"),
             model="model",
+            base_url="https://my.custom.url/v1/embeddings",
             prefix="prefix",
             suffix="suffix",
             batch_size=64,
@@ -57,6 +55,7 @@ class TestJinaDocumentEmbedder:
 
         assert embedder.api_key == Secret.from_token("fake-api-key")
         assert embedder.model_name == "model"
+        assert embedder.base_url == "https://my.custom.url/v1/embeddings"
         assert embedder.prefix == "prefix"
         assert embedder.suffix == "suffix"
         assert embedder.batch_size == 64
@@ -81,6 +80,7 @@ class TestJinaDocumentEmbedder:
             "init_parameters": {
                 "api_key": {"env_vars": ["JINA_API_KEY"], "strict": True, "type": "env_var"},
                 "model": "jina-embeddings-v3",
+                "base_url": "https://api.jina.ai/v1/embeddings",
                 "prefix": "",
                 "suffix": "",
                 "batch_size": 32,
@@ -94,6 +94,7 @@ class TestJinaDocumentEmbedder:
         monkeypatch.setenv("JINA_API_KEY", "fake-api-key")
         component = JinaDocumentEmbedder(
             model="model",
+            base_url="https://my.custom.url/v1/embeddings",
             prefix="prefix",
             suffix="suffix",
             batch_size=64,
@@ -109,6 +110,7 @@ class TestJinaDocumentEmbedder:
             "init_parameters": {
                 "api_key": {"env_vars": ["JINA_API_KEY"], "strict": True, "type": "env_var"},
                 "model": "model",
+                "base_url": "https://my.custom.url/v1/embeddings",
                 "prefix": "prefix",
                 "suffix": "suffix",
                 "batch_size": 64,
@@ -160,7 +162,7 @@ class TestJinaDocumentEmbedder:
     def test_embed_batch(self):
         texts = ["text 1", "text 2", "text 3", "text 4", "text 5"]
 
-        with patch("requests.sessions.Session.post", side_effect=mock_session_post_response):
+        with patch("httpx.Client.post", side_effect=mock_httpx_post_response):
             embedder = JinaDocumentEmbedder(api_key=Secret.from_token("fake-api-key"), model="model")
 
             embeddings, metadata = embedder._embed_batch(texts_to_embed=texts, batch_size=2)
@@ -181,7 +183,7 @@ class TestJinaDocumentEmbedder:
         ]
 
         model = "jina-embeddings-v2-base-en"
-        with patch("requests.sessions.Session.post", side_effect=mock_session_post_response):
+        with patch("httpx.Client.post", side_effect=mock_httpx_post_response):
             embedder = JinaDocumentEmbedder(
                 api_key=Secret.from_token("fake-api-key"),
                 model=model,
@@ -212,7 +214,7 @@ class TestJinaDocumentEmbedder:
         ]
 
         model = "jina-embeddings-v2-base-en"
-        with patch("requests.sessions.Session.post", side_effect=mock_session_post_response):
+        with patch("httpx.Client.post", side_effect=mock_httpx_post_response):
             embedder = JinaDocumentEmbedder(
                 api_key=Secret.from_token("fake-api-key"),
                 model=model,
@@ -234,7 +236,7 @@ class TestJinaDocumentEmbedder:
             Document(content="A transformer is a deep learning architecture", meta={"topic": "ML"}),
         ]
         model = "jina-embeddings-v2-base-en"
-        with patch("requests.sessions.Session.post", side_effect=mock_session_post_response):
+        with patch("httpx.Client.post", side_effect=mock_httpx_post_response):
             embedder = JinaDocumentEmbedder(
                 api_key=Secret.from_token("fake-api-key"),
                 model=model,
@@ -281,6 +283,51 @@ class TestJinaDocumentEmbedder:
         assert result["documents"] is not None
         assert not result["documents"]  # empty list
 
+    @pytest.mark.asyncio
+    async def test_run_async(self):
+        docs = [
+            Document(content="I love cheese", meta={"topic": "Cuisine"}),
+            Document(content="A transformer is a deep learning architecture", meta={"topic": "ML"}),
+        ]
+
+        model = "jina-embeddings-v2-base-en"
+        with patch("httpx.AsyncClient.post", side_effect=mock_httpx_post_response):
+            embedder = JinaDocumentEmbedder(
+                api_key=Secret.from_token("fake-api-key"),
+                model=model,
+                prefix="prefix ",
+                suffix=" suffix",
+                meta_fields_to_embed=["topic"],
+                embedding_separator=" | ",
+            )
+
+            result = await embedder.run_async(documents=docs)
+
+        documents_with_embeddings = result["documents"]
+        metadata = result["meta"]
+
+        assert isinstance(documents_with_embeddings, list)
+        assert len(documents_with_embeddings) == len(docs)
+        for doc in documents_with_embeddings:
+            assert isinstance(doc, Document)
+            assert isinstance(doc.embedding, list)
+            assert len(doc.embedding) == 3
+            assert all(isinstance(x, float) for x in doc.embedding)
+        assert metadata == {"model": model, "usage": {"prompt_tokens": 4, "total_tokens": 4}}
+
+    @pytest.mark.asyncio
+    async def test_run_async_wrong_input_format(self):
+        embedder = JinaDocumentEmbedder(api_key=Secret.from_token("fake-api-key"))
+
+        string_input = "text"
+        list_integers_input = [1, 2, 3]
+
+        with pytest.raises(TypeError, match="JinaDocumentEmbedder expects a list of Documents as input"):
+            await embedder.run_async(documents=string_input)
+
+        with pytest.raises(TypeError, match="JinaDocumentEmbedder expects a list of Documents as input"):
+            await embedder.run_async(documents=list_integers_input)
+
     def test_run_with_v3(self):
         docs = [
             Document(content="I love cheese", meta={"topic": "Cuisine"}),
@@ -288,7 +335,7 @@ class TestJinaDocumentEmbedder:
         ]
 
         model = "jina-embeddings-v3"
-        with patch("requests.sessions.Session.post", side_effect=mock_session_post_response):
+        with patch("httpx.Client.post", side_effect=mock_httpx_post_response):
             embedder = JinaDocumentEmbedder(
                 api_key=Secret.from_token("fake-api-key"),
                 model=model,
@@ -323,6 +370,31 @@ class TestJinaDocumentEmbedder:
         ]
 
         result = embedder.run(documents=docs)
+
+        assert "documents" in result
+        assert len(result["documents"]) == 2
+        for doc in result["documents"]:
+            assert isinstance(doc, Document)
+            assert isinstance(doc.embedding, list)
+            assert len(doc.embedding) > 0
+            assert all(isinstance(x, (int, float)) for x in doc.embedding)
+
+        assert "meta" in result
+        assert isinstance(result["meta"], dict)
+        assert "model" in result["meta"]
+        assert "usage" in result["meta"]
+
+    @pytest.mark.skipif(not os.environ.get("JINA_API_KEY", None), reason="JINA_API_KEY env var not set")
+    @pytest.mark.integration
+    @pytest.mark.asyncio
+    async def test_run_async_integration(self):
+        embedder = JinaDocumentEmbedder(model="jina-embeddings-v3", task="retrieval.passage")
+        docs = [
+            Document(content="Paris is the capital of France."),
+            Document(content="Berlin is the capital of Germany."),
+        ]
+
+        result = await embedder.run_async(documents=docs)
 
         assert "documents" in result
         assert len(result["documents"]) == 2

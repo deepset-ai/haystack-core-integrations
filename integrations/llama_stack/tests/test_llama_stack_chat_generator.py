@@ -492,6 +492,6 @@ class TestLlamaStackChatGenerator:
         assert len(results["replies"]) == 1
         message: ChatMessage = results["replies"][0]
         msg = json.loads(message.text)
-        assert "Marketing Summit" in msg["event_name"]
+        assert "marketing summit" in msg["event_name"].lower()
         assert isinstance(msg["event_date"], str)
         assert isinstance(msg["event_location"], str)

@@ -36,6 +36,7 @@ class Model:
         return hash(self.id)
 
     def validate(self) -> int:
+        """Validate the model against the backend and return a sort key."""
         if self.client:
             client = self.client if isinstance(self.client, Client) else Client.from_str(self.client)
             supported = {

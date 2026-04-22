@@ -20,22 +20,25 @@ on:
 
 jobs:
   release-on-pypi:
-    runs-on: ubuntu-slim
+    runs-on: ubuntu-latest
+    environment: pypi
+    permissions:
+      id-token: write
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           token: ${{ secrets.HAYSTACK_BOT_TOKEN }}
           fetch-depth: 0
 
       - name: Set up Python
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
         with:
           python-version: "3.12"
 
       - name: Install dependencies
-        run: pip install hatch "virtualenv<21.0.0" requests
+        run: pip install hatch requests
 
       - name: Validate version number
         run: python .github/utils/validate_version.py --tag ${{ github.ref_name }}
@@ -54,14 +57,12 @@ jobs:
         run: hatch build
 
       - name: Publish on PyPi
-        working-directory: ${{ steps.pathfinder.outputs.project_path }}
-        env:
-          HATCH_INDEX_USER: __token__
-          HATCH_INDEX_AUTH: ${{ secrets.PYPI_API_TOKEN }}
-        run: hatch publish -y
+        uses: pypa/gh-action-pypi-publish@cef221092ed1bacb1cc03d23a2d87d1d172e277b # v1.14.0
+        with:
+          packages-dir: ${{ steps.pathfinder.outputs.project_path }}/dist
 
       - name: Generate changelog
-        uses: orhun/git-cliff-action@v4
+        uses: orhun/git-cliff-action@c93ef52f3d0ddcdcc9bd5447d98d458a11cd4f72 # v4.7.1
         env:
           OUTPUT: "${{ steps.pathfinder.outputs.project_path }}/CHANGELOG.md"
         with:
@@ -71,7 +72,7 @@ jobs:
             --tag-pattern "${{ steps.pathfinder.outputs.project_path }}-v*"
 
       - name: Commit changelog
-        uses: EndBug/add-and-commit@v9
+        uses: EndBug/add-and-commit@290ea2c423ad77ca9c62ae0f5b224379612c0321 # v10.0.0
         with:
           author_name: "HaystackBot"
           author_email: "accounts@deepset.ai"

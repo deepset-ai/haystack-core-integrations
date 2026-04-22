@@ -59,6 +59,7 @@ class TestS3Downloader:
             max_cache_size=100,
             max_workers=32,
             file_name_meta_key="file_id",
+            s3_bucket_name_env="b",
         )
         assert d.file_extensions == [".pdf", ".txt"]
 
@@ -68,17 +69,38 @@ class TestS3Downloader:
         expected = {
             "type": TYPE,
             "init_parameters": {
-                "aws_access_key_id": {"type": "env_var", "env_vars": ["AWS_ACCESS_KEY_ID"], "strict": False},
-                "aws_secret_access_key": {"type": "env_var", "env_vars": ["AWS_SECRET_ACCESS_KEY"], "strict": False},
-                "aws_region_name": {"type": "env_var", "env_vars": ["AWS_DEFAULT_REGION"], "strict": False},
-                "aws_session_token": {"type": "env_var", "env_vars": ["AWS_SESSION_TOKEN"], "strict": False},
-                "aws_profile_name": {"type": "env_var", "env_vars": ["AWS_PROFILE"], "strict": False},
+                "aws_access_key_id": {
+                    "type": "env_var",
+                    "env_vars": ["AWS_ACCESS_KEY_ID"],
+                    "strict": False,
+                },
+                "aws_secret_access_key": {
+                    "type": "env_var",
+                    "env_vars": ["AWS_SECRET_ACCESS_KEY"],
+                    "strict": False,
+                },
+                "aws_region_name": {
+                    "type": "env_var",
+                    "env_vars": ["AWS_DEFAULT_REGION"],
+                    "strict": False,
+                },
+                "aws_session_token": {
+                    "type": "env_var",
+                    "env_vars": ["AWS_SESSION_TOKEN"],
+                    "strict": False,
+                },
+                "aws_profile_name": {
+                    "type": "env_var",
+                    "env_vars": ["AWS_PROFILE"],
+                    "strict": False,
+                },
                 "file_root_path": str(tmp_path),
                 "file_extensions": None,
                 "max_cache_size": 100,
                 "max_workers": 32,
                 "file_name_meta_key": "file_name",
                 "s3_key_generation_function": None,
+                "s3_bucket_name_env": "S3_DOWNLOADER_BUCKET",
             },
         }
         assert d.to_dict() == expected
@@ -88,13 +110,34 @@ class TestS3Downloader:
         data = {
             "type": TYPE,
             "init_parameters": {
-                "aws_access_key_id": {"type": "env_var", "env_vars": ["AWS_ACCESS_KEY_ID"], "strict": False},
-                "aws_secret_access_key": {"type": "env_var", "env_vars": ["AWS_SECRET_ACCESS_KEY"], "strict": False},
-                "aws_region_name": {"type": "env_var", "env_vars": ["AWS_DEFAULT_REGION"], "strict": False},
-                "aws_session_token": {"type": "env_var", "env_vars": ["AWS_SESSION_TOKEN"], "strict": False},
-                "aws_profile_name": {"type": "env_var", "env_vars": ["AWS_PROFILE"], "strict": False},
+                "aws_access_key_id": {
+                    "type": "env_var",
+                    "env_vars": ["AWS_ACCESS_KEY_ID"],
+                    "strict": False,
+                },
+                "aws_secret_access_key": {
+                    "type": "env_var",
+                    "env_vars": ["AWS_SECRET_ACCESS_KEY"],
+                    "strict": False,
+                },
+                "aws_region_name": {
+                    "type": "env_var",
+                    "env_vars": ["AWS_DEFAULT_REGION"],
+                    "strict": False,
+                },
+                "aws_session_token": {
+                    "type": "env_var",
+                    "env_vars": ["AWS_SESSION_TOKEN"],
+                    "strict": False,
+                },
+                "aws_profile_name": {
+                    "type": "env_var",
+                    "env_vars": ["AWS_PROFILE"],
+                    "strict": False,
+                },
                 "file_root_path": str(tmp_path),
                 "s3_key_generation_function": None,
+                "s3_bucket_name_env": "S3_DOWNLOADER_BUCKET",
             },
         }
         d = S3Downloader.from_dict(data)
@@ -108,21 +151,43 @@ class TestS3Downloader:
             max_workers=40,
             file_name_meta_key="new_file_key",
             s3_key_generation_function=s3_key_generation_function,
+            s3_bucket_name_env="b",
         )
         expected = {
             "type": TYPE,
             "init_parameters": {
-                "aws_access_key_id": {"type": "env_var", "env_vars": ["AWS_ACCESS_KEY_ID"], "strict": False},
-                "aws_secret_access_key": {"type": "env_var", "env_vars": ["AWS_SECRET_ACCESS_KEY"], "strict": False},
-                "aws_region_name": {"type": "env_var", "env_vars": ["AWS_DEFAULT_REGION"], "strict": False},
-                "aws_session_token": {"type": "env_var", "env_vars": ["AWS_SESSION_TOKEN"], "strict": False},
-                "aws_profile_name": {"type": "env_var", "env_vars": ["AWS_PROFILE"], "strict": False},
+                "aws_access_key_id": {
+                    "type": "env_var",
+                    "env_vars": ["AWS_ACCESS_KEY_ID"],
+                    "strict": False,
+                },
+                "aws_secret_access_key": {
+                    "type": "env_var",
+                    "env_vars": ["AWS_SECRET_ACCESS_KEY"],
+                    "strict": False,
+                },
+                "aws_region_name": {
+                    "type": "env_var",
+                    "env_vars": ["AWS_DEFAULT_REGION"],
+                    "strict": False,
+                },
+                "aws_session_token": {
+                    "type": "env_var",
+                    "env_vars": ["AWS_SESSION_TOKEN"],
+                    "strict": False,
+                },
+                "aws_profile_name": {
+                    "type": "env_var",
+                    "env_vars": ["AWS_PROFILE"],
+                    "strict": False,
+                },
                 "file_root_path": str(tmp_path),
                 "file_extensions": [".txt"],
                 "max_cache_size": 400,
                 "max_workers": 40,
                 "file_name_meta_key": "new_file_key",
                 "s3_key_generation_function": "tests.test_s3_downloader.s3_key_generation_function",
+                "s3_bucket_name_env": "b",
             },
         }
         assert d.to_dict() == expected
@@ -162,7 +227,10 @@ class TestS3Downloader:
         assert out["documents"][0].meta["custom_file_key"] == "a.txt"
 
     def test_run_with_s3_key_generation_function(self, tmp_path, mock_s3_storage, mock_boto3_session):
-        d = S3Downloader(file_root_path=str(tmp_path), s3_key_generation_function=s3_key_generation_function)
+        d = S3Downloader(
+            file_root_path=str(tmp_path),
+            s3_key_generation_function=s3_key_generation_function,
+        )
         d._storage = mock_s3_storage
 
         docs = [Document(meta={"file_id": str(uuid4()), "file_name": "a.txt"})]
@@ -192,6 +260,76 @@ class TestS3Downloader:
         assert out["documents"][0].meta["file_name"] == "a.txt"
         mock_s3_storage.download.assert_called_once()
         assert mock_s3_storage.download.call_args.kwargs["key"] == "a.txt_suffix"
+
+    def test_init_missing_file_root_path(self, mock_boto3_session, monkeypatch):
+        monkeypatch.delenv("FILE_ROOT_PATH", raising=False)
+        with pytest.raises(ValueError, match="file_root_path"):
+            S3Downloader()
+
+    def test_init_file_root_path_from_env(self, mock_boto3_session, tmp_path, monkeypatch):
+        monkeypatch.setenv("FILE_ROOT_PATH", str(tmp_path))
+        d = S3Downloader()
+        assert Path(d.file_root_path) == tmp_path
+
+    def test_warm_up_initializes_storage(self, mock_boto3_session, tmp_path):
+        d = S3Downloader(file_root_path=str(tmp_path / "nested"))
+        with patch("haystack_integrations.components.downloaders.s3.s3_downloader.S3Storage.from_env") as mock_from_env:
+            mock_from_env.return_value = MagicMock(spec=S3Storage)
+            d.warm_up()
+            assert d._storage is not None
+            assert (tmp_path / "nested").is_dir()
+            mock_from_env.assert_called_once()
+
+    def test_run_skips_document_missing_file_name_meta(self, tmp_path, mock_s3_storage, mock_boto3_session):
+        d = S3Downloader(file_root_path=str(tmp_path))
+        d._storage = mock_s3_storage
+
+        docs = [Document(meta={"file_id": str(uuid4())})]
+        out = d.run(documents=docs)
+        assert out["documents"] == []
+        mock_s3_storage.download.assert_not_called()
+
+    def test_run_file_already_cached(self, tmp_path, mock_s3_storage, mock_boto3_session):
+        existing_file = tmp_path / "cached.txt"
+        existing_file.write_bytes(b"cached")
+
+        d = S3Downloader(file_root_path=str(tmp_path))
+        d._storage = mock_s3_storage
+
+        out = d.run(documents=[Document(meta={"file_name": "cached.txt"})])
+        assert out["documents"][0].meta["file_path"] == str(existing_file)
+        mock_s3_storage.download.assert_not_called()
+
+    def test_run_returns_empty_when_all_filtered(self, tmp_path, mock_s3_storage, mock_boto3_session):
+        d = S3Downloader(file_root_path=str(tmp_path), file_extensions=[".txt"])
+        d._storage = mock_s3_storage
+
+        out = d.run(documents=[Document(meta={"file_name": "a.pdf"})])
+        assert out["documents"] == []
+        mock_s3_storage.download.assert_not_called()
+
+    def test_cleanup_cache_evicts_old_files(self, tmp_path, mock_s3_storage, mock_boto3_session):
+        d = S3Downloader(file_root_path=str(tmp_path), max_cache_size=1)
+        d._storage = mock_s3_storage
+
+        stale = tmp_path / "stale.txt"
+        stale.write_bytes(b"stale")
+        os.utime(stale, (0, 0))
+
+        d.run(documents=[Document(meta={"file_name": "fresh.txt"})])
+
+        assert not stale.exists()
+
+    def test_from_dict_with_serialized_callable(self, mock_boto3_session, tmp_path):
+        data = {
+            "type": TYPE,
+            "init_parameters": {
+                "file_root_path": str(tmp_path),
+                "s3_key_generation_function": "tests.test_s3_downloader.s3_key_generation_function",
+            },
+        }
+        d = S3Downloader.from_dict(data)
+        assert d.s3_key_generation_function is s3_key_generation_function
 
     @pytest.mark.integration
     @pytest.mark.skipif(

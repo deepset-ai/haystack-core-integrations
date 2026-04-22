@@ -1,5 +1,26 @@
 # Changelog
 
+## [integrations/azure_ai_search-v3.2.0] - 2026-03-30
+
+### 🚀 Features
+
+- Add support for Azure `TokenCredentials` to `AzureAISearchDocumentStore` (#3014)
+
+### 🚜 Refactor
+
+- Weaviate, chroma, elasticsearch, opensearch, azure_ai_search use `_normalize_metadata_field_name` from haystack.utils (#2953)
+
+### 🧪 Testing
+
+- Test compatible integrations with python 3.14; update pyproject (#3001)
+- `AzureAISearchDocumentStore` use Mixin tests (#3031)
+
+### 🧹 Chores
+
+- Add missing type annotations and docstrings to azure_ai_search (#2975)
+- Enforce ruff docstring rules (D102/D103/D205/D209/D213/D417/D419) in first 10 integrations (#3008)
+
+
 ## [integrations/azure_ai_search-v3.1.0] - 2026-03-02
 
 ### 🚀 Features

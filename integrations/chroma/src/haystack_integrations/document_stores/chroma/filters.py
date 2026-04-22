@@ -44,8 +44,10 @@ class ChromaFilter:
 
 def _convert_filters(filters: dict[str, Any]) -> ChromaFilter:
     """
-    Converts Haystack filters into a format compatible with Chroma, separating them into ids, metadata filters,
-    and content filters to be passed to chroma as ids, where, and where_document clauses respectively.
+    Converts Haystack filters into a format compatible with Chroma.
+
+    Separates filters into ids, metadata filters, and content filters to be passed to chroma as ids, where,
+    and where_document clauses respectively.
     """
 
     ids = []
@@ -103,9 +105,7 @@ def _convert_filter_clause(filters: dict[str, Any]) -> dict[str, Any]:
 
 def _create_where_document_filter(field: str, value: dict[Any, Any]) -> dict[str, Any]:
     """
-    Method to check if given haystack filter is a document filter
-    and converts it to Chroma-compatible where_document filter.
-
+    Check if a given Haystack filter is a document filter and convert it to a Chroma-compatible where_document filter.
     """
     where_document: dict[str, list[Any]] = defaultdict(list)
 

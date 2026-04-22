@@ -1,5 +1,43 @@
 # Changelog
 
+## [integrations/mcp-v1.3.0] - 2026-03-24
+
+### 🚀 Features
+
+- Make connection to Stdio MCP servers work on notebooks by redirecting errlog (#3037)
+
+### 📚 Documentation
+
+- Fix some invalid raises directives (#2847)
+- Simplify pydoc configs (#2855)
+
+### 🧪 Testing
+
+- Test compatible integrations with python 3.14; update pyproject (#3001)
+
+### 🧹 Chores
+
+- Remove unused allow-direct-references (#2866)
+- Add ANN ruff ruleset to llama_cpp, llama_stack, mcp, meta_llama, mistral, mongodb_atlas, nvidia, ollama, openrouter, opensearch (#2991)
+- Enforce ruff docstring rules (D102/D103/D205/D209/D213/D417/D419) in integrations 21-30 (#3010)
+
+## [integrations/mcp-v1.2.0] - 2026-01-16
+
+### 🚀 Features
+
+- Add state-based configuration support to MCPToolset (#2689)
+
+
+### 🧹 Chores
+
+- Remove Readme API CI workflow and configs (#2573)
+- Make fmt command more forgiving (#2671)
+
+### 🌀 Miscellaneous
+
+- Chore: Simplify and update mcp examples (#2581)
+- Fix: Proper tool validation in mcp (#2654)
+
 ## [integrations/mcp-v1.1.0] - 2025-11-12
 
 ### 🚀 Features
@@ -33,28 +71,6 @@
 ### 🌀 Miscellaneous
 
 - Add MCPTool/MCPToolset warm_up (#2384)
-- Added `eager_connect` parameter to `MCPTool` and `MCPToolset` (default: `False`).
-  
-  **When `eager_connect=False` (default)**:
-  - Connection deferred until first use or `warm_up()` call
-  - Fast initialization, enables pipeline validation without server availability
-  - Recommended for most use cases
-  
-  **When `eager_connect=True`**:
-  - Connects immediately during initialization
-  - Fail-fast validation, tool schema available immediately
-  - Use when you need upfront validation
-  - Existing agent/pipelines should set `eager_connect=True` to keep the behaviour from previous releases
-  
-  ```python
-  # Lazy connection (default)
-  tool = MCPTool(name="weather", server_info=info)
-  
-  # Eager connection
-  tool = MCPTool(name="weather", server_info=info, eager_connect=True)
-  ```
-- See related https://github.com/deepset-ai/haystack/pull/9856 for more details
-
 
 ## [integrations/mcp-v0.8.0] - 2025-10-14
 

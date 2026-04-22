@@ -6,7 +6,7 @@ import logging as python_logging
 from datetime import datetime
 from typing import Any
 
-from azure.core.credentials import AzureKeyCredential
+from azure.core.credentials import AzureKeyCredential, TokenCredential
 from azure.core.exceptions import (
     ClientAuthenticationError,
     HttpResponseError,
@@ -107,8 +107,7 @@ FIELD_TYPE_MAPPING = {
 
 class AzureAISearchDocumentStore:
     """
-    A document store using [Azure AI Search](https://azure.microsoft.com/products/ai-services/ai-search/)
-    as the backend.
+    Document store using [Azure AI Search](https://azure.microsoft.com/products/ai-services/ai-search/) as the backend.
     """
 
     def __init__(
@@ -121,6 +120,7 @@ class AzureAISearchDocumentStore:
         metadata_fields: dict[str, SearchField | type] | None = None,
         vector_search_configuration: VectorSearch | None = None,
         include_search_metadata: bool = False,
+        azure_token_credential: TokenCredential | None = None,
         **index_creation_kwargs: Any,
     ) -> None:
         """
@@ -155,6 +155,8 @@ class AzureAISearchDocumentStore:
             in the returned documents. When set to True, the `meta` field of the returned
             documents will contain the @search.score, @search.reranker_score, @search.highlights,
             @search.captions, and other fields returned by Azure AI Search.
+        :param azure_token_credential: An Azure `TokenCredential` instance used to authenticate requests.
+            When provided, this takes priority over `api_key`.
         :param index_creation_kwargs: Optional keyword parameters to be passed to `SearchIndex` class
             during index creation. Some of the supported parameters:
                 - `semantic_search`: Defines semantic configuration of the search index. This parameter is needed
@@ -176,14 +178,21 @@ class AzureAISearchDocumentStore:
         self._metadata_fields = AzureAISearchDocumentStore._normalize_metadata_index_fields(metadata_fields)
         self._vector_search_configuration = vector_search_configuration or DEFAULT_VECTOR_SEARCH
         self._include_search_metadata = include_search_metadata
+        self._azure_token_credential = azure_token_credential
         self._index_creation_kwargs = index_creation_kwargs
 
     @property
     def client(self) -> SearchClient:
+        """Return the Azure SearchClient, creating the index if it does not exist."""
         resolved_endpoint = self._azure_endpoint.resolve_value()
         resolved_key = self._api_key.resolve_value()
 
-        credential = AzureKeyCredential(resolved_key) if resolved_key else DefaultAzureCredential()
+        if self._azure_token_credential is not None:
+            credential: TokenCredential | AzureKeyCredential = self._azure_token_credential
+        elif resolved_key:
+            credential = AzureKeyCredential(resolved_key)
+        else:
+            credential = DefaultAzureCredential()
 
         # build a UserAgentPolicy to be used for the request
         ua_policy = UserAgentPolicy(user_agent=USER_AGENT)
@@ -295,6 +304,7 @@ class AzureAISearchDocumentStore:
     ) -> dict[str, Any]:
         """
         Serializes the index creation kwargs to a dictionary.
+
         This is needed to handle serialization of Azure AI Search classes
         that are passed in the index creation kwargs.
         """
@@ -315,6 +325,13 @@ class AzureAISearchDocumentStore:
         :returns:
             Dictionary with serialized data.
         """
+        if self._azure_token_credential:
+            logger.warning(
+                "AzureAISearchDocumentStore was initialized with `azure_token_credential`, "
+                "which cannot be serialized. It will be excluded from the serialized output "
+                "and must be provided again when deserializing."
+            )
+
         return default_to_dict(
             self,
             azure_endpoint=(self._azure_endpoint.to_dict() if self._azure_endpoint else None),
@@ -715,6 +732,7 @@ class AzureAISearchDocumentStore:
     def search_documents(self, search_text: str = "*", top_k: int = 10) -> list[Document]:
         """
         Returns all documents that match the provided search_text.
+
         If search_text is None, returns all documents.
         :param search_text: the text to search for in the Document list.
         :param top_k: Maximum number of documents to return.
@@ -726,6 +744,7 @@ class AzureAISearchDocumentStore:
     def filter_documents(self, filters: dict[str, Any] | None = None) -> list[Document]:
         """
         Returns the documents that match the provided filters.
+
         Filters should be given as a dictionary supporting filtering by metadata. For details on
         filters, see the [metadata filtering documentation](https://docs.haystack.deepset.ai/docs/metadata-filtering).
 
@@ -826,6 +845,7 @@ class AzureAISearchDocumentStore:
     ) -> list[Document]:
         """
         Retrieves documents that are most similar to the query embedding using a vector similarity metric.
+
         It uses the vector configuration specified in the document store. By default, it uses the HNSW algorithm
         with cosine similarity.
 
@@ -892,8 +912,9 @@ class AzureAISearchDocumentStore:
         **kwargs: Any,
     ) -> list[Document]:
         """
-        Retrieves documents similar to query using the vector configuration in the document store and
-        the BM25 algorithm. This method combines vector similarity and BM25 for improved retrieval.
+        Retrieve documents using vector search combined with the BM25 algorithm.
+
+        This method combines vector similarity and BM25 for improved retrieval.
 
         This method is not meant to be part of the public interface of
         `AzureAISearchDocumentStore` nor called directly.

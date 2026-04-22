@@ -15,7 +15,8 @@ from kreuzberg import (
 
 
 def _is_batch_error(result: ExtractionResult) -> bool:
-    """Detect error results returned by kreuzberg's batch APIs.
+    """
+    Detect error results returned by kreuzberg's batch APIs.
 
     Batch APIs return ``ExtractionResult(content="Error: ...", metadata={},
     quality_score=None)`` instead of raising exceptions. Valid results always
@@ -46,6 +47,19 @@ def _serialize_warnings(warnings: list[Any]) -> list[dict[str, str]]:
         else:
             serialized.append({"source": getattr(w, "source", ""), "message": getattr(w, "message", "")})
     return serialized
+
+
+def _serialize_keywords(keywords: list[Any]) -> list[dict[str, Any]]:
+    """Serialize kreuzberg `ExtractedKeyword` objects to plain dicts (PyO3 objects aren't picklable)."""
+    return [
+        {
+            "text": k.text,
+            "score": k.score,
+            "algorithm": k.algorithm,
+            "positions": list(k.positions) if k.positions is not None else None,
+        }
+        for k in keywords
+    ]
 
 
 def _serialize_annotations(annotations: list[Any]) -> list[dict[str, Any]]:

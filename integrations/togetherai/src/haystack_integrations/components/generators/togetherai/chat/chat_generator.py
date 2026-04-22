@@ -20,6 +20,7 @@ logger = logging.getLogger(__name__)
 class TogetherAIChatGenerator(OpenAIChatGenerator):
     """
     Enables text generation using Together AI generative models.
+
     For supported models, see [Together AI docs](https://docs.together.ai/docs).
 
     Users can pass any text generation parameters valid for the Together AI chat completion API
@@ -72,8 +73,7 @@ class TogetherAIChatGenerator(OpenAIChatGenerator):
         http_client_kwargs: dict[str, Any] | None = None,
     ) -> None:
         """
-        Creates an instance of TogetherAIChatGenerator. Unless specified otherwise,
-        the default model is `meta-llama/Llama-3.3-70B-Instruct-Turbo`.
+        Creates an instance of TogetherAIChatGenerator.
 
         :param api_key:
             The Together API key.

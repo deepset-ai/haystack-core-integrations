@@ -3,6 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 from copy import copy
+from dataclasses import replace
 from typing import Any, Literal
 
 from haystack import default_from_dict, default_to_dict, logging
@@ -47,6 +48,7 @@ class PineconeDocumentStore:
     ) -> None:
         """
         Creates a new PineconeDocumentStore instance.
+
         It is meant to be connected to a Pinecone index and namespace.
 
         :param api_key: The Pinecone API key.
@@ -180,6 +182,7 @@ class PineconeDocumentStore:
     def from_dict(cls, data: dict[str, Any]) -> "PineconeDocumentStore":
         """
         Deserializes the component from a dictionary.
+
         :param data:
             Dictionary to deserialize from.
         :returns:
@@ -191,6 +194,7 @@ class PineconeDocumentStore:
     def to_dict(self) -> dict[str, Any]:
         """
         Serializes the component to a dictionary.
+
         :returns:
             Dictionary with serialized data.
         """
@@ -307,8 +311,7 @@ class PineconeDocumentStore:
 
         # when simply filtering, we don't want to return any scores
         # furthermore, we are querying with a dummy vector, so the scores are meaningless
-        for doc in documents:
-            doc.score = None
+        documents = [replace(doc, score=None) for doc in documents]
 
         if len(documents) == TOP_K_LIMIT:
             logger.warning(
@@ -333,8 +336,7 @@ class PineconeDocumentStore:
             query_embedding=self._dummy_vector, filters=filters, top_k=TOP_K_LIMIT
         )
 
-        for doc in documents:
-            doc.score = None
+        documents = [replace(doc, score=None) for doc in documents]
 
         if len(documents) == TOP_K_LIMIT:
             logger.warning(
@@ -396,10 +398,8 @@ class PineconeDocumentStore:
         :param documents: List of documents to update.
         :param meta: Metadata fields to merge into each document's existing metadata.
         """
-        for document in documents:
-            if document.meta is None:
-                document.meta = {}
-            document.meta.update(meta)
+        for i, document in enumerate(documents):
+            documents[i] = replace(document, meta={**(document.meta or {}), **meta})
 
     def delete_by_filter(self, filters: dict[str, Any]) -> int:
         """
@@ -632,8 +632,10 @@ class PineconeDocumentStore:
     @staticmethod
     def _convert_meta_to_int(metadata: dict[str, Any]) -> dict[str, Any]:
         """
-        Pinecone store numeric metadata values as `float`. Some specific metadata are used in Retrievers components and
-        are expected to be `int`. This method converts them back to integers.
+        Convert specific numeric metadata values from `float` back to `int`.
+
+        Pinecone stores numeric metadata values as `float`. Some specific metadata are used in Retrievers
+        components and are expected to be `int`. This method converts them back to integers.
         """
         values_to_convert = ["split_id", "split_idx_start", "page_number"]
 
@@ -666,7 +668,7 @@ class PineconeDocumentStore:
         return documents
 
     @staticmethod
-    def _discard_invalid_meta(document: Document) -> None:
+    def _discard_invalid_meta(document: Document) -> Document:
         """
         Remove metadata fields with unsupported types from the document.
         """
@@ -692,7 +694,9 @@ class PineconeDocumentStore:
                 )
                 logger.warning(msg)
 
-            document.meta = new_meta
+            return replace(document, meta=new_meta)
+
+        return document
 
     def _convert_documents_to_pinecone_format(
         self, documents: list[Document]
@@ -707,10 +711,9 @@ class PineconeDocumentStore:
                 )
                 embedding = self._dummy_vector
 
-            if document.meta:
-                self._discard_invalid_meta(document)
+            filtered_meta = self._discard_invalid_meta(document).meta if document.meta else {}
 
-            metadata = dict(document.meta) if document.meta else {}
+            metadata = dict(filtered_meta) if filtered_meta else {}
 
             # we save content as metadata
             if document.content is not None:
@@ -852,10 +855,11 @@ class PineconeDocumentStore:
     @staticmethod
     def _get_metadata_field_min_max_impl(documents: list[Document], metadata_field: str) -> dict[str, Any]:
         """Helper method to get min/max values for a metadata field (supports numeric, boolean, and string types)."""
+        field_name = metadata_field.removeprefix("meta.")
         values: list[bool | int | float | str] = []
         for doc in documents:
-            if doc.meta and metadata_field in doc.meta:
-                value = doc.meta[metadata_field]
+            if doc.meta and field_name in doc.meta:
+                value = doc.meta[field_name]
                 # Note: bool check must come before numeric because bool is subclass of int
                 if isinstance(value, bool):
                     values.append(value)

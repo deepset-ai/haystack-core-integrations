@@ -99,6 +99,7 @@ class PgvectorDocumentStore:
     ) -> None:
         """
         Creates a new PgvectorDocumentStore instance.
+
         It is meant to be connected to a PostgreSQL database with the pgvector extension installed.
         A specific table to store Haystack documents will be created if it doesn't exist yet.
 
@@ -349,6 +350,7 @@ class PgvectorDocumentStore:
     def _ensure_db_setup(self) -> None:
         """
         Ensures that the connection to the PostgreSQL database exists and is valid.
+
         If not, connection and cursors are created.
         If the table is not initialized, it will be set up.
         """
@@ -387,6 +389,7 @@ class PgvectorDocumentStore:
     async def _ensure_db_setup_async(self) -> None:
         """
         Async internal method.
+
         Ensures that the connection to the PostgreSQL database exists and is valid.
         If not, connection and cursors are created.
         If the table is not initialized, it will be set up.
@@ -550,6 +553,7 @@ class PgvectorDocumentStore:
     def delete_table(self) -> None:
         """
         Deletes the table used to store Haystack documents.
+
         The name of the schema (`schema_name`) and the name of the table (`table_name`)
         are defined when initializing the `PgvectorDocumentStore`.
         """
@@ -636,6 +640,7 @@ class PgvectorDocumentStore:
     def _handle_hnsw(self) -> None:
         """
         Internal method to handle the HNSW index creation.
+
         It also sets the `hnsw.ef_search` parameter for queries if it is specified.
         """
 
@@ -1418,8 +1423,9 @@ class PgvectorDocumentStore:
         vector_function: Literal["cosine_similarity", "inner_product", "l2_distance"] | None = None,
     ) -> list[Document]:
         """
-        Asynchronously retrieves documents that are most similar to the query embedding using a
-        vector similarity metric.
+        Asynchronously retrieves documents that are most similar to the query embedding.
+
+        Uses a vector similarity metric for comparison.
         """
 
         sql_query, params = self._check_and_build_embedding_retrieval_query(
@@ -1571,8 +1577,9 @@ class PgvectorDocumentStore:
 
     def count_unique_metadata_by_filter(self, filters: dict[str, Any], metadata_fields: list[str]) -> dict[str, int]:
         """
-        Returns the count of unique values for each specified metadata field,
-        considering only documents that match the provided filters.
+        Returns the count of unique values for each specified metadata field.
+
+        Considers only documents that match the provided filters.
 
         :param filters: The filters to apply to select documents.
             For filter syntax, see [Haystack metadata filtering](https://docs.haystack.deepset.ai/docs/metadata-filtering)
@@ -1604,8 +1611,9 @@ class PgvectorDocumentStore:
         self, filters: dict[str, Any], metadata_fields: list[str]
     ) -> dict[str, int]:
         """
-        Asynchronously returns the count of unique values for each specified metadata field,
-        considering only documents that match the provided filters.
+        Asynchronously returns the count of unique values for each specified metadata field.
+
+        Considers only documents that match the provided filters.
 
         :param filters: The filters to apply to select documents.
             For filter syntax, see [Haystack metadata filtering](https://docs.haystack.deepset.ai/docs/metadata-filtering)
@@ -1661,7 +1669,7 @@ class PgvectorDocumentStore:
         :param records: List of database records containing 'meta' field.
         :returns: A dictionary mapping field names to their type information.
         """
-        fields_info: dict[str, dict[str, str]] = {"content": {"type": "text"}}
+        fields_info: dict[str, dict[str, str]] = {}
 
         # Analyze metadata from all documents
         for record in records:
@@ -1698,7 +1706,6 @@ class PgvectorDocumentStore:
         Example return:
         ```python
         {
-            'content': {'type': 'text'},
             'category': {'type': 'text'},
             'status': {'type': 'text'},
             'priority': {'type': 'integer'},
@@ -1838,15 +1845,14 @@ class PgvectorDocumentStore:
         :returns: A dictionary with 'min' and 'max' keys containing the minimum and maximum values.
             For numeric fields (integer, real), returns numeric min/max.
             For text fields, returns lexicographic min/max based on database collation.
-        :raises ValueError: If the field doesn't exist or has no values.
+            Returns `{"min": None, "max": None}` when the field has no values or the store is empty.
         """
         normalized_field = PgvectorDocumentStore._normalize_metadata_field_name(metadata_field)
 
         # Get field type information from metadata fields info
         fields_info = self.get_metadata_fields_info()
         if normalized_field not in fields_info:
-            msg = f"Metadata field '{metadata_field}' not found in document store"
-            raise ValueError(msg)
+            return {"min": None, "max": None}
 
         field_type = fields_info[normalized_field]["type"]
         sql_query = self._build_min_max_query(normalized_field, field_type)
@@ -1871,15 +1877,14 @@ class PgvectorDocumentStore:
         :returns: A dictionary with 'min' and 'max' keys containing the minimum and maximum values.
             For numeric fields (integer, real), returns numeric min/max.
             For text fields, returns lexicographic min/max based on database collation.
-        :raises ValueError: If the field doesn't exist or has no values.
+            Returns ``{"min": None, "max": None}`` when the field has no values or the store is empty.
         """
         normalized_field = PgvectorDocumentStore._normalize_metadata_field_name(metadata_field)
 
         # Get field type information from metadata fields info
         fields_info = await self.get_metadata_fields_info_async()
         if normalized_field not in fields_info:
-            msg = f"Metadata field '{metadata_field}' not found in document store"
-            raise ValueError(msg)
+            return {"min": None, "max": None}
 
         field_type = fields_info[normalized_field]["type"]
         sql_query = self._build_min_max_query(normalized_field, field_type)

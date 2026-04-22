@@ -2,6 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+
 import pytest
 from haystack.dataclasses import Document
 from haystack.document_stores.errors import DocumentStoreError
@@ -59,6 +60,53 @@ class TestDocumentStoreAsync:
 
         assert len(res) == 5
         assert all("functional" in doc.content for doc in res)
+
+    @pytest.mark.asyncio
+    async def test_bm25_retrieval_with_fuzziness(
+        self, document_store: OpenSearchDocumentStore, test_documents: list[Document]
+    ):
+        document_store.write_documents(test_documents)
+
+        query_with_typo = "functinal"
+        # Query without fuzziness to search for the exact match
+        res = await document_store._bm25_retrieval_async(query_with_typo, top_k=3, fuzziness="0")
+        # Nothing is found as the query contains a typo
+        assert res == []
+
+        # Query with fuzziness with the same query
+        res = await document_store._bm25_retrieval_async(query_with_typo, top_k=3, fuzziness="1")
+        assert len(res) == 3
+        assert "functional" in res[0].content
+        assert "functional" in res[1].content
+        assert "functional" in res[2].content
+
+    @pytest.mark.asyncio
+    async def test_bm25_retrieval_with_fuzziness_overflow(self, document_store: OpenSearchDocumentStore, caplog):
+        """
+        Test that a long query with fuzziness="AUTO" that exceeds OpenSearch's maxClauseCount
+        is automatically retried with fuzziness=0 instead of raising an error.
+        """
+        # Build an index vocabulary of similar 5-character words. With fuzziness="AUTO",
+        # 5-char words get edit distance 1, so each query term fuzzy-matches many similar
+        # indexed terms, causing clause expansion beyond the default maxClauseCount (1024).
+        # With fuzziness=0, each term produces exactly 1 clause, staying well under the limit.
+        words = [f"foo{chr(97 + i)}{chr(97 + j)}" for i in range(20) for j in range(26)]  # 520 words
+
+        chunk_size = 52
+        docs = [
+            Document(content=" ".join(words[i : i + chunk_size]), id=str(idx))
+            for idx, i in enumerate(range(0, len(words), chunk_size))
+        ]
+        document_store.write_documents(docs)
+
+        # Query with a subset of words. With fuzziness="AUTO", each 5-char term expands
+        # to match ~45 similar indexed terms, pushing total clauses well above 1024.
+        long_query = " ".join(words[:100])
+
+        # This should not raise: the too_many_clauses error is caught and retried with fuzziness=0
+        res = await document_store._bm25_retrieval_async(long_query, top_k=3, fuzziness="AUTO")
+        assert isinstance(res, list)
+        assert "Retrying with fuzziness=0" in caplog.text
 
     @pytest.mark.asyncio
     async def test_bm25_retrieval_with_filters(
@@ -626,7 +674,6 @@ class TestDocumentStoreAsync:
         )
         assert set(unique_priorities_filtered) == {"1"}
 
-    @pytest.mark.integration
     @pytest.mark.asyncio
     async def test_metadata_search_async_fuzzy_mode(self, document_store: OpenSearchDocumentStore):
         """Test async metadata search in fuzzy mode."""
@@ -650,7 +697,6 @@ class TestDocumentStoreAsync:
         assert all(isinstance(row, dict) for row in result)
         assert all("category" in row for row in result)
 
-    @pytest.mark.integration
     @pytest.mark.asyncio
     async def test_metadata_search_async_strict_mode(self, document_store: OpenSearchDocumentStore):
         """Test async metadata search in strict mode."""
@@ -673,7 +719,6 @@ class TestDocumentStoreAsync:
         assert all(isinstance(row, dict) for row in result)
         assert all("category" in row for row in result)
 
-    @pytest.mark.integration
     @pytest.mark.asyncio
     async def test_metadata_search_async_multiple_fields(self, document_store: OpenSearchDocumentStore):
         """Test async metadata search across multiple fields."""
@@ -698,7 +743,6 @@ class TestDocumentStoreAsync:
         for row in result:
             assert all(key in ["category", "status"] for key in row.keys())
 
-    @pytest.mark.integration
     @pytest.mark.asyncio
     async def test_metadata_search_async_top_k(self, document_store: OpenSearchDocumentStore):
         """Test async metadata search respects top_k parameter."""
@@ -716,7 +760,6 @@ class TestDocumentStoreAsync:
         assert isinstance(result, list)
         assert len(result) <= 5
 
-    @pytest.mark.integration
     @pytest.mark.asyncio
     async def test_metadata_search_async_comma_separated_query(self, document_store: OpenSearchDocumentStore):
         """Test async metadata search with comma-separated query parts."""
@@ -739,7 +782,6 @@ class TestDocumentStoreAsync:
         assert len(result) > 0
         assert all(isinstance(row, dict) for row in result)
 
-    @pytest.mark.integration
     @pytest.mark.asyncio
     async def test_metadata_search_async_with_filters(self, document_store: OpenSearchDocumentStore):
         """Test async metadata search with additional filters."""
@@ -764,7 +806,6 @@ class TestDocumentStoreAsync:
         # Should only return documents with priority == 1
         assert len(result) >= 1
 
-    @pytest.mark.integration
     @pytest.mark.asyncio
     async def test_metadata_search_async_empty_fields(self, document_store: OpenSearchDocumentStore):
         """Test async metadata search with empty fields list returns empty result."""
@@ -783,7 +824,6 @@ class TestDocumentStoreAsync:
         assert isinstance(result, list)
         assert len(result) == 0
 
-    @pytest.mark.integration
     @pytest.mark.asyncio
     async def test_metadata_search_async_deduplication(self, document_store: OpenSearchDocumentStore):
         """Test that async metadata search deduplicates results."""
@@ -842,7 +882,6 @@ class TestDocumentStoreAsync:
         with pytest.raises(DocumentStoreError, match="Failed to execute SQL query"):
             await document_store._query_sql_async(invalid_query)
 
-    @pytest.mark.integration
     @pytest.mark.asyncio
     async def test_query_sql_async_with_fetch_size(self, document_store: OpenSearchDocumentStore):
         """Test async SQL query with fetch_size parameter"""
@@ -868,6 +907,63 @@ class TestDocumentStoreAsync:
         assert len(result["datarows"]) > 0
         assert len(result["datarows"]) <= 5
         assert result.get("cursor") is not None
+
+    @pytest.mark.asyncio
+    async def test_explicit_nested_fields_filter(self, document_store_nested: OpenSearchDocumentStore):
+        """Filtering on explicitly declared nested fields returns correct documents (async)."""
+        docs = [
+            Document(
+                content="doc about bgb 1a",
+                meta={"refs": [{"law": "bgb", "section": "1", "paragraph": "a"}], "status": "active"},
+            ),
+            Document(
+                content="doc about bgb 2",
+                meta={"refs": [{"law": "bgb", "section": "2"}], "status": "active"},
+            ),
+            Document(
+                content="doc about stgb",
+                meta={"refs": [{"law": "stgb", "section": "1"}], "status": "active"},
+            ),
+        ]
+        await document_store_nested.write_documents_async(docs)
+
+        results = await document_store_nested.filter_documents_async(
+            filters={"field": "meta.refs.law", "operator": "==", "value": "bgb"}
+        )
+        assert len(results) == 2
+        assert all("bgb" in str(doc.meta["refs"]) for doc in results)
+
+    @pytest.mark.asyncio
+    async def test_explicit_nested_fields_combined_filter(self, document_store_nested: OpenSearchDocumentStore):
+        """AND filter across sub-fields of the same nested path matches within the same array element (async)."""
+        docs = [
+            Document(
+                content="bgb section 1",
+                meta={"refs": [{"law": "bgb", "section": "1"}, {"law": "stgb", "section": "2"}]},
+            ),
+            Document(
+                content="bgb section 2",
+                meta={"refs": [{"law": "bgb", "section": "2"}]},
+            ),
+            Document(
+                content="stgb section 1",
+                meta={"refs": [{"law": "stgb", "section": "1"}]},
+            ),
+        ]
+        await document_store_nested.write_documents_async(docs)
+
+        # Filter: refs.law == bgb AND refs.section == 1 (must match within same nested object)
+        results = await document_store_nested.filter_documents_async(
+            filters={
+                "operator": "AND",
+                "conditions": [
+                    {"field": "meta.refs.law", "operator": "==", "value": "bgb"},
+                    {"field": "meta.refs.section", "operator": "==", "value": "1"},
+                ],
+            }
+        )
+        assert len(results) == 1
+        assert results[0].content == "bgb section 1"
 
     @pytest.mark.integration
     @pytest.mark.asyncio

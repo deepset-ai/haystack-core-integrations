@@ -68,6 +68,8 @@ class PgvectorEmbeddingRetriever:
         filter_policy: str | FilterPolicy = FilterPolicy.REPLACE,
     ) -> None:
         """
+        Initialize the PgvectorEmbeddingRetriever.
+
         :param document_store: An instance of `PgvectorDocumentStore`.
         :param filters: Filters applied to the retrieved Documents.
         :param top_k: Maximum number of Documents to return.

@@ -2,12 +2,16 @@ from typing import Any
 from unittest.mock import MagicMock, call
 
 import pytest
+from botocore.exceptions import ClientError
 from haystack.dataclasses import StreamingChunk
 
 from haystack_integrations.common.amazon_bedrock.errors import (
     AmazonBedrockConfigurationError,
+    AmazonBedrockInferenceError,
 )
-from haystack_integrations.components.generators.amazon_bedrock import AmazonBedrockGenerator
+from haystack_integrations.components.generators.amazon_bedrock import (
+    AmazonBedrockGenerator,
+)
 from haystack_integrations.components.generators.amazon_bedrock.adapters import (
     AI21LabsJurassic2Adapter,
     AmazonTitanAdapter,
@@ -26,17 +30,40 @@ def test_to_dict(mock_boto3_session: Any, boto3_config: dict[str, Any] | None):
     Test that the to_dict method returns the correct dictionary without aws credentials
     """
     generator = AmazonBedrockGenerator(
-        model="anthropic.claude-v2", max_length=99, temperature=10, boto3_config=boto3_config
+        model="anthropic.claude-v2",
+        max_length=99,
+        temperature=10,
+        boto3_config=boto3_config,
     )
 
     expected_dict = {
         "type": "haystack_integrations.components.generators.amazon_bedrock.generator.AmazonBedrockGenerator",
         "init_parameters": {
-            "aws_access_key_id": {"type": "env_var", "env_vars": ["AWS_ACCESS_KEY_ID"], "strict": False},
-            "aws_secret_access_key": {"type": "env_var", "env_vars": ["AWS_SECRET_ACCESS_KEY"], "strict": False},
-            "aws_session_token": {"type": "env_var", "env_vars": ["AWS_SESSION_TOKEN"], "strict": False},
-            "aws_region_name": {"type": "env_var", "env_vars": ["AWS_DEFAULT_REGION"], "strict": False},
-            "aws_profile_name": {"type": "env_var", "env_vars": ["AWS_PROFILE"], "strict": False},
+            "aws_access_key_id": {
+                "type": "env_var",
+                "env_vars": ["AWS_ACCESS_KEY_ID"],
+                "strict": False,
+            },
+            "aws_secret_access_key": {
+                "type": "env_var",
+                "env_vars": ["AWS_SECRET_ACCESS_KEY"],
+                "strict": False,
+            },
+            "aws_session_token": {
+                "type": "env_var",
+                "env_vars": ["AWS_SESSION_TOKEN"],
+                "strict": False,
+            },
+            "aws_region_name": {
+                "type": "env_var",
+                "env_vars": ["AWS_DEFAULT_REGION"],
+                "strict": False,
+            },
+            "aws_profile_name": {
+                "type": "env_var",
+                "env_vars": ["AWS_PROFILE"],
+                "strict": False,
+            },
             "model": "anthropic.claude-v2",
             "max_length": 99,
             "temperature": 10,
@@ -58,11 +85,31 @@ def test_from_dict(mock_boto3_session: Any, boto3_config: dict[str, Any] | None)
         {
             "type": "haystack_integrations.components.generators.amazon_bedrock.generator.AmazonBedrockGenerator",
             "init_parameters": {
-                "aws_access_key_id": {"type": "env_var", "env_vars": ["AWS_ACCESS_KEY_ID"], "strict": False},
-                "aws_secret_access_key": {"type": "env_var", "env_vars": ["AWS_SECRET_ACCESS_KEY"], "strict": False},
-                "aws_session_token": {"type": "env_var", "env_vars": ["AWS_SESSION_TOKEN"], "strict": False},
-                "aws_region_name": {"type": "env_var", "env_vars": ["AWS_DEFAULT_REGION"], "strict": False},
-                "aws_profile_name": {"type": "env_var", "env_vars": ["AWS_PROFILE"], "strict": False},
+                "aws_access_key_id": {
+                    "type": "env_var",
+                    "env_vars": ["AWS_ACCESS_KEY_ID"],
+                    "strict": False,
+                },
+                "aws_secret_access_key": {
+                    "type": "env_var",
+                    "env_vars": ["AWS_SECRET_ACCESS_KEY"],
+                    "strict": False,
+                },
+                "aws_session_token": {
+                    "type": "env_var",
+                    "env_vars": ["AWS_SESSION_TOKEN"],
+                    "strict": False,
+                },
+                "aws_region_name": {
+                    "type": "env_var",
+                    "env_vars": ["AWS_DEFAULT_REGION"],
+                    "strict": False,
+                },
+                "aws_profile_name": {
+                    "type": "env_var",
+                    "env_vars": ["AWS_PROFILE"],
+                    "strict": False,
+                },
                 "model": "anthropic.claude-v2",
                 "max_length": 99,
                 "boto3_config": boto3_config,
@@ -147,7 +194,10 @@ def test_constructor_with_empty_model():
         ("ai21.j2-mega-v5", AI21LabsJurassic2Adapter),  # artificial
         ("amazon.titan-text-lite-v1", AmazonTitanAdapter),
         ("amazon.titan-text-express-v1", AmazonTitanAdapter),
-        ("us.amazon.titan-text-express-v1", AmazonTitanAdapter),  # cross-region inference
+        (
+            "us.amazon.titan-text-express-v1",
+            AmazonTitanAdapter,
+        ),  # cross-region inference
         ("amazon.titan-text-agile-v1", AmazonTitanAdapter),
         ("amazon.titan-text-lightning-v8", AmazonTitanAdapter),  # artificial
         ("meta.llama2-13b-chat-v1", MetaLlamaAdapter),
@@ -161,8 +211,14 @@ def test_constructor_with_empty_model():
         ("mistral.mistral-7b-instruct-v0:2", MistralAdapter),
         ("mistral.mixtral-8x7b-instruct-v0:1", MistralAdapter),
         ("mistral.mistral-large-2402-v1:0", MistralAdapter),
-        ("eu.mistral.mixtral-8x7b-instruct-v0:1", MistralAdapter),  # cross-region inference
-        ("us.mistral.mistral-large-2402-v1:0", MistralAdapter),  # cross-region inference
+        (
+            "eu.mistral.mixtral-8x7b-instruct-v0:1",
+            MistralAdapter,
+        ),  # cross-region inference
+        (
+            "us.mistral.mistral-large-2402-v1:0",
+            MistralAdapter,
+        ),  # cross-region inference
         ("mistral.mistral-medium-v8:0", MistralAdapter),  # artificial
     ],
 )
@@ -234,6 +290,62 @@ def test_get_model_adapter_model_family_over_auto_detection():
         model="cohere.command-text-v14", model_family="anthropic.claude"
     )
     assert model_adapter == AnthropicClaudeAdapter
+
+
+def test_truncate_parameter_warns(mock_boto3_session, recwarn):
+    AmazonBedrockGenerator(model="anthropic.claude-v2", truncate=True)
+    assert any("truncate" in str(w.message) for w in recwarn.list)
+
+
+def test_init_connection_error(mock_boto3_session):
+    mock_boto3_session.side_effect = Exception("boom")
+    with pytest.raises(AmazonBedrockConfigurationError):
+        AmazonBedrockGenerator(model="anthropic.claude-v2")
+
+
+def test_run_with_streaming_callback(mock_boto3_session):
+    generator = AmazonBedrockGenerator(model="anthropic.claude-v2")
+    mock_client = mock_boto3_session.return_value.client.return_value
+
+    stream_body = MagicMock()
+    stream_body.__iter__.return_value = [
+        {"chunk": {"bytes": b'{"type": "content_block_start", "content_block": {"type": "text"}, "index": 0}'}},
+        {"chunk": {"bytes": b'{"delta": {"text": "hello"}}'}},
+    ]
+    mock_client.invoke_model_with_response_stream.return_value = {
+        "body": stream_body,
+        "ResponseMetadata": {"RequestId": "req-1"},
+    }
+
+    callback = MagicMock()
+    result = generator.run("Hello", streaming_callback=callback)
+
+    mock_client.invoke_model_with_response_stream.assert_called_once()
+    assert result["meta"]["RequestId"] == "req-1"
+    callback.assert_called()
+
+
+def test_run_client_error(mock_boto3_session):
+    generator = AmazonBedrockGenerator(model="anthropic.claude-v2")
+    mock_client = mock_boto3_session.return_value.client.return_value
+    mock_client.invoke_model.side_effect = ClientError(
+        error_response={"Error": {"Code": "x", "Message": "y"}}, operation_name="invoke_model"
+    )
+
+    with pytest.raises(AmazonBedrockInferenceError):
+        generator.run("Hello")
+
+
+def test_from_dict_with_streaming_callback(mock_boto3_session):
+    data = {
+        "type": "haystack_integrations.components.generators.amazon_bedrock.generator.AmazonBedrockGenerator",
+        "init_parameters": {
+            "model": "anthropic.claude-v2",
+            "streaming_callback": "haystack.components.generators.utils.print_streaming_chunk",
+        },
+    }
+    generator = AmazonBedrockGenerator.from_dict(data)
+    assert generator.streaming_callback is not None
 
 
 class TestAnthropicClaudeAdapter:
@@ -497,7 +609,11 @@ class TestAnthropicClaudeAdapterMessagesAPI:
                 call(
                     StreamingChunk(
                         content="<thinking>",
-                        meta={"type": "content_block_start", "content_block": {"type": "thinking"}, "index": 0},
+                        meta={
+                            "type": "content_block_start",
+                            "content_block": {"type": "thinking"},
+                            "index": 0,
+                        },
                     )
                 ),
                 call(StreamingChunk(content="This", meta={"delta": {"thinking": "This"}})),
@@ -508,7 +624,11 @@ class TestAnthropicClaudeAdapterMessagesAPI:
                 call(
                     StreamingChunk(
                         content="</thinking>\n\n",
-                        meta={"type": "content_block_start", "content_block": {"type": "text"}, "index": 1},
+                        meta={
+                            "type": "content_block_start",
+                            "content_block": {"type": "text"},
+                            "index": 1,
+                        },
                     )
                 ),
                 call(StreamingChunk(content="This", meta={"delta": {"text": "This"}})),
@@ -580,7 +700,11 @@ class TestAnthropicClaudeAdapterMessagesAPI:
                 call(
                     StreamingChunk(
                         content="<custom>",
-                        meta={"type": "content_block_start", "content_block": {"type": "thinking"}, "index": 0},
+                        meta={
+                            "type": "content_block_start",
+                            "content_block": {"type": "thinking"},
+                            "index": 0,
+                        },
                     )
                 ),
                 call(StreamingChunk(content="This", meta={"delta": {"thinking": "This"}})),
@@ -591,7 +715,11 @@ class TestAnthropicClaudeAdapterMessagesAPI:
                 call(
                     StreamingChunk(
                         content="</custom>\n\n",
-                        meta={"type": "content_block_start", "content_block": {"type": "text"}, "index": 1},
+                        meta={
+                            "type": "content_block_start",
+                            "content_block": {"type": "text"},
+                            "index": 1,
+                        },
                     )
                 ),
                 call(StreamingChunk(content="This", meta={"delta": {"text": "This"}})),
@@ -630,7 +758,11 @@ class TestAnthropicClaudeAdapterMessagesAPI:
                 call(
                     StreamingChunk(
                         content="",
-                        meta={"type": "content_block_start", "content_block": {"type": "thinking"}, "index": 0},
+                        meta={
+                            "type": "content_block_start",
+                            "content_block": {"type": "thinking"},
+                            "index": 0,
+                        },
                     )
                 ),
                 call(StreamingChunk(content="This", meta={"delta": {"thinking": "This"}})),
@@ -641,7 +773,11 @@ class TestAnthropicClaudeAdapterMessagesAPI:
                 call(
                     StreamingChunk(
                         content="\n\n",
-                        meta={"type": "content_block_start", "content_block": {"type": "text"}, "index": 1},
+                        meta={
+                            "type": "content_block_start",
+                            "content_block": {"type": "text"},
+                            "index": 1,
+                        },
                     )
                 ),
                 call(StreamingChunk(content="This", meta={"delta": {"text": "This"}})),
@@ -652,7 +788,9 @@ class TestAnthropicClaudeAdapterMessagesAPI:
             ]
         )
 
-    def test_get_stream_responses_with_thinking_redacted_thinking_is_ignored(self) -> None:
+    def test_get_stream_responses_with_thinking_redacted_thinking_is_ignored(
+        self,
+    ) -> None:
         stream_mock = MagicMock()
         streaming_callback_mock = MagicMock()
 
@@ -687,7 +825,11 @@ class TestAnthropicClaudeAdapterMessagesAPI:
                 call(
                     StreamingChunk(
                         content="<thinking>",
-                        meta={"type": "content_block_start", "content_block": {"type": "thinking"}, "index": 1},
+                        meta={
+                            "type": "content_block_start",
+                            "content_block": {"type": "thinking"},
+                            "index": 1,
+                        },
                     )
                 ),
                 call(StreamingChunk(content="This", meta={"delta": {"thinking": "This"}})),
@@ -698,7 +840,11 @@ class TestAnthropicClaudeAdapterMessagesAPI:
                 call(
                     StreamingChunk(
                         content="</thinking>\n\n",
-                        meta={"type": "content_block_start", "content_block": {"type": "text"}, "index": 2},
+                        meta={
+                            "type": "content_block_start",
+                            "content_block": {"type": "text"},
+                            "index": 2,
+                        },
                     )
                 ),
                 call(StreamingChunk(content="This", meta={"delta": {"text": "This"}})),
@@ -856,7 +1002,11 @@ class TestMistralAdapter:
     def test_prepare_body_with_default_params(self) -> None:
         layer = MistralAdapter(model_kwargs={}, max_length=99)
         prompt = "Hello, how are you?"
-        expected_body = {"prompt": "<s>[INST] Hello, how are you? [/INST]", "max_tokens": 99, "stop": []}
+        expected_body = {
+            "prompt": "<s>[INST] Hello, how are you? [/INST]",
+            "max_tokens": 99,
+            "stop": [],
+        }
 
         body = layer.prepare_body(prompt)
         assert body == expected_body
@@ -1159,7 +1309,12 @@ class TestCohereCommandAdapter:
                 call(StreamingChunk(content=" a", meta={"text": " a"})),
                 call(StreamingChunk(content=" single", meta={"text": " single"})),
                 call(StreamingChunk(content=" response.", meta={"text": " response."})),
-                call(StreamingChunk(content="", meta={"finish_reason": "MAX_TOKENS", "is_finished": True})),
+                call(
+                    StreamingChunk(
+                        content="",
+                        meta={"finish_reason": "MAX_TOKENS", "is_finished": True},
+                    )
+                ),
             ]
         )
 
@@ -1185,7 +1340,10 @@ class TestCohereCommandRAdapter:
                 ],
                 "documents": [
                     {"title": "France", "snippet": "Paris is the capital of France."},
-                    {"title": "Germany", "snippet": "Berlin is the capital of Germany."},
+                    {
+                        "title": "Germany",
+                        "snippet": "Berlin is the capital of Germany.",
+                    },
                 ],
                 "search_query_only": False,
                 "preamble": "preamble",
@@ -1213,9 +1371,15 @@ class TestCohereCommandRAdapter:
                 ],
                 "tool_results": [
                     {
-                        "call": {"name": "query_daily_sales_report", "parameters": {"day": "2023-09-29"}},
+                        "call": {
+                            "name": "query_daily_sales_report",
+                            "parameters": {"day": "2023-09-29"},
+                        },
                         "outputs": [
-                            {"date": "2023-09-29", "summary": "Total Sales Amount: 10000, Total Units Sold: 250"}
+                            {
+                                "date": "2023-09-29",
+                                "summary": "Total Sales Amount: 10000, Total Units Sold: 250",
+                            }
                         ],
                     }
                 ],
@@ -1263,8 +1427,16 @@ class TestCohereCommandRAdapter:
             ],
             "tool_results": [
                 {
-                    "call": {"name": "query_daily_sales_report", "parameters": {"day": "2023-09-29"}},
-                    "outputs": [{"date": "2023-09-29", "summary": "Total Sales Amount: 10000, Total Units Sold: 250"}],
+                    "call": {
+                        "name": "query_daily_sales_report",
+                        "parameters": {"day": "2023-09-29"},
+                    },
+                    "outputs": [
+                        {
+                            "date": "2023-09-29",
+                            "summary": "Total Sales Amount: 10000, Total Units Sold: 250",
+                        }
+                    ],
                 }
             ],
             "stop_sequences": ["\n\n"],
@@ -1714,7 +1886,10 @@ class TestMetaLlamaAdapter:
             "ResponseMetadata": {
                 "RequestId": "test-request-id",
                 "HTTPStatusCode": 200,
-                "HTTPHeaders": {"x-amzn-requestid": "test-request-id", "content-type": "application/json"},
+                "HTTPHeaders": {
+                    "x-amzn-requestid": "test-request-id",
+                    "content-type": "application/json",
+                },
             },
         }
         mock_client.invoke_model.return_value = mock_response

@@ -2,6 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+from dataclasses import replace
 from typing import Any
 
 from haystack import Document, component, default_from_dict, default_to_dict, logging
@@ -14,8 +15,9 @@ logger = logging.getLogger(__name__)
 @component
 class FastembedRanker:
     """
-    Ranks Documents based on their similarity to the query using
-    [Fastembed models](https://qdrant.github.io/fastembed/examples/Supported_Models/).
+    Ranks Documents based on their similarity to the query using Fastembed models.
+
+    See https://qdrant.github.io/fastembed/examples/Supported_Models/ for supported models.
 
     Documents are indexed from most to least semantically relevant to the query.
 
@@ -129,6 +131,7 @@ class FastembedRanker:
     def _prepare_fastembed_input_docs(self, documents: list[Document]) -> list[str]:
         """
         Prepare the input by concatenating the document text with the metadata fields specified.
+
         :param documents: The list of Document objects.
 
         :return: A list of strings to be given as input to Fastembed model.
@@ -196,10 +199,6 @@ class FastembedRanker:
         # Sort the list of tuples by the score in descending order
         sorted_doc_scores = sorted(doc_scores, key=lambda x: x[1], reverse=True)
 
-        # Get the top_k documents
-        top_k_documents = []
-        for doc, score in sorted_doc_scores[:top_k]:
-            doc.score = score
-            top_k_documents.append(doc)
+        top_k_documents = [replace(doc, score=score) for doc, score in sorted_doc_scores[:top_k]]
 
         return {"documents": top_k_documents}

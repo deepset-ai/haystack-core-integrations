@@ -26,8 +26,9 @@ logger = logging.getLogger(__name__)
 @component
 class MistralOCRDocumentConverter:
     """
-    This component extracts text from documents using Mistral's OCR API, with optional structured
-    annotations for both individual image regions (bounding boxes) and full documents.
+    Extract text from documents using Mistral's OCR API with optional structured annotations.
+
+    Supports optional structured annotations for individual image regions (bounding boxes) and full documents.
 
     Accepts document sources in various formats (str/Path for local files, ByteStream for in-memory data,
     DocumentURLChunk for document URLs, ImageURLChunk for image URLs, or FileChunk for Mistral file IDs)

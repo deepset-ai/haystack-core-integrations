@@ -1,5 +1,26 @@
 # Changelog
 
+## [integrations/astra-v4.2.0] - 2026-03-24
+
+### 🚀 Features
+
+- *(astra)* Add run_async to AstraEmbeddingRetriever (#3016)
+
+### 🐛 Bug Fixes
+
+- Converting to `staticmethod` some tests in `AstraDocumentStore` (#2928)
+
+### 🧪 Testing
+
+- `AstraDocumentStore` use Mixin tests (#3027)
+
+### 🧹 Chores
+
+- Add missing -> None return type annotations to astra __init__ methods (#2974)
+- Enforce ruff docstring rules (D102/D103/D205/D209/D213/D417/D419) in first 10 integrations (#3008)
+- Increase lower pins for 3.14 support in some integrations + test with 3.14 (#3033)
+
+
 ## [integrations/integrations/astra-v4.1.0] - 2026-03-06
 
 ### 🚀 Features

@@ -4,25 +4,31 @@
 
 import logging
 import operator
-import time
 import uuid
 from unittest import mock
 
 import pytest
 from chromadb.api.shared_system_client import SharedSystemClient
-from haystack.dataclasses import ByteStream, Document
+from haystack.dataclasses import ByteStream, Document, SparseEmbedding
 from haystack.testing.document_store import (
     TEST_EMBEDDING_1,
+    CountDocumentsByFilterTest,
     CountDocumentsTest,
+    CountUniqueMetadataByFilterTest,
     DeleteAllTest,
     DeleteByFilterTest,
     DeleteDocumentsTest,
     FilterableDocsFixtureMixin,
     FilterDocumentsTest,
+    GetMetadataFieldMinMaxTest,
+    GetMetadataFieldsInfoTest,
+    GetMetadataFieldUniqueValuesTest,
     UpdateByFilterTest,
 )
 
 from haystack_integrations.document_stores.chroma import ChromaDocumentStore
+from haystack_integrations.document_stores.chroma.errors import ChromaDocumentStoreConfigError
+from haystack_integrations.document_stores.chroma.utils import get_embedding_function
 
 
 @pytest.fixture
@@ -38,48 +44,12 @@ def clear_chroma_system_cache():
     SharedSystemClient.clear_system_cache()
 
 
-class TestDocumentStore(
-    CountDocumentsTest,
-    DeleteDocumentsTest,
-    FilterDocumentsTest,
-    FilterableDocsFixtureMixin,
-    UpdateByFilterTest,
-    DeleteAllTest,
-    DeleteByFilterTest,
-):
-    """
-    Common test cases will be provided by `DocumentStoreBaseTests` but
-    you can add more to this class.
-    """
+def test_get_embedding_function_invalid_name_raises():
+    with pytest.raises(ChromaDocumentStoreConfigError, match="Invalid function name"):
+        get_embedding_function("NonExistentEmbeddingFunction")
 
-    @pytest.fixture
-    def document_store(self, embedding_function) -> ChromaDocumentStore:
-        """
-        This is the most basic requirement for the child class: provide
-        an instance of this document store so the base class can use it.
-        """
-        with mock.patch(
-            "haystack_integrations.document_stores.chroma.document_store.get_embedding_function"
-        ) as get_func:
-            get_func.return_value = embedding_function
-            return ChromaDocumentStore(embedding_function="test_function", collection_name=str(uuid.uuid1()))
 
-    def assert_documents_are_equal(self, received: list[Document], expected: list[Document]):
-        """
-        Assert that two lists of Documents are equal.
-        This is used in every test, if a Document Store implementation has a different behaviour
-        it should override this method.
-
-        This can happen for example when the Document Store sets a score to returned Documents.
-        Since we can't know what the score will be, we can't compare the Documents reliably.
-        """
-        received.sort(key=operator.attrgetter("id"))
-        expected.sort(key=operator.attrgetter("id"))
-
-        for doc_received, doc_expected in zip(received, expected, strict=True):
-            assert doc_received.content == doc_expected.content
-            assert doc_received.meta == doc_expected.meta
-
+class TestDocumentStoreUnit:
     def test_init_in_memory(self):
         store = ChromaDocumentStore()
 
@@ -112,17 +82,6 @@ class TestDocumentStore(
         with pytest.raises(ValueError):
             store = ChromaDocumentStore(persist_path="./path/to/local/store", host="localhost")
             store._ensure_initialized()
-
-    def test_client_settings_applied(self, clear_chroma_system_cache):
-        """
-        Chroma's in-memory client uses a singleton pattern with an internal cache.
-        Once a client is created with certain settings, Chroma rejects creating another
-        with different settings in the same process. We clear the cache before and after
-        this test to avoid conflicts with other tests that use default settings.
-        """
-        store = ChromaDocumentStore(client_settings={"anonymized_telemetry": False})
-        store._ensure_initialized()
-        assert store._client.get_settings().anonymized_telemetry is False
 
     def test_to_dict(self, request):
         ds = ChromaDocumentStore(
@@ -172,6 +131,152 @@ class TestDocumentStore(
     def test_same_collection_name_reinitialization(self):
         ChromaDocumentStore("test_1")
         ChromaDocumentStore("test_1")
+
+    def test_ensure_initialized_invalid_client_settings_raises(self):
+        with mock.patch(
+            "haystack_integrations.document_stores.chroma.document_store.Settings",
+            side_effect=ValueError("bad setting"),
+        ):
+            store = ChromaDocumentStore(client_settings={"foo": "bar"})
+            with pytest.raises(ValueError, match="Invalid client_settings"):
+                store._ensure_initialized()
+
+    def test_infer_type_from_value_fallback_for_unknown_type(self):
+        assert ChromaDocumentStore._infer_type_from_value(None) == "keyword"
+        assert ChromaDocumentStore._infer_type_from_value(["a", "b"]) == "keyword"
+
+    def test_count_unique_metadata_empty_returns_zero_counts(self):
+        assert ChromaDocumentStore._count_unique_metadata(None, ["a", "b"]) == {"a": 0, "b": 0}
+        assert ChromaDocumentStore._count_unique_metadata([], ["x"]) == {"x": 0}
+
+    def test_compute_field_min_max_skips_non_scalar_values(self):
+        metadatas = [{"cat": ["a", "b"]}, {"cat": "X"}, {"cat": "Z"}]
+        result = ChromaDocumentStore._compute_field_min_max(metadatas, "cat")
+        assert result == {"min": "X", "max": "Z"}
+
+    @pytest.mark.parametrize(
+        "result",
+        [
+            {"ids": ["1"], "documents": None, "metadatas": [{"cat": "A"}]},
+            {"ids": ["1"], "documents": ["hello world"], "metadatas": [{"cat": "A"}]},
+        ],
+        ids=["documents_none", "no_matches"],
+    )
+    def test_compute_field_unique_values_with_search_term_edge_cases(self, result):
+        values, total = ChromaDocumentStore._compute_field_unique_values(result, "cat", "absent", 0, 10)
+        assert values == []
+        assert total == 0
+
+    def test_filter_metadata_discards_unsupported_types(self, caplog):
+        meta = {"ok": "x", "also_ok": None, "bad": {"nested": 1}, "worse": object()}
+        with caplog.at_level(logging.WARNING):
+            result = ChromaDocumentStore._filter_metadata(meta)
+        assert result == {"ok": "x", "also_ok": None}
+        assert "bad" in caplog.text and "worse" in caplog.text
+
+    def test_convert_document_to_chroma_rejects_non_document(self):
+        with pytest.raises(ValueError, match="must contain a list of objects of type Document"):
+            ChromaDocumentStore._convert_document_to_chroma("not a document")  # type: ignore[arg-type]
+
+    def test_convert_document_to_chroma_warns_on_sparse_embedding(self, caplog):
+        doc = Document(content="hello", sparse_embedding=SparseEmbedding(indices=[0, 1], values=[0.1, 0.2]))
+        with caplog.at_level(logging.WARNING):
+            data = ChromaDocumentStore._convert_document_to_chroma(doc)
+        assert data is not None
+        assert "sparse_embedding" in caplog.text
+
+    @pytest.mark.parametrize(
+        ("result", "expected_embedding"),
+        [
+            (
+                {"ids": ["1"], "documents": ["c"], "metadatas": [{"k": "v"}], "embeddings": [[0.1, 0.2]]},
+                [0.1, 0.2],
+            ),
+            ({"ids": ["1"], "documents": ["c"], "metadatas": [None]}, None),
+        ],
+        ids=["list_embeddings", "no_embeddings"],
+    )
+    def test_get_result_to_documents_embedding_variants(self, result, expected_embedding):
+        docs = ChromaDocumentStore._get_result_to_documents(result)  # type: ignore[arg-type]
+        assert docs[0].embedding == expected_embedding
+
+    @pytest.mark.parametrize(
+        ("result", "check"),
+        [
+            ({"documents": None}, lambda docs: docs == []),
+            (
+                {"ids": [["a", "b"]], "documents": [["c1", "c2"]], "metadatas": [[{"k": "v"}]]},
+                lambda docs: docs[0][0].meta == {"k": "v"} and docs[0][1].meta == {},
+            ),
+            (
+                {"ids": [["a"]], "documents": [["c"]], "metadatas": [[{"k": "v"}]]},
+                lambda docs: docs[0][0].embedding is None and docs[0][0].score is None,
+            ),
+        ],
+        ids=["documents_none", "metadata_index_error", "no_embeddings_no_distances"],
+    )
+    def test_query_result_to_documents_edge_cases(self, result, check):
+        assert check(ChromaDocumentStore._query_result_to_documents(result))  # type: ignore[arg-type]
+
+
+@pytest.mark.integration
+class TestDocumentStore(
+    CountDocumentsTest,
+    DeleteDocumentsTest,
+    FilterDocumentsTest,
+    FilterableDocsFixtureMixin,
+    UpdateByFilterTest,
+    DeleteAllTest,
+    DeleteByFilterTest,
+    CountDocumentsByFilterTest,
+    CountUniqueMetadataByFilterTest,
+    GetMetadataFieldsInfoTest,
+    GetMetadataFieldMinMaxTest,
+    GetMetadataFieldUniqueValuesTest,
+):
+    """
+    Common test cases will be provided by `DocumentStoreBaseTests` but
+    you can add more to this class.
+    """
+
+    @pytest.fixture
+    def document_store(self, embedding_function) -> ChromaDocumentStore:
+        """
+        This is the most basic requirement for the child class: provide
+        an instance of this document store so the base class can use it.
+        """
+        with mock.patch(
+            "haystack_integrations.document_stores.chroma.document_store.get_embedding_function"
+        ) as get_func:
+            get_func.return_value = embedding_function
+            return ChromaDocumentStore(embedding_function="test_function", collection_name=str(uuid.uuid1()))
+
+    def assert_documents_are_equal(self, received: list[Document], expected: list[Document]):
+        """
+        Assert that two lists of Documents are equal.
+        This is used in every test, if a Document Store implementation has a different behaviour
+        it should override this method.
+
+        This can happen for example when the Document Store sets a score to returned Documents.
+        Since we can't know what the score will be, we can't compare the Documents reliably.
+        """
+        received.sort(key=operator.attrgetter("id"))
+        expected.sort(key=operator.attrgetter("id"))
+
+        for doc_received, doc_expected in zip(received, expected, strict=True):
+            assert doc_received.content == doc_expected.content
+            assert doc_received.meta == doc_expected.meta
+
+    def test_client_settings_applied(self, clear_chroma_system_cache):
+        """
+        Chroma's in-memory client uses a singleton pattern with an internal cache.
+        Once a client is created with certain settings, Chroma rejects creating another
+        with different settings in the same process. We clear the cache before and after
+        this test to avoid conflicts with other tests that use default settings.
+        """
+        store = ChromaDocumentStore(client_settings={"anonymized_telemetry": False})
+        store._ensure_initialized()
+        assert store._client.get_settings().anonymized_telemetry is False
 
     def test_distance_metric_initialization(self):
         store = ChromaDocumentStore("test_2", distance_function="cosine")
@@ -436,7 +541,6 @@ class TestDocumentStore(
     def test_not_operator(self, document_store, filterable_docs):
         pass
 
-    @pytest.mark.integration
     def test_search(self):
         document_store = ChromaDocumentStore()
         documents = [
@@ -482,24 +586,6 @@ class TestDocumentStore(
         document_store.write_documents(docs)
         assert document_store.count_documents() == 2
 
-    def test_delete_all_documents_no_index_recreation(self, document_store: ChromaDocumentStore):
-        docs = [Document(id="1", content="A first document"), Document(id="2", content="Second document")]
-        document_store.write_documents(docs)
-        assert document_store.count_documents() == 2
-
-        document_store.delete_all_documents()
-        time.sleep(2)  # need to wait for the deletion to be reflected in count_documents
-        assert document_store.count_documents() == 0
-
-        new_doc = Document(id="3", content="New document after delete all")
-        document_store.write_documents([new_doc])
-        assert document_store.count_documents() == 1
-
-        results = document_store.filter_documents()
-        assert len(results) == 1
-        assert results[0].content == "New document after delete all"
-
-    @pytest.mark.integration
     def test_search_embeddings(self, document_store: ChromaDocumentStore):
         query_embedding = TEST_EMBEDDING_1
         documents = [
@@ -523,6 +609,7 @@ class TestDocumentStore(
         assert len(result_empty_filters[0]) == 2
 
 
+@pytest.mark.integration
 class TestMetadataOperations:
     """Test new metadata query operations for ChromaDocumentStore"""
 
@@ -548,79 +635,6 @@ class TestMetadataOperations:
         document_store.write_documents(docs)
         return document_store
 
-    def test_count_documents_by_filter_simple(self, populated_store):
-        """Test counting documents with simple filter"""
-        count = populated_store.count_documents_by_filter(
-            filters={"field": "meta.category", "operator": "==", "value": "A"}
-        )
-        assert count == 3
-
-    def test_count_documents_by_filter_compound(self, populated_store):
-        """Test counting documents with compound filter"""
-        count = populated_store.count_documents_by_filter(
-            filters={
-                "operator": "AND",
-                "conditions": [
-                    {"field": "meta.category", "operator": "==", "value": "A"},
-                    {"field": "meta.status", "operator": "==", "value": "active"},
-                ],
-            }
-        )
-        assert count == 2
-
-    def test_count_documents_by_filter_no_matches(self, populated_store):
-        """Test counting documents with no matches"""
-        count = populated_store.count_documents_by_filter(
-            filters={"field": "meta.category", "operator": "==", "value": "Z"}
-        )
-        assert count == 0
-
-    def test_count_documents_by_filter_empty_collection(self, document_store):
-        """Test counting documents in empty collection"""
-        count = document_store.count_documents_by_filter(
-            filters={"field": "meta.category", "operator": "==", "value": "A"}
-        )
-        assert count == 0
-
-    def test_count_unique_metadata_by_filter_all_documents(self, populated_store):
-        """Test counting unique metadata values with no filter"""
-        counts = populated_store.count_unique_metadata_by_filter({}, ["category", "status"])
-        assert counts["category"] == 3  # A, B, C
-        assert counts["status"] == 2  # active, inactive
-
-    def test_count_unique_metadata_by_filter_with_filter(self, populated_store):
-        """Test counting unique metadata values with filter"""
-        counts = populated_store.count_unique_metadata_by_filter(
-            filters={"field": "meta.category", "operator": "==", "value": "A"}, metadata_fields=["status", "priority"]
-        )
-        assert counts["status"] == 2  # active, inactive
-        assert counts["priority"] == 2  # 1, 3
-
-    def test_count_unique_metadata_by_filter_field_normalization(self, populated_store):
-        """Test field name normalization (with/without meta. prefix)"""
-        # Test with "meta." prefix
-        counts_with_prefix = populated_store.count_unique_metadata_by_filter({}, ["meta.category"])
-        # Test without "meta." prefix
-        counts_without_prefix = populated_store.count_unique_metadata_by_filter({}, ["category"])
-
-        assert counts_with_prefix["category"] == counts_without_prefix["category"] == 3
-
-    def test_count_unique_metadata_by_filter_missing_field(self, populated_store):
-        """Test counting unique metadata for non-existent field"""
-        counts = populated_store.count_unique_metadata_by_filter({}, ["nonexistent_field"])
-        assert counts["nonexistent_field"] == 0
-
-    def test_count_unique_metadata_by_filter_sparse_field(self, populated_store):
-        """Test counting unique metadata for field that exists in some docs"""
-        counts = populated_store.count_unique_metadata_by_filter({}, ["score"])
-        assert counts["score"] == 5  # 0.9, 0.8, 0.7, 0.95, 0.6
-
-    def test_count_unique_metadata_by_filter_empty_collection(self, document_store):
-        """Test counting unique metadata in empty collection"""
-        counts = document_store.count_unique_metadata_by_filter({}, ["category", "status"])
-        assert counts["category"] == 0
-        assert counts["status"] == 0
-
     def test_get_metadata_fields_info(self, populated_store):
         """Test getting metadata field information"""
         fields_info = populated_store.get_metadata_fields_info()
@@ -635,11 +649,6 @@ class TestMetadataOperations:
         assert fields_info["status"]["type"] == "keyword"
         assert fields_info["priority"]["type"] == "long"
         assert fields_info["score"]["type"] == "float"
-
-    def test_get_metadata_fields_info_empty_collection(self, document_store):
-        """Test getting metadata field info from empty collection"""
-        fields_info = document_store.get_metadata_fields_info()
-        assert fields_info == {}
 
     def test_get_metadata_fields_info_type_inference(self):
         """Test type inference for different data types"""
@@ -658,44 +667,15 @@ class TestMetadataOperations:
         assert fields_info["float_field"]["type"] == "float"
         assert fields_info["bool_field"]["type"] == "boolean"
 
-    def test_get_metadata_field_min_max_numeric(self, populated_store):
-        """Test getting min/max values for numeric field"""
-        min_max = populated_store.get_metadata_field_min_max("priority")
-        assert min_max["min"] == 1
-        assert min_max["max"] == 3
-
-    def test_get_metadata_field_min_max_float(self, populated_store):
-        """Test getting min/max values for float field"""
-        min_max = populated_store.get_metadata_field_min_max("score")
-        assert min_max["min"] == 0.6
-        assert min_max["max"] == 0.95
-
     def test_get_metadata_field_min_max_string(self, populated_store):
         """Test getting min/max values for string field (alphabetical)"""
         min_max = populated_store.get_metadata_field_min_max("category")
         assert min_max["min"] == "A"
         assert min_max["max"] == "C"
 
-    def test_get_metadata_field_min_max_field_normalization(self, populated_store):
-        """Test field name normalization in min/max"""
-        # Test with "meta." prefix
-        min_max_with_prefix = populated_store.get_metadata_field_min_max("meta.priority")
-        # Test without "meta." prefix
-        min_max_without_prefix = populated_store.get_metadata_field_min_max("priority")
-
-        assert min_max_with_prefix == min_max_without_prefix
-        assert min_max_with_prefix["min"] == 1
-        assert min_max_with_prefix["max"] == 3
-
     def test_get_metadata_field_min_max_missing_field(self, populated_store):
         """Test getting min/max for non-existent field"""
         min_max = populated_store.get_metadata_field_min_max("nonexistent_field")
-        assert min_max["min"] is None
-        assert min_max["max"] is None
-
-    def test_get_metadata_field_min_max_empty_collection(self, document_store):
-        """Test getting min/max from empty collection"""
-        min_max = document_store.get_metadata_field_min_max("priority")
         assert min_max["min"] is None
         assert min_max["max"] is None
 

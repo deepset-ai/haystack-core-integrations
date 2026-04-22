@@ -1,0 +1,13 @@
+loaders:
+  - modules:
+      - haystack_integrations.components.retrievers.sqlalchemy.sqlalchemy_table_retriever
+    search_path: [../src]
+processors:
+  - type: filter
+    documented_only: true
+    skip_empty_modules: true
+renderer:
+  description: SQLAlchemy integration for Haystack
+  id: integrations-sqlalchemy
+  filename: sqlalchemy.md
+  title: SQLAlchemy

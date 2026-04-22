@@ -1,5 +1,37 @@
 # Changelog
 
+## [integrations/langfuse-v5.0.0] - 2026-04-17
+
+### 🚀 Features
+
+- [**breaking**] Migrate to Langfuse Python SDK v4 (#3126)
+
+### 🧪 Testing
+
+- Track test coverage for all integrations (#3065)
+
+
+## [integrations/langfuse-v4.1.0] - 2026-03-26
+
+### 🚀 Features
+
+- Log generation_kwargs in Langfuse spans (#3017)
+
+### 🐛 Bug Fixes
+
+- *(langfuse)* Replace MagicMock with Mock to prevent RAM exhaustion (#2543) (#2798)
+
+### 📚 Documentation
+
+- Simplify pydoc configs (#2855)
+
+### 🧹 Chores
+
+- Remove unused allow-direct-references (#2866)
+- Add ANN type annotations to google_genai, hanlp, jina, langfuse, lara (#2990)
+- Enforce ruff docstring rules (D102/D103/D205/D209/D213/D417/D419) in integrations 21-30 (#3010)
+
+
 ## [integrations/langfuse-v4.0.1] - 2026-01-27
 
 ### 🐛 Bug Fixes

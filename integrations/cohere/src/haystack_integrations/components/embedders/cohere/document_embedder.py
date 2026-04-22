@@ -49,7 +49,7 @@ class CohereDocumentEmbedder:
     def __init__(
         self,
         api_key: Secret = Secret.from_env_var(["COHERE_API_KEY", "CO_API_KEY"]),
-        model: str = "embed-english-v2.0",
+        model: str = "embed-v4.0",
         input_type: str = "search_document",
         api_base_url: str = "https://api.cohere.com",
         truncate: str = "END",
@@ -61,16 +61,13 @@ class CohereDocumentEmbedder:
         embedding_type: EmbeddingTypes | None = None,
     ) -> None:
         """
+        Initialize the CohereDocumentEmbedder.
+
         :param api_key: the Cohere API key.
-        :param model: the name of the model to use. Supported Models are:
-            `"embed-english-v3.0"`, `"embed-english-light-v3.0"`, `"embed-multilingual-v3.0"`,
-            `"embed-multilingual-light-v3.0"`, `"embed-english-v2.0"`, `"embed-english-light-v2.0"`,
-            `"embed-multilingual-v2.0"`. This list of all supported models can be found in the
-            [model documentation](https://docs.cohere.com/docs/models#representation).
+        :param model: the name of the model to use.
+            Read [Cohere documentation](https://docs.cohere.com/docs/models#embed) for a list of all supported models.
         :param input_type: specifies the type of input you're giving to the model. Supported values are
-            "search_document", "search_query", "classification" and "clustering". Not
-            required for older versions of the embedding models (meaning anything lower than v3), but is required for
-            more recent versions (meaning anything bigger than v2).
+            "search_document", "search_query", "classification" and "clustering".
         :param api_base_url: the Cohere API Base url.
         :param truncate: truncate embeddings that are too long from start or end, ("NONE"|"START"|"END").
             Passing "START" will discard the start of the input. "END" will discard the end of the input. In both
@@ -179,7 +176,8 @@ class CohereDocumentEmbedder:
 
     @component.output_types(documents=list[Document], meta=dict[str, Any])
     def run(self, documents: list[Document]) -> dict[str, list[Document] | dict[str, Any]]:
-        """Embed a list of `Documents`.
+        """
+        Embed a list of `Documents`.
 
         :param documents: documents to embed.
         :returns:  A dictionary with the following keys:

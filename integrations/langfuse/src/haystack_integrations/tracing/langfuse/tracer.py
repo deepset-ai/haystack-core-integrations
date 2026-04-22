@@ -22,7 +22,8 @@ from haystack.tracing import utils as tracing_utils
 
 import langfuse
 from langfuse import LangfuseSpan as LangfuseClientSpan
-from langfuse.types import TraceContext, TraceMetadata
+from langfuse import propagate_attributes
+from langfuse.types import TraceContext
 
 logger = logging.getLogger(__name__)
 
@@ -61,7 +62,6 @@ class LangfuseSpan(Span):
         Initialize a LangfuseSpan instance.
 
         :param context_manager: The context manager from Langfuse created with
-        `langfuse.get_client().start_as_current_span` or
         `langfuse.get_client().start_as_current_observation`.
         """
         self._span = context_manager.__enter__()
@@ -91,7 +91,10 @@ class LangfuseSpan(Span):
         if key.endswith(".input"):
             if "messages" in value:
                 messages = [m.to_openai_dict_format(require_tool_call_ids=False) for m in value["messages"]]
-                self._span.update(input=messages)
+                if isinstance(gen_kwargs := value.get("generation_kwargs"), dict):
+                    self._span.update(input={"messages": messages, "generation_kwargs": gen_kwargs})
+                else:
+                    self._span.update(input=messages)
             else:
                 coerced_value = tracing_utils.coerce_tag_value(value)
                 self._span.update(input=coerced_value)
@@ -125,6 +128,7 @@ class LangfuseSpan(Span):
         return self._data
 
     def get_correlation_data_for_logs(self) -> dict[str, Any]:
+        """Return correlation data for log enrichment."""
         return {}
 
 
@@ -234,9 +238,11 @@ class SpanHandler(ABC):
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "SpanHandler":
+        """Deserialize a SpanHandler from a dictionary."""
         return default_from_dict(cls, data)
 
     def to_dict(self) -> dict[str, Any]:
+        """Serialize this SpanHandler to a dictionary."""
         return default_to_dict(self)
 
 
@@ -273,6 +279,7 @@ class DefaultSpanHandler(SpanHandler):
     """DefaultSpanHandler provides the default Langfuse tracing behavior for Haystack."""
 
     def create_span(self, context: SpanContext) -> LangfuseSpan:
+        """Create a Langfuse span based on the given context."""
         if self.tracer is None:
             message = (
                 "Tracer is not initialized. "
@@ -290,33 +297,17 @@ class DefaultSpanHandler(SpanHandler):
             trace_context: TraceContext | None = cast(
                 TraceContext, {"trace_id": tracing_ctx.get("trace_id")} if tracing_ctx.get("trace_id") else None
             )
-            # Create a new trace when there's no parent span
+
             span_context_manager = self.tracer.start_as_current_observation(
                 trace_context=trace_context,
                 name=context.trace_name,
                 version=tracing_ctx.get("version"),
                 as_type=root_span_type,
             )
-
-            # Create LangfuseSpan which will handle entering the context manager
             span = LangfuseSpan(span_context_manager)
 
-            # Build trace metadata from context
-            trace_metadata: TraceMetadata = {
-                "name": context.trace_name,
-                "user_id": tracing_ctx.get("user_id"),
-                "session_id": tracing_ctx.get("session_id"),
-                "version": tracing_ctx.get("version"),
-                "metadata": None,
-                "tags": tracing_ctx.get("tags"),
-                "public": context.public,
-                "release": None,
-            }
-
-            # Filter out None values and apply trace attributes
-            trace_attrs = {k: v for k, v in trace_metadata.items() if v is not None}
-            if trace_attrs:
-                span._span.update_trace(**trace_attrs)
+            if context.public:
+                span.raw_span().set_trace_as_public()
 
             return span
 
@@ -340,15 +331,16 @@ class DefaultSpanHandler(SpanHandler):
                 )
             )
         else:
-            return LangfuseSpan(self.tracer.start_as_current_span(name=context.name))
+            return LangfuseSpan(self.tracer.start_as_current_observation(name=context.name))
 
     def handle(self, span: LangfuseSpan, component_type: str | None) -> None:
+        """Process and enrich a span after component execution."""
         # If the span is at the pipeline level, we add input and output keys to the span
         at_pipeline_level = span.get_data().get(_PIPELINE_INPUT_KEY) is not None
         if at_pipeline_level:
             coerced_input = tracing_utils.coerce_tag_value(span.get_data().get(_PIPELINE_INPUT_KEY))
             coerced_output = tracing_utils.coerce_tag_value(span.get_data().get(_PIPELINE_OUTPUT_KEY))
-            span.raw_span().update_trace(input=coerced_input, output=coerced_output)
+            span.raw_span().update(input=coerced_input, output=coerced_output)
         # special case for ToolInvoker (to update the span name to be: `original_component_name - [tool_names]`)
         if component_type == "ToolInvoker":
             tool_names: list[str] = []
@@ -456,9 +448,11 @@ class LangfuseTracer(Tracer):
     def trace(
         self, operation_name: str, tags: dict[str, Any] | None = None, parent_span: Span | None = None
     ) -> Iterator[Span]:
+        """Create and manage a tracing span as a context manager."""
         tags = tags or {}
         span_name = tags.get(_COMPONENT_NAME_KEY, operation_name)
         component_type = tags.get(_COMPONENT_TYPE_KEY)
+        is_root_span = not (parent_span or self.current_span())
 
         # Create a new span context
         span_context = SpanContext(
@@ -473,76 +467,94 @@ class LangfuseTracer(Tracer):
             public=self._public,
         )
 
-        # Create span using the handler
-        span = self._span_handler.create_span(span_context)
+        tracing_ctx = tracing_context_var.get({})
 
-        # Build new span hierarchy: copy existing stack, add new span, save for restoration
-        prev_stack = span_stack_var.get()
-        new_stack = (prev_stack or []).copy()
-        new_stack.append(span)
-        token = span_stack_var.set(new_stack)
-
-        span.set_tags(tags)
-
-        try:
-            yield span
-        except Exception:
-            # Exception occurred - capture exception info and pass to __exit__
-            # This allows Langfuse/OpenTelemetry to properly mark the span with ERROR level
-            exc_info = sys.exc_info()
-            try:
-                # Process span data (may fail with nested pipeline exceptions)
-                self._span_handler.handle(span, component_type)
-
-                # End span with exception info (may fail if span data is corrupted)
-                raw_span = span.raw_span()
-                if span._context_manager is not None:
-                    # Pass actual exception info to mark span as failed with ERROR level
-                    span._context_manager.__exit__(*exc_info)
-                elif hasattr(raw_span, "end"):
-                    # Only call end() if it's not a context manager
-                    raw_span.end()
-            except Exception as cleanup_error:
-                # Log cleanup errors but don't let them corrupt context
-                logger.warning(
-                    "Error during span cleanup for {operation_name}: {cleanup_error}",
-                    operation_name=operation_name,
-                    cleanup_error=cleanup_error,
+        # we need to properly exit context managers
+        with contextlib.ExitStack() as stack:
+            if is_root_span:
+                # propagate_attributes sets trace_name and other trace-level metadata on the root
+                # span and ALL child spans created within this context (full trace lifetime)
+                stack.enter_context(
+                    propagate_attributes(
+                        trace_name=self._name,
+                        user_id=tracing_ctx.get("user_id") if tracing_ctx.get("user_id") is not None else None,
+                        session_id=tracing_ctx.get("session_id") if tracing_ctx.get("session_id") is not None else None,
+                        version=tracing_ctx.get("version") if tracing_ctx.get("version") is not None else None,
+                        tags=tracing_ctx.get("tags") if tracing_ctx.get("tags") is not None else None,
+                    )
                 )
 
-            # Re-raise the original exception
-            raise
-        else:
-            # No exception - clean exit with success status
-            # This preserves any manually-set log levels (WARNING, DEBUG)
+            # Create span using the handler
+            span = self._span_handler.create_span(span_context)
+
+            # Build new span hierarchy: copy existing stack, add new span, save for restoration
+            prev_stack = span_stack_var.get()
+            new_stack = (prev_stack or []).copy()
+            new_stack.append(span)
+            token = span_stack_var.set(new_stack)
+
+            span.set_tags(tags)
+
             try:
-                # Process span data
-                self._span_handler.handle(span, component_type)
+                yield span
+            except Exception:
+                # Exception occurred - capture exception info and pass to __exit__
+                # This allows Langfuse/OpenTelemetry to properly mark the span with ERROR level
+                exc_info = sys.exc_info()
+                try:
+                    # Process span data (may fail with nested pipeline exceptions)
+                    self._span_handler.handle(span, component_type)
 
-                # End span successfully
-                raw_span = span.raw_span()
-                # In v3, we need to properly exit context managers
-                if span._context_manager is not None:
-                    # No exception - pass None to indicate success
-                    span._context_manager.__exit__(None, None, None)
-                elif hasattr(raw_span, "end"):
-                    # Only call end() if it's not a context manager
-                    raw_span.end()
-            except Exception as cleanup_error:
-                # Log cleanup errors but don't let them corrupt context
-                logger.warning(
-                    "Error during span cleanup for {operation_name}: {cleanup_error}",
-                    operation_name=operation_name,
-                    cleanup_error=cleanup_error,
-                )
-        finally:
-            # Restore previous span stack using saved token
-            span_stack_var.reset(token)
+                    # End span with exception info (may fail if span data is corrupted)
+                    raw_span = span.raw_span()
+                    if span._context_manager is not None:
+                        # Pass actual exception info to mark span as failed with ERROR level
+                        span._context_manager.__exit__(*exc_info)
+                    elif hasattr(raw_span, "end"):
+                        # Only call end() if it's not a context manager
+                        raw_span.end()
+                except Exception as cleanup_error:
+                    # Log cleanup errors but don't let them corrupt context
+                    logger.warning(
+                        "Error during span cleanup for {operation_name}: {cleanup_error}",
+                        operation_name=operation_name,
+                        cleanup_error=cleanup_error,
+                    )
 
-            if self.enforce_flush:
-                self.flush()
+                # Re-raise the original exception
+                raise
+            else:
+                # No exception - clean exit with success status
+                # This preserves any manually-set log levels (WARNING, DEBUG)
+                try:
+                    # Process span data
+                    self._span_handler.handle(span, component_type)
+
+                    # End span successfully
+                    raw_span = span.raw_span()
+                    # In v3, we need to properly exit context managers
+                    if span._context_manager is not None:
+                        # No exception - pass None to indicate success
+                        span._context_manager.__exit__(None, None, None)
+                    elif hasattr(raw_span, "end"):
+                        # Only call end() if it's not a context manager
+                        raw_span.end()
+                except Exception as cleanup_error:
+                    # Log cleanup errors but don't let them corrupt context
+                    logger.warning(
+                        "Error during span cleanup for {operation_name}: {cleanup_error}",
+                        operation_name=operation_name,
+                        cleanup_error=cleanup_error,
+                    )
+            finally:
+                # Restore previous span stack using saved token
+                span_stack_var.reset(token)
+
+                if self.enforce_flush:
+                    self.flush()
 
     def flush(self) -> None:
+        """Flush all pending spans to Langfuse."""
         self._tracer.flush()
 
     def current_span(self) -> Span | None:
@@ -558,6 +570,7 @@ class LangfuseTracer(Tracer):
     def get_trace_url(self) -> str:
         """
         Return the URL to the tracing data.
+
         :return: The URL to the tracing data.
         """
         return self._tracer.get_trace_url() or ""
@@ -565,6 +578,7 @@ class LangfuseTracer(Tracer):
     def get_trace_id(self) -> str:
         """
         Return the trace ID.
+
         :return: The trace ID.
         """
         return self._tracer.get_current_trace_id() or ""

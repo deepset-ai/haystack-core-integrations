@@ -211,8 +211,11 @@ class LlamaCppChatGenerator:
         model_clip_path: str | None = None,
     ) -> None:
         """
+        Initialize LlamaCppChatGenerator.
+
         :param model: The path of a quantized model for text generation, for example, "zephyr-7b-beta.Q4_0.gguf".
             If the model path is also specified in the `model_kwargs`, this parameter will be ignored.
+
         :param n_ctx: The number of tokens in the context. When set to 0, the context will be taken from the model.
         :param n_batch: Prompt processing maximum batch size.
         :param model_kwargs: Dictionary containing keyword arguments used to initialize the LLM for text generation.
@@ -274,6 +277,7 @@ class LlamaCppChatGenerator:
         self._inference_lock = asyncio.Lock()
 
     def warm_up(self) -> None:
+        """Load and initialize the llama.cpp model."""
         if self._model is not None:
             return
 
@@ -462,6 +466,7 @@ class LlamaCppChatGenerator:
     ) -> dict[str, list[ChatMessage]]:
         """
         Take streaming responses from llama.cpp, convert to Haystack StreamingChunk objects, stream them,
+
         and finally convert them to a ChatMessage.
 
         :param response_stream: The streaming responses from llama.cpp.

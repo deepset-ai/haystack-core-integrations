@@ -18,8 +18,7 @@ logger = logging.getLogger(__name__)
 @component
 class NvidiaTextEmbedder:
     """
-    A component for embedding strings using embedding models provided by
-    [NVIDIA NIMs](https://ai.nvidia.com).
+    A component for embedding strings using embedding models provided by [NVIDIA NIMs](https://ai.nvidia.com).
 
     For models that differentiate between query and document inputs,
     this component embeds the input string as a query.
@@ -90,6 +89,7 @@ class NvidiaTextEmbedder:
 
     @classmethod
     def class_name(cls) -> str:
+        """Return the class name identifier for serialization."""
         return "NvidiaTextEmbedder"
 
     def default_model(self) -> None:
@@ -205,13 +205,13 @@ class NvidiaTextEmbedder:
         if not self._initialized:
             self.warm_up()
 
-        elif not isinstance(text, str):
+        if not isinstance(text, str):
             msg = (
                 "NvidiaTextEmbedder expects a string as an input."
                 "In case you want to embed a list of Documents, please use the NvidiaDocumentEmbedder."
             )
             raise TypeError(msg)
-        elif not text:
+        if not text:
             msg = "Cannot embed an empty string."
             raise ValueError(msg)
 

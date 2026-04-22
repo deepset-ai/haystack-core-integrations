@@ -15,8 +15,9 @@ from haystack_integrations.utils.nvidia import DEFAULT_API_URL, Client, Model, N
 @component
 class NvidiaGenerator:
     """
-    Generates text using generative models hosted with
-    [NVIDIA NIM](https://ai.nvidia.com) on the [NVIDIA API Catalog](https://build.nvidia.com/explore/discover).
+    Generates text using generative models hosted with [NVIDIA NIM](https://ai.nvidia.com).
+
+    Available via the [NVIDIA API Catalog](https://build.nvidia.com/explore/discover).
 
     ### Usage example
 
@@ -88,6 +89,7 @@ class NvidiaGenerator:
 
     @classmethod
     def class_name(cls) -> str:
+        """Return the class name identifier for serialization."""
         return "NvidiaGenerator"
 
     def default_model(self) -> None:
@@ -130,7 +132,7 @@ class NvidiaGenerator:
 
         if not self.is_hosted and not self._model:
             if self.backend.model:
-                self.model = self.backend.model
+                self._model = self.backend.model
             else:
                 self.default_model()
 

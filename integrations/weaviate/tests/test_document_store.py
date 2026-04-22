@@ -6,15 +6,23 @@ import base64
 import logging
 import os
 from collections.abc import Generator
-from unittest.mock import MagicMock, patch
+from dataclasses import replace
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+import weaviate
 from dateutil import parser
 from haystack.dataclasses.byte_stream import ByteStream
 from haystack.dataclasses.document import Document
-from haystack.document_stores.errors import DocumentStoreError
+from haystack.document_stores.errors import DocumentStoreError, DuplicateDocumentError
+from haystack.document_stores.types.policy import DuplicatePolicy
 from haystack.testing.document_store import (
+    CountDocumentsByFilterTest,
+    CountUniqueMetadataByFilterTest,
     DocumentStoreBaseExtendedTests,
+    GetMetadataFieldMinMaxTest,
+    GetMetadataFieldsInfoTest,
+    GetMetadataFieldUniqueValuesTest,
     create_filterable_docs,
 )
 from haystack.utils.auth import Secret
@@ -40,12 +48,163 @@ from haystack_integrations.document_stores.weaviate.document_store import (
 
 @patch("haystack_integrations.document_stores.weaviate.document_store.weaviate.WeaviateClient")
 def test_init_is_lazy(_mock_client):
-    _ = WeaviateDocumentStore()
+    WeaviateDocumentStore()
     _mock_client.assert_not_called()
 
 
+def test_client_raises_without_auth_for_cloud_url():
+    ds = WeaviateDocumentStore(url="something.weaviate.cloud")
+    with pytest.raises(ValueError, match="Auth credentials are required"):
+        ds.client  # noqa: B018
+
+
+@pytest.mark.asyncio
+async def test_async_client_raises_without_auth_for_cloud_url():
+    ds = WeaviateDocumentStore(url="something.weaviate.cloud")
+    with pytest.raises(ValueError, match="Auth credentials are required"):
+        await ds.async_client
+
+
+@patch("haystack_integrations.document_stores.weaviate.document_store.weaviate.connect_to_weaviate_cloud")
+def test_client_connects_to_weaviate_cloud(mock_connect, monkeypatch):
+    monkeypatch.setenv("WEAVIATE_API_KEY", "my_api_key")
+    mock_client = MagicMock()
+    mock_client.collections.exists.return_value = True
+    mock_connect.return_value = mock_client
+
+    ds = WeaviateDocumentStore(
+        url="rAnD0m.something.weaviate.cloud",
+        auth_client_secret=AuthApiKey(),
+        additional_headers={"X-HuggingFace-Api-Key": "k"},
+    )
+    assert ds.client is mock_client
+
+    mock_connect.assert_called_once()
+    _args, kwargs = mock_connect.call_args
+    assert kwargs["headers"] == {"X-HuggingFace-Api-Key": "k"}
+
+
+@pytest.mark.asyncio
+@patch("haystack_integrations.document_stores.weaviate.document_store.weaviate.use_async_with_weaviate_cloud")
+async def test_async_client_connects_to_weaviate_cloud(mock_connect, monkeypatch):
+    monkeypatch.setenv("WEAVIATE_API_KEY", "my_api_key")
+    mock_client = MagicMock()
+
+    async def connect() -> None:
+        return None
+
+    async def exists(_name: str) -> bool:
+        return True
+
+    mock_client.connect = connect
+    mock_client.collections.exists = exists
+    mock_connect.return_value = mock_client
+
+    ds = WeaviateDocumentStore(url="rAnD0m.something.weaviate.cloud", auth_client_secret=AuthApiKey())
+    assert await ds.async_client is mock_client
+    mock_connect.assert_called_once()
+
+
+def test_to_data_object_with_sparse_embedding_logs_warning(caplog):
+    doc = Document(content="test doc")
+    doc_dict = doc.to_dict()
+    doc_dict["sparse_embedding"] = {"indices": [0, 1], "values": [0.1, 0.2]}
+    with patch.object(Document, "to_dict", return_value=doc_dict), caplog.at_level(logging.WARNING):
+        data = WeaviateDocumentStore._to_data_object(doc)
+    assert "sparse_embedding" not in data
+    assert "sparse_embedding" in caplog.text
+
+
+def test_embedding_retrieval_raises_when_distance_and_certainty_both_set():
+    ds = WeaviateDocumentStore()
+    with pytest.raises(ValueError, match="Can't use 'distance' and 'certainty'"):
+        ds._embedding_retrieval(query_embedding=[0.1], distance=0.5, certainty=0.5)
+
+
+def test_handle_failed_objects_raises_document_store_error():
+    failed_obj = MagicMock()
+    failed_obj.object_.properties = {"_original_id": "doc-1"}
+    failed_obj.message = "boom"
+    with pytest.raises(DocumentStoreError, match=r"doc-1.*boom"):
+        WeaviateDocumentStore._handle_failed_objects([failed_obj])
+
+
+def test_to_document_handles_vector_variants():
+    data_no_vec = DataObject(properties={"_original_id": "1", "content": "x", "score": None}, vector=None)
+    assert WeaviateDocumentStore._to_document(data_no_vec).embedding is None
+
+    data_list_vec = DataObject(properties={"_original_id": "2", "content": "y", "score": None}, vector=[0.1, 0.2])
+    assert WeaviateDocumentStore._to_document(data_list_vec).embedding == [0.1, 0.2]
+
+
+def test_delete_by_filter_wraps_errors():
+    ds = WeaviateDocumentStore()
+    collection = MagicMock()
+    ds._collection = collection
+    filters = {"field": "meta.x", "operator": "==", "value": 1}
+
+    collection.data.delete_many.side_effect = weaviate.exceptions.WeaviateQueryError("bad", "GRPC")
+    with pytest.raises(DocumentStoreError, match="bad"):
+        ds.delete_by_filter(filters)
+
+    collection.data.delete_many.side_effect = RuntimeError("boom")
+    with pytest.raises(DocumentStoreError, match="boom"):
+        ds.delete_by_filter(filters)
+
+
+def test_update_by_filter_wraps_errors():
+    ds = WeaviateDocumentStore()
+    collection = MagicMock()
+    ds._collection = collection
+    filters = {"field": "meta.x", "operator": "==", "value": 1}
+
+    with pytest.raises(ValueError, match="Meta must be a dictionary"):
+        ds.update_by_filter(filters, meta="not-a-dict")  # type: ignore[arg-type]
+
+    obj = MagicMock(uuid="u", properties={"_original_id": "doc-1"}, vector=None)
+    collection.config.get.return_value.properties = [MagicMock(name="content")]
+    collection.query.fetch_objects.return_value = MagicMock(objects=[obj])
+    collection.data.replace.side_effect = RuntimeError("replace failed")
+    with pytest.raises(DocumentStoreError, match="doc-1"):
+        ds.update_by_filter(filters, {"category": "new"})
+
+
+@pytest.mark.asyncio
+async def test_write_documents_async_with_skip_and_fail_policies():
+    ds = WeaviateDocumentStore()
+    collection = MagicMock()
+    collection.data.exists = AsyncMock(return_value=True)
+    dup_error = weaviate.exceptions.UnexpectedStatusCodeError.__new__(weaviate.exceptions.UnexpectedStatusCodeError)
+    collection.data.insert = AsyncMock(side_effect=dup_error)
+
+    async def _get_collection():
+        return collection
+
+    with patch.object(
+        WeaviateDocumentStore, "async_collection", new_callable=lambda: property(lambda _self: _get_collection())
+    ):
+        doc = Document(content="x")
+
+        assert await ds.write_documents_async([doc], policy=DuplicatePolicy.SKIP) == 1
+        collection.data.insert.assert_not_called()
+
+        collection.data.exists = AsyncMock(return_value=False)
+        with pytest.raises(DuplicateDocumentError, match=doc.id):
+            await ds.write_documents_async([doc], policy=DuplicatePolicy.FAIL)
+
+        with pytest.raises(ValueError, match="Expected a Document"):
+            await ds.write_documents_async(["not-a-doc"], policy=DuplicatePolicy.FAIL)  # type: ignore[list-item]
+
+
 @pytest.mark.integration
-class TestWeaviateDocumentStore(DocumentStoreBaseExtendedTests):
+class TestWeaviateDocumentStore(
+    DocumentStoreBaseExtendedTests,
+    CountDocumentsByFilterTest,
+    CountUniqueMetadataByFilterTest,
+    GetMetadataFieldsInfoTest,
+    GetMetadataFieldMinMaxTest,
+    GetMetadataFieldUniqueValuesTest,
+):
     @pytest.fixture
     def document_store(self, request) -> Generator[WeaviateDocumentStore, None, None]:
         # Use a different index for each test so we can run them in parallel
@@ -131,7 +290,7 @@ class TestWeaviateDocumentStore(DocumentStoreBaseExtendedTests):
 
         # Trigger the actual database connection by accessing the `client` property so we
         # can assert the setup was good
-        _ = ds.client
+        ds.client  # noqa: B018
 
         # Verify client is created with correct parameters
         mock_weaviate_client_class.assert_called_once_with(
@@ -361,7 +520,7 @@ class TestWeaviateDocumentStore(DocumentStoreBaseExtendedTests):
         assert document_store.write_documents([doc]) == 1
         assert document_store.count_documents() == 1
 
-        doc.content = "test doc 2"
+        doc = replace(doc, content="test doc 2")
         assert document_store.write_documents([doc]) == 1
         assert document_store.count_documents() == 1
 
@@ -876,31 +1035,6 @@ class TestWeaviateDocumentStore(DocumentStoreBaseExtendedTests):
             assert "index" in doc.meta
             assert 0 <= doc.meta["index"] < 250
 
-    def test_count_documents_by_filter(self, document_store):
-        docs = [
-            Document(content="Doc 1", meta={"category": "TypeA"}),
-            Document(content="Doc 2", meta={"category": "TypeB"}),
-            Document(content="Doc 3", meta={"category": "TypeA"}),
-            Document(content="Doc 4", meta={"category": "TypeA"}),
-        ]
-        document_store.write_documents(docs)
-        assert document_store.count_documents() == 4
-
-        count = document_store.count_documents_by_filter(
-            filters={"field": "meta.category", "operator": "==", "value": "TypeA"}
-        )
-        assert count == 3
-
-        count = document_store.count_documents_by_filter(
-            filters={"field": "meta.category", "operator": "==", "value": "TypeB"}
-        )
-        assert count == 1
-
-        count = document_store.count_documents_by_filter(
-            filters={"field": "meta.category", "operator": "==", "value": "TypeC"}
-        )
-        assert count == 0
-
     def test_get_metadata_fields_info(self, document_store):
         fields_info = document_store.get_metadata_fields_info()
 
@@ -920,30 +1054,6 @@ class TestWeaviateDocumentStore(DocumentStoreBaseExtendedTests):
         assert "status" in fields_info
         assert fields_info["status"]["type"] == "text"
 
-    def test_get_metadata_field_min_max(self, document_store):
-        docs = [
-            Document(content="Doc 1", meta={"number": 10}),
-            Document(content="Doc 2", meta={"number": 5}),
-            Document(content="Doc 3", meta={"number": 20}),
-            Document(content="Doc 4", meta={"number": 15}),
-        ]
-        document_store.write_documents(docs)
-
-        result = document_store.get_metadata_field_min_max("number")
-        assert result["min"] == 5
-        assert result["max"] == 20
-
-    def test_get_metadata_field_min_max_with_meta_prefix(self, document_store):
-        docs = [
-            Document(content="Doc 1", meta={"number": 100}),
-            Document(content="Doc 2", meta={"number": 200}),
-        ]
-        document_store.write_documents(docs)
-
-        result = document_store.get_metadata_field_min_max("meta.number")
-        assert result["min"] == 100
-        assert result["max"] == 200
-
     def test_get_metadata_field_min_max_unsupported_type(self, document_store):
         with pytest.raises(ValueError, match="doesn't support min/max aggregation"):
             document_store.get_metadata_field_min_max("category")
@@ -951,34 +1061,6 @@ class TestWeaviateDocumentStore(DocumentStoreBaseExtendedTests):
     def test_get_metadata_field_min_max_field_not_found(self, document_store):
         with pytest.raises(ValueError, match="not found in collection schema"):
             document_store.get_metadata_field_min_max("nonexistent_field")
-
-    def test_count_unique_metadata_by_filter(self, document_store):
-        docs = [
-            Document(content="Doc 1", meta={"category": "TypeA", "status": "draft"}),
-            Document(content="Doc 2", meta={"category": "TypeB", "status": "published"}),
-            Document(content="Doc 3", meta={"category": "TypeA", "status": "draft"}),
-            Document(content="Doc 4", meta={"category": "TypeC", "status": "published"}),
-            Document(content="Doc 5", meta={"category": "TypeA", "status": "archived"}),
-        ]
-        document_store.write_documents(docs)
-
-        result = document_store.count_unique_metadata_by_filter(
-            filters={"field": "meta.category", "operator": "==", "value": "TypeA"}, metadata_fields=["status"]
-        )
-        assert result["status"] == 2
-
-        result = document_store.count_unique_metadata_by_filter(
-            filters={
-                "operator": "OR",
-                "conditions": [
-                    {"field": "meta.category", "operator": "==", "value": "TypeA"},
-                    {"field": "meta.category", "operator": "==", "value": "TypeB"},
-                ],
-            },
-            metadata_fields=["category", "status"],
-        )
-        assert result["category"] == 2
-        assert result["status"] == 3
 
     def test_count_unique_metadata_by_filter_with_meta_prefix(self, document_store):
         docs = [
@@ -1011,20 +1093,6 @@ class TestWeaviateDocumentStore(DocumentStoreBaseExtendedTests):
                 filters={"field": "meta.category", "operator": "==", "value": "TypeA"},
                 metadata_fields=["nonexistent_field"],
             )
-
-    def test_get_metadata_field_unique_values(self, document_store):
-        docs = [
-            Document(content="Doc 1", meta={"category": "TypeA"}),
-            Document(content="Doc 2", meta={"category": "TypeB"}),
-            Document(content="Doc 3", meta={"category": "TypeA"}),
-            Document(content="Doc 4", meta={"category": "TypeC"}),
-            Document(content="Doc 5", meta={"category": "TypeB"}),
-        ]
-        document_store.write_documents(docs)
-
-        values, total_count = document_store.get_metadata_field_unique_values("category")
-        assert total_count == 3
-        assert set(values) == {"TypeA", "TypeB", "TypeC"}
 
     def test_get_metadata_field_unique_values_with_meta_prefix(self, document_store):
         docs = [
@@ -1078,3 +1146,138 @@ class TestWeaviateDocumentStore(DocumentStoreBaseExtendedTests):
         values, total_count = document_store.get_metadata_field_unique_values("category")
         assert total_count == 0
         assert values == []
+
+    # --- Overrides of mixin tests to account for Weaviate-specific behaviour ---
+
+    def test_count_documents_by_filter_simple(self, document_store):
+        docs = [
+            Document(content="Doc 1", meta={"category": "TypeA"}),
+            Document(content="Doc 2", meta={"category": "TypeB"}),
+            Document(content="Doc 3", meta={"category": "TypeA"}),
+            Document(content="Doc 4", meta={"category": "TypeA"}),
+        ]
+        document_store.write_documents(docs)
+        assert document_store.count_documents() == 4
+
+        count = document_store.count_documents_by_filter(
+            filters={"field": "meta.category", "operator": "==", "value": "TypeA"}
+        )
+        assert count == 3
+
+        count = document_store.count_documents_by_filter(
+            filters={"field": "meta.category", "operator": "==", "value": "TypeB"}
+        )
+        assert count == 1
+
+        count = document_store.count_documents_by_filter(
+            filters={"field": "meta.category", "operator": "==", "value": "TypeC"}
+        )
+        assert count == 0
+
+    def test_count_documents_by_filter_compound(self, document_store):
+        """Test count_documents_by_filter() with AND filter."""
+        docs = [
+            Document(content="Doc 1", meta={"category": "TypeA", "status": "active"}),
+            Document(content="Doc 2", meta={"category": "TypeB", "status": "active"}),
+            Document(content="Doc 3", meta={"category": "TypeA", "status": "inactive"}),
+            Document(content="Doc 4", meta={"category": "TypeA", "status": "active"}),
+        ]
+        document_store.write_documents(docs)
+
+        count = document_store.count_documents_by_filter(  # type:ignore[attr-defined]
+            filters={
+                "operator": "AND",
+                "conditions": [
+                    {"field": "meta.category", "operator": "==", "value": "TypeA"},
+                    {"field": "meta.status", "operator": "==", "value": "active"},
+                ],
+            }
+        )
+        assert count == 2
+
+    def test_count_documents_by_filter_empty_collection(self, document_store):
+        """Test count_documents_by_filter() on an empty store."""
+        assert document_store.count_documents() == 0
+
+        count = document_store.count_documents_by_filter(  # type:ignore[attr-defined]
+            filters={"field": "meta.category", "operator": "==", "value": "TypeA"}
+        )
+        assert count == 0
+
+    def test_count_unique_metadata_by_filter_with_filter(self, document_store):
+        docs = [
+            Document(content="Doc 1", meta={"category": "TypeA", "status": "draft"}),
+            Document(content="Doc 2", meta={"category": "TypeB", "status": "published"}),
+            Document(content="Doc 3", meta={"category": "TypeA", "status": "draft"}),
+            Document(content="Doc 4", meta={"category": "TypeC", "status": "published"}),
+            Document(content="Doc 5", meta={"category": "TypeA", "status": "archived"}),
+        ]
+        document_store.write_documents(docs)
+
+        result = document_store.count_unique_metadata_by_filter(
+            filters={"field": "meta.category", "operator": "==", "value": "TypeA"}, metadata_fields=["status"]
+        )
+        assert result["status"] == 2
+
+    def test_count_unique_metadata_by_filter_with_multiple_filters(self, document_store):
+        """Test counting with multiple filters"""
+        docs = [
+            Document(content="Doc 1", meta={"category": "TypeA", "year": 2023}),
+            Document(content="Doc 2", meta={"category": "TypeA", "year": 2024}),
+            Document(content="Doc 3", meta={"category": "TypeB", "year": 2023}),
+            Document(content="Doc 4", meta={"category": "TypeB", "year": 2024}),
+        ]
+        document_store.write_documents(docs)
+        count = document_store.count_documents_by_filter(  # type:ignore[attr-defined]
+            filters={
+                "operator": "AND",
+                "conditions": [
+                    {"field": "meta.category", "operator": "==", "value": "TypeB"},
+                    {"field": "meta.year", "operator": "==", "value": 2023},
+                ],
+            }
+        )
+        assert count == 1
+
+    @staticmethod
+    def test_get_metadata_field_min_max_empty_collection(document_store):
+        # Weaviate requires fields to be declared in the schema before querying them.
+        # The mixin uses "priority" which is not in the pre-defined schema, so we use
+        # "number" which IS declared in the fixture's collection_settings.
+        assert document_store.count_documents() == 0
+        result = document_store.get_metadata_field_min_max("number")
+        assert result["min"] == 0
+        assert result["max"] == 0
+
+    @staticmethod
+    def test_get_metadata_fields_info_empty_collection(document_store):
+        # Weaviate collections always carry a fixed schema regardless of whether any
+        # documents have been written.  The fixture pre-declares "number", "date",
+        # "category" and "status", so get_metadata_fields_info() will return those
+        # even on an empty collection instead of the empty dict the generic mixin expects.
+        assert document_store.count_documents() == 0
+        fields_info = document_store.get_metadata_fields_info()
+        assert set(fields_info.keys()) == {"number", "date", "category", "status"}
+
+    @staticmethod
+    def test_count_unique_metadata_by_filter_all_documents(document_store):
+        # The generic mixin passes filters={} (empty dict) to mean "no filter".
+        # Weaviate's convert_filters() does not accept an empty dict; a filter that
+        # explicitly selects all documents must be used instead.
+        docs = [
+            Document(content="Doc 1", meta={"category": "A", "status": "active", "priority": 1}),
+            Document(content="Doc 2", meta={"category": "B", "status": "active", "priority": 2}),
+            Document(content="Doc 3", meta={"category": "A", "status": "inactive", "priority": 1}),
+            Document(content="Doc 4", meta={"category": "A", "status": "active", "priority": 3}),
+            Document(content="Doc 5", meta={"category": "C", "status": "active", "priority": 2}),
+        ]
+        document_store.write_documents(docs)
+        assert document_store.count_documents() == 5
+
+        counts = document_store.count_unique_metadata_by_filter(
+            filters={"field": "meta.priority", "operator": ">=", "value": 1},
+            metadata_fields=["category", "status", "priority"],
+        )
+        assert counts["category"] == 3
+        assert counts["status"] == 2
+        assert counts["priority"] == 3

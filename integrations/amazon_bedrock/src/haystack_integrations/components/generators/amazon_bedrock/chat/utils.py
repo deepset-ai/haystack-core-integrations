@@ -93,7 +93,7 @@ def _format_tools(
         )
 
     if tools_cachepoint_config:
-        tool_specs.append({"cachePoint": tools_cachepoint_config})
+        tool_specs.append(tools_cachepoint_config)
 
     return {"tools": tool_specs}
 
@@ -173,7 +173,7 @@ def _format_tool_call_message(tool_call_message: ChatMessage) -> dict[str, Any]:
 
     # tool call messages can contain reasoning content
     if reasoning_content := tool_call_message.reasoning:
-        content.extend(_format_reasoning_content(reasoning_content=reasoning_content))
+        content.append(_format_reasoning_content(reasoning_content=reasoning_content))
 
     # Tool call message can contain text
     if tool_call_message.text:
@@ -291,22 +291,27 @@ def _repair_tool_result_messages(bedrock_formatted_messages: list[dict[str, Any]
     return [msg for _, msg in repaired_bedrock_formatted_messages]
 
 
-def _format_reasoning_content(reasoning_content: ReasoningContent) -> list[dict[str, Any]]:
+def _format_reasoning_content(reasoning_content: ReasoningContent) -> dict[str, Any]:
     """
     Format ReasoningContent to match Bedrock's expected structure.
 
     :param reasoning_content: ReasoningContent object containing reasoning contents to format.
-    :returns: List of formatted reasoning content dictionaries for Bedrock.
+    :returns: Dictionary representing the formatted reasoning content for Bedrock.
+
     """
-    formatted_contents = []
-    for content in reasoning_content.extra.get("reasoning_contents", []):
-        formatted_content = {"reasoningContent": content["reasoning_content"]}
-        if reasoning_text := formatted_content["reasoningContent"].pop("reasoning_text", None):
-            formatted_content["reasoningContent"]["reasoningText"] = reasoning_text
-        if redacted_content := formatted_content["reasoningContent"].pop("redacted_content", None):
-            formatted_content["reasoningContent"]["redactedContent"] = redacted_content
-        formatted_contents.append(formatted_content)
-    return formatted_contents
+    formatted_content = {
+        "reasoningContent": {
+            "reasoningText": {
+                "text": reasoning_content.reasoning_text,
+                **(
+                    {"signature": reasoning_content.extra["signature"]}
+                    if reasoning_content.extra.get("signature")
+                    else {}
+                ),
+            }
+        }
+    }
+    return formatted_content
 
 
 def _format_user_message(message: ChatMessage) -> dict[str, Any]:
@@ -345,7 +350,7 @@ def _format_textual_assistant_message(message: ChatMessage) -> dict[str, Any]:
     bedrock_content_blocks: list[dict[str, Any]] = []
     # Add reasoning content if available as the first content block
     if message.reasoning:
-        bedrock_content_blocks.extend(_format_reasoning_content(reasoning_content=message.reasoning))
+        bedrock_content_blocks.append(_format_reasoning_content(reasoning_content=message.reasoning))
 
     for part in content_parts:
         if isinstance(part, TextContent):
@@ -462,7 +467,7 @@ def _parse_completion_response(response_body: dict[str, Any], model: str) -> lis
             # Process all content blocks and combine them into a single message
             text_content = []
             tool_calls = []
-            reasoning_contents = []
+            reasoning_content = None
             for content_block in content_blocks:
                 if "text" in content_block:
                     text_content.append(content_block["text"])
@@ -477,12 +482,6 @@ def _parse_completion_response(response_body: dict[str, Any], model: str) -> lis
                     tool_calls.append(tool_call)
                 elif "reasoningContent" in content_block:
                     reasoning_content = content_block["reasoningContent"]
-                    # If reasoningText is present, replace it with reasoning_text
-                    if "reasoningText" in reasoning_content:
-                        reasoning_content["reasoning_text"] = reasoning_content.pop("reasoningText")
-                    if "redactedContent" in reasoning_content:
-                        reasoning_content["redacted_content"] = reasoning_content.pop("redactedContent")
-                    reasoning_contents.append({"reasoning_content": reasoning_content})
                 elif "citationsContent" in content_block:
                     citations_content = content_block["citationsContent"]
                     meta["citations"] = citations_content
@@ -492,12 +491,14 @@ def _parse_completion_response(response_body: dict[str, Any], model: str) -> lis
                             if text.strip():
                                 text_content.append(text)
 
+            reasoning_extra = {}
             reasoning_text = ""
-            for content in reasoning_contents:
-                if "reasoning_text" in content["reasoning_content"]:
-                    reasoning_text += content["reasoning_content"]["reasoning_text"]["text"]
-                elif "redacted_content" in content["reasoning_content"]:
-                    reasoning_text += "[REDACTED]"
+            if reasoning_content:
+                if "reasoningText" in reasoning_content:
+                    reasoning_text = reasoning_content["reasoningText"].get("text", "")
+                    signature = reasoning_content["reasoningText"].get("signature")
+                    if signature:
+                        reasoning_extra["signature"] = signature
 
             # Create a single ChatMessage with combined text and tool calls
             replies.append(
@@ -505,10 +506,8 @@ def _parse_completion_response(response_body: dict[str, Any], model: str) -> lis
                     "".join(text_content),
                     tool_calls=tool_calls,
                     meta=meta,
-                    reasoning=ReasoningContent(
-                        reasoning_text=reasoning_text, extra={"reasoning_contents": reasoning_contents}
-                    )
-                    if reasoning_contents
+                    reasoning=ReasoningContent(reasoning_text=reasoning_text, extra=reasoning_extra)
+                    if reasoning_text or reasoning_extra
                     else None,
                 )
             )
@@ -583,15 +582,18 @@ def _convert_event_to_streaming_chunk(
         # This is for accumulating reasoning content deltas
         elif "reasoningContent" in delta:
             reasoning_content = delta["reasoningContent"]
-            if "redactedContent" in reasoning_content:
-                reasoning_content["redacted_content"] = reasoning_content.pop("redactedContent")
-            reasoning_text = reasoning_content.get("text", "")
+            reasoning_text = ""
+            extra = {}
+            if "text" in reasoning_content:
+                reasoning_text = reasoning_content["text"]
+            if "signature" in reasoning_content:
+                extra["signature"] = reasoning_content["signature"]
             streaming_chunk = StreamingChunk(
                 content="",
                 index=block_idx,
                 reasoning=ReasoningContent(
                     reasoning_text=reasoning_text,
-                    extra={"reasoning_contents": [{"index": block_idx, "reasoning_content": reasoning_content}]},
+                    extra=extra,
                 ),
                 meta=base_meta,
             )
@@ -630,86 +632,6 @@ def _convert_event_to_streaming_chunk(
     return streaming_chunk
 
 
-def _process_reasoning_contents(chunks: list[StreamingChunk]) -> ReasoningContent | None:
-    """
-    Process reasoning contents from a list of StreamingChunk objects into the Bedrock expected format.
-
-    :param chunks: List of StreamingChunk objects potentially containing reasoning contents.
-
-    :returns: List of Bedrock formatted reasoning content dictionaries
-    """
-    formatted_reasoning_contents = []
-    current_index = None
-    reasoning_text = ""
-    reasoning_signature = None
-    redacted_content = None
-    for chunk in chunks:
-        if chunk.reasoning and chunk.reasoning.extra:
-            reasoning_contents = chunk.reasoning.extra.get("reasoning_contents", [])
-        else:
-            reasoning_contents = []
-
-        for reasoning_content in reasoning_contents:
-            content_block_index = reasoning_content["index"]
-
-            # Start new group when index changes
-            if current_index is not None and content_block_index != current_index:
-                # Finalize current group
-                if reasoning_text:
-                    formatted_reasoning_contents.append(
-                        {
-                            "reasoning_content": {
-                                "reasoning_text": {"text": reasoning_text, "signature": reasoning_signature},
-                            }
-                        }
-                    )
-                if redacted_content:
-                    formatted_reasoning_contents.append({"reasoning_content": {"redacted_content": redacted_content}})
-
-                # Reset accumulators for new group
-                reasoning_text = ""
-                reasoning_signature = None
-                redacted_content = None
-
-            # Accumulate content for current index
-            current_index = content_block_index
-            reasoning_text += reasoning_content["reasoning_content"].get("text", "")
-            if "redacted_content" in reasoning_content["reasoning_content"]:
-                redacted_content = reasoning_content["reasoning_content"]["redacted_content"]
-            if "signature" in reasoning_content["reasoning_content"]:
-                reasoning_signature = reasoning_content["reasoning_content"]["signature"]
-
-    # Finalize the last group
-    if current_index is not None:
-        if reasoning_text:
-            formatted_reasoning_contents.append(
-                {
-                    "reasoning_content": {
-                        "reasoning_text": {"text": reasoning_text, "signature": reasoning_signature},
-                    }
-                }
-            )
-        if redacted_content:
-            formatted_reasoning_contents.append({"reasoning_content": {"redacted_content": redacted_content}})
-
-    # Combine all reasoning texts into a single string for the main reasoning_text field
-    final_reasoning_text = ""
-    for content in formatted_reasoning_contents:
-        if "reasoning_text" in content["reasoning_content"]:
-            # mypy somehow thinks that content["reasoning_content"]["reasoning_text"]["text"] can be of type None
-            final_reasoning_text += content["reasoning_content"]["reasoning_text"]["text"]  # type: ignore[operator]
-        elif "redacted_content" in content["reasoning_content"]:
-            final_reasoning_text += "[REDACTED]"
-
-    return (
-        ReasoningContent(
-            reasoning_text=final_reasoning_text, extra={"reasoning_contents": formatted_reasoning_contents}
-        )
-        if formatted_reasoning_contents
-        else None
-    )
-
-
 def _parse_streaming_response(
     response_stream: EventStream,
     streaming_callback: SyncStreamingCallbackT,
@@ -736,21 +658,26 @@ def _parse_streaming_response(
         streaming_callback(streaming_chunk)
         chunks.append(streaming_chunk)
 
+    replies = _convert_chunks_to_messages(chunks)
+    return replies
+
+
+def _convert_chunks_to_messages(chunks: list[StreamingChunk]) -> list[ChatMessage]:
     reply = _convert_streaming_chunks_to_chat_message(chunks=chunks)
 
-    # both the reasoning content and the trace are ignored in _convert_streaming_chunks_to_chat_message
+    # reasoning signatures are ignored in _convert_streaming_chunks_to_chat_message
     # so we need to process them separately
-    reasoning_content = _process_reasoning_contents(chunks=chunks)
-    if chunks[-1].meta and "trace" in chunks[-1].meta:
-        reply.meta["trace"] = chunks[-1].meta["trace"]
+    if reply.reasoning:
+        for chunk in reversed(chunks):
+            if chunk.reasoning and chunk.reasoning.extra and "signature" in chunk.reasoning.extra:
+                reply.reasoning.extra["signature"] = chunk.reasoning.extra["signature"]
+                break
 
-    reply = ChatMessage.from_assistant(
-        text=reply.text,
-        meta=reply.meta,
-        name=reply.name,
-        tool_calls=reply.tool_calls,
-        reasoning=reasoning_content,
-    )
+    # the trace are ignored in _convert_streaming_chunks_to_chat_message
+    # so we need to process them separately
+    last_chunk = chunks[-1] if chunks else None
+    if last_chunk and last_chunk.meta and "trace" in last_chunk.meta:
+        reply.meta["trace"] = last_chunk.meta["trace"]
 
     return [reply]
 
@@ -780,16 +707,10 @@ async def _parse_streaming_response_async(
             content_block_idxs.add(content_block_idx)
         await streaming_callback(streaming_chunk)
         chunks.append(streaming_chunk)
-    reply = _convert_streaming_chunks_to_chat_message(chunks=chunks)
-    reasoning_content = _process_reasoning_contents(chunks=chunks)
-    reply = ChatMessage.from_assistant(
-        text=reply.text,
-        meta=reply.meta,
-        name=reply.name,
-        tool_calls=reply.tool_calls,
-        reasoning=reasoning_content,
-    )
-    return [reply]
+
+    replies = _convert_chunks_to_messages(chunks)
+
+    return replies
 
 
 def _validate_guardrail_config(guardrail_config: dict[str, str] | None = None, streaming: bool = False) -> None:

@@ -1,6 +1,7 @@
 # SPDX-FileCopyrightText: 2023-present deepset GmbH <info@deepset.ai>
 #
 # SPDX-License-Identifier: Apache-2.0
+
 from typing import Any
 
 from haystack import component, default_from_dict, default_to_dict
@@ -14,8 +15,9 @@ from haystack_integrations.document_stores.elasticsearch.document_store import E
 @component
 class ElasticsearchBM25Retriever:
     """
-    ElasticsearchBM25Retriever retrieves documents from the ElasticsearchDocumentStore using BM25 algorithm to find the
-    most similar documents to a user's query.
+    Retrieves documents from ElasticsearchDocumentStore using the BM25 algorithm.
+
+    Finds the most similar documents to a user's query.
 
     This retriever is only compatible with ElasticsearchDocumentStore.
 

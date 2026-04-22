@@ -1,0 +1,84 @@
+name: Core / Add comment about test coverage to PRs
+
+on:
+  workflow_run:
+    workflows:
+      - "Test / aimlapi"
+      - "Test / amazon-bedrock"
+      - "Test / amazon-sagemaker"
+      - "Test / anthropic"
+      - "Test / arcadedb"
+      - "Test / astra"
+      - "Test / azure_ai_search"
+      - "Test / azure_doc_intelligence"
+      - "Test / chroma"
+      - "Test / cohere"
+      - "Test / cometapi"
+      - "Test / deepeval"
+      - "Test / dspy"
+      - "Test / elasticsearch"
+      - "Test / faiss"
+      - "Test / fastembed"
+      - "Test / firecrawl"
+      - "Test / github"
+      - "Test / google-genai"
+      - "Test / hanlp"
+      - "Test / jina"
+      - "Test / kreuzberg"
+      - "Test / langfuse"
+      - "Test / lara"
+      - "Test / libreoffice"
+      - "Test / llama_cpp"
+      - "Test / llama_stack"
+      - "Test / markitdown"
+      - "Test / mcp"
+      - "Test / meta_llama"
+      - "Test / mistral"
+      - "Test / mongodb_atlas"
+      - "Test / nvidia"
+      - "Test / ollama"
+      - "Test / openrouter"
+      - "Test / opensearch"
+      - "Test / optimum"
+      - "Test / paddleocr"
+      - "Test / pgvector"
+      - "Test / pinecone"
+      - "Test / presidio"
+      - "Test / pyversity"
+      - "Test / qdrant"
+      - "Test / ragas"
+      - "Test / snowflake"
+      - "Test / sqlalchemy"
+      - "Test / stackit"
+      - "Test / supabase"
+      - "Test / tavily"
+      - "Test / togetherai"
+      - "Test / unstructured"
+      - "Test / valkey"
+      - "Test / vllm"
+      - "Test / watsonx"
+      - "Test / weave"
+      - "Test / weaviate"
+    types: [completed]
+
+jobs:
+  comment:
+    if: github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+    steps:
+      - name: Get integration name from workflow name
+        id: integration
+        run: |
+          # Workflow names follow "Test / <name>" convention; normalize hyphens to underscores to match directory names
+          echo "name=$(echo '${{ github.event.workflow_run.name }}' | sed 's/Test \/ //' | tr '-' '_')" >> "$GITHUB_OUTPUT"
+
+      - uses: py-cov-action/python-coverage-comment-action@63f52f4fbbffada6e8dee8ec432de7e01df9ba79 # v3.41
+        with:
+          GITHUB_TOKEN: ${{ github.token }}
+          GITHUB_PR_RUN_ID: ${{ github.event.workflow_run.id }}
+          SUBPROJECT_ID: ${{ steps.integration.outputs.name }}
+          COMMENT_ARTIFACT_NAME: coverage-comment-${{ steps.integration.outputs.name }}
+          MINIMUM_GREEN: 90
+          MINIMUM_ORANGE: 60

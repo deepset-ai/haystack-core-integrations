@@ -57,8 +57,9 @@ GOOGLE_GENAI_SUPPORTED_MIME_TYPES = {
 
 def _process_response_format(generation_kwargs: dict[str, Any]) -> dict[str, Any]:
     """
-    Process `response_format` from generation_kwargs into Google GenAI's native
-    `response_schema` and `response_mime_type` parameters.
+    Process `response_format` from generation_kwargs into Google GenAI native parameters.
+
+    Converts `response_format` into `response_schema` and `response_mime_type`.
 
     Accepts either a Pydantic BaseModel class or a JSON schema dict.  When
     `response_format` is present, it is popped and replaced with the two
@@ -180,7 +181,6 @@ def remove_key_from_schema(
 ) -> dict[str, Any] | list[Any] | Any:
     """
     Recursively traverse a schema and remove all occurrences of the target key.
-
 
     :param schema: The schema dictionary/list/value to process
     :param target_key: The key to remove from all dictionaries in the schema
@@ -441,7 +441,8 @@ def _convert_tools_to_google_genai_format(tools: ToolsType) -> list[types.Tool]:
 def _convert_usage_metadata_to_serializable(
     usage_metadata: UsageMetadata | GenerateContentResponseUsageMetadata | None,
 ) -> dict[str, Any]:
-    """Build a JSON-serializable usage dict from a UsageMetadata object.
+    """
+    Build a JSON-serializable usage dict from a UsageMetadata object.
 
     Iterates over known UsageMetadata attribute names and adds each non-None value
     in serialized form. Full list of fields: https://ai.google.dev/api/generate-content#UsageMetadata
@@ -558,10 +559,16 @@ def _convert_google_genai_response_to_chatmessage(response: types.GenerateConten
 
     usage.update(_convert_usage_metadata_to_serializable(usage_metadata))
 
+    # Remap finish_reason to "tool_calls" when tool calls are present, since Google GenAI returns
+    # "STOP" for both normal completions and tool calls (no dedicated FUNCTION_CALL finish reason).
+    mapped_finish_reason = FINISH_REASON_MAPPING.get(finish_reason or "")
+    if mapped_finish_reason == "stop" and tool_calls:
+        mapped_finish_reason = "tool_calls"
+
     # Create meta with reasoning content and thought signatures if available
     meta: dict[str, Any] = {
         "model": model,
-        "finish_reason": FINISH_REASON_MAPPING.get(finish_reason or ""),
+        "finish_reason": mapped_finish_reason,
         "usage": usage,
     }
 
@@ -674,13 +681,19 @@ def _convert_google_chunk_to_streaming_chunk(
     # Determine the effective content: tool_calls and reasoning take priority.
     effective_content = "" if tool_calls or reasoning else content
 
+    # Remap finish_reason to "tool_calls" when tool calls are present, since Google GenAI returns
+    # "STOP" for both normal completions and tool calls (no dedicated FUNCTION_CALL finish reason).
+    mapped_finish_reason = FINISH_REASON_MAPPING.get(finish_reason or "")
+    if mapped_finish_reason == "stop" and tool_calls:
+        mapped_finish_reason = "tool_calls"
+
     return StreamingChunk(
         content=effective_content,
         tool_calls=tool_calls,
         component_info=component_info,
         index=index,
         start=start,
-        finish_reason=FINISH_REASON_MAPPING.get(finish_reason or ""),
+        finish_reason=mapped_finish_reason,
         meta=meta,
         reasoning=reasoning,
     )

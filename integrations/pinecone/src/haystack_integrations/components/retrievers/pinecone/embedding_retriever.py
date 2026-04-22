@@ -60,6 +60,8 @@ class PineconeEmbeddingRetriever:
         filter_policy: str | FilterPolicy = FilterPolicy.REPLACE,
     ) -> None:
         """
+        Initialize the PineconeEmbeddingRetriever.
+
         :param document_store: The Pinecone Document Store.
         :param filters: Filters applied to the retrieved Documents.
         :param top_k: Maximum number of Documents to return.
@@ -81,6 +83,7 @@ class PineconeEmbeddingRetriever:
     def to_dict(self) -> dict[str, Any]:
         """
         Serializes the component to a dictionary.
+
         :returns:
             Dictionary with serialized data.
         """
@@ -96,6 +99,7 @@ class PineconeEmbeddingRetriever:
     def from_dict(cls, data: dict[str, Any]) -> "PineconeEmbeddingRetriever":
         """
         Deserializes the component from a dictionary.
+
         :param data:
             Dictionary to deserialize from.
         :returns:

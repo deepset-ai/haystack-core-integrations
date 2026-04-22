@@ -35,7 +35,7 @@ classifiers = [
 ]
 dependencies = [
     "haystack-ai>=2.22.0",
-    "kreuzberg>=4.4.6",
+    "kreuzberg>=4.4.6,<=4.7.4", # 4.7.4 is the last version with MIT license
 ]
 
 [project.urls]
@@ -66,7 +66,8 @@ dependencies = [
 unit = 'pytest -m "not integration" {args:tests}'
 integration = 'pytest -m "integration" {args:tests}'
 all = 'pytest {args:tests}'
-cov-retry = 'pytest --cov=haystack_integrations --reruns 3 --reruns-delay 30 -x {args:tests}'
+unit-cov-retry = 'pytest --cov=haystack_integrations --reruns 3 --reruns-delay 30 -x -m "not integration" {args:tests}'
+integration-cov-append-retry = 'pytest --cov=haystack_integrations --cov-append --reruns 3 --reruns-delay 30 -x -m "integration" {args:tests}'
 types = "mypy -p haystack_integrations.components.converters.kreuzberg {args}"
 
 [tool.ruff]
@@ -79,6 +80,13 @@ select = [
     "ARG",  # flake8-unused-arguments
     "B",    # flake8-bugbear
     "C",    # flake8-comprehensions
+    "D102",   # Missing docstring in public method
+    "D103",   # Missing docstring in public function
+    "D205",   # 1 blank line required between summary line and description
+    "D209",   # Closing triple quotes go to new line
+    "D213",   # summary lines must be positioned on the second physical line of the docstring
+    "D417",   # Missing argument descriptions in the docstring
+    "D419",   # Docstring is empty
     "DTZ",  # flake8-datetimez
     "E",    # pycodestyle (error)
     "EM",   # flake8-errmsg
@@ -130,7 +138,7 @@ ban-relative-imports = "parents"
 
 [tool.ruff.lint.per-file-ignores]
 # Tests can use magic values, assertions, and relative imports
-"tests/**/*" = ["ANN", "PLR2004", "S101", "S108", "TID252"]
+"tests/**/*" = ["D", "ANN", "PLR2004", "S101", "S108", "TID252"]
 
 [tool.mypy]
 strict = true
@@ -154,6 +162,7 @@ asyncio_default_fixture_loop_scope = "function"
 source = ["haystack_integrations"]
 branch = true
 parallel = false
+relative_files = true
 
 [tool.coverage.report]
 omit = ["*/tests/*", "*/__init__.py"]

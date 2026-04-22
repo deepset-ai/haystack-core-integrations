@@ -31,6 +31,7 @@ class SupportedAuthTypes(Enum):
 
     @staticmethod
     def from_class(auth_class: type["AuthCredentials"]) -> "SupportedAuthTypes":
+        """Return the SupportedAuthTypes enum value corresponding to the given auth credentials class."""
         auth_types = {
             AuthApiKey: SupportedAuthTypes.API_KEY,
             AuthBearerToken: SupportedAuthTypes.BEARER,
@@ -44,6 +45,7 @@ class SupportedAuthTypes(Enum):
 class AuthCredentials(ABC):
     """
     Base class for all auth credentials supported by WeaviateDocumentStore.
+
     Can be used to deserialize from dict any of the supported auth credentials.
     """
 
@@ -83,6 +85,7 @@ class AuthCredentials(ABC):
     def _from_dict(cls, data: dict[str, Any]) -> "AuthCredentials":
         """
         Internal method to convert a dictionary representation to an auth credentials object.
+
         All subclasses must implement this method.
         """
 
@@ -92,6 +95,7 @@ class AuthCredentials(ABC):
     ) -> WeaviateAuthApiKey | WeaviateAuthBearerToken | WeaviateAuthClientCredentials | WeaviateAuthClientPassword:
         """
         Resolves all the secrets in the auth credentials object and returns the corresponding Weaviate object.
+
         All subclasses must implement this method.
         """
 
@@ -100,6 +104,7 @@ class AuthCredentials(ABC):
 class AuthApiKey(AuthCredentials):
     """
     AuthCredentials for API key authentication.
+
     By default it will load `api_key` from the environment variable `WEAVIATE_API_KEY`.
     """
 
@@ -111,6 +116,7 @@ class AuthApiKey(AuthCredentials):
         return cls(**data["init_parameters"])
 
     def resolve_value(self) -> WeaviateAuthApiKey:
+        """Resolve the API key secret and return the corresponding Weaviate auth object."""
         # resolve_value, when used with Secret.from_env_var (strict=True), returns a string or raises an error
         return WeaviateAuthApiKey(api_key=self.api_key.resolve_value())  # type: ignore[arg-type]
 
@@ -119,6 +125,7 @@ class AuthApiKey(AuthCredentials):
 class AuthBearerToken(AuthCredentials):
     """
     AuthCredentials for Bearer token authentication.
+
     By default it will load `access_token` from the environment variable `WEAVIATE_ACCESS_TOKEN`,
     and `refresh_token` from the environment variable
     `WEAVIATE_REFRESH_TOKEN`.
@@ -135,6 +142,7 @@ class AuthBearerToken(AuthCredentials):
         return cls(**data["init_parameters"])
 
     def resolve_value(self) -> WeaviateAuthBearerToken:
+        """Resolve the bearer token secrets and return the corresponding Weaviate auth object."""
         access_token = self.access_token.resolve_value()
         refresh_token = self.refresh_token.resolve_value()
 
@@ -151,6 +159,7 @@ class AuthBearerToken(AuthCredentials):
 class AuthClientCredentials(AuthCredentials):
     """
     AuthCredentials for client credentials authentication.
+
     By default it will load `client_secret` from the environment variable `WEAVIATE_CLIENT_SECRET`, and
     `scope` from the environment variable `WEAVIATE_SCOPE`.
     `WEAVIATE_SCOPE` environment variable is optional, if set it can either be a string or a list of space
@@ -166,6 +175,7 @@ class AuthClientCredentials(AuthCredentials):
         return cls(**data["init_parameters"])
 
     def resolve_value(self) -> WeaviateAuthClientCredentials:
+        """Resolve the client credentials secrets and return the corresponding Weaviate auth object."""
         return WeaviateAuthClientCredentials(
             # resolve_value, when used with Secret.from_env_var (strict=True), returns a string or raises an error
             client_secret=self.client_secret.resolve_value(),  # type: ignore[arg-type]
@@ -178,6 +188,7 @@ class AuthClientCredentials(AuthCredentials):
 class AuthClientPassword(AuthCredentials):
     """
     AuthCredentials for username and password authentication.
+
     By default it will load `username` from the environment variable `WEAVIATE_USERNAME`,
     `password` from the environment variable `WEAVIATE_PASSWORD`, and
     `scope` from the environment variable `WEAVIATE_SCOPE`.
@@ -195,6 +206,7 @@ class AuthClientPassword(AuthCredentials):
         return cls(**data["init_parameters"])
 
     def resolve_value(self) -> WeaviateAuthClientPassword:
+        """Resolve the username and password secrets and return the corresponding Weaviate auth object."""
         return WeaviateAuthClientPassword(
             # resolve_value, when used with Secret.from_env_var (strict=True), returns a string or raises an error
             username=self.username.resolve_value(),  # type: ignore[arg-type]

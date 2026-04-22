@@ -4,7 +4,7 @@
 
 from typing import Any
 
-import aioboto3
+import aiobotocore.session
 import boto3
 from botocore.exceptions import BotoCoreError
 
@@ -27,10 +27,14 @@ def get_aws_session(
     aws_profile_name: str | None = None,
     async_mode: bool = False,
     **kwargs: Any,
-) -> boto3.Session | aioboto3.Session:
+) -> boto3.Session | aiobotocore.session.AioSession:
     """
     Creates an AWS Session with the given parameters.
+
     Checks if the provided AWS credentials are valid and can be used to connect to AWS.
+
+    For an async session we use AioSession, has a different API than boto3.Session, it doesn't accept credentials in
+    its constructor. The credentials instead are passed for each client at create_client() time.
 
     :param aws_access_key_id: AWS access key ID.
     :param aws_secret_access_key: AWS secret access key.
@@ -45,13 +49,10 @@ def get_aws_session(
     """
     try:
         if async_mode:
-            return aioboto3.Session(
-                aws_access_key_id=aws_access_key_id,
-                aws_secret_access_key=aws_secret_access_key,
-                aws_session_token=aws_session_token,
-                region_name=aws_region_name,
-                profile_name=aws_profile_name,
-            )
+            session = aiobotocore.session.AioSession()
+            if aws_profile_name:
+                session.set_config_variable("profile", aws_profile_name)
+            return session
 
         return boto3.Session(
             aws_access_key_id=aws_access_key_id,
@@ -69,6 +70,7 @@ def get_aws_session(
 def aws_configured(**kwargs: Any) -> bool:
     """
     Checks whether AWS configuration is provided.
+
     :param kwargs: The kwargs passed down to the generator.
     :returns: True if AWS configuration is provided, False otherwise.
     """

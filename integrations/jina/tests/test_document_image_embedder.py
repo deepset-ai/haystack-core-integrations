@@ -5,6 +5,7 @@ import os
 import tempfile
 from unittest.mock import Mock, patch
 
+import httpx
 import pytest
 from haystack import Document
 from haystack.utils.auth import Secret
@@ -20,6 +21,7 @@ class TestJinaDocumentImageEmbedder:
         monkeypatch.setenv("JINA_API_KEY", "fake-api-key")
         embedder = JinaDocumentImageEmbedder()
         assert embedder.model_name == "jina-clip-v2"
+        assert embedder.base_url == "https://api.jina.ai/v1/embeddings"
         assert embedder.file_path_meta_field == "file_path"
         assert embedder.root_path == ""
         assert embedder.embedding_dimension is None
@@ -31,6 +33,7 @@ class TestJinaDocumentImageEmbedder:
         embedder = JinaDocumentImageEmbedder(
             api_key=Secret.from_token("fake-api-token"),
             model="jina-embeddings-v4",
+            base_url="https://my.custom.url/v1/embeddings",
             file_path_meta_field="custom_file_path",
             root_path="/custom/root",
             embedding_dimension=256,
@@ -38,6 +41,7 @@ class TestJinaDocumentImageEmbedder:
             batch_size=5,
         )
         assert embedder.model_name == "jina-embeddings-v4"
+        assert embedder.base_url == "https://my.custom.url/v1/embeddings"
         assert embedder.file_path_meta_field == "custom_file_path"
         assert embedder.root_path == "/custom/root"
         assert embedder.embedding_dimension == 256
@@ -50,6 +54,7 @@ class TestJinaDocumentImageEmbedder:
         component = JinaDocumentImageEmbedder(
             api_key=Secret.from_env_var("JINA_API_KEY"),
             model="jina-clip-v2",
+            base_url="https://api.jina.ai/v1/embeddings",
             file_path_meta_field="image_path",
             root_path="/images",
             embedding_dimension=512,
@@ -62,6 +67,7 @@ class TestJinaDocumentImageEmbedder:
             "init_parameters": {
                 "api_key": {"env_vars": ["JINA_API_KEY"], "strict": True, "type": "env_var"},
                 "model": "jina-clip-v2",
+                "base_url": "https://api.jina.ai/v1/embeddings",
                 "file_path_meta_field": "image_path",
                 "root_path": "/images",
                 "embedding_dimension": 512,
@@ -78,6 +84,7 @@ class TestJinaDocumentImageEmbedder:
             "init_parameters": {
                 "api_key": {"env_vars": ["JINA_API_KEY"], "strict": True, "type": "env_var"},
                 "model": "jina-clip-v2",
+                "base_url": "https://api.jina.ai/v1/embeddings",
                 "file_path_meta_field": "image_path",
                 "root_path": "/images",
                 "embedding_dimension": 512,
@@ -87,6 +94,7 @@ class TestJinaDocumentImageEmbedder:
         }
         component = JinaDocumentImageEmbedder.from_dict(data)
         assert component.model_name == "jina-clip-v2"
+        assert component.base_url == "https://api.jina.ai/v1/embeddings"
         assert component.file_path_meta_field == "image_path"
         assert component.root_path == "/images"
         assert component.embedding_dimension == 512
@@ -115,16 +123,18 @@ class TestJinaDocumentImageEmbedder:
 
         embedder = JinaDocumentImageEmbedder(api_key=Secret.from_token("fake-api-key"))
 
+        mock_response = httpx.Response(
+            200,
+            json={
+                "data": [{"embedding": [1.0] * MOCK_EMBEDDING_DIM}],
+                "model": "jina-clip-v2",
+                "usage": {"prompt_tokens": 1, "total_tokens": 1},
+            },
+        )
+
         # Mock the _extract_images_to_embed method to return base64 image data
         with patch.object(embedder, "_extract_images_to_embed", return_value=["data:image/jpeg;base64,fake_base64"]):
-            with patch.object(embedder._session, "post") as mock_post:
-                mock_response = Mock()
-                mock_response.json.return_value = {
-                    "data": [{"embedding": [1.0] * MOCK_EMBEDDING_DIM}],
-                    "model": "jina-clip-v2",
-                    "usage": {"prompt_tokens": 1, "total_tokens": 1},
-                }
-                mock_post.return_value = mock_response
+            with patch("httpx.Client.post", return_value=mock_response):
                 result = embedder.run(documents=documents)
 
                 assert "documents" in result
@@ -137,12 +147,11 @@ class TestJinaDocumentImageEmbedder:
 
         embedder = JinaDocumentImageEmbedder(api_key=Secret.from_token("fake-api-key"))
 
+        mock_response = httpx.Response(400, json={"detail": "API Error occurred"})
+
         # Mock the _extract_images_to_embed method to return base64 image data
         with patch.object(embedder, "_extract_images_to_embed", return_value=["data:image/jpeg;base64,fake_base64"]):
-            with patch.object(embedder._session, "post") as mock_post:
-                mock_response = Mock()
-                mock_response.json.return_value = {"detail": "API Error occurred"}
-                mock_post.return_value = mock_response
+            with patch("httpx.Client.post", return_value=mock_response):
                 with pytest.raises(RuntimeError, match="Jina API error: API Error occurred"):
                     embedder.run(documents=documents)
 
@@ -199,7 +208,7 @@ class TestJinaDocumentImageEmbedder:
         embedder = JinaDocumentImageEmbedder(api_key=Secret.from_token("fake-api-key"))
 
         with patch.object(embedder, "_extract_images_to_embed", return_value=["data:image/jpeg;base64,fake_base64"]):
-            with patch.object(embedder._session, "post", side_effect=Exception("Connection failed")):
+            with patch("httpx.Client.post", side_effect=Exception("Connection failed")):
                 with pytest.raises(RuntimeError, match="Error calling Jina API: Connection failed"):
                     embedder.run(documents=documents)
 
@@ -210,19 +219,15 @@ class TestJinaDocumentImageEmbedder:
 
         fake_images = [f"data:image/jpeg;base64,fake_base64_{i}" for i in range(12)]
 
+        def mock_response_func(*_args, **kwargs):
+            batch_size = len(kwargs["json"]["input"])
+            return httpx.Response(
+                200,
+                json={"data": [{"embedding": [1.0] * MOCK_EMBEDDING_DIM} for _ in range(batch_size)]},
+            )
+
         with patch.object(embedder, "_extract_images_to_embed", return_value=fake_images):
-            with patch.object(embedder._session, "post") as mock_post:
-                # Mock response that adapts to batch size
-                def mock_response_func(*_args, **kwargs):
-                    batch_size = len(kwargs["json"]["input"])
-                    mock_response = Mock()
-                    mock_response.json.return_value = {
-                        "data": [{"embedding": [1.0] * MOCK_EMBEDDING_DIM} for _ in range(batch_size)]
-                    }
-                    return mock_response
-
-                mock_post.side_effect = mock_response_func
-
+            with patch("httpx.Client.post", side_effect=mock_response_func) as mock_post:
                 result = embedder.run(documents=documents)
 
                 # Should have made 3 API calls (12 images / 5 batch_size = 3 batches: 5, 5, 2)
@@ -234,6 +239,36 @@ class TestJinaDocumentImageEmbedder:
                 assert len(call_args_list[0][1]["json"]["input"]) == 5  # First batch: 5 images
                 assert len(call_args_list[1][1]["json"]["input"]) == 5  # Second batch: 5 images
                 assert len(call_args_list[2][1]["json"]["input"]) == 2  # Third batch: 2 images
+
+    @pytest.mark.asyncio
+    async def test_run_async_with_successful_request(self):
+        documents = [Document(content="Test image", meta={"file_path": "test.jpg"})]
+
+        embedder = JinaDocumentImageEmbedder(api_key=Secret.from_token("fake-api-key"))
+
+        mock_response = httpx.Response(
+            200,
+            json={
+                "data": [{"embedding": [1.0] * MOCK_EMBEDDING_DIM}],
+                "model": "jina-clip-v2",
+                "usage": {"prompt_tokens": 1, "total_tokens": 1},
+            },
+        )
+
+        with patch.object(embedder, "_extract_images_to_embed", return_value=["data:image/jpeg;base64,fake_base64"]):
+            with patch("httpx.AsyncClient.post", return_value=mock_response):
+                result = await embedder.run_async(documents=documents)
+
+                assert "documents" in result
+                assert len(result["documents"]) == 1
+                assert result["documents"][0].embedding == [1.0] * MOCK_EMBEDDING_DIM
+                assert result["documents"][0].meta["embedding_source"]["type"] == "image"
+
+    @pytest.mark.asyncio
+    async def test_run_async_on_empty_list(self):
+        embedder = JinaDocumentImageEmbedder(api_key=Secret.from_token("fake-api-key"))
+        result = await embedder.run_async(documents=[])
+        assert result == {"documents": []}
 
     @pytest.mark.skipif(not os.environ.get("JINA_API_KEY", None), reason="JINA_API_KEY not set")
     @pytest.mark.integration

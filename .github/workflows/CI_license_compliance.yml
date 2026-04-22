@@ -33,17 +33,17 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout the code
-        uses: actions/checkout@v6
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: Setup Python
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
         with:
           python-version: "${{ env.PYTHON_VERSION }}"
 
       - name: Get changed files (for pull requests only)
         if: ${{ github.event_name == 'pull_request'}}
         id: changed-files
-        uses: tj-actions/changed-files@v47
+        uses: tj-actions/changed-files@9426d40962ed5378910ee2e21d5f8c6fcbf2dd96 # v47.0.6
         with:
           files_yaml: |
             pyproject:
@@ -65,13 +65,13 @@ jobs:
           fi
 
           for file in $FILES; do
-            python .github/utils/pyproject_to_requirements.py $file >> ${{ env.REQUIREMENTS_FILE }}
-            echo "" >> ${{ env.REQUIREMENTS_FILE }}
+            python .github/utils/pyproject_to_requirements.py "$file" >> "${{ env.REQUIREMENTS_FILE }}"
+            echo "" >> "${{ env.REQUIREMENTS_FILE }}"
           done
 
       - name: Check Licenses
         id: license_check_report
-        uses: pilosus/action-pip-license-checker@v3
+        uses: pilosus/action-pip-license-checker@e909b0226ff49d3235c99c4585bc617f49fff16a # v3.1.0
         with:
           github-token: ${{ secrets.GH_ACCESS_TOKEN }}
           requirements: ${{ env.REQUIREMENTS_FILE }}
@@ -80,7 +80,7 @@ jobs:
 
       # We keep the license inventory on FOSSA
       - name: Send license report to Fossa
-        uses: fossas/fossa-action@v1.8.0
+        uses: fossas/fossa-action@ff70fe9fe17cbd2040648f1c45e8ec4e4884dcf3 # v1.9.0
         continue-on-error: true # not critical
         with:
           api-key: ${{ secrets.FOSSA_LICENSE_SCAN_TOKEN }}
@@ -91,6 +91,6 @@ jobs:
 
       - name: Notify Slack on nightly failure
         if: failure() && github.event_name == 'schedule'
-        uses: deepset-ai/notify-slack-action@v1
+        uses: deepset-ai/notify-slack-action@3cda73b77a148f16f703274198e7771340cf862b # v1
         with:
           slack-webhook-url: ${{ secrets.SLACK_WEBHOOK_URL_NOTIFICATIONS }}

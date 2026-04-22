@@ -64,6 +64,16 @@ integration:deepeval:
       - any-glob-to-any-file: "integrations/deepeval/**/*"
       - any-glob-to-any-file: ".github/workflows/deepeval.yml"
 
+integration:docling:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/docling/**/*"
+      - any-glob-to-any-file: ".github/workflows/docling.yml"
+
+integration:dspy:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/dspy/**/*"
+      - any-glob-to-any-file: ".github/workflows/dspy.yml"
+
 integration:elasticsearch:
   - changed-files:
       - any-glob-to-any-file: "integrations/elasticsearch/**/*"
@@ -73,7 +83,6 @@ integration:faiss:
   - changed-files:
       - any-glob-to-any-file: "integrations/faiss/**/*"
       - any-glob-to-any-file: ".github/workflows/faiss.yml"
-
 
 integration:fastembed:
   - changed-files:
@@ -127,6 +136,16 @@ integration:lara:
   - changed-files:
       - any-glob-to-any-file: "integrations/lara/**/*"
       - any-glob-to-any-file: ".github/workflows/lara.yml"
+
+integration:libreoffice:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/libreoffice/**/*"
+      - any-glob-to-any-file: ".github/workflows/libreoffice.yml"
+
+integration:markitdown:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/markitdown/**/*"
+      - any-glob-to-any-file: ".github/workflows/markitdown.yml"
 
 integration:llama_cpp:
   - changed-files:
@@ -193,6 +212,11 @@ integration:pgvector:
       - any-glob-to-any-file: "integrations/pgvector/**/*"
       - any-glob-to-any-file: ".github/workflows/pgvector.yml"
 
+integration:presidio:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/presidio/**/*"
+      - any-glob-to-any-file: ".github/workflows/presidio.yml"
+
 integration:pinecone:
   - changed-files:
       - any-glob-to-any-file: "integrations/pinecone/**/*"
@@ -218,10 +242,25 @@ integration:snowflake:
       - any-glob-to-any-file: "integrations/snowflake/**/*"
       - any-glob-to-any-file: ".github/workflows/snowflake.yml"
 
+integration:sqlalchemy:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/sqlalchemy/**/*"
+      - any-glob-to-any-file: ".github/workflows/sqlalchemy.yml"
+
 integration:stackit:
   - changed-files:
       - any-glob-to-any-file: "integrations/stackit/**/*"
       - any-glob-to-any-file: ".github/workflows/stackit.yml"
+
+integration:supabase:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/supabase/**/*"
+      - any-glob-to-any-file: ".github/workflows/supabase.yml"
+
+integration:tavily:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/tavily/**/*"
+      - any-glob-to-any-file: ".github/workflows/tavily.yml"
 
 integration:togetherai:
   - changed-files:
@@ -237,6 +276,11 @@ integration:valkey:
   - changed-files:
       - any-glob-to-any-file: "integrations/valkey/**/*"
       - any-glob-to-any-file: ".github/workflows/valkey.yml"
+
+integration:vllm:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/vllm/**/*"
+      - any-glob-to-any-file: ".github/workflows/vllm.yml"
 
 integration:watsonx:
   - changed-files:
@@ -264,7 +308,6 @@ topic:DX:
             "CONTRIBUTING.md",
             ".pre-commit-config.yaml",
             ".gitignore",
-            "requirements.txt",
           ]
 topic:security:
   - changed-files:

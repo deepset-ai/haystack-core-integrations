@@ -1,0 +1,225 @@
+# This workflow comes from https://github.com/ofek/hatch-mypyc
+# https://github.com/ofek/hatch-mypyc/blob/5a198c0ba8660494d02716cfc9d79ce4adfb1442/.github/workflows/test.yml
+name: Test / vllm
+
+on:
+  schedule:
+    - cron: "0 0 * * *"
+  pull_request:
+    paths:
+      - "integrations/vllm/**"
+      - "!integrations/vllm/*.md"
+      - ".github/workflows/vllm.yml"
+  push:
+    branches:
+      - main
+    paths:
+      - "integrations/vllm/**"
+      - "!integrations/vllm/*.md"
+      - ".github/workflows/vllm.yml"
+
+defaults:
+  run:
+    working-directory: integrations/vllm
+
+concurrency:
+  group: vllm-${{ github.head_ref || github.sha }}
+  cancel-in-progress: true
+
+env:
+  PYTHONUNBUFFERED: "1"
+  FORCE_COLOR: "1"
+  VLLM_MODEL: "Qwen/Qwen3-0.6B"
+  VLLM_EMBEDDING_MODEL: "sentence-transformers/all-MiniLM-L6-v2"
+  VLLM_RANKER_MODEL: "BAAI/bge-reranker-base"
+  VLLM_TARGET_DEVICE: "cpu"
+  VLLM_CPU_KVCACHE_SPACE: "4"
+  # we only test on Ubuntu to keep vLLM server running simple
+  TEST_MATRIX_OS: '["ubuntu-latest"]'
+  # vLLM is not compatible with Python 3.14. https://github.com/vllm-project/vllm/issues/34096
+  TEST_MATRIX_PYTHON: '["3.10", "3.13"]'
+
+jobs:
+  compute-test-matrix:
+    runs-on: ubuntu-slim
+    defaults:
+      run:
+        working-directory: .
+    outputs:
+      os: ${{ steps.set.outputs.os }}
+      python-version: ${{ steps.set.outputs.python-version }}
+    steps:
+      - id: set
+        run: |
+          echo 'os=${{ github.event_name == 'push' && '["ubuntu-latest"]' || env.TEST_MATRIX_OS }}' >> "$GITHUB_OUTPUT"
+          echo 'python-version=${{ github.event_name == 'push' && '["3.10"]' || env.TEST_MATRIX_PYTHON }}' >> "$GITHUB_OUTPUT"
+
+  run:
+    name: Python ${{ matrix.python-version }} on ${{ startsWith(matrix.os, 'macos-') && 'macOS' || startsWith(matrix.os, 'windows-') && 'Windows' || 'Linux' }}
+    needs: compute-test-matrix
+    permissions:
+      contents: write
+      pull-requests: write
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: ${{ fromJSON(needs.compute-test-matrix.outputs.os) }}
+        python-version: ${{ fromJSON(needs.compute-test-matrix.outputs.python-version) }}
+
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install Hatch
+        run: pip install hatch
+
+      - name: Install vLLM (CPU)
+        run: |
+          # vLLM on PyPI is GPU-only and requires CUDA, so it won't run on CPU-only systems.
+          # CPU wheels are not published to PyPI; they are only available as direct downloads from GitHub releases.
+          # We fetch the latest release and install the appropriate x86 CPU wheel.
+          # The --torch-backend cpu flag ensures uv installs PyTorch from the official CPU-only index,
+          # since the required torch+cpu builds are also not available on PyPI.
+          VLLM_VERSION="$(curl -s https://api.github.com/repos/vllm-project/vllm/releases/latest | jq -r .tag_name | sed 's/^v//')"
+          export VLLM_VERSION
+          echo "Installing vLLM ${VLLM_VERSION} (CPU)"
+          hatch run -- uv pip install \
+            "https://github.com/vllm-project/vllm/releases/download/v${VLLM_VERSION}/vllm-${VLLM_VERSION}+cpu-cp38-abi3-manylinux_2_35_x86_64.whl" \
+            --torch-backend cpu
+
+      - name: Start vLLM chat server
+        run: |
+          nohup hatch run -- vllm serve ${{ env.VLLM_MODEL }} \
+            --port 8000 \
+            --reasoning-parser qwen3 \
+            --max-model-len 1024 \
+            --enforce-eager \
+            --dtype bfloat16 \
+            --enable-auto-tool-choice \
+            --tool-call-parser hermes \
+            --max-num-seqs 1 &
+
+          # Wait for the vLLM chat server to be ready with a timeout of 300 seconds
+          timeout=300
+          while [ $timeout -gt 0 ] && ! curl -sSf http://localhost:8000/health > /dev/null 2>&1; do
+            echo "Waiting for vLLM chat server to start..."
+            sleep 10
+            ((timeout-=10))
+          done
+
+          if [ $timeout -eq 0 ]; then
+            echo "Timed out waiting for vLLM chat server to start."
+            exit 1
+          fi
+
+          echo "vLLM chat server started successfully."
+
+      - name: Start vLLM embedding server
+        run: |
+          nohup hatch run -- vllm serve ${{ env.VLLM_EMBEDDING_MODEL }} \
+            --port 8001 \
+            --enforce-eager \
+            --max-num-seqs 1 &
+
+          # Wait for the vLLM embedding server to be ready with a timeout of 300 seconds
+          timeout=300
+          while [ $timeout -gt 0 ] && ! curl -sSf http://localhost:8001/health > /dev/null 2>&1; do
+            echo "Waiting for vLLM embedding server to start..."
+            sleep 10
+            ((timeout-=10))
+          done
+
+          if [ $timeout -eq 0 ]; then
+            echo "Timed out waiting for vLLM embedding server to start."
+            exit 1
+          fi
+
+          echo "vLLM embedding server started successfully."
+
+      - name: Start vLLM ranker server
+        run: |
+          nohup hatch run -- vllm serve ${{ env.VLLM_RANKER_MODEL }} \
+            --port 8002 \
+            --enforce-eager \
+            --max-num-seqs 1 &
+
+          # Wait for the vLLM ranker server to be ready with a timeout of 300 seconds
+          timeout=300
+          while [ $timeout -gt 0 ] && ! curl -sSf http://localhost:8002/health > /dev/null 2>&1; do
+            echo "Waiting for vLLM ranker server to start..."
+            sleep 10
+            ((timeout-=10))
+          done
+
+          if [ $timeout -eq 0 ]; then
+            echo "Timed out waiting for vLLM ranker server to start."
+            exit 1
+          fi
+
+          echo "vLLM ranker server started successfully."
+      - name: Lint
+        if: matrix.python-version == '3.10' && runner.os == 'Linux'
+        run: hatch run fmt-check && hatch run test:types
+
+      - name: Run unit tests
+        run: hatch run test:unit-cov-retry
+
+      # On PR: posts coverage comment (directly on same-repo PRs; via artifact for fork PRs). On push to main: stores coverage baseline on data branch.
+      - name: Store unit tests coverage
+        id: coverage_comment
+        if: matrix.python-version == '3.10' && runner.os == 'Linux' && github.event_name != 'schedule'
+        uses: py-cov-action/python-coverage-comment-action@63f52f4fbbffada6e8dee8ec432de7e01df9ba79 # v3.41
+        with:
+          GITHUB_TOKEN: ${{ github.token }}
+          COVERAGE_PATH: integrations/vllm
+          SUBPROJECT_ID: vllm
+          MINIMUM_GREEN: 90
+          MINIMUM_ORANGE: 60
+
+      - name: Upload coverage comment to be posted
+        if: matrix.python-version == '3.10' && runner.os == 'Linux' && github.event_name == 'pull_request' && steps.coverage_comment.outputs.COMMENT_FILE_WRITTEN == 'true'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: coverage-comment-vllm
+          path: python-coverage-comment-action-vllm.txt
+
+      - name: Run integration tests
+        run: hatch run test:integration-cov-append-retry
+
+      - name: Store combined coverage
+        if: github.event_name == 'push'
+        uses: py-cov-action/python-coverage-comment-action@63f52f4fbbffada6e8dee8ec432de7e01df9ba79 # v3.41
+        with:
+          GITHUB_TOKEN: ${{ github.token }}
+          COVERAGE_PATH: integrations/vllm
+          SUBPROJECT_ID: vllm-combined
+          MINIMUM_GREEN: 90
+          MINIMUM_ORANGE: 60
+
+      - name: Run unit tests with lowest direct dependencies
+        if: github.event_name != 'push'
+        run: |
+          hatch run uv pip compile pyproject.toml --resolution lowest-direct --output-file requirements_lowest_direct.txt
+          hatch -e test env run -- uv pip install -r requirements_lowest_direct.txt
+          hatch run test:unit
+
+      - name: Nightly - run unit tests with Haystack main branch
+        if: github.event_name == 'schedule'
+        run: |
+          hatch env prune
+          hatch -e test env run -- uv pip install git+https://github.com/deepset-ai/haystack.git@main
+          hatch run test:unit
+
+  notify-slack-on-failure:
+    needs: run
+    if: failure() && github.event_name == 'schedule'
+    runs-on: ubuntu-slim
+    steps:
+      - uses: deepset-ai/notify-slack-action@3cda73b77a148f16f703274198e7771340cf862b # v1
+        with:
+          slack-webhook-url: ${{ secrets.SLACK_WEBHOOK_URL_NOTIFICATIONS }}

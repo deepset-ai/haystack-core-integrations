@@ -4,7 +4,7 @@
 from dataclasses import replace
 from typing import Any
 
-import requests
+import httpx
 from haystack import Document, component, default_from_dict, default_to_dict, logging
 from haystack.components.converters.image.image_utils import (
     _batch_convert_pdf_pages_to_images,
@@ -57,6 +57,7 @@ class JinaDocumentImageEmbedder:
         *,
         api_key: Secret = Secret.from_env_var("JINA_API_KEY"),  # noqa: B008
         model: str = "jina-clip-v2",
+        base_url: str = JINA_API_URL,
         file_path_meta_field: str = "file_path",
         root_path: str | None = None,
         embedding_dimension: int | None = None,
@@ -74,6 +75,7 @@ class JinaDocumentImageEmbedder:
             - "jina-clip-v2" (default)
             - "jina-embeddings-v4"
             Check the list of available models on [Jina documentation](https://jina.ai/embeddings/).
+        :param base_url: The base URL of the Jina API.
         :param file_path_meta_field: The metadata field in the Document that contains the file path to the image or PDF.
         :param root_path: The root directory path where document files are located. If provided, file paths in
             document metadata will be resolved relative to this path. If None, file paths are treated as absolute paths.
@@ -89,19 +91,17 @@ class JinaDocumentImageEmbedder:
 
         self.api_key = api_key
         self.model_name = model
+        self.base_url = base_url
         self.file_path_meta_field = file_path_meta_field
         self.root_path = root_path or ""
         self.embedding_dimension = embedding_dimension
         self.image_size = image_size
         self.batch_size = batch_size
-        self._session = requests.Session()
-        self._session.headers.update(
-            {
-                "Authorization": f"Bearer {resolved_api_key}",
-                "Accept-Encoding": "identity",
-                "Content-type": "application/json",
-            }
-        )
+        self._headers = {
+            "Authorization": f"Bearer {resolved_api_key}",
+            "Accept-Encoding": "identity",
+            "Content-type": "application/json",
+        }
 
     def _get_telemetry_data(self) -> dict[str, Any]:
         """
@@ -120,6 +120,7 @@ class JinaDocumentImageEmbedder:
             self,
             api_key=self.api_key.to_dict(),
             model=self.model_name,
+            base_url=self.base_url,
             file_path_meta_field=self.file_path_meta_field,
             root_path=self.root_path,
             embedding_dimension=self.embedding_dimension,
@@ -204,6 +205,36 @@ class JinaDocumentImageEmbedder:
         # tested above that image is not None, but mypy doesn't know that
         return images_to_embed  # type: ignore[return-value]
 
+    def _prepare_parameters(self) -> dict[str, Any]:
+        parameters: dict[str, Any] = {}
+        if self.embedding_dimension is not None:
+            parameters["dimensions"] = self.embedding_dimension
+        return parameters
+
+    @staticmethod
+    def _process_batch_response(resp: dict[str, Any], embeddings: list[list[float]]) -> None:
+        if "data" not in resp:
+            error_msg = resp.get("detail", "Unknown error occurred")
+            msg = f"Jina API error: {error_msg}"
+            raise RuntimeError(msg)
+
+        batch_embeddings = [item["embedding"] for item in resp["data"]]
+        embeddings.extend(batch_embeddings)
+
+    @staticmethod
+    def _build_result(
+        documents: list[Document], embeddings: list[list[float]], file_path_meta_field: str
+    ) -> dict[str, list[Document]]:
+        docs_with_embeddings = []
+        for doc, emb in zip(documents, embeddings, strict=True):
+            new_meta = {
+                **doc.meta,
+                "embedding_source": {"type": "image", "file_path_meta_field": file_path_meta_field},
+            }
+            new_doc = replace(doc, meta=new_meta, embedding=emb)
+            docs_with_embeddings.append(new_doc)
+        return {"documents": docs_with_embeddings}
+
     @component.output_types(documents=list[Document])
     def run(self, documents: list[Document]) -> dict[str, list[Document]]:
         """
@@ -216,53 +247,67 @@ class JinaDocumentImageEmbedder:
             A dictionary with the following keys:
             - `documents`: Documents with embeddings.
         """
-
         if not documents:
             return {"documents": []}
 
         images_to_embed = self._extract_images_to_embed(documents)
+        parameters = self._prepare_parameters()
+        embeddings: list[list[float]] = []
 
-        embeddings = []
+        with httpx.Client() as client:
+            for i in range(0, len(images_to_embed), self.batch_size):
+                batch_images = images_to_embed[i : i + self.batch_size]
+                try:
+                    response = client.post(
+                        self.base_url,
+                        json={"input": batch_images, "model": self.model_name, **parameters},
+                        headers=self._headers,
+                    )
+                    resp = response.json()
+                except Exception as e:
+                    msg = f"Error calling Jina API: {e}"
+                    raise RuntimeError(msg) from e
 
-        # Process images in batches
-        for i in range(0, len(images_to_embed), self.batch_size):
-            batch_images = images_to_embed[i : i + self.batch_size]
+                self._process_batch_response(resp, embeddings)
 
-            # Prepare request parameters
-            parameters: dict[str, Any] = {}
-            if self.embedding_dimension is not None:
-                parameters["dimensions"] = self.embedding_dimension
+        return self._build_result(documents, embeddings, self.file_path_meta_field)
 
-            try:
-                response = self._session.post(
-                    JINA_API_URL,
-                    json={
-                        "input": batch_images,
-                        "model": self.model_name,
-                        **parameters,
-                    },
-                )
-                resp = response.json()
-            except Exception as e:
-                msg = f"Error calling Jina API: {e}"
-                raise RuntimeError(msg) from e
+    @component.output_types(documents=list[Document])
+    async def run_async(self, documents: list[Document]) -> dict[str, list[Document]]:
+        """
+        Asynchronously embed a list of image documents.
 
-            if "data" not in resp:
-                error_msg = resp.get("detail", "Unknown error occurred")
-                msg = f"Jina API error: {error_msg}"
-                raise RuntimeError(msg)
+        This is the asynchronous version of the `run` method. It has the same parameters and return values
+        but can be used with `await` in async code.
 
-            batch_embeddings = [item["embedding"] for item in resp["data"]]
-            embeddings.extend(batch_embeddings)
+        :param documents:
+            Documents to embed.
 
-        docs_with_embeddings = []
-        for doc, emb in zip(documents, embeddings, strict=True):
-            # we store this information for later inspection
-            new_meta = {
-                **doc.meta,
-                "embedding_source": {"type": "image", "file_path_meta_field": self.file_path_meta_field},
-            }
-            new_doc = replace(doc, meta=new_meta, embedding=emb)
-            docs_with_embeddings.append(new_doc)
+        :returns:
+            A dictionary with the following keys:
+            - `documents`: Documents with embeddings.
+        """
+        if not documents:
+            return {"documents": []}
 
-        return {"documents": docs_with_embeddings}
+        images_to_embed = self._extract_images_to_embed(documents)
+        parameters = self._prepare_parameters()
+        embeddings: list[list[float]] = []
+
+        async with httpx.AsyncClient() as client:
+            for i in range(0, len(images_to_embed), self.batch_size):
+                batch_images = images_to_embed[i : i + self.batch_size]
+                try:
+                    response = await client.post(
+                        self.base_url,
+                        json={"input": batch_images, "model": self.model_name, **parameters},
+                        headers=self._headers,
+                    )
+                    resp = response.json()
+                except Exception as e:
+                    msg = f"Error calling Jina API: {e}"
+                    raise RuntimeError(msg) from e
+
+                self._process_batch_response(resp, embeddings)
+
+        return self._build_result(documents, embeddings, self.file_path_meta_field)

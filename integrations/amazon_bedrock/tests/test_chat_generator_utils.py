@@ -45,7 +45,11 @@ def tools():
     weather_tool = Tool(
         name="weather",
         description="useful to determine the weather in a given location",
-        parameters={"type": "object", "properties": {"city": {"type": "string"}}, "required": ["city"]},
+        parameters={
+            "type": "object",
+            "properties": {"city": {"type": "string"}},
+            "required": ["city"],
+        },
         function=weather,
     )
     addition_tool = Tool(
@@ -63,7 +67,7 @@ def tools():
 
 class TestAmazonBedrockChatGeneratorUtils:
     def test_format_tools(self, tools):
-        formatted_tool = _format_tools(tools, tools_cachepoint_config={"type": "default"})
+        formatted_tool = _format_tools(tools, tools_cachepoint_config={"cachePoint": {"type": "default"}})
         assert formatted_tool == {
             "tools": [
                 {
@@ -71,7 +75,11 @@ class TestAmazonBedrockChatGeneratorUtils:
                         "name": "weather",
                         "description": "useful to determine the weather in a given location",
                         "inputSchema": {
-                            "json": {"type": "object", "properties": {"city": {"type": "string"}}, "required": ["city"]}
+                            "json": {
+                                "type": "object",
+                                "properties": {"city": {"type": "string"}},
+                                "required": ["city"],
+                            }
                         },
                     }
                 },
@@ -82,7 +90,10 @@ class TestAmazonBedrockChatGeneratorUtils:
                         "inputSchema": {
                             "json": {
                                 "type": "object",
-                                "properties": {"a": {"type": "integer"}, "b": {"type": "integer"}},
+                                "properties": {
+                                    "a": {"type": "integer"},
+                                    "b": {"type": "integer"},
+                                },
                                 "required": ["a", "b"],
                             }
                         },
@@ -92,9 +103,24 @@ class TestAmazonBedrockChatGeneratorUtils:
             ],
         }
 
+    def test_format_tools_does_not_double_wrap_cachepoint(self, tools):
+        # Regression test for https://github.com/deepset-ai/haystack-core-integrations/issues/3181
+        # __init__ pre-formats tools_cachepoint_config via _validate_and_format_cache_point,
+        # so _format_tools must append it as-is without an extra cachePoint wrapper.
+
+        formatted_config = _validate_and_format_cache_point({"type": "default"})
+        assert formatted_config == {"cachePoint": {"type": "default"}}
+
+        result = _format_tools(tools, tools_cachepoint_config=formatted_config)
+        cache_entries = [e for e in result["tools"] if "cachePoint" in e]
+        assert len(cache_entries) == 1
+        assert cache_entries[0] == {"cachePoint": {"type": "default"}}
+
     def test_convert_file_content_to_bedrock_format_no_mime_type(self):
         file_content = FileContent(
-            base64_data=base64.b64encode(b"This is a test file content."), mime_type=None, validation=False
+            base64_data=base64.b64encode(b"This is a test file content."),
+            mime_type=None,
+            validation=False,
         )
         with pytest.raises(ValueError, match="MIME type is required"):
             _convert_file_content_to_bedrock_format(file_content)
@@ -102,7 +128,8 @@ class TestAmazonBedrockChatGeneratorUtils:
     def test_convert_file_content_to_bedrock_format_document(self, test_files_path):
         file_path = test_files_path / "sample_pdf_1.pdf"
         file_content = FileContent.from_file_path(
-            file_path, extra={"context": "Example context.", "citations": {"enabled": True}}
+            file_path,
+            extra={"context": "Example context.", "citations": {"enabled": True}},
         )
         formatted_file_content = _convert_file_content_to_bedrock_format(file_content)
         assert formatted_file_content == {
@@ -149,12 +176,17 @@ class TestAmazonBedrockChatGeneratorUtils:
         file_content = FileContent.from_file_path(file_path)
         formatted_file_content = _convert_file_content_to_bedrock_format(file_content)
         assert formatted_file_content == {
-            "video": {"format": "mp4", "source": {"bytes": base64.b64decode(file_content.base64_data)}}
+            "video": {
+                "format": "mp4",
+                "source": {"bytes": base64.b64decode(file_content.base64_data)},
+            }
         }
 
     def test_convert_file_content_to_bedrock_format_unsupported_mime_type(self):
         file_content = FileContent(
-            base64_data=base64.b64encode(b"This is a test file content."), mime_type="image/tiff", validation=False
+            base64_data=base64.b64encode(b"This is a test file content."),
+            mime_type="image/tiff",
+            validation=False,
         )
         with pytest.raises(ValueError, match="Unsupported file content MIME type"):
             _convert_file_content_to_bedrock_format(file_content)
@@ -180,27 +212,52 @@ class TestAmazonBedrockChatGeneratorUtils:
         ]
         assert formatted_messages == [
             {"role": "user", "content": [{"text": "What's the capital of France?"}]},
-            {"role": "assistant", "content": [{"text": "The capital of France is Paris."}]},
+            {
+                "role": "assistant",
+                "content": [{"text": "The capital of France is Paris."}],
+            },
             {"role": "user", "content": [{"text": "What is the weather in Paris?"}]},
             {
                 "role": "assistant",
-                "content": [{"toolUse": {"toolUseId": "123", "name": "weather", "input": {"city": "Paris"}}}],
+                "content": [
+                    {
+                        "toolUse": {
+                            "toolUseId": "123",
+                            "name": "weather",
+                            "input": {"city": "Paris"},
+                        }
+                    }
+                ],
             },
             {
                 "role": "user",
-                "content": [{"toolResult": {"toolUseId": "123", "content": [{"text": "Sunny and 25°C"}]}}],
+                "content": [
+                    {
+                        "toolResult": {
+                            "toolUseId": "123",
+                            "content": [{"text": "Sunny and 25°C"}],
+                        }
+                    }
+                ],
             },
-            {"role": "assistant", "content": [{"text": "The weather in Paris is sunny and 25°C."}]},
+            {
+                "role": "assistant",
+                "content": [{"text": "The weather in Paris is sunny and 25°C."}],
+            },
         ]
 
     def test_format_messages_with_cache_point(self):
         meta = {"cachePoint": {"type": "default"}}
 
         messages = [
-            ChatMessage.from_system("\\nYou are a helpful assistant, be super brief in your responses.", meta=meta),
+            ChatMessage.from_system(
+                "\\nYou are a helpful assistant, be super brief in your responses.",
+                meta=meta,
+            ),
             ChatMessage.from_user("What is the weather in Paris?", meta=meta),
             ChatMessage.from_assistant(
-                tool_calls=[ToolCall(id="123", tool_name="weather", arguments={"city": "Paris"})], meta=meta
+                tool_calls=[ToolCall(id="123", tool_name="weather", arguments={"city": "Paris"})],
+                meta=meta,
             ),
             ChatMessage.from_tool(
                 tool_result="Sunny and 25°C",
@@ -217,25 +274,42 @@ class TestAmazonBedrockChatGeneratorUtils:
         assert formatted_messages == [
             {
                 "role": "user",
-                "content": [{"text": "What is the weather in Paris?"}, {"cachePoint": {"type": "default"}}],
+                "content": [
+                    {"text": "What is the weather in Paris?"},
+                    {"cachePoint": {"type": "default"}},
+                ],
             },
             {
                 "role": "assistant",
                 "content": [
-                    {"toolUse": {"toolUseId": "123", "name": "weather", "input": {"city": "Paris"}}},
+                    {
+                        "toolUse": {
+                            "toolUseId": "123",
+                            "name": "weather",
+                            "input": {"city": "Paris"},
+                        }
+                    },
                     {"cachePoint": {"type": "default"}},
                 ],
             },
             {
                 "role": "user",
                 "content": [
-                    {"toolResult": {"toolUseId": "123", "content": [{"text": "Sunny and 25°C"}]}},
+                    {
+                        "toolResult": {
+                            "toolUseId": "123",
+                            "content": [{"text": "Sunny and 25°C"}],
+                        }
+                    },
                     {"cachePoint": {"type": "default"}},
                 ],
             },
             {
                 "role": "assistant",
-                "content": [{"text": "The weather in Paris is sunny and 25°C."}, {"cachePoint": {"type": "default"}}],
+                "content": [
+                    {"text": "The weather in Paris is sunny and 25°C."},
+                    {"cachePoint": {"type": "default"}},
+                ],
             },
         ]
 
@@ -247,25 +321,44 @@ class TestAmazonBedrockChatGeneratorUtils:
         messages = [
             ChatMessage.from_user("Retrieve the image and describe it in max 5 words."),
             ChatMessage.from_assistant(
-                tool_calls=[ToolCall(id="123", tool_name="image_retriever", arguments={"query": "random query"})]
+                tool_calls=[
+                    ToolCall(
+                        id="123",
+                        tool_name="image_retriever",
+                        arguments={"query": "random query"},
+                    )
+                ]
             ),
             ChatMessage.from_tool(
                 tool_result=[
                     TextContent("Here's the retrieved image"),
                     ImageContent(base64_image=base64_image, mime_type="image/png"),
                 ],
-                origin=ToolCall(id="123", tool_name="image_retriever", arguments={"query": "random query"}),
+                origin=ToolCall(
+                    id="123",
+                    tool_name="image_retriever",
+                    arguments={"query": "random query"},
+                ),
             ),
             ChatMessage.from_assistant("Beautiful landscape with mountains"),
         ]
         formatted_system_prompts, formatted_messages = _format_messages(messages)
         assert formatted_system_prompts == []
         assert formatted_messages == [
-            {"role": "user", "content": [{"text": "Retrieve the image and describe it in max 5 words."}]},
+            {
+                "role": "user",
+                "content": [{"text": "Retrieve the image and describe it in max 5 words."}],
+            },
             {
                 "role": "assistant",
                 "content": [
-                    {"toolUse": {"toolUseId": "123", "name": "image_retriever", "input": {"query": "random query"}}}
+                    {
+                        "toolUse": {
+                            "toolUseId": "123",
+                            "name": "image_retriever",
+                            "input": {"query": "random query"},
+                        }
+                    }
                 ],
             },
             {
@@ -276,13 +369,21 @@ class TestAmazonBedrockChatGeneratorUtils:
                             "toolUseId": "123",
                             "content": [
                                 {"text": "Here's the retrieved image"},
-                                {"image": {"format": "png", "source": {"bytes": base64.b64decode(base64_image)}}},
+                                {
+                                    "image": {
+                                        "format": "png",
+                                        "source": {"bytes": base64.b64decode(base64_image)},
+                                    }
+                                },
                             ],
                         }
                     }
                 ],
             },
-            {"role": "assistant", "content": [{"text": "Beautiful landscape with mountains"}]},
+            {
+                "role": "assistant",
+                "content": [{"text": "Beautiful landscape with mountains"}],
+            },
         ]
 
     def test_format_message_thinking(self):
@@ -291,16 +392,7 @@ class TestAmazonBedrockChatGeneratorUtils:
             reasoning=ReasoningContent(
                 reasoning_text="This is the reasoning behind the message.",
                 extra={
-                    "reasoning_contents": [
-                        {
-                            "reasoning_content": {
-                                "reasoning_text": {
-                                    "text": "This is the reasoning behind the message.",
-                                    "signature": "reasoning_signature",
-                                }
-                            }
-                        }
-                    ]
+                    "signature": "reasoning_signature",
                 },
             ),
         )
@@ -326,16 +418,7 @@ class TestAmazonBedrockChatGeneratorUtils:
             reasoning=ReasoningContent(
                 reasoning_text="This is the reasoning behind the tool call.",
                 extra={
-                    "reasoning_contents": [
-                        {
-                            "reasoning_content": {
-                                "reasoning_text": {
-                                    "text": "This is the reasoning behind the tool call.",
-                                    "signature": "reasoning_signature",
-                                }
-                            }
-                        }
-                    ]
+                    "signature": "reasoning_signature",
                 },
             ),
         )
@@ -352,7 +435,13 @@ class TestAmazonBedrockChatGeneratorUtils:
                     }
                 },
                 {"text": "This is a test message with a tool call."},
-                {"toolUse": {"toolUseId": "123", "name": "test_tool", "input": {"key": "value"}}},
+                {
+                    "toolUse": {
+                        "toolUseId": "123",
+                        "name": "test_tool",
+                        "input": {"key": "value"},
+                    }
+                },
             ],
         }
 
@@ -361,63 +450,32 @@ class TestAmazonBedrockChatGeneratorUtils:
             tool_calls=[ToolCall(id="123", tool_name="test_tool", arguments={"key": "value"})],
             reasoning=ReasoningContent(
                 reasoning_text="[REDACTED]",
-                extra={
-                    "reasoning_contents": [{"reasoning_content": {"redacted_content": b"Some encrypted byte string"}}]
-                },
+                extra={},
             ),
         )
         formatted_message = _format_messages([tool_call_message_with_redacted])[1][0]
         assert formatted_message == {
             "role": "assistant",
             "content": [
-                {"reasoningContent": {"redactedContent": b"Some encrypted byte string"}},
+                {"reasoningContent": {"reasoningText": {"text": "[REDACTED]"}}},
                 {"text": "This is a test message with a tool call."},
-                {"toolUse": {"toolUseId": "123", "name": "test_tool", "input": {"key": "value"}}},
-            ],
-        }
-
-        tool_call_message_with_redacted_and_normal_thinking = ChatMessage.from_assistant(
-            "This is a test message with a tool call.",
-            tool_calls=[ToolCall(id="123", tool_name="test_tool", arguments={"key": "value"})],
-            reasoning=ReasoningContent(
-                reasoning_text="[REDACTED]This is the reasoning behind the tool call.",
-                extra={
-                    "reasoning_contents": [
-                        {"reasoning_content": {"redacted_content": b"Some encrypted byte string"}},
-                        {
-                            "reasoning_content": {
-                                "reasoningText": {
-                                    "text": "This is the reasoning behind the tool call.",
-                                    "signature": "reasoning_signature",
-                                }
-                            }
-                        },
-                    ]
-                },
-            ),
-        )
-        formatted_message = _format_messages([tool_call_message_with_redacted_and_normal_thinking])[1][0]
-        assert formatted_message == {
-            "role": "assistant",
-            "content": [
-                {"reasoningContent": {"redactedContent": b"Some encrypted byte string"}},
                 {
-                    "reasoningContent": {
-                        "reasoningText": {
-                            "text": "This is the reasoning behind the tool call.",
-                            "signature": "reasoning_signature",
-                        }
+                    "toolUse": {
+                        "toolUseId": "123",
+                        "name": "test_tool",
+                        "input": {"key": "value"},
                     }
                 },
-                {"text": "This is a test message with a tool call."},
-                {"toolUse": {"toolUseId": "123", "name": "test_tool", "input": {"key": "value"}}},
             ],
         }
 
     def test_format_user_message(self):
         plain_user_message = ChatMessage.from_user("This is a test message.")
         formatted_message = _format_user_message(plain_user_message)
-        assert formatted_message == {"role": "user", "content": [{"text": "This is a test message."}]}
+        assert formatted_message == {
+            "role": "user",
+            "content": [{"text": "This is a test message."}],
+        }
 
         base64_image = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+ip1sAAAAASUVORK5CYII="
         image_content = ImageContent(base64_image)
@@ -427,7 +485,12 @@ class TestAmazonBedrockChatGeneratorUtils:
             "role": "user",
             "content": [
                 {"text": "This is a test message."},
-                {"image": {"format": "png", "source": {"bytes": base64.b64decode(base64_image)}}},
+                {
+                    "image": {
+                        "format": "png",
+                        "source": {"bytes": base64.b64decode(base64_image)},
+                    }
+                },
             ],
         }
 
@@ -445,11 +508,9 @@ class TestAmazonBedrockChatGeneratorUtils:
         assistant_message = ChatMessage.from_assistant(
             "This is a test message.",
             reasoning=ReasoningContent(
-                reasoning_text="",
+                reasoning_text="This is the reasoning behind the message.",
                 extra={
-                    "reasoning_contents": [
-                        {"reasoning_content": {"reasoning_text": "This is the reasoning behind the message."}}
-                    ]
+                    "signature": "reasoning_signature",
                 },
             ),
         )
@@ -457,7 +518,14 @@ class TestAmazonBedrockChatGeneratorUtils:
         assert formatted_message == {
             "role": "assistant",
             "content": [
-                {"reasoningContent": {"reasoningText": "This is the reasoning behind the message."}},
+                {
+                    "reasoningContent": {
+                        "reasoningText": {
+                            "text": "This is the reasoning behind the message.",
+                            "signature": "reasoning_signature",
+                        }
+                    }
+                },
                 {"text": "This is a test message."},
             ],
         }
@@ -471,37 +539,52 @@ class TestAmazonBedrockChatGeneratorUtils:
                 "this information for you.",
                 tool_calls=[
                     ToolCall(
-                        tool_name="weather_tool", arguments={"location": "Berlin"}, id="tooluse_evFtOFYeSiG_TQ0cAAgy4Q"
+                        tool_name="weather_tool",
+                        arguments={"location": "Berlin"},
+                        id="tooluse_evFtOFYeSiG_TQ0cAAgy4Q",
                     ),
                     ToolCall(
-                        tool_name="weather_tool", arguments={"location": "Paris"}, id="tooluse_Oc0n2we2RvquHwuPEflaQA"
+                        tool_name="weather_tool",
+                        arguments={"location": "Paris"},
+                        id="tooluse_Oc0n2we2RvquHwuPEflaQA",
                     ),
                 ],
                 name=None,
                 meta={
-                    "model": "anthropic.claude-3-5-sonnet-20240620-v1:0",
+                    "model": "global.anthropic.claude-sonnet-4-6",
                     "index": 0,
                     "finish_reason": "tool_use",
-                    "usage": {"prompt_tokens": 366, "completion_tokens": 134, "total_tokens": 500},
+                    "usage": {
+                        "prompt_tokens": 366,
+                        "completion_tokens": 134,
+                        "total_tokens": 500,
+                    },
                 },
             ),
             ChatMessage.from_tool(
                 tool_result="Mostly sunny",
                 origin=ToolCall(
-                    tool_name="weather_tool", arguments={"location": "Berlin"}, id="tooluse_evFtOFYeSiG_TQ0cAAgy4Q"
+                    tool_name="weather_tool",
+                    arguments={"location": "Berlin"},
+                    id="tooluse_evFtOFYeSiG_TQ0cAAgy4Q",
                 ),
             ),
             ChatMessage.from_tool(
                 tool_result="Mostly cloudy",
                 origin=ToolCall(
-                    tool_name="weather_tool", arguments={"location": "Paris"}, id="tooluse_Oc0n2we2RvquHwuPEflaQA"
+                    tool_name="weather_tool",
+                    arguments={"location": "Paris"},
+                    id="tooluse_Oc0n2we2RvquHwuPEflaQA",
                 ),
             ),
         ]
         formatted_system_prompts, formatted_messages = _format_messages(messages)
         assert formatted_system_prompts == []
         assert formatted_messages == [
-            {"role": "user", "content": [{"text": "What is the weather in Berlin and Paris?"}]},
+            {
+                "role": "user",
+                "content": [{"text": "What is the weather in Berlin and Paris?"}],
+            },
             {
                 "role": "assistant",
                 "content": [
@@ -546,9 +629,14 @@ class TestAmazonBedrockChatGeneratorUtils:
         ]
 
     def test_extract_replies_from_text_response(self, mock_boto3_session):
-        model = "anthropic.claude-3-5-sonnet-20240620-v1:0"
+        model = "global.anthropic.claude-sonnet-4-6"
         text_response = {
-            "output": {"message": {"role": "assistant", "content": [{"text": "This is a test response"}]}},
+            "output": {
+                "message": {
+                    "role": "assistant",
+                    "content": [{"text": "This is a test response"}],
+                }
+            },
             "stopReason": "end_turn",
             "usage": {
                 "inputTokens": 10,
@@ -579,12 +667,20 @@ class TestAmazonBedrockChatGeneratorUtils:
         }
 
     def test_extract_replies_from_tool_response(self, mock_boto3_session):
-        model = "anthropic.claude-3-5-sonnet-20240620-v1:0"
+        model = "global.anthropic.claude-sonnet-4-6"
         tool_response = {
             "output": {
                 "message": {
                     "role": "assistant",
-                    "content": [{"toolUse": {"toolUseId": "123", "name": "test_tool", "input": {"key": "value"}}}],
+                    "content": [
+                        {
+                            "toolUse": {
+                                "toolUseId": "123",
+                                "name": "test_tool",
+                                "input": {"key": "value"},
+                            }
+                        }
+                    ],
                 }
             },
             "stopReason": "tool_use",
@@ -613,14 +709,20 @@ class TestAmazonBedrockChatGeneratorUtils:
         }
 
     def test_extract_replies_from_text_mixed_response(self, mock_boto3_session):
-        model = "anthropic.claude-3-5-sonnet-20240620-v1:0"
+        model = "global.anthropic.claude-sonnet-4-6"
         mixed_response = {
             "output": {
                 "message": {
                     "role": "assistant",
                     "content": [
                         {"text": "Let me help you with that. I'll use the search tool to find the answer."},
-                        {"toolUse": {"toolUseId": "456", "name": "search_tool", "input": {"query": "test"}}},
+                        {
+                            "toolUse": {
+                                "toolUseId": "456",
+                                "name": "search_tool",
+                                "input": {"query": "test"},
+                            }
+                        },
                     ],
                 }
             },
@@ -651,7 +753,7 @@ class TestAmazonBedrockChatGeneratorUtils:
         }
 
     def test_extract_replies_from_multi_tool_response(self, mock_boto3_session):
-        model = "anthropic.claude-3-5-sonnet-20240620-v1:0"
+        model = "global.anthropic.claude-sonnet-4-6"
         response_body = {
             "ResponseMetadata": {
                 "RequestId": "0ba58797-2194-4779-9a53-597c24ce337a",
@@ -703,15 +805,19 @@ class TestAmazonBedrockChatGeneratorUtils:
             "information for you.",
             tool_calls=[
                 ToolCall(
-                    tool_name="weather_tool", arguments={"location": "Berlin"}, id="tooluse_evFtOFYeSiG_TQ0cAAgy4Q"
+                    tool_name="weather_tool",
+                    arguments={"location": "Berlin"},
+                    id="tooluse_evFtOFYeSiG_TQ0cAAgy4Q",
                 ),
                 ToolCall(
-                    tool_name="weather_tool", arguments={"location": "Paris"}, id="tooluse_Oc0n2we2RvquHwuPEflaQA"
+                    tool_name="weather_tool",
+                    arguments={"location": "Paris"},
+                    id="tooluse_Oc0n2we2RvquHwuPEflaQA",
                 ),
             ],
             name=None,
             meta={
-                "model": "anthropic.claude-3-5-sonnet-20240620-v1:0",
+                "model": "global.anthropic.claude-sonnet-4-6",
                 "index": 0,
                 "finish_reason": "tool_calls",
                 "usage": {
@@ -784,7 +890,11 @@ class TestAmazonBedrockChatGeneratorUtils:
         expected_message = ChatMessage.from_assistant(
             text="I'll check the current weather in Paris for you.",
             tool_calls=[
-                ToolCall(tool_name="weather", arguments={"city": "Paris"}, id="tooluse_iUqy8-ypSByLK5zFkka8uA")
+                ToolCall(
+                    tool_name="weather",
+                    arguments={"city": "Paris"},
+                    id="tooluse_iUqy8-ypSByLK5zFkka8uA",
+                )
             ],
             reasoning=ReasoningContent(
                 reasoning_text="The user wants to know the weather in Paris. I have a `weather` function available "
@@ -792,20 +902,7 @@ class TestAmazonBedrockChatGeneratorUtils:
                 'city to get the weather for\n\nIn this case, the user has clearly specified "Paris" as the city, so '
                 "I have all the required information to make the function call.",
                 extra={
-                    "reasoning_contents": [
-                        {
-                            "reasoning_content": {
-                                "reasoning_text": {
-                                    "text": "The user wants to know the weather in Paris. I have a `weather` function "
-                                    "available that can provide this information. \n\nRequired parameters for "
-                                    "the weather function:\n- city: The city to get the weather for\n\nIn this "
-                                    'case, the user has clearly specified "Paris" as the city, so I have all '
-                                    "the required information to make the function call.",
-                                    "signature": "...",
-                                }
-                            }
-                        }
-                    ]
+                    "signature": "...",
                 },
             ),
             meta={
@@ -825,7 +922,7 @@ class TestAmazonBedrockChatGeneratorUtils:
         assert replies[0] == expected_message
 
     def test_extract_replies_with_guardrail(self, mock_boto3_session):
-        model = "anthropic.claude-3-5-sonnet-20240620-v1:0"
+        model = "global.anthropic.claude-sonnet-4-6"
 
         trace = {
             "guardrail": {
@@ -833,7 +930,12 @@ class TestAmazonBedrockChatGeneratorUtils:
                     "test_guardrail_id": {
                         "topicPolicy": {
                             "topics": [
-                                {"name": "Investments topic", "type": "DENY", "action": "BLOCKED", "detected": True}
+                                {
+                                    "name": "Investments topic",
+                                    "type": "DENY",
+                                    "action": "BLOCKED",
+                                    "detected": True,
+                                }
                             ]
                         },
                         "invocationMetrics": {
@@ -869,7 +971,10 @@ class TestAmazonBedrockChatGeneratorUtils:
                 "RetryAttempts": 0,
             },
             "output": {
-                "message": {"role": "assistant", "content": [{"text": "Sorry, the model cannot answer this question."}]}
+                "message": {
+                    "role": "assistant",
+                    "content": [{"text": "Sorry, the model cannot answer this question."}],
+                }
             },
             "stopReason": "guardrail_intervened",
             "usage": {"inputTokens": 0, "outputTokens": 0, "totalTokens": 0},
@@ -939,7 +1044,13 @@ class TestAmazonBedrockChatGeneratorUtils:
                                                 )
                                             }
                                         ],
-                                        "location": {"documentPage": {"documentIndex": 0, "start": 1, "end": 2}},
+                                        "location": {
+                                            "documentPage": {
+                                                "documentIndex": 0,
+                                                "start": 1,
+                                                "end": 2,
+                                            }
+                                        },
                                     }
                                 ],
                             }
@@ -985,7 +1096,7 @@ class TestAmazonBedrockChatGeneratorUtils:
         """
         Test that process_streaming_response correctly handles streaming events and accumulates responses
         """
-        model = "anthropic.claude-3-5-sonnet-20240620-v1:0"
+        model = "global.anthropic.claude-sonnet-4-6"
         type_ = (
             "haystack_integrations.components.generators.amazon_bedrock.chat.chat_generator.AmazonBedrockChatGenerator"
         )
@@ -998,33 +1109,112 @@ class TestAmazonBedrockChatGeneratorUtils:
         # Simulate a stream of events for both text and tool use
         events = [
             {"messageStart": {"role": "assistant"}},
-            {"contentBlockDelta": {"delta": {"text": "Certainly! I can"}, "contentBlockIndex": 0}},
-            {"contentBlockDelta": {"delta": {"text": " help you find out"}, "contentBlockIndex": 0}},
-            {"contentBlockDelta": {"delta": {"text": " the weather"}, "contentBlockIndex": 0}},
-            {"contentBlockDelta": {"delta": {"text": " in Berlin. To"}, "contentBlockIndex": 0}},
-            {"contentBlockDelta": {"delta": {"text": " get this information, I'll"}, "contentBlockIndex": 0}},
-            {"contentBlockDelta": {"delta": {"text": " use the weather tool available"}, "contentBlockIndex": 0}},
-            {"contentBlockDelta": {"delta": {"text": " to me."}, "contentBlockIndex": 0}},
-            {"contentBlockDelta": {"delta": {"text": " Let me fetch"}, "contentBlockIndex": 0}},
-            {"contentBlockDelta": {"delta": {"text": " that data for"}, "contentBlockIndex": 0}},
+            {
+                "contentBlockDelta": {
+                    "delta": {"text": "Certainly! I can"},
+                    "contentBlockIndex": 0,
+                }
+            },
+            {
+                "contentBlockDelta": {
+                    "delta": {"text": " help you find out"},
+                    "contentBlockIndex": 0,
+                }
+            },
+            {
+                "contentBlockDelta": {
+                    "delta": {"text": " the weather"},
+                    "contentBlockIndex": 0,
+                }
+            },
+            {
+                "contentBlockDelta": {
+                    "delta": {"text": " in Berlin. To"},
+                    "contentBlockIndex": 0,
+                }
+            },
+            {
+                "contentBlockDelta": {
+                    "delta": {"text": " get this information, I'll"},
+                    "contentBlockIndex": 0,
+                }
+            },
+            {
+                "contentBlockDelta": {
+                    "delta": {"text": " use the weather tool available"},
+                    "contentBlockIndex": 0,
+                }
+            },
+            {
+                "contentBlockDelta": {
+                    "delta": {"text": " to me."},
+                    "contentBlockIndex": 0,
+                }
+            },
+            {
+                "contentBlockDelta": {
+                    "delta": {"text": " Let me fetch"},
+                    "contentBlockIndex": 0,
+                }
+            },
+            {
+                "contentBlockDelta": {
+                    "delta": {"text": " that data for"},
+                    "contentBlockIndex": 0,
+                }
+            },
             {"contentBlockDelta": {"delta": {"text": " you."}, "contentBlockIndex": 0}},
             {"contentBlockStop": {"contentBlockIndex": 0}},
             {
                 "contentBlockStart": {
-                    "start": {"toolUse": {"toolUseId": "tooluse_pLGRAmK7TNKoZQ_rntVN_Q", "name": "weather_tool"}},
+                    "start": {
+                        "toolUse": {
+                            "toolUseId": "tooluse_pLGRAmK7TNKoZQ_rntVN_Q",
+                            "name": "weather_tool",
+                        }
+                    },
                     "contentBlockIndex": 1,
                 }
             },
-            {"contentBlockDelta": {"delta": {"toolUse": {"input": ""}}, "contentBlockIndex": 1}},
-            {"contentBlockDelta": {"delta": {"toolUse": {"input": '{"'}}, "contentBlockIndex": 1}},
-            {"contentBlockDelta": {"delta": {"toolUse": {"input": 'location": '}}, "contentBlockIndex": 1}},
-            {"contentBlockDelta": {"delta": {"toolUse": {"input": '"B'}}, "contentBlockIndex": 1}},
-            {"contentBlockDelta": {"delta": {"toolUse": {"input": 'erlin"}'}}, "contentBlockIndex": 1}},
+            {
+                "contentBlockDelta": {
+                    "delta": {"toolUse": {"input": ""}},
+                    "contentBlockIndex": 1,
+                }
+            },
+            {
+                "contentBlockDelta": {
+                    "delta": {"toolUse": {"input": '{"'}},
+                    "contentBlockIndex": 1,
+                }
+            },
+            {
+                "contentBlockDelta": {
+                    "delta": {"toolUse": {"input": 'location": '}},
+                    "contentBlockIndex": 1,
+                }
+            },
+            {
+                "contentBlockDelta": {
+                    "delta": {"toolUse": {"input": '"B'}},
+                    "contentBlockIndex": 1,
+                }
+            },
+            {
+                "contentBlockDelta": {
+                    "delta": {"toolUse": {"input": 'erlin"}'}},
+                    "contentBlockIndex": 1,
+                }
+            },
             {"contentBlockStop": {"contentBlockIndex": 1}},
             {"messageStop": {"stopReason": "tool_use"}},
             {
                 "metadata": {
-                    "usage": {"inputTokens": 364, "outputTokens": 71, "totalTokens": 435},
+                    "usage": {
+                        "inputTokens": 364,
+                        "outputTokens": 71,
+                        "totalTokens": 435,
+                    },
                     "metrics": {"latencyMs": 2449},
                 }
             },
@@ -1042,7 +1232,9 @@ class TestAmazonBedrockChatGeneratorUtils:
                 name=None,
                 tool_calls=[
                     ToolCall(
-                        tool_name="weather_tool", arguments={"location": "Berlin"}, id="tooluse_pLGRAmK7TNKoZQ_rntVN_Q"
+                        tool_name="weather_tool",
+                        arguments={"location": "Berlin"},
+                        id="tooluse_pLGRAmK7TNKoZQ_rntVN_Q",
                     )
                 ],
                 meta={
@@ -1063,12 +1255,33 @@ class TestAmazonBedrockChatGeneratorUtils:
 
         expected_chunks = [
             StreamingChunk(content="", meta=base_meta, component_info=c_info),
-            StreamingChunk(content="Certainly! I can", meta=base_meta, component_info=c_info, index=0, start=True),
-            StreamingChunk(content=" help you find out", meta=base_meta, component_info=c_info, index=0),
+            StreamingChunk(
+                content="Certainly! I can",
+                meta=base_meta,
+                component_info=c_info,
+                index=0,
+                start=True,
+            ),
+            StreamingChunk(
+                content=" help you find out",
+                meta=base_meta,
+                component_info=c_info,
+                index=0,
+            ),
             StreamingChunk(content=" the weather", meta=base_meta, component_info=c_info, index=0),
             StreamingChunk(content=" in Berlin. To", meta=base_meta, component_info=c_info, index=0),
-            StreamingChunk(content=" get this information, I'll", meta=base_meta, component_info=c_info, index=0),
-            StreamingChunk(content=" use the weather tool available", meta=base_meta, component_info=c_info, index=0),
+            StreamingChunk(
+                content=" get this information, I'll",
+                meta=base_meta,
+                component_info=c_info,
+                index=0,
+            ),
+            StreamingChunk(
+                content=" use the weather tool available",
+                meta=base_meta,
+                component_info=c_info,
+                index=0,
+            ),
             StreamingChunk(content=" to me.", meta=base_meta, component_info=c_info, index=0),
             StreamingChunk(content=" Let me fetch", meta=base_meta, component_info=c_info, index=0),
             StreamingChunk(content=" that data for", meta=base_meta, component_info=c_info, index=0),
@@ -1079,7 +1292,13 @@ class TestAmazonBedrockChatGeneratorUtils:
                 meta=base_meta,
                 component_info=c_info,
                 index=1,
-                tool_calls=[ToolCallDelta(index=1, tool_name="weather_tool", id="tooluse_pLGRAmK7TNKoZQ_rntVN_Q")],
+                tool_calls=[
+                    ToolCallDelta(
+                        index=1,
+                        tool_name="weather_tool",
+                        id="tooluse_pLGRAmK7TNKoZQ_rntVN_Q",
+                    )
+                ],
                 start=True,
             ),
             StreamingChunk(
@@ -1118,7 +1337,12 @@ class TestAmazonBedrockChatGeneratorUtils:
                 tool_calls=[ToolCallDelta(index=1, arguments='erlin"}')],
             ),
             StreamingChunk(content="", meta=base_meta, component_info=c_info),
-            StreamingChunk(content="", meta=base_meta, component_info=c_info, finish_reason="tool_calls"),
+            StreamingChunk(
+                content="",
+                meta=base_meta,
+                component_info=c_info,
+                finish_reason="tool_calls",
+            ),
             StreamingChunk(
                 content="",
                 meta={
@@ -1169,7 +1393,12 @@ class TestAmazonBedrockChatGeneratorUtils:
                     "contentBlockIndex": 0,
                 }
             },
-            {"contentBlockDelta": {"delta": {"reasoningContent": {"text": " access to a"}}, "contentBlockIndex": 0}},
+            {
+                "contentBlockDelta": {
+                    "delta": {"reasoningContent": {"text": " access to a"}},
+                    "contentBlockIndex": 0,
+                }
+            },
             {
                 "contentBlockDelta": {
                     "delta": {"reasoningContent": {"text": " weather function that takes"}},
@@ -1200,26 +1429,75 @@ class TestAmazonBedrockChatGeneratorUtils:
                     "contentBlockIndex": 0,
                 }
             },
-            {"contentBlockDelta": {"delta": {"reasoningContent": {"text": " function call."}}, "contentBlockIndex": 0}},
-            {"contentBlockDelta": {"delta": {"reasoningContent": {"signature": "..."}}, "contentBlockIndex": 0}},
+            {
+                "contentBlockDelta": {
+                    "delta": {"reasoningContent": {"text": " function call."}},
+                    "contentBlockIndex": 0,
+                }
+            },
+            {
+                "contentBlockDelta": {
+                    "delta": {"reasoningContent": {"signature": "..."}},
+                    "contentBlockIndex": 0,
+                }
+            },
             {"contentBlockStop": {"contentBlockIndex": 0}},
             {
                 "contentBlockStart": {
-                    "start": {"toolUse": {"toolUseId": "tooluse_1gPhO4A1RNWgzKbt1PXWLg", "name": "weather"}},
+                    "start": {
+                        "toolUse": {
+                            "toolUseId": "tooluse_1gPhO4A1RNWgzKbt1PXWLg",
+                            "name": "weather",
+                        }
+                    },
                     "contentBlockIndex": 1,
                 }
             },
-            {"contentBlockDelta": {"delta": {"toolUse": {"input": ""}}, "contentBlockIndex": 1}},
-            {"contentBlockDelta": {"delta": {"toolUse": {"input": '{"ci'}}, "contentBlockIndex": 1}},
-            {"contentBlockDelta": {"delta": {"toolUse": {"input": "ty"}}, "contentBlockIndex": 1}},
-            {"contentBlockDelta": {"delta": {"toolUse": {"input": '": "P'}}, "contentBlockIndex": 1}},
-            {"contentBlockDelta": {"delta": {"toolUse": {"input": "aris"}}, "contentBlockIndex": 1}},
-            {"contentBlockDelta": {"delta": {"toolUse": {"input": '"}'}}, "contentBlockIndex": 1}},
+            {
+                "contentBlockDelta": {
+                    "delta": {"toolUse": {"input": ""}},
+                    "contentBlockIndex": 1,
+                }
+            },
+            {
+                "contentBlockDelta": {
+                    "delta": {"toolUse": {"input": '{"ci'}},
+                    "contentBlockIndex": 1,
+                }
+            },
+            {
+                "contentBlockDelta": {
+                    "delta": {"toolUse": {"input": "ty"}},
+                    "contentBlockIndex": 1,
+                }
+            },
+            {
+                "contentBlockDelta": {
+                    "delta": {"toolUse": {"input": '": "P'}},
+                    "contentBlockIndex": 1,
+                }
+            },
+            {
+                "contentBlockDelta": {
+                    "delta": {"toolUse": {"input": "aris"}},
+                    "contentBlockIndex": 1,
+                }
+            },
+            {
+                "contentBlockDelta": {
+                    "delta": {"toolUse": {"input": '"}'}},
+                    "contentBlockIndex": 1,
+                }
+            },
             {"contentBlockStop": {"contentBlockIndex": 1}},
             {"messageStop": {"stopReason": "tool_use"}},
             {
                 "metadata": {
-                    "usage": {"inputTokens": 412, "outputTokens": 104, "totalTokens": 516},
+                    "usage": {
+                        "inputTokens": 412,
+                        "outputTokens": 104,
+                        "totalTokens": 516,
+                    },
                     "metrics": {"latencyMs": 2134},
                 }
             },
@@ -1230,25 +1508,18 @@ class TestAmazonBedrockChatGeneratorUtils:
         expected_messages = [
             ChatMessage.from_assistant(
                 tool_calls=[
-                    ToolCall(tool_name="weather", arguments={"city": "Paris"}, id="tooluse_1gPhO4A1RNWgzKbt1PXWLg")
+                    ToolCall(
+                        tool_name="weather",
+                        arguments={"city": "Paris"},
+                        id="tooluse_1gPhO4A1RNWgzKbt1PXWLg",
+                    )
                 ],
                 reasoning=ReasoningContent(
                     reasoning_text="The user is asking about the weather in Paris. I have access to a weather function "
                     "that takes a city parameter. Paris is clearly specified as the city, so I have all the required "
                     "parameters to make the function call.",
                     extra={
-                        "reasoning_contents": [
-                            {
-                                "reasoning_content": {
-                                    "reasoning_text": {
-                                        "text": "The user is asking about the weather in Paris. I have access to a "
-                                        "weather function that takes a city parameter. Paris is clearly specified "
-                                        "as the city, so I have all the required parameters to make the function call.",
-                                        "signature": "...",
-                                    }
-                                }
-                            }
-                        ]
+                        "signature": "...",
                     },
                 ),
                 meta={
@@ -1275,101 +1546,8 @@ class TestAmazonBedrockChatGeneratorUtils:
         for chunk in reasoning_chunks:
             assert "reasoning_contents" not in chunk.meta
 
-    def test_process_streaming_response_with_one_tool_call_with_redacted_thinking(self, mock_boto3_session):
-        model = "arn:aws:bedrock:us-east-1::inference-profile/us.anthropic.claude-sonnet-3-7-20250219-v1:0"
-        type_ = (
-            "haystack_integrations.components.generators.amazon_bedrock.chat.chat_generator.AmazonBedrockChatGenerator"
-        )
-        streaming_chunks = []
-
-        events = [
-            {"messageStart": {"role": "assistant"}},
-            {
-                "contentBlockDelta": {
-                    "delta": {"reasoningContent": {"redactedContent": b"Some encrypted byte string"}},
-                    "contentBlockIndex": 0,
-                }
-            },
-            {"contentBlockStop": {"contentBlockIndex": 0}},
-            {
-                "contentBlockDelta": {
-                    "delta": {"text": "I notice your message contains a special"},
-                    "contentBlockIndex": 1,
-                }
-            },
-            {
-                "contentBlockDelta": {
-                    "delta": {"text": " string that doesn't include an actual question"},
-                    "contentBlockIndex": 1,
-                }
-            },
-            {"contentBlockDelta": {"delta": {"text": " or request. \n\nIs there something"}, "contentBlockIndex": 1}},
-            {"contentBlockDelta": {"delta": {"text": " specific you'd like to know"}, "contentBlockIndex": 1}},
-            {"contentBlockDelta": {"delta": {"text": "? If you're intereste"}, "contentBlockIndex": 1}},
-            {
-                "contentBlockDelta": {
-                    "delta": {"text": "d in weather information for a particular location"},
-                    "contentBlockIndex": 1,
-                }
-            },
-            {"contentBlockDelta": {"delta": {"text": ", I can help"}, "contentBlockIndex": 1}},
-            {"contentBlockDelta": {"delta": {"text": " you with that using the weather"}, "contentBlockIndex": 1}},
-            {"contentBlockDelta": {"delta": {"text": " tool. Just let me know which"}, "contentBlockIndex": 1}},
-            {"contentBlockDelta": {"delta": {"text": " city you'd like"}, "contentBlockIndex": 1}},
-            {"contentBlockDelta": {"delta": {"text": " to check the weather for."}, "contentBlockIndex": 1}},
-            {"contentBlockStop": {"contentBlockIndex": 1}},
-            {"messageStop": {"stopReason": "end_turn"}},
-            {
-                "metadata": {
-                    "usage": {"inputTokens": 461, "outputTokens": 138, "totalTokens": 599},
-                    "metrics": {"latencyMs": 8493},
-                }
-            },
-        ]
-
-        def test_callback(chunk: StreamingChunk):
-            streaming_chunks.append(chunk)
-
-        replies = _parse_streaming_response(events, test_callback, model, ComponentInfo(type=type_))
-
-        expected_messages = [
-            ChatMessage.from_assistant(
-                text="I notice your message contains a special string that doesn't include an actual question or "
-                "request. \n\nIs there something specific you'd like to know? If you're interested in weather "
-                "information for a particular location, I can help you with that using the weather tool. "
-                "Just let me know which city you'd like to check the weather for.",
-                reasoning=ReasoningContent(
-                    reasoning_text="[REDACTED]",
-                    extra={
-                        "reasoning_contents": [
-                            {
-                                "reasoning_content": {
-                                    "redacted_content": b"Some encrypted byte string",
-                                }
-                            }
-                        ]
-                    },
-                ),
-                meta={
-                    "model": model,
-                    "index": 0,
-                    "finish_reason": "stop",
-                    "usage": {
-                        "prompt_tokens": 461,
-                        "completion_tokens": 138,
-                        "total_tokens": 599,
-                        "cache_read_input_tokens": 0,
-                        "cache_write_input_tokens": 0,
-                        "cache_details": {},
-                    },
-                    "completion_start_time": ANY,
-                },
-            )
-        ]
-        assert replies == expected_messages
-
     def test_parse_streaming_response_with_two_tool_calls(self, mock_boto3_session):
-        model = "anthropic.claude-3-5-sonnet-20240620-v1:0"
+        model = "global.anthropic.claude-sonnet-4-6"
         type_ = (
             "haystack_integrations.components.generators.amazon_bedrock.chat.chat_generator.AmazonBedrockChatGenerator"
         )
@@ -1381,41 +1559,130 @@ class TestAmazonBedrockChatGeneratorUtils:
         events = [
             {"messageStart": {"role": "assistant"}},
             {"contentBlockDelta": {"delta": {"text": "To"}, "contentBlockIndex": 0}},
-            {"contentBlockDelta": {"delta": {"text": " answer your question about the"}, "contentBlockIndex": 0}},
-            {"contentBlockDelta": {"delta": {"text": " weather in Berlin and Paris, I'll"}, "contentBlockIndex": 0}},
-            {"contentBlockDelta": {"delta": {"text": " need to use the weather_tool"}, "contentBlockIndex": 0}},
-            {"contentBlockDelta": {"delta": {"text": " for each city. Let"}, "contentBlockIndex": 0}},
-            {"contentBlockDelta": {"delta": {"text": " me fetch that information for"}, "contentBlockIndex": 0}},
+            {
+                "contentBlockDelta": {
+                    "delta": {"text": " answer your question about the"},
+                    "contentBlockIndex": 0,
+                }
+            },
+            {
+                "contentBlockDelta": {
+                    "delta": {"text": " weather in Berlin and Paris, I'll"},
+                    "contentBlockIndex": 0,
+                }
+            },
+            {
+                "contentBlockDelta": {
+                    "delta": {"text": " need to use the weather_tool"},
+                    "contentBlockIndex": 0,
+                }
+            },
+            {
+                "contentBlockDelta": {
+                    "delta": {"text": " for each city. Let"},
+                    "contentBlockIndex": 0,
+                }
+            },
+            {
+                "contentBlockDelta": {
+                    "delta": {"text": " me fetch that information for"},
+                    "contentBlockIndex": 0,
+                }
+            },
             {"contentBlockDelta": {"delta": {"text": " you."}, "contentBlockIndex": 0}},
             {"contentBlockStop": {"contentBlockIndex": 0}},
             {
                 "contentBlockStart": {
-                    "start": {"toolUse": {"toolUseId": "tooluse_A0jTtaiQTFmqD_cIq8I1BA", "name": "weather_tool"}},
+                    "start": {
+                        "toolUse": {
+                            "toolUseId": "tooluse_A0jTtaiQTFmqD_cIq8I1BA",
+                            "name": "weather_tool",
+                        }
+                    },
                     "contentBlockIndex": 1,
                 }
             },
-            {"contentBlockDelta": {"delta": {"toolUse": {"input": ""}}, "contentBlockIndex": 1}},
-            {"contentBlockDelta": {"delta": {"toolUse": {"input": '{"location":'}}, "contentBlockIndex": 1}},
-            {"contentBlockDelta": {"delta": {"toolUse": {"input": ' "Be'}}, "contentBlockIndex": 1}},
-            {"contentBlockDelta": {"delta": {"toolUse": {"input": 'rlin"}'}}, "contentBlockIndex": 1}},
+            {
+                "contentBlockDelta": {
+                    "delta": {"toolUse": {"input": ""}},
+                    "contentBlockIndex": 1,
+                }
+            },
+            {
+                "contentBlockDelta": {
+                    "delta": {"toolUse": {"input": '{"location":'}},
+                    "contentBlockIndex": 1,
+                }
+            },
+            {
+                "contentBlockDelta": {
+                    "delta": {"toolUse": {"input": ' "Be'}},
+                    "contentBlockIndex": 1,
+                }
+            },
+            {
+                "contentBlockDelta": {
+                    "delta": {"toolUse": {"input": 'rlin"}'}},
+                    "contentBlockIndex": 1,
+                }
+            },
             {"contentBlockStop": {"contentBlockIndex": 1}},
             {
                 "contentBlockStart": {
-                    "start": {"toolUse": {"toolUseId": "tooluse_LTc2TUMgTRiobK5Z5CCNSw", "name": "weather_tool"}},
+                    "start": {
+                        "toolUse": {
+                            "toolUseId": "tooluse_LTc2TUMgTRiobK5Z5CCNSw",
+                            "name": "weather_tool",
+                        }
+                    },
                     "contentBlockIndex": 2,
                 }
             },
-            {"contentBlockDelta": {"delta": {"toolUse": {"input": ""}}, "contentBlockIndex": 2}},
-            {"contentBlockDelta": {"delta": {"toolUse": {"input": '{"l'}}, "contentBlockIndex": 2}},
-            {"contentBlockDelta": {"delta": {"toolUse": {"input": "ocati"}}, "contentBlockIndex": 2}},
-            {"contentBlockDelta": {"delta": {"toolUse": {"input": 'on": "P'}}, "contentBlockIndex": 2}},
-            {"contentBlockDelta": {"delta": {"toolUse": {"input": "ari"}}, "contentBlockIndex": 2}},
-            {"contentBlockDelta": {"delta": {"toolUse": {"input": 's"}'}}, "contentBlockIndex": 2}},
+            {
+                "contentBlockDelta": {
+                    "delta": {"toolUse": {"input": ""}},
+                    "contentBlockIndex": 2,
+                }
+            },
+            {
+                "contentBlockDelta": {
+                    "delta": {"toolUse": {"input": '{"l'}},
+                    "contentBlockIndex": 2,
+                }
+            },
+            {
+                "contentBlockDelta": {
+                    "delta": {"toolUse": {"input": "ocati"}},
+                    "contentBlockIndex": 2,
+                }
+            },
+            {
+                "contentBlockDelta": {
+                    "delta": {"toolUse": {"input": 'on": "P'}},
+                    "contentBlockIndex": 2,
+                }
+            },
+            {
+                "contentBlockDelta": {
+                    "delta": {"toolUse": {"input": "ari"}},
+                    "contentBlockIndex": 2,
+                }
+            },
+            {
+                "contentBlockDelta": {
+                    "delta": {"toolUse": {"input": 's"}'}},
+                    "contentBlockIndex": 2,
+                }
+            },
             {"contentBlockStop": {"contentBlockIndex": 2}},
             {"messageStop": {"stopReason": "tool_use"}},
             {
                 "metadata": {
-                    "usage": {"inputTokens": 366, "outputTokens": 83, "totalTokens": 449},
+                    "usage": {
+                        "inputTokens": 366,
+                        "outputTokens": 83,
+                        "totalTokens": 449,
+                    },
                     "metrics": {"latencyMs": 3194},
                 }
             },
@@ -1429,14 +1696,18 @@ class TestAmazonBedrockChatGeneratorUtils:
                 name=None,
                 tool_calls=[
                     ToolCall(
-                        tool_name="weather_tool", arguments={"location": "Berlin"}, id="tooluse_A0jTtaiQTFmqD_cIq8I1BA"
+                        tool_name="weather_tool",
+                        arguments={"location": "Berlin"},
+                        id="tooluse_A0jTtaiQTFmqD_cIq8I1BA",
                     ),
                     ToolCall(
-                        tool_name="weather_tool", arguments={"location": "Paris"}, id="tooluse_LTc2TUMgTRiobK5Z5CCNSw"
+                        tool_name="weather_tool",
+                        arguments={"location": "Paris"},
+                        id="tooluse_LTc2TUMgTRiobK5Z5CCNSw",
                     ),
                 ],
                 meta={
-                    "model": "anthropic.claude-3-5-sonnet-20240620-v1:0",
+                    "model": "global.anthropic.claude-sonnet-4-6",
                     "index": 0,
                     "finish_reason": "tool_calls",
                     "usage": {
@@ -1454,7 +1725,7 @@ class TestAmazonBedrockChatGeneratorUtils:
         assert replies == expected_messages
 
     def test_parse_streaming_response_with_guardrail(self, mock_boto3_session):
-        model = "anthropic.claude-3-5-sonnet-20240620-v1:0"
+        model = "global.anthropic.claude-sonnet-4-6"
         type_ = (
             "haystack_integrations.components.generators.amazon_bedrock.chat.chat_generator.AmazonBedrockChatGenerator"
         )
@@ -1467,7 +1738,12 @@ class TestAmazonBedrockChatGeneratorUtils:
                         "test_guardrail_id": {
                             "topicPolicy": {
                                 "topics": [
-                                    {"name": "Investments topic", "type": "DENY", "action": "BLOCKED", "detected": True}
+                                    {
+                                        "name": "Investments topic",
+                                        "type": "DENY",
+                                        "action": "BLOCKED",
+                                        "detected": True,
+                                    }
                                 ]
                             },
                             "invocationMetrics": {
@@ -1536,12 +1812,14 @@ class TestAmazonBedrockChatGeneratorUtils:
         ]
         assert replies == expected_messages
 
-    def test_convert_streaming_chunks_to_chat_message_tool_call_with_empty_arguments(self):
+    def test_convert_streaming_chunks_to_chat_message_tool_call_with_empty_arguments(
+        self,
+    ):
         chunks = [
             StreamingChunk(
                 content="Certainly! I",
                 meta={
-                    "model": "anthropic.claude-3-5-sonnet-20240620-v1:0",
+                    "model": "global.anthropic.claude-sonnet-4-6",
                     "received_at": "2025-07-31T08:46:07.072764+00:00",
                 },
                 index=0,
@@ -1550,7 +1828,7 @@ class TestAmazonBedrockChatGeneratorUtils:
             StreamingChunk(
                 content=" can help",
                 meta={
-                    "model": "anthropic.claude-3-5-sonnet-20240620-v1:0",
+                    "model": "global.anthropic.claude-sonnet-4-6",
                     "received_at": "2025-07-31T08:46:07.111264+00:00",
                 },
                 index=0,
@@ -1558,7 +1836,7 @@ class TestAmazonBedrockChatGeneratorUtils:
             StreamingChunk(
                 content=" you print",
                 meta={
-                    "model": "anthropic.claude-3-5-sonnet-20240620-v1:0",
+                    "model": "global.anthropic.claude-sonnet-4-6",
                     "received_at": "2025-07-31T08:46:07.162575+00:00",
                 },
                 index=0,
@@ -1566,7 +1844,7 @@ class TestAmazonBedrockChatGeneratorUtils:
             StreamingChunk(
                 content=' "Hello World"',
                 meta={
-                    "model": "anthropic.claude-3-5-sonnet-20240620-v1:0",
+                    "model": "global.anthropic.claude-sonnet-4-6",
                     "received_at": "2025-07-31T08:46:07.215535+00:00",
                 },
                 index=0,
@@ -1574,7 +1852,7 @@ class TestAmazonBedrockChatGeneratorUtils:
             StreamingChunk(
                 content=" using the available",
                 meta={
-                    "model": "anthropic.claude-3-5-sonnet-20240620-v1:0",
+                    "model": "global.anthropic.claude-sonnet-4-6",
                     "received_at": "2025-07-31T08:46:07.270642+00:00",
                 },
                 index=0,
@@ -1582,7 +1860,7 @@ class TestAmazonBedrockChatGeneratorUtils:
             StreamingChunk(
                 content=' "',
                 meta={
-                    "model": "anthropic.claude-3-5-sonnet-20240620-v1:0",
+                    "model": "global.anthropic.claude-sonnet-4-6",
                     "received_at": "2025-07-31T08:46:07.349415+00:00",
                 },
                 index=0,
@@ -1590,7 +1868,7 @@ class TestAmazonBedrockChatGeneratorUtils:
             StreamingChunk(
                 content='hello_world" tool',
                 meta={
-                    "model": "anthropic.claude-3-5-sonnet-20240620-v1:0",
+                    "model": "global.anthropic.claude-sonnet-4-6",
                     "received_at": "2025-07-31T08:46:07.426891+00:00",
                 },
                 index=0,
@@ -1598,7 +1876,7 @@ class TestAmazonBedrockChatGeneratorUtils:
             StreamingChunk(
                 content=". This tool is",
                 meta={
-                    "model": "anthropic.claude-3-5-sonnet-20240620-v1:0",
+                    "model": "global.anthropic.claude-sonnet-4-6",
                     "received_at": "2025-07-31T08:46:07.495910+00:00",
                 },
                 index=0,
@@ -1606,7 +1884,7 @@ class TestAmazonBedrockChatGeneratorUtils:
             StreamingChunk(
                 content=' designed to print "',
                 meta={
-                    "model": "anthropic.claude-3-5-sonnet-20240620-v1:0",
+                    "model": "global.anthropic.claude-sonnet-4-6",
                     "received_at": "2025-07-31T08:46:07.527426+00:00",
                 },
                 index=0,
@@ -1614,7 +1892,7 @@ class TestAmazonBedrockChatGeneratorUtils:
             StreamingChunk(
                 content='Hello World" an',
                 meta={
-                    "model": "anthropic.claude-3-5-sonnet-20240620-v1:0",
+                    "model": "global.anthropic.claude-sonnet-4-6",
                     "received_at": "2025-07-31T08:46:07.590629+00:00",
                 },
                 index=0,
@@ -1622,7 +1900,7 @@ class TestAmazonBedrockChatGeneratorUtils:
             StreamingChunk(
                 content="d doesn't require any parameters",
                 meta={
-                    "model": "anthropic.claude-3-5-sonnet-20240620-v1:0",
+                    "model": "global.anthropic.claude-sonnet-4-6",
                     "received_at": "2025-07-31T08:46:07.682261+00:00",
                 },
                 index=0,
@@ -1630,7 +1908,7 @@ class TestAmazonBedrockChatGeneratorUtils:
             StreamingChunk(
                 content=". Let",
                 meta={
-                    "model": "anthropic.claude-3-5-sonnet-20240620-v1:0",
+                    "model": "global.anthropic.claude-sonnet-4-6",
                     "received_at": "2025-07-31T08:46:07.790526+00:00",
                 },
                 index=0,
@@ -1638,7 +1916,7 @@ class TestAmazonBedrockChatGeneratorUtils:
             StreamingChunk(
                 content="'s go ahead an",
                 meta={
-                    "model": "anthropic.claude-3-5-sonnet-20240620-v1:0",
+                    "model": "global.anthropic.claude-sonnet-4-6",
                     "received_at": "2025-07-31T08:46:07.845332+00:00",
                 },
                 index=0,
@@ -1646,7 +1924,7 @@ class TestAmazonBedrockChatGeneratorUtils:
             StreamingChunk(
                 content="d use",
                 meta={
-                    "model": "anthropic.claude-3-5-sonnet-20240620-v1:0",
+                    "model": "global.anthropic.claude-sonnet-4-6",
                     "received_at": "2025-07-31T08:46:07.990588+00:00",
                 },
                 index=0,
@@ -1654,7 +1932,7 @@ class TestAmazonBedrockChatGeneratorUtils:
             StreamingChunk(
                 content=" it.",
                 meta={
-                    "model": "anthropic.claude-3-5-sonnet-20240620-v1:0",
+                    "model": "global.anthropic.claude-sonnet-4-6",
                     "received_at": "2025-07-31T08:46:07.994309+00:00",
                 },
                 index=0,
@@ -1662,25 +1940,30 @@ class TestAmazonBedrockChatGeneratorUtils:
             StreamingChunk(
                 content="",
                 meta={
-                    "model": "anthropic.claude-3-5-sonnet-20240620-v1:0",
+                    "model": "global.anthropic.claude-sonnet-4-6",
                     "received_at": "2025-07-31T08:46:08.359127+00:00",
                 },
             ),
             StreamingChunk(
                 content="",
                 meta={
-                    "model": "anthropic.claude-3-5-sonnet-20240620-v1:0",
+                    "model": "global.anthropic.claude-sonnet-4-6",
                     "received_at": "2025-07-31T08:46:08.359912+00:00",
                 },
                 index=1,
                 tool_calls=[
-                    ToolCallDelta(index=1, id="tooluse_QZlUqTveTwyUaCQGQbWP6g", tool_name="hello_world", arguments="")
+                    ToolCallDelta(
+                        index=1,
+                        id="tooluse_QZlUqTveTwyUaCQGQbWP6g",
+                        tool_name="hello_world",
+                        arguments="",
+                    )
                 ],
             ),
             StreamingChunk(
                 content="",
                 meta={
-                    "model": "anthropic.claude-3-5-sonnet-20240620-v1:0",
+                    "model": "global.anthropic.claude-sonnet-4-6",
                     "received_at": "2025-07-31T08:46:08.361612+00:00",
                 },
                 index=1,
@@ -1689,14 +1972,14 @@ class TestAmazonBedrockChatGeneratorUtils:
             StreamingChunk(
                 content="",
                 meta={
-                    "model": "anthropic.claude-3-5-sonnet-20240620-v1:0",
+                    "model": "global.anthropic.claude-sonnet-4-6",
                     "received_at": "2025-07-31T08:46:08.592175+00:00",
                 },
             ),
             StreamingChunk(
                 content="",
                 meta={
-                    "model": "anthropic.claude-3-5-sonnet-20240620-v1:0",
+                    "model": "global.anthropic.claude-sonnet-4-6",
                     "received_at": "2025-07-31T08:46:08.592175+00:00",
                 },
                 finish_reason="tool_calls",
@@ -1704,9 +1987,13 @@ class TestAmazonBedrockChatGeneratorUtils:
             StreamingChunk(
                 content="",
                 meta={
-                    "model": "anthropic.claude-3-5-sonnet-20240620-v1:0",
+                    "model": "global.anthropic.claude-sonnet-4-6",
                     "received_at": "2025-07-31T08:46:08.596700+00:00",
-                    "usage": {"prompt_tokens": 349, "completion_tokens": 84, "total_tokens": 433},
+                    "usage": {
+                        "prompt_tokens": 349,
+                        "completion_tokens": 84,
+                        "total_tokens": 433,
+                    },
                 },
             ),
         ]
@@ -1727,18 +2014,30 @@ class TestAmazonBedrockChatGeneratorUtils:
         assert tool_call.arguments == {}
 
         # Verify meta information
-        assert message._meta["model"] == "anthropic.claude-3-5-sonnet-20240620-v1:0"
+        assert message._meta["model"] == "global.anthropic.claude-sonnet-4-6"
         assert message._meta["index"] == 0
         assert message._meta["finish_reason"] == "tool_calls"
-        assert message._meta["usage"] == {"completion_tokens": 84, "prompt_tokens": 349, "total_tokens": 433}
+        assert message._meta["usage"] == {
+            "completion_tokens": 84,
+            "prompt_tokens": 349,
+            "total_tokens": 433,
+        }
 
     def test_validate_guardrail_config_with_valid_configs(self):
         _validate_guardrail_config(guardrail_config=None, streaming=False)
         _validate_guardrail_config(
-            guardrail_config={"guardrailIdentifier": "test", "guardrailVersion": "test"}, streaming=False
+            guardrail_config={
+                "guardrailIdentifier": "test",
+                "guardrailVersion": "test",
+            },
+            streaming=False,
         )
         _validate_guardrail_config(
-            guardrail_config={"guardrailIdentifier": "test", "guardrailVersion": "test"}, streaming=True
+            guardrail_config={
+                "guardrailIdentifier": "test",
+                "guardrailVersion": "test",
+            },
+            streaming=True,
         )
         _validate_guardrail_config(
             guardrail_config={
@@ -1750,11 +2049,20 @@ class TestAmazonBedrockChatGeneratorUtils:
         )
 
     def test_validate_guardrail_config_with_invalid_configs(self):
-        with pytest.raises(ValueError, match="`guardrailIdentifier` and `guardrailVersion` fields are required"):
+        with pytest.raises(
+            ValueError,
+            match="`guardrailIdentifier` and `guardrailVersion` fields are required",
+        ):
             _validate_guardrail_config(guardrail_config={"guardrailIdentifier": "test"}, streaming=False)
-        with pytest.raises(ValueError, match="`guardrailIdentifier` and `guardrailVersion` fields are required"):
+        with pytest.raises(
+            ValueError,
+            match="`guardrailIdentifier` and `guardrailVersion` fields are required",
+        ):
             _validate_guardrail_config(guardrail_config={"guardrailVersion": "test"}, streaming=False)
-        with pytest.raises(ValueError, match="`streamProcessingMode` field is only supported for streaming"):
+        with pytest.raises(
+            ValueError,
+            match="`streamProcessingMode` field is only supported for streaming",
+        ):
             _validate_guardrail_config(
                 guardrail_config={
                     "guardrailIdentifier": "test",
@@ -1777,10 +2085,16 @@ class TestAmazonBedrockChatGeneratorUtils:
         cache_point = _validate_and_format_cache_point({"type": "default", "ttl": "5m"})
         assert cache_point == {"cachePoint": {"type": "default", "ttl": "5m"}}
 
-        with pytest.raises(ValueError, match=r"Cache point must have a 'type' key with value 'default'."):
+        with pytest.raises(
+            ValueError,
+            match=r"Cache point must have a 'type' key with value 'default'.",
+        ):
             _validate_and_format_cache_point({"invalid": "config"})
 
-        with pytest.raises(ValueError, match=r"Cache point must have a 'type' key with value 'default'."):
+        with pytest.raises(
+            ValueError,
+            match=r"Cache point must have a 'type' key with value 'default'.",
+        ):
             _validate_and_format_cache_point({"type": "invalid"})
 
         with pytest.raises(ValueError, match=r"Cache point can only contain 'type' and 'ttl' keys."):
