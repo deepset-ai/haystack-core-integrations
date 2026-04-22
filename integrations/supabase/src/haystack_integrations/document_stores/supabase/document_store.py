@@ -26,10 +26,13 @@ class SupabasePgvectorDocumentStore(PgvectorDocumentStore):
     Example usage:
 
     # Set an environment variable `SUPABASE_DB_URL` with the connection string to your Supabase database.
+    ```bash
     export SUPABASE_DB_URL=postgresql://postgres:postgres@localhost:5432/postgres
+    ```
 
     ```python
     from haystack_integrations.document_stores.supabase import SupabasePgvectorDocumentStore
+
     document_store = SupabasePgvectorDocumentStore(
         embedding_dimension=768,
         vector_function="cosine_similarity",

@@ -27,7 +27,10 @@ class SupabasePgvectorKeywordRetriever(PgvectorKeywordRetriever):
     Example usage:
 
     # Set an environment variable `SUPABASE_DB_URL` with the connection string to your Supabase database.
+    ```bash
     export SUPABASE_DB_URL=postgresql://postgres:postgres@localhost:5432/postgres
+    ```
+
 
     ```python
     from haystack import Document, Pipeline
