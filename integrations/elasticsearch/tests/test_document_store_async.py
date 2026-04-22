@@ -243,22 +243,26 @@ class TestElasticsearchDocumentStoreAsync(
 
     @pytest.mark.asyncio
     async def test_embedding_retrieval_async(self, document_store):
+        # init document store
         docs = [
             Document(content="Most similar document", embedding=[1.0, 1.0, 1.0, 1.0]),
             Document(content="Less similar document", embedding=[0.5, 0.5, 0.5, 0.5]),
         ]
         await document_store.write_documents_async(docs)
 
+        # without num_candidates set to None
         results = await document_store._embedding_retrieval_async(query_embedding=[1.0, 1.0, 1.0, 1.0], top_k=1)
         assert len(results) == 1
         assert results[0].content == "Most similar document"
 
+        # with num_candidates not None
         results = await document_store._embedding_retrieval_async(
             query_embedding=[1.0, 1.0, 1.0, 1.0], top_k=2, num_candidates=2
         )
         assert len(results) == 2
         assert results[0].content == "Most similar document"
 
+        # with an embedding containing None
         with pytest.raises(ValueError, match="query_embedding must be a non-empty list of floats"):
             _ = await document_store._embedding_retrieval_async(query_embedding=None, top_k=2)
 
