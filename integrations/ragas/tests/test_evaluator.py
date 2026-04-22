@@ -2,7 +2,7 @@ import os
 
 import pytest
 from openai import AsyncOpenAI
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 from ragas.embeddings.base import embedding_factory
 from ragas.llms import llm_factory
 from ragas.metrics.base import SimpleBaseMetric
@@ -16,9 +16,10 @@ from haystack.components.retrievers.in_memory import InMemoryEmbeddingRetriever
 from haystack.dataclasses import ChatMessage
 from haystack.document_stores.in_memory import InMemoryDocumentStore
 from haystack_integrations.components.evaluators.ragas import RagasEvaluator
+from tests.test_utils import ConcreteMetric, make_llm_mock
 
 
-def _make_metric(name: str, score: float = 0.8, reason: str = "test reason") -> MagicMock:
+def make_metric(name: str, score: float = 0.8, reason: str = "test reason") -> MagicMock:
     """Create a mock SimpleBaseMetric with a concrete ascore signature for inspect.signature."""
     metric = MagicMock(spec=SimpleBaseMetric)
     metric.name = name
@@ -33,12 +34,12 @@ def _make_metric(name: str, score: float = 0.8, reason: str = "test reason") -> 
 
 class TestInitialization:
     def test_successful_initialization(self):
-        metric = _make_metric("faithfulness")
+        metric = make_metric("faithfulness")
         evaluator = RagasEvaluator(ragas_metrics=[metric])
         assert evaluator.metrics == [metric]
 
     def test_initialization_with_multiple_metrics(self):
-        metrics = [_make_metric("faithfulness"), _make_metric("answer_relevancy")]
+        metrics = [make_metric("faithfulness"), make_metric("answer_relevancy")]
         evaluator = RagasEvaluator(ragas_metrics=metrics)
         assert len(evaluator.metrics) == 2
 
@@ -47,14 +48,14 @@ class TestInitialization:
             RagasEvaluator(ragas_metrics=["not_a_metric"])
 
     def test_invalid_metrics_mixed_raises_type_error(self):
-        valid = _make_metric("faithfulness")
+        valid = make_metric("faithfulness")
         with pytest.raises(TypeError):
             RagasEvaluator(ragas_metrics=[valid, "not_a_metric"])
 
 
 class TestRunResultStructure:
     def test_run_returns_metric_results_keyed_by_name(self):
-        metric = _make_metric("faithfulness", score=0.9)
+        metric = make_metric("faithfulness", score=0.9)
         evaluator = RagasEvaluator(ragas_metrics=[metric])
 
         output = evaluator.run(
@@ -70,7 +71,7 @@ class TestRunResultStructure:
         assert result.value == 0.9
 
     def test_run_scores_all_metrics(self):
-        metrics = [_make_metric("faithfulness", 0.9), _make_metric("answer_relevancy", 0.7)]
+        metrics = [make_metric("faithfulness", 0.9), make_metric("answer_relevancy", 0.7)]
         evaluator = RagasEvaluator(ragas_metrics=metrics)
 
         output = evaluator.run(query="test?", response="answer", documents=["doc"])
@@ -80,8 +81,8 @@ class TestRunResultStructure:
         assert output["result"]["answer_relevancy"].value == 0.7
 
     def test_run_calls_score_on_each_metric(self):
-        metric_a = _make_metric("faithfulness")
-        metric_b = _make_metric("answer_relevancy")
+        metric_a = make_metric("faithfulness")
+        metric_b = make_metric("answer_relevancy")
         evaluator = RagasEvaluator(ragas_metrics=[metric_a, metric_b])
 
         evaluator.run(query="test?", response="answer", documents=["doc"])
@@ -108,7 +109,7 @@ class TestRunParameterFiltering:
         metric.score.assert_called_once_with(user_input="test?", response="answer")
 
     def test_score_metric_omits_none_fields(self):
-        metric = _make_metric("faithfulness")
+        metric = make_metric("faithfulness")
         evaluator = RagasEvaluator(ragas_metrics=[metric])
 
         evaluator.run(query="test?", response="answer")  # no documents → retrieved_contexts=None
@@ -119,7 +120,7 @@ class TestRunParameterFiltering:
 
 class TestRunInputProcessing:
     def test_run_accepts_document_objects(self):
-        metric = _make_metric("faithfulness")
+        metric = make_metric("faithfulness")
         evaluator = RagasEvaluator(ragas_metrics=[metric])
 
         evaluator.run(
@@ -132,7 +133,7 @@ class TestRunInputProcessing:
         assert kwargs["retrieved_contexts"] == ["some content", "more content"]
 
     def test_run_accepts_string_documents(self):
-        metric = _make_metric("faithfulness")
+        metric = make_metric("faithfulness")
         evaluator = RagasEvaluator(ragas_metrics=[metric])
 
         evaluator.run(query="test?", response="answer", documents=["doc one", "doc two"])
@@ -151,7 +152,7 @@ class TestRunInputValidation:
         ],
     )
     def test_run_raises_on_invalid_input_types(self, invalid_input, field_name, error_message):
-        evaluator = RagasEvaluator(ragas_metrics=[_make_metric("faithfulness")])
+        evaluator = RagasEvaluator(ragas_metrics=[make_metric("faithfulness")])
         query = "Which is the most popular global sport?"
         documents = ["Football is the most popular sport."]
         response = "Football is the most popular sport in the world"
@@ -167,17 +168,66 @@ class TestRunInputValidation:
         assert error_message in str(exc_info.value)
 
 
+class TestSerialization:
+    def test_to_dict_type_field(self):
+        evaluator = RagasEvaluator(ragas_metrics=[ConcreteMetric()])
+        data = evaluator.to_dict()
+        assert data["type"] == "haystack_integrations.components.evaluators.ragas.evaluator.RagasEvaluator"
+
+    def test_to_dict_serializes_metric(self):
+        metric = ConcreteMetric(name="test_metric", llm=make_llm_mock())
+        data = RagasEvaluator(ragas_metrics=[metric]).to_dict()
+        serialized = data["init_parameters"]["ragas_metrics"][0]
+        assert serialized["name"] == "test_metric"
+        assert serialized["llm"] == {"model": "gpt-4o-mini", "provider": "openai"}
+
+    def test_to_dict_serializes_multiple_metrics(self):
+        metrics = [ConcreteMetric(name="m1"), ConcreteMetric(name="m2")]
+        data = RagasEvaluator(ragas_metrics=metrics).to_dict()
+        names = [m["name"] for m in data["init_parameters"]["ragas_metrics"]]
+        assert names == ["m1", "m2"]
+
+    def test_from_dict_reconstructs_evaluator(self, monkeypatch):
+        monkeypatch.setenv("OPENAI_API_KEY", "test")
+        fake_llm = make_llm_mock()
+        evaluator = RagasEvaluator(ragas_metrics=[ConcreteMetric(name="concrete_metric", llm=fake_llm)])
+        data = evaluator.to_dict()
+
+        with patch("haystack_integrations.components.evaluators.ragas.utils.llm_factory", return_value=fake_llm):
+            reconstructed = RagasEvaluator.from_dict(data)
+
+        assert len(reconstructed.metrics) == 1
+        assert reconstructed.metrics[0].name == "concrete_metric"
+
+    def test_from_dict_raises_for_unsupported_provider(self):
+        data = {
+            "type": "haystack_integrations.components.evaluators.ragas.evaluator.RagasEvaluator",
+            "init_parameters": {
+                "ragas_metrics": [
+                    {
+                        "type": "tests.test_utils.ConcreteMetric",
+                        "name": "some_metric",
+                        "llm": {"model": "gemini-pro", "provider": "google"},
+                    }
+                ]
+            },
+        }
+
+        with pytest.raises(ValueError, match="only supports the 'openai' provider"):
+            RagasEvaluator.from_dict(data)
+
+
 @pytest.mark.skipif(not os.environ.get("OPENAI_API_KEY"), reason="Set OPENAI_API_KEY to run integration tests.")
 @pytest.mark.integration
 class TestStandaloneEvaluationIntegration:
-    def _make_llm(self):
+    def make_llm(self):
         return llm_factory("gpt-4o-mini", client=AsyncOpenAI())
 
-    def _make_embeddings(self):
+    def make_embeddings(self):
         return embedding_factory("openai", model="text-embedding-3-small", client=AsyncOpenAI())
 
     def test_faithfulness_returns_valid_score(self):
-        evaluator = RagasEvaluator(ragas_metrics=[Faithfulness(llm=self._make_llm())])
+        evaluator = RagasEvaluator(ragas_metrics=[Faithfulness(llm=self.make_llm())])
 
         output = evaluator.run(
             query="What makes Meta AI's LLaMA models stand out?",
@@ -196,7 +246,7 @@ class TestStandaloneEvaluationIntegration:
     def test_answer_relevancy_uses_only_query_and_response(self):
         """AnswerRelevancy only declares user_input + response in ascore — documents should not be forwarded."""
         evaluator = RagasEvaluator(
-            ragas_metrics=[AnswerRelevancy(llm=self._make_llm(), embeddings=self._make_embeddings())]
+            ragas_metrics=[AnswerRelevancy(llm=self.make_llm(), embeddings=self.make_embeddings())]
         )
 
         output = evaluator.run(
@@ -210,8 +260,8 @@ class TestStandaloneEvaluationIntegration:
         assert 0.0 <= result.value <= 1.0
 
     def test_multiple_metrics_all_return_results(self):
-        llm = self._make_llm()
-        embeddings = self._make_embeddings()
+        llm = self.make_llm()
+        embeddings = self.make_embeddings()
         evaluator = RagasEvaluator(
             ragas_metrics=[
                 Faithfulness(llm=llm),

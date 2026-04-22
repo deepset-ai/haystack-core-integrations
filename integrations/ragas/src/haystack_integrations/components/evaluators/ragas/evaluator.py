@@ -5,11 +5,10 @@ from haystack import Document, component, default_from_dict, default_to_dict
 from haystack.dataclasses import ChatMessage
 from pydantic import ValidationError
 
+from haystack_integrations.components.evaluators.ragas.utils import _deserialize_metric, _serialize_metric
 from ragas.dataset_schema import SingleTurnSample
 from ragas.metrics.base import SimpleBaseMetric
 from ragas.metrics.result import MetricResult
-
-from haystack_integrations.components.evaluators.ragas.utils import _deserialize_metric, _serialize_metric
 
 
 @component

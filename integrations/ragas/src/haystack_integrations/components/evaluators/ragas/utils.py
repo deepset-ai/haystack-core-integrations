@@ -5,6 +5,7 @@ import importlib
 from typing import Any
 
 from openai import AsyncOpenAI
+
 from ragas.embeddings.base import embedding_factory
 from ragas.llms import llm_factory
 from ragas.metrics.base import SimpleBaseMetric
@@ -56,20 +57,14 @@ def _deserialize_metric(data: dict[str, Any]) -> SimpleBaseMetric:
     if "llm" in data:
         llm_data = data["llm"]
         if llm_data["provider"] != "openai":
-            msg = (
-                f"Automatic deserialization only supports the 'openai' provider; "
-                f"got '{llm_data['provider']}'."
-            )
+            msg = f"Automatic deserialization only supports the 'openai' provider; got '{llm_data['provider']}'."
             raise ValueError(msg)
         kwargs["llm"] = llm_factory(llm_data["model"], client=AsyncOpenAI())
 
     if "embeddings" in data:
         emb_data = data["embeddings"]
         if emb_data["provider"] != "openai":
-            msg = (
-                f"Automatic deserialization only supports the 'openai' provider; "
-                f"got '{emb_data['provider']}'."
-            )
+            msg = f"Automatic deserialization only supports the 'openai' provider; got '{emb_data['provider']}'."
             raise ValueError(msg)
         kwargs["embeddings"] = embedding_factory("openai", model=emb_data["model"], client=AsyncOpenAI())
 
