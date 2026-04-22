@@ -4,8 +4,8 @@
 
 | Name                                                                                     |    Stmts |     Miss |   Branch |   BrPart |   Cover |   Missing |
 |----------------------------------------------------------------------------------------- | -------: | -------: | -------: | -------: | ------: | --------: |
-| src/haystack\_integrations/components/preprocessors/hanlp/chinese\_document\_splitter.py |      239 |       32 |       94 |       18 |     82% |165-\>168, 176, 178-\>180, 181, 193, 238, 283-\>268, 298-304, 316-\>314, 329, 394, 397-\>402, 406, 444-\>443, 461, 468-\>exit, 487, 493-501, 511-526 |
-| **TOTAL**                                                                                |  **239** |   **32** |   **94** |   **18** | **82%** |           |
+| src/haystack\_integrations/components/preprocessors/hanlp/chinese\_document\_splitter.py |      237 |        7 |       90 |        8 |     95% |166-\>169, 179-\>181, 182, 284-\>269, 299-305, 317-\>315, 398-\>403, 407 |
+| **TOTAL**                                                                                |  **237** |    **7** |   **90** |    **8** | **95%** |           |
 
 
 ## Setup coverage badge
