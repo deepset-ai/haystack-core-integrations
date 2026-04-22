@@ -2,10 +2,10 @@
 
 [Full report](https://htmlpreview.github.io/?https://github.com/deepset-ai/haystack-core-integrations/blob/python-coverage-comment-action-data-paddleocr/htmlcov/index.html)
 
-| Name                                                                                             |    Stmts |     Miss |   Branch |   BrPart |   Cover |   Missing |
-|------------------------------------------------------------------------------------------------- | -------: | -------: | -------: | -------: | ------: | --------: |
-| src/haystack\_integrations/components/converters/paddleocr/paddleocr\_vl\_document\_converter.py |      215 |       52 |       98 |       38 |     70% |65-\>69, 69-\>79, 80-84, 107-110, 375-\>377, 377-\>379, 380, 382, 384, 386, 388, 390, 392, 394, 396, 398, 400, 402, 404, 406, 408, 410, 412, 414, 416, 418, 420, 422, 424, 426, 428, 430, 432, 438-440, 445-\>449, 464-466, 469-470, 474-476, 483-\>482, 523-527, 550-554 |
-| **TOTAL**                                                                                        |  **215** |   **52** |   **98** |   **38** | **70%** |           |
+| Name                                                                                             |    Stmts |     Miss |   Branch |   BrPart |    Cover |   Missing |
+|------------------------------------------------------------------------------------------------- | -------: | -------: | -------: | -------: | -------: | --------: |
+| src/haystack\_integrations/components/converters/paddleocr/paddleocr\_vl\_document\_converter.py |      215 |        0 |       98 |        0 |     100% |           |
+| **TOTAL**                                                                                        |  **215** |    **0** |   **98** |    **0** | **100%** |           |
 
 
 ## Setup coverage badge
