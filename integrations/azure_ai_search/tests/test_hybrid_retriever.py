@@ -168,6 +168,19 @@ def test_run_time_params():
     assert res["documents"][0].embedding == [0.1, 0.2]
 
 
+def test_init_raises_type_error_on_invalid_document_store():
+    with pytest.raises(TypeError, match="document_store must be an instance of AzureAISearchDocumentStore"):
+        AzureAISearchHybridRetriever(document_store=object())
+
+
+def test_run_raises_runtime_error_when_retrieval_fails():
+    mock_store = Mock(spec=AzureAISearchDocumentStore)
+    mock_store._hybrid_retrieval.side_effect = RuntimeError("boom")
+    retriever = AzureAISearchHybridRetriever(document_store=mock_store)
+    with pytest.raises(RuntimeError, match="hybrid retrieval process"):
+        retriever.run(query="Test query", query_embedding=[0.1, 0.2])
+
+
 @pytest.mark.skipif(
     not os.environ.get("AZURE_AI_SEARCH_ENDPOINT", None) and not os.environ.get("AZURE_AI_SEARCH_API_KEY", None),
     reason="Missing AZURE_AI_SEARCH_ENDPOINT or AZURE_AI_SEARCH_API_KEY.",

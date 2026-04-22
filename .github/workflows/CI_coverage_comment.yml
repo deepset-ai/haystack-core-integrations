@@ -50,6 +50,7 @@ on:
       - "Test / snowflake"
       - "Test / sqlalchemy"
       - "Test / stackit"
+      - "Test / supabase"
       - "Test / tavily"
       - "Test / togetherai"
       - "Test / unstructured"
