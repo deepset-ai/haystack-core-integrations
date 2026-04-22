@@ -26,11 +26,17 @@ concurrency:
   group: amazon_s3_vectors-${{ github.head_ref || github.sha }}
   cancel-in-progress: true
 
+permissions:
+  id-token: write
+  contents: read
+
 env:
   PYTHONUNBUFFERED: "1"
   FORCE_COLOR: "1"
   TEST_MATRIX_OS: '["ubuntu-latest", "windows-latest", "macos-latest"]'
   TEST_MATRIX_PYTHON: '["3.10", "3.14"]'
+
+  AWS_REGION: "us-east-1"
 
 jobs:
   compute-test-matrix:
@@ -51,6 +57,7 @@ jobs:
     name: Python ${{ matrix.python-version }} on ${{ startsWith(matrix.os, 'macos-') && 'macOS' || startsWith(matrix.os, 'windows-') && 'Windows' || 'Linux' }}
     needs: compute-test-matrix
     permissions:
+      id-token: write
       contents: write
       pull-requests: write
     runs-on: ${{ matrix.os }}
@@ -101,7 +108,17 @@ jobs:
           name: coverage-comment-amazon_s3_vectors
           path: python-coverage-comment-action-amazon_s3_vectors.txt
 
+      # Do not authenticate on PRs from forks and on PRs created by dependabot
+      - name: AWS authentication
+        id: aws-auth
+        if: github.event_name == 'schedule' || (github.event.pull_request.head.repo.full_name == github.repository && !startsWith(github.event.pull_request.head.ref, 'dependabot/'))
+        uses: aws-actions/configure-aws-credentials@ec61189d14ec14c8efccab744f656cffd0e33f37
+        with:
+          aws-region: ${{ env.AWS_REGION }}
+          role-to-assume: ${{ secrets.AWS_CI_ROLE_ARN }}
+
       - name: Run integration tests
+        if: success() && steps.aws-auth.outcome == 'success'
         run: hatch run test:integration-cov-append-retry
 
       - name: Store combined coverage
