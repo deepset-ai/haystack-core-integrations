@@ -704,7 +704,7 @@ class ElasticsearchDocumentStore:
             self._handle_sparse_embedding(doc_dict, doc.id)
 
             action = {
-                "_op_type": "create" if policy == DuplicatePolicy.FAIL else "index",
+                "_op_type": "index" if policy == DuplicatePolicy.OVERWRITE else "create",
                 "_id": doc.id,
                 "_source": doc_dict,
             }
