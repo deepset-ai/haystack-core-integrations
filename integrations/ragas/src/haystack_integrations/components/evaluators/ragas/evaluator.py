@@ -23,7 +23,7 @@ class RagasEvaluator:
     Usage example:
     ```python
     from openai import AsyncOpenAI
-    from ragas.llms.base import llm_factory
+    from ragas.llms import llm_factory
     from ragas.metrics.collections import Faithfulness
     from haystack_integrations.components.evaluators.ragas import RagasEvaluator
 
