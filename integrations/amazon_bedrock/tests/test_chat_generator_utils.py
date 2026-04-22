@@ -107,9 +107,6 @@ class TestAmazonBedrockChatGeneratorUtils:
         # Regression test for https://github.com/deepset-ai/haystack-core-integrations/issues/3181
         # __init__ pre-formats tools_cachepoint_config via _validate_and_format_cache_point,
         # so _format_tools must append it as-is without an extra cachePoint wrapper.
-        from haystack_integrations.components.generators.amazon_bedrock.chat.utils import (
-            _validate_and_format_cache_point,
-        )
 
         formatted_config = _validate_and_format_cache_point({"type": "default"})
         assert formatted_config == {"cachePoint": {"type": "default"}}
