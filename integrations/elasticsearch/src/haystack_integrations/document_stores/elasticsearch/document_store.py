@@ -646,15 +646,15 @@ class ElasticsearchDocumentStore:
             assert isinstance(errors, list)
             duplicate_errors_ids = []
             other_errors = []
-            for e in errors:
-                error_type = e["create"]["error"]["type"]
+            for error in errors:
+                error_type = error["create"]["error"]["type"]
                 if policy == DuplicatePolicy.FAIL and error_type == "version_conflict_engine_exception":
-                    duplicate_errors_ids.append(e["create"]["_id"])
+                    duplicate_errors_ids.append(error["create"]["_id"])
                 elif policy == DuplicatePolicy.SKIP and error_type == "version_conflict_engine_exception":
                     # when the policy is skip, duplication errors are OK and we should not raise an exception
                     continue
                 else:
-                    other_errors.append(e)
+                    other_errors.append(error)
 
             if len(duplicate_errors_ids) > 0:
                 msg = f"IDs '{', '.join(duplicate_errors_ids)}' already exist in the document store."
@@ -704,35 +704,44 @@ class ElasticsearchDocumentStore:
             self._handle_sparse_embedding(doc_dict, doc.id)
 
             action = {
-                "_op_type": "create" if policy == DuplicatePolicy.FAIL else "index",
+                "_op_type": "index" if policy == DuplicatePolicy.OVERWRITE else "create",
                 "_id": doc.id,
                 "_source": doc_dict,
             }
             actions.append(action)
 
-        try:
-            success, failed = await helpers.async_bulk(
-                client=self.async_client,
-                actions=actions,
-                index=self._index,
-                refresh=refresh,
-                raise_on_error=False,
-                stats_only=False,
-            )
-            if failed:
-                # with stats_only=False, failed is guaranteed to be a list of dicts
-                assert isinstance(failed, list)
-                if policy == DuplicatePolicy.FAIL:
-                    for error in failed:
-                        if "create" in error and error["create"]["status"] == DOC_ALREADY_EXISTS:
-                            msg = f"ID '{error['create']['_id']}' already exists in the document store"
-                            raise DuplicateDocumentError(msg)
-                msg = f"Failed to write documents to Elasticsearch. Errors:\n{failed}"
+        documents_written, errors = await helpers.async_bulk(
+            client=self.async_client,
+            actions=actions,
+            index=self._index,
+            refresh=refresh,
+            raise_on_error=False,
+            stats_only=False,
+        )
+
+        if errors:
+            # with stats_only=False, errors is guaranteed to be a list of dicts
+            assert isinstance(errors, list)
+            duplicate_errors_ids = []
+            other_errors = []
+            for error in errors:
+                error_type = error["create"]["error"]["type"]
+                if policy == DuplicatePolicy.FAIL and error_type == "version_conflict_engine_exception":
+                    duplicate_errors_ids.append(error["create"]["_id"])
+                elif policy == DuplicatePolicy.SKIP and error_type == "version_conflict_engine_exception":
+                    continue
+                else:
+                    other_errors.append(error)
+
+            if len(duplicate_errors_ids) > 0:
+                msg = f"IDs '{', '.join(duplicate_errors_ids)}' already exist in the document store."
+                raise DuplicateDocumentError(msg)
+
+            if len(other_errors) > 0:
+                msg = f"Failed to write documents to Elasticsearch. Errors:\n{other_errors}"
                 raise DocumentStoreError(msg)
-            return success
-        except Exception as e:
-            msg = f"Failed to write documents to Elasticsearch: {e!s}"
-            raise DocumentStoreError(msg) from e
+
+        return documents_written
 
     def delete_documents(self, document_ids: list[str], refresh: Literal["wait_for", True, False] = "wait_for") -> None:
         """
@@ -776,16 +785,13 @@ class ElasticsearchDocumentStore:
         """
         self._ensure_initialized()
 
-        try:
-            await helpers.async_bulk(
-                client=self.async_client,
-                actions=({"_op_type": "delete", "_id": id_} for id_ in document_ids),
-                index=self._index,
-                refresh=refresh,
-            )
-        except Exception as e:
-            msg = f"Failed to delete documents from Elasticsearch: {e!s}"
-            raise DocumentStoreError(msg) from e
+        await helpers.async_bulk(
+            client=self.async_client,
+            actions=({"_op_type": "delete", "_id": id_} for id_ in document_ids),
+            index=self._index,
+            refresh=refresh,
+            raise_on_error=False,
+        )
 
     def delete_all_documents(self, recreate_index: bool = False, refresh: bool = True) -> None:
         """
