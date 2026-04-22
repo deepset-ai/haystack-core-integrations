@@ -1,13 +1,15 @@
 import inspect
 from typing import Any, Union, cast, get_args, get_origin
 
-from haystack import Document, component
+from haystack import Document, component, default_from_dict, default_to_dict
 from haystack.dataclasses import ChatMessage
 from pydantic import ValidationError
 
 from ragas.dataset_schema import SingleTurnSample
 from ragas.metrics.base import SimpleBaseMetric
 from ragas.metrics.result import MetricResult
+
+from haystack_integrations.components.evaluators.ragas.utils import _deserialize_metric, _serialize_metric
 
 
 @component
@@ -69,6 +71,34 @@ class RagasEvaluator:
         if not all(isinstance(metric, SimpleBaseMetric) for metric in metrics):
             error_message = "All items in ragas_metrics must be instances of SimpleBaseMetric."
             raise TypeError(error_message)
+
+    def to_dict(self) -> dict[str, Any]:
+        """
+        Serialize this component to a dictionary.
+
+        :returns:
+            Dictionary with serialized data.
+        """
+        return default_to_dict(self, ragas_metrics=[_serialize_metric(m) for m in self.metrics])
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "RagasEvaluator":
+        """
+        Deserialize this component from a dictionary.
+
+        Metrics are reconstructed from their stored class path and LLM/embedding
+        configuration. Only the `openai` provider is supported for automatic
+        deserialization; the API key is read from the `OPENAI_API_KEY` environment
+        variable at load time.
+
+        :param data:
+            Dictionary to deserialize from.
+        :returns:
+            Deserialized component.
+        """
+        metrics_data = data.get("init_parameters", {}).get("ragas_metrics", [])
+        data["init_parameters"]["ragas_metrics"] = [_deserialize_metric(m) for m in metrics_data]
+        return default_from_dict(cls, data)
 
     @component.output_types(result=dict)
     def run(
