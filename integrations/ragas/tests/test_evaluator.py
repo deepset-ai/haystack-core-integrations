@@ -1,10 +1,20 @@
 import os
 
 import pytest
+from openai import AsyncOpenAI
 from unittest.mock import MagicMock
+from ragas.embeddings.base import embedding_factory
+from ragas.llms import llm_factory
 from ragas.metrics.base import SimpleBaseMetric
+from ragas.metrics.collections import AnswerRelevancy, ContextPrecision, Faithfulness
 from ragas.metrics.result import MetricResult
-from haystack import Document
+from haystack import Document, Pipeline
+from haystack.components.builders import AnswerBuilder, ChatPromptBuilder
+from haystack.components.embedders import OpenAIDocumentEmbedder, OpenAITextEmbedder
+from haystack.components.generators.chat import OpenAIChatGenerator
+from haystack.components.retrievers.in_memory import InMemoryEmbeddingRetriever
+from haystack.dataclasses import ChatMessage
+from haystack.document_stores.in_memory import InMemoryDocumentStore
 from haystack_integrations.components.evaluators.ragas import RagasEvaluator
 
 
@@ -161,14 +171,12 @@ class TestRunInputValidation:
 @pytest.mark.integration
 class TestStandaloneEvaluationIntegration:
     def _make_llm(self):
-        from openai import AsyncOpenAI
-        from ragas.llms import llm_factory
-
         return llm_factory("gpt-4o-mini", client=AsyncOpenAI())
 
-    def test_faithfulness_returns_valid_score(self):
-        from ragas.metrics.collections import Faithfulness
+    def _make_embeddings(self):
+        return embedding_factory("openai", model="text-embedding-3-small", client=AsyncOpenAI())
 
+    def test_faithfulness_returns_valid_score(self):
         evaluator = RagasEvaluator(ragas_metrics=[Faithfulness(llm=self._make_llm())])
 
         output = evaluator.run(
@@ -187,9 +195,9 @@ class TestStandaloneEvaluationIntegration:
 
     def test_answer_relevancy_uses_only_query_and_response(self):
         """AnswerRelevancy only declares user_input + response in ascore — documents should not be forwarded."""
-        from ragas.metrics.collections import AnswerRelevancy
-
-        evaluator = RagasEvaluator(ragas_metrics=[AnswerRelevancy(llm=self._make_llm())])
+        evaluator = RagasEvaluator(
+            ragas_metrics=[AnswerRelevancy(llm=self._make_llm(), embeddings=self._make_embeddings())]
+        )
 
         output = evaluator.run(
             query="What makes Meta AI's LLaMA models stand out?",
@@ -202,13 +210,12 @@ class TestStandaloneEvaluationIntegration:
         assert 0.0 <= result.value <= 1.0
 
     def test_multiple_metrics_all_return_results(self):
-        from ragas.metrics.collections import AnswerRelevancy, ContextPrecision, Faithfulness
-
         llm = self._make_llm()
+        embeddings = self._make_embeddings()
         evaluator = RagasEvaluator(
             ragas_metrics=[
                 Faithfulness(llm=llm),
-                AnswerRelevancy(llm=llm),
+                AnswerRelevancy(llm=llm, embeddings=embeddings),
                 ContextPrecision(llm=llm),
             ]
         )
@@ -240,17 +247,6 @@ class TestStandaloneEvaluationIntegration:
 @pytest.mark.integration
 class TestPipelineIntegration:
     def test_ragas_evaluator_in_rag_pipeline(self):
-        from openai import AsyncOpenAI
-        from ragas.llms import llm_factory
-        from ragas.metrics.collections import Faithfulness
-        from haystack import Pipeline
-        from haystack.components.builders import AnswerBuilder, ChatPromptBuilder
-        from haystack.components.embedders import OpenAIDocumentEmbedder, OpenAITextEmbedder
-        from haystack.components.generators.chat import OpenAIChatGenerator
-        from haystack.components.retrievers.in_memory import InMemoryEmbeddingRetriever
-        from haystack.dataclasses import ChatMessage
-        from haystack.document_stores.in_memory import InMemoryDocumentStore
-
         dataset = [
             "Meta AI is best known for its LLaMA series, which has been made open-source "
             "for researchers and developers.",
@@ -265,8 +261,9 @@ class TestPipelineIntegration:
         document_embedder = OpenAIDocumentEmbedder(model="text-embedding-3-small")
         document_store.write_documents(document_embedder.run(docs)["documents"])
 
-        llm = llm_factory("gpt-4o-mini", client=AsyncOpenAI())
-        ragas_evaluator = RagasEvaluator(ragas_metrics=[Faithfulness(llm=llm)])
+        ragas_evaluator = RagasEvaluator(
+            ragas_metrics=[Faithfulness(llm=llm_factory("gpt-4o-mini", client=AsyncOpenAI()))]
+        )
 
         template = [
             ChatMessage.from_user(
