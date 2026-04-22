@@ -25,14 +25,16 @@ class SupabasePgvectorKeywordRetriever(PgvectorKeywordRetriever):
     and how important is the part of the document where they occur.
 
     Example usage:
+
+    # Set an environment variable `SUPABASE_DB_URL` with the connection string to your Supabase database.
+    export SUPABASE_DB_URL=postgresql://postgres:postgres@localhost:5432/postgres
+
     ```python
-    from haystack.document_stores import DuplicatePolicy
-    from haystack import Document
+    from haystack import Document, Pipeline
+    from haystack.document_stores.types.policy import DuplicatePolicy
 
     from haystack_integrations.document_stores.supabase import SupabasePgvectorDocumentStore
     from haystack_integrations.components.retrievers.supabase import SupabasePgvectorKeywordRetriever
-
-    # Set an environment variable `SUPABASE_DB_URL` with the connection string to your Supabase database.
 
     document_store = SupabasePgvectorDocumentStore(
         embedding_dimension=768,
@@ -44,12 +46,11 @@ class SupabasePgvectorKeywordRetriever(PgvectorKeywordRetriever):
                  Document(content="In certain places, you can witness the phenomenon of bioluminescent waves.")]
 
     document_store.write_documents(documents, policy=DuplicatePolicy.OVERWRITE)
-
     retriever = SupabasePgvectorKeywordRetriever(document_store=document_store)
-
     result = retriever.run(query="languages")
 
-    assert result['documents'][0].content == "There are over 7,000 languages spoken around the world today."
+    print(result['documents'][0].content)
+    # >> "There are over 7,000 languages spoken around the world today."
     ```
     """
 

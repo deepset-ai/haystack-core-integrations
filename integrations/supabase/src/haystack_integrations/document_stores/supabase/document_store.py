@@ -23,6 +23,19 @@ class SupabasePgvectorDocumentStore(PgvectorDocumentStore):
     **Connection notes:** Supabase offers two pooler ports — transaction mode (6543) and session mode (5432).
     For best compatibility with pgvector operations, use session mode (port 5432) or a direct connection.
 
+    Example usage:
+
+    # Set an environment variable `SUPABASE_DB_URL` with the connection string to your Supabase database.
+    export SUPABASE_DB_URL=postgresql://postgres:postgres@localhost:5432/postgres
+
+    ```python
+    from haystack_integrations.document_stores.supabase import SupabasePgvectorDocumentStore
+    document_store = SupabasePgvectorDocumentStore(
+        embedding_dimension=768,
+        vector_function="cosine_similarity",
+        recreate_table=True,
+    )
+    ```
     """
 
     def __init__(

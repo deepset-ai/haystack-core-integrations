@@ -21,15 +21,17 @@ class SupabasePgvectorEmbeddingRetriever(PgvectorEmbeddingRetriever):
     `SupabasePgvectorDocumentStore`.
 
     Example usage:
+
+    # Set an environment variable `SUPABASE_DB_URL` with the connection string to your Supabase database.
+    export SUPABASE_DB_URL=postgresql://postgres:postgres@localhost:5432/postgres
+
     ```python
-    from haystack.document_stores import DuplicatePolicy
     from haystack import Document, Pipeline
+    from haystack.document_stores.types.policy import DuplicatePolicy
     from haystack.components.embedders import SentenceTransformersTextEmbedder, SentenceTransformersDocumentEmbedder
 
     from haystack_integrations.document_stores.supabase import SupabasePgvectorDocumentStore
     from haystack_integrations.components.retrievers.supabase import SupabasePgvectorEmbeddingRetriever
-
-    # Set an environment variable `SUPABASE_DB_URL` with the connection string to your Supabase database.
 
     document_store = SupabasePgvectorDocumentStore(
         embedding_dimension=768,
@@ -44,7 +46,6 @@ class SupabasePgvectorEmbeddingRetriever(PgvectorEmbeddingRetriever):
     document_embedder = SentenceTransformersDocumentEmbedder()
     document_embedder.warm_up()
     documents_with_embeddings = document_embedder.run(documents)
-
     document_store.write_documents(documents_with_embeddings.get("documents"), policy=DuplicatePolicy.OVERWRITE)
 
     query_pipeline = Pipeline()
@@ -55,8 +56,8 @@ class SupabasePgvectorEmbeddingRetriever(PgvectorEmbeddingRetriever):
     query = "How many languages are there?"
 
     res = query_pipeline.run({"text_embedder": {"text": query}})
-
-    assert res['retriever']['documents'][0].content == "There are over 7,000 languages spoken around the world today."
+    print(res['retriever']['documents'][0].content) ==
+    # >> "There are over 7,000 languages spoken around the world today."
     ```
     """
 
