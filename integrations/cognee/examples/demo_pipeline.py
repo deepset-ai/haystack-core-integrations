@@ -30,6 +30,7 @@ from haystack import Document, Pipeline
 from haystack_integrations.components.connectors.cognee import CogneeCognifier
 from haystack_integrations.components.retrievers.cognee import CogneeRetriever
 from haystack_integrations.components.writers.cognee import CogneeWriter
+from haystack_integrations.memory_stores.cognee import CogneeMemoryStore
 
 DOCS_BATCH_1 = [
     Document(
@@ -110,7 +111,9 @@ async def main():
     print(f"   Written: {result['documents_written']} (cognify ran again)\n")
 
     print("3. Searching...\n")
-    retriever = CogneeRetriever(search_type="GRAPH_COMPLETION", dataset_name="demo_auto")
+    retriever = CogneeRetriever(
+        memory_store=CogneeMemoryStore(search_type="GRAPH_COMPLETION", dataset_name="demo_auto")
+    )
     search_and_print(retriever, SEARCH_QUERIES)
 
     # =========================================================================
@@ -140,7 +143,9 @@ async def main():
     print(f"   Cognified: {result['cognified']}\n")
 
     print("7. Searching...\n")
-    retriever = CogneeRetriever(search_type="GRAPH_COMPLETION", dataset_name="demo_batch")
+    retriever = CogneeRetriever(
+        memory_store=CogneeMemoryStore(search_type="GRAPH_COMPLETION", dataset_name="demo_batch")
+    )
     search_and_print(retriever, SEARCH_QUERIES)
 
     # =========================================================================
@@ -166,7 +171,9 @@ async def main():
     print(f"   Cognified: {result['cognifier']['cognified']}\n")
 
     print("9. Searching...\n")
-    retriever = CogneeRetriever(search_type="GRAPH_COMPLETION", dataset_name="demo_pipeline")
+    retriever = CogneeRetriever(
+        memory_store=CogneeMemoryStore(search_type="GRAPH_COMPLETION", dataset_name="demo_pipeline")
+    )
     search_and_print(retriever, SEARCH_QUERIES)
 
     print("=== Done ===")

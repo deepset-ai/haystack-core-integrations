@@ -65,7 +65,8 @@ class CogneeMemoryStore:
         :param messages: List of ChatMessages to store.
         :param user_id: Optional cognee user UUID to scope memories to a specific user.
             When provided, the data is stored under that user's permissions.
-            When ``None``, cognee's default user is used.
+            When `None`, cognee's default user is used (cognee falls back to its
+            built-in default user account so the call still succeeds).
         :param kwargs: Additional keyword arguments (unused, accepted for protocol
             compatibility).
         """
@@ -98,11 +99,11 @@ class CogneeMemoryStore:
         :param query: The search query.
         :param top_k: Maximum number of memories to return.
         :param user_id: Optional cognee user UUID to scope the search to a specific user.
-            Search is restricted to the store's ``dataset_name``. If the user owns the
+            Search is restricted to the store's `dataset_name`. If the user owns the
             dataset it is resolved by name; otherwise the store checks whether the user
             has been granted read access (e.g. via shared permissions) and searches by
             dataset UUID.
-            When ``None``, cognee's default user is used.
+            When `None`, cognee's default user is used.
         :param kwargs: Additional keyword arguments (unused, accepted for protocol
             compatibility).
         :returns: List of ChatMessages containing memory content as system messages.

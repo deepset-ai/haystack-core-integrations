@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 from haystack import Document
 
@@ -100,3 +100,36 @@ class TestCogneeWriter:
         assert result == {"documents_written": 0}
         mock_cognee.add.assert_not_awaited()
         mock_cognee.cognify.assert_not_awaited()
+
+    @patch("haystack_integrations.components.writers.cognee.memory_writer._get_cognee_user", new_callable=AsyncMock)
+    @patch("haystack_integrations.components.writers.cognee.memory_writer.cognee")
+    def test_run_with_user_id(self, mock_cognee, mock_get_user):
+        mock_user = MagicMock()
+        mock_get_user.return_value = mock_user
+        mock_cognee.add = AsyncMock()
+        mock_cognee.cognify = AsyncMock()
+
+        writer = CogneeWriter(dataset_name="test", auto_cognify=True)
+        writer.run(
+            documents=[Document(content="hello")],
+            user_id="550e8400-e29b-41d4-a716-446655440000",
+        )
+
+        mock_get_user.assert_awaited_once_with("550e8400-e29b-41d4-a716-446655440000")
+        add_kwargs = mock_cognee.add.call_args[1]
+        assert add_kwargs["user"] is mock_user
+        cognify_kwargs = mock_cognee.cognify.call_args[1]
+        assert cognify_kwargs["user"] is mock_user
+
+    @patch("haystack_integrations.components.writers.cognee.memory_writer.cognee")
+    def test_run_without_user_id(self, mock_cognee):
+        mock_cognee.add = AsyncMock()
+        mock_cognee.cognify = AsyncMock()
+
+        writer = CogneeWriter(dataset_name="test", auto_cognify=True)
+        writer.run(documents=[Document(content="hello")])
+
+        add_kwargs = mock_cognee.add.call_args[1]
+        assert add_kwargs["user"] is None
+        cognify_kwargs = mock_cognee.cognify.call_args[1]
+        assert cognify_kwargs["user"] is None

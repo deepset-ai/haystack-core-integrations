@@ -7,7 +7,7 @@ from typing import Any
 from haystack import Document, component, default_from_dict, default_to_dict, logging
 
 import cognee  # type: ignore[import-untyped]
-from haystack_integrations.components.connectors.cognee._utils import run_sync
+from haystack_integrations.components.connectors.cognee._utils import _get_cognee_user, run_sync
 
 logger = logging.getLogger(__name__)
 
@@ -42,11 +42,17 @@ class CogneeWriter:
         self.auto_cognify = auto_cognify
 
     @component.output_types(documents_written=int)
-    def run(self, documents: list[Document]) -> dict[str, Any]:
+    def run(self, documents: list[Document], user_id: str | None = None) -> dict[str, Any]:
         """
         Add documents to Cognee and optionally cognify them.
 
         :param documents: List of Haystack Documents to add.
+        :param user_id: Optional cognee user UUID to scope the ingested data to a
+            specific user. When provided, the data is stored under that user's
+            permissions. When `None`, cognee's default user is used. Exposed on
+            `run()` (rather than only on `__init__`) so that the same writer
+            instance can be reused in a pipeline for many users by passing
+            `user_id` at invocation time.
         :returns: Dictionary with key `documents_written` indicating how many
             documents were successfully added.
         """
@@ -55,8 +61,10 @@ class CogneeWriter:
         if skipped > 0:
             logger.warning("Skipping {count} document(s) with empty content", count=skipped)
 
+        user = run_sync(_get_cognee_user(user_id)) if user_id else None
+
         if texts:
-            run_sync(cognee.add(texts, dataset_name=self.dataset_name))
+            run_sync(cognee.add(texts, dataset_name=self.dataset_name, user=user))
 
         written = len(texts)
 
@@ -66,7 +74,7 @@ class CogneeWriter:
                 count=written,
                 dataset=self.dataset_name,
             )
-            run_sync(cognee.cognify(datasets=[self.dataset_name]))
+            run_sync(cognee.cognify(datasets=[self.dataset_name], user=user))
 
         return {"documents_written": written}
 

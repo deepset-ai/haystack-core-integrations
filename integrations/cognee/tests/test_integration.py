@@ -65,9 +65,11 @@ class TestCogneeWriterRetrieverIntegration:
         assert write_result["documents_written"] == 2
 
         retriever = CogneeRetriever(
-            search_type="GRAPH_COMPLETION",
-            top_k=3,
-            dataset_name="haystack_integration_test",
+            memory_store=CogneeMemoryStore(
+                search_type="GRAPH_COMPLETION",
+                top_k=3,
+                dataset_name="haystack_integration_test",
+            ),
         )
         search_result = retriever.run(query="What is Haystack?")
         assert len(search_result["documents"]) > 0

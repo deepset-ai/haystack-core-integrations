@@ -73,10 +73,22 @@ def extract_text(item: Any) -> str:
     """
     Best-effort text extraction from a Cognee search result item.
 
-    Cognee search results may contain items of various types depending on the
-    search strategy: plain ``str`` for LLM completions, ``dict`` with keys like
-    *content*/*text*/*description*/*name*, or cognee model objects (e.g.
-    ``DataPoint`` subclasses) carrying the same attributes.
+    Cognee's search results are not a single public type — depending on the
+    search strategy, an item can be one of three shapes (all cognee-internal):
+
+    1. A plain `str` — returned by LLM-completion search types
+       (e.g. `GRAPH_COMPLETION`, `RAG_COMPLETION`).
+    2. A `dict` — returned by structured search types; the text is read from
+       one of the `content` / `text` / `description` / `name` keys.
+    3. A cognee model object — e.g. a `DataPoint` subclass such as
+       `TextChunk` or `EntityType`, carrying the same attributes.
+
+    Since these types are internal to cognee and not part of its public API,
+    `item` is typed as `Any` and this function probes for known shapes rather
+    than narrowing the type.
+
+    :param item: A single element returned by `cognee.search(...)`.
+    :returns: Best-effort extracted text, falling back to `str(item)`.
     """
     if isinstance(item, str):
         return item
