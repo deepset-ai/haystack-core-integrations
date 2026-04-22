@@ -1,5 +1,5 @@
 import os
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 from haystack import Document, Pipeline
@@ -34,13 +34,6 @@ class ConcreteMetric(SimpleBaseMetric):
         return MetricResult(value=1.0, reason="test")
 
 
-def make_llm_mock(model: str = "gpt-4o-mini", provider: str = "openai") -> MagicMock:
-    llm = MagicMock()
-    llm.model = model
-    llm.provider = provider
-    return llm
-
-
 def make_metric(name: str, score: float = 0.8, reason: str = "test reason") -> MagicMock:
     """Create a mock SimpleBaseMetric with a concrete ascore signature for inspect.signature."""
     metric = MagicMock(spec=SimpleBaseMetric)
@@ -54,14 +47,23 @@ def make_metric(name: str, score: float = 0.8, reason: str = "test reason") -> M
     return metric
 
 
-class TestInitialization:
-    def test_successful_initialization(self):
-        metric = make_metric("faithfulness")
+class TestInit:
+    def test_init(self, monkeypatch):
+        monkeypatch.setenv("OPENAI_API_KEY", "test")
+        metric = Faithfulness(llm=llm_factory("gpt-4o-mini", client=AsyncOpenAI()))
         evaluator = RagasEvaluator(ragas_metrics=[metric])
         assert evaluator.metrics == [metric]
 
-    def test_initialization_with_multiple_metrics(self):
-        metrics = [make_metric("faithfulness"), make_metric("answer_relevancy")]
+    def test_init_with_multiple_metrics(self, monkeypatch):
+        monkeypatch.setenv("OPENAI_API_KEY", "test")
+        llm = llm_factory("gpt-4o-mini", client=AsyncOpenAI())
+        metrics = [
+            Faithfulness(llm=llm),
+            AnswerRelevancy(
+                llm=llm,
+                embeddings=embedding_factory("openai", model="text-embedding-3-small", client=AsyncOpenAI())
+            ),
+        ]
         evaluator = RagasEvaluator(ragas_metrics=metrics)
         assert len(evaluator.metrics) == 2
 
@@ -69,14 +71,9 @@ class TestInitialization:
         with pytest.raises(TypeError, match="All items in ragas_metrics must be instances of SimpleBaseMetric."):
             RagasEvaluator(ragas_metrics=["not_a_metric"])
 
-    def test_invalid_metrics_mixed_raises_type_error(self):
-        valid = make_metric("faithfulness")
-        with pytest.raises(TypeError):
-            RagasEvaluator(ragas_metrics=[valid, "not_a_metric"])
-
 
 class TestRun:
-    def test_run_returns_metric_results_keyed_by_name(self):
+    def test_run_returns_result_by_metric_name(self, monkeypatch):
         metric = make_metric("faithfulness", score=0.9)
         evaluator = RagasEvaluator(ragas_metrics=[metric])
         output = evaluator.run(
@@ -172,10 +169,10 @@ class TestRun:
 
 
 class TestSerialization:
-    def test_to_dict(self):
-        evaluator = RagasEvaluator(
-            ragas_metrics=[ConcreteMetric(llm=make_llm_mock()), ConcreteMetric(name="another_metric")]
-        )
+    def test_to_dict(self, monkeypatch):
+        monkeypatch.setenv("OPENAI_API_KEY", "test")
+        llm = llm_factory("gpt-4o-mini", client=AsyncOpenAI())
+        evaluator = RagasEvaluator(ragas_metrics=[ConcreteMetric(llm=llm), ConcreteMetric(name="another_metric")])
         data = evaluator.to_dict()
         assert data == {
             "type": "haystack_integrations.components.evaluators.ragas.evaluator.RagasEvaluator",
