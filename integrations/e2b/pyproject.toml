@@ -144,7 +144,7 @@ ban-relative-imports = "parents"
 
 [tool.ruff.lint.per-file-ignores]
 # Tests can use magic values, assertions, relative imports, and don't need type annotations
-"tests/**/*" = ["PLR2004", "S101", "TID252", "D", "ANN"]
+"tests/**/*" = ["PLR2004", "S101", "S108", "TID252", "D", "ANN"]
 "examples/**/*" = ["T201", "E501", "ANN", "D", "S101"]
 
 [tool.coverage.run]
