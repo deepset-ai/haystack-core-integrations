@@ -56,7 +56,7 @@ class SupabasePgvectorEmbeddingRetriever(PgvectorEmbeddingRetriever):
     query = "How many languages are there?"
 
     res = query_pipeline.run({"text_embedder": {"text": query}})
-    print(res['retriever']['documents'][0].content) ==
+    print(res['retriever']['documents'][0].content)
     # >> "There are over 7,000 languages spoken around the world today."
     ```
     """
