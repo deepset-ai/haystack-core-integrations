@@ -734,7 +734,7 @@ def _aggregate_streaming_chunks_with_reasoning(chunks: list[StreamingChunk]) -> 
                 # We'll keep the last set of signatures as they represent the complete state
                 thought_signatures = signature_deltas
 
-        # Extract thinking token usage (from the last chunk that has it)
+        # Extract token usage metadata (from the last chunk that has it)
         if chunk.meta and "usage" in chunk.meta:
             chunk_usage = chunk.meta["usage"]
             if "thoughts_token_count" in chunk_usage:

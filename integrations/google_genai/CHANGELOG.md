@@ -1,11 +1,5 @@
 # Changelog
 
-## [Unreleased]
-
-### 🐛 Bug Fixes
-
-- Fix `cached_content_token_count` missing from streaming responses in `GoogleGenAIChatGenerator` (#3168)
-
 ## [integrations/google_genai-v4.0.1] - 2026-04-13
 
 ### 🐛 Bug Fixes
