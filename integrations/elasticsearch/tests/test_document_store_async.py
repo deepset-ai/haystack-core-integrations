@@ -43,12 +43,17 @@ class TestElasticsearchDocumentStoreAsync(
 ):
     @pytest_asyncio.fixture
     async def document_store(self, request):
+        """
+        Basic fixture providing a document store instance for async tests
+        """
         hosts = ["http://localhost:9200"]
+        # Use a different index for each test so we can run them in parallel
         index = f"{request.node.name}"
 
         store = ElasticsearchDocumentStore(hosts=hosts, index=index)
         yield store
         store.client.options(ignore_status=[400, 404]).indices.delete(index=index)
+
         await store.async_client.close()
 
     def assert_documents_are_equal(self, received: list[Document], expected: list[Document]):
@@ -64,37 +69,6 @@ class TestElasticsearchDocumentStoreAsync(
         assert await document_store.count_documents_async() == 3
 
     @pytest.mark.asyncio
-    async def test_delete_documents_empty_document_store_async(self, document_store):
-        # Elasticsearch raises DocumentStoreError when deleting a non-existent document
-        # rather than silently ignoring it, so we override the mixin test here.
-        with pytest.raises(DocumentStoreError):
-            await document_store.delete_documents_async(["non_existing_id"])
-
-    @pytest.mark.asyncio
-    async def test_delete_documents_non_existing_document_async(self, document_store):
-        # Same as above: Elasticsearch raises on missing IDs rather than a no-op.
-        doc = Document(content="test doc")
-        await document_store.write_documents_async([doc])
-        assert await document_store.count_documents_async() == 1
-        with pytest.raises(DocumentStoreError):
-            await document_store.delete_documents_async(["non_existing_id"])
-
-    @pytest.mark.asyncio
-    async def test_write_documents_duplicate_fail_async(self, document_store):
-        # Elasticsearch raises DocumentStoreError instead of DuplicateDocumentError on duplicate FAIL
-        doc = Document(content="test doc")
-        assert await document_store.write_documents_async([doc], policy=DuplicatePolicy.FAIL) == 1
-        with pytest.raises(DocumentStoreError):
-            await document_store.write_documents_async(documents=[doc], policy=DuplicatePolicy.FAIL)
-
-    @pytest.mark.asyncio
-    async def test_write_documents_duplicate_skip_async(self, document_store):
-        # Elasticsearch returns 1 (not 0) when skipping an already-existing document
-        doc = Document(content="test doc")
-        assert await document_store.write_documents_async([doc], policy=DuplicatePolicy.SKIP) == 1
-        assert await document_store.write_documents_async(documents=[doc], policy=DuplicatePolicy.SKIP) == 1
-
-    @pytest.mark.asyncio
     async def test_write_documents_async(self, document_store):
         docs = [Document(id="1", content="test")]
         assert await document_store.write_documents_async(docs) == 1
@@ -104,12 +78,14 @@ class TestElasticsearchDocumentStoreAsync(
 
     @pytest.mark.asyncio
     async def test_write_documents_async_invalid_document_type(self, document_store):
+        """Test write_documents with invalid document type"""
         invalid_docs = [{"id": "1", "content": "test"}]
         with pytest.raises(ValueError, match="param 'documents' must contain a list of objects of type Document"):
             await document_store.write_documents_async(invalid_docs)
 
     @pytest.mark.asyncio
     async def test_write_documents_async_with_sparse_embedding_warning(self, document_store, caplog):
+        """Test write_documents with document containing sparse_embedding field"""
         doc = Document(id="1", content="test", sparse_embedding=SparseEmbedding(indices=[0, 1], values=[0.5, 0.5]))
         await document_store.write_documents_async([doc])
         assert "but `sparse_vector_field` is not configured" in caplog.text
@@ -121,6 +97,7 @@ class TestElasticsearchDocumentStoreAsync(
 
     @pytest.mark.asyncio
     async def test_write_documents_async_with_sparse_vectors(self):
+        """Test write_documents with document containing sparse_embedding field"""
         store = ElasticsearchDocumentStore(
             hosts=["http://localhost:9200"], index="test_async_sparse", sparse_vector_field="sparse_vec"
         )
@@ -129,9 +106,11 @@ class TestElasticsearchDocumentStoreAsync(
         doc = Document(id="1", content="test", sparse_embedding=SparseEmbedding(indices=[0, 1], values=[0.5, 0.5]))
         await store.write_documents_async([doc])
 
+        # check ES natively
         raw_doc = await store.async_client.get(index="test_async_sparse", id="1")
         assert raw_doc["_source"]["sparse_vec"] == {"0": 0.5, "1": 0.5}
 
+        # check retrieval
         results = await store.filter_documents_async()
         assert len(results) == 1
         assert results[0].sparse_embedding is not None
