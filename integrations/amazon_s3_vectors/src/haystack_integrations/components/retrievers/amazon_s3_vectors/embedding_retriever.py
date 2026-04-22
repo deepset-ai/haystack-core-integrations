@@ -15,7 +15,7 @@ from haystack_integrations.document_stores.amazon_s3_vectors import S3VectorsDoc
 @component
 class S3VectorsEmbeddingRetriever:
     """
-    Retrieve documents from an ``S3VectorsDocumentStore`` based on their dense embeddings.
+    Retrieve documents from an `S3VectorsDocumentStore` based on their dense embeddings.
 
     Usage example:
     ```python
@@ -64,11 +64,11 @@ class S3VectorsEmbeddingRetriever:
         """
         Initialize the S3VectorsEmbeddingRetriever.
 
-        :param document_store: An instance of ``S3VectorsDocumentStore``.
+        :param document_store: An instance of `S3VectorsDocumentStore`.
         :param filters: Filters applied to the retrieved Documents.
         :param top_k: Maximum number of Documents to return.
         :param filter_policy: Policy to determine how filters are applied.
-        :raises ValueError: If ``document_store`` is not an ``S3VectorsDocumentStore``.
+        :raises ValueError: If `document_store` is not an `S3VectorsDocumentStore`.
         """
         if not isinstance(document_store, S3VectorsDocumentStore):
             msg = "document_store must be an instance of S3VectorsDocumentStore"
@@ -113,10 +113,10 @@ class S3VectorsEmbeddingRetriever:
 
         :param query_embedding: Embedding of the query.
         :param filters: Filters applied to the retrieved Documents. The way runtime filters are applied depends on
-            the ``filter_policy`` chosen at retriever initialization. Filters are applied server-side during
+            the `filter_policy` chosen at retriever initialization. Filters are applied server-side during
             the vector search.
         :param top_k: Maximum number of Documents to return. S3 Vectors caps this at 100.
-        :returns: A dictionary with key ``"documents"`` containing the retrieved Documents.
+        :returns: A dictionary with key `"documents"` containing the retrieved Documents.
             Returned documents will not contain embeddings.
         """
         filters = apply_filter_policy(self.filter_policy, self.filters, filters)
