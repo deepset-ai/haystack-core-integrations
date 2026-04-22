@@ -1,3 +1,4 @@
+import asyncio
 import io
 import json
 import os
@@ -5,6 +6,7 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from exceptiongroup import ExceptionGroup
 from haystack.components.agents import Agent
 from haystack.components.generators.chat import OpenAIChatGenerator
 from haystack.core.pipeline import Pipeline
@@ -17,7 +19,15 @@ from haystack_integrations.tools.mcp import (
     MCPToolNotFoundError,
     StdioServerInfo,
 )
-from haystack_integrations.tools.mcp.mcp_tool import StdioClient, _extract_first_text_element
+from haystack_integrations.tools.mcp.mcp_tool import (
+    AsyncExecutor,
+    MCPClient,
+    MCPConnectionError,
+    MCPInvocationError,
+    StdioClient,
+    _extract_first_text_element,
+    _MCPClientSessionManager,
+)
 
 from .mcp_memory_transport import InMemoryServerInfo
 from .mcp_servers_fixtures import calculator_mcp, echo_mcp, image_mcp, state_calculator_mcp
@@ -46,6 +56,14 @@ def test_extract_first_text_element():
     extracted = _extract_first_text_element(tool_call_result)
 
     assert extracted == {"answer": 42}
+
+
+def test_async_executor_run_raises_timeout_error():
+    async def never() -> None:
+        await asyncio.Event().wait()
+
+    with pytest.raises(TimeoutError, match="timed out"):
+        AsyncExecutor.get_instance().run(never(), timeout=0.01)
 
 
 class TestMCPTool:
@@ -422,6 +440,75 @@ class TestMCPTool:
         assert client.session is None
         assert client.stdio is None
         assert client.write is None
+
+    @pytest.mark.asyncio
+    async def test_initialize_session_wraps_errors_as_connection_error(self):
+        client = StdioClient(command="echo")
+
+        with patch.object(client.exit_stack, "enter_async_context", new_callable=AsyncMock) as mock_enter:
+            mock_enter.side_effect = RuntimeError("boom")
+            with pytest.raises(MCPConnectionError, match="Failed to connect to ctx"):
+                await client._initialize_session_with_transport((MagicMock(), MagicMock()), "ctx")
+
+    def test_mcp_tool_eager_connect_surfaces_exception_group_inner_message(self):
+        server_info = InMemoryServerInfo(server=calculator_mcp._mcp_server)
+        err = ExceptionGroup("outer", [RuntimeError("inner details")])
+
+        with patch(
+            "haystack_integrations.tools.mcp.mcp_tool._MCPClientSessionManager",
+            side_effect=err,
+        ):
+            with pytest.raises(MCPConnectionError, match="inner details"):
+                MCPTool(name="add", server_info=server_info, eager_connect=True)
+
+    @pytest.mark.asyncio
+    async def test_mcp_tool_ainvoke_raises_timeout_error(self, mcp_tool_cleanup):
+        server_info = InMemoryServerInfo(server=calculator_mcp._mcp_server)
+        tool = MCPTool(name="add", server_info=server_info, eager_connect=True)
+        mcp_tool_cleanup(tool)
+
+        async def hanging(*_args, **_kwargs):
+            await asyncio.Event().wait()
+
+        tool._client.call_tool = hanging
+        tool._invocation_timeout = 0.01
+
+        with pytest.raises(TimeoutError, match="timed out"):
+            await tool.ainvoke(a=1, b=2)
+
+    @pytest.mark.asyncio
+    async def test_mcp_tool_ainvoke_wraps_unexpected_errors(self, mcp_tool_cleanup):
+        server_info = InMemoryServerInfo(server=calculator_mcp._mcp_server)
+        tool = MCPTool(name="add", server_info=server_info, eager_connect=True)
+        mcp_tool_cleanup(tool)
+
+        async def crash(*_args, **_kwargs):
+            message = "kaboom"
+            raise RuntimeError(message)
+
+        tool._client.call_tool = crash
+
+        with pytest.raises(MCPInvocationError, match="kaboom"):
+            await tool.ainvoke(a=1, b=2)
+
+    def test_mcp_tool_close_swallows_worker_stop_exceptions(self, mcp_tool_cleanup):
+        server_info = InMemoryServerInfo(server=calculator_mcp._mcp_server)
+        tool = MCPTool(name="add", server_info=server_info, eager_connect=True)
+        mcp_tool_cleanup(tool)
+
+        with patch.object(tool._worker, "stop", side_effect=RuntimeError("stop failed")):
+            tool.close()
+
+    def test_session_manager_propagates_connect_failures(self):
+        class BrokenClient(MCPClient):
+            async def connect(self):
+                message = "broken"
+                raise RuntimeError(message)
+
+        client = BrokenClient()
+
+        with pytest.raises(RuntimeError, match="broken"):
+            _MCPClientSessionManager(client, timeout=5.0)
 
     @pytest.mark.skipif(not os.environ.get("OPENAI_API_KEY"), reason="OPENAI_API_KEY not set")
     @pytest.mark.integration
