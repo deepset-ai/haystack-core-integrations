@@ -56,12 +56,12 @@ class S3VectorsDocumentStore:
 
     **Service limits:**
 
-    - Maximum ``top_k``: 100 results per query
+    - Maximum `top_k`: 100 results per query
     - Maximum vector dimension: 4,096
     - Metadata per vector: 40 KB total, 2 KB filterable
-    - All documents must have embeddings (``float32`` only)
-    - Distance metrics: ``cosine`` or ``euclidean`` (set at index creation, immutable)
-    - ``filter_documents()`` is client-side — prefer ``S3VectorsEmbeddingRetriever`` with filters
+    - All documents must have embeddings (`float32` only)
+    - Distance metrics: `cosine` or `euclidean` (set at index creation, immutable)
+    - `filter_documents()` is client-side — prefer `S3VectorsEmbeddingRetriever` with filters
 
     Usage example:
     ```python
@@ -95,13 +95,13 @@ class S3VectorsDocumentStore:
         :param vector_bucket_name: Name of the S3 vector bucket.
         :param index_name: Name of the vector index within the bucket.
         :param dimension: Dimensionality of the embeddings (e.g. 768, 1536).
-        :param distance_metric: Distance metric for similarity search: ``"cosine"`` or ``"euclidean"``.
+        :param distance_metric: Distance metric for similarity search: `"cosine"` or `"euclidean"`.
         :param region_name: AWS region. If not provided, uses the default from the environment/config.
         :param aws_access_key_id: AWS access key ID. If not provided, uses the default credential chain.
         :param aws_secret_access_key: AWS secret access key.
         :param aws_session_token: AWS session token for temporary credentials.
         :param create_bucket_and_index: Whether to automatically create the vector bucket and index
-            if they do not exist. Defaults to ``True``.
+            if they do not exist. Defaults to `True`.
         :param non_filterable_metadata_keys: Additional metadata keys to mark as non-filterable
             on the index (beyond the internal keys used for Document content/blob storage).
         """
@@ -240,15 +240,15 @@ class S3VectorsDocumentStore:
         """
         Write Documents to the S3 Vectors index.
 
-        All documents must have an embedding set. S3 Vectors ``put_vectors`` is an upsert operation
-        by default, so ``DuplicatePolicy.OVERWRITE`` is the natural behavior.
-        ``DuplicatePolicy.SKIP`` will check for existing documents first (slower).
-        ``DuplicatePolicy.NONE`` will raise an error if a document already exists.
+        All documents must have an embedding set. S3 Vectors `put_vectors` is an upsert operation
+        by default, so `DuplicatePolicy.OVERWRITE` is the natural behavior.
+        `DuplicatePolicy.SKIP` will check for existing documents first (slower).
+        `DuplicatePolicy.NONE` will raise an error if a document already exists.
 
         Metadata per vector is limited to 40 KB total (2 KB filterable).
 
         :param documents: A list of Documents to write. Each document must have an embedding.
-        :param policy: The duplicate policy. Defaults to ``DuplicatePolicy.OVERWRITE``.
+        :param policy: The duplicate policy. Defaults to `DuplicatePolicy.OVERWRITE`.
         :returns: The number of documents written.
         """
         if len(documents) == 0:
@@ -312,7 +312,7 @@ class S3VectorsDocumentStore:
             S3 Vectors only supports metadata filtering during vector similarity queries, not as a
             standalone operation. This method lists all vectors and applies filters client-side,
             which can be very slow for large indexes. For filtered retrieval, prefer using
-            ``S3VectorsEmbeddingRetriever`` with filters instead.
+            `S3VectorsEmbeddingRetriever` with filters instead.
 
         :param filters: Haystack-format filters to apply.
         :returns: A list of matching Documents.
@@ -383,13 +383,13 @@ class S3VectorsDocumentStore:
         Retrieve documents most similar to the query embedding.
 
         This method is not part of the public interface.
-        Use ``S3VectorsEmbeddingRetriever`` instead.
+        Use `S3VectorsEmbeddingRetriever` instead.
 
         :param query_embedding: The query embedding vector.
         :param filters: Optional Haystack-format metadata filters.
         :param top_k: Maximum number of results to return. S3 Vectors caps this at 100.
         :returns: List of Documents sorted by similarity. Returned documents will not contain
-            embeddings (S3 Vectors ``query_vectors`` does not return vector data).
+            embeddings (S3 Vectors `query_vectors` does not return vector data).
         """
         if not query_embedding:
             msg = "query_embedding must be a non-empty list of floats"
