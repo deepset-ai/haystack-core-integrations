@@ -236,7 +236,7 @@ class TestStandaloneEvaluationIntegration:
             assert 0.0 <= metric_result.value <= 1.0
 
 
-@_OPENAI_SKIP
+@pytest.mark.skipif(not os.environ.get("OPENAI_API_KEY"), reason="Set OPENAI_API_KEY to run integration tests.")
 @pytest.mark.integration
 class TestPipelineIntegration:
     def test_ragas_evaluator_in_rag_pipeline(self):
