@@ -67,7 +67,7 @@ def tools():
 
 class TestAmazonBedrockChatGeneratorUtils:
     def test_format_tools(self, tools):
-        formatted_tool = _format_tools(tools, tools_cachepoint_config={"type": "default"})
+        formatted_tool = _format_tools(tools, tools_cachepoint_config={"cachePoint": {"type": "default"}})
         assert formatted_tool == {
             "tools": [
                 {
@@ -102,6 +102,22 @@ class TestAmazonBedrockChatGeneratorUtils:
                 {"cachePoint": {"type": "default"}},
             ],
         }
+
+    def test_format_tools_does_not_double_wrap_cachepoint(self, tools):
+        # Regression test for https://github.com/deepset-ai/haystack-core-integrations/issues/3181
+        # __init__ pre-formats tools_cachepoint_config via _validate_and_format_cache_point,
+        # so _format_tools must append it as-is without an extra cachePoint wrapper.
+        from haystack_integrations.components.generators.amazon_bedrock.chat.utils import (
+            _validate_and_format_cache_point,
+        )
+
+        formatted_config = _validate_and_format_cache_point({"type": "default"})
+        assert formatted_config == {"cachePoint": {"type": "default"}}
+
+        result = _format_tools(tools, tools_cachepoint_config=formatted_config)
+        cache_entries = [e for e in result["tools"] if "cachePoint" in e]
+        assert len(cache_entries) == 1
+        assert cache_entries[0] == {"cachePoint": {"type": "default"}}
 
     def test_convert_file_content_to_bedrock_format_no_mime_type(self):
         file_content = FileContent(
