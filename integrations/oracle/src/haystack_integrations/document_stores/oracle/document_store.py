@@ -733,7 +733,7 @@ class OracleDocumentStore:
             try:
                 cur.execute(sql, params)
             except oracledb.DatabaseError as e:
-                logger.warning(f"Keyword retrieval failed: {e}")
+                logger.warning("Keyword retrieval failed: %s", e)
                 return []
             rows = cur.fetchall()
             return [OracleDocumentStore._row_to_document(r, with_score=True) for r in rows]
