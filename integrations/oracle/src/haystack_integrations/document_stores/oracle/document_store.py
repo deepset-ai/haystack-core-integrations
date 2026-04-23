@@ -856,9 +856,7 @@ class OracleDocumentStore:
             values as strings and ``total`` is the overall distinct count (before pagination).
         :raises ValueError: If ``metadata_field`` contains characters outside ``[A-Za-z0-9_.]``.
         """
-        return await asyncio.to_thread(
-            self.get_metadata_field_unique_values, metadata_field, search_term, from_, size
-        )
+        return await asyncio.to_thread(self.get_metadata_field_unique_values, metadata_field, search_term, from_, size)
 
     def _embedding_retrieval(
         self,
