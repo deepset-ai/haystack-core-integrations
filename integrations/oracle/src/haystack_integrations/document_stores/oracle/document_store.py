@@ -473,17 +473,23 @@ class OracleDocumentStore:
     def delete_table(self) -> None:
         """Deletes the document store table."""
         with self._get_connection() as conn, conn.cursor() as cur:
+            sql = f"DROP TABLE {self.table_name} PURGE"
             try:
-                cur.execute(f"DROP TABLE {self.table_name} PURGE")
-            except oracledb.DatabaseError:
-                pass
+                cur.execute(sql)
+            except oracledb.DatabaseError as e:
+                logger.debug("Failed to drop table. SQL: %s", sql)
+                msg = f"Failed to drop table '{self.table_name}'. Error: {e!r}. You can find the SQL query in the debug logs."
+                raise DocumentStoreError(msg) from e
             index_name = f"{self.table_name}_search_idx"
             if len(index_name) > MAX_INDEX_NAME_LEN:
                 index_name = index_name[:MAX_INDEX_NAME_LEN]
+            sql = f"BEGIN DBMS_SEARCH.DROP_INDEX('{index_name}'); END;"
             try:
-                cur.execute(f"BEGIN DBMS_SEARCH.DROP_INDEX('{index_name}'); END;")
-            except oracledb.DatabaseError:
-                pass
+                cur.execute(sql)
+            except oracledb.DatabaseError as e:
+                logger.debug("Failed to drop keyword index. SQL: %s", sql)
+                msg = f"Failed to drop keyword index '{index_name}'. Error: {e!r}. You can find the SQL query in the debug logs."
+                raise DocumentStoreError(msg) from e
             conn.commit()
 
     async def delete_table_async(self) -> None:
