@@ -4,13 +4,13 @@
 
 | Name                                                                              |    Stmts |     Miss |   Branch |   BrPart |   Cover |   Missing |
 |---------------------------------------------------------------------------------- | -------: | -------: | -------: | -------: | ------: | --------: |
-| src/haystack\_integrations/components/connectors/jina/reader.py                   |       57 |        4 |       10 |        4 |     88% |65-\>67, 111-\>114, 122-123, 127-128 |
+| src/haystack\_integrations/components/connectors/jina/reader.py                   |       57 |        2 |       10 |        2 |     94% |65-\>67, 127-128 |
 | src/haystack\_integrations/components/connectors/jina/reader\_mode.py             |       15 |        0 |        2 |        0 |    100% |           |
 | src/haystack\_integrations/components/embedders/jina/document\_embedder.py        |      110 |        7 |       28 |        4 |     92% |105, 131, 145-146, 177, 179, 187 |
-| src/haystack\_integrations/components/embedders/jina/document\_image\_embedder.py |      113 |       14 |       26 |        4 |     86% |110, 176-185, 198, 202-203, 211, 307-309 |
-| src/haystack\_integrations/components/embedders/jina/text\_embedder.py            |       70 |        7 |       16 |        4 |     87% |90, 112, 125-126, 143, 145, 152 |
-| src/haystack\_integrations/components/rankers/jina/ranker.py                      |       71 |        9 |       18 |        4 |     83% |66-67, 101-102, 108, 140, 152-153, 157 |
-| **TOTAL**                                                                         |  **436** |   **41** |  **100** |   **20** | **88%** |           |
+| src/haystack\_integrations/components/embedders/jina/document\_image\_embedder.py |      113 |        3 |       26 |        2 |     96% |110, 198, 211 |
+| src/haystack\_integrations/components/embedders/jina/text\_embedder.py            |       70 |        5 |       16 |        4 |     90% |90, 112, 143, 145, 152 |
+| src/haystack\_integrations/components/rankers/jina/ranker.py                      |       71 |        1 |       18 |        0 |     99% |       108 |
+| **TOTAL**                                                                         |  **436** |   **18** |  **100** |   **12** | **94%** |           |
 
 
 ## Setup coverage badge
