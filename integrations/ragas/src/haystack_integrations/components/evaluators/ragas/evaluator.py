@@ -56,11 +56,14 @@ class RagasEvaluator:
 
         :param ragas_metrics: A list of modern Ragas metrics from `ragas.metrics.collections`.
             Each metric must be fully configured (including its LLM) at construction time.
+            Available metrics can be found in the
+            [Ragas documentation](https://docs.ragas.io/en/stable/concepts/metrics/available_metrics/).
         """
         self._validate_inputs(ragas_metrics)
         self.metrics = ragas_metrics
 
-    def _validate_inputs(self, metrics: list[SimpleBaseMetric]) -> None:
+    @staticmethod
+    def _validate_inputs(metrics: list[SimpleBaseMetric]) -> None:
         """
         Validate input parameters.
 
