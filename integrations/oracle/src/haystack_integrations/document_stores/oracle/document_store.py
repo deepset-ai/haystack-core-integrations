@@ -137,6 +137,30 @@ class OracleDocumentStore:
         hnsw_accuracy: int = 95,
         hnsw_parallel: int = 4,
     ) -> None:
+        """
+        Initialise the document store and optionally create the backing table and indexes.
+
+        :param connection_config: Oracle connection settings (user, password, DSN, optional wallet).
+        :param table_name: Name of the Oracle table used to store documents. Must be a valid Oracle
+            identifier (letters, digits, ``_``, ``$``, ``#``; max 128 chars; cannot start with a digit).
+        :param embedding_dim: Dimensionality of the embedding vectors. Must match the model producing them.
+        :param distance_metric: Vector distance function used for similarity search.
+            One of ``"COSINE"``, ``"EUCLIDEAN"``, or ``"DOT"``.
+        :param create_table_if_not_exists: When ``True`` (default), creates the table and the DBMS_SEARCH
+            keyword index on first use if they do not already exist. Set to ``False`` when connecting to a
+            pre-existing table.
+        :param create_index: When ``True``, creates an HNSW vector index on initialisation. Equivalent to
+            calling :meth:`create_hnsw_index` manually. Defaults to ``False``.
+        :param hnsw_neighbors: Number of neighbours in the HNSW graph. Higher values improve recall at the
+            cost of index size and build time. Defaults to ``32``.
+        :param hnsw_ef_construction: Size of the dynamic candidate list during HNSW index construction.
+            Higher values improve recall at the cost of build time. Defaults to ``200``.
+        :param hnsw_accuracy: Target recall accuracy percentage for the HNSW index (0-100).
+            Defaults to ``95``.
+        :param hnsw_parallel: Degree of parallelism used when building the HNSW index. Defaults to ``4``.
+        :raises ValueError: If ``table_name`` is not a valid Oracle identifier or ``embedding_dim`` is not
+            a positive integer.
+        """
         if not _SAFE_TABLE_NAME.match(table_name):
             msg = (
                 f"Invalid table_name {table_name!r}. Must be a valid Oracle identifier "
@@ -265,7 +289,11 @@ class OracleDocumentStore:
             conn.commit()
 
     async def create_hnsw_index_async(self) -> None:
-        """Async variant of create_hnsw_index."""
+        """
+        Asynchronously creates an HNSW vector index on the embedding column.
+
+        Safe to call multiple times — uses ``IF NOT EXISTS``.
+        """
         await asyncio.to_thread(self.create_hnsw_index)
 
     def write_documents(
@@ -471,14 +499,25 @@ class OracleDocumentStore:
         return await asyncio.to_thread(self.count_documents)
 
     def delete_table(self) -> None:
-        """Deletes the document store table."""
+        """
+        Permanently drops the document store table and its associated DBMS_SEARCH keyword index.
+
+        Uses ``DROP TABLE ... PURGE`` which bypasses the Oracle recycle bin — the operation is
+        irreversible. The keyword index is dropped after the table; if either operation fails a
+        :class:`DocumentStoreError` is raised.
+
+        :raises DocumentStoreError: If the table or keyword index cannot be dropped.
+        """
         with self._get_connection() as conn, conn.cursor() as cur:
             sql = f"DROP TABLE {self.table_name} PURGE"
             try:
                 cur.execute(sql)
             except oracledb.DatabaseError as e:
                 logger.debug("Failed to drop table. SQL: %s", sql)
-                msg = f"Failed to drop table '{self.table_name}'. Error: {e!r}. You can find the SQL query in the debug logs."
+                msg = (
+                    f"Failed to drop table '{self.table_name}'. Error: {e!r}. "
+                    "You can find the SQL query in the debug logs."
+                )
                 raise DocumentStoreError(msg) from e
             index_name = f"{self.table_name}_search_idx"
             if len(index_name) > MAX_INDEX_NAME_LEN:
@@ -488,27 +527,51 @@ class OracleDocumentStore:
                 cur.execute(sql)
             except oracledb.DatabaseError as e:
                 logger.debug("Failed to drop keyword index. SQL: %s", sql)
-                msg = f"Failed to drop keyword index '{index_name}'. Error: {e!r}. You can find the SQL query in the debug logs."
+                msg = (
+                    f"Failed to drop keyword index '{index_name}'. Error: {e!r}. "
+                    "You can find the SQL query in the debug logs."
+                )
                 raise DocumentStoreError(msg) from e
             conn.commit()
 
     async def delete_table_async(self) -> None:
-        """Async variant of :meth:`delete_table`."""
+        """
+        Asynchronously permanently drops the document store table and its DBMS_SEARCH keyword index.
+
+        Uses ``DROP TABLE ... PURGE`` which bypasses the Oracle recycle bin — the operation is
+        irreversible.
+
+        :raises DocumentStoreError: If the table or keyword index cannot be dropped.
+        """
         await asyncio.to_thread(self.delete_table)
 
     def delete_all_documents(self) -> None:
-        """Deletes all documents from the document store."""
+        """
+        Removes all documents from the table using ``TRUNCATE``.
+
+        ``TRUNCATE`` is non-recoverable — it cannot be rolled back and bypasses row-level triggers.
+        The table structure and indexes are preserved.
+        """
         with self._get_connection() as conn, conn.cursor() as cur:
             cur.execute(f"TRUNCATE TABLE {self.table_name}")
             conn.commit()
 
     async def delete_all_documents_async(self) -> None:
-        """Async variant of :meth:`delete_all_documents`."""
+        """
+        Asynchronously removes all documents from the table using ``TRUNCATE``.
+
+        ``TRUNCATE`` is non-recoverable — it cannot be rolled back and bypasses row-level triggers.
+        The table structure and indexes are preserved.
+        """
         await asyncio.to_thread(self.delete_all_documents)
 
     def count_documents_by_filter(self, filters: dict[str, Any]) -> int:
         """
         Returns the number of documents that match the provided filters.
+
+        :param filters: Haystack filter dict. An empty dict matches all documents.
+            See the `metadata filtering docs <https://docs.haystack.deepset.ai/docs/metadata-filtering>`_.
+        :returns: Count of matching documents.
         """
         where, params = OracleDocumentStore._build_where(filters)
         sql = f"SELECT COUNT(*) FROM {self.table_name} {where}"
@@ -518,11 +581,24 @@ class OracleDocumentStore:
         return row[0] if row else 0
 
     async def count_documents_by_filter_async(self, filters: dict[str, Any]) -> int:
-        """Async variant of :meth:`count_documents_by_filter`."""
+        """
+        Asynchronously returns the number of documents that match the provided filters.
+
+        :param filters: Haystack filter dict. An empty dict matches all documents.
+            See the `metadata filtering docs <https://docs.haystack.deepset.ai/docs/metadata-filtering>`_.
+        :returns: Count of matching documents.
+        """
         return await asyncio.to_thread(self.count_documents_by_filter, filters)
 
     def delete_by_filter(self, filters: dict[str, Any]) -> int:
-        """Deletes documents matching the provided filters and returns the count."""
+        """
+        Deletes all documents that match the provided filters.
+
+        :param filters: Haystack filter dict. An empty dict is treated as a no-op and returns ``0``
+            without touching the table.
+            See the `metadata filtering docs <https://docs.haystack.deepset.ai/docs/metadata-filtering>`_.
+        :returns: Number of deleted documents.
+        """
         if not filters:
             return 0
         where, params = OracleDocumentStore._build_where(filters)
@@ -534,11 +610,29 @@ class OracleDocumentStore:
         return deleted
 
     async def delete_by_filter_async(self, filters: dict[str, Any]) -> int:
-        """Async variant of :meth:`delete_by_filter`."""
+        """
+        Asynchronously deletes all documents that match the provided filters.
+
+        :param filters: Haystack filter dict. An empty dict is treated as a no-op and returns ``0``
+            without touching the table.
+            See the `metadata filtering docs <https://docs.haystack.deepset.ai/docs/metadata-filtering>`_.
+        :returns: Number of deleted documents.
+        """
         return await asyncio.to_thread(self.delete_by_filter, filters)
 
     def update_by_filter(self, filters: dict[str, Any], meta: dict[str, Any]) -> int:
-        """Updates the metadata of documents matching the filters."""
+        """
+        Merges ``meta`` into the metadata of all documents that match the provided filters.
+
+        Uses Oracle's ``JSON_MERGEPATCH`` — existing keys are updated, new keys are added,
+        and keys set to ``null`` in ``meta`` are removed.
+
+        :param filters: Haystack filter dict that selects which documents to update.
+            See the `metadata filtering docs <https://docs.haystack.deepset.ai/docs/metadata-filtering>`_.
+        :param meta: Metadata patch to apply. Must be a non-empty dictionary.
+        :returns: Number of updated documents.
+        :raises ValueError: If ``meta`` is empty.
+        """
         if not meta:
             msg = "meta must be a non-empty dictionary"
             raise ValueError(msg)
@@ -552,11 +646,33 @@ class OracleDocumentStore:
         return updated
 
     async def update_by_filter_async(self, filters: dict[str, Any], meta: dict[str, Any]) -> int:
-        """Async variant of :meth:`update_by_filter`."""
+        """
+        Asynchronously merges ``meta`` into the metadata of all documents matching the provided filters.
+
+        Uses Oracle's ``JSON_MERGEPATCH`` — existing keys are updated, new keys are added,
+        and keys set to ``null`` in ``meta`` are removed.
+
+        :param filters: Haystack filter dict that selects which documents to update.
+            See the `metadata filtering docs <https://docs.haystack.deepset.ai/docs/metadata-filtering>`_.
+        :param meta: Metadata patch to apply. Must be a non-empty dictionary.
+        :returns: Number of updated documents.
+        :raises ValueError: If ``meta`` is empty.
+        """
         return await asyncio.to_thread(self.update_by_filter, filters, meta)
 
     def count_unique_metadata_by_filter(self, filters: dict[str, Any], metadata_fields: list[str]) -> dict[str, int]:
-        """Counts the unique occurrences of metadata fields."""
+        """
+        Returns the number of distinct values for each requested metadata field among matching documents.
+
+        :param filters: Haystack filter dict that scopes the document set.
+            See the `metadata filtering docs <https://docs.haystack.deepset.ai/docs/metadata-filtering>`_.
+        :param metadata_fields: List of metadata field names to count distinct values for.
+            Fields may be prefixed with ``"meta."`` (e.g. ``"meta.lang"`` or ``"lang"``).
+            Must be a non-empty list.
+        :returns: Dict mapping each field name to its distinct-value count.
+        :raises ValueError: If ``metadata_fields`` is empty.
+        :raises ValueError: If any field name contains characters outside ``[A-Za-z0-9_.]``.
+        """
         if not metadata_fields:
             msg = "metadata_fields must be a non-empty list of strings"
             raise ValueError(msg)
@@ -575,16 +691,29 @@ class OracleDocumentStore:
     async def count_unique_metadata_by_filter_async(
         self, filters: dict[str, Any], metadata_fields: list[str]
     ) -> dict[str, int]:
-        """Async variant of :meth:`count_unique_metadata_by_filter`."""
+        """
+        Asynchronously returns the number of distinct values for each metadata field among matching documents.
+
+        :param filters: Haystack filter dict that scopes the document set.
+            See the `metadata filtering docs <https://docs.haystack.deepset.ai/docs/metadata-filtering>`_.
+        :param metadata_fields: List of metadata field names to count distinct values for.
+            Fields may be prefixed with ``"meta."`` (e.g. ``"meta.lang"`` or ``"lang"``).
+            Must be a non-empty list.
+        :returns: Dict mapping each field name to its distinct-value count.
+        :raises ValueError: If ``metadata_fields`` is empty.
+        :raises ValueError: If any field name contains characters outside ``[A-Za-z0-9_.]``.
+        """
         return await asyncio.to_thread(self.count_unique_metadata_by_filter, filters, metadata_fields)
 
     def get_metadata_fields_info(self) -> dict[str, dict[str, str]]:
         """
         Return a mapping of metadata field names to their detected types.
 
-        Uses Oracle's ``JSON_DATAGUIDE`` aggregate to introspect the
-        stored metadata column.  Returns an empty dict when the table
-        has no documents.
+        Uses Oracle's ``JSON_DATAGUIDE`` aggregate to introspect the stored metadata column.
+        Returns an empty dict when the table has no documents.
+
+        :returns: Dict of the form ``{"field_name": {"type": "<type>"}, ...}`` where ``<type>``
+            is one of ``"text"``, ``"number"``, or ``"boolean"``.
         """
         sql = f"SELECT JSON_DATAGUIDE(metadata) FROM {self.table_name}"
         with self._get_connection() as conn, conn.cursor() as cur:
@@ -609,17 +738,18 @@ class OracleDocumentStore:
 
     def get_metadata_field_min_max(self, metadata_field: str) -> dict[str, Any]:
         """
-        Return the min and max values of a metadata field.
+        Return the minimum and maximum values of a metadata field across all documents.
 
-        Returns ``{"min": None, "max": None}`` when the table is empty
-        or the field does not exist.  Numeric strings returned by
-        ``JSON_VALUE`` are automatically converted to ``int`` / ``float``.
+        First attempts numeric comparison via ``TO_NUMBER`` so that ``MAX(1, 5, 10)`` returns ``10``
+        rather than ``"5"`` (which would win under lexicographic ordering). Falls back to plain string
+        comparison when the field contains non-numeric values. Numeric strings are automatically
+        converted to ``int`` or ``float`` in the result.
 
-        The method first attempts numeric comparison via ``TO_NUMBER``
-        so that ``MAX(1, 5, 10)`` returns ``10`` rather than ``"5"``
-        (which would win under lexicographic string ordering).  If the
-        field contains non-numeric values, it falls back to plain
-        string comparison.
+        :param metadata_field: Metadata field name. May be prefixed with ``"meta."``
+            (e.g. ``"meta.year"`` or ``"year"``).
+        :returns: ``{"min": <value>, "max": <value>}``. Both values are ``None`` when the table is
+            empty or the field does not exist.
+        :raises ValueError: If ``metadata_field`` contains characters outside ``[A-Za-z0-9_.]``.
         """
         field_path = metadata_field[5:] if metadata_field.startswith("meta.") else metadata_field
         _validate_field_path(field_path)
@@ -645,7 +775,19 @@ class OracleDocumentStore:
     def get_metadata_field_unique_values(
         self, metadata_field: str, search_term: str | None = None, from_: int = 0, size: int | None = None
     ) -> tuple[list[str], int]:
-        """Return unique values for a specific metadata field."""
+        """
+        Return a paginated list of distinct values for a metadata field, plus the total distinct count.
+
+        :param metadata_field: Metadata field name. May be prefixed with ``"meta."``
+            (e.g. ``"meta.lang"`` or ``"lang"``).
+        :param search_term: Optional substring filter applied to both the document text and the field value.
+        :param from_: Zero-based offset for pagination. Defaults to ``0``.
+        :param size: Maximum number of values to return. When ``None`` all values from ``from_`` onward
+            are returned.
+        :returns: A tuple ``(values, total)`` where ``values`` is the paginated list of distinct field
+            values as strings and ``total`` is the overall distinct count (before pagination).
+        :raises ValueError: If ``metadata_field`` contains characters outside ``[A-Za-z0-9_.]``.
+        """
         field_path = metadata_field[5:] if metadata_field.startswith("meta.") else metadata_field
         _validate_field_path(field_path)
         base_sql = f"FROM {self.table_name} WHERE JSON_VALUE(metadata, '$.{field_path}') IS NOT NULL"
@@ -672,18 +814,51 @@ class OracleDocumentStore:
             return [str(r[0]) for r in rows], total
 
     async def get_metadata_fields_info_async(self) -> dict[str, dict[str, str]]:
-        """Async variant of :meth:`get_metadata_fields_info`."""
+        """
+        Asynchronously returns a mapping of metadata field names to their detected types.
+
+        Uses Oracle's ``JSON_DATAGUIDE`` aggregate to introspect the stored metadata column.
+        Returns an empty dict when the table has no documents.
+
+        :returns: Dict of the form ``{"field_name": {"type": "<type>"}, ...}`` where ``<type>``
+            is one of ``"text"``, ``"number"``, or ``"boolean"``.
+        """
         return await asyncio.to_thread(self.get_metadata_fields_info)
 
     async def get_metadata_field_min_max_async(self, metadata_field: str) -> dict[str, Any]:
-        """Async variant of :meth:`get_metadata_field_min_max`."""
+        """
+        Asynchronously returns the minimum and maximum values of a metadata field across all documents.
+
+        First attempts numeric comparison via ``TO_NUMBER``, falling back to string comparison for
+        non-numeric fields. Numeric strings are automatically converted to ``int`` or ``float``.
+
+        :param metadata_field: Metadata field name. May be prefixed with ``"meta."``
+            (e.g. ``"meta.year"`` or ``"year"``).
+        :returns: ``{"min": <value>, "max": <value>}``. Both values are ``None`` when the table is
+            empty or the field does not exist.
+        :raises ValueError: If ``metadata_field`` contains characters outside ``[A-Za-z0-9_.]``.
+        """
         return await asyncio.to_thread(self.get_metadata_field_min_max, metadata_field)
 
     async def get_metadata_field_unique_values_async(
         self, metadata_field: str, search_term: str | None = None, from_: int = 0, size: int | None = None
     ) -> tuple[list[str], int]:
-        """Async variant of :meth:`get_metadata_field_unique_values`."""
-        return await asyncio.to_thread(self.get_metadata_field_unique_values, metadata_field, search_term, from_, size)
+        """
+        Asynchronously returns a paginated list of distinct values for a metadata field, plus the total count.
+
+        :param metadata_field: Metadata field name. May be prefixed with ``"meta."``
+            (e.g. ``"meta.lang"`` or ``"lang"``).
+        :param search_term: Optional substring filter applied to both the document text and the field value.
+        :param from_: Zero-based offset for pagination. Defaults to ``0``.
+        :param size: Maximum number of values to return. When ``None`` all values from ``from_`` onward
+            are returned.
+        :returns: A tuple ``(values, total)`` where ``values`` is the paginated list of distinct field
+            values as strings and ``total`` is the overall distinct count (before pagination).
+        :raises ValueError: If ``metadata_field`` contains characters outside ``[A-Za-z0-9_.]``.
+        """
+        return await asyncio.to_thread(
+            self.get_metadata_field_unique_values, metadata_field, search_term, from_, size
+        )
 
     def _embedding_retrieval(
         self,
@@ -711,7 +886,10 @@ class OracleDocumentStore:
                 cur.execute(sql, params)
             except oracledb.DatabaseError as e:
                 logger.debug("Embedding retrieval failed. SQL: %s\nParams: %s", sql, params)
-                msg = f"Embedding retrieval failed. Error: {e!r}. You can find the SQL query and the parameters in the debug logs."
+                msg = (
+                    f"Embedding retrieval failed. Error: {e!r}. "
+                    "You can find the SQL query and the parameters in the debug logs."
+                )
                 raise DocumentStoreError(msg) from e
             rows = cur.fetchall()
         return [OracleDocumentStore._row_to_document(r, with_score=True) for r in rows]
@@ -759,7 +937,10 @@ class OracleDocumentStore:
                 cur.execute(sql, params)
             except oracledb.DatabaseError as e:
                 logger.debug("Keyword retrieval failed. SQL: %s\nParams: %s", sql, params)
-                msg = f"Keyword retrieval failed. Error: {e!r}. You can find the SQL query and the parameters in the debug logs."
+                msg = (
+                    f"Keyword retrieval failed. Error: {e!r}. "
+                    "You can find the SQL query and the parameters in the debug logs."
+                )
                 raise DocumentStoreError(msg) from e
             rows = cur.fetchall()
             return [OracleDocumentStore._row_to_document(r, with_score=True) for r in rows]
