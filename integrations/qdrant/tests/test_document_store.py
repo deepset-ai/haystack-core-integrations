@@ -342,6 +342,34 @@ class TestQdrantDocumentStoreUnit:
         assert batches == [(1, 2), (3, 4), (5,)]
         assert list(get_batches_from_generator([], 2)) == []
 
+    def test_query_by_sparse_raises_when_sparse_disabled(self):
+        document_store = QdrantDocumentStore(location=":memory:", use_sparse_embeddings=False)
+        sparse_embedding = SparseEmbedding(indices=[0, 1], values=[0.1, 0.2])
+        with pytest.raises(QdrantStoreError, match="use_sparse_embeddings=False"):
+            document_store._query_by_sparse(query_sparse_embedding=sparse_embedding)
+
+    @pytest.mark.parametrize(
+        ("method_name", "args", "expected"),
+        [
+            ("count_documents", (), 0),
+            ("count_documents_by_filter", ({},), 0),
+            ("get_metadata_fields_info", (), {}),
+            ("get_metadata_field_min_max", ("score",), {}),
+            ("count_unique_metadata_by_filter", ({}, ["category"]), {"category": 0}),
+            ("get_metadata_field_unique_values", ("category",), []),
+        ],
+    )
+    def test_metadata_methods_swallow_client_errors(self, method_name, args, expected):
+        document_store = QdrantDocumentStore(location=":memory:")
+        document_store._initialize_client()
+        err = ValueError("boom")
+        with (
+            patch.object(document_store._client, "count", side_effect=err),
+            patch.object(document_store._client, "scroll", side_effect=err),
+            patch.object(document_store._client, "get_collection", side_effect=err),
+        ):
+            assert getattr(document_store, method_name)(*args) == expected
+
 
 @pytest.mark.integration
 class TestQdrantDocumentStore(
