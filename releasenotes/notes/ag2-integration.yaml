@@ -1,0 +1,6 @@
+---
+enhancements:
+  - |
+    Added AG2 (formerly AutoGen) integration. The `AG2Agent` component
+    enables multi-agent conversation orchestration within Haystack pipelines.
+    Install with `pip install ag2-haystack`.
