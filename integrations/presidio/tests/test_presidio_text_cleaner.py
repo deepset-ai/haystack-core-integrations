@@ -131,3 +131,16 @@ class TestPresidioTextCleaner:
         assert len(result["texts"]) == 1
         assert "Alice" not in result["texts"][0]
         assert "212-555-5678" not in result["texts"][0]
+
+    @pytest.mark.integration
+    def test_run_integration_german(self):
+        cleaner = PresidioTextCleaner(
+            language="de",
+            models=[{"lang_code": "de", "model_name": "de_core_news_lg"}],
+        )
+        cleaner.warm_up()
+        result = cleaner.run(texts=["Hallo, ich bin Thomas Schmidt und meine E-Mail ist thomas@example.com"])
+
+        assert len(result["texts"]) == 1
+        assert "Thomas Schmidt" not in result["texts"][0]
+        assert "thomas@example.com" not in result["texts"][0]

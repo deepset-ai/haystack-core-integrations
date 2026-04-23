@@ -156,3 +156,18 @@ class TestPresidioEntityExtractor:
         entities = result["documents"][0].meta["entities"]
         entity_types = [e["entity_type"] for e in entities]
         assert "EMAIL_ADDRESS" in entity_types
+
+    @pytest.mark.integration
+    def test_run_integration_german(self):
+        extractor = PresidioEntityExtractor(
+            language="de",
+            models=[{"lang_code": "de", "model_name": "de_core_news_lg"}],
+        )
+        extractor.warm_up()
+        docs = [Document(content="Kontaktieren Sie Hans Müller unter hans@example.com")]
+        result = extractor.run(documents=docs)
+
+        entities = result["documents"][0].meta["entities"]
+        entity_types = [e["entity_type"] for e in entities]
+        assert "EMAIL_ADDRESS" in entity_types
+        assert "PERSON" in entity_types

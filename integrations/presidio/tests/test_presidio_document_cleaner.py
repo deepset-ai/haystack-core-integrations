@@ -185,3 +185,17 @@ class TestPresidioDocumentCleaner:
         assert len(result["documents"]) == 1
         assert "John Smith" not in result["documents"][0].content
         assert "john@example.com" not in result["documents"][0].content
+
+    @pytest.mark.integration
+    def test_run_integration_german(self):
+        cleaner = PresidioDocumentCleaner(
+            language="de",
+            models=[{"lang_code": "de", "model_name": "de_core_news_lg"}],
+        )
+        cleaner.warm_up()
+        docs = [Document(content="Mein Name ist Hans Müller und meine E-Mail ist hans@example.com")]
+        result = cleaner.run(documents=docs)
+
+        assert len(result["documents"]) == 1
+        assert "Hans Müller" not in result["documents"][0].content
+        assert "hans@example.com" not in result["documents"][0].content
