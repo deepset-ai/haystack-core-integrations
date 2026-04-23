@@ -803,12 +803,12 @@ class OracleDocumentStore:
 
             sql_vals = f"SELECT DISTINCT JSON_VALUE(metadata, '$.{field_path}') {base_sql} ORDER BY 1"
             if size is not None:
-                sql_vals += " OFFSET :from_ ROWS FETCH NEXT :size ROWS ONLY"
-                params["from_"] = from_
-                params["size"] = size
+                sql_vals += " OFFSET :row_offset ROWS FETCH NEXT :row_limit ROWS ONLY"
+                params["row_offset"] = from_
+                params["row_limit"] = size
             else:
-                sql_vals += " OFFSET :from_ ROWS"
-                params["from_"] = from_
+                sql_vals += " OFFSET :row_offset ROWS"
+                params["row_offset"] = from_
             cur.execute(sql_vals, params)
             rows = cur.fetchall()
             return [str(r[0]) for r in rows], total
