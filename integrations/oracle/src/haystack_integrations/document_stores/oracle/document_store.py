@@ -233,6 +233,17 @@ class OracleDocumentStore:
         except oracledb.DatabaseError as e:
             logger.debug("Could not create keyword index (may already exist): %s", e)
 
+    def create_keyword_index(self) -> None:
+        """
+        Create the DBMS_SEARCH keyword index on this table.
+
+        Safe to call multiple times — silently skips if the index already exists.
+        Required for keyword retrieval. Called automatically when
+        ``create_table_if_not_exists=True``, but must be called explicitly
+        when connecting to a pre-existing table.
+        """
+        self._ensure_keyword_index()
+
     def create_hnsw_index(self) -> None:
         """
         Create an HNSW vector index on the embedding column.
