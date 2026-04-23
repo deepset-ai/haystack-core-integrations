@@ -240,6 +240,39 @@ class TestJinaDocumentImageEmbedder:
                 assert len(call_args_list[1][1]["json"]["input"]) == 5  # Second batch: 5 images
                 assert len(call_args_list[2][1]["json"]["input"]) == 2  # Third batch: 2 images
 
+    @patch("haystack_integrations.components.embedders.jina.document_image_embedder._extract_image_sources_info")
+    def test_extract_images_pdf_missing_page_number_raises_value_error(self, mock_extract_info):
+        documents = [Document(content="PDF doc", meta={"file_path": "test.pdf"})]
+        mock_extract_info.return_value = [{"path": "test.pdf", "mime_type": "application/pdf"}]
+
+        embedder = JinaDocumentImageEmbedder(api_key=Secret.from_token("fake-api-key"))
+        with pytest.raises(ValueError, match="Page number is required for PDF document at index 0"):
+            embedder._extract_images_to_embed(documents)
+
+    @patch("haystack_integrations.components.embedders.jina.document_image_embedder._extract_image_sources_info")
+    @patch("haystack_integrations.components.embedders.jina.document_image_embedder._batch_convert_pdf_pages_to_images")
+    def test_extract_images_pdf_conversion_silent_failure_raises_runtime_error(
+        self, mock_batch_convert, mock_extract_info
+    ):
+        documents = [Document(content="PDF doc", meta={"file_path": "test.pdf", "page_number": 1})]
+        mock_extract_info.return_value = [{"path": "test.pdf", "mime_type": "application/pdf", "page_number": 1}]
+        # PDF conversion returns empty dict: image stays None without raising
+        mock_batch_convert.return_value = {}
+
+        embedder = JinaDocumentImageEmbedder(api_key=Secret.from_token("fake-api-key"))
+        with pytest.raises(RuntimeError, match="Conversion failed for some documents"):
+            embedder._extract_images_to_embed(documents)
+
+    @pytest.mark.asyncio
+    async def test_run_async_with_connection_error(self):
+        documents = [Document(content="img", meta={"file_path": "test.jpg"})]
+        embedder = JinaDocumentImageEmbedder(api_key=Secret.from_token("fake-api-key"))
+
+        with patch.object(embedder, "_extract_images_to_embed", return_value=["data:image/jpeg;base64,x"]):
+            with patch("httpx.AsyncClient.post", side_effect=Exception("Connection failed")):
+                with pytest.raises(RuntimeError, match="Error calling Jina API: Connection failed"):
+                    await embedder.run_async(documents=documents)
+
     @pytest.mark.asyncio
     async def test_run_async_with_successful_request(self):
         documents = [Document(content="Test image", meta={"file_path": "test.jpg"})]
