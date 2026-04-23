@@ -7,7 +7,15 @@ from haystack.errors import FilterError
 from haystack.testing.document_store import FilterDocumentsTest
 
 from haystack_integrations.document_stores.valkey import ValkeyDocumentStore
-from haystack_integrations.document_stores.valkey.filters import _normalize_filters, _validate_filters
+from haystack_integrations.document_stores.valkey.filters import (
+    _greater_than,
+    _greater_than_equal,
+    _less_than,
+    _less_than_equal,
+    _normalize_filters,
+    _not_equal,
+    _validate_filters,
+)
 
 
 @pytest.mark.integration
@@ -177,6 +185,32 @@ filters_data = [
         },
         "(@meta_timestamp:[1609459200 +inf] @meta_timestamp:[-inf (1640995200])",
     ),
+    # NOT logical operator combining two conditions
+    (
+        {
+            "operator": "NOT",
+            "conditions": [
+                {"field": "meta.category", "operator": "==", "value": "spam"},
+                {"field": "meta.priority", "operator": ">", "value": 5},
+            ],
+        },
+        "-(@meta_category:{spam} @meta_priority:[(5 +inf])",
+    ),
+    # NOT IN for NumericField
+    (
+        {"operator": "AND", "conditions": [{"field": "meta.priority", "operator": "not in", "value": [1, 2]}]},
+        "(-(@meta_priority:[1 1] | @meta_priority:[2 2]))",
+    ),
+    # Field already with meta_ prefix (no "meta." remapping)
+    (
+        {"operator": "AND", "conditions": [{"field": "meta_category", "operator": "==", "value": "news"}]},
+        "(@meta_category:{news})",
+    ),
+    # Bool value normalized to int on numeric field
+    (
+        {"operator": "AND", "conditions": [{"field": "meta.priority", "operator": "==", "value": True}]},
+        "(@meta_priority:[1 1])",
+    ),
 ]
 
 
@@ -327,3 +361,85 @@ def test_numeric_not_equal():
 def test_filters_must_be_dict():
     with pytest.raises(FilterError, match="Filters must be a dictionary"):
         _normalize_filters("invalid", DEFAULT_SUPPORTED_FIELDS)
+
+
+@pytest.mark.parametrize("operator", [">", ">=", "<", "<="])
+@pytest.mark.parametrize(
+    "value, expected_error",
+    [
+        (None, r"None value is not supported"),
+        ("bad_string", r"requires numeric value"),
+    ],
+    ids=["none_value", "non_numeric_value"],
+)
+def test_numeric_comparison_invalid_inputs(operator, value, expected_error):
+    with pytest.raises(FilterError, match=expected_error):
+        _normalize_filters(
+            {"operator": "AND", "conditions": [{"field": "meta.score", "operator": operator, "value": value}]},
+            DEFAULT_SUPPORTED_FIELDS,
+        )
+
+
+@pytest.mark.parametrize(
+    "func, op_symbol",
+    [
+        (_greater_than, ">"),
+        (_greater_than_equal, ">="),
+        (_less_than, "<"),
+        (_less_than_equal, "<="),
+    ],
+)
+def test_numeric_comparison_fn_rejects_tag_field_type(func, op_symbol):
+    with pytest.raises(FilterError, match=f"Operator '{op_symbol}' not supported for TagField"):
+        func("meta_category", "value", "tag")
+
+
+@pytest.mark.parametrize(
+    "operator, expected",
+    [
+        ("==", "(-@meta_score:[-inf +inf])"),
+        ("!=", "(@meta_score:[-inf +inf])"),
+    ],
+)
+def test_equal_operators_with_none_on_numeric(operator, expected):
+    result = _normalize_filters(
+        {"operator": "AND", "conditions": [{"field": "meta.score", "operator": operator, "value": None}]},
+        DEFAULT_SUPPORTED_FIELDS,
+    )
+    assert result == expected
+
+
+@pytest.mark.parametrize("operator", ["==", "!="])
+@pytest.mark.parametrize(
+    "field, value, expected_error",
+    [
+        ("meta.category", 123, r"TagField 'meta_category' requires string value"),
+        ("meta.score", "bad", r"NumericField 'meta_score' requires numeric value"),
+    ],
+)
+def test_equality_operators_reject_wrong_value_types(operator, field, value, expected_error):
+    with pytest.raises(FilterError, match=expected_error):
+        _normalize_filters(
+            {"operator": "AND", "conditions": [{"field": field, "operator": operator, "value": value}]},
+            DEFAULT_SUPPORTED_FIELDS,
+        )
+
+
+def test_not_equal_fn_direct_call_with_none_on_tag_field():
+    assert _not_equal("meta_category", None, "tag") == "@meta_category:[-inf +inf]"
+
+
+@pytest.mark.parametrize(
+    "field, value, expected_error",
+    [
+        ("meta.category", "not_a_list", r"'not in' operator requires a list value"),
+        ("meta.category", ["valid", 123], r"TagField 'meta_category' requires string values in list"),
+        ("meta.priority", [1, "invalid"], r"NumericField 'meta_priority' requires numeric values in list"),
+    ],
+)
+def test_not_in_rejects_invalid_inputs(field, value, expected_error):
+    with pytest.raises(FilterError, match=expected_error):
+        _normalize_filters(
+            {"operator": "AND", "conditions": [{"field": field, "operator": "not in", "value": value}]},
+            DEFAULT_SUPPORTED_FIELDS,
+        )
