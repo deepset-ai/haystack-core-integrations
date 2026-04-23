@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import logging
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 from haystack import Document
@@ -18,6 +18,33 @@ class TestPresidioEntityExtractor:
         assert extractor.language == "en"
         assert extractor.entities is None
         assert extractor.score_threshold == 0.35
+        assert extractor.models is None
+
+    def test_warm_up(self):
+        extractor = PresidioEntityExtractor(language="fr")
+        with patch(
+            "haystack_integrations.components.extractors.presidio.presidio_entity_extractor.AnalyzerEngine"
+        ) as mock_analyzer_cls:
+            extractor.warm_up()
+            mock_analyzer_cls.assert_called_once_with(supported_languages=["fr"])
+
+    def test_warm_up_with_models(self):
+        models = [{"lang_code": "fr", "model_name": "fr_core_news_lg"}]
+        extractor = PresidioEntityExtractor(language="fr", models=models)
+        mock_nlp_engine = MagicMock()
+        with patch(
+            "haystack_integrations.components.extractors.presidio.presidio_entity_extractor.NlpEngineProvider"
+        ) as mock_provider_cls, patch(
+            "haystack_integrations.components.extractors.presidio.presidio_entity_extractor.AnalyzerEngine"
+        ) as mock_analyzer_cls:
+            mock_provider_cls.return_value.create_engine.return_value = mock_nlp_engine
+            extractor.warm_up()
+            mock_provider_cls.assert_called_once_with(
+                nlp_configuration={"nlp_engine_name": "spacy", "models": models}
+            )
+            mock_analyzer_cls.assert_called_once_with(
+                nlp_engine=mock_nlp_engine, supported_languages=["fr"]
+            )
 
     def _make_extractor_with_mocks(self, **kwargs):
         """Return an extractor with a mocked analyzer so unit tests don't load real NLP models."""

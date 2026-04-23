@@ -4,6 +4,7 @@
 
 from haystack import Document, component, logging
 from presidio_analyzer import AnalyzerEngine
+from presidio_analyzer.nlp_engine import NlpEngineProvider
 from presidio_anonymizer import AnonymizerEngine
 
 logger = logging.getLogger(__name__)
@@ -42,6 +43,7 @@ class PresidioDocumentCleaner:
         language: str = "en",
         entities: list[str] | None = None,
         score_threshold: float = 0.35,
+        models: list[dict[str, str]] | None = None,
     ) -> None:
         """
         Initializes the PresidioDocumentCleaner.
@@ -56,10 +58,17 @@ class PresidioDocumentCleaner:
         :param score_threshold:
             Minimum confidence score (0-1) for a detected entity to be anonymized. Defaults to `0.35`.
             See [Presidio analyzer documentation](https://microsoft.github.io/presidio/analyzer/).
+        :param models:
+            List of spaCy model configurations for language support.
+            Each entry must contain `"lang_code"` and `"model_name"` keys,
+            e.g. `[{"lang_code": "fr", "model_name": "fr_core_news_lg"}]`.
+            The corresponding spaCy model will be loaded at warm-up time.
+            If `None`, Presidio's default English model (`en_core_web_lg`) is used.
         """
         self.language = language
         self.entities = entities
         self.score_threshold = score_threshold
+        self.models = models
         self._analyzer: AnalyzerEngine | None = None
         self._anonymizer: AnonymizerEngine | None = None
         self._is_warmed_up = False
@@ -74,7 +83,14 @@ class PresidioDocumentCleaner:
         if self._is_warmed_up:
             return
 
-        self._analyzer = AnalyzerEngine()
+        if self.models:
+            nlp_engine = NlpEngineProvider(
+                nlp_configuration={"nlp_engine_name": "spacy", "models": self.models}
+            ).create_engine()
+            supported_languages = [m["lang_code"] for m in self.models]
+            self._analyzer = AnalyzerEngine(nlp_engine=nlp_engine, supported_languages=supported_languages)
+        else:
+            self._analyzer = AnalyzerEngine(supported_languages=[self.language])
         self._anonymizer = AnonymizerEngine()
 
         self._is_warmed_up = True
