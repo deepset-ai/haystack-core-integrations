@@ -103,7 +103,8 @@ jobs:
           name: coverage-comment-ragas
           path: python-coverage-comment-action-ragas.txt
 
-      # No integration tests yet — add integration-cov-append-retry + combined coverage step when needed
+      - name: Run integration tests
+        run: hatch run test:integration-cov-append-retry
 
       - name: Run unit tests with lowest direct dependencies
         if: github.event_name != 'push'
