@@ -14,7 +14,7 @@ from typing import Any, Literal
 import oracledb
 from haystack import default_from_dict, default_to_dict
 from haystack.dataclasses import Document
-from haystack.document_stores.errors import DuplicateDocumentError
+from haystack.document_stores.errors import DocumentStoreError, DuplicateDocumentError
 from haystack.document_stores.types import DuplicatePolicy
 from haystack.utils import Secret, deserialize_secrets_inplace
 
@@ -690,7 +690,12 @@ class OracleDocumentStore:
         params["query_vec"] = _array.array("f", query_embedding)
         params["top_k"] = top_k
         with self._get_connection() as conn, conn.cursor() as cur:
-            cur.execute(sql, params)
+            try:
+                cur.execute(sql, params)
+            except oracledb.DatabaseError as e:
+                logger.debug("Embedding retrieval failed. SQL: %s\nParams: %s", sql, params)
+                msg = f"Embedding retrieval failed. Error: {e!r}. You can find the SQL query and the parameters in the debug logs."
+                raise DocumentStoreError(msg) from e
             rows = cur.fetchall()
         return [OracleDocumentStore._row_to_document(r, with_score=True) for r in rows]
 
@@ -736,8 +741,9 @@ class OracleDocumentStore:
             try:
                 cur.execute(sql, params)
             except oracledb.DatabaseError as e:
-                logger.warning("Keyword retrieval failed: %s", e)
-                return []
+                logger.debug("Keyword retrieval failed. SQL: %s\nParams: %s", sql, params)
+                msg = f"Keyword retrieval failed. Error: {e!r}. You can find the SQL query and the parameters in the debug logs."
+                raise DocumentStoreError(msg) from e
             rows = cur.fetchall()
             return [OracleDocumentStore._row_to_document(r, with_score=True) for r in rows]
 
