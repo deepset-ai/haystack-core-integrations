@@ -106,6 +106,16 @@ class TestWeaviateDocumentStoreAsync:
         assert await document_store.count_documents_async() == 1
 
     @pytest.mark.asyncio
+    async def test_write_documents_with_tenant_async(self, document_store):
+        doc = Document(content="tenant test doc")
+
+        doc = Document(content="tenant test doc")
+
+        written = await document_store.write_documents_async([doc], tenant="tenant1")
+
+        assert written == 1
+
+    @pytest.mark.asyncio
     async def test_write_documents_with_blob_data_async(
         self, document_store: WeaviateDocumentStore, test_files_path: Path
     ) -> None:
