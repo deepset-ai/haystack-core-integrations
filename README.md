@@ -4,10 +4,10 @@
 
 | Name                                                                              |    Stmts |     Miss |   Branch |   BrPart |   Cover |   Missing |
 |---------------------------------------------------------------------------------- | -------: | -------: | -------: | -------: | ------: | --------: |
-| src/haystack\_integrations/components/retrievers/pinecone/embedding\_retriever.py |       36 |        2 |        4 |        1 |     92% |     73-74 |
-| src/haystack\_integrations/document\_stores/pinecone/document\_store.py           |      418 |       32 |      142 |       28 |     89% |121-126, 138, 152-\>exit, 160-\>exit, 317, 342, 485-486, 525-526, 574-575, 612-613, 699, 724, 730, 751, 763, 776-\>775, 780, 786, 801-\>805, 808-\>807, 820-\>809, 826-832, 841-845, 848, 878, 892-\>891, 914 |
-| src/haystack\_integrations/document\_stores/pinecone/filters.py                   |       99 |       14 |       44 |        8 |     85% |16-17, 38-39, 56-\>63, 71-75, 83-87, 148-152, 165-166, 190-191 |
-| **TOTAL**                                                                         |  **553** |   **48** |  **190** |   **37** | **88%** |           |
+| src/haystack\_integrations/components/retrievers/pinecone/embedding\_retriever.py |       36 |        0 |        4 |        0 |    100% |           |
+| src/haystack\_integrations/document\_stores/pinecone/document\_store.py           |      418 |       16 |      142 |       18 |     94% |121-126, 138, 152-\>exit, 160-\>exit, 317, 342, 699, 763, 776-\>775, 780, 786, 808-\>807, 820-\>809, 828-829, 848, 878, 892-\>891, 914 |
+| src/haystack\_integrations/document\_stores/pinecone/filters.py                   |       99 |        0 |       44 |        0 |    100% |           |
+| **TOTAL**                                                                         |  **553** |   **16** |  **190** |   **18** | **95%** |           |
 
 
 ## Setup coverage badge
