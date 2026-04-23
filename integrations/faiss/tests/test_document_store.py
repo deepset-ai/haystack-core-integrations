@@ -4,6 +4,8 @@
 
 import pytest
 from haystack.dataclasses import Document
+from haystack.document_stores.errors import DocumentStoreError, DuplicateDocumentError
+from haystack.document_stores.types import DuplicatePolicy
 from haystack.errors import FilterError
 from haystack.testing.document_store import (
     CountDocumentsByFilterTest,
@@ -20,6 +22,53 @@ from haystack.testing.document_store import (
 )
 
 from haystack_integrations.document_stores.faiss import FAISSDocumentStore
+
+
+class TestFAISSDocumentStoreUnit:
+    def test_create_new_index_with_invalid_factory_raises(self):
+        with pytest.raises(DocumentStoreError, match="Could not create FAISS index"):
+            FAISSDocumentStore(index_string="NotARealIndex", embedding_dim=3)
+
+    def test_get_index_or_raise_when_index_is_none(self):
+        ds = FAISSDocumentStore(embedding_dim=3)
+        ds.index = None
+        with pytest.raises(DocumentStoreError, match="FAISS index has not been initialized"):
+            ds._get_index_or_raise()
+
+    @pytest.mark.parametrize(
+        "bad_input",
+        [
+            "a string",
+            b"some bytes",
+            123,
+            [Document(content="ok"), "not a document"],
+        ],
+    )
+    def test_write_documents_rejects_invalid_input(self, bad_input):
+        ds = FAISSDocumentStore(embedding_dim=3)
+        with pytest.raises(ValueError, match="iterable of objects of type Document"):
+            ds.write_documents(bad_input)
+
+    def test_write_documents_fail_policy_raises_on_duplicate(self):
+        ds = FAISSDocumentStore(embedding_dim=3)
+        ds.write_documents([Document(id="dup", content="first")])
+        with pytest.raises(DuplicateDocumentError, match="already exists"):
+            ds.write_documents([Document(id="dup", content="second")], policy=DuplicatePolicy.FAIL)
+
+    @pytest.mark.parametrize(
+        ("filters", "error_match"),
+        [
+            ({"operator": "OR"}, "Missing 'conditions' for OR operator"),
+            ({"operator": "AND"}, "Missing 'conditions' for AND operator"),
+            ({"operator": "NOT"}, "Missing 'conditions' for NOT operator"),
+            ({"operator": "==", "field": 42, "value": "x"}, "'field' in filter condition must be a string"),
+        ],
+    )
+    def test_check_condition_invalid_structure_raises_filter_error(self, filters, error_match):
+        ds = FAISSDocumentStore(embedding_dim=3)
+        ds.write_documents([Document(content="test", meta={"category": "A"})])
+        with pytest.raises(FilterError, match=error_match):
+            ds.filter_documents(filters=filters)
 
 
 @pytest.mark.integration
@@ -61,7 +110,6 @@ class TestFAISSDocumentStore(
         assert ds_loaded.filter_documents()[0].embedding == [0.1, 0.2, 0.3]
 
     def test_persistence_no_embeddings(self, tmp_path):
-
         path = tmp_path / "persistent_index_no_embed"
         ds = FAISSDocumentStore(index_path=str(path), embedding_dim=3)
 

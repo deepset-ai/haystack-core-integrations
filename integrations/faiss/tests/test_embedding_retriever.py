@@ -2,6 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+
 import pytest
 from haystack import Pipeline
 from haystack.dataclasses import Document
