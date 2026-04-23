@@ -5,9 +5,10 @@
 | Name                                                                            |    Stmts |     Miss |   Branch |   BrPart |   Cover |   Missing |
 |-------------------------------------------------------------------------------- | -------: | -------: | -------: | -------: | ------: | --------: |
 | src/haystack\_integrations/components/retrievers/oracle/embedding\_retriever.py |       36 |        0 |        6 |        2 |     95% |113-\>117, 117-\>119 |
-| src/haystack\_integrations/document\_stores/oracle/document\_store.py           |      218 |       16 |       46 |        9 |     91% |116-120, 122-123, 142, 149, 163-165, 179-180, 217, 247-248, 472, 479, 522-\>524 |
+| src/haystack\_integrations/components/retrievers/oracle/keyword\_retriever.py   |       36 |        0 |        6 |        2 |     95% |111-\>113, 113-\>115 |
+| src/haystack\_integrations/document\_stores/oracle/document\_store.py           |      419 |       86 |       82 |       19 |     78% |32-33, 44, 49-50, 165-169, 171-172, 191, 198, 212-214, 228-229, 249, 256, 269, 297, 327-328, 511-535, 546, 566, 603, 621, 637-638, 677-678, 726, 765-766, 773, 796-797, 810-811, 826, 841, 859, 885-891, 912-944, 949, 962, 966-969, 1012-\>1014 |
 | src/haystack\_integrations/document\_stores/oracle/filters.py                   |       87 |        6 |       44 |        2 |     92% |73-74, 133-136 |
-| **TOTAL**                                                                       |  **341** |   **22** |   **96** |   **13** | **92%** |           |
+| **TOTAL**                                                                       |  **578** |   **92** |  **138** |   **25** | **83%** |           |
 
 
 ## Setup coverage badge
