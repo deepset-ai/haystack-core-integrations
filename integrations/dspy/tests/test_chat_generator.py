@@ -3,7 +3,10 @@ from unittest.mock import MagicMock, patch
 
 import dspy
 import pytest
+from haystack import Document, Pipeline, component
+from haystack.components.retrievers.in_memory import InMemoryBM25Retriever
 from haystack.dataclasses import ChatMessage
+from haystack.document_stores.in_memory import InMemoryDocumentStore
 
 from haystack_integrations.components.generators.dspy.chat.chat_generator import (
     VALID_MODULE_TYPES,
@@ -427,6 +430,51 @@ class TestDSPySignatureChatGenerator:
         call_kwargs = mock_dspy_module.call_args.kwargs
         assert call_kwargs.get("context") == "Machine learning is a subset of AI."
         assert call_kwargs.get("question") == "What is ML?"
+
+    def test_rag_pipeline_question_with_dependent_context(self, mock_dspy_module):
+        """
+        Test case where the context passed to DSPy is dynamic and depends on the question asked by the user.
+        """
+
+        doc_store = InMemoryDocumentStore()
+        doc_store.write_documents(
+            [
+                Document(content="Paris is the capital of France."),
+                Document(content="Tokyo is the capital of Japan."),
+                Document(content="Bananas are yellow fruits."),
+            ]
+        )
+
+        @component
+        class DocsToString:
+            @component.output_types(text=str)
+            def run(self, documents: list[Document]) -> dict:
+                return {"text": "\n".join(d.content for d in documents)}
+
+        generator = DSPySignatureChatGenerator(
+            signature="question, context -> answer",
+            pipeline_inputs=["context"],
+        )
+
+        pipeline = Pipeline()
+        pipeline.add_component("retriever", InMemoryBM25Retriever(doc_store, top_k=1))
+        pipeline.add_component("docs_to_text", DocsToString())
+        pipeline.add_component("llm", generator)
+        pipeline.connect("retriever.documents", "docs_to_text.documents")
+        pipeline.connect("docs_to_text.text", "llm.context")
+
+        question = "What is the capital of Japan?"  # context should be Japan-related
+        pipeline.run(
+            {
+                "retriever": {"query": question},
+                "llm": {"messages": [ChatMessage.from_user(question)]},
+            }
+        )
+
+        call_kwargs = mock_dspy_module.call_args.kwargs
+        assert call_kwargs["question"] == question
+        assert "Tokyo is the capital of Japan." in call_kwargs["context"]
+        assert "Paris" not in call_kwargs["context"]
 
     def test_run_with_wrong_model(self, mock_dspy_module):
         mock_dspy_module.side_effect = Exception("Invalid model name")
