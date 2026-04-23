@@ -121,7 +121,7 @@ class RagasEvaluator:
         :param reference: A string reference answer for the query.
         :param rubrics: A dictionary of evaluation rubric, where keys represent the score
                         and the values represent the corresponding evaluation criteria.
-        :return: A dictionary with key ``result`` mapping metric names to their `MetricResult`.
+        :return: A dictionary with key `result` mapping metric names to their `MetricResult`.
         """
         processed_docs = self._process_documents(documents)
         processed_response = self._process_response(response)
