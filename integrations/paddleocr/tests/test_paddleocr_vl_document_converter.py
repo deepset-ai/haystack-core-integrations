@@ -15,6 +15,9 @@ from PIL import Image
 from haystack_integrations.components.converters.paddleocr import (
     PaddleOCRVLDocumentConverter,
 )
+from haystack_integrations.components.converters.paddleocr.paddleocr_vl_document_converter import (
+    _infer_file_type_from_source,
+)
 
 
 def create_empty_pdf(tmp_path, filename="test.pdf"):
@@ -110,6 +113,21 @@ class TestPaddleOCRVLDocumentConverter:
         assert converter.show_formula_number is True
         assert converter.visualize is True
         assert converter.additional_params == {}
+
+    @pytest.mark.parametrize(
+        "file_type, error_match",
+        [
+            ("invalid_string", "Invalid `file_type` string"),
+            (123, "Invalid `file_type` value"),
+        ],
+    )
+    def test_init_invalid_file_type_raises(self, file_type, error_match):
+        with pytest.raises(ValueError, match=error_match):
+            PaddleOCRVLDocumentConverter(
+                api_url="http://test-api-url.com",
+                access_token=Secret.from_token("test-access-token"),
+                file_type=file_type,
+            )
 
     def test_to_dict(self, monkeypatch):
         monkeypatch.setenv("AISTUDIO_ACCESS_TOKEN", "test-access-token")
@@ -498,6 +516,70 @@ class TestPaddleOCRVLDocumentConverter:
             assert len(result["documents"]) == 2
             assert len(result["raw_paddleocr_responses"]) == 2
 
+    def test_run_skips_source_that_cannot_be_read(self, mock_ocr_response):
+        converter = PaddleOCRVLDocumentConverter(
+            api_url="http://test-api-url.com",
+            access_token=Secret.from_token("test-access-token"),
+        )
+
+        with patch("requests.post") as mock_post:
+            mock_response = MagicMock()
+            mock_response.status_code = 200
+            mock_response.json.return_value = mock_ocr_response
+            mock_post.return_value = mock_response
+
+            result = converter.run(sources=["/non/existent/file.png"])
+
+            assert len(result["documents"]) == 0
+            assert len(result["raw_paddleocr_responses"]) == 0
+            mock_post.assert_not_called()
+
+    def test_run_handles_empty_text_response(self, tmp_path):
+        mock_response_empty_text = {
+            "result": {
+                "layoutParsingResults": [
+                    {"markdown": {"text": ""}, "prunedResult": {}},
+                ],
+                "dataInfo": {"width": 1024, "height": 1024, "type": "image"},
+            },
+        }
+        converter = PaddleOCRVLDocumentConverter(
+            api_url="http://test-api-url.com",
+            access_token=Secret.from_token("test-access-token"),
+        )
+        test_file = create_empty_image(tmp_path, "test.png")
+
+        with patch("requests.post") as mock_post:
+            mock_response = MagicMock()
+            mock_response.status_code = 200
+            mock_response.json.return_value = mock_response_empty_text
+            mock_post.return_value = mock_response
+
+            result = converter.run(sources=[str(test_file)])
+
+            assert len(result["documents"]) == 1
+            assert result["documents"][0].content == ""
+
+    def test_run_omits_auth_header_when_token_missing(self, mock_ocr_response, tmp_path, monkeypatch):
+        monkeypatch.delenv("AISTUDIO_ACCESS_TOKEN", raising=False)
+        converter = PaddleOCRVLDocumentConverter(
+            api_url="http://test-api-url.com",
+            access_token=Secret.from_env_var("AISTUDIO_ACCESS_TOKEN", strict=False),
+        )
+        test_file = create_empty_image(tmp_path, "test.png")
+
+        with patch("requests.post") as mock_post:
+            mock_response = MagicMock()
+            mock_response.status_code = 200
+            mock_response.json.return_value = mock_ocr_response
+            mock_post.return_value = mock_response
+
+            result = converter.run(sources=[str(test_file)])
+
+            assert len(result["documents"]) == 1
+            headers = mock_post.call_args[1]["headers"]
+            assert "Authorization" not in headers
+
     def test_run_with_meta_single_dict(self, mock_ocr_response, tmp_path):
         """Test that meta parameter with single dict is applied to all documents"""
         converter = PaddleOCRVLDocumentConverter(
@@ -579,6 +661,167 @@ class TestPaddleOCRVLDocumentConverter:
             assert len(result["documents"]) == 1
             # Only file path metadata should be present
             assert "file_path" in result["documents"][0].meta
+
+    def test_parse_sends_all_optional_parameters_in_request(self, mock_ocr_response, tmp_path):
+        converter = PaddleOCRVLDocumentConverter(
+            api_url="http://test-api-url.com",
+            access_token=Secret.from_token("test-access-token"),
+            use_doc_orientation_classify=True,
+            use_doc_unwarping=True,
+            use_layout_detection=True,
+            use_chart_recognition=True,
+            use_seal_recognition=True,
+            use_ocr_for_image_block=True,
+            layout_threshold=0.5,
+            layout_nms=True,
+            layout_unclip_ratio=1.5,
+            layout_merge_bboxes_mode="large",
+            layout_shape_mode="auto",
+            prompt_label="ocr",
+            format_block_content=True,
+            repetition_penalty=1.1,
+            temperature=0.7,
+            top_p=0.9,
+            min_pixels=100,
+            max_pixels=1000,
+            max_new_tokens=500,
+            merge_layout_blocks=True,
+            markdown_ignore_labels=["footer"],
+            vlm_extra_args={"extra": "arg"},
+            prettify_markdown=True,
+            show_formula_number=True,
+            restructure_pages=True,
+            merge_tables=True,
+            relevel_titles=True,
+            visualize=True,
+            additional_params={"logId": "custom-log-id"},
+        )
+        test_file = create_empty_image(tmp_path, "test.png")
+
+        with patch("requests.post") as mock_post:
+            mock_response = MagicMock()
+            mock_response.status_code = 200
+            mock_response.json.return_value = mock_ocr_response
+            mock_post.return_value = mock_response
+
+            result = converter.run(sources=[str(test_file)])
+
+            assert len(result["documents"]) == 1
+            payload = mock_post.call_args[1]["json"]
+            assert payload["useDocOrientationClassify"] is True
+            assert payload["useDocUnwarping"] is True
+            assert payload["useLayoutDetection"] is True
+            assert payload["useChartRecognition"] is True
+            assert payload["useSealRecognition"] is True
+            assert payload["useOcrForImageBlock"] is True
+            assert payload["layoutThreshold"] == 0.5
+            assert payload["layoutNms"] is True
+            assert payload["layoutUnclipRatio"] == 1.5
+            assert payload["layoutMergeBboxesMode"] == "large"
+            assert payload["layoutShapeMode"] == "auto"
+            assert payload["promptLabel"] == "ocr"
+            assert payload["formatBlockContent"] is True
+            assert payload["repetitionPenalty"] == 1.1
+            assert payload["temperature"] == 0.7
+            assert payload["topP"] == 0.9
+            assert payload["minPixels"] == 100
+            assert payload["maxPixels"] == 1000
+            assert payload["maxNewTokens"] == 500
+            assert payload["mergeLayoutBlocks"] is True
+            assert payload["markdownIgnoreLabels"] == ["footer"]
+            assert payload["vlmExtraArgs"] == {"extra": "arg"}
+            assert payload["prettifyMarkdown"] is True
+            assert payload["showFormulaNumber"] is True
+            assert payload["restructurePages"] is True
+            assert payload["mergeTables"] is True
+            assert payload["relevelTitles"] is True
+            assert payload["visualize"] is True
+            assert payload["logId"] == "custom-log-id"
+
+    def test_parse_skips_none_optional_parameters(self, mock_ocr_response, tmp_path):
+        converter = PaddleOCRVLDocumentConverter(
+            api_url="http://test-api-url.com",
+            access_token=Secret.from_token("test-access-token"),
+            use_doc_orientation_classify=None,
+            use_doc_unwarping=None,
+        )
+        test_file = create_empty_image(tmp_path, "test.png")
+
+        with patch("requests.post") as mock_post:
+            mock_response = MagicMock()
+            mock_response.status_code = 200
+            mock_response.json.return_value = mock_ocr_response
+            mock_post.return_value = mock_response
+
+            result = converter.run(sources=[str(test_file)])
+
+            assert len(result["documents"]) == 1
+            payload = mock_post.call_args[1]["json"]
+            assert "useDocOrientationClassify" not in payload
+            assert "useDocUnwarping" not in payload
+
+    def test_parse_raises_on_invalid_request_parameters(self, tmp_path):
+        converter = PaddleOCRVLDocumentConverter(
+            api_url="http://test-api-url.com",
+            access_token=Secret.from_token("test-access-token"),
+        )
+        test_file = create_empty_image(tmp_path, "test.png")
+
+        with patch(
+            "haystack_integrations.components.converters.paddleocr."
+            "paddleocr_vl_document_converter.PaddleOCRVLInferRequest",
+            side_effect=Exception("Validation failed"),
+        ):
+            result = converter.run(sources=[str(test_file)])
+            assert len(result["documents"]) == 0
+
+    def test_parse_raises_on_invalid_json_response(self, tmp_path):
+        converter = PaddleOCRVLDocumentConverter(
+            api_url="http://test-api-url.com",
+            access_token=Secret.from_token("test-access-token"),
+        )
+        test_file = create_empty_image(tmp_path, "test.png")
+
+        with patch("requests.post") as mock_post:
+            mock_response = MagicMock()
+            mock_response.status_code = 200
+            mock_response.json.side_effect = ValueError("Invalid JSON")
+            mock_post.return_value = mock_response
+
+            result = converter.run(sources=[str(test_file)])
+            assert len(result["documents"]) == 0
+
+    def test_parse_raises_when_result_field_missing(self, tmp_path):
+        converter = PaddleOCRVLDocumentConverter(
+            api_url="http://test-api-url.com",
+            access_token=Secret.from_token("test-access-token"),
+        )
+        test_file = create_empty_image(tmp_path, "test.png")
+
+        with patch("requests.post") as mock_post:
+            mock_response = MagicMock()
+            mock_response.status_code = 200
+            mock_response.json.return_value = {"logId": "123", "errorMsg": "Error"}
+            mock_post.return_value = mock_response
+
+            result = converter.run(sources=[str(test_file)])
+            assert len(result["documents"]) == 0
+
+    def test_parse_raises_on_invalid_response_format(self, tmp_path):
+        converter = PaddleOCRVLDocumentConverter(
+            api_url="http://test-api-url.com",
+            access_token=Secret.from_token("test-access-token"),
+        )
+        test_file = create_empty_image(tmp_path, "test.png")
+
+        with patch("requests.post") as mock_post:
+            mock_response = MagicMock()
+            mock_response.status_code = 200
+            mock_response.json.return_value = {"result": {"invalid": "format"}}
+            mock_post.return_value = mock_response
+
+            result = converter.run(sources=[str(test_file)])
+            assert len(result["documents"]) == 0
 
     def test_file_type_auto_detection_pdf(self, mock_ocr_response_with_multiple_pages, tmp_path):
         """Test that file_type is automatically detected as PDF from .pdf extension"""
@@ -731,6 +974,26 @@ class TestPaddleOCRVLDocumentConverter:
             assert calls[0][1]["json"]["fileType"] == 0
             # Second call should be for image (fileType=1)
             assert calls[1][1]["json"]["fileType"] == 1
+
+    @pytest.mark.parametrize(
+        "mime_type, expected",
+        [
+            ("application/pdf", 0),
+            ("APPLICATION/PDF", 0),
+            ("image/png", 1),
+            ("image/jpeg", 1),
+            ("text/plain", None),
+            (None, None),
+        ],
+    )
+    def test_infer_file_type_from_mime_type(self, mime_type, expected):
+        source = ByteStream(data=b"dummy")
+        assert _infer_file_type_from_source(source, mime_type) == expected
+
+    def test_infer_file_type_falls_back_to_mime_type_when_extension_unknown(self, tmp_path):
+        source = tmp_path / "file.unknown"
+        assert _infer_file_type_from_source(source, "application/pdf") == 0
+        assert _infer_file_type_from_source(source, "image/png") == 1
 
     @pytest.mark.skipif(
         not os.environ.get("PADDLEOCR_VL_API_URL") or not os.environ.get("AISTUDIO_ACCESS_TOKEN"),
