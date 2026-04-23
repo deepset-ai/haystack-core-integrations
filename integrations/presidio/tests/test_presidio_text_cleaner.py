@@ -20,21 +20,26 @@ class TestPresidioTextCleaner:
         assert cleaner.models is None
 
     def test_to_dict(self):
-        cleaner = PresidioTextCleaner(language="en", entities=["PHONE_NUMBER"], score_threshold=0.5)
+        models = [{"lang_code": "es", "model_name": "es_core_news_lg"}]
+        cleaner = PresidioTextCleaner(language="es", entities=["PHONE_NUMBER"], score_threshold=0.5, models=models)
         data = component_to_dict(cleaner, "PresidioTextCleaner")
         assert (
             data["type"]
             == "haystack_integrations.components.preprocessors.presidio.presidio_text_cleaner.PresidioTextCleaner"
         )
+        assert data["init_parameters"]["language"] == "es"
         assert data["init_parameters"]["entities"] == ["PHONE_NUMBER"]
+        assert data["init_parameters"]["models"] == models
 
     def test_from_dict(self):
+        models = [{"lang_code": "es", "model_name": "es_core_news_lg"}]
         data = {
             "type": "haystack_integrations.components.preprocessors.presidio.presidio_text_cleaner.PresidioTextCleaner",
-            "init_parameters": {"language": "en", "entities": None, "score_threshold": 0.4},
+            "init_parameters": {"language": "es", "entities": None, "score_threshold": 0.4, "models": models},
         }
         cleaner = component_from_dict(PresidioTextCleaner, data, "PresidioTextCleaner")
         assert cleaner.score_threshold == 0.4
+        assert cleaner.models == models
 
     def test_warm_up(self):
         cleaner = PresidioTextCleaner(language="es")

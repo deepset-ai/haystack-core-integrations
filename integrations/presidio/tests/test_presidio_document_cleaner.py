@@ -27,28 +27,32 @@ class TestPresidioDocumentCleaner:
         assert cleaner.score_threshold == 0.7
 
     def test_to_dict(self):
-        cleaner = PresidioDocumentCleaner(language="en", entities=["EMAIL_ADDRESS"], score_threshold=0.5)
+        models = [{"lang_code": "fr", "model_name": "fr_core_news_lg"}]
+        cleaner = PresidioDocumentCleaner(language="fr", entities=["EMAIL_ADDRESS"], score_threshold=0.5, models=models)
         data = component_to_dict(cleaner, "PresidioDocumentCleaner")
         expected_type = (
             "haystack_integrations.components.preprocessors.presidio.presidio_document_cleaner.PresidioDocumentCleaner"
         )
         assert data["type"] == expected_type
-        assert data["init_parameters"]["language"] == "en"
+        assert data["init_parameters"]["language"] == "fr"
         assert data["init_parameters"]["entities"] == ["EMAIL_ADDRESS"]
         assert data["init_parameters"]["score_threshold"] == 0.5
+        assert data["init_parameters"]["models"] == models
 
     def test_from_dict(self):
+        models = [{"lang_code": "de", "model_name": "de_core_news_lg"}]
         data = {
             "type": (
                 "haystack_integrations.components.preprocessors.presidio"
                 ".presidio_document_cleaner.PresidioDocumentCleaner"
             ),
-            "init_parameters": {"language": "de", "entities": ["PERSON"], "score_threshold": 0.6},
+            "init_parameters": {"language": "de", "entities": ["PERSON"], "score_threshold": 0.6, "models": models},
         }
         cleaner = component_from_dict(PresidioDocumentCleaner, data, "PresidioDocumentCleaner")
         assert cleaner.language == "de"
         assert cleaner.entities == ["PERSON"]
         assert cleaner.score_threshold == 0.6
+        assert cleaner.models == models
 
     def test_warm_up(self):
         cleaner = PresidioDocumentCleaner(language="en")

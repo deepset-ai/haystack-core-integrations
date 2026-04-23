@@ -54,24 +54,29 @@ class TestPresidioEntityExtractor:
         return extractor
 
     def test_to_dict(self):
-        extractor = PresidioEntityExtractor(language="en", entities=["PERSON"], score_threshold=0.6)
+        models = [{"lang_code": "fr", "model_name": "fr_core_news_lg"}]
+        extractor = PresidioEntityExtractor(language="fr", entities=["PERSON"], score_threshold=0.6, models=models)
         data = component_to_dict(extractor, "PresidioEntityExtractor")
         expected_type = (
             "haystack_integrations.components.extractors.presidio.presidio_entity_extractor.PresidioEntityExtractor"
         )
         assert data["type"] == expected_type
+        assert data["init_parameters"]["language"] == "fr"
         assert data["init_parameters"]["entities"] == ["PERSON"]
         assert data["init_parameters"]["score_threshold"] == 0.6
+        assert data["init_parameters"]["models"] == models
 
     def test_from_dict(self):
+        models = [{"lang_code": "fr", "model_name": "fr_core_news_lg"}]
         data = {
             "type": (
                 "haystack_integrations.components.extractors.presidio.presidio_entity_extractor.PresidioEntityExtractor"
             ),
-            "init_parameters": {"language": "en", "entities": ["EMAIL_ADDRESS"], "score_threshold": 0.5},
+            "init_parameters": {"language": "fr", "entities": ["EMAIL_ADDRESS"], "score_threshold": 0.5, "models": models},
         }
         extractor = component_from_dict(PresidioEntityExtractor, data, "PresidioEntityExtractor")
         assert extractor.entities == ["EMAIL_ADDRESS"]
+        assert extractor.models == models
 
     def test_run_extracts_entities_into_metadata(self):
         extractor = self._make_extractor_with_mocks()
