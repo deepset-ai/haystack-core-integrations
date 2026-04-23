@@ -23,7 +23,14 @@ from .filters import FilterTranslator
 logger = logging.getLogger(__name__)
 
 _SAFE_TABLE_NAME = re.compile(r"^[A-Za-z_][A-Za-z0-9_$#]{0,127}$")
+_SAFE_FIELD_PATH = re.compile(r"^[A-Za-z0-9_.]+$")
 MAX_INDEX_NAME_LEN = 128
+
+
+def _validate_field_path(field_path: str) -> None:
+    if not _SAFE_FIELD_PATH.match(field_path):
+        msg = f"Invalid metadata field name: {field_path!r}"
+        raise ValueError(msg)
 
 
 def _try_parse_number(value: Any) -> Any:
@@ -541,6 +548,7 @@ class OracleDocumentStore:
         with self._get_connection() as conn, conn.cursor() as cur:
             for field in metadata_fields:
                 field_path = field[5:] if field.startswith("meta.") else field
+                _validate_field_path(field_path)
                 sql = f"SELECT COUNT(DISTINCT JSON_VALUE(metadata, '$.{field_path}')) FROM {self.table_name} {where}"
                 cur.execute(sql, params)
                 row = cur.fetchone()
@@ -597,6 +605,7 @@ class OracleDocumentStore:
         string comparison.
         """
         field_path = metadata_field[5:] if metadata_field.startswith("meta.") else metadata_field
+        _validate_field_path(field_path)
         jv = f"JSON_VALUE(metadata, '$.{field_path}')"
         # Try numeric comparison first — correct ordering for ints/floats.
         sql_num = f"SELECT MIN(TO_NUMBER({jv})), MAX(TO_NUMBER({jv})) FROM {self.table_name} WHERE {jv} IS NOT NULL"
@@ -621,6 +630,7 @@ class OracleDocumentStore:
     ) -> tuple[list[str], int]:
         """Return unique values for a specific metadata field."""
         field_path = metadata_field[5:] if metadata_field.startswith("meta.") else metadata_field
+        _validate_field_path(field_path)
         base_sql = f"FROM {self.table_name} WHERE JSON_VALUE(metadata, '$.{field_path}') IS NOT NULL"
         params = []
         if search_term:
