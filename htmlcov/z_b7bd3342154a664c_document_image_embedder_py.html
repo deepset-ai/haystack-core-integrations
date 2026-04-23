@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
-    <title>Coverage for src/haystack_integrations/components/embedders/jina/document_image_embedder.py: 86%</title>
+    <title>Coverage for src/haystack_integrations/components/embedders/jina/document_image_embedder.py: 96%</title>
     <link rel="icon" sizes="32x32" href="favicon_32_cb_c827f16f.png">
     <link rel="stylesheet" href="style_cb_9ff733b0.css" type="text/css">
     <script src="coverage_html_cb_dd2e7eb5.js" defer></script>
@@ -12,7 +12,7 @@
     <div class="content">
         <h1>
             <span class="text">Coverage for </span><b>src&#8201;/&#8201;haystack_integrations&#8201;/&#8201;components&#8201;/&#8201;embedders&#8201;/&#8201;jina&#8201;/&#8201;document_image_embedder.py</b>:
-            <span class="pc_cov">86%</span>
+            <span class="pc_cov">96%</span>
         </h1>
         <aside id="help_panel_wrapper">
             <input id="help_panel_state" type="checkbox">
@@ -56,10 +56,10 @@
         </aside>
         <h2>
             <span class="text">113 statements &nbsp;</span>
-            <button type="button" class="run button_toggle_run" value="run" data-shortcut="r" title="Toggle lines run">99<span class="text"> run</span></button>
-            <button type="button" class="mis show_mis button_toggle_mis" value="mis" data-shortcut="m" title="Toggle lines missing">14<span class="text"> missing</span></button>
+            <button type="button" class="run button_toggle_run" value="run" data-shortcut="r" title="Toggle lines run">110<span class="text"> run</span></button>
+            <button type="button" class="mis show_mis button_toggle_mis" value="mis" data-shortcut="m" title="Toggle lines missing">3<span class="text"> missing</span></button>
             <button type="button" class="exc show_exc button_toggle_exc" value="exc" data-shortcut="x" title="Toggle lines excluded">0<span class="text"> excluded</span></button>
-            <button type="button" class="par run show_par button_toggle_par" value="par" data-shortcut="p" title="Toggle lines partially run">4<span class="text"> partial</span></button>
+            <button type="button" class="par run show_par button_toggle_par" value="par" data-shortcut="p" title="Toggle lines partially run">2<span class="text"> partial</span></button>
         </h2>
         <p class="text">
             <a id="prevFileLink" class="nav" href="z_b7bd3342154a664c_document_embedder_py.html">&#xab; prev</a> &nbsp; &nbsp;
@@ -67,7 +67,7 @@
             <a id="nextFileLink" class="nav" href="z_b7bd3342154a664c_text_embedder_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.13.5">coverage.py v7.13.5</a>,
-            created at 2026-04-21 13:32 +0000
+            created at 2026-04-23 12:42 +0000
         </p>
         <aside class="hidden">
             <button type="button" class="button_next_chunk" data-shortcut="j"></button>
@@ -255,18 +255,18 @@
     <p class="run"><span class="n"><a id="t171" href="#t171">171</a></span><span class="t">        <span class="nam">pdf_page_infos</span><span class="op">:</span> <span class="nam">list</span><span class="op">[</span><span class="nam">_PDFPageInfo</span><span class="op">]</span> <span class="op">=</span> <span class="op">[</span><span class="op">]</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t172" href="#t172">172</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t173" href="#t173">173</a></span><span class="t">        <span class="key">for</span> <span class="nam">doc_idx</span><span class="op">,</span> <span class="nam">image_source_info</span> <span class="key">in</span> <span class="nam">enumerate</span><span class="op">(</span><span class="nam">images_source_info</span><span class="op">)</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
-    <p class="par run show_par"><span class="n"><a id="t174" href="#t174">174</a></span><span class="t">            <span class="key">if</span> <span class="nam">image_source_info</span><span class="op">[</span><span class="str">"mime_type"</span><span class="op">]</span> <span class="op">==</span> <span class="str">"application/pdf"</span><span class="op">:</span>&nbsp;</span><span class="r"><span class="annotate short">174&#x202F;&#x219B;&#x202F;176</span><span class="annotate long">line 174 didn't jump to line 176 because the condition on line 174 was never true</span></span></p>
+    <p class="run"><span class="n"><a id="t174" href="#t174">174</a></span><span class="t">            <span class="key">if</span> <span class="nam">image_source_info</span><span class="op">[</span><span class="str">"mime_type"</span><span class="op">]</span> <span class="op">==</span> <span class="str">"application/pdf"</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t175" href="#t175">175</a></span><span class="t">                <span class="com"># Store PDF documents for later processing</span>&nbsp;</span><span class="r"></span></p>
-    <p class="mis show_mis"><span class="n"><a id="t176" href="#t176">176</a></span><span class="t">                <span class="nam">page_number</span> <span class="op">=</span> <span class="nam">image_source_info</span><span class="op">.</span><span class="nam">get</span><span class="op">(</span><span class="str">"page_number"</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
-    <p class="mis show_mis"><span class="n"><a id="t177" href="#t177">177</a></span><span class="t">                <span class="key">if</span> <span class="nam">page_number</span> <span class="key">is</span> <span class="key">None</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
-    <p class="mis show_mis"><span class="n"><a id="t178" href="#t178">178</a></span><span class="t">                    <span class="nam">msg</span> <span class="op">=</span> <span class="fst">f"</span><span class="fst">Page number is required for PDF document at index </span><span class="op">{</span><span class="nam">doc_idx</span><span class="op">}</span><span class="fst">"</span>&nbsp;</span><span class="r"></span></p>
-    <p class="mis show_mis"><span class="n"><a id="t179" href="#t179">179</a></span><span class="t">                    <span class="key">raise</span> <span class="nam">ValueError</span><span class="op">(</span><span class="nam">msg</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
-    <p class="mis show_mis"><span class="n"><a id="t180" href="#t180">180</a></span><span class="t">                <span class="nam">pdf_page_info</span><span class="op">:</span> <span class="nam">_PDFPageInfo</span> <span class="op">=</span> <span class="op">{</span>&nbsp;</span><span class="r"></span></p>
-    <p class="mis mis2 show_mis"><span class="n"><a id="t181" href="#t181">181</a></span><span class="t">                    <span class="str">"doc_idx"</span><span class="op">:</span> <span class="nam">doc_idx</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
-    <p class="mis mis2 show_mis"><span class="n"><a id="t182" href="#t182">182</a></span><span class="t">                    <span class="str">"path"</span><span class="op">:</span> <span class="nam">image_source_info</span><span class="op">[</span><span class="str">"path"</span><span class="op">]</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
-    <p class="mis mis2 show_mis"><span class="n"><a id="t183" href="#t183">183</a></span><span class="t">                    <span class="str">"page_number"</span><span class="op">:</span> <span class="nam">page_number</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
-    <p class="mis mis2 show_mis"><span class="n"><a id="t184" href="#t184">184</a></span><span class="t">                <span class="op">}</span>&nbsp;</span><span class="r"></span></p>
-    <p class="mis show_mis"><span class="n"><a id="t185" href="#t185">185</a></span><span class="t">                <span class="nam">pdf_page_infos</span><span class="op">.</span><span class="nam">append</span><span class="op">(</span><span class="nam">pdf_page_info</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t176" href="#t176">176</a></span><span class="t">                <span class="nam">page_number</span> <span class="op">=</span> <span class="nam">image_source_info</span><span class="op">.</span><span class="nam">get</span><span class="op">(</span><span class="str">"page_number"</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t177" href="#t177">177</a></span><span class="t">                <span class="key">if</span> <span class="nam">page_number</span> <span class="key">is</span> <span class="key">None</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t178" href="#t178">178</a></span><span class="t">                    <span class="nam">msg</span> <span class="op">=</span> <span class="fst">f"</span><span class="fst">Page number is required for PDF document at index </span><span class="op">{</span><span class="nam">doc_idx</span><span class="op">}</span><span class="fst">"</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t179" href="#t179">179</a></span><span class="t">                    <span class="key">raise</span> <span class="nam">ValueError</span><span class="op">(</span><span class="nam">msg</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t180" href="#t180">180</a></span><span class="t">                <span class="nam">pdf_page_info</span><span class="op">:</span> <span class="nam">_PDFPageInfo</span> <span class="op">=</span> <span class="op">{</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t181" href="#t181">181</a></span><span class="t">                    <span class="str">"doc_idx"</span><span class="op">:</span> <span class="nam">doc_idx</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t182" href="#t182">182</a></span><span class="t">                    <span class="str">"path"</span><span class="op">:</span> <span class="nam">image_source_info</span><span class="op">[</span><span class="str">"path"</span><span class="op">]</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t183" href="#t183">183</a></span><span class="t">                    <span class="str">"page_number"</span><span class="op">:</span> <span class="nam">page_number</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t184" href="#t184">184</a></span><span class="t">                <span class="op">}</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t185" href="#t185">185</a></span><span class="t">                <span class="nam">pdf_page_infos</span><span class="op">.</span><span class="nam">append</span><span class="op">(</span><span class="nam">pdf_page_info</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t186" href="#t186">186</a></span><span class="t">            <span class="key">else</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t187" href="#t187">187</a></span><span class="t">                <span class="com"># Process images directly</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t188" href="#t188">188</a></span><span class="t">                <span class="nam">image_byte_stream</span> <span class="op">=</span> <span class="nam">ByteStream</span><span class="op">.</span><span class="nam">from_file_path</span><span class="op">(</span>&nbsp;</span><span class="r"></span></p>
@@ -282,9 +282,9 @@
     <p class="mis show_mis"><span class="n"><a id="t198" href="#t198">198</a></span><span class="t">            <span class="nam">images_to_embed</span><span class="op">[</span><span class="nam">doc_idx</span><span class="op">]</span> <span class="op">=</span> <span class="fst">f"</span><span class="fst">data:image/jpeg;base64,</span><span class="op">{</span><span class="nam">base64_jpeg_image</span><span class="op">}</span><span class="fst">"</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t199" href="#t199">199</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t200" href="#t200">200</a></span><span class="t">        <span class="nam">none_images_doc_ids</span> <span class="op">=</span> <span class="op">[</span><span class="nam">documents</span><span class="op">[</span><span class="nam">doc_idx</span><span class="op">]</span><span class="op">.</span><span class="nam">id</span> <span class="key">for</span> <span class="nam">doc_idx</span><span class="op">,</span> <span class="nam">image</span> <span class="key">in</span> <span class="nam">enumerate</span><span class="op">(</span><span class="nam">images_to_embed</span><span class="op">)</span> <span class="key">if</span> <span class="nam">image</span> <span class="key">is</span> <span class="key">None</span><span class="op">]</span>&nbsp;</span><span class="r"></span></p>
-    <p class="par run show_par"><span class="n"><a id="t201" href="#t201">201</a></span><span class="t">        <span class="key">if</span> <span class="nam">none_images_doc_ids</span><span class="op">:</span>&nbsp;</span><span class="r"><span class="annotate short">201&#x202F;&#x219B;&#x202F;202</span><span class="annotate long">line 201 didn't jump to line 202 because the condition on line 201 was never true</span></span></p>
-    <p class="mis show_mis"><span class="n"><a id="t202" href="#t202">202</a></span><span class="t">            <span class="nam">msg</span> <span class="op">=</span> <span class="fst">f"</span><span class="fst">Conversion failed for some documents. Document IDs: </span><span class="op">{</span><span class="nam">none_images_doc_ids</span><span class="op">}</span><span class="fst">.</span><span class="fst">"</span>&nbsp;</span><span class="r"></span></p>
-    <p class="mis show_mis"><span class="n"><a id="t203" href="#t203">203</a></span><span class="t">            <span class="key">raise</span> <span class="nam">RuntimeError</span><span class="op">(</span><span class="nam">msg</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t201" href="#t201">201</a></span><span class="t">        <span class="key">if</span> <span class="nam">none_images_doc_ids</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t202" href="#t202">202</a></span><span class="t">            <span class="nam">msg</span> <span class="op">=</span> <span class="fst">f"</span><span class="fst">Conversion failed for some documents. Document IDs: </span><span class="op">{</span><span class="nam">none_images_doc_ids</span><span class="op">}</span><span class="fst">.</span><span class="fst">"</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t203" href="#t203">203</a></span><span class="t">            <span class="key">raise</span> <span class="nam">RuntimeError</span><span class="op">(</span><span class="nam">msg</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t204" href="#t204">204</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t205" href="#t205">205</a></span><span class="t">        <span class="com"># tested above that image is not None, but mypy doesn't know that</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t206" href="#t206">206</a></span><span class="t">        <span class="key">return</span> <span class="nam">images_to_embed</span>  <span class="com"># type: ignore[return-value]</span>&nbsp;</span><span class="r"></span></p>
@@ -388,9 +388,9 @@
     <p class="run run2"><span class="n"><a id="t304" href="#t304">304</a></span><span class="t">                        <span class="nam">headers</span><span class="op">=</span><span class="nam">self</span><span class="op">.</span><span class="nam">_headers</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
     <p class="run run2"><span class="n"><a id="t305" href="#t305">305</a></span><span class="t">                    <span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t306" href="#t306">306</a></span><span class="t">                    <span class="nam">resp</span> <span class="op">=</span> <span class="nam">response</span><span class="op">.</span><span class="nam">json</span><span class="op">(</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
-    <p class="mis show_mis"><span class="n"><a id="t307" href="#t307">307</a></span><span class="t">                <span class="key">except</span> <span class="nam">Exception</span> <span class="key">as</span> <span class="nam">e</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
-    <p class="mis show_mis"><span class="n"><a id="t308" href="#t308">308</a></span><span class="t">                    <span class="nam">msg</span> <span class="op">=</span> <span class="fst">f"</span><span class="fst">Error calling Jina API: </span><span class="op">{</span><span class="nam">e</span><span class="op">}</span><span class="fst">"</span>&nbsp;</span><span class="r"></span></p>
-    <p class="mis show_mis"><span class="n"><a id="t309" href="#t309">309</a></span><span class="t">                    <span class="key">raise</span> <span class="nam">RuntimeError</span><span class="op">(</span><span class="nam">msg</span><span class="op">)</span> <span class="key">from</span> <span class="nam">e</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t307" href="#t307">307</a></span><span class="t">                <span class="key">except</span> <span class="nam">Exception</span> <span class="key">as</span> <span class="nam">e</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t308" href="#t308">308</a></span><span class="t">                    <span class="nam">msg</span> <span class="op">=</span> <span class="fst">f"</span><span class="fst">Error calling Jina API: </span><span class="op">{</span><span class="nam">e</span><span class="op">}</span><span class="fst">"</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t309" href="#t309">309</a></span><span class="t">                    <span class="key">raise</span> <span class="nam">RuntimeError</span><span class="op">(</span><span class="nam">msg</span><span class="op">)</span> <span class="key">from</span> <span class="nam">e</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t310" href="#t310">310</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t311" href="#t311">311</a></span><span class="t">                <span class="nam">self</span><span class="op">.</span><span class="nam">_process_batch_response</span><span class="op">(</span><span class="nam">resp</span><span class="op">,</span> <span class="nam">embeddings</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t312" href="#t312">312</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
@@ -404,7 +404,7 @@
             <a class="nav" href="z_b7bd3342154a664c_text_embedder_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.13.5">coverage.py v7.13.5</a>,
-            created at 2026-04-21 13:32 +0000
+            created at 2026-04-23 12:42 +0000
         </p>
     </div>
 </footer>
