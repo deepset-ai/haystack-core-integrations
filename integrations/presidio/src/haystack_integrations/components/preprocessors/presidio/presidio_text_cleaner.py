@@ -47,6 +47,8 @@ class PresidioTextCleaner:
 
         :param language:
             Language code for PII detection. Defaults to `"en"`.
+            Presidio's default NLP engine only includes an English spaCy model. For non-English languages,
+            use the `models` parameter to specify which spaCy model to load for that language.
             See [Presidio supported languages](https://microsoft.github.io/presidio/analyzer/languages/).
         :param entities:
             List of PII entity types to detect and anonymize (e.g. `["PERSON", "PHONE_NUMBER"]`).
