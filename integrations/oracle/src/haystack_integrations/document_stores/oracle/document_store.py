@@ -632,10 +632,10 @@ class OracleDocumentStore:
         field_path = metadata_field[5:] if metadata_field.startswith("meta.") else metadata_field
         _validate_field_path(field_path)
         base_sql = f"FROM {self.table_name} WHERE JSON_VALUE(metadata, '$.{field_path}') IS NOT NULL"
-        params = []
+        params: dict[str, Any] = {}
         if search_term:
-            base_sql += f" AND (text LIKE :1 OR JSON_VALUE(metadata, '$.{field_path}') LIKE :1)"
-            params.append(f"%{search_term}%")
+            base_sql += f" AND (text LIKE :search OR JSON_VALUE(metadata, '$.{field_path}') LIKE :search)"
+            params["search"] = f"%{search_term}%"
 
         sql_count = f"SELECT COUNT(DISTINCT JSON_VALUE(metadata, '$.{field_path}')) {base_sql}"
         with self._get_connection() as conn, conn.cursor() as cur:
@@ -644,9 +644,12 @@ class OracleDocumentStore:
 
             sql_vals = f"SELECT DISTINCT JSON_VALUE(metadata, '$.{field_path}') {base_sql} ORDER BY 1"
             if size is not None:
-                sql_vals += f" OFFSET {from_} ROWS FETCH NEXT {size} ROWS ONLY"
+                sql_vals += " OFFSET :from_ ROWS FETCH NEXT :size ROWS ONLY"
+                params["from_"] = from_
+                params["size"] = size
             else:
-                sql_vals += f" OFFSET {from_} ROWS"
+                sql_vals += " OFFSET :from_ ROWS"
+                params["from_"] = from_
             cur.execute(sql_vals, params)
             rows = cur.fetchall()
             return [str(r[0]) for r in rows], total
