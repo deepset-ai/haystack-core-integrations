@@ -10,9 +10,7 @@ from haystack.dataclasses import Document
 from haystack.document_stores.errors import DuplicateDocumentError
 from haystack.document_stores.types import DuplicatePolicy
 from haystack.testing.document_store import (
-    CountDocumentsByFilterAsyncTest,
     CountDocumentsByFilterTest,
-    CountUniqueMetadataByFilterAsyncTest,
     CountUniqueMetadataByFilterTest,
     DeleteAllTest,
     DeleteByFilterTest,
@@ -21,8 +19,13 @@ from haystack.testing.document_store import (
     GetMetadataFieldMinMaxTest,
     GetMetadataFieldsInfoTest,
     GetMetadataFieldUniqueValuesTest,
-    UpdateByFilterAsyncTest,
     UpdateByFilterTest,
+)
+from haystack.testing.document_store_async import (
+    CountDocumentsByFilterAsyncTest,
+    CountUniqueMetadataByFilterAsyncTest,
+    FilterableDocsFixtureMixin,
+    UpdateByFilterAsyncTest,
 )
 from haystack.utils import Secret
 
@@ -48,9 +51,7 @@ def _uid(suffix: str = "") -> str:
 class TestOracleDocumentStore(
     DocumentStoreBaseTests,
     CountDocumentsByFilterTest,
-    CountDocumentsByFilterAsyncTest,
     CountUniqueMetadataByFilterTest,
-    CountUniqueMetadataByFilterAsyncTest,
     DeleteAllTest,
     DeleteByFilterTest,
     DeleteDocumentsTest,
@@ -58,7 +59,6 @@ class TestOracleDocumentStore(
     GetMetadataFieldsInfoTest,
     GetMetadataFieldUniqueValuesTest,
     UpdateByFilterTest,
-    UpdateByFilterAsyncTest,
 ):
     @staticmethod
     def _mock_doc(content="hello", embedding=None, doc_id="AABB" * 8):
@@ -313,7 +313,12 @@ class TestOracleDocumentStore(
 
 
 @pytest.mark.integration
-class TestOracleDocumentStoreAsync:
+class TestOracleDocumentStoreAsync(
+    FilterableDocsFixtureMixin,
+    CountDocumentsByFilterAsyncTest,
+    CountUniqueMetadataByFilterAsyncTest,
+    UpdateByFilterAsyncTest,
+):
     """Async API surface tests."""
 
     @pytest.mark.asyncio
