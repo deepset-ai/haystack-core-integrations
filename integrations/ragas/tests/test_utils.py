@@ -1,6 +1,9 @@
 from unittest.mock import MagicMock, patch
 
 import pytest
+from openai import AsyncOpenAI
+from ragas.embeddings.base import embedding_factory
+from ragas.llms import llm_factory
 from ragas.metrics.base import SimpleBaseMetric
 from ragas.metrics.result import MetricResult
 
@@ -22,69 +25,36 @@ class ConcreteMetric(SimpleBaseMetric):
         return MetricResult(value=1.0, reason="test")
 
 
-def make_llm_mock(model: str = "gpt-4o-mini", provider: str = "openai") -> MagicMock:
-    llm = MagicMock()
-    llm.model = model
-    llm.provider = provider
-    return llm
-
-
-def make_emb_mock(model: str = "text-embedding-3-small", provider: str = "openai") -> MagicMock:
-    emb = MagicMock()
-    emb.model = model
-    emb.PROVIDER_NAME = provider
-    return emb
-
-
-class TestSerializeMetric:
-    def test_stores_type_path(self):
-        result = _serialize_metric(ConcreteMetric())
-        assert "type" in result
-        assert result["type"].endswith(".ConcreteMetric")
-
-    def test_stores_name(self):
-        result = _serialize_metric(ConcreteMetric(name="my_metric"))
-        assert result["name"] == "my_metric"
-
-    def test_stores_llm(self):
-        metric = ConcreteMetric(llm=make_llm_mock("gpt-4o-mini", "openai"))
-        result = _serialize_metric(metric)
-        assert result["llm"] == {"model": "gpt-4o-mini", "provider": "openai"}
-
-    def test_stores_embeddings(self):
-        metric = ConcreteMetric(embeddings=make_emb_mock("text-embedding-3-small", "openai"))
-        result = _serialize_metric(metric)
-        assert result["embeddings"] == {"model": "text-embedding-3-small", "provider": "openai"}
-
-    def test_omits_llm_when_none(self):
-        assert "llm" not in _serialize_metric(ConcreteMetric())
-
-    def test_omits_embeddings_when_none(self):
-        assert "embeddings" not in _serialize_metric(ConcreteMetric())
+def test_serialization(monkeypatch):
+    monkeypatch.setenv("OPENAI_API_KEY", "test")
+    result = _serialize_metric(
+        ConcreteMetric(
+            llm=llm_factory("gpt-4o-mini", client=AsyncOpenAI()),
+            embeddings=embedding_factory("openai", model="text-embedding-3-small", client=AsyncOpenAI()),
+        )
+    )
+    assert result == {
+        "type": "tests.test_utils.ConcreteMetric",
+        "name": "concrete_metric",
+        "llm": {"model": "gpt-4o-mini", "provider": "openai"},
+        "embeddings": {"model": "text-embedding-3-small", "provider": "openai"},
+    }
 
 
 class TestDeserializeMetric:
-    def test_reconstructs_instance(self, monkeypatch):
+    def test_deserialization(self, monkeypatch):
         monkeypatch.setenv("OPENAI_API_KEY", "test")
-        fake_llm = make_llm_mock()
-        data = _serialize_metric(ConcreteMetric(name="concrete_metric", llm=fake_llm))
-
-        with patch("haystack_integrations.components.evaluators.ragas.utils.llm_factory", return_value=fake_llm):
-            result = _deserialize_metric(data)
-
+        data = {
+            "type": "tests.test_utils.ConcreteMetric",
+            "name": "concrete_metric",
+            "llm": {"model": "gpt-4o-mini", "provider": "openai"},
+            "embeddings": {"model": "text-embedding-3-small", "provider": "openai"},
+        }
+        result = _deserialize_metric(data)
         assert isinstance(result, ConcreteMetric)
         assert result.name == "concrete_metric"
-        assert result.llm is fake_llm
-
-    def test_reconstructs_embeddings(self, monkeypatch):
-        monkeypatch.setenv("OPENAI_API_KEY", "test")
-        fake_emb = make_emb_mock()
-        data = _serialize_metric(ConcreteMetric(name="concrete_metric", embeddings=fake_emb))
-
-        with patch("haystack_integrations.components.evaluators.ragas.utils.embedding_factory", return_value=fake_emb):
-            result = _deserialize_metric(data)
-
-        assert result.embeddings is fake_emb
+        assert result.llm.model == "gpt-4o-mini"
+        assert result.embeddings.model == "text-embedding-3-small"
 
     def test_raises_for_unsupported_llm_provider(self):
         data = {

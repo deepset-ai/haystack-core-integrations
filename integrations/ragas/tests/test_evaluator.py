@@ -60,8 +60,7 @@ class TestInit:
         metrics = [
             Faithfulness(llm=llm),
             AnswerRelevancy(
-                llm=llm,
-                embeddings=embedding_factory("openai", model="text-embedding-3-small", client=AsyncOpenAI())
+                llm=llm, embeddings=embedding_factory("openai", model="text-embedding-3-small", client=AsyncOpenAI())
             ),
         ]
         evaluator = RagasEvaluator(ragas_metrics=metrics)
