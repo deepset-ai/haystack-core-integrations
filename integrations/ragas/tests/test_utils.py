@@ -1,5 +1,3 @@
-from unittest.mock import MagicMock, patch
-
 import pytest
 from openai import AsyncOpenAI
 from ragas.embeddings.base import embedding_factory
