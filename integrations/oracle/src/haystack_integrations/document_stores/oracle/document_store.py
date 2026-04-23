@@ -230,8 +230,8 @@ class OracleDocumentStore:
                     f"DBMS_SEARCH.ADD_SOURCE('{index_name}', '{self.table_name}'); END;"
                 )
                 conn.commit()
-        except oracledb.DatabaseError:
-            pass
+        except oracledb.DatabaseError as e:
+            logger.debug("Could not create keyword index (may already exist): %s", e)
 
     def create_hnsw_index(self) -> None:
         """
