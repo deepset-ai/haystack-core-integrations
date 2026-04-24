@@ -4,10 +4,11 @@
 
 | Name                                                                                        |    Stmts |     Miss |   Branch |   BrPart |   Cover |   Missing |
 |-------------------------------------------------------------------------------------------- | -------: | -------: | -------: | -------: | ------: | --------: |
-| src/haystack\_integrations/components/extractors/presidio/presidio\_entity\_extractor.py    |       34 |        5 |        8 |        1 |     81% | 77-82, 96 |
-| src/haystack\_integrations/components/preprocessors/presidio/presidio\_document\_cleaner.py |       35 |        6 |        8 |        1 |     79% | 74-80, 93 |
-| src/haystack\_integrations/components/preprocessors/presidio/presidio\_text\_cleaner.py     |       33 |        6 |        6 |        1 |     77% | 71-77, 90 |
-| **TOTAL**                                                                                   |  **102** |   **17** |   **22** |    **3** | **79%** |           |
+| src/haystack\_integrations/components/common/presidio/utils.py                              |        1 |        0 |        0 |        0 |    100% |           |
+| src/haystack\_integrations/components/extractors/presidio/presidio\_entity\_extractor.py    |       49 |        2 |       12 |        2 |     93% |  101, 133 |
+| src/haystack\_integrations/components/preprocessors/presidio/presidio\_document\_cleaner.py |       50 |        2 |       12 |        2 |     94% |   99, 131 |
+| src/haystack\_integrations/components/preprocessors/presidio/presidio\_text\_cleaner.py     |       48 |        2 |       10 |        2 |     93% |   96, 128 |
+| **TOTAL**                                                                                   |  **148** |    **6** |   **34** |    **6** | **93%** |           |
 
 
 ## Setup coverage badge
