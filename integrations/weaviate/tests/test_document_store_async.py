@@ -50,7 +50,7 @@ class TestWeaviateDocumentStoreAsync(
     async def document_store(self, request) -> AsyncGenerator[WeaviateDocumentStore, None, None]:
         collection_settings = {
             "class": f"{request.node.name}",
-            "invertedIndexConfig": {"indexNullState": True},
+            "invertedIndexConfig": {"indexNullState": True, "stopwords": {"preset": "none"}},
             "properties": [
                 *DOCUMENT_COLLECTION_PROPERTIES,
                 {"name": "category", "dataType": ["text"]},
