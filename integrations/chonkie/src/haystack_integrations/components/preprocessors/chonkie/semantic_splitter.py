@@ -80,7 +80,7 @@ class ChonkieSemanticDocumentSplitter:
         self.filter_tolerance = filter_tolerance
         self.skip_empty_documents = skip_empty_documents
         self.page_break_character = page_break_character
-        self._chunker = None
+        self._chunker: chonkie.SemanticChunker | None = None
 
     def warm_up(self) -> None:
         """
@@ -121,6 +121,7 @@ class ChonkieSemanticDocumentSplitter:
 
         if self._chunker is None:
             self.warm_up()
+            assert self._chunker is not None  # noqa: S101
 
         chunked_documents = []
         for doc in documents:

@@ -1,9 +1,9 @@
 loaders:
   - modules:
-      - haystack_integrations.components.preprocessors.chonkie.recursive_chunker
-      - haystack_integrations.components.preprocessors.chonkie.semantic_chunker
-      - haystack_integrations.components.preprocessors.chonkie.sentence_chunker
-      - haystack_integrations.components.preprocessors.chonkie.token_chunker
+      - haystack_integrations.components.preprocessors.chonkie.recursive_splitter
+      - haystack_integrations.components.preprocessors.chonkie.semantic_splitter
+      - haystack_integrations.components.preprocessors.chonkie.sentence_splitter
+      - haystack_integrations.components.preprocessors.chonkie.token_splitter
     search_path: [../src]
 processors:
   - type: filter
