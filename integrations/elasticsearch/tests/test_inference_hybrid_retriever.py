@@ -3,7 +3,6 @@
 # SPDX-License-Identifier: Apache-2.0
 
 from copy import deepcopy
-from typing import Any
 from unittest.mock import Mock, patch
 
 import pytest
