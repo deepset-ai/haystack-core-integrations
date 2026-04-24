@@ -20,13 +20,31 @@ class TestPresidioEntityExtractor:
         assert extractor.score_threshold == 0.35
         assert extractor.models is None
 
-    def test_warm_up(self):
+    def test_warm_up_auto_model(self):
         extractor = PresidioEntityExtractor(language="fr")
-        with patch(
-            "haystack_integrations.components.extractors.presidio.presidio_entity_extractor.AnalyzerEngine"
-        ) as mock_analyzer_cls:
+        mock_nlp_engine = MagicMock()
+        with (
+            patch(
+                "haystack_integrations.components.extractors.presidio.presidio_entity_extractor.NlpEngineProvider"
+            ) as mock_provider_cls,
+            patch(
+                "haystack_integrations.components.extractors.presidio.presidio_entity_extractor.AnalyzerEngine"
+            ) as mock_analyzer_cls,
+        ):
+            mock_provider_cls.return_value.create_engine.return_value = mock_nlp_engine
             extractor.warm_up()
-            mock_analyzer_cls.assert_called_once_with(supported_languages=["fr"])
+            mock_provider_cls.assert_called_once_with(
+                nlp_configuration={
+                    "nlp_engine_name": "spacy",
+                    "models": [{"lang_code": "fr", "model_name": "fr_core_news_lg"}],
+                }
+            )
+            mock_analyzer_cls.assert_called_once_with(nlp_engine=mock_nlp_engine, supported_languages=["fr"])
+
+    def test_warm_up_unknown_language_raises(self):
+        extractor = PresidioEntityExtractor(language="xx")
+        with pytest.raises(ValueError, match="No default spaCy model is available for language 'xx'"):
+            extractor.warm_up()
 
     def test_warm_up_with_models(self):
         models = [{"lang_code": "fr", "model_name": "fr_core_news_lg"}]
@@ -163,10 +181,7 @@ class TestPresidioEntityExtractor:
 
     @pytest.mark.integration
     def test_run_integration_german(self):
-        extractor = PresidioEntityExtractor(
-            language="de",
-            models=[{"lang_code": "de", "model_name": "de_core_news_lg"}],
-        )
+        extractor = PresidioEntityExtractor(language="de")
         extractor.warm_up()
         docs = [Document(content="Kontaktieren Sie Hans Müller unter hans@example.com")]
         result = extractor.run(documents=docs)

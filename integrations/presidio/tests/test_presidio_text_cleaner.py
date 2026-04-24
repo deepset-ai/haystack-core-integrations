@@ -41,16 +41,32 @@ class TestPresidioTextCleaner:
         assert cleaner.score_threshold == 0.4
         assert cleaner.models == models
 
-    def test_warm_up(self):
+    def test_warm_up_auto_model(self):
         cleaner = PresidioTextCleaner(language="es")
+        mock_nlp_engine = MagicMock()
         with (
+            patch(
+                "haystack_integrations.components.preprocessors.presidio.presidio_text_cleaner.NlpEngineProvider"
+            ) as mock_provider_cls,
             patch(
                 "haystack_integrations.components.preprocessors.presidio.presidio_text_cleaner.AnalyzerEngine"
             ) as mock_analyzer_cls,
             patch("haystack_integrations.components.preprocessors.presidio.presidio_text_cleaner.AnonymizerEngine"),
         ):
+            mock_provider_cls.return_value.create_engine.return_value = mock_nlp_engine
             cleaner.warm_up()
-            mock_analyzer_cls.assert_called_once_with(supported_languages=["es"])
+            mock_provider_cls.assert_called_once_with(
+                nlp_configuration={
+                    "nlp_engine_name": "spacy",
+                    "models": [{"lang_code": "es", "model_name": "es_core_news_lg"}],
+                }
+            )
+            mock_analyzer_cls.assert_called_once_with(nlp_engine=mock_nlp_engine, supported_languages=["es"])
+
+    def test_warm_up_unknown_language_raises(self):
+        cleaner = PresidioTextCleaner(language="xx")
+        with pytest.raises(ValueError, match="No default spaCy model is available for language 'xx'"):
+            cleaner.warm_up()
 
     def test_warm_up_with_models(self):
         models = [{"lang_code": "es", "model_name": "es_core_news_lg"}]
@@ -133,10 +149,7 @@ class TestPresidioTextCleaner:
 
     @pytest.mark.integration
     def test_run_integration_german(self):
-        cleaner = PresidioTextCleaner(
-            language="de",
-            models=[{"lang_code": "de", "model_name": "de_core_news_lg"}],
-        )
+        cleaner = PresidioTextCleaner(language="de")
         cleaner.warm_up()
         result = cleaner.run(texts=["Hallo, ich bin Thomas Schmidt und meine E-Mail ist thomas@example.com"])
 

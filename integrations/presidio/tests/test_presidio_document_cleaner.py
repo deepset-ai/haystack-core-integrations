@@ -54,16 +54,32 @@ class TestPresidioDocumentCleaner:
         assert cleaner.score_threshold == 0.6
         assert cleaner.models == models
 
-    def test_warm_up(self):
+    def test_warm_up_auto_model(self):
         cleaner = PresidioDocumentCleaner(language="en")
+        mock_nlp_engine = MagicMock()
         with (
+            patch(
+                "haystack_integrations.components.preprocessors.presidio.presidio_document_cleaner.NlpEngineProvider"
+            ) as mock_provider_cls,
             patch(
                 "haystack_integrations.components.preprocessors.presidio.presidio_document_cleaner.AnalyzerEngine"
             ) as mock_analyzer_cls,
             patch("haystack_integrations.components.preprocessors.presidio.presidio_document_cleaner.AnonymizerEngine"),
         ):
+            mock_provider_cls.return_value.create_engine.return_value = mock_nlp_engine
             cleaner.warm_up()
-            mock_analyzer_cls.assert_called_once_with(supported_languages=["en"])
+            mock_provider_cls.assert_called_once_with(
+                nlp_configuration={
+                    "nlp_engine_name": "spacy",
+                    "models": [{"lang_code": "en", "model_name": "en_core_web_lg"}],
+                }
+            )
+            mock_analyzer_cls.assert_called_once_with(nlp_engine=mock_nlp_engine, supported_languages=["en"])
+
+    def test_warm_up_unknown_language_raises(self):
+        cleaner = PresidioDocumentCleaner(language="xx")
+        with pytest.raises(ValueError, match="No default spaCy model is available for language 'xx'"):
+            cleaner.warm_up()
 
     def test_warm_up_with_models(self):
         models = [{"lang_code": "fr", "model_name": "fr_core_news_lg"}]
@@ -187,10 +203,7 @@ class TestPresidioDocumentCleaner:
 
     @pytest.mark.integration
     def test_run_integration_german(self):
-        cleaner = PresidioDocumentCleaner(
-            language="de",
-            models=[{"lang_code": "de", "model_name": "de_core_news_lg"}],
-        )
+        cleaner = PresidioDocumentCleaner(language="de")
         cleaner.warm_up()
         docs = [Document(content="Mein Name ist Hans Müller und meine E-Mail ist hans@example.com")]
         result = cleaner.run(documents=docs)
