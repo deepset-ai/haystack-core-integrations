@@ -3,6 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import pytest
+from chonkie.types.recursive import RecursiveLevel, RecursiveRules
 from haystack import Document
 
 from haystack_integrations.components.preprocessors.chonkie import (
@@ -10,7 +11,6 @@ from haystack_integrations.components.preprocessors.chonkie import (
     ChonkieSentenceChunker,
     ChonkieTokenChunker,
 )
-from chonkie.types.recursive import RecursiveRules, RecursiveLevel
 
 
 @pytest.mark.integration
