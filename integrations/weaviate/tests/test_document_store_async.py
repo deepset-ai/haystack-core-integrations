@@ -69,6 +69,16 @@ class TestWeaviateDocumentStoreAsync(
         await (await store.async_client).collections.delete(collection_settings["class"])
         await store.close_async()
 
+    @pytest.mark.asyncio
+    async def test_get_metadata_fields_info_empty_collection_async(self, document_store):
+        # Override: Weaviate derives field info from the collection schema, not from stored
+        # documents. Schema-defined fields are visible even on an empty collection, so the
+        # result is never {} as the standard interface expects.
+        assert await document_store.count_documents_async() == 0
+        fields_info = await document_store.get_metadata_fields_info_async()
+        assert "category" in fields_info
+        assert "status" in fields_info
+
     def assert_documents_are_equal(self, received: list[Document], expected: list[Document]):
         # filter_documents_async() returns Documents with score populated; strip it before comparing
         received = [dataclasses.replace(doc, score=None) for doc in received]
