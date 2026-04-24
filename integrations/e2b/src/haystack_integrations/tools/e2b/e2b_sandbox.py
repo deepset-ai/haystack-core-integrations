@@ -71,9 +71,9 @@ class E2BSandbox:
         """
         Create an E2BSandbox instance.
 
-        :param api_key: E2B API key. Defaults to ``Secret.from_env_var("E2B_API_KEY")``.
-        :param sandbox_template: E2B sandbox template name. Defaults to ``"base"``.
-        :param timeout: Sandbox inactivity timeout in seconds. Defaults to ``120``.
+        :param api_key: E2B API key.
+        :param sandbox_template: E2B sandbox template name.
+        :param timeout: Sandbox inactivity timeout in seconds.
         :param environment_vars: Optional environment variables to inject into the sandbox.
         """
         self.api_key = api_key or Secret.from_env_var("E2B_API_KEY")
