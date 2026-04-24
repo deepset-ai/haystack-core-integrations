@@ -491,7 +491,9 @@ class WeaviateDocumentStore:
             msg = f"Field type '{data_type_str}' doesn't support min/max aggregation"
             raise ValueError(msg)
 
-        result = self.collection.aggregate.over_all(return_metrics=metrics)
+        result = self.collection.aggregate.over_all(return_metrics=metrics, total_count=True)
+        if not result.total_count:
+            return {"min": None, "max": None}
         field_metrics = result.properties.get(field_name)
 
         return {
@@ -539,7 +541,9 @@ class WeaviateDocumentStore:
             msg = f"Field type '{data_type_str}' doesn't support min/max aggregation"
             raise ValueError(msg)
 
-        result = await collection.aggregate.over_all(return_metrics=metrics)
+        result = await collection.aggregate.over_all(return_metrics=metrics, total_count=True)
+        if not result.total_count:
+            return {"min": None, "max": None}
         field_metrics = result.properties.get(field_name)
 
         return {
