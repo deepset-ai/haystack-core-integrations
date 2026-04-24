@@ -63,7 +63,7 @@ class E2BSandbox:
 
     def __init__(
         self,
-        api_key: Secret | None = None,
+        api_key: Secret = Secret.from_env_var("E2B_API_KEY", strict=True)
         sandbox_template: str = "base",
         timeout: int = 120,
         environment_vars: dict[str, str] | None = None,
