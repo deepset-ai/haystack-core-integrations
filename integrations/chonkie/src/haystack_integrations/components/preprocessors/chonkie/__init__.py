@@ -2,10 +2,10 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from .recursive_chunker import ChonkieRecursiveDocumentSplitter
-from .semantic_chunker import ChonkieSemanticDocumentSplitter
-from .sentence_chunker import ChonkieSentenceDocumentSplitter
-from .token_chunker import ChonkieTokenDocumentSplitter
+from .recursive_splitter import ChonkieRecursiveDocumentSplitter
+from .semantic_splitter import ChonkieSemanticDocumentSplitter
+from .sentence_splitter import ChonkieSentenceDocumentSplitter
+from .token_splitter import ChonkieTokenDocumentSplitter
 
 __all__ = [
     "ChonkieRecursiveDocumentSplitter",

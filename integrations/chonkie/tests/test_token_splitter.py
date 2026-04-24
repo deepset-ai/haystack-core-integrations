@@ -19,7 +19,7 @@ class TestChonkieTokenDocumentSplitter:
         chunker = ChonkieTokenDocumentSplitter(chunk_size=1024, tokenizer="word", chunk_overlap=50)
         data = chunker.to_dict()
         assert data == {
-            "type": "haystack_integrations.components.preprocessors.chonkie.token_chunker.ChonkieTokenDocumentSplitter",
+            "type": "haystack_integrations.components.preprocessors.chonkie.token_splitter.ChonkieTokenDocumentSplitter",  # noqa: E501
             "init_parameters": {
                 "chunk_size": 1024,
                 "tokenizer": "word",
@@ -31,7 +31,7 @@ class TestChonkieTokenDocumentSplitter:
 
     def test_from_dict(self):
         data = {
-            "type": "haystack_integrations.components.preprocessors.chonkie.token_chunker.ChonkieTokenDocumentSplitter",
+            "type": "haystack_integrations.components.preprocessors.chonkie.token_splitter.ChonkieTokenDocumentSplitter",  # noqa: E501
             "init_parameters": {
                 "chunk_size": 1024,
                 "tokenizer": "word",
@@ -54,10 +54,11 @@ class TestChonkieTokenDocumentSplitter:
         for split_id, chunk in enumerate(chunks):
             assert chunk.meta["source_id"] == doc.id
             assert chunk.meta["split_id"] == split_id
-            assert "page_number" in chunk.meta
-            assert "split_idx_start" in chunk.meta
-            assert "split_idx_end" in chunk.meta
-            assert "token_count" in chunk.meta
+            assert chunk.meta["page_number"] == 1
+            assert chunk.meta["split_idx_start"] >= 0
+            assert chunk.meta["split_idx_end"] > chunk.meta["split_idx_start"]
+            assert chunk.meta["token_count"] > 0
+            assert chunk.content == doc.content[chunk.meta["split_idx_start"] : chunk.meta["split_idx_end"]]
             assert len(chunk.meta) == 6
 
     def test_run_empty_document(self):
@@ -110,8 +111,9 @@ class TestChonkieTokenDocumentSplitter:
         for split_id, chunk in enumerate(chunks):
             assert chunk.meta["source_id"] == docs[0].id
             assert chunk.meta["split_id"] == split_id
-            assert "page_number" in chunk.meta
-            assert "split_idx_start" in chunk.meta
-            assert "split_idx_end" in chunk.meta
-            assert "token_count" in chunk.meta
+            assert chunk.meta["page_number"] == 1
+            assert chunk.meta["split_idx_start"] >= 0
+            assert chunk.meta["split_idx_end"] > chunk.meta["split_idx_start"]
+            assert chunk.meta["token_count"] > 0
+            assert chunk.content == text[chunk.meta["split_idx_start"] : chunk.meta["split_idx_end"]]
             assert len(chunk.meta) == 6

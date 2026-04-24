@@ -2,10 +2,9 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-import logging
 from typing import Any
 
-from haystack import Document, component, default_from_dict, default_to_dict
+from haystack import Document, component, default_from_dict, default_to_dict, logging
 
 import chonkie
 
@@ -17,15 +16,16 @@ class ChonkieSentenceDocumentSplitter:
     """
     A Document Splitter that uses Chonkie's SentenceChunker to split documents.
 
-    Usage::
+    ### Usage example
+    ```python
+    from haystack import Document
+    from haystack_integrations.components.preprocessors.chonkie import ChonkieSentenceDocumentSplitter
 
-        from haystack import Document
-        from haystack_integrations.components.preprocessors.chonkie import ChonkieSentenceDocumentSplitter
-
-        chunker = ChonkieSentenceDocumentSplitter(chunk_size=512)
-        documents = [Document(content="Hello world. This is a test.")]
-        result = chunker.run(documents=documents)
-        print(result["documents"])
+    chunker = ChonkieSentenceDocumentSplitter(chunk_size=512)
+    documents = [Document(content="Hello world. This is a test.")]
+    result = chunker.run(documents=documents)
+    print(result["documents"])
+    ```
     """
 
     def __init__(
@@ -103,12 +103,16 @@ class ChonkieSentenceDocumentSplitter:
                 raise ValueError(msg)
 
             if doc.content == "" and self.skip_empty_documents:
-                logger.warning("Document ID %s has an empty content. Skipping this document.", doc.id)
+                logger.warning(
+                    "Document ID {doc_id} has an empty content. Skipping this document.",
+                    doc_id=doc.id,
+                )
                 continue
 
             chunks = self._chunker.chunk(doc.content)
-            current_page = doc.meta.get("page_number", 1) if doc.meta else 1
+            base_page = doc.meta.get("page_number", 1) if doc.meta else 1
             for split_id, chunk in enumerate(chunks):
+                current_page = base_page + doc.content[: chunk.start_index].count(self.page_break_character)
                 meta = doc.meta.copy() if doc.meta else {}
                 meta.update(
                     {
@@ -120,7 +124,6 @@ class ChonkieSentenceDocumentSplitter:
                         "token_count": chunk.token_count,
                     }
                 )
-                current_page += chunk.text.count(self.page_break_character)
                 new_doc = Document(content=chunk.text, meta=meta)
                 chunked_documents.append(new_doc)
 

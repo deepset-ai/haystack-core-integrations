@@ -19,7 +19,7 @@ class TestChonkieRecursiveDocumentSplitter:
         chunker = ChonkieRecursiveDocumentSplitter(chunk_size=1024, tokenizer="word", min_characters_per_chunk=10)
         data = chunker.to_dict()
         assert data == {
-            "type": "haystack_integrations.components.preprocessors.chonkie.recursive_chunker.ChonkieRecursiveDocumentSplitter",  # noqa: E501
+            "type": "haystack_integrations.components.preprocessors.chonkie.recursive_splitter.ChonkieRecursiveDocumentSplitter",  # noqa: E501
             "init_parameters": {
                 "chunk_size": 1024,
                 "tokenizer": "word",
@@ -36,7 +36,7 @@ class TestChonkieRecursiveDocumentSplitter:
         chunker = ChonkieRecursiveDocumentSplitter(rules=rules)
         data = chunker.to_dict()
         assert data == {
-            "type": "haystack_integrations.components.preprocessors.chonkie.recursive_chunker.ChonkieRecursiveDocumentSplitter",  # noqa: E501
+            "type": "haystack_integrations.components.preprocessors.chonkie.recursive_splitter.ChonkieRecursiveDocumentSplitter",  # noqa: E501
             "init_parameters": {
                 "chunk_size": 2048,
                 "tokenizer": "character",
@@ -59,7 +59,7 @@ class TestChonkieRecursiveDocumentSplitter:
 
     def test_from_dict(self):
         data = {
-            "type": "haystack_integrations.components.preprocessors.chonkie.recursive_chunker.ChonkieRecursiveDocumentSplitter",  # noqa: E501
+            "type": "haystack_integrations.components.preprocessors.chonkie.recursive_splitter.ChonkieRecursiveDocumentSplitter",  # noqa: E501
             "init_parameters": {
                 "chunk_size": 1024,
                 "tokenizer": "word",
@@ -74,7 +74,7 @@ class TestChonkieRecursiveDocumentSplitter:
     def test_from_dict_with_rules(self):
 
         data = {
-            "type": "haystack_integrations.components.preprocessors.chonkie.recursive_chunker.ChonkieRecursiveDocumentSplitter",  # noqa: E501
+            "type": "haystack_integrations.components.preprocessors.chonkie.recursive_splitter.ChonkieRecursiveDocumentSplitter",  # noqa: E501
             "init_parameters": {
                 "chunk_size": 1024,
                 "tokenizer": "word",
@@ -110,10 +110,11 @@ class TestChonkieRecursiveDocumentSplitter:
         for split_id, chunk in enumerate(chunks):
             assert chunk.meta["source_id"] == doc.id
             assert chunk.meta["split_id"] == split_id
-            assert "page_number" in chunk.meta
-            assert "split_idx_start" in chunk.meta
-            assert "split_idx_end" in chunk.meta
-            assert "token_count" in chunk.meta
+            assert chunk.meta["page_number"] == 1
+            assert chunk.meta["split_idx_start"] >= 0
+            assert chunk.meta["split_idx_end"] > chunk.meta["split_idx_start"]
+            assert chunk.meta["token_count"] > 0
+            assert chunk.content == doc.content[chunk.meta["split_idx_start"] : chunk.meta["split_idx_end"]]
             assert len(chunk.meta) == 6
 
     def test_run_empty_document(self):
@@ -149,31 +150,6 @@ class TestChonkieRecursiveDocumentSplitter:
         expected_last_page = 10 + text_before_last_chunk.count("\f")
         assert last_chunk.meta["page_number"] == expected_last_page
 
-    def test_custom_rules_serialization(self):
-
-        rules = RecursiveRules(levels=[RecursiveLevel(delimiters=["\n\n"], include_delim="prev")])
-        chunker = ChonkieRecursiveDocumentSplitter(rules=rules)
-        data = chunker.to_dict()
-
-        # Check serialization
-        assert data["init_parameters"]["rules"] == {
-            "levels": [
-                {
-                    "delimiters": ["\n\n"],
-                    "whitespace": False,
-                    "include_delim": "prev",
-                    "pattern": None,
-                    "pattern_mode": "split",
-                }
-            ]
-        }
-
-        # Check deserialization
-        new_chunker = ChonkieRecursiveDocumentSplitter.from_dict(data)
-        assert isinstance(new_chunker.rules, RecursiveRules)
-        assert len(new_chunker.rules.levels) == 1
-        assert new_chunker.rules.levels[0].delimiters == ["\n\n"]
-
     def test_run_invalid_documents_type(self):
 
         chunker = ChonkieRecursiveDocumentSplitter()
@@ -206,8 +182,9 @@ class TestChonkieRecursiveDocumentSplitter:
         for split_id, chunk in enumerate(chunks):
             assert chunk.meta["source_id"] == docs[0].id
             assert chunk.meta["split_id"] == split_id
-            assert "page_number" in chunk.meta
-            assert "split_idx_start" in chunk.meta
-            assert "split_idx_end" in chunk.meta
-            assert "token_count" in chunk.meta
+            assert chunk.meta["page_number"] == 1
+            assert chunk.meta["split_idx_start"] >= 0
+            assert chunk.meta["split_idx_end"] > chunk.meta["split_idx_start"]
+            assert chunk.meta["token_count"] > 0
+            assert chunk.content == text[chunk.meta["split_idx_start"] : chunk.meta["split_idx_end"]]
             assert len(chunk.meta) == 6

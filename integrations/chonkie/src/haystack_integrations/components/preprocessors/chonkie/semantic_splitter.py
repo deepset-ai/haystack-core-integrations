@@ -2,10 +2,9 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-import logging
 from typing import Any
 
-from haystack import Document, component, default_from_dict, default_to_dict
+from haystack import Document, component, default_from_dict, default_to_dict, logging
 
 import chonkie
 
@@ -17,15 +16,16 @@ class ChonkieSemanticDocumentSplitter:
     """
     A Document Splitter that uses Chonkie's SemanticChunker to split documents.
 
-    Usage::
+    ### Usage example
+    ```python
+    from haystack import Document
+    from haystack_integrations.components.preprocessors.chonkie import ChonkieSemanticDocumentSplitter
 
-        from haystack import Document
-        from haystack_integrations.components.preprocessors.chonkie import ChonkieSemanticDocumentSplitter
-
-        chunker = ChonkieSemanticDocumentSplitter(chunk_size=512)
-        documents = [Document(content="Hello world. This is a test.")]
-        result = chunker.run(documents=documents)
-        print(result["documents"])
+    chunker = ChonkieSemanticDocumentSplitter(chunk_size=512)
+    documents = [Document(content="Hello world. This is a test.")]
+    result = chunker.run(documents=documents)
+    print(result["documents"])
+    ```
     """
 
     def __init__(
@@ -80,22 +80,30 @@ class ChonkieSemanticDocumentSplitter:
         self.filter_tolerance = filter_tolerance
         self.skip_empty_documents = skip_empty_documents
         self.page_break_character = page_break_character
+        self._chunker = None
+
+    def warm_up(self) -> None:
+        """
+        Initializes the component by loading the embedding model.
+        """
+        if self._chunker is not None:
+            return
 
         kwargs = {
-            "embedding_model": embedding_model,
-            "threshold": threshold,
-            "chunk_size": chunk_size,
-            "similarity_window": similarity_window,
-            "min_sentences_per_chunk": min_sentences_per_chunk,
-            "min_characters_per_sentence": min_characters_per_sentence,
-            "include_delim": include_delim,
-            "skip_window": skip_window,
-            "filter_window": filter_window,
-            "filter_polyorder": filter_polyorder,
-            "filter_tolerance": filter_tolerance,
+            "embedding_model": self.embedding_model,
+            "threshold": self.threshold,
+            "chunk_size": self.chunk_size,
+            "similarity_window": self.similarity_window,
+            "min_sentences_per_chunk": self.min_sentences_per_chunk,
+            "min_characters_per_sentence": self.min_characters_per_sentence,
+            "include_delim": self.include_delim,
+            "skip_window": self.skip_window,
+            "filter_window": self.filter_window,
+            "filter_polyorder": self.filter_polyorder,
+            "filter_tolerance": self.filter_tolerance,
         }
-        if delim is not None:
-            kwargs["delim"] = delim
+        if self.delim is not None:
+            kwargs["delim"] = self.delim
 
         self._chunker = chonkie.SemanticChunker(**kwargs)
 
@@ -111,6 +119,9 @@ class ChonkieSemanticDocumentSplitter:
             msg = "ChonkieSemanticDocumentSplitter expects a list of Document objects."
             raise TypeError(msg)
 
+        if self._chunker is None:
+            self.warm_up()
+
         chunked_documents = []
         for doc in documents:
             if doc.content is None:
@@ -118,12 +129,16 @@ class ChonkieSemanticDocumentSplitter:
                 raise ValueError(msg)
 
             if doc.content == "" and self.skip_empty_documents:
-                logger.warning("Document ID %s has an empty content. Skipping this document.", doc.id)
+                logger.warning(
+                    "Document ID {doc_id} has an empty content. Skipping this document.",
+                    doc_id=doc.id,
+                )
                 continue
 
             chunks = self._chunker.chunk(doc.content)
-            current_page = doc.meta.get("page_number", 1) if doc.meta else 1
+            base_page = doc.meta.get("page_number", 1) if doc.meta else 1
             for split_id, chunk in enumerate(chunks):
+                current_page = base_page + doc.content[: chunk.start_index].count(self.page_break_character)
                 meta = doc.meta.copy() if doc.meta else {}
                 meta.update(
                     {
@@ -135,7 +150,6 @@ class ChonkieSemanticDocumentSplitter:
                         "token_count": chunk.token_count,
                     }
                 )
-                current_page += chunk.text.count(self.page_break_character)
                 new_doc = Document(content=chunk.text, meta=meta)
                 chunked_documents.append(new_doc)
 

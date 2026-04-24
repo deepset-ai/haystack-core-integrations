@@ -2,32 +2,30 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-import logging
-from dataclasses import asdict
 from typing import Any
 
-from haystack import Document, component, default_from_dict, default_to_dict
+from haystack import Document, component, default_from_dict, default_to_dict, logging
 
 import chonkie
-from chonkie.types.recursive import RecursiveLevel, RecursiveRules
 
 logger = logging.getLogger(__name__)
 
 
 @component
-class ChonkieRecursiveDocumentSplitter:
+class ChonkieTokenDocumentSplitter:
     """
-    A Document Splitter that uses Chonkie's RecursiveChunker to split documents.
+    A Document Splitter that uses Chonkie's TokenChunker to split documents.
 
-    Usage::
+    ### Usage example
+    ```python
+    from haystack import Document
+    from haystack_integrations.components.preprocessors.chonkie import ChonkieTokenDocumentSplitter
 
-        from haystack import Document
-        from haystack_integrations.components.preprocessors.chonkie import ChonkieRecursiveDocumentSplitter
-
-        chunker = ChonkieRecursiveDocumentSplitter(chunk_size=512)
-        documents = [Document(content="Hello world. This is a test.")]
-        result = chunker.run(documents=documents)
-        print(result["documents"])
+    chunker = ChonkieTokenDocumentSplitter(chunk_size=512, chunk_overlap=50)
+    documents = [Document(content="Hello world. This is a test.")]
+    result = chunker.run(documents=documents)
+    print(result["documents"])
+    ```
     """
 
     def __init__(
@@ -35,71 +33,62 @@ class ChonkieRecursiveDocumentSplitter:
         *,
         tokenizer: str = "character",
         chunk_size: int = 2048,
-        min_characters_per_chunk: int = 24,
-        rules: RecursiveRules | dict[str, Any] | None = None,
+        chunk_overlap: int = 0,
         skip_empty_documents: bool = True,
         page_break_character: str = "\f",
     ) -> None:
         """
-        Initializes the ChonkieRecursiveDocumentSplitter.
+        Initializes the ChonkieTokenDocumentSplitter.
 
         :param tokenizer: The tokenizer to use for chunking. Defaults to "character".
             Common options include "character", "gpt2", and "cl100k_base".
             See the [Chonkie documentation](https://docs.chonkie.ai/) for more information on available tokenizers.
         :param chunk_size: The maximum number of tokens per chunk. The actual length depends on the chosen tokenizer.
-        :param min_characters_per_chunk: The minimum number of characters per chunk.
-        :param rules: Custom rules for recursive chunking. If None, default rules are used.
-            See the [Chonkie documentation](https://docs.chonkie.ai/) for more information.
+        :param chunk_overlap: The overlap between consecutive chunks.
         :param skip_empty_documents: Whether to skip empty documents.
         :param page_break_character: The character to use for page breaks.
         """
         self.tokenizer = tokenizer
         self.chunk_size = chunk_size
-        self.min_characters_per_chunk = min_characters_per_chunk
+        self.chunk_overlap = chunk_overlap
         self.skip_empty_documents = skip_empty_documents
         self.page_break_character = page_break_character
 
-        if isinstance(rules, dict):
-            levels = [RecursiveLevel(**level) for level in rules.get("levels", [])]
-            self.rules: RecursiveRules | None = RecursiveRules(levels=levels)
-        else:
-            self.rules = rules
-
-        kwargs: dict[str, Any] = {
-            "tokenizer": tokenizer,
-            "chunk_size": chunk_size,
-            "min_characters_per_chunk": min_characters_per_chunk,
-        }
-        if self.rules is not None:
-            kwargs["rules"] = self.rules
-
-        self._chunker = chonkie.RecursiveChunker(**kwargs)
+        self._chunker = chonkie.TokenChunker(
+            tokenizer=tokenizer,
+            chunk_size=chunk_size,
+            chunk_overlap=chunk_overlap,
+        )
 
     @component.output_types(documents=list[Document])
     def run(self, documents: list[Document]) -> dict[str, list[Document]]:
         """
-        Splits a list of documents into smaller chunks.
+        Splits a list of documents into smaller token-based chunks.
 
         :param documents: The list of documents to split.
         :returns: A dictionary with the "documents" key containing the list of chunks.
         """
         if not isinstance(documents, list) or (documents and not isinstance(documents[0], Document)):
-            msg = "ChonkieRecursiveDocumentSplitter expects a list of Document objects."
+            msg = "ChonkieTokenDocumentSplitter expects a list of Document objects."
             raise TypeError(msg)
 
         chunked_documents = []
         for doc in documents:
             if doc.content is None:
-                msg = f"ChonkieRecursiveDocumentSplitter works only with text documents but doc ID {doc.id} is None."
+                msg = f"ChonkieTokenDocumentSplitter works only with text documents but doc ID {doc.id} is None."
                 raise ValueError(msg)
 
             if doc.content == "" and self.skip_empty_documents:
-                logger.warning("Document ID %s has an empty content. Skipping this document.", doc.id)
+                logger.warning(
+                    "Document ID {doc_id} has an empty content. Skipping this document.",
+                    doc_id=doc.id,
+                )
                 continue
 
             chunks = self._chunker.chunk(doc.content)
-            current_page = doc.meta.get("page_number", 1) if doc.meta else 1
+            base_page = doc.meta.get("page_number", 1) if doc.meta else 1
             for split_id, chunk in enumerate(chunks):
+                current_page = base_page + doc.content[: chunk.start_index].count(self.page_break_character)
                 meta = doc.meta.copy() if doc.meta else {}
                 meta.update(
                     {
@@ -111,7 +100,6 @@ class ChonkieRecursiveDocumentSplitter:
                         "token_count": chunk.token_count,
                     }
                 )
-                current_page += chunk.text.count(self.page_break_character)
                 new_doc = Document(content=chunk.text, meta=meta)
                 chunked_documents.append(new_doc)
 
@@ -124,19 +112,17 @@ class ChonkieRecursiveDocumentSplitter:
         :returns:
             Dictionary with serialized data.
         """
-        rules_dict = asdict(self.rules) if self.rules else None
         return default_to_dict(
             self,
             tokenizer=self.tokenizer,
             chunk_size=self.chunk_size,
-            min_characters_per_chunk=self.min_characters_per_chunk,
-            rules=rules_dict,
+            chunk_overlap=self.chunk_overlap,
             skip_empty_documents=self.skip_empty_documents,
             page_break_character=self.page_break_character,
         )
 
     @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "ChonkieRecursiveDocumentSplitter":
+    def from_dict(cls, data: dict[str, Any]) -> "ChonkieTokenDocumentSplitter":
         """
         Deserializes the component from a dictionary.
 
