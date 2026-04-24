@@ -1,10 +1,9 @@
-import pytest
-
 # SPDX-FileCopyrightText: 2024-present deepset GmbH <info@deepset.ai>
 #
 # SPDX-License-Identifier: Apache-2.0
-from haystack import Document
+import pytest
 from chonkie.types.recursive import RecursiveLevel, RecursiveRules
+from haystack import Document
 
 from haystack_integrations.components.preprocessors.chonkie import ChonkieRecursiveDocumentSplitter
 
@@ -20,7 +19,7 @@ class TestChonkieRecursiveDocumentSplitter:
         chunker = ChonkieRecursiveDocumentSplitter(chunk_size=1024, tokenizer="word", min_characters_per_chunk=10)
         data = chunker.to_dict()
         assert data == {
-            "type": "haystack_integrations.components.preprocessors.chonkie.recursive_chunker.ChonkieRecursiveDocumentSplitter",  
+            "type": "haystack_integrations.components.preprocessors.chonkie.recursive_chunker.ChonkieRecursiveDocumentSplitter",  # noqa: E501
             "init_parameters": {
                 "chunk_size": 1024,
                 "tokenizer": "word",
@@ -129,7 +128,9 @@ class TestChonkieRecursiveDocumentSplitter:
 
     def test_run_none_content(self):
         chunker = ChonkieRecursiveDocumentSplitter()
-        with pytest.raises(ValueError, match=r"ChonkieRecursiveDocumentSplitter works only with text documents but doc ID .* is None"):
+        with pytest.raises(
+            ValueError, match=r"ChonkieRecursiveDocumentSplitter works only with text documents but doc ID .* is None"
+        ):
             chunker.run(documents=[Document(content=None)])
 
     def test_run_page_number_complex(self):

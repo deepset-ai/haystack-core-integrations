@@ -100,7 +100,9 @@ class TestChonkieSentenceDocumentSplitter:
 
     def test_run_none_content(self):
         chunker = ChonkieSentenceDocumentSplitter()
-        with pytest.raises(ValueError, match=r"ChonkieSentenceDocumentSplitter works only with text documents but doc ID .* is None"):
+        with pytest.raises(
+            ValueError, match=r"ChonkieSentenceDocumentSplitter works only with text documents but doc ID .* is None"
+        ):
             chunker.run(documents=[Document(content=None)])
 
     def test_run_page_number(self):
