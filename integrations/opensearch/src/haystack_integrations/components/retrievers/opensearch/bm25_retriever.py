@@ -13,6 +13,8 @@ from haystack.document_stores.types.filter_policy import apply_filter_policy
 
 from haystack_integrations.document_stores.opensearch import OpenSearchDocumentStore
 
+from .utils import _resolve_document_store
+
 logger = logging.getLogger(__name__)
 
 
@@ -268,13 +270,7 @@ class OpenSearchBM25Retriever:
             custom_query=custom_query,
         )
 
-        if document_store is not None:
-            if not isinstance(document_store, OpenSearchDocumentStore):
-                msg = "document_store must be an instance of OpenSearchDocumentStore"
-                raise ValueError(msg)
-            doc_store = document_store
-        else:
-            doc_store = self._document_store
+        doc_store = _resolve_document_store(document_store, self._document_store)
 
         try:
             docs = doc_store._bm25_retrieval(**bm25_args)  # example for BM25Retriever
@@ -335,13 +331,7 @@ class OpenSearchBM25Retriever:
             custom_query=custom_query,
         )
 
-        if document_store is not None:
-            if not isinstance(document_store, OpenSearchDocumentStore):
-                msg = "document_store must be an instance of OpenSearchDocumentStore"
-                raise ValueError(msg)
-            doc_store = document_store
-        else:
-            doc_store = self._document_store
+        doc_store = _resolve_document_store(document_store, self._document_store)
 
         try:
             docs = await doc_store._bm25_retrieval_async(**bm25_args)
