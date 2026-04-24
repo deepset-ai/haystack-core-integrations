@@ -20,9 +20,9 @@ class E2BSandbox:
     Manages the lifecycle of an E2B cloud sandbox.
 
     Instantiate this class and pass it to one or more E2B tool classes
-    (``RunBashCommandTool``, ``ReadFileTool``, ``WriteFileTool``,
-    ``ListDirectoryTool``) to share a single sandbox environment across all
-    tools.  All tools that receive the same ``E2BSandbox`` instance operate
+    (`RunBashCommandTool`, `ReadFileTool`, `WriteFileTool`,
+    `ListDirectoryTool`) to share a single sandbox environment across all
+    tools.  All tools that receive the same `E2BSandbox` instance operate
     inside the same live sandbox process.
 
     ### Usage example
@@ -63,7 +63,7 @@ class E2BSandbox:
 
     def __init__(
         self,
-        api_key: Secret = Secret.from_env_var("E2B_API_KEY", strict=True)
+        api_key: Secret = Secret.from_env_var("E2B_API_KEY", strict=True),
         sandbox_template: str = "base",
         timeout: int = 120,
         environment_vars: dict[str, str] | None = None,
@@ -177,9 +177,5 @@ class E2BSandbox:
     def _require_sandbox(self) -> "Sandbox":
         """Return the active sandbox or raise a helpful error."""
         if self._sandbox is None:
-            msg = (
-                "E2B sandbox is not running. Call warm_up() before using the tools, "
-                "or add the sandbox to a Haystack pipeline/agent which calls warm_up() automatically."
-            )
-            raise RuntimeError(msg)
+            self.warm_up()
         return self._sandbox
