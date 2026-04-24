@@ -1,7 +1,8 @@
+import pytest
+
 # SPDX-FileCopyrightText: 2024-present deepset GmbH <info@deepset.ai>
 #
 # SPDX-License-Identifier: Apache-2.0
-
 from haystack import Document
 
 from haystack_integrations.components.preprocessors.chonkie import ChonkieSentenceChunker
@@ -80,3 +81,16 @@ class TestChonkieSentenceChunker:
         assert chunks[0].meta["source_id"] == doc.id
         assert "start_index" in chunks[0].meta
         assert "end_index" in chunks[0].meta
+
+    def test_run_empty_document(self):
+        chunker = ChonkieSentenceChunker()
+        result = chunker.run(documents=[Document(content="")])
+        assert result["documents"] == []
+
+    def test_run_invalid_documents_type(self):
+
+        chunker = ChonkieSentenceChunker()
+        with pytest.raises(TypeError, match="expects a list of Document objects"):
+            chunker.run(documents="invalid")
+        with pytest.raises(TypeError, match="expects a list of Document objects"):
+            chunker.run(documents=[1, 2, 3])
