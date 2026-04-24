@@ -2,6 +2,8 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+from unittest.mock import MagicMock, patch
+
 import pytest
 from haystack import Document
 from haystack.utils import deserialize_callable, serialize_callable
@@ -89,6 +91,145 @@ class TestChineseDocumentSplitter:
         assert splitter.split_by == "function"
         assert callable(splitter.splitting_function)
         assert splitter.splitting_function("a.b.c") == ["a", "b", "c"]
+
+    def test_validate_init_parameters(self):
+        ChineseDocumentSplitter._validate_init_parameters(
+            split_by="word",
+            split_length=1000,
+            split_overlap=200,
+            split_threshold=0,
+            granularity="coarse",
+        )
+
+        with pytest.raises(ValueError, match="split_length must be positive"):
+            ChineseDocumentSplitter._validate_init_parameters(split_length=0)
+
+        with pytest.raises(ValueError, match="split_overlap must be non-negative"):
+            ChineseDocumentSplitter._validate_init_parameters(split_overlap=-1)
+
+        with pytest.raises(ValueError, match="split_overlap must be less than split_length"):
+            ChineseDocumentSplitter._validate_init_parameters(split_overlap=1000, split_length=500)
+
+        with pytest.raises(ValueError, match="split_threshold must be non-negative"):
+            ChineseDocumentSplitter._validate_init_parameters(split_threshold=-1)
+
+        with pytest.raises(ValueError, match="split_threshold must be less than split_length"):
+            ChineseDocumentSplitter._validate_init_parameters(split_threshold=1001, split_length=1000)
+
+        with pytest.raises(
+            ValueError,
+            match="split_by must be one of 'word', 'sentence', 'passage', 'page', 'line', 'period', 'function'",
+        ):
+            ChineseDocumentSplitter._validate_init_parameters(split_by="invalid")
+
+        with pytest.raises(ValueError, match="granularity must be one of 'coarse', 'fine'"):
+            ChineseDocumentSplitter._validate_init_parameters(granularity="invalid")
+
+    def test_split_by_character_returns_empty_for_none_content(self):
+        splitter = ChineseDocumentSplitter(split_by="word")
+        assert splitter._split_by_character(Document(content=None)) == []
+
+    def test_split_by_hanlp_sentence_returns_empty_for_none_content(self):
+        splitter = ChineseDocumentSplitter(split_by="sentence")
+        assert splitter._split_by_hanlp_sentence(Document(content=None)) == []
+
+    def test_split_document_dispatches_to_function_splitter(self):
+        splitter = ChineseDocumentSplitter(split_by="function", splitting_function=custom_split)
+        doc = Document(content="a.b.c")
+        result = splitter._split_document(doc)
+        assert [d.content for d in result] == ["a", "b", "c"]
+
+    def test_split_by_function_returns_empty_for_none_content(self):
+        splitter = ChineseDocumentSplitter(split_by="function", splitting_function=custom_split)
+        assert splitter._split_by_function(Document(content=None)) == []
+
+    def test_split_by_function_raises_when_no_function_provided(self):
+        splitter = ChineseDocumentSplitter(split_by="function", splitting_function=custom_split)
+        splitter.splitting_function = None
+        with pytest.raises(ValueError, match=r"No splitting function provided\."):
+            splitter._split_by_function(Document(content="a.b"))
+
+    def test_split_by_function_raises_when_function_returns_non_list(self):
+        splitter = ChineseDocumentSplitter(split_by="function", splitting_function=lambda t: "not a list")
+        with pytest.raises(ValueError, match="must return a list of strings"):
+            splitter._split_by_function(Document(content="a.b"))
+
+    def test_split_by_function_produces_documents_with_metadata(self):
+        splitter = ChineseDocumentSplitter(split_by="function", splitting_function=custom_split)
+        doc = Document(content="a.b.c", meta={"name": "src"})
+        result = splitter._split_by_function(doc)
+        assert len(result) == 3
+        assert [d.content for d in result] == ["a", "b", "c"]
+        assert all(d.meta["source_id"] == doc.id for d in result)
+        assert all(d.meta["name"] == "src" for d in result)
+        assert [d.meta["split_id"] for d in result] == [0, 1, 2]
+
+    @pytest.mark.parametrize(
+        ("previous_content", "current_content"),
+        [(None, "abc"), ("abc", None)],
+    )
+    def test_add_split_overlap_information_skips_when_content_is_none(self, previous_content, current_content):
+        previous_doc = Document(content=previous_content, meta={"_split_overlap": []})
+        current_doc = Document(content=current_content, meta={"_split_overlap": []})
+        ChineseDocumentSplitter._add_split_overlap_information(current_doc, 0, previous_doc, 0)
+        assert current_doc.meta["_split_overlap"] == []
+        assert previous_doc.meta["_split_overlap"] == []
+
+    def test_add_split_overlap_information_skips_when_no_matching_prefix(self):
+        previous_doc = Document(content="abcdef", meta={"_split_overlap": []})
+        current_doc = Document(content="xyz", meta={"_split_overlap": []})
+        ChineseDocumentSplitter._add_split_overlap_information(current_doc, 2, previous_doc, 0)
+        assert current_doc.meta["_split_overlap"] == []
+        assert previous_doc.meta["_split_overlap"] == []
+
+    @pytest.mark.parametrize("elements", [[], ["", "   ", "\t"]])
+    def test_concatenate_units_returns_empty_for_empty_or_whitespace(self, elements):
+        splitter = ChineseDocumentSplitter(split_by="word", split_length=5, split_overlap=1)
+        assert splitter._concatenate_units(elements, split_length=5, split_overlap=1, split_threshold=0) == ([], [], [])
+
+    def test_concatenate_units_returns_single_chunk_for_short_input(self):
+        splitter = ChineseDocumentSplitter(split_by="word", split_length=10, split_overlap=0)
+        text_splits, pages, start_idxs = splitter._concatenate_units(
+            ["a", "b", "c"], split_length=10, split_overlap=0, split_threshold=0
+        )
+        assert text_splits == ["abc"]
+        assert pages == [1]
+        assert start_idxs == [0]
+
+    def test_concatenate_units_applies_split_threshold(self):
+        splitter = ChineseDocumentSplitter(split_by="word", split_length=2, split_overlap=0)
+        text_splits, _, _ = splitter._concatenate_units(
+            ["a", "b", "c"], split_length=2, split_overlap=0, split_threshold=2
+        )
+        # the trailing "c" chunk is smaller than split_threshold=2 and gets attached to previous
+        assert text_splits == ["abc"]
+
+    def test_number_of_sentences_to_keep_returns_zero_when_overlap_is_zero(self):
+        splitter = ChineseDocumentSplitter(split_by="word", split_length=10, split_overlap=0)
+        assert splitter._number_of_sentences_to_keep(["s1", "s2", "s3"], split_length=10, split_overlap=0) == 0
+
+    def test_number_of_sentences_to_keep_stops_when_overlap_reached(self):
+        splitter = ChineseDocumentSplitter(split_by="word", split_length=10, split_overlap=2)
+        # one word per sentence, so we need at least 3 sentences to exceed split_overlap=2
+        splitter.chinese_tokenizer = MagicMock(side_effect=lambda s: [s])
+        result = splitter._number_of_sentences_to_keep(["s1", "s2", "s3", "s4"], split_length=10, split_overlap=2)
+        assert result == 3
+
+    def test_number_of_sentences_to_keep_stops_when_split_length_exceeded(self):
+        splitter = ChineseDocumentSplitter(split_by="word", split_length=2, split_overlap=1)
+        # each sentence tokenizes to 5 "words", so first iteration already exceeds split_length
+        splitter.chinese_tokenizer = MagicMock(return_value=["a", "b", "c", "d", "e"])
+        assert splitter._number_of_sentences_to_keep(["s1", "s2", "s3"], split_length=2, split_overlap=1) == 0
+
+    def test_warm_up_is_idempotent(self):
+        splitter = ChineseDocumentSplitter(split_by="word")
+        with patch(
+            "haystack_integrations.components.preprocessors.hanlp.chinese_document_splitter.hanlp"
+        ) as mock_hanlp:
+            mock_hanlp.load.return_value = MagicMock()
+            splitter.warm_up()
+            splitter.warm_up()
+            assert mock_hanlp.load.call_count == 2  # once for tokenizer, once for split_sent
 
     @pytest.mark.integration
     def test_empty_list(self):
@@ -216,36 +357,3 @@ class TestChineseDocumentSplitter:
                 f"Chunks {i} and {i + 1} do not overlap. "
                 f"Tail (up to 20 chars): '{overlap_prev}' vs Head (up to 20 chars): '{overlap_curr}'"
             )
-
-    def test_validate_init_parameters(self):
-        ChineseDocumentSplitter._validate_init_parameters(
-            split_by="word",
-            split_length=1000,
-            split_overlap=200,
-            split_threshold=0,
-            granularity="coarse",
-        )
-
-        with pytest.raises(ValueError, match="split_length must be positive"):
-            ChineseDocumentSplitter._validate_init_parameters(split_length=0)
-
-        with pytest.raises(ValueError, match="split_overlap must be non-negative"):
-            ChineseDocumentSplitter._validate_init_parameters(split_overlap=-1)
-
-        with pytest.raises(ValueError, match="split_overlap must be less than split_length"):
-            ChineseDocumentSplitter._validate_init_parameters(split_overlap=1000, split_length=500)
-
-        with pytest.raises(ValueError, match="split_threshold must be non-negative"):
-            ChineseDocumentSplitter._validate_init_parameters(split_threshold=-1)
-
-        with pytest.raises(ValueError, match="split_threshold must be less than split_length"):
-            ChineseDocumentSplitter._validate_init_parameters(split_threshold=1001, split_length=1000)
-
-        with pytest.raises(
-            ValueError,
-            match="split_by must be one of 'word', 'sentence', 'passage', 'page', 'line', 'period', 'function'",
-        ):
-            ChineseDocumentSplitter._validate_init_parameters(split_by="invalid")
-
-        with pytest.raises(ValueError, match="granularity must be one of 'coarse', 'fine'"):
-            ChineseDocumentSplitter._validate_init_parameters(granularity="invalid")

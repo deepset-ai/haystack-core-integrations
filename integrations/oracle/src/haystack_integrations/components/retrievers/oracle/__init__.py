@@ -3,5 +3,6 @@
 # SPDX-License-Identifier: Apache-2.0
 
 from haystack_integrations.components.retrievers.oracle.embedding_retriever import OracleEmbeddingRetriever
+from haystack_integrations.components.retrievers.oracle.keyword_retriever import OracleKeywordRetriever
 
-__all__ = ["OracleEmbeddingRetriever"]
+__all__ = ["OracleEmbeddingRetriever", "OracleKeywordRetriever"]

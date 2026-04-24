@@ -10,6 +10,7 @@ from unittest.mock import Mock, patch
 
 import pytest
 from azure.core.credentials import TokenCredential
+from azure.core.exceptions import ResourceNotFoundError
 from azure.search.documents.indexes.models import (
     CustomAnalyzer,
     SearchableField,
@@ -334,6 +335,128 @@ def test_query_sql_raises_not_implemented():
 
     with pytest.raises(NotImplementedError, match="does not support SQL queries"):
         document_store.query_sql("SELECT * FROM test-index")
+
+
+@pytest.mark.parametrize(
+    "metadata_fields, expected_error_match",
+    [
+        (
+            {"Title": SearchField(name="mismatched", type="Edm.String", filterable=True)},
+            "Name of SearchField",
+        ),
+        ({"Pages": object}, "Unsupported field type"),
+    ],
+)
+def test_normalize_metadata_index_fields_raises(metadata_fields, expected_error_match):
+    with pytest.raises(ValueError, match=expected_error_match):
+        AzureAISearchDocumentStore._normalize_metadata_index_fields(metadata_fields)
+
+
+def test_normalize_metadata_index_fields_skips_non_alpha_keys(caplog):
+    with caplog.at_level(logging.WARNING):
+        normalized = AzureAISearchDocumentStore._normalize_metadata_index_fields({"1invalid": str, "valid": int})
+    assert "valid" in normalized
+    assert "1invalid" not in normalized
+    assert "Invalid key" in caplog.text
+
+
+def test_normalize_metadata_index_fields_returns_empty_for_none():
+    assert AzureAISearchDocumentStore._normalize_metadata_index_fields(None) == {}
+
+
+@pytest.mark.parametrize(
+    "method, kwargs, expected_match",
+    [
+        ("_bm25_retrieval", {"query": None}, "query must not be None"),
+        ("_hybrid_retrieval", {"query": None, "query_embedding": [0.1]}, "query must not be None"),
+        ("_hybrid_retrieval", {"query": "q", "query_embedding": []}, "query_embedding must be a non-empty"),
+        ("_embedding_retrieval", {"query_embedding": []}, "query_embedding must be a non-empty"),
+    ],
+)
+def test_internal_retrieval_validates_inputs(method, kwargs, expected_match):
+    document_store = AzureAISearchDocumentStore(
+        api_key=Secret.from_token("fake-api-key"),
+        azure_endpoint=Secret.from_token("fake-endpoint"),
+        index_name="test-index",
+    )
+    with pytest.raises(ValueError, match=expected_match):
+        getattr(document_store, method)(**kwargs)
+
+
+def test_collect_unique_values_combines_lists_and_scalars():
+    docs = [
+        {"tags": ["a", "b"]},
+        {"tags": "c"},
+        {"tags": None},
+        {"tags": ["a", "d"]},
+    ]
+    assert AzureAISearchDocumentStore._collect_unique_values(docs, "tags") == {"a", "b", "c", "d"}
+
+
+@pytest.mark.parametrize(
+    "docs, expected",
+    [
+        ([], {"min": None, "max": None}),
+        ([{"x": None}, {"x": [1, 2]}], {"min": None, "max": None}),
+        ([{"x": 3}, {"x": 1}, {"x": 2}], {"min": 1, "max": 3}),
+    ],
+)
+def test_get_min_max_from_documents(docs, expected):
+    assert AzureAISearchDocumentStore._get_min_max_from_documents(docs, "x") == expected
+
+
+@pytest.mark.parametrize(
+    "field, expected_type",
+    [
+        (SimpleField(name="cat", type=SearchFieldDataType.String, filterable=True), "keyword"),
+        (SearchableField(name="content", type=SearchFieldDataType.String), "text"),
+        (SearchableField(name="title", type=SearchFieldDataType.String), "text"),
+        (SimpleField(name="year", type=SearchFieldDataType.Int32, filterable=True), "long"),
+        (SimpleField(name="rating", type=SearchFieldDataType.Double, filterable=True), "double"),
+        (
+            SearchField(
+                name="tags",
+                type=SearchFieldDataType.Collection(SearchFieldDataType.String),
+                filterable=True,
+            ),
+            "keyword",
+        ),
+        (SimpleField(name="when", type=SearchFieldDataType.DateTimeOffset, filterable=True), "date"),
+    ],
+)
+def test_map_azure_field_type_variants(field, expected_type):
+    assert AzureAISearchDocumentStore._map_azure_field_type(field) == expected_type
+
+
+def test_map_azure_field_type_without_type_attribute():
+    field = Mock(spec=[])
+    field.name = "custom"
+    assert AzureAISearchDocumentStore._map_azure_field_type(field) == "keyword"
+
+
+def test_index_exists_raises_without_index_name():
+    document_store = AzureAISearchDocumentStore(
+        api_key=Secret.from_token("fake-api-key"),
+        azure_endpoint=Secret.from_token("fake-endpoint"),
+        index_name="test-index",
+    )
+    document_store._index_client = Mock()
+    with pytest.raises(ValueError, match="Index name is required"):
+        document_store._index_exists(None)
+
+
+def test_get_raw_documents_by_id_skips_not_found(caplog):
+    store, search_client, _ = _build_mock_document_store_with_schema(
+        [SimpleField(name="id", type=SearchFieldDataType.String, key=True, filterable=True)]
+    )
+    search_client.get_document.side_effect = [
+        {"id": "1", "content": "c1"},
+        ResourceNotFoundError("not found"),
+    ]
+    with caplog.at_level(logging.WARNING):
+        result = store._get_raw_documents_by_id(["1", "missing"])
+    assert result == [{"id": "1", "content": "c1"}]
+    assert "missing" in caplog.text
 
 
 def _assert_documents_are_equal(received: list[Document], expected: list[Document]):

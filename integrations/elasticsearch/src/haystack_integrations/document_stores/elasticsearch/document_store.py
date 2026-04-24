@@ -1,6 +1,7 @@
 # SPDX-FileCopyrightText: 2023-present deepset GmbH <info@deepset.ai>
 #
 # SPDX-License-Identifier: Apache-2.0
+
 import copy
 
 # ruff: noqa: FBT002, FBT001    boolean-type-hint-positional-argument and boolean-default-value-positional-argument
@@ -438,11 +439,18 @@ class ElasticsearchDocumentStore:
 
         if self._sparse_vector_field and self._sparse_vector_field in data:
             es_sparse = data.pop(self._sparse_vector_field)
-            sorted_items = sorted(es_sparse.items(), key=lambda x: int(x[0]))
-            data["sparse_embedding"] = {
-                "indices": [int(k) for k, _ in sorted_items],
-                "values": [v for _, v in sorted_items],
-            }
+            try:
+                # Haystack SparseEmbedding requires integer indices. Documents indexed via
+                # Haystack use numeric string keys ("0", "1", ...). Documents indexed by an
+                # ES inference pipeline (e.g. ELSER) use token-string keys ("berlin", ...) which
+                # cannot be mapped to integer indices, so sparse_embedding is left unset.
+                sorted_items = sorted(es_sparse.items(), key=lambda x: int(x[0]))
+                data["sparse_embedding"] = {
+                    "indices": [int(k) for k, _ in sorted_items],
+                    "values": [v for _, v in sorted_items],
+                }
+            except ValueError:
+                pass
 
         return Document.from_dict(data)
 
@@ -532,6 +540,54 @@ class ElasticsearchDocumentStore:
 
         return body
 
+    def _create_sparse_retrieval_inference_body(
+        self,
+        query: str,
+        inference_id: str,
+        *,
+        filters: dict[str, Any] | None = None,
+        top_k: int = 10,
+    ) -> dict[str, Any]:
+        """
+        Builds the Elasticsearch search body for sparse vector retrieval using inference.
+
+        :param query: Query text to use for inference-based sparse retrieval.
+        :param inference_id: Identifier of the inference model to use.
+        :param filters: Optional filters to narrow down the search space.
+        :param top_k: Maximum number of documents to return.
+        :returns: Search body for Elasticsearch.
+        :raises ValueError: If sparse retrieval is not configured or the query is empty.
+        """
+        if not self._sparse_vector_field:
+            msg = "sparse_vector_field must be set for sparse vector retrieval"
+            raise ValueError(msg)
+
+        if not query:
+            msg = "query must be a non-empty string for inference-based sparse retrieval"
+            raise ValueError(msg)
+
+        body: dict[str, Any] = {
+            "size": top_k,
+            "query": {
+                "bool": {
+                    "must": [
+                        {
+                            "sparse_vector": {
+                                "field": self._sparse_vector_field,
+                                "query": query,
+                                "inference_id": inference_id,
+                            }
+                        }
+                    ]
+                }
+            },
+        }
+
+        if filters:
+            body["query"]["bool"]["filter"] = _normalize_filters(filters)
+
+        return body
+
     def write_documents(
         self,
         documents: list[Document],
@@ -590,15 +646,15 @@ class ElasticsearchDocumentStore:
             assert isinstance(errors, list)
             duplicate_errors_ids = []
             other_errors = []
-            for e in errors:
-                error_type = e["create"]["error"]["type"]
+            for error in errors:
+                error_type = error["create"]["error"]["type"]
                 if policy == DuplicatePolicy.FAIL and error_type == "version_conflict_engine_exception":
-                    duplicate_errors_ids.append(e["create"]["_id"])
+                    duplicate_errors_ids.append(error["create"]["_id"])
                 elif policy == DuplicatePolicy.SKIP and error_type == "version_conflict_engine_exception":
                     # when the policy is skip, duplication errors are OK and we should not raise an exception
                     continue
                 else:
-                    other_errors.append(e)
+                    other_errors.append(error)
 
             if len(duplicate_errors_ids) > 0:
                 msg = f"IDs '{', '.join(duplicate_errors_ids)}' already exist in the document store."
@@ -648,35 +704,44 @@ class ElasticsearchDocumentStore:
             self._handle_sparse_embedding(doc_dict, doc.id)
 
             action = {
-                "_op_type": "create" if policy == DuplicatePolicy.FAIL else "index",
+                "_op_type": "index" if policy == DuplicatePolicy.OVERWRITE else "create",
                 "_id": doc.id,
                 "_source": doc_dict,
             }
             actions.append(action)
 
-        try:
-            success, failed = await helpers.async_bulk(
-                client=self.async_client,
-                actions=actions,
-                index=self._index,
-                refresh=refresh,
-                raise_on_error=False,
-                stats_only=False,
-            )
-            if failed:
-                # with stats_only=False, failed is guaranteed to be a list of dicts
-                assert isinstance(failed, list)
-                if policy == DuplicatePolicy.FAIL:
-                    for error in failed:
-                        if "create" in error and error["create"]["status"] == DOC_ALREADY_EXISTS:
-                            msg = f"ID '{error['create']['_id']}' already exists in the document store"
-                            raise DuplicateDocumentError(msg)
-                msg = f"Failed to write documents to Elasticsearch. Errors:\n{failed}"
+        documents_written, errors = await helpers.async_bulk(
+            client=self.async_client,
+            actions=actions,
+            index=self._index,
+            refresh=refresh,
+            raise_on_error=False,
+            stats_only=False,
+        )
+
+        if errors:
+            # with stats_only=False, errors is guaranteed to be a list of dicts
+            assert isinstance(errors, list)
+            duplicate_errors_ids = []
+            other_errors = []
+            for error in errors:
+                error_type = error["create"]["error"]["type"]
+                if policy == DuplicatePolicy.FAIL and error_type == "version_conflict_engine_exception":
+                    duplicate_errors_ids.append(error["create"]["_id"])
+                elif policy == DuplicatePolicy.SKIP and error_type == "version_conflict_engine_exception":
+                    continue
+                else:
+                    other_errors.append(error)
+
+            if len(duplicate_errors_ids) > 0:
+                msg = f"IDs '{', '.join(duplicate_errors_ids)}' already exist in the document store."
+                raise DuplicateDocumentError(msg)
+
+            if len(other_errors) > 0:
+                msg = f"Failed to write documents to Elasticsearch. Errors:\n{other_errors}"
                 raise DocumentStoreError(msg)
-            return success
-        except Exception as e:
-            msg = f"Failed to write documents to Elasticsearch: {e!s}"
-            raise DocumentStoreError(msg) from e
+
+        return documents_written
 
     def delete_documents(self, document_ids: list[str], refresh: Literal["wait_for", True, False] = "wait_for") -> None:
         """
@@ -720,16 +785,13 @@ class ElasticsearchDocumentStore:
         """
         self._ensure_initialized()
 
-        try:
-            await helpers.async_bulk(
-                client=self.async_client,
-                actions=({"_op_type": "delete", "_id": id_} for id_ in document_ids),
-                index=self._index,
-                refresh=refresh,
-            )
-        except Exception as e:
-            msg = f"Failed to delete documents from Elasticsearch: {e!s}"
-            raise DocumentStoreError(msg) from e
+        await helpers.async_bulk(
+            client=self.async_client,
+            actions=({"_op_type": "delete", "_id": id_} for id_ in document_ids),
+            index=self._index,
+            refresh=refresh,
+            raise_on_error=False,
+        )
 
     def delete_all_documents(self, recreate_index: bool = False, refresh: bool = True) -> None:
         """
@@ -1191,6 +1253,57 @@ class ElasticsearchDocumentStore:
         self._ensure_initialized()
         search_body = self._create_sparse_retrieval_body(
             query_sparse_embedding=query_sparse_embedding,
+            filters=filters,
+            top_k=top_k,
+        )
+        return await self._search_documents_async(**search_body)
+
+    def _sparse_vector_retrieval_inference(
+        self,
+        query: str,
+        inference_id: str,
+        *,
+        filters: dict[str, Any] | None = None,
+        top_k: int = 10,
+    ) -> list[Document]:
+        """
+        Retrieves documents using sparse vector inference search.
+
+        :param query: Query text to use for inference-based sparse retrieval.
+        :param inference_id: Identifier of the inference model to use.
+        :param filters: Optional filters to narrow down the search space.
+        :param top_k: Maximum number of documents to return.
+        :returns: List of Documents most similar to the inference query.
+        """
+        body = self._create_sparse_retrieval_inference_body(
+            query=query,
+            inference_id=inference_id,
+            filters=filters,
+            top_k=top_k,
+        )
+        return self._search_documents(**body)
+
+    async def _sparse_vector_retrieval_inference_async(
+        self,
+        query: str,
+        inference_id: str,
+        *,
+        filters: dict[str, Any] | None = None,
+        top_k: int = 10,
+    ) -> list[Document]:
+        """
+        Asynchronously retrieves documents using sparse vector inference search.
+
+        :param query: Query text to use for inference-based sparse retrieval.
+        :param inference_id: Identifier of the inference model to use.
+        :param filters: Optional filters to narrow down the search space.
+        :param top_k: Maximum number of documents to return.
+        :returns: List of Documents most similar to the inference query.
+        """
+        self._ensure_initialized()
+        search_body = self._create_sparse_retrieval_inference_body(
+            query=query,
+            inference_id=inference_id,
             filters=filters,
             top_k=top_k,
         )

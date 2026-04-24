@@ -69,6 +69,11 @@ integration:docling:
       - any-glob-to-any-file: "integrations/docling/**/*"
       - any-glob-to-any-file: ".github/workflows/docling.yml"
 
+integration:dspy:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/dspy/**/*"
+      - any-glob-to-any-file: ".github/workflows/dspy.yml"
+
 integration:elasticsearch:
   - changed-files:
       - any-glob-to-any-file: "integrations/elasticsearch/**/*"
@@ -78,7 +83,6 @@ integration:faiss:
   - changed-files:
       - any-glob-to-any-file: "integrations/faiss/**/*"
       - any-glob-to-any-file: ".github/workflows/faiss.yml"
-
 
 integration:fastembed:
   - changed-files:
@@ -208,6 +212,11 @@ integration:pgvector:
       - any-glob-to-any-file: "integrations/pgvector/**/*"
       - any-glob-to-any-file: ".github/workflows/pgvector.yml"
 
+integration:presidio:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/presidio/**/*"
+      - any-glob-to-any-file: ".github/workflows/presidio.yml"
+
 integration:pinecone:
   - changed-files:
       - any-glob-to-any-file: "integrations/pinecone/**/*"
@@ -242,6 +251,11 @@ integration:stackit:
   - changed-files:
       - any-glob-to-any-file: "integrations/stackit/**/*"
       - any-glob-to-any-file: ".github/workflows/stackit.yml"
+
+integration:supabase:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/supabase/**/*"
+      - any-glob-to-any-file: ".github/workflows/supabase.yml"
 
 integration:tavily:
   - changed-files:
