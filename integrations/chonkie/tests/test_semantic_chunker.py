@@ -7,13 +7,13 @@ import chonkie
 import pytest
 from haystack import Document
 
-from haystack_integrations.components.preprocessors.chonkie import ChonkieSemanticChunker
+from haystack_integrations.components.preprocessors.chonkie import ChonkieSemanticDocumentSplitter
 
 
-class TestChonkieSemanticChunker:
+class TestChonkieSemanticDocumentSplitter:
     @patch("haystack_integrations.components.preprocessors.chonkie.semantic_chunker.chonkie.SemanticChunker")
     def test_init_default(self, _mock_chunker):
-        chunker = ChonkieSemanticChunker()
+        chunker = ChonkieSemanticDocumentSplitter()
         assert chunker.embedding_model == "minishlab/potion-base-32M"
         assert chunker.threshold == 0.8
         assert chunker.chunk_size == 2048
@@ -23,7 +23,7 @@ class TestChonkieSemanticChunker:
 
     @patch("haystack_integrations.components.preprocessors.chonkie.semantic_chunker.chonkie.SemanticChunker")
     def test_to_dict(self, _mock_chunker):
-        chunker = ChonkieSemanticChunker(
+        chunker = ChonkieSemanticDocumentSplitter(
             embedding_model="all-MiniLM-L6-v2",
             threshold=0.75,
             chunk_size=1024,
@@ -33,7 +33,7 @@ class TestChonkieSemanticChunker:
         )
         data = chunker.to_dict()
         assert data == {
-            "type": "haystack_integrations.components.preprocessors.chonkie.semantic_chunker.ChonkieSemanticChunker",
+            "type": "haystack_integrations.components.preprocessors.chonkie.semantic_chunker.ChonkieSemanticDocumentSplitter",  # noqa: E501
             "init_parameters": {
                 "embedding_model": "all-MiniLM-L6-v2",
                 "threshold": 0.75,
@@ -47,13 +47,15 @@ class TestChonkieSemanticChunker:
                 "filter_window": 5,
                 "filter_polyorder": 3,
                 "filter_tolerance": 0.2,
+                "skip_empty_documents": True,
+                "page_break_character": "\f",
             },
         }
 
     @patch("haystack_integrations.components.preprocessors.chonkie.semantic_chunker.chonkie.SemanticChunker")
     def test_from_dict(self, _mock_chunker):
         data = {
-            "type": "haystack_integrations.components.preprocessors.chonkie.semantic_chunker.ChonkieSemanticChunker",
+            "type": "haystack_integrations.components.preprocessors.chonkie.semantic_chunker.ChonkieSemanticDocumentSplitter",  # noqa: E501
             "init_parameters": {
                 "embedding_model": "all-MiniLM-L6-v2",
                 "threshold": 0.75,
@@ -61,15 +63,27 @@ class TestChonkieSemanticChunker:
                 "similarity_window": 2,
                 "min_sentences_per_chunk": 2,
                 "min_characters_per_sentence": 10,
+                "delim": [". ", "! "],
+                "include_delim": "prev",
+                "skip_window": 1,
+                "filter_window": 3,
+                "filter_polyorder": 2,
+                "filter_tolerance": 0.1,
             },
         }
-        chunker = ChonkieSemanticChunker.from_dict(data)
+        chunker = ChonkieSemanticDocumentSplitter.from_dict(data)
         assert chunker.embedding_model == "all-MiniLM-L6-v2"
         assert chunker.threshold == 0.75
         assert chunker.chunk_size == 1024
         assert chunker.similarity_window == 2
         assert chunker.min_sentences_per_chunk == 2
         assert chunker.min_characters_per_sentence == 10
+        assert chunker.delim == [". ", "! "]
+        assert chunker.include_delim == "prev"
+        assert chunker.skip_window == 1
+        assert chunker.filter_window == 3
+        assert chunker.filter_polyorder == 2
+        assert chunker.filter_tolerance == 0.1
 
     @patch("haystack_integrations.components.preprocessors.chonkie.semantic_chunker.chonkie.SemanticChunker")
     def test_run(self, mock_chunker):
@@ -82,7 +96,7 @@ class TestChonkieSemanticChunker:
             ),
         ]
 
-        chunker = ChonkieSemanticChunker()
+        chunker = ChonkieSemanticDocumentSplitter()
         doc = Document(
             content="Hello world! This is a semantic test string. It contains multiple sentences. We will split it up."
         )
@@ -91,19 +105,62 @@ class TestChonkieSemanticChunker:
         assert "documents" in result
         chunks = result["documents"]
         assert len(chunks) == 2
-        assert chunks[0].meta["source_id"] == doc.id
-        assert chunks[0].meta["start_index"] == 0
-        assert chunks[0].meta["end_index"] == 12
+        for split_id, chunk in enumerate(chunks):
+            assert chunk.meta["source_id"] == doc.id
+            assert chunk.meta["split_id"] == split_id
+            assert "page_number" in chunk.meta
+            assert "split_idx_start" in chunk.meta
+            assert "split_idx_end" in chunk.meta
+            assert "token_count" in chunk.meta
+            assert len(chunk.meta) == 6
 
     def test_run_empty_document(self):
-        chunker = ChonkieSemanticChunker()
+        chunker = ChonkieSemanticDocumentSplitter(skip_empty_documents=True)
         result = chunker.run(documents=[Document(content="")])
         assert result["documents"] == []
 
+        chunker = ChonkieSemanticDocumentSplitter(skip_empty_documents=False)
+        result = chunker.run(documents=[Document(content="")])
+        assert result["documents"] == []
+
+    def test_run_none_content(self):
+        chunker = ChonkieSemanticDocumentSplitter()
+        with pytest.raises(ValueError, match=r"ChonkieSemanticDocumentSplitter works only with text documents but doc ID .* is None"):
+            chunker.run(documents=[Document(content=None)])
+
+    def test_run_page_number(self):
+        chunker = ChonkieSemanticDocumentSplitter(chunk_size=50)
+        text = "Page 1 content.\fPage 2 content."
+        doc = Document(content=text, meta={"page_number": 1})
+        result = chunker.run(documents=[doc])
+        chunks = result["documents"]
+        assert len(chunks) >= 1
+        assert chunks[0].meta["page_number"] == 1
+
     def test_run_invalid_documents_type(self):
 
-        chunker = ChonkieSemanticChunker()
+        chunker = ChonkieSemanticDocumentSplitter()
         with pytest.raises(TypeError, match="expects a list of Document objects"):
             chunker.run(documents="invalid")
         with pytest.raises(TypeError, match="expects a list of Document objects"):
             chunker.run(documents=[1, 2, 3])
+
+    @pytest.mark.integration
+    def test_run_integration(self):
+        chunker = ChonkieSemanticDocumentSplitter(embedding_model="minishlab/potion-base-32M", chunk_size=64)
+        text = (
+            "Semantic chunking is a method of splitting text based on the meaning of the content. "
+            "It uses embedding models to determine boundaries. This ensures that chunks are semantically coherent."
+        )
+        docs = [Document(content=text)]
+        result = chunker.run(documents=docs)
+        chunks = result["documents"]
+        assert len(chunks) == 1
+        for split_id, chunk in enumerate(chunks):
+            assert chunk.meta["source_id"] == docs[0].id
+            assert chunk.meta["split_id"] == split_id
+            assert "page_number" in chunk.meta
+            assert "split_idx_start" in chunk.meta
+            assert "split_idx_end" in chunk.meta
+            assert "token_count" in chunk.meta
+            assert len(chunk.meta) == 6

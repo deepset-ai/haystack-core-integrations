@@ -2,24 +2,27 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+import logging
 from typing import Any
 
 from haystack import Document, component, default_from_dict, default_to_dict
 
 import chonkie
 
+logger = logging.getLogger(__name__)
+
 
 @component
-class ChonkieSentenceChunker:
+class ChonkieSentenceDocumentSplitter:
     """
     A Document Splitter that uses Chonkie's SentenceChunker to split documents.
 
     Usage::
 
         from haystack import Document
-        from haystack_integrations.components.preprocessors.chonkie import ChonkieSentenceChunker
+        from haystack_integrations.components.preprocessors.chonkie import ChonkieSentenceDocumentSplitter
 
-        chunker = ChonkieSentenceChunker(chunk_size=512)
+        chunker = ChonkieSentenceDocumentSplitter(chunk_size=512)
         documents = [Document(content="Hello world. This is a test.")]
         result = chunker.run(documents=documents)
         print(result["documents"])
@@ -27,6 +30,7 @@ class ChonkieSentenceChunker:
 
     def __init__(
         self,
+        *,
         tokenizer: str = "character",
         chunk_size: int = 2048,
         chunk_overlap: int = 0,
@@ -35,18 +39,24 @@ class ChonkieSentenceChunker:
         approximate: bool = False,
         delim: Any = None,
         include_delim: str = "prev",
+        skip_empty_documents: bool = True,
+        page_break_character: str = "\f",
     ) -> None:
         """
-        Initializes the ChonkieSentenceChunker.
+        Initializes the ChonkieSentenceDocumentSplitter.
 
         :param tokenizer: The tokenizer to use for chunking. Defaults to "character".
-        :param chunk_size: The maximum size of each chunk.
+            Common options include "character", "gpt2", and "cl100k_base".
+            See the [Chonkie documentation](https://docs.chonkie.ai/) for more information on available tokenizers.
+        :param chunk_size: The maximum number of tokens per chunk. The actual length depends on the chosen tokenizer.
         :param chunk_overlap: The overlap between consecutive chunks.
         :param min_sentences_per_chunk: The minimum number of sentences per chunk.
         :param min_characters_per_sentence: The minimum number of characters per sentence.
         :param approximate: Whether to use approximate chunking.
         :param delim: Delimiters to use for splitting. If None, default delimiters are used.
         :param include_delim: Whether to include the delimiter in the chunks ("prev" or "next").
+        :param skip_empty_documents: Whether to skip empty documents.
+        :param page_break_character: The character to use for page breaks.
         """
         self.tokenizer = tokenizer
         self.chunk_size = chunk_size
@@ -56,6 +66,8 @@ class ChonkieSentenceChunker:
         self.approximate = approximate
         self.delim = delim
         self.include_delim = include_delim
+        self.skip_empty_documents = skip_empty_documents
+        self.page_break_character = page_break_character
 
         kwargs: dict[str, Any] = {
             "tokenizer": tokenizer,
@@ -73,7 +85,7 @@ class ChonkieSentenceChunker:
         self._chunker = chonkie.SentenceChunker(**kwargs)
 
     @component.output_types(documents=list[Document])
-    def run(self, documents: list[Document]) -> dict[str, Any]:
+    def run(self, documents: list[Document]) -> dict[str, list[Document]]:
         """
         Splits a list of documents into smaller sentence-based chunks.
 
@@ -81,22 +93,34 @@ class ChonkieSentenceChunker:
         :returns: A dictionary with the "documents" key containing the list of chunks.
         """
         if not isinstance(documents, list) or (documents and not isinstance(documents[0], Document)):
-            msg = "ChonkieSentenceChunker expects a list of Document objects."
+            msg = "ChonkieSentenceDocumentSplitter expects a list of Document objects."
             raise TypeError(msg)
 
         chunked_documents = []
         for doc in documents:
-            if not doc.content:
+            if doc.content is None:
+                msg = f"ChonkieSentenceDocumentSplitter works only with text documents but doc ID {doc.id} is None."
+                raise ValueError(msg)
+
+            if doc.content == "" and self.skip_empty_documents:
+                logger.warning("Document ID %s has an empty content. Skipping this document.", doc.id)
                 continue
 
             chunks = self._chunker.chunk(doc.content)
-            for chunk in chunks:
+            current_page = doc.meta.get("page_number", 1) if doc.meta else 1
+            for split_id, chunk in enumerate(chunks):
                 meta = doc.meta.copy() if doc.meta else {}
-                meta["source_id"] = doc.id
-                meta["start_index"] = getattr(chunk, "start_index", None)
-                meta["end_index"] = getattr(chunk, "end_index", None)
-                meta["token_count"] = getattr(chunk, "token_count", None)
-
+                meta.update(
+                    {
+                        "source_id": doc.id,
+                        "page_number": current_page,
+                        "split_id": split_id,
+                        "split_idx_start": chunk.start_index,
+                        "split_idx_end": chunk.end_index,
+                        "token_count": chunk.token_count,
+                    }
+                )
+                current_page += chunk.text.count(self.page_break_character)
                 new_doc = Document(content=chunk.text, meta=meta)
                 chunked_documents.append(new_doc)
 
@@ -119,10 +143,12 @@ class ChonkieSentenceChunker:
             approximate=self.approximate,
             delim=self.delim,
             include_delim=self.include_delim,
+            skip_empty_documents=self.skip_empty_documents,
+            page_break_character=self.page_break_character,
         )
 
     @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "ChonkieSentenceChunker":
+    def from_dict(cls, data: dict[str, Any]) -> "ChonkieSentenceDocumentSplitter":
         """
         Deserializes the component from a dictionary.
 
