@@ -4,13 +4,15 @@
 
 from unittest.mock import patch
 
+import chonkie
 from haystack import Document
+
 from haystack_integrations.components.preprocessors.chonkie import ChonkieSemanticChunker
 
 
 class TestChonkieSemanticChunker:
     @patch("haystack_integrations.components.preprocessors.chonkie.semantic_chunker.chonkie.SemanticChunker")
-    def test_init_default(self, mock_chunker):
+    def test_init_default(self, _mock_chunker):
         chunker = ChonkieSemanticChunker()
         assert chunker.embedding_model == "minishlab/potion-base-32M"
         assert chunker.threshold == 0.8
@@ -20,7 +22,7 @@ class TestChonkieSemanticChunker:
         assert chunker.min_characters_per_sentence == 24
 
     @patch("haystack_integrations.components.preprocessors.chonkie.semantic_chunker.chonkie.SemanticChunker")
-    def test_to_dict(self, mock_chunker):
+    def test_to_dict(self, _mock_chunker):
         chunker = ChonkieSemanticChunker(
             embedding_model="all-MiniLM-L6-v2",
             threshold=0.75,
@@ -49,7 +51,7 @@ class TestChonkieSemanticChunker:
         }
 
     @patch("haystack_integrations.components.preprocessors.chonkie.semantic_chunker.chonkie.SemanticChunker")
-    def test_from_dict(self, mock_chunker):
+    def test_from_dict(self, _mock_chunker):
         data = {
             "type": "haystack_integrations.components.preprocessors.chonkie.semantic_chunker.ChonkieSemanticChunker",
             "init_parameters": {
@@ -71,18 +73,21 @@ class TestChonkieSemanticChunker:
 
     @patch("haystack_integrations.components.preprocessors.chonkie.semantic_chunker.chonkie.SemanticChunker")
     def test_run(self, mock_chunker):
-        import chonkie
         # Setup mock return chunks
         mock_instance = mock_chunker.return_value
         mock_instance.chunk.return_value = [
             chonkie.types.base.Chunk(text="Hello world!", token_count=3, start_index=0, end_index=12),
-            chonkie.types.base.Chunk(text="This is a semantic test string.", token_count=7, start_index=13, end_index=44),
+            chonkie.types.base.Chunk(
+                text="This is a semantic test string.", token_count=7, start_index=13, end_index=44
+            ),
         ]
-        
+
         chunker = ChonkieSemanticChunker()
-        doc = Document(content="Hello world! This is a semantic test string. It contains multiple sentences. We will split it up.")
+        doc = Document(
+            content="Hello world! This is a semantic test string. It contains multiple sentences. We will split it up."
+        )
         result = chunker.run(documents=[doc])
-        
+
         assert "documents" in result
         chunks = result["documents"]
         assert len(chunks) == 2

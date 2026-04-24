@@ -52,7 +52,7 @@ class ChonkieRecursiveChunker:
         }
         if rules is not None:
             kwargs["rules"] = rules
-            
+
         self._chunker = chonkie.RecursiveChunker(**kwargs)
 
     @component.output_types(documents=list[Document])
@@ -111,6 +111,3 @@ class ChonkieRecursiveChunker:
             Deserialized component.
         """
         return default_from_dict(cls, data)
-
-
-

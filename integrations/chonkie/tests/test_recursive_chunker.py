@@ -3,6 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 from haystack import Document
+
 from haystack_integrations.components.preprocessors.chonkie import ChonkieRecursiveChunker
 
 
@@ -44,7 +45,7 @@ class TestChonkieRecursiveChunker:
         chunker = ChonkieRecursiveChunker(chunk_size=10, min_characters_per_chunk=2)
         doc = Document(content="Hello world! This is a test string for chunking.")
         result = chunker.run(documents=[doc])
-        
+
         assert "documents" in result
         chunks = result["documents"]
         assert len(chunks) > 0

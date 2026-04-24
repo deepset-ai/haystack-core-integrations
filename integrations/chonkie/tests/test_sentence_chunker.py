@@ -3,6 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 from haystack import Document
+
 from haystack_integrations.components.preprocessors.chonkie import ChonkieSentenceChunker
 
 

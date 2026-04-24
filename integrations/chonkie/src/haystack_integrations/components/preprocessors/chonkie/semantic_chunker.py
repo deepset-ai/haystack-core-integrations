@@ -8,6 +8,7 @@ from haystack import Document, component, default_from_dict, default_to_dict
 
 import chonkie
 
+
 @component
 class ChonkieSemanticChunker:
     """
