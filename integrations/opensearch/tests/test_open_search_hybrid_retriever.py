@@ -78,7 +78,7 @@ class TestOpenSearchHybridRetriever:
                 },
             },
             "filters_bm25": None,
-            "fuzziness": "AUTO",
+            "fuzziness": 0,
             "top_k_bm25": 10,
             "scale_score": False,
             "all_terms_must_match": False,
@@ -227,7 +227,7 @@ class TestOpenSearchHybridRetriever:
             filters={"key": "value"},
             top_k=1,
             all_terms_must_match=False,
-            fuzziness="AUTO",
+            fuzziness=0,
             scale_score=False,
             custom_query=None,
         )
@@ -260,7 +260,7 @@ class TestOpenSearchHybridRetriever:
             filters={"param_a": "default"},
             top_k=10,
             all_terms_must_match=False,
-            fuzziness="AUTO",
+            fuzziness=0,
             scale_score=False,
             custom_query=None,
         )

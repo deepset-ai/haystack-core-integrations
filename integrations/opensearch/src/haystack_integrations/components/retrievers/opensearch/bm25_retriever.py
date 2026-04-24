@@ -31,7 +31,7 @@ class OpenSearchBM25Retriever:
         *,
         document_store: OpenSearchDocumentStore,
         filters: dict[str, Any] | None = None,
-        fuzziness: int | str = "AUTO",
+        fuzziness: int | str = 0,
         top_k: int = 10,
         scale_score: bool = False,
         all_terms_must_match: bool = False,
