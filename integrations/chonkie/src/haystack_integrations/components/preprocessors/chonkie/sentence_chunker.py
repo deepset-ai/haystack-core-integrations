@@ -57,17 +57,18 @@ class ChonkieSentenceChunker:
         self.delim = delim
         self.include_delim = include_delim
 
-        kwargs = {
+        kwargs: dict[str, Any] = {
             "tokenizer": tokenizer,
             "chunk_size": chunk_size,
             "chunk_overlap": chunk_overlap,
             "min_sentences_per_chunk": min_sentences_per_chunk,
             "min_characters_per_sentence": min_characters_per_sentence,
             "approximate": approximate,
-            "include_delim": include_delim,
         }
         if delim is not None:
             kwargs["delim"] = delim
+        if include_delim is not None:
+            kwargs["include_delim"] = include_delim
 
         self._chunker = chonkie.SentenceChunker(**kwargs)
 

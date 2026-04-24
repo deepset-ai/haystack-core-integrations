@@ -45,7 +45,7 @@ class ChonkieRecursiveChunker:
         self.min_characters_per_chunk = min_characters_per_chunk
         self.rules = rules
 
-        kwargs = {
+        kwargs: dict[str, Any] = {
             "tokenizer": tokenizer,
             "chunk_size": chunk_size,
             "min_characters_per_chunk": min_characters_per_chunk,
