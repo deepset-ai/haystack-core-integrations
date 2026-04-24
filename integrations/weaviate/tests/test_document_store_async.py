@@ -59,6 +59,7 @@ class TestWeaviateDocumentStoreAsync(
                 {"name": "priority", "dataType": ["int"]},
                 {"name": "age", "dataType": ["int"]},
                 {"name": "rating", "dataType": ["number"]},
+                {"name": "year", "dataType": ["int"]},
             ],
         }
         store = WeaviateDocumentStore(

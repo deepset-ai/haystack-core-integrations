@@ -563,8 +563,10 @@ class WeaviateDocumentStore:
         :returns: A dictionary mapping field names to counts of unique values.
         :raises ValueError: If any of the requested fields don't exist in the collection schema.
         """
-        validate_filters(filters)
-        weaviate_filter = convert_filters(filters)
+        weaviate_filter = None
+        if filters:
+            validate_filters(filters)
+            weaviate_filter = convert_filters(filters)
 
         normalized_fields = [_normalize_metadata_field_name(f) for f in metadata_fields]
 
@@ -599,9 +601,12 @@ class WeaviateDocumentStore:
         :returns: A dictionary mapping field names to counts of unique values.
         :raises ValueError: If any of the requested fields don't exist in the collection schema.
         """
-        validate_filters(filters)
+        weaviate_filter = None
+        if filters:
+            validate_filters(filters)
+            weaviate_filter = convert_filters(filters)
+
         collection = await self.async_collection
-        weaviate_filter = convert_filters(filters)
 
         normalized_fields = [_normalize_metadata_field_name(f) for f in metadata_fields]
 
