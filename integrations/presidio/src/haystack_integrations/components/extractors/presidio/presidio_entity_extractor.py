@@ -112,9 +112,7 @@ class PresidioEntityExtractor:
                 raise ValueError(msg)
             models = [{"lang_code": self.language, "model_name": self.SPACY_DEFAULT_MODELS[self.language]}]
 
-        nlp_engine = NlpEngineProvider(
-            nlp_configuration={"nlp_engine_name": "spacy", "models": models}
-        ).create_engine()
+        nlp_engine = NlpEngineProvider(nlp_configuration={"nlp_engine_name": "spacy", "models": models}).create_engine()
         supported_languages = [m["lang_code"] for m in models]
         self._analyzer = AnalyzerEngine(nlp_engine=nlp_engine, supported_languages=supported_languages)
 
