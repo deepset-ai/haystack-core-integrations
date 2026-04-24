@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import logging
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 from haystack import Document
@@ -18,6 +18,7 @@ class TestPresidioDocumentCleaner:
         assert cleaner.language == "en"
         assert cleaner.entities is None
         assert cleaner.score_threshold == 0.35
+        assert cleaner.models is None
 
     def test_init_custom_params(self):
         cleaner = PresidioDocumentCleaner(language="de", entities=["PERSON"], score_threshold=0.7)
@@ -26,28 +27,77 @@ class TestPresidioDocumentCleaner:
         assert cleaner.score_threshold == 0.7
 
     def test_to_dict(self):
-        cleaner = PresidioDocumentCleaner(language="en", entities=["EMAIL_ADDRESS"], score_threshold=0.5)
+        models = [{"lang_code": "fr", "model_name": "fr_core_news_lg"}]
+        cleaner = PresidioDocumentCleaner(language="fr", entities=["EMAIL_ADDRESS"], score_threshold=0.5, models=models)
         data = component_to_dict(cleaner, "PresidioDocumentCleaner")
         expected_type = (
             "haystack_integrations.components.preprocessors.presidio.presidio_document_cleaner.PresidioDocumentCleaner"
         )
         assert data["type"] == expected_type
-        assert data["init_parameters"]["language"] == "en"
+        assert data["init_parameters"]["language"] == "fr"
         assert data["init_parameters"]["entities"] == ["EMAIL_ADDRESS"]
         assert data["init_parameters"]["score_threshold"] == 0.5
+        assert data["init_parameters"]["models"] == models
 
     def test_from_dict(self):
+        models = [{"lang_code": "de", "model_name": "de_core_news_lg"}]
         data = {
             "type": (
                 "haystack_integrations.components.preprocessors.presidio"
                 ".presidio_document_cleaner.PresidioDocumentCleaner"
             ),
-            "init_parameters": {"language": "de", "entities": ["PERSON"], "score_threshold": 0.6},
+            "init_parameters": {"language": "de", "entities": ["PERSON"], "score_threshold": 0.6, "models": models},
         }
         cleaner = component_from_dict(PresidioDocumentCleaner, data, "PresidioDocumentCleaner")
         assert cleaner.language == "de"
         assert cleaner.entities == ["PERSON"]
         assert cleaner.score_threshold == 0.6
+        assert cleaner.models == models
+
+    def test_warm_up_auto_model(self):
+        cleaner = PresidioDocumentCleaner(language="en")
+        mock_nlp_engine = MagicMock()
+        with (
+            patch(
+                "haystack_integrations.components.preprocessors.presidio.presidio_document_cleaner.NlpEngineProvider"
+            ) as mock_provider_cls,
+            patch(
+                "haystack_integrations.components.preprocessors.presidio.presidio_document_cleaner.AnalyzerEngine"
+            ) as mock_analyzer_cls,
+            patch("haystack_integrations.components.preprocessors.presidio.presidio_document_cleaner.AnonymizerEngine"),
+        ):
+            mock_provider_cls.return_value.create_engine.return_value = mock_nlp_engine
+            cleaner.warm_up()
+            mock_provider_cls.assert_called_once_with(
+                nlp_configuration={
+                    "nlp_engine_name": "spacy",
+                    "models": [{"lang_code": "en", "model_name": "en_core_web_lg"}],
+                }
+            )
+            mock_analyzer_cls.assert_called_once_with(nlp_engine=mock_nlp_engine, supported_languages=["en"])
+
+    def test_warm_up_unknown_language_raises(self):
+        cleaner = PresidioDocumentCleaner(language="xx")
+        with pytest.raises(ValueError, match="No default spaCy model is available for language 'xx'"):
+            cleaner.warm_up()
+
+    def test_warm_up_with_models(self):
+        models = [{"lang_code": "fr", "model_name": "fr_core_news_lg"}]
+        cleaner = PresidioDocumentCleaner(language="fr", models=models)
+        mock_nlp_engine = MagicMock()
+        with (
+            patch(
+                "haystack_integrations.components.preprocessors.presidio.presidio_document_cleaner.NlpEngineProvider"
+            ) as mock_provider_cls,
+            patch(
+                "haystack_integrations.components.preprocessors.presidio.presidio_document_cleaner.AnalyzerEngine"
+            ) as mock_analyzer_cls,
+            patch("haystack_integrations.components.preprocessors.presidio.presidio_document_cleaner.AnonymizerEngine"),
+        ):
+            mock_provider_cls.return_value.create_engine.return_value = mock_nlp_engine
+            cleaner.warm_up()
+            mock_provider_cls.assert_called_once_with(nlp_configuration={"nlp_engine_name": "spacy", "models": models})
+            mock_analyzer_cls.assert_called_once_with(nlp_engine=mock_nlp_engine, supported_languages=["fr"])
 
     def _make_cleaner_with_mocks(self, **kwargs):
         """Return a cleaner with mocked engines so unit tests don't load real NLP models."""
@@ -150,3 +200,14 @@ class TestPresidioDocumentCleaner:
         assert len(result["documents"]) == 1
         assert "John Smith" not in result["documents"][0].content
         assert "john@example.com" not in result["documents"][0].content
+
+    @pytest.mark.integration
+    def test_run_integration_german(self):
+        cleaner = PresidioDocumentCleaner(language="de")
+        cleaner.warm_up()
+        docs = [Document(content="Mein Name ist Hans Müller und meine E-Mail ist hans@example.com")]
+        result = cleaner.run(documents=docs)
+
+        assert len(result["documents"]) == 1
+        assert "Hans Müller" not in result["documents"][0].content
+        assert "hans@example.com" not in result["documents"][0].content
