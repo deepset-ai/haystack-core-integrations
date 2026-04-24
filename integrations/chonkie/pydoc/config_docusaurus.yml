@@ -1,0 +1,13 @@
+loaders:
+  - modules:
+      - haystack_integrations.components.preprocessors.chonkie.preprocessor
+    search_path: [../src]
+processors:
+  - type: filter
+    documented_only: true
+    skip_empty_modules: true
+renderer:
+  description: Chonkie integration for Haystack
+  id: integrations-chonkie
+  filename: chonkie.md
+  title: Chonkie
