@@ -1,0 +1,18 @@
+loaders:
+  - modules:
+      - haystack_integrations.tools.e2b.bash_tool
+      - haystack_integrations.tools.e2b.e2b_sandbox
+      - haystack_integrations.tools.e2b.list_directory_tool
+      - haystack_integrations.tools.e2b.read_file_tool
+      - haystack_integrations.tools.e2b.sandbox_toolset
+      - haystack_integrations.tools.e2b.write_file_tool
+    search_path: [../src]
+processors:
+  - type: filter
+    documented_only: true
+    skip_empty_modules: true
+renderer:
+  description: E2B integration for Haystack
+  id: integrations-e2b
+  filename: e2b.md
+  title: E2B
