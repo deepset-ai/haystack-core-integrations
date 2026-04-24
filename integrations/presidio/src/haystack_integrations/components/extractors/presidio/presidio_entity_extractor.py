@@ -3,42 +3,15 @@
 # SPDX-License-Identifier: Apache-2.0
 
 from dataclasses import replace
+from typing import ClassVar
 
 from haystack import Document, component, logging
 from presidio_analyzer import AnalyzerEngine
 from presidio_analyzer.nlp_engine import NlpEngineProvider
 
-logger = logging.getLogger(__name__)
+from haystack_integrations.components.common.presidio.utils import SPACY_DEFAULT_MODELS as _SPACY_DEFAULT_MODELS
 
-# Maps ISO 639-1 language codes to the largest available spaCy model for that language.
-# Used to automatically configure the NLP engine when only `language` is specified.
-# See https://spacy.io/models for the full list of available models.
-SPACY_DEFAULT_MODELS: dict[str, str] = {
-    "ca": "ca_core_news_lg",
-    "zh": "zh_core_web_lg",
-    "hr": "hr_core_news_lg",
-    "da": "da_core_news_lg",
-    "nl": "nl_core_news_lg",
-    "en": "en_core_web_lg",
-    "fi": "fi_core_news_lg",
-    "fr": "fr_core_news_lg",
-    "de": "de_core_news_lg",
-    "el": "el_core_news_lg",
-    "it": "it_core_news_lg",
-    "ja": "ja_core_news_lg",
-    "ko": "ko_core_news_lg",
-    "lt": "lt_core_news_lg",
-    "mk": "mk_core_news_lg",
-    "nb": "nb_core_news_lg",
-    "pl": "pl_core_news_lg",
-    "pt": "pt_core_news_lg",
-    "ro": "ro_core_news_lg",
-    "ru": "ru_core_news_lg",
-    "sl": "sl_core_news_lg",
-    "es": "es_core_news_lg",
-    "sv": "sv_core_news_lg",
-    "uk": "uk_core_news_lg",
-}
+logger = logging.getLogger(__name__)
 
 
 @component
@@ -69,6 +42,13 @@ class PresidioEntityExtractor:
     # [{"entity_type": "PERSON", "start": 8, "end": 13, "score": 0.85},
     #  {"entity_type": "EMAIL_ADDRESS", "start": 17, "end": 34, "score": 1.0}]
     ```
+    """
+
+    SPACY_DEFAULT_MODELS: ClassVar[dict[str, str]] = _SPACY_DEFAULT_MODELS
+    """Mapping from ISO 639-1 language code to the largest available spaCy model for that language.
+
+    Used to automatically select an NLP model when `models` is not specified.
+    See https://spacy.io/models for the full list of available spaCy models.
     """
 
     def __init__(
@@ -122,15 +102,15 @@ class PresidioEntityExtractor:
 
         models = self.models
         if models is None:
-            if self.language not in SPACY_DEFAULT_MODELS:
-                supported = ", ".join(sorted(SPACY_DEFAULT_MODELS))
+            if self.language not in self.SPACY_DEFAULT_MODELS:
+                supported = ", ".join(sorted(self.SPACY_DEFAULT_MODELS))
                 msg = (
                     f"No default spaCy model is available for language '{self.language}'. "
                     f"Use the `models` parameter to specify a custom model. "
                     f"Languages with built-in support: {supported}."
                 )
                 raise ValueError(msg)
-            models = [{"lang_code": self.language, "model_name": SPACY_DEFAULT_MODELS[self.language]}]
+            models = [{"lang_code": self.language, "model_name": self.SPACY_DEFAULT_MODELS[self.language]}]
 
         nlp_engine = NlpEngineProvider(
             nlp_configuration={"nlp_engine_name": "spacy", "models": models}
