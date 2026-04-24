@@ -45,7 +45,7 @@ class PresidioDocumentCleaner:
     """Mapping from ISO 639-1 language code to the largest available spaCy model for that language.
 
     Used to automatically select an NLP model when `models` is not specified.
-    See https://spacy.io/models for the full list of available spaCy models.
+    See [spaCy documentation](https://spacy.io/models) for the full list of available spaCy models.
     """
 
     def __init__(
