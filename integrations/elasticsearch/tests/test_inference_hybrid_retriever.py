@@ -49,9 +49,7 @@ class TestElasticsearchInferenceHybridRetriever:
     @patch("haystack_integrations.document_stores.elasticsearch.document_store.Elasticsearch")
     def test_to_dict(self, _mock_elasticsearch_client) -> None:
         doc_store = ElasticsearchDocumentStore()
-        retriever = ElasticsearchInferenceHybridRetriever(
-            document_store=doc_store, inference_id=".elser_model_2"
-        )
+        retriever = ElasticsearchInferenceHybridRetriever(document_store=doc_store, inference_id=".elser_model_2")
         assert retriever.to_dict() == self.serialised
 
     @patch("haystack_integrations.document_stores.elasticsearch.document_store.Elasticsearch")
@@ -140,9 +138,7 @@ class TestElasticsearchInferenceHybridRetriever:
         mock_store._bm25_retrieval.return_value = [Document(content="BM25 result")]
         mock_store._sparse_vector_retrieval_inference.return_value = [Document(content="Sparse result")]
 
-        retriever = ElasticsearchInferenceHybridRetriever(
-            document_store=mock_store, inference_id=".elser_model_2"
-        )
+        retriever = ElasticsearchInferenceHybridRetriever(document_store=mock_store, inference_id=".elser_model_2")
         result = retriever.run(query="test query")
 
         assert len(result["documents"]) == 2
@@ -183,9 +179,7 @@ class TestElasticsearchInferenceHybridRetriever:
         mock_store._bm25_retrieval.return_value = [Document(content="BM25 result")]
         mock_store._sparse_vector_retrieval_inference.return_value = [Document(content="Sparse result")]
 
-        retriever = ElasticsearchInferenceHybridRetriever(
-            document_store=mock_store, inference_id=".elser_model_2"
-        )
+        retriever = ElasticsearchInferenceHybridRetriever(document_store=mock_store, inference_id=".elser_model_2")
         retriever.run(
             query="test query",
             filters_bm25={"field": "value"},
@@ -213,9 +207,7 @@ class TestElasticsearchInferenceHybridRetriever:
         mock_store._bm25_retrieval.return_value = [Document(content="BM25 result")]
         mock_store._sparse_vector_retrieval_inference.return_value = [Document(content="Sparse result")]
 
-        retriever = ElasticsearchInferenceHybridRetriever(
-            document_store=mock_store, inference_id=".elser_model_2"
-        )
+        retriever = ElasticsearchInferenceHybridRetriever(document_store=mock_store, inference_id=".elser_model_2")
         pipeline = Pipeline()
         pipeline.add_component("retriever", retriever)
 
