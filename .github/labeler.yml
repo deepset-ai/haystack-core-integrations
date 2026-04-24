@@ -14,6 +14,11 @@ integration:amazon-sagemaker:
       - any-glob-to-any-file: "integrations/amazon_sagemaker/**/*"
       - any-glob-to-any-file: ".github/workflows/amazon_sagemaker.yml"
 
+integration:amazon-textract:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/amazon_textract/**/*"
+      - any-glob-to-any-file: ".github/workflows/amazon_textract.yml"
+
 integration:anthropic:
   - changed-files:
       - any-glob-to-any-file: "integrations/anthropic/**/*"
