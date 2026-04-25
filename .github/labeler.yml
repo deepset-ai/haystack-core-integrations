@@ -9,6 +9,11 @@ integration:amazon-bedrock:
       - any-glob-to-any-file: "integrations/amazon_bedrock/**/*"
       - any-glob-to-any-file: ".github/workflows/amazon_bedrock.yml"
 
+integration:amazon-s3-vectors:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/amazon_s3_vectors/**/*"
+      - any-glob-to-any-file: ".github/workflows/amazon_s3_vectors.yml"
+
 integration:amazon-sagemaker:
   - changed-files:
       - any-glob-to-any-file: "integrations/amazon_sagemaker/**/*"
