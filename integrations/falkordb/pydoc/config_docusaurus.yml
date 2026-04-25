@@ -1,0 +1,15 @@
+loaders:
+  - modules:
+      - haystack_integrations.document_stores.falkordb.document_store
+      - haystack_integrations.components.retrievers.falkordb.embedding_retriever
+      - haystack_integrations.components.retrievers.falkordb.cypher_retriever
+    search_path: [../src]
+processors:
+  - type: filter
+    documented_only: true
+    skip_empty_modules: true
+renderer:
+  description: FalkorDB integration for Haystack
+  id: integrations-falkordb
+  filename: falkordb.md
+  title: FalkorDB

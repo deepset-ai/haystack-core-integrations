@@ -1,3 +1,3 @@
-# CLAUDE.md
+# CLAUDE.md — FalkorDB Haystack Integration: Execution Plan
 
-Before you start working on this repository, read the AGENTS.md file and follow all the instructions.
+> **⚠️ ALWAYS READ FIRST:** Before working in this repo, read `AGENTS.md` and follow ALL instructions there.

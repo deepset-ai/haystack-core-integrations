@@ -18,6 +18,7 @@ on:
       - "Test / dspy"
       - "Test / elasticsearch"
       - "Test / faiss"
+      - "Test / falkordb"
       - "Test / fastembed"
       - "Test / firecrawl"
       - "Test / github"

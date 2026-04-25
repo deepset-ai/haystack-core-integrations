@@ -79,6 +79,12 @@ integration:faiss:
       - any-glob-to-any-file: "integrations/faiss/**/*"
       - any-glob-to-any-file: ".github/workflows/faiss.yml"
 
+
+integration:falkordb:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/falkordb/**/*"
+      - any-glob-to-any-file: ".github/workflows/falkordb.yml"
+
 integration:fastembed:
   - changed-files:
       - any-glob-to-any-file: "integrations/fastembed/**/*"
