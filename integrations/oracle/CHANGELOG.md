@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/oracle-v0.2.0] - 2026-04-23
+
+### 🚀 Features
+
+- Complete `OracleDocumentStore` operations (#3179)
+
+
 ## [integrations/oracle-v0.1.0] - 2026-04-16
 
 ### 🚀 Features
