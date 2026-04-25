@@ -104,6 +104,7 @@ jobs:
           path: python-coverage-comment-action-alloydb.txt
 
       - name: Run integration tests
+        if: env.ALLOYDB_INSTANCE_URI != ''
         env:
           ALLOYDB_INSTANCE_URI: ${{ secrets.ALLOYDB_INSTANCE_URI }}
           ALLOYDB_USER: ${{ secrets.ALLOYDB_USER }}
@@ -111,7 +112,9 @@ jobs:
         run: hatch run test:integration-cov-append-retry
 
       - name: Store combined coverage
-        if: github.event_name == 'push'
+        if: github.event_name == 'push' && env.ALLOYDB_INSTANCE_URI != ''
+        env:
+          ALLOYDB_INSTANCE_URI: ${{ secrets.ALLOYDB_INSTANCE_URI }}
         uses: py-cov-action/python-coverage-comment-action@63f52f4fbbffada6e8dee8ec432de7e01df9ba79 # v3.41
         with:
           GITHUB_TOKEN: ${{ github.token }}
