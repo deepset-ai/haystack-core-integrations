@@ -40,6 +40,14 @@ class TestDocumentStoreAsync(
     GetMetadataFieldUniqueValuesAsyncTest,
 ):
     @pytest.mark.asyncio
+    async def test_count_not_empty_async(self, document_store: OpenSearchDocumentStore):
+        # Override: haystack v2.28.0 is missing @staticmethod on this mixin method.
+        await document_store.write_documents_async(
+            [Document(content="test doc 1"), Document(content="test doc 2"), Document(content="test doc 3")]
+        )
+        assert await document_store.count_documents_async() == 3
+
+    @pytest.mark.asyncio
     async def test_bm25_retrieval(self, document_store: OpenSearchDocumentStore, test_documents: list[Document]):
         document_store.write_documents(test_documents)
         res = await document_store._bm25_retrieval_async("functional", top_k=3)
