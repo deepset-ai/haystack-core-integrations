@@ -12,8 +12,8 @@ from haystack.dataclasses.byte_stream import ByteStream
 from haystack.dataclasses.document import Document
 from haystack.document_stores.errors import DocumentStoreError
 from haystack.testing.document_store_async import (
-    CountDocumentsByFilterAsyncTest,
     CountDocumentsAsyncTest,
+    CountDocumentsByFilterAsyncTest,
     CountUniqueMetadataByFilterAsyncTest,
     DeleteAllAsyncTest,
     DeleteByFilterAsyncTest,
