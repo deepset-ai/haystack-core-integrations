@@ -8,7 +8,7 @@ from typing import Any
 from haystack.errors import FilterError
 
 # Astra Data API rejects '$gt'/'$gte'/'$lt'/'$lte' against null. In Haystack, None on these comparators should return
-# no documents), so we emit a filter that matches nothing. It's a real filter to make it work also on composite filters.
+# no documents, so we emit a filter that matches nothing. It's a real filter to make it work also on composite filters.
 ASTRA_FILTER_NO_MATCH: dict[str, Any] = {"_id": {"$in": []}}
 
 NEGATED_COMPARATORS = {
@@ -25,7 +25,7 @@ NEGATED_COMPARATORS = {
 
 def _convert_filters(filters: dict[str, Any] | None = None) -> dict[str, Any] | None:
     """
-    Convert Haystack filters to the Astra Data API filter format.
+    Converts Haystack filters to Astra compatible filters.
     """
     if not filters:
         return None
