@@ -7,6 +7,10 @@ import logging
 from collections.abc import AsyncGenerator
 from pathlib import Path
 
+from numpy import array as np_array
+from numpy import array_equal as np_array_equal
+from numpy import float32 as np_float32
+
 import pytest
 import pytest_asyncio
 from haystack.dataclasses.byte_stream import ByteStream
@@ -54,10 +58,14 @@ class TestWeaviateDocumentStoreAsync(
             "invertedIndexConfig": {"indexNullState": True, "stopwords": {"preset": "none"}},
             "properties": [
                 *DOCUMENT_COLLECTION_PROPERTIES,
+                {"name": "name", "dataType": ["text"]},
+                {"name": "page", "dataType": ["text"]},
+                {"name": "chapter", "dataType": ["text"]},
                 {"name": "category", "dataType": ["text"]},
                 {"name": "status", "dataType": ["text"]},
                 {"name": "number", "dataType": ["int"]},
                 {"name": "date", "dataType": ["date"]},
+                {"name": "no_embedding", "dataType": ["boolean"]},
                 {"name": "priority", "dataType": ["int"]},
                 {"name": "age", "dataType": ["int"]},
                 {"name": "rating", "dataType": ["number"]},
@@ -94,9 +102,30 @@ class TestWeaviateDocumentStoreAsync(
         return documents
 
     def assert_documents_are_equal(self, received: list[Document], expected: list[Document]):
-        # filter_documents_async() returns Documents with score populated; strip it before comparing
-        received = [dataclasses.replace(doc, score=None) for doc in received]
-        super().assert_documents_are_equal(received, expected)
+        assert len(received) == len(expected)
+        received = sorted(received, key=lambda doc: doc.id)
+        expected = sorted(expected, key=lambda doc: doc.id)
+        for received_doc, expected_doc in zip(received, expected, strict=True):
+            received_doc_dict = dataclasses.replace(received_doc, score=None).to_dict(flatten=False)
+            expected_doc_dict = expected_doc.to_dict(flatten=False)
+
+            # Weaviate stores embeddings with lower precision floats so we handle that here.
+            assert np_array_equal(
+                np_array(received_doc_dict.pop("embedding", None), dtype=np_float32),
+                np_array(expected_doc_dict.pop("embedding", None), dtype=np_float32),
+                equal_nan=True,
+            )
+
+            received_meta = received_doc_dict.pop("meta", None)
+            expected_meta = expected_doc_dict.pop("meta", None)
+
+            assert received_doc_dict == expected_doc_dict
+
+            # If a meta field is not set in a saved document, it will be None when retrieved
+            # from Weaviate so we need to handle that.
+            meta_keys = set(received_meta.keys()).union(set(expected_meta.keys()))
+            for key in meta_keys:
+                assert received_meta.get(key) == expected_meta.get(key)
 
     @pytest.mark.asyncio
     async def test_close_async(self, document_store: WeaviateDocumentStore) -> None:
