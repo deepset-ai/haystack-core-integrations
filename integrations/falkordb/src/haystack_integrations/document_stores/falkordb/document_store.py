@@ -360,9 +360,6 @@ UNWIND $docs AS doc
 MERGE (d:{self.node_label} {{id: doc.id}})
 ON CREATE SET d += doc
 ON MATCH SET d = doc
-FOREACH (x IN CASE WHEN doc.{self.embedding_field} IS NOT NULL THEN [1] ELSE [] END |
-    SET d.{self.embedding_field} = vecf32(doc.{self.embedding_field})
-)
 RETURN count(d) AS n
 """
         else:
@@ -372,9 +369,6 @@ RETURN count(d) AS n
 UNWIND $docs AS doc
 MERGE (d:{self.node_label} {{id: doc.id}})
 ON CREATE SET d += doc
-FOREACH (x IN CASE WHEN doc.{self.embedding_field} IS NOT NULL THEN [1] ELSE [] END |
-    SET d.{self.embedding_field} = vecf32(doc.{self.embedding_field})
-)
 RETURN count(d) AS n
 """
 
@@ -480,6 +474,7 @@ ORDER BY score ASC, d.id ASC
         :raises DocumentStoreError: If the query fails.
         """
         self._ensure_connected()
+        
         try:
             # We don't force ORDER BY here as the query is custom,
             # but we ensured everything else is stable.
@@ -491,14 +486,14 @@ ORDER BY score ASC, d.id ASC
 
     def _scale_to_unit_interval(self, score: float) -> float:
         """
-        Scale a raw similarity score to the unit interval `[0, 1]`.
+        Scale a raw similarity score to the unit interval `[0, 2]`.
 
         Uses the following formulas:
-        - Cosine: `(score + 1) / 2`
-        - Euclidean: sigmoid `1 / (1 + exp(-score / 100))`
+        - Cosine: `1 - (score / 2)`
+        - Euclidean: sigmoid `1 / (1 + score)`
 
         :param score: Raw score returned by the vector index.
-        :returns: Scaled score in `[0, 1]`.
+        :returns: Scaled score in `[0, 2]`.
         """
         if self.similarity == "cosine":
             return 1 - (score / 2)
