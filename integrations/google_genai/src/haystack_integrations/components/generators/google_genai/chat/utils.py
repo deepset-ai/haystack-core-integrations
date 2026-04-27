@@ -550,12 +550,9 @@ def _convert_google_genai_response_to_chatmessage(response: types.GenerateConten
         usage["thoughts_token_count"] = usage_metadata.thoughts_token_count
 
     # Add cached content token count if available (implicit or explicit context caching)
-    if (
-        usage_metadata
-        and hasattr(usage_metadata, "cached_content_token_count")
-        and usage_metadata.cached_content_token_count
-    ):
-        usage["cached_content_token_count"] = usage_metadata.cached_content_token_count
+    cached_content_token_count = getattr(usage_metadata, "cached_content_token_count", None) if usage_metadata else None
+    if cached_content_token_count is not None:
+        usage["cached_content_token_count"] = cached_content_token_count
 
     usage.update(_convert_usage_metadata_to_serializable(usage_metadata))
 
@@ -624,6 +621,11 @@ def _convert_google_chunk_to_streaming_chunk(
     # Add thinking token count if available
     if usage_metadata and hasattr(usage_metadata, "thoughts_token_count") and usage_metadata.thoughts_token_count:
         usage["thoughts_token_count"] = usage_metadata.thoughts_token_count
+
+    # Add cached content token count if available (context caching)
+    cached_content_token_count = getattr(usage_metadata, "cached_content_token_count", None) if usage_metadata else None
+    if cached_content_token_count is not None:
+        usage["cached_content_token_count"] = cached_content_token_count
 
     if candidate.content and candidate.content.parts:
         tc_index = -1
@@ -717,6 +719,7 @@ def _aggregate_streaming_chunks_with_reasoning(chunks: list[StreamingChunk]) -> 
     reasoning_text_parts: list[str] = []
     thought_signatures: list[dict[str, Any]] = []
     thoughts_token_count = None
+    cached_content_token_count = None
 
     for chunk in chunks:
         # Extract reasoning from the StreamingChunk.reasoning field
@@ -731,17 +734,25 @@ def _aggregate_streaming_chunks_with_reasoning(chunks: list[StreamingChunk]) -> 
                 # We'll keep the last set of signatures as they represent the complete state
                 thought_signatures = signature_deltas
 
-        # Extract thinking token usage (from the last chunk that has it)
+        # Extract token usage metadata (from the last chunk that has it)
         if chunk.meta and "usage" in chunk.meta:
             chunk_usage = chunk.meta["usage"]
             if "thoughts_token_count" in chunk_usage:
                 thoughts_token_count = chunk_usage["thoughts_token_count"]
+            if "cached_content_token_count" in chunk_usage:
+                cached_content_token_count = chunk_usage["cached_content_token_count"]
 
     # Add thinking token count to usage if present
     if thoughts_token_count is not None and "usage" in message.meta:
         if message.meta["usage"] is None:
             message.meta["usage"] = {}
         message.meta["usage"]["thoughts_token_count"] = thoughts_token_count
+
+    # Add cached content token count to usage if present
+    if cached_content_token_count is not None and "usage" in message.meta:
+        if message.meta["usage"] is None:
+            message.meta["usage"] = {}
+        message.meta["usage"]["cached_content_token_count"] = cached_content_token_count
 
     # Add thought signatures to meta if present (for multi-turn context preservation)
     if thought_signatures:
