@@ -10,7 +10,6 @@ from dataclasses import replace
 from datetime import datetime
 from typing import Any, Literal
 
-from haystack import default_from_dict, default_to_dict
 from haystack.dataclasses import Document
 from haystack.document_stores.errors import DocumentStoreError, DuplicateDocumentError
 from haystack.document_stores.types import DocumentStore, DuplicatePolicy
@@ -132,28 +131,7 @@ class FalkorDBDocumentStore(DocumentStore):
         if verify_connectivity:
             self._ensure_connected()
 
-    def to_dict(self) -> dict[str, Any]:
-        """Serialize this document store to a dictionary."""
-        return default_to_dict(
-            self,
-            host=self.host,
-            port=self.port,
-            graph_name=self.graph_name,
-            username=self.username,
-            password=self.password,
-            node_label=self.node_label,
-            embedding_dim=self.embedding_dim,
-            embedding_field=self.embedding_field,
-            similarity=self.similarity,
-            write_batch_size=self.write_batch_size,
-            recreate_graph=self.recreate_graph,
-            verify_connectivity=self.verify_connectivity,
-        )
-
-    @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> FalkorDBDocumentStore:
-        """Deserialize a document store from a dictionary."""
-        return default_from_dict(cls, data)
+    
 
     # ------------------------------------------------------------------
     # Internal connection helpers
@@ -381,7 +359,7 @@ class FalkorDBDocumentStore(DocumentStore):
 UNWIND $docs AS doc
 MERGE (d:{self.node_label} {{id: doc.id}})
 ON CREATE SET d += doc
-ON MATCH SET d += doc
+ON MATCH SET d = doc
 FOREACH (x IN CASE WHEN doc.{self.embedding_field} IS NOT NULL THEN [1] ELSE [] END |
     SET d.{self.embedding_field} = vecf32(doc.{self.embedding_field})
 )
@@ -459,7 +437,7 @@ CALL db.idx.vector.queryNodes('{self.node_label}', '{self.embedding_field}', $to
 YIELD node AS d, score
 WHERE {where_clause}
 RETURN d, score
-ORDER BY score DESC
+ORDER BY score ASC
 """
             params: dict[str, Any] = {
                 "top_k": top_k,
@@ -471,7 +449,7 @@ ORDER BY score DESC
 CALL db.idx.vector.queryNodes('{self.node_label}', '{self.embedding_field}', $top_k, vecf32($query_embedding))
 YIELD node AS d, score
 RETURN d, score
-ORDER BY score DESC, d.id ASC
+ORDER BY score ASC, d.id ASC
 """
             params = {"top_k": top_k, "query_embedding": query_embedding}
 
@@ -523,8 +501,8 @@ ORDER BY score DESC, d.id ASC
         :returns: Scaled score in `[0, 1]`.
         """
         if self.similarity == "cosine":
-            return (score + 1) / 2
-        return float(1 / (1 + math.exp(-score / 100)))
+            return 1 - (score / 2)
+        return 1 / (1 + score)
 
 
 # ---------------------------------------------------------------------------
@@ -543,13 +521,12 @@ def _document_to_falkordb_record(doc: Document) -> dict[str, Any]:
     :param doc: The document to convert.
     :returns: Flat dictionary of node properties.
     """
-    record = {
-        "id": doc.id,
-        "content": doc.content,
-        "embedding": doc.embedding,
-    }
+    record = {}
     if doc.meta:
         record.update(doc.meta)
+    record["id"] = doc.id
+    record["content"] = doc.content
+    record["embedding"] = doc.embedding
 
     # Filter out None values — FalkorDB nodes don't need null properties stored.
     return {k: v for k, v in record.items() if v is not None}

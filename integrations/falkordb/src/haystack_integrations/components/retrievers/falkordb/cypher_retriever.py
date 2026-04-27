@@ -4,7 +4,7 @@
 
 from typing import Any
 
-from haystack import component, default_from_dict, default_to_dict
+from haystack import component
 from haystack.dataclasses import Document
 
 from haystack_integrations.document_stores.falkordb import FalkorDBDocumentStore
@@ -57,19 +57,6 @@ class FalkorDBCypherRetriever:
 
         self.document_store = document_store
         self.custom_cypher_query = custom_cypher_query
-
-    def to_dict(self) -> dict[str, Any]:
-        """Serialize this retriever to a dictionary."""
-        return default_to_dict(
-            self,
-            document_store=self.document_store.to_dict(),
-            custom_cypher_query=self.custom_cypher_query,
-        )
-
-    @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "FalkorDBCypherRetriever":
-        """Deserialize a retriever from a dictionary."""
-        return default_from_dict(cls, data)
 
     @component.output_types(documents=list[Document])
     def run(

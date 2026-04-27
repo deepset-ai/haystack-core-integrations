@@ -5,7 +5,7 @@
 from unittest.mock import MagicMock
 
 import pytest
-from haystack.core.errors import DeserializationError
+from haystack import default_from_dict, default_to_dict
 from haystack.dataclasses import Document
 from haystack.document_stores.types.filter_policy import FilterPolicy
 
@@ -71,37 +71,52 @@ class TestFalkorDBEmbeddingRetriever:
         assert len(called_filters["conditions"]) == 2
 
     def test_to_dict_from_dict(self):
-        store = MagicMock(spec=FalkorDBDocumentStore)
-        store.to_dict.return_value = {"type": "FalkorDBDocumentStore", "init_parameters": {}}
-
+        store = FalkorDBDocumentStore(verify_connectivity=False)
         retriever = FalkorDBEmbeddingRetriever(
             document_store=store,
             filters={"field": "year", "operator": "==", "value": 2020},
             top_k=5,
             filter_policy=FilterPolicy.MERGE,
         )
-        data = retriever.to_dict()
+
+        store_data = default_to_dict(
+            store,
+            host=store.host,
+            port=store.port,
+            graph_name=store.graph_name,
+            username=store.username,
+            password=store.password,
+            node_label=store.node_label,
+            embedding_dim=store.embedding_dim,
+            embedding_field=store.embedding_field,
+            similarity=store.similarity,
+            write_batch_size=store.write_batch_size,
+            recreate_graph=store.recreate_graph,
+            verify_connectivity=store.verify_connectivity,
+        )
+        data = default_to_dict(
+            retriever,
+            document_store=store_data,
+            filters={"field": "year", "operator": "==", "value": 2020},
+            top_k=5,
+            filter_policy=FilterPolicy.MERGE.value,
+        )
         assert data["init_parameters"]["top_k"] == 5
         assert data["init_parameters"]["filter_policy"] == "merge"
 
-        # We can't properly instantiate the mock in from_dict, so we just verify to_dict structure here
-        # or we use a real store for the roundtrip:
-        store_real = FalkorDBDocumentStore(verify_connectivity=False)
-        retriever_real = FalkorDBEmbeddingRetriever(
-            document_store=store_real,
-            filters={"field": "year", "operator": "==", "value": 2020},
-            top_k=5,
-            filter_policy=FilterPolicy.MERGE,
+        data["init_parameters"]["document_store"] = default_from_dict(
+            FalkorDBDocumentStore, data["init_parameters"]["document_store"]
         )
-        data_real = retriever_real.to_dict()
-        new_retriever = FalkorDBEmbeddingRetriever.from_dict(data_real)
-        assert new_retriever.top_k == 5
-        assert new_retriever.filter_policy == FilterPolicy.MERGE
+        restored = default_from_dict(FalkorDBEmbeddingRetriever, data)
+        assert restored.top_k == 5
+        assert restored.filter_policy == FilterPolicy.MERGE
 
     def test_from_dict_without_document_store(self):
-        data = {"type": "FalkorDBEmbeddingRetriever", "init_parameters": {}}
-        with pytest.raises(DeserializationError):
-            FalkorDBEmbeddingRetriever.from_dict(data)
+        fqcn = "haystack_integrations.components.retrievers.falkordb"
+        fqcn += ".embedding_retriever.FalkorDBEmbeddingRetriever"
+        data = {"type": fqcn, "init_parameters": {}}
+        with pytest.raises(TypeError):
+            default_from_dict(FalkorDBEmbeddingRetriever, data)
 
 
 class TestFalkorDBCypherRetriever:
@@ -144,18 +159,44 @@ class TestFalkorDBCypherRetriever:
             retriever.run()
 
     def test_to_dict_from_dict(self):
-        store_real = FalkorDBDocumentStore(verify_connectivity=False)
+        store = FalkorDBDocumentStore(verify_connectivity=False)
         retriever = FalkorDBCypherRetriever(
-            document_store=store_real,
+            document_store=store,
             custom_cypher_query="MATCH (d) RETURN d",
         )
-        data = retriever.to_dict()
+
+        store_data = default_to_dict(
+            store,
+            host=store.host,
+            port=store.port,
+            graph_name=store.graph_name,
+            username=store.username,
+            password=store.password,
+            node_label=store.node_label,
+            embedding_dim=store.embedding_dim,
+            embedding_field=store.embedding_field,
+            similarity=store.similarity,
+            write_batch_size=store.write_batch_size,
+            recreate_graph=store.recreate_graph,
+            verify_connectivity=store.verify_connectivity,
+        )
+        data = default_to_dict(
+            retriever,
+            document_store=store_data,
+            custom_cypher_query="MATCH (d) RETURN d",
+        )
         assert data["init_parameters"]["custom_cypher_query"] == "MATCH (d) RETURN d"
 
-        new_retriever = FalkorDBCypherRetriever.from_dict(data)
-        assert new_retriever.custom_cypher_query == "MATCH (d) RETURN d"
+        data["init_parameters"]["document_store"] = default_from_dict(
+            FalkorDBDocumentStore, data["init_parameters"]["document_store"]
+        )
+        restored = default_from_dict(FalkorDBCypherRetriever, data)
+        assert restored.custom_cypher_query == "MATCH (d) RETURN d"
 
     def test_from_dict_without_document_store(self):
-        data = {"type": "FalkorDBCypherRetriever", "init_parameters": {}}
-        with pytest.raises(DeserializationError):
-            FalkorDBCypherRetriever.from_dict(data)
+        data = {
+            "type": "haystack_integrations.components.retrievers.falkordb.cypher_retriever.FalkorDBCypherRetriever",
+            "init_parameters": {},
+        }
+        with pytest.raises(TypeError):
+            default_from_dict(FalkorDBCypherRetriever, data)

@@ -6,6 +6,7 @@ import logging
 import os
 
 import pytest
+from haystack import default_from_dict, default_to_dict
 from haystack.dataclasses import Document
 from haystack.testing.document_store import DocumentStoreBaseTests
 
@@ -16,6 +17,46 @@ from haystack_integrations.components.retrievers.falkordb import (
 from haystack_integrations.document_stores.falkordb import FalkorDBDocumentStore
 
 logger = logging.getLogger(__name__)
+
+
+class TestFalkorDBDocumentStoreSerialization:
+    def test_to_dict_from_dict(self):
+        store = FalkorDBDocumentStore(
+            host="myhost",
+            port=1234,
+            graph_name="test_graph",
+            embedding_dim=512,
+            similarity="euclidean",
+            verify_connectivity=False,
+        )
+
+        data = default_to_dict(
+            store,
+            host=store.host,
+            port=store.port,
+            graph_name=store.graph_name,
+            username=store.username,
+            password=store.password,
+            node_label=store.node_label,
+            embedding_dim=store.embedding_dim,
+            embedding_field=store.embedding_field,
+            similarity=store.similarity,
+            write_batch_size=store.write_batch_size,
+            recreate_graph=store.recreate_graph,
+            verify_connectivity=store.verify_connectivity,
+        )
+
+        assert data["init_parameters"]["host"] == "myhost"
+        assert data["init_parameters"]["port"] == 1234
+        assert data["init_parameters"]["embedding_dim"] == 512
+        assert data["init_parameters"]["similarity"] == "euclidean"
+
+        restored = default_from_dict(FalkorDBDocumentStore, data)
+        assert restored.host == "myhost"
+        assert restored.port == 1234
+        assert restored.graph_name == "test_graph"
+        assert restored.embedding_dim == 512
+        assert restored.similarity == "euclidean"
 
 
 @pytest.mark.integration
