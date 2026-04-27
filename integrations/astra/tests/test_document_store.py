@@ -386,106 +386,106 @@ class TestDocumentStore(
         TestDocumentStore.assert_documents_are_equal([result[0]], [docs[0]])
         TestDocumentStore.assert_documents_are_equal([result[1]], [docs[1]])
 
-    @pytest.mark.skip(reason="Unsupported filter operator not.")
+    # @pytest.mark.skip(reason="Unsupported filter operator not.")
     def test_not_operator(self, document_store, filterable_docs):
         pass
 
-    @pytest.mark.skip(reason="Unsupported filter operator $neq.")
+    # @pytest.mark.skip(reason="Unsupported filter operator $neq.")
     def test_comparison_not_equal_with_none(self, document_store, filterable_docs):
         pass
 
-    @pytest.mark.skip(reason="Unsupported filter operator $neq.")
+    # @pytest.mark.skip(reason="Unsupported filter operator $neq.")
     def test_comparison_not_equal(self, document_store, filterable_docs):
         pass
 
-    @pytest.mark.skip(reason="Unsupported filter operator $nin.")
+    # @pytest.mark.skip(reason="Unsupported filter operator $nin.")
     def test_comparison_not_in(self, document_store, filterable_docs):
         pass
 
-    @pytest.mark.skip(reason="Unsupported filter operator $nin.")
+    # @pytest.mark.skip(reason="Unsupported filter operator $nin.")
     def test_comparison_not_in_with_with_non_list(self, document_store, filterable_docs):
         pass
 
-    @pytest.mark.skip(reason="Unsupported filter operator $nin.")
+    # @pytest.mark.skip(reason="Unsupported filter operator $nin.")
     def test_comparison_not_in_with_with_non_list_iterable(self, document_store, filterable_docs):
         pass
 
-    @pytest.mark.skip(reason="Unsupported filter operator $gt.")
+    # @pytest.mark.skip(reason="Unsupported filter operator $gt.")
     def test_comparison_greater_than_with_iso_date(self, document_store, filterable_docs):
         pass
 
-    @pytest.mark.skip(reason="Unsupported filter operator $gt.")
+    # @pytest.mark.skip(reason="Unsupported filter operator $gt.")
     def test_comparison_greater_than_with_string(self, document_store, filterable_docs):
         pass
 
-    @pytest.mark.skip(reason="Unsupported filter operator $gt.")
+    # @pytest.mark.skip(reason="Unsupported filter operator $gt.")
     def test_comparison_greater_than_with_list(self, document_store, filterable_docs):
         pass
 
-    @pytest.mark.skip(reason="Unsupported filter operator $gt.")
+    # @pytest.mark.skip(reason="Unsupported filter operator $gt.")
     def test_comparison_greater_than_with_none(self, document_store, filterable_docs):
         pass
 
-    @pytest.mark.skip(reason="Unsupported filter operator $gt.")
+    # @pytest.mark.skip(reason="Unsupported filter operator $gt.")
     def test_comparison_greater_than(self, document_store, filterable_docs):
         pass
 
-    @pytest.mark.skip(reason="Unsupported filter operator $gte.")
+    # @pytest.mark.skip(reason="Unsupported filter operator $gte.")
     def test_comparison_greater_than_equal(self, document_store, filterable_docs):
         pass
 
-    @pytest.mark.skip(reason="Unsupported filter operator $gte.")
+    # @pytest.mark.skip(reason="Unsupported filter operator $gte.")
     def test_comparison_greater_than_equal_with_none(self, document_store, filterable_docs):
         pass
 
-    @pytest.mark.skip(reason="Unsupported filter operator $gte.")
+    # @pytest.mark.skip(reason="Unsupported filter operator $gte.")
     def test_comparison_greater_than_equal_with_list(self, document_store, filterable_docs):
         pass
 
-    @pytest.mark.skip(reason="Unsupported filter operator $gte.")
+    # @pytest.mark.skip(reason="Unsupported filter operator $gte.")
     def test_comparison_greater_than_equal_with_string(self, document_store, filterable_docs):
         pass
 
-    @pytest.mark.skip(reason="Unsupported filter operator $gte.")
+    # @pytest.mark.skip(reason="Unsupported filter operator $gte.")
     def test_comparison_greater_than_equal_with_iso_date(self, document_store, filterable_docs):
         pass
 
-    @pytest.mark.skip(reason="Unsupported filter operator $lte.")
+    # @pytest.mark.skip(reason="Unsupported filter operator $lte.")
     def test_comparison_less_than_equal(self, document_store, filterable_docs):
         pass
 
-    @pytest.mark.skip(reason="Unsupported filter operator $lte.")
+    # @pytest.mark.skip(reason="Unsupported filter operator $lte.")
     def test_comparison_less_than_equal_with_string(self, document_store, filterable_docs):
         pass
 
-    @pytest.mark.skip(reason="Unsupported filter operator $lte.")
+    # @pytest.mark.skip(reason="Unsupported filter operator $lte.")
     def test_comparison_less_than_equal_with_list(self, document_store, filterable_docs):
         pass
 
-    @pytest.mark.skip(reason="Unsupported filter operator $lte.")
+    # @pytest.mark.skip(reason="Unsupported filter operator $lte.")
     def test_comparison_less_than_equal_with_iso_date(self, document_store, filterable_docs):
         pass
 
-    @pytest.mark.skip(reason="Unsupported filter operator $lte.")
+    # @pytest.mark.skip(reason="Unsupported filter operator $lte.")
     def test_comparison_less_than_equal_with_none(self, document_store, filterable_docs):
         pass
 
-    @pytest.mark.skip(reason="Unsupported filter operator $lt.")
+    # @pytest.mark.skip(reason="Unsupported filter operator $lt.")
     def test_comparison_less_than_with_none(self, document_store, filterable_docs):
         pass
 
-    @pytest.mark.skip(reason="Unsupported filter operator $lt.")
+    # @pytest.mark.skip(reason="Unsupported filter operator $lt.")
     def test_comparison_less_than_with_list(self, document_store, filterable_docs):
         pass
 
-    @pytest.mark.skip(reason="Unsupported filter operator $lt.")
+    # @pytest.mark.skip(reason="Unsupported filter operator $lt.")
     def test_comparison_less_than_with_string(self, document_store, filterable_docs):
         pass
 
-    @pytest.mark.skip(reason="Unsupported filter operator $lt.")
+    # @pytest.mark.skip(reason="Unsupported filter operator $lt.")
     def test_comparison_less_than_with_iso_date(self, document_store, filterable_docs):
         pass
 
-    @pytest.mark.skip(reason="Unsupported filter operator $lt.")
+    # @pytest.mark.skip(reason="Unsupported filter operator $lt.")
     def test_comparison_less_than(self, document_store, filterable_docs):
         pass
