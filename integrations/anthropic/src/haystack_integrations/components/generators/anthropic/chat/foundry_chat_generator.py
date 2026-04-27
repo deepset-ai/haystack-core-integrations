@@ -229,7 +229,7 @@ class AnthropicFoundryChatGenerator(AnthropicChatGenerator):
         """
         if not self._is_warmed_up:
             self.warm_up()
-        return super(AnthropicFoundryChatGenerator, self).run(
+        return super(AnthropicFoundryChatGenerator, self).run(  # noqa: UP008
             messages=messages, streaming_callback=streaming_callback, generation_kwargs=generation_kwargs, tools=tools
         )
 
@@ -255,7 +255,7 @@ class AnthropicFoundryChatGenerator(AnthropicChatGenerator):
         """
         if not self._is_warmed_up:
             self.warm_up()
-        return await super(AnthropicFoundryChatGenerator, self).run_async(
+        return await super(AnthropicFoundryChatGenerator, self).run_async(  # noqa: UP008
             messages=messages, streaming_callback=streaming_callback, generation_kwargs=generation_kwargs, tools=tools
         )
 
