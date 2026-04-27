@@ -1,5 +1,6 @@
+import inspect
 import os
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from haystack import Document, Pipeline
@@ -47,6 +48,20 @@ def make_metric(name: str, score: float = 0.8, reason: str = "test reason") -> M
     return metric
 
 
+def make_metric_async(name: str, score: float = 0.8, reason: str = "test reason") -> MagicMock:
+    """Create a mock SimpleBaseMetric with a concrete ascore signature for inspect.signature."""
+    metric = MagicMock(spec=SimpleBaseMetric)
+    metric.name = name
+
+    async def ascore(user_input: str, response: str, retrieved_contexts: list) -> MetricResult:
+        return MetricResult(value=score, reason=reason)
+
+    mock_ascore = AsyncMock(return_value=MetricResult(value=score, reason=reason))
+    mock_ascore.__signature__ = inspect.signature(ascore)
+    metric.ascore = mock_ascore
+    return metric
+
+
 class TestInit:
     def test_init(self, monkeypatch):
         monkeypatch.setenv("OPENAI_API_KEY", "test")
@@ -67,7 +82,7 @@ class TestInit:
         assert len(evaluator.metrics) == 2
 
     def test_invalid_metrics_raises_type_error(self):
-        with pytest.raises(TypeError, match="All items in ragas_metrics must be instances of SimpleBaseMetric."):
+        with pytest.raises(TypeError, match=r"All items in ragas_metrics must be instances of SimpleBaseMetric."):
             RagasEvaluator(ragas_metrics=["not_a_metric"])
 
 
@@ -163,6 +178,119 @@ class TestRun:
                 evaluator.run(query=query, documents=invalid_input, response=response)
             elif field_name == "rubrics":
                 evaluator.run(query=query, rubrics=invalid_input, documents=documents, response=response)
+
+        assert error_message in str(exc_info.value)
+
+
+class TestRunAsync:
+    @pytest.mark.asyncio
+    async def test_run_async_returns_result_by_metric_name(self) -> None:
+        metric = make_metric_async("faithfulness", score=0.9)
+        evaluator = RagasEvaluator(ragas_metrics=[metric])
+        output = await evaluator.run_async(
+            query="Which is the most popular global sport?",
+            response="Football is the most popular sport.",
+            documents=["Football is undoubtedly the world's most popular sport."],
+        )
+        assert "result" in output
+        assert "faithfulness" in output["result"]
+        result = output["result"]["faithfulness"]
+        assert isinstance(result, MetricResult)
+        assert result.value == 0.9
+
+    @pytest.mark.asyncio
+    async def test_run_async_scores_all_metrics(self) -> None:
+        metrics = [make_metric_async("faithfulness", 0.9), make_metric_async("answer_relevancy", 0.7)]
+        evaluator = RagasEvaluator(ragas_metrics=metrics)
+        output = await evaluator.run_async(query="test?", response="answer", documents=["doc"])
+        assert set(output["result"].keys()) == {"faithfulness", "answer_relevancy"}
+        assert output["result"]["faithfulness"].value == 0.9
+        assert output["result"]["answer_relevancy"].value == 0.7
+
+    @pytest.mark.asyncio
+    async def test_run_async_calls_ascore_on_each_metric(self) -> None:
+        metric_a = make_metric_async("faithfulness")
+        metric_b = make_metric_async("answer_relevancy")
+        evaluator = RagasEvaluator(ragas_metrics=[metric_a, metric_b])
+        await evaluator.run_async(query="test?", response="answer", documents=["doc"])
+        metric_a.ascore.assert_called_once()
+        metric_b.ascore.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_score_metric_async_passes_only_matching_params(self) -> None:
+        """Metric that only needs user_input + response should not receive retrieved_contexts."""
+        metric = MagicMock(spec=SimpleBaseMetric)
+        metric.name = "selective_metric"
+
+        async def ascore(user_input: str, response: str) -> MetricResult:
+            return MetricResult(value=0.5, reason="ok")
+
+        metric.ascore = ascore
+
+        evaluator = RagasEvaluator(ragas_metrics=[metric])
+        await evaluator.run_async(query="test?", response="answer", documents=["doc"], reference="ref")
+        # Only user_input and response should have been passed — not retrieved_contexts or reference
+        # We wrap ascore to capture kwargs
+        captured = {}
+
+        async def capturing_ascore(user_input: str, response: str) -> MetricResult:
+            captured.update({"user_input": user_input, "response": response})
+            return MetricResult(value=0.5, reason="ok")
+
+        metric.ascore = capturing_ascore
+        await evaluator.run_async(query="test?", response="answer", documents=["doc"], reference="ref")
+        assert set(captured.keys()) == {"user_input", "response"}
+
+    @pytest.mark.asyncio
+    async def test_score_metric_async_omits_none_fields(self) -> None:
+        metric = make_metric_async("faithfulness")
+        evaluator = RagasEvaluator(ragas_metrics=[metric])
+        await evaluator.run_async(query="test?", response="answer")  # no documents → retrieved_contexts=None
+        _, kwargs = metric.ascore.call_args
+        assert "retrieved_contexts" not in kwargs
+
+    @pytest.mark.asyncio
+    async def test_run_async_accepts_document_objects(self) -> None:
+        metric = make_metric_async("faithfulness")
+        evaluator = RagasEvaluator(ragas_metrics=[metric])
+        await evaluator.run_async(
+            query="test?",
+            response="answer",
+            documents=[Document(content="some content"), Document(content="more content")],
+        )
+        _, kwargs = metric.ascore.call_args
+        assert kwargs["retrieved_contexts"] == ["some content", "more content"]
+
+    @pytest.mark.asyncio
+    async def test_run_async_accepts_string_documents(self):
+        metric = make_metric_async("faithfulness")
+        evaluator = RagasEvaluator(ragas_metrics=[metric])
+        await evaluator.run_async(query="test?", response="answer", documents=["doc one", "doc two"])
+        _, kwargs = metric.ascore.call_args
+        assert kwargs["retrieved_contexts"] == ["doc one", "doc two"]
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "invalid_input,field_name,error_message",
+        [
+            (["Invalid query type"], "query", "'query' field expected"),
+            ([123, ["Invalid document"]], "documents", "'documents' must be a list"),
+            (["score_1"], "rubrics", "'rubrics' field expected"),
+        ],
+    )
+    async def test_run_async_raises_on_invalid_input_types(self, invalid_input, field_name, error_message):
+        evaluator = RagasEvaluator(ragas_metrics=[make_metric_async("faithfulness")])
+        query = "Which is the most popular global sport?"
+        documents = ["Football is the most popular sport."]
+        response = "Football is the most popular sport in the world"
+
+        with pytest.raises(ValueError) as exc_info:
+            if field_name == "query":
+                await evaluator.run_async(query=invalid_input, documents=documents, response=response)
+            elif field_name == "documents":
+                await evaluator.run_async(query=query, documents=invalid_input, response=response)
+            elif field_name == "rubrics":
+                await evaluator.run_async(query=query, rubrics=invalid_input, documents=documents, response=response)
 
         assert error_message in str(exc_info.value)
 
