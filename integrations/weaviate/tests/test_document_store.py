@@ -185,7 +185,7 @@ async def test_write_documents_async_with_skip_and_fail_policies():
     ):
         doc = Document(content="x")
 
-        assert await ds.write_documents_async([doc], policy=DuplicatePolicy.SKIP) == 1
+        assert await ds.write_documents_async([doc], policy=DuplicatePolicy.SKIP) == 0
         collection.data.insert.assert_not_called()
 
         collection.data.exists = AsyncMock(return_value=False)
