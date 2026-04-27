@@ -9,9 +9,6 @@ from pathlib import Path
 
 import pytest
 import pytest_asyncio
-from numpy import array as np_array
-from numpy import array_equal as np_array_equal
-from numpy import float32 as np_float32
 from haystack.dataclasses.byte_stream import ByteStream
 from haystack.dataclasses.document import Document
 from haystack.document_stores.errors import DocumentStoreError
@@ -30,6 +27,10 @@ from haystack.testing.document_store_async import (
     UpdateByFilterAsyncTest,
     WriteDocumentsAsyncTest,
 )
+from numpy import array as np_array
+from numpy import array_equal as np_array_equal
+from numpy import float32 as np_float32
+
 from haystack_integrations.document_stores.weaviate import WeaviateDocumentStore
 from haystack_integrations.document_stores.weaviate.document_store import DOCUMENT_COLLECTION_PROPERTIES
 
