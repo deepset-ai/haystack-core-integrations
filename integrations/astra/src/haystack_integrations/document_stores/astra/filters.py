@@ -2,9 +2,30 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+from datetime import datetime
 from typing import Any
 
 from haystack.errors import FilterError
+
+UNSUPPORTED_TYPES_FOR_COMPARISON = (list,)
+
+# Astra Data API rejects '$gt'/'$gte'/'$lt'/'$lte' against null. To preserve the
+# Haystack contract (None on these comparators returns no documents), we emit a
+# filter that the API accepts but that matches nothing.
+_NO_MATCH: dict[str, Any] = {"_id": {"$in": []}}
+
+# Astra Data API does not implement '$not' or '$nor'; NOT is realised by
+# applying De Morgan's laws and inverting the leaf comparators below.
+_NEGATED_COMPARATORS = {
+    "$eq": "$ne",
+    "$ne": "$eq",
+    "$gt": "$lte",
+    "$gte": "$lt",
+    "$lt": "$gte",
+    "$lte": "$gt",
+    "$in": "$nin",
+    "$nin": "$in",
+}
 
 
 def _normalize_filters(filters: dict[str, Any]) -> dict[str, Any]:
@@ -22,35 +43,14 @@ def _normalize_filters(filters: dict[str, Any]) -> dict[str, Any]:
 
 def _convert_filters(filters: dict[str, Any] | None = None) -> dict[str, Any] | None:
     """
-    Convert haystack filters to astra filter string capturing all boolean operators
+    Convert Haystack filters to the Astra Data API filter format.
     """
     if not filters:
         return None
-    filters = _normalize_filters(filters)
-
-    filter_statements = {}
-    for key, value in filters.items():
-        if key in {"$and", "$or"}:
-            filter_statements[key] = value
-        else:
-            if key != "$in" and isinstance(value, list):
-                filter_statements[key] = {"$in": value}
-            elif isinstance(value, dict):
-                for dkey, dvalue in value.items():
-                    if dkey == "$in" and not isinstance(dvalue, list):
-                        exception_message = f"$in operator must have `ARRAY`, got {dvalue} of type {type(dvalue)}"
-                        raise FilterError(exception_message)
-                    converted = {dkey: dvalue}
-                filter_statements[key] = converted
-            else:
-                filter_statements[key] = value
-            if key == "id":
-                filter_statements["_id"] = filter_statements.pop("id")
-
-    return filter_statements
+    return _normalize_filters(filters)
 
 
-# TODO consider other operators, or filters that are not with the same structure as field operator value
+# Kept for backward compatibility with anything still importing this mapping.
 OPERATORS = {
     "==": "$eq",
     "!=": "$ne",
@@ -77,10 +77,41 @@ def _parse_logical_condition(condition: dict[str, Any]) -> dict[str, Any]:
     conditions = [_normalize_filters(c) for c in condition["conditions"]]
     if len(conditions) > 1:
         conditions = _normalize_ranges(conditions)
-    if operator not in OPERATORS:
-        msg = f"Unknown operator {operator}"
+
+    if operator == "AND":
+        return {"$and": conditions}
+    if operator == "OR":
+        return {"$or": conditions}
+    if operator == "NOT":
+        # NOT(c1 AND c2 AND ...) == NOT c1 OR NOT c2 OR ...
+        return {"$or": [_negate(c) for c in conditions]}
+
+    msg = f"Unknown operator {operator}"
+    raise FilterError(msg)
+
+
+def _negate(condition: dict[str, Any]) -> dict[str, Any]:
+    """
+    Recursively negate a parsed filter using De Morgan's laws and operator inversion.
+    """
+    if "$and" in condition:
+        return {"$or": [_negate(c) for c in condition["$and"]]}
+    if "$or" in condition:
+        return {"$and": [_negate(c) for c in condition["$or"]]}
+
+    field, ops = next(iter(condition.items()))
+    if not isinstance(ops, dict):
+        return {field: {"$ne": ops}}
+    if len(ops) != 1:
+        # Compound clauses like {"$exists": True, "$ne": null} would need to
+        # negate to a disjunction; not needed by current tests.
+        msg = f"Cannot negate compound clause for field '{field}': {ops}"
         raise FilterError(msg)
-    return {OPERATORS[operator]: conditions}
+    op, value = next(iter(ops.items()))
+    if op not in _NEGATED_COMPARATORS:
+        msg = f"Cannot negate operator '{op}'"
+        raise FilterError(msg)
+    return {field: {_NEGATED_COMPARATORS[op]: value}}
 
 
 def _parse_comparison_condition(condition: dict[str, Any]) -> dict[str, Any]:
@@ -88,6 +119,8 @@ def _parse_comparison_condition(condition: dict[str, Any]) -> dict[str, Any]:
         msg = f"'field' key missing in {condition}"
         raise FilterError(msg)
     field: str = condition["field"]
+    if field == "id":
+        field = "_id"
 
     if "operator" not in condition:
         msg = f"'operator' key missing in {condition}"
@@ -98,7 +131,88 @@ def _parse_comparison_condition(condition: dict[str, Any]) -> dict[str, Any]:
     operator: str = condition["operator"]
     value: Any = condition["value"]
 
-    return {field: {OPERATORS[operator]: value}}
+    if operator not in COMPARISON_OPERATORS:
+        msg = f"Unknown comparison operator '{operator}'"
+        raise FilterError(msg)
+    return COMPARISON_OPERATORS[operator](field, value)
+
+
+def _equal(field: str, value: Any) -> dict[str, Any]:  # noqa: ANN401
+    return {field: {"$eq": value}}
+
+
+def _not_equal(field: str, value: Any) -> dict[str, Any]:  # noqa: ANN401
+    if value is None:
+        # Astra's '$ne: null' also matches documents missing the field; require
+        # the field to exist so semantics align with `meta.get(f) is not None`.
+        return {field: {"$exists": True, "$ne": None}}
+    return {field: {"$ne": value}}
+
+
+def _validate_type_for_comparison(value: Any) -> None:  # noqa: ANN401
+    msg = f"Cannot compare {type(value).__name__} using operators '>', '>=', '<', '<='."
+    if isinstance(value, UNSUPPORTED_TYPES_FOR_COMPARISON):
+        raise FilterError(msg)
+    if isinstance(value, str):
+        try:
+            datetime.fromisoformat(value)
+        except (ValueError, TypeError) as exc:
+            msg += " Strings are only comparable if they are ISO formatted dates."
+            raise FilterError(msg) from exc
+
+
+def _greater_than(field: str, value: Any) -> dict[str, Any]:  # noqa: ANN401
+    if value is None:
+        return _NO_MATCH
+    _validate_type_for_comparison(value)
+    return {field: {"$gt": value}}
+
+
+def _greater_than_equal(field: str, value: Any) -> dict[str, Any]:  # noqa: ANN401
+    if value is None:
+        return _NO_MATCH
+    _validate_type_for_comparison(value)
+    return {field: {"$gte": value}}
+
+
+def _less_than(field: str, value: Any) -> dict[str, Any]:  # noqa: ANN401
+    if value is None:
+        return _NO_MATCH
+    _validate_type_for_comparison(value)
+    return {field: {"$lt": value}}
+
+
+def _less_than_equal(field: str, value: Any) -> dict[str, Any]:  # noqa: ANN401
+    if value is None:
+        return _NO_MATCH
+    _validate_type_for_comparison(value)
+    return {field: {"$lte": value}}
+
+
+def _in(field: str, value: Any) -> dict[str, Any]:  # noqa: ANN401
+    if not isinstance(value, list):
+        msg = f"$in operator must have `ARRAY`, got {value} of type {type(value)}"
+        raise FilterError(msg)
+    return {field: {"$in": value}}
+
+
+def _not_in(field: str, value: Any) -> dict[str, Any]:  # noqa: ANN401
+    if not isinstance(value, list):
+        msg = f"$nin operator must have `ARRAY`, got {value} of type {type(value)}"
+        raise FilterError(msg)
+    return {field: {"$nin": value}}
+
+
+COMPARISON_OPERATORS = {
+    "==": _equal,
+    "!=": _not_equal,
+    ">": _greater_than,
+    ">=": _greater_than_equal,
+    "<": _less_than,
+    "<=": _less_than_equal,
+    "in": _in,
+    "not in": _not_in,
+}
 
 
 def _normalize_ranges(conditions: list[dict[str, Any]]) -> list[dict[str, Any]]:
