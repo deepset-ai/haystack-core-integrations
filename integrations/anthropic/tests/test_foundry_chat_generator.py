@@ -76,7 +76,6 @@ class TestAnthropicFoundryChatGenerator:
             AnthropicFoundryChatGenerator()
 
     def test_init_all_params_are_keyword_only(self):
-        import inspect
         sig = inspect.signature(AnthropicFoundryChatGenerator.__init__)
         for name, param in sig.parameters.items():
             if name == "self":
@@ -308,7 +307,9 @@ class TestAnthropicFoundryChatGeneratorAsync:
             type="message",
             usage={"input_tokens": 10, "output_tokens": 5},
         )
-        with patch("anthropic.resources.messages.AsyncMessages.create", new_callable=AsyncMock, return_value=completion):
+        with patch(
+            "anthropic.resources.messages.AsyncMessages.create", new_callable=AsyncMock, return_value=completion
+        ):
             response = await component.run_async([ChatMessage.from_user("hi")])
         assert component._is_warmed_up
         assert "replies" in response

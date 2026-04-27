@@ -229,9 +229,8 @@ class AnthropicFoundryChatGenerator(AnthropicChatGenerator):
         """
         if not self._is_warmed_up:
             self.warm_up()
-        return super(AnthropicFoundryChatGenerator, self).run(
-            messages=messages, streaming_callback=streaming_callback,
-            generation_kwargs=generation_kwargs, tools=tools
+        return super().run(
+            messages=messages, streaming_callback=streaming_callback, generation_kwargs=generation_kwargs, tools=tools
         )
 
     @component.output_types(replies=list[ChatMessage])
@@ -256,9 +255,8 @@ class AnthropicFoundryChatGenerator(AnthropicChatGenerator):
         """
         if not self._is_warmed_up:
             self.warm_up()
-        return await super(AnthropicFoundryChatGenerator, self).run_async(
-            messages=messages, streaming_callback=streaming_callback,
-            generation_kwargs=generation_kwargs, tools=tools
+        return await super().run_async(
+            messages=messages, streaming_callback=streaming_callback, generation_kwargs=generation_kwargs, tools=tools
         )
 
     def to_dict(self) -> dict[str, Any]:

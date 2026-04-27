@@ -6,4 +6,9 @@ from .chat.foundry_chat_generator import AnthropicFoundryChatGenerator
 from .chat.vertex_chat_generator import AnthropicVertexChatGenerator
 from .generator import AnthropicGenerator
 
-__all__ = ["AnthropicChatGenerator", "AnthropicFoundryChatGenerator", "AnthropicGenerator", "AnthropicVertexChatGenerator"]
+__all__ = [
+    "AnthropicChatGenerator",
+    "AnthropicFoundryChatGenerator",
+    "AnthropicGenerator",
+    "AnthropicVertexChatGenerator",
+]
