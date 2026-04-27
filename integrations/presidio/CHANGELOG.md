@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/presidio-v2.1.0] - 2026-04-24
+
+### 🚀 Features
+
+- Add better language support presidio (#3209)
+
+
 ## [integrations/presidio-v2.0.0] - 2026-04-21
 
 ### 🚜 Refactor
