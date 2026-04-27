@@ -5,12 +5,12 @@
 | Name                                                                                   |    Stmts |     Miss |   Branch |   BrPart |   Cover |   Missing |
 |--------------------------------------------------------------------------------------- | -------: | -------: | -------: | -------: | ------: | --------: |
 | src/haystack\_integrations/components/embedders/optimum/\_backend.py                   |      153 |       66 |       38 |        5 |     55% |34-35, 104-109, 115-116, 129-172, 183-191, 198-201, 204-\>exit, 207-\>exit, 213-253, 259-261, 275 |
-| src/haystack\_integrations/components/embedders/optimum/optimization.py                |       38 |       12 |       10 |        1 |     56% |48-49, 74-84 |
+| src/haystack\_integrations/components/embedders/optimum/optimization.py                |       38 |        4 |       10 |        2 |     88% |48-49, 83-84 |
 | src/haystack\_integrations/components/embedders/optimum/optimum\_document\_embedder.py |       52 |       11 |       12 |        2 |     73% |149-153, 214, 227-234 |
 | src/haystack\_integrations/components/embedders/optimum/optimum\_text\_embedder.py     |       37 |        8 |        6 |        2 |     72% |129-133, 174, 183-185 |
 | src/haystack\_integrations/components/embedders/optimum/pooling.py                     |       18 |        0 |        2 |        0 |    100% |           |
-| src/haystack\_integrations/components/embedders/optimum/quantization.py                |       38 |       12 |       10 |        1 |     56% |48-49, 74-84 |
-| **TOTAL**                                                                              |  **336** |  **109** |   **78** |   **11** | **62%** |           |
+| src/haystack\_integrations/components/embedders/optimum/quantization.py                |       38 |        4 |       10 |        2 |     88% |48-49, 83-84 |
+| **TOTAL**                                                                              |  **336** |   **93** |   **78** |   **13** | **70%** |           |
 
 
 ## Setup coverage badge
