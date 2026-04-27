@@ -30,7 +30,6 @@ from haystack.testing.document_store_async import (
     UpdateByFilterAsyncTest,
     WriteDocumentsAsyncTest,
 )
-
 from haystack_integrations.document_stores.weaviate import WeaviateDocumentStore
 from haystack_integrations.document_stores.weaviate.document_store import DOCUMENT_COLLECTION_PROPERTIES
 
@@ -125,6 +124,14 @@ class TestWeaviateDocumentStoreAsync(
             meta_keys = set(received_meta.keys()).union(set(expected_meta.keys()))
             for key in meta_keys:
                 assert received_meta.get(key) == expected_meta.get(key)
+
+    async def test_count_not_empty_async(self, document_store: WeaviateDocumentStore) -> None:
+        # Override: the mixin defines this without `self`, which breaks under asyncio_mode=auto.
+        # Body is identical to the mixin's version.
+        await document_store.write_documents_async(
+            [Document(content="test doc 1"), Document(content="test doc 2"), Document(content="test doc 3")]
+        )
+        assert await document_store.count_documents_async() == 3
 
     @pytest.mark.asyncio
     async def test_close_async(self, document_store: WeaviateDocumentStore) -> None:
