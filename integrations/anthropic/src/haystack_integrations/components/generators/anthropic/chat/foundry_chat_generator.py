@@ -152,7 +152,7 @@ class AnthropicFoundryChatGenerator(AnthropicChatGenerator):
 
         _check_duplicate_tool_names(flatten_tools_or_toolsets(tools))
 
-        self.api_key = api_key
+        self.api_key: Secret | None = api_key  # type: ignore[assignment]
         self.resource = resource or os.environ.get("ANTHROPIC_FOUNDRY_RESOURCE")
         self.endpoint = endpoint
         self.model = model
@@ -229,7 +229,7 @@ class AnthropicFoundryChatGenerator(AnthropicChatGenerator):
         """
         if not self._is_warmed_up:
             self.warm_up()
-        return super().run(
+        return super(AnthropicFoundryChatGenerator, self).run(
             messages=messages, streaming_callback=streaming_callback, generation_kwargs=generation_kwargs, tools=tools
         )
 
@@ -255,7 +255,7 @@ class AnthropicFoundryChatGenerator(AnthropicChatGenerator):
         """
         if not self._is_warmed_up:
             self.warm_up()
-        return await super().run_async(
+        return await super(AnthropicFoundryChatGenerator, self).run_async(
             messages=messages, streaming_callback=streaming_callback, generation_kwargs=generation_kwargs, tools=tools
         )
 
