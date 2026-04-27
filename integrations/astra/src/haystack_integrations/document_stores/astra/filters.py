@@ -7,16 +7,11 @@ from typing import Any
 
 from haystack.errors import FilterError
 
-UNSUPPORTED_TYPES_FOR_COMPARISON = (list,)
+# Astra Data API rejects '$gt'/'$gte'/'$lt'/'$lte' against null. In Haystack, None on these comparators should return
+# no documents), so we emit a filter that matches nothing. It's a real filter to make it work also on composite filters.
+ASTRA_FILTER_NO_MATCH: dict[str, Any] = {"_id": {"$in": []}}
 
-# Astra Data API rejects '$gt'/'$gte'/'$lt'/'$lte' against null. To preserve the
-# Haystack contract (None on these comparators returns no documents), we emit a
-# filter that the API accepts but that matches nothing.
-_NO_MATCH: dict[str, Any] = {"_id": {"$in": []}}
-
-# Astra Data API does not implement '$not' or '$nor'; NOT is realised by
-# applying De Morgan's laws and inverting the leaf comparators below.
-_NEGATED_COMPARATORS = {
+NEGATED_COMPARATORS = {
     "$eq": "$ne",
     "$ne": "$eq",
     "$gt": "$lte",
@@ -28,41 +23,18 @@ _NEGATED_COMPARATORS = {
 }
 
 
-def _normalize_filters(filters: dict[str, Any]) -> dict[str, Any]:
-    """
-    Converts Haystack filters to Astra compatible filters.
-    """
-    if not isinstance(filters, dict):
-        msg = "Filters must be a dictionary"
-        raise FilterError(msg)
-
-    if "field" in filters:
-        return _parse_comparison_condition(filters)
-    return _parse_logical_condition(filters)
-
-
 def _convert_filters(filters: dict[str, Any] | None = None) -> dict[str, Any] | None:
     """
     Convert Haystack filters to the Astra Data API filter format.
     """
     if not filters:
         return None
-    return _normalize_filters(filters)
-
-
-# Kept for backward compatibility with anything still importing this mapping.
-OPERATORS = {
-    "==": "$eq",
-    "!=": "$ne",
-    ">": "$gt",
-    ">=": "$gte",
-    "<": "$lt",
-    "<=": "$lte",
-    "in": "$in",
-    "not in": "$nin",
-    "AND": "$and",
-    "OR": "$or",
-}
+    if not isinstance(filters, dict):
+        msg = "Filters must be a dictionary"
+        raise FilterError(msg)
+    if "field" in filters:
+        return _parse_comparison_condition(filters)
+    return _parse_logical_condition(filters)
 
 
 def _parse_logical_condition(condition: dict[str, Any]) -> dict[str, Any]:
@@ -74,9 +46,7 @@ def _parse_logical_condition(condition: dict[str, Any]) -> dict[str, Any]:
         raise FilterError(msg)
 
     operator = condition["operator"]
-    conditions = [_normalize_filters(c) for c in condition["conditions"]]
-    if len(conditions) > 1:
-        conditions = _normalize_ranges(conditions)
+    conditions: list[dict[str, Any]] = [c for c in (_convert_filters(c) for c in condition["conditions"]) if c]
 
     if operator == "AND":
         return {"$and": conditions}
@@ -102,16 +72,19 @@ def _negate(condition: dict[str, Any]) -> dict[str, Any]:
     field, ops = next(iter(condition.items()))
     if not isinstance(ops, dict):
         return {field: {"$ne": ops}}
-    if len(ops) != 1:
-        # Compound clauses like {"$exists": True, "$ne": null} would need to
-        # negate to a disjunction; not needed by current tests.
-        msg = f"Cannot negate compound clause for field '{field}': {ops}"
-        raise FilterError(msg)
-    op, value = next(iter(ops.items()))
-    if op not in _NEGATED_COMPARATORS:
-        msg = f"Cannot negate operator '{op}'"
-        raise FilterError(msg)
-    return {field: {_NEGATED_COMPARATORS[op]: value}}
+    # a multi-op clause {field: {opA: vA, opB: vB}} is opA AND opB; its negation is (NOT opA) OR (NOT opB), with each
+    # disjunct as its own clause on the same field
+    disjuncts = [{field: _negated_op(op, val)} for op, val in ops.items()]
+    return disjuncts[0] if len(disjuncts) == 1 else {"$or": disjuncts}
+
+
+def _negated_op(op: str, value: Any) -> dict[str, Any]:  # noqa: ANN401
+    if op == "$exists":
+        return {"$exists": not value}
+    if op in NEGATED_COMPARATORS:
+        return {NEGATED_COMPARATORS[op]: value}
+    msg = f"Cannot negate operator '{op}'"
+    raise FilterError(msg)
 
 
 def _parse_comparison_condition(condition: dict[str, Any]) -> dict[str, Any]:
@@ -151,7 +124,7 @@ def _not_equal(field: str, value: Any) -> dict[str, Any]:  # noqa: ANN401
 
 def _validate_type_for_comparison(value: Any) -> None:  # noqa: ANN401
     msg = f"Cannot compare {type(value).__name__} using operators '>', '>=', '<', '<='."
-    if isinstance(value, UNSUPPORTED_TYPES_FOR_COMPARISON):
+    if isinstance(value, list):
         raise FilterError(msg)
     if isinstance(value, str):
         try:
@@ -163,28 +136,28 @@ def _validate_type_for_comparison(value: Any) -> None:  # noqa: ANN401
 
 def _greater_than(field: str, value: Any) -> dict[str, Any]:  # noqa: ANN401
     if value is None:
-        return _NO_MATCH
+        return ASTRA_FILTER_NO_MATCH
     _validate_type_for_comparison(value)
     return {field: {"$gt": value}}
 
 
 def _greater_than_equal(field: str, value: Any) -> dict[str, Any]:  # noqa: ANN401
     if value is None:
-        return _NO_MATCH
+        return ASTRA_FILTER_NO_MATCH
     _validate_type_for_comparison(value)
     return {field: {"$gte": value}}
 
 
 def _less_than(field: str, value: Any) -> dict[str, Any]:  # noqa: ANN401
     if value is None:
-        return _NO_MATCH
+        return ASTRA_FILTER_NO_MATCH
     _validate_type_for_comparison(value)
     return {field: {"$lt": value}}
 
 
 def _less_than_equal(field: str, value: Any) -> dict[str, Any]:  # noqa: ANN401
     if value is None:
-        return _NO_MATCH
+        return ASTRA_FILTER_NO_MATCH
     _validate_type_for_comparison(value)
     return {field: {"$lte": value}}
 
@@ -213,34 +186,3 @@ COMPARISON_OPERATORS = {
     "in": _in,
     "not in": _not_in,
 }
-
-
-def _normalize_ranges(conditions: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """
-    Merges range conditions acting on a same field.
-
-    Example usage:
-
-    ```python
-    conditions = [
-        {"range": {"date": {"lt": "2021-01-01"}}},
-        {"range": {"date": {"gte": "2015-01-01"}}},
-    ]
-    conditions = _normalize_ranges(conditions)
-    assert conditions == [
-        {"range": {"date": {"lt": "2021-01-01", "gte": "2015-01-01"}}},
-    ]
-    ```
-    """
-    range_conditions = [next(iter(c["range"].items())) for c in conditions if "range" in c]
-    if range_conditions:
-        conditions = [c for c in conditions if "range" not in c]
-        range_conditions_dict: dict[str, Any] = {}
-        for field_name, comparison in range_conditions:
-            if field_name not in range_conditions_dict:
-                range_conditions_dict[field_name] = {}
-            range_conditions_dict[field_name].update(comparison)
-
-        for field_name, comparisons in range_conditions_dict.items():
-            conditions.append({"range": {field_name: comparisons}})
-    return conditions

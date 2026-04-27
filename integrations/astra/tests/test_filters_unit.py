@@ -13,8 +13,6 @@ from haystack.errors import FilterError
 
 from haystack_integrations.document_stores.astra.filters import (
     _convert_filters,
-    _normalize_filters,
-    _normalize_ranges,
     _parse_comparison_condition,
     _parse_logical_condition,
 )
@@ -106,11 +104,30 @@ class TestConvertFilters:
             ]
         }
 
+    def test_logical_not_negates_compound_clause(self):
+        # `!= None` parses to a compound `{$exists: true, $ne: null}` clause; its
+        # negation must split into a disjunction (NOT exists OR == null).
+        filters = {
+            "operator": "NOT",
+            "conditions": [{"field": "meta.x", "operator": "!=", "value": None}],
+        }
+        result = _convert_filters(filters)
+        assert result == {
+            "$or": [
+                {
+                    "$or": [
+                        {"meta.x": {"$exists": False}},
+                        {"meta.x": {"$eq": None}},
+                    ]
+                }
+            ]
+        }
+
 
 class TestNormalizeFilters:
     def test_non_dict_raises(self):
         with pytest.raises(FilterError, match="Filters must be a dictionary"):
-            _normalize_filters("not_a_dict")
+            _convert_filters("not_a_dict")
 
 
 class TestParseLogicalCondition:
@@ -144,30 +161,3 @@ class TestParseComparisonCondition:
     def test_missing_keys_raise(self, condition, err):
         with pytest.raises(FilterError, match=err):
             _parse_comparison_condition(condition)
-
-
-class TestNormalizeRanges:
-    def test_no_ranges_returns_unchanged(self):
-        conditions = [
-            {"meta.a": {"$eq": 1}},
-            {"meta.b": {"$eq": 2}},
-        ]
-        assert _normalize_ranges(conditions) == conditions
-
-    def test_merges_range_conditions_on_same_field(self):
-        conditions = [
-            {"range": {"date": {"lt": "2021-01-01"}}},
-            {"range": {"date": {"gte": "2015-01-01"}}},
-        ]
-        result = _normalize_ranges(conditions)
-        assert result == [{"range": {"date": {"lt": "2021-01-01", "gte": "2015-01-01"}}}]
-
-    def test_keeps_non_range_conditions_when_merging(self):
-        conditions = [
-            {"meta.a": {"$eq": 1}},
-            {"range": {"date": {"lt": "2021-01-01"}}},
-            {"range": {"date": {"gte": "2015-01-01"}}},
-        ]
-        result = _normalize_ranges(conditions)
-        assert {"meta.a": {"$eq": 1}} in result
-        assert {"range": {"date": {"lt": "2021-01-01", "gte": "2015-01-01"}}} in result

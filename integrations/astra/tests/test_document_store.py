@@ -385,3 +385,17 @@ class TestDocumentStore(
 
         TestDocumentStore.assert_documents_are_equal([result[0]], [docs[0]])
         TestDocumentStore.assert_documents_are_equal([result[1]], [docs[1]])
+
+    def test_not_operator_over_not_equal_none(self, document_store, filterable_docs):
+        # `!= None` produces a compound `{$exists: true, $ne: null}` clause; wrapping
+        # it in NOT exercises the disjunction-based negation in `_negate`.
+        document_store.write_documents(filterable_docs)
+        result = document_store.filter_documents(
+            filters={
+                "operator": "NOT",
+                "conditions": [{"field": "meta.number", "operator": "!=", "value": None}],
+            }
+        )
+        TestDocumentStore.assert_documents_are_equal(
+            result, [d for d in filterable_docs if d.meta.get("number") is None]
+        )
