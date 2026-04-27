@@ -126,6 +126,17 @@ class TestWeaviateDocumentStoreAsync(
             for key in meta_keys:
                 assert received_meta.get(key) == expected_meta.get(key)
 
+    async def test_write_documents_async(self, document_store: WeaviateDocumentStore) -> None:
+        # Override: mixin raises NotImplementedError and requires each store to define its own
+        # default-policy behaviour. Weaviate's default overwrites existing documents.
+        doc = Document(content="test doc")
+        assert await document_store.write_documents_async([doc]) == 1
+        assert await document_store.count_documents_async() == 1
+
+        doc = dataclasses.replace(doc, content="test doc 2")
+        assert await document_store.write_documents_async([doc]) == 1
+        assert await document_store.count_documents_async() == 1
+
     async def test_count_not_empty_async(self, document_store: WeaviateDocumentStore) -> None:
         # Override: the mixin defines this without `self`, which breaks under asyncio_mode=auto.
         # Body is identical to the mixin's version.
