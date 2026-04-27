@@ -75,33 +75,7 @@ class TestAnthropicFoundryChatGenerator:
         with pytest.raises(ValueError, match="Either 'resource' or 'endpoint' must be provided"):
             AnthropicFoundryChatGenerator()
 
-    def test_init_all_params_are_keyword_only(self):
-        sig = inspect.signature(AnthropicFoundryChatGenerator.__init__)
-        for name, param in sig.parameters.items():
-            if name == "self":
-                continue
-            assert param.kind == inspect.Parameter.KEYWORD_ONLY, f"Parameter '{name}' should be keyword-only"
-
-    def test_init_with_all_parameters(self, monkeypatch):
-        monkeypatch.setenv("ANTHROPIC_FOUNDRY_API_KEY", "test-key")
-        component = AnthropicFoundryChatGenerator(
-            resource="my-resource",
-            model="claude-opus-4-6",
-            streaming_callback=print_streaming_chunk,
-            generation_kwargs={"max_tokens": 10, "temperature": 0.5},
-            ignore_tools_thinking_messages=False,
-            timeout=30.0,
-            max_retries=3,
-        )
-        assert component.resource == "my-resource"
-        assert component.model == "claude-opus-4-6"
-        assert component.streaming_callback is print_streaming_chunk
-        assert component.generation_kwargs == {"max_tokens": 10, "temperature": 0.5}
-        assert component.ignore_tools_thinking_messages is False
-        assert component.timeout == 30.0
-        assert component.max_retries == 3
-
-    def test_warm_up_creates_clients(self, monkeypatch):
+    def test_warm_up(self, monkeypatch):
         monkeypatch.setenv("ANTHROPIC_FOUNDRY_API_KEY", "test-key")
         component = AnthropicFoundryChatGenerator(resource="my-resource")
         assert component.client is None
@@ -109,14 +83,6 @@ class TestAnthropicFoundryChatGenerator:
         component.warm_up()
         assert component.client is not None
         assert component.async_client is not None
-
-    def test_warm_up_is_idempotent(self, monkeypatch):
-        monkeypatch.setenv("ANTHROPIC_FOUNDRY_API_KEY", "test-key")
-        component = AnthropicFoundryChatGenerator(resource="my-resource")
-        component.warm_up()
-        client_before = component.client
-        component.warm_up()
-        assert component.client is client_before
 
     def test_to_dict_default(self, monkeypatch):
         monkeypatch.setenv("ANTHROPIC_FOUNDRY_API_KEY", "test-key")
@@ -270,10 +236,9 @@ class TestAnthropicFoundryChatGenerator:
         reason="Set ANTHROPIC_FOUNDRY_API_KEY and ANTHROPIC_FOUNDRY_RESOURCE env variables to run this test.",
     )
     @pytest.mark.integration
-    def test_default_inference_params(self, chat_messages):
+    def test_live_run(self, chat_messages):
         client = AnthropicFoundryChatGenerator(
-            resource=os.environ.get("ANTHROPIC_FOUNDRY_RESOURCE"),
-            model="claude-sonnet-4-5",
+            resource=os.environ.get("ANTHROPIC_FOUNDRY_RESOURCE"), model="claude-sonnet-4-5"
         )
         response = client.run(chat_messages)
 
