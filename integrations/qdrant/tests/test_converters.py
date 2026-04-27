@@ -1,4 +1,7 @@
+from types import SimpleNamespace
+
 import numpy as np
+import pytest
 from haystack.dataclasses import Document, SparseEmbedding
 from qdrant_client.http import models as rest
 
@@ -124,3 +127,18 @@ def test_convert_haystack_documents_to_qdrant_points_with_sparse_no_vectors():
     doc = Document(content="hello")
     points = convert_haystack_documents_to_qdrant_points([doc], use_sparse_embeddings=True)
     assert points[0].vector == {}
+
+
+@pytest.mark.parametrize(
+    "vector",
+    [
+        {DENSE_VECTORS_NAME: [0.1, 0.2]},
+        {DENSE_VECTORS_NAME: [0.1, 0.2], SPARSE_VECTORS_NAME: {"indices": [0], "values": [0.5]}},
+    ],
+    ids=["no_sparse_key", "sparse_value_not_sparse_vector_instance"],
+)
+def test_point_to_document_sparse_vector_edge_cases(vector):
+    point = SimpleNamespace(id="x", payload={"id": "x", "content": "x"}, vector=vector)
+    document = convert_qdrant_point_to_haystack_document(point, use_sparse_embeddings=True)
+    assert document.embedding == [0.1, 0.2]
+    assert document.sparse_embedding is None

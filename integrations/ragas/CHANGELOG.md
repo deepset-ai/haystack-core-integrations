@@ -1,5 +1,28 @@
 # Changelog
 
+## [integrations/ragas-v4.0.0] - 2026-04-23
+
+### 🚀 Features
+
+- Update Ragas integration to work with `>=0.4.3` (#3207)
+
+### 📚 Documentation
+
+- Simplify pydoc configs (#2855)
+
+### 🧪 Testing
+
+- Test compatible integrations with python 3.14; update pyproject (#3001)
+- Track test coverage for all integrations (#3065)
+- Mark some tests as integration in Faiss and Qdrant (#3076)
+
+### 🧹 Chores
+
+- Add ANN ruff ruleset to optimum, paddleocr, pgvector, pinecone, pyversity, qdrant, ragas, snowflake (#2992)
+- Enforce ruff docstring rules in integrations 31-40 (openrouter, opensearch, optimum, paddleocr, pgvector, pinecone, pyversity, qdrant, ragas, snowflake) (#3011)
+- Fix 'occured' -> 'occurred' in validation error message (#3170)
+
+
 ## [integrations/ragas-v3.0.0] - 2026-01-13
 
 ### 📚 Documentation

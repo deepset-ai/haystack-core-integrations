@@ -11,7 +11,11 @@ from docling_core.types.io import DocumentStream
 from haystack.core.serialization import component_from_dict, component_to_dict
 from haystack.dataclasses import ByteStream
 
-from haystack_integrations.components.converters.docling import DoclingConverter, ExportType
+from haystack_integrations.components.converters.docling import (
+    DoclingConverter,
+    ExportType,
+    MetaExtractor,
+)
 from haystack_integrations.components.converters.docling.converter import _bytestream_to_document_stream
 
 
@@ -441,3 +445,48 @@ class TestBytestreamToDocumentStream:
         ds = _bytestream_to_document_stream(bs)
         assert isinstance(ds, DocumentStream)
         assert isinstance(ds.stream, BytesIO)
+
+    def test_unknown_mime_type_keeps_base_name(self) -> None:
+        # mimetypes.guess_extension returns None for unknown types, so the name stays as-is.
+        assert mimetypes.guess_extension("application/x-totally-made-up-type") is None
+        bs = ByteStream(
+            data=b"data",
+            meta={"file_path": "report"},
+            mime_type="application/x-totally-made-up-type",
+        )
+        ds = _bytestream_to_document_stream(bs)
+        assert ds.name == "report"
+
+
+class TestMetaExtractor:
+    def test_extract_chunk_meta_wraps_export_json_dict(self) -> None:
+        chunk = MagicMock()
+        chunk.export_json_dict.return_value = {"some": "dict"}
+
+        result = MetaExtractor().extract_chunk_meta(chunk=chunk)
+
+        assert result == {"dl_meta": {"some": "dict"}}
+        chunk.export_json_dict.assert_called_once_with()
+
+    def test_extract_dl_doc_meta_with_origin(self) -> None:
+        dl_doc = MagicMock()
+        dl_doc.origin.model_dump.return_value = {"filename": "foo.pdf", "mimetype": "application/pdf"}
+
+        result = MetaExtractor().extract_dl_doc_meta(dl_doc=dl_doc)
+
+        assert result == {"dl_meta": {"origin": {"filename": "foo.pdf", "mimetype": "application/pdf"}}}
+        dl_doc.origin.model_dump.assert_called_once_with(exclude_none=True)
+
+    def test_extract_dl_doc_meta_without_origin(self) -> None:
+        dl_doc = MagicMock()
+        dl_doc.origin = None
+
+        result = MetaExtractor().extract_dl_doc_meta(dl_doc=dl_doc)
+
+        assert result == {}
+
+
+def test_run_without_sources_or_paths_raises_value_error() -> None:
+    converter = DoclingConverter(converter=MagicMock(), meta_extractor=MagicMock())
+    with pytest.raises(ValueError, match=r"Either 'sources' or the deprecated 'paths' parameter must be provided."):
+        converter.run()

@@ -100,6 +100,8 @@ def mock_store():
     store.distance_metric = "COSINE"
     store._embedding_retrieval.return_value = [Document(id="A" * 32, content="hi")]
     store._embedding_retrieval_async.return_value = [Document(id="A" * 32, content="hi")]
+    store._keyword_retrieval.return_value = [Document(id="A" * 32, content="hi")]
+    store._keyword_retrieval_async.return_value = [Document(id="A" * 32, content="hi")]
     store.to_dict.return_value = {
         "type": "haystack_integrations.document_stores.oracle.document_store.OracleDocumentStore",
         "init_parameters": {

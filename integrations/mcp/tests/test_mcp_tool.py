@@ -59,11 +59,11 @@ def test_extract_first_text_element():
 
 
 def test_async_executor_run_raises_timeout_error():
-    async def slow() -> None:
-        await asyncio.sleep(0.05)
+    async def never() -> None:
+        await asyncio.Event().wait()
 
     with pytest.raises(TimeoutError, match="timed out"):
-        AsyncExecutor.get_instance().run(slow(), timeout=0.01)
+        AsyncExecutor.get_instance().run(never(), timeout=0.01)
 
 
 class TestMCPTool:
@@ -468,7 +468,7 @@ class TestMCPTool:
         mcp_tool_cleanup(tool)
 
         async def hanging(*_args, **_kwargs):
-            await asyncio.sleep(0.05)
+            await asyncio.Event().wait()
 
         tool._client.call_tool = hanging
         tool._invocation_timeout = 0.01

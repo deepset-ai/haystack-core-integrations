@@ -1,5 +1,16 @@
 # Changelog
 
+## [integrations/elasticsearch-v6.0.0] - 2026-04-22
+
+### 🚀 Features
+
+- Add support for elasticsearch sparse inference embedding retriever (#3166)
+
+### 🚜 Refactor
+
+- [**breaking**] Elasticsearch - use async mixin tests and fix write/delete behaviour (#3196)
+
+
 ## [integrations/elasticsearch-v5.5.0] - 2026-04-13
 
 ### 🚀 Features

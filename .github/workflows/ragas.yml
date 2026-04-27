@@ -88,7 +88,7 @@ jobs:
       - name: Store unit tests coverage
         id: coverage_comment
         if: matrix.python-version == '3.10' && runner.os == 'Linux' && github.event_name != 'schedule'
-        uses: py-cov-action/python-coverage-comment-action@7188638f871f721a365d644f505d1ff3df20d683 # v3.40
+        uses: py-cov-action/python-coverage-comment-action@63f52f4fbbffada6e8dee8ec432de7e01df9ba79 # v3.41
         with:
           GITHUB_TOKEN: ${{ github.token }}
           COVERAGE_PATH: integrations/ragas
@@ -103,7 +103,8 @@ jobs:
           name: coverage-comment-ragas
           path: python-coverage-comment-action-ragas.txt
 
-      # No integration tests yet — add integration-cov-append-retry + combined coverage step when needed
+      - name: Run integration tests
+        run: hatch run test:integration-cov-append-retry
 
       - name: Run unit tests with lowest direct dependencies
         if: github.event_name != 'push'
