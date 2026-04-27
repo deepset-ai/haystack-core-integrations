@@ -12,6 +12,7 @@ import pytest_asyncio
 from haystack.dataclasses.byte_stream import ByteStream
 from haystack.dataclasses.document import Document
 from haystack.document_stores.errors import DocumentStoreError
+from haystack.testing.document_store import create_filterable_docs
 from haystack.testing.document_store_async import (
     CountDocumentsAsyncTest,
     CountDocumentsByFilterAsyncTest,
@@ -56,6 +57,7 @@ class TestWeaviateDocumentStoreAsync(
                 {"name": "category", "dataType": ["text"]},
                 {"name": "status", "dataType": ["text"]},
                 {"name": "number", "dataType": ["int"]},
+                {"name": "date", "dataType": ["date"]},
                 {"name": "priority", "dataType": ["int"]},
                 {"name": "age", "dataType": ["int"]},
                 {"name": "rating", "dataType": ["number"]},
@@ -79,6 +81,17 @@ class TestWeaviateDocumentStoreAsync(
         fields_info = await document_store.get_metadata_fields_info_async()
         assert "category" in fields_info
         assert "status" in fields_info
+
+    @pytest.fixture
+    def filterable_docs(self) -> list[Document]:
+        """
+        Weaviate requires RFC 3339 date strings; the default fixture uses ISO 8601.
+        """
+        documents = create_filterable_docs()
+        for i in range(len(documents)):
+            if date := documents[i].meta.get("date"):
+                documents[i].meta["date"] = f"{date}Z"
+        return documents
 
     def assert_documents_are_equal(self, received: list[Document], expected: list[Document]):
         # filter_documents_async() returns Documents with score populated; strip it before comparing
