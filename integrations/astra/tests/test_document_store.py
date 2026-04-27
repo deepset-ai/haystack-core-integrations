@@ -387,8 +387,8 @@ class TestDocumentStore(
         TestDocumentStore.assert_documents_are_equal([result[1]], [docs[1]])
 
     # @pytest.mark.skip(reason="Unsupported filter operator not.")
-    def test_not_operator(self, document_store, filterable_docs):
-        pass
+    # def test_not_operator(self, document_store, filterable_docs):
+    #     pass
 
     # # @pytest.mark.skip(reason="Unsupported filter operator $neq.")
     # def test_comparison_not_equal_with_none(self, document_store, filterable_docs):
