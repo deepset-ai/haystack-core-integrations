@@ -4,12 +4,12 @@
 
 | Name                                                                 |    Stmts |     Miss |   Branch |   BrPart |   Cover |   Missing |
 |--------------------------------------------------------------------- | -------: | -------: | -------: | -------: | ------: | --------: |
-| src/haystack\_integrations/components/retrievers/astra/retriever.py  |       36 |        5 |        4 |        1 |     85% |60-61, 81-84 |
-| src/haystack\_integrations/document\_stores/astra/astra\_client.py   |      133 |       97 |       32 |        0 |     22% |39, 70-151, 176-187, 190-192, 201-218, 223-230, 242-257, 266-274, 284-299, 308-311, 321-337, 352-363, 371-373, 383, 393, 410-412 |
-| src/haystack\_integrations/document\_stores/astra/document\_store.py |      305 |      178 |      146 |       14 |     37% |25-27, 82-86, 91-95, 175-280, 288, 293-294, 298, 309, 311, 312-\>307, 318-\>305, 322, 325-326, 351-383, 387-401, 410-412, 422-427, 438-451, 460-471, 478-487, 497-508, 522-542, 581, 585-\>588, 610, 628-\>632 |
+| src/haystack\_integrations/components/retrievers/astra/retriever.py  |       36 |        0 |        4 |        0 |    100% |           |
+| src/haystack\_integrations/document\_stores/astra/astra\_client.py   |      133 |        0 |       32 |        1 |     99% | 294-\>292 |
+| src/haystack\_integrations/document\_stores/astra/document\_store.py |      305 |      102 |      146 |       20 |     62% |177, 195-\>198, 198-\>206, 207, 209-\>219, 236, 249-278, 288, 293-294, 298, 309, 311, 312-\>307, 318-\>305, 322, 351-383, 387-401, 410-412, 422-427, 438-451, 460-471, 484-487, 497-508, 531, 581, 585-\>588, 610, 628-\>632 |
 | src/haystack\_integrations/document\_stores/astra/errors.py          |        8 |        0 |        0 |        0 |    100% |           |
-| src/haystack\_integrations/document\_stores/astra/filters.py         |       72 |       41 |       42 |       11 |     40% |15-16, 20, 28, 34, 37, 41-42, 46, 48, 69-83, 88-89, 93-94, 96-97, 121-132 |
-| **TOTAL**                                                            |  **554** |  **321** |  **224** |   **26** | **37%** |           |
+| src/haystack\_integrations/document\_stores/astra/filters.py         |      114 |       19 |       54 |       12 |     82% |68, 70, 74, 86-87, 108-109, 128, 130-134, 139, 146, 153, 160, 174-175 |
+| **TOTAL**                                                            |  **596** |  **121** |  **236** |   **33** | **76%** |           |
 
 
 ## Setup coverage badge
