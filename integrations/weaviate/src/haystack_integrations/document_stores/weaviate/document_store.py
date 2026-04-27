@@ -1044,6 +1044,7 @@ class WeaviateDocumentStore:
         """
         collection = await self.async_collection
 
+        written = 0
         duplicate_errors_ids = []
         for doc in documents:
             if not isinstance(doc, Document):
@@ -1063,6 +1064,7 @@ class WeaviateDocumentStore:
                     vector=doc.embedding,
                 )
 
+                written += 1
             except weaviate.exceptions.UnexpectedStatusCodeError:
                 if policy == DuplicatePolicy.FAIL:
                     duplicate_errors_ids.append(doc.id)
@@ -1070,7 +1072,7 @@ class WeaviateDocumentStore:
         if duplicate_errors_ids:
             msg = f"IDs '{', '.join(duplicate_errors_ids)}' already exist in the document store."
             raise DuplicateDocumentError(msg)
-        return len(documents)
+        return written
 
     def write_documents(self, documents: list[Document], policy: DuplicatePolicy = DuplicatePolicy.NONE) -> int:
         """
