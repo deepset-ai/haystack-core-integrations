@@ -7,12 +7,11 @@ import logging
 from collections.abc import AsyncGenerator
 from pathlib import Path
 
+import pytest
+import pytest_asyncio
 from numpy import array as np_array
 from numpy import array_equal as np_array_equal
 from numpy import float32 as np_float32
-
-import pytest
-import pytest_asyncio
 from haystack.dataclasses.byte_stream import ByteStream
 from haystack.dataclasses.document import Document
 from haystack.document_stores.errors import DocumentStoreError
