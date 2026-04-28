@@ -23,7 +23,6 @@ from haystack.testing.document_store_async import (
 )
 
 from haystack_integrations.document_stores.opensearch.document_store import OpenSearchDocumentStore
-
 from tests.test_document_store_common import OpenSearchDocumentStoreTestMixin
 
 

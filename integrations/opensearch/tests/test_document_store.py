@@ -21,7 +21,6 @@ from opensearchpy.exceptions import RequestError, TransportError
 
 from haystack_integrations.document_stores.opensearch import OpenSearchDocumentStore
 from haystack_integrations.document_stores.opensearch.document_store import DEFAULT_MAX_CHUNK_BYTES
-
 from tests.test_document_store_common import OpenSearchDocumentStoreTestMixin
 
 
