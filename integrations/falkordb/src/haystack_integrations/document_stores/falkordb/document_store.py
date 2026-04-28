@@ -5,7 +5,6 @@
 from __future__ import annotations
 
 import logging
-import math
 from dataclasses import replace
 from datetime import datetime
 from typing import Any, Literal
@@ -130,8 +129,6 @@ class FalkorDBDocumentStore(DocumentStore):
 
         if verify_connectivity:
             self._ensure_connected()
-
-    
 
     # ------------------------------------------------------------------
     # Internal connection helpers
@@ -498,7 +495,7 @@ ORDER BY score ASC, d.id ASC
         :raises DocumentStoreError: If the query fails.
         """
         self._ensure_connected()
-        
+
         try:
             # We don't force ORDER BY here as the query is custom,
             # but we ensured everything else is stable.
