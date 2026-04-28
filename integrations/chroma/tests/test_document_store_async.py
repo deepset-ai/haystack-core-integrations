@@ -77,6 +77,12 @@ class TestDocumentStoreAsync(
                 port=8000,
             )
 
+    async def test_write_documents_async(self, document_store: ChromaDocumentStore):
+        """Override: Chroma uses DuplicatesPolicy.OVERWRITE by default."""
+        doc = Document(content="test doc")
+        await document_store.write_documents_async([doc])
+        assert await document_store.count_documents_async() == 1
+
     # ── Chroma-specific tests (not covered by mixins) ──────────────────────
 
     async def test_client_settings_applied_async(self):
