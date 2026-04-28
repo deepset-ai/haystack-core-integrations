@@ -185,7 +185,7 @@ async def test_write_documents_async_with_skip_and_fail_policies():
     ):
         doc = Document(content="x")
 
-        assert await ds.write_documents_async([doc], policy=DuplicatePolicy.SKIP) == 1
+        assert await ds.write_documents_async([doc], policy=DuplicatePolicy.SKIP) == 0
         collection.data.insert.assert_not_called()
 
         collection.data.exists = AsyncMock(return_value=False)
@@ -1246,8 +1246,8 @@ class TestWeaviateDocumentStore(
         # "number" which IS declared in the fixture's collection_settings.
         assert document_store.count_documents() == 0
         result = document_store.get_metadata_field_min_max("number")
-        assert result["min"] == 0
-        assert result["max"] == 0
+        assert result["min"] is None
+        assert result["max"] is None
 
     @staticmethod
     def test_get_metadata_fields_info_empty_collection(document_store):

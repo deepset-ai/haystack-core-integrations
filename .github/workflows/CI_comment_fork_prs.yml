@@ -1,0 +1,108 @@
+name: Core / Notify maintainers on fork PRs not running integration tests
+
+on:
+  pull_request_target:
+    types: [opened, reopened, synchronize]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+env:
+  NON_TEST_SECRETS: "SLACK_WEBHOOK_URL_NOTIFICATIONS"
+
+jobs:
+  notify:
+    if: github.event.pull_request.head.repo.fork == true
+    runs-on: ubuntu-slim
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+
+      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        with:
+          python-version: "3.13"
+
+      - name: Detect integrations requiring API keys for integration tests
+        id: affected
+        shell: python
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          import os
+          import re
+          import subprocess
+          from pathlib import Path
+
+          WORKFLOWS_DIR = Path(".github/workflows")
+          NON_TEST_SECRETS = set(os.environ["NON_TEST_SECRETS"].split())
+          SECRET_REF = re.compile(r"secrets\.([A-Z0-9_]+)")
+
+
+          def needs_api_key(integration: str) -> bool:
+              wf = WORKFLOWS_DIR / f"{integration}.yml"
+              if not wf.exists():
+                  return False
+              referenced = set(SECRET_REF.findall(wf.read_text()))
+              return bool(referenced - NON_TEST_SECRETS)
+
+
+          # 1. PR file list
+          paths = subprocess.check_output(
+              [
+                  "gh", "pr", "view", os.environ["PR_NUMBER"],
+                  "--json", "files", "-q", ".files[].path",
+              ],
+              text=True,
+          ).splitlines()
+
+          # 2. Integrations touched by this PR
+          touched = set()
+          for p in paths:
+              parts = Path(p).parts
+              if len(parts) >= 2 and parts[0] == "integrations":
+                  touched.add(parts[1])
+              elif (
+                  len(parts) == 3
+                  and parts[0] == ".github"
+                  and parts[1] == "workflows"
+                  and parts[2].endswith(".yml")
+                  and not parts[2].startswith("CI_")
+              ):
+                  touched.add(parts[2].removesuffix(".yml"))
+
+          # 3. Of those, which need API keys
+          affected = sorted(t for t in touched if needs_api_key(t))
+          print(f"touched  = {sorted(touched)}")
+          print(f"affected = {affected}")
+
+          list_value = "\n".join(f"- {name}" for name in affected)
+          with open(os.environ["GITHUB_OUTPUT"], "a") as f:
+              f.write(f"list<<EOF\n{list_value}\nEOF\n")
+
+      - name: Post or update sticky comment
+        if: steps.affected.outputs.list != ''
+        uses: marocchino/sticky-pull-request-comment@0ea0beb66eb9baf113663a64ec522f60e49231c0 # v3.0.4
+        with:
+          header: fork-pr-api-keys
+          number: ${{ github.event.pull_request.number }}
+          message: |
+            **Heads-up for maintainers**
+
+            This PR is from a fork and touches integrations whose integration tests require API keys.
+            Those tests are **skipped** in CI because fork PRs don't have access to repo secrets for security reasons.
+
+            Affected integrations:
+            ${{ steps.affected.outputs.list }}
+
+            Please run the integration tests locally (`hatch run test:integration` inside each folder) before approving.
+
+      - name: Remove stale comment
+        if: steps.affected.outputs.list == ''
+        uses: marocchino/sticky-pull-request-comment@0ea0beb66eb9baf113663a64ec522f60e49231c0 # v3.0.4
+        with:
+          header: fork-pr-api-keys
+          number: ${{ github.event.pull_request.number }}
+          delete: true
