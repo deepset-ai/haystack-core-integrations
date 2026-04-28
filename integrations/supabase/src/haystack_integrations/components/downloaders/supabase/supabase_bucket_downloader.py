@@ -73,7 +73,11 @@ class SupabaseBucketDownloader:
             - `streams`: list of `ByteStream` objects, one per successfully downloaded file.
                 Each `ByteStream` has `meta["file_path"]` and `meta["bucket_name"]` set.
         """
-        client = create_client(self.supabase_url, self.supabase_key.resolve_value())
+        key = self.supabase_key.resolve_value()
+        if not key:
+            msg = "Supabase API key could not be resolved. Set the SUPABASE_SERVICE_KEY environment variable."
+            raise ValueError(msg)
+        client = create_client(self.supabase_url, key)
         streams = []
 
         for path in sources:
