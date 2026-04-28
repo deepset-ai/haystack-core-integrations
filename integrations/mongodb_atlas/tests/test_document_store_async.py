@@ -10,7 +10,6 @@ import pytest_asyncio
 from haystack.dataclasses.document import ByteStream, Document
 from haystack.document_stores.errors import DocumentStoreError, DuplicateDocumentError
 from haystack.document_stores.types import DuplicatePolicy
-from haystack.testing.document_store import FilterableDocsFixtureMixin
 from haystack.testing.document_store_async import (
     CountDocumentsAsyncTest,
     CountDocumentsByFilterAsyncTest,
@@ -102,7 +101,6 @@ class TestMongoDBDocumentStoreAsyncUnit:
 @pytest.mark.skipif(not os.environ.get("MONGO_CONNECTION_STRING"), reason="No MongoDBAtlas connection string provided")
 @pytest.mark.integration
 class TestDocumentStoreAsync(
-    FilterableDocsFixtureMixin,
     CountDocumentsAsyncTest,
     WriteDocumentsAsyncTest,
     DeleteDocumentsAsyncTest,
@@ -152,9 +150,7 @@ class TestDocumentStoreAsync(
         retrieved_docs = await document_store.filter_documents_async()
         assert retrieved_docs == docs
 
-    async def test_delete_all_documents_async_with_recreate_collection(
-        self, document_store: MongoDBAtlasDocumentStore
-    ):
+    async def test_delete_all_documents_async_with_recreate_collection(self, document_store: MongoDBAtlasDocumentStore):
         docs = [Document(id="1", content="first doc"), Document(id="2", content="second doc")]
         await document_store.write_documents_async(docs)
         assert await document_store.count_documents_async() == 2
