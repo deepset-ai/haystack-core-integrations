@@ -5,7 +5,8 @@
 
 import pytest
 from haystack.dataclasses import Document
-from haystack.document_stores.errors import DocumentStoreError
+from haystack.document_stores.errors import DocumentStoreError, DuplicateDocumentError
+from haystack.document_stores.types import DuplicatePolicy
 from haystack.testing.document_store_async import (
     CountDocumentsAsyncTest,
     CountDocumentsByFilterAsyncTest,
@@ -23,9 +24,12 @@ from haystack.testing.document_store_async import (
 
 from haystack_integrations.document_stores.opensearch.document_store import OpenSearchDocumentStore
 
+from tests.test_document_store_common import OpenSearchDocumentStoreTestMixin
+
 
 @pytest.mark.integration
 class TestDocumentStoreAsync(
+    OpenSearchDocumentStoreTestMixin,
     WriteDocumentsAsyncTest,
     CountDocumentsAsyncTest,
     FilterDocumentsAsyncTest,
@@ -39,6 +43,13 @@ class TestDocumentStoreAsync(
     GetMetadataFieldMinMaxAsyncTest,
     GetMetadataFieldUniqueValuesAsyncTest,
 ):
+    @pytest.mark.asyncio
+    async def test_write_documents_async(self, document_store: OpenSearchDocumentStore):
+        docs = [Document(id="1")]
+        assert await document_store.write_documents_async(docs) == 1
+        with pytest.raises(DuplicateDocumentError):
+            await document_store.write_documents_async(docs, DuplicatePolicy.FAIL)
+
     @pytest.mark.asyncio
     async def test_count_not_empty_async(self, document_store: OpenSearchDocumentStore):
         # Override: haystack v2.28.0 is missing @staticmethod on this mixin method.
@@ -594,7 +605,6 @@ class TestDocumentStoreAsync(
         assert len(results) == 1
         assert results[0].content == "bgb section 1"
 
-    @pytest.mark.integration
     @pytest.mark.asyncio
     async def test_query_sql_async_pagination_flow(self, document_store: OpenSearchDocumentStore):
         """Test async pagination flow with fetch_size"""
