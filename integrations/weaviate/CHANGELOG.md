@@ -1,5 +1,31 @@
 # Changelog
 
+## [integrations/weaviate-v7.5.0] - 2026-04-27
+
+### 🐛 Bug Fixes
+
+- Remove document mutation from weaviate tests(#3160)
+
+### 🚜 Refactor
+
+- Weaviate, chroma, elasticsearch, opensearch, azure_ai_search use `_normalize_metadata_field_name` from haystack.utils (#2953)
+
+### 🧪 Testing
+
+- Test compatible integrations with python 3.14; update pyproject (#3001)
+- Track test coverage for all integrations (#3065)
+- Weaviate - add unit tests (#3169)
+
+### 🧹 Chores
+
+- Add ANN type annotations to stackit, togetherai, unstructured, valkey, watsonx, weave, weaviate (#2994)
+- Enforce ruff docstring rules (D102/D103/D205/D209/D213/D417/D419) in integrations 41-47 (#3012)
+
+### 🌀 Miscellaneous
+
+- `WeaviateDocumentStore` rely on Mixin tests (#3005)
+- !refactor: use async mixin tests in `WeaviateDocumentStore` + fix bug in write_documents (#3225)
+
 ## [integrations/weaviate-v7.4.0] - 2026-03-17
 
 ### 🐛 Bug Fixes

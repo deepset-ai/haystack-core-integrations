@@ -1,5 +1,23 @@
 # Changelog
 
+## [integrations/anthropic-v5.8.0] - 2026-04-28
+
+### 🚀 Features
+
+- Add anthropic foundry support (#3238)
+
+### 🧪 Testing
+
+- Test compatible integrations with python 3.14; update pyproject (#3001)
+- Track test coverage for all integrations (#3065)
+- Add explicit integration test for structured output (#3226)
+
+### 🧹 Chores
+
+- Add missing -> None return type annotations to anthropic __init__ methods (#2972)
+- Enforce ruff docstring rules (D102/D103/D205/D209/D213/D417/D419) in first 10 integrations (#3008)
+
+
 ## [integrations/anthropic-v5.7.0] - 2026-03-13
 
 ### 🌀 Miscellaneous
