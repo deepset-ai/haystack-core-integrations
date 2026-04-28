@@ -375,10 +375,34 @@ RETURN count(d) AS n
         try:
             result = self.graph.query(cypher, {"docs": records})
             rows = result.result_set
-            return int(rows[0][0]) if rows else 0
+            written = int(rows[0][0]) if rows else 0
         except Exception as exc:
             msg = f"Failed to write documents to FalkorDB: {exc}"
             raise DocumentStoreError(msg) from exc
+
+        # Second pass: store embeddings as vecf32 so FalkorDB's vector index
+        # recognises them as VALUE_VECTORF32 rather than a plain float array.
+        # vecf32() cannot be used inline in the MERGE query above because
+        # falkordb-py >=1.1 is required to parse VALUE_VECTORF32 results, and
+        # mixing it with RETURN count() triggers a client-side parsing error on
+        # older clients.
+        docs_with_emb = [doc for doc in documents if doc.embedding is not None]
+        if docs_with_emb:
+            emb_rows = [{"id": doc.id, "emb": doc.embedding} for doc in docs_with_emb]
+            try:
+                self.graph.query(
+                    f"""
+UNWIND $docs AS doc
+MATCH (d:{self.node_label} {{id: doc.id}})
+SET d.{self.embedding_field} = vecf32(doc.emb)
+""",
+                    {"docs": emb_rows},
+                )
+            except Exception as exc:
+                msg = f"Failed to set embeddings in FalkorDB: {exc}"
+                raise DocumentStoreError(msg) from exc
+
+        return written
 
     def delete_documents(self, document_ids: list[str]) -> None:
         """
@@ -507,21 +531,20 @@ ORDER BY score ASC, d.id ASC
 
 def _document_to_falkordb_record(doc: Document) -> dict[str, Any]:
     """
-    Convert a Haystack Document to a flat dict for storage as FalkorDB node properties.
+    Convert a Haystack Document to a flat dict of non-embedding node properties.
 
     - `meta` fields are stored **at the same level** as `id` and `content`.
-    - `id`, `content`, `embedding` are top-level.
-    - All other metadata keys are flattened into the root.
+    - `embedding` is excluded; `_write_batch` stores it separately via `vecf32()`
+      so FalkorDB's vector index recognises the property as VALUE_VECTORF32.
 
     :param doc: The document to convert.
-    :returns: Flat dictionary of node properties.
+    :returns: Flat dictionary of non-embedding node properties.
     """
-    record = {}
+    record: dict[str, Any] = {}
     if doc.meta:
         record.update(doc.meta)
     record["id"] = doc.id
     record["content"] = doc.content
-    record["embedding"] = doc.embedding
 
     # Filter out None values — FalkorDB nodes don't need null properties stored.
     return {k: v for k, v in record.items() if v is not None}

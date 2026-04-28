@@ -25,7 +25,7 @@ classifiers = [
   "Topic :: Database",
   "Topic :: Scientific/Engineering :: Artificial Intelligence",
 ]
-dependencies = ["haystack-ai>=2.26.1", "falkordb>=1.0,<2"]
+dependencies = ["haystack-ai>=2.26.1", "falkordb>=1.1,<2"]
 
 [project.urls]
 Documentation = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/falkordb#readme"
@@ -66,7 +66,7 @@ dependencies = [
     "pytest-rerunfailures",
     "mypy",
     "pip",
-    "falkordb>=1.0,<2",
+    "falkordb>=1.1,<2",
 ]
 
 [tool.hatch.envs.test.scripts]
