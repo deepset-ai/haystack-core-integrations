@@ -11,6 +11,7 @@ on:
       - "Test / astra"
       - "Test / azure_ai_search"
       - "Test / azure_doc_intelligence"
+      - "Test / chonkie"
       - "Test / chroma"
       - "Test / cohere"
       - "Test / cometapi"
