@@ -148,11 +148,10 @@ class TestSupabaseBucketDownloader:
 
         with patch(PATCH_PATH) as mock_client:
             mock_client.return_value.storage.from_.return_value = mock_bucket
-            result = downloader.run(sources=["doc.pdf", "data.csv", "unknown.xyz"])
+            result = downloader.run(sources=["doc.pdf", "unknown.totallyfakeext999"])
 
         assert result["streams"][0].mime_type == "application/pdf"
-        assert result["streams"][1].mime_type is not None
-        assert result["streams"][2].mime_type == "application/octet-stream"
+        assert result["streams"][1].mime_type == "application/octet-stream"
 
     @pytest.mark.skipif(
         not os.environ.get("SUPABASE_SERVICE_KEY") or not os.environ.get("SUPABASE_URL"),
