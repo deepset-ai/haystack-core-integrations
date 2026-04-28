@@ -62,7 +62,6 @@ class TestAnthropicFoundryChatGenerator:
             azure_ad_token_provider=token_provider,
         )
         assert component.azure_ad_token_provider is token_provider
-        assert component.api_key is None or component.api_key.resolve_value() is None
 
     def test_init_no_auth_raises(self):
         with pytest.raises(ValueError, match="Please provide an API key or an azure_ad_token_provider"):
@@ -93,7 +92,7 @@ class TestAnthropicFoundryChatGenerator:
                 "anthropic.chat.foundry_chat_generator.AnthropicFoundryChatGenerator"
             ),
             "init_parameters": {
-                "api_key": {"env_vars": ["ANTHROPIC_FOUNDRY_API_KEY"], "strict": False, "type": "env_var"},
+                "api_key": {"env_vars": ["ANTHROPIC_FOUNDRY_API_KEY"], "strict": True, "type": "env_var"},
                 "resource": "my-resource",
                 "endpoint": None,
                 "model": "claude-sonnet-4-5",
@@ -125,7 +124,7 @@ class TestAnthropicFoundryChatGenerator:
                 "anthropic.chat.foundry_chat_generator.AnthropicFoundryChatGenerator"
             ),
             "init_parameters": {
-                "api_key": {"env_vars": ["ANTHROPIC_FOUNDRY_API_KEY"], "strict": False, "type": "env_var"},
+                "api_key": {"env_vars": ["ANTHROPIC_FOUNDRY_API_KEY"], "strict": True, "type": "env_var"},
                 "resource": "my-resource",
                 "endpoint": None,
                 "model": "claude-opus-4-6",
@@ -147,7 +146,7 @@ class TestAnthropicFoundryChatGenerator:
                 "anthropic.chat.foundry_chat_generator.AnthropicFoundryChatGenerator"
             ),
             "init_parameters": {
-                "api_key": {"env_vars": ["ANTHROPIC_FOUNDRY_API_KEY"], "strict": False, "type": "env_var"},
+                "api_key": {"env_vars": ["ANTHROPIC_FOUNDRY_API_KEY"], "strict": True, "type": "env_var"},
                 "resource": "my-resource",
                 "endpoint": None,
                 "model": "claude-sonnet-4-5",

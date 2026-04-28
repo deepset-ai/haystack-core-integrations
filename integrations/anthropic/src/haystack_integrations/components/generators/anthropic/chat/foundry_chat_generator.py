@@ -91,7 +91,7 @@ class AnthropicFoundryChatGenerator(AnthropicChatGenerator):
     def __init__(
         self,
         *,
-        api_key: Secret | None = Secret.from_env_var("ANTHROPIC_FOUNDRY_API_KEY", strict=False),  # noqa: B008
+        api_key: Secret | None = Secret.from_env_var("ANTHROPIC_FOUNDRY_API_KEY", strict=True),  # noqa: B008
         resource: str | None = None,
         endpoint: str | None = None,
         model: str = "claude-sonnet-4-5",
