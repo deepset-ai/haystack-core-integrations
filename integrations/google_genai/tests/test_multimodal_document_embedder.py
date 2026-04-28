@@ -103,7 +103,7 @@ class TestGoogleGenAIMultimodalDocumentEmbedder:
                 "haystack_integrations.components.embedders.google_genai.multimodal_document_embedder.GoogleGenAIMultimodalDocumentEmbedder"
             ),
             "init_parameters": {
-                "model": "gemini-embedding-2-preview",
+                "model": "gemini-embedding-2",
                 "file_path_meta_field": "file_path",
                 "root_path": None,
                 "image_size": None,
@@ -123,7 +123,7 @@ class TestGoogleGenAIMultimodalDocumentEmbedder:
                 "haystack_integrations.components.embedders.google_genai.multimodal_document_embedder.GoogleGenAIMultimodalDocumentEmbedder"
             ),
             "init_parameters": {
-                "model": "gemini-embedding-2-preview",
+                "model": "gemini-embedding-2",
                 "file_path_meta_field": "file_path",
                 "root_path": "some_root_path",
                 "image_size": (1024, 1024),
@@ -140,7 +140,7 @@ class TestGoogleGenAIMultimodalDocumentEmbedder:
 
         embedder = component_from_dict(GoogleGenAIMultimodalDocumentEmbedder, data, "embedder")
         assert embedder._api_key.resolve_value() == "fake-api-key"
-        assert embedder._model == "gemini-embedding-2-preview"
+        assert embedder._model == "gemini-embedding-2"
         assert embedder._file_path_meta_field == "file_path"
         assert embedder._root_path == "some_root_path"
         assert embedder._image_size == (1024, 1024)
@@ -235,7 +235,7 @@ class TestGoogleGenAIMultimodalDocumentEmbedder:
         assert len(result["documents"]) == 2
         for doc in result["documents"]:
             assert doc.embedding == [0.1, 0.2, 0.3]
-        assert result["meta"]["model"] == "gemini-embedding-2-preview"
+        assert result["meta"]["model"] == "gemini-embedding-2"
 
     @pytest.mark.asyncio
     async def test_run_async_with_mocked_client(self, test_files_path):
@@ -253,7 +253,7 @@ class TestGoogleGenAIMultimodalDocumentEmbedder:
         result = await embedder.run_async(documents=docs)
         assert len(result["documents"]) == 1
         assert result["documents"][0].embedding == [0.4, 0.5, 0.6]
-        assert result["meta"]["model"] == "gemini-embedding-2-preview"
+        assert result["meta"]["model"] == "gemini-embedding-2"
 
     @pytest.mark.integration
     @pytest.mark.skipif(
@@ -271,7 +271,7 @@ class TestGoogleGenAIMultimodalDocumentEmbedder:
         assert len(result["documents"]) == 2
         for doc in result["documents"]:
             assert len(doc.embedding) == 3072
-        assert result["meta"]["model"] == "gemini-embedding-2-preview"
+        assert result["meta"]["model"] == "gemini-embedding-2"
 
     @pytest.mark.integration
     @pytest.mark.asyncio
@@ -290,4 +290,4 @@ class TestGoogleGenAIMultimodalDocumentEmbedder:
         assert len(result["documents"]) == 2
         for doc in result["documents"]:
             assert len(doc.embedding) == 3072
-        assert result["meta"]["model"] == "gemini-embedding-2-preview"
+        assert result["meta"]["model"] == "gemini-embedding-2"
