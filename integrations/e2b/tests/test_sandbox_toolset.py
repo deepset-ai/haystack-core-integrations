@@ -378,10 +378,14 @@ class TestRunBashCommandTool:
 
         mock.commands.run.assert_called_once_with("sleep 5", timeout=30)
 
-    def test_raises_when_no_sandbox(self):
+    @patch("haystack_integrations.tools.e2b.e2b_sandbox.e2b_import")
+    @patch("haystack_integrations.tools.e2b.e2b_sandbox.Sandbox.create")
+    def test_wraps_warm_up_failure(self, mock_sandbox_create, mock_e2b_import):
+        mock_e2b_import.check.return_value = None
+        mock_sandbox_create.side_effect = Exception("connection refused")
         sb = _make_sandbox()
         tool = RunBashCommandTool(sandbox=sb)
-        with pytest.raises(ToolInvocationError, match="E2B sandbox is not running"):
+        with pytest.raises(ToolInvocationError, match="Failed to start E2B sandbox"):
             tool.invoke(command="ls")
 
     def test_wraps_sandbox_exception(self):
@@ -417,10 +421,14 @@ class TestReadFileTool:
 
         assert result == "binary content"
 
-    def test_raises_when_no_sandbox(self):
+    @patch("haystack_integrations.tools.e2b.e2b_sandbox.e2b_import")
+    @patch("haystack_integrations.tools.e2b.e2b_sandbox.Sandbox.create")
+    def test_wraps_warm_up_failure(self, mock_sandbox_create, mock_e2b_import):
+        mock_e2b_import.check.return_value = None
+        mock_sandbox_create.side_effect = Exception("connection refused")
         sb = _make_sandbox()
         tool = ReadFileTool(sandbox=sb)
-        with pytest.raises(ToolInvocationError, match="E2B sandbox is not running"):
+        with pytest.raises(ToolInvocationError, match="Failed to start E2B sandbox"):
             tool.invoke(path="/some/file.txt")
 
     def test_wraps_sandbox_exception(self):
@@ -446,10 +454,14 @@ class TestWriteFileTool:
         assert "/output/result.txt" in result
         mock.files.write.assert_called_once_with("/output/result.txt", "hello")
 
-    def test_raises_when_no_sandbox(self):
+    @patch("haystack_integrations.tools.e2b.e2b_sandbox.e2b_import")
+    @patch("haystack_integrations.tools.e2b.e2b_sandbox.Sandbox.create")
+    def test_wraps_warm_up_failure(self, mock_sandbox_create, mock_e2b_import):
+        mock_e2b_import.check.return_value = None
+        mock_sandbox_create.side_effect = Exception("connection refused")
         sb = _make_sandbox()
         tool = WriteFileTool(sandbox=sb)
-        with pytest.raises(ToolInvocationError, match="E2B sandbox is not running"):
+        with pytest.raises(ToolInvocationError, match="Failed to start E2B sandbox"):
             tool.invoke(path="/some/path.txt", content="content")
 
     def test_wraps_sandbox_exception(self):
@@ -495,10 +507,14 @@ class TestListDirectoryTool:
 
         assert result == "(empty directory)"
 
-    def test_raises_when_no_sandbox(self):
+    @patch("haystack_integrations.tools.e2b.e2b_sandbox.e2b_import")
+    @patch("haystack_integrations.tools.e2b.e2b_sandbox.Sandbox.create")
+    def test_wraps_warm_up_failure(self, mock_sandbox_create, mock_e2b_import):
+        mock_e2b_import.check.return_value = None
+        mock_sandbox_create.side_effect = Exception("connection refused")
         sb = _make_sandbox()
         tool = ListDirectoryTool(sandbox=sb)
-        with pytest.raises(ToolInvocationError, match="E2B sandbox is not running"):
+        with pytest.raises(ToolInvocationError, match="Failed to start E2B sandbox"):
             tool.invoke(path="/home")
 
     def test_wraps_sandbox_exception(self):
