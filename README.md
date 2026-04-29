@@ -5,11 +5,11 @@
 | Name                                                                  |    Stmts |     Miss |   Branch |   BrPart |   Cover |   Missing |
 |---------------------------------------------------------------------- | -------: | -------: | -------: | -------: | ------: | --------: |
 | src/haystack\_integrations/components/retrievers/chroma/retriever.py  |       59 |        0 |        4 |        0 |    100% |           |
-| src/haystack\_integrations/document\_stores/chroma/document\_store.py |      512 |       26 |      168 |       13 |     94% |139, 204, 240-241, 628-\>626, 682, 685-\>687, 688, 699-701, 730, 733-\>735, 736, 746-748, 786-788, 828-830, 869-871, 902-\>exit, 910-912, 1330-\>1333, 1376-\>1381 |
+| src/haystack\_integrations/document\_stores/chroma/document\_store.py |      542 |       32 |      186 |       18 |     93% |139, 204, 240-241, 601-\>604, 614, 618, 661, 692, 743, 746-\>748, 749, 760-762, 791, 794-\>796, 797, 807-809, 847-849, 873, 889-891, 930-932, 971-973, 1344, 1391-\>1394, 1437-\>1442 |
 | src/haystack\_integrations/document\_stores/chroma/errors.py          |        8 |        0 |        0 |        0 |    100% |           |
 | src/haystack\_integrations/document\_stores/chroma/filters.py         |       83 |        1 |       36 |        1 |     98% |        60 |
 | src/haystack\_integrations/document\_stores/chroma/utils.py           |       11 |        0 |        0 |        0 |    100% |           |
-| **TOTAL**                                                             |  **673** |   **27** |  **208** |   **14** | **95%** |           |
+| **TOTAL**                                                             |  **703** |   **33** |  **226** |   **19** | **94%** |           |
 
 
 ## Setup coverage badge
