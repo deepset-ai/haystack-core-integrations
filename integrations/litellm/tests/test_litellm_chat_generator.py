@@ -1,13 +1,12 @@
 """Tests for the LiteLLM Chat Generator integration."""
 
-import json
 import sys
 import types
 from unittest import mock
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
-from haystack.dataclasses import ChatMessage, StreamingChunk, ToolCall
+from haystack.dataclasses import ChatMessage, StreamingChunk
 from haystack.tools import Tool
 from haystack.utils.auth import Secret
 
@@ -334,6 +333,7 @@ class TestAsync:
         with mock.patch.dict(sys.modules, {"litellm": fake_litellm}):
             # acompletion needs to be an awaitable
             import asyncio
+
             future = asyncio.Future()
             future.set_result(mock_resp)
             fake_litellm.acompletion = MagicMock(return_value=future)

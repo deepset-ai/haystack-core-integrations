@@ -197,9 +197,7 @@ class LiteLLMChatGenerator:
         completions = [_build_chat_message(response, choice) for choice in response.choices]
         return {"replies": completions}
 
-    def _handle_streaming(
-        self, stream_response: Any, callback: SyncStreamingCallbackT
-    ) -> list[ChatMessage]:
+    def _handle_streaming(self, stream_response: Any, callback: SyncStreamingCallbackT) -> list[ChatMessage]:
         component_info = ComponentInfo.from_component(self)
         chunks: list[StreamingChunk] = []
         for chunk in stream_response:
@@ -219,9 +217,7 @@ class LiteLLMChatGenerator:
             callback(sc)
         return [_convert_streaming_chunks_to_chat_message(chunks=chunks)]
 
-    async def _ahandle_streaming(
-        self, stream_response: Any, callback: SyncStreamingCallbackT
-    ) -> list[ChatMessage]:
+    async def _ahandle_streaming(self, stream_response: Any, callback: SyncStreamingCallbackT) -> list[ChatMessage]:
         component_info = ComponentInfo.from_component(self)
         chunks: list[StreamingChunk] = []
         async for chunk in stream_response:
