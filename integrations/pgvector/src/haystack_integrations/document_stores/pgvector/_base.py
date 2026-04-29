@@ -832,9 +832,7 @@ class PostgreSQLDocumentStore(ABC):
 
         self._ensure_db_setup()
         assert self._cursor is not None
-        self._execute_sql(
-            cursor=self._cursor, sql_query=delete_sql, error_msg="Could not delete documents"
-        )
+        self._execute_sql(cursor=self._cursor, sql_query=delete_sql, error_msg="Could not delete documents")
 
     async def delete_documents_async(self, document_ids: list[str]) -> None:
         """
@@ -872,9 +870,7 @@ class PostgreSQLDocumentStore(ABC):
 
         self._ensure_db_setup()
         assert self._cursor is not None
-        self._execute_sql(
-            cursor=self._cursor, sql_query=query, error_msg="Could not delete all documents"
-        )
+        self._execute_sql(cursor=self._cursor, sql_query=query, error_msg="Could not delete all documents")
 
     async def delete_all_documents_async(self) -> None:
         """
