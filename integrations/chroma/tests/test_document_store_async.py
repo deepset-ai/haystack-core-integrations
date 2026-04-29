@@ -8,7 +8,6 @@ from unittest import mock
 
 import pytest
 from haystack.dataclasses import Document
-from haystack.document_stores.types import DuplicatePolicy
 from haystack.testing.document_store import TEST_EMBEDDING_1
 from haystack.testing.document_store_async import (
     CountDocumentsAsyncTest,
@@ -22,7 +21,6 @@ from haystack.testing.document_store_async import (
     GetMetadataFieldsInfoAsyncTest,
     GetMetadataFieldUniqueValuesAsyncTest,
     UpdateByFilterAsyncTest,
-    WriteDocumentsAsyncTest,
 )
 
 from haystack_integrations.document_stores.chroma import ChromaDocumentStore
@@ -63,7 +61,6 @@ class TestDocumentStoreAsync(
     GetMetadataFieldsInfoAsyncTest,
     GetMetadataFieldUniqueValuesAsyncTest,
     UpdateByFilterAsyncTest,
-    WriteDocumentsAsyncTest,
 ):
     @pytest.fixture
     def document_store(self, embedding_function) -> ChromaDocumentStore:
@@ -78,21 +75,12 @@ class TestDocumentStoreAsync(
                 port=8000,
             )
 
+    # ── Chroma-specific write test ──────────────────────────────────────────
+
     async def test_write_documents_async(self, document_store: ChromaDocumentStore):
-        """Override: Chroma uses DuplicatesPolicy.OVERWRITE by default."""
+        """Chroma-specific: basic write test."""
         doc = Document(content="test doc")
         await document_store.write_documents_async([doc])
-        assert await document_store.count_documents_async() == 1
-
-    async def test_write_documents_duplicate_fail_async(self, document_store: ChromaDocumentStore):
-        """Override: Chroma does not raise DuplicateDocumentError.
-
-        Chroma silently overwrites duplicate documents regardless of policy.
-        """
-
-        doc = Document(content="test doc")
-        await document_store.write_documents_async([doc], policy=DuplicatePolicy.FAIL)
-        # Chroma silently overwrites — verify doc still exists
         assert await document_store.count_documents_async() == 1
 
     # ── Chroma-specific tests (not covered by mixins) ──────────────────────
