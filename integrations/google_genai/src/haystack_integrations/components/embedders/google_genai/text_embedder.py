@@ -99,7 +99,9 @@ class GoogleGenAITextEmbedder:
             The name of the model to use for calculating embeddings.
             The default model is `gemini-embedding-001`.
         :param prefix:
-            A string to add at the beginning of each text to embed.
+            A string to add at the beginning of each text. It can be used to specify a task type for
+            `gemini-embedding-2`. For available task types, see
+            [Gemini documentation](https://ai.google.dev/gemini-api/docs/embeddings#task-types).
         :param suffix:
             A string to add at the end of each text to embed.
         :param config:
