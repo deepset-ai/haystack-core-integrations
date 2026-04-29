@@ -4,4 +4,4 @@
 from ._base import PostgreSQLDocumentStore
 from .document_store import PgvectorDocumentStore
 
-__all__ = ["PostgreSQLDocumentStore", "PgvectorDocumentStore"]
+__all__ = ["PgvectorDocumentStore", "PostgreSQLDocumentStore"]
