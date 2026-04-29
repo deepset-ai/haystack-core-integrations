@@ -55,7 +55,7 @@ class E2BToolset(Toolset):
         :param environment_vars: Optional environment variables to inject into the sandbox.
         """
         self.sandbox = E2BSandbox(
-            api_key=api_key,
+            api_key=api_key or Secret.from_env_var("E2B_API_KEY"),
             sandbox_template=sandbox_template,
             timeout=timeout,
             environment_vars=environment_vars,
