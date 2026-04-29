@@ -128,7 +128,7 @@ class TestDocumentStoreAsync(
             yield store
         finally:
             if store._connection_async:
-                await store.connection.close()
+                await store._connection_async.close()
 
     async def test_count_not_empty_async(self, document_store):
         # Override needed: base class uses @staticmethod which breaks fixture injection
