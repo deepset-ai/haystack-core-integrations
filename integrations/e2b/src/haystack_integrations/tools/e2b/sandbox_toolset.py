@@ -41,7 +41,7 @@ class E2BToolset(Toolset):
 
     def __init__(
         self,
-        api_key: Secret | None = None,
+        api_key: Secret = Secret.from_env_var("E2B_API_KEY", strict=True),
         sandbox_template: str = "base",
         timeout: int = 120,
         environment_vars: dict[str, str] | None = None,
@@ -55,7 +55,7 @@ class E2BToolset(Toolset):
         :param environment_vars: Optional environment variables to inject into the sandbox.
         """
         self.sandbox = E2BSandbox(
-            api_key=api_key or Secret.from_env_var("E2B_API_KEY"),
+            api_key=api_key,
             sandbox_template=sandbox_template,
             timeout=timeout,
             environment_vars=environment_vars,
