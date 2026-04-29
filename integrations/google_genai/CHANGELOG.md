@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/google_genai-v4.2.0] - 2026-04-29
+
+### 🚜 Refactor
+
+- Google GenAI embedders - adaptations for Gemini Embedding 2 general availability (#3251)
+
+
 ## [integrations/google_genai-v4.1.0] - 2026-04-24
 
 ### 🐛 Bug Fixes
