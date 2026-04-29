@@ -58,7 +58,6 @@ dependencies = [
     "pytest-rerunfailures",
     "mypy",
     "pip",
-    "e2b>=2.0.0",
 ]
 
 [tool.hatch.envs.test.scripts]
