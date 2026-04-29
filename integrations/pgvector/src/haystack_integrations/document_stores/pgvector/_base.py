@@ -1617,7 +1617,7 @@ class PostgreSQLDocumentStore(ABC):
                     MAX((meta->>{} )::integer) AS max_value
                 FROM {}.{}
                 WHERE meta->>{} IS NOT NULL
-                """  # noqa: W291
+                """
             ).format(
                 field_literal,
                 field_literal,
@@ -1634,7 +1634,7 @@ class PostgreSQLDocumentStore(ABC):
                     MAX((meta->>{} )::real) AS max_value
                 FROM {}.{}
                 WHERE meta->>{} IS NOT NULL
-                """  # noqa: W291
+                """
             ).format(
                 field_literal,
                 field_literal,
@@ -1653,7 +1653,7 @@ class PostgreSQLDocumentStore(ABC):
                     MAX(meta->>{} COLLATE "C") AS max_value
                 FROM {}.{}
                 WHERE meta->>{} IS NOT NULL
-                """  # noqa: W291
+                """
             ).format(
                 field_literal,
                 field_literal,
