@@ -197,6 +197,82 @@ class TestE2BSandboxSerialisation:
         data = sb.to_dict()
         assert "E2BSandbox" in data["type"]
 
+    def test_to_dict_includes_stable_instance_id(self):
+        sb = self._make_env_sandbox()
+        data = sb.to_dict()
+        assert data["data"]["instance_id"] == sb.instance_id
+
+    def test_from_dict_preserves_instance_id(self):
+        original = self._make_env_sandbox()
+        restored = E2BSandbox.from_dict(original.to_dict())
+        assert restored.instance_id == original.instance_id
+
+    def test_from_dict_dedupes_tools_sharing_one_sandbox(self):
+        """Tools that shared one sandbox before serialization share it after round-trip."""
+        E2BSandbox._instances.clear()
+        sandbox = self._make_env_sandbox(sandbox_template="custom", timeout=300)
+        tool_a = RunBashCommandTool(sandbox=sandbox)
+        tool_b = ReadFileTool(sandbox=sandbox)
+
+        restored_a = RunBashCommandTool.from_dict(tool_a.to_dict())
+        restored_b = ReadFileTool.from_dict(tool_b.to_dict())
+
+        assert restored_a._e2b_sandbox is restored_b._e2b_sandbox
+        assert restored_a._e2b_sandbox.instance_id == sandbox.instance_id
+
+    def test_from_dict_distinct_sandboxes_remain_distinct(self):
+        """Two separately-built sandboxes with identical config keep distinct identities."""
+        E2BSandbox._instances.clear()
+        sb1 = self._make_env_sandbox(sandbox_template="base", timeout=120)
+        sb2 = self._make_env_sandbox(sandbox_template="base", timeout=120)
+        assert sb1.instance_id != sb2.instance_id
+
+        restored_1 = E2BSandbox.from_dict(sb1.to_dict())
+        restored_2 = E2BSandbox.from_dict(sb2.to_dict())
+
+        assert restored_1 is not restored_2
+        assert restored_1.instance_id == sb1.instance_id
+        assert restored_2.instance_id == sb2.instance_id
+
+    def test_from_dict_id_collision_with_mismatched_config_does_not_dedup(self, monkeypatch):
+        """A crafted dict reusing another sandbox's id but with a different api_key
+        must NOT receive the cached instance (no cross-tenant escalation), and must
+        NOT evict the legitimate cache entry (no DoS)."""
+        E2BSandbox._instances.clear()
+        monkeypatch.setenv("VICTIM_KEY", "victim-secret")
+        monkeypatch.setenv("ATTACKER_KEY", "attacker-secret")
+
+        legitimate_data = {
+            "type": "haystack_integrations.tools.e2b.e2b_sandbox.E2BSandbox",
+            "data": {
+                "instance_id": "shared-id",
+                "api_key": Secret.from_env_var("VICTIM_KEY").to_dict(),
+                "sandbox_template": "base",
+                "timeout": 120,
+                "environment_vars": {},
+            },
+        }
+        legitimate = E2BSandbox.from_dict(legitimate_data)
+        assert E2BSandbox._instances.get("shared-id") is legitimate
+
+        attacker_data = {
+            "type": "haystack_integrations.tools.e2b.e2b_sandbox.E2BSandbox",
+            "data": {
+                "instance_id": "shared-id",
+                "api_key": Secret.from_env_var("ATTACKER_KEY").to_dict(),
+                "sandbox_template": "base",
+                "timeout": 120,
+                "environment_vars": {},
+            },
+        }
+        attacker = E2BSandbox.from_dict(attacker_data)
+
+        assert attacker is not legitimate
+        assert attacker.api_key.resolve_value() == "attacker-secret"
+        assert legitimate.api_key.resolve_value() == "victim-secret"
+        # Cache still points at the legitimate instance — attacker did not evict it.
+        assert E2BSandbox._instances.get("shared-id") is legitimate
+
 
 # ---------------------------------------------------------------------------
 # Tool classes -- structure

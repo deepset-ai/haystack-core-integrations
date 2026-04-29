@@ -2,7 +2,9 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from typing import Any
+import uuid
+import weakref
+from typing import Any, ClassVar
 
 from haystack import logging
 from haystack.core.serialization import generate_qualified_class_name
@@ -61,12 +63,21 @@ class E2BSandbox:
     ```
     """
 
+    # Process-wide cache used during deserialization to keep tools that
+    # shared one sandbox before serialization sharing it after `from_dict`
+    # as well. Keyed by `instance_id`. Weak refs so an entry disappears
+    # once no tool references the sandbox. A cache hit is only honored
+    # when the full serialized config matches (see `from_dict`), so a
+    # crafted YAML cannot hijack another tenant's live instance.
+    _instances: ClassVar["weakref.WeakValueDictionary[str, E2BSandbox]"] = weakref.WeakValueDictionary()
+
     def __init__(
         self,
         api_key: Secret = Secret.from_env_var("E2B_API_KEY", strict=True),
         sandbox_template: str = "base",
         timeout: int = 120,
         environment_vars: dict[str, str] | None = None,
+        instance_id: str | None = None,
     ) -> None:
         """
         Create an E2BSandbox instance.
@@ -75,11 +86,17 @@ class E2BSandbox:
         :param sandbox_template: E2B sandbox template name.
         :param timeout: Sandbox inactivity timeout in seconds.
         :param environment_vars: Optional environment variables to inject into the sandbox.
+        :param instance_id: Stable identifier preserved across `to_dict`/`from_dict`. When
+            omitted, a fresh UUID is generated. Tools that share the same `E2BSandbox`
+            instance inherit this id, which is what lets them re-share the instance after
+            a serialization round-trip. Distinct from the cloud-side sandbox id assigned
+            by E2B at warm-up.
         """
         self.api_key = api_key or Secret.from_env_var("E2B_API_KEY")
         self.sandbox_template = sandbox_template
         self.timeout = timeout
         self.environment_vars = environment_vars or {}
+        self.instance_id = instance_id or uuid.uuid4().hex
         self._sandbox: Any = None
 
     # ------------------------------------------------------------------
@@ -146,6 +163,7 @@ class E2BSandbox:
         return {
             "type": generate_qualified_class_name(type(self)),
             "data": {
+                "instance_id": self.instance_id,
                 "api_key": self.api_key.to_dict(),
                 "sandbox_template": self.sandbox_template,
                 "timeout": self.timeout,
@@ -158,17 +176,56 @@ class E2BSandbox:
         """
         Deserialize an :class:`E2BSandbox` from a dictionary.
 
+        Multiple tools that shared a single :class:`E2BSandbox` before serialization
+        will share the same restored instance: each tool's `from_dict` consults a
+        process-wide cache keyed on `instance_id`. A cache hit is only honored when
+        the full serialized config (api_key, template, timeout, environment_vars)
+        matches the cached entry — a crafted YAML with a guessed id but a different
+        config falls through to a fresh instance and never observes the cached one.
+
         :param data: Dictionary created by :meth:`to_dict`.
-        :returns: A new :class:`E2BSandbox` instance ready to be warmed up.
+        :returns: An :class:`E2BSandbox` instance ready to be warmed up. May be a
+            previously-restored instance if the id and config match.
         """
         inner = data["data"]
+        instance_id = inner.get("instance_id")
+
+        # Snapshot the incoming config in its serialized (Secret-as-dict) form
+        # before `deserialize_secrets_inplace` mutates `inner`, so we can compare
+        # against `cached.api_key.to_dict()` symmetrically.
+        incoming_config = {
+            "api_key": inner.get("api_key"),
+            "sandbox_template": inner.get("sandbox_template", "base"),
+            "timeout": inner.get("timeout", 120),
+            "environment_vars": inner.get("environment_vars", {}),
+        }
+
+        if instance_id is not None:
+            cached = cls._instances.get(instance_id)
+            if cached is not None:
+                cached_config = {
+                    "api_key": cached.api_key.to_dict(),
+                    "sandbox_template": cached.sandbox_template,
+                    "timeout": cached.timeout,
+                    "environment_vars": cached.environment_vars,
+                }
+                if incoming_config == cached_config:
+                    return cached
+                # Id collision with mismatched config: fall through to building
+                # a fresh instance, but DO NOT register it — preserves the
+                # legitimate cached entry from being evicted.
+
         deserialize_secrets_inplace(inner, keys=["api_key"])
-        return cls(
+        instance = cls(
             api_key=inner["api_key"],
             sandbox_template=inner.get("sandbox_template", "base"),
             timeout=inner.get("timeout", 120),
             environment_vars=inner.get("environment_vars", {}),
+            instance_id=instance_id,
         )
+        if instance_id is not None and instance_id not in cls._instances:
+            cls._instances[instance_id] = instance
+        return instance
 
     # ------------------------------------------------------------------
     # Internal helpers (used by the tool classes)
