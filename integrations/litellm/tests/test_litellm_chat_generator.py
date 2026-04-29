@@ -233,7 +233,7 @@ class TestRun:
             assert reply.tool_calls[0].tool_name == "get_weather"
             assert reply.tool_calls[0].arguments == {"city": "Paris"}
 
-    def test_streaming(self):
+    def test_streaming_content_accumulated(self):
         gen = LiteLLMChatGenerator(model="openai/gpt-4o")
         chunks = _make_mock_stream_chunks("Hi!")
 
@@ -249,6 +249,29 @@ class TestRun:
             result = gen.run(messages=[ChatMessage.from_user("hi")], streaming_callback=callback)
             assert len(collected) > 0
             assert len(result["replies"]) == 1
+            full_text = "".join(c.content for c in collected)
+            assert "Hi!" in full_text
+
+    def test_generation_kwargs_runtime_overrides_init(self):
+        gen = LiteLLMChatGenerator(model="openai/gpt-4o", generation_kwargs={"temperature": 0.5})
+        mock_resp = _make_mock_response()
+        fake_litellm = types.ModuleType("litellm")
+        fake_litellm.completion = MagicMock(return_value=mock_resp)
+
+        with mock.patch.dict(sys.modules, {"litellm": fake_litellm}):
+            gen.run(messages=[ChatMessage.from_user("hi")], generation_kwargs={"temperature": 0.9})
+            call_kwargs = fake_litellm.completion.call_args
+            assert call_kwargs.kwargs["temperature"] == 0.9
+
+    def test_none_content_in_response(self):
+        gen = LiteLLMChatGenerator(model="openai/gpt-4o")
+        mock_resp = _make_mock_response(content=None)
+        fake_litellm = types.ModuleType("litellm")
+        fake_litellm.completion = MagicMock(return_value=mock_resp)
+
+        with mock.patch.dict(sys.modules, {"litellm": fake_litellm}):
+            result = gen.run(messages=[ChatMessage.from_user("hi")])
+            assert result["replies"][0].text == ""
 
     def test_tools_sent_to_litellm(self):
         def weather(city: str) -> str:
@@ -273,3 +296,54 @@ class TestRun:
             assert call_kwargs.kwargs["tools"] is not None
             assert len(call_kwargs.kwargs["tools"]) == 1
             assert call_kwargs.kwargs["tools"][0]["function"]["name"] == "weather"
+
+
+class TestSerializationRoundTrip:
+    def test_round_trip_basic(self):
+        gen = LiteLLMChatGenerator(
+            model="anthropic/claude-sonnet-4-20250514",
+            api_base_url="https://proxy.local",
+            generation_kwargs={"temperature": 0.8, "max_tokens": 200},
+        )
+        restored = LiteLLMChatGenerator.from_dict(gen.to_dict())
+        assert restored.model == gen.model
+        assert restored.api_base_url == gen.api_base_url
+        assert restored.generation_kwargs == gen.generation_kwargs
+
+    def test_round_trip_with_secret(self):
+        gen = LiteLLMChatGenerator(
+            model="openai/gpt-4o",
+            api_key=Secret.from_env_var("MY_TEST_KEY"),
+        )
+        d = gen.to_dict()
+        assert d["init_parameters"]["api_key"]["type"] == "env_var"
+        restored = LiteLLMChatGenerator.from_dict(d)
+        assert restored.api_key is not None
+
+
+@pytest.mark.unit
+class TestAsync:
+    @pytest.mark.asyncio
+    async def test_run_async_basic(self):
+        gen = LiteLLMChatGenerator(model="openai/gpt-4o")
+        mock_resp = _make_mock_response("async reply")
+
+        fake_litellm = types.ModuleType("litellm")
+        fake_litellm.acompletion = MagicMock(return_value=mock_resp)
+
+        with mock.patch.dict(sys.modules, {"litellm": fake_litellm}):
+            # acompletion needs to be an awaitable
+            import asyncio
+            future = asyncio.Future()
+            future.set_result(mock_resp)
+            fake_litellm.acompletion = MagicMock(return_value=future)
+
+            result = await gen.run_async(messages=[ChatMessage.from_user("hi")])
+            assert len(result["replies"]) == 1
+            assert result["replies"][0].text == "async reply"
+
+    @pytest.mark.asyncio
+    async def test_run_async_empty_messages(self):
+        gen = LiteLLMChatGenerator(model="openai/gpt-4o")
+        result = await gen.run_async(messages=[])
+        assert result == {"replies": []}

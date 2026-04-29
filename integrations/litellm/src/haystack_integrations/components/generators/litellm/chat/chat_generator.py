@@ -2,6 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+import json
 from typing import Any
 
 from haystack import component, default_from_dict, default_to_dict, logging
@@ -98,6 +99,41 @@ class LiteLLMChatGenerator:
         """Verify litellm is importable."""
         import litellm  # noqa: F401
 
+    def _build_litellm_kwargs(
+        self,
+        messages: list[ChatMessage],
+        streaming_callback: StreamingCallbackT | None,
+        generation_kwargs: dict[str, Any] | None,
+        tools: ToolsType | None,
+    ) -> tuple[dict[str, Any], bool]:
+        merged_kwargs = {**self.generation_kwargs, **(generation_kwargs or {})}
+        openai_messages = [m.to_openai_dict_format() for m in messages]
+
+        extra: dict[str, Any] = {}
+        if self.api_key:
+            extra["api_key"] = self.api_key.resolve_value()
+        if self.api_base_url:
+            extra["api_base"] = self.api_base_url
+
+        flattened_tools = flatten_tools_or_toolsets(tools or self.tools)
+        _check_duplicate_tool_names(flattened_tools)
+        tool_defs = None
+        if flattened_tools:
+            tool_defs = [{"type": "function", "function": t.tool_spec} for t in flattened_tools]
+
+        is_streaming = streaming_callback is not None
+
+        kwargs = {
+            "model": self.model,
+            "messages": openai_messages,
+            "stream": is_streaming,
+            "tools": tool_defs,
+            "drop_params": True,
+            **merged_kwargs,
+            **extra,
+        }
+        return kwargs, is_streaming
+
     @component.output_types(replies=list[ChatMessage])
     def run(
         self,
@@ -124,39 +160,13 @@ class LiteLLMChatGenerator:
             init_callback=self.streaming_callback, runtime_callback=streaming_callback, requires_async=False
         )
 
-        merged_kwargs = {**self.generation_kwargs, **(generation_kwargs or {})}
-        openai_messages = [m.to_openai_dict_format() for m in messages]
-
-        extra: dict[str, Any] = {}
-        if self.api_key:
-            extra["api_key"] = self.api_key.resolve_value()
-        if self.api_base_url:
-            extra["api_base"] = self.api_base_url
-
-        flattened_tools = flatten_tools_or_toolsets(tools or self.tools)
-        _check_duplicate_tool_names(flattened_tools)
-        tool_defs = None
-        if flattened_tools:
-            tool_defs = [{"type": "function", "function": t.tool_spec} for t in flattened_tools]
-
-        is_streaming = streaming_callback is not None
-
-        response = litellm.completion(
-            model=self.model,
-            messages=openai_messages,
-            stream=is_streaming,
-            tools=tool_defs,
-            drop_params=True,
-            **merged_kwargs,
-            **extra,
-        )
+        kwargs, is_streaming = self._build_litellm_kwargs(messages, streaming_callback, generation_kwargs, tools)
+        response = litellm.completion(**kwargs)
 
         if is_streaming:
             return {"replies": self._handle_streaming(response, streaming_callback)}
 
-        completions = []
-        for choice in response.choices:
-            completions.append(_build_chat_message(response, choice))
+        completions = [_build_chat_message(response, choice) for choice in response.choices]
         return {"replies": completions}
 
     @component.output_types(replies=list[ChatMessage])
@@ -178,39 +188,13 @@ class LiteLLMChatGenerator:
             init_callback=self.streaming_callback, runtime_callback=streaming_callback, requires_async=True
         )
 
-        merged_kwargs = {**self.generation_kwargs, **(generation_kwargs or {})}
-        openai_messages = [m.to_openai_dict_format() for m in messages]
-
-        extra: dict[str, Any] = {}
-        if self.api_key:
-            extra["api_key"] = self.api_key.resolve_value()
-        if self.api_base_url:
-            extra["api_base"] = self.api_base_url
-
-        flattened_tools = flatten_tools_or_toolsets(tools or self.tools)
-        _check_duplicate_tool_names(flattened_tools)
-        tool_defs = None
-        if flattened_tools:
-            tool_defs = [{"type": "function", "function": t.tool_spec} for t in flattened_tools]
-
-        is_streaming = streaming_callback is not None
-
-        response = await litellm.acompletion(
-            model=self.model,
-            messages=openai_messages,
-            stream=is_streaming,
-            tools=tool_defs,
-            drop_params=True,
-            **merged_kwargs,
-            **extra,
-        )
+        kwargs, is_streaming = self._build_litellm_kwargs(messages, streaming_callback, generation_kwargs, tools)
+        response = await litellm.acompletion(**kwargs)
 
         if is_streaming:
             return {"replies": await self._ahandle_streaming(response, streaming_callback)}
 
-        completions = []
-        for choice in response.choices:
-            completions.append(_build_chat_message(response, choice))
+        completions = [_build_chat_message(response, choice) for choice in response.choices]
         return {"replies": completions}
 
     def _handle_streaming(
@@ -223,20 +207,20 @@ class LiteLLMChatGenerator:
                 continue
             delta = chunk.choices[0].delta
             content = getattr(delta, "content", None) or ""
-            sc = StreamingChunk(
-                content=content,
-                meta={
-                    "model": chunk.model,
-                    "finish_reason": chunk.choices[0].finish_reason,
-                },
-                component_info=component_info,
-            )
+            meta: dict[str, Any] = {
+                "model": chunk.model,
+                "finish_reason": chunk.choices[0].finish_reason,
+            }
+            tool_calls_delta = getattr(delta, "tool_calls", None)
+            if tool_calls_delta:
+                meta["tool_calls"] = tool_calls_delta
+            sc = StreamingChunk(content=content, meta=meta, component_info=component_info)
             chunks.append(sc)
             callback(sc)
         return [_convert_streaming_chunks_to_chat_message(chunks=chunks)]
 
     async def _ahandle_streaming(
-        self, stream_response: Any, callback: Any
+        self, stream_response: Any, callback: SyncStreamingCallbackT
     ) -> list[ChatMessage]:
         component_info = ComponentInfo.from_component(self)
         chunks: list[StreamingChunk] = []
@@ -245,14 +229,14 @@ class LiteLLMChatGenerator:
                 continue
             delta = chunk.choices[0].delta
             content = getattr(delta, "content", None) or ""
-            sc = StreamingChunk(
-                content=content,
-                meta={
-                    "model": chunk.model,
-                    "finish_reason": chunk.choices[0].finish_reason,
-                },
-                component_info=component_info,
-            )
+            meta: dict[str, Any] = {
+                "model": chunk.model,
+                "finish_reason": chunk.choices[0].finish_reason,
+            }
+            tool_calls_delta = getattr(delta, "tool_calls", None)
+            if tool_calls_delta:
+                meta["tool_calls"] = tool_calls_delta
+            sc = StreamingChunk(content=content, meta=meta, component_info=component_info)
             chunks.append(sc)
             await callback(sc)
         return [_convert_streaming_chunks_to_chat_message(chunks=chunks)]
@@ -290,15 +274,17 @@ def _build_chat_message(response: Any, choice: Any) -> ChatMessage:
     if hasattr(message, "tool_calls") and message.tool_calls:
         tool_calls = []
         for tc in message.tool_calls:
-            import json
-
             args = tc.function.arguments
             if isinstance(args, str):
-                args = json.loads(args)
+                try:
+                    args = json.loads(args)
+                except json.JSONDecodeError:
+                    logger.warning("Failed to parse tool call arguments as JSON: %s", args)
+                    args = {"raw": args}
             tool_calls.append(ToolCall(tool_name=tc.function.name, arguments=args, id=tc.id))
 
     text = message.content or ""
-    meta = {
+    meta: dict[str, Any] = {
         "model": response.model,
         "index": choice.index,
         "finish_reason": choice.finish_reason,
@@ -311,5 +297,4 @@ def _build_chat_message(response: Any, choice: Any) -> ChatMessage:
             "total_tokens": response.usage.total_tokens,
         }
 
-    reply = ChatMessage.from_assistant(text=text, tool_calls=tool_calls, meta=meta)
-    return reply
+    return ChatMessage.from_assistant(text=text, tool_calls=tool_calls, meta=meta)
