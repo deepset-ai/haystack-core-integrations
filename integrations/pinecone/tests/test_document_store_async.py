@@ -50,6 +50,12 @@ class TestDocumentStoreAsync(
     async def document_store(self, document_store_async: PineconeDocumentStore):
         return document_store_async
 
+    @staticmethod
+    def assert_documents_are_equal(received: list[Document], expected: list[Document]):
+        # Pinecone returns documents ordered by similarity to the dummy vector, not by insertion
+        # order. Sort both lists by id before comparing to make the assertion order-independent.
+        assert sorted(received, key=lambda d: d.id) == sorted(expected, key=lambda d: d.id)
+
     @pytest.mark.asyncio
     async def test_count_not_empty_async(self, document_store: PineconeDocumentStore):
         # Override: haystack v2.28.0 is missing @staticmethod on this mixin method.
@@ -57,6 +63,28 @@ class TestDocumentStoreAsync(
             [Document(content="test doc 1"), Document(content="test doc 2"), Document(content="test doc 3")]
         )
         assert await document_store.count_documents_async() == 3
+
+    @pytest.mark.asyncio
+    async def test_write_documents_async(self, document_store: PineconeDocumentStore):
+        # Override: Pinecone always upserts; behaviour with DuplicatePolicy.NONE is overwrite.
+        docs = [Document(id="1")]
+        assert await document_store.write_documents_async(docs) == 1
+
+    @pytest.mark.skip(reason="Pinecone only supports UPSERT operations")
+    async def test_write_documents_duplicate_fail_async(self, document_store: PineconeDocumentStore): ...
+
+    @pytest.mark.skip(reason="Pinecone only supports UPSERT operations")
+    async def test_write_documents_duplicate_skip_async(self, document_store: PineconeDocumentStore): ...
+
+    @pytest.mark.skip(reason="Pinecone creates a namespace only when the first document is written")
+    async def test_delete_documents_empty_document_store_async(self, document_store: PineconeDocumentStore): ...
+
+    @pytest.mark.asyncio
+    async def test_get_metadata_field_min_max_empty_collection_async(self, document_store: PineconeDocumentStore):
+        # Override: Pinecone raises ValueError on an empty collection rather than returning None.
+        assert await document_store.count_documents_async() == 0
+        with pytest.raises(ValueError, match="No values found"):
+            await document_store.get_metadata_field_min_max_async("priority")
 
     async def test_embedding_retrieval(self, document_store_async: PineconeDocumentStore):
         query_embedding = [0.1] * 768
