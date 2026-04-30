@@ -4,9 +4,9 @@
 
 from typing import Any
 
-import httpx
 from haystack import Document, component, logging
 from haystack.utils import Secret
+from haystack.utils.requests_utils import async_request_with_retry, request_with_retry
 
 logger = logging.getLogger(__name__)
 
@@ -43,6 +43,8 @@ class BraveWebSearch:
         country: str | None = None,
         search_lang: str | None = None,
         extra_params: dict[str, Any] | None = None,
+        timeout: int = 10,
+        max_retries: int = 3,
     ) -> None:
         """
         Initialize the BraveWebSearch component.
@@ -53,20 +55,26 @@ class BraveWebSearch:
             Maximum number of results to return. Maps to the `count` parameter in the Brave API.
         :param country:
             2-letter country code to bias search results (e.g. `"US"`, `"DE"`).
-            See [Brave API docs](https://api.search.brave.com/app/documentation/web-search/codes#country-codes)
+            See [Brave API docs](https://api-dashboard.search.brave.com/app/documentation/web-search/codes)
             for supported values.
         :param search_lang:
             Language code for search results (e.g. `"en"`, `"de"`).
         :param extra_params:
             Additional query parameters passed directly to the Brave Search API.
-            See the [Brave API reference](https://api.search.brave.com/app/documentation/web-search/query)
+            See the [Brave API reference](https://api-dashboard.search.brave.com/app/documentation/web-search/query)
             for all available options.
+        :param timeout:
+            Timeout in seconds for the HTTP request. Defaults to 10.
+        :param max_retries:
+            Maximum number of retry attempts on transient failures. Defaults to 3.
         """
         self.api_key = api_key
         self.top_k = top_k
         self.country = country
         self.search_lang = search_lang
         self.extra_params = extra_params
+        self.timeout = timeout
+        self.max_retries = max_retries
 
     @component.output_types(documents=list[Document], links=list[str])
     def run(
@@ -88,10 +96,15 @@ class BraveWebSearch:
         params = self._build_params(query=query, top_k=top_k)
         headers = self._build_headers()
 
-        with httpx.Client() as client:
-            response = client.get(BRAVE_SEARCH_API_URL, params=params, headers=headers)
-            response.raise_for_status()
-
+        response = request_with_retry(
+            attempts=self.max_retries,
+            method="GET",
+            url=BRAVE_SEARCH_API_URL,
+            params=params,
+            headers=headers,
+            timeout=self.timeout,
+        )
+        response.raise_for_status()
         return self._parse_response(response.json())
 
     @component.output_types(documents=list[Document], links=list[str])
@@ -114,10 +127,15 @@ class BraveWebSearch:
         params = self._build_params(query=query, top_k=top_k)
         headers = self._build_headers()
 
-        async with httpx.AsyncClient() as client:
-            response = await client.get(BRAVE_SEARCH_API_URL, params=params, headers=headers)
-            response.raise_for_status()
-
+        response = await async_request_with_retry(
+            attempts=self.max_retries,
+            method="GET",
+            url=BRAVE_SEARCH_API_URL,
+            params=params,
+            headers=headers,
+            timeout=self.timeout,
+        )
+        response.raise_for_status()
         return self._parse_response(response.json())
 
     def _build_headers(self) -> dict[str, str]:

@@ -34,6 +34,8 @@ class TestBraveWebSearch:
         assert ws.country is None
         assert ws.search_lang is None
         assert ws.extra_params is None
+        assert ws.timeout == 10
+        assert ws.max_retries == 3
         assert ws.api_key.resolve_value() == "test-key"
 
     def test_init_with_params(self):
@@ -43,11 +45,15 @@ class TestBraveWebSearch:
             country="US",
             search_lang="en",
             extra_params={"safesearch": "moderate"},
+            timeout=20,
+            max_retries=5,
         )
         assert ws.top_k == 5
         assert ws.country == "US"
         assert ws.search_lang == "en"
         assert ws.extra_params == {"safesearch": "moderate"}
+        assert ws.timeout == 20
+        assert ws.max_retries == 5
 
     def test_to_dict(self, monkeypatch):
         monkeypatch.setenv("BRAVE_API_KEY", "test-key")
@@ -56,6 +62,8 @@ class TestBraveWebSearch:
         assert data["type"] == "haystack_integrations.components.websearch.brave.brave_websearch.BraveWebSearch"
         assert data["init_parameters"]["top_k"] == 5
         assert data["init_parameters"]["country"] == "US"
+        assert data["init_parameters"]["timeout"] == 10
+        assert data["init_parameters"]["max_retries"] == 3
 
     def test_from_dict(self, monkeypatch):
         monkeypatch.setenv("BRAVE_API_KEY", "test-key")
@@ -66,6 +74,8 @@ class TestBraveWebSearch:
                 "country": "DE",
                 "search_lang": "de",
                 "extra_params": None,
+                "timeout": 15,
+                "max_retries": 2,
                 "api_key": {"env_vars": ["BRAVE_API_KEY"], "strict": True, "type": "env_var"},
             },
         }
@@ -73,6 +83,8 @@ class TestBraveWebSearch:
         assert ws.top_k == 3
         assert ws.country == "DE"
         assert ws.search_lang == "de"
+        assert ws.timeout == 15
+        assert ws.max_retries == 2
 
     def test_run_returns_documents_and_links(self, monkeypatch):
         monkeypatch.setenv("BRAVE_API_KEY", "test-key")
@@ -81,8 +93,10 @@ class TestBraveWebSearch:
         mock_response = MagicMock()
         mock_response.json.return_value = MOCK_RESPONSE
 
-        with patch("haystack_integrations.components.websearch.brave.brave_websearch.httpx.Client") as mock_client_cls:
-            mock_client_cls.return_value.__enter__.return_value.get.return_value = mock_response
+        with patch(
+            "haystack_integrations.components.websearch.brave.brave_websearch.request_with_retry",
+            return_value=mock_response,
+        ):
             result = ws.run(query="test query")
 
         assert len(result["documents"]) == 1
@@ -99,13 +113,13 @@ class TestBraveWebSearch:
         mock_response = MagicMock()
         mock_response.json.return_value = {"web": {"results": []}}
 
-        with patch("haystack_integrations.components.websearch.brave.brave_websearch.httpx.Client") as mock_client_cls:
-            mock_get = mock_client_cls.return_value.__enter__.return_value.get
-            mock_get.return_value = mock_response
+        with patch(
+            "haystack_integrations.components.websearch.brave.brave_websearch.request_with_retry",
+            return_value=mock_response,
+        ) as mock_req:
             ws.run(query="test query")
 
-        call_kwargs = mock_get.call_args
-        params = call_kwargs.kwargs["params"]
+        params = mock_req.call_args.kwargs["params"]
         assert params["q"] == "test query"
         assert params["count"] == 5
         assert params["country"] == "US"
@@ -118,12 +132,13 @@ class TestBraveWebSearch:
         mock_response = MagicMock()
         mock_response.json.return_value = {"web": {"results": []}}
 
-        with patch("haystack_integrations.components.websearch.brave.brave_websearch.httpx.Client") as mock_client_cls:
-            mock_get = mock_client_cls.return_value.__enter__.return_value.get
-            mock_get.return_value = mock_response
+        with patch(
+            "haystack_integrations.components.websearch.brave.brave_websearch.request_with_retry",
+            return_value=mock_response,
+        ) as mock_req:
             ws.run(query="test", top_k=3)
 
-        params = mock_get.call_args.kwargs["params"]
+        params = mock_req.call_args.kwargs["params"]
         assert params["count"] == 3
 
     @pytest.mark.asyncio
@@ -135,11 +150,10 @@ class TestBraveWebSearch:
         mock_response.json.return_value = MOCK_RESPONSE
 
         with patch(
-            "haystack_integrations.components.websearch.brave.brave_websearch.httpx.AsyncClient"
-        ) as mock_client_cls:
-            mock_client_cls.return_value.__aenter__ = AsyncMock(return_value=mock_client_cls.return_value)
-            mock_client_cls.return_value.__aexit__ = AsyncMock(return_value=False)
-            mock_client_cls.return_value.get = AsyncMock(return_value=mock_response)
+            "haystack_integrations.components.websearch.brave.brave_websearch.async_request_with_retry",
+            new_callable=AsyncMock,
+            return_value=mock_response,
+        ):
             result = await ws.run_async(query="test query")
 
         assert len(result["documents"]) == 1
@@ -152,8 +166,10 @@ class TestBraveWebSearch:
         mock_response = MagicMock()
         mock_response.json.return_value = {"web": {"results": []}}
 
-        with patch("haystack_integrations.components.websearch.brave.brave_websearch.httpx.Client") as mock_client_cls:
-            mock_client_cls.return_value.__enter__.return_value.get.return_value = mock_response
+        with patch(
+            "haystack_integrations.components.websearch.brave.brave_websearch.request_with_retry",
+            return_value=mock_response,
+        ):
             result = ws.run(query="very obscure query")
 
         assert result["documents"] == []
@@ -166,8 +182,10 @@ class TestBraveWebSearch:
         mock_response = MagicMock()
         mock_response.json.return_value = {}
 
-        with patch("haystack_integrations.components.websearch.brave.brave_websearch.httpx.Client") as mock_client_cls:
-            mock_client_cls.return_value.__enter__.return_value.get.return_value = mock_response
+        with patch(
+            "haystack_integrations.components.websearch.brave.brave_websearch.request_with_retry",
+            return_value=mock_response,
+        ):
             result = ws.run(query="test")
 
         assert result["documents"] == []
@@ -177,10 +195,15 @@ class TestBraveWebSearch:
         monkeypatch.setenv("BRAVE_API_KEY", "test-key")
         ws = BraveWebSearch(api_key=Secret.from_token("test-key"))
 
-        with patch("haystack_integrations.components.websearch.brave.brave_websearch.httpx.Client") as mock_client_cls:
-            mock_client_cls.return_value.__enter__.return_value.get.return_value.raise_for_status.side_effect = (
-                httpx.HTTPStatusError("403 Forbidden", request=MagicMock(), response=MagicMock())
-            )
+        mock_response = MagicMock()
+        mock_response.raise_for_status.side_effect = httpx.HTTPStatusError(
+            "403 Forbidden", request=MagicMock(), response=MagicMock()
+        )
+
+        with patch(
+            "haystack_integrations.components.websearch.brave.brave_websearch.request_with_retry",
+            return_value=mock_response,
+        ):
             with pytest.raises(httpx.HTTPStatusError):
                 ws.run(query="test")
 
