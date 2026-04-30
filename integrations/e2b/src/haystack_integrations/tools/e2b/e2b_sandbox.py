@@ -92,7 +92,7 @@ class E2BSandbox:
             a serialization round-trip. Distinct from the cloud-side sandbox id assigned
             by E2B at warm-up.
         """
-        self.api_key = api_key or Secret.from_env_var("E2B_API_KEY")
+        self.api_key = api_key
         self.sandbox_template = sandbox_template
         self.timeout = timeout
         self.environment_vars = environment_vars or {}
