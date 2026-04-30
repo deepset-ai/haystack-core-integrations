@@ -1095,3 +1095,114 @@ class TestDocumentStore(
         invalid_query = "SELECT * FROM non_existent_index"
         with pytest.raises(DocumentStoreError, match="Failed to execute SQL query"):
             document_store._query_sql(invalid_query)
+
+
+def test_hybrid_retrieval_inference_builds_body_without_filters():
+    store = ElasticsearchDocumentStore(hosts="some hosts", sparse_vector_field="sparse_vec")
+
+    with patch.object(store, "_search_documents", return_value=[]) as mock_search:
+        store._hybrid_retrieval_inference(query="Find Berlin", inference_id="ELSER", top_k=3)
+
+    mock_search.assert_called_once()
+    body = mock_search.call_args.kwargs
+    assert body["size"] == 3
+    rrf = body["retriever"]["rrf"]
+    assert rrf["rank_window_size"] == 100
+    assert rrf["rank_constant"] == 60
+    bm25, sparse = rrf["retrievers"]
+    assert bm25["standard"]["query"]["multi_match"]["query"] == "Find Berlin"
+    assert bm25["standard"]["query"]["multi_match"]["fuzziness"] == "AUTO"
+    assert "filter" not in bm25["standard"]
+    assert sparse["standard"]["query"]["sparse_vector"]["field"] == "sparse_vec"
+    assert sparse["standard"]["query"]["sparse_vector"]["inference_id"] == "ELSER"
+    assert sparse["standard"]["query"]["sparse_vector"]["query"] == "Find Berlin"
+    assert "filter" not in sparse["standard"]
+
+
+def test_hybrid_retrieval_inference_builds_body_with_filters():
+    store = ElasticsearchDocumentStore(hosts="some hosts", sparse_vector_field="sparse_vec")
+
+    with patch.object(store, "_search_documents", return_value=[]) as mock_search:
+        store._hybrid_retrieval_inference(
+            query="Find Berlin",
+            inference_id="ELSER",
+            filters={"field": "type", "operator": "==", "value": "match"},
+            top_k=3,
+        )
+
+    mock_search.assert_called_once()
+    body = mock_search.call_args.kwargs
+    rrf = body["retriever"]["rrf"]
+    bm25, sparse = rrf["retrievers"]
+    expected_filter = {"bool": {"must": {"term": {"type": "match"}}}}
+    assert bm25["standard"]["filter"] == expected_filter
+    assert sparse["standard"]["filter"] == expected_filter
+
+
+def test_hybrid_retrieval_inference_builds_body_custom_rank_params():
+    store = ElasticsearchDocumentStore(hosts="some hosts", sparse_vector_field="sparse_vec")
+
+    with patch.object(store, "_search_documents", return_value=[]) as mock_search:
+        store._hybrid_retrieval_inference(
+            query="Find Berlin",
+            inference_id="ELSER",
+            rank_window_size=50,
+            rank_constant=20,
+        )
+
+    rrf = mock_search.call_args.kwargs["retriever"]["rrf"]
+    assert rrf["rank_window_size"] == 50
+    assert rrf["rank_constant"] == 20
+
+
+def test_hybrid_retrieval_inference_raises_without_sparse_field():
+    store = ElasticsearchDocumentStore(hosts="some hosts")
+    with pytest.raises(ValueError, match="sparse_vector_field must be set"):
+        store._hybrid_retrieval_inference(query="test", inference_id="ELSER")
+
+
+def test_hybrid_retrieval_inference_raises_on_empty_query():
+    store = ElasticsearchDocumentStore(hosts="some hosts", sparse_vector_field="sparse_vec")
+    with pytest.raises(ValueError, match="query must be a non-empty string"):
+        store._hybrid_retrieval_inference(query="", inference_id="ELSER")
+
+
+@pytest.mark.asyncio
+async def test_hybrid_retrieval_inference_async_builds_body_without_filters():
+    store = ElasticsearchDocumentStore(hosts="some hosts", sparse_vector_field="sparse_vec")
+    store._initialized = True
+    store._search_documents_async = AsyncMock(return_value=[])  # type: ignore[method-assign]
+
+    await store._hybrid_retrieval_inference_async(query="Find Berlin", inference_id="ELSER", top_k=3)
+
+    store._search_documents_async.assert_awaited_once()
+    body = store._search_documents_async.call_args.kwargs
+    assert body["size"] == 3
+    rrf = body["retriever"]["rrf"]
+    bm25, sparse = rrf["retrievers"]
+    assert bm25["standard"]["query"]["multi_match"]["query"] == "Find Berlin"
+    assert sparse["standard"]["query"]["sparse_vector"]["inference_id"] == "ELSER"
+    assert "filter" not in bm25["standard"]
+    assert "filter" not in sparse["standard"]
+
+
+@pytest.mark.asyncio
+async def test_hybrid_retrieval_inference_async_builds_body_with_filters():
+    store = ElasticsearchDocumentStore(hosts="some hosts", sparse_vector_field="sparse_vec")
+    store._initialized = True
+    store._search_documents_async = AsyncMock(return_value=[])  # type: ignore[method-assign]
+
+    await store._hybrid_retrieval_inference_async(
+        query="Find Berlin",
+        inference_id="ELSER",
+        filters={"field": "type", "operator": "==", "value": "match"},
+        top_k=3,
+    )
+
+    store._search_documents_async.assert_awaited_once()
+    body = store._search_documents_async.call_args.kwargs
+    rrf = body["retriever"]["rrf"]
+    bm25, sparse = rrf["retrievers"]
+    expected_filter = {"bool": {"must": {"term": {"type": "match"}}}}
+    assert bm25["standard"]["filter"] == expected_filter
+    assert sparse["standard"]["filter"] == expected_filter
