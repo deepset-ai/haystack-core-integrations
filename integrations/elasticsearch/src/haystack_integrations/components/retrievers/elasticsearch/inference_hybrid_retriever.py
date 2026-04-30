@@ -57,7 +57,8 @@ class ElasticsearchInferenceHybridRetriever:
         Create the ElasticsearchInferenceHybridRetriever component.
 
         :param document_store: An instance of ElasticsearchDocumentStore with `sparse_vector_field` configured.
-        :param inference_id: The Elasticsearch inference endpoint ID used for sparse vector search (e.g. ".elser-2-elasticsearch").
+        :param inference_id: The Elasticsearch inference endpoint ID used for sparse vector search e.g.
+            ".elser-2-elasticsearch"
         :param filters: Filters applied to both sub-retrievers.
         :param fuzziness: Fuzziness for the BM25 multi_match query.
         :param top_k: Maximum number of Documents to return.
