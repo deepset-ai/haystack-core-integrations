@@ -432,9 +432,9 @@ SET d.{self.embedding_field} = vecf32(doc.emb)
         Uses `CALL db.idx.vector.queryNodes` — FalkorDB's OpenCypher extension for
         ANN search.  **No APOC is required.**
 
-        Cosine scores are returned in `[-1, 1]`; when `scale_score=True` they are
+        Cosine scores are returned as distance in `[0, 2]`; when `scale_score=True` they are
         scaled to `[0, 1]` using the formula:
-        `(score + 1) / 2`.  Euclidean scores are transformed with a sigmoid.
+        `1 - (score / 2)`.  Euclidean scores are transformed with `1 / (1 + score)`.
 
         :param query_embedding: Query vector as a plain Python list of floats.
         :param top_k: Maximum number of results to return.
@@ -452,7 +452,7 @@ CALL db.idx.vector.queryNodes('{self.node_label}', '{self.embedding_field}', $to
 YIELD node AS d, score
 WHERE {where_clause}
 RETURN d, score
-ORDER BY score ASC
+ORDER BY score ASC, d.id ASC
 """
             params: dict[str, Any] = {
                 "top_k": top_k,
@@ -507,7 +507,7 @@ ORDER BY score ASC, d.id ASC
 
     def _scale_to_unit_interval(self, score: float) -> float:
         """
-        Scale a raw similarity score to the unit interval `[0, 2]`.
+        Scale a raw similarity score to the unit interval `[0, 1]`.
 
         Uses the following formulas:
         - Cosine: `1 - (score / 2)`
