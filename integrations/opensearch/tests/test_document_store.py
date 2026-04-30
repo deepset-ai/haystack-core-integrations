@@ -21,6 +21,7 @@ from opensearchpy.exceptions import RequestError, TransportError
 
 from haystack_integrations.document_stores.opensearch import OpenSearchDocumentStore
 from haystack_integrations.document_stores.opensearch.document_store import DEFAULT_MAX_CHUNK_BYTES
+from tests.test_document_store_common import OpenSearchDocumentStoreTestMixin
 
 
 @patch("haystack_integrations.document_stores.opensearch.document_store.OpenSearch")
@@ -554,6 +555,7 @@ def test_explicit_nested_fields_no_detection_on_write(mock_bulk, _mock_opensearc
 
 @pytest.mark.integration
 class TestDocumentStore(
+    OpenSearchDocumentStoreTestMixin,
     CountDocumentsByFilterTest,
     CountUniqueMetadataByFilterTest,
     DocumentStoreBaseExtendedTests,
@@ -569,27 +571,6 @@ class TestDocumentStore(
     def document_store(self, document_store):
         """Override base class fixture to provide OpenSearch document store."""
         yield document_store
-
-    def assert_documents_are_equal(self, received: list[Document], expected: list[Document]):
-        """
-        The OpenSearchDocumentStore.filter_documents() method returns documents with their score set.
-
-        We don't want to compare the score, so we set it to None before comparing.
-
-        Embeddings are not exactly the same when retrieved from OpenSearch (float round-trip),
-        so we compare them approximately and then set both to None for the final equality check.
-        """
-        assert len(received) == len(expected)
-        received = sorted(received, key=lambda x: x.id)
-        expected = sorted(expected, key=lambda x: x.id)
-        for received_doc, expected_doc in zip(received, expected, strict=True):
-            received_doc.score = None
-            if received_doc.embedding is None:
-                assert expected_doc.embedding is None
-            else:
-                assert received_doc.embedding == pytest.approx(expected_doc.embedding)
-            received_doc.embedding, expected_doc.embedding = None, None
-            assert received_doc == expected_doc
 
     def test_write_documents(self, document_store: OpenSearchDocumentStore):
         docs = [Document(id="1")]

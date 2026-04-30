@@ -74,6 +74,11 @@ integration:dspy:
       - any-glob-to-any-file: "integrations/dspy/**/*"
       - any-glob-to-any-file: ".github/workflows/dspy.yml"
 
+integration:e2b:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/e2b/**/*"
+      - any-glob-to-any-file: ".github/workflows/e2b.yml"
+
 integration:elasticsearch:
   - changed-files:
       - any-glob-to-any-file: "integrations/elasticsearch/**/*"
