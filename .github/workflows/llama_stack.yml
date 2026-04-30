@@ -112,7 +112,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          pip install -q uv
+          python -m pip install --upgrade pip
+          pip install -q uv --uploaded-prior-to=P1D
 
           # Install the starter distro's deps into the uv environment
           uv run --with llama-stack bash -lc 'llama stack list-deps starter | xargs -L1 uv pip install'
@@ -137,7 +138,9 @@ jobs:
           curl -fsS http://localhost:8321/v1/models || { echo "Health check failed. Logs:"; cat server.log; exit 1; }
 
       - name: Install Hatch
-        run: pip install hatch
+        run: |
+          python -m pip install --upgrade pip
+          pip install hatch --uploaded-prior-to=P1D
 
       - name: Lint
         if: matrix.python-version == '3.12' && runner.os == 'Linux'

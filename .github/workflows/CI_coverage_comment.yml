@@ -15,6 +15,7 @@ on:
       - "Test / chroma"
       - "Test / cohere"
       - "Test / cometapi"
+      - "Test / db2"
       - "Test / deepeval"
       - "Test / dspy"
       - "Test / elasticsearch"
