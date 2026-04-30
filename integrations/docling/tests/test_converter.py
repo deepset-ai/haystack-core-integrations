@@ -146,12 +146,42 @@ def test_legacy_import_path() -> None:
     )
 
 
-def test_component_from_dict_legacy_nulls() -> None:
-    # Before the public-attribute refactor, default serialization couldn't find
-    # the _-prefixed attributes and fell back to the init defaults, so
-    # convert_kwargs and md_export_kwargs were always serialized as null.
-    # Verify that such a serialized dict still deserializes correctly.
-    legacy_data = {
+def test_component_to_dict_defaults() -> None:
+    converter = DoclingConverter()
+    data = component_to_dict(converter, "docling_converter")
+
+    assert data["init_parameters"] == {
+        "converter": None,
+        "convert_kwargs": {},
+        "export_type": "doc_chunks",
+        "md_export_kwargs": {"image_placeholder": ""},
+        "chunker": None,
+        "meta_extractor": None,
+    }
+
+
+def test_component_to_dict_custom_params() -> None:
+    converter = DoclingConverter(
+        convert_kwargs={"raises_on_error": False},
+        export_type=ExportType.MARKDOWN,
+        md_export_kwargs={"image_placeholder": "[img]"},
+        meta_extractor=MetaExtractor(),
+    )
+    data = component_to_dict(converter, "docling_converter")
+
+    init_params = data["init_parameters"]
+    assert init_params["convert_kwargs"] == {"raises_on_error": False}
+    assert init_params["export_type"] == "markdown"
+    assert init_params["md_export_kwargs"] == {"image_placeholder": "[img]"}
+    assert init_params["meta_extractor"] == {
+        "type": "haystack_integrations.components.converters.docling.converter.MetaExtractor",
+        "data": {},
+    }
+
+
+def test_component_from_dict_defaults() -> None:
+    # null kwargs mirror the pre-refactor serialization format and must still deserialize correctly
+    data = {
         "type": "haystack_integrations.components.converters.docling.converter.DoclingConverter",
         "init_parameters": {
             "converter": None,
@@ -162,46 +192,6 @@ def test_component_from_dict_legacy_nulls() -> None:
             "meta_extractor": None,
         },
     }
-    restored = component_from_dict(DoclingConverter, legacy_data, "docling_converter")
-
-    assert restored.convert_kwargs == {}
-    assert restored.md_export_kwargs == {"image_placeholder": ""}
-    assert restored.export_type == ExportType.DOC_CHUNKS
-    assert restored.converter is None
-    assert restored.chunker is None
-    assert restored.meta_extractor is None
-
-
-def test_component_to_dict_defaults() -> None:
-    converter = DoclingConverter()
-    data = component_to_dict(converter, "docling_converter")
-
-    init_params = data["init_parameters"]
-    assert init_params["converter"] is None
-    assert init_params["convert_kwargs"] == {}
-    assert init_params["export_type"] == ExportType.DOC_CHUNKS
-    assert init_params["md_export_kwargs"] == {"image_placeholder": ""}
-    assert init_params["chunker"] is None
-    assert init_params["meta_extractor"] is None
-
-
-def test_component_to_dict_custom_params() -> None:
-    converter = DoclingConverter(
-        convert_kwargs={"raises_on_error": False},
-        export_type=ExportType.MARKDOWN,
-        md_export_kwargs={"image_placeholder": "[img]"},
-    )
-    data = component_to_dict(converter, "docling_converter")
-
-    init_params = data["init_parameters"]
-    assert init_params["convert_kwargs"] == {"raises_on_error": False}
-    assert init_params["export_type"] == ExportType.MARKDOWN
-    assert init_params["md_export_kwargs"] == {"image_placeholder": "[img]"}
-
-
-def test_component_from_dict_defaults() -> None:
-    converter = DoclingConverter()
-    data = component_to_dict(converter, "docling_converter")
     restored = component_from_dict(DoclingConverter, data, "docling_converter")
 
     assert restored.converter is None
@@ -213,17 +203,26 @@ def test_component_from_dict_defaults() -> None:
 
 
 def test_component_from_dict_custom_params() -> None:
-    converter = DoclingConverter(
-        convert_kwargs={"raises_on_error": False},
-        export_type=ExportType.JSON,
-        md_export_kwargs={"image_placeholder": "[img]"},
-    )
-    data = component_to_dict(converter, "docling_converter")
+    data = {
+        "type": "haystack_integrations.components.converters.docling.converter.DoclingConverter",
+        "init_parameters": {
+            "converter": None,
+            "convert_kwargs": {"raises_on_error": False},
+            "export_type": "json",
+            "md_export_kwargs": {"image_placeholder": "[img]"},
+            "chunker": None,
+            "meta_extractor": {
+                "type": "haystack_integrations.components.converters.docling.converter.MetaExtractor",
+                "data": {},
+            },
+        },
+    }
     restored = component_from_dict(DoclingConverter, data, "docling_converter")
 
     assert restored.convert_kwargs == {"raises_on_error": False}
     assert restored.export_type == ExportType.JSON
     assert restored.md_export_kwargs == {"image_placeholder": "[img]"}
+    assert isinstance(restored.meta_extractor, MetaExtractor)
 
 
 def test_run_with_sources_parameter() -> None:
