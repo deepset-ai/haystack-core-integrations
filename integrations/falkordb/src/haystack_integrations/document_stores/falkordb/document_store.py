@@ -511,10 +511,10 @@ ORDER BY score ASC, d.id ASC
 
         Uses the following formulas:
         - Cosine: `1 - (score / 2)`
-        - Euclidean: sigmoid `1 / (1 + score)`
+        - Euclidean: `1 / (1 + score)`
 
         :param score: Raw score returned by the vector index.
-        :returns: Scaled score in `[0, 2]`.
+        :returns: Scaled score in `[0, 1]`.
         """
         if self.similarity == "cosine":
             return 1 - (score / 2)
