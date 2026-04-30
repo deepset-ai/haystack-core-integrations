@@ -93,7 +93,7 @@ class OpenSearchHybridRetriever:
         embedder: TextEmbedder,
         # OpenSearchBM25Retriever
         filters_bm25: dict[str, Any] | None = None,
-        fuzziness: int | str = "AUTO",
+        fuzziness: int | str = 0,
         top_k_bm25: int = 10,
         scale_score: bool = False,
         all_terms_must_match: bool = False,

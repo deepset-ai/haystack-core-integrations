@@ -17,6 +17,7 @@ on:
       - "Test / cometapi"
       - "Test / deepeval"
       - "Test / dspy"
+      - "Test / e2b"
       - "Test / elasticsearch"
       - "Test / faiss"
       - "Test / fastembed"
