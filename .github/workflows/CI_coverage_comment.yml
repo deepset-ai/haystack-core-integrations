@@ -9,6 +9,7 @@ on:
       - "Test / anthropic"
       - "Test / arcadedb"
       - "Test / astra"
+      - "Test / brave"
       - "Test / azure_ai_search"
       - "Test / azure_doc_intelligence"
       - "Test / chonkie"
