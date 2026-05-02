@@ -373,3 +373,116 @@ class TestOpenRouterChatGeneratorAsync:
             assert reply.reasoning is not None
             assert "capitals" in reply.reasoning.reasoning_text
             assert reply.reasoning.extra["reasoning_details"][0]["type"] == "reasoning.text"
+
+    @pytest.mark.asyncio
+    async def test_run_async_empty_messages(self, monkeypatch):
+        monkeypatch.setenv("OPENROUTER_API_KEY", "fake-api-key")
+        component = OpenRouterChatGenerator()
+        response = await component.run_async([])
+        assert response == {"replies": []}
+
+    @pytest.mark.asyncio
+    async def test_handle_async_stream_response_with_reasoning(self, monkeypatch):
+        monkeypatch.setenv("OPENROUTER_API_KEY", "fake-api-key")
+        from openai.types.chat import ChatCompletionChunk
+        from openai.types.chat.chat_completion_chunk import Choice as ChoiceChunk
+        from openai.types.chat.chat_completion_chunk import ChoiceDelta
+        from openai.types.completion_usage import CompletionUsage
+
+        from haystack.utils.auth import Secret
+
+        chunks = [
+            ChatCompletionChunk(
+                id="gen-async-reasoning",
+                choices=[
+                    ChoiceChunk(
+                        delta=ChoiceDelta(content="", role="assistant"),
+                        index=0,
+                        native_finish_reason=None,
+                    )
+                ],
+                created=1750162525,
+                model="deepseek/deepseek-r1",
+                object="chat.completion.chunk",
+            ),
+            ChatCompletionChunk(
+                id="gen-async-reasoning",
+                choices=[
+                    ChoiceChunk(
+                        delta=ChoiceDelta(
+                            content=None,
+                            role="assistant",
+                            reasoning_details=[{"type": "reasoning.text", "text": "Thinking about capitals..."}],
+                        ),
+                        index=0,
+                        native_finish_reason=None,
+                    )
+                ],
+                created=1750162525,
+                model="deepseek/deepseek-r1",
+                object="chat.completion.chunk",
+            ),
+            ChatCompletionChunk(
+                id="gen-async-reasoning",
+                choices=[
+                    ChoiceChunk(
+                        delta=ChoiceDelta(content="Paris.", role="assistant"),
+                        index=0,
+                        native_finish_reason=None,
+                    )
+                ],
+                created=1750162525,
+                model="deepseek/deepseek-r1",
+                object="chat.completion.chunk",
+            ),
+            ChatCompletionChunk(
+                id="gen-async-reasoning",
+                choices=[
+                    ChoiceChunk(
+                        delta=ChoiceDelta(content="", role="assistant"),
+                        finish_reason="stop",
+                        index=0,
+                        native_finish_reason="stop",
+                    )
+                ],
+                created=1750162525,
+                model="deepseek/deepseek-r1",
+                object="chat.completion.chunk",
+            ),
+            ChatCompletionChunk(
+                id="gen-async-reasoning",
+                choices=[
+                    ChoiceChunk(
+                        delta=ChoiceDelta(content="", role="assistant"),
+                        index=0,
+                        native_finish_reason=None,
+                    )
+                ],
+                created=1750162525,
+                model="deepseek/deepseek-r1",
+                object="chat.completion.chunk",
+                usage=CompletionUsage(
+                    completion_tokens=50,
+                    prompt_tokens=30,
+                    total_tokens=80,
+                ),
+            ),
+        ]
+
+        async def async_chunk_iter(items):
+            for item in items:
+                yield item
+
+        collected = []
+
+        async def collector(chunk):
+            collected.append(chunk)
+
+        llm = OpenRouterChatGenerator(api_key=Secret.from_token("test-api-key"))
+        result = await llm._handle_async_stream_response(async_chunk_iter(chunks), callback=collector)
+
+        assert len(result) == 1
+        assert result[0].text == "Paris."
+        assert result[0].reasoning is not None
+        assert "capitals" in result[0].reasoning.reasoning_text
+        assert len(collected) == 5

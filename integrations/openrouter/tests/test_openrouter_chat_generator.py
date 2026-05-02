@@ -1395,3 +1395,82 @@ class TestReasoningSupport:
         assert formatted[1]["reasoning_details"] == [{"type": "reasoning.text", "text": "Step by step analysis..."}]
         assert "reasoning_details" not in formatted[0]
         assert "reasoning_details" not in formatted[2]
+
+    def test_run_empty_messages(self, monkeypatch):
+        monkeypatch.setenv("OPENROUTER_API_KEY", "fake-api-key")
+        component = OpenRouterChatGenerator()
+        response = component.run([])
+        assert response == {"replies": []}
+
+    def test_convert_completion_with_logprobs(self):
+        completion = ChatCompletion(
+            id="test-logprobs",
+            model="openai/gpt-5-mini",
+            object="chat.completion",
+            choices=[
+                Choice(
+                    finish_reason="stop",
+                    logprobs={"content": [{"token": "Hello", "logprob": -0.5}]},
+                    index=0,
+                    message=ChatCompletionMessage(content="Hello!", role="assistant"),
+                )
+            ],
+            created=int(datetime.now(tz=pytz.timezone("UTC")).timestamp()),
+            usage={"prompt_tokens": 5, "completion_tokens": 5, "total_tokens": 10},
+        )
+        result = _convert_openrouter_completion_to_chat_message(completion, completion.choices[0])
+        assert result.text == "Hello!"
+        assert "logprobs" in result.meta
+
+    def test_convert_completion_malformed_tool_call_json(self):
+        completion = ChatCompletion(
+            id="test-bad-json",
+            model="openai/gpt-5-mini",
+            object="chat.completion",
+            choices=[
+                Choice(
+                    finish_reason="tool_calls",
+                    logprobs=None,
+                    index=0,
+                    message=ChatCompletionMessage(
+                        content=None,
+                        role="assistant",
+                        tool_calls=[
+                            {
+                                "id": "call_bad",
+                                "type": "function",
+                                "function": {"name": "weather", "arguments": "{invalid json}"},
+                            },
+                            {
+                                "id": "call_good",
+                                "type": "function",
+                                "function": {"name": "weather", "arguments": '{"city": "Paris"}'},
+                            },
+                        ],
+                    ),
+                )
+            ],
+            created=int(datetime.now(tz=pytz.timezone("UTC")).timestamp()),
+            usage={"prompt_tokens": 10, "completion_tokens": 15, "total_tokens": 25},
+        )
+        result = _convert_openrouter_completion_to_chat_message(completion, completion.choices[0])
+        assert len(result.tool_calls) == 1
+        assert result.tool_calls[0].id == "call_good"
+
+    def test_convert_chunk_empty_choices(self):
+        from haystack_integrations.components.generators.openrouter.chat.chat_generator import (
+            _convert_openrouter_chunk_to_streaming_chunk,
+        )
+
+        chunk = ChatCompletionChunk(
+            id="gen-empty",
+            choices=[],
+            created=1750162525,
+            model="openai/gpt-5-mini",
+            object="chat.completion.chunk",
+            usage=CompletionUsage(completion_tokens=10, prompt_tokens=5, total_tokens=15),
+        )
+        result = _convert_openrouter_chunk_to_streaming_chunk(chunk, previous_chunks=[])
+        assert result.content == ""
+        assert result.index is None
+        assert result.finish_reason is None
