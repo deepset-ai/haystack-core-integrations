@@ -3,7 +3,7 @@ import os
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-from haystack import Document, Pipeline
+from haystack import AsyncPipeline, Document, Pipeline
 from haystack.components.builders import AnswerBuilder, ChatPromptBuilder
 from haystack.components.embedders import OpenAIDocumentEmbedder, OpenAITextEmbedder
 from haystack.components.generators.chat import OpenAIChatGenerator
@@ -11,8 +11,8 @@ from haystack.components.retrievers.in_memory import InMemoryEmbeddingRetriever
 from haystack.dataclasses import ChatMessage
 from haystack.document_stores.in_memory import InMemoryDocumentStore
 from openai import AsyncOpenAI
-from ragas.embeddings.base import embedding_factory
-from ragas.llms import llm_factory
+from ragas.embeddings.base import BaseRagasEmbedding, BaseRagasEmbeddings, embedding_factory
+from ragas.llms import InstructorBaseRagasLLM, llm_factory
 from ragas.metrics.base import SimpleBaseMetric
 from ragas.metrics.collections import AnswerRelevancy, ContextPrecision, Faithfulness
 from ragas.metrics.result import MetricResult
@@ -429,6 +429,85 @@ class TestStandaloneEvaluationIntegration:
 
 @pytest.mark.skipif(not os.environ.get("OPENAI_API_KEY"), reason="Set OPENAI_API_KEY to run integration tests.")
 @pytest.mark.integration
+class TestStandaloneEvaluationIntegrationAsync:
+    def make_llm(self) -> InstructorBaseRagasLLM:
+        return llm_factory("gpt-4o-mini", client=AsyncOpenAI())
+
+    def make_embeddings(self) -> BaseRagasEmbedding | BaseRagasEmbeddings:
+        return embedding_factory("openai", model="text-embedding-3-small", client=AsyncOpenAI())
+
+    @pytest.mark.asyncio
+    async def test_faithfulness_returns_valid_score(self) -> None:
+        evaluator = RagasEvaluator(ragas_metrics=[Faithfulness(llm=self.make_llm())])
+
+        output = await evaluator.run_async(
+            query="What makes Meta AI's LLaMA models stand out?",
+            response="Meta AI's LLaMA models stand out for being open-source.",
+            documents=[
+                "Meta AI is best known for its LLaMA series, which has been made open-source "
+                "for researchers and developers. LLaMA models are praised for their ability to "
+                "support innovation and experimentation due to their accessibility."
+            ],
+        )
+
+        result = output["result"]["faithfulness"]
+        assert isinstance(result, MetricResult)
+        assert 0.0 <= result.value <= 1.0
+
+    @pytest.mark.asyncio
+    async def test_answer_relevancy_uses_only_query_and_response(self) -> None:
+        """AnswerRelevancy only declares user_input + response in ascore — documents should not be forwarded."""
+        evaluator = RagasEvaluator(
+            ragas_metrics=[AnswerRelevancy(llm=self.make_llm(), embeddings=self.make_embeddings())]
+        )
+
+        output = await evaluator.run_async(
+            query="What makes Meta AI's LLaMA models stand out?",
+            response="They are open-source and freely available to researchers.",
+            documents=["Meta AI released LLaMA as an open-source model."],
+        )
+
+        result = output["result"]["answer_relevancy"]
+        assert isinstance(result, MetricResult)
+        assert 0.0 <= result.value <= 1.0
+
+    @pytest.mark.asyncio
+    async def test_multiple_metrics_all_return_results(self) -> None:
+        llm = self.make_llm()
+        embeddings = self.make_embeddings()
+        evaluator = RagasEvaluator(
+            ragas_metrics=[
+                Faithfulness(llm=llm),
+                AnswerRelevancy(llm=llm, embeddings=embeddings),
+                ContextPrecision(llm=llm),
+            ]
+        )
+
+        output = await evaluator.run_async(
+            query="What makes Meta AI's LLaMA models stand out?",
+            response=(
+                "Meta AI's LLaMA models stand out for being open-source, supporting "
+                "innovation and experimentation due to their accessibility and strong performance."
+            ),
+            documents=[
+                "Meta AI is best known for its LLaMA series, which has been made open-source.",
+                "Meta AI with its LLaMA models aims to democratize AI development by making "
+                "high-quality models available for free, fostering collaboration across industries.",
+            ],
+            reference=(
+                "Meta AI's LLaMA models stand out for being open-source, supporting innovation "
+                "and experimentation due to their accessibility and strong performance."
+            ),
+        )
+
+        assert set(output["result"].keys()) == {"faithfulness", "answer_relevancy", "context_precision"}
+        for metric_result in output["result"].values():
+            assert isinstance(metric_result, MetricResult)
+            assert 0.0 <= metric_result.value <= 1.0
+
+
+@pytest.mark.skipif(not os.environ.get("OPENAI_API_KEY"), reason="Set OPENAI_API_KEY to run integration tests.")
+@pytest.mark.integration
 class TestPipelineIntegration:
     def test_ragas_evaluator_in_rag_pipeline(self):
         dataset = [
@@ -475,6 +554,69 @@ class TestPipelineIntegration:
 
         question = "What makes Meta AI's LLaMA models stand out?"
         result = pipeline.run(
+            {
+                "text_embedder": {"text": question},
+                "prompt_builder": {"question": question},
+                "answer_builder": {"query": question},
+                "ragas_evaluator": {"query": question},
+            }
+        )
+
+        assert "ragas_evaluator" in result
+        faithfulness_result = result["ragas_evaluator"]["result"]["faithfulness"]
+        assert isinstance(faithfulness_result, MetricResult)
+        assert 0.0 <= faithfulness_result.value <= 1.0
+
+
+@pytest.mark.skipif(not os.environ.get("OPENAI_API_KEY"), reason="Set OPENAI_API_KEY to run integration tests.")
+@pytest.mark.integration
+class TestPipelineIntegrationAsync:
+    @pytest.mark.asyncio
+    async def test_ragas_evaluator_in_rag_pipeline(self) -> None:
+        dataset = [
+            "Meta AI is best known for its LLaMA series, which has been made open-source "
+            "for researchers and developers.",
+            "LLaMA models are praised for their ability to support innovation and "
+            "experimentation due to their accessibility and strong performance.",
+            "Meta AI with its LLaMA models aims to democratize AI development by making "
+            "high-quality models available for free.",
+        ]
+
+        document_store = InMemoryDocumentStore()
+        docs = [Document(content=text) for text in dataset]
+        document_embedder = OpenAIDocumentEmbedder(model="text-embedding-3-small")
+        document_store.write_documents(document_embedder.run(docs)["documents"])
+
+        ragas_evaluator = RagasEvaluator(
+            ragas_metrics=[Faithfulness(llm=llm_factory("gpt-4o-mini", client=AsyncOpenAI()))]
+        )
+
+        template = [
+            ChatMessage.from_user(
+                "Answer the question based on the context.\n\n"
+                "Context:\n{% for document in documents %}{{ document.content }}\n{% endfor %}\n\n"
+                "Question: {{question}}\nAnswer:"
+            )
+        ]
+
+        pipeline = AsyncPipeline()
+        pipeline.add_component("text_embedder", OpenAITextEmbedder(model="text-embedding-3-small"))
+        pipeline.add_component("retriever", InMemoryEmbeddingRetriever(document_store, top_k=2))
+        pipeline.add_component("prompt_builder", ChatPromptBuilder(template=template, required_variables="*"))
+        pipeline.add_component("llm", OpenAIChatGenerator(model="gpt-4o-mini"))
+        pipeline.add_component("answer_builder", AnswerBuilder())
+        pipeline.add_component("ragas_evaluator", ragas_evaluator)
+
+        pipeline.connect("text_embedder.embedding", "retriever.query_embedding")
+        pipeline.connect("retriever", "prompt_builder")
+        pipeline.connect("prompt_builder.prompt", "llm.messages")
+        pipeline.connect("llm.replies", "answer_builder.replies")
+        pipeline.connect("retriever", "answer_builder.documents")
+        pipeline.connect("retriever", "ragas_evaluator.documents")
+        pipeline.connect("llm.replies", "ragas_evaluator.response")
+
+        question = "What makes Meta AI's LLaMA models stand out?"
+        result = await pipeline.run_async(
             {
                 "text_embedder": {"text": question},
                 "prompt_builder": {"question": question},

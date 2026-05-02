@@ -59,8 +59,8 @@ class RagasEvaluator:
             Each metric must be fully configured (including its LLM) at construction time.
             Available metrics can be found in the
             [Ragas documentation](https://docs.ragas.io/en/stable/concepts/metrics/available_metrics/).
-        :param concurrency_limit:
-            The maximum number of metric evaluations that should be allowed to run concurrently.
+        :param concurrency_limit: The maximum number of metric evaluations that should be allowed to run concurrently.
+            This parameter is only used in the `run_async` method.
         """
         self._validate_inputs(ragas_metrics)
         self.metrics = ragas_metrics
