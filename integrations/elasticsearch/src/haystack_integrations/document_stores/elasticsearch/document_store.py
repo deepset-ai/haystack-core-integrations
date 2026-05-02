@@ -1309,6 +1309,152 @@ class ElasticsearchDocumentStore:
         )
         return await self._search_documents_async(**search_body)
 
+    def _create_hybrid_retrieval_inference_body(
+        self,
+        query: str,
+        inference_id: str,
+        *,
+        filters: dict[str, Any] | None = None,
+        fuzziness: str = "AUTO",
+        top_k: int = 10,
+        rank_window_size: int = 100,
+        rank_constant: int = 60,
+    ) -> dict[str, Any]:
+        """
+        Builds the Elasticsearch search body for server-side hybrid retrieval using the RRF retriever API.
+
+        Combines BM25 (multi_match) and sparse vector (ELSER inference) as two standard sub-retrievers
+        inside a single `retriever.rrf` request — no client-side merging.
+
+        :param query: Query text.
+        :param inference_id: Elasticsearch inference model ID (e.g. ".elser_model_2").
+        :param filters: Optional filters applied to both sub-retrievers.
+        :param fuzziness: Fuzziness for the BM25 multi_match query.
+        :param top_k: Number of documents to return.
+        :param rank_window_size: Number of candidates each sub-retriever collects before RRF merging.
+        :param rank_constant: RRF rank constant (higher values reduce the impact of rank differences).
+        :returns: Search body for Elasticsearch.
+        :raises ValueError: If `sparse_vector_field` is not configured or `query` is empty.
+        """
+        if not self._sparse_vector_field:
+            msg = "sparse_vector_field must be set for hybrid retrieval"
+            raise ValueError(msg)
+        if not query:
+            msg = "query must be a non-empty string"
+            raise ValueError(msg)
+
+        bm25_clause: dict[str, Any] = {
+            "standard": {
+                "query": {
+                    "multi_match": {
+                        "query": query,
+                        "fuzziness": fuzziness,
+                        "type": "most_fields",
+                        "operator": "OR",
+                    }
+                }
+            }
+        }
+        sparse_clause: dict[str, Any] = {
+            "standard": {
+                "query": {
+                    "sparse_vector": {
+                        "field": self._sparse_vector_field,
+                        "inference_id": inference_id,
+                        "query": query,
+                    }
+                }
+            }
+        }
+
+        if filters:
+            normalized = _normalize_filters(filters)
+            bm25_clause["standard"]["filter"] = normalized
+            sparse_clause["standard"]["filter"] = normalized
+
+        return {
+            "retriever": {
+                "rrf": {
+                    "retrievers": [bm25_clause, sparse_clause],
+                    "rank_window_size": rank_window_size,
+                    "rank_constant": rank_constant,
+                }
+            },
+            "size": top_k,
+        }
+
+    def _hybrid_retrieval_inference(
+        self,
+        query: str,
+        inference_id: str,
+        *,
+        filters: dict[str, Any] | None = None,
+        fuzziness: str = "AUTO",
+        top_k: int = 10,
+        rank_window_size: int = 100,
+        rank_constant: int = 60,
+    ) -> list[Document]:
+        """
+        Retrieves documents using a fully server-side hybrid search (BM25 + ELSER RRF).
+
+        Issues a single Elasticsearch request using the `retriever.rrf` API (available since ES 8.9,
+        Retriever API since ES 8.14). No client-side score merging is performed.
+
+        :param query: Query text.
+        :param inference_id: Elasticsearch inference model ID (e.g. ".elser_model_2").
+        :param filters: Optional filters applied to both sub-retrievers.
+        :param fuzziness: Fuzziness for the BM25 multi_match query.
+        :param top_k: Maximum number of documents to return.
+        :param rank_window_size: Number of candidates each sub-retriever collects before RRF merging.
+        :param rank_constant: RRF rank constant.
+        :returns: List of Documents ranked by RRF score.
+        """
+        body = self._create_hybrid_retrieval_inference_body(
+            query=query,
+            inference_id=inference_id,
+            filters=filters,
+            fuzziness=fuzziness,
+            top_k=top_k,
+            rank_window_size=rank_window_size,
+            rank_constant=rank_constant,
+        )
+        return self._search_documents(**body)
+
+    async def _hybrid_retrieval_inference_async(
+        self,
+        query: str,
+        inference_id: str,
+        *,
+        filters: dict[str, Any] | None = None,
+        fuzziness: str = "AUTO",
+        top_k: int = 10,
+        rank_window_size: int = 100,
+        rank_constant: int = 60,
+    ) -> list[Document]:
+        """
+        Asynchronously retrieves documents using a fully server-side hybrid search (BM25 + ELSER RRF).
+
+        :param query: Query text.
+        :param inference_id: Elasticsearch inference model ID (e.g. ".elser_model_2").
+        :param filters: Optional filters applied to both sub-retrievers.
+        :param fuzziness: Fuzziness for the BM25 multi_match query.
+        :param top_k: Maximum number of documents to return.
+        :param rank_window_size: Number of candidates each sub-retriever collects before RRF merging.
+        :param rank_constant: RRF rank constant.
+        :returns: List of Documents ranked by RRF score.
+        """
+        self._ensure_initialized()
+        body = self._create_hybrid_retrieval_inference_body(
+            query=query,
+            inference_id=inference_id,
+            filters=filters,
+            fuzziness=fuzziness,
+            top_k=top_k,
+            rank_window_size=rank_window_size,
+            rank_constant=rank_constant,
+        )
+        return await self._search_documents_async(**body)
+
     def count_documents_by_filter(self, filters: dict[str, Any]) -> int:
         """
         Returns the number of documents that match the provided filters.
