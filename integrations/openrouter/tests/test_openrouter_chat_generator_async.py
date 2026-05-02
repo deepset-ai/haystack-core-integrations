@@ -10,9 +10,13 @@ from haystack.dataclasses import (
     StreamingChunk,
 )
 from haystack.tools import Tool, Toolset
+from haystack.utils.auth import Secret
 from openai import AsyncOpenAI
-from openai.types.chat import ChatCompletion, ChatCompletionMessage
+from openai.types.chat import ChatCompletion, ChatCompletionChunk, ChatCompletionMessage
 from openai.types.chat.chat_completion import Choice
+from openai.types.chat.chat_completion_chunk import Choice as ChoiceChunk
+from openai.types.chat.chat_completion_chunk import ChoiceDelta
+from openai.types.completion_usage import CompletionUsage
 
 from haystack_integrations.components.generators.openrouter.chat.chat_generator import (
     OpenRouterChatGenerator,
@@ -384,12 +388,6 @@ class TestOpenRouterChatGeneratorAsync:
     @pytest.mark.asyncio
     async def test_handle_async_stream_response_with_reasoning(self, monkeypatch):
         monkeypatch.setenv("OPENROUTER_API_KEY", "fake-api-key")
-        from openai.types.chat import ChatCompletionChunk
-        from openai.types.chat.chat_completion_chunk import Choice as ChoiceChunk
-        from openai.types.chat.chat_completion_chunk import ChoiceDelta
-        from openai.types.completion_usage import CompletionUsage
-
-        from haystack.utils.auth import Secret
 
         chunks = [
             ChatCompletionChunk(

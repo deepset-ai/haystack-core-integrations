@@ -22,6 +22,7 @@ from pydantic import BaseModel
 
 from haystack_integrations.components.generators.openrouter.chat.chat_generator import (
     OpenRouterChatGenerator,
+    _convert_openrouter_chunk_to_streaming_chunk,
     _convert_openrouter_completion_to_chat_message,
     _extract_reasoning,
 )
@@ -1410,7 +1411,11 @@ class TestReasoningSupport:
             choices=[
                 Choice(
                     finish_reason="stop",
-                    logprobs={"content": [{"token": "Hello", "logprob": -0.5}]},
+                    logprobs={
+                        "content": [
+                            {"token": "Hello", "logprob": -0.5, "top_logprobs": [], "bytes": [72, 101, 108, 108, 111]}
+                        ]
+                    },
                     index=0,
                     message=ChatCompletionMessage(content="Hello!", role="assistant"),
                 )
@@ -1458,10 +1463,6 @@ class TestReasoningSupport:
         assert result.tool_calls[0].id == "call_good"
 
     def test_convert_chunk_empty_choices(self):
-        from haystack_integrations.components.generators.openrouter.chat.chat_generator import (
-            _convert_openrouter_chunk_to_streaming_chunk,
-        )
-
         chunk = ChatCompletionChunk(
             id="gen-empty",
             choices=[],
