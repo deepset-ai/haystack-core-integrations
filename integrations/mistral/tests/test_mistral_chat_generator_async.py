@@ -1,4 +1,5 @@
 import json
+import logging
 import os
 from datetime import datetime
 from unittest.mock import AsyncMock, patch
@@ -318,15 +319,14 @@ class TestMistralChatGeneratorAsync:
 
     @pytest.mark.asyncio
     async def test_run_async_streaming_with_reasoning_logs_warning(self, monkeypatch, caplog):
-        import logging
-
-        from haystack.components.generators.utils import print_streaming_chunk
-        from haystack.dataclasses import ChatMessage
-
         monkeypatch.setenv("MISTRAL_API_KEY", "fake-api-key")
+
+        async def async_callback(chunk: StreamingChunk):
+            pass
+
         component = MistralChatGenerator(
             generation_kwargs={"reasoning_effort": "high"},
-            streaming_callback=print_streaming_chunk,
+            streaming_callback=async_callback,
         )
 
         with (

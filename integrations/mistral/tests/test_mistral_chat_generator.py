@@ -1185,24 +1185,26 @@ class TestReasoningSupport:
         assert response == {"replies": []}
 
     def test_convert_response_from_json_string(self):
-        json_str = json.dumps({
-            "id": "test",
-            "model": "mistral-small-latest",
-            "choices": [
-                {
-                    "finish_reason": "stop",
-                    "index": 0,
-                    "message": {
-                        "role": "assistant",
-                        "content": [
-                            {"type": "thinking", "thinking": [{"type": "text", "text": "Thinking."}]},
-                            {"type": "text", "text": "Answer."},
-                        ],
-                    },
-                }
-            ],
-            "usage": {"prompt_tokens": 5, "completion_tokens": 10, "total_tokens": 15},
-        })
+        json_str = json.dumps(
+            {
+                "id": "test",
+                "model": "mistral-small-latest",
+                "choices": [
+                    {
+                        "finish_reason": "stop",
+                        "index": 0,
+                        "message": {
+                            "role": "assistant",
+                            "content": [
+                                {"type": "thinking", "thinking": [{"type": "text", "text": "Thinking."}]},
+                                {"type": "text", "text": "Answer."},
+                            ],
+                        },
+                    }
+                ],
+                "usage": {"prompt_tokens": 5, "completion_tokens": 10, "total_tokens": 15},
+            }
+        )
         messages = _convert_mistral_response_to_chat_messages(json_str)
         assert len(messages) == 1
         assert messages[0].text == "Answer."
