@@ -1,4 +1,5 @@
 import json
+import logging
 import os
 from datetime import datetime
 from unittest.mock import ANY, patch
@@ -1140,13 +1141,9 @@ class TestReasoningSupport:
         )
         messages = [ChatMessage.from_user("test")]
 
-        import logging
-
         with caplog.at_level(logging.WARNING):
-            try:
+            with pytest.raises(Exception):
                 component.run(messages)
-            except Exception:
-                pass
 
         assert any("Streaming with reasoning parameters" in r.message for r in caplog.records)
 
