@@ -1,14 +1,15 @@
 import json
 import os
 from datetime import datetime
-from unittest.mock import patch
+from types import SimpleNamespace
+from unittest.mock import Mock, patch
 
 import pytest
 import pytz
 from haystack import Pipeline
 from haystack.components.generators.utils import print_streaming_chunk
 from haystack.components.tools import ToolInvoker
-from haystack.dataclasses import ChatMessage, ChatRole, StreamingChunk, ToolCall
+from haystack.dataclasses import ChatMessage, ChatRole, ReasoningContent, StreamingChunk, ToolCall
 from haystack.tools import Tool, Toolset
 from haystack.utils.auth import Secret
 from openai import OpenAIError
@@ -19,7 +20,11 @@ from openai.types.chat.chat_completion_chunk import ChoiceDelta, ChoiceDeltaTool
 from openai.types.completion_usage import CompletionTokensDetails, CompletionUsage, PromptTokensDetails
 from pydantic import BaseModel
 
-from haystack_integrations.components.generators.openrouter.chat.chat_generator import OpenRouterChatGenerator
+from haystack_integrations.components.generators.openrouter.chat.chat_generator import (
+    OpenRouterChatGenerator,
+    _convert_openrouter_completion_to_chat_message,
+    _extract_reasoning,
+)
 
 
 class CalendarEvent(BaseModel):
@@ -1082,3 +1087,311 @@ class TestChatCompletionChunkConversion:
                 "cached_tokens": 0,
             },
         }
+
+
+class TestReasoningSupport:
+    def test_extract_reasoning_with_text_and_details(self):
+        msg = SimpleNamespace(
+            reasoning="Let me think step by step...",
+            reasoning_details=[{"type": "reasoning.text", "text": "Let me think step by step..."}],
+        )
+        result = _extract_reasoning(msg)
+        assert result is not None
+        assert result.reasoning_text == "Let me think step by step..."
+        assert result.extra["reasoning_details"] == [{"type": "reasoning.text", "text": "Let me think step by step..."}]
+
+    def test_extract_reasoning_returns_none_without_reasoning(self):
+        msg = SimpleNamespace()
+        result = _extract_reasoning(msg)
+        assert result is None
+
+    def test_extract_reasoning_from_details_only(self):
+        msg = SimpleNamespace(
+            reasoning=None,
+            reasoning_details=[
+                {"type": "reasoning.text", "text": "Step 1. "},
+                {"type": "reasoning.summary", "summary": "Conclusion."},
+            ],
+        )
+        result = _extract_reasoning(msg)
+        assert result is not None
+        assert result.reasoning_text == "Step 1. Conclusion."
+        assert len(result.extra["reasoning_details"]) == 2
+
+    def test_extract_reasoning_handles_model_dump_objects(self):
+        detail = Mock()
+        detail.model_dump.return_value = {"type": "reasoning.text", "text": "Thinking..."}
+        msg = SimpleNamespace(
+            reasoning="Thinking...",
+            reasoning_details=[detail],
+        )
+        result = _extract_reasoning(msg)
+        assert result is not None
+        assert result.extra["reasoning_details"] == [{"type": "reasoning.text", "text": "Thinking..."}]
+
+    def test_extract_reasoning_vars_fallback(self):
+        detail = SimpleNamespace(type="reasoning.text", text="Fallback path")
+        msg = SimpleNamespace(
+            reasoning="Fallback path",
+            reasoning_details=[detail],
+        )
+        result = _extract_reasoning(msg)
+        assert result is not None
+        assert result.extra["reasoning_details"] == [{"type": "reasoning.text", "text": "Fallback path"}]
+
+    def test_extract_reasoning_unknown_detail_type(self):
+        msg = SimpleNamespace(
+            reasoning=None,
+            reasoning_details=[
+                {"type": "reasoning.internal_monologue", "content": "hidden"},
+                {"type": "reasoning.text", "text": "Visible."},
+            ],
+        )
+        result = _extract_reasoning(msg)
+        assert result is not None
+        assert result.reasoning_text == "Visible."
+        assert len(result.extra["reasoning_details"]) == 2
+
+    def test_convert_completion_with_reasoning_and_tool_calls(self):
+        completion = ChatCompletion(
+            id="test-reasoning-tools",
+            model="deepseek/deepseek-r1",
+            object="chat.completion",
+            choices=[
+                Choice(
+                    finish_reason="tool_calls",
+                    logprobs=None,
+                    index=0,
+                    message=ChatCompletionMessage(
+                        content=None,
+                        role="assistant",
+                        reasoning="I need to check the weather.",
+                        reasoning_details=[{"type": "reasoning.text", "text": "I need to check the weather."}],
+                        tool_calls=[
+                            {
+                                "id": "call_abc123",
+                                "type": "function",
+                                "function": {"name": "weather", "arguments": '{"city": "Paris"}'},
+                            }
+                        ],
+                    ),
+                )
+            ],
+            created=int(datetime.now(tz=pytz.timezone("UTC")).timestamp()),
+            usage={"prompt_tokens": 30, "completion_tokens": 20, "total_tokens": 50},
+        )
+
+        result = _convert_openrouter_completion_to_chat_message(completion, completion.choices[0])
+        assert result.text is None
+        assert result.reasoning is not None
+        assert result.reasoning.reasoning_text == "I need to check the weather."
+        assert len(result.tool_calls) == 1
+        assert result.tool_calls[0].tool_name == "weather"
+        assert result.tool_calls[0].arguments == {"city": "Paris"}
+        assert result.meta["finish_reason"] == "tool_calls"
+
+    def test_convert_completion_with_reasoning(self):
+        completion = ChatCompletion(
+            id="test-reasoning",
+            model="deepseek/deepseek-r1",
+            object="chat.completion",
+            choices=[
+                Choice(
+                    finish_reason="stop",
+                    logprobs=None,
+                    index=0,
+                    message=ChatCompletionMessage(
+                        content="The answer is 42.",
+                        role="assistant",
+                        reasoning="Let me think about this...",
+                        reasoning_details=[{"type": "reasoning.text", "text": "Let me think about this..."}],
+                    ),
+                )
+            ],
+            created=int(datetime.now(tz=pytz.timezone("UTC")).timestamp()),
+            usage={"prompt_tokens": 57, "completion_tokens": 40, "total_tokens": 97},
+        )
+
+        result = _convert_openrouter_completion_to_chat_message(completion, completion.choices[0])
+        assert result.text == "The answer is 42."
+        assert result.reasoning is not None
+        assert result.reasoning.reasoning_text == "Let me think about this..."
+        assert result.reasoning.extra["reasoning_details"] == [
+            {"type": "reasoning.text", "text": "Let me think about this..."}
+        ]
+        assert result.meta["model"] == "deepseek/deepseek-r1"
+        assert result.meta["finish_reason"] == "stop"
+
+    def test_convert_completion_without_reasoning(self):
+        completion = ChatCompletion(
+            id="test-no-reasoning",
+            model="openai/gpt-5-mini",
+            object="chat.completion",
+            choices=[
+                Choice(
+                    finish_reason="stop",
+                    logprobs=None,
+                    index=0,
+                    message=ChatCompletionMessage(content="Hello!", role="assistant"),
+                )
+            ],
+            created=int(datetime.now(tz=pytz.timezone("UTC")).timestamp()),
+            usage={"prompt_tokens": 10, "completion_tokens": 5, "total_tokens": 15},
+        )
+
+        result = _convert_openrouter_completion_to_chat_message(completion, completion.choices[0])
+        assert result.text == "Hello!"
+        assert result.reasoning is None
+
+    def test_run_with_reasoning(self, monkeypatch):
+        monkeypatch.setenv("OPENROUTER_API_KEY", "fake-api-key")
+
+        with patch("openai.resources.chat.completions.Completions.create") as mock_create:
+            completion = ChatCompletion(
+                id="test-run-reasoning",
+                model="deepseek/deepseek-r1",
+                object="chat.completion",
+                choices=[
+                    Choice(
+                        finish_reason="stop",
+                        logprobs=None,
+                        index=0,
+                        message=ChatCompletionMessage(
+                            content="Paris is the capital of France.",
+                            role="assistant",
+                            reasoning="The user asked about capitals. France's capital is Paris.",
+                            reasoning_details=[
+                                {
+                                    "type": "reasoning.text",
+                                    "text": "The user asked about capitals. France's capital is Paris.",
+                                }
+                            ],
+                        ),
+                    )
+                ],
+                created=int(datetime.now(tz=pytz.timezone("UTC")).timestamp()),
+                usage={"prompt_tokens": 57, "completion_tokens": 40, "total_tokens": 97},
+            )
+            mock_create.return_value = completion
+
+            component = OpenRouterChatGenerator(
+                model="deepseek/deepseek-r1",
+                generation_kwargs={"reasoning": {"effort": "high"}},
+            )
+            response = component.run([ChatMessage.from_user("What's the capital of France?")])
+
+            assert len(response["replies"]) == 1
+            reply = response["replies"][0]
+            assert reply.text == "Paris is the capital of France."
+            assert reply.reasoning is not None
+            assert "capitals" in reply.reasoning.reasoning_text
+            assert reply.reasoning.extra["reasoning_details"][0]["type"] == "reasoning.text"
+
+    def test_handle_stream_response_with_reasoning(self):
+        chunks = [
+            ChatCompletionChunk(
+                id="gen-reasoning",
+                choices=[
+                    ChoiceChunk(
+                        delta=ChoiceDelta(content="", role="assistant"),
+                        index=0,
+                        native_finish_reason=None,
+                    )
+                ],
+                created=1750162525,
+                model="deepseek/deepseek-r1",
+                object="chat.completion.chunk",
+            ),
+            ChatCompletionChunk(
+                id="gen-reasoning",
+                choices=[
+                    ChoiceChunk(
+                        delta=ChoiceDelta(
+                            content=None,
+                            role="assistant",
+                            reasoning_details=[{"type": "reasoning.text", "text": "Thinking about capitals..."}],
+                        ),
+                        index=0,
+                        native_finish_reason=None,
+                    )
+                ],
+                created=1750162525,
+                model="deepseek/deepseek-r1",
+                object="chat.completion.chunk",
+            ),
+            ChatCompletionChunk(
+                id="gen-reasoning",
+                choices=[
+                    ChoiceChunk(
+                        delta=ChoiceDelta(content="Paris.", role="assistant"),
+                        index=0,
+                        native_finish_reason=None,
+                    )
+                ],
+                created=1750162525,
+                model="deepseek/deepseek-r1",
+                object="chat.completion.chunk",
+            ),
+            ChatCompletionChunk(
+                id="gen-reasoning",
+                choices=[
+                    ChoiceChunk(
+                        delta=ChoiceDelta(content="", role="assistant"),
+                        finish_reason="stop",
+                        index=0,
+                        native_finish_reason="stop",
+                    )
+                ],
+                created=1750162525,
+                model="deepseek/deepseek-r1",
+                object="chat.completion.chunk",
+            ),
+            ChatCompletionChunk(
+                id="gen-reasoning",
+                choices=[
+                    ChoiceChunk(
+                        delta=ChoiceDelta(content="", role="assistant"),
+                        index=0,
+                        native_finish_reason=None,
+                    )
+                ],
+                created=1750162525,
+                model="deepseek/deepseek-r1",
+                object="chat.completion.chunk",
+                usage=CompletionUsage(
+                    completion_tokens=50,
+                    prompt_tokens=30,
+                    total_tokens=80,
+                ),
+            ),
+        ]
+
+        collector = CollectorCallback()
+        llm = OpenRouterChatGenerator(api_key=Secret.from_token("test-api-key"))
+        result = llm._handle_stream_response(chunks, callback=collector)[0]
+
+        assert result.text == "Paris."
+        assert result.reasoning is not None
+        assert "capitals" in result.reasoning.reasoning_text
+
+    def test_prepare_api_call_preserves_reasoning(self, monkeypatch):
+        monkeypatch.setenv("OPENROUTER_API_KEY", "fake-api-key")
+        component = OpenRouterChatGenerator()
+
+        reasoning = ReasoningContent(
+            reasoning_text="Step by step analysis...",
+            extra={"reasoning_details": [{"type": "reasoning.text", "text": "Step by step analysis..."}]},
+        )
+        messages = [
+            ChatMessage.from_user("Explain quantum computing."),
+            ChatMessage.from_assistant(text="Quantum computing uses qubits.", reasoning=reasoning),
+            ChatMessage.from_user("Tell me more."),
+        ]
+
+        api_args = component._prepare_api_call(messages=messages)
+        formatted = api_args["messages"]
+
+        assert "reasoning_details" in formatted[1]
+        assert formatted[1]["reasoning_details"] == [{"type": "reasoning.text", "text": "Step by step analysis..."}]
+        assert "reasoning_details" not in formatted[0]
+        assert "reasoning_details" not in formatted[2]
