@@ -2,5 +2,9 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 from .document_store import SupabasePgvectorDocumentStore
+from .groonga_document_store import SupabaseGroongaDocumentStore
 
-__all__ = ["SupabasePgvectorDocumentStore"]
+__all__ = [
+    "SupabasePgvectorDocumentStore",
+    "SupabaseGroongaDocumentStore",
+]
