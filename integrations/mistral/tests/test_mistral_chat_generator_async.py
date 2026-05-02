@@ -308,3 +308,30 @@ class TestMistralChatGeneratorAsync:
         assert msg.text == "Async answer."
         assert msg.reasoning is not None
         assert msg.reasoning.reasoning_text == "Async reasoning content."
+
+    @pytest.mark.asyncio
+    async def test_run_async_empty_messages(self, monkeypatch):
+        monkeypatch.setenv("MISTRAL_API_KEY", "fake-api-key")
+        component = MistralChatGenerator()
+        response = await component.run_async([])
+        assert response == {"replies": []}
+
+    @pytest.mark.asyncio
+    async def test_run_async_streaming_with_reasoning_logs_warning(self, monkeypatch, caplog):
+        import logging
+
+        from haystack.components.generators.utils import print_streaming_chunk
+        from haystack.dataclasses import ChatMessage
+
+        monkeypatch.setenv("MISTRAL_API_KEY", "fake-api-key")
+        component = MistralChatGenerator(
+            generation_kwargs={"reasoning_effort": "high"},
+            streaming_callback=print_streaming_chunk,
+        )
+
+        with (
+            caplog.at_level(logging.WARNING),
+            patch.object(component, "_prepare_api_call", side_effect=RuntimeError),
+            pytest.raises(RuntimeError),
+        ):
+            await component.run_async([ChatMessage.from_user("test")])

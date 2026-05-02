@@ -1167,3 +1167,44 @@ class TestReasoningSupport:
         assert assistant_msg["content"][0]["thinking"][0]["text"] == "2+2 equals 4"
         assert assistant_msg["content"][1]["type"] == "text"
         assert assistant_msg["content"][1]["text"] == "The answer is 4."
+
+    def test_parse_mistral_content_unexpected_type(self):
+        text, reasoning = _parse_mistral_content(42)
+        assert text == "42"
+        assert reasoning is None
+
+    def test_parse_mistral_content_unexpected_object(self):
+        text, reasoning = _parse_mistral_content(3.14)
+        assert text == "3.14"
+        assert reasoning is None
+
+    def test_run_empty_messages(self, monkeypatch):
+        monkeypatch.setenv("MISTRAL_API_KEY", "fake-api-key")
+        component = MistralChatGenerator()
+        response = component.run([])
+        assert response == {"replies": []}
+
+    def test_convert_response_from_json_string(self):
+        json_str = json.dumps({
+            "id": "test",
+            "model": "mistral-small-latest",
+            "choices": [
+                {
+                    "finish_reason": "stop",
+                    "index": 0,
+                    "message": {
+                        "role": "assistant",
+                        "content": [
+                            {"type": "thinking", "thinking": [{"type": "text", "text": "Thinking."}]},
+                            {"type": "text", "text": "Answer."},
+                        ],
+                    },
+                }
+            ],
+            "usage": {"prompt_tokens": 5, "completion_tokens": 10, "total_tokens": 15},
+        })
+        messages = _convert_mistral_response_to_chat_messages(json_str)
+        assert len(messages) == 1
+        assert messages[0].text == "Answer."
+        assert messages[0].reasoning is not None
+        assert messages[0].reasoning.reasoning_text == "Thinking."
