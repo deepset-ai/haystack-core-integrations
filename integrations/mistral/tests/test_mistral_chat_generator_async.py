@@ -1,3 +1,4 @@
+import json
 import os
 from datetime import datetime
 from unittest.mock import AsyncMock, patch
@@ -262,3 +263,48 @@ class TestMistralChatGeneratorAsync:
         assert tool_call.tool_name == "weather"
         assert tool_call.arguments == {"city": "Paris"}
         assert tool_message.meta["finish_reason"] == "tool_calls"
+
+    @pytest.mark.asyncio
+    async def test_run_async_with_reasoning(self, chat_messages, monkeypatch):
+        monkeypatch.setenv("MISTRAL_API_KEY", "fake-api-key")
+
+        mock_response = type("MockRawResponse", (), {})()
+        mock_response.json = lambda: json.dumps(
+            {
+                "id": "test-reasoning-async",
+                "model": "mistral-small-latest",
+                "object": "chat.completion",
+                "choices": [
+                    {
+                        "finish_reason": "stop",
+                        "index": 0,
+                        "message": {
+                            "role": "assistant",
+                            "content": [
+                                {
+                                    "type": "thinking",
+                                    "thinking": [{"type": "text", "text": "Async reasoning content."}],
+                                },
+                                {"type": "text", "text": "Async answer."},
+                            ],
+                        },
+                    }
+                ],
+                "created": 1234567890,
+                "usage": {"prompt_tokens": 10, "completion_tokens": 50, "total_tokens": 60},
+            }
+        )
+
+        with patch(
+            "openai.resources.chat.completions.AsyncCompletions.create",
+            new_callable=AsyncMock,
+        ) as mock_create:
+            mock_create.return_value = mock_response
+            component = MistralChatGenerator()
+            response = await component.run_async(chat_messages)
+
+        assert len(response["replies"]) == 1
+        msg = response["replies"][0]
+        assert msg.text == "Async answer."
+        assert msg.reasoning is not None
+        assert msg.reasoning.reasoning_text == "Async reasoning content."

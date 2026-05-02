@@ -8,7 +8,15 @@ import pytz
 from haystack import Pipeline
 from haystack.components.generators.utils import print_streaming_chunk
 from haystack.components.tools import ToolInvoker
-from haystack.dataclasses import ChatMessage, ChatRole, ComponentInfo, StreamingChunk, ToolCall, ToolCallDelta
+from haystack.dataclasses import (
+    ChatMessage,
+    ChatRole,
+    ComponentInfo,
+    ReasoningContent,
+    StreamingChunk,
+    ToolCall,
+    ToolCallDelta,
+)
 from haystack.tools import Tool, Toolset
 from haystack.utils.auth import Secret
 from openai import OpenAIError
@@ -19,7 +27,11 @@ from openai.types.chat.chat_completion_chunk import ChoiceDelta, ChoiceDeltaTool
 from openai.types.completion_usage import CompletionUsage
 from pydantic import BaseModel
 
-from haystack_integrations.components.generators.mistral.chat.chat_generator import MistralChatGenerator
+from haystack_integrations.components.generators.mistral.chat.chat_generator import (
+    MistralChatGenerator,
+    _convert_mistral_response_to_chat_messages,
+    _parse_mistral_content,
+)
 
 
 class CollectorCallback:
@@ -837,3 +849,324 @@ class TestMistralChatGenerator:
             assert "city" in tool_call.arguments
             assert tool_call.arguments["city"] in ["Paris", "Berlin"]
             assert tool_call_message.meta["finish_reason"] == "tool_calls"
+
+
+@pytest.fixture
+def mock_reasoning_response():
+    """Mock that returns a raw-response-like object with reasoning array content."""
+    with patch("openai.resources.chat.completions.Completions.create") as mock_create:
+        mock_response = type("MockRawResponse", (), {})()
+        mock_response.json = lambda: json.dumps(
+            {
+                "id": "test-reasoning",
+                "model": "mistral-small-latest",
+                "object": "chat.completion",
+                "choices": [
+                    {
+                        "finish_reason": "stop",
+                        "index": 0,
+                        "message": {
+                            "role": "assistant",
+                            "content": [
+                                {
+                                    "type": "thinking",
+                                    "thinking": [{"type": "text", "text": "Let me solve this step by step. 2+2=4."}],
+                                },
+                                {"type": "text", "text": "The answer is 4."},
+                            ],
+                        },
+                    }
+                ],
+                "created": 1234567890,
+                "usage": {"prompt_tokens": 10, "completion_tokens": 50, "total_tokens": 60},
+            }
+        )
+        mock_create.return_value = mock_response
+        yield mock_create
+
+
+class TestReasoningSupport:
+    def test_parse_mistral_content_string(self):
+        text, reasoning = _parse_mistral_content("Hello world")
+        assert text == "Hello world"
+        assert reasoning is None
+
+    def test_parse_mistral_content_none(self):
+        text, reasoning = _parse_mistral_content(None)
+        assert text is None
+        assert reasoning is None
+
+    def test_parse_mistral_content_empty_string(self):
+        text, reasoning = _parse_mistral_content("")
+        assert text is None
+        assert reasoning is None
+
+    def test_parse_mistral_content_array_with_reasoning(self):
+        content = [
+            {"type": "thinking", "thinking": [{"type": "text", "text": "Step 1: analyze. Step 2: solve."}]},
+            {"type": "text", "text": "The answer is 42."},
+        ]
+        text, reasoning = _parse_mistral_content(content)
+        assert text == "The answer is 42."
+        assert reasoning is not None
+        assert reasoning.reasoning_text == "Step 1: analyze. Step 2: solve."
+
+    def test_parse_mistral_content_array_text_only(self):
+        content = [
+            {"type": "text", "text": "Just a plain response."},
+        ]
+        text, reasoning = _parse_mistral_content(content)
+        assert text == "Just a plain response."
+        assert reasoning is None
+
+    def test_parse_mistral_content_array_thinking_only(self):
+        content = [
+            {"type": "thinking", "thinking": [{"type": "text", "text": "Internal reasoning only."}]},
+        ]
+        text, reasoning = _parse_mistral_content(content)
+        assert text is None
+        assert reasoning is not None
+        assert reasoning.reasoning_text == "Internal reasoning only."
+
+    def test_parse_mistral_content_multiple_thinking_blocks(self):
+        content = [
+            {"type": "thinking", "thinking": [{"type": "text", "text": "First thought. "}]},
+            {"type": "thinking", "thinking": [{"type": "text", "text": "Second thought."}]},
+            {"type": "text", "text": "Final answer."},
+        ]
+        text, reasoning = _parse_mistral_content(content)
+        assert text == "Final answer."
+        assert reasoning is not None
+        assert reasoning.reasoning_text == "First thought. Second thought."
+
+    def test_parse_mistral_content_non_dict_blocks(self):
+        content = [
+            "stray string",
+            42,
+            {"type": "text", "text": "Valid block."},
+        ]
+        text, reasoning = _parse_mistral_content(content)
+        assert text == "Valid block."
+        assert reasoning is None
+
+    def test_convert_response_with_reasoning(self):
+        response_data = {
+            "id": "test",
+            "model": "mistral-small-latest",
+            "choices": [
+                {
+                    "finish_reason": "stop",
+                    "index": 0,
+                    "message": {
+                        "role": "assistant",
+                        "content": [
+                            {"type": "thinking", "thinking": [{"type": "text", "text": "Reasoning here."}]},
+                            {"type": "text", "text": "Answer here."},
+                        ],
+                    },
+                }
+            ],
+            "usage": {"prompt_tokens": 10, "completion_tokens": 20, "total_tokens": 30},
+        }
+        messages = _convert_mistral_response_to_chat_messages(response_data)
+        assert len(messages) == 1
+        msg = messages[0]
+        assert msg.text == "Answer here."
+        assert msg.reasoning is not None
+        assert msg.reasoning.reasoning_text == "Reasoning here."
+        assert msg.meta["model"] == "mistral-small-latest"
+        assert msg.meta["finish_reason"] == "stop"
+
+    def test_convert_response_without_reasoning(self):
+        response_data = {
+            "id": "test",
+            "model": "mistral-small-latest",
+            "choices": [
+                {
+                    "finish_reason": "stop",
+                    "index": 0,
+                    "message": {"role": "assistant", "content": "Plain text response."},
+                }
+            ],
+            "usage": {"prompt_tokens": 5, "completion_tokens": 10, "total_tokens": 15},
+        }
+        messages = _convert_mistral_response_to_chat_messages(response_data)
+        assert len(messages) == 1
+        msg = messages[0]
+        assert msg.text == "Plain text response."
+        assert msg.reasoning is None
+
+    def test_convert_response_with_tool_calls(self):
+        response_data = {
+            "id": "test",
+            "model": "mistral-small-latest",
+            "choices": [
+                {
+                    "finish_reason": "tool_calls",
+                    "index": 0,
+                    "message": {
+                        "role": "assistant",
+                        "content": None,
+                        "tool_calls": [
+                            {
+                                "id": "call_123",
+                                "function": {"name": "weather", "arguments": '{"city": "Paris"}'},
+                            }
+                        ],
+                    },
+                }
+            ],
+            "usage": {"prompt_tokens": 10, "completion_tokens": 15, "total_tokens": 25},
+        }
+        messages = _convert_mistral_response_to_chat_messages(response_data)
+        assert len(messages) == 1
+        msg = messages[0]
+        assert msg.text is None
+        assert len(msg.tool_calls) == 1
+        assert msg.tool_calls[0].tool_name == "weather"
+        assert msg.tool_calls[0].arguments == {"city": "Paris"}
+
+    def test_convert_response_malformed_tool_call_json(self):
+        response_data = {
+            "id": "test",
+            "model": "mistral-small-latest",
+            "choices": [
+                {
+                    "finish_reason": "tool_calls",
+                    "index": 0,
+                    "message": {
+                        "role": "assistant",
+                        "content": None,
+                        "tool_calls": [
+                            {
+                                "id": "call_bad",
+                                "function": {"name": "weather", "arguments": "{invalid json}"},
+                            },
+                            {
+                                "id": "call_good",
+                                "function": {"name": "weather", "arguments": '{"city": "Paris"}'},
+                            },
+                        ],
+                    },
+                }
+            ],
+            "usage": {"prompt_tokens": 10, "completion_tokens": 15, "total_tokens": 25},
+        }
+        messages = _convert_mistral_response_to_chat_messages(response_data)
+        assert len(messages) == 1
+        msg = messages[0]
+        assert len(msg.tool_calls) == 1
+        assert msg.tool_calls[0].id == "call_good"
+
+    def test_convert_response_with_reasoning_and_tool_calls(self):
+        response_data = {
+            "id": "test",
+            "model": "mistral-small-latest",
+            "choices": [
+                {
+                    "finish_reason": "tool_calls",
+                    "index": 0,
+                    "message": {
+                        "role": "assistant",
+                        "content": [
+                            {"type": "thinking", "thinking": [{"type": "text", "text": "I should check the weather."}]},
+                            {"type": "text", "text": "Let me look that up."},
+                        ],
+                        "tool_calls": [
+                            {
+                                "id": "call_123",
+                                "function": {"name": "weather", "arguments": '{"city": "Paris"}'},
+                            }
+                        ],
+                    },
+                }
+            ],
+            "usage": {"prompt_tokens": 10, "completion_tokens": 20, "total_tokens": 30},
+        }
+        messages = _convert_mistral_response_to_chat_messages(response_data)
+        assert len(messages) == 1
+        msg = messages[0]
+        assert msg.text == "Let me look that up."
+        assert msg.reasoning is not None
+        assert msg.reasoning.reasoning_text == "I should check the weather."
+        assert len(msg.tool_calls) == 1
+        assert msg.tool_calls[0].tool_name == "weather"
+        assert msg.tool_calls[0].arguments == {"city": "Paris"}
+        assert msg.meta["finish_reason"] == "tool_calls"
+
+    def test_run_with_reasoning(self, chat_messages, mock_reasoning_response, monkeypatch):  # noqa: ARG002
+        monkeypatch.setenv("MISTRAL_API_KEY", "fake-api-key")
+        component = MistralChatGenerator()
+        response = component.run(chat_messages)
+
+        assert isinstance(response, dict)
+        assert "replies" in response
+        assert len(response["replies"]) == 1
+
+        msg = response["replies"][0]
+        assert msg.text == "The answer is 4."
+        assert msg.reasoning is not None
+        assert msg.reasoning.reasoning_text == "Let me solve this step by step. 2+2=4."
+
+    def test_prepare_api_call_routes_reasoning_effort(self, monkeypatch):
+        monkeypatch.setenv("MISTRAL_API_KEY", "fake-api-key")
+        component = MistralChatGenerator(
+            generation_kwargs={"reasoning_effort": "high", "temperature": 0.7},
+        )
+        messages = [ChatMessage.from_user("test")]
+        api_args = component._prepare_api_call(messages=messages)
+
+        assert "reasoning_effort" not in api_args
+        assert api_args["extra_body"]["reasoning_effort"] == "high"
+        assert api_args["temperature"] == 0.7
+
+    def test_prepare_api_call_routes_prompt_mode(self, monkeypatch):
+        monkeypatch.setenv("MISTRAL_API_KEY", "fake-api-key")
+        component = MistralChatGenerator(
+            model="magistral-small-latest",
+            generation_kwargs={"prompt_mode": "reasoning"},
+        )
+        messages = [ChatMessage.from_user("test")]
+        api_args = component._prepare_api_call(messages=messages)
+
+        assert "prompt_mode" not in api_args
+        assert api_args["extra_body"]["prompt_mode"] == "reasoning"
+
+    def test_streaming_with_reasoning_logs_warning(self, monkeypatch, caplog):
+        monkeypatch.setenv("MISTRAL_API_KEY", "fake-api-key")
+        component = MistralChatGenerator(
+            generation_kwargs={"reasoning_effort": "high"},
+            streaming_callback=print_streaming_chunk,
+        )
+        messages = [ChatMessage.from_user("test")]
+
+        import logging
+
+        with caplog.at_level(logging.WARNING):
+            try:
+                component.run(messages)
+            except Exception:
+                pass
+
+        assert any("Streaming with reasoning parameters" in r.message for r in caplog.records)
+
+    def test_prepare_api_call_preserves_reasoning(self, monkeypatch):
+        monkeypatch.setenv("MISTRAL_API_KEY", "fake-api-key")
+        component = MistralChatGenerator()
+        messages = [
+            ChatMessage.from_user("What is 2+2?"),
+            ChatMessage.from_assistant(
+                text="The answer is 4.",
+                reasoning=ReasoningContent(reasoning_text="2+2 equals 4"),
+            ),
+            ChatMessage.from_user("Are you sure?"),
+        ]
+        api_args = component._prepare_api_call(messages=messages)
+
+        assistant_msg = api_args["messages"][1]
+        assert isinstance(assistant_msg["content"], list)
+        assert len(assistant_msg["content"]) == 2
+        assert assistant_msg["content"][0]["type"] == "thinking"
+        assert assistant_msg["content"][0]["thinking"][0]["text"] == "2+2 equals 4"
+        assert assistant_msg["content"][1]["type"] == "text"
+        assert assistant_msg["content"][1]["text"] == "The answer is 4."
