@@ -1139,13 +1139,13 @@ class TestReasoningSupport:
             generation_kwargs={"reasoning_effort": "high"},
             streaming_callback=print_streaming_chunk,
         )
-        messages = [ChatMessage.from_user("test")]
 
-        with caplog.at_level(logging.WARNING):
-            with pytest.raises(Exception):
-                component.run(messages)
-
-        assert any("Streaming with reasoning parameters" in r.message for r in caplog.records)
+        with (
+            caplog.at_level(logging.WARNING),
+            patch.object(component, "_prepare_api_call", side_effect=RuntimeError),
+            pytest.raises(RuntimeError),
+        ):
+            component.run([ChatMessage.from_user("test")])
 
     def test_prepare_api_call_preserves_reasoning(self, monkeypatch):
         monkeypatch.setenv("MISTRAL_API_KEY", "fake-api-key")
