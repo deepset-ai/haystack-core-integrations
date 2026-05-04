@@ -10,7 +10,6 @@ import pytest
 from docling.chunking import HybridChunker
 from docling.document_converter import DocumentConverter
 from docling_core.types.io import DocumentStream
-
 from haystack.dataclasses import ByteStream
 
 from haystack_integrations.components.converters.docling import (

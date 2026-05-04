@@ -16,11 +16,11 @@ from haystack.core.serialization import default_from_dict, default_to_dict
 from haystack.dataclasses import ByteStream
 from haystack.utils.base_serialization import deserialize_class_instance, serialize_class_instance
 
-logger = logging.getLogger(__name__)
-
 from docling.chunking import BaseChunk, BaseChunker, HybridChunker
 from docling.datamodel.document import DoclingDocument
 from docling.document_converter import DocumentConverter
+
+logger = logging.getLogger(__name__)
 
 
 def _bytestream_to_document_stream(source: ByteStream) -> DocumentStream:
@@ -72,7 +72,7 @@ class BaseMetaExtractor(ABC):
         return {}
 
     @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "BaseMetaExtractor":
+    def from_dict(cls, data: dict[str, Any]) -> "BaseMetaExtractor":  # noqa: ARG003
         """Deserialize from a dictionary."""
         return cls()
 
