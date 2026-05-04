@@ -4,7 +4,7 @@
 
 from typing import Any
 
-from haystack import component
+from haystack import component, default_from_dict, default_to_dict
 from haystack.dataclasses import Document
 from haystack.document_stores.types import FilterPolicy, apply_filter_policy
 
@@ -62,6 +62,34 @@ class FalkorDBEmbeddingRetriever:
         self.filters = filters
         self.top_k = top_k
         self.filter_policy = FilterPolicy(filter_policy) if isinstance(filter_policy, str) else filter_policy
+
+    def to_dict(self) -> dict[str, Any]:
+        """
+        Serialise the retriever to a dictionary.
+
+        :returns: Dictionary representation of the retriever.
+        """
+        return default_to_dict(
+            self,
+            document_store=self.document_store.to_dict(),
+            filters=self.filters,
+            top_k=self.top_k,
+            filter_policy=self.filter_policy.value,
+        )
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "FalkorDBEmbeddingRetriever":
+        """
+        Deserialise a `FalkorDBEmbeddingRetriever` produced by `to_dict`.
+
+        :param data: Serialised retriever dictionary.
+        :returns: Reconstructed `FalkorDBEmbeddingRetriever` instance.
+        """
+        init_params = data["init_parameters"]
+        init_params["document_store"] = FalkorDBDocumentStore.from_dict(init_params["document_store"])
+        if "filter_policy" in init_params:
+            init_params["filter_policy"] = FilterPolicy(init_params["filter_policy"])
+        return default_from_dict(cls, data)
 
     @component.output_types(documents=list[Document])
     def run(

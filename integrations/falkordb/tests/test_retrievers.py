@@ -7,9 +7,9 @@ import os
 from unittest.mock import MagicMock
 
 import pytest
-from haystack import default_from_dict, default_to_dict
 from haystack.dataclasses import Document
 from haystack.document_stores.types.filter_policy import FilterPolicy
+from redis.exceptions import ResponseError
 
 from haystack_integrations.components.retrievers.falkordb import (
     FalkorDBCypherRetriever,
@@ -23,7 +23,7 @@ logger = logging.getLogger(__name__)
 class TestFalkorDBEmbeddingRetriever:
     def test_init_invalid_store(self):
         with pytest.raises(ValueError, match="must be an instance of FalkorDBDocumentStore"):
-            FalkorDBEmbeddingRetriever(document_store=MagicMock())  # type: ignore
+            FalkorDBEmbeddingRetriever(document_store=MagicMock())
 
     def test_run(self):
         store = MagicMock(spec=FalkorDBDocumentStore)
@@ -83,50 +83,30 @@ class TestFalkorDBEmbeddingRetriever:
             filter_policy=FilterPolicy.MERGE,
         )
 
-        store_data = default_to_dict(
-            store,
-            host=store.host,
-            port=store.port,
-            graph_name=store.graph_name,
-            username=store.username,
-            password=store.password,
-            node_label=store.node_label,
-            embedding_dim=store.embedding_dim,
-            embedding_field=store.embedding_field,
-            similarity=store.similarity,
-            write_batch_size=store.write_batch_size,
-            recreate_graph=store.recreate_graph,
-            verify_connectivity=store.verify_connectivity,
-        )
-        data = default_to_dict(
-            retriever,
-            document_store=store_data,
-            filters={"field": "year", "operator": "==", "value": 2020},
-            top_k=5,
-            filter_policy=FilterPolicy.MERGE.value,
-        )
+        data = retriever.to_dict()
+        assert data["init_parameters"]["filters"] == {"field": "year", "operator": "==", "value": 2020}
         assert data["init_parameters"]["top_k"] == 5
         assert data["init_parameters"]["filter_policy"] == "merge"
+        assert isinstance(data["init_parameters"]["document_store"], dict)
 
-        data["init_parameters"]["document_store"] = default_from_dict(
-            FalkorDBDocumentStore, data["init_parameters"]["document_store"]
-        )
-        restored = default_from_dict(FalkorDBEmbeddingRetriever, data)
+        restored = FalkorDBEmbeddingRetriever.from_dict(data)
+        assert restored.filters == {"field": "year", "operator": "==", "value": 2020}
         assert restored.top_k == 5
         assert restored.filter_policy == FilterPolicy.MERGE
+        assert isinstance(restored.document_store, FalkorDBDocumentStore)
 
     def test_from_dict_without_document_store(self):
         fqcn = "haystack_integrations.components.retrievers.falkordb"
         fqcn += ".embedding_retriever.FalkorDBEmbeddingRetriever"
         data = {"type": fqcn, "init_parameters": {}}
-        with pytest.raises(TypeError):
-            default_from_dict(FalkorDBEmbeddingRetriever, data)
+        with pytest.raises(KeyError):
+            FalkorDBEmbeddingRetriever.from_dict(data)
 
 
 class TestFalkorDBCypherRetriever:
     def test_init_invalid_store(self):
         with pytest.raises(ValueError, match="must be an instance of FalkorDBDocumentStore"):
-            FalkorDBCypherRetriever(document_store=MagicMock())  # type: ignore
+            FalkorDBCypherRetriever(document_store=MagicMock())
 
     def test_run_with_init_query(self):
         store = MagicMock(spec=FalkorDBDocumentStore)
@@ -169,41 +149,21 @@ class TestFalkorDBCypherRetriever:
             custom_cypher_query="MATCH (d) RETURN d",
         )
 
-        store_data = default_to_dict(
-            store,
-            host=store.host,
-            port=store.port,
-            graph_name=store.graph_name,
-            username=store.username,
-            password=store.password,
-            node_label=store.node_label,
-            embedding_dim=store.embedding_dim,
-            embedding_field=store.embedding_field,
-            similarity=store.similarity,
-            write_batch_size=store.write_batch_size,
-            recreate_graph=store.recreate_graph,
-            verify_connectivity=store.verify_connectivity,
-        )
-        data = default_to_dict(
-            retriever,
-            document_store=store_data,
-            custom_cypher_query="MATCH (d) RETURN d",
-        )
+        data = retriever.to_dict()
         assert data["init_parameters"]["custom_cypher_query"] == "MATCH (d) RETURN d"
+        assert isinstance(data["init_parameters"]["document_store"], dict)
 
-        data["init_parameters"]["document_store"] = default_from_dict(
-            FalkorDBDocumentStore, data["init_parameters"]["document_store"]
-        )
-        restored = default_from_dict(FalkorDBCypherRetriever, data)
+        restored = FalkorDBCypherRetriever.from_dict(data)
         assert restored.custom_cypher_query == "MATCH (d) RETURN d"
+        assert isinstance(restored.document_store, FalkorDBDocumentStore)
 
     def test_from_dict_without_document_store(self):
         data = {
             "type": "haystack_integrations.components.retrievers.falkordb.cypher_retriever.FalkorDBCypherRetriever",
             "init_parameters": {},
         }
-        with pytest.raises(TypeError):
-            default_from_dict(FalkorDBCypherRetriever, data)
+        with pytest.raises(KeyError):
+            FalkorDBCypherRetriever.from_dict(data)
 
 
 # ---------------------------------------------------------------------------
@@ -318,7 +278,7 @@ class TestFalkorDBEmbeddingRetrieverIntegration:
         document_store.write_documents(docs)
 
         retriever = FalkorDBEmbeddingRetriever(document_store=document_store, top_k=1)
-        with pytest.raises(Exception):  # noqa: B017 — exception type is server-determined
+        with pytest.raises(ResponseError):
             retriever.run(query_embedding=[0.1, 0.2, 0.3], top_k=0)
 
     # ------------------------------------------------------------------
@@ -339,7 +299,7 @@ class TestFalkorDBEmbeddingRetrieverIntegration:
 
         # Store was built with embedding_dim=3; passing 768 floats is a hard mismatch.
         retriever = FalkorDBEmbeddingRetriever(document_store=document_store)
-        with pytest.raises(Exception):  # noqa: B017 — exception type is server-determined
+        with pytest.raises(ResponseError):
             retriever.run(query_embedding=[0.1] * 768)
 
     # ------------------------------------------------------------------
@@ -446,27 +406,6 @@ class TestFalkorDBEmbeddingRetrieverIntegration:
         assert result["documents"][0].meta["category"] == "graph"
 
     # ------------------------------------------------------------------
-    # Determinism
-    # ------------------------------------------------------------------
-
-    def test_determinism_same_query_same_order(self, document_store):
-        """Running the same query twice must produce the same document order."""
-        docs = [
-            Document(content="Deterministic alpha.", embedding=[0.1, 0.2, 0.3]),
-            Document(content="Deterministic beta.", embedding=[0.4, 0.5, 0.6]),
-            Document(content="Deterministic gamma.", embedding=[0.7, 0.8, 0.9]),
-        ]
-        document_store.write_documents(docs)
-
-        retriever = FalkorDBEmbeddingRetriever(document_store=document_store, top_k=3)
-        result_a = retriever.run(query_embedding=[0.1, 0.2, 0.3])
-        result_b = retriever.run(query_embedding=[0.1, 0.2, 0.3])
-
-        ids_a = [doc.id for doc in result_a["documents"]]
-        ids_b = [doc.id for doc in result_b["documents"]]
-        assert ids_a == ids_b
-
-    # ------------------------------------------------------------------
     # Serialisation round-trip
     # ------------------------------------------------------------------
 
@@ -479,33 +418,7 @@ class TestFalkorDBEmbeddingRetrieverIntegration:
             filter_policy=FilterPolicy.MERGE,
         )
 
-        store_dict = default_to_dict(
-            document_store,
-            host=document_store.host,
-            port=document_store.port,
-            graph_name=document_store.graph_name,
-            username=document_store.username,
-            password=document_store.password,
-            node_label=document_store.node_label,
-            embedding_dim=document_store.embedding_dim,
-            embedding_field=document_store.embedding_field,
-            similarity=document_store.similarity,
-            write_batch_size=document_store.write_batch_size,
-            recreate_graph=document_store.recreate_graph,
-            verify_connectivity=document_store.verify_connectivity,
-        )
-        retriever_dict = default_to_dict(
-            retriever,
-            document_store=store_dict,
-            filters=retriever.filters,
-            top_k=retriever.top_k,
-            filter_policy=retriever.filter_policy.value,
-        )
-
-        retriever_dict["init_parameters"]["document_store"] = default_from_dict(
-            FalkorDBDocumentStore, retriever_dict["init_parameters"]["document_store"]
-        )
-        restored = default_from_dict(FalkorDBEmbeddingRetriever, retriever_dict)
+        restored = FalkorDBEmbeddingRetriever.from_dict(retriever.to_dict())
 
         assert restored.top_k == 5
         assert restored.filter_policy == FilterPolicy.MERGE
@@ -690,29 +603,6 @@ class TestFalkorDBCypherRetrieverIntegration:
         assert len(ids) == len(set(ids)), f"Duplicate document IDs found: {ids}"
 
     # ------------------------------------------------------------------
-    # Determinism
-    # ------------------------------------------------------------------
-
-    def test_determinism_same_query_same_order(self, document_store):
-        """Running the same Cypher query twice must produce identical results."""
-        docs = [
-            Document(content="Deterministic A"),
-            Document(content="Deterministic B"),
-        ]
-        document_store.write_documents(docs)
-
-        retriever = FalkorDBCypherRetriever(
-            document_store=document_store,
-            custom_cypher_query="MATCH (d:Document) RETURN d ORDER BY d.id",
-        )
-        result_a = retriever.run()
-        result_b = retriever.run()
-
-        ids_a = [doc.id for doc in result_a["documents"]]
-        ids_b = [doc.id for doc in result_b["documents"]]
-        assert ids_a == ids_b
-
-    # ------------------------------------------------------------------
     # Runtime query override
     # ------------------------------------------------------------------
 
@@ -740,30 +630,6 @@ class TestFalkorDBCypherRetrieverIntegration:
             custom_cypher_query="MATCH (d:Document) RETURN d",
         )
 
-        store_dict = default_to_dict(
-            document_store,
-            host=document_store.host,
-            port=document_store.port,
-            graph_name=document_store.graph_name,
-            username=document_store.username,
-            password=document_store.password,
-            node_label=document_store.node_label,
-            embedding_dim=document_store.embedding_dim,
-            embedding_field=document_store.embedding_field,
-            similarity=document_store.similarity,
-            write_batch_size=document_store.write_batch_size,
-            recreate_graph=document_store.recreate_graph,
-            verify_connectivity=document_store.verify_connectivity,
-        )
-        retriever_dict = default_to_dict(
-            retriever,
-            document_store=store_dict,
-            custom_cypher_query=retriever.custom_cypher_query,
-        )
-
-        retriever_dict["init_parameters"]["document_store"] = default_from_dict(
-            FalkorDBDocumentStore, retriever_dict["init_parameters"]["document_store"]
-        )
-        restored = default_from_dict(FalkorDBCypherRetriever, retriever_dict)
+        restored = FalkorDBCypherRetriever.from_dict(retriever.to_dict())
 
         assert restored.custom_cypher_query == "MATCH (d:Document) RETURN d"

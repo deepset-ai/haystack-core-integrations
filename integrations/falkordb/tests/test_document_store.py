@@ -6,7 +6,6 @@ import logging
 import os
 
 import pytest
-from haystack import default_from_dict, default_to_dict
 from haystack.dataclasses import Document
 from haystack.testing.document_store import DocumentStoreBaseTests
 
@@ -30,28 +29,14 @@ class TestFalkorDBDocumentStoreSerialization:
             verify_connectivity=False,
         )
 
-        data = default_to_dict(
-            store,
-            host=store.host,
-            port=store.port,
-            graph_name=store.graph_name,
-            username=store.username,
-            password=store.password,
-            node_label=store.node_label,
-            embedding_dim=store.embedding_dim,
-            embedding_field=store.embedding_field,
-            similarity=store.similarity,
-            write_batch_size=store.write_batch_size,
-            recreate_graph=store.recreate_graph,
-            verify_connectivity=store.verify_connectivity,
-        )
+        data = store.to_dict()
 
         assert data["init_parameters"]["host"] == "myhost"
         assert data["init_parameters"]["port"] == 1234
         assert data["init_parameters"]["embedding_dim"] == 512
         assert data["init_parameters"]["similarity"] == "euclidean"
 
-        restored = default_from_dict(FalkorDBDocumentStore, data)
+        restored = FalkorDBDocumentStore.from_dict(data)
         assert restored.host == "myhost"
         assert restored.port == 1234
         assert restored.graph_name == "test_graph"

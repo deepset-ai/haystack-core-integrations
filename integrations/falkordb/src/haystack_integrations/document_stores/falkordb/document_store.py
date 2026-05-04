@@ -9,11 +9,12 @@ from dataclasses import replace
 from datetime import datetime
 from typing import Any, Literal
 
+from haystack import default_from_dict, default_to_dict
 from haystack.dataclasses import Document
 from haystack.document_stores.errors import DocumentStoreError, DuplicateDocumentError
 from haystack.document_stores.types import DocumentStore, DuplicatePolicy
 from haystack.errors import FilterError
-from haystack.utils import Secret
+from haystack.utils import Secret, deserialize_secrets_inplace
 from redis.exceptions import ResponseError
 
 import falkordb  # type: ignore[import-untyped,import-not-found]
@@ -129,6 +130,39 @@ class FalkorDBDocumentStore(DocumentStore):
 
         if verify_connectivity:
             self._ensure_connected()
+
+    def to_dict(self) -> dict[str, Any]:
+        """
+        Serialise the store to a dictionary suitable for `from_dict`.
+
+        :returns: Dictionary representation of the store.
+        """
+        return default_to_dict(
+            self,
+            host=self.host,
+            port=self.port,
+            graph_name=self.graph_name,
+            username=self.username,
+            password=self.password.to_dict() if self.password is not None else None,
+            node_label=self.node_label,
+            embedding_dim=self.embedding_dim,
+            embedding_field=self.embedding_field,
+            similarity=self.similarity,
+            write_batch_size=self.write_batch_size,
+            recreate_graph=self.recreate_graph,
+            verify_connectivity=self.verify_connectivity,
+        )
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> FalkorDBDocumentStore:
+        """
+        Deserialise a `FalkorDBDocumentStore` produced by `to_dict`.
+
+        :param data: Serialised store dictionary.
+        :returns: Reconstructed `FalkorDBDocumentStore` instance.
+        """
+        deserialize_secrets_inplace(data["init_parameters"], keys=["password"])
+        return default_from_dict(cls, data)
 
     # ------------------------------------------------------------------
     # Internal connection helpers
