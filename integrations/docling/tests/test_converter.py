@@ -8,6 +8,7 @@ from unittest.mock import MagicMock
 
 import pytest
 from docling.chunking import HybridChunker
+from docling.document_converter import DocumentConverter
 from docling_core.types.io import DocumentStream
 
 from haystack.dataclasses import ByteStream
@@ -162,6 +163,7 @@ def test_component_to_dict_defaults() -> None:
 
 def test_component_to_dict_custom_params() -> None:
     converter = DoclingConverter(
+        converter=DocumentConverter(),
         convert_kwargs={"raises_on_error": False},
         export_type=ExportType.MARKDOWN,
         md_export_kwargs={"image_placeholder": "[img]"},
@@ -234,10 +236,7 @@ def test_component_from_dict_custom_params() -> None:
 def test_component_to_dict_chunker_warns_and_is_dropped() -> None:
     converter = DoclingConverter(chunker=HybridChunker(merge_peers=False))
 
-    with pytest.warns(UserWarning, match="chunker"):
-        data = converter.to_dict()
-
-    assert data == {
+    assert converter.to_dict() == {
         "type": "haystack_integrations.components.converters.docling.converter.DoclingConverter",
         "init_parameters": {
             "converter": None,

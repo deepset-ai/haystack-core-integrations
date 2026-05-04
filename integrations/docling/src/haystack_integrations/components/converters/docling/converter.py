@@ -10,11 +10,13 @@ from pathlib import Path
 from typing import Any
 
 from docling_core.types.io import DocumentStream
-from haystack import Document, component
+from haystack import Document, component, logging
 from haystack.components.converters.utils import normalize_metadata
 from haystack.core.serialization import default_from_dict, default_to_dict
 from haystack.dataclasses import ByteStream
 from haystack.utils.base_serialization import deserialize_class_instance, serialize_class_instance
+
+logger = logging.getLogger(__name__)
 
 from docling.chunking import BaseChunk, BaseChunker, HybridChunker
 from docling.datamodel.document import DoclingDocument
@@ -136,12 +138,15 @@ class DoclingConverter:
 
     def to_dict(self) -> dict[str, Any]:
         """Serialize this component to a dictionary."""
+        if self.converter is not None:
+            logger.warning(
+                "DoclingConverter.to_dict: the 'converter' parameter cannot be serialized and will be dropped. "
+                "The component will use the default DocumentConverter when restored from the serialized form."
+            )
         if self.chunker is not None:
-            warnings.warn(
+            logger.warning(
                 "DoclingConverter.to_dict: the 'chunker' parameter cannot be serialized and will be dropped. "
-                "The converter will use the default chunker when restored from the serialized form.",
-                UserWarning,
-                stacklevel=2,
+                "The component will use the default chunker when restored from the serialized form."
             )
 
         meta_extractor_data = None
