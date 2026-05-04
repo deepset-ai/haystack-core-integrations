@@ -7,6 +7,7 @@ from typing import Any
 from unittest.mock import MagicMock
 
 import pytest
+from docling.chunking import HybridChunker
 from docling_core.types.io import DocumentStream
 from haystack.core.serialization import component_from_dict, component_to_dict
 from haystack.dataclasses import ByteStream
@@ -223,6 +224,15 @@ def test_component_from_dict_custom_params() -> None:
     assert restored.export_type == ExportType.JSON
     assert restored.md_export_kwargs == {"image_placeholder": "[img]"}
     assert isinstance(restored.meta_extractor, MetaExtractor)
+
+
+def test_component_to_dict_chunker_warns_and_is_dropped() -> None:
+    converter = DoclingConverter(chunker=HybridChunker(merge_peers=False))
+
+    with pytest.warns(UserWarning, match="chunker"):
+        data = component_to_dict(converter, "docling_converter")
+
+    assert data["init_parameters"]["chunker"] is None
 
 
 def test_run_with_sources_parameter() -> None:

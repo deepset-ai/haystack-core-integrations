@@ -12,12 +12,7 @@ from typing import Any
 from docling_core.types.io import DocumentStream
 from haystack import Document, component
 from haystack.components.converters.utils import normalize_metadata
-from haystack.core.serialization import (
-    default_from_dict,
-    default_to_dict,
-    generate_qualified_class_name,
-    import_class_by_name,
-)
+from haystack.core.serialization import default_from_dict, default_to_dict
 from haystack.dataclasses import ByteStream
 from haystack.utils.base_serialization import deserialize_class_instance, serialize_class_instance
 
@@ -141,20 +136,13 @@ class DoclingConverter:
 
     def to_dict(self) -> dict[str, Any]:
         """Serialize this component to a dictionary."""
-        chunker_data = None
         if self.chunker is not None:
-            try:
-                pydantic_data = self.chunker.model_dump(mode="json")
-            except Exception:
-                # Fall back to primitive fields only when complex nested objects
-                # (e.g. non-Pydantic serializer providers) block full JSON serialization.
-                raw = self.chunker.model_dump()
-                pydantic_data = {
-                    k: v
-                    for k, v in raw.items()
-                    if not k.startswith("_") and isinstance(v, (str, int, float, bool, type(None)))
-                }
-            chunker_data = {"type": generate_qualified_class_name(type(self.chunker)), "data": pydantic_data}
+            warnings.warn(
+                "DoclingConverter.to_dict: the 'chunker' parameter cannot be serialized and will be dropped. "
+                "The converter will use the default chunker when restored from the serialized form.",
+                UserWarning,
+                stacklevel=2,
+            )
 
         meta_extractor_data = None
         if self.meta_extractor is not None:
@@ -166,7 +154,7 @@ class DoclingConverter:
             convert_kwargs=self.convert_kwargs,
             export_type=self.export_type.value,
             md_export_kwargs=self.md_export_kwargs,
-            chunker=chunker_data,
+            chunker=None,
             meta_extractor=meta_extractor_data,
         )
 
@@ -174,11 +162,6 @@ class DoclingConverter:
     def from_dict(cls, data: dict[str, Any]) -> "DoclingConverter":
         """Deserialize this component from a dictionary."""
         init_params = data.get("init_parameters", {})
-
-        chunker_data = init_params.get("chunker")
-        if chunker_data is not None:
-            chunker_cls = import_class_by_name(chunker_data["type"])
-            init_params["chunker"] = chunker_cls.model_validate(chunker_data["data"])
 
         meta_extractor_data = init_params.get("meta_extractor")
         if meta_extractor_data is not None:
