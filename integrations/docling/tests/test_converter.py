@@ -9,7 +9,7 @@ from unittest.mock import MagicMock
 import pytest
 from docling.chunking import HybridChunker
 from docling_core.types.io import DocumentStream
-from haystack.core.serialization import component_from_dict, component_to_dict
+
 from haystack.dataclasses import ByteStream
 
 from haystack_integrations.components.converters.docling import (
@@ -135,8 +135,6 @@ def test_run_json_minimal() -> None:
 
 
 def test_legacy_import_path() -> None:
-    import warnings
-
     with warnings.catch_warnings(record=True) as caught:
         warnings.simplefilter("always")
         from docling_haystack.converter import DoclingConverter as LegacyDoclingConverter
@@ -149,15 +147,16 @@ def test_legacy_import_path() -> None:
 
 def test_component_to_dict_defaults() -> None:
     converter = DoclingConverter()
-    data = component_to_dict(converter, "docling_converter")
-
-    assert data["init_parameters"] == {
-        "converter": None,
-        "convert_kwargs": {},
-        "export_type": "doc_chunks",
-        "md_export_kwargs": {"image_placeholder": ""},
-        "chunker": None,
-        "meta_extractor": None,
+    assert converter.to_dict() == {
+        "type": "haystack_integrations.components.converters.docling.converter.DoclingConverter",
+        "init_parameters": {
+            "converter": None,
+            "convert_kwargs": {},
+            "export_type": "doc_chunks",
+            "md_export_kwargs": {"image_placeholder": ""},
+            "chunker": None,
+            "meta_extractor": None,
+        },
     }
 
 
@@ -168,15 +167,19 @@ def test_component_to_dict_custom_params() -> None:
         md_export_kwargs={"image_placeholder": "[img]"},
         meta_extractor=MetaExtractor(),
     )
-    data = component_to_dict(converter, "docling_converter")
-
-    init_params = data["init_parameters"]
-    assert init_params["convert_kwargs"] == {"raises_on_error": False}
-    assert init_params["export_type"] == "markdown"
-    assert init_params["md_export_kwargs"] == {"image_placeholder": "[img]"}
-    assert init_params["meta_extractor"] == {
-        "type": "haystack_integrations.components.converters.docling.converter.MetaExtractor",
-        "data": {},
+    assert converter.to_dict() == {
+        "type": "haystack_integrations.components.converters.docling.converter.DoclingConverter",
+        "init_parameters": {
+            "converter": None,
+            "convert_kwargs": {"raises_on_error": False},
+            "export_type": "markdown",
+            "md_export_kwargs": {"image_placeholder": "[img]"},
+            "chunker": None,
+            "meta_extractor": {
+                "type": "haystack_integrations.components.converters.docling.converter.MetaExtractor",
+                "data": {},
+            },
+        },
     }
 
 
@@ -193,7 +196,7 @@ def test_component_from_dict_defaults() -> None:
             "meta_extractor": None,
         },
     }
-    restored = component_from_dict(DoclingConverter, data, "docling_converter")
+    restored = DoclingConverter.from_dict(data)
 
     assert restored.converter is None
     assert restored.convert_kwargs == {}
@@ -218,11 +221,13 @@ def test_component_from_dict_custom_params() -> None:
             },
         },
     }
-    restored = component_from_dict(DoclingConverter, data, "docling_converter")
+    restored = DoclingConverter.from_dict(data)
 
+    assert restored.converter is None
     assert restored.convert_kwargs == {"raises_on_error": False}
     assert restored.export_type == ExportType.JSON
     assert restored.md_export_kwargs == {"image_placeholder": "[img]"}
+    assert restored.chunker is None
     assert isinstance(restored.meta_extractor, MetaExtractor)
 
 
@@ -230,9 +235,19 @@ def test_component_to_dict_chunker_warns_and_is_dropped() -> None:
     converter = DoclingConverter(chunker=HybridChunker(merge_peers=False))
 
     with pytest.warns(UserWarning, match="chunker"):
-        data = component_to_dict(converter, "docling_converter")
+        data = converter.to_dict()
 
-    assert data["init_parameters"]["chunker"] is None
+    assert data == {
+        "type": "haystack_integrations.components.converters.docling.converter.DoclingConverter",
+        "init_parameters": {
+            "converter": None,
+            "convert_kwargs": {},
+            "export_type": "doc_chunks",
+            "md_export_kwargs": {"image_placeholder": ""},
+            "chunker": None,
+            "meta_extractor": None,
+        },
+    }
 
 
 def test_run_with_sources_parameter() -> None:
