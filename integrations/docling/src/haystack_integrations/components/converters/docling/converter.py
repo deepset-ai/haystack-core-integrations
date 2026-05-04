@@ -165,7 +165,16 @@ class DoclingConverter:
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "DoclingConverter":
-        """Deserialize this component from a dictionary."""
+        """
+        Deserialize this component from a dictionary.
+
+        The `converter` and `chunker` parameters are not serializable and are always ignored during
+        deserialization; the restored instance will use the default `DocumentConverter` and `HybridChunker`
+        respectively.
+
+        :param data: Dictionary with keys `type` and `init_parameters`, as produced by `to_dict`.
+        :returns: A new `DoclingConverter` instance.
+        """
         init_params = data.get("init_parameters", {})
 
         meta_extractor_data = init_params.get("meta_extractor")
