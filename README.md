@@ -4,16 +4,16 @@
 
 | Name                                                                                               |    Stmts |     Miss |   Branch |   BrPart |   Cover |   Missing |
 |--------------------------------------------------------------------------------------------------- | -------: | -------: | -------: | -------: | ------: | --------: |
-| src/haystack\_integrations/components/retrievers/elasticsearch/bm25\_retriever.py                  |       36 |        2 |        4 |        1 |     92% |     74-75 |
+| src/haystack\_integrations/components/retrievers/elasticsearch/bm25\_retriever.py                  |       36 |        0 |        4 |        0 |    100% |           |
 | src/haystack\_integrations/components/retrievers/elasticsearch/elasticsearch\_hybrid\_retriever.py |       75 |        0 |       14 |        3 |     97% |340-\>344, 344-\>348, 348-\>352 |
-| src/haystack\_integrations/components/retrievers/elasticsearch/embedding\_retriever.py             |       35 |        2 |        4 |        1 |     92% |     73-74 |
-| src/haystack\_integrations/components/retrievers/elasticsearch/inference\_hybrid\_retriever.py     |       41 |       25 |        6 |        0 |     34% |70-85, 93, 113-118, 135-145, 162-172 |
+| src/haystack\_integrations/components/retrievers/elasticsearch/embedding\_retriever.py             |       35 |        0 |        4 |        0 |    100% |           |
+| src/haystack\_integrations/components/retrievers/elasticsearch/inference\_hybrid\_retriever.py     |       41 |        0 |        6 |        0 |    100% |           |
 | src/haystack\_integrations/components/retrievers/elasticsearch/inference\_sparse\_retriever.py     |       38 |        0 |        6 |        0 |    100% |           |
 | src/haystack\_integrations/components/retrievers/elasticsearch/sparse\_embedding\_retriever.py     |       35 |        0 |        4 |        0 |    100% |           |
 | src/haystack\_integrations/components/retrievers/elasticsearch/sql\_retriever.py                   |       53 |        2 |       14 |        2 |     94% |  129, 184 |
-| src/haystack\_integrations/document\_stores/elasticsearch/document\_store.py                       |      593 |      387 |      176 |       10 |     33% |144-145, 275-277, 312, 314, 324-325, 333-335, 341-362, 368-387, 398-405, 416-423, 437, 440-\>455, 484, 486, 516-517, 562-563, 566-567, 613-667, 691-744, 757, 766, 786-788, 808-833, 850-886, 899-914, 927-942, 956-977, 991-1012, 1034-1069, 1091-1129, 1149-1169, 1189-1212, 1466-1470, 1480-1485, 1498-1502, 1509-1517, 1535-1541, 1555-1580, 1598-1622, 1650-1656, 1682-1688, 1695, 1712-1714, 1724-1731, 1741-1748, 1773-1815, 1840-1882, 1898-1911, 1927-1940 |
-| src/haystack\_integrations/document\_stores/elasticsearch/filters.py                               |      135 |       49 |       72 |       11 |     64% |16-17, 49, 52, 67-76, 80-98, 107, 111-116, 118-119, 129, 133-138, 140-141, 151, 153-160, 162-163, 169-170, 175-178 |
-| **TOTAL**                                                                                          | **1041** |  **467** |  **300** |   **28** | **53%** |           |
+| src/haystack\_integrations/document\_stores/elasticsearch/document\_store.py                       |      627 |      364 |      204 |       19 |     41% |174-175, 343, 345, 355-356, 364-366, 372-403, 409-438, 449-456, 467-474, 488, 491-\>519, 550, 580-581, 626-627, 630-631, 677-\>682, 679-680, 682-\>685, 697-\>696, 723-742, 770-\>775, 772-773, 775-\>778, 788-\>787, 814-832, 847, 856, 876-878, 898-923, 940-976, 989-1004, 1017-1032, 1046-1067, 1081-1102, 1124-1159, 1181-1219, 1239-1259, 1279-1302, 1556-1560, 1570-1575, 1588-1592, 1599-1607, 1625-1631, 1645-1670, 1688-1712, 1740-1746, 1772-1778, 1785, 1802-1804, 1814-1821, 1831-1838, 1863-1905, 1930-1972, 1988-2001, 2017-2030 |
+| src/haystack\_integrations/document\_stores/elasticsearch/filters.py                               |      135 |        0 |       72 |        0 |    100% |           |
+| **TOTAL**                                                                                          | **1075** |  **366** |  **328** |   **24** | **65%** |           |
 
 
 ## Setup coverage badge
