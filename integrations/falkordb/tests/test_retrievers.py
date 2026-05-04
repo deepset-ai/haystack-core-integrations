@@ -10,6 +10,7 @@ import pytest
 from haystack import default_from_dict, default_to_dict
 from haystack.dataclasses import Document
 from haystack.document_stores.types.filter_policy import FilterPolicy
+
 from haystack_integrations.components.retrievers.falkordb import (
     FalkorDBCypherRetriever,
     FalkorDBEmbeddingRetriever,
@@ -317,7 +318,7 @@ class TestFalkorDBEmbeddingRetrieverIntegration:
         document_store.write_documents(docs)
 
         retriever = FalkorDBEmbeddingRetriever(document_store=document_store, top_k=1)
-        with pytest.raises(Exception):
+        with pytest.raises(Exception):  # noqa: B017 — exception type is server-determined
             retriever.run(query_embedding=[0.1, 0.2, 0.3], top_k=0)
 
     # ------------------------------------------------------------------
@@ -338,7 +339,7 @@ class TestFalkorDBEmbeddingRetrieverIntegration:
 
         # Store was built with embedding_dim=3; passing 768 floats is a hard mismatch.
         retriever = FalkorDBEmbeddingRetriever(document_store=document_store)
-        with pytest.raises(Exception):
+        with pytest.raises(Exception):  # noqa: B017 — exception type is server-determined
             retriever.run(query_embedding=[0.1] * 768)
 
     # ------------------------------------------------------------------
