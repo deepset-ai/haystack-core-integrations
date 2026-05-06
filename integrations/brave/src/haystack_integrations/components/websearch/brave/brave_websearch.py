@@ -55,14 +55,10 @@ class BraveWebSearch:
             Maximum number of results to return. Maps to the `count` parameter in the Brave API.
         :param country:
             2-letter country code to bias search results (e.g. `"US"`, `"DE"`).
-            See [Brave API docs](https://api-dashboard.search.brave.com/app/documentation/web-search/codes)
-            for supported values.
         :param search_lang:
             Language code for search results (e.g. `"en"`, `"de"`).
         :param extra_params:
             Additional query parameters passed directly to the Brave Search API.
-            See the [Brave API reference](https://api-dashboard.search.brave.com/app/documentation/web-search/query)
-            for all available options.
         :param timeout:
             Timeout in seconds for the HTTP request. Defaults to 10.
         :param max_retries:
