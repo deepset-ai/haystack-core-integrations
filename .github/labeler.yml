@@ -1,4 +1,9 @@
 # Integrations
+integration:alloydb:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/alloydb/**/*"
+      - any-glob-to-any-file: ".github/workflows/alloydb.yml"
+
 integration:aimlapi:
   - changed-files:
       - any-glob-to-any-file: "integrations/aimlapi/**/*"
@@ -39,6 +44,11 @@ integration:azure-doc-intelligence:
       - any-glob-to-any-file: "integrations/azure_doc_intelligence/**/*"
       - any-glob-to-any-file: ".github/workflows/azure_doc_intelligence.yml"
 
+integration:chonkie:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/chonkie/**/*"
+      - any-glob-to-any-file: ".github/workflows/chonkie.yml"
+
 integration:chroma:
   - changed-files:
       - any-glob-to-any-file: "integrations/chroma/**/*"
@@ -69,6 +79,16 @@ integration:docling-serve:
       - any-glob-to-any-file: "integrations/docling_serve/**/*"
       - any-glob-to-any-file: ".github/workflows/docling_serve.yml"
 
+integration:dspy:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/dspy/**/*"
+      - any-glob-to-any-file: ".github/workflows/dspy.yml"
+
+integration:e2b:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/e2b/**/*"
+      - any-glob-to-any-file: ".github/workflows/e2b.yml"
+
 integration:elasticsearch:
   - changed-files:
       - any-glob-to-any-file: "integrations/elasticsearch/**/*"
@@ -79,6 +99,11 @@ integration:faiss:
       - any-glob-to-any-file: "integrations/faiss/**/*"
       - any-glob-to-any-file: ".github/workflows/faiss.yml"
 
+
+integration:falkordb:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/falkordb/**/*"
+      - any-glob-to-any-file: ".github/workflows/falkordb.yml"
 
 integration:fastembed:
   - changed-files:
@@ -208,6 +233,11 @@ integration:pgvector:
       - any-glob-to-any-file: "integrations/pgvector/**/*"
       - any-glob-to-any-file: ".github/workflows/pgvector.yml"
 
+integration:presidio:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/presidio/**/*"
+      - any-glob-to-any-file: ".github/workflows/presidio.yml"
+
 integration:pinecone:
   - changed-files:
       - any-glob-to-any-file: "integrations/pinecone/**/*"
@@ -233,10 +263,20 @@ integration:snowflake:
       - any-glob-to-any-file: "integrations/snowflake/**/*"
       - any-glob-to-any-file: ".github/workflows/snowflake.yml"
 
+integration:sqlalchemy:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/sqlalchemy/**/*"
+      - any-glob-to-any-file: ".github/workflows/sqlalchemy.yml"
+
 integration:stackit:
   - changed-files:
       - any-glob-to-any-file: "integrations/stackit/**/*"
       - any-glob-to-any-file: ".github/workflows/stackit.yml"
+
+integration:supabase:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/supabase/**/*"
+      - any-glob-to-any-file: ".github/workflows/supabase.yml"
 
 integration:tavily:
   - changed-files:
@@ -257,6 +297,11 @@ integration:valkey:
   - changed-files:
       - any-glob-to-any-file: "integrations/valkey/**/*"
       - any-glob-to-any-file: ".github/workflows/valkey.yml"
+
+integration:vllm:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/vllm/**/*"
+      - any-glob-to-any-file: ".github/workflows/vllm.yml"
 
 integration:watsonx:
   - changed-files:

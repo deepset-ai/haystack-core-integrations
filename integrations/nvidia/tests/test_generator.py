@@ -230,3 +230,73 @@ class TestNvidiaGenerator:
         )
         with pytest.raises(ValueError):
             generator1.warm_up()
+
+    @pytest.mark.usefixtures("mock_local_models")
+    def test_warm_up_falls_back_to_default_model(self, monkeypatch):
+        monkeypatch.setenv("NVIDIA_API_KEY", "fake-api-key")
+        generator = NvidiaGenerator(api_url="http://localhost:8080/v1")
+
+        with pytest.warns(UserWarning, match="Default model is set as:"):
+            generator.warm_up()
+
+        assert generator._model == "model1"
+        assert generator.backend.model == "model1"
+        assert generator.to_dict()["init_parameters"]["model"] == "model1"
+
+    def test_default_model_raises_when_no_valid_models(self, monkeypatch, requests_mock):
+        monkeypatch.setenv("NVIDIA_API_KEY", "fake-api-key")
+        requests_mock.get(
+            "http://localhost:8080/v1/models",
+            json={"data": [{"id": "derived-model", "object": "model", "root": "base-model"}]},
+        )
+        generator = NvidiaGenerator(api_url="http://localhost:8080/v1")
+
+        with pytest.raises(ValueError, match="No locally hosted model was found"):
+            generator.warm_up()
+
+    def test_warm_up_is_idempotent(self, monkeypatch):
+        monkeypatch.setenv("NVIDIA_API_KEY", "fake-api-key")
+        generator = NvidiaGenerator("meta/llama3-8b-instruct")
+        generator.warm_up()
+        backend = generator.backend
+        generator.warm_up()
+        assert generator.backend is backend
+
+    def test_available_models_without_backend(self, monkeypatch):
+        monkeypatch.setenv("NVIDIA_API_KEY", "fake-api-key")
+        generator = NvidiaGenerator("meta/llama3-8b-instruct")
+        assert generator.available_models == []
+
+    @pytest.mark.usefixtures("mock_local_models")
+    def test_available_models_with_backend(self, monkeypatch):
+        monkeypatch.setenv("NVIDIA_API_KEY", "fake-api-key")
+        generator = NvidiaGenerator(model="model1", api_url="http://localhost:8080/v1")
+        generator.warm_up()
+        models = generator.available_models
+        assert len(models) == 1
+        assert models[0].id == "model1"
+
+    def test_from_dict(self, monkeypatch):
+        monkeypatch.setenv("NVIDIA_API_KEY", "fake-api-key")
+        data = {
+            "type": "haystack_integrations.components.generators.nvidia.generator.NvidiaGenerator",
+            "init_parameters": {
+                "api_key": {"env_vars": ["NVIDIA_API_KEY"], "strict": True, "type": "env_var"},
+                "api_url": "https://my.url.com/v1",
+                "model": "meta/llama3-8b-instruct",
+                "model_arguments": {"temperature": 0.5},
+            },
+        }
+        generator = NvidiaGenerator.from_dict(data)
+        assert generator._model == "meta/llama3-8b-instruct"
+        assert generator.api_url == "https://my.url.com/v1"
+        assert generator._model_arguments == {"temperature": 0.5}
+
+    def test_run(self, monkeypatch, mock_local_chat_completion):  # noqa: ARG002
+        monkeypatch.setenv("NVIDIA_API_KEY", "fake-api-key")
+        generator = NvidiaGenerator(model="model1", api_url="http://localhost:8080/v1")
+
+        result = generator.run(prompt="What is the answer?")
+
+        assert result["replies"] == ["Hello!", "How are you?"]
+        assert len(result["meta"]) == 2

@@ -8,7 +8,12 @@ from haystack.dataclasses import Document
 from haystack.errors import FilterError
 from haystack.testing.document_store import FilterDocumentsTest
 
-from haystack_integrations.document_stores.opensearch.filters import _normalize_ranges, normalize_filters
+from haystack_integrations.document_stores.opensearch.filters import (
+    _get_logical_condition_nested_path,
+    _get_nested_path,
+    _normalize_ranges,
+    normalize_filters,
+)
 
 filters_data = [
     (
@@ -181,6 +186,276 @@ filters_data = [
 ]
 
 
+# (Haystack filters, nested fields, OpenSearch filters)
+nested_filters_data = [
+    # Single condition on a nested sub-field (top-level comparison, no logical wrapper)
+    (
+        {"field": "meta.refs.law", "operator": "==", "value": "bgb"},
+        {"refs"},
+        {"bool": {"must": {"nested": {"path": "refs", "query": {"term": {"refs.law": "bgb"}}}}}},
+    ),
+    # AND of conditions on the same nested path -> single nested query
+    (
+        {
+            "operator": "AND",
+            "conditions": [
+                {"field": "meta.refs.law", "operator": "==", "value": "bgb"},
+                {"field": "meta.refs.section", "operator": "==", "value": "1"},
+            ],
+        },
+        {"refs"},
+        {
+            "bool": {
+                "must": [
+                    {
+                        "nested": {
+                            "path": "refs",
+                            "query": {
+                                "bool": {
+                                    "must": [
+                                        {"term": {"refs.law": "bgb"}},
+                                        {"term": {"refs.section": "1"}},
+                                    ]
+                                }
+                            },
+                        }
+                    }
+                ]
+            }
+        },
+    ),
+    # OR of conditions on the same nested path
+    (
+        {
+            "operator": "OR",
+            "conditions": [
+                {"field": "meta.refs.law", "operator": "==", "value": "bgb"},
+                {"field": "meta.refs.law", "operator": "==", "value": "stgb"},
+            ],
+        },
+        {"refs"},
+        {
+            "bool": {
+                "should": [
+                    {
+                        "nested": {
+                            "path": "refs",
+                            "query": {
+                                "bool": {
+                                    "should": [
+                                        {"term": {"refs.law": "bgb"}},
+                                        {"term": {"refs.law": "stgb"}},
+                                    ]
+                                }
+                            },
+                        }
+                    }
+                ]
+            }
+        },
+    ),
+    # Mixed: some conditions nested, some flat
+    (
+        {
+            "operator": "AND",
+            "conditions": [
+                {"field": "meta.refs.law", "operator": "==", "value": "bgb"},
+                {"field": "meta.status", "operator": "==", "value": "active"},
+            ],
+        },
+        {"refs"},
+        {
+            "bool": {
+                "must": [
+                    {"term": {"status": "active"}},
+                    {"nested": {"path": "refs", "query": {"term": {"refs.law": "bgb"}}}},
+                ]
+            }
+        },
+    ),
+    # Conditions on different nested paths
+    (
+        {
+            "operator": "AND",
+            "conditions": [
+                {"field": "meta.refs.law", "operator": "==", "value": "bgb"},
+                {"field": "meta.tags.name", "operator": "==", "value": "important"},
+            ],
+        },
+        {"refs", "tags"},
+        {
+            "bool": {
+                "must": [
+                    {"nested": {"path": "refs", "query": {"term": {"refs.law": "bgb"}}}},
+                    {"nested": {"path": "tags", "query": {"term": {"tags.name": "important"}}}},
+                ]
+            }
+        },
+    ),
+    # Logical sub-group (OR) on the same nested path -> absorbed into single nested query
+    (
+        {
+            "operator": "AND",
+            "conditions": [
+                {"field": "meta.refs.law", "operator": "==", "value": "bgb"},
+                {"field": "meta.refs.section", "operator": "==", "value": "1"},
+                {
+                    "operator": "OR",
+                    "conditions": [
+                        {"field": "meta.refs.paragraph", "operator": "==", "value": "a"},
+                        {"field": "meta.refs.paragraph", "operator": "==", "value": "b"},
+                    ],
+                },
+            ],
+        },
+        {"refs"},
+        {
+            "bool": {
+                "must": [
+                    {
+                        "nested": {
+                            "path": "refs",
+                            "query": {
+                                "bool": {
+                                    "must": [
+                                        {"term": {"refs.law": "bgb"}},
+                                        {"term": {"refs.section": "1"}},
+                                        {
+                                            "bool": {
+                                                "should": [
+                                                    {"term": {"refs.paragraph": "a"}},
+                                                    {"term": {"refs.paragraph": "b"}},
+                                                ]
+                                            }
+                                        },
+                                    ]
+                                }
+                            },
+                        }
+                    }
+                ]
+            }
+        },
+    ),
+    # Logical sub-group mixing nested paths -> NOT absorbed, each gets its own nested query
+    (
+        {
+            "operator": "AND",
+            "conditions": [
+                {"field": "meta.refs.law", "operator": "==", "value": "bgb"},
+                {
+                    "operator": "OR",
+                    "conditions": [
+                        {"field": "meta.refs.section", "operator": "==", "value": "1"},
+                        {"field": "meta.tags.name", "operator": "==", "value": "important"},
+                    ],
+                },
+            ],
+        },
+        {"refs", "tags"},
+        {
+            "bool": {
+                "must": [
+                    {
+                        "bool": {
+                            "should": [
+                                {"nested": {"path": "refs", "query": {"term": {"refs.section": "1"}}}},
+                                {"nested": {"path": "tags", "query": {"term": {"tags.name": "important"}}}},
+                            ]
+                        }
+                    },
+                    {"nested": {"path": "refs", "query": {"term": {"refs.law": "bgb"}}}},
+                ]
+            }
+        },
+    ),
+    # NOT of conditions on the same nested path
+    (
+        {
+            "operator": "NOT",
+            "conditions": [
+                {"field": "meta.refs.law", "operator": "==", "value": "bgb"},
+                {"field": "meta.refs.section", "operator": "==", "value": "1"},
+            ],
+        },
+        {"refs"},
+        {
+            "bool": {
+                "must_not": [
+                    {
+                        "bool": {
+                            "must": [
+                                {
+                                    "nested": {
+                                        "path": "refs",
+                                        "query": {
+                                            "bool": {
+                                                "must": [
+                                                    {"term": {"refs.law": "bgb"}},
+                                                    {"term": {"refs.section": "1"}},
+                                                ]
+                                            }
+                                        },
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                ]
+            }
+        },
+    ),
+    # NOT with mixed nested and flat fields
+    (
+        {
+            "operator": "NOT",
+            "conditions": [
+                {"field": "meta.refs.law", "operator": "==", "value": "bgb"},
+                {"field": "meta.status", "operator": "==", "value": "active"},
+            ],
+        },
+        {"refs"},
+        {
+            "bool": {
+                "must_not": [
+                    {
+                        "bool": {
+                            "must": [
+                                {"term": {"status": "active"}},
+                                {"nested": {"path": "refs", "query": {"term": {"refs.law": "bgb"}}}},
+                            ]
+                        }
+                    }
+                ]
+            }
+        },
+    ),
+    # Range conditions on the same nested sub-field -> merged inside nested query
+    (
+        {
+            "operator": "AND",
+            "conditions": [
+                {"field": "meta.refs.score", "operator": ">=", "value": 5},
+                {"field": "meta.refs.score", "operator": "<", "value": 10},
+            ],
+        },
+        {"refs"},
+        {
+            "bool": {
+                "must": [
+                    {
+                        "nested": {
+                            "path": "refs",
+                            "query": {"range": {"refs.score": {"gte": 5, "lt": 10}}},
+                        }
+                    }
+                ]
+            }
+        },
+    ),
+]
+
+
 @pytest.mark.parametrize("filters, expected", filters_data)
 def test_normalize_filters(filters, expected):
     result = normalize_filters(filters)
@@ -223,6 +498,89 @@ def test_normalize_ranges():
     assert conditions == [
         {"range": {"date": {"lt": "2021-01-01", "gte": "2015-01-01"}}},
     ]
+
+
+@pytest.mark.parametrize("filters, nested_fields, expected", nested_filters_data)
+def test_normalize_filters_with_nested_fields(filters, nested_fields, expected):
+    result = normalize_filters(filters, nested_fields=nested_fields)
+    assert result == expected
+
+
+class TestGetConditionNestedPath:
+    def test_with_meta_prefix(self):
+        condition = {"field": "meta.refs.law", "operator": "==", "value": "bgb"}
+        assert _get_nested_path(condition, {"refs"}) == "refs"
+
+    def test_without_meta_prefix(self):
+        condition = {"field": "refs.law", "operator": "==", "value": "bgb"}
+        assert _get_nested_path(condition, {"refs"}) == "refs"
+
+    def test_deeply_nested(self):
+        condition = {"field": "meta.a.b.c", "operator": "==", "value": "x"}
+        assert _get_nested_path(condition, {"a.b"}) == "a.b"
+
+    def test_field_is_nested_path_itself(self):
+        """The field itself is the nested path -- not a sub-field, so returns None."""
+        condition = {"field": "meta.refs", "operator": "==", "value": "x"}
+        assert _get_nested_path(condition, {"refs"}) is None
+
+    def test_no_nested_match(self):
+        condition = {"field": "meta.status", "operator": "==", "value": "active"}
+        assert _get_nested_path(condition, {"refs"}) is None
+
+    def test_empty_nested_fields(self):
+        condition = {"field": "meta.refs.law", "operator": "==", "value": "bgb"}
+        assert _get_nested_path(condition, set()) is None
+
+
+class TestGetLogicalConditionNestedPath:
+    def test_all_same_nested_path(self):
+        condition = {
+            "operator": "OR",
+            "conditions": [
+                {"field": "meta.refs.law", "operator": "==", "value": "bgb"},
+                {"field": "meta.refs.section", "operator": "==", "value": "1"},
+            ],
+        }
+        assert _get_logical_condition_nested_path(condition, {"refs"}) == "refs"
+
+    def test_mixed_nested_paths(self):
+        condition = {
+            "operator": "OR",
+            "conditions": [
+                {"field": "meta.refs.law", "operator": "==", "value": "bgb"},
+                {"field": "meta.tags.name", "operator": "==", "value": "important"},
+            ],
+        }
+        assert _get_logical_condition_nested_path(condition, {"refs", "tags"}) is None
+
+    def test_nested_logical_subgroup(self):
+        """Deeply nested logical groups that all target the same path."""
+        condition = {
+            "operator": "AND",
+            "conditions": [
+                {
+                    "operator": "OR",
+                    "conditions": [
+                        {"field": "meta.refs.law", "operator": "==", "value": "bgb"},
+                        {"field": "meta.refs.law", "operator": "==", "value": "stgb"},
+                    ],
+                },
+                {"field": "meta.refs.section", "operator": "==", "value": "1"},
+            ],
+        }
+        assert _get_logical_condition_nested_path(condition, {"refs"}) == "refs"
+
+    def test_some_non_nested(self):
+        """If some leaves are not on a nested path, returns None."""
+        condition = {
+            "operator": "OR",
+            "conditions": [
+                {"field": "meta.refs.law", "operator": "==", "value": "bgb"},
+                {"field": "meta.status", "operator": "==", "value": "active"},
+            ],
+        }
+        assert _get_logical_condition_nested_path(condition, {"refs"}) is None
 
 
 @pytest.mark.integration

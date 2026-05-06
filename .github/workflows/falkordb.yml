@@ -1,0 +1,155 @@
+# This workflow comes from https://github.com/ofek/hatch-mypyc
+# https://github.com/ofek/hatch-mypyc/blob/5a198c0ba8660494d02716cfc9d79ce4adfb1442/.github/workflows/test.yml
+name: Test / falkordb
+
+on:
+  schedule:
+    - cron: "0 0 * * *"
+  pull_request:
+    paths:
+      - "integrations/falkordb/**"
+      - "!integrations/falkordb/*.md"
+      - ".github/workflows/falkordb.yml"
+  push:
+    branches:
+      - main
+    paths:
+      - "integrations/falkordb/**"
+      - "!integrations/falkordb/*.md"
+      - ".github/workflows/falkordb.yml"
+
+defaults:
+  run:
+    working-directory: integrations/falkordb
+
+concurrency:
+  group: falkordb-${{ github.head_ref || github.sha }}
+  cancel-in-progress: true
+
+env:
+  PYTHONUNBUFFERED: "1"
+  FORCE_COLOR: "1"
+  TEST_MATRIX_OS: '["ubuntu-latest"]'
+  TEST_MATRIX_PYTHON: '["3.10", "3.14"]'
+
+jobs:
+  compute-test-matrix:
+    runs-on: ubuntu-slim
+    defaults:
+      run:
+        working-directory: .
+    outputs:
+      os: ${{ steps.set.outputs.os }}
+      python-version: ${{ steps.set.outputs.python-version }}
+    steps:
+      - id: set
+        run: |
+          echo 'os=${{ github.event_name == 'push' && '["ubuntu-latest"]' || env.TEST_MATRIX_OS }}' >> "$GITHUB_OUTPUT"
+          echo 'python-version=${{ github.event_name == 'push' && '["3.10"]' || env.TEST_MATRIX_PYTHON }}' >> "$GITHUB_OUTPUT"
+
+  run:
+    name: Python ${{ matrix.python-version }} on ${{ startsWith(matrix.os, 'macos-') && 'macOS' || startsWith(matrix.os, 'windows-') && 'Windows' || 'Linux' }}
+    needs: compute-test-matrix
+    permissions:
+      contents: write
+      pull-requests: write
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: ${{ fromJSON(needs.compute-test-matrix.outputs.os) }}
+        python-version: ${{ fromJSON(needs.compute-test-matrix.outputs.python-version) }}
+    services:
+      falkordb:
+        image: falkordb/falkordb:latest
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Support longpaths
+        if: matrix.os == 'windows-latest'
+        working-directory: .
+        run: git config --system core.longpaths true
+
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install Hatch
+        run: pip install --upgrade hatch
+      - name: Lint
+        if: matrix.python-version == '3.10' && runner.os == 'Linux'
+        run: hatch run fmt-check && hatch run test:types
+
+      - name: Run unit tests
+        run: hatch run test:unit-cov-retry
+
+      # On PR: posts coverage comment (directly on same-repo PRs; via artifact for fork PRs). On push to main: stores coverage baseline on data branch.
+      - name: Store unit tests coverage
+        id: coverage_comment
+        if: matrix.python-version == '3.10' && runner.os == 'Linux' && github.event_name != 'schedule'
+        uses: py-cov-action/python-coverage-comment-action@7188638f871f721a365d644f505d1ff3df20d683 # v3.40
+        with:
+          GITHUB_TOKEN: ${{ github.token }}
+          COVERAGE_PATH: integrations/falkordb
+          SUBPROJECT_ID: falkordb
+          MINIMUM_GREEN: 90
+          MINIMUM_ORANGE: 60
+
+      - name: Upload coverage comment to be posted
+        if: matrix.python-version == '3.10' && runner.os == 'Linux' && github.event_name == 'pull_request' && steps.coverage_comment.outputs.COMMENT_FILE_WRITTEN == 'true'
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        with:
+          name: coverage-comment-falkordb
+          path: python-coverage-comment-action-falkordb.txt
+
+      - name: Run integration tests
+        # Integration tests require a live FalkorDB instance via Docker.
+        # Docker services are only available on Linux runners.
+        if: runner.os == 'Linux'
+        env:
+          FALKORDB_HOST: localhost
+          FALKORDB_PORT: 6379
+        run: hatch run test:integration-cov-append-retry
+
+      - name: Store combined coverage
+        if: github.event_name == 'push'
+        uses: py-cov-action/python-coverage-comment-action@7188638f871f721a365d644f505d1ff3df20d683 # v3.40
+        with:
+          GITHUB_TOKEN: ${{ github.token }}
+          COVERAGE_PATH: integrations/falkordb
+          SUBPROJECT_ID: falkordb-combined
+          MINIMUM_GREEN: 90
+          MINIMUM_ORANGE: 60
+
+      - name: Run unit tests with lowest direct dependencies
+        if: github.event_name != 'push'
+        run: |
+          hatch run uv pip compile pyproject.toml --resolution lowest-direct --output-file requirements_lowest_direct.txt
+          hatch -e test env run -- uv pip install -r requirements_lowest_direct.txt
+          hatch run test:unit
+
+      - name: Nightly - run unit tests with Haystack main branch
+        if: github.event_name == 'schedule'
+        run: |
+          hatch env prune
+          hatch -e test env run -- uv pip install git+https://github.com/deepset-ai/haystack.git@main
+          hatch run test:unit
+
+
+  notify-slack-on-failure:
+    needs: run
+    if: failure() && github.event_name == 'schedule'
+    runs-on: ubuntu-slim
+    steps:
+      - uses: deepset-ai/notify-slack-action@3cda73b77a148f16f703274198e7771340cf862b # v1
+        with:
+          slack-webhook-url: ${{ secrets.SLACK_WEBHOOK_URL_NOTIFICATIONS }}

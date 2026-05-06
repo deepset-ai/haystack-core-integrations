@@ -673,7 +673,7 @@ class TestGoogleGenAIChatGeneratorInference:
 
         assert isinstance(tool_message, ChatMessage), "Tool message is not a ChatMessage instance"
         assert ChatMessage.is_from(tool_message, ChatRole.ASSISTANT), "Tool message is not from the assistant"
-        assert tool_message.meta["finish_reason"] == "stop"
+        assert tool_message.meta["finish_reason"] == "tool_calls"
 
         tool_call = tool_message.tool_calls[0]
         assert tool_call.tool_name == "weather"
@@ -693,7 +693,7 @@ class TestGoogleGenAIChatGeneratorInference:
 
         assert len(results["replies"]) == 1
         message = results["replies"][0]
-        assert message.meta["finish_reason"] == "stop"
+        assert message.meta["finish_reason"] == "tool_calls"
 
         # Google GenAI should make tool calls for both cities
         assert len(message.tool_calls) == 2
@@ -952,7 +952,7 @@ class TestAsyncGoogleGenAIChatGeneratorInference:
         assert len(tool_message.tool_calls) == 1, "Tool message has multiple tool calls"
         assert tool_message.tool_calls[0].tool_name == "weather"
         assert tool_message.tool_calls[0].arguments == {"city": "Paris"}
-        assert tool_message.meta["finish_reason"] == "stop"
+        assert tool_message.meta["finish_reason"] == "tool_calls"
 
     async def test_live_run_async_with_thinking(self):
         """

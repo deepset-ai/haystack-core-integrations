@@ -11,7 +11,9 @@ from haystack_integrations.common.amazon_bedrock.errors import (
     AmazonBedrockConfigurationError,
     AmazonBedrockInferenceError,
 )
-from haystack_integrations.components.embedders.amazon_bedrock import AmazonBedrockDocumentEmbedder
+from haystack_integrations.components.embedders.amazon_bedrock import (
+    AmazonBedrockDocumentEmbedder,
+)
 
 TYPE = "haystack_integrations.components.embedders.amazon_bedrock.document_embedder.AmazonBedrockDocumentEmbedder"
 
@@ -76,11 +78,31 @@ class TestAmazonBedrockDocumentEmbedder:
         expected_dict = {
             "type": TYPE,
             "init_parameters": {
-                "aws_access_key_id": {"type": "env_var", "env_vars": ["AWS_ACCESS_KEY_ID"], "strict": False},
-                "aws_secret_access_key": {"type": "env_var", "env_vars": ["AWS_SECRET_ACCESS_KEY"], "strict": False},
-                "aws_session_token": {"type": "env_var", "env_vars": ["AWS_SESSION_TOKEN"], "strict": False},
-                "aws_region_name": {"type": "env_var", "env_vars": ["AWS_DEFAULT_REGION"], "strict": False},
-                "aws_profile_name": {"type": "env_var", "env_vars": ["AWS_PROFILE"], "strict": False},
+                "aws_access_key_id": {
+                    "type": "env_var",
+                    "env_vars": ["AWS_ACCESS_KEY_ID"],
+                    "strict": False,
+                },
+                "aws_secret_access_key": {
+                    "type": "env_var",
+                    "env_vars": ["AWS_SECRET_ACCESS_KEY"],
+                    "strict": False,
+                },
+                "aws_session_token": {
+                    "type": "env_var",
+                    "env_vars": ["AWS_SESSION_TOKEN"],
+                    "strict": False,
+                },
+                "aws_region_name": {
+                    "type": "env_var",
+                    "env_vars": ["AWS_DEFAULT_REGION"],
+                    "strict": False,
+                },
+                "aws_profile_name": {
+                    "type": "env_var",
+                    "env_vars": ["AWS_PROFILE"],
+                    "strict": False,
+                },
                 "model": "cohere.embed-english-v3",
                 "input_type": "search_document",
                 "batch_size": 32,
@@ -98,11 +120,31 @@ class TestAmazonBedrockDocumentEmbedder:
         data = {
             "type": TYPE,
             "init_parameters": {
-                "aws_access_key_id": {"type": "env_var", "env_vars": ["AWS_ACCESS_KEY_ID"], "strict": False},
-                "aws_secret_access_key": {"type": "env_var", "env_vars": ["AWS_SECRET_ACCESS_KEY"], "strict": False},
-                "aws_session_token": {"type": "env_var", "env_vars": ["AWS_SESSION_TOKEN"], "strict": False},
-                "aws_region_name": {"type": "env_var", "env_vars": ["AWS_DEFAULT_REGION"], "strict": False},
-                "aws_profile_name": {"type": "env_var", "env_vars": ["AWS_PROFILE"], "strict": False},
+                "aws_access_key_id": {
+                    "type": "env_var",
+                    "env_vars": ["AWS_ACCESS_KEY_ID"],
+                    "strict": False,
+                },
+                "aws_secret_access_key": {
+                    "type": "env_var",
+                    "env_vars": ["AWS_SECRET_ACCESS_KEY"],
+                    "strict": False,
+                },
+                "aws_session_token": {
+                    "type": "env_var",
+                    "env_vars": ["AWS_SESSION_TOKEN"],
+                    "strict": False,
+                },
+                "aws_region_name": {
+                    "type": "env_var",
+                    "env_vars": ["AWS_DEFAULT_REGION"],
+                    "strict": False,
+                },
+                "aws_profile_name": {
+                    "type": "env_var",
+                    "env_vars": ["AWS_PROFILE"],
+                    "strict": False,
+                },
                 "model": "cohere.embed-english-v3",
                 "input_type": "search_document",
                 "batch_size": 32,
@@ -151,11 +193,17 @@ class TestAmazonBedrockDocumentEmbedder:
 
     def test_prepare_texts_to_embed_w_metadata(self, mock_boto3_session):
         documents = [
-            Document(content=f"document number {i}: content", meta={"meta_field": f"meta_value {i}"}) for i in range(5)
+            Document(
+                content=f"document number {i}: content",
+                meta={"meta_field": f"meta_value {i}"},
+            )
+            for i in range(5)
         ]
 
         embedder = AmazonBedrockDocumentEmbedder(
-            model="cohere.embed-english-v3", meta_fields_to_embed=["meta_field"], embedding_separator=" | "
+            model="cohere.embed-english-v3",
+            meta_fields_to_embed=["meta_field"],
+            embedding_separator=" | ",
         )
 
         prepared_texts = embedder._prepare_texts_to_embed(documents)
@@ -332,11 +380,17 @@ class TestAmazonBedrockDocumentEmbedder:
         or not os.getenv("AWS_DEFAULT_REGION"),
         reason="AWS credentials are not set",
     )
-    @pytest.mark.parametrize("model", ["cohere.embed-v4:0", "cohere.embed-english-v3", "amazon.titan-embed-text-v1"])
+    @pytest.mark.parametrize(
+        "model",
+        ["cohere.embed-v4:0", "cohere.embed-english-v3", "amazon.titan-embed-text-v1"],
+    )
     def test_live_run(self, model):
         embedder = AmazonBedrockDocumentEmbedder(model=model)
 
-        documents = [Document(content="this is a test document"), Document(content="I love pizza")]
+        documents = [
+            Document(content="this is a test document"),
+            Document(content="I love pizza"),
+        ]
 
         docs_with_embeddings = embedder.run(documents=documents)["documents"]
 

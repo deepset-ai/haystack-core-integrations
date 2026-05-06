@@ -21,6 +21,7 @@ from kreuzberg import (
 from haystack_integrations.components.converters.kreuzberg import KreuzbergConverter
 from haystack_integrations.components.converters.kreuzberg.utils import (
     _is_batch_error,
+    _serialize_keywords,
     _serialize_warnings,
 )
 
@@ -520,6 +521,26 @@ def test_helper_serialize_warnings_with_objects() -> None:
     w.message = "skipped element"
     result = _serialize_warnings([w])
     assert result == [{"source": "parser", "message": "skipped element"}]
+
+
+def test_helper_serialize_keywords() -> None:
+    k = MagicMock(spec=["text", "score", "algorithm", "positions"])
+    k.text = "haystack"
+    k.score = 0.87
+    k.algorithm = "yake"
+    k.positions = [(0, 8), (42, 50)]
+    assert _serialize_keywords([k]) == [
+        {"text": "haystack", "score": 0.87, "algorithm": "yake", "positions": [(0, 8), (42, 50)]}
+    ]
+
+
+def test_helper_serialize_keywords_with_none_positions() -> None:
+    k = MagicMock(spec=["text", "score", "algorithm", "positions"])
+    k.text = "kreuzberg"
+    k.score = 0.5
+    k.algorithm = "yake"
+    k.positions = None
+    assert _serialize_keywords([k]) == [{"text": "kreuzberg", "score": 0.5, "algorithm": "yake", "positions": None}]
 
 
 def test_build_config_skips_auto_language_detection_when_already_set() -> None:

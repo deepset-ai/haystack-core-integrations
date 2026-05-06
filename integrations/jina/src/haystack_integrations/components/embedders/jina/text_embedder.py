@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 from typing import Any
 
-import requests
+import httpx
 from haystack import component, default_from_dict, default_to_dict
 from haystack.utils import Secret, deserialize_secrets_inplace
 
@@ -74,14 +74,11 @@ class JinaTextEmbedder:
         self.base_url = base_url
         self.prefix = prefix
         self.suffix = suffix
-        self._session = requests.Session()
-        self._session.headers.update(
-            {
-                "Authorization": f"Bearer {resolved_api_key}",
-                "Accept-Encoding": "identity",
-                "Content-type": "application/json",
-            }
-        )
+        self._headers = {
+            "Authorization": f"Bearer {resolved_api_key}",
+            "Accept-Encoding": "identity",
+            "Content-type": "application/json",
+        }
         self.task = task
         self.dimensions = dimensions
         self.late_chunking = late_chunking
@@ -128,6 +125,37 @@ class JinaTextEmbedder:
         deserialize_secrets_inplace(data["init_parameters"], keys=["api_key"])
         return default_from_dict(cls, data)
 
+    def _validate_input(self, text: str) -> None:
+        if not isinstance(text, str):
+            msg = (
+                "JinaTextEmbedder expects a string as an input."
+                "In case you want to embed a list of Documents, please use the JinaDocumentEmbedder."
+            )
+            raise TypeError(msg)
+
+    def _prepare_request_payload(self, text: str) -> dict[str, Any]:
+        text_to_embed = self.prefix + text + self.suffix
+
+        payload: dict[str, Any] = {"input": [text_to_embed], "model": self.model_name}
+        if self.task is not None:
+            payload["task"] = self.task
+        if self.dimensions is not None:
+            payload["dimensions"] = self.dimensions
+        if self.late_chunking is not None:
+            payload["late_chunking"] = self.late_chunking
+
+        return payload
+
+    @staticmethod
+    def _parse_response(resp: dict[str, Any]) -> dict[str, Any]:
+        if "data" not in resp:
+            raise RuntimeError(resp["detail"])
+
+        metadata = {"model": resp["model"], "usage": dict(resp["usage"].items())}
+        embedding = resp["data"][0]["embedding"]
+
+        return {"embedding": embedding, "meta": metadata}
+
     @component.output_types(embedding=list[float], meta=dict[str, Any])
     def run(self, text: str) -> dict[str, Any]:
         """
@@ -139,32 +167,34 @@ class JinaTextEmbedder:
             - `meta`: A dictionary with metadata including the model name and usage statistics.
         :raises TypeError: If the input is not a string.
         """
-        if not isinstance(text, str):
-            msg = (
-                "JinaTextEmbedder expects a string as an input."
-                "In case you want to embed a list of Documents, please use the JinaDocumentEmbedder."
-            )
-            raise TypeError(msg)
+        self._validate_input(text)
+        payload = self._prepare_request_payload(text)
 
-        text_to_embed = self.prefix + text + self.suffix
+        with httpx.Client() as client:
+            response = client.post(self.base_url, json=payload, headers=self._headers)
+        resp = response.json()
 
-        parameters: dict[str, Any] = {}
-        if self.task is not None:
-            parameters["task"] = self.task
-        if self.dimensions is not None:
-            parameters["dimensions"] = self.dimensions
-        if self.late_chunking is not None:
-            parameters["late_chunking"] = self.late_chunking
+        return self._parse_response(resp)
 
-        resp = self._session.post(
-            self.base_url,
-            json={"input": [text_to_embed], "model": self.model_name, **parameters},
-        ).json()
+    @component.output_types(embedding=list[float], meta=dict[str, Any])
+    async def run_async(self, text: str) -> dict[str, Any]:
+        """
+        Asynchronously embed a string.
 
-        if "data" not in resp:
-            raise RuntimeError(resp["detail"])
+        This is the asynchronous version of the `run` method. It has the same parameters and return values
+        but can be used with `await` in async code.
 
-        metadata = {"model": resp["model"], "usage": dict(resp["usage"].items())}
-        embedding = resp["data"][0]["embedding"]
+        :param text: The string to embed.
+        :returns: A dictionary with following keys:
+            - `embedding`: The embedding of the input string.
+            - `meta`: A dictionary with metadata including the model name and usage statistics.
+        :raises TypeError: If the input is not a string.
+        """
+        self._validate_input(text)
+        payload = self._prepare_request_payload(text)
 
-        return {"embedding": embedding, "meta": metadata}
+        async with httpx.AsyncClient() as client:
+            response = await client.post(self.base_url, json=payload, headers=self._headers)
+        resp = response.json()
+
+        return self._parse_response(resp)

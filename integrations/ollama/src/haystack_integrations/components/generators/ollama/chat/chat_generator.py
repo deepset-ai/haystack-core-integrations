@@ -1,5 +1,6 @@
 import json
 from collections.abc import AsyncIterator, Callable, Iterator
+from dataclasses import replace
 from typing import Any, Literal
 
 from haystack import component, default_from_dict, default_to_dict
@@ -174,9 +175,12 @@ def _convert_ollama_response_to_chatmessage(ollama_response: ChatResponse) -> Ch
 
     reasoning = ollama_message.get("thinking", None)
 
-    chat_msg = ChatMessage.from_assistant(text=text or None, tool_calls=tool_calls, reasoning=reasoning)
-
-    chat_msg._meta = _convert_ollama_meta_to_openai_format(response_dict)
+    chat_msg = ChatMessage.from_assistant(
+        text=text or None,
+        tool_calls=tool_calls,
+        reasoning=reasoning,
+        meta=_convert_ollama_meta_to_openai_format(response_dict),
+    )
 
     return chat_msg
 
@@ -372,6 +376,10 @@ class OllamaChatGenerator:
         id_order: list[str] = []
         tool_call_index: int = 0
 
+        # track reasoning and content blocks to correctly set start=True on the first chunk of each block
+        reasoning_started = False
+        content_started = False
+
         # Stream
         for index, raw in enumerate(response_iter):
             if raw.message.tool_calls:
@@ -379,10 +387,16 @@ class OllamaChatGenerator:
             chunk = _build_chunk(
                 chunk_response=raw, component_info=component_info, index=index, tool_call_index=tool_call_index
             )
-            chunks.append(chunk)
 
-            start = index == 0 or bool(chunk.tool_calls)
-            chunk.start = start
+            if chunk.reasoning:
+                start = not reasoning_started or bool(chunk.tool_calls)
+                reasoning_started = True
+            else:
+                start = (not content_started) or bool(chunk.tool_calls)
+                content_started = True
+
+            chunk = replace(chunk, start=start)
+            chunks.append(chunk)
 
             if chunk.tool_calls:
                 for tool_call in chunk.tool_calls:
@@ -455,6 +469,10 @@ class OllamaChatGenerator:
         id_order: list[str] = []
         tool_call_index: int = 0
 
+        # track reasoning and content blocks to correctly set start=True on the first chunk of each block
+        reasoning_started = False
+        content_started = False
+
         # Stream
         index = 0
         async for raw in response_iter:
@@ -463,10 +481,16 @@ class OllamaChatGenerator:
             chunk = _build_chunk(
                 chunk_response=raw, component_info=component_info, index=index, tool_call_index=tool_call_index
             )
-            chunks.append(chunk)
 
-            start = index == 0 or bool(chunk.tool_calls)
-            chunk.start = start
+            if chunk.reasoning:
+                start = not reasoning_started or bool(chunk.tool_calls)
+                reasoning_started = True
+            else:
+                start = (not content_started) or bool(chunk.tool_calls)
+                content_started = True
+
+            chunk = replace(chunk, start=start)
+            chunks.append(chunk)
 
             if chunk.tool_calls:
                 for tool_call in chunk.tool_calls:

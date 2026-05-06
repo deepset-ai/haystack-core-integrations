@@ -1,5 +1,23 @@
 # Changelog
 
+## [integrations/ollama-v6.3.0] - 2026-04-10
+
+### 🐛 Bug Fixes
+
+- Replace in-place dataclass mutations with dataclasses.replace() (#3112)
+- Ollama - better reasoning streaming support (#3131)
+
+### 🧪 Testing
+
+- Track test coverage for all integrations (#3065)
+
+### 🧹 Chores
+
+- Add ANN ruff ruleset to llama_cpp, llama_stack, mcp, meta_llama, mistral, mongodb_atlas, nvidia, ollama, openrouter, opensearch (#2991)
+- Enforce ruff docstring rules (D102/D103/D205/D209/D213/D417/D419) in integrations 21-30 (#3010)
+- Increase lower pins for 3.14 support in some integrations + test with 3.14 (#3033)
+
+
 ## [integrations/ollama-v6.2.0] - 2026-03-09
 
 ### 🚀 Features

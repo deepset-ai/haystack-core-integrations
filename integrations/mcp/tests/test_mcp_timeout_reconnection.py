@@ -20,7 +20,13 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from haystack_integrations.tools.mcp import MCPTool, SSEServerInfo
-from haystack_integrations.tools.mcp.mcp_tool import SSEClient
+from haystack_integrations.tools.mcp.mcp_tool import (
+    MCPConnectionError,
+    MCPInvocationError,
+    SSEClient,
+    StdioClient,
+    StreamableHttpServerInfo,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -64,6 +70,70 @@ class TestMCPTimeoutReconnection:
 
         # Test that parameters are passed through correctly
         assert isinstance(client, SSEClient)
+
+    @pytest.mark.asyncio
+    async def test_call_tool_without_session_raises_connection_error(self):
+        client = StdioClient(command="echo")
+
+        with pytest.raises(MCPConnectionError):
+            await client.call_tool("any", {})
+
+    @pytest.mark.asyncio
+    async def test_call_tool_wraps_is_error_response_as_invocation_error(self):
+        client = StdioClient(command="echo")
+        client.session = AsyncMock()
+        bad_result = MagicMock()
+        bad_result.isError = True
+        bad_result.content = "server said no"
+        client.session.call_tool = AsyncMock(return_value=bad_result)
+
+        with pytest.raises(MCPInvocationError, match="server said no"):
+            await client.call_tool("x", {})
+
+    @pytest.mark.asyncio
+    async def test_call_tool_stdio_does_not_retry_on_connection_error(self):
+        client = StdioClient(command="echo", max_retries=2)
+        client.session = AsyncMock()
+        client.session.call_tool = AsyncMock(side_effect=ConnectionError("dead"))
+
+        with pytest.raises(MCPInvocationError, match="STDIO"):
+            await client.call_tool("x", {})
+
+        assert client.session.call_tool.await_count == 1
+
+    @pytest.mark.asyncio
+    async def test_call_tool_http_exhausts_retries_with_backoff(self):
+        info = StreamableHttpServerInfo(url="http://x/mcp", max_retries=2, base_delay=0.0, max_delay=0.0)
+        client = info.create_client()
+        client.session = AsyncMock()
+        client.session.call_tool = AsyncMock(side_effect=ConnectionError("lost"))
+        client.connect = AsyncMock()
+
+        with pytest.raises(MCPInvocationError, match="reconnection attempts"):
+            await client.call_tool("x", {})
+
+        assert client.session.call_tool.await_count == 3  # initial + 2 retries
+        assert client.connect.await_count == 2  # reconnection on the first two failures
+
+    @pytest.mark.asyncio
+    async def test_call_tool_http_reconnection_failures_raise_final_error(self):
+        info = StreamableHttpServerInfo(url="http://x/mcp", max_retries=1, base_delay=0.0, max_delay=0.0)
+        client = info.create_client()
+        client.session = AsyncMock()
+        client.session.call_tool = AsyncMock(side_effect=ConnectionError("lost"))
+        client.connect = AsyncMock(side_effect=RuntimeError("server gone"))
+
+        with pytest.raises(MCPInvocationError, match="reconnection attempts failed"):
+            await client.call_tool("x", {})
+
+    @pytest.mark.asyncio
+    async def test_call_tool_wraps_unexpected_exceptions(self):
+        client = StdioClient(command="echo")
+        client.session = AsyncMock()
+        client.session.call_tool = AsyncMock(side_effect=ValueError("nope"))
+
+        with pytest.raises(MCPInvocationError, match="nope"):
+            await client.call_tool("x", {})
 
     def test_retry_logic_with_mock(self):
         """Test retry logic using mocked SSE client (unit test)."""

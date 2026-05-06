@@ -1,11 +1,17 @@
+import json
 from typing import Any
 
-import aioboto3
+import aiobotocore.session
 from botocore.config import Config
 from botocore.eventstream import EventStream
 from botocore.exceptions import ClientError
 from haystack import component, default_from_dict, default_to_dict, logging
-from haystack.dataclasses import ChatMessage, ComponentInfo, StreamingCallbackT, select_streaming_callback
+from haystack.dataclasses import (
+    ChatMessage,
+    ComponentInfo,
+    StreamingCallbackT,
+    select_streaming_callback,
+)
 from haystack.tools import (
     ToolsType,
     _check_duplicate_tool_names,
@@ -14,7 +20,10 @@ from haystack.tools import (
     serialize_tools_or_toolset,
 )
 from haystack.utils.auth import Secret
-from haystack.utils.callable_serialization import deserialize_callable, serialize_callable
+from haystack.utils.callable_serialization import (
+    deserialize_callable,
+    serialize_callable,
+)
 
 from haystack_integrations.common.amazon_bedrock.errors import (
     AmazonBedrockConfigurationError,
@@ -197,9 +206,33 @@ class AmazonBedrockChatGenerator:
         :param aws_session_token: AWS session token.
         :param aws_region_name: AWS region name. Make sure the region you set supports Amazon Bedrock.
         :param aws_profile_name: AWS profile name.
-        :param generation_kwargs: Keyword arguments sent to the model. These parameters are specific to a model.
-            You can find the model specific arguments in the AWS Bedrock API
-            [documentation](https://docs.aws.amazon.com/bedrock/latest/userguide/model-parameters.html).
+        :param generation_kwargs: Optional dictionary of generation parameters. Some common parameters are:
+            - `maxTokens`: Maximum number of tokens to generate.
+            - `stopSequences`: List of stop sequences to stop generation.
+            - `temperature`: Sampling temperature.
+            - `topP`: Nucleus sampling parameter.
+            - `response_format`: Request structured JSON output validated against a schema. Provide a dict with:
+                - `schema` (required): a JSON Schema dict describing the expected output structure.
+                - `name` (optional): a name for the schema, defaults to ``"response_schema"``.
+                - `description` (optional): a description of the schema.
+
+                Example::
+
+                    generation_kwargs={
+                        "response_format": {
+                            "name": "person",
+                            "schema": {
+                                "type": "object",
+                                "properties": {"name": {"type": "string"}, "age": {"type": "integer"}},
+                                "required": ["name", "age"],
+                                "additionalProperties": False,
+                            },
+                        }
+                    }
+
+                When set, the parsed JSON object is stored in ``reply.meta["structured_output"]``.
+                You can find the model specific arguments in the AWS Bedrock API[documentation](https://docs.aws.amazon.com/bedrock/latest/userguide/model-parameters.html).
+
         :param streaming_callback: A callback function called when a new token is received from the stream.
             By default, the model is not set up for streaming. To enable streaming, set this parameter to a callback
             function that handles the streaming chunks. The callback function receives a
@@ -258,7 +291,8 @@ class AmazonBedrockChatGenerator:
             return secret.resolve_value() if secret else None
 
         config = Config(
-            user_agent_extra="x-client-framework:haystack", **(self.boto3_config if self.boto3_config else {})
+            user_agent_extra="x-client-framework:haystack",
+            **(self.boto3_config if self.boto3_config else {}),
         )
 
         try:
@@ -281,9 +315,9 @@ class AmazonBedrockChatGenerator:
             raise AmazonBedrockConfigurationError(msg) from exception
 
         self.generation_kwargs = generation_kwargs or {}
-        self.async_session: aioboto3.Session | None = None
+        self.async_session: aiobotocore.session.AioSession | None = None
 
-    def _get_async_session(self) -> aioboto3.Session:
+    def _get_async_session(self) -> aiobotocore.session.AioSession:
         """
         Initializes and returns an asynchronous AWS session for accessing Amazon Bedrock.
 
@@ -300,13 +334,7 @@ class AmazonBedrockChatGenerator:
 
         try:
             self.async_session = get_aws_session(
-                aws_access_key_id=self.aws_access_key_id.resolve_value() if self.aws_access_key_id else None,
-                aws_secret_access_key=(
-                    self.aws_secret_access_key.resolve_value() if self.aws_secret_access_key else None
-                ),
-                aws_session_token=self.aws_session_token.resolve_value() if self.aws_session_token else None,
-                aws_region_name=self.aws_region_name.resolve_value() if self.aws_region_name else None,
-                aws_profile_name=self.aws_profile_name.resolve_value() if self.aws_profile_name else None,
+                aws_profile_name=(self.aws_profile_name.resolve_value() if self.aws_profile_name else None),
                 async_mode=True,
             )
             return self.async_session
@@ -372,33 +400,14 @@ class AmazonBedrockChatGenerator:
         tools: ToolsType | None = None,
         requires_async: bool = False,
     ) -> tuple[dict[str, Any], StreamingCallbackT | None]:
-        """
-        Prepares and formats parameters required to call the Amazon Bedrock Converse API.
 
-        This includes merging default and runtime generation parameters, formatting messages and tools, and
-        selecting the appropriate streaming callback.
-
-        :param messages: List of `ChatMessage` objects representing the conversation history.
-        :param streaming_callback: Optional streaming callback provided at runtime.
-        :param generation_kwargs: Optional dictionary of generation parameters. Some common parameters are:
-            - `maxTokens`: Maximum number of tokens to generate.
-            - `stopSequences`: List of stop sequences to stop generation.
-            - `temperature`: Sampling temperature.
-            - `topP`: Nucleus sampling parameter.
-        :param tools: A list of Tool and/or Toolset objects, or a single Toolset for which the model can prepare calls.
-            Each tool should have a unique name.
-        :param requires_async: Boolean flag to indicate if an async-compatible streaming callback function is needed.
-
-        :returns:
-            A tuple of (API-ready parameter dictionary, streaming callback function).
-        """
         generation_kwargs = generation_kwargs or {}
 
         # Merge generation_kwargs with defaults
         merged_kwargs = self.generation_kwargs.copy()
         merged_kwargs.update(generation_kwargs)
 
-        merged_kwargs = self._resolve_flattened_generation_kwargs(merged_kwargs)
+        merged_kwargs = AmazonBedrockChatGenerator._resolve_flattened_generation_kwargs(merged_kwargs)
 
         # Extract known inference parameters
         # See https://docs.aws.amazon.com/bedrock/latest/APIReference/API_runtime_InferenceConfiguration.html
@@ -413,12 +422,33 @@ class AmazonBedrockChatGenerator:
         flattened_tools = flatten_tools_or_toolsets(tools)
         _check_duplicate_tool_names(flattened_tools)
         tool_config = merged_kwargs.pop("toolConfig", None)
+        response_format = merged_kwargs.pop("response_format", None)
         if flattened_tools:
             # Format Haystack tools to Bedrock format
             tool_config = _format_tools(flattened_tools, tools_cachepoint_config=self.tools_cachepoint_config)
 
         # Any remaining kwargs go to additionalModelRequestFields
         additional_fields = merged_kwargs if merged_kwargs else None
+
+        # Build outputConfig from response_format for structured output support.
+        # See https://docs.aws.amazon.com/bedrock/latest/userguide/structured-output.html
+        output_config: dict[str, Any] | None = None
+        if response_format is not None:
+            if "schema" not in response_format:
+                msg = "'response_format' must contain a 'schema' key with the JSON Schema dict."
+                raise ValueError(msg)
+            json_schema_block: dict[str, Any] = {
+                "name": response_format.get("name", "response_schema"),
+                "schema": json.dumps(response_format["schema"]),
+            }
+            if "description" in response_format:
+                json_schema_block["description"] = response_format["description"]
+            output_config = {
+                "textFormat": {
+                    "type": "json_schema",
+                    "structure": {"jsonSchema": json_schema_block},
+                }
+            }
 
         # Format messages to Bedrock format
         system_prompts, messages_list = _format_messages(messages)
@@ -434,6 +464,8 @@ class AmazonBedrockChatGenerator:
             params["toolConfig"] = tool_config
         if additional_fields:
             params["additionalModelRequestFields"] = additional_fields
+        if output_config:
+            params["outputConfig"] = output_config
         if self.guardrail_config:
             params["guardrailConfig"] = self.guardrail_config
 
@@ -447,7 +479,8 @@ class AmazonBedrockChatGenerator:
 
         return params, callback
 
-    def _resolve_flattened_generation_kwargs(self, generation_kwargs: dict[str, Any]) -> dict[str, Any]:
+    @staticmethod
+    def _resolve_flattened_generation_kwargs(generation_kwargs: dict[str, Any]) -> dict[str, Any]:
         generation_kwargs = generation_kwargs.copy()
 
         disable_parallel_tool_use = generation_kwargs.pop("disable_parallel_tool_use", None)
@@ -497,6 +530,7 @@ class AmazonBedrockChatGenerator:
             - `stopSequences`: List of stop sequences to stop generation.
             - `temperature`: Sampling temperature.
             - `topP`: Nucleus sampling parameter.
+            - `response_format`: Request structured JSON output validated against a schema.
         :param tools: A list of Tool and/or Toolset objects, or a single Toolset for which the model can prepare calls.
             Each tool should have a unique name.
 
@@ -558,6 +592,7 @@ class AmazonBedrockChatGenerator:
             - `stopSequences`: List of stop sequences to stop generation.
             - `temperature`: Sampling temperature.
             - `topP`: Nucleus sampling parameter.
+            - `response_format`: Request structured JSON output validated against a schema.
         :param tools: A list of Tool and/or Toolset objects, or a single Toolset for which the model can prepare calls.
             Each tool should have a unique name.
 
@@ -578,12 +613,20 @@ class AmazonBedrockChatGenerator:
 
         try:
             session = self._get_async_session()
-            # Note: https://aioboto3.readthedocs.io/en/latest/usage.html
-            # we need to create a new client for each request
             config = Config(
-                user_agent_extra="x-client-framework:haystack", **(self.boto3_config if self.boto3_config else {})
+                user_agent_extra="x-client-framework:haystack",
+                **(self.boto3_config if self.boto3_config else {}),
             )
-            async with session.client("bedrock-runtime", config=config) as async_client:
+            async with session.create_client(
+                "bedrock-runtime",
+                aws_access_key_id=(self.aws_access_key_id.resolve_value() if self.aws_access_key_id else None),
+                aws_secret_access_key=(
+                    self.aws_secret_access_key.resolve_value() if self.aws_secret_access_key else None
+                ),
+                aws_session_token=(self.aws_session_token.resolve_value() if self.aws_session_token else None),
+                region_name=(self.aws_region_name.resolve_value() if self.aws_region_name else None),
+                config=config,
+            ) as async_client:
                 if callback:
                     response = await async_client.converse_stream(**params)
                     response_stream: EventStream = response.get("stream")

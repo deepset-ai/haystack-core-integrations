@@ -1,3 +1,4 @@
+from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -28,6 +29,7 @@ from haystack_integrations.document_stores.qdrant.document_store import (
     SPARSE_VECTORS_NAME,
     QdrantDocumentStore,
     QdrantStoreError,
+    get_batches_from_generator,
 )
 
 
@@ -179,6 +181,194 @@ class TestQdrantDocumentStoreUnit:
         ):
             with pytest.raises(ValueError, match="different vector size"):
                 document_store._set_up_collection("test_collection", 768, False, "cosine", False, False)
+
+    def test_get_distance_known(self):
+        document_store = QdrantDocumentStore(location=":memory:")
+        assert document_store.get_distance("cosine") == rest.Distance.COSINE
+        assert document_store.get_distance("dot_product") == rest.Distance.DOT
+        assert document_store.get_distance("l2") == rest.Distance.EUCLID
+
+    def test_get_distance_unknown_raises(self):
+        document_store = QdrantDocumentStore(location=":memory:")
+        with pytest.raises(QdrantStoreError, match="not supported"):
+            document_store.get_distance("unknown")
+
+    def test_validate_filters_accepts_dict_and_native(self):
+        QdrantDocumentStore._validate_filters(None)
+        QdrantDocumentStore._validate_filters({"operator": "==", "field": "meta.x", "value": 1})
+        QdrantDocumentStore._validate_filters(rest.Filter(must=[]))
+
+    def test_validate_filters_rejects_non_dict_non_filter(self):
+        with pytest.raises(ValueError, match="must be a dictionary"):
+            QdrantDocumentStore._validate_filters("not-a-filter")
+
+    def test_validate_filters_rejects_dict_without_operator(self):
+        with pytest.raises(ValueError, match="Invalid filter syntax"):
+            QdrantDocumentStore._validate_filters({"field": "meta.x"})
+
+    def test_check_stop_scrolling(self):
+        assert QdrantDocumentStore._check_stop_scrolling(None) is True
+        empty_offset = SimpleNamespace(num=0, uuid="")
+        assert QdrantDocumentStore._check_stop_scrolling(empty_offset) is True
+        non_empty_offset = SimpleNamespace(num=5, uuid="abc")
+        assert QdrantDocumentStore._check_stop_scrolling(non_empty_offset) is False
+
+    def test_infer_type_from_value(self):
+        assert QdrantDocumentStore._infer_type_from_value(True) == "boolean"
+        assert QdrantDocumentStore._infer_type_from_value(1) == "long"
+        assert QdrantDocumentStore._infer_type_from_value(1.5) == "float"
+        assert QdrantDocumentStore._infer_type_from_value("x") == "keyword"
+        assert QdrantDocumentStore._infer_type_from_value([1, 2]) == "keyword"
+
+    def test_process_records_fields_info(self):
+        records = [
+            SimpleNamespace(payload={"meta": {"category": "A", "score": 0.9, "missing": None}}),
+            SimpleNamespace(payload={"meta": {"category": "B"}}),  # category already seen
+            SimpleNamespace(payload=None),  # no payload
+            SimpleNamespace(payload={"other": "noise"}),  # no meta
+        ]
+        field_info: dict = {}
+        QdrantDocumentStore._process_records_fields_info(records, field_info)
+        assert field_info == {"category": {"type": "keyword"}, "score": {"type": "float"}}
+
+    def test_metadata_fields_info_from_schema(self):
+        schema = {
+            "meta.category": SimpleNamespace(data_type="keyword"),
+            "meta.priority": SimpleNamespace(data_type="integer"),
+            "meta.unknown": object(),  # no data_type attribute
+            "not_meta_prefixed": SimpleNamespace(data_type="keyword"),
+        }
+        fields = QdrantDocumentStore._metadata_fields_info_from_schema(schema)
+        assert fields == {
+            "category": {"type": "keyword"},
+            "priority": {"type": "integer"},
+            "unknown": {"type": "unknown"},
+        }
+
+    def test_process_records_min_max(self):
+        records = [
+            SimpleNamespace(payload={"meta": {"score": 0.5}}),
+            SimpleNamespace(payload={"meta": {"score": 0.9}}),
+            SimpleNamespace(payload={"meta": {"score": None}}),
+            SimpleNamespace(payload={"meta": {"other": 100}}),
+            SimpleNamespace(payload=None),
+        ]
+        min_v, max_v = QdrantDocumentStore._process_records_min_max(records, "score", None, None)
+        assert min_v == 0.5
+        assert max_v == 0.9
+
+    def test_process_records_count_unique(self):
+        records = [
+            SimpleNamespace(payload={"meta": {"category": "A", "tags": ["x"]}}),
+            SimpleNamespace(payload={"meta": {"category": "B", "tags": ["x"]}}),
+            SimpleNamespace(payload={"meta": {"category": "A", "tags": ["y"]}}),
+            SimpleNamespace(payload=None),
+        ]
+        unique: dict = {"category": set(), "tags": set()}
+        QdrantDocumentStore._process_records_count_unique(records, ["category", "tags"], unique)
+        assert unique["category"] == {"A", "B"}
+        assert unique["tags"] == {"['x']", "['y']"}
+
+    def test_process_records_unique_values_stops_when_filled(self):
+        records = [SimpleNamespace(payload={"meta": {"v": i}}) for i in range(10)]
+        values: list = []
+        values_set: set = set()
+        done = QdrantDocumentStore._process_records_unique_values(records, "v", values, values_set, offset=0, limit=3)
+        assert done is True
+        assert values[:3] == [0, 1, 2]
+
+    def test_process_records_unique_values_not_done(self):
+        records = [SimpleNamespace(payload={"meta": {"v": 1}}), SimpleNamespace(payload=None)]
+        values: list = []
+        values_set: set = set()
+        done = QdrantDocumentStore._process_records_unique_values(records, "v", values, values_set, offset=0, limit=5)
+        assert done is False
+        assert values == [1]
+
+    def test_create_updated_point_from_record_adds_missing_meta(self):
+        record = SimpleNamespace(
+            id="abc",
+            payload={"content": "hello"},
+            vector=[0.1, 0.2],
+        )
+        point = QdrantDocumentStore._create_updated_point_from_record(record, {"status": "published"})
+        assert point.payload["meta"] == {"status": "published"}
+        assert point.payload["content"] == "hello"
+        assert point.vector == [0.1, 0.2]
+
+    def test_create_updated_point_from_record_merges_meta(self):
+        record = SimpleNamespace(
+            id="abc",
+            payload={"content": "hello", "meta": {"category": "A"}},
+            vector=None,
+        )
+        point = QdrantDocumentStore._create_updated_point_from_record(record, {"status": "published"})
+        assert point.payload["meta"] == {"category": "A", "status": "published"}
+        assert point.vector == {}
+
+    def test_drop_duplicate_documents(self):
+        document_store = QdrantDocumentStore(location=":memory:")
+        doc1 = Document(id="1", content="a")
+        doc2 = Document(id="2", content="b")
+        doc1_dup = Document(id="1", content="a")
+        result = document_store._drop_duplicate_documents([doc1, doc2, doc1_dup])
+        assert [d.id for d in result] == ["1", "2"]
+
+    def test_prepare_collection_config_without_sparse(self):
+        document_store = QdrantDocumentStore(location=":memory:", use_sparse_embeddings=False)
+        vectors_config, sparse_config = document_store._prepare_collection_config(
+            embedding_dim=768, distance=rest.Distance.COSINE
+        )
+        assert isinstance(vectors_config, rest.VectorParams)
+        assert sparse_config is None
+
+    def test_prepare_collection_config_with_sparse_and_idf(self):
+        document_store = QdrantDocumentStore(location=":memory:", use_sparse_embeddings=True)
+        vectors_config, sparse_config = document_store._prepare_collection_config(
+            embedding_dim=768, distance=rest.Distance.COSINE, sparse_idf=True
+        )
+        assert DENSE_VECTORS_NAME in vectors_config
+        assert sparse_config[SPARSE_VECTORS_NAME].modifier == rest.Modifier.IDF
+
+    def test_prepare_client_params_does_not_mutate_metadata(self):
+        metadata = {"key": "value"}
+        document_store = QdrantDocumentStore(location=":memory:", metadata=metadata)
+        params = document_store._prepare_client_params()
+        params["metadata"]["added"] = "x"
+        assert metadata == {"key": "value"}
+
+    def test_get_batches_from_generator(self):
+        batches = list(get_batches_from_generator([1, 2, 3, 4, 5], 2))
+        assert batches == [(1, 2), (3, 4), (5,)]
+        assert list(get_batches_from_generator([], 2)) == []
+
+    def test_query_by_sparse_raises_when_sparse_disabled(self):
+        document_store = QdrantDocumentStore(location=":memory:", use_sparse_embeddings=False)
+        sparse_embedding = SparseEmbedding(indices=[0, 1], values=[0.1, 0.2])
+        with pytest.raises(QdrantStoreError, match="use_sparse_embeddings=False"):
+            document_store._query_by_sparse(query_sparse_embedding=sparse_embedding)
+
+    @pytest.mark.parametrize(
+        ("method_name", "args", "expected"),
+        [
+            ("count_documents", (), 0),
+            ("count_documents_by_filter", ({},), 0),
+            ("get_metadata_fields_info", (), {}),
+            ("get_metadata_field_min_max", ("score",), {}),
+            ("count_unique_metadata_by_filter", ({}, ["category"]), {"category": 0}),
+            ("get_metadata_field_unique_values", ("category",), []),
+        ],
+    )
+    def test_metadata_methods_swallow_client_errors(self, method_name, args, expected):
+        document_store = QdrantDocumentStore(location=":memory:")
+        document_store._initialize_client()
+        err = ValueError("boom")
+        with (
+            patch.object(document_store._client, "count", side_effect=err),
+            patch.object(document_store._client, "scroll", side_effect=err),
+            patch.object(document_store._client, "get_collection", side_effect=err),
+        ):
+            assert getattr(document_store, method_name)(*args) == expected
 
 
 @pytest.mark.integration

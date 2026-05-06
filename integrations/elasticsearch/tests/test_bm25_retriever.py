@@ -12,6 +12,11 @@ from haystack_integrations.components.retrievers.elasticsearch import Elasticsea
 from haystack_integrations.document_stores.elasticsearch import ElasticsearchDocumentStore
 
 
+def test_init_rejects_non_elasticsearch_document_store():
+    with pytest.raises(ValueError, match="document_store must be an instance of ElasticsearchDocumentStore"):
+        ElasticsearchBM25Retriever(document_store=Mock())
+
+
 def test_init_default():
     mock_store = Mock(spec=ElasticsearchDocumentStore)
     retriever = ElasticsearchBM25Retriever(document_store=mock_store)
@@ -56,6 +61,8 @@ def test_to_dict(_mock_elasticsearch_client):
                     "custom_mapping": None,
                     "index": "default",
                     "embedding_similarity_function": "cosine",
+                    "sparse_vector_field": None,
+                    "ingest_pipeline": None,
                 },
                 "type": "haystack_integrations.document_stores.elasticsearch.document_store.ElasticsearchDocumentStore",
             },
@@ -74,7 +81,12 @@ def test_from_dict(_mock_elasticsearch_client):
         "type": "haystack_integrations.components.retrievers.elasticsearch.bm25_retriever.ElasticsearchBM25Retriever",
         "init_parameters": {
             "document_store": {
-                "init_parameters": {"hosts": "some fake host", "index": "default"},
+                "init_parameters": {
+                    "hosts": "some fake host",
+                    "index": "default",
+                    "sparse_vector_field": None,
+                    "ingest_pipeline": None,
+                },
                 "type": "haystack_integrations.document_stores.elasticsearch.document_store.ElasticsearchDocumentStore",
             },
             "filters": {},
@@ -99,7 +111,12 @@ def test_from_dict_no_filter_policy(_mock_elasticsearch_client):
         "type": "haystack_integrations.components.retrievers.elasticsearch.bm25_retriever.ElasticsearchBM25Retriever",
         "init_parameters": {
             "document_store": {
-                "init_parameters": {"hosts": "some fake host", "index": "default"},
+                "init_parameters": {
+                    "hosts": "some fake host",
+                    "index": "default",
+                    "sparse_vector_field": None,
+                    "ingest_pipeline": None,
+                },
                 "type": "haystack_integrations.document_stores.elasticsearch.document_store.ElasticsearchDocumentStore",
             },
             "filters": {},

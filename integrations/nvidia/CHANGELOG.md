@@ -1,5 +1,17 @@
 # Changelog
 
+## [integrations/nvidia-v1.1.1] - 2026-04-14
+
+### 🐛 Bug Fixes
+
+- Replace in-place dataclass mutations with dataclasses.replace() (#3112)
+
+### 🧪 Testing
+
+- Track test coverage for all integrations (#3065)
+- Add unit tests for Nvidia integration (#3162)
+
+
 ## [integrations/nvidia-v1.1.0] - 2026-03-30
 
 ### 🐛 Bug Fixes
