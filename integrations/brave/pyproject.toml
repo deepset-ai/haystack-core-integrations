@@ -3,7 +3,7 @@ requires = ["hatchling", "hatch-vcs"]
 build-backend = "hatchling.build"
 
 [project]
-name = "brave-search-haystack"
+name = "brave-haystack"
 dynamic = ["version"]
 description = "Haystack integration for Brave Search API"
 readme = "README.md"
