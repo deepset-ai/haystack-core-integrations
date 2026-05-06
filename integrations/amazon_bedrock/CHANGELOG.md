@@ -1,5 +1,28 @@
 # Changelog
 
+## [integrations/amazon_bedrock-v6.8.1] - 2026-04-22
+
+### 🐛 Bug Fixes
+
+- *(amazon-bedrock)* Prevent double-wrapping of tools_cachepoint_config in _format_tools (#3199)
+
+### 🧪 Testing
+
+- Bedrock - increase unit tests coverage (#3165)
+
+
+## [integrations/amazon_bedrock-v6.8.0] - 2026-04-09
+
+### 🚀 Features
+
+- Add JSON structured output support to `BedrockChatGenerator` (#3108)
+
+### 🧪 Testing
+
+- Track test coverage for all integrations (#3065)
+- Bedrock - use Sonnet 4.6 due to 3.5 EOL (#3071)
+
+
 ## [integrations/amazon_bedrock-v6.7.1] - 2026-03-25
 
 ### 📚 Documentation

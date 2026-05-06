@@ -93,7 +93,7 @@ def _format_tools(
         )
 
     if tools_cachepoint_config:
-        tool_specs.append({"cachePoint": tools_cachepoint_config})
+        tool_specs.append(tools_cachepoint_config)
 
     return {"tools": tool_specs}
 

@@ -37,6 +37,7 @@ from .utils import (
     _is_batch_error,
     _serialize_annotations,
     _serialize_images,
+    _serialize_keywords,
     _serialize_warnings,
 )
 
@@ -266,13 +267,15 @@ class KreuzbergConverter:
         Build metadata dict from an `ExtractionResult`.
 
         Flattens kreuzberg's metadata fields and enriches with top-level result attributes.
-
-        Fields already present in `result.metadata` (`quality_score`,
-        `output_format`, `keywords`) are passed through as-is - they
-        don't need separate serialization. None values are filtered out.
         """
         meta: dict[str, Any] = {k: v for k, v in result.metadata.items() if v is not None}
 
+        if result.output_format:
+            meta["output_format"] = result.output_format
+        if result.quality_score:
+            meta["quality_score"] = result.quality_score
+        if result.extracted_keywords:
+            meta["keywords"] = _serialize_keywords(result.extracted_keywords)
         if result.processing_warnings:
             meta["processing_warnings"] = _serialize_warnings(result.processing_warnings)
         if result.detected_languages:

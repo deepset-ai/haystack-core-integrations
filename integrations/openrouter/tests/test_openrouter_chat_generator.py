@@ -268,6 +268,33 @@ class TestOpenRouterChatGenerator:
         assert len(response["replies"]) == 1
         assert [isinstance(reply, ChatMessage) for reply in response["replies"]]
 
+    def test_prepare_api_call_with_tools_strict(self, chat_messages, tools, monkeypatch):
+        monkeypatch.setenv("OPENROUTER_API_KEY", "fake-api-key")
+        component = OpenRouterChatGenerator(tools=tools)
+        api_args = component._prepare_api_call(messages=chat_messages, tools_strict=True)
+
+        assert api_args["tools"][0]["type"] == "function"
+        function_spec = api_args["tools"][0]["function"]
+        assert function_spec["name"] == "weather"
+        assert function_spec["strict"] is True
+        assert function_spec["parameters"]["additionalProperties"] is False
+
+    def test_prepare_api_call_raises_when_streaming_with_multiple_responses(self, chat_messages, monkeypatch):
+        monkeypatch.setenv("OPENROUTER_API_KEY", "fake-api-key")
+        component = OpenRouterChatGenerator(generation_kwargs={"n": 2})
+        with pytest.raises(ValueError, match="Cannot stream multiple responses"):
+            component._prepare_api_call(messages=chat_messages, streaming_callback=print_streaming_chunk)
+
+    def test_prepare_api_call_with_response_format_and_streaming(self, chat_messages, monkeypatch):
+        monkeypatch.setenv("OPENROUTER_API_KEY", "fake-api-key")
+        response_format = {"type": "json_schema", "json_schema": {"name": "Foo", "schema": {"type": "object"}}}
+        component = OpenRouterChatGenerator(generation_kwargs={"response_format": response_format})
+        api_args = component._prepare_api_call(messages=chat_messages, streaming_callback=print_streaming_chunk)
+
+        assert api_args["stream"] is True
+        assert api_args["openai_endpoint"] == "create"
+        assert api_args["response_format"] == response_format
+
     @pytest.mark.skipif(
         not os.environ.get("OPENROUTER_API_KEY", None),
         reason="Export an env var called OPENROUTER_API_KEY containing the OpenRouter API key to run this test.",

@@ -11,6 +11,8 @@ import pytest
 from haystack import Document
 from haystack.components.preprocessors import DocumentSplitter
 from haystack.components.retrievers import SentenceWindowRetriever
+from haystack.dataclasses import ByteStream, SparseEmbedding
+from haystack.document_stores.types import DuplicatePolicy
 from haystack.testing.document_store import (
     CountDocumentsByFilterTest,
     CountDocumentsTest,
@@ -177,13 +179,13 @@ def test_discard_invalid_meta_invalid():
             ],
         },
     )
-    PineconeDocumentStore._discard_invalid_meta(invalid_metadata_doc)
+    result = PineconeDocumentStore._discard_invalid_meta(invalid_metadata_doc)
 
-    assert invalid_metadata_doc.meta["source_id"] == "62049ba1d1e1d5ebb1f6230b0b00c5356b8706c56e0b9c36b1dfc86084cd75f0"
-    assert invalid_metadata_doc.meta["page_number"] == 1
-    assert invalid_metadata_doc.meta["split_id"] == 0
-    assert invalid_metadata_doc.meta["split_idx_start"] == 0
-    assert "_split_overlap" not in invalid_metadata_doc.meta
+    assert result.meta["source_id"] == "62049ba1d1e1d5ebb1f6230b0b00c5356b8706c56e0b9c36b1dfc86084cd75f0"
+    assert result.meta["page_number"] == 1
+    assert result.meta["split_id"] == 0
+    assert result.meta["split_idx_start"] == 0
+    assert "_split_overlap" not in result.meta
 
 
 def test_discard_invalid_meta_valid():
@@ -194,10 +196,10 @@ def test_discard_invalid_meta_valid():
             "page_number": 1,
         },
     )
-    PineconeDocumentStore._discard_invalid_meta(valid_metadata_doc)
+    result = PineconeDocumentStore._discard_invalid_meta(valid_metadata_doc)
 
-    assert valid_metadata_doc.meta["source_id"] == "62049ba1d1e1d5ebb1f6230b0b00c5356b8706c56e0b9c36b1dfc86084cd75f0"
-    assert valid_metadata_doc.meta["page_number"] == 1
+    assert result.meta["source_id"] == "62049ba1d1e1d5ebb1f6230b0b00c5356b8706c56e0b9c36b1dfc86084cd75f0"
+    assert result.meta["page_number"] == 1
 
 
 def test_convert_meta_to_int():
@@ -228,6 +230,132 @@ def test_convert_meta_to_int():
     # Test with empty dict
     meta_data = {}
     assert PineconeDocumentStore._convert_meta_to_int(meta_data) == {}
+
+
+@pytest.mark.parametrize(
+    ("documents", "expected", "warning_fragment"),
+    [
+        ([], {}, None),
+        (
+            [Document(content="hello", meta={"flag": True})],
+            {"content": {"type": "text"}, "flag": {"type": "boolean"}},
+            None,
+        ),
+        (
+            [Document(content=None, meta={"tags": ["a", "b"]})],
+            {"tags": {"type": "keyword"}},
+            None,
+        ),
+        (
+            [Document(content=None, meta={"counts": [1, 2]})],
+            {"counts": {"type": "long"}},
+            None,
+        ),
+        (
+            [Document(content=None, meta={"empty": []})],
+            {"empty": {"type": "keyword"}},
+            None,
+        ),
+        (
+            [Document(content=None, meta={"pi": 3.14})],
+            {"pi": {"type": "long"}},
+            None,
+        ),
+        (
+            [
+                Document(content=None, meta={"value": 1}),
+                Document(content=None, meta={"value": "two"}),
+            ],
+            {"value": {"type": "keyword"}},
+            "mixed types",
+        ),
+    ],
+)
+def test_get_metadata_fields_info_impl_type_inference(documents, expected, warning_fragment, caplog):
+    with caplog.at_level("WARNING"):
+        result = PineconeDocumentStore._get_metadata_fields_info_impl(documents)
+    assert result == expected
+    if warning_fragment:
+        assert warning_fragment in caplog.text
+
+
+def test_get_metadata_field_min_max_impl_strips_meta_prefix_and_errors():
+    docs = [
+        Document(content="a", meta={"priority": 1}),
+        Document(content="b", meta={"priority": 5}),
+    ]
+    assert PineconeDocumentStore._get_metadata_field_min_max_impl(docs, "meta.priority") == {"min": 1, "max": 5}
+
+    with pytest.raises(ValueError, match="No values found"):
+        PineconeDocumentStore._get_metadata_field_min_max_impl(docs, "missing")
+
+
+def test_get_metadata_field_unique_values_impl_pagination_search_and_lists():
+    docs = [
+        Document(content="a", meta={"tags": ["python", "java"]}),
+        Document(content="b", meta={"tags": ["rust", "go"]}),
+        Document(content="c", meta={"tags": ["python"]}),
+    ]
+
+    values, total = PineconeDocumentStore._get_metadata_field_unique_values_impl(
+        docs, "tags", search_term=None, from_=0, size=10
+    )
+    assert total == 4
+    assert values == ["go", "java", "python", "rust"]
+
+    values, total = PineconeDocumentStore._get_metadata_field_unique_values_impl(
+        docs, "tags", search_term=None, from_=1, size=2
+    )
+    assert total == 4
+    assert values == ["java", "python"]
+
+    values, total = PineconeDocumentStore._get_metadata_field_unique_values_impl(
+        docs, "tags", search_term="PY", from_=0, size=10
+    )
+    assert total == 1
+    assert values == ["python"]
+
+
+def test_prepare_documents_for_writing_edge_cases(caplog):
+    ds = PineconeDocumentStore(api_key=Secret.from_token("fake-api-key"))
+
+    with pytest.raises(ValueError, match="must contain a list of objects of type Document"):
+        ds._prepare_documents_for_writing(["not-a-document"], policy=DuplicatePolicy.NONE)
+
+    docs = [
+        Document(content="no-embedding"),
+        Document(content="with-blob", embedding=[0.1] * 768, blob=ByteStream(data=b"data")),
+        Document(
+            content="with-sparse",
+            embedding=[0.1] * 768,
+            sparse_embedding=SparseEmbedding(indices=[0], values=[1.0]),
+        ),
+    ]
+    with caplog.at_level("WARNING"):
+        result = ds._prepare_documents_for_writing(docs, policy=DuplicatePolicy.SKIP)
+
+    assert len(result) == 3
+    assert result[0][1] == ds._dummy_vector
+    assert "only supports `DuplicatePolicy.OVERWRITE`" in caplog.text
+    assert "has no embedding" in caplog.text
+    assert "blob" in caplog.text
+    assert "sparse_embedding" in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_validation_errors_on_empty_query_and_non_dict_meta():
+    ds = PineconeDocumentStore(api_key=Secret.from_token("fake-api-key"))
+    filters = {"field": "meta.category", "operator": "==", "value": "A"}
+
+    with pytest.raises(ValueError, match="query_embedding must be a non-empty list"):
+        ds._embedding_retrieval(query_embedding=[])
+    with pytest.raises(ValueError, match="query_embedding must be a non-empty list"):
+        await ds._embedding_retrieval_async(query_embedding=[])
+
+    with pytest.raises(ValueError, match="meta must be a dictionary"):
+        ds.update_by_filter(filters=filters, meta="not-a-dict")
+    with pytest.raises(ValueError, match="meta must be a dictionary"):
+        await ds.update_by_filter_async(filters=filters, meta="not-a-dict")
 
 
 @pytest.mark.integration

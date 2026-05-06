@@ -5,6 +5,84 @@ from haystack.utils.filters import FilterError
 from qdrant_client.http import models
 
 from haystack_integrations.document_stores.qdrant import QdrantDocumentStore
+from haystack_integrations.document_stores.qdrant.filters import (
+    convert_filters_to_qdrant,
+    is_datetime_string,
+)
+
+
+class TestConvertFiltersToQdrantUnit:
+    def test_native_filter_passthrough(self):
+        native = models.Filter(must=[])
+        assert convert_filters_to_qdrant(native) is native
+
+    def test_none_or_empty_returns_none(self):
+        assert convert_filters_to_qdrant(None) is None
+        assert convert_filters_to_qdrant({}) is None
+        assert convert_filters_to_qdrant([]) is None
+
+    @pytest.mark.parametrize(
+        ("filter_input", "match"),
+        [
+            ({"field": "meta.x", "value": 1}, "Operator not found"),
+            ({"operator": "~=", "field": "meta.x", "value": 1}, "Unknown operator"),
+            ({"operator": "AND"}, "'conditions' not found"),
+            ({"operator": "==", "value": 1}, "'field' or 'value' not found"),
+            ({"operator": "==", "field": "meta.x"}, "'field' or 'value' not found"),
+            ({"operator": "in", "field": "meta.x", "value": "not-a-list"}, "is not a list"),
+            ({"operator": "not in", "field": "meta.x", "value": "not-a-list"}, "is not a list"),
+        ],
+    )
+    def test_invalid_filter_raises(self, filter_input, match):
+        with pytest.raises(FilterError, match=match):
+            convert_filters_to_qdrant(filter_input)
+
+    @pytest.mark.parametrize("operator", ["<", "<=", ">", ">="])
+    def test_range_operators_reject_non_numeric_non_datetime(self, operator):
+        with pytest.raises(FilterError, match="not an int or float or datetime string"):
+            convert_filters_to_qdrant({"operator": operator, "field": "meta.x", "value": "not-a-date"})
+
+    @pytest.mark.parametrize("operator", ["<", "<=", ">", ">="])
+    def test_range_operators_accept_datetime_strings(self, operator):
+        qdrant_filter = convert_filters_to_qdrant(
+            {"operator": operator, "field": "meta.created_at", "value": "2024-01-01T00:00:00"}
+        )
+        assert isinstance(qdrant_filter, models.Filter)
+
+    def test_eq_with_spaces_uses_text_match(self):
+        qdrant_filter = convert_filters_to_qdrant({"operator": "==", "field": "meta.title", "value": "hello world"})
+        condition = qdrant_filter.must[0]
+        assert isinstance(condition.match, models.MatchText)
+
+    def test_eq_without_spaces_uses_value_match(self):
+        qdrant_filter = convert_filters_to_qdrant({"operator": "==", "field": "meta.name", "value": "name_0"})
+        condition = qdrant_filter.must[0]
+        assert isinstance(condition.match, models.MatchValue)
+
+    def test_single_logical_condition_unwrapped(self):
+        qdrant_filter = convert_filters_to_qdrant(
+            {
+                "operator": "AND",
+                "conditions": [{"operator": "==", "field": "meta.x", "value": 1}],
+            }
+        )
+        # AND of single condition gets returned directly as the inner Filter
+        assert isinstance(qdrant_filter, models.Filter)
+
+    def test_multiple_top_level_conditions_combined_with_and(self):
+        qdrant_filter = convert_filters_to_qdrant(
+            [
+                {"operator": "==", "field": "meta.a", "value": 1},
+                {"operator": "==", "field": "meta.b", "value": 2},
+            ]
+        )
+        assert isinstance(qdrant_filter, models.Filter)
+        assert len(qdrant_filter.must) == 2
+
+
+def test_is_datetime_string():
+    assert is_datetime_string("2024-01-01T00:00:00") is True
+    assert is_datetime_string("not a date") is False
 
 
 @pytest.mark.integration

@@ -1,19 +1,15 @@
-import re
+import inspect
+from asyncio import Semaphore, gather
 from typing import Any, Union, cast, get_args, get_origin
 
-from haystack import Document, component
+from haystack import Document, component, default_from_dict, default_to_dict
 from haystack.dataclasses import ChatMessage
 from pydantic import ValidationError
 
-from ragas import evaluate
-from ragas.dataset_schema import (
-    EvaluationDataset,
-    EvaluationResult,
-    SingleTurnSample,
-)
-from ragas.embeddings import BaseRagasEmbeddings
-from ragas.llms import BaseRagasLLM
-from ragas.metrics import Metric
+from haystack_integrations.components.evaluators.ragas.utils import _deserialize_metric, _serialize_metric
+from ragas.dataset_schema import SingleTurnSample
+from ragas.metrics.base import SimpleBaseMetric
+from ragas.metrics.result import MetricResult
 
 
 @component
@@ -23,19 +19,21 @@ class RagasEvaluator:
 
     See the [Ragas framework](https://docs.ragas.io/) for more details.
 
+    This component supports the modern Ragas metrics API (`ragas.metrics.collections`).
+    Each metric must be a `SimpleBaseMetric` instance with its LLM configured at construction time.
+
     Usage example:
     ```python
-    from haystack.components.generators import OpenAIGenerator
+    from openai import AsyncOpenAI
+    from ragas.llms import llm_factory
+    from ragas.metrics.collections import Faithfulness
     from haystack_integrations.components.evaluators.ragas import RagasEvaluator
-    from ragas.metrics import ContextPrecision
-    from ragas.llms import HaystackLLMWrapper
 
-    llm = OpenAIGenerator(model="gpt-4o-mini")
-    evaluator_llm = HaystackLLMWrapper(llm)
+    client = AsyncOpenAI()
+    llm = llm_factory("gpt-4o-mini", client=client)
 
     evaluator = RagasEvaluator(
-        ragas_metrics=[ContextPrecision()],
-        evaluator_llm=evaluator_llm
+        ragas_metrics=[Faithfulness(llm=llm)],
     )
     output = evaluator.run(
         query="Which is the most popular global sport?",
@@ -53,52 +51,62 @@ class RagasEvaluator:
     ```
     """
 
-    def __init__(
-        self,
-        ragas_metrics: list[Metric],
-        evaluator_llm: BaseRagasLLM | None = None,
-        evaluator_embedding: BaseRagasEmbeddings | None = None,
-    ) -> None:
+    def __init__(self, ragas_metrics: list[SimpleBaseMetric], concurrency_limit: int = 4) -> None:
         """
         Constructs a new Ragas evaluator.
 
-        :param ragas_metrics: A list of evaluation metrics from the [Ragas](https://docs.ragas.io/) library.
-        :param evaluator_llm: A language model used by metrics that require LLMs for evaluation.
-        :param evaluator_embedding: An embedding model used by metrics that require embeddings for evaluation.
+        :param ragas_metrics: A list of modern Ragas metrics from `ragas.metrics.collections`.
+            Each metric must be fully configured (including its LLM) at construction time.
+            Available metrics can be found in the
+            [Ragas documentation](https://docs.ragas.io/en/stable/concepts/metrics/available_metrics/).
+        :param concurrency_limit: The maximum number of metric evaluations that should be allowed to run concurrently.
+            This parameter is only used in the `run_async` method.
         """
-        self._validate_inputs(ragas_metrics, evaluator_llm, evaluator_embedding)
+        self._validate_inputs(ragas_metrics)
         self.metrics = ragas_metrics
-        self.llm = evaluator_llm
-        self.embedding = evaluator_embedding
+        self.concurrency_limit = concurrency_limit
 
-    def _validate_inputs(
-        self,
-        metrics: list[Metric],
-        llm: BaseRagasLLM | None,
-        embedding: BaseRagasEmbeddings | None,
-    ) -> None:
+    @staticmethod
+    def _validate_inputs(metrics: list[SimpleBaseMetric]) -> None:
         """
         Validate input parameters.
 
-        :param metrics: List of Ragas metrics to validate
-        :param llm: Language model to validate
-        :param embedding: Embedding model to validate
-
+        :param metrics: List of Ragas metrics to validate.
         :return: None.
         """
-        if not all(isinstance(metric, Metric) for metric in metrics):
-            error_message = "All items in ragas_metrics must be instances of Metric class."
+        if not all(isinstance(metric, SimpleBaseMetric) for metric in metrics):
+            error_message = "All items in ragas_metrics must be instances of SimpleBaseMetric."
             raise TypeError(error_message)
 
-        if llm is not None and not isinstance(llm, BaseRagasLLM):
-            error_message = f"Expected evaluator_llm to be BaseRagasLLM, got {type(llm).__name__}"
-            raise TypeError(error_message)
+    def to_dict(self) -> dict[str, Any]:
+        """
+        Serialize this component to a dictionary.
 
-        if embedding is not None and not isinstance(embedding, BaseRagasEmbeddings):
-            error_message = f"Expected evaluator_embedding to be BaseRagasEmbeddings, got {type(embedding).__name__}"
-            raise TypeError(error_message)
+        :returns:
+            Dictionary with serialized data.
+        """
+        return default_to_dict(self, ragas_metrics=[_serialize_metric(m) for m in self.metrics])
 
-    @component.output_types(result=EvaluationResult)
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "RagasEvaluator":
+        """
+        Deserialize this component from a dictionary.
+
+        Metrics are reconstructed from their stored class path and LLM/embedding
+        configuration. Only the `openai` provider is supported for automatic
+        deserialization; the API key is read from the `OPENAI_API_KEY` environment
+        variable at load time.
+
+        :param data:
+            Dictionary to deserialize from.
+        :returns:
+            Deserialized component.
+        """
+        metrics_data = data.get("init_parameters", {}).get("ragas_metrics", [])
+        data["init_parameters"]["ragas_metrics"] = [_deserialize_metric(m) for m in metrics_data]
+        return default_from_dict(cls, data)
+
+    @component.output_types(result=dict[str, dict[str, MetricResult]])
     def run(
         self,
         query: str | None = None,
@@ -108,9 +116,9 @@ class RagasEvaluator:
         multi_responses: list[str] | None = None,
         reference: str | None = None,
         rubrics: dict[str, str] | None = None,
-    ) -> dict[str, Any]:
+    ) -> dict[str, dict[str, MetricResult]]:
         """
-        Evaluates the provided query against the documents and returns the evaluation result.
+        Evaluates the provided inputs against each metric and returns the results.
 
         :param query: The input query from the user.
         :param response: A list of ChatMessage responses (typically from a language model or agent).
@@ -120,7 +128,7 @@ class RagasEvaluator:
         :param reference: A string reference answer for the query.
         :param rubrics: A dictionary of evaluation rubric, where keys represent the score
                         and the values represent the corresponding evaluation criteria.
-        :return: A dictionary containing the evaluation result.
+        :return: A dictionary with key `result` mapping metric names to their `MetricResult`.
         """
         processed_docs = self._process_documents(documents)
         processed_response = self._process_response(response)
@@ -135,30 +143,112 @@ class RagasEvaluator:
                 reference=reference,
                 rubrics=rubrics,
             )
-
-        except (ValueError, ValidationError) as e:
+        except ValidationError as e:
             self._handle_conversion_error(e)
 
-        dataset = EvaluationDataset([sample])
+        results: dict[str, MetricResult] = {}
+        for metric in self.metrics:
+            results[metric.name] = self._score_metric(metric, sample)
+
+        return {"result": results}
+
+    @component.output_types(result=dict[str, dict[str, MetricResult]])
+    async def run_async(
+        self,
+        query: str | None = None,
+        response: list[ChatMessage] | str | None = None,
+        documents: list[Document | str] | None = None,
+        reference_contexts: list[str] | None = None,
+        multi_responses: list[str] | None = None,
+        reference: str | None = None,
+        rubrics: dict[str, str] | None = None,
+    ) -> dict[str, dict[str, MetricResult]]:
+        """
+        Asynchronously evaluates the provided inputs against each metric and returns the results.
+
+        :param query: The input query from the user.
+        :param response: A list of ChatMessage responses (typically from a language model or agent).
+        :param documents: A list of Haystack Document or strings that were retrieved for the query.
+        :param reference_contexts: A list of reference contexts that should have been retrieved for the query.
+        :param multi_responses: List of multiple responses generated for the query.
+        :param reference: A string reference answer for the query.
+        :param rubrics: A dictionary of evaluation rubric, where keys represent the score
+                        and the values represent the corresponding evaluation criteria.
+        :return: A dictionary with key `result` mapping metric names to their `MetricResult`.
+        """
+        processed_docs = self._process_documents(documents)
+        processed_response = self._process_response(response)
 
         try:
-            result = evaluate(
-                dataset=dataset,
-                metrics=self.metrics,
-                llm=self.llm,
-                embeddings=self.embedding,
+            sample = SingleTurnSample(
+                user_input=query,
+                retrieved_contexts=processed_docs,
+                reference_contexts=reference_contexts,
+                response=processed_response,
+                multi_responses=multi_responses,
+                reference=reference,
+                rubrics=rubrics,
             )
-        except (ValueError, ValidationError) as e:
-            self._handle_evaluation_error(e)
+        except ValidationError as e:
+            self._handle_conversion_error(e)
 
-        return {"result": result}
+        sem = Semaphore(max(1, self.concurrency_limit))
+
+        async def _runner(metric: SimpleBaseMetric) -> tuple[str, MetricResult]:
+            async with sem:
+                return metric.name, await self._score_metric_async(metric, sample)
+
+        pairs = await gather(*[_runner(m) for m in self.metrics])
+        results: dict[str, MetricResult] = dict(pairs)
+
+        return {"result": results}
+
+    def _score_metric(self, metric: SimpleBaseMetric, sample: SingleTurnSample) -> MetricResult:
+        """
+        Score a metric by inspecting its ascore() signature and passing only matching sample fields.
+
+        :param metric: A SimpleBaseMetric instance to score.
+        :param sample: The SingleTurnSample holding all available input fields.
+        :return: MetricResult from the metric.
+        """
+        sig = inspect.signature(metric.ascore)
+        excluded = {"self", "callbacks"}
+        valid_params = {
+            name
+            for name, param in sig.parameters.items()
+            if name not in excluded
+            and param.kind not in (inspect.Parameter.VAR_POSITIONAL, inspect.Parameter.VAR_KEYWORD)
+        }
+        sample_dict = sample.model_dump()
+        kwargs = {k: v for k, v in sample_dict.items() if k in valid_params and v is not None}
+        return metric.score(**kwargs)
+
+    async def _score_metric_async(self, metric: SimpleBaseMetric, sample: SingleTurnSample) -> MetricResult:
+        """
+        Score a metric by inspecting its ascore() signature and passing only matching sample fields.
+
+        :param metric: A SimpleBaseMetric instance to score.
+        :param sample: The SingleTurnSample holding all available input fields.
+        :return: MetricResult from the metric.
+        """
+        sig = inspect.signature(metric.ascore)
+        excluded = {"self", "callbacks"}
+        valid_params = {
+            name
+            for name, param in sig.parameters.items()
+            if name not in excluded
+            and param.kind not in (inspect.Parameter.VAR_POSITIONAL, inspect.Parameter.VAR_KEYWORD)
+        }
+        sample_dict = sample.model_dump()
+        kwargs = {k: v for k, v in sample_dict.items() if k in valid_params and v is not None}
+        return await metric.ascore(**kwargs)
 
     def _process_documents(self, documents: list[Document | str] | None) -> list[str] | None:
         """
         Process and validate input documents.
 
-        :param documents: List of Documents or strings to process
-        :return: List of document contents as strings or None
+        :param documents: List of Documents or strings to process.
+        :return: List of document contents as strings or None.
         """
         if documents is None:
             return None
@@ -178,10 +268,10 @@ class RagasEvaluator:
         """
         Process response into expected format.
 
-        :param response: Response to process
-        :return: None or Processed response string
+        :param response: Response to process.
+        :return: None or processed response string.
         """
-        if isinstance(response, list):  # Check if response is a list
+        if isinstance(response, list):
             if all(isinstance(item, ChatMessage) and item.text for item in response):
                 return response[0].text
             return None
@@ -191,15 +281,12 @@ class RagasEvaluator:
 
     def _handle_conversion_error(self, error: Exception) -> None:
         """
-        Handle evaluation errors with improved messages.
+        Re-raise pydantic validation errors from SingleTurnSample with Haystack-friendly field names.
 
-        :params error: Original error
+        :params error: Original error.
         """
         if isinstance(error, ValidationError):
-            field_mapping = {
-                "user_input": "query",
-                "retrieved_contexts": "documents",
-            }
+            field_mapping = {"user_input": "query", "retrieved_contexts": "documents"}
             for err in error.errors():
                 # loc is a tuple of strings and ints but according to pydantic docs, the first element is a string
                 # https://docs.pydantic.dev/latest/errors/errors/
@@ -210,32 +297,12 @@ class RagasEvaluator:
                 actual_type = type(err["input"]).__name__
                 example = self._get_example_input(haystack_field)
                 error_message = (
-                    f"Validation error occured while running RagasEvaluator Component:\n"
+                    f"Validation error occurred while running RagasEvaluator Component:\n"
                     f"The '{haystack_field}' field expected '{type_desc}', "
                     f"but got '{actual_type}'.\n"
                     f"Hint: Provide {example}"
                 )
                 raise ValueError(error_message)
-
-    def _handle_evaluation_error(self, error: Exception) -> None:
-        error_message = str(error)
-        columns_match = re.search(r"additional columns \[(.*?)\]", error_message)
-        field_mapping = {
-            "user_input": "query",
-            "retrieved_contexts": "documents",
-        }
-        if columns_match:
-            columns_str = columns_match.group(1)
-            columns = [col.strip().strip("'") for col in columns_str.split(",")]
-
-            mapped_columns = [field_mapping.get(col, col) for col in columns]
-            updated_columns_str = "[" + ", ".join(f"'{col}'" for col in mapped_columns) + "]"
-
-            # Update the list of columns in the error message
-            updated_error_message = error_message.replace(
-                columns_match.group(0), f"additional columns {updated_columns_str}"
-            )
-            raise ValueError(updated_error_message)
 
     def _get_expected_type_description(self, expected_type: Any) -> str:
         """Helper method to get a description of the expected type."""
@@ -252,21 +319,20 @@ class RagasEvaluator:
             value_type_name = getattr(value_type, "__name__", str(value_type))
             return f"a dictionary with keys of type {key_type_name} and values of type {value_type_name}"
         else:
-            # Handle non-generic types or unknown types gracefully
             return getattr(expected_type, "__name__", str(expected_type))
 
     def _get_example_input(self, field: str) -> str:
         """
         Helper method to get an example input based on the field.
 
-        :param field: Arguement used to make SingleTurnSample.
+        :param field: Argument used to make SingleTurnSample.
         :returns: Example usage for the field.
         """
         examples = {
             "query": "A string query like 'Question?'",
             "documents": "[Document(content='Example content')]",
             "reference_contexts": "['Example string 1', 'Example string 2']",
-            "response": "ChatMessage(_content='Hi', _role='assistant')",
+            "response": "ChatMessage.from_assistant('Hi')",
             "multi_responses": "['Response 1', 'Response 2']",
             "reference": "'A reference string'",
             "rubrics": "{'score1': 'high_similarity'}",

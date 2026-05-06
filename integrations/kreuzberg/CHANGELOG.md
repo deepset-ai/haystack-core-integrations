@@ -1,5 +1,20 @@
 # Changelog
 
+## [integrations/kreuzberg-v0.1.1] - 2026-04-07
+
+### 🐛 Bug Fixes
+
+- Fix kreuzberg for 4.7 breaking changes (#3110)
+
+### 🧪 Testing
+
+- Start tracking test coverage (#3061)
+
+### 🧹 Chores
+
+- Enforce ruff docstring rules (D102/D103/D205/D209/D213/D417/D419) in integrations 11-20 (#3009)
+
+
 ## [integrations/kreuzberg-v0.1.0] - 2026-03-20
 
 ### 🚀 Features

@@ -9,7 +9,7 @@ from unittest import mock
 
 import pytest
 from chromadb.api.shared_system_client import SharedSystemClient
-from haystack.dataclasses import ByteStream, Document
+from haystack.dataclasses import ByteStream, Document, SparseEmbedding
 from haystack.testing.document_store import (
     TEST_EMBEDDING_1,
     CountDocumentsByFilterTest,
@@ -27,6 +27,8 @@ from haystack.testing.document_store import (
 )
 
 from haystack_integrations.document_stores.chroma import ChromaDocumentStore
+from haystack_integrations.document_stores.chroma.errors import ChromaDocumentStoreConfigError
+from haystack_integrations.document_stores.chroma.utils import get_embedding_function
 
 
 @pytest.fixture
@@ -40,6 +42,11 @@ def clear_chroma_system_cache():
     SharedSystemClient.clear_system_cache()
     yield
     SharedSystemClient.clear_system_cache()
+
+
+def test_get_embedding_function_invalid_name_raises():
+    with pytest.raises(ChromaDocumentStoreConfigError, match="Invalid function name"):
+        get_embedding_function("NonExistentEmbeddingFunction")
 
 
 class TestDocumentStoreUnit:
@@ -124,6 +131,92 @@ class TestDocumentStoreUnit:
     def test_same_collection_name_reinitialization(self):
         ChromaDocumentStore("test_1")
         ChromaDocumentStore("test_1")
+
+    def test_ensure_initialized_invalid_client_settings_raises(self):
+        with mock.patch(
+            "haystack_integrations.document_stores.chroma.document_store.Settings",
+            side_effect=ValueError("bad setting"),
+        ):
+            store = ChromaDocumentStore(client_settings={"foo": "bar"})
+            with pytest.raises(ValueError, match="Invalid client_settings"):
+                store._ensure_initialized()
+
+    def test_infer_type_from_value_fallback_for_unknown_type(self):
+        assert ChromaDocumentStore._infer_type_from_value(None) == "keyword"
+        assert ChromaDocumentStore._infer_type_from_value(["a", "b"]) == "keyword"
+
+    def test_count_unique_metadata_empty_returns_zero_counts(self):
+        assert ChromaDocumentStore._count_unique_metadata(None, ["a", "b"]) == {"a": 0, "b": 0}
+        assert ChromaDocumentStore._count_unique_metadata([], ["x"]) == {"x": 0}
+
+    def test_compute_field_min_max_skips_non_scalar_values(self):
+        metadatas = [{"cat": ["a", "b"]}, {"cat": "X"}, {"cat": "Z"}]
+        result = ChromaDocumentStore._compute_field_min_max(metadatas, "cat")
+        assert result == {"min": "X", "max": "Z"}
+
+    @pytest.mark.parametrize(
+        "result",
+        [
+            {"ids": ["1"], "documents": None, "metadatas": [{"cat": "A"}]},
+            {"ids": ["1"], "documents": ["hello world"], "metadatas": [{"cat": "A"}]},
+        ],
+        ids=["documents_none", "no_matches"],
+    )
+    def test_compute_field_unique_values_with_search_term_edge_cases(self, result):
+        values, total = ChromaDocumentStore._compute_field_unique_values(result, "cat", "absent", 0, 10)
+        assert values == []
+        assert total == 0
+
+    def test_filter_metadata_discards_unsupported_types(self, caplog):
+        meta = {"ok": "x", "also_ok": None, "bad": {"nested": 1}, "worse": object()}
+        with caplog.at_level(logging.WARNING):
+            result = ChromaDocumentStore._filter_metadata(meta)
+        assert result == {"ok": "x", "also_ok": None}
+        assert "bad" in caplog.text and "worse" in caplog.text
+
+    def test_convert_document_to_chroma_rejects_non_document(self):
+        with pytest.raises(ValueError, match="must contain a list of objects of type Document"):
+            ChromaDocumentStore._convert_document_to_chroma("not a document")  # type: ignore[arg-type]
+
+    def test_convert_document_to_chroma_warns_on_sparse_embedding(self, caplog):
+        doc = Document(content="hello", sparse_embedding=SparseEmbedding(indices=[0, 1], values=[0.1, 0.2]))
+        with caplog.at_level(logging.WARNING):
+            data = ChromaDocumentStore._convert_document_to_chroma(doc)
+        assert data is not None
+        assert "sparse_embedding" in caplog.text
+
+    @pytest.mark.parametrize(
+        ("result", "expected_embedding"),
+        [
+            (
+                {"ids": ["1"], "documents": ["c"], "metadatas": [{"k": "v"}], "embeddings": [[0.1, 0.2]]},
+                [0.1, 0.2],
+            ),
+            ({"ids": ["1"], "documents": ["c"], "metadatas": [None]}, None),
+        ],
+        ids=["list_embeddings", "no_embeddings"],
+    )
+    def test_get_result_to_documents_embedding_variants(self, result, expected_embedding):
+        docs = ChromaDocumentStore._get_result_to_documents(result)  # type: ignore[arg-type]
+        assert docs[0].embedding == expected_embedding
+
+    @pytest.mark.parametrize(
+        ("result", "check"),
+        [
+            ({"documents": None}, lambda docs: docs == []),
+            (
+                {"ids": [["a", "b"]], "documents": [["c1", "c2"]], "metadatas": [[{"k": "v"}]]},
+                lambda docs: docs[0][0].meta == {"k": "v"} and docs[0][1].meta == {},
+            ),
+            (
+                {"ids": [["a"]], "documents": [["c"]], "metadatas": [[{"k": "v"}]]},
+                lambda docs: docs[0][0].embedding is None and docs[0][0].score is None,
+            ),
+        ],
+        ids=["documents_none", "metadata_index_error", "no_embeddings_no_distances"],
+    )
+    def test_query_result_to_documents_edge_cases(self, result, check):
+        assert check(ChromaDocumentStore._query_result_to_documents(result))  # type: ignore[arg-type]
 
 
 @pytest.mark.integration

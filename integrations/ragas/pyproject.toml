@@ -23,7 +23,7 @@ classifiers = [
   "Programming Language :: Python :: Implementation :: CPython",
   "Programming Language :: Python :: Implementation :: PyPy",
 ]
-dependencies = ["haystack-ai>=2.22.0", "ragas>=0.2.6,<0.3.0"]
+dependencies = ["haystack-ai>=2.22.0", "ragas>=0.4.3"]
 
 [project.urls]
 Source = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/ragas"
@@ -82,7 +82,7 @@ ignore_missing_imports = true
 
 [tool.ruff]
 line-length = 120
-exclude = ["example", "tests"]
+exclude = ["example"]
 
 [tool.ruff.lint]
 select = [
@@ -151,7 +151,7 @@ ban-relative-imports = "all"
 
 [tool.ruff.lint.per-file-ignores]
 # Tests can use magic values, assertions, and relative imports
-"tests/**/*" = ["D", "PLR2004", "S101", "TID252", "ANN"]
+"tests/**/*" = ["D", "PLR2004", "S101", "TID252", "ANN", "ARG"]
 
 [tool.coverage.run]
 source = ["haystack_integrations"]
@@ -164,3 +164,10 @@ parallel = false
 omit = ["*/tests/*", "*/__init__.py"]
 show_missing = true
 exclude_lines = ["no cov", "if __name__ == .__main__.:", "if TYPE_CHECKING:"]
+
+[tool.pytest.ini_options]
+addopts = "--strict-markers"
+markers = [
+  "integration: integration tests",
+]
+log_cli = true

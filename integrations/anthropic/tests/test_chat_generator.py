@@ -2,6 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+import json
 import os
 from unittest.mock import AsyncMock, Mock, patch
 
@@ -1315,6 +1316,54 @@ class TestAnthropicChatGenerator:
 
         assert message.text
         assert "no" in message.text.lower()
+
+    @pytest.mark.skipif(
+        not os.environ.get("ANTHROPIC_API_KEY", None),
+        reason="Export an env var called ANTHROPIC_API_KEY containing the Anthropic API key to run this test.",
+    )
+    @pytest.mark.integration
+    def test_live_run_with_json_structured_output(self):
+        """
+        Integration test that the AnthropicChatGenerator component returns valid JSON
+        when output_config.format with a json_schema is passed via generation_kwargs.
+        """
+
+        schema = {
+            "type": "object",
+            "properties": {
+                "name": {"type": "string"},
+                "email": {"type": "string"},
+                "plan_interest": {"type": "string"},
+                "demo_requested": {"type": "boolean"},
+            },
+            "required": ["name", "email", "plan_interest", "demo_requested"],
+            "additionalProperties": False,
+        }
+
+        component = AnthropicChatGenerator(
+            generation_kwargs={
+                "output_config": {"format": {"type": "json_schema", "schema": schema}},
+            }
+        )
+        results = component.run(
+            messages=[
+                ChatMessage.from_user(
+                    "Extract the key information from this email: "
+                    "John Smith (john@example.com) is interested in our Enterprise plan "
+                    "and wants to schedule a demo for next Tuesday at 2pm."
+                )
+            ]
+        )
+
+        assert len(results["replies"]) == 1
+        message: ChatMessage = results["replies"][0]
+        assert message.meta["finish_reason"] == "stop"
+
+        parsed = json.loads(message.text)
+        assert parsed["name"] == "John Smith"
+        assert parsed["email"] == "john@example.com"
+        assert "enterprise" in parsed["plan_interest"].lower()
+        assert parsed["demo_requested"] is True
 
     @pytest.mark.integration
     @pytest.mark.skipif(
