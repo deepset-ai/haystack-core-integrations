@@ -1,15 +1,5 @@
 # Changelog
 
-## [Unreleased]
-
-### 🚀 Features
-
-- Make `ExportType.MARKDOWN` the default export type; add `page_number` to chunk metadata (#3256)
-
-### ⚠ Breaking Changes
-
-- `DoclingConverter` now defaults to `ExportType.MARKDOWN` instead of `ExportType.DOC_CHUNKS`
-
 ## [integrations/docling-v0.4.0] - 2026-05-04
 
 ### 🚀 Features

@@ -239,15 +239,17 @@ class DoclingConverter:
                 merged_meta = source_meta
 
             if self.export_type == ExportType.DOC_CHUNKS:
-                chunk_iter = self._chunker_instance.chunk(dl_doc=dl_doc)
-                hs_docs = [
-                    Document(
-                        content=self._chunker_instance.contextualize(chunk=chunk),
-                        meta={**self._meta_extractor_instance.extract_chunk_meta(chunk=chunk), **merged_meta},
-                    )
-                    for chunk in chunk_iter
-                ]
-                documents.extend(hs_docs)
+                split_idx_start = 0
+                for split_id, chunk in enumerate(self._chunker_instance.chunk(dl_doc=dl_doc)):
+                    content = self._chunker_instance.contextualize(chunk=chunk)
+                    meta = {
+                        **self._meta_extractor_instance.extract_chunk_meta(chunk=chunk),
+                        "split_id": split_id,
+                        "split_idx_start": split_idx_start,
+                        **merged_meta,
+                    }
+                    documents.append(Document(content=content, meta=meta))
+                    split_idx_start += len(chunk.text)
             elif self.export_type == ExportType.MARKDOWN:
                 hs_doc = Document(
                     content=dl_doc.export_to_markdown(**self.md_export_kwargs),

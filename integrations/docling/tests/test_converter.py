@@ -59,7 +59,7 @@ def test_run_doc_chunks_minimal() -> None:
 
     assert "contextualized-chunk-1-of-dl-doc-for-file-a.pdf" in contents
     assert "contextualized-chunk-2-of-dl-doc-for-file-a.pdf" in contents
-    assert {"chunk_id": "chunk-1-of-dl-doc-for-file-a.pdf"} in metas
+    assert any(m.get("chunk_id") == "chunk-1-of-dl-doc-for-file-a.pdf" for m in metas)
 
     # Ensure our collaborators were actually exercised.
     assert converter_mock.convert.call_count == len(paths)
@@ -543,3 +543,76 @@ def test_run_without_sources_or_paths_raises_value_error() -> None:
     converter = DoclingConverter(converter=MagicMock(), meta_extractor=MagicMock())
     with pytest.raises(ValueError, match=r"Either 'sources' or the deprecated 'paths' parameter must be provided."):
         converter.run()
+
+
+def test_run_doc_chunks_split_id_and_split_idx_start() -> None:
+    converter_mock = MagicMock()
+    chunker_mock = MagicMock()
+    meta_extractor_mock = MagicMock()
+
+    converter_mock.convert.return_value = SimpleNamespace(document="dl-doc")
+
+    chunks = [
+        SimpleNamespace(text="hello world"),
+        SimpleNamespace(text="foo bar baz"),
+    ]
+    chunker_mock.chunk.return_value = chunks
+    chunker_mock.contextualize.side_effect = lambda chunk: f"ctx:{chunk.text}"
+    meta_extractor_mock.extract_chunk_meta.return_value = {}
+
+    converter = DoclingConverter(
+        converter=converter_mock,
+        export_type=ExportType.DOC_CHUNKS,
+        chunker=chunker_mock,
+        meta_extractor=meta_extractor_mock,
+    )
+
+    result = converter.run(sources=["doc.pdf"])
+    documents = result["documents"]
+
+    assert len(documents) == 2
+    assert documents[0].meta["split_id"] == 0
+    assert documents[0].meta["split_idx_start"] == 0
+    assert documents[1].meta["split_id"] == 1
+    assert documents[1].meta["split_idx_start"] == len("hello world")
+
+
+def test_run_doc_chunks_split_id_resets_per_document() -> None:
+    converter_mock = MagicMock()
+    chunker_mock = MagicMock()
+    meta_extractor_mock = MagicMock()
+
+    converter_mock.convert.side_effect = [
+        SimpleNamespace(document="dl-doc-a"),
+        SimpleNamespace(document="dl-doc-b"),
+    ]
+    chunker_mock.chunk.side_effect = lambda dl_doc: [
+        SimpleNamespace(text=f"chunk-1-of-{dl_doc}"),
+        SimpleNamespace(text=f"chunk-2-of-{dl_doc}"),
+    ]
+    chunker_mock.contextualize.side_effect = lambda chunk: chunk.text
+    meta_extractor_mock.extract_chunk_meta.return_value = {}
+
+    converter = DoclingConverter(
+        converter=converter_mock,
+        export_type=ExportType.DOC_CHUNKS,
+        chunker=chunker_mock,
+        meta_extractor=meta_extractor_mock,
+    )
+
+    result = converter.run(sources=["a.pdf", "b.pdf"])
+    documents = result["documents"]
+
+    # split_id and split_idx_start reset for each source document
+    doc_a_chunks = documents[:2]
+    doc_b_chunks = documents[2:]
+
+    assert doc_a_chunks[0].meta["split_id"] == 0
+    assert doc_a_chunks[0].meta["split_idx_start"] == 0
+    assert doc_a_chunks[1].meta["split_id"] == 1
+    assert doc_a_chunks[1].meta["split_idx_start"] == len("chunk-1-of-dl-doc-a")
+
+    assert doc_b_chunks[0].meta["split_id"] == 0
+    assert doc_b_chunks[0].meta["split_idx_start"] == 0
+    assert doc_b_chunks[1].meta["split_id"] == 1
+    assert doc_b_chunks[1].meta["split_idx_start"] == len("chunk-1-of-dl-doc-b")
