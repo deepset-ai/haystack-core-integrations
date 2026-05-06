@@ -14,6 +14,7 @@ from haystack.utils import Secret, deserialize_secrets_inplace
 from pinecone import Pinecone, PineconeAsyncio, PodSpec, ServerlessSpec
 from pinecone.db_data import _Index, _IndexAsyncio
 from pinecone.exceptions import NotFoundException
+from pinecone.grpc import GrpcIndex
 
 from .filters import _normalize_filters, _validate_filters
 
@@ -79,7 +80,7 @@ class PineconeDocumentStore:
         self.index_name = index
         self.show_progress = show_progress
 
-        self._index: _Index | None = None
+        self._index: _Index | GrpcIndex | None = None
         self._async_index: _IndexAsyncio | None = None
         self._dummy_vector = [-10.0] * self.dimension
 
