@@ -5,9 +5,9 @@
 | Name                                                                              |    Stmts |     Miss |   Branch |   BrPart |   Cover |   Missing |
 |---------------------------------------------------------------------------------- | -------: | -------: | -------: | -------: | ------: | --------: |
 | src/haystack\_integrations/components/retrievers/pinecone/embedding\_retriever.py |       36 |        0 |        4 |        0 |    100% |           |
-| src/haystack\_integrations/document\_stores/pinecone/document\_store.py           |      418 |       16 |      142 |       18 |     94% |121-126, 138, 152-\>exit, 160-\>exit, 317, 342, 699, 763, 776-\>775, 780, 786, 808-\>807, 820-\>809, 828-829, 848, 878, 892-\>891, 914 |
+| src/haystack\_integrations/document\_stores/pinecone/document\_store.py           |      419 |       16 |      142 |       18 |     94% |125-130, 142, 156-\>exit, 164-\>exit, 321, 346, 703, 767, 780-\>779, 784, 790, 812-\>811, 824-\>813, 832-833, 852, 882, 896-\>895, 918 |
 | src/haystack\_integrations/document\_stores/pinecone/filters.py                   |       99 |        0 |       44 |        0 |    100% |           |
-| **TOTAL**                                                                         |  **553** |   **16** |  **190** |   **18** | **95%** |           |
+| **TOTAL**                                                                         |  **554** |   **16** |  **190** |   **18** | **95%** |           |
 
 
 ## Setup coverage badge
