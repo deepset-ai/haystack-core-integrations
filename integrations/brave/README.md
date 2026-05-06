@@ -1,7 +1,7 @@
-# brave-search-haystack
+# brave-haystack
 
-[![PyPI - Version](https://img.shields.io/pypi/v/brave-search-haystack.svg)](https://pypi.org/project/brave-search-haystack)
-[![PyPI - Python Version](https://img.shields.io/pypi/pyversions/brave-search-haystack.svg)](https://pypi.org/project/brave-search-haystack)
+[![PyPI - Version](https://img.shields.io/pypi/v/brave-haystack.svg)](https://pypi.org/project/brave-haystack)
+[![PyPI - Python Version](https://img.shields.io/pypi/pyversions/brave-haystack.svg)](https://pypi.org/project/brave-haystack)
 
 - [Changelog](https://github.com/deepset-ai/haystack-core-integrations/blob/main/integrations/brave/CHANGELOG.md)
 
