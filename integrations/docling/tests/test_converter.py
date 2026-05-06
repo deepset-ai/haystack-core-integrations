@@ -152,7 +152,7 @@ def test_component_to_dict_defaults() -> None:
         "init_parameters": {
             "converter": None,
             "convert_kwargs": {},
-            "export_type": "doc_chunks",
+            "export_type": "markdown",
             "md_export_kwargs": {"image_placeholder": ""},
             "chunker": None,
             "meta_extractor": None,
@@ -233,7 +233,7 @@ def test_component_from_dict_custom_params() -> None:
 
 
 def test_component_to_dict_chunker_warns_and_is_dropped() -> None:
-    converter = DoclingConverter(chunker=HybridChunker(merge_peers=False))
+    converter = DoclingConverter(export_type=ExportType.DOC_CHUNKS, chunker=HybridChunker(merge_peers=False))
 
     assert converter.to_dict() == {
         "type": "haystack_integrations.components.converters.docling.converter.DoclingConverter",
@@ -484,11 +484,42 @@ class TestMetaExtractor:
     def test_extract_chunk_meta_wraps_export_json_dict(self) -> None:
         chunk = MagicMock()
         chunk.export_json_dict.return_value = {"some": "dict"}
+        chunk.meta.doc_items = []
 
         result = MetaExtractor().extract_chunk_meta(chunk=chunk)
 
         assert result == {"dl_meta": {"some": "dict"}}
         chunk.export_json_dict.assert_called_once_with()
+
+    def test_extract_chunk_meta_includes_page_number(self) -> None:
+        prov = MagicMock()
+        prov.page_no = 3
+        doc_item = MagicMock()
+        doc_item.prov = [prov]
+
+        chunk = MagicMock()
+        chunk.export_json_dict.return_value = {"some": "dict"}
+        chunk.meta.doc_items = [doc_item]
+
+        result = MetaExtractor().extract_chunk_meta(chunk=chunk)
+
+        assert result == {"dl_meta": {"some": "dict"}, "page_number": 3}
+
+    def test_extract_chunk_meta_page_number_uses_minimum(self) -> None:
+        prov1 = MagicMock()
+        prov1.page_no = 5
+        prov2 = MagicMock()
+        prov2.page_no = 3
+        doc_item = MagicMock()
+        doc_item.prov = [prov1, prov2]
+
+        chunk = MagicMock()
+        chunk.export_json_dict.return_value = {}
+        chunk.meta.doc_items = [doc_item]
+
+        result = MetaExtractor().extract_chunk_meta(chunk=chunk)
+
+        assert result["page_number"] == 3
 
     def test_extract_dl_doc_meta_with_origin(self) -> None:
         dl_doc = MagicMock()

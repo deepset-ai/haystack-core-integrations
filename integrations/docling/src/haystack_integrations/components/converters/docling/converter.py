@@ -82,7 +82,12 @@ class MetaExtractor(BaseMetaExtractor):
 
     def extract_chunk_meta(self, chunk: BaseChunk) -> dict[str, Any]:
         """Extract chunk meta."""
-        return {"dl_meta": chunk.export_json_dict()}
+        meta: dict[str, Any] = {"dl_meta": chunk.export_json_dict()}
+        doc_items = getattr(chunk.meta, "doc_items", [])
+        page_nos = {prov.page_no for item in doc_items for prov in getattr(item, "prov", [])}
+        if page_nos:
+            meta["page_number"] = min(page_nos)
+        return meta
 
     def extract_dl_doc_meta(self, dl_doc: DoclingDocument) -> dict[str, Any]:
         """Extract Docling document meta."""
@@ -97,7 +102,7 @@ class DoclingConverter:
         self,
         converter: DocumentConverter | None = None,
         convert_kwargs: dict[str, Any] | None = None,
-        export_type: ExportType = ExportType.DOC_CHUNKS,
+        export_type: ExportType = ExportType.MARKDOWN,
         md_export_kwargs: dict[str, Any] | None = None,
         chunker: BaseChunker | None = None,
         meta_extractor: BaseMetaExtractor | None = None,
@@ -110,10 +115,10 @@ class DoclingConverter:
         :param convert_kwargs: Any parameters to pass to Docling conversion; if not set, a
             system default is used.
         :param export_type: The export mode to use:
-            * `ExportType.MARKDOWN` captures each input document as a single
+            * `ExportType.MARKDOWN` (default) captures each input document as a single
               markdown `Document`.
-            * `ExportType.DOC_CHUNKS` (default) first chunks each input document
-              and then returns one `Document` per chunk.
+            * `ExportType.DOC_CHUNKS` first chunks each input document and then returns
+              one `Document` per chunk.
             * `ExportType.JSON` serializes the full Docling document to a JSON string.
         :param md_export_kwargs: Any parameters to pass to Markdown export (applicable in
             case of `ExportType.MARKDOWN`).
