@@ -60,7 +60,7 @@ class TestDocumentStoreAsync(
         received_sorted = sorted(received, key=lambda d: d.id)
         expected_sorted = sorted(expected, key=lambda d: d.id)
         assert len(received_sorted) == len(expected_sorted)
-        for recv, exp in zip(received_sorted, expected_sorted):
+        for recv, exp in zip(received_sorted, expected_sorted, strict=True):
             assert (recv.embedding is not None) == (exp.embedding is not None)
             assert replace(recv, embedding=None) == replace(exp, embedding=None)
 
