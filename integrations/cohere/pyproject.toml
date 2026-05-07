@@ -44,7 +44,6 @@ git_describe_command = 'git describe --tags --match="integrations/cohere-v[0-9]*
 [tool.hatch.envs.default]
 installer = "uv"
 dependencies = ["haystack-pydoc-tools", "ruff"]
-python = "3.10"
 
 [tool.hatch.envs.default.scripts]
 docs = ["haystack-pydoc pydoc/config_docusaurus.yml"]
