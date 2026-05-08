@@ -69,7 +69,7 @@ jobs:
 
       - name: Upload coverage comment to be posted
         if: matrix.python-version == '3.10' && runner.os == 'Linux' && github.event_name == 'pull_request' && steps.coverage_comment.outputs.COMMENT_FILE_WRITTEN == 'true'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: coverage-comment-docling_serve
           path: python-coverage-comment-action-docling_serve.txt
