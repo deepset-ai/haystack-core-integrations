@@ -8,6 +8,13 @@ on:
       - "integrations/docling_serve/**"
       - "!integrations/docling_serve/*.md"
       - ".github/workflows/docling_serve.yml"
+  push:
+    branches:
+      - main
+    paths:
+      - "integrations/docling_serve/**"
+      - "!integrations/docling_serve/*.md"
+      - ".github/workflows/docling_serve.yml"
 
 defaults:
   run:
@@ -31,6 +38,17 @@ jobs:
         os: [ubuntu-latest]
         python-version: ["3.10", "3.14"]
 
+    services:
+      docling-serve:
+        image: ghcr.io/docling-project/docling-serve:latest
+        ports:
+          - 5001:5001
+        options: >-
+          --health-cmd "curl -f http://localhost:5001/health || exit 1"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+
     steps:
       - uses: actions/checkout@v4
 
@@ -51,7 +69,7 @@ jobs:
 
       - name: Store unit tests coverage
         id: coverage_comment
-        if: matrix.python-version == '3.10' && runner.os == 'Linux'
+        if: matrix.python-version == '3.10' && runner.os == 'Linux' && github.event_name != 'schedule'
         uses: py-cov-action/python-coverage-comment-action@7188638f871f721a365d644f505d1ff3df20d683 # v3.40
         with:
           GITHUB_TOKEN: ${{ github.token }}
@@ -67,7 +85,21 @@ jobs:
           name: coverage-comment-docling_serve
           path: python-coverage-comment-action-docling_serve.txt
 
+      - name: Run integration tests
+        run: hatch run test:integration-cov-append-retry
+
+      - name: Store combined coverage
+        if: github.event_name == 'push'
+        uses: py-cov-action/python-coverage-comment-action@7188638f871f721a365d644f505d1ff3df20d683 # v3.40
+        with:
+          GITHUB_TOKEN: ${{ github.token }}
+          COVERAGE_PATH: integrations/docling_serve
+          SUBPROJECT_ID: docling_serve-combined
+          MINIMUM_GREEN: 90
+          MINIMUM_ORANGE: 60
+
       - name: Run unit tests with lowest direct dependencies
+        if: github.event_name != 'push'
         run: |
           hatch run uv pip compile pyproject.toml --resolution lowest-direct --output-file requirements_lowest_direct.txt
           hatch -e test env run -- uv pip install -r requirements_lowest_direct.txt
