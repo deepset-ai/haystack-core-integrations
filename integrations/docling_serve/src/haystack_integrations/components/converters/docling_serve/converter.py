@@ -197,7 +197,7 @@ class DoclingServeConverter:
         response.raise_for_status()
         return response.json()
 
-    async def _apost_file(self, client: httpx.AsyncClient, source: str | Path | ByteStream) -> dict[str, Any]:
+    async def _post_file_async(self, client: httpx.AsyncClient, source: str | Path | ByteStream) -> dict[str, Any]:
         filename = _resolve_filename(source)
         file_bytes = source.data if isinstance(source, ByteStream) else Path(source).read_bytes()
         mime_type = (
@@ -215,7 +215,7 @@ class DoclingServeConverter:
         response.raise_for_status()
         return response.json()
 
-    async def _apost_url(self, client: httpx.AsyncClient, url: str) -> dict[str, Any]:
+    async def _post_url_async(self, client: httpx.AsyncClient, url: str) -> dict[str, Any]:
         payload: dict[str, Any] = {
             "options": {**self.convert_options, "to_formats": [self._to_format()]},
             "sources": [{"kind": "http", "url": url}],
@@ -310,9 +310,9 @@ class DoclingServeConverter:
                 merged_meta = {**bytestream_meta, **source_meta}
                 try:
                     if isinstance(source, str) and _is_url(source):
-                        result = await self._apost_url(client, source)
+                        result = await self._post_url_async(client, source)
                     else:
-                        result = await self._apost_file(client, source)
+                        result = await self._post_file_async(client, source)
                     content = self._extract_content(result)
                     if content is not None:
                         documents.append(Document(content=content, meta=merged_meta))
