@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/ragas-v4.1.0] - 2026-05-04
+
+### 🚀 Features
+
+- Add `run_async` method to Ragas Integration (#3244)
+
+
 ## [integrations/ragas-v4.0.0] - 2026-04-23
 
 ### 🚀 Features

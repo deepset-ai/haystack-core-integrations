@@ -98,7 +98,11 @@ class PineconeDocumentStore:
                 f"Connecting to existing index {self.index_name}. `dimension`, `spec`, and `metric` will be ignored."
             )
 
-        self._index = client.Index(name=self.index_name)
+        # client.Index returns _Index | GrpcIndex, but using the correct type would require bumping up the pinecone
+        # minimum supported version
+        self._index = client.Index(name=self.index_name)  # type: ignore[assignment]
+
+        assert self._index is not None
 
         actual_dimension = self._index.describe_index_stats().get("dimension")
         if actual_dimension and actual_dimension != self.dimension:

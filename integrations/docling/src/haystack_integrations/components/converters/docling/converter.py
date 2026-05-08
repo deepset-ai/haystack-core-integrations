@@ -10,13 +10,17 @@ from pathlib import Path
 from typing import Any
 
 from docling_core.types.io import DocumentStream
-from haystack import Document, component
+from haystack import Document, component, logging
 from haystack.components.converters.utils import normalize_metadata
+from haystack.core.serialization import default_from_dict, default_to_dict
 from haystack.dataclasses import ByteStream
+from haystack.utils.base_serialization import deserialize_class_instance, serialize_class_instance
 
 from docling.chunking import BaseChunk, BaseChunker, HybridChunker
 from docling.datamodel.document import DoclingDocument
 from docling.document_converter import DocumentConverter
+
+logger = logging.getLogger(__name__)
 
 
 def _bytestream_to_document_stream(source: ByteStream) -> DocumentStream:
@@ -62,6 +66,15 @@ class BaseMetaExtractor(ABC):
     def extract_dl_doc_meta(self, dl_doc: DoclingDocument) -> dict[str, Any]:
         """Extract Docling document meta."""
         raise NotImplementedError()
+
+    def to_dict(self) -> dict[str, Any]:
+        """Serialize to a dictionary."""
+        return {}
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "BaseMetaExtractor":  # noqa: ARG003
+        """Deserialize from a dictionary."""
+        return cls()
 
 
 class MetaExtractor(BaseMetaExtractor):
@@ -122,6 +135,53 @@ class DoclingConverter:
         if self.export_type == ExportType.DOC_CHUNKS:
             self._chunker_instance = chunker or HybridChunker()
         self._meta_extractor_instance = meta_extractor or MetaExtractor()
+
+    def to_dict(self) -> dict[str, Any]:
+        """Serialize this component to a dictionary."""
+        if self.converter is not None:
+            logger.warning(
+                "DoclingConverter.to_dict: the 'converter' parameter cannot be serialized and will be dropped. "
+                "The component will use the default DocumentConverter when restored from the serialized form."
+            )
+        if self.chunker is not None:
+            logger.warning(
+                "DoclingConverter.to_dict: the 'chunker' parameter cannot be serialized and will be dropped. "
+                "The component will use the default chunker when restored from the serialized form."
+            )
+
+        meta_extractor_data = None
+        if self.meta_extractor is not None:
+            meta_extractor_data = serialize_class_instance(self.meta_extractor)
+
+        return default_to_dict(
+            self,
+            converter=None,
+            convert_kwargs=self.convert_kwargs,
+            export_type=self.export_type.value,
+            md_export_kwargs=self.md_export_kwargs,
+            chunker=None,
+            meta_extractor=meta_extractor_data,
+        )
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "DoclingConverter":
+        """
+        Deserialize this component from a dictionary.
+
+        The `converter` and `chunker` parameters are not serializable and are always ignored during
+        deserialization; the restored instance will use the default `DocumentConverter` and `HybridChunker`
+        respectively.
+
+        :param data: Dictionary with keys `type` and `init_parameters`, as produced by `to_dict`.
+        :returns: A new `DoclingConverter` instance.
+        """
+        init_params = data.get("init_parameters", {})
+
+        meta_extractor_data = init_params.get("meta_extractor")
+        if meta_extractor_data is not None:
+            init_params["meta_extractor"] = deserialize_class_instance(meta_extractor_data)
+
+        return default_from_dict(cls, data)
 
     @component.output_types(documents=list[Document])
     def run(

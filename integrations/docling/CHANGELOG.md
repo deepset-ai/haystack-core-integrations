@@ -1,5 +1,16 @@
 # Changelog
 
+## [integrations/docling-v0.4.0] - 2026-05-04
+
+### 🚀 Features
+
+- Add serialization/deserialization to DoclingConverter  (#3267)
+
+### 🧪 Testing
+
+- Docling - add a few unit tests (#3212)
+
+
 ## [integrations/docling-v0.3.0] - 2026-04-10
 
 ### 🚀 Features

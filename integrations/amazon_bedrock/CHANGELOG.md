@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/amazon_bedrock-v6.8.2] - 2026-05-06
+
+### 🐛 Bug Fixes
+
+- *(amazon-bedrock)* Use dataclasses.replace instead of mutating StreamingChunk (#3273)
+
+
 ## [integrations/amazon_bedrock-v6.8.1] - 2026-04-22
 
 ### 🐛 Bug Fixes

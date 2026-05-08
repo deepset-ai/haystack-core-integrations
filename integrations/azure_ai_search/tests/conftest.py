@@ -39,7 +39,6 @@ def document_store(request):
 
     store = AzureAISearchDocumentStore(
         index_name=index_name,
-        create_index=True,
         embedding_dimension=768,
         metadata_fields=metadata_fields,
         include_search_metadata=include_search_metadata,

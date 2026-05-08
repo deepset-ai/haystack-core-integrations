@@ -177,7 +177,7 @@ class GoogleGenAIMultimodalDocumentEmbedder:
         file_path_meta_field: str = "file_path",
         root_path: str | None = None,
         image_size: tuple[int, int] | None = None,
-        model: str = "gemini-embedding-2-preview",
+        model: str = "gemini-embedding-2",
         batch_size: int = 6,
         progress_bar: bool = True,
         config: dict[str, Any] | None = None,
@@ -213,11 +213,10 @@ class GoogleGenAIMultimodalDocumentEmbedder:
         :param progress_bar:
             If `True`, shows a progress bar when running.
         :param config:
-            A dictionary of keyword arguments to configure embedding content configuration `types.EmbedContentConfig`.
+            A dictionary of keyword arguments to configure embedding content configuration.
             You can for example set the output dimensionality of the embedding: `{"output_dimensionality": 768}`.
-            It also allows customizing the task type. If the task type is not specified, it defaults to
-            `{"task_type": "RETRIEVAL_DOCUMENT"}`.
-            For more information, see the [Google AI documentation](https://ai.google.dev/gemini-api/docs/embeddings#task-types).
+            See [Google API documentation](https://googleapis.github.io/python-genai/genai.html#genai.types.EmbedContentConfig)
+            for the available options.
         """
         self._api_key = api_key
         self._api = api
@@ -229,9 +228,6 @@ class GoogleGenAIMultimodalDocumentEmbedder:
         self._image_size = image_size
         self._batch_size = batch_size
         self._progress_bar = progress_bar
-
-        config = config or {}
-        config.setdefault("task_type", "RETRIEVAL_DOCUMENT")
         self._config = config
 
         self._client = _get_client(
