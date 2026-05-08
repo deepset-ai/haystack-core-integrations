@@ -55,13 +55,16 @@ class TestDocumentStoreAsync(
     def assert_documents_are_equal(received: list[Document], expected: list[Document]):
         # Pinecone stores vectors as float32; round-tripped embeddings may differ by a small
         # floating-point epsilon from the float64 originals. Compare sorted by ID (Pinecone
-        # returns by similarity, not insertion order) and ignore exact embedding values,
-        # verifying only that embedding presence matches.
+        # returns by similarity, not insertion order), check embeddings with tolerance, and
+        # compare the remaining fields exactly.
         received_sorted = sorted(received, key=lambda d: d.id)
         expected_sorted = sorted(expected, key=lambda d: d.id)
         assert len(received_sorted) == len(expected_sorted)
         for recv, exp in zip(received_sorted, expected_sorted, strict=True):
-            assert (recv.embedding is not None) == (exp.embedding is not None)
+            if recv.embedding is None or exp.embedding is None:
+                assert recv.embedding == exp.embedding
+            else:
+                assert recv.embedding == pytest.approx(exp.embedding, rel=1e-6, abs=1e-6)
             assert replace(recv, embedding=None) == replace(exp, embedding=None)
 
     @pytest.mark.asyncio
@@ -86,13 +89,6 @@ class TestDocumentStoreAsync(
 
     @pytest.mark.skip(reason="Pinecone creates a namespace only when the first document is written")
     async def test_delete_documents_empty_document_store_async(self, document_store: PineconeDocumentStore): ...
-
-    @pytest.mark.asyncio
-    async def test_get_metadata_field_min_max_empty_collection_async(self, document_store: PineconeDocumentStore):
-        # Override: Pinecone raises ValueError on an empty collection rather than returning None.
-        assert await document_store.count_documents_async() == 0
-        with pytest.raises(ValueError, match="No values found"):
-            await document_store.get_metadata_field_min_max_async("priority")
 
     async def test_embedding_retrieval(self, document_store_async: PineconeDocumentStore):
         query_embedding = [0.1] * 768
