@@ -1,6 +1,7 @@
 # SPDX-FileCopyrightText: 2023-present deepset GmbH <info@deepset.ai>
 #
 # SPDX-License-Identifier: Apache-2.0
+
 from unittest.mock import Mock, patch
 
 import pytest
@@ -9,6 +10,11 @@ from haystack.document_stores.types import FilterPolicy
 
 from haystack_integrations.components.retrievers.elasticsearch import ElasticsearchEmbeddingRetriever
 from haystack_integrations.document_stores.elasticsearch import ElasticsearchDocumentStore
+
+
+def test_init_rejects_non_elasticsearch_document_store():
+    with pytest.raises(ValueError, match="document_store must be an instance of ElasticsearchDocumentStore"):
+        ElasticsearchEmbeddingRetriever(document_store=Mock())
 
 
 def test_init_default():
@@ -56,6 +62,7 @@ def test_to_dict(_mock_elasticsearch_client):
                     "index": "default",
                     "embedding_similarity_function": "cosine",
                     "sparse_vector_field": None,
+                    "ingest_pipeline": None,
                 },
                 "type": "haystack_integrations.document_stores.elasticsearch.document_store.ElasticsearchDocumentStore",
             },
@@ -74,7 +81,12 @@ def test_from_dict(_mock_elasticsearch_client):
         "type": t,
         "init_parameters": {
             "document_store": {
-                "init_parameters": {"hosts": "some fake host", "index": "default", "sparse_vector_field": None},
+                "init_parameters": {
+                    "hosts": "some fake host",
+                    "index": "default",
+                    "sparse_vector_field": None,
+                    "ingest_pipeline": None,
+                },
                 "type": "haystack_integrations.document_stores.elasticsearch.document_store.ElasticsearchDocumentStore",
             },
             "filters": {},
@@ -97,7 +109,12 @@ def test_from_dict_no_filter_policy(_mock_elasticsearch_client):
         "type": t,
         "init_parameters": {
             "document_store": {
-                "init_parameters": {"hosts": "some fake host", "index": "default", "sparse_vector_field": None},
+                "init_parameters": {
+                    "hosts": "some fake host",
+                    "index": "default",
+                    "sparse_vector_field": None,
+                    "ingest_pipeline": None,
+                },
                 "type": "haystack_integrations.document_stores.elasticsearch.document_store.ElasticsearchDocumentStore",
             },
             "filters": {},
