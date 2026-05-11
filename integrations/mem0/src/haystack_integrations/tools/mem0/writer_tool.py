@@ -24,38 +24,19 @@ _PARAMETERS: dict[str, Any] = {
 }
 
 
-def _store(
-    text: str,
-    store: Mem0MemoryStore,
-    user_id: str | None,
-    run_id: str | None,
-    agent_id: str | None,
-) -> str:
-    result = store.add_memories(
-        messages=[ChatMessage.from_user(text)],
-        user_id=user_id,
-        run_id=run_id,
-        agent_id=agent_id,
-    )
-    count = len(result) if isinstance(result, list) else 0
-    return f"Stored {count} memory item(s)."
-
-
 class Mem0MemoryWriterTool(Tool):
     """
     A tool that writes a memory to a Mem0MemoryStore.
 
-    Scoping IDs (``user_id``, ``run_id``, ``agent_id``) are bound at construction time
-    and never exposed to the LLM. The LLM only sees ``text``.
+    All scoping IDs (`user_id`, `run_id`, `agent_id`) are injected at runtime
+    from Agent State via `inputs_from_state`, so a single tool instance can serve
+    many users and sessions. The LLM only sees `text`.
     """
 
     def __init__(
         self,
         *,
         memory_store: Mem0MemoryStore,
-        user_id: str | None = None,
-        run_id: str | None = None,
-        agent_id: str | None = None,
         name: str = "store_memory",
         description: str = _DEFAULT_DESCRIPTION,
     ) -> None:
@@ -63,25 +44,33 @@ class Mem0MemoryWriterTool(Tool):
         Initialize the Mem0MemoryWriterTool.
 
         :param memory_store: The Mem0MemoryStore instance to write to.
-        :param user_id: User ID bound to all writes performed by this tool.
-        :param run_id: Run ID bound to all writes performed by this tool.
-        :param agent_id: Agent ID bound to all writes performed by this tool.
         :param name: Tool name exposed to the LLM.
         :param description: Tool description exposed to the LLM.
         """
         self.memory_store = memory_store
-        self.user_id = user_id
-        self.run_id = run_id
-        self.agent_id = agent_id
-        super().__init__(name=name, description=description, parameters=_PARAMETERS, function=_store)
+        super().__init__(
+            name=name,
+            description=description,
+            parameters=_PARAMETERS,
+            function=self._store,
+            inputs_from_state={"user_id": "user_id", "run_id": "run_id", "agent_id": "agent_id"},
+        )
 
-    def invoke(self, **kwargs: Any) -> Any:
-        """Invoke the tool, injecting the pre-bound scoping IDs."""
-        kwargs.setdefault("store", self.memory_store)
-        kwargs.setdefault("user_id", self.user_id)
-        kwargs.setdefault("run_id", self.run_id)
-        kwargs.setdefault("agent_id", self.agent_id)
-        return super().invoke(**kwargs)
+    def _store(
+        self,
+        text: str,
+        user_id: str | None = None,
+        run_id: str | None = None,
+        agent_id: str | None = None,
+    ) -> str:
+        result = self.memory_store.add_memories(
+            messages=[ChatMessage.from_user(text)],
+            user_id=user_id,
+            run_id=run_id,
+            agent_id=agent_id,
+        )
+        count = len(result) if isinstance(result, list) else 0
+        return f"Stored {count} memory item(s)."
 
     def to_dict(self) -> dict[str, Any]:
         """Serialize this tool to a dictionary."""
@@ -89,9 +78,6 @@ class Mem0MemoryWriterTool(Tool):
             "type": generate_qualified_class_name(type(self)),
             "data": {
                 "memory_store": self.memory_store.to_dict(),
-                "user_id": self.user_id,
-                "run_id": self.run_id,
-                "agent_id": self.agent_id,
                 "name": self.name,
                 "description": self.description,
             },

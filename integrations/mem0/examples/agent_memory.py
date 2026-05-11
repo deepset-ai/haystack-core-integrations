@@ -4,6 +4,9 @@ Example: Haystack Agent with Mem0 long-term memory tools.
 The Agent can call `retrieve_memories` before answering to recall relevant context,
 and `store_memory` after answering to persist new facts for future sessions.
 
+The `user_id` is passed to each `agent.run()` call and injected into the tools
+via State, so a single Agent instance can serve multiple users without rebuilding.
+
 Prerequisites:
     pip install mem0-haystack openai
 
@@ -25,8 +28,8 @@ USER_ID = "demo-user"
 def main() -> None:  # noqa: D103
     store = Mem0MemoryStore()
 
-    retriever_tool = Mem0MemoryRetrieverTool(memory_store=store, user_id=USER_ID, top_k=5)
-    writer_tool = Mem0MemoryWriterTool(memory_store=store, user_id=USER_ID)
+    retriever_tool = Mem0MemoryRetrieverTool(memory_store=store, top_k=5)
+    writer_tool = Mem0MemoryWriterTool(memory_store=store)
 
     agent = Agent(
         chat_generator=OpenAIChatGenerator(model="gpt-4o-mini"),
@@ -36,6 +39,7 @@ def main() -> None:  # noqa: D103
 Before answering, call `retrieve_memories` to recall relevant facts about this user.
 After answering, call `store_memory` to save any important new information the user shared.
 """,
+        state_schema={"user_id": {"type": str}},
     )
 
     turns = [
@@ -49,7 +53,7 @@ After answering, call `store_memory` to save any important new information the u
     for user_text in turns:
         print(f"\nUser: {user_text}")  # noqa: T201
         history.append(ChatMessage.from_user(user_text))
-        result = agent.run(messages=history)
+        result = agent.run(messages=history, user_id=USER_ID)
         last = result["last_message"]
         reply = last.text or "(no text reply)"
         print(f"Agent: {reply}")  # noqa: T201
