@@ -10,7 +10,7 @@ from haystack.document_stores.errors import DuplicateDocumentError
 from haystack.document_stores.types import DuplicatePolicy
 from haystack.utils.auth import Secret, deserialize_secrets_inplace
 
-from supabase import Client, create_client
+from supabase import create_client
 
 logger = logging.getLogger(__name__)
 
@@ -67,8 +67,8 @@ class SupabaseGroongaDocumentStore:
         self.recreate_table = recreate_table
 
         # Connect to Supabase
-        resolved_key = supabase_key.resolve_value()
-        self._client: Client = create_client(supabase_url, resolved_key)
+        key = self.supabase_key.resolve_value() or ""
+        self._client = create_client(self.supabase_url, key)
 
         # Set up the table
         self._setup_table()
@@ -107,8 +107,8 @@ class SupabaseGroongaDocumentStore:
 
         :returns: Number of documents.
         """
-        result = self._client.table(self.table_name).select("id", count="exact").execute()
-        return result.count or 0
+        result = self._client.table(self.table_name).select("*").execute()
+        return len(result.data)
 
     def filter_documents(self, filters: dict[str, Any] | None = None) -> list[Document]:  # noqa: ARG002
         """
@@ -119,7 +119,7 @@ class SupabaseGroongaDocumentStore:
         """
         query = self._client.table(self.table_name).select("*")
         result = query.execute()
-        return [self._to_haystack_document(row) for row in result.data]
+        return [self._to_haystack_document(row) for row in result.data if isinstance(row, dict)]
 
     def write_documents(
         self,
@@ -193,7 +193,7 @@ class SupabaseGroongaDocumentStore:
             "groonga_search", {"query_text": query, "table": self.table_name, "top_k": top_k}
         ).execute()
 
-        return [self._to_haystack_document(row) for row in result.data]
+        return [self._to_haystack_document(row) for row in result.data if isinstance(row, dict)]
 
     def _to_haystack_document(self, row: dict[str, Any]) -> Document:
         """
