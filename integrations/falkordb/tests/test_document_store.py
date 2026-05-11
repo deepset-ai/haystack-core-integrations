@@ -13,7 +13,17 @@ from haystack.dataclasses import Document
 from haystack.document_stores.errors import DocumentStoreError, DuplicateDocumentError
 from haystack.document_stores.types import DuplicatePolicy
 from haystack.errors import FilterError
-from haystack.testing.document_store import DocumentStoreBaseTests
+from haystack.testing.document_store import (
+    CountDocumentsByFilterTest,
+    CountUniqueMetadataByFilterTest,
+    DeleteAllTest,
+    DeleteByFilterTest,
+    DocumentStoreBaseTests,
+    GetMetadataFieldMinMaxTest,
+    GetMetadataFieldsInfoTest,
+    GetMetadataFieldUniqueValuesTest,
+    UpdateByFilterTest,
+)
 
 from haystack_integrations.components.retrievers.falkordb import (
     FalkorDBCypherRetriever,
@@ -269,7 +279,17 @@ class TestFalkorDBDocumentStoreUnit:
 
 
 @pytest.mark.integration
-class TestDocumentStore(DocumentStoreBaseTests):
+class TestDocumentStore(
+    DocumentStoreBaseTests,
+    DeleteAllTest,
+    DeleteByFilterTest,
+    UpdateByFilterTest,
+    CountDocumentsByFilterTest,
+    CountUniqueMetadataByFilterTest,
+    GetMetadataFieldsInfoTest,
+    GetMetadataFieldMinMaxTest,
+    GetMetadataFieldUniqueValuesTest,
+):
     """
     Test FalkorDBDocumentStore against the standard Haystack DocumentStore tests.
     """
