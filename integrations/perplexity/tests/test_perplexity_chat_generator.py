@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 
 import httpx
 import pytest
@@ -27,7 +27,7 @@ def _make_transport(captured: list[httpx.Request]) -> httpx.MockTransport:
             json={
                 "id": "chatcmpl-test",
                 "object": "chat.completion",
-                "created": int(datetime.now(tz=UTC).timestamp()),
+                "created": int(datetime.now(tz=timezone.utc).timestamp()),
                 "model": "sonar-pro",
                 "choices": [
                     {
