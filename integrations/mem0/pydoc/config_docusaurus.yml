@@ -5,7 +5,7 @@ loaders:
       - haystack_integrations.memory_stores.mem0.errors
       - haystack_integrations.memory_stores.mem0.tools
       - haystack_integrations.components.retrievers.mem0.retriever
-      - haystack_integrations.components.writers.memory.writer
+      - haystack_integrations.components.writers.mem0.writer
     search_path: [../src]
 processors:
   - type: filter
