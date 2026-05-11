@@ -511,9 +511,7 @@ SET d.{self.embedding_field} = vecf32(doc.emb)
         rows = result.result_set
         return int(rows[0][0]) if rows else 0
 
-    def count_unique_metadata_by_filter(
-        self, filters: dict[str, Any], metadata_fields: list[str]
-    ) -> dict[str, int]:
+    def count_unique_metadata_by_filter(self, filters: dict[str, Any], metadata_fields: list[str]) -> dict[str, int]:
         """
         Return the number of unique values for each metadata field among matching documents.
 
@@ -557,9 +555,7 @@ SET d.{self.embedding_field} = vecf32(doc.emb)
 
         info: dict[str, dict[str, str]] = {}
         for key in sorted(all_keys):
-            res = self.graph.query(
-                f"MATCH (d:{self.node_label}) WHERE d.{key} IS NOT NULL RETURN d.{key} LIMIT 1"
-            )
+            res = self.graph.query(f"MATCH (d:{self.node_label}) WHERE d.{key} IS NOT NULL RETURN d.{key} LIMIT 1")
             if not res.result_set:
                 continue
             val = res.result_set[0][0]
@@ -585,8 +581,7 @@ SET d.{self.embedding_field} = vecf32(doc.emb)
         self._ensure_connected()
         field = metadata_field[5:] if metadata_field.startswith("meta.") else metadata_field
         result = self.graph.query(
-            f"MATCH (d:{self.node_label}) WHERE d.{field} IS NOT NULL "
-            f"RETURN min(d.{field}), max(d.{field})"
+            f"MATCH (d:{self.node_label}) WHERE d.{field} IS NOT NULL RETURN min(d.{field}), max(d.{field})"
         )
         if not result.result_set:
             return {"min": None, "max": None}
