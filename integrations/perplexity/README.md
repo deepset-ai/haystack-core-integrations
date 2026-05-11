@@ -33,6 +33,19 @@ links = result["links"]
 
 See the [Perplexity Search API reference](https://docs.perplexity.ai/api-reference/search-post) for the full list of supported parameters.
 
+Use `PerplexityChatGenerator` for chat generation through the Perplexity Agent API:
+
+```python
+from haystack.dataclasses import ChatMessage
+from haystack_integrations.components.generators.perplexity import PerplexityChatGenerator
+
+chat_generator = PerplexityChatGenerator(model="openai/gpt-5.4")
+response = chat_generator.run([ChatMessage.from_user("What is Haystack by deepset?")])
+print(response["replies"][0].text)
+```
+
+See the [Perplexity Agent API quickstart](https://docs.perplexity.ai/docs/agent-api/quickstart) for supported parameters.
+
 ## Contributing
 
 Refer to the general [Contribution Guidelines](https://github.com/deepset-ai/haystack-core-integrations/blob/main/CONTRIBUTING.md).
