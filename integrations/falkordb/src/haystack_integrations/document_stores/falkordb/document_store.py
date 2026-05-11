@@ -515,8 +515,7 @@ SET d.{self.embedding_field} = vecf32(doc.emb)
         self, filters: dict[str, Any], metadata_fields: list[str]
     ) -> dict[str, int]:
         """
-        Return the number of unique values for each specified metadata field among documents
-        that match the provided filters.
+        Return the number of unique values for each metadata field among matching documents.
 
         :param filters: Haystack filter dict. Pass an empty dict to count across all documents.
         :param metadata_fields: List of metadata field names. May include or omit the ``meta.`` prefix.
@@ -549,12 +548,12 @@ SET d.{self.embedding_field} = vecf32(doc.emb)
             Type names are ``"str"``, ``"int"``, ``"float"``, or ``"bool"``.
         """
         self._ensure_connected()
-        _STANDARD_FIELDS = {"id", "content", "embedding", "score", "sparse_embedding"}
+        standard_fields = {"id", "content", "embedding", "score", "sparse_embedding"}
         result = self.graph.query(f"MATCH (d:{self.node_label}) RETURN keys(d)")
         all_keys: set[str] = set()
         for row in result.result_set:
             all_keys.update(row[0])
-        all_keys -= _STANDARD_FIELDS
+        all_keys -= standard_fields
 
         info: dict[str, dict[str, str]] = {}
         for key in sorted(all_keys):
