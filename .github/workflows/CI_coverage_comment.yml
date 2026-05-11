@@ -17,6 +17,7 @@ on:
       - "Test / cohere"
       - "Test / cometapi"
       - "Test / deepeval"
+      - "Test / docling_serve"
       - "Test / dspy"
       - "Test / e2b"
       - "Test / elasticsearch"

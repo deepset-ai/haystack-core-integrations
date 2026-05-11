@@ -3,13 +3,13 @@ requires = ["hatchling", "hatch-vcs"]
 build-backend = "hatchling.build"
 
 [project]
-name = "pinecone_haystack"
+name = "docling-serve-haystack"
 dynamic = ["version"]
-description = ''
+description = "Haystack converter component for DoclingServe — document conversion via HTTP"
 readme = "README.md"
 requires-python = ">=3.10"
 license = "Apache-2.0"
-keywords = []
+keywords = ["Haystack", "Docling", "DoclingServe", "document conversion", "PDF", "OCR"]
 authors = [{ name = "deepset GmbH", email = "info@deepset.ai" }]
 classifiers = [
   "License :: OSI Approved :: Apache Software License",
@@ -24,25 +24,25 @@ classifiers = [
   "Programming Language :: Python :: Implementation :: PyPy",
 ]
 dependencies = [
-  "haystack-ai>=2.28.0",
-  "pinecone[asyncio]>=7.0.0",
+  "haystack-ai>=2.9.0",
+  "httpx>=0.27.0",
 ]
 
 [project.urls]
-Documentation = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/pinecone#readme"
+Documentation = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/docling_serve#readme"
 Issues = "https://github.com/deepset-ai/haystack-core-integrations/issues"
-Source = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/pinecone"
+Source = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/docling_serve"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/haystack_integrations"]
 
 [tool.hatch.version]
 source = "vcs"
-tag-pattern = 'integrations\/pinecone-v(?P<version>.*)'
+tag-pattern = 'integrations\/docling_serve-v(?P<version>.*)'
 
 [tool.hatch.version.raw-options]
 root = "../.."
-git_describe_command = 'git describe --tags --match="integrations/pinecone-v[0-9]*"'
+git_describe_command = 'git describe --tags --match="integrations/docling_serve-v[0-9]*"'
 
 [tool.hatch.envs.default]
 installer = "uv"
@@ -54,27 +54,22 @@ fmt = "ruff check --fix {args}; ruff format {args}"
 fmt-check = "ruff check {args} && ruff format --check {args}"
 
 [tool.hatch.envs.test]
-installer = "uv"
 dependencies = [
-  "pytest",
-  "pytest-asyncio",
-  "pytest-cov",
-  "pytest-rerunfailures",
-  "mypy",
-  "pip",
-  "pytest-xdist",
+    "pytest",
+    "pytest-asyncio",
+    "pytest-cov",
+    "pytest-rerunfailures",
+    "mypy",
+    "pip",
 ]
 
 [tool.hatch.envs.test.scripts]
 unit = 'pytest -m "not integration" {args:tests}'
 integration = 'pytest -m "integration" {args:tests}'
 all = 'pytest {args:tests}'
-
 unit-cov-retry = 'pytest --cov=haystack_integrations --reruns 3 --reruns-delay 30 -x -m "not integration" {args:tests}'
 integration-cov-append-retry = 'pytest --cov=haystack_integrations --cov-append --reruns 3 --reruns-delay 30 -x -m "integration" {args:tests}'
-
-types = """mypy -p haystack_integrations.components.retrievers.pinecone \
--p haystack_integrations.document_stores.pinecone {args}"""
+types = "mypy -p haystack_integrations.components.converters.docling_serve {args}"
 
 [tool.mypy]
 install_types = true
@@ -82,66 +77,60 @@ non_interactive = true
 check_untyped_defs = true
 disallow_incomplete_defs = true
 
-
+[[tool.mypy.overrides]]
+module = ["httpx"]
+ignore_missing_imports = true
 
 [tool.ruff]
 line-length = 120
 
 [tool.ruff.lint]
 select = [
-  "A",
-  "ANN",
-  "ARG",
-  "B",
-  "C",
-  "D102",   # Missing docstring in public method
-  "D103",   # Missing docstring in public function
-  "D205",   # 1 blank line required between summary line and description
-  "D209",   # Closing triple quotes go to new line
-  "D213",   # summary lines must be positioned on the second physical line of the docstring
-  "D417",   # Missing argument descriptions in the docstring
-  "D419",   # Docstring is empty
-  "DTZ",
-  "E",
-  "EM",
-  "F",
-  "FBT",
-  "I",
-  "ICN",
-  "ISC",
-  "N",
-  "PLC",
-  "PLE",
-  "PLR",
-  "PLW",
-  "Q",
-  "RUF",
-  "S",
-  "T",
-  "TID",
-  "UP",
-  "W",
-  "YTT",
+    "A",
+    "ANN",
+    "ARG",
+    "B",
+    "C",
+    "D102",
+    "D103",
+    "D205",
+    "D209",
+    "D213",
+    "D417",
+    "D419",
+    "DTZ",
+    "E",
+    "EM",
+    "F",
+    "I",
+    "ICN",
+    "ISC",
+    "N",
+    "PLC",
+    "PLE",
+    "PLR",
+    "PLW",
+    "Q",
+    "RUF",
+    "S",
+    "T",
+    "TID",
+    "UP",
+    "W",
+    "YTT",
 ]
 ignore = [
-  # Allow non-abstract empty methods in abstract base classes
-  "B027",
-  # Allow Any in type annotations at dynamic boundaries
-  "ANN401",
-  # Allow boolean positional values in function calls, like `dict.get(... True)`
-  "FBT003",
-  # Ignore checks for possible passwords
-  "S105",
-  "S106",
-  "S107",
-  # Ignore complexity
-  "C901",
-  "PLR0911",
-  "PLR0912",
-  "PLR0913",
-  "PLR0915",
-  # Ignore assertions
-  "S101",
+    "B027",
+    "B008",
+    "S105",
+    "S106",
+    "S107",
+    "C901",
+    "PLR0911",
+    "PLR0912",
+    "PLR0913",
+    "PLR0915",
+    "ANN401",
 ]
 
 [tool.ruff.lint.isort]
@@ -151,10 +140,7 @@ known-first-party = ["haystack_integrations"]
 ban-relative-imports = "parents"
 
 [tool.ruff.lint.per-file-ignores]
-# Tests can use magic values, assertions, and relative imports
-"tests/**/*" = ["D", "PLR2004", "S101", "TID252", "ANN"]
-# examples can contain "print" commands
-"examples/**/*" = ["D", "T201"]
+"tests/**/*" = ["PLR2004", "S101", "TID252", "D", "ANN"]
 
 [tool.coverage.run]
 source = ["haystack_integrations"]
@@ -162,12 +148,16 @@ branch = true
 relative_files = true
 parallel = false
 
-
 [tool.coverage.report]
 omit = ["*/tests/*", "*/__init__.py"]
 show_missing = true
 exclude_lines = ["no cov", "if __name__ == .__main__.:", "if TYPE_CHECKING:"]
 
 [tool.pytest.ini_options]
-minversion = "6.0"
-markers = ["integration: integration tests"]
+addopts = "--strict-markers"
+markers = [
+  "integration: integration tests",
+]
+log_cli = true
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"

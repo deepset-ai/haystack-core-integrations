@@ -79,6 +79,11 @@ integration:docling:
       - any-glob-to-any-file: "integrations/docling/**/*"
       - any-glob-to-any-file: ".github/workflows/docling.yml"
 
+integration:docling-serve:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/docling_serve/**/*"
+      - any-glob-to-any-file: ".github/workflows/docling_serve.yml"
+
 integration:dspy:
   - changed-files:
       - any-glob-to-any-file: "integrations/dspy/**/*"

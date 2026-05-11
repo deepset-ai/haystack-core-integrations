@@ -873,8 +873,7 @@ class PineconeDocumentStore:
                     values.append(value)
 
         if not values:
-            msg = f"No values found for metadata field '{metadata_field}'"
-            raise ValueError(msg)
+            return {"min": None, "max": None}
 
         result = {"min": min(values), "max": max(values)}
 
@@ -1041,8 +1040,8 @@ class PineconeDocumentStore:
         Subject to Pinecone's TOP_K_LIMIT of 1000 documents.
 
         :param metadata_field: The metadata field name to analyze.
-        :returns: Dictionary with 'min' and 'max' keys.
-        :raises ValueError: If the field doesn't exist or has no values.
+        :returns: Dictionary with 'min' and 'max' keys. Both values are None if the field has no
+            values (empty store, field absent, or unsupported field type).
         """
         documents = self.filter_documents(filters=None)
         return self._get_metadata_field_min_max_impl(documents, metadata_field)
@@ -1060,8 +1059,8 @@ class PineconeDocumentStore:
         Subject to Pinecone's TOP_K_LIMIT of 1000 documents.
 
         :param metadata_field: The metadata field name to analyze.
-        :returns: Dictionary with 'min' and 'max' keys.
-        :raises ValueError: If the field doesn't exist or has no values.
+        :returns: Dictionary with 'min' and 'max' keys. Both values are None if the field has no
+            values (empty store, field absent, or unsupported field type).
         """
         documents = await self.filter_documents_async(filters=None)
         return self._get_metadata_field_min_max_impl(documents, metadata_field)
