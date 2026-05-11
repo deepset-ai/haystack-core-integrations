@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from haystack import default_from_dict, default_to_dict, logging
 from haystack.dataclasses import Document
@@ -17,28 +17,28 @@ logger = logging.getLogger(__name__)
 
 class SupabaseGroongaDocumentStore:
     """
-    A Document Store for Supabase using PGroonga for full-text search.
+        A Document Store for Supabase using PGroonga for full-text search.
 
-    PGroonga is a PostgreSQL extension for fast, multilingual full-text search.
-    Unlike vector search, this store works with plain text queries — no embeddings needed.
+        PGroonga is a PostgreSQL extension for fast, multilingual full-text search.
+        Unlike vector search, this store works with plain text queries — no embeddings needed.
 
-    Prerequisites:
-    - A Supabase project with PGroonga extension enabled.
-    - Enable PGroonga in your Supabase project by running:
-      `CREATE EXTENSION IF NOT EXISTS pgroonga;`
+        Prerequisites:
+        - A Supabase project with PGroonga extension enabled.
+        - Enable PGroonga in your Supabase project by running:
+          `CREATE EXTENSION IF NOT EXISTS pgroonga;`
 
-    Example usage:
+        Example usage:
 
-```python
-    from haystack_integrations.document_stores.supabase import SupabaseGroongaDocumentStore
-    from haystack.utils import Secret
+    ```python
+        from haystack_integrations.document_stores.supabase import SupabaseGroongaDocumentStore
+        from haystack.utils import Secret
 
-    document_store = SupabaseGroongaDocumentStore(
-        supabase_url="https://<project>.supabase.co",
-        supabase_key=Secret.from_env_var("SUPABASE_SERVICE_KEY"),
-        table_name="haystack_fts_documents",
-    )
-```
+        document_store = SupabaseGroongaDocumentStore(
+            supabase_url="https://<project>.supabase.co",
+            supabase_key=Secret.from_env_var("SUPABASE_SERVICE_KEY"),
+            table_name="haystack_fts_documents",
+        )
+    ```
     """
 
     def __init__(
@@ -76,13 +76,11 @@ class SupabaseGroongaDocumentStore:
     def _setup_table(self) -> None:
         """
         Creates the documents table with PGroonga index if it does not exist.
+
         If recreate_table is True, drops and recreates the table.
         """
         if self.recreate_table:
-            self._client.rpc(
-                "exec_sql",
-                {"query": f"DROP TABLE IF EXISTS {self.table_name};"}
-            ).execute()
+            self._client.rpc("exec_sql", {"query": f"DROP TABLE IF EXISTS {self.table_name};"}).execute()
 
         # Create table if not exists
         create_table_sql = f"""
@@ -112,7 +110,7 @@ class SupabaseGroongaDocumentStore:
         result = self._client.table(self.table_name).select("id", count="exact").execute()
         return result.count or 0
 
-    def filter_documents(self, filters: Optional[Dict[str, Any]] = None) -> List[Document]:
+    def filter_documents(self, filters: dict[str, Any] | None = None) -> list[Document]:  # noqa: ARG002
         """
         Returns documents matching the given filters.
 
@@ -125,7 +123,7 @@ class SupabaseGroongaDocumentStore:
 
     def write_documents(
         self,
-        documents: List[Document],
+        documents: list[Document],
         policy: DuplicatePolicy = DuplicatePolicy.NONE,
     ) -> int:
         """
@@ -150,26 +148,15 @@ class SupabaseGroongaDocumentStore:
                 self._client.table(self.table_name).upsert(row).execute()
                 written += 1
             elif policy == DuplicatePolicy.SKIP:
-                existing = (
-                    self._client.table(self.table_name)
-                    .select("id")
-                    .eq("id", doc.id)
-                    .execute()
-                )
+                existing = self._client.table(self.table_name).select("id").eq("id", doc.id).execute()
                 if not existing.data:
                     self._client.table(self.table_name).insert(row).execute()
                     written += 1
             elif policy == DuplicatePolicy.FAIL:
-                existing = (
-                    self._client.table(self.table_name)
-                    .select("id")
-                    .eq("id", doc.id)
-                    .execute()
-                )
+                existing = self._client.table(self.table_name).select("id").eq("id", doc.id).execute()
                 if existing.data:
-                    raise DuplicateDocumentError(
-                        f"Document with id {doc.id!r} already exists."
-                    )
+                    msg = f"Document with id {doc.id!r} already exists."
+                    raise DuplicateDocumentError(msg)
                 self._client.table(self.table_name).insert(row).execute()
                 written += 1
             else:
@@ -178,7 +165,7 @@ class SupabaseGroongaDocumentStore:
 
         return written
 
-    def delete_documents(self, document_ids: List[str]) -> None:
+    def delete_documents(self, document_ids: list[str]) -> None:
         """
         Deletes documents with the given IDs.
 
@@ -192,8 +179,8 @@ class SupabaseGroongaDocumentStore:
         self,
         query: str,
         top_k: int = 10,
-        filters: Optional[Dict[str, Any]] = None,
-    ) -> List[Document]:
+        filters: dict[str, Any] | None = None,  # noqa: ARG002
+    ) -> list[Document]:
         """
         Searches documents using PGroonga full-text search.
 
@@ -202,22 +189,13 @@ class SupabaseGroongaDocumentStore:
         :param filters: Optional filters to apply.
         :returns: List of matching Document objects ranked by relevance.
         """
-        search_sql = f"""
-            SELECT id, content, meta,
-                   pgroonga_score(tableoid, ctid) AS score
-            FROM {self.table_name}
-            WHERE content &@~ %s
-            ORDER BY score DESC
-            LIMIT %s;
-        """
         result = self._client.rpc(
-            "groonga_search",
-            {"query_text": query, "table": self.table_name, "top_k": top_k}
+            "groonga_search", {"query_text": query, "table": self.table_name, "top_k": top_k}
         ).execute()
 
         return [self._to_haystack_document(row) for row in result.data]
 
-    def _to_haystack_document(self, row: Dict[str, Any]) -> Document:
+    def _to_haystack_document(self, row: dict[str, Any]) -> Document:
         """
         Converts a database row dictionary into a Haystack Document.
 
@@ -231,7 +209,7 @@ class SupabaseGroongaDocumentStore:
             score=row.get("score"),
         )
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """
         Serializes the component to a dictionary.
 
@@ -246,7 +224,7 @@ class SupabaseGroongaDocumentStore:
         )
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "SupabaseGroongaDocumentStore":
+    def from_dict(cls, data: dict[str, Any]) -> "SupabaseGroongaDocumentStore":
         """
         Deserializes the component from a dictionary.
 

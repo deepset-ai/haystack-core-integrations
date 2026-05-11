@@ -3,27 +3,23 @@
 # SPDX-License-Identifier: Apache-2.0
 
 from unittest.mock import MagicMock, patch
-from typing import Any, Dict
 
 import pytest
 from haystack.dataclasses import Document
 from haystack.document_stores.types import DuplicatePolicy
-from haystack.utils.auth import Secret
 
-from haystack_integrations.document_stores.supabase import SupabaseGroongaDocumentStore
 from haystack_integrations.components.retrievers.supabase import SupabaseGroongaRetriever
-
+from haystack_integrations.document_stores.supabase import SupabaseGroongaDocumentStore
 
 # ─────────────────────────────────────────────
 # FIXTURES
 # ─────────────────────────────────────────────
 
+
 @pytest.fixture
 def mock_supabase_client():
     """Creates a mock Supabase client so we never hit a real database."""
-    with patch(
-        "haystack_integrations.document_stores.supabase.groonga_document_store.create_client"
-    ) as mock_create:
+    with patch("haystack_integrations.document_stores.supabase.groonga_document_store.create_client") as mock_create:
         mock_client = MagicMock()
         mock_create.return_value = mock_client
 
@@ -60,6 +56,7 @@ def groonga_store(mock_supabase_client, monkeypatch):  # noqa: ARG001
 # DOCUMENT STORE TESTS
 # ─────────────────────────────────────────────
 
+
 def test_init_defaults(mock_supabase_client, monkeypatch):  # noqa: ARG001
     """Test that default parameters are set correctly."""
     monkeypatch.setenv("SUPABASE_SERVICE_KEY", "fake-test-key")
@@ -91,18 +88,14 @@ def test_init_invalid_store():
 
 def test_count_documents(groonga_store, mock_supabase_client):
     """Test count_documents returns correct number."""
-    mock_supabase_client.table.return_value.select.return_value.execute.return_value = MagicMock(
-        count=5
-    )
+    mock_supabase_client.table.return_value.select.return_value.execute.return_value = MagicMock(count=5)
     count = groonga_store.count_documents()
     assert count == 5
 
 
 def test_count_documents_empty(groonga_store, mock_supabase_client):
     """Test count_documents returns 0 when store is empty."""
-    mock_supabase_client.table.return_value.select.return_value.execute.return_value = MagicMock(
-        count=0
-    )
+    mock_supabase_client.table.return_value.select.return_value.execute.return_value = MagicMock(count=0)
     count = groonga_store.count_documents()
     assert count == 0
 
@@ -170,12 +163,12 @@ def test_filter_documents(groonga_store, mock_supabase_client):
 # SERIALIZATION TESTS
 # ─────────────────────────────────────────────
 
+
 def test_to_dict(groonga_store):
     """Test that to_dict returns correct dictionary."""
     result = groonga_store.to_dict()
     assert result["type"] == (
-        "haystack_integrations.document_stores.supabase"
-        ".groonga_document_store.SupabaseGroongaDocumentStore"
+        "haystack_integrations.document_stores.supabase.groonga_document_store.SupabaseGroongaDocumentStore"
     )
     assert result["init_parameters"]["table_name"] == "test_groonga_documents"
     assert result["init_parameters"]["supabase_url"] == "https://fake-project.supabase.co"
@@ -186,10 +179,7 @@ def test_from_dict(mock_supabase_client, monkeypatch):  # noqa: ARG001
     """Test that from_dict recreates the store correctly."""
     monkeypatch.setenv("SUPABASE_SERVICE_KEY", "fake-test-key")
     data = {
-        "type": (
-            "haystack_integrations.document_stores.supabase"
-            ".groonga_document_store.SupabaseGroongaDocumentStore"
-        ),
+        "type": ("haystack_integrations.document_stores.supabase.groonga_document_store.SupabaseGroongaDocumentStore"),
         "init_parameters": {
             "supabase_url": "https://fake-project.supabase.co",
             "supabase_key": {
@@ -209,6 +199,7 @@ def test_from_dict(mock_supabase_client, monkeypatch):  # noqa: ARG001
 # ─────────────────────────────────────────────
 # RETRIEVER TESTS
 # ─────────────────────────────────────────────
+
 
 def test_retriever_init(groonga_store):
     """Test that retriever initializes correctly."""
@@ -254,18 +245,14 @@ def test_retriever_from_dict(mock_supabase_client, monkeypatch):  # noqa: ARG001
     """Test that retriever deserializes correctly."""
     monkeypatch.setenv("SUPABASE_SERVICE_KEY", "fake-test-key")
     data = {
-        "type": (
-            "haystack_integrations.components.retrievers.supabase"
-            ".groonga_retriever.SupabaseGroongaRetriever"
-        ),
+        "type": ("haystack_integrations.components.retrievers.supabase.groonga_retriever.SupabaseGroongaRetriever"),
         "init_parameters": {
             "top_k": 7,
             "filters": {},
             "filter_policy": "replace",
             "document_store": {
                 "type": (
-                    "haystack_integrations.document_stores.supabase"
-                    ".groonga_document_store.SupabaseGroongaDocumentStore"
+                    "haystack_integrations.document_stores.supabase.groonga_document_store.SupabaseGroongaDocumentStore"
                 ),
                 "init_parameters": {
                     "supabase_url": "https://fake-project.supabase.co",

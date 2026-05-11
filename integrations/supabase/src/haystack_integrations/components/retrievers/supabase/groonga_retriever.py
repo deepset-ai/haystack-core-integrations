@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import copy
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from haystack import component, default_from_dict, default_to_dict
 from haystack.dataclasses import Document
@@ -15,35 +15,35 @@ from haystack_integrations.document_stores.supabase import SupabaseGroongaDocume
 @component
 class SupabaseGroongaRetriever:
     """
-    Retrieves documents from SupabaseGroongaDocumentStore using PGroonga full-text search.
+        Retrieves documents from SupabaseGroongaDocumentStore using PGroonga full-text search.
 
-    This retriever works without embeddings — it searches documents using plain text queries.
-    It can be used alongside SupabasePgvectorEmbeddingRetriever in hybrid search pipelines.
+        This retriever works without embeddings — it searches documents using plain text queries.
+        It can be used alongside SupabasePgvectorEmbeddingRetriever in hybrid search pipelines.
 
-    Example usage:
+        Example usage:
 
-```python
-    from haystack_integrations.document_stores.supabase import SupabaseGroongaDocumentStore
-    from haystack_integrations.components.retrievers.supabase import SupabaseGroongaRetriever
-    from haystack.utils import Secret
+    ```python
+        from haystack_integrations.document_stores.supabase import SupabaseGroongaDocumentStore
+        from haystack_integrations.components.retrievers.supabase import SupabaseGroongaRetriever
+        from haystack.utils import Secret
 
-    document_store = SupabaseGroongaDocumentStore(
-        supabase_url="https://<project>.supabase.co",
-        supabase_key=Secret.from_env_var("SUPABASE_SERVICE_KEY"),
-        table_name="haystack_fts_documents",
-    )
+        document_store = SupabaseGroongaDocumentStore(
+            supabase_url="https://<project>.supabase.co",
+            supabase_key=Secret.from_env_var("SUPABASE_SERVICE_KEY"),
+            table_name="haystack_fts_documents",
+        )
 
-    retriever = SupabaseGroongaRetriever(document_store=document_store, top_k=10)
-    result = retriever.run(query="python programming")
-    print(result["documents"])
-```
+        retriever = SupabaseGroongaRetriever(document_store=document_store, top_k=10)
+        result = retriever.run(query="python programming")
+        print(result["documents"])
+    ```
     """
 
     def __init__(
         self,
         *,
         document_store: SupabaseGroongaDocumentStore,
-        filters: Optional[Dict[str, Any]] = None,
+        filters: dict[str, Any] | None = None,
         top_k: int = 10,
         filter_policy: str | FilterPolicy = FilterPolicy.REPLACE,
     ) -> None:
@@ -64,18 +64,16 @@ class SupabaseGroongaRetriever:
         self.filters = filters or {}
         self.top_k = top_k
         self.filter_policy = (
-            filter_policy
-            if isinstance(filter_policy, FilterPolicy)
-            else FilterPolicy.from_str(filter_policy)
+            filter_policy if isinstance(filter_policy, FilterPolicy) else FilterPolicy.from_str(filter_policy)
         )
 
-    @component.output_types(documents=List[Document])
+    @component.output_types(documents=list[Document])
     def run(
         self,
         query: str,
-        filters: Optional[Dict[str, Any]] = None,
-        top_k: Optional[int] = None,
-    ) -> Dict[str, List[Document]]:
+        filters: dict[str, Any] | None = None,
+        top_k: int | None = None,
+    ) -> dict[str, list[Document]]:
         """
         Runs the retriever on the given query.
 
@@ -106,7 +104,7 @@ class SupabaseGroongaRetriever:
 
         return {"documents": documents}
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """
         Serializes the component to a dictionary.
 
@@ -121,7 +119,7 @@ class SupabaseGroongaRetriever:
         )
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "SupabaseGroongaRetriever":
+    def from_dict(cls, data: dict[str, Any]) -> "SupabaseGroongaRetriever":
         """
         Deserializes the component from a dictionary.
 
@@ -130,9 +128,7 @@ class SupabaseGroongaRetriever:
         """
         data = copy.deepcopy(data)
         doc_store_params = data["init_parameters"]["document_store"]
-        data["init_parameters"]["document_store"] = SupabaseGroongaDocumentStore.from_dict(
-            doc_store_params
-        )
+        data["init_parameters"]["document_store"] = SupabaseGroongaDocumentStore.from_dict(doc_store_params)
         if filter_policy := data["init_parameters"].get("filter_policy"):
             data["init_parameters"]["filter_policy"] = FilterPolicy.from_str(filter_policy)
         return default_from_dict(cls, data)

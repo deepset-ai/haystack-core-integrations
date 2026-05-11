@@ -5,6 +5,6 @@ from .document_store import SupabasePgvectorDocumentStore
 from .groonga_document_store import SupabaseGroongaDocumentStore
 
 __all__ = [
-    "SupabasePgvectorDocumentStore",
     "SupabaseGroongaDocumentStore",
+    "SupabasePgvectorDocumentStore",
 ]
