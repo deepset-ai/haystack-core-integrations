@@ -52,6 +52,7 @@ class PerplexityWebSearch:
 
     def __init__(
         self,
+        *,
         api_key: Secret = Secret.from_env_var("PERPLEXITY_API_KEY"),
         top_k: int | None = 10,
         search_params: dict[str, Any] | None = None,

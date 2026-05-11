@@ -72,6 +72,7 @@ class TestPerplexityWebSearch:
         data = component_to_dict(ws, "PerplexityWebSearch")
         expected_type = "haystack_integrations.components.websearch.perplexity.perplexity_websearch.PerplexityWebSearch"
         assert data["type"] == expected_type
+        assert data["init_parameters"]["api_key"] == Secret.from_env_var("PERPLEXITY_API_KEY").to_dict()
         assert data["init_parameters"]["top_k"] == 5
         assert data["init_parameters"]["search_params"] == {"country": "US"}
 
@@ -83,7 +84,11 @@ class TestPerplexityWebSearch:
                 "top_k": 3,
                 "search_params": {"search_recency_filter": "day"},
                 "timeout": 15.0,
-                "api_key": {"env_vars": ["PERPLEXITY_API_KEY"], "strict": True, "type": "env_var"},
+                "api_key": {
+                    "env_vars": ["PERPLEXITY_API_KEY"],
+                    "strict": True,
+                    "type": "env_var",
+                },
             },
         }
         ws = component_from_dict(PerplexityWebSearch, data, "PerplexityWebSearch")
@@ -153,7 +158,11 @@ class TestPerplexityWebSearch:
         ws.run(query="hello")
 
         body = json.loads(captured[0].content)
-        assert body == {"query": "hello", "search_recency_filter": "week", "max_results": 5}
+        assert body == {
+            "query": "hello",
+            "search_recency_filter": "week",
+            "max_results": 5,
+        }
 
     @pytest.mark.asyncio
     async def test_run_async(self):
