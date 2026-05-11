@@ -16,31 +16,26 @@ from haystack.components.agents import Agent
 from haystack.components.generators.chat import OpenAIChatGenerator
 from haystack.dataclasses import ChatMessage
 
-from haystack_integrations.memory_stores.mem0 import (
-    Mem0MemoryStore,
-    create_mem0_memory_retriever_tool,
-    create_mem0_memory_writer_tool,
-)
+from haystack_integrations.memory_stores.mem0 import Mem0MemoryStore
+from haystack_integrations.tools.mem0 import Mem0MemoryRetrieverTool, Mem0MemoryWriterTool
 
 USER_ID = "demo-user"
-
-SYSTEM_PROMPT = """You are a helpful assistant with long-term memory.
-
-Before answering, call `retrieve_memories` to recall relevant facts about this user.
-After answering, call `store_memory` to save any important new information the user shared.
-"""
 
 
 def main() -> None:  # noqa: D103
     store = Mem0MemoryStore()
 
-    retriever_tool = create_mem0_memory_retriever_tool(store, user_id=USER_ID, top_k=5)
-    writer_tool = create_mem0_memory_writer_tool(store, user_id=USER_ID)
+    retriever_tool = Mem0MemoryRetrieverTool(memory_store=store, user_id=USER_ID, top_k=5)
+    writer_tool = Mem0MemoryWriterTool(memory_store=store, user_id=USER_ID)
 
     agent = Agent(
         chat_generator=OpenAIChatGenerator(model="gpt-4o-mini"),
         tools=[retriever_tool, writer_tool],
-        system_prompt=SYSTEM_PROMPT,
+        system_prompt="""You are a helpful assistant with long-term memory.
+
+Before answering, call `retrieve_memories` to recall relevant facts about this user.
+After answering, call `store_memory` to save any important new information the user shared.
+""",
     )
 
     turns = [

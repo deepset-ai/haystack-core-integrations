@@ -2,9 +2,10 @@ loaders:
   - modules:
       - haystack_integrations.memory_stores.mem0.memory_store
       - haystack_integrations.memory_stores.mem0.errors
-      - haystack_integrations.memory_stores.mem0.tools
       - haystack_integrations.components.retrievers.mem0.retriever
       - haystack_integrations.components.writers.mem0.writer
+      - haystack_integrations.tools.mem0.retriever_tool
+      - haystack_integrations.tools.mem0.writer_tool
     search_path: [../src]
 processors:
   - type: filter
