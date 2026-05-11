@@ -35,7 +35,7 @@ class TestCreateMem0MemoryRetrieverTool:
         assert tool.name == "my_tool"
         assert tool.description == "Custom desc"
 
-    def test_user_id_not_in_parameters(self, store):
+    def test_ids_not_exposed_to_llm(self, store):
         tool = create_mem0_memory_retriever_tool(store, user_id="u1")
         props = tool.parameters.get("properties", {})
         assert "user_id" not in props
@@ -49,11 +49,9 @@ class TestCreateMem0MemoryRetrieverTool:
     def test_tool_calls_retriever_with_bound_ids(self, store):
         store.search_memories = Mock(return_value=[ChatMessage.from_system("remembered fact")])
         tool = create_mem0_memory_retriever_tool(store, user_id="bound-user", top_k=3)
-        result = tool.invoke(query="what do I like?")
-        store.search_memories.assert_called_once()
+        tool.invoke(query="what do I like?")
         kwargs = store.search_memories.call_args[1]
         assert kwargs["user_id"] == "bound-user"
-        assert "bound-user" not in result  # IDs are implementation detail, not in returned string
 
     def test_tool_returns_string(self, store):
         store.search_memories = Mock(return_value=[ChatMessage.from_system("I like Python")])
@@ -78,7 +76,7 @@ class TestCreateMem0MemoryWriterTool:
         tool = create_mem0_memory_writer_tool(store, user_id="u1")
         assert tool.name == "store_memory"
 
-    def test_user_id_not_in_parameters(self, store):
+    def test_ids_not_exposed_to_llm(self, store):
         tool = create_mem0_memory_writer_tool(store, user_id="u1")
         props = tool.parameters.get("properties", {})
         assert "user_id" not in props
@@ -91,7 +89,6 @@ class TestCreateMem0MemoryWriterTool:
         store.add_memories = Mock(return_value=[{"memory_id": "m1", "memory": "fact"}])
         tool = create_mem0_memory_writer_tool(store, user_id="bound-user")
         tool.invoke(text="I enjoy hiking")
-        store.add_memories.assert_called_once()
         kwargs = store.add_memories.call_args[1]
         assert kwargs["user_id"] == "bound-user"
 

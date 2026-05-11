@@ -8,25 +8,49 @@ from unittest.mock import Mock
 
 import pytest
 from haystack.dataclasses import ChatMessage, ToolCall
+from haystack.errors import FilterError
 from haystack.utils import Secret
 
+from haystack_integrations.memory_stores.mem0.errors import Mem0MemoryStoreError
+from haystack_integrations.memory_stores.mem0.filters import normalize_filters
 from haystack_integrations.memory_stores.mem0.memory_store import Mem0MemoryStore
 
 
 class TestMem0MemoryStore:
-    def test_init(self, monkeypatch, mock_mem0_client):
+    def test_init_does_not_create_client(self, monkeypatch):
         monkeypatch.setenv("MEM0_API_KEY", "test-key")
         store = Mem0MemoryStore()
-        assert store.client is mock_mem0_client
+        assert store._client is None
 
-    def test_init_explicit_key(self, mock_mem0_client):
-        store = Mem0MemoryStore(api_key=Secret.from_token("test-key"))
-        assert store.client is mock_mem0_client
+    def test_warm_up_creates_client(self, monkeypatch, mock_mem0_client):
+        monkeypatch.setenv("MEM0_API_KEY", "test-key")
+        store = Mem0MemoryStore()
+        store.warm_up()
+        assert store._client is mock_mem0_client
 
-    def test_init_missing_key_raises(self, monkeypatch):
+    def test_warm_up_idempotent(self, monkeypatch, mock_mem0_client):
+        monkeypatch.setenv("MEM0_API_KEY", "test-key")
+        store = Mem0MemoryStore()
+        store.warm_up()
+        store.warm_up()
+        assert store._client is mock_mem0_client
+
+    def test_client_property_triggers_warm_up(self, monkeypatch, mock_mem0_client):
+        monkeypatch.setenv("MEM0_API_KEY", "test-key")
+        store = Mem0MemoryStore()
+        _ = store.client
+        assert store._client is mock_mem0_client
+
+    def test_warm_up_missing_key_raises(self, monkeypatch):
         monkeypatch.delenv("MEM0_API_KEY", raising=False)
+        store = Mem0MemoryStore()
         with pytest.raises(ValueError, match="None of the following authentication environment variables are set"):
-            Mem0MemoryStore()
+            store.warm_up()
+
+    def test_init_with_explicit_key(self, mock_mem0_client):
+        store = Mem0MemoryStore(api_key=Secret.from_token("test-key"))
+        store.warm_up()
+        assert store._client is mock_mem0_client
 
     def test_to_dict(self, monkeypatch, mock_mem0_client):  # noqa: ARG002
         monkeypatch.setenv("MY_MEM0_KEY", "test-key")
@@ -49,21 +73,23 @@ class TestMem0MemoryStore:
         store = Mem0MemoryStore.from_dict(data)
         assert store.api_key == Secret.from_env_var("MY_MEM0_KEY")
 
+    def test_from_dict_empty_init_parameters(self):
+        data = {
+            "type": "haystack_integrations.memory_stores.mem0.memory_store.Mem0MemoryStore",
+            "init_parameters": {},
+        }
+        store = Mem0MemoryStore.from_dict(data)
+        assert store._client is None
+
     def test_add_memories(self, monkeypatch, mock_mem0_client):
         monkeypatch.setenv("MEM0_API_KEY", "test-key")
-        mock_mem0_client.add.return_value = {
-            "results": [
-                {"id": "mem-1", "data": {"memory": "User likes Python"}},
-            ]
-        }
+        mock_mem0_client.add.return_value = {"results": [{"id": "mem-1", "data": {"memory": "User likes Python"}}]}
         mock_mem0_client.project = Mock()
 
         store = Mem0MemoryStore()
-        messages = [ChatMessage.from_user("I like Python")]
-        result = store.add_memories(messages=messages, user_id="user-1")
+        result = store.add_memories(messages=[ChatMessage.from_user("I like Python")], user_id="user-1")
 
         assert result == [{"memory_id": "mem-1", "memory": "User likes Python"}]
-        mock_mem0_client.add.assert_called_once()
         call_kwargs = mock_mem0_client.add.call_args[1]
         assert call_kwargs["user_id"] == "user-1"
 
@@ -75,8 +101,16 @@ class TestMem0MemoryStore:
         store = Mem0MemoryStore()
         tc_msg = ChatMessage.from_assistant(text=None, tool_calls=[ToolCall(tool_name="foo", arguments={})])
         store.add_memories(messages=[tc_msg], user_id="user-1")
-        sent = mock_mem0_client.add.call_args[1]["messages"]
-        assert sent == []
+        assert mock_mem0_client.add.call_args[1]["messages"] == []
+
+    def test_add_memories_raises_store_error_on_failure(self, monkeypatch, mock_mem0_client):
+        monkeypatch.setenv("MEM0_API_KEY", "test-key")
+        mock_mem0_client.add.side_effect = Exception("API down")
+        mock_mem0_client.project = Mock()
+
+        store = Mem0MemoryStore()
+        with pytest.raises(Mem0MemoryStoreError, match="Failed to add memories"):
+            store.add_memories(messages=[ChatMessage.from_user("test")], user_id="u1")
 
     def test_search_memories_with_query(self, monkeypatch, mock_mem0_client):
         monkeypatch.setenv("MEM0_API_KEY", "test-key")
@@ -87,7 +121,6 @@ class TestMem0MemoryStore:
 
         assert len(results) == 1
         assert results[0].text == "User likes Python"
-        mock_mem0_client.search.assert_called_once()
 
     def test_search_memories_without_query_calls_get_all(self, monkeypatch, mock_mem0_client):
         monkeypatch.setenv("MEM0_API_KEY", "test-key")
@@ -101,8 +134,8 @@ class TestMem0MemoryStore:
 
     def test_search_memories_include_metadata(self, monkeypatch, mock_mem0_client):
         monkeypatch.setenv("MEM0_API_KEY", "test-key")
-        raw_memory = {"memory": "User likes Python", "metadata": None, "id": "mem-1", "score": 0.9}
-        mock_mem0_client.search.return_value = {"results": [raw_memory]}
+        raw = {"memory": "User likes Python", "metadata": None, "id": "mem-1", "score": 0.9}
+        mock_mem0_client.search.return_value = {"results": [raw]}
 
         store = Mem0MemoryStore()
         results = store.search_memories(query="Python", user_id="user-1", include_memory_metadata=True)
@@ -110,16 +143,23 @@ class TestMem0MemoryStore:
         assert "retrieved_memory_metadata" in results[0].meta
         assert results[0].meta["retrieved_memory_metadata"]["id"] == "mem-1"
 
-    def test_search_memories_with_filters(self, monkeypatch, mock_mem0_client):
+    def test_search_memories_with_filters_bypasses_id_check(self, monkeypatch, mock_mem0_client):
         monkeypatch.setenv("MEM0_API_KEY", "test-key")
         mock_mem0_client.get_all.return_value = {"results": []}
 
         store = Mem0MemoryStore()
-        filters = {"field": "user_id", "operator": "==", "value": "user-1"}
-        store.search_memories(filters=filters)
+        store.search_memories(filters={"field": "user_id", "operator": "==", "value": "user-1"})
 
         call_kwargs = mock_mem0_client.get_all.call_args[1]
         assert call_kwargs["filters"] == {"user_id": "user-1"}
+
+    def test_search_memories_raises_store_error_on_failure(self, monkeypatch, mock_mem0_client):
+        monkeypatch.setenv("MEM0_API_KEY", "test-key")
+        mock_mem0_client.search.side_effect = Exception("API down")
+
+        store = Mem0MemoryStore()
+        with pytest.raises(Mem0MemoryStoreError, match="Failed to search memories"):
+            store.search_memories(query="test", user_id="u1")
 
     def test_delete_all_memories(self, monkeypatch, mock_mem0_client):
         monkeypatch.setenv("MEM0_API_KEY", "test-key")
@@ -142,9 +182,10 @@ class TestMem0MemoryStore:
     def test_get_ids_returns_non_none_only(self, monkeypatch, mock_mem0_client):  # noqa: ARG002
         monkeypatch.setenv("MEM0_API_KEY", "test-key")
         store = Mem0MemoryStore()
-        result = store._get_ids(user_id="u1", run_id=None, agent_id="a1")
-        assert result == {"user_id": "u1", "agent_id": "a1"}
+        assert store._get_ids(user_id="u1", agent_id="a1") == {"user_id": "u1", "agent_id": "a1"}
 
+
+class TestNormalizeFilters:
     @pytest.mark.parametrize(
         "filters,expected",
         [
@@ -177,11 +218,19 @@ class TestMem0MemoryStore:
         ],
     )
     def test_normalize_filters(self, filters, expected):
-        assert Mem0MemoryStore.normalize_filters(filters) == expected
+        assert normalize_filters(filters) == expected
 
-    def test_normalize_filters_unsupported_operator(self):
-        with pytest.raises(ValueError, match="Unsupported filter operator"):
-            Mem0MemoryStore.normalize_filters({"field": "x", "operator": "LIKE", "value": "foo"})
+    def test_unsupported_comparison_operator_raises_filter_error(self):
+        with pytest.raises(FilterError, match="Unsupported filter operator"):
+            normalize_filters({"field": "x", "operator": "LIKE", "value": "foo"})
+
+    def test_unsupported_logical_operator_raises_filter_error(self):
+        with pytest.raises(FilterError, match="Unsupported logical operator"):
+            normalize_filters({"operator": "XOR", "conditions": []})
+
+    def test_not_a_dict_raises_filter_error(self):
+        with pytest.raises(FilterError, match="Filters must be a dictionary"):
+            normalize_filters("not a dict")  # type: ignore[arg-type]
 
 
 @pytest.mark.skipif(

@@ -26,7 +26,7 @@ class TestMem0MemoryRetriever:
     def test_run_returns_memories_key(self, store):
         store.search_memories = Mock(return_value=[ChatMessage.from_system("Memory A")])
         retriever = Mem0MemoryRetriever(memory_store=store)
-        result = retriever.run(query="test", user_id="u1")
+        result = retriever.run("test", user_id="u1")
         assert "memories" in result
         assert result["memories"][0].text == "Memory A"
         store.search_memories.assert_called_once_with(
@@ -42,21 +42,23 @@ class TestMem0MemoryRetriever:
     def test_run_top_k_override(self, store):
         store.search_memories = Mock(return_value=[])
         retriever = Mem0MemoryRetriever(memory_store=store, top_k=3)
-        retriever.run(query="test", user_id="u1", top_k=7)
+        retriever.run("test", user_id="u1", top_k=7)
         assert store.search_memories.call_args[1]["top_k"] == 7
 
     def test_run_uses_default_top_k_when_not_overridden(self, store):
         store.search_memories = Mock(return_value=[])
         retriever = Mem0MemoryRetriever(memory_store=store, top_k=3)
-        retriever.run(query="test", user_id="u1")
+        retriever.run("test", user_id="u1")
         assert store.search_memories.call_args[1]["top_k"] == 3
 
-    @pytest.mark.asyncio
-    async def test_run_async_delegates_to_run(self, store):
-        store.search_memories = Mock(return_value=[ChatMessage.from_system("async memory")])
+    def test_run_keyword_only_after_query(self, store):
+        store.search_memories = Mock(return_value=[])
         retriever = Mem0MemoryRetriever(memory_store=store)
-        result = await retriever.run_async(query="test", user_id="u1")
-        assert result["memories"][0].text == "async memory"
+        retriever.run("test", user_id="u1", run_id="r1", agent_id="a1")
+        kwargs = store.search_memories.call_args[1]
+        assert kwargs["user_id"] == "u1"
+        assert kwargs["run_id"] == "r1"
+        assert kwargs["agent_id"] == "a1"
 
     def test_to_dict(self, store):
         retriever = Mem0MemoryRetriever(memory_store=store, top_k=7)

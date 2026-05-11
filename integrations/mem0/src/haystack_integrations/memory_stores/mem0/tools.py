@@ -8,7 +8,7 @@ from haystack.dataclasses import ChatMessage
 from haystack.tools import Tool
 
 from haystack_integrations.components.retrievers.mem0.retriever import Mem0MemoryRetriever
-from haystack_integrations.components.writers.mem0.writer import Mem0MemoryWriter
+from haystack_integrations.components.writers.memory.writer import MemoryWriter
 from haystack_integrations.memory_stores.mem0.memory_store import Mem0MemoryStore
 
 _DEFAULT_RETRIEVER_DESCRIPTION = (
@@ -52,7 +52,7 @@ def create_mem0_memory_retriever_tool(
 
     def _retrieve(query: str, top_k: int = top_k) -> str:
         result = retriever.run(
-            query=query,
+            query,
             user_id=user_id,
             run_id=run_id,
             agent_id=agent_id,
@@ -85,7 +85,6 @@ def create_mem0_memory_writer_tool(
     user_id: str | None = None,
     run_id: str | None = None,
     agent_id: str | None = None,
-    infer: bool = True,
     name: str = "store_memory",
     description: str = _DEFAULT_WRITER_DESCRIPTION,
 ) -> Tool:
@@ -93,23 +92,21 @@ def create_mem0_memory_writer_tool(
     Create a Tool that writes a memory to Mem0 with pre-bound scoping IDs.
 
     The returned Tool exposes only `text` to the LLM — the `user_id`,
-    `run_id`, `agent_id`, and `infer` flag are bound at creation time.
+    `run_id`, and `agent_id` are bound at creation time.
 
     :param store: The Mem0MemoryStore instance to write to.
     :param user_id: User ID to scope the stored memory.
     :param run_id: Run ID to scope the stored memory.
     :param agent_id: Agent ID to scope the stored memory.
-    :param infer: If True, Mem0 extracts facts from the text asynchronously.
-        If False, the full text is stored synchronously.
     :param name: Tool name exposed to the LLM.
     :param description: Tool description exposed to the LLM.
     :returns: A Haystack Tool ready to be passed to an Agent.
     """
-    writer = Mem0MemoryWriter(memory_store=store, infer=infer)
+    writer = MemoryWriter(memory_store=store)
 
     def _store(text: str) -> str:
         result = writer.run(
-            messages=[ChatMessage.from_user(text)],
+            [ChatMessage.from_user(text)],
             user_id=user_id,
             run_id=run_id,
             agent_id=agent_id,

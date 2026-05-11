@@ -16,10 +16,10 @@ class Mem0MemoryRetriever:
     Retrieves memories from a Mem0MemoryStore as a list of ChatMessage objects.
 
     Use this component in a Haystack Pipeline to fetch relevant memories before passing
-    context to a language model, or wrap it with `ComponentTool` to expose it as an Agent tool.
+    context to a language model, or wrap it with ComponentTool to expose it as an Agent tool.
     """
 
-    def __init__(self, memory_store: Mem0MemoryStore, top_k: int = 5) -> None:
+    def __init__(self, *, memory_store: Mem0MemoryStore, top_k: int = 5) -> None:
         """
         Initialize the Mem0MemoryRetriever.
 
@@ -33,6 +33,7 @@ class Mem0MemoryRetriever:
     def run(
         self,
         query: str,
+        *,
         user_id: str | None = None,
         run_id: str | None = None,
         agent_id: str | None = None,
@@ -64,40 +65,6 @@ class Mem0MemoryRetriever:
         )
         return {"memories": memories}
 
-    @component.output_types(memories=list[ChatMessage])
-    async def run_async(
-        self,
-        query: str,
-        user_id: str | None = None,
-        run_id: str | None = None,
-        agent_id: str | None = None,
-        filters: dict[str, Any] | None = None,
-        top_k: int | None = None,
-        include_memory_metadata: bool = False,
-    ) -> dict[str, list[ChatMessage]]:
-        """
-        Async variant of run(). Delegates to the synchronous implementation.
-
-        :param query: Text query used to search for relevant memories.
-        :param user_id: User ID to scope the search.
-        :param run_id: Run ID to scope the search.
-        :param agent_id: Agent ID to scope the search.
-        :param filters: Haystack-style filters to apply. When provided, ID parameters are ignored.
-        :param top_k: Maximum number of memories to return. Overrides the init-time default.
-        :param include_memory_metadata: If True, each ChatMessage's meta will include a
-            `retrieved_memory_metadata` key with the raw Mem0 memory object.
-        :returns: Dictionary with key `memories` containing a list of ChatMessage objects.
-        """
-        return self.run(
-            query=query,
-            user_id=user_id,
-            run_id=run_id,
-            agent_id=agent_id,
-            filters=filters,
-            top_k=top_k,
-            include_memory_metadata=include_memory_metadata,
-        )
-
     def to_dict(self) -> dict[str, Any]:
         """Serialize this component to a dictionary."""
         return default_to_dict(
@@ -109,10 +76,8 @@ class Mem0MemoryRetriever:
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "Mem0MemoryRetriever":
         """Deserialize this component from a dictionary."""
-        if "memory_store" in data.get("init_parameters", {}):
-            from haystack.core.serialization import default_from_dict as _from_dict  # noqa: PLC0415
-
-            data["init_parameters"]["memory_store"] = _from_dict(
+        if data.get("init_parameters", {}).get("memory_store"):
+            data["init_parameters"]["memory_store"] = default_from_dict(
                 Mem0MemoryStore, data["init_parameters"]["memory_store"]
             )
         return default_from_dict(cls, data)
