@@ -103,12 +103,12 @@ class SupabaseGroongaDocumentStore:
 
     def count_documents(self) -> int:
         """
-        Returns the number of documents in the store.
+         the number of documents in the store.
 
         :returns: Number of documents.
         """
-        result = self._client.table(self.table_name).select("*").execute()
-        return len(result.data)
+        result = self._client.table(self.table_name).select("*", count="exact").execute()
+        return int(result.count) if result.count is not None else 0
 
     def filter_documents(self, filters: dict[str, Any] | None = None) -> list[Document]:  # noqa: ARG002
         """
@@ -193,7 +193,7 @@ class SupabaseGroongaDocumentStore:
             "groonga_search", {"query_text": query, "table": self.table_name, "top_k": top_k}
         ).execute()
 
-        return [self._to_haystack_document(row) for row in result.data if isinstance(row, dict)]
+        return [self._to_haystack_document(row) for row in (result.data or []) if isinstance(row, dict)]
 
     def _to_haystack_document(self, row: dict[str, Any]) -> Document:
         """
