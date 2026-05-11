@@ -1,4 +1,9 @@
 # Integrations
+integration:alloydb:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/alloydb/**/*"
+      - any-glob-to-any-file: ".github/workflows/alloydb.yml"
+
 integration:aimlapi:
   - changed-files:
       - any-glob-to-any-file: "integrations/aimlapi/**/*"
@@ -28,6 +33,11 @@ integration:astra:
   - changed-files:
       - any-glob-to-any-file: "integrations/astra/**/*"
       - any-glob-to-any-file: ".github/workflows/astra.yml"
+
+integration:brave:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/brave/**/*"
+      - any-glob-to-any-file: ".github/workflows/brave.yml"
 
 integration:azure-ai-search:
   - changed-files:
@@ -69,6 +79,11 @@ integration:docling:
       - any-glob-to-any-file: "integrations/docling/**/*"
       - any-glob-to-any-file: ".github/workflows/docling.yml"
 
+integration:docling-serve:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/docling_serve/**/*"
+      - any-glob-to-any-file: ".github/workflows/docling_serve.yml"
+
 integration:dspy:
   - changed-files:
       - any-glob-to-any-file: "integrations/dspy/**/*"
@@ -88,6 +103,12 @@ integration:faiss:
   - changed-files:
       - any-glob-to-any-file: "integrations/faiss/**/*"
       - any-glob-to-any-file: ".github/workflows/faiss.yml"
+
+
+integration:falkordb:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/falkordb/**/*"
+      - any-glob-to-any-file: ".github/workflows/falkordb.yml"
 
 integration:fastembed:
   - changed-files:

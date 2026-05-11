@@ -50,14 +50,12 @@ def test_to_dict():
                     "embedding_dimension": 768,
                     "metadata_fields": {},
                     "vector_search_configuration": {
-                        "profiles": [
-                            {"name": "default-vector-config", "algorithm_configuration_name": "cosine-algorithm-config"}
-                        ],
+                        "profiles": [{"name": "default-vector-config", "algorithm": "cosine-algorithm-config"}],
                         "algorithms": [
                             {
                                 "name": "cosine-algorithm-config",
+                                "hnswParameters": {"metric": "cosine"},
                                 "kind": "hnsw",
-                                "parameters": {"m": 4, "ef_construction": 400, "ef_search": 500, "metric": "cosine"},
                             }
                         ],
                     },

@@ -3,8 +3,8 @@ name: Core / License Compliance
 on:
   pull_request:
     paths:
-    - "integrations/**/pyproject.toml"
-    - ".github/workflows/CI_license_compliance.yml"
+      - "integrations/**/pyproject.toml"
+      - ".github/workflows/CI_license_compliance.yml"
   # Since we test PRs, there is no need to run the workflow at each
   # merge on `main`. Let's use a cron job instead.
   schedule:
@@ -12,13 +12,13 @@ on:
 
 env:
   PYTHON_VERSION: "3.10"
-  EXCLUDE_PACKAGES: "(?i)^(azure-identity|fastembed|ragas|tqdm|psycopg|mistralai|pgvector).*"
+  EXCLUDE_PACKAGES: "(?i)^(azure-identity|azure-search-documents|fastembed|tqdm|psycopg|mistralai|pgvector).*"
 
   # Exclusions must be explicitly motivated
   #
   # - azure-identity is MIT but the license is not available on PyPI
+  # - azure-search-documents is MIT but the license is not available on PyPI
   # - fastembed is Apache 2.0 but the license on PyPI is unclear ("Other/Proprietary License (Apache License)")
-  # - ragas is Apache 2.0 but the license is not available on PyPI
   # - mistralai is Apache 2.0 but the license is not available on PyPI
   # - pgvector is MIT but the license is not available on PyPI
 
