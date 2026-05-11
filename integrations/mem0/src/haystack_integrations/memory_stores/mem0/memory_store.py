@@ -4,15 +4,13 @@
 
 from typing import Any
 
-from haystack import default_from_dict, default_to_dict, logging
+from haystack import default_from_dict, default_to_dict
 from haystack.dataclasses.chat_message import ChatMessage
 from haystack.utils import Secret, deserialize_secrets_inplace
 
 from haystack_integrations.memory_stores.mem0.errors import Mem0MemoryStoreError
 from haystack_integrations.memory_stores.mem0.filters import normalize_filters
 from mem0 import MemoryClient
-
-logger = logging.getLogger(__name__)
 
 
 class Mem0MemoryStore:
@@ -162,48 +160,6 @@ class Mem0MemoryStore:
             return result_messages
         except Exception as e:
             msg = f"Failed to search memories: {e}"
-            raise Mem0MemoryStoreError(msg) from e
-
-    def delete_all_memories(
-        self,
-        *,
-        user_id: str | None = None,
-        run_id: str | None = None,
-        agent_id: str | None = None,
-        **kwargs: Any,
-    ) -> None:
-        """
-        Delete all memories for the given scope.
-
-        At least one of user_id, run_id, or agent_id must be provided.
-
-        :param user_id: User ID whose memories to delete.
-        :param run_id: Run ID whose memories to delete.
-        :param agent_id: Agent ID whose memories to delete.
-        :param kwargs: Additional keyword arguments forwarded to the Mem0 client delete_all method.
-        :raises Mem0MemoryStoreError: If the Mem0 API call fails.
-        """
-        ids = self._get_ids(user_id, run_id, agent_id)
-        try:
-            self.client.delete_all(**ids, **kwargs)
-            logger.info("All memories deleted for scope {ids}", ids=ids)
-        except Exception as e:
-            msg = f"Failed to delete memories for scope {ids}: {e}"
-            raise Mem0MemoryStoreError(msg) from e
-
-    def delete_memory(self, memory_id: str, **kwargs: Any) -> None:
-        """
-        Delete a single memory by ID.
-
-        :param memory_id: The ID of the memory to delete.
-        :param kwargs: Additional keyword arguments forwarded to the Mem0 client delete method.
-        :raises Mem0MemoryStoreError: If the Mem0 API call fails.
-        """
-        try:
-            self.client.delete(memory_id=memory_id, **kwargs)
-            logger.info("Deleted memory {memory_id}", memory_id=memory_id)
-        except Exception as e:
-            msg = f"Failed to delete memory {memory_id}: {e}"
             raise Mem0MemoryStoreError(msg) from e
 
     def _get_ids(

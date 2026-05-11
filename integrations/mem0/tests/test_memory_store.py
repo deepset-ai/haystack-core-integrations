@@ -179,18 +179,6 @@ class TestMem0MemoryStore:
         with pytest.raises(Mem0MemoryStoreError, match="Failed to search memories"):
             store.search_memories(query="test", user_id="u1")
 
-    def test_delete_all_memories(self, monkeypatch, mock_mem0_client):
-        monkeypatch.setenv("MEM0_API_KEY", "test-key")
-        store = Mem0MemoryStore()
-        store.delete_all_memories(user_id="user-1")
-        mock_mem0_client.delete_all.assert_called_once_with(user_id="user-1")
-
-    def test_delete_memory(self, monkeypatch, mock_mem0_client):
-        monkeypatch.setenv("MEM0_API_KEY", "test-key")
-        store = Mem0MemoryStore()
-        store.delete_memory("mem-42")
-        mock_mem0_client.delete.assert_called_once_with(memory_id="mem-42")
-
     def test_get_ids_raises_without_any_id(self, monkeypatch, mock_mem0_client):  # noqa: ARG002
         monkeypatch.setenv("MEM0_API_KEY", "test-key")
         store = Mem0MemoryStore()
@@ -266,4 +254,4 @@ class TestMem0MemoryStoreIntegration:
             results = store.search_memories(query="Python", user_id=user_id)
             assert any("Python" in (r.text or "") or "Haystack" in (r.text or "") for r in results)
         finally:
-            store.delete_all_memories(user_id=user_id)
+            store.client.delete_all(user_id=user_id)

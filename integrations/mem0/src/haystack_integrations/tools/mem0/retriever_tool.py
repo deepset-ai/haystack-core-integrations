@@ -60,6 +60,10 @@ class Mem0MemoryRetrieverTool(Tool):
             inputs_from_state={"user_id": "user_id", "run_id": "run_id", "agent_id": "agent_id"},
         )
 
+    def warm_up(self) -> None:
+        """Initialize the Mem0 client by warming up the underlying memory store."""
+        self.memory_store.warm_up()
+
     def _retrieve(
         self,
         query: str,
