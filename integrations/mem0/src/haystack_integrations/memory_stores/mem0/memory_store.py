@@ -24,7 +24,12 @@ class Mem0MemoryStore:
     Requires a Mem0 API key set via the MEM0_API_KEY environment variable or passed explicitly.
     """
 
-    def __init__(self, *, api_key: Secret = Secret.from_env_var("MEM0_API_KEY")) -> None:
+    def __init__(
+        self,
+        *,
+        api_key: Secret = Secret.from_env_var("MEM0_API_KEY"),
+        infer: bool = True,
+    ) -> None:
         """
         Initialize the Mem0 memory store.
 
@@ -32,8 +37,11 @@ class Mem0MemoryStore:
         needs the client is invoked).
 
         :param api_key: The Mem0 API key. Defaults to the MEM0_API_KEY environment variable.
+        :param infer: If True (default), Mem0 extracts facts asynchronously from each message.
+            Set to False to store the full message text synchronously and receive IDs immediately.
         """
         self.api_key = api_key
+        self.infer = infer
         self._client: MemoryClient | None = None
 
     def warm_up(self) -> None:
@@ -54,7 +62,7 @@ class Mem0MemoryStore:
 
     def to_dict(self) -> dict[str, Any]:
         """Serialize the store configuration to a dictionary."""
-        return default_to_dict(self, api_key=self.api_key.to_dict())
+        return default_to_dict(self, api_key=self.api_key.to_dict(), infer=self.infer)
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "Mem0MemoryStore":
@@ -67,7 +75,6 @@ class Mem0MemoryStore:
         self,
         *,
         messages: list[ChatMessage],
-        infer: bool = True,
         user_id: str | None = None,
         run_id: str | None = None,
         agent_id: str | None = None,
@@ -77,8 +84,6 @@ class Mem0MemoryStore:
         Add ChatMessage memories to Mem0.
 
         :param messages: List of ChatMessage objects to store as memories.
-        :param infer: If True, Mem0 extracts facts asynchronously (may return pending status without IDs).
-            If False, the full message is stored synchronously and IDs are returned immediately.
         :param user_id: User ID to scope these memories.
         :param run_id: Run ID to scope these memories.
         :param agent_id: Agent ID to scope these memories. Required for Mem0 to store assistant messages.
@@ -95,7 +100,7 @@ class Mem0MemoryStore:
         mem0_messages = [{"content": msg.text, "role": msg.role.value} for msg in messages if msg.text]
         added: list[dict[str, Any]] = []
         try:
-            status = self.client.add(messages=mem0_messages, infer=infer, **ids, **kwargs)
+            status = self.client.add(messages=mem0_messages, infer=self.infer, **ids, **kwargs)
             if status and "results" in status:
                 for result in status["results"]:
                     data = result.get("data")

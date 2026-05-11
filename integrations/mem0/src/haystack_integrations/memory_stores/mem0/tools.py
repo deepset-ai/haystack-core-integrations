@@ -8,7 +8,6 @@ from haystack.dataclasses import ChatMessage
 from haystack.tools import Tool
 
 from haystack_integrations.components.retrievers.mem0.retriever import Mem0MemoryRetriever
-from haystack_integrations.components.writers.memory.writer import MemoryWriter
 from haystack_integrations.memory_stores.mem0.memory_store import Mem0MemoryStore
 
 _DEFAULT_RETRIEVER_DESCRIPTION = (
@@ -102,16 +101,15 @@ def create_mem0_memory_writer_tool(
     :param description: Tool description exposed to the LLM.
     :returns: A Haystack Tool ready to be passed to an Agent.
     """
-    writer = MemoryWriter(memory_store=store)
 
     def _store(text: str) -> str:
-        result = writer.run(
-            [ChatMessage.from_user(text)],
+        result = store.add_memories(
+            messages=[ChatMessage.from_user(text)],
             user_id=user_id,
             run_id=run_id,
             agent_id=agent_id,
         )
-        count: int = result["memories_written"]
+        count = len(result) if isinstance(result, list) else 0
         return f"Stored {count} memory item(s)."
 
     parameters: dict[str, Any] = {

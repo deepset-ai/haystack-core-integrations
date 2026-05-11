@@ -37,14 +37,14 @@ class TestMemoryWriter:
         result = writer.run([ChatMessage.from_user("test")], user_id="u1")
         assert result == {"memories_written": 0}
 
-    def test_run_passes_ids_as_keyword_only(self, store):
+    def test_run_passes_user_id_as_keyword_only(self, store):
         store.add_memories = Mock(return_value=[])
         writer = MemoryWriter(memory_store=store)
-        writer.run([ChatMessage.from_user("test")], user_id="u1", run_id="r2", agent_id="a3")
+        writer.run([ChatMessage.from_user("test")], user_id="u1")
         kwargs = store.add_memories.call_args[1]
         assert kwargs["user_id"] == "u1"
-        assert kwargs["run_id"] == "r2"
-        assert kwargs["agent_id"] == "a3"
+        assert "run_id" not in kwargs
+        assert "agent_id" not in kwargs
 
     def test_run_with_any_memory_store_duck_typed(self):
         fake_store = Mock()
@@ -53,6 +53,7 @@ class TestMemoryWriter:
         writer = MemoryWriter(memory_store=fake_store)
         result = writer.run([ChatMessage.from_user("test")], user_id="u1")
         assert result == {"memories_written": 1}
+        assert fake_store.add_memories.call_args[1]["user_id"] == "u1"
 
     def test_to_dict(self, store):
         writer = MemoryWriter(memory_store=store)

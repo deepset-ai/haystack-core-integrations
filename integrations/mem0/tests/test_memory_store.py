@@ -61,6 +61,13 @@ class TestMem0MemoryStore:
             "strict": True,
             "type": "env_var",
         }
+        assert result["init_parameters"]["infer"] is True
+
+    def test_to_dict_infer_false(self, monkeypatch, mock_mem0_client):  # noqa: ARG002
+        monkeypatch.setenv("MY_MEM0_KEY", "test-key")
+        store = Mem0MemoryStore(api_key=Secret.from_env_var("MY_MEM0_KEY"), infer=False)
+        result = store.to_dict()
+        assert result["init_parameters"]["infer"] is False
 
     def test_from_dict(self, monkeypatch, mock_mem0_client):  # noqa: ARG002
         monkeypatch.setenv("MY_MEM0_KEY", "test-key")
@@ -92,6 +99,17 @@ class TestMem0MemoryStore:
         assert result == [{"memory_id": "mem-1", "memory": "User likes Python"}]
         call_kwargs = mock_mem0_client.add.call_args[1]
         assert call_kwargs["user_id"] == "user-1"
+        assert call_kwargs["infer"] is True
+
+    def test_add_memories_uses_infer_from_init(self, monkeypatch, mock_mem0_client):
+        monkeypatch.setenv("MEM0_API_KEY", "test-key")
+        mock_mem0_client.add.return_value = {"results": []}
+        mock_mem0_client.project = Mock()
+
+        store = Mem0MemoryStore(infer=False)
+        store.add_memories(messages=[ChatMessage.from_user("test")], user_id="u1")
+
+        assert mock_mem0_client.add.call_args[1]["infer"] is False
 
     def test_add_memories_skips_empty_text(self, monkeypatch, mock_mem0_client):
         monkeypatch.setenv("MEM0_API_KEY", "test-key")
@@ -240,11 +258,11 @@ class TestNormalizeFilters:
 @pytest.mark.integration
 class TestMem0MemoryStoreIntegration:
     def test_add_and_search(self):
-        store = Mem0MemoryStore()
+        store = Mem0MemoryStore(infer=False)
         user_id = f"test_{uuid.uuid4().hex}"
         try:
             messages = [ChatMessage.from_user("I love working with Haystack and Python.")]
-            store.add_memories(messages=messages, infer=False, user_id=user_id)
+            store.add_memories(messages=messages, user_id=user_id)
             results = store.search_memories(query="Python", user_id=user_id)
             assert any("Python" in (r.text or "") or "Haystack" in (r.text or "") for r in results)
         finally:
