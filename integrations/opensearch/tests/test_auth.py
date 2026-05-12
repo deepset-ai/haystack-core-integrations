@@ -5,10 +5,16 @@
 from unittest.mock import Mock, patch
 
 import pytest
+from botocore.exceptions import BotoCoreError
 from haystack.utils.auth import Secret
 from opensearchpy import AWSV4SignerAsyncAuth, Urllib3AWSV4SignerAuth
 
-from haystack_integrations.document_stores.opensearch.auth import AsyncAWSAuth, AWSAuth
+from haystack_integrations.document_stores.opensearch.auth import (
+    AsyncAWSAuth,
+    AWSAuth,
+    AWSConfigurationError,
+    _get_aws_session,
+)
 from haystack_integrations.document_stores.opensearch.document_store import (
     DEFAULT_MAX_CHUNK_BYTES,
     OpenSearchDocumentStore,
@@ -130,6 +136,17 @@ class TestAWSAuth:
         async_aws_auth = AsyncAWSAuth(AWSAuth())
         async_aws_auth(method="GET", url="http://some.url", body="some body", headers={"Host": "localhost"})
         signer_auth_mock.assert_called_once_with("GET", "http://some.url", "some body", {"Host": "localhost"})
+
+    def test_get_aws_session_wraps_boto_core_error(self, mock_boto3_session):
+        mock_boto3_session.side_effect = BotoCoreError()
+        with pytest.raises(AWSConfigurationError, match="Failed to initialize the session"):
+            _get_aws_session(aws_access_key_id="x", aws_secret_access_key="y")
+
+    @patch("haystack_integrations.document_stores.opensearch.auth.Urllib3AWSV4SignerAuth")
+    def test_get_aws_v4_signer_auth_wraps_exceptions(self, mock_signer):
+        mock_signer.side_effect = RuntimeError("signer creation failed")
+        with pytest.raises(AWSConfigurationError, match="Could not connect to AWS OpenSearch"):
+            AWSAuth()
 
     def test_async_aws_auth_init(self):
         data = {

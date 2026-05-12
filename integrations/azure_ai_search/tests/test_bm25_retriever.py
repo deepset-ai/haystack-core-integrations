@@ -50,14 +50,12 @@ def test_to_dict():
                     "embedding_dimension": 768,
                     "metadata_fields": {},
                     "vector_search_configuration": {
-                        "profiles": [
-                            {"name": "default-vector-config", "algorithm_configuration_name": "cosine-algorithm-config"}
-                        ],
+                        "profiles": [{"name": "default-vector-config", "algorithm": "cosine-algorithm-config"}],
                         "algorithms": [
                             {
                                 "name": "cosine-algorithm-config",
+                                "hnswParameters": {"metric": "cosine"},
                                 "kind": "hnsw",
-                                "parameters": {"m": 4, "ef_construction": 400, "ef_search": 500, "metric": "cosine"},
                             }
                         ],
                     },
@@ -147,6 +145,19 @@ def test_run_time_params():
     assert len(res) == 1
     assert len(res["documents"]) == 1
     assert res["documents"][0].content == "Test doc"
+
+
+def test_init_raises_type_error_on_invalid_document_store():
+    with pytest.raises(TypeError, match="document_store must be an instance of AzureAISearchDocumentStore"):
+        AzureAISearchBM25Retriever(document_store=object())
+
+
+def test_run_raises_runtime_error_when_retrieval_fails():
+    mock_store = Mock(spec=AzureAISearchDocumentStore)
+    mock_store._bm25_retrieval.side_effect = RuntimeError("boom")
+    retriever = AzureAISearchBM25Retriever(document_store=mock_store)
+    with pytest.raises(RuntimeError, match="bm25 retrieval process"):
+        retriever.run(query="Test query")
 
 
 @pytest.mark.skipif(

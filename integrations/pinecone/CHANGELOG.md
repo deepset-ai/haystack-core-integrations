@@ -1,5 +1,37 @@
 # Changelog
 
+## [integrations/pinecone-v6.2.0] - 2026-05-08
+
+### 🐛 Bug Fixes
+
+- Replace in-place dataclass mutations in document stores (#3114)
+
+### 🚜 Refactor
+
+- *(pinecone)* Make get_metadata_field_min_max more consistent; use async DocumentStore mixin tests (#3231)
+
+### 📚 Documentation
+
+- Simplify pydoc configs (#2855)
+
+### 🧪 Testing
+
+- Replacing each `DocumentStore` specific tests and used the generalised ones from `haystack.testing.document_store` (#2812)
+- Test compatible integrations with python 3.14; update pyproject (#3001)
+- `PineconeDocumentStore` use Mixin tests (#3020)
+- Track test coverage for all integrations (#3065)
+- Pinecone - add unit tests (#3218)
+- Pinecone - remove namespaces when tests ends (#3248)
+
+### 🧹 Chores
+
+- Exposing `PineconeDocumentStore` `show_progress` bar parameter and disabling it for tests (#2799)
+- Remove unused allow-direct-references (#2866)
+- Add ANN ruff ruleset to optimum, paddleocr, pgvector, pinecone, pyversity, qdrant, ragas, snowflake (#2992)
+- Enforce ruff docstring rules in integrations 31-40 (openrouter, opensearch, optimum, paddleocr, pgvector, pinecone, pyversity, qdrant, ragas, snowflake) (#3011)
+- Pinecone - fix types for Pinecone 9 (#3277)
+
+
 ## [integrations/pinecone-v6.1.2] - 2026-01-28
 
 ### 🐛 Bug Fixes

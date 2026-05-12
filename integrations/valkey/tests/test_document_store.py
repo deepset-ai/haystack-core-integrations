@@ -6,6 +6,7 @@
 
 import struct
 from dataclasses import replace
+from unittest.mock import MagicMock, patch
 
 import pytest
 from glide_shared.commands.server_modules.ft_options.ft_create_options import DistanceMetricType
@@ -13,6 +14,7 @@ from glide_shared.commands.server_modules.ft_options.ft_search_options import Ft
 from haystack.dataclasses import Document
 from haystack.dataclasses.byte_stream import ByteStream
 from haystack.document_stores.types import DuplicatePolicy
+from haystack.errors import FilterError
 from haystack.testing.document_store import (
     CountDocumentsByFilterTest,
     CountDocumentsTest,
@@ -31,6 +33,8 @@ from haystack.testing.document_store import (
 from haystack.utils import Secret
 
 from haystack_integrations.document_stores.valkey import ValkeyDocumentStore
+from haystack_integrations.document_stores.valkey import document_store as ds_module
+from haystack_integrations.document_stores.valkey.document_store import ValkeyDocumentStoreError
 
 
 def _filterable_docs_embedding_dim_3() -> list[Document]:
@@ -1087,6 +1091,22 @@ class TestValkeyDocumentStoreStaticMethods:
         ValkeyDocumentStore._validate_documents([Document(id="1", content="test")])
         ValkeyDocumentStore._validate_policy(DuplicatePolicy.NONE)
 
+    @pytest.mark.parametrize(
+        "metadata_fields, expected_error",
+        [
+            ("not_a_dict", r"metadata_fields must be a dictionary"),
+            ({"": str}, r"Field name must be a non-empty string"),
+            ({"category": list}, r"Unsupported field type"),
+        ],
+    )
+    def test_validate_and_normalize_metadata_fields_rejects_invalid_inputs(self, metadata_fields, expected_error):
+        with pytest.raises(ValueError, match=expected_error):
+            ValkeyDocumentStore._validate_and_normalize_metadata_fields(metadata_fields)
+
+    def test_validate_policy_logs_warning_for_unsupported_policy(self, caplog):
+        ValkeyDocumentStore._validate_policy(DuplicatePolicy.SKIP)
+        assert "only supports `DuplicatePolicy.OVERWRITE`" in caplog.text
+
 
 class TestValkeyDocumentStoreConverters:
     def test_to_dict(self):
@@ -1205,3 +1225,118 @@ def test_prepare_document_dict_validates_numeric_field_type():
 
     with pytest.raises(ValueError, match="Field 'priority' expects numeric value but got str"):
         store._prepare_document_dict(doc)
+
+
+@pytest.fixture
+def unit_store():
+    return ValkeyDocumentStore(
+        index_name="unit_test",
+        embedding_dim=3,
+        metadata_fields={"category": str, "priority": int},
+    )
+
+
+class TestValkeyDocumentStoreErrorPaths:
+    @pytest.mark.parametrize("cluster_mode", [False, True])
+    def test_get_connection_wraps_create_errors(self, unit_store, cluster_mode):
+        unit_store._cluster_mode = cluster_mode
+        target = "SyncGlideClusterClient" if cluster_mode else "SyncGlideClient"
+        with patch.object(ds_module, target) as mock_cls:
+            mock_cls.create.side_effect = RuntimeError("connect failed")
+            with pytest.raises(ValkeyDocumentStoreError, match="Failed to connect to Valkey"):
+                unit_store._get_connection()
+
+    def test_close_swallows_client_exception(self, unit_store, caplog):
+        unit_store._client = MagicMock()
+        unit_store._client.close.side_effect = RuntimeError("close boom")
+        unit_store.close()
+        assert unit_store._client is None
+        assert "Failed to close Valkey client" in caplog.text
+
+    def test_count_documents_returns_zero_when_no_index(self, unit_store):
+        unit_store._client = MagicMock()
+        with patch.object(unit_store, "_has_index", return_value=False):
+            assert unit_store.count_documents() == 0
+
+    def test_embedding_retrieval_returns_empty_when_no_index(self, unit_store, caplog):
+        unit_store._client = MagicMock()
+        with patch.object(unit_store, "_has_index", return_value=False):
+            assert unit_store._embedding_retrieval([0.1, 0.2, 0.3]) == []
+        assert "does not exist" in caplog.text
+
+    def test_embedding_retrieval_returns_empty_for_nonpositive_limit(self, unit_store):
+        unit_store._client = MagicMock()
+        with patch.object(unit_store, "_has_index", return_value=True):
+            assert unit_store._embedding_retrieval([0.1, 0.2, 0.3], limit=0) == []
+            assert unit_store._embedding_retrieval([0.1, 0.2, 0.3], limit=-1) == []
+
+    def test_embedding_retrieval_reraises_filter_error(self, unit_store):
+        unit_store._client = MagicMock()
+        with patch.object(unit_store, "_has_index", return_value=True):
+            bad_filters = {
+                "operator": "AND",
+                "conditions": [{"field": "meta.unknown", "operator": "==", "value": "x"}],
+            }
+            with pytest.raises(FilterError):
+                unit_store._embedding_retrieval([0.1, 0.2, 0.3], filters=bad_filters, limit=5)
+
+    def test_write_documents_empty_list_returns_zero(self, unit_store, caplog):
+        assert unit_store.write_documents([]) == 0
+        assert "empty list" in caplog.text
+
+    def test_delete_all_documents_without_index_is_noop(self, unit_store):
+        unit_store._client = MagicMock()
+        with (
+            patch.object(unit_store, "_has_index", return_value=False),
+            patch.object(ds_module, "sync_ft") as mock_ft,
+        ):
+            unit_store.delete_all_documents()
+            mock_ft.dropindex.assert_not_called()
+
+    def test_create_index_wraps_non_ok_response(self, unit_store):
+        unit_store._client = MagicMock()
+        with (
+            patch.object(unit_store, "_has_index", return_value=False),
+            patch.object(ds_module, "sync_ft") as mock_ft,
+        ):
+            mock_ft.create.return_value = b"ERR"
+            with pytest.raises(ValkeyDocumentStoreError, match="Error creating collection"):
+                unit_store._create_index()
+
+    @pytest.mark.parametrize(
+        "method_name, args, expected_msg",
+        [
+            (
+                "filter_documents",
+                ({"field": "meta.category", "operator": "==", "value": "x"},),
+                "Error filtering documents",
+            ),
+            (
+                "delete_by_filter",
+                ({"field": "meta.category", "operator": "==", "value": "x"},),
+                "Failed to delete documents by filter",
+            ),
+            (
+                "update_by_filter",
+                ({"field": "meta.category", "operator": "==", "value": "x"}, {"status": "new"}),
+                "Failed to update documents by filter",
+            ),
+            (
+                "count_documents_by_filter",
+                ({"field": "meta.category", "operator": "==", "value": "x"},),
+                "Failed to count documents by filter",
+            ),
+            (
+                "count_unique_metadata_by_filter",
+                ({"field": "meta.category", "operator": "==", "value": "x"}, ["category"]),
+                "Failed to count unique metadata by filter",
+            ),
+            ("get_metadata_field_min_max", ("priority",), "Failed to get min/max for field"),
+            ("get_metadata_field_unique_values", ("category",), "Failed to get unique values for field"),
+        ],
+    )
+    def test_filter_dependent_methods_wrap_internal_errors(self, unit_store, method_name, args, expected_msg):
+        with patch.object(unit_store, "count_documents", side_effect=RuntimeError("boom")):
+            method = getattr(unit_store, method_name)
+            with pytest.raises(ValkeyDocumentStoreError, match=expected_msg):
+                method(*args)

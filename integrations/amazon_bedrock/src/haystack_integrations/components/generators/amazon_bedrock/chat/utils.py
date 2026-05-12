@@ -1,4 +1,5 @@
 import base64
+import dataclasses
 import json
 import os
 import re
@@ -93,7 +94,7 @@ def _format_tools(
         )
 
     if tools_cachepoint_config:
-        tool_specs.append({"cachePoint": tools_cachepoint_config})
+        tool_specs.append(tools_cachepoint_config)
 
     return {"tools": tool_specs}
 
@@ -627,7 +628,7 @@ def _convert_event_to_streaming_chunk(
         if len(chunk_meta) > len(base_meta):
             streaming_chunk = StreamingChunk(content="", meta=chunk_meta)
 
-    streaming_chunk.component_info = component_info
+    streaming_chunk = dataclasses.replace(streaming_chunk, component_info=component_info)
 
     return streaming_chunk
 

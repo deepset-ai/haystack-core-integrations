@@ -1,0 +1,18 @@
+services:
+  oracle:
+    image: gvenzl/oracle-free:23-slim
+    ports:
+      - 1521:1521
+    environment:
+      - ORACLE_PASSWORD=haystack
+      - APP_USER=haystack
+      - APP_USER_PASSWORD=haystack
+      - ORACLE_INIT_PARAMS=vector_memory_size=512M
+    volumes:
+      - ./init:/container-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD", "healthcheck.sh"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+      start_period: 30s

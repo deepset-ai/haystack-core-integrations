@@ -29,10 +29,11 @@ from haystack.tools import (
     warm_up_tools,
 )
 from haystack.utils import Secret, deserialize_callable, serialize_callable
-from haystack.utils.http_client import init_http_client
 from openai import AsyncOpenAI, AsyncStream, OpenAI, Stream
 from openai.types.chat import ChatCompletion, ChatCompletionChunk
 from openai.types.chat.chat_completion import Choice
+
+from haystack_integrations.common.vllm.utils import _create_openai_clients
 
 logger = logging.getLogger(__name__)
 
@@ -257,24 +258,12 @@ class VLLMChatGenerator:
         if self._is_warmed_up:
             return
 
-        api_key = "placeholder-api-key"
-        if self.api_key and (resolved_value := self.api_key.resolve_value()):
-            api_key = resolved_value
-
-        client_kwargs: dict[str, Any] = {
-            "api_key": api_key,
-            "base_url": self.api_base_url,
-        }
-        if self.timeout is not None:
-            client_kwargs["timeout"] = self.timeout
-        if self.max_retries is not None:
-            client_kwargs["max_retries"] = self.max_retries
-
-        self._client = OpenAI(
-            http_client=init_http_client(self.http_client_kwargs, async_client=False), **client_kwargs
-        )
-        self._async_client = AsyncOpenAI(
-            http_client=init_http_client(self.http_client_kwargs, async_client=True), **client_kwargs
+        self._client, self._async_client = _create_openai_clients(
+            api_key=self.api_key,
+            api_base_url=self.api_base_url,
+            timeout=self.timeout,
+            max_retries=self.max_retries,
+            http_client_kwargs=self.http_client_kwargs,
         )
         warm_up_tools(self.tools)
         self._is_warmed_up = True

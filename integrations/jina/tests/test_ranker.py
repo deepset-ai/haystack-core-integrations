@@ -53,6 +53,30 @@ class TestJinaRanker:
         with pytest.raises(ValueError):
             JinaRanker()
 
+    def test_init_fails_with_invalid_top_k(self):
+        with pytest.raises(ValueError, match="top_k must be > 0, but got 0"):
+            JinaRanker(api_key=Secret.from_token("fake-api-key"), top_k=0)
+
+    def test_from_dict(self, monkeypatch):
+        monkeypatch.setenv("JINA_API_KEY", "fake-api-key")
+        data = {
+            "type": "haystack_integrations.components.rankers.jina.ranker.JinaRanker",
+            "init_parameters": {
+                "api_key": {"env_vars": ["JINA_API_KEY"], "strict": True, "type": "env_var"},
+                "model": "model",
+                "base_url": "https://my.custom.url/v1/rerank",
+                "top_k": 5,
+                "score_threshold": 0.3,
+            },
+        }
+        ranker = JinaRanker.from_dict(data)
+
+        assert ranker.api_key == Secret.from_env_var("JINA_API_KEY")
+        assert ranker.model == "model"
+        assert ranker.base_url == "https://my.custom.url/v1/rerank"
+        assert ranker.top_k == 5
+        assert ranker.score_threshold == 0.3
+
     def test_to_dict(self, monkeypatch):
         monkeypatch.setenv("JINA_API_KEY", "fake-api-key")
         component = JinaRanker()
@@ -189,6 +213,34 @@ class TestJinaRanker:
 
         assert result["documents"] is not None
         assert not result["documents"]  # empty list
+
+    def test_run_raises_runtime_error_on_api_error(self):
+        mock_response = httpx.Response(400, json={"detail": "Bad request"})
+        with patch("httpx.Client.post", return_value=mock_response):
+            ranker = JinaRanker(api_key=Secret.from_token("fake-api-key"))
+            with pytest.raises(RuntimeError, match="Bad request"):
+                ranker.run(query="q", documents=[Document(content="doc")])
+
+    def test_run_with_score_threshold_filters_results(self):
+        docs = [Document(content=f"doc {i}") for i in range(4)]
+
+        with patch("httpx.Client.post", side_effect=mock_httpx_post_response):
+            ranker = JinaRanker(api_key=Secret.from_token("fake-api-key"), score_threshold=2.5)
+            result = ranker.run(query="q", documents=docs)
+
+        # mock assigns scores len(docs)-i, so for 4 docs scores are 4, 3, 2, 1 - only first two pass
+        ranked = result["documents"]
+        assert len(ranked) == 2
+        assert all(doc.score >= 2.5 for doc in ranked)
+
+    def test_run_with_top_k_truncates_results(self):
+        docs = [Document(content=f"doc {i}") for i in range(5)]
+
+        with patch("httpx.Client.post", side_effect=mock_httpx_post_response):
+            ranker = JinaRanker(api_key=Secret.from_token("fake-api-key"))
+            result = ranker.run(query="q", documents=docs, top_k=2)
+
+        assert len(result["documents"]) == 2
 
     @pytest.mark.skipif(not os.environ.get("JINA_API_KEY", None), reason="JINA_API_KEY env var not set")
     @pytest.mark.integration

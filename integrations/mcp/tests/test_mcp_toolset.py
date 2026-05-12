@@ -7,6 +7,7 @@ import tempfile
 import time
 from unittest.mock import patch
 
+import httpx
 import pytest
 import pytest_asyncio
 from haystack import logging
@@ -486,6 +487,55 @@ class TestMCPToolset:
             assert tool.outputs_to_state is None
             assert tool.outputs_to_string is None
 
+    async def test_toolset_streamable_http_connect_error_reports_host_and_port(self):
+        server_info = StreamableHttpServerInfo(url="http://host.example:12345/mcp")
+
+        with (
+            patch(
+                "haystack_integrations.tools.mcp.mcp_toolset._MCPClientSessionManager",
+                side_effect=httpx.ConnectError("refused"),
+            ),
+            pytest.raises(MCPConnectionError) as exc_info,
+        ):
+            MCPToolset(server_info=server_info, eager_connect=True)
+
+        msg = str(exc_info.value)
+        assert "streamable HTTP" in msg
+        assert "host.example" in msg
+        assert "12345" in msg
+
+    async def test_toolset_sse_connect_error_tags_sse_transport(self):
+        server_info = SSEServerInfo(url="https://host.example/sse")
+
+        with (
+            patch(
+                "haystack_integrations.tools.mcp.mcp_toolset._MCPClientSessionManager",
+                side_effect=RuntimeError("generic failure"),
+            ),
+            pytest.raises(MCPConnectionError, match="SSE"),
+        ):
+            MCPToolset(server_info=server_info, eager_connect=True)
+
+    async def test_toolset_stdio_connect_error_shows_command(self):
+        server_info = StdioServerInfo(command="missing", args=["--foo"])
+
+        with (
+            patch(
+                "haystack_integrations.tools.mcp.mcp_toolset._MCPClientSessionManager",
+                side_effect=RuntimeError("no such file"),
+            ),
+            pytest.raises(MCPConnectionError, match="missing --foo"),
+        ):
+            MCPToolset(server_info=server_info, eager_connect=True)
+
+    async def test_toolset_close_swallows_worker_stop_exceptions(self, mcp_tool_cleanup):
+        server_info = InMemoryServerInfo(server=calculator_mcp._mcp_server)
+        toolset = MCPToolset(server_info=server_info, eager_connect=True)
+        mcp_tool_cleanup(toolset)
+
+        with patch.object(toolset._worker, "stop", side_effect=RuntimeError("stop failed")):
+            toolset.close()
+
     @pytest.mark.skipif(not os.environ.get("OPENAI_API_KEY"), reason="OPENAI_API_KEY not set")
     @pytest.mark.integration
     async def test_pipeline_warmup_with_mcp_toolset(self):
@@ -880,3 +930,13 @@ class TestStateConfigHelpers:
         assert deserialized["add"]["source"] == "content"
         assert callable(deserialized["add"]["handler"])
         assert deserialized["subtract"]["source"] == "diff"
+
+    @pytest.mark.parametrize("helper", [_serialize_state_config, _deserialize_state_config])
+    def test_state_config_helpers_skip_empty_tool_configs(self, helper):
+        config = {"keep": {"source": "x"}, "empty": {}, "none": None}
+
+        result = helper(config)
+
+        assert "keep" in result
+        assert "empty" not in result
+        assert "none" not in result
