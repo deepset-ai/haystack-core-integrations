@@ -116,6 +116,25 @@ class TestJinaReaderConnector:
         assert document.meta["title"] == "Mocked Title"
         assert document.meta["url"] == "https://example.com"
 
+    def test_run_with_raw_response(self, monkeypatch):
+        monkeypatch.setenv("JINA_API_KEY", "test-api-key")
+        mock_response = httpx.Response(
+            200,
+            text="raw page content",
+            headers={"Content-Type": "text/plain"},
+        )
+
+        with patch("httpx.Client.get", return_value=mock_response) as mock_get:
+            reader = JinaReaderConnector(mode="read", json_response=False)
+            result = reader.run(query="https://example.com")
+
+        # no Accept: application/json header when raw response is requested
+        assert "Accept" not in mock_get.call_args[1]["headers"]
+
+        document = result["documents"][0]
+        assert document.content == "raw page content"
+        assert document.meta == {"content_type": "text/plain", "query": "https://example.com"}
+
     @pytest.mark.asyncio
     async def test_run_async_with_mocked_response(self, monkeypatch):
         monkeypatch.setenv("JINA_API_KEY", "test-api-key")

@@ -11,6 +11,8 @@ import pytest
 from haystack import Document
 from haystack.components.preprocessors import DocumentSplitter
 from haystack.components.retrievers import SentenceWindowRetriever
+from haystack.dataclasses import ByteStream, SparseEmbedding
+from haystack.document_stores.types import DuplicatePolicy
 from haystack.testing.document_store import (
     CountDocumentsByFilterTest,
     CountDocumentsTest,
@@ -230,6 +232,130 @@ def test_convert_meta_to_int():
     assert PineconeDocumentStore._convert_meta_to_int(meta_data) == {}
 
 
+@pytest.mark.parametrize(
+    ("documents", "expected", "warning_fragment"),
+    [
+        ([], {}, None),
+        (
+            [Document(content="hello", meta={"flag": True})],
+            {"content": {"type": "text"}, "flag": {"type": "boolean"}},
+            None,
+        ),
+        (
+            [Document(content=None, meta={"tags": ["a", "b"]})],
+            {"tags": {"type": "keyword"}},
+            None,
+        ),
+        (
+            [Document(content=None, meta={"counts": [1, 2]})],
+            {"counts": {"type": "long"}},
+            None,
+        ),
+        (
+            [Document(content=None, meta={"empty": []})],
+            {"empty": {"type": "keyword"}},
+            None,
+        ),
+        (
+            [Document(content=None, meta={"pi": 3.14})],
+            {"pi": {"type": "long"}},
+            None,
+        ),
+        (
+            [
+                Document(content=None, meta={"value": 1}),
+                Document(content=None, meta={"value": "two"}),
+            ],
+            {"value": {"type": "keyword"}},
+            "mixed types",
+        ),
+    ],
+)
+def test_get_metadata_fields_info_impl_type_inference(documents, expected, warning_fragment, caplog):
+    with caplog.at_level("WARNING"):
+        result = PineconeDocumentStore._get_metadata_fields_info_impl(documents)
+    assert result == expected
+    if warning_fragment:
+        assert warning_fragment in caplog.text
+
+
+def test_get_metadata_field_min_max_impl_strips_meta_prefix_and_handles_missing():
+    docs = [
+        Document(content="a", meta={"priority": 1}),
+        Document(content="b", meta={"priority": 5}),
+    ]
+    assert PineconeDocumentStore._get_metadata_field_min_max_impl(docs, "meta.priority") == {"min": 1, "max": 5}
+    assert PineconeDocumentStore._get_metadata_field_min_max_impl(docs, "missing") == {"min": None, "max": None}
+
+
+def test_get_metadata_field_unique_values_impl_pagination_search_and_lists():
+    docs = [
+        Document(content="a", meta={"tags": ["python", "java"]}),
+        Document(content="b", meta={"tags": ["rust", "go"]}),
+        Document(content="c", meta={"tags": ["python"]}),
+    ]
+
+    values, total = PineconeDocumentStore._get_metadata_field_unique_values_impl(
+        docs, "tags", search_term=None, from_=0, size=10
+    )
+    assert total == 4
+    assert values == ["go", "java", "python", "rust"]
+
+    values, total = PineconeDocumentStore._get_metadata_field_unique_values_impl(
+        docs, "tags", search_term=None, from_=1, size=2
+    )
+    assert total == 4
+    assert values == ["java", "python"]
+
+    values, total = PineconeDocumentStore._get_metadata_field_unique_values_impl(
+        docs, "tags", search_term="PY", from_=0, size=10
+    )
+    assert total == 1
+    assert values == ["python"]
+
+
+def test_prepare_documents_for_writing_edge_cases(caplog):
+    ds = PineconeDocumentStore(api_key=Secret.from_token("fake-api-key"))
+
+    with pytest.raises(ValueError, match="must contain a list of objects of type Document"):
+        ds._prepare_documents_for_writing(["not-a-document"], policy=DuplicatePolicy.NONE)
+
+    docs = [
+        Document(content="no-embedding"),
+        Document(content="with-blob", embedding=[0.1] * 768, blob=ByteStream(data=b"data")),
+        Document(
+            content="with-sparse",
+            embedding=[0.1] * 768,
+            sparse_embedding=SparseEmbedding(indices=[0], values=[1.0]),
+        ),
+    ]
+    with caplog.at_level("WARNING"):
+        result = ds._prepare_documents_for_writing(docs, policy=DuplicatePolicy.SKIP)
+
+    assert len(result) == 3
+    assert result[0][1] == ds._dummy_vector
+    assert "only supports `DuplicatePolicy.OVERWRITE`" in caplog.text
+    assert "has no embedding" in caplog.text
+    assert "blob" in caplog.text
+    assert "sparse_embedding" in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_validation_errors_on_empty_query_and_non_dict_meta():
+    ds = PineconeDocumentStore(api_key=Secret.from_token("fake-api-key"))
+    filters = {"field": "meta.category", "operator": "==", "value": "A"}
+
+    with pytest.raises(ValueError, match="query_embedding must be a non-empty list"):
+        ds._embedding_retrieval(query_embedding=[])
+    with pytest.raises(ValueError, match="query_embedding must be a non-empty list"):
+        await ds._embedding_retrieval_async(query_embedding=[])
+
+    with pytest.raises(ValueError, match="meta must be a dictionary"):
+        ds.update_by_filter(filters=filters, meta="not-a-dict")
+    with pytest.raises(ValueError, match="meta must be a dictionary"):
+        await ds.update_by_filter_async(filters=filters, meta="not-a-dict")
+
+
 @pytest.mark.integration
 @pytest.mark.skipif(not os.environ.get("PINECONE_API_KEY"), reason="PINECONE_API_KEY not set")
 def test_serverless_index_creation_from_scratch(delete_sleep_time):
@@ -395,11 +521,6 @@ class TestDocumentStore(
         assert min_max["min"] == "Alpha"
         assert min_max["max"] == "Zebra"
 
-    def test_get_metadata_field_min_max_empty_collection(self, document_store: PineconeDocumentStore):
-        assert document_store.count_documents() == 0
-        with pytest.raises(ValueError, match="No values found"):
-            document_store.get_metadata_field_min_max("priority")
-
     def test_get_metadata_field_min_max_no_values(self, document_store: PineconeDocumentStore):
         docs = [
             Document(content="Doc 1", meta={"tags": ["tag1", "tag2"]}),
@@ -407,13 +528,11 @@ class TestDocumentStore(
         ]
         document_store.write_documents(docs)
 
-        # Try to get min/max for unsupported field type (list)
-        with pytest.raises(ValueError, match="No values found"):
-            document_store.get_metadata_field_min_max("tags")
+        # Unsupported field type (list) — no comparable values collected
+        assert document_store.get_metadata_field_min_max("tags") == {"min": None, "max": None}
 
-        # Try to get min/max for non-existent field
-        with pytest.raises(ValueError, match="No values found"):
-            document_store.get_metadata_field_min_max("nonexistent")
+        # Non-existent field
+        assert document_store.get_metadata_field_min_max("nonexistent") == {"min": None, "max": None}
 
     def test_get_metadata_field_unique_values(self, document_store: PineconeDocumentStore):
         docs = [

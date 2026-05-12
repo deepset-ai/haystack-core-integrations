@@ -164,6 +164,19 @@ class TestTavilyWebSearch:
         assert result["documents"] == []
         assert result["links"] == []
 
+    def test_run_raises_runtime_error_when_warm_up_fails_to_initialize_client(self, monkeypatch):
+        ws = TavilyWebSearch(api_key=Secret.from_token("test-key"))
+        monkeypatch.setattr(ws, "warm_up", lambda: None)
+        with pytest.raises(RuntimeError, match="TavilyWebSearch client failed to initialize"):
+            ws.run(query="test")
+
+    @pytest.mark.asyncio
+    async def test_run_async_raises_runtime_error_when_warm_up_fails_to_initialize_client(self, monkeypatch):
+        ws = TavilyWebSearch(api_key=Secret.from_token("test-key"))
+        monkeypatch.setattr(ws, "warm_up", lambda: None)
+        with pytest.raises(RuntimeError, match="TavilyWebSearch async client failed to initialize"):
+            await ws.run_async(query="test")
+
     @pytest.mark.skipif(
         not os.environ.get("TAVILY_API_KEY"),
         reason="Export TAVILY_API_KEY to run integration tests.",

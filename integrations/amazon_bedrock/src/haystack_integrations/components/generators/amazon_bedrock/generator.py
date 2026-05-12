@@ -25,6 +25,8 @@ from .adapters import (
     CohereCommandRAdapter,
     MetaLlamaAdapter,
     MistralAdapter,
+    _merge_usage,
+    _usage_from_response_metadata,
 )
 
 logger = logging.getLogger(__name__)
@@ -215,6 +217,7 @@ class AmazonBedrockGenerator:
         generation_kwargs["stream"] = streaming_callback is not None
 
         body = self.model_adapter.prepare_body(prompt=prompt, **generation_kwargs)
+        stream_metadata: dict[str, Any] = {}
         try:
             if streaming_callback:
                 response = self.client.invoke_model_with_response_stream(
@@ -224,7 +227,7 @@ class AmazonBedrockGenerator:
                     contentType="application/json",
                 )
                 response_stream = response["body"]
-                replies = self.model_adapter.get_stream_responses(
+                replies, stream_metadata = self.model_adapter.get_stream_responses_and_metadata(
                     stream=response_stream, streaming_callback=streaming_callback
                 )
             else:
@@ -238,6 +241,8 @@ class AmazonBedrockGenerator:
                 replies = self.model_adapter.get_responses(response_body=response_body)
 
             metadata = response.get("ResponseMetadata", {})
+            _merge_usage(metadata, _usage_from_response_metadata(metadata))
+            _merge_usage(metadata, stream_metadata.get("usage", {}))
 
         except ClientError as exception:
             msg = f"Could not perform inference for Amazon Bedrock model {self.model} due to:\n{exception}"

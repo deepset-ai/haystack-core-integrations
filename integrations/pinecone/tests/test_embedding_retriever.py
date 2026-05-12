@@ -28,6 +28,11 @@ def test_init_default():
         PineconeEmbeddingRetriever(document_store=mock_store, filter_policy="invalid")
 
 
+def test_init_raises_for_non_pinecone_document_store():
+    with pytest.raises(ValueError, match="document_store must be an instance of PineconeDocumentStore"):
+        PineconeEmbeddingRetriever(document_store="not-a-document-store")
+
+
 @patch("haystack_integrations.document_stores.pinecone.document_store.Pinecone")
 def test_to_dict(mock_pinecone, monkeypatch):
     monkeypatch.setenv("PINECONE_API_KEY", "env-api-key")

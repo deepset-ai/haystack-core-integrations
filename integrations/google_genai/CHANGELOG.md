@@ -1,5 +1,19 @@
 # Changelog
 
+## [integrations/google_genai-v4.2.0] - 2026-04-29
+
+### 🚜 Refactor
+
+- Google GenAI embedders - adaptations for Gemini Embedding 2 general availability (#3251)
+
+
+## [integrations/google_genai-v4.1.0] - 2026-04-24
+
+### 🐛 Bug Fixes
+
+- *(google-genai)* Include cached_content_token_count in streaming responses (#3177)
+
+
 ## [integrations/google_genai-v4.0.1] - 2026-04-13
 
 ### 🐛 Bug Fixes
