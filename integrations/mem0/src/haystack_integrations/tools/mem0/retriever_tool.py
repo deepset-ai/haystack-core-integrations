@@ -24,6 +24,8 @@ _PARAMETERS: dict[str, Any] = {
     "required": ["query"],
 }
 
+_DEFAULT_INPUTS_FROM_STATE: dict[str, str] = {"user_id": "user_id", "run_id": "run_id", "agent_id": "agent_id"}
+
 
 class Mem0MemoryRetrieverTool(Tool):
     """
@@ -41,6 +43,7 @@ class Mem0MemoryRetrieverTool(Tool):
         top_k: int = 5,
         name: str = "retrieve_memories",
         description: str = _DEFAULT_DESCRIPTION,
+        inputs_from_state: dict[str, str] | None = None,
     ) -> None:
         """
         Initialize the Mem0MemoryRetrieverTool.
@@ -49,20 +52,26 @@ class Mem0MemoryRetrieverTool(Tool):
         :param top_k: Default maximum number of memories to return. The LLM may override this.
         :param name: Tool name exposed to the LLM.
         :param description: Tool description exposed to the LLM.
+        :param inputs_from_state: Mapping of state keys to tool parameter names. Defaults to injecting
+            `user_id`, `run_id`, and `agent_id` from state.
         """
         self.memory_store = memory_store
         self.top_k = top_k
+        self._is_warmed_up = False
         super().__init__(
             name=name,
             description=description,
             parameters=_PARAMETERS,
             function=self._retrieve,
-            inputs_from_state={"user_id": "user_id", "run_id": "run_id", "agent_id": "agent_id"},
+            inputs_from_state=inputs_from_state if inputs_from_state is not None else _DEFAULT_INPUTS_FROM_STATE,
         )
 
     def warm_up(self) -> None:
-        """Initialize the Mem0 client by warming up the underlying memory store."""
+        """Initialize the Mem0 client. Subsequent calls are no-ops."""
+        if self._is_warmed_up:
+            return
         self.memory_store.warm_up()
+        self._is_warmed_up = True
 
     def _retrieve(
         self,
@@ -92,6 +101,7 @@ class Mem0MemoryRetrieverTool(Tool):
                 "top_k": self.top_k,
                 "name": self.name,
                 "description": self.description,
+                "inputs_from_state": self.inputs_from_state,
             },
         }
 

@@ -11,7 +11,7 @@ from haystack.utils import Secret
 
 from haystack_integrations.memory_stores.mem0.memory_store import Mem0MemoryStore
 from haystack_integrations.tools.mem0.retriever_tool import Mem0MemoryRetrieverTool
-from haystack_integrations.tools.mem0.writer_tool import Mem0MemoryWriterTool
+from haystack_integrations.tools.mem0.writer_tool import Mem0MemoryWriterTool, mem0_memory_writer_tool
 
 
 @pytest.fixture
@@ -41,9 +41,14 @@ class TestMem0MemoryRetrieverTool:
         assert "run_id" not in props
         assert "agent_id" not in props
 
-    def test_all_ids_injected_from_state(self, store):
+    def test_default_inputs_from_state(self, store):
         tool = Mem0MemoryRetrieverTool(memory_store=store)
         assert tool.inputs_from_state == {"user_id": "user_id", "run_id": "run_id", "agent_id": "agent_id"}
+
+    def test_custom_inputs_from_state(self, store):
+        custom = {"session_id": "user_id"}  # map state key "session_id" to param "user_id"
+        tool = Mem0MemoryRetrieverTool(memory_store=store, inputs_from_state=custom)
+        assert tool.inputs_from_state == custom
 
     def test_query_is_required(self, store):
         tool = Mem0MemoryRetrieverTool(memory_store=store)
@@ -72,6 +77,20 @@ class TestMem0MemoryRetrieverTool:
         result = tool.invoke(query="nothing", user_id="alice")
         assert "No memories found" in result
 
+    def test_warm_up_calls_store(self, store):
+        store.warm_up = Mock()
+        tool = Mem0MemoryRetrieverTool(memory_store=store)
+        tool.warm_up()
+        store.warm_up.assert_called_once()
+
+    def test_warm_up_is_idempotent(self, store):
+        store.warm_up = Mock()
+        tool = Mem0MemoryRetrieverTool(memory_store=store)
+        tool.warm_up()
+        tool.warm_up()
+        tool.warm_up()
+        store.warm_up.assert_called_once()
+
     def test_serialization_roundtrip(self, monkeypatch, mock_mem0_client):  # noqa: ARG002
         monkeypatch.setenv("MY_MEM0_KEY", "test-key")
         store = Mem0MemoryStore(api_key=Secret.from_env_var("MY_MEM0_KEY"))
@@ -87,7 +106,20 @@ class TestMem0MemoryRetrieverTool:
         assert isinstance(restored, Mem0MemoryRetrieverTool)
         assert restored.name == tool.name
         assert restored.top_k == 3
+        assert restored.inputs_from_state == tool.inputs_from_state
         assert isinstance(restored.memory_store, Mem0MemoryStore)
+
+    def test_serialization_roundtrip_custom_inputs_from_state(self, monkeypatch, mock_mem0_client):  # noqa: ARG002
+        monkeypatch.setenv("MEM0_API_KEY", "test-key")
+        store = Mem0MemoryStore()
+        custom = {"session_id": "user_id"}  # map state key "session_id" to param "user_id"
+        tool = Mem0MemoryRetrieverTool(memory_store=store, inputs_from_state=custom)
+
+        data = {"tools": serialize_tools_or_toolset([tool])}
+        deserialize_tools_or_toolset_inplace(data)
+        restored = data["tools"][0]
+
+        assert restored.inputs_from_state == custom
 
     def test_serialized_tool_invokes_correctly_after_roundtrip(self, monkeypatch, mock_mem0_client):  # noqa: ARG002
         monkeypatch.setenv("MEM0_API_KEY", "test-key")
@@ -118,9 +150,14 @@ class TestMem0MemoryWriterTool:
         props = tool.parameters.get("properties", {})
         assert "user_id" not in props
 
-    def test_all_ids_injected_from_state(self, store):
+    def test_default_inputs_from_state(self, store):
         tool = Mem0MemoryWriterTool(memory_store=store)
         assert tool.inputs_from_state == {"user_id": "user_id", "run_id": "run_id", "agent_id": "agent_id"}
+
+    def test_custom_inputs_from_state(self, store):
+        custom = {"session_id": "user_id"}  # map state key "session_id" to param "user_id"
+        tool = Mem0MemoryWriterTool(memory_store=store, inputs_from_state=custom)
+        assert tool.inputs_from_state == custom
 
     def test_text_is_required(self, store):
         tool = Mem0MemoryWriterTool(memory_store=store)
@@ -142,6 +179,20 @@ class TestMem0MemoryWriterTool:
         assert isinstance(result, str)
         assert "1" in result
 
+    def test_warm_up_calls_store(self, store):
+        store.warm_up = Mock()
+        tool = Mem0MemoryWriterTool(memory_store=store)
+        tool.warm_up()
+        store.warm_up.assert_called_once()
+
+    def test_warm_up_is_idempotent(self, store):
+        store.warm_up = Mock()
+        tool = Mem0MemoryWriterTool(memory_store=store)
+        tool.warm_up()
+        tool.warm_up()
+        tool.warm_up()
+        store.warm_up.assert_called_once()
+
     def test_serialization_roundtrip(self, monkeypatch, mock_mem0_client):  # noqa: ARG002
         monkeypatch.setenv("MY_MEM0_KEY", "test-key")
         store = Mem0MemoryStore(api_key=Secret.from_env_var("MY_MEM0_KEY"))
@@ -156,7 +207,20 @@ class TestMem0MemoryWriterTool:
 
         assert isinstance(restored, Mem0MemoryWriterTool)
         assert restored.name == tool.name
+        assert restored.inputs_from_state == tool.inputs_from_state
         assert isinstance(restored.memory_store, Mem0MemoryStore)
+
+    def test_serialization_roundtrip_custom_inputs_from_state(self, monkeypatch, mock_mem0_client):  # noqa: ARG002
+        monkeypatch.setenv("MEM0_API_KEY", "test-key")
+        store = Mem0MemoryStore()
+        custom = {"session_id": "user_id"}  # map state key "session_id" to param "user_id"
+        tool = Mem0MemoryWriterTool(memory_store=store, inputs_from_state=custom)
+
+        data = {"tools": serialize_tools_or_toolset([tool])}
+        deserialize_tools_or_toolset_inplace(data)
+        restored = data["tools"][0]
+
+        assert restored.inputs_from_state == custom
 
     def test_serialized_tool_invokes_correctly_after_roundtrip(self, monkeypatch, mock_mem0_client):  # noqa: ARG002
         monkeypatch.setenv("MEM0_API_KEY", "test-key")
@@ -171,3 +235,40 @@ class TestMem0MemoryWriterTool:
         result = restored.invoke(text="I enjoy hiking", user_id="alice")
         assert "1" in result
         assert restored.memory_store.add_memories.call_args[1]["user_id"] == "alice"
+
+
+class TestMem0MemoryWriterToolFunction:
+    def test_is_tool_instance(self):
+        assert isinstance(mem0_memory_writer_tool, Tool)
+
+    def test_name(self):
+        assert mem0_memory_writer_tool.name == "mem0_memory_writer_tool"
+
+    def test_inputs_from_state(self):
+        assert mem0_memory_writer_tool.inputs_from_state == {
+            "user_id": "user_id",
+            "run_id": "run_id",
+            "agent_id": "agent_id",
+        }
+
+    def test_text_is_required(self):
+        assert "text" in mem0_memory_writer_tool.parameters.get("required", [])
+
+    def test_invoke(self, monkeypatch, mock_mem0_client):
+        monkeypatch.setenv("MEM0_API_KEY", "test-key")
+        mock_mem0_client.add.return_value = {"results": [{"id": "m1", "data": {"memory": "hiking"}}]}
+        result = mem0_memory_writer_tool.invoke(text="I enjoy hiking", user_id="alice")
+        assert isinstance(result, str)
+
+    def test_serialization_roundtrip(self):
+        serialized = serialize_tools_or_toolset([mem0_memory_writer_tool])
+        assert isinstance(serialized, list)
+        assert serialized[0]["type"].endswith("Tool")
+
+        data = {"tools": serialized}
+        deserialize_tools_or_toolset_inplace(data)
+        restored = data["tools"][0]
+
+        assert isinstance(restored, Tool)
+        assert restored.name == mem0_memory_writer_tool.name
+        assert restored.inputs_from_state == mem0_memory_writer_tool.inputs_from_state
