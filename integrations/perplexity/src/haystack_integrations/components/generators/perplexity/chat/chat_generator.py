@@ -7,6 +7,7 @@ from typing import Any, ClassVar
 
 from haystack import component, default_from_dict
 from haystack.components.generators.chat import OpenAIResponsesChatGenerator
+from haystack.core.serialization import generate_qualified_class_name
 from haystack.dataclasses import StreamingCallbackT
 from haystack.tools import ToolsType, deserialize_tools_or_toolset_inplace
 from haystack.utils import deserialize_callable
@@ -14,10 +15,6 @@ from haystack.utils.auth import Secret
 
 _INTEGRATION_SLUG = "haystack"
 _PACKAGE_NAME = "perplexity-haystack"
-_PERPLEXITY_COMPONENT_PATH = "haystack_integrations.components.generators.perplexity.PerplexityChatGenerator"
-_PERPLEXITY_INTERNAL_COMPONENT_PATH = (
-    "haystack_integrations.components.generators.perplexity.chat.chat_generator.PerplexityChatGenerator"
-)
 
 
 def _attribution_header() -> str:
@@ -151,7 +148,7 @@ class PerplexityChatGenerator(OpenAIResponsesChatGenerator):
             The serialized component as a dictionary.
         """
         data = super(PerplexityChatGenerator, self).to_dict()  # noqa: UP008
-        data["type"] = _PERPLEXITY_COMPONENT_PATH
+        data["type"] = generate_qualified_class_name(type(self))
         data["init_parameters"]["extra_headers"] = self.extra_headers
         return data
 
@@ -175,5 +172,4 @@ class PerplexityChatGenerator(OpenAIResponsesChatGenerator):
         if serialized_callback_handler:
             data["init_parameters"]["streaming_callback"] = deserialize_callable(serialized_callback_handler)
 
-        data["type"] = _PERPLEXITY_INTERNAL_COMPONENT_PATH
         return default_from_dict(cls, data)

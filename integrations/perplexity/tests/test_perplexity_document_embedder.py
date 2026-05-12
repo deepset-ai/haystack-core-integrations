@@ -70,7 +70,7 @@ class TestPerplexityDocumentEmbedder:
 
         assert embedder.api_key == Secret.from_env_var(["PERPLEXITY_API_KEY"])
         assert embedder.model == "pplx-embed-v1-0.6b"
-        assert embedder.api_base_url == "https://api.perplexity.ai"
+        assert embedder.api_base_url == "https://api.perplexity.ai/v1"
         assert embedder.prefix == ""
         assert embedder.suffix == ""
         assert embedder.batch_size == 32
@@ -115,7 +115,7 @@ class TestPerplexityDocumentEmbedder:
             "init_parameters": {
                 "api_key": Secret.from_env_var("PERPLEXITY_API_KEY").to_dict(),
                 "model": "pplx-embed-v1-0.6b",
-                "api_base_url": "https://api.perplexity.ai",
+                "api_base_url": "https://api.perplexity.ai/v1",
                 "prefix": "",
                 "suffix": "",
                 "batch_size": 32,
@@ -176,7 +176,7 @@ class TestPerplexityDocumentEmbedder:
             "init_parameters": {
                 "api_key": Secret.from_env_var("PERPLEXITY_API_KEY").to_dict(),
                 "model": "pplx-embed-v1-0.6b",
-                "api_base_url": "https://api.perplexity.ai",
+                "api_base_url": "https://api.perplexity.ai/v1",
                 "prefix": "",
                 "suffix": "",
                 "batch_size": 32,
@@ -193,7 +193,7 @@ class TestPerplexityDocumentEmbedder:
 
         assert component.api_key == Secret.from_env_var(["PERPLEXITY_API_KEY"])
         assert component.model == "pplx-embed-v1-0.6b"
-        assert component.api_base_url == "https://api.perplexity.ai"
+        assert component.api_base_url == "https://api.perplexity.ai/v1"
         assert component.prefix == ""
         assert component.suffix == ""
         assert component.batch_size == 32

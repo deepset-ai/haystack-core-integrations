@@ -233,19 +233,6 @@ class TestPerplexityWebSearch:
         assert result["documents"] == []
         assert result["links"] == []
 
-    def test_run_raises_runtime_error_when_warm_up_fails_to_initialize_client(self, monkeypatch):
-        ws = PerplexityWebSearch(api_key=Secret.from_token("test-key"))
-        monkeypatch.setattr(ws, "warm_up", lambda: None)
-        with pytest.raises(RuntimeError, match="PerplexityWebSearch client failed to initialize"):
-            ws.run(query="test")
-
-    @pytest.mark.asyncio
-    async def test_run_async_raises_runtime_error_when_warm_up_fails_to_initialize_client(self, monkeypatch):
-        ws = PerplexityWebSearch(api_key=Secret.from_token("test-key"))
-        monkeypatch.setattr(ws, "warm_up", lambda: None)
-        with pytest.raises(RuntimeError, match="PerplexityWebSearch async client failed to initialize"):
-            await ws.run_async(query="test")
-
     def test_run_drops_none_valued_search_params(self):
         captured: list[httpx.Request] = []
         ws = PerplexityWebSearch(

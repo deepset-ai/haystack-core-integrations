@@ -5,7 +5,7 @@
 import importlib.metadata
 from typing import Any, ClassVar
 
-from haystack import component, default_to_dict
+from haystack import component, default_from_dict, default_to_dict
 from haystack.components.embedders import OpenAITextEmbedder
 from haystack.utils.auth import Secret
 
@@ -61,7 +61,7 @@ class PerplexityTextEmbedder(OpenAITextEmbedder):
         *,
         api_key: Secret = Secret.from_env_var("PERPLEXITY_API_KEY"),
         model: str = "pplx-embed-v1-0.6b",
-        api_base_url: str | None = "https://api.perplexity.ai",
+        api_base_url: str | None = "https://api.perplexity.ai/v1",
         prefix: str = "",
         suffix: str = "",
         timeout: float | None = None,
@@ -126,3 +126,15 @@ class PerplexityTextEmbedder(OpenAITextEmbedder):
             max_retries=self.max_retries,
             http_client_kwargs=self.http_client_kwargs,
         )
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "PerplexityTextEmbedder":
+        """
+        Deserializes the component from a dictionary.
+
+        :param data:
+            Dictionary to deserialize from.
+        :returns:
+            Deserialized component.
+        """
+        return default_from_dict(cls, data)

@@ -104,7 +104,10 @@ class TestPerplexityChatGenerator:
         component = PerplexityChatGenerator()
         data = component.to_dict()
 
-        assert data["type"] == "haystack_integrations.components.generators.perplexity.PerplexityChatGenerator"
+        assert (
+            data["type"]
+            == "haystack_integrations.components.generators.perplexity.chat.chat_generator.PerplexityChatGenerator"
+        )
         assert data["init_parameters"]["api_key"] == Secret.from_env_var("PERPLEXITY_API_KEY").to_dict()
         assert data["init_parameters"] == {
             "api_key": Secret.from_env_var("PERPLEXITY_API_KEY").to_dict(),

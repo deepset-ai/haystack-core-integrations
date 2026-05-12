@@ -63,7 +63,7 @@ class TestPerplexityTextEmbedder:
         embedder = PerplexityTextEmbedder()
 
         assert embedder.api_key == Secret.from_env_var(["PERPLEXITY_API_KEY"])
-        assert embedder.api_base_url == "https://api.perplexity.ai"
+        assert embedder.api_base_url == "https://api.perplexity.ai/v1"
         assert embedder.model == "pplx-embed-v1-0.6b"
         assert embedder.prefix == ""
         assert embedder.suffix == ""
@@ -77,7 +77,7 @@ class TestPerplexityTextEmbedder:
         )
 
         assert embedder.api_key == Secret.from_token("test-api-key")
-        assert embedder.api_base_url == "https://api.perplexity.ai"
+        assert embedder.api_base_url == "https://api.perplexity.ai/v1"
         assert embedder.model == "pplx-embed-v1-4b"
         assert embedder.prefix == "START"
         assert embedder.suffix == "END"
@@ -94,7 +94,7 @@ class TestPerplexityTextEmbedder:
             "init_parameters": {
                 "api_key": Secret.from_env_var("PERPLEXITY_API_KEY").to_dict(),
                 "model": "pplx-embed-v1-0.6b",
-                "api_base_url": "https://api.perplexity.ai",
+                "api_base_url": "https://api.perplexity.ai/v1",
                 "prefix": "",
                 "suffix": "",
                 "timeout": None,
@@ -139,7 +139,7 @@ class TestPerplexityTextEmbedder:
             "init_parameters": {
                 "api_key": Secret.from_env_var("PERPLEXITY_API_KEY").to_dict(),
                 "model": "pplx-embed-v1-0.6b",
-                "api_base_url": "https://api.perplexity.ai",
+                "api_base_url": "https://api.perplexity.ai/v1",
                 "prefix": "",
                 "suffix": "",
                 "timeout": None,
@@ -151,7 +151,7 @@ class TestPerplexityTextEmbedder:
         component = PerplexityTextEmbedder.from_dict(data)
 
         assert component.api_key == Secret.from_env_var(["PERPLEXITY_API_KEY"])
-        assert component.api_base_url == "https://api.perplexity.ai"
+        assert component.api_base_url == "https://api.perplexity.ai/v1"
         assert component.model == "pplx-embed-v1-0.6b"
         assert component.prefix == ""
         assert component.suffix == ""

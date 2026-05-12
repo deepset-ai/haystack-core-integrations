@@ -113,7 +113,7 @@ class PerplexityWebSearch:
         self,
         query: str,
         search_params: dict[str, Any] | None = None,
-    ) -> dict[str, Any]:
+    ) -> dict[str, list[Document] | list[str]]:
         """
         Search the web using Perplexity and return results as Documents.
 
@@ -127,9 +127,6 @@ class PerplexityWebSearch:
         """
         if self._client is None:
             self.warm_up()
-        if self._client is None:
-            msg = "PerplexityWebSearch client failed to initialize."
-            raise RuntimeError(msg)
 
         response = self._client.post(
             PERPLEXITY_SEARCH_URL,
@@ -144,7 +141,7 @@ class PerplexityWebSearch:
         self,
         query: str,
         search_params: dict[str, Any] | None = None,
-    ) -> dict[str, Any]:
+    ) -> dict[str, list[Document] | list[str]]:
         """
         Asynchronously search the web using Perplexity and return results as Documents.
 
@@ -158,9 +155,6 @@ class PerplexityWebSearch:
         """
         if self._async_client is None:
             self.warm_up()
-        if self._async_client is None:
-            msg = "PerplexityWebSearch async client failed to initialize."
-            raise RuntimeError(msg)
 
         response = await self._async_client.post(
             PERPLEXITY_SEARCH_URL,
