@@ -2,6 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+import os
 from datetime import datetime, timezone
 from unittest.mock import patch
 
@@ -199,3 +200,27 @@ class TestPerplexityChatGenerator:
         assert component.client.default_headers["test-header"] == "test-value"
         assert component.async_client.default_headers["X-Pplx-Integration"].startswith("haystack/")
         assert component.async_client.default_headers["test-header"] == "test-value"
+
+
+@pytest.mark.skipif(
+    not os.environ.get("PERPLEXITY_API_KEY"),
+    reason="Export PERPLEXITY_API_KEY to run integration tests.",
+)
+@pytest.mark.integration
+class TestPerplexityChatGeneratorInference:
+    def test_live_run(self):
+        chat_messages = [ChatMessage.from_user("What's the capital of France? Reply in one word.")]
+        component = PerplexityChatGenerator()
+        results = component.run(chat_messages)
+        assert len(results["replies"]) == 1
+        message: ChatMessage = results["replies"][0]
+        assert "Paris" in message.text
+
+    @pytest.mark.asyncio
+    async def test_live_run_async(self):
+        chat_messages = [ChatMessage.from_user("What's the capital of France? Reply in one word.")]
+        component = PerplexityChatGenerator()
+        results = await component.run_async(chat_messages)
+        assert len(results["replies"]) == 1
+        message: ChatMessage = results["replies"][0]
+        assert "Paris" in message.text

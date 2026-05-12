@@ -3,6 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import json
+import os
 
 import httpx
 import pytest
@@ -186,3 +187,28 @@ class TestPerplexityTextEmbedder:
 
         with pytest.raises(TypeError, match=match_error_msg):
             embedder.run(text=["text_snippet_1", "text_snippet_2"])
+
+
+@pytest.mark.skipif(
+    not os.environ.get("PERPLEXITY_API_KEY"),
+    reason="Export PERPLEXITY_API_KEY to run integration tests.",
+)
+@pytest.mark.integration
+class TestPerplexityTextEmbedderInference:
+    def test_live_run(self):
+        text = "The capital of France is Paris."
+        embedder = PerplexityTextEmbedder()
+        result = embedder.run(text=text)
+
+        assert isinstance(result["embedding"], list)
+        assert len(result["embedding"]) > 0
+        assert all(isinstance(x, float) for x in result["embedding"])
+
+    @pytest.mark.asyncio
+    async def test_live_run_async(self):
+        text = "The capital of France is Paris."
+        embedder = PerplexityTextEmbedder()
+        result = await embedder.run_async(text=text)
+
+        assert isinstance(result["embedding"], list)
+        assert len(result["embedding"]) > 0

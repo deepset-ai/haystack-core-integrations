@@ -3,6 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import json
+import os
 
 import httpx
 import pytest
@@ -248,3 +249,40 @@ class TestPerplexityDocumentEmbedder:
             embedder.run(documents=[1, 2, 3])
 
         assert embedder.run(documents=[]) == {"documents": [], "meta": {}}
+
+
+@pytest.mark.skipif(
+    not os.environ.get("PERPLEXITY_API_KEY"),
+    reason="Export PERPLEXITY_API_KEY to run integration tests.",
+)
+@pytest.mark.integration
+class TestPerplexityDocumentEmbedderInference:
+    def test_live_run(self):
+        docs = [
+            Document(content="The capital of France is Paris."),
+            Document(content="The capital of Germany is Berlin."),
+        ]
+        embedder = PerplexityDocumentEmbedder()
+        result = embedder.run(documents=docs)
+
+        embedded_docs = result["documents"]
+        assert len(embedded_docs) == len(docs)
+        for doc in embedded_docs:
+            assert isinstance(doc.embedding, list)
+            assert len(doc.embedding) > 0
+            assert all(isinstance(x, float) for x in doc.embedding)
+
+    @pytest.mark.asyncio
+    async def test_live_run_async(self):
+        docs = [
+            Document(content="The capital of France is Paris."),
+            Document(content="The capital of Germany is Berlin."),
+        ]
+        embedder = PerplexityDocumentEmbedder()
+        result = await embedder.run_async(documents=docs)
+
+        embedded_docs = result["documents"]
+        assert len(embedded_docs) == len(docs)
+        for doc in embedded_docs:
+            assert isinstance(doc.embedding, list)
+            assert len(doc.embedding) > 0
