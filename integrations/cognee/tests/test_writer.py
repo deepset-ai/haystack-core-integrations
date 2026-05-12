@@ -2,134 +2,74 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock
 
-from haystack import Document
+import pytest
+from haystack.dataclasses import ChatMessage
 
 from haystack_integrations.components.writers.cognee import CogneeWriter
+from haystack_integrations.memory_stores.cognee import CogneeMemoryStore
 
 
 class TestCogneeWriter:
-    def test_init_defaults(self):
-        writer = CogneeWriter()
-        assert writer.dataset_name == "haystack"
-        assert writer.auto_cognify is True
+    def test_init_requires_memory_store(self):
+        with pytest.raises(ValueError, match="memory_store must be an instance of CogneeMemoryStore"):
+            CogneeWriter(memory_store="not a store")  # type: ignore[arg-type]
 
-    def test_init_custom(self):
-        writer = CogneeWriter(dataset_name="custom", auto_cognify=False)
-        assert writer.dataset_name == "custom"
-        assert writer.auto_cognify is False
+    def test_init_holds_store(self):
+        store = CogneeMemoryStore(dataset_name="ds", session_id="s")
+        writer = CogneeWriter(memory_store=store)
+        assert writer._memory_store is store
+        assert writer._session_id is None
 
-    def test_to_dict(self):
-        writer = CogneeWriter(dataset_name="test_ds", auto_cognify=False)
+    def test_init_with_session_id(self):
+        store = CogneeMemoryStore(dataset_name="ds")
+        writer = CogneeWriter(memory_store=store, session_id="override")
+        assert writer._session_id == "override"
+
+    def test_to_from_dict_roundtrip(self):
+        store = CogneeMemoryStore(dataset_name="ds", session_id="s")
+        writer = CogneeWriter(memory_store=store, session_id="writer_sess")
+
         data = writer.to_dict()
         assert data["type"] == "haystack_integrations.components.writers.cognee.memory_writer.CogneeWriter"
-        assert data["init_parameters"]["dataset_name"] == "test_ds"
-        assert data["init_parameters"]["auto_cognify"] is False
-
-    def test_from_dict(self):
-        data = {
-            "type": "haystack_integrations.components.writers.cognee.memory_writer.CogneeWriter",
-            "init_parameters": {"dataset_name": "restored", "auto_cognify": True},
-        }
-        writer = CogneeWriter.from_dict(data)
-        assert writer.dataset_name == "restored"
-        assert writer.auto_cognify is True
-
-    @patch("haystack_integrations.components.writers.cognee.memory_writer.cognee")
-    def test_run_with_auto_cognify(self, mock_cognee):
-        mock_cognee.add = AsyncMock()
-        mock_cognee.cognify = AsyncMock()
-
-        writer = CogneeWriter(dataset_name="test", auto_cognify=True)
-        docs = [
-            Document(content="First document"),
-            Document(content="Second document"),
-        ]
-        result = writer.run(documents=docs)
-
-        assert result == {"documents_written": 2}
-        # Verify batch call: single add() with list of texts
-        mock_cognee.add.assert_awaited_once()
-        call_args = mock_cognee.add.call_args
-        assert call_args[0][0] == ["First document", "Second document"]
-        # Verify cognify uses specific dataset
-        mock_cognee.cognify.assert_awaited_once()
-        cognify_kwargs = mock_cognee.cognify.call_args[1]
-        assert cognify_kwargs["datasets"] == ["test"]
-
-    @patch("haystack_integrations.components.writers.cognee.memory_writer.cognee")
-    def test_run_without_auto_cognify(self, mock_cognee):
-        mock_cognee.add = AsyncMock()
-        mock_cognee.cognify = AsyncMock()
-
-        writer = CogneeWriter(dataset_name="test", auto_cognify=False)
-        docs = [Document(content="A document")]
-        result = writer.run(documents=docs)
-
-        assert result == {"documents_written": 1}
-        mock_cognee.add.assert_awaited_once()
-        mock_cognee.cognify.assert_not_awaited()
-
-    @patch("haystack_integrations.components.writers.cognee.memory_writer.cognee")
-    def test_run_skips_empty_content(self, mock_cognee):
-        mock_cognee.add = AsyncMock()
-        mock_cognee.cognify = AsyncMock()
-
-        writer = CogneeWriter(auto_cognify=True)
-        docs = [
-            Document(content="Valid document"),
-            Document(content=""),
-            Document(content=None),
-        ]
-        result = writer.run(documents=docs)
-
-        assert result == {"documents_written": 1}
-        mock_cognee.add.assert_awaited_once()
-        call_args = mock_cognee.add.call_args
-        assert call_args[0][0] == ["Valid document"]
-
-    @patch("haystack_integrations.components.writers.cognee.memory_writer.cognee")
-    def test_run_empty_list(self, mock_cognee):
-        mock_cognee.add = AsyncMock()
-        mock_cognee.cognify = AsyncMock()
-
-        writer = CogneeWriter(auto_cognify=True)
-        result = writer.run(documents=[])
-
-        assert result == {"documents_written": 0}
-        mock_cognee.add.assert_not_awaited()
-        mock_cognee.cognify.assert_not_awaited()
-
-    @patch("haystack_integrations.components.writers.cognee.memory_writer._get_cognee_user", new_callable=AsyncMock)
-    @patch("haystack_integrations.components.writers.cognee.memory_writer.cognee")
-    def test_run_with_user_id(self, mock_cognee, mock_get_user):
-        mock_user = MagicMock()
-        mock_get_user.return_value = mock_user
-        mock_cognee.add = AsyncMock()
-        mock_cognee.cognify = AsyncMock()
-
-        writer = CogneeWriter(dataset_name="test", auto_cognify=True)
-        writer.run(
-            documents=[Document(content="hello")],
-            user_id="550e8400-e29b-41d4-a716-446655440000",
+        assert data["init_parameters"]["session_id"] == "writer_sess"
+        assert (
+            data["init_parameters"]["memory_store"]["type"]
+            == "haystack_integrations.memory_stores.cognee.memory_store.CogneeMemoryStore"
         )
+        assert data["init_parameters"]["memory_store"]["init_parameters"]["dataset_name"] == "ds"
 
-        mock_get_user.assert_awaited_once_with("550e8400-e29b-41d4-a716-446655440000")
-        add_kwargs = mock_cognee.add.call_args[1]
-        assert add_kwargs["user"] is mock_user
-        cognify_kwargs = mock_cognee.cognify.call_args[1]
-        assert cognify_kwargs["user"] is mock_user
+        restored = CogneeWriter.from_dict(data)
+        assert isinstance(restored._memory_store, CogneeMemoryStore)
+        assert restored._memory_store.dataset_name == "ds"
+        assert restored._memory_store.session_id == "s"
+        assert restored._session_id == "writer_sess"
 
-    @patch("haystack_integrations.components.writers.cognee.memory_writer.cognee")
-    def test_run_without_user_id(self, mock_cognee):
-        mock_cognee.add = AsyncMock()
-        mock_cognee.cognify = AsyncMock()
+    def test_run_delegates_to_store_and_echoes_messages(self):
+        store = MagicMock(spec=CogneeMemoryStore)
+        writer = CogneeWriter(memory_store=store)
 
-        writer = CogneeWriter(dataset_name="test", auto_cognify=True)
-        writer.run(documents=[Document(content="hello")])
+        messages = [ChatMessage.from_user("hi"), ChatMessage.from_assistant("hello")]
+        out = writer.run(messages=messages)
 
-        add_kwargs = mock_cognee.add.call_args[1]
-        assert add_kwargs["user"] is None
-        cognify_kwargs = mock_cognee.cognify.call_args[1]
-        assert cognify_kwargs["user"] is None
+        store.add_memories.assert_called_once_with(messages=messages, user_id=None, session_id=None)
+        assert out == {"messages_written": messages}
+
+    def test_run_passes_user_id(self):
+        store = MagicMock(spec=CogneeMemoryStore)
+        writer = CogneeWriter(memory_store=store)
+
+        messages = [ChatMessage.from_user("hi")]
+        writer.run(messages=messages, user_id="user-abc")
+
+        store.add_memories.assert_called_once_with(messages=messages, user_id="user-abc", session_id=None)
+
+    def test_run_forwards_writer_session_id(self):
+        store = MagicMock(spec=CogneeMemoryStore)
+        writer = CogneeWriter(memory_store=store, session_id="writer_sess")
+
+        messages = [ChatMessage.from_user("hi")]
+        writer.run(messages=messages)
+
+        store.add_memories.assert_called_once_with(messages=messages, user_id=None, session_id="writer_sess")

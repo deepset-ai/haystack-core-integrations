@@ -4,89 +4,64 @@
 
 from typing import Any
 
-from haystack import Document, component, default_from_dict, default_to_dict, logging
+from haystack import component, default_from_dict, default_to_dict
+from haystack.dataclasses import ChatMessage
 
-import cognee  # type: ignore[import-untyped]
-from haystack_integrations.components.connectors.cognee._utils import _get_cognee_user, run_sync
-
-logger = logging.getLogger(__name__)
+from haystack_integrations.memory_stores.cognee import CogneeMemoryStore
 
 
 @component
 class CogneeWriter:
     """
-    Adds Haystack Documents to Cognee's memory.
+    Persists `ChatMessage`s into a `CogneeMemoryStore`.
 
-    Wraps `cognee.add()` and optionally `cognee.cognify()` to ingest documents
-    and build a knowledge engine in a single pipeline step.
-
-    Usage:
-    ```python
-    from haystack import Document
-    from haystack_integrations.components.writers.cognee import CogneeWriter
-
-    writer = CogneeWriter(dataset_name="my_dataset", auto_cognify=True)
-    writer.run(documents=[Document(content="Cognee builds AI memory.")])
-    ```
+    Use without `session_id` to write to the permanent graph; pass `session_id` to
+    target cognee's session cache for that writer's writes. The writer's
+    `session_id` overrides the store's own `session_id` per call, so one store can
+    back multiple writers writing to different tiers.
     """
 
-    def __init__(self, *, dataset_name: str = "haystack", auto_cognify: bool = True):
+    def __init__(
+        self,
+        *,
+        memory_store: CogneeMemoryStore,
+        session_id: str | None = None,
+    ):
         """
-        Initialize the CogneeWriter.
+        Initialize the writer.
 
-        :param dataset_name: Name of the Cognee dataset to add documents to.
-        :param auto_cognify: If True, automatically runs `cognee.cognify()` after adding
-            documents to process them into the knowledge engine.
+        :param memory_store: Backing `CogneeMemoryStore` to write into.
+        :param session_id: When set, writes go to cognee's session cache under this
+            id; overrides the store's `session_id` for this writer. When `None`,
+            falls back to the store's tier.
         """
-        self.dataset_name = dataset_name
-        self.auto_cognify = auto_cognify
+        if not isinstance(memory_store, CogneeMemoryStore):
+            msg = "memory_store must be an instance of CogneeMemoryStore"
+            raise ValueError(msg)
+        self._memory_store = memory_store
+        self._session_id = session_id
 
-    @component.output_types(documents_written=int)
-    def run(self, documents: list[Document], user_id: str | None = None) -> dict[str, Any]:
+    @component.output_types(messages_written=list[ChatMessage])
+    def run(
+        self,
+        messages: list[ChatMessage],
+        user_id: str | None = None,
+    ) -> dict[str, list[ChatMessage]]:
         """
-        Add documents to Cognee and optionally cognify them.
+        Store `messages` in Cognee memory and pass them through unchanged.
 
-        :param documents: List of Haystack Documents to add.
-        :param user_id: Optional cognee user UUID to scope the ingested data to a
-            specific user. When provided, the data is stored under that user's
-            permissions. When `None`, cognee's default user is used. Exposed on
-            `run()` (rather than only on `__init__`) so that the same writer
-            instance can be reused in a pipeline for many users by passing
-            `user_id` at invocation time.
-        :returns: Dictionary with key `documents_written` indicating how many
-            documents were successfully added.
+        :param messages: Messages to persist.
+        :param user_id: Cognee user UUID; scopes the write to that user.
         """
-        texts = [doc.content for doc in documents if doc.content]
-        skipped = len(documents) - len(texts)
-        if skipped > 0:
-            logger.warning("Skipping {count} document(s) with empty content", count=skipped)
-
-        user = run_sync(_get_cognee_user(user_id)) if user_id else None
-
-        if texts:
-            run_sync(cognee.add(texts, dataset_name=self.dataset_name, user=user))
-
-        written = len(texts)
-
-        if self.auto_cognify and written > 0:
-            logger.info(
-                "Cognifying {count} documents in dataset '{dataset}'",
-                count=written,
-                dataset=self.dataset_name,
-            )
-            run_sync(cognee.cognify(datasets=[self.dataset_name], user=user))
-
-        return {"documents_written": written}
+        self._memory_store.add_memories(messages=messages, user_id=user_id, session_id=self._session_id)
+        return {"messages_written": messages}
 
     def to_dict(self) -> dict[str, Any]:
         """Serialize this component to a dictionary."""
-        return default_to_dict(
-            self,
-            dataset_name=self.dataset_name,
-            auto_cognify=self.auto_cognify,
-        )
+        return default_to_dict(self, memory_store=self._memory_store.to_dict(), session_id=self._session_id)
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "CogneeWriter":
         """Deserialize a component from a dictionary."""
+        data["init_parameters"]["memory_store"] = CogneeMemoryStore.from_dict(data["init_parameters"]["memory_store"])
         return default_from_dict(cls, data)

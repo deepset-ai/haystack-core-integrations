@@ -1,148 +1,203 @@
 #!/usr/bin/env python
 """
-Demo: Cognee as a Memory Backend with User-Scoped Access
+Minimal cognee-haystack demo — persistent vs session memory in four phases.
 
-Shows how CogneeMemoryStore supports per-user memory isolation via user_id,
-matching the MemoryStore protocol pattern used by Haystack's experimental Agent.
+Phase 1 — `persistent_writer` (no `session_id`) seeds long-lived facts into
+          cognee's permanent knowledge graph.
+Phase 2 — `session_writer` (`session_id=...`) seeds session-only context into
+          cognee's session cache. The graph itself doesn't change.
+Phase 3 — Agent loop: `CogneeRetriever` calls `cognee.recall(query, session_id=...)`
+          which auto-captures each turn as a QA entry in the session. **No
+          CogneeWriter in the pipeline** — cognee's recall is the session-write
+          path per the docs.
+Phase 4 — `chat_store.improve()` promotes the session into the permanent
+          graph via `cognee.improve(dataset=..., session_ids=[...])`.
 
-Two users (Alice and Bob) each store private memories. Then Alice creates a
-shared dataset and grants Bob read access, demonstrating cross-user sharing.
+Environment (loaded from repo-root .env):
+    LLM_API_KEY        Required. cognee's LLM provider key.
+    EMBEDDING_API_KEY  Optional; defaults to LLM_API_KEY when unset.
+    OPENAI_API_KEY     Required. Used by Haystack's OpenAIChatGenerator.
 
-Note: This demo uses cognee's user management APIs directly for setup (creating
-users, granting permissions). These are admin operations outside the Haystack
-integration's scope. In production, user management would typically be handled
-by the application layer or cognee's API server.
-
-Prerequisites:
-    pip install -e "integrations/cognee"
-
-Set your LLM API key:
-    export LLM_API_KEY="sk-..."
+Run:
+    cd integrations/cognee
+    .venv/bin/hatch run test:python examples/demo_memory_agent.py
 """
 
 import asyncio
+import logging
+import os
+from pathlib import Path
+
+from dotenv import load_dotenv
+
+os.environ.setdefault("LOG_LEVEL", "WARNING")
+
+# Load .env from the repo root before cognee imports read any config.
+load_dotenv(Path(__file__).resolve().parents[3] / ".env", override=True)
 
 import cognee
-from cognee.modules.data.methods import get_authorized_existing_datasets
-from cognee.modules.engine.operations.setup import setup
-from cognee.modules.users.methods import create_user
-from cognee.modules.users.permissions.methods import give_permission_on_dataset
+from cognee.api.v1.visualize import visualize_multi_user_graph
+from cognee.modules.users.methods import get_default_user
+from haystack import Pipeline
+from haystack.components.agents import Agent
+from haystack.components.converters import OutputAdapter
+from haystack.components.generators.chat import OpenAIChatGenerator
 from haystack.dataclasses import ChatMessage
 
+from haystack_integrations.components.retrievers.cognee import CogneeRetriever
+from haystack_integrations.components.writers.cognee import CogneeWriter
 from haystack_integrations.memory_stores.cognee import CogneeMemoryStore
 
+# cognee binds its graph engine to whichever event loop touches it first.
+# Route the demo's direct cognee calls through the integration's background
+# loop so reads and writes share state.
+from haystack_integrations.memory_stores.cognee.memory_store import _run_sync
 
-async def main():
-    print("=== Cognee Memory Store — User Scoping Demo ===\n")
+logging.basicConfig(level=logging.WARNING)
 
-    # --- Setup: clean slate and create two users ---
-    print("Setup: Pruning all data and creating users...")
-    await cognee.prune.prune_data()
-    await cognee.prune.prune_system(metadata=True)
+DATASET = "agent_memory_minimal"
+SESSION = "alice_chat_42"
 
-    # Re-create the database schema after pruning (prune_system drops all tables)
-    await setup()
+ARTIFACTS = Path(__file__).resolve().parent / "graph_snapshots"
+ARTIFACTS.mkdir(exist_ok=True)
 
-    alice = await create_user("alice@example.com", "password", is_verified=True)
-    bob = await create_user("bob@example.com", "password", is_verified=True)
-    alice_id = str(alice.id)
-    bob_id = str(bob.id)
-    print(f"  Created Alice (id={alice_id[:8]}...) and Bob (id={bob_id[:8]}...)\n")
+# Long-lived facts
+PERSISTENT_MEMORIES = [
+    "My name is Alice. I'm a senior data scientist at Acme Corp specialising in NLP and knowledge graphs.",
+    "My current project is building an internal documentation search system powered by Haystack and Cognee.",
+    "My team: Bob is the ML engineer and Carol handles infrastructure.",
+    "I prefer concise answers with Python code examples over long prose explanations.",
+]
 
-    # =========================================================================
-    # Part 1: Private memories — each user can only see their own
-    # =========================================================================
-    print("--- Part 1: Private memories (user isolation) ---\n")
+# Session-only context
+SESSION_MEMORIES = [
+    "Bob is having trouble with the new documentation search system.",
+    "Carol helps Bob troubleshoot the issue.",
+]
 
-    alice_store = CogneeMemoryStore(search_type="GRAPH_COMPLETION", dataset_name="alice_notes")
-    bob_store = CogneeMemoryStore(search_type="GRAPH_COMPLETION", dataset_name="bob_notes")
+SYSTEM_PROMPT = (
+    "You are a helpful assistant with access to persistent memory of past conversations. "
+    "Any system messages at the start of the conversation contain relevant memories. "
+    "Be concise; prefer short answers and Python code examples."
+)
 
-    # Alice adds her private memories
-    print("Alice adds memories to 'alice_notes'...")
-    alice_store.add_memories(
-        messages=[
-            ChatMessage.from_user("The project deadline is next Friday."),
-        ],
-        user_id=alice_id,
+
+async def _visualize_all_datasets(destination_file_path: str) -> None:
+    """Render a combined graph across every dataset the default user can read.
+
+    Uses `cognee.visualize_multi_user_graph` with explicit `(user, dataset)` pairs
+    so each dataset's graph is read inside its own database context. Works whether
+    or not `ENABLE_BACKEND_ACCESS_CONTROL` is enabled.
+    """
+    user = await get_default_user()
+    datasets = await cognee.datasets.list_datasets(user=user)
+    pairs = [(user, ds) for ds in datasets]
+    await visualize_multi_user_graph(pairs, destination_file_path=destination_file_path)
+
+
+def build_pipeline(chat_store: CogneeMemoryStore) -> Pipeline:
+    """Retriever → injector → agent. No writer: cognee.recall auto-captures the session QA."""
+    pipeline = Pipeline()
+    pipeline.add_component("retriever", CogneeRetriever(memory_store=chat_store))
+    pipeline.add_component(
+        "injector",
+        OutputAdapter(
+            template="{{ memories + user_messages }}",
+            output_type=list[ChatMessage],
+            unsafe=True,
+        ),
     )
-    print("  Done.\n")
-
-    # Bob adds his private memories
-    print("Bob adds memories to 'bob_notes'...")
-    bob_store.add_memories(
-        messages=[
-            ChatMessage.from_user("The client meeting is on Wednesday at 2pm."),
-            ChatMessage.from_user("The new API endpoint needs authentication."),
-        ],
-        user_id=bob_id,
+    pipeline.add_component(
+        "agent",
+        Agent(
+            chat_generator=OpenAIChatGenerator(model="gpt-4o-mini"),
+            system_prompt=SYSTEM_PROMPT,
+        ),
     )
-    print("  Done.\n")
+    pipeline.connect("retriever.messages", "injector.memories")
+    pipeline.connect("injector.output", "agent.messages")
+    return pipeline
 
-    # Alice searches her own store — should find results
-    print("Alice searches her own store for 'project deadline':")
-    results = alice_store.search_memories(query="What is the project deadline?", user_id=alice_id)
-    print(f"  Found {len(results)} result(s)")
-    for i, msg in enumerate(results, 1):
-        print(f"  [{i}] {msg.text}")
-    print()
 
-    # Bob searches his own store — should find results
-    print("Bob searches his own store for 'client meeting':")
-    results = bob_store.search_memories(query="When is the client meeting?", user_id=bob_id)
-    print(f"  Found {len(results)} result(s)")
-    for i, msg in enumerate(results, 1):
-        print(f"  [{i}] {msg.text}")
-    print()
+async def main() -> None:
+    # Direct `cognee.forget(everything=True)` instead of `store.delete_all_memories()`:
+    # the protocol method is dataset-scoped and leaves the session cache alone, but at
+    # demo start we want a global wipe including any leftover session entries.
+    print("Forgetting previous data for a clean start...")
+    _run_sync(cognee.forget(everything=True))
+    print("Done.\n")
 
-    # Alice searches Bob's store — should find nothing (no permission)
-    print("Alice tries to search Bob's store (no permission):")
-    results = bob_store.search_memories(query="When is the client meeting?", user_id=alice_id)
-    print(f"  Found {len(results)} result(s) — access is isolated!\n")
+    # One store, two writers — `session_id` on the writer picks the tier.
+    # `self_improvement=False` keeps Phase 4's `improve()` as the only improve
+    # trigger; otherwise cognee runs improve per write and we'd see duplicated
+    # nodes after the explicit improve.
+    seed_store = CogneeMemoryStore(dataset_name=DATASET, self_improvement=False)
 
-    # Bob searches Alice's store — should find nothing (no permission)
-    print("Bob tries to search Alice's store (no permission):")
-    results = alice_store.search_memories(query="What is the project deadline?", user_id=bob_id)
-    print(f"  Found {len(results)} result(s) — access is isolated!\n")
+    # ─── Phase 1: persistent seed (writer has no session_id) ───────────────────
+    print(f"Phase 1: persistent_writer -> permanent graph ({len(PERSISTENT_MEMORIES)} facts)...")
+    persistent_writer = CogneeWriter(memory_store=seed_store)
+    persistent_writer.run(messages=[ChatMessage.from_user(fact) for fact in PERSISTENT_MEMORIES])
 
-    # =========================================================================
-    # Part 2: Shared dataset — Alice creates it, grants Bob read access
-    # =========================================================================
-    print("--- Part 2: Shared dataset ---\n")
+    snapshot_1 = ARTIFACTS / "1_after_persistent_seed.html"
+    _run_sync(_visualize_all_datasets(str(snapshot_1)))
+    print(f"  Graph snapshot -> {snapshot_1}\n")
 
-    shared_store = CogneeMemoryStore(search_type="GRAPH_COMPLETION", dataset_name="team_shared")
+    # ─── Phase 2: session seed (writer has session_id set) ─────────────────────
+    print(f"Phase 2: session_writer    -> session cache  ({len(SESSION_MEMORIES)} facts)...")
+    session_writer = CogneeWriter(memory_store=seed_store, session_id=SESSION)
+    session_writer.run(messages=[ChatMessage.from_user(fact) for fact in SESSION_MEMORIES])
 
-    # Alice adds to the shared dataset (she becomes the owner)
-    print("Alice adds memories to 'team_shared'...")
-    shared_store.add_memories(
-        messages=[
-            ChatMessage.from_user("The team standup is every morning at 9am."),
-            ChatMessage.from_user("Our tech stack is Python, Haystack, and Cognee."),
-        ],
-        user_id=alice_id,
-    )
-    print("  Done.\n")
+    snapshot_2 = ARTIFACTS / "2_after_session_seed.html"
+    _run_sync(_visualize_all_datasets(str(snapshot_2)))
+    print(f"  Graph snapshot -> {snapshot_2}")
+    print("  (Session writes don't touch the graph — should look like snapshot 1.)\n")
 
-    # Bob tries to search the shared store BEFORE getting permission — should find nothing
-    print("Bob tries to search 'team_shared' BEFORE permission:")
-    results = shared_store.search_memories(query="When is the team standup?", user_id=bob_id)
-    print(f"  Found {len(results)} result(s) — no access yet.\n")
+    # ─── Phase 3: agent loop (no writer; cognee.recall auto-captures the session QA) ──
+    print("Phase 3: agent loop (retriever -> injector -> agent)\n")
+    # Session-scoped store so the retriever's recall is session-aware.
+    chat_store = CogneeMemoryStore(dataset_name=DATASET, session_id=SESSION)
+    pipeline = build_pipeline(chat_store)
 
-    # Grant Bob read permission on the shared dataset
-    print("Alice grants Bob read access to 'team_shared'...")
-    shared_datasets = await get_authorized_existing_datasets(["team_shared"], "read", alice)
-    shared_dataset_id = shared_datasets[0].id
-    await give_permission_on_dataset(bob, shared_dataset_id, "read")
-    print("  Done.\n")
+    turns = [
+        "Hi! Can you remind me what project I'm currently working on?",
+        "What's the tech stack we're using for it?",
+        "Who else is on my team, and what are their roles?",
+        "Based on what you know about me, give me a quick tip for structuring a new Haystack pipeline component.",
+    ]
+    for user_text in turns:
+        print(f"User:  {user_text}")
+        result = pipeline.run(
+            {
+                "retriever": {"query": user_text},
+                "injector": {"user_messages": [ChatMessage.from_user(user_text)]},
+            }
+        )
+        reply = result["agent"]["last_message"].text or "(no reply)"
+        print(f"Agent: {reply}\n")
 
-    # Bob searches via the MemoryStore — the store automatically resolves shared datasets
-    print("Bob searches 'team_shared' AFTER getting read permission:")
-    results = shared_store.search_memories(query="When is the team standup?", user_id=bob_id)
-    print(f"  Found {len(results)} result(s)")
-    for i, msg in enumerate(results, 1):
-        print(f"  [{i}] {msg.text}")
-    print()
+    snapshot_3 = ARTIFACTS / "3_after_chat.html"
+    _run_sync(_visualize_all_datasets(str(snapshot_3)))
+    print(f"  Graph snapshot -> {snapshot_3}")
+    print("  (Still graph-unchanged: session writes from recall live in the cache.)\n")
 
-    print("=== Done ===")
+    print("--- Session cache contents (cognee.session.get_session) ---")
+    entries = _run_sync(cognee.session.get_session(session_id=SESSION))
+    print(f"{len(entries)} entries in session {SESSION!r}")
+    for i, e in enumerate(entries, 1):
+        print(f"\n[{i}] qa_id={e.qa_id} time={e.time}")
+        print(f"    question: {e.question!r}")
+        print(f"    answer  : {e.answer!r}")
+
+    # ─── Phase 4: improve session -> permanent graph ──────────────────────────
+    print(f"\nPhase 4: chat_store.improve() -> cognee.improve(dataset={DATASET!r}, session_ids=[{SESSION!r}])...")
+    chat_store.improve()
+
+    snapshot_4 = ARTIFACTS / "4_after_improve.html"
+    _run_sync(_visualize_all_datasets(str(snapshot_4)))
+    print(f"  Graph snapshot -> {snapshot_4}")
+    print("  (Graph now includes session-derived nodes.)")
+
+    print("\nDone.")
 
 
 if __name__ == "__main__":

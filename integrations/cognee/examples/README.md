@@ -8,32 +8,33 @@ Install the integration from the repository root:
 pip install -e "integrations/cognee"
 ```
 
-Set your LLM API key (required by cognee, default OpenAI API key):
-
-To integrate other LLM providers and other configuration options, see [Cognee Documentation](https://docs.cognee.ai/getting-started/installation#environment-configuration).
-
+Set the keys used by cognee and by Haystack's `OpenAIChatGenerator`:
 
 ```bash
-export LLM_API_KEY="sk-your-openai-api-key"
+export LLM_API_KEY="sk-your-openai-api-key"        # cognee: remember/recall/improve
+export EMBEDDING_API_KEY="sk-your-openai-api-key"  # cognee: embeddings (often same key)
+export OPENAI_API_KEY="sk-your-openai-api-key"     # Haystack OpenAIChatGenerator (Agent)
 ```
+
+In practice all three can point at the same OpenAI key. For other LLM providers and full
+configuration options, see [Cognee Documentation](https://docs.cognee.ai/getting-started/installation#environment-configuration).
+
+cognee's session cache is on by default (`CACHING=true`, `CACHE_BACKEND=fs`); set
+`CACHE_BACKEND=redis` plus `CACHE_HOST` / `CACHE_PORT` / `CACHE_USERNAME` /
+`CACHE_PASSWORD` to point at a Redis instance instead.
 
 ## Examples
 
-### Pipeline Demo (`demo_pipeline.py`)
-
-Demonstrates batch document ingestion with `CogneeWriter` (auto_cognify disabled),
-followed by a single `CogneeCognifier` pass, then retrieval with `CogneeRetriever`.
-Also shows the same flow wired as a connected Haystack Pipeline.
-
-```bash
-python integrations/cognee/examples/demo_pipeline.py
-```
-
 ### Memory Agent Demo (`demo_memory_agent.py`)
 
-Demonstrates `CogneeMemoryStore` with per-user memory scoping via `user_id`:
-- Two users store private memories that are isolated from each other.
-- A shared dataset is created and read access is granted across users.
+Wires `CogneeRetriever`, `CogneeMemoryStore`, and `CogneeWriter` around Haystack's
+`Agent` to enrich every conversation turn with persistent memory, in four phases:
+
+1. `persistent_writer` seeds long-lived facts into the permanent graph.
+2. `session_writer` seeds session-only context (`session_id=...`).
+3. Agent loop: `CogneeRetriever` calls `cognee.recall(query, session_id=...)` which
+   auto-captures each turn as a QA entry in the session — no writer in the pipeline.
+4. `chat_store.improve()` promotes the session into the permanent graph.
 
 ```bash
 python integrations/cognee/examples/demo_memory_agent.py
