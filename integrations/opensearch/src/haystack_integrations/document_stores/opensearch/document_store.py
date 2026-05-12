@@ -327,6 +327,8 @@ class OpenSearchDocumentStore:
 
     @staticmethod
     def _extract_nested_fields_from_mapping(mapping_properties: dict[str, Any]) -> set[str]:
+        if not isinstance(mapping_properties, dict):
+            return set()
         return {name for name, defn in mapping_properties.items() if defn.get("type") == "nested"}
 
     def _populate_nested_fields_from_mapping(self, mapping_properties: dict[str, Any]) -> None:
