@@ -20,7 +20,7 @@ class TestMessageHandler:
                     Document(content="docs", meta={"type": "dir"}),
                     Document(content="README.md", meta={"type": "file"}),
                 ],
-                "docsREADME.md",
+                "docs\nREADME.md",
             ),
             (
                 [Document(content="print('hi')", meta={"type": "file_content", "path": "main.py"})],
