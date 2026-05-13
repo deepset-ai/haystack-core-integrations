@@ -128,7 +128,7 @@ class PerplexityWebSearch:
         if self._client is None:
             self.warm_up()
 
-        response = self._client.post(
+        response = self._client.post(  # type: ignore[union-attr]
             PERPLEXITY_SEARCH_URL,
             headers=self._build_headers(),
             json=self._build_body(query, search_params),
@@ -156,7 +156,7 @@ class PerplexityWebSearch:
         if self._async_client is None:
             self.warm_up()
 
-        response = await self._async_client.post(
+        response = await self._async_client.post(  # type: ignore[union-attr]
             PERPLEXITY_SEARCH_URL,
             headers=self._build_headers(),
             json=self._build_body(query, search_params),
