@@ -3,6 +3,8 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import os
+import time
+import uuid
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
@@ -207,7 +209,14 @@ class S3Downloader:
         else:
             s3_key = self.s3_key_generation_function(document) if self.s3_key_generation_function else file_name
             # we know that _storage is not None after warm_up() is called, but mypy does not know that
-            self._storage.download(key=s3_key, local_file_path=file_path)  # type: ignore[union-attr]
+            temp_file_path = file_path.with_name(f"{file_path.name}.tmp.{uuid.uuid4().hex}")
+            try:
+                self._storage.download(key=s3_key, local_file_path=temp_file_path)  # type: ignore[union-attr]
+                temp_file_path.replace(file_path)
+            except Exception:
+                if temp_file_path.exists():
+                    temp_file_path.unlink()
+                raise
 
         document.meta["file_path"] = str(file_path)
         return document
@@ -222,13 +231,28 @@ class S3Downloader:
             str(abs(hash(str(doc.meta.get("cache_id", ""))))) for doc in documents if doc.meta.get("cache_id")
         }
 
-        all_files = [p for p in self.file_root_path.iterdir() if p.is_file()]
+        now = time.time()
+
+        # Clean up stale temp files that might have been left over from crashes
+        for p in self.file_root_path.glob("*.tmp.*"):
+            try:
+                if now - p.stat().st_mtime > 300:  # noqa: PLR2004
+                    p.unlink()
+            except Exception as error:
+                logger.debug("Failed to remove stale temp file {path}: {error}", path=p, error=error)
+
+        all_files = [p for p in self.file_root_path.iterdir() if p.is_file() and ".tmp." not in p.name]
+
         misses = [p for p in all_files if p.stem not in requested_ids]
 
         overflow = len(misses) + len(requested_ids) - self.max_cache_size
         if overflow > 0:
             misses.sort(key=lambda p: p.stat().st_atime)
-            for p in misses[:overflow]:
+
+            # Protect recently accessed files (last 60 seconds) from being deleted by concurrent runs
+            evictable_misses = [p for p in misses if (now - p.stat().st_atime) > 60]  # noqa: PLR2004
+
+            for p in evictable_misses[:overflow]:
                 try:
                     p.unlink()
                 except Exception as error:
