@@ -394,8 +394,18 @@ class TestAnthropicChatGenerator:
                     "thinking_budget_tokens": None,
                     "parallel_tool_use": None,
                     "tool_choice_type": None,
+                    "adaptive_thinking_effort": None,
                 },
                 {},
+            ),
+            (
+                {
+                    "adaptive_thinking_effort": "max",
+                },
+                {
+                    "thinking": {"type": "adaptive"},
+                    "output_config": {"effort": "max"},
+                },
             ),
         ],
     )
@@ -415,6 +425,7 @@ class TestAnthropicChatGenerator:
         actual_kwargs = mock_anthropic_completion.call_args.kwargs
         assert actual_kwargs.get("tool_choice") == expected_kwargs.get("tool_choice")
         assert actual_kwargs.get("thinking") == expected_kwargs.get("thinking")
+        assert actual_kwargs.get("output_config") == expected_kwargs.get("output_config")
 
     def test_check_duplicate_tool_names(self, tools):
         """Test that the AnthropicChatGenerator component fails to initialize with duplicate tool names."""
