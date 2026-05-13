@@ -58,14 +58,12 @@ def test_to_dict(monkeypatch):
             "embedding_dimension": 768,
             "metadata_fields": {},
             "vector_search_configuration": {
-                "profiles": [
-                    {"name": "default-vector-config", "algorithm_configuration_name": "cosine-algorithm-config"}
-                ],
+                "profiles": [{"name": "default-vector-config", "algorithm": "cosine-algorithm-config"}],
                 "algorithms": [
                     {
                         "name": "cosine-algorithm-config",
+                        "hnswParameters": {"metric": "cosine"},
                         "kind": "hnsw",
-                        "parameters": {"m": 4, "ef_construction": 400, "ef_search": 500, "metric": "cosine"},
                     }
                 ],
             },
@@ -110,27 +108,25 @@ def test_to_dict_with_params(monkeypatch):
                 "Pages": SimpleField(name="Pages", type="Edm.Int32", filterable=True).as_dict(),
             },
             "encryption_key": {
-                "key_name": "my-key",
-                "key_version": "my-version",
-                "vault_uri": "my-uri",
+                "keyVaultKeyName": "my-key",
+                "keyVaultKeyVersion": "my-version",
+                "keyVaultUri": "my-uri",
             },
             "analyzers": [
                 {
                     "name": "url-analyze",
-                    "odata_type": "#Microsoft.Azure.Search.CustomAnalyzer",
-                    "tokenizer_name": "uax_url_email",
-                    "token_filters": ["lowercase"],
+                    "tokenizer": "uax_url_email",
+                    "tokenFilters": ["lowercase"],
+                    "@odata.type": "#Microsoft.Azure.Search.CustomAnalyzer",
                 }
             ],
             "vector_search_configuration": {
-                "profiles": [
-                    {"name": "default-vector-config", "algorithm_configuration_name": "cosine-algorithm-config"}
-                ],
+                "profiles": [{"name": "default-vector-config", "algorithm": "cosine-algorithm-config"}],
                 "algorithms": [
                     {
                         "name": "cosine-algorithm-config",
+                        "hnswParameters": {"metric": "cosine"},
                         "kind": "hnsw",
-                        "parameters": {"m": 4, "ef_construction": 400, "ef_search": 500, "metric": "cosine"},
                     }
                 ],
             },
@@ -201,27 +197,25 @@ def test_from_dict_with_params(monkeypatch):
                 "Pages": SimpleField(name="Pages", type="Edm.Int32", filterable=True).as_dict(),
             },
             "encryption_key": {
-                "key_name": "my-key",
-                "key_version": "my-version",
-                "vault_uri": "my-uri",
+                "keyVaultKeyName": "my-key",
+                "keyVaultKeyVersion": "my-version",
+                "keyVaultUri": "my-uri",
             },
             "analyzers": [
                 {
                     "name": "url-analyze",
-                    "odata_type": "#Microsoft.Azure.Search.CustomAnalyzer",
-                    "tokenizer_name": "uax_url_email",
-                    "token_filters": ["lowercase"],
+                    "@odata.type": "#Microsoft.Azure.Search.CustomAnalyzer",
+                    "tokenizer": "uax_url_email",
+                    "tokenFilters": ["lowercase"],
                 }
             ],
             "vector_search_configuration": {
-                "profiles": [
-                    {"name": "default-vector-config", "algorithm_configuration_name": "cosine-algorithm-config"}
-                ],
+                "profiles": [{"name": "default-vector-config", "algorithm": "cosine-algorithm-config"}],
                 "algorithms": [
                     {
                         "name": "cosine-algorithm-config",
                         "kind": "hnsw",
-                        "parameters": {"m": 4, "ef_construction": 400, "ef_search": 500, "metric": "cosine"},
+                        "hnswParameters": {"metric": "cosine"},
                     }
                 ],
             },
