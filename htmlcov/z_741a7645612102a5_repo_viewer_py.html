@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
-    <title>Coverage for src/haystack_integrations/components/connectors/github/repo_viewer.py: 85%</title>
+    <title>Coverage for src/haystack_integrations/components/connectors/github/repo_viewer.py: 96%</title>
     <link rel="icon" sizes="32x32" href="favicon_32_cb_c827f16f.png">
     <link rel="stylesheet" href="style_cb_9ff733b0.css" type="text/css">
     <script src="coverage_html_cb_dd2e7eb5.js" defer></script>
@@ -12,7 +12,7 @@
     <div class="content">
         <h1>
             <span class="text">Coverage for </span><b>src&#8201;/&#8201;haystack_integrations&#8201;/&#8201;components&#8201;/&#8201;connectors&#8201;/&#8201;github&#8201;/&#8201;repo_viewer.py</b>:
-            <span class="pc_cov">85%</span>
+            <span class="pc_cov">96%</span>
         </h1>
         <aside id="help_panel_wrapper">
             <input id="help_panel_state" type="checkbox">
@@ -56,10 +56,10 @@
         </aside>
         <h2>
             <span class="text">88 statements &nbsp;</span>
-            <button type="button" class="run button_toggle_run" value="run" data-shortcut="r" title="Toggle lines run">79<span class="text"> run</span></button>
-            <button type="button" class="mis show_mis button_toggle_mis" value="mis" data-shortcut="m" title="Toggle lines missing">9<span class="text"> missing</span></button>
+            <button type="button" class="run button_toggle_run" value="run" data-shortcut="r" title="Toggle lines run">87<span class="text"> run</span></button>
+            <button type="button" class="mis show_mis button_toggle_mis" value="mis" data-shortcut="m" title="Toggle lines missing">1<span class="text"> missing</span></button>
             <button type="button" class="exc show_exc button_toggle_exc" value="exc" data-shortcut="x" title="Toggle lines excluded">0<span class="text"> excluded</span></button>
-            <button type="button" class="par run show_par button_toggle_par" value="par" data-shortcut="p" title="Toggle lines partially run">6<span class="text"> partial</span></button>
+            <button type="button" class="par run show_par button_toggle_par" value="par" data-shortcut="p" title="Toggle lines partially run">3<span class="text"> partial</span></button>
         </h2>
         <p class="text">
             <a id="prevFileLink" class="nav" href="z_741a7645612102a5_repo_forker_py.html">&#xab; prev</a> &nbsp; &nbsp;
@@ -67,7 +67,7 @@
             <a id="nextFileLink" class="nav" href="z_56a4a340c9707693_context_prompt_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.13.5">coverage.py v7.13.5</a>,
-            created at 2026-04-21 13:31 +0000
+            created at 2026-05-13 08:34 +0000
         </p>
         <aside class="hidden">
             <button type="button" class="button_next_chunk" data-shortcut="j"></button>
@@ -249,9 +249,9 @@
     <p class="pln"><span class="n"><a id="t165" href="#t165">165</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t166" href="#t166">166</a></span><span class="t">    <span class="key">def</span> <span class="nam">_process_file_content</span><span class="op">(</span><span class="nam">self</span><span class="op">,</span> <span class="nam">content</span><span class="op">:</span> <span class="nam">str</span><span class="op">,</span> <span class="nam">encoding</span><span class="op">:</span> <span class="nam">str</span><span class="op">)</span> <span class="op">-></span> <span class="nam">str</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t167" href="#t167">167</a></span><span class="t">        <span class="str">"""Process file content based on encoding"""</span>&nbsp;</span><span class="r"></span></p>
-    <p class="par run show_par"><span class="n"><a id="t168" href="#t168">168</a></span><span class="t">        <span class="key">if</span> <span class="nam">encoding</span> <span class="op">==</span> <span class="str">"base64"</span><span class="op">:</span>&nbsp;</span><span class="r"><span class="annotate short">168&#x202F;&#x219B;&#x202F;170</span><span class="annotate long">line 168 didn't jump to line 170 because the condition on line 168 was always true</span></span></p>
+    <p class="run"><span class="n"><a id="t168" href="#t168">168</a></span><span class="t">        <span class="key">if</span> <span class="nam">encoding</span> <span class="op">==</span> <span class="str">"base64"</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t169" href="#t169">169</a></span><span class="t">            <span class="key">return</span> <span class="nam">base64</span><span class="op">.</span><span class="nam">b64decode</span><span class="op">(</span><span class="nam">content</span><span class="op">)</span><span class="op">.</span><span class="nam">decode</span><span class="op">(</span><span class="str">"utf-8"</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
-    <p class="mis show_mis"><span class="n"><a id="t170" href="#t170">170</a></span><span class="t">        <span class="key">return</span> <span class="nam">content</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t170" href="#t170">170</a></span><span class="t">        <span class="key">return</span> <span class="nam">content</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t171" href="#t171">171</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t172" href="#t172">172</a></span><span class="t">    <span class="key">def</span> <span class="nam">_create_file_document</span><span class="op">(</span><span class="nam">self</span><span class="op">,</span> <span class="nam">item</span><span class="op">:</span> <span class="nam">GitHubItem</span><span class="op">)</span> <span class="op">-></span> <span class="nam">Document</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t173" href="#t173">173</a></span><span class="t">        <span class="str">"""Create a Document from a file"""</span>&nbsp;</span><span class="r"></span></p>
@@ -300,13 +300,13 @@
     <p class="pln"><span class="n"><a id="t216" href="#t216">216</a></span><span class="t"><span class="str">        :param branch: Git reference (branch, tag, commit) to use</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t217" href="#t217">217</a></span><span class="t"><span class="str">        :return: Dictionary containing list of documents</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t218" href="#t218">218</a></span><span class="t"><span class="str">        """</span>&nbsp;</span><span class="r"></span></p>
-    <p class="par run show_par"><span class="n"><a id="t219" href="#t219">219</a></span><span class="t">        <span class="key">if</span> <span class="nam">repo</span> <span class="key">is</span> <span class="key">None</span><span class="op">:</span>&nbsp;</span><span class="r"><span class="annotate short">219&#x202F;&#x219B;&#x202F;220</span><span class="annotate long">line 219 didn't jump to line 220 because the condition on line 219 was never true</span></span></p>
-    <p class="mis show_mis"><span class="n"><a id="t220" href="#t220">220</a></span><span class="t">            <span class="nam">repo</span> <span class="op">=</span> <span class="nam">self</span><span class="op">.</span><span class="nam">repo</span>&nbsp;</span><span class="r"></span></p>
-    <p class="mis show_mis"><span class="n"><a id="t221" href="#t221">221</a></span><span class="t">            <span class="key">if</span> <span class="nam">repo</span> <span class="key">is</span> <span class="key">None</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
-    <p class="mis show_mis"><span class="n"><a id="t222" href="#t222">222</a></span><span class="t">                <span class="nam">msg</span> <span class="op">=</span> <span class="str">"Repository not provided in initialization or run() method"</span>&nbsp;</span><span class="r"></span></p>
-    <p class="mis show_mis"><span class="n"><a id="t223" href="#t223">223</a></span><span class="t">                <span class="key">raise</span> <span class="nam">ValueError</span><span class="op">(</span><span class="nam">msg</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
-    <p class="par run show_par"><span class="n"><a id="t224" href="#t224">224</a></span><span class="t">        <span class="key">if</span> <span class="nam">branch</span> <span class="key">is</span> <span class="key">None</span><span class="op">:</span>&nbsp;</span><span class="r"><span class="annotate short">224&#x202F;&#x219B;&#x202F;225</span><span class="annotate long">line 224 didn't jump to line 225 because the condition on line 224 was never true</span></span></p>
-    <p class="mis show_mis"><span class="n"><a id="t225" href="#t225">225</a></span><span class="t">            <span class="nam">branch</span> <span class="op">=</span> <span class="nam">self</span><span class="op">.</span><span class="nam">branch</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t219" href="#t219">219</a></span><span class="t">        <span class="key">if</span> <span class="nam">repo</span> <span class="key">is</span> <span class="key">None</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t220" href="#t220">220</a></span><span class="t">            <span class="nam">repo</span> <span class="op">=</span> <span class="nam">self</span><span class="op">.</span><span class="nam">repo</span>&nbsp;</span><span class="r"></span></p>
+    <p class="par run show_par"><span class="n"><a id="t221" href="#t221">221</a></span><span class="t">            <span class="key">if</span> <span class="nam">repo</span> <span class="key">is</span> <span class="key">None</span><span class="op">:</span>&nbsp;</span><span class="r"><span class="annotate short">221&#x202F;&#x219B;&#x202F;224</span><span class="annotate long">line 221 didn't jump to line 224 because the condition on line 221 was always true</span></span></p>
+    <p class="run"><span class="n"><a id="t222" href="#t222">222</a></span><span class="t">                <span class="nam">msg</span> <span class="op">=</span> <span class="str">"Repository not provided in initialization or run() method"</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t223" href="#t223">223</a></span><span class="t">                <span class="key">raise</span> <span class="nam">ValueError</span><span class="op">(</span><span class="nam">msg</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t224" href="#t224">224</a></span><span class="t">        <span class="key">if</span> <span class="nam">branch</span> <span class="key">is</span> <span class="key">None</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t225" href="#t225">225</a></span><span class="t">            <span class="nam">branch</span> <span class="op">=</span> <span class="nam">self</span><span class="op">.</span><span class="nam">branch</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t226" href="#t226">226</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t227" href="#t227">227</a></span><span class="t">        <span class="key">try</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t228" href="#t228">228</a></span><span class="t">            <span class="nam">owner</span><span class="op">,</span> <span class="nam">repo_name</span> <span class="op">=</span> <span class="nam">self</span><span class="op">.</span><span class="nam">_parse_repo</span><span class="op">(</span><span class="nam">repo</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
@@ -316,9 +316,9 @@
     <p class="pln"><span class="n"><a id="t232" href="#t232">232</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t233" href="#t233">233</a></span><span class="t">            <span class="com"># Handle single file response</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t234" href="#t234">234</a></span><span class="t">            <span class="key">if</span> <span class="key">not</span> <span class="nam">isinstance</span><span class="op">(</span><span class="nam">contents</span><span class="op">,</span> <span class="nam">list</span><span class="op">)</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
-    <p class="par run show_par"><span class="n"><a id="t235" href="#t235">235</a></span><span class="t">                <span class="key">if</span> <span class="nam">contents</span><span class="op">.</span><span class="nam">get</span><span class="op">(</span><span class="str">"size"</span><span class="op">,</span> <span class="num">0</span><span class="op">)</span> <span class="op">></span> <span class="nam">self</span><span class="op">.</span><span class="nam">max_file_size</span><span class="op">:</span>&nbsp;</span><span class="r"><span class="annotate short">235&#x202F;&#x219B;&#x202F;236</span><span class="annotate long">line 235 didn't jump to line 236 because the condition on line 235 was never true</span></span></p>
-    <p class="mis show_mis"><span class="n"><a id="t236" href="#t236">236</a></span><span class="t">                    <span class="nam">error_message</span> <span class="op">=</span> <span class="fst">f"</span><span class="fst">File size </span><span class="op">{</span><span class="nam">contents</span><span class="op">[</span><span class="str">'size'</span><span class="op">]</span><span class="op">}</span><span class="fst"> exceeds limit of </span><span class="op">{</span><span class="nam">self</span><span class="op">.</span><span class="nam">max_file_size</span><span class="op">}</span><span class="fst">"</span>&nbsp;</span><span class="r"></span></p>
-    <p class="mis show_mis"><span class="n"><a id="t237" href="#t237">237</a></span><span class="t">                    <span class="key">raise</span> <span class="nam">ValueError</span><span class="op">(</span><span class="nam">error_message</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t235" href="#t235">235</a></span><span class="t">                <span class="key">if</span> <span class="nam">contents</span><span class="op">.</span><span class="nam">get</span><span class="op">(</span><span class="str">"size"</span><span class="op">,</span> <span class="num">0</span><span class="op">)</span> <span class="op">></span> <span class="nam">self</span><span class="op">.</span><span class="nam">max_file_size</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t236" href="#t236">236</a></span><span class="t">                    <span class="nam">error_message</span> <span class="op">=</span> <span class="fst">f"</span><span class="fst">File size </span><span class="op">{</span><span class="nam">contents</span><span class="op">[</span><span class="str">'size'</span><span class="op">]</span><span class="op">}</span><span class="fst"> exceeds limit of </span><span class="op">{</span><span class="nam">self</span><span class="op">.</span><span class="nam">max_file_size</span><span class="op">}</span><span class="fst">"</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t237" href="#t237">237</a></span><span class="t">                    <span class="key">raise</span> <span class="nam">ValueError</span><span class="op">(</span><span class="nam">error_message</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t238" href="#t238">238</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t239" href="#t239">239</a></span><span class="t">                <span class="nam">item</span> <span class="op">=</span> <span class="nam">GitHubItem</span><span class="op">(</span>&nbsp;</span><span class="r"></span></p>
     <p class="run run2"><span class="n"><a id="t240" href="#t240">240</a></span><span class="t">                    <span class="nam">name</span><span class="op">=</span><span class="nam">contents</span><span class="op">[</span><span class="str">"name"</span><span class="op">]</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
@@ -365,7 +365,7 @@
             <a class="nav" href="z_56a4a340c9707693_context_prompt_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.13.5">coverage.py v7.13.5</a>,
-            created at 2026-04-21 13:31 +0000
+            created at 2026-05-13 08:34 +0000
         </p>
     </div>
 </footer>
