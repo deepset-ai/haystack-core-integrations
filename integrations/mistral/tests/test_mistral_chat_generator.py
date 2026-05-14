@@ -1,11 +1,9 @@
 import json
 import logging
 import os
-from datetime import datetime
 from unittest.mock import ANY, patch
 
 import pytest
-import pytz
 from haystack import Pipeline
 from haystack.components.generators.utils import print_streaming_chunk
 from haystack.components.tools import ToolInvoker
@@ -21,8 +19,7 @@ from haystack.dataclasses import (
 from haystack.tools import Tool, Toolset
 from haystack.utils.auth import Secret
 from openai import OpenAIError
-from openai.types.chat import ChatCompletion, ChatCompletionChunk, ChatCompletionMessage
-from openai.types.chat.chat_completion import Choice
+from openai.types.chat import ChatCompletionChunk
 from openai.types.chat.chat_completion_chunk import Choice as ChoiceChunk
 from openai.types.chat.chat_completion_chunk import ChoiceDelta, ChoiceDeltaToolCall, ChoiceDeltaToolCallFunction
 from openai.types.completion_usage import CompletionUsage
@@ -103,23 +100,25 @@ def mock_chat_completion():
     Mock the OpenAI API completion response and reuse it for tests
     """
     with patch("openai.resources.chat.completions.Completions.create") as mock_chat_completion_create:
-        completion = ChatCompletion(
-            id="foo",
-            model="mistral-small-latest",
-            object="chat.completion",
-            choices=[
-                Choice(
-                    finish_reason="stop",
-                    logprobs=None,
-                    index=0,
-                    message=ChatCompletionMessage(content="Hello world!", role="assistant"),
-                )
-            ],
-            created=int(datetime.now(tz=pytz.timezone("UTC")).timestamp()),
-            usage={"prompt_tokens": 57, "completion_tokens": 40, "total_tokens": 97},
+        mock_response = type("MockRawResponse", (), {})()
+        mock_response.text = json.dumps(
+            {
+                "id": "foo",
+                "model": "mistral-small-latest",
+                "object": "chat.completion",
+                "choices": [
+                    {
+                        "finish_reason": "stop",
+                        "index": 0,
+                        "message": {"role": "assistant", "content": "Hello world!"},
+                    }
+                ],
+                "created": 1234567890,
+                "usage": {"prompt_tokens": 57, "completion_tokens": 40, "total_tokens": 97},
+            }
         )
 
-        mock_chat_completion_create.return_value = completion
+        mock_chat_completion_create.return_value = mock_response
         yield mock_chat_completion_create
 
 
@@ -857,7 +856,7 @@ def mock_reasoning_response():
     """Mock that returns a raw-response-like object with reasoning array content."""
     with patch("openai.resources.chat.completions.Completions.create") as mock_create:
         mock_response = type("MockRawResponse", (), {})()
-        mock_response.json = lambda: json.dumps(
+        mock_response.text = json.dumps(
             {
                 "id": "test-reasoning",
                 "model": "mistral-small-latest",

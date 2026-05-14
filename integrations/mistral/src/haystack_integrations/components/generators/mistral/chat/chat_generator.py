@@ -387,7 +387,7 @@ class MistralChatGenerator(OpenAIChatGenerator):
             completions = self._handle_stream_response(chat_completion, streaming_callback)
         else:
             raw_response = getattr(self.client.chat.completions.with_raw_response, openai_endpoint)(**api_args)
-            completions = _convert_mistral_response_to_chat_messages(raw_response.json())
+            completions = _convert_mistral_response_to_chat_messages(raw_response.text)
 
         for message in completions:
             _check_finish_reason(message.meta)
@@ -457,7 +457,7 @@ class MistralChatGenerator(OpenAIChatGenerator):
             raw_response = await getattr(self.async_client.chat.completions.with_raw_response, openai_endpoint)(
                 **api_args
             )
-            completions = _convert_mistral_response_to_chat_messages(raw_response.json())
+            completions = _convert_mistral_response_to_chat_messages(raw_response.text)
 
         for message in completions:
             _check_finish_reason(message.meta)

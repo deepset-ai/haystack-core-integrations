@@ -1,11 +1,9 @@
 import json
 import logging
 import os
-from datetime import datetime
 from unittest.mock import AsyncMock, patch
 
 import pytest
-import pytz
 from haystack.dataclasses import (
     ChatMessage,
     ChatRole,
@@ -13,8 +11,6 @@ from haystack.dataclasses import (
 )
 from haystack.tools import Tool
 from openai import AsyncOpenAI
-from openai.types.chat import ChatCompletion, ChatCompletionMessage
-from openai.types.chat.chat_completion import Choice
 
 from haystack_integrations.components.generators.mistral.chat.chat_generator import (
     MistralChatGenerator,
@@ -60,27 +56,24 @@ def mock_async_chat_completion():
         "openai.resources.chat.completions.AsyncCompletions.create",
         new_callable=AsyncMock,
     ) as mock_chat_completion_create:
-        completion = ChatCompletion(
-            id="foo",
-            model="mistral-small-latest",
-            object="chat.completion",
-            choices=[
-                Choice(
-                    finish_reason="stop",
-                    logprobs=None,
-                    index=0,
-                    message=ChatCompletionMessage(content="Hello world!", role="assistant"),
-                )
-            ],
-            created=int(datetime.now(tz=pytz.timezone("UTC")).timestamp()),
-            usage={
-                "prompt_tokens": 57,
-                "completion_tokens": 40,
-                "total_tokens": 97,
-            },
+        mock_response = type("MockRawResponse", (), {})()
+        mock_response.text = json.dumps(
+            {
+                "id": "foo",
+                "model": "mistral-small-latest",
+                "object": "chat.completion",
+                "choices": [
+                    {
+                        "finish_reason": "stop",
+                        "index": 0,
+                        "message": {"role": "assistant", "content": "Hello world!"},
+                    }
+                ],
+                "created": 1234567890,
+                "usage": {"prompt_tokens": 57, "completion_tokens": 40, "total_tokens": 97},
+            }
         )
-        # For async mocks, the return value should be awaitable
-        mock_chat_completion_create.return_value = completion
+        mock_chat_completion_create.return_value = mock_response
         yield mock_chat_completion_create
 
 
@@ -270,7 +263,7 @@ class TestMistralChatGeneratorAsync:
         monkeypatch.setenv("MISTRAL_API_KEY", "fake-api-key")
 
         mock_response = type("MockRawResponse", (), {})()
-        mock_response.json = lambda: json.dumps(
+        mock_response.text = json.dumps(
             {
                 "id": "test-reasoning-async",
                 "model": "mistral-small-latest",
