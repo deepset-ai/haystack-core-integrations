@@ -481,7 +481,7 @@ SET d.{self.embedding_field} = vecf32(doc.emb)
         Update metadata fields on all documents that match the provided filters.
 
         :param filters: Haystack filter dict selecting which documents to update.
-        :param meta: Metadata fields to set. Keys may include or omit the ``meta.`` prefix.
+        :param meta: Metadata fields to set. Keys may include or omit the `meta.` prefix.
         :returns: Number of documents updated.
         """
         self._ensure_connected()
@@ -516,8 +516,8 @@ SET d.{self.embedding_field} = vecf32(doc.emb)
         Return the number of unique values for each metadata field among matching documents.
 
         :param filters: Haystack filter dict. Pass an empty dict to count across all documents.
-        :param metadata_fields: List of metadata field names. May include or omit the ``meta.`` prefix.
-        :returns: Dict mapping each field name (without ``meta.`` prefix) to its unique value count.
+        :param metadata_fields: List of metadata field names. May include or omit the `meta.` prefix.
+        :returns: Dict mapping each field name (without `meta.` prefix) to its unique value count.
         """
         self._ensure_connected()
         if filters:
@@ -542,8 +542,8 @@ SET d.{self.embedding_field} = vecf32(doc.emb)
         """
         Return type information for each metadata field present on document nodes.
 
-        :returns: Dict mapping field names to a ``{"type": <typename>}`` dict.
-            Type names are ``"str"``, ``"int"``, ``"float"``, or ``"bool"``.
+        :returns: Dict mapping field names to a `{"type": <typename>}` dict.
+            Type names are `"str"`, `"int"`, `"float"`, or `"bool"`.
         """
         self._ensure_connected()
         standard_fields = {"id", "content", "embedding", "score", "sparse_embedding"}
@@ -574,8 +574,8 @@ SET d.{self.embedding_field} = vecf32(doc.emb)
         """
         Return the minimum and maximum values for the given metadata field.
 
-        :param metadata_field: Metadata field name. May include or omit the ``meta.`` prefix.
-        :returns: Dict with keys ``"min"`` and ``"max"``. Values are ``None`` when no documents
+        :param metadata_field: Metadata field name. May include or omit the `meta.` prefix.
+        :returns: Dict with keys `"min"` and `"max"`. Values are `None` when no documents
             have a non-null value for the field.
         """
         self._ensure_connected()
@@ -598,11 +598,11 @@ SET d.{self.embedding_field} = vecf32(doc.emb)
         """
         Return distinct values for the given metadata field with optional filtering and pagination.
 
-        :param metadata_field: Metadata field name. May include or omit the ``meta.`` prefix.
+        :param metadata_field: Metadata field name. May include or omit the `meta.` prefix.
         :param search_term: Optional substring filter applied to string field values.
         :param size: Maximum number of values to return per page. Defaults to 10 000.
-        :param after: Pagination cursor returned by a previous call. Pass ``None`` for the first page.
-        :returns: Tuple of ``(values, next_cursor)``. ``next_cursor`` is ``None`` on the last page.
+        :param after: Pagination cursor returned by a previous call. Pass `None` for the first page.
+        :returns: Tuple of `(values, next_cursor)`. `next_cursor` is `None` on the last page.
         """
         self._ensure_connected()
         field = metadata_field[5:] if metadata_field.startswith("meta.") else metadata_field
