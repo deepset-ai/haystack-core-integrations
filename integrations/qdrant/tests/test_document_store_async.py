@@ -50,6 +50,7 @@ class TestQdrantDocumentStoreAsyncUnit:
     async def test_set_up_collection_with_dimension_mismatch_async(self):
         document_store = QdrantDocumentStore(location=":memory:", use_sparse_embeddings=False, similarity="cosine")
         await document_store._initialize_async_client()
+        # Mock collection info with different vector size
         mock_collection_info = MagicMock()
         mock_collection_info.config.params.vectors = MagicMock()
         mock_collection_info.config.params.vectors.distance = rest.Distance.COSINE
@@ -65,6 +66,7 @@ class TestQdrantDocumentStoreAsyncUnit:
     async def test_set_up_collection_with_existing_incompatible_collection_async(self):
         document_store = QdrantDocumentStore(location=":memory:", use_sparse_embeddings=True)
         await document_store._initialize_async_client()
+        # Mock collection info with named vectors but missing DENSE_VECTORS_NAME
         mock_collection_info = MagicMock()
         mock_collection_info.config.params.vectors = {"some_other_vector": MagicMock()}
 
@@ -79,6 +81,8 @@ class TestQdrantDocumentStoreAsyncUnit:
         """Test that an error is raised when use_sparse_embeddings is True but collection doesn't have named vectors"""
         document_store = QdrantDocumentStore(location=":memory:", use_sparse_embeddings=True)
         await document_store._initialize_async_client()
+
+        # Mock collection info without named vectors
         mock_collection_info = MagicMock()
         mock_collection_info.config.params.vectors = MagicMock(spec=rest.VectorsConfig)
 
@@ -93,6 +97,7 @@ class TestQdrantDocumentStoreAsyncUnit:
         """Test that an error is raised when use_sparse_embeddings is False but collection has named vectors"""
         document_store = QdrantDocumentStore(location=":memory:", use_sparse_embeddings=False)
         await document_store._initialize_async_client()
+        # Mock collection info with named vectors
         mock_collection_info = MagicMock()
         mock_collection_info.config.params.vectors = {DENSE_VECTORS_NAME: MagicMock()}
 
@@ -106,6 +111,8 @@ class TestQdrantDocumentStoreAsyncUnit:
     async def test_set_up_collection_with_distance_mismatch_async(self):
         document_store = QdrantDocumentStore(location=":memory:", use_sparse_embeddings=False, similarity="cosine")
         await document_store._initialize_async_client()
+
+        # Mock collection info with different distance
         mock_collection_info = MagicMock()
         mock_collection_info.config.params.vectors = MagicMock()
         mock_collection_info.config.params.vectors.distance = rest.Distance.DOT
@@ -216,6 +223,7 @@ class TestQdrantDocumentStoreAsync(
         sparse_config = collection.config.params.sparse_vectors
 
         assert SPARSE_VECTORS_NAME in sparse_config
+        # check that the `sparse_idf` parameter takes effect
         assert hasattr(sparse_config[SPARSE_VECTORS_NAME], "modifier")
         assert sparse_config[SPARSE_VECTORS_NAME].modifier == rest.Modifier.IDF
 
@@ -294,11 +302,13 @@ class TestQdrantDocumentStoreAsync(
         ]
         await document_store.write_documents_async(docs)
 
+        # Update metadata
         updated_count = await document_store.update_by_filter_async(
             filters={"field": "meta.category", "operator": "==", "value": "A"}, meta={"status": "published"}
         )
         assert updated_count == 1
 
+        # Verify embedding is preserved
         updated_docs = []
         async for doc in document_store._get_documents_generator_async(
             filters={"field": "meta.status", "operator": "==", "value": "published"}
