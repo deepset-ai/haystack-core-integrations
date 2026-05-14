@@ -258,6 +258,25 @@ class TestMistralChatGeneratorAsync:
         assert tool_call.arguments == {"city": "Paris"}
         assert tool_message.meta["finish_reason"] == "tool_calls"
 
+    @pytest.mark.skipif(
+        not os.environ.get("MISTRAL_API_KEY", None),
+        reason="Export an env var called MISTRAL_API_KEY containing the Mistral API key to run this test.",
+    )
+    @pytest.mark.integration
+    @pytest.mark.asyncio
+    async def test_live_run_async_with_reasoning(self):
+        chat_messages = [ChatMessage.from_user("If x + 3 = 7, what is x?")]
+        component = MistralChatGenerator(generation_kwargs={"reasoning_effort": "high"})
+        results = await component.run_async(chat_messages)
+
+        assert len(results["replies"]) == 1
+        message: ChatMessage = results["replies"][0]
+        assert message.reasoning is not None
+        assert message.reasoning.reasoning_text
+        assert message.text
+        assert "4" in message.text
+        assert message.meta["finish_reason"] == "stop"
+
     @pytest.mark.asyncio
     async def test_run_async_with_reasoning(self, chat_messages, monkeypatch):
         monkeypatch.setenv("MISTRAL_API_KEY", "fake-api-key")

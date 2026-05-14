@@ -850,6 +850,24 @@ class TestMistralChatGenerator:
             assert tool_call.arguments["city"] in ["Paris", "Berlin"]
             assert tool_call_message.meta["finish_reason"] == "tool_calls"
 
+    @pytest.mark.skipif(
+        not os.environ.get("MISTRAL_API_KEY", None),
+        reason="Export an env var called MISTRAL_API_KEY containing the Mistral API key to run this test.",
+    )
+    @pytest.mark.integration
+    def test_live_run_with_reasoning(self):
+        chat_messages = [ChatMessage.from_user("If x + 3 = 7, what is x?")]
+        component = MistralChatGenerator(generation_kwargs={"reasoning_effort": "high"})
+        results = component.run(chat_messages)
+
+        assert len(results["replies"]) == 1
+        message: ChatMessage = results["replies"][0]
+        assert message.reasoning is not None
+        assert message.reasoning.reasoning_text
+        assert message.text
+        assert "4" in message.text
+        assert message.meta["finish_reason"] == "stop"
+
 
 @pytest.fixture
 def mock_reasoning_response():
