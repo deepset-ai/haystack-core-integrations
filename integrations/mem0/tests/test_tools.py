@@ -202,6 +202,7 @@ class TestMem0MemoryWriterTool:
         signature = inspect.signature(Mem0MemoryWriterTool.__init__)
         assert signature.parameters["inputs_from_state"].default == {"user_id": "user_id"}
         assert "text" in signature.parameters["parameters"].default["properties"]
+        assert "infer" in signature.parameters["parameters"].default["properties"]
 
     def test_default_dicts_are_copied(self, store):
         first = Mem0MemoryWriterTool(memory_store=store)
@@ -226,7 +227,10 @@ class TestMem0MemoryWriterTool:
     def test_custom_parameters(self, store):
         custom = {
             "type": "object",
-            "properties": {"text": {"type": "string", "description": "Custom memory."}},
+            "properties": {
+                "text": {"type": "string", "description": "Custom memory."},
+                "infer": {"type": "boolean", "description": "Custom inference toggle."},
+            },
             "required": ["text"],
         }
         tool = Mem0MemoryWriterTool(memory_store=store, parameters=custom)
@@ -237,13 +241,14 @@ class TestMem0MemoryWriterTool:
         tool = Mem0MemoryWriterTool(memory_store=store)
         assert tool.function == tool.store
 
-    def test_default_infer_false(self, store):
-        tool = Mem0MemoryWriterTool(memory_store=store)
-        assert tool.infer is False
+    def test_store_infer_default_false(self):
+        signature = inspect.signature(Mem0MemoryWriterTool.store)
+        assert signature.parameters["infer"].default is False
 
     def test_text_is_required(self, store):
         tool = Mem0MemoryWriterTool(memory_store=store)
         assert "text" in tool.parameters.get("required", [])
+        assert "infer" not in tool.parameters.get("required", [])
 
     def test_invoke_passes_ids_to_store(self, store):
         store.add_memories = Mock(return_value=[{"memory_id": "m1", "memory": "fact"}])
@@ -258,8 +263,8 @@ class TestMem0MemoryWriterTool:
 
     def test_configured_infer_passed_to_store(self, store):
         store.add_memories = Mock(return_value=[{"memory_id": "m1", "memory": "fact"}])
-        tool = Mem0MemoryWriterTool(memory_store=store, infer=True)
-        tool.invoke(text="I enjoy hiking", user_id="alice")
+        tool = Mem0MemoryWriterTool(memory_store=store)
+        tool.invoke(text="I enjoy hiking", user_id="alice", infer=True)
         assert store.add_memories.call_args[1]["infer"] is True
 
     def test_invoke_returns_count_string(self, store):
@@ -286,7 +291,7 @@ class TestMem0MemoryWriterTool:
     def test_serialization_roundtrip(self, monkeypatch, mock_mem0_client):  # noqa: ARG002
         monkeypatch.setenv("MY_MEM0_KEY", "test-key")
         store = Mem0MemoryStore(api_key=Secret.from_env_var("MY_MEM0_KEY"))
-        tool = Mem0MemoryWriterTool(memory_store=store, infer=True)
+        tool = Mem0MemoryWriterTool(memory_store=store)
         serialized = serialize_tools_or_toolset([tool])
         assert isinstance(serialized, list)
         assert serialized[0]["type"].endswith("Mem0MemoryWriterTool")
@@ -297,7 +302,6 @@ class TestMem0MemoryWriterTool:
 
         assert isinstance(restored, Mem0MemoryWriterTool)
         assert restored.name == tool.name
-        assert restored.infer is True
         assert restored.parameters == tool.parameters
         assert restored.inputs_from_state == tool.inputs_from_state
         assert isinstance(restored.memory_store, Mem0MemoryStore)

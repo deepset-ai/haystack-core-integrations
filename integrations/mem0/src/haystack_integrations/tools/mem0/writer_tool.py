@@ -20,6 +20,11 @@ _PARAMETERS: dict[str, Any] = {
     "type": "object",
     "properties": {
         "text": {"type": "string", "description": "The information to store as a memory."},
+        "infer": {
+            "type": "boolean",
+            "description": "If true, Mem0 extracts memories from the text. If false, Mem0 stores the text as-is.",
+            "default": False,
+        },
     },
     "required": ["text"],
 }
@@ -32,14 +37,13 @@ class Mem0MemoryWriterTool(Tool):
     A tool that writes a memory to a Mem0MemoryStore.
 
     The `user_id` is injected at runtime from Agent State via `inputs_from_state`,
-    so a single tool instance can serve many users. The LLM only sees `text`.
+    so a single tool instance can serve many users. The LLM only sees `text` and `infer`.
     """
 
     def __init__(
         self,
         *,
         memory_store: Mem0MemoryStore,
-        infer: bool = False,
         name: str = "store_memory",
         description: str = _DEFAULT_DESCRIPTION,
         parameters: dict[str, Any] = _PARAMETERS,
@@ -49,7 +53,6 @@ class Mem0MemoryWriterTool(Tool):
         Initialize the Mem0MemoryWriterTool.
 
         :param memory_store: The Mem0MemoryStore instance to write to.
-        :param infer: If True, Mem0 extracts memories from the text. If False, Mem0 stores the text as-is.
         :param name: Tool name exposed to the LLM.
         :param description: Tool description exposed to the LLM.
         :param parameters: JSON schema for the parameters exposed to the LLM.
@@ -57,7 +60,6 @@ class Mem0MemoryWriterTool(Tool):
             `user_id` from state.
         """
         self.memory_store = memory_store
-        self.infer = infer
         self._is_warmed_up = False
         super().__init__(
             name=name,
@@ -82,6 +84,7 @@ class Mem0MemoryWriterTool(Tool):
         run_id: str | None = None,
         agent_id: str | None = None,
         app_id: str | None = None,
+        infer: bool = False,
     ) -> str:
         """
         Store text as a memory.
@@ -91,6 +94,7 @@ class Mem0MemoryWriterTool(Tool):
         :param run_id: Run ID to scope the stored memory.
         :param agent_id: Agent ID to scope the stored memory.
         :param app_id: App ID to scope the stored memory.
+        :param infer: If True, Mem0 extracts memories from the text. If False, Mem0 stores the text as-is.
         :returns: A string indicating how many memory items were stored.
         """
         result = self.memory_store.add_memories(
@@ -99,7 +103,7 @@ class Mem0MemoryWriterTool(Tool):
             run_id=run_id,
             agent_id=agent_id,
             app_id=app_id,
-            infer=self.infer,
+            infer=infer,
         )
         count = len(result) if isinstance(result, list) else 0
         return f"Stored {count} memory item(s)."
@@ -110,7 +114,6 @@ class Mem0MemoryWriterTool(Tool):
             "type": generate_qualified_class_name(type(self)),
             "data": {
                 "memory_store": self.memory_store.to_dict(),
-                "infer": self.infer,
                 "name": self.name,
                 "description": self.description,
                 "parameters": self.parameters,
@@ -123,4 +126,5 @@ class Mem0MemoryWriterTool(Tool):
         """Deserialize this tool from a dictionary."""
         inner = data["data"]
         inner["memory_store"] = Mem0MemoryStore.from_dict(inner["memory_store"])
+        inner.pop("infer", None)
         return cls(**inner)
