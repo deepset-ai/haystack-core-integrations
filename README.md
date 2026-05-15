@@ -4,9 +4,9 @@
 
 | Name                                                                       |    Stmts |     Miss |   Branch |   BrPart |   Cover |   Missing |
 |--------------------------------------------------------------------------- | -------: | -------: | -------: | -------: | ------: | --------: |
-| src/haystack\_integrations/components/connectors/weave/weave\_connector.py |       29 |        0 |        6 |        1 |     97% | 91-\>exit |
+| src/haystack\_integrations/components/connectors/weave/weave\_connector.py |       34 |        1 |       10 |        3 |     91% |93-\>exit, 116, 117-\>120 |
 | src/haystack\_integrations/tracing/weave/tracer.py                         |       86 |        3 |       12 |        0 |     95% |     55-57 |
-| **TOTAL**                                                                  |  **115** |    **3** |   **18** |    **1** | **95%** |           |
+| **TOTAL**                                                                  |  **120** |    **4** |   **22** |    **3** | **94%** |           |
 
 
 ## Setup coverage badge
