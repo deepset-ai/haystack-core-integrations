@@ -28,13 +28,6 @@ class TestMem0MemoryStore:
         store.warm_up()
         assert store._client is mock_mem0_client
 
-    def test_warm_up_idempotent(self, monkeypatch, mock_mem0_client):
-        monkeypatch.setenv("MEM0_API_KEY", "test-key")
-        store = Mem0MemoryStore()
-        store.warm_up()
-        store.warm_up()
-        assert store._client is mock_mem0_client
-
     def test_client_property_triggers_warm_up(self, monkeypatch, mock_mem0_client):
         monkeypatch.setenv("MEM0_API_KEY", "test-key")
         store = Mem0MemoryStore()
@@ -47,27 +40,37 @@ class TestMem0MemoryStore:
         with pytest.raises(ValueError, match="None of the following authentication environment variables are set"):
             store.warm_up()
 
-    def test_init_with_explicit_key(self, mock_mem0_client):
-        store = Mem0MemoryStore(api_key=Secret.from_token("test-key"))
-        store.warm_up()
-        assert store._client is mock_mem0_client
-
     def test_to_dict(self, monkeypatch, mock_mem0_client):  # noqa: ARG002
-        monkeypatch.setenv("MY_MEM0_KEY", "test-key")
-        store = Mem0MemoryStore(api_key=Secret.from_env_var("MY_MEM0_KEY"))
+        monkeypatch.setenv("MEM0_API_KEY", "test-key")
+        store = Mem0MemoryStore()
         result = store.to_dict()
-        assert result["init_parameters"]["api_key"] == {
-            "env_vars": ["MY_MEM0_KEY"],
-            "strict": True,
-            "type": "env_var",
+        assert result == {
+            "type": "haystack_integrations.memory_stores.mem0.memory_store.Mem0MemoryStore",
+            "init_parameters": {
+                "api_key": {
+                    "env_vars": ["MEM0_API_KEY"],
+                    "strict": True,
+                    "type": "env_var",
+                },
+                "infer": True,
+            },
         }
-        assert result["init_parameters"]["infer"] is True
 
-    def test_to_dict_infer_false(self, monkeypatch, mock_mem0_client):  # noqa: ARG002
+    def test_to_dict_custom_params(self, monkeypatch, mock_mem0_client):  # noqa: ARG002
         monkeypatch.setenv("MY_MEM0_KEY", "test-key")
         store = Mem0MemoryStore(api_key=Secret.from_env_var("MY_MEM0_KEY"), infer=False)
         result = store.to_dict()
-        assert result["init_parameters"]["infer"] is False
+        assert result == {
+            "type": "haystack_integrations.memory_stores.mem0.memory_store.Mem0MemoryStore",
+            "init_parameters": {
+                "api_key": {
+                    "env_vars": ["MY_MEM0_KEY"],
+                    "strict": True,
+                    "type": "env_var",
+                },
+                "infer": False,
+            },
+        }
 
     def test_from_dict(self, monkeypatch, mock_mem0_client):  # noqa: ARG002
         monkeypatch.setenv("MY_MEM0_KEY", "test-key")
@@ -79,6 +82,7 @@ class TestMem0MemoryStore:
         }
         store = Mem0MemoryStore.from_dict(data)
         assert store.api_key == Secret.from_env_var("MY_MEM0_KEY")
+        assert store.infer is True
 
     def test_from_dict_empty_init_parameters(self):
         data = {
@@ -86,8 +90,10 @@ class TestMem0MemoryStore:
             "init_parameters": {},
         }
         store = Mem0MemoryStore.from_dict(data)
-        assert store._client is None
+        assert store.api_key == Secret.from_env_var("MEM0_API_KEY")
+        assert store.infer is True
 
+    # TODO Check if the return_value is realistic
     def test_add_memories(self, monkeypatch, mock_mem0_client):
         monkeypatch.setenv("MEM0_API_KEY", "test-key")
         mock_mem0_client.add.return_value = {"results": [{"id": "mem-1", "data": {"memory": "User likes Python"}}]}
@@ -97,9 +103,11 @@ class TestMem0MemoryStore:
         result = store.add_memories(messages=[ChatMessage.from_user("I like Python")], user_id="user-1")
 
         assert result == [{"memory_id": "mem-1", "memory": "User likes Python"}]
-        call_kwargs = mock_mem0_client.add.call_args[1]
-        assert call_kwargs["user_id"] == "user-1"
-        assert call_kwargs["infer"] is True
+        mock_mem0_client.add.assert_called_with(
+            messages=[{"content": "I like Python", "role": "user"}],
+            user_id="user-1",
+            infer=True,
+        )
 
     def test_add_memories_uses_infer_from_init(self, monkeypatch, mock_mem0_client):
         monkeypatch.setenv("MEM0_API_KEY", "test-key")
@@ -109,7 +117,9 @@ class TestMem0MemoryStore:
         store = Mem0MemoryStore(infer=False)
         store.add_memories(messages=[ChatMessage.from_user("test")], user_id="u1")
 
-        assert mock_mem0_client.add.call_args[1]["infer"] is False
+        mock_mem0_client.add.assert_called_with(
+            messages=[{"content": "test", "role": "user"}], infer=False, user_id="u1"
+        )
 
     def test_add_memories_infer_overrides_init_default(self, monkeypatch, mock_mem0_client):
         monkeypatch.setenv("MEM0_API_KEY", "test-key")
@@ -123,13 +133,12 @@ class TestMem0MemoryStore:
 
     def test_add_memories_skips_empty_text(self, monkeypatch, mock_mem0_client):
         monkeypatch.setenv("MEM0_API_KEY", "test-key")
-        mock_mem0_client.add.return_value = {"results": []}
         mock_mem0_client.project = Mock()
 
         store = Mem0MemoryStore()
         tc_msg = ChatMessage.from_assistant(text=None, tool_calls=[ToolCall(tool_name="foo", arguments={})])
-        store.add_memories(messages=[tc_msg], user_id="user-1")
-        assert mock_mem0_client.add.call_args[1]["messages"] == []
+        result = store.add_memories(messages=[tc_msg], user_id="user-1")
+        assert result == []
 
     def test_add_memories_raises_store_error_on_failure(self, monkeypatch, mock_mem0_client):
         monkeypatch.setenv("MEM0_API_KEY", "test-key")

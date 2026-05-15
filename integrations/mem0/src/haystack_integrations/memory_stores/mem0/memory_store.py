@@ -4,13 +4,15 @@
 
 from typing import Any
 
-from haystack import default_from_dict, default_to_dict
+from haystack import default_from_dict, default_to_dict, logging
 from haystack.dataclasses.chat_message import ChatMessage
 from haystack.utils import Secret, deserialize_secrets_inplace
 
 from haystack_integrations.memory_stores.mem0.errors import Mem0MemoryStoreError
 from haystack_integrations.memory_stores.mem0.filters import normalize_filters
 from mem0 import MemoryClient
+
+logger = logging.getLogger(__name__)
 
 
 class Mem0MemoryStore:
@@ -97,10 +99,17 @@ class Mem0MemoryStore:
         :raises Mem0MemoryStoreError: If the Mem0 API call fails.
         """
         ids = self._get_ids(user_id=user_id, run_id=run_id, agent_id=agent_id, app_id=app_id)
+        # TODO Should we really call client project update here every time with something so generic?
         self.client.project.update(
             custom_instructions="Store all memories from the user and suggestions from the assistant."
         )
         mem0_messages = [{"content": msg.text, "role": msg.role.value} for msg in messages if msg.text]
+        if not mem0_messages:
+            logger.warning(
+                "No valid messages to add after filtering out empty texts. Returning without calling Mem0 API."
+            )
+            return []
+
         added: list[dict[str, Any]] = []
         try:
             status = self.client.add(
