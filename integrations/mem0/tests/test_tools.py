@@ -2,6 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+import inspect
 from unittest.mock import Mock
 
 import pytest
@@ -45,10 +46,38 @@ class TestMem0MemoryRetrieverTool:
         tool = Mem0MemoryRetrieverTool(memory_store=store)
         assert tool.inputs_from_state == {"user_id": "user_id"}
 
+    def test_defaults_exposed_in_signature(self):
+        signature = inspect.signature(Mem0MemoryRetrieverTool.__init__)
+        assert signature.parameters["inputs_from_state"].default == {"user_id": "user_id"}
+        assert "query" in signature.parameters["parameters"].default["properties"]
+
+    def test_default_dicts_are_copied(self, store):
+        first = Mem0MemoryRetrieverTool(memory_store=store)
+        second = Mem0MemoryRetrieverTool(memory_store=store)
+
+        first.inputs_from_state["session_id"] = "user_id"
+        first.parameters["properties"]["extra"] = {"type": "string"}
+
+        assert second.inputs_from_state == {"user_id": "user_id"}
+        assert "extra" not in second.parameters["properties"]
+
     def test_custom_inputs_from_state(self, store):
         custom = {"session_id": "user_id", "run_state": "run_id", "agent_state": "agent_id"}
         tool = Mem0MemoryRetrieverTool(memory_store=store, inputs_from_state=custom)
         assert tool.inputs_from_state == custom
+
+    def test_custom_parameters(self, store):
+        custom = {
+            "type": "object",
+            "properties": {
+                "query": {"type": "string", "description": "Custom query."},
+                "top_k": {"type": "integer", "description": "Custom limit."},
+            },
+            "required": ["query", "top_k"],
+        }
+        tool = Mem0MemoryRetrieverTool(memory_store=store, parameters=custom)
+        assert tool.parameters == custom
+        assert tool.parameters is not custom
 
     def test_function_is_public_retrieve_method(self, store):
         tool = Mem0MemoryRetrieverTool(memory_store=store)
@@ -110,6 +139,7 @@ class TestMem0MemoryRetrieverTool:
         assert isinstance(restored, Mem0MemoryRetrieverTool)
         assert restored.name == tool.name
         assert restored.top_k == 3
+        assert restored.parameters == tool.parameters
         assert restored.inputs_from_state == tool.inputs_from_state
         assert isinstance(restored.memory_store, Mem0MemoryStore)
 
@@ -160,10 +190,35 @@ class TestMem0MemoryWriterTool:
         tool = Mem0MemoryWriterTool(memory_store=store)
         assert tool.inputs_from_state == {"user_id": "user_id"}
 
+    def test_defaults_exposed_in_signature(self):
+        signature = inspect.signature(Mem0MemoryWriterTool.__init__)
+        assert signature.parameters["inputs_from_state"].default == {"user_id": "user_id"}
+        assert "text" in signature.parameters["parameters"].default["properties"]
+
+    def test_default_dicts_are_copied(self, store):
+        first = Mem0MemoryWriterTool(memory_store=store)
+        second = Mem0MemoryWriterTool(memory_store=store)
+
+        first.inputs_from_state["session_id"] = "user_id"
+        first.parameters["properties"]["extra"] = {"type": "string"}
+
+        assert second.inputs_from_state == {"user_id": "user_id"}
+        assert "extra" not in second.parameters["properties"]
+
     def test_custom_inputs_from_state(self, store):
         custom = {"session_id": "user_id", "run_state": "run_id", "agent_state": "agent_id"}
         tool = Mem0MemoryWriterTool(memory_store=store, inputs_from_state=custom)
         assert tool.inputs_from_state == custom
+
+    def test_custom_parameters(self, store):
+        custom = {
+            "type": "object",
+            "properties": {"text": {"type": "string", "description": "Custom memory."}},
+            "required": ["text"],
+        }
+        tool = Mem0MemoryWriterTool(memory_store=store, parameters=custom)
+        assert tool.parameters == custom
+        assert tool.parameters is not custom
 
     def test_function_is_public_store_method(self, store):
         tool = Mem0MemoryWriterTool(memory_store=store)
@@ -229,6 +284,7 @@ class TestMem0MemoryWriterTool:
         assert isinstance(restored, Mem0MemoryWriterTool)
         assert restored.name == tool.name
         assert restored.infer is True
+        assert restored.parameters == tool.parameters
         assert restored.inputs_from_state == tool.inputs_from_state
         assert isinstance(restored.memory_store, Mem0MemoryStore)
 

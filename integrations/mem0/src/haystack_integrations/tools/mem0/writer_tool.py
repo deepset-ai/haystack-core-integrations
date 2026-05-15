@@ -2,6 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+from copy import deepcopy
 from typing import Any
 
 from haystack.core.serialization import generate_qualified_class_name
@@ -41,7 +42,8 @@ class Mem0MemoryWriterTool(Tool):
         infer: bool = False,
         name: str = "store_memory",
         description: str = _DEFAULT_DESCRIPTION,
-        inputs_from_state: dict[str, str] | None = None,
+        parameters: dict[str, Any] = _PARAMETERS,
+        inputs_from_state: dict[str, str] = _DEFAULT_INPUTS_FROM_STATE,
     ) -> None:
         """
         Initialize the Mem0MemoryWriterTool.
@@ -50,6 +52,7 @@ class Mem0MemoryWriterTool(Tool):
         :param infer: If True, Mem0 extracts memories from the text. If False, Mem0 stores the text as-is.
         :param name: Tool name exposed to the LLM.
         :param description: Tool description exposed to the LLM.
+        :param parameters: JSON schema for the parameters exposed to the LLM.
         :param inputs_from_state: Mapping of state keys to tool parameter names. Defaults to injecting
             `user_id` from state.
         """
@@ -59,9 +62,10 @@ class Mem0MemoryWriterTool(Tool):
         super().__init__(
             name=name,
             description=description,
-            parameters=_PARAMETERS,
+            # We deepcopy to avoid accidental mutations since dicts are mutable and could be shared across instances
+            parameters=deepcopy(parameters),
             function=self.store,
-            inputs_from_state=inputs_from_state if inputs_from_state is not None else _DEFAULT_INPUTS_FROM_STATE,
+            inputs_from_state=dict(inputs_from_state),
         )
 
     def warm_up(self) -> None:
@@ -106,6 +110,7 @@ class Mem0MemoryWriterTool(Tool):
                 "infer": self.infer,
                 "name": self.name,
                 "description": self.description,
+                "parameters": self.parameters,
                 "inputs_from_state": self.inputs_from_state,
             },
         }
