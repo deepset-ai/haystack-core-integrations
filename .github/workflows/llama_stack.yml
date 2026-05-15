@@ -109,10 +109,11 @@ jobs:
           # Llama Stack's Ollama provider expects an OpenAI-compatible base URL.
           # Ollama serves OpenAI-compatible endpoints under `/v1`, so include it here.
           OLLAMA_URL: http://localhost:11434/v1
-          # torch's transitive dep sympy has missing upload dates on the PyTorch wheel index;
-          # uv falls back to the request timestamp which triggers the exclude-newer cutoff.
-          # Disable exclude-newer for this step only to allow torch resolution.
-          UV_EXCLUDE_NEWER: "2099-01-01"
+          # The PyTorch wheel index does not include upload dates for sympy; uv falls back to the
+          # cutoff date itself as a placeholder, placing those packages exactly at the boundary
+          # and excluding them regardless of what date is set. UV_NO_CONFIG bypasses uv.toml
+          # (which sets exclude-newer = "24 hours") for this step only.
+          UV_NO_CONFIG: "1"
         shell: bash
         run: |
           set -euo pipefail
