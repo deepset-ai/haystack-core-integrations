@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
-    <title>Coverage for src/haystack_integrations/document_stores/chroma/document_store.py: 93%</title>
+    <title>Coverage for src/haystack_integrations/document_stores/chroma/document_store.py: 92%</title>
     <link rel="icon" sizes="32x32" href="favicon_32_cb_c827f16f.png">
     <link rel="stylesheet" href="style_cb_9ff733b0.css" type="text/css">
     <script src="coverage_html_cb_dd2e7eb5.js" defer></script>
@@ -12,7 +12,7 @@
     <div class="content">
         <h1>
             <span class="text">Coverage for </span><b>src&#8201;/&#8201;haystack_integrations&#8201;/&#8201;document_stores&#8201;/&#8201;chroma&#8201;/&#8201;document_store.py</b>:
-            <span class="pc_cov">93%</span>
+            <span class="pc_cov">92%</span>
         </h1>
         <aside id="help_panel_wrapper">
             <input id="help_panel_state" type="checkbox">
@@ -56,10 +56,10 @@
         </aside>
         <h2>
             <span class="text">542 statements &nbsp;</span>
-            <button type="button" class="run button_toggle_run" value="run" data-shortcut="r" title="Toggle lines run">510<span class="text"> run</span></button>
-            <button type="button" class="mis show_mis button_toggle_mis" value="mis" data-shortcut="m" title="Toggle lines missing">32<span class="text"> missing</span></button>
+            <button type="button" class="run button_toggle_run" value="run" data-shortcut="r" title="Toggle lines run">508<span class="text"> run</span></button>
+            <button type="button" class="mis show_mis button_toggle_mis" value="mis" data-shortcut="m" title="Toggle lines missing">34<span class="text"> missing</span></button>
             <button type="button" class="exc show_exc button_toggle_exc" value="exc" data-shortcut="x" title="Toggle lines excluded">0<span class="text"> excluded</span></button>
-            <button type="button" class="par run show_par button_toggle_par" value="par" data-shortcut="p" title="Toggle lines partially run">18<span class="text"> partial</span></button>
+            <button type="button" class="par run show_par button_toggle_par" value="par" data-shortcut="p" title="Toggle lines partially run">19<span class="text"> partial</span></button>
         </h2>
         <p class="text">
             <a id="prevFileLink" class="nav" href="z_5419cb88509e3c7e_retriever_py.html">&#xab; prev</a> &nbsp; &nbsp;
@@ -67,7 +67,7 @@
             <a id="nextFileLink" class="nav" href="z_3c69eda80d89d5ad_errors_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.13.5">coverage.py v7.13.5</a>,
-            created at 2026-04-29 14:41 +0000
+            created at 2026-05-15 10:53 +0000
         </p>
         <aside class="hidden">
             <button type="button" class="button_next_chunk" data-shortcut="j"></button>
@@ -273,18 +273,18 @@
     <p class="run"><span class="n"><a id="t189" href="#t189">189</a></span><span class="t">            <span class="nam">self</span><span class="op">.</span><span class="nam">_async_client</span> <span class="op">=</span> <span class="nam">client</span>  <span class="com"># store client for potential future use</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t190" href="#t190">190</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t191" href="#t191">191</a></span><span class="t">            <span class="nam">self</span><span class="op">.</span><span class="nam">_metadata</span> <span class="op">=</span> <span class="nam">self</span><span class="op">.</span><span class="nam">_metadata</span> <span class="key">or</span> <span class="op">{</span><span class="op">}</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t192" href="#t192">192</a></span><span class="t">            <span class="key">if</span> <span class="str">"hnsw:space"</span> <span class="key">not</span> <span class="key">in</span> <span class="nam">self</span><span class="op">.</span><span class="nam">_metadata</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
+    <p class="par run show_par"><span class="n"><a id="t192" href="#t192">192</a></span><span class="t">            <span class="key">if</span> <span class="str">"hnsw:space"</span> <span class="key">not</span> <span class="key">in</span> <span class="nam">self</span><span class="op">.</span><span class="nam">_metadata</span><span class="op">:</span>&nbsp;</span><span class="r"><span class="annotate short">192&#x202F;&#x219B;&#x202F;195</span><span class="annotate long">line 192 didn't jump to line 195 because the condition on line 192 was always true</span></span></p>
     <p class="run"><span class="n"><a id="t193" href="#t193">193</a></span><span class="t">                <span class="nam">self</span><span class="op">.</span><span class="nam">_metadata</span><span class="op">[</span><span class="str">"hnsw:space"</span><span class="op">]</span> <span class="op">=</span> <span class="nam">self</span><span class="op">.</span><span class="nam">_distance_function</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t194" href="#t194">194</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t195" href="#t195">195</a></span><span class="t">            <span class="nam">collection</span> <span class="op">=</span> <span class="key">await</span> <span class="nam">client</span><span class="op">.</span><span class="nam">list_collections</span><span class="op">(</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t196" href="#t196">196</a></span><span class="t">            <span class="nam">existing_collection_names</span> <span class="op">=</span> <span class="op">[</span><span class="nam">c</span><span class="op">.</span><span class="nam">name</span> <span class="key">for</span> <span class="nam">c</span> <span class="key">in</span> <span class="nam">collection</span><span class="op">]</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t197" href="#t197">197</a></span><span class="t">            <span class="key">if</span> <span class="nam">self</span><span class="op">.</span><span class="nam">_collection_name</span> <span class="key">in</span> <span class="nam">existing_collection_names</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t198" href="#t198">198</a></span><span class="t">                <span class="nam">self</span><span class="op">.</span><span class="nam">_async_collection</span> <span class="op">=</span> <span class="key">await</span> <span class="nam">client</span><span class="op">.</span><span class="nam">get_collection</span><span class="op">(</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run run2"><span class="n"><a id="t199" href="#t199">199</a></span><span class="t">                    <span class="nam">self</span><span class="op">.</span><span class="nam">_collection_name</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run run2"><span class="n"><a id="t200" href="#t200">200</a></span><span class="t">                    <span class="nam">embedding_function</span><span class="op">=</span><span class="nam">self</span><span class="op">.</span><span class="nam">_embedding_func</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run run2"><span class="n"><a id="t201" href="#t201">201</a></span><span class="t">                <span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="par run show_par"><span class="n"><a id="t197" href="#t197">197</a></span><span class="t">            <span class="key">if</span> <span class="nam">self</span><span class="op">.</span><span class="nam">_collection_name</span> <span class="key">in</span> <span class="nam">existing_collection_names</span><span class="op">:</span>&nbsp;</span><span class="r"><span class="annotate short">197&#x202F;&#x219B;&#x202F;198</span><span class="annotate long">line 197 didn't jump to line 198 because the condition on line 197 was never true</span></span></p>
+    <p class="mis show_mis"><span class="n"><a id="t198" href="#t198">198</a></span><span class="t">                <span class="nam">self</span><span class="op">.</span><span class="nam">_async_collection</span> <span class="op">=</span> <span class="key">await</span> <span class="nam">client</span><span class="op">.</span><span class="nam">get_collection</span><span class="op">(</span>&nbsp;</span><span class="r"></span></p>
+    <p class="mis mis2 show_mis"><span class="n"><a id="t199" href="#t199">199</a></span><span class="t">                    <span class="nam">self</span><span class="op">.</span><span class="nam">_collection_name</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
+    <p class="mis mis2 show_mis"><span class="n"><a id="t200" href="#t200">200</a></span><span class="t">                    <span class="nam">embedding_function</span><span class="op">=</span><span class="nam">self</span><span class="op">.</span><span class="nam">_embedding_func</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
+    <p class="mis mis2 show_mis"><span class="n"><a id="t201" href="#t201">201</a></span><span class="t">                <span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t202" href="#t202">202</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
-    <p class="par run show_par"><span class="n"><a id="t203" href="#t203">203</a></span><span class="t">                <span class="key">if</span> <span class="nam">self</span><span class="op">.</span><span class="nam">_metadata</span> <span class="op">!=</span> <span class="nam">self</span><span class="op">.</span><span class="nam">_async_collection</span><span class="op">.</span><span class="nam">metadata</span><span class="op">:</span>&nbsp;</span><span class="r"><span class="annotate short">203&#x202F;&#x219B;&#x202F;204</span><span class="annotate long">line 203 didn't jump to line 204 because the condition on line 203 was never true</span></span></p>
+    <p class="mis show_mis"><span class="n"><a id="t203" href="#t203">203</a></span><span class="t">                <span class="key">if</span> <span class="nam">self</span><span class="op">.</span><span class="nam">_metadata</span> <span class="op">!=</span> <span class="nam">self</span><span class="op">.</span><span class="nam">_async_collection</span><span class="op">.</span><span class="nam">metadata</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
     <p class="mis show_mis"><span class="n"><a id="t204" href="#t204">204</a></span><span class="t">                    <span class="nam">logger</span><span class="op">.</span><span class="nam">warning</span><span class="op">(</span>&nbsp;</span><span class="r"></span></p>
     <p class="mis mis2 show_mis"><span class="n"><a id="t205" href="#t205">205</a></span><span class="t">                        <span class="str">"Collection already exists. The `distance_function` and `metadata` parameters will be ignored."</span>&nbsp;</span><span class="r"></span></p>
     <p class="mis mis2 show_mis"><span class="n"><a id="t206" href="#t206">206</a></span><span class="t">                    <span class="op">)</span>&nbsp;</span><span class="r"></span></p>
@@ -1542,7 +1542,7 @@
             <a class="nav" href="z_3c69eda80d89d5ad_errors_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.13.5">coverage.py v7.13.5</a>,
-            created at 2026-04-29 14:41 +0000
+            created at 2026-05-15 10:53 +0000
         </p>
     </div>
 </footer>
