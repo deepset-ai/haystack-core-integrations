@@ -2,6 +2,3 @@
 # attacks via compromised dependencies. uv resolves this relative to the current clock at
 # install/lock time, so no manual date updates are needed.
 exclude-newer = "24 hours"
-# sympy's upload dates are missing from the PyTorch wheel index; uv falls back to the request
-# timestamp, causing false-positive exclusions. Exempt it to keep torch resolvable.
-exclude-newer-package = { sympy = "0 days" }
