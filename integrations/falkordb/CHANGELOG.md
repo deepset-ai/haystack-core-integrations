@@ -1,5 +1,16 @@
 # Changelog
 
+## [integrations/falkordb-v1.1.0] - 2026-05-15
+
+### 🚀 Features
+
+- *(falkordb)* Add missing DocumentStore operations (#3292)
+
+### 🧪 Testing
+
+- Add unit tests for falkordb (#3283)
+
+
 ## [integrations/falkordb-v1.0.0] - 2026-05-04
 
 ### 🚀 Features

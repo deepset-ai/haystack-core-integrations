@@ -13,7 +13,17 @@ from haystack.dataclasses import Document
 from haystack.document_stores.errors import DocumentStoreError, DuplicateDocumentError
 from haystack.document_stores.types import DuplicatePolicy
 from haystack.errors import FilterError
-from haystack.testing.document_store import DocumentStoreBaseTests
+from haystack.testing.document_store import (
+    CountDocumentsByFilterTest,
+    CountUniqueMetadataByFilterTest,
+    DeleteAllTest,
+    DeleteByFilterTest,
+    DocumentStoreBaseTests,
+    GetMetadataFieldMinMaxTest,
+    GetMetadataFieldsInfoTest,
+    GetMetadataFieldUniqueValuesTest,
+    UpdateByFilterTest,
+)
 
 from haystack_integrations.components.retrievers.falkordb import (
     FalkorDBCypherRetriever,
@@ -267,9 +277,103 @@ class TestFalkorDBDocumentStoreUnit:
         with pytest.raises(DocumentStoreError, match="Failed to write documents"):
             FalkorDBDocumentStore().write_documents([Document(id="a", content="x")], policy=DuplicatePolicy.OVERWRITE)
 
+    def test_delete_all_documents(self, mock_falkordb):
+        _, _, graph = mock_falkordb
+        graph.query.side_effect = [_result([]), _result([]), _result([])]
+        FalkorDBDocumentStore().delete_all_documents()
+        assert "DETACH DELETE" in graph.query.call_args_list[-1].args[0]
+
+    def test_delete_by_filter_returns_count(self, mock_falkordb):
+        _, _, graph = mock_falkordb
+        graph.query.side_effect = [_result([]), _result([]), _result([[3]]), _result([])]
+        count = FalkorDBDocumentStore().delete_by_filter({"field": "year", "operator": "==", "value": 2024})
+        assert count == 3
+        assert "DETACH DELETE" in graph.query.call_args_list[-1].args[0]
+
+    def test_delete_by_filter_empty_result(self, mock_falkordb):
+        _, _, graph = mock_falkordb
+        graph.query.side_effect = [_result([]), _result([]), _result([]), _result([])]
+        assert FalkorDBDocumentStore().delete_by_filter({"field": "year", "operator": "==", "value": 2024}) == 0
+
+    def test_update_by_filter_returns_count(self, mock_falkordb):
+        _, _, graph = mock_falkordb
+        graph.query.side_effect = [_result([]), _result([]), _result([[2]])]
+        count = FalkorDBDocumentStore().update_by_filter(
+            {"field": "year", "operator": "==", "value": 2024}, {"status": "published"}
+        )
+        assert count == 2
+        assert "SET d +=" in graph.query.call_args_list[-1].args[0]
+
+    def test_update_by_filter_strips_meta_prefix(self, mock_falkordb):
+        _, _, graph = mock_falkordb
+        graph.query.side_effect = [_result([]), _result([]), _result([[1]])]
+        FalkorDBDocumentStore().update_by_filter(
+            {"field": "year", "operator": "==", "value": 2024}, {"meta.status": "published"}
+        )
+        assert graph.query.call_args_list[-1].args[1]["meta_update"] == {"status": "published"}
+
+    @pytest.mark.parametrize("rows, expected", [([[5]], 5), ([], 0)])
+    def test_count_documents_by_filter(self, mock_falkordb, rows, expected):
+        _, _, graph = mock_falkordb
+        graph.query.side_effect = [_result([]), _result([]), _result(rows)]
+        count = FalkorDBDocumentStore().count_documents_by_filter({"field": "year", "operator": "==", "value": 2024})
+        assert count == expected
+
+    def test_count_unique_metadata_by_filter(self, mock_falkordb):
+        _, _, graph = mock_falkordb
+        graph.query.side_effect = [_result([]), _result([]), _result([[3]]), _result([[2]])]
+        result = FalkorDBDocumentStore().count_unique_metadata_by_filter({}, ["category", "status"])
+        assert result == {"category": 3, "status": 2}
+
+    def test_get_metadata_fields_info(self, mock_falkordb):
+        _, _, graph = mock_falkordb
+        graph.query.side_effect = [
+            _result([]),
+            _result([]),
+            _result([[["category", "year"]]]),
+            _result([["A"]]),
+            _result([[2024]]),
+        ]
+        info = FalkorDBDocumentStore().get_metadata_fields_info()
+        assert info["category"] == {"type": "str"}
+        assert info["year"] == {"type": "int"}
+
+    @pytest.mark.parametrize(
+        "rows, expected",
+        [([[2020, 2024]], {"min": 2020, "max": 2024}), ([], {"min": None, "max": None})],
+    )
+    def test_get_metadata_field_min_max(self, mock_falkordb, rows, expected):
+        _, _, graph = mock_falkordb
+        graph.query.side_effect = [_result([]), _result([]), _result(rows)]
+        assert FalkorDBDocumentStore().get_metadata_field_min_max("year") == expected
+
+    def test_get_metadata_field_unique_values(self, mock_falkordb):
+        _, _, graph = mock_falkordb
+        graph.query.side_effect = [_result([]), _result([]), _result([["A"], ["B"], ["C"]])]
+        values, cursor = FalkorDBDocumentStore().get_metadata_field_unique_values("category", size=10)
+        assert values == ["A", "B", "C"]
+        assert cursor is None
+
+    def test_get_metadata_field_unique_values_pagination(self, mock_falkordb):
+        _, _, graph = mock_falkordb
+        graph.query.side_effect = [_result([]), _result([]), _result([["A"], ["B"], ["C"]])]
+        values, cursor = FalkorDBDocumentStore().get_metadata_field_unique_values("category", size=2)
+        assert values == ["A", "B"]
+        assert cursor == {"offset": 2}
+
 
 @pytest.mark.integration
-class TestDocumentStore(DocumentStoreBaseTests):
+class TestDocumentStore(
+    DocumentStoreBaseTests,
+    DeleteAllTest,
+    DeleteByFilterTest,
+    UpdateByFilterTest,
+    CountDocumentsByFilterTest,
+    CountUniqueMetadataByFilterTest,
+    GetMetadataFieldsInfoTest,
+    GetMetadataFieldMinMaxTest,
+    GetMetadataFieldUniqueValuesTest,
+):
     """
     Test FalkorDBDocumentStore against the standard Haystack DocumentStore tests.
     """
