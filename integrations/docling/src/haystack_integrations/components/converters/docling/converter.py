@@ -10,13 +10,17 @@ from pathlib import Path
 from typing import Any
 
 from docling_core.types.io import DocumentStream
-from haystack import Document, component
+from haystack import Document, component, logging
 from haystack.components.converters.utils import normalize_metadata
+from haystack.core.serialization import default_from_dict, default_to_dict
 from haystack.dataclasses import ByteStream
+from haystack.utils.base_serialization import deserialize_class_instance, serialize_class_instance
 
 from docling.chunking import BaseChunk, BaseChunker, HybridChunker
 from docling.datamodel.document import DoclingDocument
 from docling.document_converter import DocumentConverter
+
+logger = logging.getLogger(__name__)
 
 
 def _bytestream_to_document_stream(source: ByteStream) -> DocumentStream:
@@ -63,13 +67,27 @@ class BaseMetaExtractor(ABC):
         """Extract Docling document meta."""
         raise NotImplementedError()
 
+    def to_dict(self) -> dict[str, Any]:
+        """Serialize to a dictionary."""
+        return {}
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "BaseMetaExtractor":  # noqa: ARG003
+        """Deserialize from a dictionary."""
+        return cls()
+
 
 class MetaExtractor(BaseMetaExtractor):
     """MetaExtractor."""
 
     def extract_chunk_meta(self, chunk: BaseChunk) -> dict[str, Any]:
         """Extract chunk meta."""
-        return {"dl_meta": chunk.export_json_dict()}
+        meta: dict[str, Any] = {"dl_meta": chunk.export_json_dict()}
+        doc_items = getattr(chunk.meta, "doc_items", [])
+        page_nos = {prov.page_no for item in doc_items for prov in getattr(item, "prov", [])}
+        if page_nos:
+            meta["page_number"] = min(page_nos)
+        return meta
 
     def extract_dl_doc_meta(self, dl_doc: DoclingDocument) -> dict[str, Any]:
         """Extract Docling document meta."""
@@ -84,7 +102,7 @@ class DoclingConverter:
         self,
         converter: DocumentConverter | None = None,
         convert_kwargs: dict[str, Any] | None = None,
-        export_type: ExportType = ExportType.DOC_CHUNKS,
+        export_type: ExportType = ExportType.MARKDOWN,
         md_export_kwargs: dict[str, Any] | None = None,
         chunker: BaseChunker | None = None,
         meta_extractor: BaseMetaExtractor | None = None,
@@ -97,10 +115,10 @@ class DoclingConverter:
         :param convert_kwargs: Any parameters to pass to Docling conversion; if not set, a
             system default is used.
         :param export_type: The export mode to use:
-            * `ExportType.MARKDOWN` captures each input document as a single
+            * `ExportType.MARKDOWN` (default) captures each input document as a single
               markdown `Document`.
-            * `ExportType.DOC_CHUNKS` (default) first chunks each input document
-              and then returns one `Document` per chunk.
+            * `ExportType.DOC_CHUNKS` first chunks each input document and then returns
+              one `Document` per chunk.
             * `ExportType.JSON` serializes the full Docling document to a JSON string.
         :param md_export_kwargs: Any parameters to pass to Markdown export (applicable in
             case of `ExportType.MARKDOWN`).
@@ -122,6 +140,53 @@ class DoclingConverter:
         if self.export_type == ExportType.DOC_CHUNKS:
             self._chunker_instance = chunker or HybridChunker()
         self._meta_extractor_instance = meta_extractor or MetaExtractor()
+
+    def to_dict(self) -> dict[str, Any]:
+        """Serialize this component to a dictionary."""
+        if self.converter is not None:
+            logger.warning(
+                "DoclingConverter.to_dict: the 'converter' parameter cannot be serialized and will be dropped. "
+                "The component will use the default DocumentConverter when restored from the serialized form."
+            )
+        if self.chunker is not None:
+            logger.warning(
+                "DoclingConverter.to_dict: the 'chunker' parameter cannot be serialized and will be dropped. "
+                "The component will use the default chunker when restored from the serialized form."
+            )
+
+        meta_extractor_data = None
+        if self.meta_extractor is not None:
+            meta_extractor_data = serialize_class_instance(self.meta_extractor)
+
+        return default_to_dict(
+            self,
+            converter=None,
+            convert_kwargs=self.convert_kwargs,
+            export_type=self.export_type.value,
+            md_export_kwargs=self.md_export_kwargs,
+            chunker=None,
+            meta_extractor=meta_extractor_data,
+        )
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "DoclingConverter":
+        """
+        Deserialize this component from a dictionary.
+
+        The `converter` and `chunker` parameters are not serializable and are always ignored during
+        deserialization; the restored instance will use the default `DocumentConverter` and `HybridChunker`
+        respectively.
+
+        :param data: Dictionary with keys `type` and `init_parameters`, as produced by `to_dict`.
+        :returns: A new `DoclingConverter` instance.
+        """
+        init_params = data.get("init_parameters", {})
+
+        meta_extractor_data = init_params.get("meta_extractor")
+        if meta_extractor_data is not None:
+            init_params["meta_extractor"] = deserialize_class_instance(meta_extractor_data)
+
+        return default_from_dict(cls, data)
 
     @component.output_types(documents=list[Document])
     def run(
@@ -174,15 +239,17 @@ class DoclingConverter:
                 merged_meta = source_meta
 
             if self.export_type == ExportType.DOC_CHUNKS:
-                chunk_iter = self._chunker_instance.chunk(dl_doc=dl_doc)
-                hs_docs = [
-                    Document(
-                        content=self._chunker_instance.contextualize(chunk=chunk),
-                        meta={**self._meta_extractor_instance.extract_chunk_meta(chunk=chunk), **merged_meta},
-                    )
-                    for chunk in chunk_iter
-                ]
-                documents.extend(hs_docs)
+                split_idx_start = 0
+                for split_id, chunk in enumerate(self._chunker_instance.chunk(dl_doc=dl_doc)):
+                    content = self._chunker_instance.contextualize(chunk=chunk)
+                    meta = {
+                        **self._meta_extractor_instance.extract_chunk_meta(chunk=chunk),
+                        "split_id": split_id,
+                        "split_idx_start": split_idx_start,
+                        **merged_meta,
+                    }
+                    documents.append(Document(content=content, meta=meta))
+                    split_idx_start += len(chunk.text)
             elif self.export_type == ExportType.MARKDOWN:
                 hs_doc = Document(
                     content=dl_doc.export_to_markdown(**self.md_export_kwargs),

@@ -7,8 +7,9 @@ from typing import Any
 from unittest.mock import MagicMock
 
 import pytest
+from docling.chunking import HybridChunker
+from docling.document_converter import DocumentConverter
 from docling_core.types.io import DocumentStream
-from haystack.core.serialization import component_from_dict, component_to_dict
 from haystack.dataclasses import ByteStream
 
 from haystack_integrations.components.converters.docling import (
@@ -58,7 +59,7 @@ def test_run_doc_chunks_minimal() -> None:
 
     assert "contextualized-chunk-1-of-dl-doc-for-file-a.pdf" in contents
     assert "contextualized-chunk-2-of-dl-doc-for-file-a.pdf" in contents
-    assert {"chunk_id": "chunk-1-of-dl-doc-for-file-a.pdf"} in metas
+    assert any(m.get("chunk_id") == "chunk-1-of-dl-doc-for-file-a.pdf" for m in metas)
 
     # Ensure our collaborators were actually exercised.
     assert converter_mock.convert.call_count == len(paths)
@@ -134,8 +135,6 @@ def test_run_json_minimal() -> None:
 
 
 def test_legacy_import_path() -> None:
-    import warnings
-
     with warnings.catch_warnings(record=True) as caught:
         warnings.simplefilter("always")
         from docling_haystack.converter import DoclingConverter as LegacyDoclingConverter
@@ -146,12 +145,48 @@ def test_legacy_import_path() -> None:
     )
 
 
-def test_component_from_dict_legacy_nulls() -> None:
-    # Before the public-attribute refactor, default serialization couldn't find
-    # the _-prefixed attributes and fell back to the init defaults, so
-    # convert_kwargs and md_export_kwargs were always serialized as null.
-    # Verify that such a serialized dict still deserializes correctly.
-    legacy_data = {
+def test_component_to_dict_defaults() -> None:
+    converter = DoclingConverter()
+    assert converter.to_dict() == {
+        "type": "haystack_integrations.components.converters.docling.converter.DoclingConverter",
+        "init_parameters": {
+            "converter": None,
+            "convert_kwargs": {},
+            "export_type": "markdown",
+            "md_export_kwargs": {"image_placeholder": ""},
+            "chunker": None,
+            "meta_extractor": None,
+        },
+    }
+
+
+def test_component_to_dict_custom_params() -> None:
+    converter = DoclingConverter(
+        converter=DocumentConverter(),
+        convert_kwargs={"raises_on_error": False},
+        export_type=ExportType.MARKDOWN,
+        md_export_kwargs={"image_placeholder": "[img]"},
+        meta_extractor=MetaExtractor(),
+    )
+    assert converter.to_dict() == {
+        "type": "haystack_integrations.components.converters.docling.converter.DoclingConverter",
+        "init_parameters": {
+            "converter": None,
+            "convert_kwargs": {"raises_on_error": False},
+            "export_type": "markdown",
+            "md_export_kwargs": {"image_placeholder": "[img]"},
+            "chunker": None,
+            "meta_extractor": {
+                "type": "haystack_integrations.components.converters.docling.converter.MetaExtractor",
+                "data": {},
+            },
+        },
+    }
+
+
+def test_component_from_dict_defaults() -> None:
+    # null kwargs mirror the pre-refactor serialization format and must still deserialize correctly
+    data = {
         "type": "haystack_integrations.components.converters.docling.converter.DoclingConverter",
         "init_parameters": {
             "converter": None,
@@ -162,47 +197,7 @@ def test_component_from_dict_legacy_nulls() -> None:
             "meta_extractor": None,
         },
     }
-    restored = component_from_dict(DoclingConverter, legacy_data, "docling_converter")
-
-    assert restored.convert_kwargs == {}
-    assert restored.md_export_kwargs == {"image_placeholder": ""}
-    assert restored.export_type == ExportType.DOC_CHUNKS
-    assert restored.converter is None
-    assert restored.chunker is None
-    assert restored.meta_extractor is None
-
-
-def test_component_to_dict_defaults() -> None:
-    converter = DoclingConverter()
-    data = component_to_dict(converter, "docling_converter")
-
-    init_params = data["init_parameters"]
-    assert init_params["converter"] is None
-    assert init_params["convert_kwargs"] == {}
-    assert init_params["export_type"] == ExportType.DOC_CHUNKS
-    assert init_params["md_export_kwargs"] == {"image_placeholder": ""}
-    assert init_params["chunker"] is None
-    assert init_params["meta_extractor"] is None
-
-
-def test_component_to_dict_custom_params() -> None:
-    converter = DoclingConverter(
-        convert_kwargs={"raises_on_error": False},
-        export_type=ExportType.MARKDOWN,
-        md_export_kwargs={"image_placeholder": "[img]"},
-    )
-    data = component_to_dict(converter, "docling_converter")
-
-    init_params = data["init_parameters"]
-    assert init_params["convert_kwargs"] == {"raises_on_error": False}
-    assert init_params["export_type"] == ExportType.MARKDOWN
-    assert init_params["md_export_kwargs"] == {"image_placeholder": "[img]"}
-
-
-def test_component_from_dict_defaults() -> None:
-    converter = DoclingConverter()
-    data = component_to_dict(converter, "docling_converter")
-    restored = component_from_dict(DoclingConverter, data, "docling_converter")
+    restored = DoclingConverter.from_dict(data)
 
     assert restored.converter is None
     assert restored.convert_kwargs == {}
@@ -213,17 +208,44 @@ def test_component_from_dict_defaults() -> None:
 
 
 def test_component_from_dict_custom_params() -> None:
-    converter = DoclingConverter(
-        convert_kwargs={"raises_on_error": False},
-        export_type=ExportType.JSON,
-        md_export_kwargs={"image_placeholder": "[img]"},
-    )
-    data = component_to_dict(converter, "docling_converter")
-    restored = component_from_dict(DoclingConverter, data, "docling_converter")
+    data = {
+        "type": "haystack_integrations.components.converters.docling.converter.DoclingConverter",
+        "init_parameters": {
+            "converter": None,
+            "convert_kwargs": {"raises_on_error": False},
+            "export_type": "json",
+            "md_export_kwargs": {"image_placeholder": "[img]"},
+            "chunker": None,
+            "meta_extractor": {
+                "type": "haystack_integrations.components.converters.docling.converter.MetaExtractor",
+                "data": {},
+            },
+        },
+    }
+    restored = DoclingConverter.from_dict(data)
 
+    assert restored.converter is None
     assert restored.convert_kwargs == {"raises_on_error": False}
     assert restored.export_type == ExportType.JSON
     assert restored.md_export_kwargs == {"image_placeholder": "[img]"}
+    assert restored.chunker is None
+    assert isinstance(restored.meta_extractor, MetaExtractor)
+
+
+def test_component_to_dict_chunker_warns_and_is_dropped() -> None:
+    converter = DoclingConverter(export_type=ExportType.DOC_CHUNKS, chunker=HybridChunker(merge_peers=False))
+
+    assert converter.to_dict() == {
+        "type": "haystack_integrations.components.converters.docling.converter.DoclingConverter",
+        "init_parameters": {
+            "converter": None,
+            "convert_kwargs": {},
+            "export_type": "doc_chunks",
+            "md_export_kwargs": {"image_placeholder": ""},
+            "chunker": None,
+            "meta_extractor": None,
+        },
+    }
 
 
 def test_run_with_sources_parameter() -> None:
@@ -462,11 +484,42 @@ class TestMetaExtractor:
     def test_extract_chunk_meta_wraps_export_json_dict(self) -> None:
         chunk = MagicMock()
         chunk.export_json_dict.return_value = {"some": "dict"}
+        chunk.meta.doc_items = []
 
         result = MetaExtractor().extract_chunk_meta(chunk=chunk)
 
         assert result == {"dl_meta": {"some": "dict"}}
         chunk.export_json_dict.assert_called_once_with()
+
+    def test_extract_chunk_meta_includes_page_number(self) -> None:
+        prov = MagicMock()
+        prov.page_no = 3
+        doc_item = MagicMock()
+        doc_item.prov = [prov]
+
+        chunk = MagicMock()
+        chunk.export_json_dict.return_value = {"some": "dict"}
+        chunk.meta.doc_items = [doc_item]
+
+        result = MetaExtractor().extract_chunk_meta(chunk=chunk)
+
+        assert result == {"dl_meta": {"some": "dict"}, "page_number": 3}
+
+    def test_extract_chunk_meta_page_number_uses_minimum(self) -> None:
+        prov1 = MagicMock()
+        prov1.page_no = 5
+        prov2 = MagicMock()
+        prov2.page_no = 3
+        doc_item = MagicMock()
+        doc_item.prov = [prov1, prov2]
+
+        chunk = MagicMock()
+        chunk.export_json_dict.return_value = {}
+        chunk.meta.doc_items = [doc_item]
+
+        result = MetaExtractor().extract_chunk_meta(chunk=chunk)
+
+        assert result["page_number"] == 3
 
     def test_extract_dl_doc_meta_with_origin(self) -> None:
         dl_doc = MagicMock()
@@ -490,3 +543,76 @@ def test_run_without_sources_or_paths_raises_value_error() -> None:
     converter = DoclingConverter(converter=MagicMock(), meta_extractor=MagicMock())
     with pytest.raises(ValueError, match=r"Either 'sources' or the deprecated 'paths' parameter must be provided."):
         converter.run()
+
+
+def test_run_doc_chunks_split_id_and_split_idx_start() -> None:
+    converter_mock = MagicMock()
+    chunker_mock = MagicMock()
+    meta_extractor_mock = MagicMock()
+
+    converter_mock.convert.return_value = SimpleNamespace(document="dl-doc")
+
+    chunks = [
+        SimpleNamespace(text="hello world"),
+        SimpleNamespace(text="foo bar baz"),
+    ]
+    chunker_mock.chunk.return_value = chunks
+    chunker_mock.contextualize.side_effect = lambda chunk: f"ctx:{chunk.text}"
+    meta_extractor_mock.extract_chunk_meta.return_value = {}
+
+    converter = DoclingConverter(
+        converter=converter_mock,
+        export_type=ExportType.DOC_CHUNKS,
+        chunker=chunker_mock,
+        meta_extractor=meta_extractor_mock,
+    )
+
+    result = converter.run(sources=["doc.pdf"])
+    documents = result["documents"]
+
+    assert len(documents) == 2
+    assert documents[0].meta["split_id"] == 0
+    assert documents[0].meta["split_idx_start"] == 0
+    assert documents[1].meta["split_id"] == 1
+    assert documents[1].meta["split_idx_start"] == len("hello world")
+
+
+def test_run_doc_chunks_split_id_resets_per_document() -> None:
+    converter_mock = MagicMock()
+    chunker_mock = MagicMock()
+    meta_extractor_mock = MagicMock()
+
+    converter_mock.convert.side_effect = [
+        SimpleNamespace(document="dl-doc-a"),
+        SimpleNamespace(document="dl-doc-b"),
+    ]
+    chunker_mock.chunk.side_effect = lambda dl_doc: [
+        SimpleNamespace(text=f"chunk-1-of-{dl_doc}"),
+        SimpleNamespace(text=f"chunk-2-of-{dl_doc}"),
+    ]
+    chunker_mock.contextualize.side_effect = lambda chunk: chunk.text
+    meta_extractor_mock.extract_chunk_meta.return_value = {}
+
+    converter = DoclingConverter(
+        converter=converter_mock,
+        export_type=ExportType.DOC_CHUNKS,
+        chunker=chunker_mock,
+        meta_extractor=meta_extractor_mock,
+    )
+
+    result = converter.run(sources=["a.pdf", "b.pdf"])
+    documents = result["documents"]
+
+    # split_id and split_idx_start reset for each source document
+    doc_a_chunks = documents[:2]
+    doc_b_chunks = documents[2:]
+
+    assert doc_a_chunks[0].meta["split_id"] == 0
+    assert doc_a_chunks[0].meta["split_idx_start"] == 0
+    assert doc_a_chunks[1].meta["split_id"] == 1
+    assert doc_a_chunks[1].meta["split_idx_start"] == len("chunk-1-of-dl-doc-a")
+
+    assert doc_b_chunks[0].meta["split_id"] == 0
+    assert doc_b_chunks[0].meta["split_idx_start"] == 0
+    assert doc_b_chunks[1].meta["split_id"] == 1
+    assert doc_b_chunks[1].meta["split_idx_start"] == len("chunk-1-of-dl-doc-b")

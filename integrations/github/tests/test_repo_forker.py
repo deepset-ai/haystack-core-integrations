@@ -272,3 +272,57 @@ class TestGitHubRepoForker:
         assert "Authorization" not in headers
         assert headers["Accept"] == "application/vnd.github.v3+json"
         assert headers["User-Agent"] == "Haystack/GitHubRepoForker"
+
+    @pytest.mark.parametrize(
+        "status_code,raises,expected",
+        [
+            (200, False, True),
+            (404, False, False),
+            (None, True, False),
+        ],
+    )
+    @patch("requests.get")
+    def test_check_fork_status(self, mock_get, status_code, raises, expected, monkeypatch):
+        monkeypatch.setenv("GITHUB_TOKEN", "test-token")
+        if raises:
+            mock_get.side_effect = requests.RequestException("boom")
+        else:
+            mock_get.return_value.status_code = status_code
+
+        forker = GitHubRepoForker()
+        assert forker._check_fork_status("test_user/repo") is expected
+
+    def test_get_existing_repository_returns_none_on_exception(self, monkeypatch):
+        monkeypatch.setenv("GITHUB_TOKEN", "test-token")
+
+        forker = GitHubRepoForker()
+        with (
+            patch.object(forker, "_get_authenticated_user", return_value="test_user"),
+            patch("requests.get", side_effect=requests.RequestException("boom")),
+        ):
+            assert forker._get_existing_repository("repo") is None
+
+    @pytest.mark.parametrize("succeeds_within_timeout", [True, False])
+    def test_run_wait_for_completion(self, succeeds_within_timeout, monkeypatch):
+        monkeypatch.setenv("GITHUB_TOKEN", "test-token")
+
+        forker = GitHubRepoForker(
+            wait_for_completion=True,
+            max_wait_seconds=5 if succeeds_within_timeout else 0,
+            poll_interval=0,
+            create_branch=False,
+        )
+        with (
+            patch.object(forker, "_parse_github_url", return_value=("owner", "repo", "123")),
+            patch.object(forker, "_get_authenticated_user", return_value="test_user"),
+            patch.object(forker, "_get_existing_repository", return_value=None),
+            patch.object(forker, "_create_fork", return_value="test_user/repo"),
+            patch.object(forker, "_check_fork_status", side_effect=[False, True]),
+            patch("time.sleep", lambda _: None),
+        ):
+            if succeeds_within_timeout:
+                result = forker.run(url="https://github.com/owner/repo/issues/123")
+                assert result == {"repo": "test_user/repo", "issue_branch": None}
+            else:
+                with pytest.raises(TimeoutError):
+                    forker.run(url="https://github.com/owner/repo/issues/123")
