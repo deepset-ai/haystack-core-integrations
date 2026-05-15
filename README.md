@@ -5,12 +5,12 @@
 | Name                                                                                            |    Stmts |     Miss |   Branch |   BrPart |   Cover |   Missing |
 |------------------------------------------------------------------------------------------------ | -------: | -------: | -------: | -------: | ------: | --------: |
 | src/haystack\_integrations/components/common/google\_genai/utils.py                             |       32 |        0 |       16 |        0 |    100% |           |
-| src/haystack\_integrations/components/embedders/google\_genai/document\_embedder.py             |       96 |        4 |       30 |        5 |     93% |211-\>214, 222, 243-\>246, 254, 306-310 |
-| src/haystack\_integrations/components/embedders/google\_genai/multimodal\_document\_embedder.py |      145 |        6 |       52 |        7 |     93% |309-310, 330-\>333, 352-\>325, 373-\>376, 384-385, 388-393, 395-\>368 |
-| src/haystack\_integrations/components/embedders/google\_genai/text\_embedder.py                 |       46 |        0 |        4 |        1 |     98% | 170-\>173 |
+| src/haystack\_integrations/components/embedders/google\_genai/document\_embedder.py             |       98 |        5 |       30 |        4 |     93% |228, 251, 261, 313-317 |
+| src/haystack\_integrations/components/embedders/google\_genai/multimodal\_document\_embedder.py |      143 |        8 |       52 |        7 |     92% |305-306, 327, 348-\>321, 370, 380-381, 384-389, 391-\>364 |
+| src/haystack\_integrations/components/embedders/google\_genai/text\_embedder.py                 |       46 |        0 |        4 |        0 |    100% |           |
 | src/haystack\_integrations/components/generators/google\_genai/chat/chat\_generator.py          |      155 |        1 |       36 |        1 |     99% |       560 |
 | src/haystack\_integrations/components/generators/google\_genai/chat/utils.py                    |      306 |       14 |      178 |       16 |     93% |222-223, 261-263, 270-\>278, 283-\>288, 327-329, 390-\>288, 453, 463-465, 503-\>537, 506-\>537, 533-\>507, 609-\>613, 661-\>632, 732-\>738, 738-\>724, 748, 754 |
-| **TOTAL**                                                                                       |  **780** |   **25** |  **316** |   **30** | **95%** |           |
+| **TOTAL**                                                                                       |  **780** |   **28** |  **316** |   **28** | **95%** |           |
 
 
 ## Setup coverage badge
