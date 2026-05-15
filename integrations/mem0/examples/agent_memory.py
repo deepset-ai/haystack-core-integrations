@@ -2,7 +2,8 @@
 Example: Haystack Agent with Mem0 long-term memory tools.
 
 The Agent can call `retrieve_memories` before answering to recall relevant context,
-and `store_memory` after answering to persist new facts for future sessions.
+and `store_memory` after answering to persist new facts for future sessions. The
+writer tool stores the model-selected memory text directly by default.
 
 The `user_id` is passed to each `agent.run()` call and injected into the tools
 via State, so a single Agent instance can serve multiple users without rebuilding.

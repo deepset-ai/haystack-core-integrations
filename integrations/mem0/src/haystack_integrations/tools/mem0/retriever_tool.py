@@ -24,16 +24,15 @@ _PARAMETERS: dict[str, Any] = {
     "required": ["query"],
 }
 
-_DEFAULT_INPUTS_FROM_STATE: dict[str, str] = {"user_id": "user_id", "run_id": "run_id", "agent_id": "agent_id"}
+_DEFAULT_INPUTS_FROM_STATE: dict[str, str] = {"user_id": "user_id"}
 
 
 class Mem0MemoryRetrieverTool(Tool):
     """
     A tool that searches a Mem0MemoryStore for relevant memories.
 
-    All scoping IDs (`user_id`, `run_id`, `agent_id`) are injected at runtime
-    from Agent State via `inputs_from_state`, so a single tool instance can serve
-    many users and sessions. The LLM only sees `query` and `top_k`.
+    The `user_id` is injected at runtime from Agent State via `inputs_from_state`,
+    so a single tool instance can serve many users. The LLM only sees `query` and `top_k`.
     """
 
     def __init__(
@@ -53,7 +52,7 @@ class Mem0MemoryRetrieverTool(Tool):
         :param name: Tool name exposed to the LLM.
         :param description: Tool description exposed to the LLM.
         :param inputs_from_state: Mapping of state keys to tool parameter names. Defaults to injecting
-            `user_id`, `run_id`, and `agent_id` from state.
+            `user_id` from state.
         """
         self.memory_store = memory_store
         self.top_k = top_k
@@ -62,7 +61,7 @@ class Mem0MemoryRetrieverTool(Tool):
             name=name,
             description=description,
             parameters=_PARAMETERS,
-            function=self._retrieve,
+            function=self.retrieve,
             inputs_from_state=inputs_from_state if inputs_from_state is not None else _DEFAULT_INPUTS_FROM_STATE,
         )
 
@@ -73,7 +72,7 @@ class Mem0MemoryRetrieverTool(Tool):
         self.memory_store.warm_up()
         self._is_warmed_up = True
 
-    def _retrieve(
+    def retrieve(
         self,
         query: str,
         top_k: int | None = None,
@@ -81,6 +80,16 @@ class Mem0MemoryRetrieverTool(Tool):
         run_id: str | None = None,
         agent_id: str | None = None,
     ) -> str:
+        """
+        Retrieve memories relevant to a query.
+
+        :param query: Text query used to search for relevant memories.
+        :param top_k: Maximum number of memories to return. Overrides the tool default.
+        :param user_id: User ID to scope the search.
+        :param run_id: Run ID to scope the search.
+        :param agent_id: Agent ID to scope the search.
+        :returns: Retrieved memories formatted for the Agent, or a message when no memories were found.
+        """
         memories: list[ChatMessage] = self.memory_store.search_memories(
             query=query,
             top_k=top_k if top_k is not None else self.top_k,

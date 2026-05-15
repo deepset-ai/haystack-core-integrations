@@ -111,6 +111,16 @@ class TestMem0MemoryStore:
 
         assert mock_mem0_client.add.call_args[1]["infer"] is False
 
+    def test_add_memories_infer_overrides_init_default(self, monkeypatch, mock_mem0_client):
+        monkeypatch.setenv("MEM0_API_KEY", "test-key")
+        mock_mem0_client.add.return_value = {"results": []}
+        mock_mem0_client.project = Mock()
+
+        store = Mem0MemoryStore(infer=True)
+        store.add_memories(messages=[ChatMessage.from_user("test")], user_id="u1", infer=False)
+
+        assert mock_mem0_client.add.call_args[1]["infer"] is False
+
     def test_add_memories_skips_empty_text(self, monkeypatch, mock_mem0_client):
         monkeypatch.setenv("MEM0_API_KEY", "test-key")
         mock_mem0_client.add.return_value = {"results": []}

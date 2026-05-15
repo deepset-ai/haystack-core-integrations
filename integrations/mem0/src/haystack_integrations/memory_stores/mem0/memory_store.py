@@ -76,6 +76,7 @@ class Mem0MemoryStore:
         user_id: str | None = None,
         run_id: str | None = None,
         agent_id: str | None = None,
+        infer: bool | None = None,
         **kwargs: Any,
     ) -> list[dict[str, Any]]:
         """
@@ -85,6 +86,8 @@ class Mem0MemoryStore:
         :param user_id: User ID to scope these memories.
         :param run_id: Run ID to scope these memories.
         :param agent_id: Agent ID to scope these memories. Required for Mem0 to store assistant messages.
+        :param infer: If True, Mem0 extracts memories from messages. If False, Mem0 stores message text as-is.
+            If omitted, uses the store's init-time default.
         :param kwargs: Additional keyword arguments forwarded to the Mem0 client add method.
             Note: ChatMessage.meta is ignored because Mem0 doesn't support per-message metadata.
             Pass `metadata` as a kwarg to attach metadata to the whole batch instead.
@@ -98,7 +101,12 @@ class Mem0MemoryStore:
         mem0_messages = [{"content": msg.text, "role": msg.role.value} for msg in messages if msg.text]
         added: list[dict[str, Any]] = []
         try:
-            status = self.client.add(messages=mem0_messages, infer=self.infer, **ids, **kwargs)
+            status = self.client.add(
+                messages=mem0_messages,
+                infer=self.infer if infer is None else infer,
+                **ids,
+                **kwargs,
+            )
             if status and "results" in status:
                 for result in status["results"]:
                     data = result.get("data")
