@@ -190,9 +190,37 @@ class TestUtils:
         assert observed.role == "assistant"
         assert observed.text is None
         assert observed.tool_call == ToolCall(
+            id="call_0",
             tool_name="get_current_weather",
             arguments={"format": "celsius", "location": "Paris, FR"},
         )
+
+    def test_convert_ollama_response_to_chatmessage_with_repeated_tool(self):
+        ollama_response = ChatResponse(
+            model="some_model",
+            created_at="2023-12-12T14:13:43.416799Z",
+            message={
+                "role": "assistant",
+                "content": "",
+                "tool_calls": [
+                    {"function": {"name": "weather", "arguments": {"city": "Paris"}}},
+                    {"function": {"name": "weather", "arguments": {"city": "London"}}},
+                ],
+            },
+            done=True,
+            total_duration=5191566416,
+            load_duration=2154458,
+            prompt_eval_count=26,
+            prompt_eval_duration=383809000,
+            eval_count=298,
+            eval_duration=4799921000,
+        )
+
+        observed = _convert_ollama_response_to_chatmessage(ollama_response)
+
+        assert len(observed.tool_calls) == 2
+        assert observed.tool_calls[0] == ToolCall(id="call_0", tool_name="weather", arguments={"city": "Paris"})
+        assert observed.tool_calls[1] == ToolCall(id="call_1", tool_name="weather", arguments={"city": "London"})
 
     def test_build_chunk(self):
         generator = OllamaChatGenerator()
@@ -386,8 +414,10 @@ class TestUtils:
         assert result["replies"][0].text is None
         assert result["replies"][0].tool_calls[0].tool_name == "calculator"
         assert result["replies"][0].tool_calls[0].arguments == {"expression": "7 * (4 + 2)"}
+        assert result["replies"][0].tool_calls[0].id == "call_1"
         assert result["replies"][0].tool_calls[1].tool_name == "factorial"
         assert result["replies"][0].tool_calls[1].arguments == {"n": 5}
+        assert result["replies"][0].tool_calls[1].id == "call_2"
         assert result["replies"][0].meta["finish_reason"] == "stop"
         assert result["replies"][0].meta["model"] == "qwen3:0.6b"
 
@@ -400,7 +430,7 @@ class TestUtils:
         expected = {
             "index": 1,
             "arguments": '{"expression": "7 * (4 + 2)"}',
-            "id": None,
+            "id": "call_1",
             "tool_name": "calculator",
         }
         # We add extra to the expected dict if it exists in the result for comparison
@@ -413,7 +443,7 @@ class TestUtils:
             "index": 2,
             "tool_name": "factorial",
             "arguments": '{"n": 5}',
-            "id": None,
+            "id": "call_2",
         }
         # We add extra to the expected dict if it exists in the result for comparison
         # This was added in PR https://github.com/deepset-ai/haystack/pull/10018 and released in Haystack 2.20.0
@@ -421,6 +451,62 @@ class TestUtils:
             expected["extra"] = streaming_chunks[1].tool_calls[0].to_dict()["extra"]
         assert streaming_chunks[1].tool_calls[0].to_dict() == expected
         assert len(streaming_chunks[2].tool_calls) == 0
+
+    def test_handle_streaming_response_repeated_tool_calls(self):
+        ollama_chunks = [
+            ChatResponse(
+                model="qwen3:0.6b",
+                created_at="2025-07-31T14:48:03.471292Z",
+                done=False,
+                message=Message(
+                    role="assistant",
+                    content="",
+                    tool_calls=[
+                        Message.ToolCall(
+                            function=Message.ToolCall.Function(name="weather", arguments={"city": "Paris"})
+                        )
+                    ],
+                ),
+            ),
+            ChatResponse(
+                model="qwen3:0.6b",
+                created_at="2025-07-31T14:48:03.660179Z",
+                done=False,
+                message=Message(
+                    role="assistant",
+                    content="",
+                    tool_calls=[
+                        Message.ToolCall(
+                            function=Message.ToolCall.Function(name="weather", arguments={"city": "London"})
+                        )
+                    ],
+                ),
+            ),
+            ChatResponse(
+                model="qwen3:0.6b",
+                created_at="2025-07-31T14:48:03.678729Z",
+                done=True,
+                done_reason="stop",
+                total_duration=774786292,
+                load_duration=43608375,
+                prompt_eval_count=217,
+                prompt_eval_duration=312974541,
+                eval_count=46,
+                eval_duration=417069750,
+                message=Message(role="assistant", content=""),
+            ),
+        ]
+
+        generator = OllamaChatGenerator()
+        result = generator._handle_streaming_response(ollama_chunks, None)
+
+        assert len(result["replies"][0].tool_calls) == 2
+        assert result["replies"][0].tool_calls[0].tool_name == "weather"
+        assert result["replies"][0].tool_calls[0].arguments == {"city": "Paris"}
+        assert result["replies"][0].tool_calls[0].id == "call_1"
+        assert result["replies"][0].tool_calls[1].tool_name == "weather"
+        assert result["replies"][0].tool_calls[1].arguments == {"city": "London"}
+        assert result["replies"][0].tool_calls[1].id == "call_2"
 
     def test_handle_streaming_response_tool_calls_with_thinking(self):
         ollama_chunks = [
@@ -536,6 +622,7 @@ class TestUtils:
         assert result["replies"][0].text is None
         assert result["replies"][0].tool_calls[0].tool_name == "add_two_numbers"
         assert result["replies"][0].tool_calls[0].arguments == {"a": 2, "b": 2}
+        assert result["replies"][0].tool_calls[0].id == "call_1"
         assert result["replies"][0].reasoning.reasoning_text == "Okay, the user is asking 2 plus 2."
         assert result["replies"][0].meta["finish_reason"] == "stop"
         assert result["replies"][0].meta["model"] == "qwen3:0.6b"
@@ -564,7 +651,7 @@ class TestUtils:
         expected = {
             "index": 1,
             "arguments": '{"a": 2, "b": 2}',
-            "id": None,
+            "id": "call_1",
             "tool_name": "add_two_numbers",
         }
         serialized_dict = streaming_chunks[12].tool_calls[0].to_dict()

@@ -165,9 +165,10 @@ def _convert_ollama_response_to_chatmessage(ollama_response: ChatResponse) -> Ch
     tool_calls: list[ToolCall] = []
 
     if ollama_tool_calls := ollama_message.get("tool_calls"):
-        for ollama_tc in ollama_tool_calls:
+        for idx, ollama_tc in enumerate(ollama_tool_calls):
             tool_calls.append(
                 ToolCall(
+                    id=ollama_tc.get("id") or f"call_{idx}",
                     tool_name=ollama_tc["function"]["name"],
                     arguments=ollama_tc["function"]["arguments"],
                 )
@@ -208,6 +209,7 @@ def _build_chunk(
             tool_calls_list.append(
                 ToolCallDelta(
                     index=tool_call_index,
+                    id=tool_call.get("id") or f"call_{tool_call_index}",
                     tool_name=tool_call["function"]["name"],
                     arguments=json.dumps(tool_call["function"]["arguments"])
                     if tool_call["function"]["arguments"]
@@ -400,28 +402,14 @@ class OllamaChatGenerator:
 
             if chunk.tool_calls:
                 for tool_call in chunk.tool_calls:
-                    # the Ollama server doesn't guarantee an id field in every tool_calls entry.
-                    # OpenAI-compatible endpoint (/v1/chat/completions) - recent releases do add an auto-generated id
-                    # when the model produces multiple tool calls, so that clients can map results back.
-                    # Native Ollama endpoint (/api/chat) and older builds
-                    # - the JSON often contains only function.name + arguments;
-                    # many users have reported that id is missing even with several calls,
-                    # making client-side resolution harder:
-                    # https://github.com/ollama/ollama/issues/6708
-                    # https://github.com/ollama/ollama/issues/7510
-                    # - If id is provided → we can distinguish multiple calls to the same tool.
-
-                    # - If id is missing → fallback to function.name works only when there's one call.
-                    # - That's why the deduplication logic is cautious and assumes one logical
-                    #   call per name when id is absent.
+                    # id is always set by _build_chunk (either from the server or synthetic "call_N").
+                    # Fall back to tool_name only as a last resort for callers that bypass _build_chunk.
                     tool_call_id = tool_call.id or tool_call.tool_name or ""
                     args = tool_call.arguments or ""
 
-                    # Remember first-seen order and tool name
                     if tool_call_id not in id_order:
                         id_order.append(tool_call_id)
                         name_by_id[tool_call_id] = tool_call.tool_name or ""
-                    # Update the argument accumulator for this tool_call_id.
                     arg_by_id[tool_call_id] = args
 
             if callback:
@@ -437,7 +425,9 @@ class OllamaChatGenerator:
         tool_calls = []
         for tool_call_id in id_order:
             arguments: str = arg_by_id.get(tool_call_id, "")
-            tool_calls.append(ToolCall(tool_name=name_by_id[tool_call_id], arguments=json.loads(arguments)))
+            tool_calls.append(
+                ToolCall(id=tool_call_id, tool_name=name_by_id[tool_call_id], arguments=json.loads(arguments))
+            )
 
         # We can't use _convert_streaming_chunks_to_chat_message because
         # we need to map tool_call name and args by order.
@@ -497,11 +487,9 @@ class OllamaChatGenerator:
                     tool_call_id = tool_call.id or tool_call.tool_name or ""
                     args = tool_call.arguments or ""
 
-                    # Remember first-seen order and tool name
                     if tool_call_id not in id_order:
                         id_order.append(tool_call_id)
                         name_by_id[tool_call_id] = tool_call.tool_name or ""
-                    # Update the argument accumulator for this tool_call_id
                     arg_by_id[tool_call_id] = args
 
             if callback is not None:
@@ -519,7 +507,9 @@ class OllamaChatGenerator:
         tool_calls = []
         for tool_call_id in id_order:
             arguments: str = arg_by_id.get(tool_call_id, "")
-            tool_calls.append(ToolCall(tool_name=name_by_id[tool_call_id], arguments=json.loads(arguments)))
+            tool_calls.append(
+                ToolCall(id=tool_call_id, tool_name=name_by_id[tool_call_id], arguments=json.loads(arguments))
+            )
 
         # We can't use _convert_streaming_chunks_to_chat_message because
         # we need to map tool_call name and args by order.
