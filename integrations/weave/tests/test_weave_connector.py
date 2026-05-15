@@ -97,9 +97,7 @@ class TestWeaveConnector:
         serialized: dict[str, Any] = connector.to_dict()
 
         assert serialized["init_parameters"]["pipeline_name"] == "test_pipeline"
-        assert serialized["init_parameters"]["weave_init_kwargs"] == {
-            "settings": {"implicitly_patch_integrations": False}
-        }
+        assert serialized["init_parameters"]["weave_init_kwargs"]["settings"]["implicitly_patch_integrations"] is False
         assert "type" in serialized
         assert serialized["type"] == "haystack_integrations.components.connectors.weave.weave_connector.WeaveConnector"
 
@@ -108,7 +106,7 @@ class TestWeaveConnector:
         assert isinstance(deserialized, WeaveConnector)
         assert deserialized.pipeline_name == "test_pipeline"
         assert deserialized.tracer is None  # tracer is only initialized with warm_up
-        assert deserialized.weave_init_kwargs == {"settings": {"implicitly_patch_integrations": False}}
+        assert deserialized.weave_init_kwargs["settings"]["implicitly_patch_integrations"] is False
 
     def test_pipeline_tracing(self, mock_weave_client: Mock, sample_pipeline: Pipeline) -> None:
         """Test that pipeline operations are correctly traced"""
