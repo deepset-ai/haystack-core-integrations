@@ -80,11 +80,11 @@ class Mem0MemoryWriterTool(Tool):
     def store(
         self,
         text: str,
+        infer: bool = False,
         user_id: str | None = None,
         run_id: str | None = None,
         agent_id: str | None = None,
         app_id: str | None = None,
-        infer: bool = False,
     ) -> str:
         """
         Store text as a memory.
@@ -99,11 +99,11 @@ class Mem0MemoryWriterTool(Tool):
         """
         result = self.memory_store.add_memories(
             messages=[ChatMessage.from_user(text)],
+            infer=infer,
             user_id=user_id,
             run_id=run_id,
             agent_id=agent_id,
             app_id=app_id,
-            infer=infer,
         )
         count = len(result) if isinstance(result, list) else 0
         return f"Stored {count} memory item(s)."
