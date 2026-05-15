@@ -15,6 +15,8 @@ import pytest
 
 from haystack_integrations.document_stores.vespa import VespaDocumentStore
 
+VESPA_APP_CONTAINER_DIR = "/tmp/vespa_app"  # noqa: S108
+
 HOSTS_XML = """<?xml version="1.0" encoding="utf-8" ?>
 <hosts>
   <host name="localhost">
@@ -150,7 +152,6 @@ def deployed_vespa_app(tmp_path_factory):
         pytest.skip("Set VESPA_RUN_INTEGRATION_TESTS=1 and start Vespa with docker compose.")
 
     app_dir = _write_vespa_app(tmp_path_factory.mktemp("vespa_app"))
-    subprocess.run(["docker", "cp", str(app_dir), "vespa:/tmp/vespa_app"], check=True)
     subprocess.run(
         [
             "docker",
@@ -158,7 +159,21 @@ def deployed_vespa_app(tmp_path_factory):
             "vespa",
             "bash",
             "-lc",
-            "/opt/vespa/bin/vespa-deploy prepare /tmp/vespa_app && /opt/vespa/bin/vespa-deploy activate",
+            f"rm -rf {VESPA_APP_CONTAINER_DIR} && mkdir -p {VESPA_APP_CONTAINER_DIR}",
+        ],
+        check=True,
+    )
+    subprocess.run(["docker", "cp", str(app_dir) + os.sep + ".", f"vespa:{VESPA_APP_CONTAINER_DIR}"], check=True)
+    subprocess.run(
+        [
+            "docker",
+            "exec",
+            "vespa",
+            "bash",
+            "-lc",
+            f"test -f {VESPA_APP_CONTAINER_DIR}/services.xml && "
+            f"/opt/vespa/bin/vespa-deploy prepare {VESPA_APP_CONTAINER_DIR} && "
+            "/opt/vespa/bin/vespa-deploy activate",
         ],
         check=True,
     )
