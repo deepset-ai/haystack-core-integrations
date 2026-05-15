@@ -6,8 +6,8 @@
 |---------------------------------------------------------------------------------- | -------: | -------: | -------: | -------: | ------: | --------: |
 | src/haystack\_integrations/components/retrievers/falkordb/cypher\_retriever.py    |       27 |        0 |        4 |        0 |    100% |           |
 | src/haystack\_integrations/components/retrievers/falkordb/embedding\_retriever.py |       30 |        0 |        4 |        1 |     97% |   90-\>92 |
-| src/haystack\_integrations/document\_stores/falkordb/document\_store.py           |      272 |       17 |       90 |        1 |     93% |210-214, 224-232, 432-434, 538-540, 596-599 |
-| **TOTAL**                                                                         |  **329** |   **17** |   **98** |    **2** | **94%** |           |
+| src/haystack\_integrations/document\_stores/falkordb/document\_store.py           |      358 |       21 |      110 |        4 |     93% |210-214, 224-232, 432-434, 560, 563, 615-616, 717-719, 775-778 |
+| **TOTAL**                                                                         |  **415** |   **21** |  **118** |    **5** | **94%** |           |
 
 
 ## Setup coverage badge
