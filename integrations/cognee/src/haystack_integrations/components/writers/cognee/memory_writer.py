@@ -31,9 +31,7 @@ class CogneeWriter:
         Initialize the writer.
 
         :param memory_store: Backing `CogneeMemoryStore` to write into.
-        :param session_id: When set, writes go to cognee's session cache under this
-            id; overrides the store's `session_id` for this writer. When `None`,
-            falls back to the store's tier.
+        :param session_id: Overrides the store's `session_id` for this writer's writes.
         """
         if not isinstance(memory_store, CogneeMemoryStore):
             msg = "memory_store must be an instance of CogneeMemoryStore"

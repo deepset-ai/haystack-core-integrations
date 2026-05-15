@@ -56,7 +56,7 @@ def _run_sync(coro: Coroutine[Any, Any, T]) -> T:
         if _background_loop is None or _background_loop.is_closed():
             _background_loop = asyncio.new_event_loop()
             threading.Thread(target=_background_loop.run_forever, daemon=True).start()
-    return asyncio.run_coroutine_threadsafe(coro, _background_loop).result()
+    return asyncio.run_coroutine_threadsafe(coro, _background_loop).result(timeout=300)
 
 
 async def _resolve_user(user_id: str | None) -> Any:
@@ -131,7 +131,6 @@ class CogneeMemoryStore:
         messages: list[ChatMessage],
         user_id: str | None = None,
         session_id: str | None = None,
-        **_: Any,
     ) -> None:
         """
         Persist messages via `cognee.remember`.
@@ -183,7 +182,6 @@ class CogneeMemoryStore:
         query: str | None = None,
         top_k: int | None = None,
         user_id: str | None = None,
-        **_: Any,
     ) -> list[ChatMessage]:
         """
         Search via `cognee.recall` and wrap each hit in a system `ChatMessage`.
@@ -233,7 +231,7 @@ class CogneeMemoryStore:
         _run_sync(_improve())
         logger.info("Improved '{ds}' (session={s})", ds=self.dataset_name, s=target_session)
 
-    def delete_all_memories(self, *, user_id: str | None = None, **_: Any) -> None:
+    def delete_all_memories(self, *, user_id: str | None = None) -> None:
         """
         Delete this dataset via `cognee.forget(dataset=...)`.
 
@@ -247,11 +245,6 @@ class CogneeMemoryStore:
 
         _run_sync(_delete())
         logger.info("Deleted '{ds}'", ds=self.dataset_name)
-
-    def delete_memory(self, memory_id: str) -> None:
-        """Single-memory deletion is not exposed by cognee's public API yet."""
-        msg = "CogneeMemoryStore does not support deleting individual memories."
-        raise NotImplementedError(msg)
 
     def to_dict(self) -> dict[str, Any]:
         """Serialize this store for pipeline persistence."""

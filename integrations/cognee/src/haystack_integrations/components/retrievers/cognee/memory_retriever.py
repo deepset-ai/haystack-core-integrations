@@ -25,7 +25,6 @@ class CogneeRetriever:
 
         :param memory_store: Backing `CogneeMemoryStore` to query.
         :param top_k: Default max results; falls back to the store's `top_k` when `None`.
-            Overridable per-call via `run`.
         """
         if not isinstance(memory_store, CogneeMemoryStore):
             msg = "memory_store must be an instance of CogneeMemoryStore"

@@ -6,7 +6,6 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import uuid4
 
-import pytest
 from haystack.dataclasses import ChatMessage
 
 from haystack_integrations.memory_stores.cognee import CogneeMemoryStore
@@ -263,8 +262,3 @@ class TestCogneeMemoryStore:
         store.delete_all_memories()
 
         mock_cognee.forget.assert_awaited_once_with(dataset="ds", user=None)
-
-    def test_delete_memory_raises(self):
-        store = CogneeMemoryStore()
-        with pytest.raises(NotImplementedError):
-            store.delete_memory("some-id")
