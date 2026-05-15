@@ -1,13 +1,11 @@
 services:
   vespa:
-    image: vespaengine/vespa:latest
+    image: vespaengine/vespa:8.687.75
     container_name: vespa
     hostname: vespa
     ports:
       - "8080:8080"
       - "19071:19071"
-    volumes:
-      - ./vespa_app:/vespa_app:ro
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:19071/ApplicationStatus"]
       interval: 10s

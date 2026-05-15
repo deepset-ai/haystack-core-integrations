@@ -4,7 +4,6 @@
 
 from __future__ import annotations
 
-import inspect
 import os
 from collections.abc import Iterable
 from datetime import datetime
@@ -14,6 +13,7 @@ from haystack import default_to_dict, logging
 from haystack.dataclasses import Document
 from haystack.document_stores.errors import DuplicateDocumentError
 from haystack.document_stores.types import DuplicatePolicy
+from haystack.utils import Secret
 from haystack.utils.filters import document_matches_filter
 
 from vespa.application import Vespa
@@ -60,9 +60,9 @@ class VespaDocumentStore:
         *,
         url: str | None = None,
         port: int = 8080,
-        cert: str | None = None,
-        key: str | None = None,
-        vespa_cloud_secret_token: str | None = None,
+        cert: Secret | None = None,
+        key: Secret | None = None,
+        vespa_cloud_secret_token: Secret | None = None,
         additional_headers: dict[str, str] | None = None,
         content_cluster_name: str = "content",
         schema: str = "doc",
@@ -79,10 +79,10 @@ class VespaDocumentStore:
 
         :param url: Vespa endpoint base URL. If omitted, the `VESPA_URL` environment variable is used.
         :param port: Vespa HTTP port.
-        :param cert: Path to the data plane certificate file for mTLS authentication.
-        :param key: Path to the data plane key file for mTLS authentication.
+        :param cert: Secret resolving to the data plane certificate file path for mTLS authentication.
+        :param key: Secret resolving to the data plane key file path for mTLS authentication.
         :param vespa_cloud_secret_token: Vespa Cloud data plane secret token for token authentication.
-            If omitted, the ``VESPA_CLOUD_SECRET_TOKEN`` environment variable is used when set, matching pyvespa.
+            If omitted, the `VESPA_CLOUD_SECRET_TOKEN` environment variable is used when set, matching pyvespa.
         :param additional_headers: Additional headers to send to the Vespa application.
         :param content_cluster_name: Vespa content cluster name.
         :param schema: Vespa schema name to read from and write to.
@@ -101,7 +101,9 @@ class VespaDocumentStore:
         self.port = port
         self.cert = cert
         self.key = key
-        self.vespa_cloud_secret_token = vespa_cloud_secret_token or os.environ.get(VESPA_CLOUD_SECRET_TOKEN_ENV)
+        self.vespa_cloud_secret_token = vespa_cloud_secret_token or Secret.from_env_var(
+            VESPA_CLOUD_SECRET_TOKEN_ENV, strict=False
+        )
         self.additional_headers = additional_headers
         self.content_cluster_name = content_cluster_name
         self.schema = schema
@@ -117,10 +119,10 @@ class VespaDocumentStore:
     @property
     def app(self) -> Any:
         """
-        Return the underlying ``pyvespa`` ``Vespa`` HTTP client.
+        Return the underlying `pyvespa` `Vespa` HTTP client.
 
-        It is built from this store's ``url``, ``port``, and authentication settings
-        (``cert``, ``key``, ``vespa_cloud_secret_token``, ``additional_headers``) so mTLS, bearer token,
+        It is built from this store's `url`, `port`, and authentication settings
+        (`cert`, `key`, `vespa_cloud_secret_token`, `additional_headers`) so mTLS, bearer token,
         and custom headers from the constructor (or environment) are applied.
         """
         if self._app is None:
@@ -130,9 +132,9 @@ class VespaDocumentStore:
             self._app = Vespa(
                 url=self.url,
                 port=self.port,
-                cert=self.cert,
-                key=self.key,
-                vespa_cloud_secret_token=self.vespa_cloud_secret_token,
+                cert=self.cert.resolve_value() if self.cert else None,
+                key=self.key.resolve_value() if self.key else None,
+                vespa_cloud_secret_token=self.vespa_cloud_secret_token.resolve_value(),
                 additional_headers=self.additional_headers,
             )
         return self._app
@@ -141,17 +143,29 @@ class VespaDocumentStore:
         """
         Serialize the document store to a dictionary.
 
-        Uses the same init-parameter names as :meth:`__init__` and ``default_to_dict`` so nested serialization stays
+        Uses the same init-parameter names as :meth:`__init__` and `default_to_dict` so nested serialization stays
         aligned with Haystack's default component serialization.
 
         :returns: Serialized document store data.
         """
-        init_parameters: dict[str, Any] = {}
-        for name, param in inspect.signature(self.__class__.__init__).parameters.items():
-            if name == "self" or param.kind in (param.VAR_POSITIONAL, param.VAR_KEYWORD):
-                continue
-            init_parameters[name] = getattr(self, name)
-        return default_to_dict(self, **init_parameters)
+        return default_to_dict(
+            self,
+            url=self.url,
+            port=self.port,
+            cert=self.cert,
+            key=self.key,
+            vespa_cloud_secret_token=self.vespa_cloud_secret_token,
+            additional_headers=self.additional_headers,
+            content_cluster_name=self.content_cluster_name,
+            schema=self.schema,
+            namespace=self.namespace,
+            groupname=self.groupname,
+            content_field=self.content_field,
+            embedding_field=self.embedding_field,
+            id_field=self.id_field,
+            metadata_fields=self.metadata_fields,
+            query_limit=self.query_limit,
+        )
 
     def count_documents(self) -> int:
         """
@@ -232,7 +246,7 @@ class VespaDocumentStore:
         """
         Delete all documents for this store's schema, namespace, and content cluster.
 
-        Implemented with pyvespa ``Vespa.delete_all_docs`` (Document V1 bulk delete).
+        Implemented with pyvespa `Vespa.delete_all_docs` (Document V1 bulk delete).
         """
         self.app.delete_all_docs(
             content_cluster_name=self.content_cluster_name,
@@ -374,7 +388,7 @@ class VespaDocumentStore:
             that scores with `closeness(field, embedding)`. Defaults to `semantic`. Pass `None` to use the schema
             default. See https://docs.vespa.ai/en/basics/ranking.html.
         :param query_tensor_name: Name of the query tensor in YQL and in `input.query(...)` in your rank profile.
-            For example `query_embedding` matches the default `semantic` profile under `vespa_app/`. See
+            For example `query_embedding` matches the default `semantic` profile used by the integration tests. See
             https://docs.vespa.ai/en/nearest-neighbor-search.html.
         :param target_hits: Optional nearest-neighbor `targetHits` value, for example `10` or `100`, controlling how
             many neighbors are considered per content node before first-phase ranking. See

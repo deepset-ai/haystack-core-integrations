@@ -15,6 +15,7 @@ from haystack.testing.document_store import (
     DocumentStoreBaseExtendedTests,
     GetMetadataFieldsInfoTest,
 )
+from haystack.utils import Secret
 
 from haystack_integrations.document_stores.vespa import VespaDocumentStore
 from haystack_integrations.document_stores.vespa.errors import VespaDocumentStoreError
@@ -32,7 +33,7 @@ VESPA_TEST_EMBEDDING_2 = _random_embeddings_vespa()
 
 
 def create_vespa_filterable_docs() -> list[Document]:
-    """Haystack ``create_filterable_docs`` shape with Vespa-compatible 3-dimensional embeddings."""
+    """Haystack `create_filterable_docs` shape with Vespa-compatible 3-dimensional embeddings."""
 
     documents: list[Document] = []
 
@@ -115,9 +116,9 @@ def store():
 def test_to_dict_from_dict():
     document_store = VespaDocumentStore(
         url="http://localhost",
-        cert="/path/to/cert.pem",
-        key="/path/to/key.pem",
-        vespa_cloud_secret_token="token",
+        cert=Secret.from_env_var("VESPA_CERT"),
+        key=Secret.from_env_var("VESPA_KEY"),
+        vespa_cloud_secret_token=Secret.from_env_var("VESPA_CLOUD_SECRET_TOKEN"),
         additional_headers={"X-Custom-Header": "test"},
         schema="docs",
         namespace="docs",
@@ -139,9 +140,9 @@ def test_app_initializes_pyvespa_with_auth_parameters():
     document_store = VespaDocumentStore(
         url="https://example.vespa-app.cloud",
         port=443,
-        cert="/path/to/cert.pem",
-        key="/path/to/key.pem",
-        vespa_cloud_secret_token="token",
+        cert=Secret.from_token("/path/to/cert.pem"),
+        key=Secret.from_token("/path/to/key.pem"),
+        vespa_cloud_secret_token=Secret.from_token("token"),
         additional_headers={"X-Custom-Header": "test"},
     )
 
@@ -370,8 +371,8 @@ class TestVespaDocumentStoreBase(
     GetMetadataFieldsInfoTest,
 ):
     """
-    Runs Haystack ``DocumentStoreBaseExtendedTests`` (+ count-by-filter / metadata-info) against Dockerized Vespa.
-    Requires ``VESPA_RUN_INTEGRATION_TESTS=1`` and ``docker compose up`` (see project CI workflow).
+    Runs Haystack `DocumentStoreBaseExtendedTests` (+ count-by-filter / metadata-info) against Dockerized Vespa.
+    Requires `VESPA_RUN_INTEGRATION_TESTS=1` and `docker compose up` (see project CI workflow).
     """
 
     @pytest.fixture
@@ -409,7 +410,7 @@ class TestVespaDocumentStoreBase(
 
     @pytest.fixture
     def filterable_docs(self) -> list[Document]:
-        """Vespa embeddings are restricted to tensor dimension 3 in ``vespa_app/schemas/doc.sd``."""
+        """Vespa embeddings are restricted to tensor dimension 3 in the test schema."""
         return create_vespa_filterable_docs()
 
     def assert_documents_are_equal(self, received: list[Document], expected: list[Document]) -> None:

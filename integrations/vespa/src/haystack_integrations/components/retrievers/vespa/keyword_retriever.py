@@ -24,13 +24,13 @@ class VespaKeywordRetriever:
         """
         Create a Vespa keyword retriever.
 
-        :param document_store: Configured ``VespaDocumentStore`` for your application, for example
-            ``VespaDocumentStore(url="http://localhost", schema="doc", namespace="doc")`` so it matches the deployed
+        :param document_store: Configured `VespaDocumentStore` for your application, for example
+            `VespaDocumentStore(url="http://localhost", schema="doc", namespace="doc")` so it matches the deployed
             schema and endpoint. See https://docs.vespa.ai/en/basics/documents.html and the integration package README.
         :param filters: Optional static Haystack metadata filters applied on each retrieval unless overridden in
-            :meth:`run`, for example ``{"field": "meta.category", "operator": "==", "value": "news"}``. See
+            :meth:`run`, for example `{"field": "meta.category", "operator": "==", "value": "news"}`. See
             https://docs.haystack.deepset.ai/docs/metadata-filtering and https://docs.vespa.ai/en/query-language.html.
-        :param top_k: Default maximum number of documents to return per query (for example ``10``).
+        :param top_k: Default maximum number of documents to return per query (for example `10`).
         :param ranking: Vespa rank profile for lexical matches, for example `bm25` for a profile that uses
             `bm25(content)`. Defaults to `bm25`. Pass `None` to use the schema default. See
             https://docs.vespa.ai/en/basics/ranking.html.
