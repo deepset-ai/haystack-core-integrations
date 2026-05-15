@@ -36,6 +36,7 @@ class TestMem0MemoryRetriever:
             user_id="u1",
             run_id=None,
             agent_id=None,
+            app_id=None,
             include_memory_metadata=False,
         )
 
@@ -54,11 +55,12 @@ class TestMem0MemoryRetriever:
     def test_run_keyword_only_after_query(self, store):
         store.search_memories = Mock(return_value=[])
         retriever = Mem0MemoryRetriever(memory_store=store)
-        retriever.run("test", user_id="u1", run_id="r1", agent_id="a1")
+        retriever.run("test", user_id="u1", run_id="r1", agent_id="a1", app_id="app1")
         kwargs = store.search_memories.call_args[1]
         assert kwargs["user_id"] == "u1"
         assert kwargs["run_id"] == "r1"
         assert kwargs["agent_id"] == "a1"
+        assert kwargs["app_id"] == "app1"
 
     def test_to_dict(self, store):
         retriever = Mem0MemoryRetriever(memory_store=store, top_k=7)

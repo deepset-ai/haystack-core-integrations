@@ -81,6 +81,7 @@ class Mem0MemoryWriterTool(Tool):
         user_id: str | None = None,
         run_id: str | None = None,
         agent_id: str | None = None,
+        app_id: str | None = None,
     ) -> str:
         """
         Store text as a memory.
@@ -89,6 +90,7 @@ class Mem0MemoryWriterTool(Tool):
         :param user_id: User ID to scope the stored memory.
         :param run_id: Run ID to scope the stored memory.
         :param agent_id: Agent ID to scope the stored memory.
+        :param app_id: App ID to scope the stored memory.
         :returns: A string indicating how many memory items were stored.
         """
         result = self.memory_store.add_memories(
@@ -96,6 +98,7 @@ class Mem0MemoryWriterTool(Tool):
             user_id=user_id,
             run_id=run_id,
             agent_id=agent_id,
+            app_id=app_id,
             infer=self.infer,
         )
         count = len(result) if isinstance(result, list) else 0

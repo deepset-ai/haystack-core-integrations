@@ -39,11 +39,12 @@ class TestMem0MemoryWriter:
     def test_run_passes_all_ids(self, store):
         store.add_memories = Mock(return_value=[])
         writer = Mem0MemoryWriter(memory_store=store)
-        writer.run([ChatMessage.from_user("test")], user_id="u1", run_id="r2", agent_id="a3")
+        writer.run([ChatMessage.from_user("test")], user_id="u1", run_id="r2", agent_id="a3", app_id="app1")
         kwargs = store.add_memories.call_args[1]
         assert kwargs["user_id"] == "u1"
         assert kwargs["run_id"] == "r2"
         assert kwargs["agent_id"] == "a3"
+        assert kwargs["app_id"] == "app1"
 
     def test_to_dict(self, store):
         writer = Mem0MemoryWriter(memory_store=store)

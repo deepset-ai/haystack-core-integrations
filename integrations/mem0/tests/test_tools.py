@@ -41,6 +41,7 @@ class TestMem0MemoryRetrieverTool:
         assert "user_id" not in props
         assert "run_id" not in props
         assert "agent_id" not in props
+        assert "app_id" not in props
 
     def test_default_inputs_from_state(self, store):
         tool = Mem0MemoryRetrieverTool(memory_store=store)
@@ -62,7 +63,12 @@ class TestMem0MemoryRetrieverTool:
         assert "extra" not in second.parameters["properties"]
 
     def test_custom_inputs_from_state(self, store):
-        custom = {"session_id": "user_id", "run_state": "run_id", "agent_state": "agent_id"}
+        custom = {
+            "session_id": "user_id",
+            "run_state": "run_id",
+            "agent_state": "agent_id",
+            "app_state": "app_id",
+        }
         tool = Mem0MemoryRetrieverTool(memory_store=store, inputs_from_state=custom)
         assert tool.inputs_from_state == custom
 
@@ -90,11 +96,12 @@ class TestMem0MemoryRetrieverTool:
     def test_invoke_passes_ids_to_store(self, store):
         store.search_memories = Mock(return_value=[ChatMessage.from_system("remembered fact")])
         tool = Mem0MemoryRetrieverTool(memory_store=store, top_k=3)
-        tool.invoke(query="what do I like?", user_id="alice", run_id="r1", agent_id="a1")
+        tool.invoke(query="what do I like?", user_id="alice", run_id="r1", agent_id="a1", app_id="app1")
         kwargs = store.search_memories.call_args[1]
         assert kwargs["user_id"] == "alice"
         assert kwargs["run_id"] == "r1"
         assert kwargs["agent_id"] == "a1"
+        assert kwargs["app_id"] == "app1"
         assert kwargs["top_k"] == 3
 
     def test_invoke_returns_string(self, store):
@@ -185,6 +192,7 @@ class TestMem0MemoryWriterTool:
         assert "user_id" not in props
         assert "run_id" not in props
         assert "agent_id" not in props
+        assert "app_id" not in props
 
     def test_default_inputs_from_state(self, store):
         tool = Mem0MemoryWriterTool(memory_store=store)
@@ -206,7 +214,12 @@ class TestMem0MemoryWriterTool:
         assert "extra" not in second.parameters["properties"]
 
     def test_custom_inputs_from_state(self, store):
-        custom = {"session_id": "user_id", "run_state": "run_id", "agent_state": "agent_id"}
+        custom = {
+            "session_id": "user_id",
+            "run_state": "run_id",
+            "agent_state": "agent_id",
+            "app_state": "app_id",
+        }
         tool = Mem0MemoryWriterTool(memory_store=store, inputs_from_state=custom)
         assert tool.inputs_from_state == custom
 
@@ -235,11 +248,12 @@ class TestMem0MemoryWriterTool:
     def test_invoke_passes_ids_to_store(self, store):
         store.add_memories = Mock(return_value=[{"memory_id": "m1", "memory": "fact"}])
         tool = Mem0MemoryWriterTool(memory_store=store)
-        tool.invoke(text="I enjoy hiking", user_id="alice", run_id="r1", agent_id="a1")
+        tool.invoke(text="I enjoy hiking", user_id="alice", run_id="r1", agent_id="a1", app_id="app1")
         kwargs = store.add_memories.call_args[1]
         assert kwargs["user_id"] == "alice"
         assert kwargs["run_id"] == "r1"
         assert kwargs["agent_id"] == "a1"
+        assert kwargs["app_id"] == "app1"
         assert kwargs["infer"] is False
 
     def test_configured_infer_passed_to_store(self, store):

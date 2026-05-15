@@ -16,7 +16,7 @@ class Mem0MemoryWriter:
     Writes ChatMessage objects as memories to a Mem0MemoryStore.
 
     Use this component in a Haystack Pipeline to persist conversation messages.
-    Scoping IDs (`user_id`, `run_id`, `agent_id`) are runtime parameters so the
+    Scoping IDs (`user_id`, `run_id`, `agent_id`, `app_id`) are runtime parameters so the
     same pipeline instance can serve multiple users or agents.
     """
 
@@ -36,6 +36,7 @@ class Mem0MemoryWriter:
         user_id: str | None = None,
         run_id: str | None = None,
         agent_id: str | None = None,
+        app_id: str | None = None,
     ) -> dict[str, int]:
         """
         Write messages as memories to the Mem0 store.
@@ -44,6 +45,7 @@ class Mem0MemoryWriter:
         :param user_id: User ID to scope the stored memories.
         :param run_id: Run ID to scope the stored memories.
         :param agent_id: Agent ID to scope the stored memories.
+        :param app_id: App ID to scope the stored memories.
         :returns: Dictionary with key `memories_written` containing the count of stored memory items.
         """
         result = self.memory_store.add_memories(
@@ -51,6 +53,7 @@ class Mem0MemoryWriter:
             user_id=user_id,
             run_id=run_id,
             agent_id=agent_id,
+            app_id=app_id,
         )
         count = len(result) if isinstance(result, list) else 0
         return {"memories_written": count}

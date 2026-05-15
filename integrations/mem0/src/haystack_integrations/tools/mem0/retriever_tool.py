@@ -83,6 +83,7 @@ class Mem0MemoryRetrieverTool(Tool):
         user_id: str | None = None,
         run_id: str | None = None,
         agent_id: str | None = None,
+        app_id: str | None = None,
     ) -> str:
         """
         Retrieve memories relevant to a query.
@@ -92,6 +93,7 @@ class Mem0MemoryRetrieverTool(Tool):
         :param user_id: User ID to scope the search.
         :param run_id: Run ID to scope the search.
         :param agent_id: Agent ID to scope the search.
+        :param app_id: App ID to scope the search.
         :returns: Retrieved memories formatted for the Agent, or a message when no memories were found.
         """
         memories: list[ChatMessage] = self.memory_store.search_memories(
@@ -100,6 +102,7 @@ class Mem0MemoryRetrieverTool(Tool):
             user_id=user_id,
             run_id=run_id,
             agent_id=agent_id,
+            app_id=app_id,
         )
         if not memories:
             return "No memories found."

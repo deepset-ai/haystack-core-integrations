@@ -17,7 +17,7 @@ class Mem0MemoryStore:
     """
     A memory store backed by the Mem0 cloud API.
 
-    Stores and retrieves ChatMessage-based memories scoped by user_id, run_id, or agent_id.
+    Stores and retrieves ChatMessage-based memories scoped by user_id, run_id, agent_id, or app_id.
     The Mem0 client is created lazily on first use (or explicitly via warm_up()).
     Requires a Mem0 API key set via the MEM0_API_KEY environment variable or passed explicitly.
     """
@@ -76,6 +76,7 @@ class Mem0MemoryStore:
         user_id: str | None = None,
         run_id: str | None = None,
         agent_id: str | None = None,
+        app_id: str | None = None,
         infer: bool | None = None,
         **kwargs: Any,
     ) -> list[dict[str, Any]]:
@@ -86,6 +87,7 @@ class Mem0MemoryStore:
         :param user_id: User ID to scope these memories.
         :param run_id: Run ID to scope these memories.
         :param agent_id: Agent ID to scope these memories. Required for Mem0 to store assistant messages.
+        :param app_id: App ID to scope these memories.
         :param infer: If True, Mem0 extracts memories from messages. If False, Mem0 stores message text as-is.
             If omitted, uses the store's init-time default.
         :param kwargs: Additional keyword arguments forwarded to the Mem0 client add method.
@@ -94,7 +96,7 @@ class Mem0MemoryStore:
         :returns: List of objects with `memory_id` and `memory` text for each stored memory.
         :raises Mem0MemoryStoreError: If the Mem0 API call fails.
         """
-        ids = self._get_ids(user_id, run_id, agent_id)
+        ids = self._get_ids(user_id=user_id, run_id=run_id, agent_id=agent_id, app_id=app_id)
         self.client.project.update(
             custom_instructions="Store all memories from the user and suggestions from the assistant."
         )
@@ -126,13 +128,14 @@ class Mem0MemoryStore:
         user_id: str | None = None,
         run_id: str | None = None,
         agent_id: str | None = None,
+        app_id: str | None = None,
         include_memory_metadata: bool = False,
         **kwargs: Any,
     ) -> list[ChatMessage]:
         """
         Search for memories in Mem0.
 
-        Either `filters` or at least one of `user_id`, `run_id`, `agent_id` must be provided.
+        Either `filters` or at least one of `user_id`, `run_id`, `agent_id`, or `app_id` must be provided.
         When `filters` is given the ID parameters are ignored; Mem0 filters take precedence.
 
         :param query: Text query to search. If omitted, returns all memories matching the scope.
@@ -141,6 +144,7 @@ class Mem0MemoryStore:
         :param user_id: User ID to scope the search.
         :param run_id: Run ID to scope the search.
         :param agent_id: Agent ID to scope the search.
+        :param app_id: App ID to scope the search.
         :param include_memory_metadata: If True, each returned ChatMessage's meta will include a
             `retrieved_memory_metadata` key with the raw Mem0 memory object (memory_id, score, etc.).
         :param kwargs: Additional keyword arguments forwarded to the Mem0 client.
@@ -150,7 +154,7 @@ class Mem0MemoryStore:
         if filters:
             mem0_filters = normalize_filters(filters)
         else:
-            ids = self._get_ids(user_id, run_id, agent_id)
+            ids = self._get_ids(user_id=user_id, run_id=run_id, agent_id=agent_id, app_id=app_id)
             mem0_filters = dict(ids) if len(ids) == 1 else {"AND": [{k: v} for k, v in ids.items()]}
 
         try:
@@ -175,8 +179,24 @@ class Mem0MemoryStore:
         user_id: str | None = None,
         run_id: str | None = None,
         agent_id: str | None = None,
+        app_id: str | None = None,
     ) -> dict[str, Any]:
-        if not any([user_id, run_id, agent_id]):
-            msg = "At least one of user_id, run_id, or agent_id must be provided."
+        """
+        Return non-empty Mem0 entity IDs for scoped memory operations.
+
+        Mem0 requires at least one entity ID when adding or searching memories without explicit filters.
+        Valid entity IDs are `user_id`, `run_id`, `agent_id`, and `app_id`.
+
+        :param user_id: User ID to include in the scope.
+        :param run_id: Run ID to include in the scope.
+        :param agent_id: Agent ID to include in the scope.
+        :param app_id: App ID to include in the scope.
+        :returns: Dictionary containing only provided entity IDs.
+        :raises ValueError: If no entity ID is provided.
+        """
+        if not any([user_id, run_id, agent_id, app_id]):
+            msg = "At least one of user_id, run_id, agent_id, or app_id must be provided."
             raise ValueError(msg)
-        return {k: v for k, v in {"user_id": user_id, "run_id": run_id, "agent_id": agent_id}.items() if v}
+        return {
+            k: v for k, v in {"user_id": user_id, "run_id": run_id, "agent_id": agent_id, "app_id": app_id}.items() if v
+        }

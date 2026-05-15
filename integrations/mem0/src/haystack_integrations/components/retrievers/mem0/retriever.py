@@ -37,6 +37,7 @@ class Mem0MemoryRetriever:
         user_id: str | None = None,
         run_id: str | None = None,
         agent_id: str | None = None,
+        app_id: str | None = None,
         filters: dict[str, Any] | None = None,
         top_k: int | None = None,
         include_memory_metadata: bool = False,
@@ -48,6 +49,7 @@ class Mem0MemoryRetriever:
         :param user_id: User ID to scope the search.
         :param run_id: Run ID to scope the search.
         :param agent_id: Agent ID to scope the search.
+        :param app_id: App ID to scope the search.
         :param filters: Haystack-style filters to apply. When provided, ID parameters are ignored.
         :param top_k: Maximum number of memories to return. Overrides the init-time default.
         :param include_memory_metadata: If True, each ChatMessage's meta will include a
@@ -61,6 +63,7 @@ class Mem0MemoryRetriever:
             user_id=user_id,
             run_id=run_id,
             agent_id=agent_id,
+            app_id=app_id,
             include_memory_metadata=include_memory_metadata,
         )
         return {"memories": memories}
