@@ -112,7 +112,7 @@ jobs:
           # torch's transitive dep sympy has missing upload dates on the PyTorch wheel index;
           # uv falls back to the request timestamp which triggers the exclude-newer cutoff.
           # Disable exclude-newer for this step only to allow torch resolution.
-          UV_EXCLUDE_NEWER: ""
+          UV_EXCLUDE_NEWER: "2099-01-01"
         shell: bash
         run: |
           set -euo pipefail
