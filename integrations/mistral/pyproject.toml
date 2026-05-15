@@ -30,12 +30,6 @@ Documentation = "https://github.com/deepset-ai/haystack-core-integrations/tree/m
 Issues = "https://github.com/deepset-ai/haystack-core-integrations/issues"
 Source = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/mistral"
 
-[tool.uv]
-# Exclude packages uploaded in the last 24 hours to mitigate supply chain attacks.
-# First-party packages are exempted so freshly published releases are always resolvable.
-exclude-newer = "24 hours"
-exclude-newer-package = { haystack-ai = "0 days" }
-
 [tool.hatch.build.targets.wheel]
 packages = ["src/haystack_integrations"]
 
