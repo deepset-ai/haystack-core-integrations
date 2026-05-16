@@ -6,7 +6,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 from haystack.dataclasses import Document
-from haystack.document_stores.errors import DocumentStoreError
+from haystack.document_stores.errors import DocumentStoreError, DuplicateDocumentError
 from haystack.document_stores.types import DuplicatePolicy
 
 from haystack_integrations.document_stores.amazon_s3_vectors import S3VectorsDocumentStore
@@ -98,7 +98,7 @@ def test_write_documents_no_embedding_raises(mock_boto3):
     mock_boto3.client.return_value = client
 
     store = S3VectorsDocumentStore(vector_bucket_name="b", index_name="i", dimension=4, region_name="us-east-1")
-    with pytest.raises(DocumentStoreError, match="has no embedding"):
+    with pytest.raises(DocumentStoreError, match="no embedding"):
         store.write_documents([Document(id="1", content="Hello")])
 
 
@@ -120,9 +120,10 @@ def test_write_documents_skip_existing(mock_boto3):
     client.put_vectors.assert_not_called()
 
 
+@pytest.mark.parametrize("policy", [DuplicatePolicy.FAIL, DuplicatePolicy.NONE])
 @patch("haystack_integrations.document_stores.amazon_s3_vectors.document_store.boto3")
-def test_write_documents_none_policy_raises(mock_boto3):
-    """Tests our batch existence check logic for NONE policy."""
+def test_write_documents_fail_policy_raises(mock_boto3, policy):
+    """Both FAIL and NONE raise DuplicateDocumentError on existing IDs."""
     client = MagicMock()
     client.get_vector_bucket.return_value = {}
     client.get_index.return_value = {}
@@ -130,11 +131,39 @@ def test_write_documents_none_policy_raises(mock_boto3):
     mock_boto3.client.return_value = client
 
     store = S3VectorsDocumentStore(vector_bucket_name="b", index_name="i", dimension=4, region_name="us-east-1")
-    with pytest.raises(DocumentStoreError, match="already exist"):
+    with pytest.raises(DuplicateDocumentError, match="already exist"):
         store.write_documents(
             [Document(id="1", content="Hello", embedding=[0.1] * 4)],
-            policy=DuplicatePolicy.NONE,
+            policy=policy,
         )
+
+
+def test_write_documents_invalid_input_raises():
+    """write_documents must reject non-list / non-Document input before doing anything."""
+    store = S3VectorsDocumentStore(vector_bucket_name="b", index_name="i", dimension=4, create_bucket_and_index=False)
+    with pytest.raises(ValueError):
+        store.write_documents("not a list")  # type: ignore[arg-type]
+    with pytest.raises(ValueError):
+        store.write_documents(["not a document"])  # type: ignore[list-item]
+
+
+@patch("haystack_integrations.document_stores.amazon_s3_vectors.document_store.boto3")
+def test_write_documents_missing_embedding_validated_upfront(mock_boto3):
+    """Missing embeddings are reported up front, before any put_vectors call."""
+    client = MagicMock()
+    client.get_vector_bucket.return_value = {}
+    client.get_index.return_value = {}
+    mock_boto3.client.return_value = client
+
+    store = S3VectorsDocumentStore(vector_bucket_name="b", index_name="i", dimension=4, region_name="us-east-1")
+    docs = [
+        Document(id="1", content="ok", embedding=[0.1] * 4),
+        Document(id="2", content="missing"),
+        Document(id="3", content="also-missing"),
+    ]
+    with pytest.raises(DocumentStoreError, match=r"\['2', '3'\].*no embedding"):
+        store.write_documents(docs)
+    client.put_vectors.assert_not_called()
 
 
 @patch("haystack_integrations.document_stores.amazon_s3_vectors.document_store.boto3")
