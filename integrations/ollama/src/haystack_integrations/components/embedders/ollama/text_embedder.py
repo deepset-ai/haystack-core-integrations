@@ -8,18 +8,16 @@ from ollama import AsyncClient, Client
 @component
 class OllamaTextEmbedder:
     """
-    Computes the embeddings of a list of Documents and stores the obtained vectors in each Document's embedding field.
-
-    It uses embedding models compatible with the Ollama Library.
+    Computes the embeddings of a string using embedding models compatible with the Ollama Library.
 
     Usage example:
-    ```python
+```python
     from haystack_integrations.components.embedders.ollama import OllamaTextEmbedder
 
     embedder = OllamaTextEmbedder()
     result = embedder.run(text="What do llamas say once you have thanked them? No probllama!")
     print(result['embedding'])
-    ```
+```
     """
 
     def __init__(
@@ -29,6 +27,7 @@ class OllamaTextEmbedder:
         generation_kwargs: dict[str, Any] | None = None,
         timeout: int = 120,
         keep_alive: float | str | None = None,
+        dimensions: int | None = None,
     ) -> None:
         """
         Create a new OllamaTextEmbedder instance.
@@ -51,12 +50,18 @@ class OllamaTextEmbedder:
             - a number in seconds (such as 3600)
             - any negative number which will keep the model loaded in memory (e.g. -1 or "-1m")
             - '0' which will unload the model immediately after generating a response.
+        :param dimensions:
+            The desired number of dimensions in the embedding output. Only supported by models
+            that implement Matryoshka Representation Learning (MRL), such as nomic-embed-text-v1.5,
+            mxbai-embed-large, and qwen3-embedding. If None (default), the full vector is returned.
+            Requires ollama-python >= 0.6.2.
         """
         self.keep_alive = keep_alive
         self.timeout = timeout
         self.generation_kwargs = generation_kwargs or {}
         self.url = url
         self.model = model
+        self.dimensions = dimensions
 
         self._client = Client(host=self.url, timeout=self.timeout)
         self._async_client = AsyncClient(host=self.url, timeout=self.timeout)
@@ -78,15 +83,15 @@ class OllamaTextEmbedder:
             - `embedding`: The computed embeddings
             - `meta`: The metadata collected during the embedding process
         """
-        result = self._client.embeddings(
+        result = self._client.embed(
             model=self.model,
-            prompt=text,
+            input=text,
             options=generation_kwargs,
             keep_alive=self.keep_alive,
-        ).model_dump()
-        result["meta"] = {"model": self.model}
+            dimensions=self.dimensions,
+        )
 
-        return result
+        return {"embedding": result["embeddings"][0], "meta": {"model": self.model}}
 
     @component.output_types(embedding=list[float], meta=dict[str, Any])
     async def run_async(
@@ -105,13 +110,12 @@ class OllamaTextEmbedder:
             - `embedding`: The computed embeddings
             - `meta`: The metadata collected during the embedding process
         """
-        response = await self._async_client.embeddings(
+        result = await self._async_client.embed(
             model=self.model,
-            prompt=text,
+            input=text,
             options=generation_kwargs,
             keep_alive=self.keep_alive,
+            dimensions=self.dimensions,
         )
-        result = response.model_dump()
-        result["meta"] = {"model": self.model}
 
-        return result
+        return {"embedding": result["embeddings"][0], "meta": {"model": self.model}}
