@@ -2,12 +2,19 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+from dataclasses import replace
 from unittest.mock import MagicMock, patch
 
 import pytest
 from haystack.dataclasses import Document
 from haystack.document_stores.errors import DocumentStoreError, DuplicateDocumentError
 from haystack.document_stores.types import DuplicatePolicy
+from haystack.testing.document_store import (
+    CountDocumentsTest,
+    DeleteDocumentsTest,
+    FilterableDocsFixtureMixin,
+    WriteDocumentsTest,
+)
 
 from haystack_integrations.document_stores.amazon_s3_vectors import S3VectorsDocumentStore
 
@@ -268,3 +275,45 @@ def test_document_roundtrip():
     assert restored.content == doc.content
     assert restored.embedding == doc.embedding
     assert restored.meta == doc.meta
+
+
+# ---------------------------------------------------------------------------
+# Integration tests — exercise a real S3 Vectors bucket via the `document_store`
+# fixture in conftest.py. The mixins below come from Haystack's test kit so we
+# get its standard Document Store contract for free.
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.integration
+class TestDocumentStore(
+    CountDocumentsTest,
+    WriteDocumentsTest,
+    DeleteDocumentsTest,
+    FilterableDocsFixtureMixin,
+):
+    def assert_documents_are_equal(self, received: list[Document], expected: list[Document]) -> None:
+        """
+        Compare documents while tolerating two S3 Vectors quirks:
+
+        * embeddings round-trip through float32 storage, so we use `pytest.approx`;
+        * the `score` field is not set by `filter_documents`, only by retrieval, so
+          we ignore it for equality.
+        """
+        assert len(received) == len(expected)
+        received.sort(key=lambda d: d.id)
+        expected.sort(key=lambda d: d.id)
+        for r, e in zip(received, expected, strict=True):
+            r_norm = replace(r, embedding=None, score=None)
+            e_norm = replace(e, embedding=None, score=None)
+            assert r_norm == e_norm
+            if r.embedding is not None and e.embedding is not None:
+                assert r.embedding == pytest.approx(e.embedding, abs=1e-5)
+
+    def test_write_documents(self, document_store: S3VectorsDocumentStore) -> None:
+        """
+        Default behaviour is OVERWRITE (S3 Vectors `put_vectors` is upsert), so
+        writing the same document twice succeeds and returns 1 each time.
+        """
+        docs = [Document(id="1", content="hello", embedding=[0.1] * 768)]
+        assert document_store.write_documents(docs) == 1
+        assert document_store.write_documents(docs) == 1
