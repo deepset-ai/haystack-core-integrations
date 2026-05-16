@@ -9,8 +9,12 @@ This is a pure function with real logic (operator mapping, type validation,
 meta. prefix stripping, logical nesting) so unit testing is high signal.
 """
 
+from dataclasses import replace
+
 import pytest
+from haystack.dataclasses import Document
 from haystack.errors import FilterError
+from haystack.testing.document_store import FilterDocumentsTest
 
 from haystack_integrations.document_stores.amazon_s3_vectors.filters import _normalize_filters, _validate_filters
 
@@ -87,3 +91,26 @@ def test_validate_filters():
     _validate_filters({"operator": "AND", "conditions": []})  # valid structure
     with pytest.raises(ValueError, match="Invalid filter syntax"):
         _validate_filters({"field": "meta.x"})  # missing operator/conditions
+
+
+# ---------------------------------------------------------------------------
+# Integration tests — run Haystack's full filter contract against a real S3
+# Vectors index. `S3VectorsDocumentStore.filter_documents` delegates the
+# actual matching to `haystack.utils.filters.document_matches_filter`, so the
+# only S3-specific quirk we have to absorb here is the float32 round-trip on
+# embeddings.
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.integration
+class TestFilters(FilterDocumentsTest):
+    def assert_documents_are_equal(self, received: list[Document], expected: list[Document]) -> None:
+        assert len(received) == len(expected)
+        received.sort(key=lambda d: d.id)
+        expected.sort(key=lambda d: d.id)
+        for r, e in zip(received, expected, strict=True):
+            r_norm = replace(r, embedding=None, score=None)
+            e_norm = replace(e, embedding=None, score=None)
+            assert r_norm == e_norm
+            if r.embedding is not None and e.embedding is not None:
+                assert r.embedding == pytest.approx(e.embedding, abs=1e-5)
