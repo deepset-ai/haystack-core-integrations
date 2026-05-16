@@ -11,7 +11,7 @@ import boto3
 from botocore.exceptions import ClientError
 from haystack import default_from_dict, default_to_dict, logging
 from haystack.dataclasses import ByteStream, Document
-from haystack.document_stores.errors import DocumentStoreError
+from haystack.document_stores.errors import DocumentStoreError, DuplicateDocumentError
 from haystack.document_stores.types import DuplicatePolicy
 from haystack.utils.auth import Secret, deserialize_secrets_inplace
 from haystack.utils.filters import document_matches_filter
@@ -243,16 +243,36 @@ class S3VectorsDocumentStore:
         All documents must have an embedding set. S3 Vectors `put_vectors` is an upsert operation
         by default, so `DuplicatePolicy.OVERWRITE` is the natural behavior.
         `DuplicatePolicy.SKIP` will check for existing documents first (slower).
-        `DuplicatePolicy.NONE` will raise an error if a document already exists.
+        `DuplicatePolicy.FAIL` and `DuplicatePolicy.NONE` will raise `DuplicateDocumentError`
+        if any document already exists.
 
         Metadata per vector is limited to 40 KB total (2 KB filterable).
 
         :param documents: A list of Documents to write. Each document must have an embedding.
         :param policy: The duplicate policy. Defaults to `DuplicatePolicy.OVERWRITE`.
         :returns: The number of documents written.
+        :raises ValueError: If `documents` is not a list of `Document` instances.
+        :raises DocumentStoreError: If any document is missing an embedding.
+        :raises DuplicateDocumentError: If `policy` is `FAIL` or `NONE` and any document already
+            exists in the store.
         """
+        # Validate input type up front, before any writes happen.
+        if not isinstance(documents, list) or any(not isinstance(d, Document) for d in documents):
+            msg = "Please provide a list of Documents."
+            raise ValueError(msg)
+
         if len(documents) == 0:
             return 0
+
+        # Validate ALL embeddings up front so we fail before any put_vectors call,
+        # never leaving the store with a partial write.
+        missing_embedding_ids = [doc.id for doc in documents if doc.embedding is None]
+        if missing_embedding_ids:
+            msg = (
+                f"Document(s) {missing_embedding_ids} have no embedding. "
+                "S3VectorsDocumentStore requires every document to have an embedding."
+            )
+            raise DocumentStoreError(msg)
 
         client = self._get_client()
         written = 0
@@ -260,15 +280,9 @@ class S3VectorsDocumentStore:
         for i in range(0, len(documents), _WRITE_BATCH_SIZE):
             batch = documents[i : i + _WRITE_BATCH_SIZE]
 
-            # Validate embeddings upfront
-            for doc in batch:
-                if doc.embedding is None:
-                    msg = f"Document '{doc.id}' has no embedding. S3VectorsDocumentStore requires embeddings."
-                    raise DocumentStoreError(msg)
-
             # Batch-check for existing documents when needed
             existing_ids: set[str] = set()
-            if policy in (DuplicatePolicy.SKIP, DuplicatePolicy.NONE):
+            if policy in (DuplicatePolicy.SKIP, DuplicatePolicy.NONE, DuplicatePolicy.FAIL):
                 batch_ids = [doc.id for doc in batch]
                 for j in range(0, len(batch_ids), _GET_BATCH_SIZE):
                     id_chunk = batch_ids[j : j + _GET_BATCH_SIZE]
@@ -280,12 +294,12 @@ class S3VectorsDocumentStore:
                     for v in response.get("vectors", []):
                         existing_ids.add(v["key"])
 
-                if policy == DuplicatePolicy.NONE and existing_ids:
+                if policy in (DuplicatePolicy.NONE, DuplicatePolicy.FAIL) and existing_ids:
                     msg = (
                         f"Document(s) {sorted(existing_ids)} already exist in the document store. "
                         "Use DuplicatePolicy.OVERWRITE or DuplicatePolicy.SKIP."
                     )
-                    raise DocumentStoreError(msg)
+                    raise DuplicateDocumentError(msg)
 
             vectors_to_write = []
             for doc in batch:
