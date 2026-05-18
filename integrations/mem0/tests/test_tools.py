@@ -97,12 +97,14 @@ class TestMem0MemoryRetrieverTool:
         store.search_memories = Mock(return_value=[ChatMessage.from_system("remembered fact")])
         tool = Mem0MemoryRetrieverTool(memory_store=store, top_k=3)
         tool.invoke(query="what do I like?", user_id="alice", run_id="r1", agent_id="a1", app_id="app1")
-        kwargs = store.search_memories.call_args[1]
-        assert kwargs["user_id"] == "alice"
-        assert kwargs["run_id"] == "r1"
-        assert kwargs["agent_id"] == "a1"
-        assert kwargs["app_id"] == "app1"
-        assert kwargs["top_k"] == 3
+        store.search_memories.assert_called_once_with(
+            query="what do I like?",
+            top_k=3,
+            user_id="alice",
+            run_id="r1",
+            agent_id="a1",
+            app_id="app1",
+        )
 
     def test_invoke_returns_string(self, store):
         store.search_memories = Mock(return_value=[ChatMessage.from_system("I like Python")])
@@ -174,7 +176,14 @@ class TestMem0MemoryRetrieverTool:
         restored.memory_store.search_memories = Mock(return_value=[ChatMessage.from_system("Python fan")])
         result = restored.invoke(query="hobbies", user_id="alice")
         assert "Python fan" in result
-        assert restored.memory_store.search_memories.call_args[1]["user_id"] == "alice"
+        restored.memory_store.search_memories.assert_called_once_with(
+            query="hobbies",
+            top_k=5,
+            user_id="alice",
+            run_id=None,
+            agent_id=None,
+            app_id=None,
+        )
 
 
 class TestMem0MemoryWriterTool:
@@ -254,18 +263,27 @@ class TestMem0MemoryWriterTool:
         store.add_memories = Mock(return_value=[{"memory_id": "m1", "memory": "fact"}])
         tool = Mem0MemoryWriterTool(memory_store=store)
         tool.invoke(text="I enjoy hiking", user_id="alice", run_id="r1", agent_id="a1", app_id="app1")
-        kwargs = store.add_memories.call_args[1]
-        assert kwargs["user_id"] == "alice"
-        assert kwargs["run_id"] == "r1"
-        assert kwargs["agent_id"] == "a1"
-        assert kwargs["app_id"] == "app1"
-        assert kwargs["infer"] is False
+        store.add_memories.assert_called_once_with(
+            messages=[ChatMessage.from_user("I enjoy hiking")],
+            user_id="alice",
+            run_id="r1",
+            agent_id="a1",
+            app_id="app1",
+            infer=False,
+        )
 
     def test_configured_infer_passed_to_store(self, store):
         store.add_memories = Mock(return_value=[{"memory_id": "m1", "memory": "fact"}])
         tool = Mem0MemoryWriterTool(memory_store=store)
         tool.invoke(text="I enjoy hiking", user_id="alice", infer=True)
-        assert store.add_memories.call_args[1]["infer"] is True
+        store.add_memories.assert_called_once_with(
+            messages=[ChatMessage.from_user("I enjoy hiking")],
+            user_id="alice",
+            run_id=None,
+            agent_id=None,
+            app_id=None,
+            infer=True,
+        )
 
     def test_invoke_returns_count_string(self, store):
         store.add_memories = Mock(return_value=[{"memory_id": "m1", "memory": "fact"}])
@@ -330,4 +348,11 @@ class TestMem0MemoryWriterTool:
         restored.memory_store.add_memories = Mock(return_value=[{"memory_id": "m1"}])
         result = restored.invoke(text="I enjoy hiking", user_id="alice")
         assert "1" in result
-        assert restored.memory_store.add_memories.call_args[1]["user_id"] == "alice"
+        restored.memory_store.add_memories.assert_called_once_with(
+            messages=[ChatMessage.from_user("I enjoy hiking")],
+            user_id="alice",
+            run_id=None,
+            agent_id=None,
+            app_id=None,
+            infer=False,
+        )

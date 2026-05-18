@@ -44,23 +44,46 @@ class TestMem0MemoryRetriever:
         store.search_memories = Mock(return_value=[])
         retriever = Mem0MemoryRetriever(memory_store=store, top_k=3)
         retriever.run("test", user_id="u1", top_k=7)
-        assert store.search_memories.call_args[1]["top_k"] == 7
+        store.search_memories.assert_called_once_with(
+            query="test",
+            filters=None,
+            top_k=7,
+            user_id="u1",
+            run_id=None,
+            agent_id=None,
+            app_id=None,
+            include_memory_metadata=False,
+        )
 
     def test_run_uses_default_top_k_when_not_overridden(self, store):
         store.search_memories = Mock(return_value=[])
         retriever = Mem0MemoryRetriever(memory_store=store, top_k=3)
         retriever.run("test", user_id="u1")
-        assert store.search_memories.call_args[1]["top_k"] == 3
+        store.search_memories.assert_called_once_with(
+            query="test",
+            filters=None,
+            top_k=3,
+            user_id="u1",
+            run_id=None,
+            agent_id=None,
+            app_id=None,
+            include_memory_metadata=False,
+        )
 
     def test_run_keyword_only_after_query(self, store):
         store.search_memories = Mock(return_value=[])
         retriever = Mem0MemoryRetriever(memory_store=store)
         retriever.run("test", user_id="u1", run_id="r1", agent_id="a1", app_id="app1")
-        kwargs = store.search_memories.call_args[1]
-        assert kwargs["user_id"] == "u1"
-        assert kwargs["run_id"] == "r1"
-        assert kwargs["agent_id"] == "a1"
-        assert kwargs["app_id"] == "app1"
+        store.search_memories.assert_called_once_with(
+            query="test",
+            filters=None,
+            top_k=5,
+            user_id="u1",
+            run_id="r1",
+            agent_id="a1",
+            app_id="app1",
+            include_memory_metadata=False,
+        )
 
     def test_to_dict(self, store):
         retriever = Mem0MemoryRetriever(memory_store=store, top_k=7)

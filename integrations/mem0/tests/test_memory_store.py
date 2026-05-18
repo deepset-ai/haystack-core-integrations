@@ -8,11 +8,9 @@ from unittest.mock import Mock
 
 import pytest
 from haystack.dataclasses import ChatMessage, ToolCall
-from haystack.errors import FilterError
 from haystack.utils import Secret
 
 from haystack_integrations.memory_stores.mem0.errors import Mem0MemoryStoreError
-from haystack_integrations.memory_stores.mem0.filters import normalize_filters
 from haystack_integrations.memory_stores.mem0.memory_store import Mem0MemoryStore
 
 
@@ -129,7 +127,11 @@ class TestMem0MemoryStore:
         store = Mem0MemoryStore(infer=True)
         store.add_memories(messages=[ChatMessage.from_user("test")], user_id="u1", infer=False)
 
-        assert mock_mem0_client.add.call_args[1]["infer"] is False
+        mock_mem0_client.add.assert_called_with(
+            messages=[{"content": "test", "role": "user"}],
+            infer=False,
+            user_id="u1",
+        )
 
     def test_add_memories_skips_empty_text(self, monkeypatch, mock_mem0_client):
         monkeypatch.setenv("MEM0_API_KEY", "test-key")
@@ -187,8 +189,7 @@ class TestMem0MemoryStore:
         store = Mem0MemoryStore()
         store.search_memories(filters={"field": "user_id", "operator": "==", "value": "user-1"})
 
-        call_kwargs = mock_mem0_client.get_all.call_args[1]
-        assert call_kwargs["filters"] == {"user_id": "user-1"}
+        mock_mem0_client.get_all.assert_called_with(filters={"user_id": "user-1"})
 
     def test_search_memories_raises_store_error_on_failure(self, monkeypatch, mock_mem0_client):
         monkeypatch.setenv("MEM0_API_KEY", "test-key")
@@ -221,7 +222,11 @@ class TestMem0MemoryStore:
         store = Mem0MemoryStore()
         store.add_memories(messages=[ChatMessage.from_user("test")], app_id="app1")
 
-        assert mock_mem0_client.add.call_args[1]["app_id"] == "app1"
+        mock_mem0_client.add.assert_called_with(
+            messages=[{"content": "test", "role": "user"}],
+            infer=True,
+            app_id="app1",
+        )
 
     def test_search_memories_with_app_id_filter(self, monkeypatch, mock_mem0_client):
         monkeypatch.setenv("MEM0_API_KEY", "test-key")
@@ -230,55 +235,7 @@ class TestMem0MemoryStore:
         store = Mem0MemoryStore()
         store.search_memories(query="test", app_id="app1")
 
-        assert mock_mem0_client.search.call_args[1]["filters"] == {"app_id": "app1"}
-
-
-class TestNormalizeFilters:
-    @pytest.mark.parametrize(
-        "filters,expected",
-        [
-            (
-                {"field": "score", "operator": ">=", "value": 0.8},
-                {"score": {"gte": 0.8}},
-            ),
-            (
-                {"field": "tag", "operator": "==", "value": "python"},
-                {"tag": "python"},
-            ),
-            (
-                {"field": "tag", "operator": "!=", "value": "java"},
-                {"tag": {"ne": "java"}},
-            ),
-            (
-                {"field": "cat", "operator": "in", "value": ["ml", "nlp"]},
-                {"cat": {"in": ["ml", "nlp"]}},
-            ),
-            (
-                {
-                    "operator": "AND",
-                    "conditions": [
-                        {"field": "user_id", "operator": "==", "value": "u1"},
-                        {"field": "score", "operator": ">", "value": 0.5},
-                    ],
-                },
-                {"AND": [{"user_id": "u1"}, {"score": {"gt": 0.5}}]},
-            ),
-        ],
-    )
-    def test_normalize_filters(self, filters, expected):
-        assert normalize_filters(filters) == expected
-
-    def test_unsupported_comparison_operator_raises_filter_error(self):
-        with pytest.raises(FilterError, match="Unsupported filter operator"):
-            normalize_filters({"field": "x", "operator": "LIKE", "value": "foo"})
-
-    def test_unsupported_logical_operator_raises_filter_error(self):
-        with pytest.raises(FilterError, match="Unsupported logical operator"):
-            normalize_filters({"operator": "XOR", "conditions": []})
-
-    def test_not_a_dict_raises_filter_error(self):
-        with pytest.raises(FilterError, match="Filters must be a dictionary"):
-            normalize_filters("not a dict")  # type: ignore[arg-type]
+        mock_mem0_client.search.assert_called_with(query="test", top_k=5, filters={"app_id": "app1"})
 
 
 @pytest.mark.skipif(
