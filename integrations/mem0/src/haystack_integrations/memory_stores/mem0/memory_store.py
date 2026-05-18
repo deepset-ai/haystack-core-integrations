@@ -94,10 +94,6 @@ class Mem0MemoryStore:
         :raises Mem0MemoryStoreError: If the Mem0 API call fails.
         """
         ids = self._get_ids(user_id=user_id, run_id=run_id, agent_id=agent_id, app_id=app_id)
-        # TODO Should we really call client project update here every time with something so generic?
-        self.client.project.update(
-            custom_instructions="Store all memories from the user and suggestions from the assistant."
-        )
         mem0_messages = [{"content": msg.text, "role": msg.role.value} for msg in messages if msg.text]
         if not mem0_messages:
             logger.warning(

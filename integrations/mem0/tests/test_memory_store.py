@@ -4,7 +4,6 @@
 
 import os
 import uuid
-from unittest.mock import Mock
 
 import pytest
 from haystack.dataclasses import ChatMessage, ToolCall
@@ -91,7 +90,6 @@ class TestMem0MemoryStore:
     def test_add_memories(self, monkeypatch, mock_mem0_client):
         monkeypatch.setenv("MEM0_API_KEY", "test-key")
         mock_mem0_client.add.return_value = {"results": [{"id": "mem-1", "data": {"memory": "User likes Python"}}]}
-        mock_mem0_client.project = Mock()
 
         store = Mem0MemoryStore()
         result = store.add_memories(messages=[ChatMessage.from_user("I like Python")], user_id="user-1")
@@ -106,7 +104,6 @@ class TestMem0MemoryStore:
     def test_add_memories_uses_infer_default(self, monkeypatch, mock_mem0_client):
         monkeypatch.setenv("MEM0_API_KEY", "test-key")
         mock_mem0_client.add.return_value = {"results": []}
-        mock_mem0_client.project = Mock()
 
         store = Mem0MemoryStore()
         store.add_memories(messages=[ChatMessage.from_user("test")], user_id="u1")
@@ -118,7 +115,6 @@ class TestMem0MemoryStore:
     def test_add_memories_accepts_infer_override(self, monkeypatch, mock_mem0_client):
         monkeypatch.setenv("MEM0_API_KEY", "test-key")
         mock_mem0_client.add.return_value = {"results": []}
-        mock_mem0_client.project = Mock()
 
         store = Mem0MemoryStore()
         store.add_memories(messages=[ChatMessage.from_user("test")], user_id="u1", infer=False)
@@ -129,9 +125,8 @@ class TestMem0MemoryStore:
             user_id="u1",
         )
 
-    def test_add_memories_skips_empty_text(self, monkeypatch, mock_mem0_client):
+    def test_add_memories_skips_empty_text(self, monkeypatch):
         monkeypatch.setenv("MEM0_API_KEY", "test-key")
-        mock_mem0_client.project = Mock()
 
         store = Mem0MemoryStore()
         tc_msg = ChatMessage.from_assistant(text=None, tool_calls=[ToolCall(tool_name="foo", arguments={})])
@@ -141,7 +136,6 @@ class TestMem0MemoryStore:
     def test_add_memories_raises_store_error_on_failure(self, monkeypatch, mock_mem0_client):
         monkeypatch.setenv("MEM0_API_KEY", "test-key")
         mock_mem0_client.add.side_effect = Exception("API down")
-        mock_mem0_client.project = Mock()
 
         store = Mem0MemoryStore()
         with pytest.raises(Mem0MemoryStoreError, match="Failed to add memories"):
@@ -213,7 +207,6 @@ class TestMem0MemoryStore:
     def test_add_memories_passes_app_id(self, monkeypatch, mock_mem0_client):
         monkeypatch.setenv("MEM0_API_KEY", "test-key")
         mock_mem0_client.add.return_value = {"results": []}
-        mock_mem0_client.project = Mock()
 
         store = Mem0MemoryStore()
         store.add_memories(messages=[ChatMessage.from_user("test")], app_id="app1")
