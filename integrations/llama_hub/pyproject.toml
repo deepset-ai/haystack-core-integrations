@@ -32,3 +32,4 @@ dependencies = [
 unit = "pytest tests/"
 types = "mypy src/haystack_integrations"
 fmt = ["black src/ tests/", "ruff check --fix src/ tests/"]
+docs = "pydoc-markdown pydoc/config.yml"
