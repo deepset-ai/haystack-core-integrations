@@ -74,7 +74,9 @@ jobs:
           python-version: ${{ matrix.python-version }}
 
       - name: Install Hatch
-        run: pip install hatch
+        run: |
+          python -m pip install --upgrade pip
+          pip install hatch --uploaded-prior-to=P1D
 
       - name: Lint
         if: matrix.python-version == '3.10' && runner.os == 'Linux'
