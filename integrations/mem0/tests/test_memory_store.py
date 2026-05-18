@@ -202,9 +202,10 @@ class TestMem0MemoryStore:
         results = store.search_memories(user_id="user-1")
 
         mock_mem0_client.get_all.assert_called_once()
-        assert results[0].meta == {"tag": "work"}
+        assert results[0].meta["tag"] == "work"
+        assert results[0].meta["mem0"]["user_id"] == "user-1"
 
-    def test_search_memories_include_metadata(self, monkeypatch, mock_mem0_client):
+    def test_search_memories_includes_mem0_metadata(self, monkeypatch, mock_mem0_client):
         monkeypatch.setenv("MEM0_API_KEY", "test-key")
         raw = _mem0_memory_result(
             memory_id="mem-1",
@@ -215,14 +216,21 @@ class TestMem0MemoryStore:
         mock_mem0_client.search.return_value = {"results": [raw]}
 
         store = Mem0MemoryStore()
-        results = store.search_memories(query="Python", user_id="user-1", include_memory_metadata=True)
+        results = store.search_memories(query="Python", user_id="user-1")
 
         assert results[0].meta["tag"] == "work"
-        assert "retrieved_memory_metadata" in results[0].meta
-        assert results[0].meta["retrieved_memory_metadata"]["id"] == "mem-1"
-        assert results[0].meta["retrieved_memory_metadata"]["user_id"] == "user-1"
-        assert results[0].meta["retrieved_memory_metadata"]["score"] == 0.2416
-        assert "memory" not in results[0].meta["retrieved_memory_metadata"]
+        assert results[0].meta["mem0"] == {
+            "memory_id": "mem-1",
+            "user_id": "user-1",
+            "agent_id": None,
+            "app_id": None,
+            "run_id": None,
+            "score": 0.2416,
+            "score_breakdown": {"semantic": 0.6041, "bm25": 0.0, "entity": 0.0},
+            "categories": [],
+            "created_at": "2026-05-18T09:52:00.819626+00:00",
+            "updated_at": "2026-05-18T09:52:01.067272+00:00",
+        }
 
     def test_search_memories_with_filters_only(self, monkeypatch, mock_mem0_client):
         monkeypatch.setenv("MEM0_API_KEY", "test-key")

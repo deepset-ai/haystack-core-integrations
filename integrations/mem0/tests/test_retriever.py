@@ -37,7 +37,6 @@ class TestMem0MemoryRetriever:
             run_id=None,
             agent_id=None,
             app_id=None,
-            include_memory_metadata=False,
         )
 
     def test_run_top_k_override(self, store):
@@ -52,7 +51,6 @@ class TestMem0MemoryRetriever:
             run_id=None,
             agent_id=None,
             app_id=None,
-            include_memory_metadata=False,
         )
 
     def test_run_uses_default_top_k_when_not_overridden(self, store):
@@ -67,7 +65,6 @@ class TestMem0MemoryRetriever:
             run_id=None,
             agent_id=None,
             app_id=None,
-            include_memory_metadata=False,
         )
 
     def test_run_keyword_only_after_query(self, store):
@@ -82,7 +79,6 @@ class TestMem0MemoryRetriever:
             run_id="r1",
             agent_id="a1",
             app_id="app1",
-            include_memory_metadata=False,
         )
 
     def test_to_dict(self, store):

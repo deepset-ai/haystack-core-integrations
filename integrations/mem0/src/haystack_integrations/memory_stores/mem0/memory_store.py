@@ -129,7 +129,6 @@ class Mem0MemoryStore:
         run_id: str | None = None,
         agent_id: str | None = None,
         app_id: str | None = None,
-        include_memory_metadata: bool = False,
         **kwargs: Any,
     ) -> list[ChatMessage]:
         """
@@ -145,10 +144,10 @@ class Mem0MemoryStore:
         :param run_id: Run ID to scope the search.
         :param agent_id: Agent ID to scope the search.
         :param app_id: App ID to scope the search.
-        :param include_memory_metadata: If True, each returned ChatMessage's meta will include a
-            `retrieved_memory_metadata` key with the raw Mem0 memory object (memory_id, score, etc.).
         :param kwargs: Additional keyword arguments forwarded to the Mem0 client.
-        :returns: List of ChatMessage (system role) objects containing the retrieved memories.
+        :returns: List of ChatMessage (system role) objects containing the retrieved memories. User-provided
+            Mem0 metadata is included in each message's meta. Mem0 retrieval fields such as `memory_id`, `user_id`,
+            `score`, and timestamps are included under `meta["mem0"]`.
         :raises Mem0MemoryStoreError: If the Mem0 API call fails.
         """
         mem0_filters = _build_search_filters(
@@ -168,8 +167,18 @@ class Mem0MemoryStore:
             result_messages = []
             for memory in raw["results"]:
                 meta = dict(memory["metadata"]) if memory["metadata"] else {}
-                if include_memory_metadata:
-                    meta["retrieved_memory_metadata"] = {k: v for k, v in memory.items() if k != "memory"}
+                meta["mem0"] = {
+                    "memory_id": memory.get("id"),
+                    "user_id": memory.get("user_id"),
+                    "agent_id": memory.get("agent_id"),
+                    "app_id": memory.get("app_id"),
+                    "run_id": memory.get("run_id"),
+                    "score": memory.get("score"),
+                    "score_breakdown": memory.get("score_breakdown"),
+                    "categories": memory.get("categories"),
+                    "created_at": memory.get("created_at"),
+                    "updated_at": memory.get("updated_at"),
+                }
                 result_messages.append(ChatMessage.from_system(text=memory["memory"], meta=meta))
             return result_messages
         except Exception as e:

@@ -57,7 +57,6 @@ class Mem0MemoryRetriever:
         app_id: str | None = None,
         filters: dict[str, Any] | None = None,
         top_k: int | None = None,
-        include_memory_metadata: bool = False,
     ) -> dict[str, list[ChatMessage]]:
         """
         Retrieve memories matching the query from Mem0.
@@ -69,9 +68,9 @@ class Mem0MemoryRetriever:
         :param app_id: App ID to scope the search.
         :param filters: Haystack-style filters to apply. When provided with ID parameters, they are combined.
         :param top_k: Maximum number of memories to return. Overrides the init-time default.
-        :param include_memory_metadata: If True, each ChatMessage's meta will include a
-            `retrieved_memory_metadata` key with the raw Mem0 memory object.
-        :returns: Dictionary with key `memories` containing a list of ChatMessage objects.
+        :returns: Dictionary with key `memories` containing a list of ChatMessage objects. User-provided
+            Mem0 metadata is included in each message's meta. Mem0 retrieval fields such as `memory_id`, `user_id`,
+            `score`, and timestamps are included under `meta["mem0"]`.
         """
         memories = self.memory_store.search_memories(
             query=query,
@@ -81,7 +80,6 @@ class Mem0MemoryRetriever:
             run_id=run_id,
             agent_id=agent_id,
             app_id=app_id,
-            include_memory_metadata=include_memory_metadata,
         )
         return {"memories": memories}
 
