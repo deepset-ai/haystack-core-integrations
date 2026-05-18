@@ -16,7 +16,24 @@ class Mem0MemoryRetriever:
     Retrieves memories from a Mem0MemoryStore as a list of ChatMessage objects.
 
     Use this component in a Haystack Pipeline to fetch relevant memories before passing
-    context to a language model, or wrap it with ComponentTool to expose it as an Agent tool.
+    context to a language model or Agent. The returned memories are system messages.
+
+    Provide either `filters` or at least one Mem0 entity ID (`user_id`, `run_id`, `agent_id`, or `app_id`)
+    when running the component. If `filters` is provided, it takes precedence over entity IDs.
+
+    ### Usage example
+
+    ```python
+    from haystack_integrations.components.retrievers.mem0 import Mem0MemoryRetriever
+    from haystack_integrations.memory_stores.mem0 import Mem0MemoryStore
+
+    store = Mem0MemoryStore()
+    retriever = Mem0MemoryRetriever(memory_store=store, top_k=3)
+
+    result = retriever.run(query="What does Alice like?", user_id="alice")
+    memories = result["memories"]
+    print([message.text for message in memories])
+    ```
     """
 
     def __init__(self, *, memory_store: Mem0MemoryStore, top_k: int = 5) -> None:

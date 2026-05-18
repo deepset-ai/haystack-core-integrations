@@ -33,7 +33,34 @@ class Mem0MemoryRetrieverTool(Tool):
     A tool that searches a Mem0MemoryStore for relevant memories.
 
     The `user_id` is injected at runtime from Agent State via `inputs_from_state`,
-    so a single tool instance can serve many users. The LLM only sees `query` and `top_k`.
+    so a single tool instance can serve many users. The LLM only sees `query` and `top_k` by default.
+    Pass a custom `inputs_from_state` mapping to inject other supported Mem0 entity IDs such as
+    `run_id`, `agent_id`, or `app_id`.
+
+    ### Usage example
+
+    ```python
+    from haystack.components.agents import Agent
+    from haystack.components.generators.chat import OpenAIChatGenerator
+    from haystack.dataclasses import ChatMessage
+    from haystack_integrations.memory_stores.mem0 import Mem0MemoryStore
+    from haystack_integrations.tools.mem0 import Mem0MemoryRetrieverTool
+
+    store = Mem0MemoryStore()
+    retrieve_memories = Mem0MemoryRetrieverTool(memory_store=store, top_k=5)
+
+    agent = Agent(
+        chat_generator=OpenAIChatGenerator(model="gpt-4o-mini"),
+        tools=[retrieve_memories],
+        state_schema={"user_id": {"type": str}},
+    )
+
+    result = agent.run(
+        messages=[ChatMessage.from_user("What do you remember about me?")],
+        user_id="alice",
+    )
+    print(result["last_message"].text)
+    ```
     """
 
     def __init__(
@@ -53,7 +80,7 @@ class Mem0MemoryRetrieverTool(Tool):
         :param top_k: Default maximum number of memories to return. The LLM may override this.
         :param name: Tool name exposed to the LLM.
         :param description: Tool description exposed to the LLM.
-        :param parameters: JSON schema for the parameters exposed to the LLM.
+        :param parameters: JSON schema for the parameters exposed to the LLM. Defaults to `query` and `top_k`.
         :param inputs_from_state: Mapping of state keys to tool parameter names. Defaults to injecting
             `user_id` from state.
         """
@@ -90,10 +117,10 @@ class Mem0MemoryRetrieverTool(Tool):
 
         :param query: Text query used to search for relevant memories.
         :param top_k: Maximum number of memories to return. Overrides the tool default.
-        :param user_id: User ID to scope the search.
-        :param run_id: Run ID to scope the search.
-        :param agent_id: Agent ID to scope the search.
-        :param app_id: App ID to scope the search.
+        :param user_id: User ID to scope the search. Injected from Agent State by default.
+        :param run_id: Run ID to scope the search. Can be injected with a custom `inputs_from_state` mapping.
+        :param agent_id: Agent ID to scope the search. Can be injected with a custom `inputs_from_state` mapping.
+        :param app_id: App ID to scope the search. Can be injected with a custom `inputs_from_state` mapping.
         :returns: Retrieved memories formatted for the Agent, or a message when no memories were found.
         """
         memories: list[ChatMessage] = self.memory_store.search_memories(

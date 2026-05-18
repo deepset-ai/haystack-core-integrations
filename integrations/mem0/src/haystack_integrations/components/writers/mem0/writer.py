@@ -17,7 +17,25 @@ class Mem0MemoryWriter:
 
     Use this component in a Haystack Pipeline to persist conversation messages.
     Scoping IDs (`user_id`, `run_id`, `agent_id`, `app_id`) are runtime parameters so the
-    same pipeline instance can serve multiple users or agents.
+    same pipeline instance can serve multiple users or agents. The store's `infer` setting controls
+    whether Mem0 extracts memories from messages or stores message text as-is.
+
+    ### Usage example
+
+    ```python
+    from haystack.dataclasses import ChatMessage
+    from haystack_integrations.components.writers.mem0 import Mem0MemoryWriter
+    from haystack_integrations.memory_stores.mem0 import Mem0MemoryStore
+
+    store = Mem0MemoryStore(infer=False)
+    writer = Mem0MemoryWriter(memory_store=store)
+
+    result = writer.run(
+        messages=[ChatMessage.from_user("Alice prefers concise Python examples.")],
+        user_id="alice",
+    )
+    print(result["memories_written"])
+    ```
     """
 
     def __init__(self, *, memory_store: Mem0MemoryStore) -> None:

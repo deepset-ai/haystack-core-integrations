@@ -38,6 +38,33 @@ class Mem0MemoryWriterTool(Tool):
 
     The `user_id` is injected at runtime from Agent State via `inputs_from_state`,
     so a single tool instance can serve many users. The LLM only sees `text` and `infer`.
+    Pass a custom `inputs_from_state` mapping to inject other supported Mem0 entity IDs such as
+    `run_id`, `agent_id`, or `app_id`.
+
+    ### Usage example
+
+    ```python
+    from haystack.components.agents import Agent
+    from haystack.components.generators.chat import OpenAIChatGenerator
+    from haystack.dataclasses import ChatMessage
+    from haystack_integrations.memory_stores.mem0 import Mem0MemoryStore
+    from haystack_integrations.tools.mem0 import Mem0MemoryWriterTool
+
+    store = Mem0MemoryStore()
+    store_memory = Mem0MemoryWriterTool(memory_store=store)
+
+    agent = Agent(
+        chat_generator=OpenAIChatGenerator(model="gpt-4o-mini"),
+        tools=[store_memory],
+        state_schema={"user_id": {"type": str}},
+    )
+
+    result = agent.run(
+        messages=[ChatMessage.from_user("Remember that I prefer concise Python examples.")],
+        user_id="alice",
+    )
+    print(result["last_message"].text)
+    ```
     """
 
     def __init__(
@@ -55,7 +82,7 @@ class Mem0MemoryWriterTool(Tool):
         :param memory_store: The Mem0MemoryStore instance to write to.
         :param name: Tool name exposed to the LLM.
         :param description: Tool description exposed to the LLM.
-        :param parameters: JSON schema for the parameters exposed to the LLM.
+        :param parameters: JSON schema for the parameters exposed to the LLM. Defaults to `text` and `infer`.
         :param inputs_from_state: Mapping of state keys to tool parameter names. Defaults to injecting
             `user_id` from state.
         """
@@ -90,11 +117,11 @@ class Mem0MemoryWriterTool(Tool):
         Store text as a memory.
 
         :param text: The information to store as a memory.
-        :param user_id: User ID to scope the stored memory.
-        :param run_id: Run ID to scope the stored memory.
-        :param agent_id: Agent ID to scope the stored memory.
-        :param app_id: App ID to scope the stored memory.
         :param infer: If True, Mem0 extracts memories from the text. If False, Mem0 stores the text as-is.
+        :param user_id: User ID to scope the stored memory. Injected from Agent State by default.
+        :param run_id: Run ID to scope the stored memory. Can be injected with a custom `inputs_from_state` mapping.
+        :param agent_id: Agent ID to scope the stored memory. Can be injected with a custom `inputs_from_state` mapping.
+        :param app_id: App ID to scope the stored memory. Can be injected with a custom `inputs_from_state` mapping.
         :returns: A string indicating how many memory items were stored.
         """
         result = self.memory_store.add_memories(
