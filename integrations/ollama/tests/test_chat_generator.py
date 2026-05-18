@@ -190,7 +190,6 @@ class TestUtils:
         assert observed.role == "assistant"
         assert observed.text is None
         assert observed.tool_call == ToolCall(
-            id="call_0",
             tool_name="get_current_weather",
             arguments={"format": "celsius", "location": "Paris, FR"},
         )
@@ -219,8 +218,8 @@ class TestUtils:
         observed = _convert_ollama_response_to_chatmessage(ollama_response)
 
         assert len(observed.tool_calls) == 2
-        assert observed.tool_calls[0] == ToolCall(id="call_0", tool_name="weather", arguments={"city": "Paris"})
-        assert observed.tool_calls[1] == ToolCall(id="call_1", tool_name="weather", arguments={"city": "London"})
+        assert observed.tool_calls[0] == ToolCall(tool_name="weather", arguments={"city": "Paris"})
+        assert observed.tool_calls[1] == ToolCall(tool_name="weather", arguments={"city": "London"})
 
     def test_build_chunk(self):
         generator = OllamaChatGenerator()
@@ -414,10 +413,10 @@ class TestUtils:
         assert result["replies"][0].text is None
         assert result["replies"][0].tool_calls[0].tool_name == "calculator"
         assert result["replies"][0].tool_calls[0].arguments == {"expression": "7 * (4 + 2)"}
-        assert result["replies"][0].tool_calls[0].id == "call_1"
+        assert result["replies"][0].tool_calls[0].id is None
         assert result["replies"][0].tool_calls[1].tool_name == "factorial"
         assert result["replies"][0].tool_calls[1].arguments == {"n": 5}
-        assert result["replies"][0].tool_calls[1].id == "call_2"
+        assert result["replies"][0].tool_calls[1].id is None
         assert result["replies"][0].meta["finish_reason"] == "stop"
         assert result["replies"][0].meta["model"] == "qwen3:0.6b"
 
@@ -430,7 +429,7 @@ class TestUtils:
         expected = {
             "index": 1,
             "arguments": '{"expression": "7 * (4 + 2)"}',
-            "id": "call_1",
+            "id": None,
             "tool_name": "calculator",
         }
         # We add extra to the expected dict if it exists in the result for comparison
@@ -443,7 +442,7 @@ class TestUtils:
             "index": 2,
             "tool_name": "factorial",
             "arguments": '{"n": 5}',
-            "id": "call_2",
+            "id": None,
         }
         # We add extra to the expected dict if it exists in the result for comparison
         # This was added in PR https://github.com/deepset-ai/haystack/pull/10018 and released in Haystack 2.20.0
@@ -503,10 +502,10 @@ class TestUtils:
         assert len(result["replies"][0].tool_calls) == 2
         assert result["replies"][0].tool_calls[0].tool_name == "weather"
         assert result["replies"][0].tool_calls[0].arguments == {"city": "Paris"}
-        assert result["replies"][0].tool_calls[0].id == "call_1"
+        assert result["replies"][0].tool_calls[0].id is None
         assert result["replies"][0].tool_calls[1].tool_name == "weather"
         assert result["replies"][0].tool_calls[1].arguments == {"city": "London"}
-        assert result["replies"][0].tool_calls[1].id == "call_2"
+        assert result["replies"][0].tool_calls[1].id is None
 
     def test_handle_streaming_response_tool_calls_with_thinking(self):
         ollama_chunks = [
@@ -622,7 +621,7 @@ class TestUtils:
         assert result["replies"][0].text is None
         assert result["replies"][0].tool_calls[0].tool_name == "add_two_numbers"
         assert result["replies"][0].tool_calls[0].arguments == {"a": 2, "b": 2}
-        assert result["replies"][0].tool_calls[0].id == "call_1"
+        assert result["replies"][0].tool_calls[0].id is None
         assert result["replies"][0].reasoning.reasoning_text == "Okay, the user is asking 2 plus 2."
         assert result["replies"][0].meta["finish_reason"] == "stop"
         assert result["replies"][0].meta["model"] == "qwen3:0.6b"
@@ -651,7 +650,7 @@ class TestUtils:
         expected = {
             "index": 1,
             "arguments": '{"a": 2, "b": 2}',
-            "id": "call_1",
+            "id": None,
             "tool_name": "add_two_numbers",
         }
         serialized_dict = streaming_chunks[12].tool_calls[0].to_dict()

@@ -165,10 +165,10 @@ def _convert_ollama_response_to_chatmessage(ollama_response: ChatResponse) -> Ch
     tool_calls: list[ToolCall] = []
 
     if ollama_tool_calls := ollama_message.get("tool_calls"):
-        for idx, ollama_tc in enumerate(ollama_tool_calls):
+        for ollama_tc in ollama_tool_calls:
             tool_calls.append(
                 ToolCall(
-                    id=ollama_tc.get("id") or f"call_{idx}",
+                    id=ollama_tc.get("id"),
                     tool_name=ollama_tc["function"]["name"],
                     arguments=ollama_tc["function"]["arguments"],
                 )
@@ -209,7 +209,7 @@ def _build_chunk(
             tool_calls_list.append(
                 ToolCallDelta(
                     index=tool_call_index,
-                    id=tool_call.get("id") or f"call_{tool_call_index}",
+                    id=tool_call.get("id"),
                     tool_name=tool_call["function"]["name"],
                     arguments=json.dumps(tool_call["function"]["arguments"])
                     if tool_call["function"]["arguments"]
@@ -372,10 +372,11 @@ class OllamaChatGenerator:
         component_info = ComponentInfo.from_component(self)
         chunks: list[StreamingChunk] = []
 
-        # Accumulators
-        arg_by_id: dict[str, str] = {}
-        name_by_id: dict[str, str] = {}
-        id_order: list[str] = []
+        # Accumulators keyed by tool_call.index (always unique per call, even for repeated tool names)
+        arg_by_index: dict[str, str] = {}
+        name_by_index: dict[str, str] = {}
+        id_by_index: dict[str, str | None] = {}
+        index_order: list[str] = []
         tool_call_index: int = 0
 
         # track reasoning and content blocks to correctly set start=True on the first chunk of each block
@@ -402,15 +403,14 @@ class OllamaChatGenerator:
 
             if chunk.tool_calls:
                 for tool_call in chunk.tool_calls:
-                    # id is always set by _build_chunk (either from the server or synthetic "call_N").
-                    # Fall back to tool_name only as a last resort for callers that bypass _build_chunk.
-                    tool_call_id = tool_call.id or tool_call.tool_name or ""
+                    key = str(tool_call.index)
                     args = tool_call.arguments or ""
 
-                    if tool_call_id not in id_order:
-                        id_order.append(tool_call_id)
-                        name_by_id[tool_call_id] = tool_call.tool_name or ""
-                    arg_by_id[tool_call_id] = args
+                    if key not in index_order:
+                        index_order.append(key)
+                        name_by_index[key] = tool_call.tool_name or ""
+                        id_by_index[key] = tool_call.id
+                    arg_by_index[key] = args
 
             if callback:
                 callback(chunk)
@@ -423,10 +423,10 @@ class OllamaChatGenerator:
             reasoning += c.reasoning.reasoning_text if c.reasoning else ""
 
         tool_calls = []
-        for tool_call_id in id_order:
-            arguments: str = arg_by_id.get(tool_call_id, "")
+        for key in index_order:
+            arguments: str = arg_by_index.get(key, "")
             tool_calls.append(
-                ToolCall(id=tool_call_id, tool_name=name_by_id[tool_call_id], arguments=json.loads(arguments))
+                ToolCall(id=id_by_index[key], tool_name=name_by_index[key], arguments=json.loads(arguments))
             )
 
         # We can't use _convert_streaming_chunks_to_chat_message because
@@ -453,10 +453,11 @@ class OllamaChatGenerator:
         component_info = ComponentInfo.from_component(self)
         chunks: list[StreamingChunk] = []
 
-        # Accumulators
-        arg_by_id: dict[str, str] = {}
-        name_by_id: dict[str, str] = {}
-        id_order: list[str] = []
+        # Accumulators keyed by tool_call.index (always unique per call, even for repeated tool names)
+        arg_by_index: dict[str, str] = {}
+        name_by_index: dict[str, str] = {}
+        id_by_index: dict[str, str | None] = {}
+        index_order: list[str] = []
         tool_call_index: int = 0
 
         # track reasoning and content blocks to correctly set start=True on the first chunk of each block
@@ -484,13 +485,14 @@ class OllamaChatGenerator:
 
             if chunk.tool_calls:
                 for tool_call in chunk.tool_calls:
-                    tool_call_id = tool_call.id or tool_call.tool_name or ""
+                    key = str(tool_call.index)
                     args = tool_call.arguments or ""
 
-                    if tool_call_id not in id_order:
-                        id_order.append(tool_call_id)
-                        name_by_id[tool_call_id] = tool_call.tool_name or ""
-                    arg_by_id[tool_call_id] = args
+                    if key not in index_order:
+                        index_order.append(key)
+                        name_by_index[key] = tool_call.tool_name or ""
+                        id_by_index[key] = tool_call.id
+                    arg_by_index[key] = args
 
             if callback is not None:
                 await callback(chunk)
@@ -505,10 +507,10 @@ class OllamaChatGenerator:
             reasoning += c.reasoning.reasoning_text if c.reasoning else ""
 
         tool_calls = []
-        for tool_call_id in id_order:
-            arguments: str = arg_by_id.get(tool_call_id, "")
+        for key in index_order:
+            arguments: str = arg_by_index.get(key, "")
             tool_calls.append(
-                ToolCall(id=tool_call_id, tool_name=name_by_id[tool_call_id], arguments=json.loads(arguments))
+                ToolCall(id=id_by_index[key], tool_name=name_by_index[key], arguments=json.loads(arguments))
             )
 
         # We can't use _convert_streaming_chunks_to_chat_message because
