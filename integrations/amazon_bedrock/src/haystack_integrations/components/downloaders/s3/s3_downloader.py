@@ -212,9 +212,8 @@ class S3Downloader:
                 # we know that _storage is not None after warm_up() is called, but mypy does not know that
                 self._storage.download(key=s3_key, local_file_path=tmp_path)  # type: ignore[union-attr]
                 os.replace(tmp_path, file_path)
-            except BaseException:
+            finally:
                 tmp_path.unlink(missing_ok=True)
-                raise
 
         document.meta["file_path"] = str(file_path)
         return document
