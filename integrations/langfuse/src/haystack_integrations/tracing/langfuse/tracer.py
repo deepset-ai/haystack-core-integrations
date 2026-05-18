@@ -90,7 +90,7 @@ class LangfuseSpan(Span):
             return
         if key.endswith(".input"):
             if "messages" in value:
-                messages = [m.to_openai_dict_format(require_tool_call_ids=False) for m in value["messages"]]
+                messages = [m.to_openai_dict_format(require_tool_call_ids=False) for m in (value.get("messages") or [])]
                 if isinstance(gen_kwargs := value.get("generation_kwargs"), dict):
                     self._span.update(input={"messages": messages, "generation_kwargs": gen_kwargs})
                 else:

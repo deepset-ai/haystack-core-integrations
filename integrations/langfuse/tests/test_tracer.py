@@ -180,6 +180,16 @@ class TestLangfuseSpan:
             # check we handle properly string list replies
             assert mock_context_manager._span.update.call_args_list[0][1] == {"output": ["reply1", "reply2"]}
 
+    def test_set_content_tag_messages_none_does_not_raise(self):
+        # Regression test: value["messages"] key present but value is None must not raise TypeError
+        mock_context_manager = MockContextManager()
+        span = LangfuseSpan(mock_context_manager)
+
+        with patch("haystack_integrations.tracing.langfuse.tracer.proxy_tracer.is_content_tracing_enabled", True):
+            span.set_content_tag("key.input", {"messages": None})
+            assert mock_context_manager._span.update.call_count == 1
+            assert mock_context_manager._span.update.call_args_list[0][1] == {"input": []}
+
 
 class TestSpanContext:
     def test_post_init(self):
