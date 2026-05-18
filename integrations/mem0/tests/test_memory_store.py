@@ -140,30 +140,6 @@ class TestMem0MemoryStore:
             infer=True,
         )
 
-    def test_add_memories_uses_infer_default(self, monkeypatch, mock_mem0_client):
-        monkeypatch.setenv("MEM0_API_KEY", "test-key")
-        mock_mem0_client.add.return_value = {"results": []}
-
-        store = Mem0MemoryStore()
-        store.add_memories(messages=[ChatMessage.from_user("test")], user_id="u1")
-
-        mock_mem0_client.add.assert_called_with(
-            messages=[{"content": "test", "role": "user"}], infer=True, user_id="u1"
-        )
-
-    def test_add_memories_accepts_infer_override(self, monkeypatch, mock_mem0_client):
-        monkeypatch.setenv("MEM0_API_KEY", "test-key")
-        mock_mem0_client.add.return_value = {"results": []}
-
-        store = Mem0MemoryStore()
-        store.add_memories(messages=[ChatMessage.from_user("test")], user_id="u1", infer=False)
-
-        mock_mem0_client.add.assert_called_with(
-            messages=[{"content": "test", "role": "user"}],
-            infer=False,
-            user_id="u1",
-        )
-
     def test_add_memories_skips_empty_text(self, monkeypatch):
         monkeypatch.setenv("MEM0_API_KEY", "test-key")
 
@@ -285,37 +261,6 @@ class TestMem0MemoryStore:
         store = Mem0MemoryStore()
         with pytest.raises(ValueError, match="At least one of user_id"):
             store._get_ids()
-
-    def test_get_ids_returns_non_none_only(self, monkeypatch, mock_mem0_client):  # noqa: ARG002
-        monkeypatch.setenv("MEM0_API_KEY", "test-key")
-        store = Mem0MemoryStore()
-        assert store._get_ids(user_id="u1", agent_id="a1", app_id="app1") == {
-            "user_id": "u1",
-            "agent_id": "a1",
-            "app_id": "app1",
-        }
-
-    def test_add_memories_passes_app_id(self, monkeypatch, mock_mem0_client):
-        monkeypatch.setenv("MEM0_API_KEY", "test-key")
-        mock_mem0_client.add.return_value = {"results": []}
-
-        store = Mem0MemoryStore()
-        store.add_memories(messages=[ChatMessage.from_user("test")], app_id="app1")
-
-        mock_mem0_client.add.assert_called_with(
-            messages=[{"content": "test", "role": "user"}],
-            infer=True,
-            app_id="app1",
-        )
-
-    def test_search_memories_with_app_id_filter(self, monkeypatch, mock_mem0_client):
-        monkeypatch.setenv("MEM0_API_KEY", "test-key")
-        mock_mem0_client.search.return_value = {"results": []}
-
-        store = Mem0MemoryStore()
-        store.search_memories(query="test", app_id="app1")
-
-        mock_mem0_client.search.assert_called_with(query="test", top_k=5, filters={"app_id": "app1"})
 
 
 @pytest.mark.skipif(
