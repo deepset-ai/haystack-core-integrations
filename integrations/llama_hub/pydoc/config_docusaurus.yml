@@ -1,0 +1,14 @@
+# Documentation generation profile for llamahub-haystack
+loaders:
+  - type: haystack_pydoc_tools.loaders.GitRegistryLoader
+    options:
+      project_name: llamahub-haystack
+
+processors:
+  - type: haystack_pydoc_tools.processors.DocstringProcessor
+
+renderers:
+  - type: haystack_pydoc_tools.renderers.DocusaurusRenderer
+    options:
+      excerpt: A unified connector component wrapping arbitrary LlamaHub data readers cleanly for native deployment inside Haystack 2.0 processing pipelines.
+      sidebar_label: LlamaHub Connector

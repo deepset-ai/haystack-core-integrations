@@ -1,0 +1,34 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "llamahub-haystack"
+dynamic = ["version"]
+description = "A Haystack 2.0 integration to use LlamaHub data loaders inside pipelines."
+readme = "README.md"
+requires-python = ">=3.8"
+license = "Apache-2.0"
+dependencies = [
+    "haystack-ai>=2.0.0",
+    "llama-index-core>=0.10.0",
+]
+
+[tool.hatch.version]
+path = "src/haystack_integrations/components/connectors/llamahub/__init__.py"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/haystack_integrations"]
+
+[tool.hatch.envs.default]
+dependencies = [
+    "pytest",
+    "mypy",
+    "black",
+    "ruff",
+]
+
+[tool.hatch.envs.default.scripts]
+unit = "pytest tests/"
+types = "mypy src/haystack_integrations"
+fmt = ["black src/ tests/", "ruff check --fix src/ tests/"]
