@@ -39,7 +39,10 @@ class Mem0MemoryWriterTool(Tool):
     The `user_id` is injected at runtime from Agent State via `inputs_from_state`,
     so a single tool instance can serve many users. The LLM only sees `text` and `infer`.
     Pass a custom `inputs_from_state` mapping to inject other supported Mem0 entity IDs such as
-    `run_id`, `agent_id`, or `app_id`.
+    `run_id`, `agent_id`, or `app_id`. The mapping keys are Agent State keys and the values are this
+    tool's parameter names. For example, use
+    `inputs_from_state={"user_id": "user_id", "session_id": "run_id"}` to pass `state["session_id"]`
+    to the tool's `run_id` parameter at runtime.
 
     ### Usage example
 
@@ -56,12 +59,13 @@ class Mem0MemoryWriterTool(Tool):
     agent = Agent(
         chat_generator=OpenAIChatGenerator(model="gpt-4o-mini"),
         tools=[store_memory],
-        state_schema={"user_id": {"type": str}},
+        state_schema={"user_id": {"type": str}, "session_id": {"type": str}},
     )
 
     result = agent.run(
         messages=[ChatMessage.from_user("Remember that I prefer concise Python examples.")],
         user_id="alice",
+        session_id="chat-42",
     )
     print(result["last_message"].text)
     ```
@@ -83,8 +87,11 @@ class Mem0MemoryWriterTool(Tool):
         :param name: Tool name exposed to the LLM.
         :param description: Tool description exposed to the LLM.
         :param parameters: JSON schema for the parameters exposed to the LLM. Defaults to `text` and `infer`.
-        :param inputs_from_state: Mapping of state keys to tool parameter names. Defaults to injecting
-            `user_id` from state.
+        :param inputs_from_state: Mapping from Agent State keys to this tool's parameter names.
+            Defaults to `{"user_id": "user_id"}`, which injects `state["user_id"]` into the `user_id`
+            parameter. To pass more Mem0 IDs at runtime, add the state fields to the Agent's
+            `state_schema` and map them to the corresponding tool parameters, for example
+            `{"user_id": "user_id", "session_id": "run_id", "agent_name": "agent_id", "app_name": "app_id"}`.
         """
         self.memory_store = memory_store
         self._is_warmed_up = False
