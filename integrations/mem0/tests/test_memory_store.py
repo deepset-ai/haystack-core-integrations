@@ -4,6 +4,7 @@
 
 import os
 import uuid
+from typing import ClassVar
 
 import pytest
 from haystack.dataclasses import ChatMessage, ToolCall
@@ -264,6 +265,28 @@ class TestMem0MemoryStore:
 )
 @pytest.mark.integration
 class TestMem0MemoryStoreIntegration:
+    FILTERABLE_MEMORIES: ClassVar[list[tuple[str, dict[str, str]]]] = [
+        ("mem0-filter-work-active", {"category": "work", "status": "active", "topic": "python"}),
+        ("mem0-filter-work-archived", {"category": "work", "status": "archived", "topic": "ops"}),
+        ("mem0-filter-personal-active", {"category": "personal", "status": "active", "topic": "travel"}),
+        ("mem0-filter-finance-draft", {"category": "finance", "status": "draft", "topic": "budget"}),
+    ]
+
+    @staticmethod
+    def _assert_results_contain_only(results: list[ChatMessage], expected_tokens: set[str]) -> None:
+        result_texts = [result.text or "" for result in results]
+        assert len(result_texts) == len(expected_tokens)
+        assert {token for token in expected_tokens if any(token in text for text in result_texts)} == expected_tokens
+
+    def _seed_filterable_memories(self, store: Mem0MemoryStore, *, user_id: str) -> None:
+        for text, metadata in self.FILTERABLE_MEMORIES:
+            store.add_memories(
+                messages=[ChatMessage.from_user(text)],
+                user_id=user_id,
+                infer=False,
+                metadata=metadata,
+            )
+
     def test_add_and_search(self):
         store = Mem0MemoryStore()
         user_id = f"test_{uuid.uuid4().hex}"
@@ -274,3 +297,94 @@ class TestMem0MemoryStoreIntegration:
             assert any("Python" in (r.text or "") or "Haystack" in (r.text or "") for r in results)
         finally:
             store.client.delete_all(user_id=user_id)
+
+    def test_search_filters_comparison_operators(self):
+        store = Mem0MemoryStore()
+        user_id = f"test_{uuid.uuid4().hex}"
+        try:
+            self._seed_filterable_memories(store, user_id=user_id)
+
+            work_results = store.search_memories(
+                user_id=user_id,
+                filters={"field": "category", "operator": "==", "value": "work"},
+            )
+            self._assert_results_contain_only(
+                work_results,
+                {"mem0-filter-work-active", "mem0-filter-work-archived"},
+            )
+
+            not_archived_results = store.search_memories(
+                user_id=user_id,
+                filters={"field": "status", "operator": "!=", "value": "archived"},
+            )
+            self._assert_results_contain_only(
+                not_archived_results,
+                {"mem0-filter-work-active", "mem0-filter-personal-active", "mem0-filter-finance-draft"},
+            )
+        finally:
+            store.client.delete_all(user_id=user_id)
+
+    def test_search_filters_logical_operators(self):
+        store = Mem0MemoryStore()
+        user_id = f"test_{uuid.uuid4().hex}"
+        try:
+            self._seed_filterable_memories(store, user_id=user_id)
+
+            and_results = store.search_memories(
+                user_id=user_id,
+                filters={
+                    "operator": "AND",
+                    "conditions": [
+                        {"field": "category", "operator": "==", "value": "work"},
+                        {"field": "status", "operator": "==", "value": "active"},
+                    ],
+                },
+            )
+            self._assert_results_contain_only(and_results, {"mem0-filter-work-active"})
+
+            or_results = store.search_memories(
+                user_id=user_id,
+                filters={
+                    "operator": "OR",
+                    "conditions": [
+                        {"field": "category", "operator": "==", "value": "personal"},
+                        {"field": "category", "operator": "==", "value": "finance"},
+                    ],
+                },
+            )
+            self._assert_results_contain_only(
+                or_results,
+                {"mem0-filter-personal-active", "mem0-filter-finance-draft"},
+            )
+        finally:
+            store.client.delete_all(user_id=user_id)
+
+    def test_search_filters_entity_in_operator(self):
+        store = Mem0MemoryStore()
+        first_user_id = f"test_{uuid.uuid4().hex}"
+        second_user_id = f"test_{uuid.uuid4().hex}"
+        try:
+            store.add_memories(
+                messages=[ChatMessage.from_user("mem0-filter-first-user")],
+                user_id=first_user_id,
+                infer=False,
+                metadata={"category": "entity-in"},
+            )
+            store.add_memories(
+                messages=[ChatMessage.from_user("mem0-filter-second-user")],
+                user_id=second_user_id,
+                infer=False,
+                metadata={"category": "entity-in"},
+            )
+
+            results = store.search_memories(
+                filters={"field": "user_id", "operator": "in", "value": [first_user_id, second_user_id]}
+            )
+
+            self._assert_results_contain_only(
+                results,
+                {"mem0-filter-first-user", "mem0-filter-second-user"},
+            )
+        finally:
+            store.client.delete_all(user_id=first_user_id)
+            store.client.delete_all(user_id=second_user_id)
