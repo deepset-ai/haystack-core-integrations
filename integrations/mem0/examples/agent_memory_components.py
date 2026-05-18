@@ -82,7 +82,7 @@ def build_memory_agent_pipeline(store: Mem0MemoryStore) -> Pipeline:
             system_prompt=SYSTEM_PROMPT,
         ),
     )
-    pipeline.add_component("writer", Mem0MemoryWriter(memory_store=store))
+    pipeline.add_component("writer", Mem0MemoryWriter(memory_store=store, infer=False))
 
     pipeline.connect("retriever.memories", "memory_injector.memories")
     pipeline.connect("memory_injector.output", "agent.messages")
@@ -124,7 +124,7 @@ def main() -> None:
     """Run the Mem0 memory Agent pipeline demo."""
     print("=== Mem0 Memory Agent Pipeline Demo ===\n")  # noqa: T201
 
-    store = Mem0MemoryStore(infer=False)
+    store = Mem0MemoryStore()
     seed_memories(store)
     print(f"Seeded {len(SEEDED_MEMORIES)} memories for {USER_ID}.\n")  # noqa: T201
 

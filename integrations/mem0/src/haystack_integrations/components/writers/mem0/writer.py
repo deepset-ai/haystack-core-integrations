@@ -17,8 +17,8 @@ class Mem0MemoryWriter:
 
     Use this component in a Haystack Pipeline to persist conversation messages.
     Scoping IDs (`user_id`, `run_id`, `agent_id`, `app_id`) are runtime parameters so the
-    same pipeline instance can serve multiple users or agents. The store's `infer` setting controls
-    whether Mem0 extracts memories from messages or stores message text as-is.
+    same pipeline instance can serve multiple users or agents. The `infer` setting controls whether
+    Mem0 extracts memories from messages or stores message text as-is.
 
     ### Usage example
 
@@ -27,8 +27,8 @@ class Mem0MemoryWriter:
     from haystack_integrations.components.writers.mem0 import Mem0MemoryWriter
     from haystack_integrations.memory_stores.mem0 import Mem0MemoryStore
 
-    store = Mem0MemoryStore(infer=False)
-    writer = Mem0MemoryWriter(memory_store=store)
+    store = Mem0MemoryStore()
+    writer = Mem0MemoryWriter(memory_store=store, infer=False)
 
     result = writer.run(
         messages=[ChatMessage.from_user("Alice prefers concise Python examples.")],
@@ -38,13 +38,15 @@ class Mem0MemoryWriter:
     ```
     """
 
-    def __init__(self, *, memory_store: Mem0MemoryStore) -> None:
+    def __init__(self, *, memory_store: Mem0MemoryStore, infer: bool = True) -> None:
         """
         Initialize the Mem0MemoryWriter.
 
         :param memory_store: The Mem0MemoryStore instance to write memories to.
+        :param infer: If True, Mem0 extracts memories from messages. If False, Mem0 stores message text as-is.
         """
         self.memory_store = memory_store
+        self.infer = infer
 
     @component.output_types(memories_written=int)
     def run(
@@ -72,13 +74,14 @@ class Mem0MemoryWriter:
             run_id=run_id,
             agent_id=agent_id,
             app_id=app_id,
+            infer=self.infer,
         )
         count = len(result) if isinstance(result, list) else 0
         return {"memories_written": count}
 
     def to_dict(self) -> dict[str, Any]:
         """Serialize this component to a dictionary."""
-        return default_to_dict(self, memory_store=self.memory_store.to_dict())
+        return default_to_dict(self, memory_store=self.memory_store.to_dict(), infer=self.infer)
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "Mem0MemoryWriter":

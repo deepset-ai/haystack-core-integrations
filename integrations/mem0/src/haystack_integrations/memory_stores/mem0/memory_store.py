@@ -28,7 +28,6 @@ class Mem0MemoryStore:
         self,
         *,
         api_key: Secret = Secret.from_env_var("MEM0_API_KEY"),
-        infer: bool = True,
     ) -> None:
         """
         Initialize the Mem0 memory store.
@@ -37,11 +36,8 @@ class Mem0MemoryStore:
         needs the client is invoked).
 
         :param api_key: The Mem0 API key. Defaults to the MEM0_API_KEY environment variable.
-        :param infer: If True (default), Mem0 extracts facts asynchronously from each message.
-            Set to False to store the full message text synchronously and receive IDs immediately.
         """
         self.api_key = api_key
-        self.infer = infer
         self._client: MemoryClient | None = None
 
     def warm_up(self) -> None:
@@ -62,7 +58,7 @@ class Mem0MemoryStore:
 
     def to_dict(self) -> dict[str, Any]:
         """Serialize the store configuration to a dictionary."""
-        return default_to_dict(self, api_key=self.api_key.to_dict(), infer=self.infer)
+        return default_to_dict(self, api_key=self.api_key.to_dict())
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "Mem0MemoryStore":
@@ -79,7 +75,7 @@ class Mem0MemoryStore:
         run_id: str | None = None,
         agent_id: str | None = None,
         app_id: str | None = None,
-        infer: bool | None = None,
+        infer: bool = True,
         **kwargs: Any,
     ) -> list[dict[str, Any]]:
         """
@@ -91,7 +87,6 @@ class Mem0MemoryStore:
         :param agent_id: Agent ID to scope these memories. Required for Mem0 to store assistant messages.
         :param app_id: App ID to scope these memories.
         :param infer: If True, Mem0 extracts memories from messages. If False, Mem0 stores message text as-is.
-            If omitted, uses the store's init-time default.
         :param kwargs: Additional keyword arguments forwarded to the Mem0 client add method.
             Note: ChatMessage.meta is ignored because Mem0 doesn't support per-message metadata.
             Pass `metadata` as a kwarg to attach metadata to the whole batch instead.
@@ -114,7 +109,7 @@ class Mem0MemoryStore:
         try:
             status = self.client.add(
                 messages=mem0_messages,
-                infer=self.infer if infer is None else infer,
+                infer=infer,
                 **ids,
                 **kwargs,
             )

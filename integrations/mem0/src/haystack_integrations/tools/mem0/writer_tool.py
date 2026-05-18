@@ -153,5 +153,4 @@ class Mem0MemoryWriterTool(Tool):
         """Deserialize this tool from a dictionary."""
         inner = data["data"]
         inner["memory_store"] = Mem0MemoryStore.from_dict(inner["memory_store"])
-        inner.pop("infer", None)
         return cls(**inner)
