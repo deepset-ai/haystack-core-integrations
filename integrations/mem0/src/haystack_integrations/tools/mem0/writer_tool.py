@@ -107,6 +107,7 @@ class Mem0MemoryWriterTool(Tool):
     def store(
         self,
         text: str,
+        *,
         infer: bool = False,
         user_id: str | None = None,
         run_id: str | None = None,

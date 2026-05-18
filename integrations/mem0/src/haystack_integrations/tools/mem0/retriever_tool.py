@@ -106,6 +106,7 @@ class Mem0MemoryRetrieverTool(Tool):
     def retrieve(
         self,
         query: str,
+        *,
         top_k: int | None = None,
         user_id: str | None = None,
         run_id: str | None = None,
