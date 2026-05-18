@@ -172,7 +172,7 @@ class TestMem0MemoryStore:
         assert "retrieved_memory_metadata" in results[0].meta
         assert results[0].meta["retrieved_memory_metadata"]["id"] == "mem-1"
 
-    def test_search_memories_with_filters_bypasses_id_check(self, monkeypatch, mock_mem0_client):
+    def test_search_memories_with_filters_only(self, monkeypatch, mock_mem0_client):
         monkeypatch.setenv("MEM0_API_KEY", "test-key")
         mock_mem0_client.get_all.return_value = {"results": []}
 
@@ -180,6 +180,37 @@ class TestMem0MemoryStore:
         store.search_memories(filters={"field": "user_id", "operator": "==", "value": "user-1"})
 
         mock_mem0_client.get_all.assert_called_with(filters={"user_id": "user-1"})
+
+    def test_search_memories_combines_filters_with_ids(self, monkeypatch, mock_mem0_client):
+        monkeypatch.setenv("MEM0_API_KEY", "test-key")
+        mock_mem0_client.search.return_value = {"results": []}
+
+        store = Mem0MemoryStore()
+        store.search_memories(
+            query="Python",
+            filters={
+                "operator": "AND",
+                "conditions": [
+                    {"field": "tag", "operator": "==", "value": "work"},
+                    {"field": "score", "operator": ">=", "value": 0.8},
+                ],
+            },
+            user_id="user-1",
+            app_id="app-1",
+        )
+
+        mock_mem0_client.search.assert_called_with(
+            query="Python",
+            top_k=5,
+            filters={
+                "AND": [
+                    {"user_id": "user-1"},
+                    {"app_id": "app-1"},
+                    {"tag": "work"},
+                    {"score": {"gte": 0.8}},
+                ]
+            },
+        )
 
     def test_search_memories_raises_store_error_on_failure(self, monkeypatch, mock_mem0_client):
         monkeypatch.setenv("MEM0_API_KEY", "test-key")

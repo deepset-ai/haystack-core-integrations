@@ -19,7 +19,7 @@ class Mem0MemoryRetriever:
     context to a language model or Agent. The returned memories are system messages.
 
     Provide either `filters` or at least one Mem0 entity ID (`user_id`, `run_id`, `agent_id`, or `app_id`)
-    when running the component. If `filters` is provided, it takes precedence over entity IDs.
+    when running the component. If both are provided, the filters and entity IDs are combined.
 
     ### Usage example
 
@@ -67,7 +67,7 @@ class Mem0MemoryRetriever:
         :param run_id: Run ID to scope the search.
         :param agent_id: Agent ID to scope the search.
         :param app_id: App ID to scope the search.
-        :param filters: Haystack-style filters to apply. When provided, ID parameters are ignored.
+        :param filters: Haystack-style filters to apply. When provided with ID parameters, they are combined.
         :param top_k: Maximum number of memories to return. Overrides the init-time default.
         :param include_memory_metadata: If True, each ChatMessage's meta will include a
             `retrieved_memory_metadata` key with the raw Mem0 memory object.

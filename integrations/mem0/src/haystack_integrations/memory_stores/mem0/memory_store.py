@@ -9,7 +9,7 @@ from haystack.dataclasses.chat_message import ChatMessage
 from haystack.utils import Secret, deserialize_secrets_inplace
 
 from haystack_integrations.memory_stores.mem0.errors import Mem0MemoryStoreError
-from haystack_integrations.memory_stores.mem0.filters import normalize_filters
+from haystack_integrations.memory_stores.mem0.filters import _build_search_filters
 from mem0 import MemoryClient
 
 logger = logging.getLogger(__name__)
@@ -136,7 +136,7 @@ class Mem0MemoryStore:
         Search for memories in Mem0.
 
         Either `filters` or at least one of `user_id`, `run_id`, `agent_id`, or `app_id` must be provided.
-        When `filters` is given the ID parameters are ignored; Mem0 filters take precedence.
+        When both `filters` and IDs are provided, they are combined with an `AND` condition.
 
         :param query: Text query to search. If omitted, returns all memories matching the scope.
         :param filters: Haystack-style filters to apply. See https://docs.haystack.deepset.ai/docs/metadata-filtering
@@ -151,11 +151,13 @@ class Mem0MemoryStore:
         :returns: List of ChatMessage (system role) objects containing the retrieved memories.
         :raises Mem0MemoryStoreError: If the Mem0 API call fails.
         """
-        if filters:
-            mem0_filters = normalize_filters(filters)
-        else:
-            ids = self._get_ids(user_id=user_id, run_id=run_id, agent_id=agent_id, app_id=app_id)
-            mem0_filters = dict(ids) if len(ids) == 1 else {"AND": [{k: v} for k, v in ids.items()]}
+        mem0_filters = _build_search_filters(
+            filters=filters,
+            user_id=user_id,
+            run_id=run_id,
+            agent_id=agent_id,
+            app_id=app_id,
+        )
 
         try:
             if not query:

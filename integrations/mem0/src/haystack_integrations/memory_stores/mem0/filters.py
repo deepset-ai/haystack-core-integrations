@@ -7,6 +7,51 @@ from typing import Any
 from haystack.errors import FilterError
 
 
+def _build_search_filters(
+    *,
+    filters: dict[str, Any] | None = None,
+    user_id: str | None = None,
+    run_id: str | None = None,
+    agent_id: str | None = None,
+    app_id: str | None = None,
+) -> dict[str, Any]:
+    """
+    Build Mem0 search filters from explicit IDs and optional Haystack-style filters.
+
+    Mem0 `search` and `get_all` expect entity IDs inside the `filters` object. This helper keeps the
+    public store API convenient while ensuring IDs and custom filters are both applied. It combines
+    everything as Haystack-style filters first, then normalizes the combined filter to Mem0 format.
+
+    :param filters: Haystack-style filters to combine with IDs.
+    :param user_id: User ID to scope the search.
+    :param run_id: Run ID to scope the search.
+    :param agent_id: Agent ID to scope the search.
+    :param app_id: App ID to scope the search.
+    :returns: Mem0-compatible filters.
+    :raises ValueError: If neither filters nor an entity ID is provided.
+    """
+    conditions = [
+        {"field": key, "operator": "==", "value": value}
+        for key, value in {"user_id": user_id, "run_id": run_id, "agent_id": agent_id, "app_id": app_id}.items()
+        if value
+    ]
+
+    # TODO How should we handle an OR operator at the top-level?
+    # TODO Should we check for duplicate condition entries when combining filters and IDs?
+    if filters:
+        if filters.get("operator", "").upper() == "AND" and "conditions" in filters:
+            conditions.extend(filters["conditions"])
+        else:
+            conditions.append(filters)
+
+    if not conditions:
+        msg = "Either filters or at least one of user_id, run_id, agent_id, or app_id must be provided."
+        raise ValueError(msg)
+
+    combined_filter = conditions[0] if len(conditions) == 1 else {"operator": "AND", "conditions": conditions}
+    return normalize_filters(combined_filter)
+
+
 def normalize_filters(filters: dict[str, Any]) -> dict[str, Any]:
     """
     Convert Haystack-style filters to the Mem0 filter format.
