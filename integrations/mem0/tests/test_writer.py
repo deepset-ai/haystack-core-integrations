@@ -53,10 +53,19 @@ class TestMem0MemoryWriter:
 
     def test_to_dict(self, store):
         writer = Mem0MemoryWriter(memory_store=store, infer=False)
-        d = writer.to_dict()
-        assert d["type"] == "haystack_integrations.components.writers.mem0.writer.Mem0MemoryWriter"
-        assert "memory_store" in d["init_parameters"]
-        assert d["init_parameters"]["infer"] is False
+        data = writer.to_dict()
+        assert data == {
+            "type": "haystack_integrations.components.writers.mem0.writer.Mem0MemoryWriter",
+            "init_parameters": {
+                "infer": False,
+                "memory_store": {
+                    "type": "haystack_integrations.memory_stores.mem0.memory_store.Mem0MemoryStore",
+                    "init_parameters": {
+                        "api_key": {"env_vars": ["MEM0_API_KEY"], "strict": True, "type": "env_var"},
+                    },
+                },
+            },
+        }
 
     def test_from_dict(self, monkeypatch, mock_mem0_client):  # noqa: ARG002
         monkeypatch.setenv("MEM0_API_KEY", "test-key")
@@ -75,9 +84,3 @@ class TestMem0MemoryWriter:
         writer = Mem0MemoryWriter.from_dict(data)
         assert isinstance(writer.memory_store, Mem0MemoryStore)
         assert writer.infer is False
-
-    def test_serialization_roundtrip(self, store):
-        writer = Mem0MemoryWriter(memory_store=store, infer=False)
-        d = writer.to_dict()
-        assert d["init_parameters"]["memory_store"]["type"].endswith("Mem0MemoryStore")
-        assert d["init_parameters"]["infer"] is False
