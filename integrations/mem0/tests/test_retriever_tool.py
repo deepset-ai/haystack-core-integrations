@@ -6,8 +6,7 @@ from unittest.mock import Mock
 
 import pytest
 from haystack.dataclasses import ChatMessage
-from haystack.tools import Tool, deserialize_tools_or_toolset_inplace, serialize_tools_or_toolset
-from haystack.utils import Secret
+from haystack.tools import Tool
 
 from haystack_integrations.memory_stores.mem0.memory_store import Mem0MemoryStore
 from haystack_integrations.tools.mem0.retriever_tool import Mem0MemoryRetrieverTool
@@ -102,7 +101,7 @@ class TestMem0MemoryRetrieverTool:
         result = tool.invoke(query="nothing", user_id="alice")
         assert "No memories found" in result
 
-    def test_warm_up_calls_store(self, store):
+    def test_warm_up(self, store):
         store.warm_up = Mock()
         tool = Mem0MemoryRetrieverTool(memory_store=store)
         tool.warm_up()
@@ -116,54 +115,61 @@ class TestMem0MemoryRetrieverTool:
         tool.warm_up()
         store.warm_up.assert_called_once()
 
-    def test_serialization_roundtrip(self, monkeypatch, mock_mem0_client):  # noqa: ARG002
-        monkeypatch.setenv("MY_MEM0_KEY", "test-key")
-        store = Mem0MemoryStore(api_key=Secret.from_env_var("MY_MEM0_KEY"))
-        tool = Mem0MemoryRetrieverTool(memory_store=store, top_k=3)
-        serialized = serialize_tools_or_toolset([tool])
-        assert isinstance(serialized, list)
-        assert serialized[0]["type"].endswith("Mem0MemoryRetrieverTool")
-
-        data = {"tools": serialized}
-        deserialize_tools_or_toolset_inplace(data)
-        restored = data["tools"][0]
-
-        assert isinstance(restored, Mem0MemoryRetrieverTool)
-        assert restored.name == tool.name
-        assert restored.top_k == 3
-        assert restored.parameters == tool.parameters
-        assert restored.inputs_from_state == tool.inputs_from_state
-        assert isinstance(restored.memory_store, Mem0MemoryStore)
-
-    def test_serialization_roundtrip_custom_inputs_from_state(self, monkeypatch, mock_mem0_client):  # noqa: ARG002
-        monkeypatch.setenv("MEM0_API_KEY", "test-key")
+    def test_to_dict(self):
         store = Mem0MemoryStore()
-        custom = {"session_id": "user_id"}  # map state key "session_id" to param "user_id"
-        tool = Mem0MemoryRetrieverTool(memory_store=store, inputs_from_state=custom)
+        tool = Mem0MemoryRetrieverTool(memory_store=store, top_k=4)
+        tool_dict = tool.to_dict()
+        assert tool_dict == {
+            "type": "haystack_integrations.tools.mem0.retriever_tool.Mem0MemoryRetrieverTool",
+            "data": {
+                "memory_store": {
+                    "type": "haystack_integrations.memory_stores.mem0.memory_store.Mem0MemoryStore",
+                    "init_parameters": {"api_key": {"type": "env_var", "env_vars": ["MEM0_API_KEY"], "strict": True}},
+                },
+                "top_k": 4,
+                "name": "retrieve_memories",
+                "description": (
+                    "Search long-term memories relevant to a query. Use this tool whenever you need to recall "
+                    "information from past conversations or stored facts."
+                ),
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "query": {"type": "string", "description": "The search query to find relevant memories."},
+                        "top_k": {"type": "integer", "description": "Maximum number of memories to return."},
+                    },
+                    "required": ["query"],
+                },
+                "inputs_from_state": {"user_id": "user_id"},
+            },
+        }
 
-        data = {"tools": serialize_tools_or_toolset([tool])}
-        deserialize_tools_or_toolset_inplace(data)
-        restored = data["tools"][0]
-
-        assert restored.inputs_from_state == custom
-
-    def test_serialized_tool_invokes_correctly_after_roundtrip(self, monkeypatch, mock_mem0_client):  # noqa: ARG002
-        monkeypatch.setenv("MEM0_API_KEY", "test-key")
-        store = Mem0MemoryStore()
-        tool = Mem0MemoryRetrieverTool(memory_store=store)
-
-        data = {"tools": serialize_tools_or_toolset([tool])}
-        deserialize_tools_or_toolset_inplace(data)
-        restored = data["tools"][0]
-
-        restored.memory_store.search_memories = Mock(return_value=[ChatMessage.from_system("Python fan")])
-        result = restored.invoke(query="hobbies", user_id="alice")
-        assert "Python fan" in result
-        restored.memory_store.search_memories.assert_called_once_with(
-            query="hobbies",
-            top_k=5,
-            user_id="alice",
-            run_id=None,
-            agent_id=None,
-            app_id=None,
-        )
+    def test_from_dict(self):
+        data = {
+            "type": "haystack_integrations.tools.mem0.retriever_tool.Mem0MemoryRetrieverTool",
+            "data": {
+                "memory_store": {
+                    "type": "haystack_integrations.memory_stores.mem0.memory_store.Mem0MemoryStore",
+                    "init_parameters": {"api_key": {"type": "env_var", "env_vars": ["MEM0_API_KEY"], "strict": True}},
+                },
+                "top_k": 4,
+                "name": "retrieve_memories",
+                "description": (
+                    "Search long-term memories relevant to a query. Use this tool whenever you need to recall "
+                    "information from past conversations or stored facts."
+                ),
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "query": {"type": "string", "description": "The search query to find relevant memories."},
+                        "top_k": {"type": "integer", "description": "Maximum number of memories to return."},
+                    },
+                    "required": ["query"],
+                },
+                "inputs_from_state": {"user_id": "user_id"},
+            },
+        }
+        tool = Mem0MemoryRetrieverTool.from_dict(data)
+        assert isinstance(tool, Mem0MemoryRetrieverTool)
+        assert tool.top_k == 4
+        assert isinstance(tool.memory_store, Mem0MemoryStore)

@@ -5,12 +5,19 @@
 import inspect
 from unittest.mock import Mock
 
+import pytest
 from haystack.dataclasses import ChatMessage
 from haystack.tools import Tool, deserialize_tools_or_toolset_inplace, serialize_tools_or_toolset
 from haystack.utils import Secret
 
 from haystack_integrations.memory_stores.mem0.memory_store import Mem0MemoryStore
 from haystack_integrations.tools.mem0.writer_tool import Mem0MemoryWriterTool
+
+
+@pytest.fixture
+def store(monkeypatch, mock_mem0_client):  # noqa: ARG001
+    monkeypatch.setenv("MEM0_API_KEY", "test-key")
+    return Mem0MemoryStore()
 
 
 class TestMem0MemoryWriterTool:
