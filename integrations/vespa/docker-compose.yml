@@ -7,7 +7,29 @@ services:
       - "8080:8080"
       - "19071:19071"
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:19071/ApplicationStatus"]
-      interval: 10s
+      # Use the container/document API on 8080 — it only returns 200 once an application has
+      # been deployed via the vespa-deploy sidecar below. This way `docker compose up --wait`
+      # blocks until the test schema is fully online.
+      test: ["CMD", "curl", "-f", "http://localhost:8080/ApplicationStatus"]
+      interval: 5s
       timeout: 5s
-      retries: 30
+      retries: 60
+
+  vespa-deploy:
+    image: vespaengine/vespa:8.687.75
+    container_name: vespa-deploy
+    depends_on:
+      vespa:
+        condition: service_started
+    environment:
+      VESPA_CONFIGSERVERS: vespa
+    volumes:
+      - ./tests/fixtures/vespa_app:/app:ro
+    entrypoint: ["bash", "-lc"]
+    command:
+      - |
+        set -euo pipefail
+        until curl -sf http://vespa:19071/ApplicationStatus > /dev/null; do sleep 2; done
+        /opt/vespa/bin/vespa-deploy prepare /app
+        /opt/vespa/bin/vespa-deploy activate
+    restart: "no"

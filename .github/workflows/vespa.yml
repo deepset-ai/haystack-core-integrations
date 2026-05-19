@@ -99,7 +99,6 @@ jobs:
 
       - name: Run integration tests
         env:
-          VESPA_RUN_INTEGRATION_TESTS: "1"
           VESPA_URL: "http://localhost"
         run: hatch run test:integration-cov-append-retry
 
