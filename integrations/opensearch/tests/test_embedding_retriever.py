@@ -283,6 +283,22 @@ def test_run_ignore_errors(caplog):
     assert "Some error" in caplog.text
 
 
+@pytest.mark.asyncio
+async def test_run_async_ignore_errors(caplog):
+    mock_store = Mock(spec=OpenSearchDocumentStore)
+    mock_store._embedding_retrieval_async.side_effect = Exception("Some error")
+    retriever = OpenSearchEmbeddingRetriever(document_store=mock_store, raise_on_failure=False)
+    res = await retriever.run_async(query_embedding=[0.5, 0.7])
+    assert len(res) == 1
+    assert res["documents"] == []
+    assert "Some error" in caplog.text
+
+
+def test_init_raises_on_invalid_document_store():
+    with pytest.raises(ValueError, match="document_store must be an instance of OpenSearchDocumentStore"):
+        OpenSearchEmbeddingRetriever(document_store="not a document store")
+
+
 def test_run_with_runtime_document_store():
     """Test that runtime document store switching works correctly."""
     # Setup initial document store

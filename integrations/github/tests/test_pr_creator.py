@@ -143,3 +143,82 @@ class TestGitHubPRCreator:
         assert "Authorization" not in headers
         assert headers["Accept"] == "application/vnd.github.v3+json"
         assert headers["User-Agent"] == "Haystack/GitHubPRCreator"
+
+    def test_parse_issue_url_invalid(self, monkeypatch):
+        monkeypatch.setenv("GITHUB_TOKEN", "test-token")
+        pr_creator = GitHubPRCreator()
+        with pytest.raises(ValueError, match="Invalid GitHub issue URL format"):
+            pr_creator._parse_issue_url("https://github.com/owner/repo/pull/1")
+
+    @patch("requests.get")
+    def test_run_returns_error_when_fork_not_found(self, mock_get, monkeypatch):
+        monkeypatch.setenv("GITHUB_TOKEN", "test-token")
+        mock_get.return_value.json.return_value = {"login": "test_user"}
+        mock_get.return_value.raise_for_status.return_value = None
+
+        pr_creator = GitHubPRCreator()
+        with patch.object(pr_creator, "_check_fork_exists", return_value=False):
+            result = pr_creator.run(
+                issue_url="https://github.com/owner/repo/issues/456",
+                title="Test PR",
+                branch="feature-branch",
+                base="main",
+            )
+        assert result == {"result": "Error: Fork not found at test_user/repo"}
+
+    @pytest.mark.parametrize(
+        "fork_payload,raises_request,expected",
+        [
+            ({"fork": True}, False, True),
+            ({"fork": False}, False, False),
+            ({}, False, False),
+            (None, True, False),
+        ],
+    )
+    @patch("requests.get")
+    def test_check_fork_exists(self, mock_get, fork_payload, raises_request, expected, monkeypatch):
+        monkeypatch.setenv("GITHUB_TOKEN", "test-token")
+        if raises_request:
+            mock_get.side_effect = requests.RequestException("boom")
+        else:
+            mock_get.return_value.json.return_value = fork_payload
+            mock_get.return_value.raise_for_status.return_value = None
+
+        pr_creator = GitHubPRCreator()
+        assert pr_creator._check_fork_exists("repo", "test_user") is expected
+
+    @pytest.mark.parametrize("raise_on_failure", [True, False])
+    @patch("requests.post")
+    def test_create_fork(self, mock_post, raise_on_failure, monkeypatch):
+        monkeypatch.setenv("GITHUB_TOKEN", "test-token")
+        mock_post.return_value.json.return_value = {"owner": {"login": "test_user"}}
+        mock_post.return_value.raise_for_status.return_value = None
+
+        pr_creator = GitHubPRCreator(raise_on_failure=raise_on_failure)
+        assert pr_creator._create_fork("owner", "repo") == "test_user"
+
+        mock_post.side_effect = requests.RequestException("boom")
+        if raise_on_failure:
+            with pytest.raises(RuntimeError, match="Failed to create fork"):
+                pr_creator._create_fork("owner", "repo")
+        else:
+            assert pr_creator._create_fork("owner", "repo") is None
+
+    @pytest.mark.parametrize("raise_on_failure", [True, False])
+    @patch("requests.post")
+    @patch("requests.get")
+    def test_create_branch(self, mock_get, mock_post, raise_on_failure, monkeypatch):
+        monkeypatch.setenv("GITHUB_TOKEN", "test-token")
+        mock_get.return_value.json.return_value = {"object": {"sha": "abc123"}}
+        mock_get.return_value.raise_for_status.return_value = None
+        mock_post.return_value.raise_for_status.return_value = None
+
+        pr_creator = GitHubPRCreator(raise_on_failure=raise_on_failure)
+        assert pr_creator._create_branch("owner", "repo", "feature", "main") is True
+
+        mock_get.side_effect = requests.RequestException("boom")
+        if raise_on_failure:
+            with pytest.raises(RuntimeError, match="Failed to create branch"):
+                pr_creator._create_branch("owner", "repo", "feature", "main")
+        else:
+            assert pr_creator._create_branch("owner", "repo", "feature", "main") is False

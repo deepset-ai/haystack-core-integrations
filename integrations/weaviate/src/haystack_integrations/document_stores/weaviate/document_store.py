@@ -491,7 +491,9 @@ class WeaviateDocumentStore:
             msg = f"Field type '{data_type_str}' doesn't support min/max aggregation"
             raise ValueError(msg)
 
-        result = self.collection.aggregate.over_all(return_metrics=metrics)
+        result = self.collection.aggregate.over_all(return_metrics=metrics, total_count=True)
+        if not result.total_count:
+            return {"min": None, "max": None}
         field_metrics = result.properties.get(field_name)
 
         return {
@@ -539,7 +541,9 @@ class WeaviateDocumentStore:
             msg = f"Field type '{data_type_str}' doesn't support min/max aggregation"
             raise ValueError(msg)
 
-        result = await collection.aggregate.over_all(return_metrics=metrics)
+        result = await collection.aggregate.over_all(return_metrics=metrics, total_count=True)
+        if not result.total_count:
+            return {"min": None, "max": None}
         field_metrics = result.properties.get(field_name)
 
         return {
@@ -559,8 +563,10 @@ class WeaviateDocumentStore:
         :returns: A dictionary mapping field names to counts of unique values.
         :raises ValueError: If any of the requested fields don't exist in the collection schema.
         """
-        validate_filters(filters)
-        weaviate_filter = convert_filters(filters)
+        weaviate_filter = None
+        if filters:
+            validate_filters(filters)
+            weaviate_filter = convert_filters(filters)
 
         normalized_fields = [_normalize_metadata_field_name(f) for f in metadata_fields]
 
@@ -595,9 +601,12 @@ class WeaviateDocumentStore:
         :returns: A dictionary mapping field names to counts of unique values.
         :raises ValueError: If any of the requested fields don't exist in the collection schema.
         """
-        validate_filters(filters)
+        weaviate_filter = None
+        if filters:
+            validate_filters(filters)
+            weaviate_filter = convert_filters(filters)
+
         collection = await self.async_collection
-        weaviate_filter = convert_filters(filters)
 
         normalized_fields = [_normalize_metadata_field_name(f) for f in metadata_fields]
 
@@ -1035,6 +1044,7 @@ class WeaviateDocumentStore:
         """
         collection = await self.async_collection
 
+        written = 0
         duplicate_errors_ids = []
         for doc in documents:
             if not isinstance(doc, Document):
@@ -1054,6 +1064,7 @@ class WeaviateDocumentStore:
                     vector=doc.embedding,
                 )
 
+                written += 1
             except weaviate.exceptions.UnexpectedStatusCodeError:
                 if policy == DuplicatePolicy.FAIL:
                     duplicate_errors_ids.append(doc.id)
@@ -1061,7 +1072,7 @@ class WeaviateDocumentStore:
         if duplicate_errors_ids:
             msg = f"IDs '{', '.join(duplicate_errors_ids)}' already exist in the document store."
             raise DuplicateDocumentError(msg)
-        return len(documents)
+        return written
 
     def write_documents(self, documents: list[Document], policy: DuplicatePolicy = DuplicatePolicy.NONE) -> int:
         """

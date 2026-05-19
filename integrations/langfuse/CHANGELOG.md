@@ -1,5 +1,23 @@
 # Changelog
 
+## [integrations/langfuse-v5.0.1] - 2026-05-18
+
+### 🐛 Bug Fixes
+
+- Fix langfuse tracer when input messages is `None` (#3324)
+
+
+## [integrations/langfuse-v5.0.0] - 2026-04-17
+
+### 🚀 Features
+
+- [**breaking**] Migrate to Langfuse Python SDK v4 (#3126)
+
+### 🧪 Testing
+
+- Track test coverage for all integrations (#3065)
+
+
 ## [integrations/langfuse-v4.1.0] - 2026-03-26
 
 ### 🚀 Features

@@ -58,6 +58,32 @@ class TestJinaTextEmbedder:
             },
         }
 
+    def test_from_dict(self, monkeypatch):
+        monkeypatch.setenv("JINA_API_KEY", "fake-api-key")
+        data = {
+            "type": "haystack_integrations.components.embedders.jina.text_embedder.JinaTextEmbedder",
+            "init_parameters": {
+                "api_key": {"env_vars": ["JINA_API_KEY"], "strict": True, "type": "env_var"},
+                "model": "model",
+                "base_url": "https://my.custom.url/v1/embeddings",
+                "prefix": "prefix",
+                "suffix": "suffix",
+                "task": "retrieval.query",
+                "dimensions": 1024,
+                "late_chunking": True,
+            },
+        }
+        embedder = JinaTextEmbedder.from_dict(data)
+
+        assert embedder.api_key == Secret.from_env_var("JINA_API_KEY")
+        assert embedder.model_name == "model"
+        assert embedder.base_url == "https://my.custom.url/v1/embeddings"
+        assert embedder.prefix == "prefix"
+        assert embedder.suffix == "suffix"
+        assert embedder.task == "retrieval.query"
+        assert embedder.dimensions == 1024
+        assert embedder.late_chunking is True
+
     def test_to_dict_with_custom_init_parameters(self, monkeypatch):
         monkeypatch.setenv("JINA_API_KEY", "fake-api-key")
         component = JinaTextEmbedder(
