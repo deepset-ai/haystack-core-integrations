@@ -1,4 +1,8 @@
+import asyncio
+from unittest.mock import AsyncMock, MagicMock
+
 import pytest
+from haystack.core.serialization import default_from_dict, default_to_dict
 from ollama._types import ResponseError
 
 from haystack_integrations.components.embedders.ollama import OllamaTextEmbedder
@@ -68,7 +72,7 @@ class TestOllamaTextEmbedder:
         assert embedder.dimensions == 256
 
     def test_dimensions_passed_to_embed_client(self):
-        from unittest.mock import MagicMock
+
         embedder = OllamaTextEmbedder(dimensions=256)
         mock_response = {"embeddings": [[0.1, 0.2, 0.3]]}
         embedder._client.embed = MagicMock(return_value=mock_response)
@@ -79,7 +83,7 @@ class TestOllamaTextEmbedder:
         assert call_kwargs["dimensions"] == 256
 
     def test_none_dimensions_passed_to_embed_client(self):
-        from unittest.mock import MagicMock
+
         embedder = OllamaTextEmbedder(dimensions=None)
         mock_response = {"embeddings": [[0.1, 0.2, 0.3]]}
         embedder._client.embed = MagicMock(return_value=mock_response)
@@ -90,8 +94,7 @@ class TestOllamaTextEmbedder:
         assert call_kwargs["dimensions"] is None
 
     def test_dimensions_passed_to_async_embed_client(self):
-        import asyncio
-        from unittest.mock import AsyncMock
+
         embedder = OllamaTextEmbedder(dimensions=128)
         mock_response = {"embeddings": [[0.1, 0.2, 0.3]]}
         embedder._async_client.embed = AsyncMock(return_value=mock_response)
@@ -102,7 +105,7 @@ class TestOllamaTextEmbedder:
         assert call_kwargs["dimensions"] == 128
 
     def test_to_dict_contains_dimensions(self):
-        from haystack.core.serialization import default_to_dict
+
         embedder = OllamaTextEmbedder(dimensions=256)
         embedder_dict = default_to_dict(
             embedder,
@@ -116,7 +119,7 @@ class TestOllamaTextEmbedder:
         assert embedder_dict["init_parameters"]["dimensions"] == 256
 
     def test_to_dict_contains_dimensions_none(self):
-        from haystack.core.serialization import default_to_dict
+
         embedder = OllamaTextEmbedder()
         embedder_dict = default_to_dict(
             embedder,
@@ -130,7 +133,7 @@ class TestOllamaTextEmbedder:
         assert embedder_dict["init_parameters"]["dimensions"] is None
 
     def test_from_dict_restores_dimensions(self):
-        from haystack.core.serialization import default_from_dict
+
         embedder_dict = {
             "type": "haystack_integrations.components.embedders.ollama.text_embedder.OllamaTextEmbedder",
             "init_parameters": {
