@@ -3,7 +3,6 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import os
-import time
 from unittest.mock import Mock
 
 import pytest

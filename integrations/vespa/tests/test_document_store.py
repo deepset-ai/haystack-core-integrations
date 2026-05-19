@@ -288,7 +288,6 @@ class TestVespaDocumentStoreIntegration(
     CountDocumentsByFilterTest,
     GetMetadataFieldsInfoTest,
 ):
-
     @pytest.fixture
     def document_store(self):
         """Override the inherited base fixture with a Docker-backed Vespa store."""
