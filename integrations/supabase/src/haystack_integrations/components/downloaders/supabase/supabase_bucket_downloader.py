@@ -64,7 +64,11 @@ class SupabaseBucketDownloader:
         self._client: Client | None = None
 
     def warm_up(self) -> None:
-        """Initializes the Supabase client. Called automatically on the first run(), or can be called explicitly in a pipeline."""
+        """
+        Initializes the Supabase client.
+
+        Called automatically on the first run(), or can be called explicitly in a pipeline.
+        """
         if self._client is None:
             key = self.supabase_key.resolve_value()
             if not key:
