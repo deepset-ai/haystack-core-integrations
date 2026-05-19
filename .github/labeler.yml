@@ -233,6 +233,11 @@ integration:paddleocr:
       - any-glob-to-any-file: "integrations/paddleocr/**/*"
       - any-glob-to-any-file: ".github/workflows/paddleocr.yml"
 
+integration:perplexity:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/perplexity/**/*"
+      - any-glob-to-any-file: ".github/workflows/perplexity.yml"
+
 integration:pgvector:
   - changed-files:
       - any-glob-to-any-file: "integrations/pgvector/**/*"

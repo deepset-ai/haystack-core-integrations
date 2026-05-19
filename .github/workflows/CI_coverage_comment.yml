@@ -46,6 +46,7 @@ on:
       - "Test / opensearch"
       - "Test / optimum"
       - "Test / paddleocr"
+      - "Test / perplexity"
       - "Test / pgvector"
       - "Test / pinecone"
       - "Test / presidio"

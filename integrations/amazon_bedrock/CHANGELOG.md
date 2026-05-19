@@ -1,5 +1,19 @@
 # Changelog
 
+## [integrations/amazon_bedrock-v6.10.1] - 2026-05-19
+
+### 🐛 Bug Fixes
+
+- S3Downloader - improve concurrent behavior (#3327)
+
+
+## [integrations/amazon_bedrock-v6.10.0] - 2026-05-12
+
+### 🚀 Features
+
+- Support adaptive_thinking_effort flat param for Claude (#3297)
+
+
 ## [integrations/amazon_bedrock-v6.9.0] - 2026-05-11
 
 ### 🐛 Bug Fixes
