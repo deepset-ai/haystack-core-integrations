@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from typing import Any, Optional
+from typing import Any
 
 from haystack import default_from_dict, default_to_dict, logging
 from haystack.dataclasses import Document
@@ -10,7 +10,7 @@ from haystack.document_stores.errors import DuplicateDocumentError
 from haystack.document_stores.types import DocumentStore, DuplicatePolicy
 from haystack.utils.auth import Secret, deserialize_secrets_inplace
 
-from supabase import create_client, Client
+from supabase import Client, create_client
 
 logger = logging.getLogger(__name__)
 
@@ -70,7 +70,7 @@ class SupabaseGroongaDocumentStore(DocumentStore):
         self.recreate_table = recreate_table
 
         # Client is initialized lazily in warm_up()
-        self._client: Optional[Client] = None
+        self._client: Client | None = None
 
     def warm_up(self) -> None:
         """
@@ -88,7 +88,9 @@ class SupabaseGroongaDocumentStore(DocumentStore):
 
         If recreate_table is True, drops and recreates the table.
         """
-        assert self._client is not None, "Call warm_up() before using the document store."
+        if self._client is None:
+            msg = "Call warm_up() before using the document store."
+            raise RuntimeError(msg)
 
         if self.recreate_table:
             self._client.rpc("exec_sql", {"query": f"DROP TABLE IF EXISTS {self.table_name};"}).execute()
@@ -118,7 +120,9 @@ class SupabaseGroongaDocumentStore(DocumentStore):
 
         :returns: Number of documents.
         """
-        assert self._client is not None, "Call warm_up() before using the document store."
+        if self._client is None:
+            msg = "Call warm_up() before using the document store."
+            raise RuntimeError(msg)
         result = self._client.table(self.table_name).select("*", count="exact").execute()
         return int(result.count) if result.count is not None else 0
 
@@ -128,10 +132,13 @@ class SupabaseGroongaDocumentStore(DocumentStore):
 
         Supported filters: equality filters on `id`, `content`, and `meta` fields.
 
-        :param filters: Optional dictionary of filters. Example: {"field": "meta.language", "operator": "==", "value": "en"}
+        :param filters: Optional dictionary of filters.
+            Example: ``{"field": "meta.language", "operator": "==", "value": "en"}``
         :returns: List of matching Document objects.
         """
-        assert self._client is not None, "Call warm_up() before using the document store."
+        if self._client is None:
+            msg = "Call warm_up() before using the document store."
+            raise RuntimeError(msg)
 
         query = self._client.table(self.table_name).select("*")
 
@@ -149,7 +156,6 @@ class SupabaseGroongaDocumentStore(DocumentStore):
         :param filters: Dictionary of filters to apply.
         :returns: The query with filters applied.
         """
-        operator = filters.get("operator", "AND")
         conditions = filters.get("conditions", [])
 
         for condition in conditions:
@@ -159,13 +165,12 @@ class SupabaseGroongaDocumentStore(DocumentStore):
 
             # Handle nested meta fields e.g. "meta.language"
             if field.startswith("meta."):
-                meta_key = field[len("meta."):]
+                meta_key = field[len("meta.") :]
                 if op == "==":
                     query = query.eq(f"meta->>'{meta_key}'", value)
                 elif op == "!=":
                     query = query.neq(f"meta->>'{meta_key}'", value)
-            else:
-                if op == "==":
+                elif op == "==":
                     query = query.eq(field, value)
                 elif op == "!=":
                     query = query.neq(field, value)
@@ -186,7 +191,9 @@ class SupabaseGroongaDocumentStore(DocumentStore):
         :param policy: How to handle duplicate documents. Defaults to DuplicatePolicy.FAIL.
         :returns: Number of documents written.
         """
-        assert self._client is not None, "Call warm_up() before using the document store."
+        if self._client is None:
+            msg = "Call warm_up() before using the document store."
+            raise RuntimeError(msg)
 
         if not documents:
             return 0
@@ -226,7 +233,9 @@ class SupabaseGroongaDocumentStore(DocumentStore):
 
         :param document_ids: List of document IDs to delete.
         """
-        assert self._client is not None, "Call warm_up() before using the document store."
+        if self._client is None:
+            msg = "Call warm_up() before using the document store."
+            raise RuntimeError(msg)
 
         if not document_ids:
             return
@@ -246,10 +255,13 @@ class SupabaseGroongaDocumentStore(DocumentStore):
         :param filters: Optional filters to apply after retrieval.
         :returns: List of matching Document objects ranked by relevance.
         """
-        assert self._client is not None, "Call warm_up() before using the document store."
+        if self._client is None:
+            msg = "Call warm_up() before using the document store."
+            raise RuntimeError(msg)
 
         result = self._client.rpc(
-            "groonga_search", {"query_text": query, "table": self.table_name, "top_k": top_k}
+            "groonga_search",
+            {"query_text": query, "table": self.table_name, "top_k": top_k},
         ).execute()
 
         documents = [self._to_haystack_document(row) for row in (result.data or []) if isinstance(row, dict)]
@@ -279,7 +291,7 @@ class SupabaseGroongaDocumentStore(DocumentStore):
                 value = condition.get("value")
 
                 if field.startswith("meta."):
-                    meta_key = field[len("meta."):]
+                    meta_key = field[len("meta.") :]
                     doc_value = doc.meta.get(meta_key)
                 else:
                     doc_value = getattr(doc, field, None)

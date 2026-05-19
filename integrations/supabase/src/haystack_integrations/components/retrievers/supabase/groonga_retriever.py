@@ -108,7 +108,7 @@ class SupabaseGroongaRetriever:
         top_k: int | None = None,
     ) -> dict[str, list[Document]]:
         """
-        Async version of run(). 
+        Async version of run().
 
         Note: supabase-py's sync client does not support native async queries.
         This method runs the synchronous retrieval and returns the result.

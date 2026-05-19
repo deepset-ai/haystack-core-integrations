@@ -6,6 +6,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 from haystack.dataclasses import Document
+from haystack.document_stores.errors import DuplicateDocumentError
 from haystack.document_stores.types import DuplicatePolicy
 
 from haystack_integrations.components.retrievers.supabase import SupabaseGroongaRetriever
@@ -162,8 +163,6 @@ def test_write_documents_skip(groonga_store, mock_supabase_client):
 
 def test_write_documents_fail_on_duplicate(groonga_store, mock_supabase_client):
     """Test that FAIL policy raises error on duplicate."""
-    from haystack.document_stores.errors import DuplicateDocumentError
-
     mock_table = mock_supabase_client.table.return_value
     # simulate document already exists
     mock_table.select.return_value.eq.return_value.execute.return_value = MagicMock(data=[{"id": "existing"}])
