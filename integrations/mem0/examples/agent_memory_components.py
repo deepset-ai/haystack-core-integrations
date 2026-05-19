@@ -77,7 +77,7 @@ def build_memory_agent_pipeline(store: Mem0MemoryStore) -> Pipeline:
     pipeline.add_component(
         "agent",
         Agent(
-            chat_generator=OpenAIChatGenerator(model="gpt-4o-mini"),
+            chat_generator=OpenAIChatGenerator(model="gpt-5.4-mini"),
             system_prompt=SYSTEM_PROMPT,
         ),
     )
@@ -126,6 +126,9 @@ def main() -> None:
     store = Mem0MemoryStore()
     seed_memories(store)
     print(f"Seeded {len(SEEDED_MEMORIES)} memories for {USER_ID}.\n")  # noqa: T201
+    print("Seeded memories:")  # noqa: T201
+    for memory in store.search_memories(query="", top_k=10, user_id=USER_ID, agent_id=AGENT_ID):
+        print(f"- {memory.text}")  # noqa: T201
 
     pipeline = build_memory_agent_pipeline(store)
     history: list[ChatMessage] = []
@@ -137,6 +140,7 @@ def main() -> None:
         "Based on what you know about me, give me a quick tip for structuring a new Haystack pipeline component.",
     ]
 
+    print("\nStarting conversation...\n")  # noqa: T201
     for user_text in turns:
         print(f"User:  {user_text}")  # noqa: T201
         reply = run_turn(pipeline, user_text, history)
