@@ -1,23 +1,23 @@
 """
 Example: Haystack Agent pipeline with Mem0 memory components.
 
-This demo shows a memory-augmented Agent loop built with regular Haystack
-components instead of prebuilt Agent tools:
+This demo shows a memory-augmented Agent built with Haystack components instead of using the prebuilt Agent tools:
 
 1. Pre-seeded memories are written to Mem0 before the conversation starts.
 2. Before each turn, Mem0MemoryRetriever fetches memories relevant to the user message.
 3. OutputAdapter prepends retrieved memories to live chat history and the current user message.
 4. Agent answers with the combined context.
-5. Mem0MemoryWriter stores the Agent's latest reply for future turns.
+5. Mem0MemoryWriter stores the Agent's full message trace with inference enabled, giving Mem0 the
+   user message, any tool-call context, and the final assistant response when extracting memories.
 
 Pipeline structure per turn:
 
-    query -> Mem0MemoryRetriever -> memories -------------.
-                                                            \
-    history + user message ---------------------------------> OutputAdapter -> Agent -> last_message
-                                                                                           |
-                                                                                           v
-                                                                              Mem0MemoryWriter
+    query -> Mem0MemoryRetriever -> memories ---.
+                                                \
+    history + user message ----------------------> OutputAdapter -> Agent -> messages
+                                                                                 |
+                                                                                 v
+                                                                           Mem0MemoryWriter
 
 Prerequisites:
     pip install mem0-haystack openai
@@ -57,12 +57,11 @@ SYSTEM_PROMPT = (
 
 def build_memory_agent_pipeline(store: Mem0MemoryStore) -> Pipeline:
     """
-    Build a pipeline that retrieves memories, injects them into Agent context, and stores replies.
+    Build a pipeline that retrieves memories, injects them into Agent context, and writes new memories after each turn.
 
-    OutputAdapter merges retrieved memories, live history, and the current user message
-    into one ChatMessage list for the Agent. The Agent's `last_message` is connected
-    directly to Mem0MemoryWriter, relying on smart connections to pass it to the writer's
-    list[ChatMessage] input.
+    OutputAdapter merges retrieved memories, live history, and the current user message into one ChatMessage list for
+    the Agent. The Agent's `messages` output is connected directly to Mem0MemoryWriter so Mem0 can infer memories
+    from the full turn context.
     """
     pipeline = Pipeline()
 
@@ -82,11 +81,11 @@ def build_memory_agent_pipeline(store: Mem0MemoryStore) -> Pipeline:
             system_prompt=SYSTEM_PROMPT,
         ),
     )
-    pipeline.add_component("writer", Mem0MemoryWriter(memory_store=store, infer=False))
+    pipeline.add_component("writer", Mem0MemoryWriter(memory_store=store, infer=True))
 
     pipeline.connect("retriever.memories", "memory_injector.memories")
     pipeline.connect("memory_injector.output", "agent.messages")
-    pipeline.connect("agent.last_message", "writer.messages")
+    pipeline.connect("agent.messages", "writer.messages")
 
     return pipeline
 
