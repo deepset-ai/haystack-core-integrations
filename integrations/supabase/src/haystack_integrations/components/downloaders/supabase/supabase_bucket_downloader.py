@@ -61,6 +61,16 @@ class SupabaseBucketDownloader:
         self.supabase_key = supabase_key
         self.bucket_name = bucket_name
         self.file_extensions = [e.lower() for e in file_extensions] if file_extensions else None
+        self._client = None
+
+    def warm_up(self) -> None:
+        """Initialize the Supabase client. Called once before the first run."""
+        if self._client is None:
+            key = self.supabase_key.resolve_value()
+            if not key:
+                msg = "Supabase API key could not be resolved. Set the SUPABASE_SERVICE_KEY environment variable."
+                raise ValueError(msg)
+            self._client = create_client(self.supabase_url, key)
 
     @component.output_types(streams=list[ByteStream])
     def run(self, sources: list[str]) -> dict[str, list[ByteStream]]:
@@ -73,11 +83,8 @@ class SupabaseBucketDownloader:
             - `streams`: list of `ByteStream` objects, one per successfully downloaded file.
                 Each `ByteStream` has `meta["file_path"]` and `meta["bucket_name"]` set.
         """
-        key = self.supabase_key.resolve_value()
-        if not key:
-            msg = "Supabase API key could not be resolved. Set the SUPABASE_SERVICE_KEY environment variable."
-            raise ValueError(msg)
-        client = create_client(self.supabase_url, key)
+        if self._client is None:
+            self.warm_up()
         streams = []
 
         for path in sources:
@@ -88,7 +95,7 @@ class SupabaseBucketDownloader:
                     continue
 
             try:
-                data = client.storage.from_(self.bucket_name).download(path)
+                data = self._client.storage.from_(self.bucket_name).download(path)
             except Exception as e:
                 logger.warning(
                     "Failed to download {path} from bucket {bucket}: {error}",

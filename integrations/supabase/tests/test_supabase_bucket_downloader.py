@@ -66,6 +66,25 @@ class TestSupabaseBucketDownloader:
         assert downloader.supabase_url == "https://project.supabase.co"
         assert downloader.bucket_name == "docs"
         assert downloader.file_extensions == [".pdf", ".txt"]
+        assert downloader.supabase_key.resolve_value() == "test-key"
+
+    def test_warm_up(self, monkeypatch):
+        monkeypatch.setenv("SUPABASE_SERVICE_KEY", "test-key")
+        downloader = SupabaseBucketDownloader(
+            supabase_url="https://project.supabase.co",
+            supabase_key=Secret.from_token("test-key"),
+            bucket_name="my-bucket",
+        )
+        assert downloader._client is None
+        with patch(PATCH_PATH) as mock_create:
+            downloader.warm_up()
+            mock_create.assert_called_once_with("https://project.supabase.co", "test-key")
+        assert downloader._client is not None
+
+        # Second call should not re-create the client
+        with patch(PATCH_PATH) as mock_create2:
+            downloader.warm_up()
+            mock_create2.assert_not_called()
 
     def test_run_returns_bytestreams(self, monkeypatch):
         monkeypatch.setenv("SUPABASE_SERVICE_KEY", "test-key")
