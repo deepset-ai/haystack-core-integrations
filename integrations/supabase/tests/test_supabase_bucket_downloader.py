@@ -186,3 +186,5 @@ class TestSupabaseBucketDownloader:
         result = downloader.run(sources=["test-file.txt"])
         assert len(result["streams"]) > 0
         assert isinstance(result["streams"][0], ByteStream)
+        assert result["streams"][0].meta["file_path"] == "test-file.txt"
+        assert result["streams"][0].meta["bucket_name"] == os.environ.get("SUPABASE_BUCKET_NAME", "test-bucket")

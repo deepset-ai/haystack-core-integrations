@@ -4,7 +4,7 @@
 
 import mimetypes
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 from haystack import component, default_from_dict, default_to_dict, logging
 from haystack.dataclasses import ByteStream
@@ -64,7 +64,7 @@ class SupabaseBucketDownloader:
         self._client: Client | None = None
 
     def warm_up(self) -> None:
-        """Initialize the Supabase client. Called once before the first run."""
+        """Initializes the Supabase client. Called automatically on the first run(), or can be called explicitly in a pipeline."""
         if self._client is None:
             key = self.supabase_key.resolve_value()
             if not key:
@@ -85,9 +85,7 @@ class SupabaseBucketDownloader:
         """
         if self._client is None:
             self.warm_up()
-        if self._client is None:
-            msg = "Supabase client is not initialized. Call warm_up() before run()."
-            raise RuntimeError(msg)
+        client = cast(Client, self._client)
         streams = []
 
         for path in sources:
@@ -98,7 +96,7 @@ class SupabaseBucketDownloader:
                     continue
 
             try:
-                data = self._client.storage.from_(self.bucket_name).download(path)
+                data = client.storage.from_(self.bucket_name).download(path)
             except Exception as e:
                 logger.warning(
                     "Failed to download {path} from bucket {bucket}: {error}",
