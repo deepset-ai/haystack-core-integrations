@@ -74,7 +74,9 @@ jobs:
           python-version: ${{ matrix.python-version }}
 
       - name: Install Hatch
-        run: pip install --upgrade hatch
+        run: |
+          python -m pip install --upgrade pip
+          pip install --upgrade hatch --uploaded-prior-to=P1D
 
       - name: Lint
         if: matrix.python-version == '3.10' && runner.os == 'Linux'
@@ -129,12 +131,11 @@ jobs:
           hatch -e test env run -- uv pip install git+https://github.com/deepset-ai/haystack.git@main
           hatch run test:unit-cov-retry
 
-
   notify-slack-on-failure:
     needs: run
     if: failure() && github.event_name == 'schedule'
     runs-on: ubuntu-slim
     steps:
-      - uses: deepset-ai/notify-slack-action@3cda73b77a148f16f703274198e7771340cf862b # v1
+      - uses: deepset-ai/notify-slack-action@a65def0c8bf91d6520286ab34280151c76a5a008 # v1.1.0
         with:
           slack-webhook-url: ${{ secrets.SLACK_WEBHOOK_URL_NOTIFICATIONS }}

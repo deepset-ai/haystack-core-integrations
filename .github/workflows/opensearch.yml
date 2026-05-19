@@ -69,7 +69,9 @@ jobs:
           python-version: ${{ matrix.python-version }}
 
       - name: Install Hatch
-        run: pip install hatch
+        run: |
+          python -m pip install --upgrade pip
+          pip install hatch --uploaded-prior-to=P1D
 
       - name: Lint
         if: matrix.python-version == '3.10' && runner.os == 'Linux'
@@ -79,7 +81,7 @@ jobs:
         run: docker compose up -d
 
       - name: Run unit tests (in parallel, using 4 cores)
-        run: hatch run test:unit-cov-retry -n 4  # GA runner has 4 cores
+        run: hatch run test:unit-cov-retry -n 4 # GA runner has 4 cores
 
       # On PR: posts coverage comment (directly on same-repo PRs; via artifact for fork PRs). On push to main: stores coverage baseline on data branch.
       - name: Store unit tests coverage
@@ -101,7 +103,7 @@ jobs:
           path: python-coverage-comment-action-opensearch.txt
 
       - name: Run integration tests (in parallel, using 4 cores)
-        run: hatch run test:integration-cov-append-retry -n 4  # GA runner has 4 cores
+        run: hatch run test:integration-cov-append-retry -n 4 # GA runner has 4 cores
 
       - name: Store combined coverage
         if: github.event_name == 'push'
@@ -132,6 +134,6 @@ jobs:
     if: failure() && github.event_name == 'schedule'
     runs-on: ubuntu-slim
     steps:
-      - uses: deepset-ai/notify-slack-action@3cda73b77a148f16f703274198e7771340cf862b # v1
+      - uses: deepset-ai/notify-slack-action@a65def0c8bf91d6520286ab34280151c76a5a008 # v1.1.0
         with:
           slack-webhook-url: ${{ secrets.SLACK_WEBHOOK_URL_NOTIFICATIONS }}

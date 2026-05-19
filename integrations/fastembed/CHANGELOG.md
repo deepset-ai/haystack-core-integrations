@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/fastembed-v2.3.0] - 2026-04-30
+
+### 🚀 Features
+
+- Add score_threshold parameter to FastembedRanker (#3235)
+
+
 ## [integrations/fastembed-v2.2.0] - 2026-04-16
 
 ### 🚀 Features
