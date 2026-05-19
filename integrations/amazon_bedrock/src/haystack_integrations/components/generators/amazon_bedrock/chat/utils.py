@@ -569,9 +569,9 @@ def _convert_event_to_streaming_chunk(
         # This only occurs when accumulating the arguments for a toolUse
         # The content_block for this tool should already exist at this point
         elif "toolUse" in delta:
-            input = delta["toolUse"].get("input", "")
+            tool_use_input = delta["toolUse"].get("input", "")
             # boto3 might return int for input
-            arguments = str(input) if input is not None else None
+            arguments = str(tool_use_input) if tool_use_input is not None else None
             streaming_chunk = StreamingChunk(
                 content="",
                 index=block_idx,
