@@ -3,6 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 """Convert Haystack filter dictionaries to ArcadeDB SQL WHERE clauses."""
+
 import re
 from typing import Any
 
@@ -66,8 +67,10 @@ def _parse_condition(condition: dict[str, Any]) -> str:
 def _comparison_to_sql(field: str, operator: str, value: Any) -> str:
 
     if not re.match(r'^[a-zA-Z_][a-zA-Z0-9_.\[\]"]*$', field):
-        msg = (f"Invalid field name: {field}. Field names must start with a letter or underscore and can contain "
-               f"letters, digits, underscores, dots, brackets, and quotes.")
+        msg = (
+            f"Invalid field name: {field}. Field names must start with a letter or underscore and can contain "
+            f"letters, digits, underscores, dots, brackets, and quotes."
+        )
         raise ValueError(msg)
 
     if operator == "==":
