@@ -9,6 +9,7 @@ from haystack.dataclasses import Document
 from haystack.document_stores.errors import DuplicateDocumentError
 from haystack.document_stores.types import DocumentStore, DuplicatePolicy
 from haystack.utils.auth import Secret, deserialize_secrets_inplace
+from postgrest import CountMethod
 
 from supabase import Client, create_client
 
@@ -123,7 +124,7 @@ class SupabaseGroongaDocumentStore(DocumentStore):
         if self._client is None:
             msg = "Call warm_up() before using the document store."
             raise RuntimeError(msg)
-        result = self._client.table(self.table_name).select("*", count="exact").execute()
+        result = self._client.table(self.table_name).select("*", count=CountMethod.exact).execute()
         return int(result.count) if result.count is not None else 0
 
     def filter_documents(self, filters: dict[str, Any] | None = None) -> list[Document]:
@@ -170,12 +171,12 @@ class SupabaseGroongaDocumentStore(DocumentStore):
                     query = query.eq(f"meta->>'{meta_key}'", value)
                 elif op == "!=":
                     query = query.neq(f"meta->>'{meta_key}'", value)
-                elif op == "==":
-                    query = query.eq(field, value)
-                elif op == "!=":
-                    query = query.neq(field, value)
-                elif op == "in":
-                    query = query.in_(field, value)
+            elif op == "==":
+                query = query.eq(field, value)
+            elif op == "!=":
+                query = query.neq(field, value)
+            elif op == "in":
+                query = query.in_(field, value)
 
         return query
 
@@ -264,7 +265,8 @@ class SupabaseGroongaDocumentStore(DocumentStore):
             {"query_text": query, "table": self.table_name, "top_k": top_k},
         ).execute()
 
-        documents = [self._to_haystack_document(row) for row in (result.data or []) if isinstance(row, dict)]
+        data = result.data if isinstance(result.data, list) else []
+        documents = [self._to_haystack_document(row) for row in data if isinstance(row, dict)]
 
         # Apply filters post-retrieval if provided
         if filters:
