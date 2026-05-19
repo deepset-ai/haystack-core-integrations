@@ -3,12 +3,13 @@ Example: Haystack Agent pipeline with Mem0 memory components.
 
 This demo shows a memory-augmented Agent built with Haystack components instead of using the prebuilt Agent tools:
 
-1. Pre-seeded memories are written to Mem0 before the conversation starts.
+1. Pre-seeded memories are written to Mem0 before the first conversation starts.
 2. Before each turn, Mem0MemoryRetriever fetches memories relevant to the user message.
 3. OutputAdapter prepends retrieved memories to live chat history and the current user message.
 4. Agent answers with the combined context.
 5. Mem0MemoryWriter stores the Agent's full message trace with inference enabled, giving Mem0 the
    user message, any tool-call context, and the final assistant response when extracting memories.
+6. A second conversation starts with empty chat history and recalls facts introduced in the first conversation.
 
 Pipeline structure per turn:
 
@@ -27,6 +28,8 @@ Environment variables:
     OPENAI_API_KEY - Your OpenAI API key
 """
 
+import time
+
 from haystack import Pipeline
 from haystack.components.agents import Agent
 from haystack.components.converters import OutputAdapter
@@ -37,14 +40,31 @@ from haystack_integrations.components.retrievers.mem0 import Mem0MemoryRetriever
 from haystack_integrations.components.writers.mem0 import Mem0MemoryWriter
 from haystack_integrations.memory_stores.mem0 import Mem0MemoryStore
 
-USER_ID = "mem0-agent-pipeline-demo-user"
-AGENT_ID = "mem0-agent-pipeline-demo-agent"
+USER_ID = "mem0-agent-pipeline-demo-user-5"
+MEMORY_INFERENCE_WAIT_SECONDS = 15
 
 SEEDED_MEMORIES = [
     "My name is Alice. I am a senior data scientist at Acme Corp specializing in NLP.",
     "My current project is building an internal documentation search system powered by Haystack and Mem0.",
     "My team: Bob is the ML engineer and Carol handles infrastructure.",
     "I prefer concise answers with Python code examples over long prose explanations.",
+]
+
+FIRST_CONVERSATION_TURNS = [
+    "Hi! Can you remind me what project I am currently working on?",
+    (
+        "Quick update for memory: I switched the prototype vector database to Qdrant Cloud, "
+        "and the main blocker is extracting tables cleanly from PDFs."
+    ),
+    (
+        "Also remember that Dana joined the team to own evaluation, and I want future code examples "
+        "to be fully documented with api doc strings."
+    ),
+]
+
+SECOND_CONVERSATION_TURNS = [
+    "What vector database did I switch the prototype to, and what is the current blocker?",
+    "Who owns evaluation now, and how should you tailor code examples for me?",
 ]
 
 SYSTEM_PROMPT = (
@@ -93,7 +113,7 @@ def build_memory_agent_pipeline(store: Mem0MemoryStore) -> Pipeline:
 def seed_memories(store: Mem0MemoryStore) -> None:
     """Seed facts that simulate memories from a previous session."""
     messages = [ChatMessage.from_user(fact) for fact in SEEDED_MEMORIES]
-    store.add_memories(messages=messages, user_id=USER_ID, agent_id=AGENT_ID, infer=False)
+    store.add_memories(messages=messages, user_id=USER_ID, infer=False)
 
 
 def run_turn(pipeline: Pipeline, user_text: str, history: list[ChatMessage]) -> str:
@@ -101,12 +121,12 @@ def run_turn(pipeline: Pipeline, user_text: str, history: list[ChatMessage]) -> 
     user_message = ChatMessage.from_user(user_text)
     result = pipeline.run(
         {
-            "retriever": {"query": user_text, "user_id": USER_ID, "agent_id": AGENT_ID},
+            "retriever": {"query": user_text, "user_id": USER_ID},
             "memory_injector": {
                 "history": history,
                 "user_messages": [user_message],
             },
-            "writer": {"user_id": USER_ID, "agent_id": AGENT_ID},
+            "writer": {"user_id": USER_ID},
         }
     )
 
@@ -119,6 +139,15 @@ def run_turn(pipeline: Pipeline, user_text: str, history: list[ChatMessage]) -> 
     return reply
 
 
+def wait_for_memory_processing(seconds: int) -> None:
+    """Print a countdown while Mem0 processes inferred memories."""
+    print("Waiting for Mem0 to process inferred memories:")  # noqa: T201
+    for remaining in range(seconds, 0, -1):
+        print(f"  {remaining} second(s) remaining...", end="\r", flush=True)  # noqa: T201
+        time.sleep(1)
+    print("  done.\n")  # noqa: T201
+
+
 def main() -> None:
     """Run the Mem0 memory Agent pipeline demo."""
     print("=== Mem0 Memory Agent Pipeline Demo ===\n")  # noqa: T201
@@ -127,23 +156,25 @@ def main() -> None:
     seed_memories(store)
     print(f"Seeded {len(SEEDED_MEMORIES)} memories for {USER_ID}.\n")  # noqa: T201
     print("Seeded memories:")  # noqa: T201
-    for memory in store.search_memories(query="", top_k=10, user_id=USER_ID, agent_id=AGENT_ID):
+    for memory in store.search_memories(query="", top_k=10, user_id=USER_ID):
         print(f"- {memory.text}")  # noqa: T201
 
     pipeline = build_memory_agent_pipeline(store)
-    history: list[ChatMessage] = []
+    first_history: list[ChatMessage] = []
 
-    turns = [
-        "Hi! Can you remind me what project I am currently working on?",
-        "What is the tech stack we are using for it?",
-        "Who else is on my team, and what are their roles?",
-        "Based on what you know about me, give me a quick tip for structuring a new Haystack pipeline component.",
-    ]
-
-    print("\nStarting conversation...\n")  # noqa: T201
-    for user_text in turns:
+    print("\n==Starting first conversation...==\n")  # noqa: T201
+    for user_text in FIRST_CONVERSATION_TURNS:
         print(f"User:  {user_text}")  # noqa: T201
-        reply = run_turn(pipeline, user_text, history)
+        reply = run_turn(pipeline, user_text, first_history)
+        print(f"Agent: {reply}\n")  # noqa: T201
+
+    wait_for_memory_processing(MEMORY_INFERENCE_WAIT_SECONDS)
+
+    second_history: list[ChatMessage] = []
+    print("==Starting second conversation with empty local history...==\n")  # noqa: T201
+    for user_text in SECOND_CONVERSATION_TURNS:
+        print(f"User:  {user_text}")  # noqa: T201
+        reply = run_turn(pipeline, user_text, second_history)
         print(f"Agent: {reply}\n")  # noqa: T201
 
     print("=== Done ===")  # noqa: T201
