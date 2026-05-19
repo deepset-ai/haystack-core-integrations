@@ -85,7 +85,9 @@ class SupabaseBucketDownloader:
         """
         if self._client is None:
             self.warm_up()
-        assert self._client is not None
+        if self._client is None:
+            msg = "Supabase client is not initialized. Call warm_up() before run()."
+            raise RuntimeError(msg)
         streams = []
 
         for path in sources:
