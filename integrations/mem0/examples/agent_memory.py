@@ -26,7 +26,7 @@ from haystack.dataclasses import ChatMessage
 from haystack_integrations.memory_stores.mem0 import Mem0MemoryStore
 from haystack_integrations.tools.mem0 import Mem0MemoryRetrieverTool, Mem0MemoryWriterTool
 
-USER_ID = "demo-user-2"
+USER_ID = "demo-user-6"
 MEMORY_INDEXING_WAIT_SECONDS = 10
 
 
@@ -40,7 +40,14 @@ def wait_for_memory_indexing(seconds: int) -> None:
 
 
 def run_conversation(agent: Agent, turns: list[str], title: str) -> None:
-    """Run one conversation with local chat history isolated to that session."""
+    """
+    Run one conversation with local chat history isolated to that session.
+
+    NOTE: This example keeps a clean chat history: each next turn receives only previous user messages and final
+    assistant replies, not prior tool-call or tool-result messages. Long-term continuity comes from Mem0 retrieval at
+    the start of each turn. This means that the Agent must use the retrieved memories to maintain context across
+    turns, rather  than relying on old tool results in the chat history.
+    """
     print(f"\n=== {title} ===")  # noqa: T201
     history: list[ChatMessage] = []
 
@@ -58,18 +65,23 @@ def main() -> None:  # noqa: D103
     writer_tool = Mem0MemoryWriterTool(memory_store=store)
 
     agent = Agent(
-        chat_generator=OpenAIChatGenerator(model="gpt-5.4-mini"),
+        chat_generator=OpenAIChatGenerator(model="gpt-5.4"),
         tools=[retriever_tool, writer_tool],
         system_prompt="""You are a helpful assistant with long-term memory.
 
 Use the memory tools deliberately:
-- Call `retrieve_memories` with a focused query when stored memories are likely to affect the answer.
-- Call `retrieve_memories` without a query when the user asks what you remember or when a broad memory inventory is
-  more useful than a targeted search.
-- Do not call `retrieve_memories` when the current message is self-contained and stored context would not help.
+- At the beginning of every turn, first call `retrieve_memories` without a query to inspect all scoped memories.
+- Use the retrieved memories to answer, decide whether a focused memory search is still needed, and decide whether
+  anything new should be stored.
+- Only call `retrieve_memories` again with a focused query if the initial memory inspection is too broad or does not
+  contain enough detail for the user's request.
 - When the user shares durable, user-specific facts or preferences, call `store_memory` before your final answer.
-  Do not wait for the user to explicitly say "remember." Write concise standalone memory text. Do not store transient
-  requests or facts that are only useful inside the current conversation.
+  Do not wait for the user to explicitly say "remember."
+- Before storing, compare the proposed memory with the memories you just retrieved. Do not store duplicate facts,
+  summaries of already-stored facts, or facts copied from earlier turns/tool results.
+- Store only new or changed durable information from the latest user message. If there are multiple new facts, write
+  concise standalone memory text that does not overlap with existing memories.
+- Do not store transient requests or facts that are only useful inside the current conversation.
 """,
         streaming_callback=print_streaming_chunk,
         state_schema={"user_id": {"type": str}},
