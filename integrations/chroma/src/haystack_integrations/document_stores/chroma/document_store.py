@@ -11,7 +11,7 @@ from chromadb.api.types import GetResult, Metadata, OneOrMany, QueryResult
 from chromadb.config import Settings
 from haystack import default_from_dict, default_to_dict, logging
 from haystack.dataclasses import Document
-from haystack.document_stores.errors import DocumentStoreError
+from haystack.document_stores.errors import DocumentStoreError, DuplicateDocumentError
 from haystack.document_stores.types import DuplicatePolicy
 from haystack.utils.misc import _normalize_metadata_field_name
 
@@ -573,62 +573,123 @@ class ChromaDocumentStore:
     def write_documents(
         self,
         documents: list[Document],
-        policy: DuplicatePolicy = DuplicatePolicy.FAIL,
+        policy: DuplicatePolicy = DuplicatePolicy.NONE,
     ) -> int:
         """
-        Writes (or overwrites) documents into the store.
+        Writes documents into the store.
 
         :param documents:
             A list of documents to write into the document store.
         :param policy:
-            Not supported at the moment.
+            How to handle documents whose `id` already exists in the store:
+            - `NONE` (default): treated as `FAIL`.
+            - `OVERWRITE`: replace the existing document.
+            - `SKIP`: keep the existing document and skip the new one.
+            - `FAIL`: raise `DuplicateDocumentError`.
 
         :raises ValueError:
             When input is not valid.
+        :raises DuplicateDocumentError:
+            When `policy` is `FAIL` (or `NONE`) and any document `id` already exists.
 
         :returns:
-            The number of documents written
+            The number of documents written.
         """
         self._ensure_initialized()
         assert self._collection is not None
 
-        for doc in documents:
-            data = ChromaDocumentStore._convert_document_to_chroma(doc)
-            if data is not None:
-                self._collection.add(**data)
+        if policy == DuplicatePolicy.NONE:
+            policy = DuplicatePolicy.FAIL
 
-        return len(documents)
+        chroma_payloads: list[dict[str, Any]] = [
+            p for p in (ChromaDocumentStore._convert_document_to_chroma(doc) for doc in documents) if p is not None
+        ]
+        if not chroma_payloads:
+            return 0
+
+        if policy in (DuplicatePolicy.FAIL, DuplicatePolicy.SKIP):
+            existing_ids = set(self._collection.get(ids=[p["ids"][0] for p in chroma_payloads])["ids"])
+            payloads_to_write = self._apply_duplicate_policy(chroma_payloads, existing_ids, policy)
+        else:
+            payloads_to_write = chroma_payloads
+
+        for payload in payloads_to_write:
+            if policy == DuplicatePolicy.OVERWRITE:
+                self._collection.upsert(**payload)
+            else:
+                self._collection.add(**payload)
+
+        return len(payloads_to_write)
 
     async def write_documents_async(
         self,
         documents: list[Document],
-        policy: DuplicatePolicy = DuplicatePolicy.FAIL,
+        policy: DuplicatePolicy = DuplicatePolicy.NONE,
     ) -> int:
         """
-        Asynchronously writes (or overwrites) documents into the store.
+        Asynchronously writes documents into the store.
 
         Asynchronous methods are only supported for HTTP connections.
 
         :param documents:
             A list of documents to write into the document store.
         :param policy:
-            Not supported at the moment.
+            How to handle documents whose `id` already exists in the store:
+            - `NONE` (default): treated as `FAIL`.
+            - `OVERWRITE`: replace the existing document.
+            - `SKIP`: keep the existing document and skip the new one.
+            - `FAIL`: raise `DuplicateDocumentError`.
 
         :raises ValueError:
             When input is not valid.
+        :raises DuplicateDocumentError:
+            When `policy` is `FAIL` (or `NONE`) and any document `id` already exists.
 
         :returns:
-            The number of documents written
+            The number of documents written.
         """
         await self._ensure_initialized_async()
         assert self._async_collection is not None
 
-        for doc in documents:
-            data = ChromaDocumentStore._convert_document_to_chroma(doc)
-            if data is not None:
-                await self._async_collection.add(**data)
+        if policy == DuplicatePolicy.NONE:
+            policy = DuplicatePolicy.FAIL
 
-        return len(documents)
+        chroma_payloads: list[dict[str, Any]] = [
+            p for p in (ChromaDocumentStore._convert_document_to_chroma(doc) for doc in documents) if p is not None
+        ]
+        if not chroma_payloads:
+            return 0
+
+        if policy in (DuplicatePolicy.FAIL, DuplicatePolicy.SKIP):
+            existing = await self._async_collection.get(ids=[p["ids"][0] for p in chroma_payloads])
+            existing_ids = set(existing["ids"])
+            payloads_to_write = self._apply_duplicate_policy(chroma_payloads, existing_ids, policy)
+        else:
+            payloads_to_write = chroma_payloads
+
+        for payload in payloads_to_write:
+            if policy == DuplicatePolicy.OVERWRITE:
+                await self._async_collection.upsert(**payload)
+            else:
+                await self._async_collection.add(**payload)
+
+        return len(payloads_to_write)
+
+    @staticmethod
+    def _apply_duplicate_policy(
+        payloads: list[dict[str, Any]],
+        existing_ids: set[str],
+        policy: DuplicatePolicy,
+    ) -> list[dict[str, Any]]:
+        if policy == DuplicatePolicy.FAIL:
+            duplicates = [p["ids"][0] for p in payloads if p["ids"][0] in existing_ids]
+            if duplicates:
+                msg = f"Documents with ids {duplicates} already exist in the document store."
+                raise DuplicateDocumentError(msg)
+            return payloads
+        if policy == DuplicatePolicy.SKIP:
+            return [p for p in payloads if p["ids"][0] not in existing_ids]
+        return payloads
 
     def delete_documents(self, document_ids: list[str]) -> None:
         """
