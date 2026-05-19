@@ -77,8 +77,6 @@ def _build_search_filters(
         if value
     ]
 
-    # TODO How should we handle an OR operator at the top-level?
-    # TODO Should we check for duplicate condition entries when combining filters and IDs?
     if filters:
         if filters.get("operator", "").upper() == "AND" and "conditions" in filters:
             conditions.extend(filters["conditions"])
