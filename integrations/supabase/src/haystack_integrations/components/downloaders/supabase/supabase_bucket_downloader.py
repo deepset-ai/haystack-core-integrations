@@ -10,7 +10,7 @@ from haystack import component, default_from_dict, default_to_dict, logging
 from haystack.dataclasses import ByteStream
 from haystack.utils.auth import Secret, deserialize_secrets_inplace
 
-from supabase import create_client
+from supabase import Client, create_client
 
 logger = logging.getLogger(__name__)
 
@@ -61,7 +61,7 @@ class SupabaseBucketDownloader:
         self.supabase_key = supabase_key
         self.bucket_name = bucket_name
         self.file_extensions = [e.lower() for e in file_extensions] if file_extensions else None
-        self._client = None
+        self._client: Client | None = None
 
     def warm_up(self) -> None:
         """Initialize the Supabase client. Called once before the first run."""
@@ -85,6 +85,7 @@ class SupabaseBucketDownloader:
         """
         if self._client is None:
             self.warm_up()
+        assert self._client is not None
         streams = []
 
         for path in sources:
