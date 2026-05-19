@@ -25,16 +25,20 @@ class TestMem0MemoryRetrieverTool:
         assert tool.top_k == 5
         assert tool.name == "retrieve_memories"
         assert tool.description == (
-            "Search long-term memories relevant to a query. "
-            "Use this tool whenever you need to recall information from past conversations or stored facts."
+            "Search long-term memories relevant to a query, or return all scoped memories when no query is provided. "
+            "Use this tool when stored context from past conversations or facts could help answer the user."
         )
         assert tool.parameters == {
             "type": "object",
             "properties": {
-                "query": {"type": "string", "description": "The search query to find relevant memories."},
-                "top_k": {"type": "integer", "description": "Maximum number of memories to return."},
+                "query": {
+                    "type": ["string", "null"],
+                    "description": (
+                        "The search query to find relevant memories. Omit or pass null to return all memories in scope."
+                    ),
+                },
+                "top_k": {"type": "integer", "description": "Maximum number of memories to return for query searches."},
             },
-            "required": ["query"],
         }
         assert tool.inputs_from_state == {"user_id": "user_id"}
 
@@ -95,6 +99,34 @@ class TestMem0MemoryRetrieverTool:
         assert isinstance(result, str)
         assert "I like Python" in result
 
+    def test_invoke_can_retrieve_all_memories_without_query(self, store):
+        store.search_memories = Mock(return_value=[ChatMessage.from_system("I like Python")])
+        tool = Mem0MemoryRetrieverTool(memory_store=store)
+        result = tool.invoke(user_id="alice")
+        assert result == "- I like Python"
+        store.search_memories.assert_called_once_with(
+            query=None,
+            top_k=5,
+            user_id="alice",
+            run_id=None,
+            agent_id=None,
+            app_id=None,
+        )
+
+    def test_invoke_can_retrieve_all_memories_with_null_query(self, store):
+        store.search_memories = Mock(return_value=[ChatMessage.from_system("I like Python")])
+        tool = Mem0MemoryRetrieverTool(memory_store=store)
+        result = tool.invoke(query=None, user_id="alice")
+        assert result == "- I like Python"
+        store.search_memories.assert_called_once_with(
+            query=None,
+            top_k=5,
+            user_id="alice",
+            run_id=None,
+            agent_id=None,
+            app_id=None,
+        )
+
     def test_invoke_returns_no_memories_message(self, store):
         store.search_memories = Mock(return_value=[])
         tool = Mem0MemoryRetrieverTool(memory_store=store)
@@ -129,16 +161,25 @@ class TestMem0MemoryRetrieverTool:
                 "top_k": 4,
                 "name": "retrieve_memories",
                 "description": (
-                    "Search long-term memories relevant to a query. Use this tool whenever you need to recall "
-                    "information from past conversations or stored facts."
+                    "Search long-term memories relevant to a query, or return all scoped memories when no query is "
+                    "provided. Use this tool when stored context from past conversations or facts could help answer "
+                    "the user."
                 ),
                 "parameters": {
                     "type": "object",
                     "properties": {
-                        "query": {"type": "string", "description": "The search query to find relevant memories."},
-                        "top_k": {"type": "integer", "description": "Maximum number of memories to return."},
+                        "query": {
+                            "type": ["string", "null"],
+                            "description": (
+                                "The search query to find relevant memories. "
+                                "Omit or pass null to return all memories in scope."
+                            ),
+                        },
+                        "top_k": {
+                            "type": "integer",
+                            "description": "Maximum number of memories to return for query searches.",
+                        },
                     },
-                    "required": ["query"],
                 },
                 "inputs_from_state": {"user_id": "user_id"},
             },
@@ -155,16 +196,25 @@ class TestMem0MemoryRetrieverTool:
                 "top_k": 4,
                 "name": "retrieve_memories",
                 "description": (
-                    "Search long-term memories relevant to a query. Use this tool whenever you need to recall "
-                    "information from past conversations or stored facts."
+                    "Search long-term memories relevant to a query, or return all scoped memories when no query is "
+                    "provided. Use this tool when stored context from past conversations or facts could help answer "
+                    "the user."
                 ),
                 "parameters": {
                     "type": "object",
                     "properties": {
-                        "query": {"type": "string", "description": "The search query to find relevant memories."},
-                        "top_k": {"type": "integer", "description": "Maximum number of memories to return."},
+                        "query": {
+                            "type": ["string", "null"],
+                            "description": (
+                                "The search query to find relevant memories. "
+                                "Omit or pass null to return all memories in scope."
+                            ),
+                        },
+                        "top_k": {
+                            "type": "integer",
+                            "description": "Maximum number of memories to return for query searches.",
+                        },
                     },
-                    "required": ["query"],
                 },
                 "inputs_from_state": {"user_id": "user_id"},
             },

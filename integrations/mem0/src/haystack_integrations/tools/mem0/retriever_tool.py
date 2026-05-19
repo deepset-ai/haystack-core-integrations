@@ -12,17 +12,21 @@ from haystack.tools import Tool
 from haystack_integrations.memory_stores.mem0.memory_store import Mem0MemoryStore
 
 _DEFAULT_DESCRIPTION = (
-    "Search long-term memories relevant to a query. "
-    "Use this tool whenever you need to recall information from past conversations or stored facts."
+    "Search long-term memories relevant to a query, or return all scoped memories when no query is provided. "
+    "Use this tool when stored context from past conversations or facts could help answer the user."
 )
 
 _PARAMETERS: dict[str, Any] = {
     "type": "object",
     "properties": {
-        "query": {"type": "string", "description": "The search query to find relevant memories."},
-        "top_k": {"type": "integer", "description": "Maximum number of memories to return."},
+        "query": {
+            "type": ["string", "null"],
+            "description": (
+                "The search query to find relevant memories. Omit or pass null to return all memories in scope."
+            ),
+        },
+        "top_k": {"type": "integer", "description": "Maximum number of memories to return for query searches."},
     },
-    "required": ["query"],
 }
 
 _DEFAULT_INPUTS_FROM_STATE: dict[str, str] = {"user_id": "user_id"}
@@ -30,10 +34,11 @@ _DEFAULT_INPUTS_FROM_STATE: dict[str, str] = {"user_id": "user_id"}
 
 class Mem0MemoryRetrieverTool(Tool):
     """
-    A tool that searches a Mem0MemoryStore for relevant memories.
+    A tool that searches a Mem0MemoryStore for memories.
 
     The `user_id` is injected at runtime from Agent State via `inputs_from_state`,
     so a single tool instance can serve many users. The LLM only sees `query` and `top_k` by default.
+    If the LLM omits `query` or passes `None`, Mem0 returns all memories matching the injected scope.
     Pass a custom `inputs_from_state` mapping to inject other supported Mem0 entity IDs such as
     `run_id`, `agent_id`, or `app_id`. The mapping keys are Agent State keys and the values are this
     tool's parameter names. For example, use
@@ -58,6 +63,8 @@ class Mem0MemoryRetrieverTool(Tool):
         state_schema={"user_id": {"type": str}, "session_id": {"type": str}},
     )
 
+    # The Agent can call retrieve_memories with a query for targeted recall,
+    # or without a query when it needs all scoped memories.
     result = agent.run(
         messages=[ChatMessage.from_user("What do you remember about me?")],
         user_id="alice",
@@ -84,7 +91,7 @@ class Mem0MemoryRetrieverTool(Tool):
         :param top_k: Default maximum number of memories to return. The LLM may override this.
         :param name: Tool name exposed to the LLM.
         :param description: Tool description exposed to the LLM.
-        :param parameters: JSON schema for the parameters exposed to the LLM. Defaults to `query` and `top_k`.
+        :param parameters: JSON schema for the parameters exposed to the LLM. Defaults to optional `query` and `top_k`.
         :param inputs_from_state: Mapping from Agent State keys to this tool's parameter names.
             Defaults to `{"user_id": "user_id"}`, which injects `state["user_id"]` into the `user_id`
             parameter. To pass more Mem0 IDs at runtime, add the state fields to the Agent's
@@ -112,7 +119,7 @@ class Mem0MemoryRetrieverTool(Tool):
 
     def retrieve(
         self,
-        query: str,
+        query: str | None = None,
         *,
         top_k: int | None = None,
         user_id: str | None = None,
@@ -121,10 +128,11 @@ class Mem0MemoryRetrieverTool(Tool):
         app_id: str | None = None,
     ) -> str:
         """
-        Retrieve memories relevant to a query.
+        Retrieve memories relevant to a query, or all memories when no query is provided.
 
-        :param query: Text query used to search for relevant memories.
-        :param top_k: Maximum number of memories to return. Overrides the tool default.
+        :param query: Text query used to search for relevant memories. If omitted or `None`, all memories matching
+            the scope are returned.
+        :param top_k: Maximum number of memories to return for query searches. Overrides the tool default.
         :param user_id: User ID to scope the search. Injected from Agent State by default.
         :param run_id: Run ID to scope the search. Can be injected with a custom `inputs_from_state` mapping.
         :param agent_id: Agent ID to scope the search. Can be injected with a custom `inputs_from_state` mapping.

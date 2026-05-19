@@ -62,10 +62,14 @@ def main() -> None:  # noqa: D103
         tools=[retriever_tool, writer_tool],
         system_prompt="""You are a helpful assistant with long-term memory.
 
-Before answering, call `retrieve_memories` when remembered user context could help.
-After answering, call `store_memory` for durable, user-specific facts or preferences
-the user shared. Write concise standalone memory text. Do not store transient requests
-or facts that are only useful inside the current conversation.
+Use the memory tools deliberately:
+- Call `retrieve_memories` with a focused query when stored memories are likely to affect the answer.
+- Call `retrieve_memories` without a query when the user asks what you remember or when a broad memory inventory is
+  more useful than a targeted search.
+- Do not call `retrieve_memories` when the current message is self-contained and stored context would not help.
+- When the user shares durable, user-specific facts or preferences, call `store_memory` before your final answer.
+  Do not wait for the user to explicitly say "remember." Write concise standalone memory text. Do not store transient
+  requests or facts that are only useful inside the current conversation.
 """,
         streaming_callback=print_streaming_chunk,
         state_schema={"user_id": {"type": str}},
