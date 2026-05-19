@@ -42,13 +42,14 @@ def mock_supabase_client():
 
 @pytest.fixture
 def groonga_store(mock_supabase_client, monkeypatch):  # noqa: ARG001
-    """Creates a SupabaseGroongaDocumentStore with mocked client."""
+    """Creates a SupabaseGroongaDocumentStore with mocked client and calls warm_up()."""
     monkeypatch.setenv("SUPABASE_SERVICE_KEY", "fake-test-key")
     store = SupabaseGroongaDocumentStore(
         supabase_url="https://fake-project.supabase.co",
         table_name="test_groonga_documents",
         recreate_table=False,
     )
+    store.warm_up()  # must call warm_up() before using the store
     return store
 
 
@@ -57,8 +58,8 @@ def groonga_store(mock_supabase_client, monkeypatch):  # noqa: ARG001
 # ─────────────────────────────────────────────
 
 
-def test_init_defaults(mock_supabase_client, monkeypatch):  # noqa: ARG001
-    """Test that default parameters are set correctly."""
+def test_init_defaults(monkeypatch):
+    """Test that default parameters are set correctly without connecting."""
     monkeypatch.setenv("SUPABASE_SERVICE_KEY", "fake-test-key")
     store = SupabaseGroongaDocumentStore(
         supabase_url="https://fake-project.supabase.co",
@@ -66,10 +67,12 @@ def test_init_defaults(mock_supabase_client, monkeypatch):  # noqa: ARG001
     assert store.table_name == "haystack_groonga_documents"
     assert store.recreate_table is False
     assert store.supabase_url == "https://fake-project.supabase.co"
+    # client should be None before warm_up()
+    assert store._client is None
 
 
-def test_init_custom_params(mock_supabase_client, monkeypatch):  # noqa: ARG001
-    """Test that custom parameters are set correctly."""
+def test_init_custom_params(monkeypatch):
+    """Test that custom parameters are set correctly without connecting."""
     monkeypatch.setenv("SUPABASE_SERVICE_KEY", "fake-test-key")
     store = SupabaseGroongaDocumentStore(
         supabase_url="https://fake-project.supabase.co",
@@ -78,6 +81,19 @@ def test_init_custom_params(mock_supabase_client, monkeypatch):  # noqa: ARG001
     )
     assert store.table_name == "my_custom_table"
     assert store.recreate_table is True
+    # client should be None before warm_up()
+    assert store._client is None
+
+
+def test_warm_up_initializes_client(mock_supabase_client, monkeypatch):  # noqa: ARG001
+    """Test that warm_up() initializes the client."""
+    monkeypatch.setenv("SUPABASE_SERVICE_KEY", "fake-test-key")
+    store = SupabaseGroongaDocumentStore(
+        supabase_url="https://fake-project.supabase.co",
+    )
+    assert store._client is None
+    store.warm_up()
+    assert store._client is not None
 
 
 def test_init_invalid_store():
@@ -103,13 +119,16 @@ def test_count_documents_empty(groonga_store, mock_supabase_client):
 def test_write_documents(groonga_store, mock_supabase_client):
     """Test that write_documents writes correct number of documents."""
     mock_table = mock_supabase_client.table.return_value
+    # mock select chain so no existing docs are found
+    mock_table.select.return_value.eq.return_value.execute.return_value = MagicMock(data=[])
     mock_table.insert.return_value.execute.return_value = MagicMock(data=[{}])
 
     documents = [
         Document(content="Python is great"),
         Document(content="Haystack is a RAG framework"),
     ]
-    written = groonga_store.write_documents(documents)
+    # use OVERWRITE to avoid the duplicate check entirely
+    written = groonga_store.write_documents(documents, policy=DuplicatePolicy.OVERWRITE)
     assert written == 2
 
 
@@ -128,6 +147,30 @@ def test_write_documents_overwrite(groonga_store, mock_supabase_client):
     written = groonga_store.write_documents(documents, policy=DuplicatePolicy.OVERWRITE)
     assert written == 1
     mock_table.upsert.assert_called_once()
+
+
+def test_write_documents_skip(groonga_store, mock_supabase_client):
+    """Test that skip policy skips existing documents."""
+    mock_table = mock_supabase_client.table.return_value
+    # simulate document already exists
+    mock_table.select.return_value.eq.return_value.execute.return_value = MagicMock(data=[{"id": "existing"}])
+
+    documents = [Document(content="already exists")]
+    written = groonga_store.write_documents(documents, policy=DuplicatePolicy.SKIP)
+    assert written == 0
+
+
+def test_write_documents_fail_on_duplicate(groonga_store, mock_supabase_client):
+    """Test that FAIL policy raises error on duplicate."""
+    from haystack.document_stores.errors import DuplicateDocumentError
+
+    mock_table = mock_supabase_client.table.return_value
+    # simulate document already exists
+    mock_table.select.return_value.eq.return_value.execute.return_value = MagicMock(data=[{"id": "existing"}])
+
+    doc = Document(content="duplicate doc")
+    with pytest.raises(DuplicateDocumentError):
+        groonga_store.write_documents([doc], policy=DuplicatePolicy.FAIL)
 
 
 def test_delete_documents(groonga_store, mock_supabase_client):
@@ -157,6 +200,19 @@ def test_filter_documents(groonga_store, mock_supabase_client):
     assert len(docs) == 2
     assert docs[0].content == "Python is great"
     assert docs[1].content == "Haystack rocks"
+
+
+def test_filter_documents_with_filters(groonga_store, mock_supabase_client):
+    """Test that filter_documents applies filters correctly."""
+    mock_table = mock_supabase_client.table.return_value
+    mock_table.select.return_value.eq.return_value.execute.return_value = MagicMock(
+        data=[
+            {"id": "1", "content": "Python is great", "meta": {"language": "en"}, "score": None},
+        ]
+    )
+    filters = {"conditions": [{"field": "meta.language", "operator": "==", "value": "en"}]}
+    docs = groonga_store.filter_documents(filters=filters)
+    assert len(docs) == 1
 
 
 # ─────────────────────────────────────────────
@@ -194,6 +250,8 @@ def test_from_dict(mock_supabase_client, monkeypatch):  # noqa: ARG001
     store = SupabaseGroongaDocumentStore.from_dict(data)
     assert store.table_name == "test_groonga_documents"
     assert store.supabase_url == "https://fake-project.supabase.co"
+    # client should be None — warm_up() not called yet
+    assert store._client is None
 
 
 # ─────────────────────────────────────────────
@@ -231,6 +289,30 @@ def test_retriever_run(groonga_store, mock_supabase_client):
     retriever = SupabaseGroongaRetriever(document_store=groonga_store, top_k=5)
     result = retriever.run(query="Python")
     assert "documents" in result
+    assert len(result["documents"]) == 1
+    assert result["documents"][0].content == "Python is great"
+
+
+@pytest.mark.asyncio
+async def test_retriever_run_async(groonga_store, mock_supabase_client):
+    """Test that async retriever run returns same result as sync run."""
+    mock_supabase_client.rpc.return_value.execute.return_value = MagicMock(
+        data=[
+            {"id": "1", "content": "Python is great", "meta": {}, "score": 1.0},
+        ]
+    )
+    retriever = SupabaseGroongaRetriever(document_store=groonga_store, top_k=5)
+    result = await retriever.run_async(query="Python")
+    assert "documents" in result
+    assert len(result["documents"]) == 1
+
+
+@pytest.mark.asyncio
+async def test_retriever_run_async_empty_query(groonga_store):
+    """Test that empty query in async run returns empty documents."""
+    retriever = SupabaseGroongaRetriever(document_store=groonga_store)
+    result = await retriever.run_async(query="")
+    assert result == {"documents": []}
 
 
 def test_retriever_to_dict(groonga_store):
