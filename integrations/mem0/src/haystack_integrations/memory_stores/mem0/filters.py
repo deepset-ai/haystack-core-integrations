@@ -171,6 +171,8 @@ def _parse_comparison_condition(condition: dict[str, Any]) -> dict[str, Any]:
         "<=": lambda f, v: {f: {"lte": v}},
         "in": lambda f, v: {f: {"in": v if isinstance(v, list) else [v]}},
         "not in": lambda f, v: {f: {"ne": v}},
+        "contains": lambda f, v: {f: {"contains": v}},
+        "icontains": lambda f, v: {f: {"icontains": v}},
     }
 
     if operator not in op_map:
