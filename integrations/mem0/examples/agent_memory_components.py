@@ -41,7 +41,7 @@ from haystack_integrations.components.writers.mem0 import Mem0MemoryWriter
 from haystack_integrations.memory_stores.mem0 import Mem0MemoryStore
 
 USER_ID = "mem0-agent-pipeline-demo-user-5"
-MEMORY_INFERENCE_WAIT_SECONDS = 15
+MEMORY_INDEXING_WAIT_SECONDS = 15
 
 SEEDED_MEMORIES = [
     "My name is Alice. I am a senior data scientist at Acme Corp specializing in NLP.",
@@ -139,9 +139,9 @@ def run_turn(pipeline: Pipeline, user_text: str, history: list[ChatMessage]) -> 
     return reply
 
 
-def wait_for_memory_processing(seconds: int) -> None:
-    """Print a countdown while Mem0 processes inferred memories."""
-    print("Waiting for Mem0 to process inferred memories:")  # noqa: T201
+def wait_for_memory_indexing(seconds: int) -> None:
+    """Print a countdown while Mem0 makes newly written memories searchable."""
+    print("Waiting for Mem0 to make new memories searchable:")  # noqa: T201
     for remaining in range(seconds, 0, -1):
         print(f"  {remaining} second(s) remaining...", end="\r", flush=True)  # noqa: T201
         time.sleep(1)
@@ -168,7 +168,7 @@ def main() -> None:
         reply = run_turn(pipeline, user_text, first_history)
         print(f"Agent: {reply}\n")  # noqa: T201
 
-    wait_for_memory_processing(MEMORY_INFERENCE_WAIT_SECONDS)
+    wait_for_memory_indexing(MEMORY_INDEXING_WAIT_SECONDS)
 
     second_history: list[ChatMessage] = []
     print("==Starting second conversation with empty local history...==\n")  # noqa: T201
