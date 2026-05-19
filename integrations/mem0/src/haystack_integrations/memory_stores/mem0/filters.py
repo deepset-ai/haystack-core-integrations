@@ -2,9 +2,45 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+"""
+Utilities for translating Haystack filters into Mem0 Platform filters.
+
+Mem0 Platform `search` and `get_all` expect entity IDs such as `user_id`, `agent_id`, `app_id`, and `run_id`
+inside the `filters` object. They also reserve a fixed set of top-level filter fields such as `created_at`,
+`categories`, `keywords`, and `memory_ids`.
+
+See:
+- https://docs.mem0.ai/api-reference/memory/search-memories
+- https://docs.mem0.ai/api-reference/memory/get-memories
+- https://docs.mem0.ai/platform/features/v2-memory-filters
+
+Haystack users usually think of arbitrary fields as metadata filters. To keep that API natural while sending valid
+Mem0 filters, fields that are not native Mem0 filter fields are nested under `metadata`. For example,
+`{"field": "category", "operator": "==", "value": "work"}` becomes `{"metadata": {"category": "work"}}`.
+"""
+
 from typing import Any
 
 from haystack.errors import FilterError
+
+# Keep this list aligned with the top-level filter keys documented in:
+# https://docs.mem0.ai/api-reference/memory/search-memories
+# https://docs.mem0.ai/platform/features/v2-memory-filters
+_TOP_LEVEL_FILTER_FIELDS = {
+    "user_id",
+    "agent_id",
+    "app_id",
+    "run_id",
+    "created_at",
+    "updated_at",
+    "timestamp",
+    "categories",
+    "metadata",
+    "keywords",
+    "feedback",
+    "feedback_reason",
+    "memory_ids",
+}
 
 
 def _build_search_filters(
@@ -18,9 +54,14 @@ def _build_search_filters(
     """
     Build Mem0 search filters from explicit IDs and optional Haystack-style filters.
 
-    Mem0 `search` and `get_all` expect entity IDs inside the `filters` object. This helper keeps the
-    public store API convenient while ensuring IDs and custom filters are both applied. It combines
-    everything as Haystack-style filters first, then normalizes the combined filter to Mem0 format.
+    Mem0 `search` and `get_all` expect entity IDs inside the `filters` object.
+    This helper keeps the public store API convenient while ensuring IDs and custom filters are both applied.
+    It combines everything as Haystack-style filters first, then normalizes the combined filter to Mem0 format.
+    Fields that are not native Mem0 filter fields are treated as Mem0 metadata fields.
+
+    Mem0 filter reference:
+    - https://docs.mem0.ai/api-reference/memory/search-memories
+    - https://docs.mem0.ai/api-reference/memory/get-memories
 
     :param filters: Haystack-style filters to combine with IDs.
     :param user_id: User ID to scope the search.
@@ -56,8 +97,13 @@ def normalize_filters(filters: dict[str, Any]) -> dict[str, Any]:
     """
     Convert Haystack-style filters to the Mem0 filter format.
 
+    Mem0 Platform supports logical filters (`AND`, `OR`, `NOT`) and comparison operators on native fields.
+    It also supports metadata filters under the top-level `metadata` key.
+    See https://docs.mem0.ai/platform/features/v2-memory-filters for the list of fields and operators.
+
     :param filters: Haystack filter dictionary.
-    :returns: Equivalent Mem0 filter dictionary.
+    :returns: Equivalent Mem0 filter dictionary. Fields that are not native Mem0 filter fields are nested under
+        `metadata`.
     :raises FilterError: If the filter structure or operators are invalid.
     """
     if not isinstance(filters, dict):
@@ -69,6 +115,12 @@ def normalize_filters(filters: dict[str, Any]) -> dict[str, Any]:
 
 
 def _parse_logical_condition(condition: dict[str, Any]) -> dict[str, Any]:
+    """
+    Parse a Haystack logical condition into Mem0's logical filter shape.
+
+    Mem0 documents `AND`, `OR`, and `NOT` as supported logical operators:
+    https://docs.mem0.ai/platform/features/v2-memory-filters
+    """
     if "operator" not in condition:
         msg = f"'operator' key missing in: {condition}"
         raise FilterError(msg)
@@ -86,6 +138,13 @@ def _parse_logical_condition(condition: dict[str, Any]) -> dict[str, Any]:
 
 
 def _parse_comparison_condition(condition: dict[str, Any]) -> dict[str, Any]:
+    """
+    Parse a Haystack comparison condition into Mem0's native or metadata filter shape.
+
+    Native Mem0 fields are kept at the top level. All other fields are treated as metadata fields because Mem0's
+    Platform API expects metadata filters under the `metadata` key:
+    https://docs.mem0.ai/platform/features/v2-memory-filters
+    """
     if "field" not in condition:
         msg = f"'field' key missing in: {condition}"
         raise FilterError(msg)
@@ -99,6 +158,9 @@ def _parse_comparison_condition(condition: dict[str, Any]) -> dict[str, Any]:
     field: str = condition["field"]
     operator: str = condition["operator"]
     value: Any = condition["value"]
+
+    if field not in _TOP_LEVEL_FILTER_FIELDS:
+        return _parse_metadata_comparison_condition(field, operator, value)
 
     op_map = {
         "==": lambda f, v: {f: v},
@@ -116,6 +178,34 @@ def _parse_comparison_condition(condition: dict[str, Any]) -> dict[str, Any]:
         raise FilterError(msg)
 
     return op_map[operator](field, value)
+
+
+def _parse_metadata_comparison_condition(field: str, operator: str, value: Any) -> dict[str, Any]:
+    """
+    Convert a Haystack metadata comparison into Mem0's `metadata` filter shape.
+
+    Mem0 metadata filters support bare equality, `ne`, and `contains`; operators such as `in`, `gt`, and `lt` are not
+    supported for metadata filters.
+    For multi-value metadata checks, Mem0 recommends composing equality clauses with `OR`.
+
+    See https://docs.mem0.ai/platform/features/v2-memory-filters
+    """
+    metadata_field = field.removeprefix("metadata.")
+    op_map = {
+        "==": lambda f, v: {"metadata": {f: v}},
+        "!=": lambda f, v: {"metadata": {f: {"ne": v}}},
+        "contains": lambda f, v: {"metadata": {f: {"contains": v}}},
+    }
+
+    if operator not in op_map:
+        msg = (
+            f"Unsupported metadata filter operator: {operator!r}. "
+            "Mem0 metadata filters support ==, !=, and contains. "
+            "For multi-value metadata filters, combine equality conditions with OR."
+        )
+        raise FilterError(msg)
+
+    return op_map[operator](metadata_field, value)
 
 
 def _convert(node: dict[str, Any]) -> dict[str, Any]:

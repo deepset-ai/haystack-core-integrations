@@ -40,7 +40,7 @@ from haystack_integrations.components.retrievers.mem0 import Mem0MemoryRetriever
 from haystack_integrations.components.writers.mem0 import Mem0MemoryWriter
 from haystack_integrations.memory_stores.mem0 import Mem0MemoryStore
 
-USER_ID = "mem0-agent-pipeline-demo-user-5"
+USER_ID = "mem0-agent-pipeline-demo-user"
 MEMORY_INDEXING_WAIT_SECONDS = 15
 
 SEEDED_MEMORIES = [

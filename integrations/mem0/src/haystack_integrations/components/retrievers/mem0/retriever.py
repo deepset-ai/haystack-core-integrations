@@ -67,6 +67,10 @@ class Mem0MemoryRetriever:
         :param agent_id: Agent ID to scope the search.
         :param app_id: App ID to scope the search.
         :param filters: Haystack-style filters to apply. When provided with ID parameters, they are combined.
+            Mem0 requires entity IDs inside filters and supports a fixed set of native fields and operators:
+            https://docs.mem0.ai/api-reference/memory/search-memories and
+            https://docs.mem0.ai/platform/features/v2-memory-filters. Fields that are not native Mem0 filter fields
+            are treated as Mem0 metadata fields.
         :param top_k: Maximum number of memories to return. Overrides the init-time default.
         :returns: Dictionary with key `memories` containing a list of ChatMessage objects. User-provided
             Mem0 metadata is included in each message's meta. Mem0 retrieval fields such as `memory_id`, `user_id`,

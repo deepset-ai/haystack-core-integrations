@@ -138,7 +138,11 @@ class Mem0MemoryStore:
         When both `filters` and IDs are provided, they are combined with an `AND` condition.
 
         :param query: Text query to search. If omitted, returns all memories matching the scope.
-        :param filters: Haystack-style filters to apply. See https://docs.haystack.deepset.ai/docs/metadata-filtering
+        :param filters: Haystack-style filters to apply. See https://docs.haystack.deepset.ai/docs/metadata-filtering.
+            Mem0 requires entity IDs inside filters and supports a fixed set of native fields and operators:
+            https://docs.mem0.ai/api-reference/memory/search-memories and
+            https://docs.mem0.ai/platform/features/v2-memory-filters.
+            Fields that are not native Mem0 filter fields are treated as Mem0 metadata fields.
         :param top_k: Maximum number of results to return.
         :param user_id: User ID to scope the search.
         :param run_id: Run ID to scope the search.

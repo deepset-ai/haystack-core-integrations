@@ -228,7 +228,7 @@ class TestMem0MemoryStore:
                 "operator": "AND",
                 "conditions": [
                     {"field": "tag", "operator": "==", "value": "work"},
-                    {"field": "score", "operator": ">=", "value": 0.8},
+                    {"field": "created_at", "operator": ">=", "value": "2026-05-01T00:00:00Z"},
                 ],
             },
             user_id="user-1",
@@ -242,8 +242,8 @@ class TestMem0MemoryStore:
                 "AND": [
                     {"user_id": "user-1"},
                     {"app_id": "app-1"},
-                    {"tag": "work"},
-                    {"score": {"gte": 0.8}},
+                    {"metadata": {"tag": "work"}},
+                    {"created_at": {"gte": "2026-05-01T00:00:00Z"}},
                 ]
             },
         )

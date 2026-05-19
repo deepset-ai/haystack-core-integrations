@@ -26,7 +26,7 @@ from haystack.dataclasses import ChatMessage
 from haystack_integrations.memory_stores.mem0 import Mem0MemoryStore
 from haystack_integrations.tools.mem0 import Mem0MemoryRetrieverTool, Mem0MemoryWriterTool
 
-USER_ID = "demo-user-6"
+USER_ID = "demo-user"
 MEMORY_INDEXING_WAIT_SECONDS = 10
 
 
