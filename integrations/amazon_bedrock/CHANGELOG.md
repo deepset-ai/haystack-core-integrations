@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/amazon_bedrock-v6.10.1] - 2026-05-19
+
+### 🐛 Bug Fixes
+
+- S3Downloader - improve concurrent behavior (#3327)
+
+
 ## [integrations/amazon_bedrock-v6.10.0] - 2026-05-12
 
 ### 🚀 Features
