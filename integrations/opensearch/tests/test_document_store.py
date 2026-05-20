@@ -185,6 +185,7 @@ def test_get_default_mappings(_mock_opensearch_client):
 def test_routing_extracted_from_metadata(mock_bulk, _mock_opensearch_client):
     """Test routing extraction from document metadata"""
     mock_bulk.return_value = (2, [])
+    _mock_opensearch_client.return_value.indices.exists.return_value = False
 
     store = OpenSearchDocumentStore(hosts="testhost", http_auth=("admin", "admin"))
 
@@ -213,6 +214,7 @@ def test_routing_extracted_from_metadata(mock_bulk, _mock_opensearch_client):
 def test_routing_in_delete(mock_bulk, _mock_opensearch_client):
     """Test routing parameter in delete operations"""
     mock_bulk.return_value = (2, [])
+    _mock_opensearch_client.return_value.indices.exists.return_value = False
 
     store = OpenSearchDocumentStore(hosts="testhost", http_auth=("admin", "admin"))
 

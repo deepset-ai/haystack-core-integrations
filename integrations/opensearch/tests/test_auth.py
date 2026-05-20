@@ -226,6 +226,7 @@ class TestDocumentStoreWithAuth:
 
     @patch("haystack_integrations.document_stores.opensearch.document_store.OpenSearch")
     def test_ds_init_with_basic_auth(self, _mock_opensearch_client):
+        _mock_opensearch_client.return_value.indices.exists.return_value = False
         document_store = OpenSearchDocumentStore(hosts="testhost", http_auth=("user", "pw"))
         document_store._ensure_initialized()
         assert document_store._client
@@ -234,6 +235,7 @@ class TestDocumentStoreWithAuth:
 
     @patch("haystack_integrations.document_stores.opensearch.document_store.OpenSearch")
     def test_ds_init_without_auth(self, _mock_opensearch_client):
+        _mock_opensearch_client.return_value.indices.exists.return_value = False
         document_store = OpenSearchDocumentStore(hosts="testhost")
         document_store._ensure_initialized()
         assert document_store._client
@@ -242,6 +244,7 @@ class TestDocumentStoreWithAuth:
 
     @patch("haystack_integrations.document_stores.opensearch.document_store.OpenSearch")
     def test_ds_init_aws_auth(self, _mock_opensearch_client):
+        _mock_opensearch_client.return_value.indices.exists.return_value = False
         document_store = OpenSearchDocumentStore(
             hosts="testhost",
             http_auth=AWSAuth(aws_region_name=Secret.from_token("dummy-region")),
@@ -257,6 +260,7 @@ class TestDocumentStoreWithAuth:
 
     @patch("haystack_integrations.document_stores.opensearch.document_store.OpenSearch")
     def test_ds_from_dict_basic_auth(self, _mock_opensearch_client):
+        _mock_opensearch_client.return_value.indices.exists.return_value = False
         document_store = OpenSearchDocumentStore.from_dict(
             {
                 "type": "haystack_integrations.document_stores.opensearch.document_store.OpenSearchDocumentStore",
@@ -275,6 +279,7 @@ class TestDocumentStoreWithAuth:
 
     @patch("haystack_integrations.document_stores.opensearch.document_store.OpenSearch")
     def test_ds_from_dict_aws_auth(self, _mock_opensearch_client, monkeypatch: pytest.MonkeyPatch):
+        _mock_opensearch_client.return_value.indices.exists.return_value = False
         monkeypatch.setenv("AWS_DEFAULT_REGION", "dummy-region")
         document_store = OpenSearchDocumentStore.from_dict(
             {
@@ -379,6 +384,7 @@ class TestDocumentStoreWithAuth:
     @patch("haystack_integrations.document_stores.opensearch.document_store.OpenSearch")
     def test_ds_init_with_env_var_secrets(self, _mock_opensearch_client, monkeypatch):
         """Test the default initialization using environment variables"""
+        _mock_opensearch_client.return_value.indices.exists.return_value = False
         monkeypatch.setenv("OPENSEARCH_USERNAME", "user")
         monkeypatch.setenv("OPENSEARCH_PASSWORD", "pass")
 
@@ -391,6 +397,7 @@ class TestDocumentStoreWithAuth:
     @patch("haystack_integrations.document_stores.opensearch.document_store.OpenSearch")
     def test_ds_init_with_missing_env_vars(self, _mock_opensearch_client):
         """Test that auth is None when environment variables are missing"""
+        _mock_opensearch_client.return_value.indices.exists.return_value = False
         document_store = OpenSearchDocumentStore(hosts="testhost")
         document_store._ensure_initialized()
         assert document_store._client
@@ -419,6 +426,7 @@ class TestDocumentStoreWithAuth:
     @patch("haystack_integrations.document_stores.opensearch.document_store.OpenSearch")
     def test_ds_from_dict_with_env_var_secrets(self, _mock_opensearch_client, monkeypatch):
         """Test deserialization with environment variables"""
+        _mock_opensearch_client.return_value.indices.exists.return_value = False
         # Set environment variables so the secrets resolve properly
         monkeypatch.setenv("OPENSEARCH_USERNAME", "user")
         monkeypatch.setenv("OPENSEARCH_PASSWORD", "pass")
