@@ -144,12 +144,13 @@ class SupabaseGroongaDocumentStore(DocumentStore):
         query = self._client.table(self.table_name).select("*")
 
         if filters:
-            query = self._apply_filters(query, filters)
+            query = SupabaseGroongaDocumentStore._apply_filters(query, filters)
 
         result = query.execute()
         return [self._to_haystack_document(row) for row in result.data if isinstance(row, dict)]
 
-    def _apply_filters(self, query: Any, filters: dict[str, Any]) -> Any:
+    @staticmethod
+    def _apply_filters(query: Any, filters: dict[str, Any]) -> Any:
         """
         Applies filters to a Supabase query.
 
@@ -270,11 +271,12 @@ class SupabaseGroongaDocumentStore(DocumentStore):
 
         # Apply filters post-retrieval if provided
         if filters:
-            documents = self._filter_documents_in_memory(documents, filters)
+            documents = SupabaseGroongaDocumentStore._filter_documents_in_memory(documents, filters)
 
         return documents
 
-    def _filter_documents_in_memory(self, documents: list[Document], filters: dict[str, Any]) -> list[Document]:
+    @staticmethod
+    def _filter_documents_in_memory(documents: list[Document], filters: dict[str, Any]) -> list[Document]:
         """
         Filters a list of documents in memory based on the given filters.
 
