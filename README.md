@@ -2,12 +2,13 @@
 
 [Full report](https://htmlpreview.github.io/?https://github.com/deepset-ai/haystack-core-integrations/blob/python-coverage-comment-action-data-supabase/htmlcov/index.html)
 
-| Name                                                                              |    Stmts |     Miss |   Branch |   BrPart |    Cover |   Missing |
-|---------------------------------------------------------------------------------- | -------: | -------: | -------: | -------: | -------: | --------: |
-| src/haystack\_integrations/components/retrievers/supabase/embedding\_retriever.py |       23 |        0 |        4 |        0 |     100% |           |
-| src/haystack\_integrations/components/retrievers/supabase/keyword\_retriever.py   |       23 |        0 |        4 |        0 |     100% |           |
-| src/haystack\_integrations/document\_stores/supabase/document\_store.py           |       13 |        0 |        0 |        0 |     100% |           |
-| **TOTAL**                                                                         |   **59** |    **0** |    **8** |    **0** | **100%** |           |
+| Name                                                                                       |    Stmts |     Miss |   Branch |   BrPart |   Cover |   Missing |
+|------------------------------------------------------------------------------------------- | -------: | -------: | -------: | -------: | ------: | --------: |
+| src/haystack\_integrations/components/downloaders/supabase/supabase\_bucket\_downloader.py |       49 |        2 |       12 |        2 |     93% |75-76, 90-\>92 |
+| src/haystack\_integrations/components/retrievers/supabase/embedding\_retriever.py          |       23 |        0 |        4 |        0 |    100% |           |
+| src/haystack\_integrations/components/retrievers/supabase/keyword\_retriever.py            |       23 |        0 |        4 |        0 |    100% |           |
+| src/haystack\_integrations/document\_stores/supabase/document\_store.py                    |       13 |        0 |        0 |        0 |    100% |           |
+| **TOTAL**                                                                                  |  **108** |    **2** |   **20** |    **2** | **97%** |           |
 
 
 ## Setup coverage badge
