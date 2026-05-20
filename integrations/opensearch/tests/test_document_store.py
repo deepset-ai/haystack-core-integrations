@@ -608,9 +608,7 @@ def test_ensure_index_exists_creates_index_when_not_exists(_mock_opensearch_clie
 @patch("haystack_integrations.document_stores.opensearch.document_store.OpenSearch")
 def test_ensure_index_exists_no_create_when_disabled(_mock_opensearch_client):
     """When the index does not exist and create_index=False, no index is created."""
-    store = OpenSearchDocumentStore(
-        hosts="testhost", index="new-index", create_index=False, http_auth=("a", "b")
-    )
+    store = OpenSearchDocumentStore(hosts="testhost", index="new-index", create_index=False, http_auth=("a", "b"))
     mock_client = MagicMock()
     store._client = mock_client
     mock_client.indices.exists.return_value = False
@@ -681,9 +679,7 @@ async def test_ensure_index_exists_async_creates_index_when_not_exists(_mock_syn
 @patch("haystack_integrations.document_stores.opensearch.document_store.OpenSearch")
 async def test_ensure_index_exists_async_no_create_when_disabled(_mock_sync_client, _mock_async_client):
     """Async: When the index does not exist and create_index=False, no index is created."""
-    store = OpenSearchDocumentStore(
-        hosts="testhost", index="new-index", create_index=False, http_auth=("a", "b")
-    )
+    store = OpenSearchDocumentStore(hosts="testhost", index="new-index", create_index=False, http_auth=("a", "b"))
     mock_client = AsyncMock()
     store._async_client = mock_client
     mock_client.indices.exists = AsyncMock(return_value=False)
