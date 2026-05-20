@@ -653,3 +653,117 @@ class TestDocumentStoreAsync(
             client.indices.delete_alias(index=document_store._index, name=alias_name)
             if alias_store._async_client:
                 await alias_store._async_client.close()
+
+    @pytest.mark.asyncio
+    async def test_delete_all_documents_async_with_alias(self, document_store: OpenSearchDocumentStore):
+        """delete_all_documents_async(recreate_index=True) raises DocumentStoreError when self._index is an alias."""
+        alias_name = f"alias_del_{document_store._index}"
+        client = document_store._client
+        client.indices.put_alias(index=document_store._index, name=alias_name)
+        alias_store = OpenSearchDocumentStore(
+            hosts=["https://localhost:9200"],
+            http_auth=("admin", "SecureHaystack!2026"),
+            verify_certs=False,
+            index=alias_name,
+            embedding_dim=768,
+        )
+        try:
+            await alias_store._ensure_initialized_async()
+
+            with pytest.raises(DocumentStoreError, match="is an alias"):
+                await alias_store.delete_all_documents_async(recreate_index=True)
+
+            # delete_by_query path still works for aliases
+            await alias_store.write_documents_async([Document(content="x")])
+            await alias_store.delete_all_documents_async(recreate_index=False)
+            assert await alias_store.count_documents_async() == 0
+        finally:
+            client.indices.delete_alias(index=document_store._index, name=alias_name)
+            if alias_store._async_client:
+                await alias_store._async_client.close()
+
+    @pytest.mark.asyncio
+    async def test_delete_all_documents_no_recreate_async_with_alias(self, document_store: OpenSearchDocumentStore):
+        """delete_all_documents_async(recreate_index=False) removes all documents when self._index is an alias."""
+        alias_name = f"alias_del_norecr_{document_store._index}"
+        client = document_store._client
+        client.indices.put_alias(index=document_store._index, name=alias_name)
+        alias_store = OpenSearchDocumentStore(
+            hosts=["https://localhost:9200"],
+            http_auth=("admin", "SecureHaystack!2026"),
+            verify_certs=False,
+            index=alias_name,
+            embedding_dim=768,
+        )
+        try:
+            await alias_store._ensure_initialized_async()
+            await alias_store.write_documents_async([Document(content="a"), Document(content="b")])
+            assert await alias_store.count_documents_async() == 2
+
+            await alias_store.delete_all_documents_async(recreate_index=False)
+
+            assert await alias_store.count_documents_async() == 0
+            assert await alias_store.write_documents_async([Document(content="after delete")]) == 1
+        finally:
+            client.indices.delete_alias(index=document_store._index, name=alias_name)
+            if alias_store._async_client:
+                await alias_store._async_client.close()
+
+    @pytest.mark.asyncio
+    async def test_count_unique_metadata_by_filter_async_with_alias(self, document_store: OpenSearchDocumentStore):
+        """count_unique_metadata_by_filter_async reads the mapping via alias without KeyError."""
+        alias_name = f"alias_cnt_{document_store._index}"
+        client = document_store._client
+        client.indices.put_alias(index=document_store._index, name=alias_name)
+        alias_store = OpenSearchDocumentStore(
+            hosts=["https://localhost:9200"],
+            http_auth=("admin", "SecureHaystack!2026"),
+            verify_certs=False,
+            index=alias_name,
+            embedding_dim=768,
+        )
+        try:
+            await alias_store._ensure_initialized_async()
+            await alias_store.write_documents_async(
+                [
+                    Document(content="a", meta={"category": "X"}),
+                    Document(content="b", meta={"category": "X"}),
+                    Document(content="c", meta={"category": "Y"}),
+                ]
+            )
+
+            result = await alias_store.count_unique_metadata_by_filter_async(
+                filters={"field": "meta.category", "operator": "in", "value": ["X", "Y"]},
+                metadata_fields=["category"],
+            )
+            assert result == {"category": 2}
+        finally:
+            client.indices.delete_alias(index=document_store._index, name=alias_name)
+            if alias_store._async_client:
+                await alias_store._async_client.close()
+
+    @pytest.mark.asyncio
+    async def test_get_metadata_fields_info_async_with_alias(self, document_store: OpenSearchDocumentStore):
+        """get_metadata_fields_info_async reads the mapping via alias without KeyError."""
+        alias_name = f"alias_mfi_{document_store._index}"
+        client = document_store._client
+        client.indices.put_alias(index=document_store._index, name=alias_name)
+        alias_store = OpenSearchDocumentStore(
+            hosts=["https://localhost:9200"],
+            http_auth=("admin", "SecureHaystack!2026"),
+            verify_certs=False,
+            index=alias_name,
+            embedding_dim=768,
+        )
+        try:
+            await alias_store._ensure_initialized_async()
+            await alias_store.write_documents_async([Document(content="doc", meta={"category": "A", "count": 1})])
+
+            fields_info = await alias_store.get_metadata_fields_info_async()
+            assert "category" in fields_info
+            assert fields_info["category"]["type"] == "keyword"
+            assert "count" in fields_info
+        finally:
+            client.indices.delete_alias(index=document_store._index, name=alias_name)
+            if alias_store._async_client:
+                await alias_store._async_client.close()

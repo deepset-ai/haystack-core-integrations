@@ -774,6 +774,8 @@ class OpenSearchDocumentStore:
 
         :param recreate_index: If True, the index will be deleted and recreated with the original mappings and
             settings. If False, all documents will be deleted using the `delete_by_query` API.
+            ``recreate_index=True`` is not supported when the configured index name is an alias; a
+            :class:`haystack.document_stores.errors.DocumentStoreError` is raised in that case.
         :param refresh: If True, OpenSearch refreshes all shards involved in the delete by query after the request
             completes. If False, no refresh is performed. For more details, see the
             [OpenSearch delete_by_query refresh documentation](https://opensearch.org/docs/latest/api-reference/document-apis/delete-by-query/).
@@ -784,11 +786,18 @@ class OpenSearchDocumentStore:
         try:
             if recreate_index:
                 # get the current index mappings and settings
-                index_name = self._index
                 index_info = self._client.indices.get(index=self._index)
+                actual_index = next(iter(index_info))
+                if actual_index != self._index:
+                    msg = (
+                        f"Cannot recreate index '{self._index}' because it is an alias pointing to "
+                        f"'{actual_index}'. Use recreate_index=False to delete all documents via "
+                        f"delete_by_query, or operate directly on the concrete index."
+                    )
+                    raise DocumentStoreError(msg)
                 body = {
-                    "mappings": index_info[index_name]["mappings"],
-                    "settings": index_info[index_name]["settings"],
+                    "mappings": index_info[actual_index]["mappings"],
+                    "settings": index_info[actual_index]["settings"],
                 }
                 body["settings"]["index"].pop("uuid", None)
                 body["settings"]["index"].pop("creation_date", None)
@@ -818,6 +827,8 @@ class OpenSearchDocumentStore:
 
         :param recreate_index: If True, the index will be deleted and recreated with the original mappings and
             settings. If False, all documents will be deleted using the `delete_by_query` API.
+            ``recreate_index=True`` is not supported when the configured index name is an alias; a
+            :class:`haystack.document_stores.errors.DocumentStoreError` is raised in that case.
         :param refresh: If True, OpenSearch refreshes all shards involved in the delete by query after the request
             completes. If False, no refresh is performed. For more details, see the
             [OpenSearch delete_by_query refresh documentation](https://opensearch.org/docs/latest/api-reference/document-apis/delete-by-query/).
@@ -828,11 +839,18 @@ class OpenSearchDocumentStore:
         try:
             if recreate_index:
                 # get the current index mappings and settings
-                index_name = self._index
                 index_info = await self._async_client.indices.get(index=self._index)
+                actual_index = next(iter(index_info))
+                if actual_index != self._index:
+                    msg = (
+                        f"Cannot recreate index '{self._index}' because it is an alias pointing to "
+                        f"'{actual_index}'. Use recreate_index=False to delete all documents via "
+                        f"delete_by_query, or operate directly on the concrete index."
+                    )
+                    raise DocumentStoreError(msg)
                 body = {
-                    "mappings": index_info[index_name]["mappings"],
-                    "settings": index_info[index_name]["settings"],
+                    "mappings": index_info[actual_index]["mappings"],
+                    "settings": index_info[actual_index]["settings"],
                 }
                 body["settings"]["index"].pop("uuid", None)
                 body["settings"]["index"].pop("creation_date", None)
@@ -1817,7 +1835,8 @@ class OpenSearchDocumentStore:
 
         # use index mapping to get all fields
         mapping = self._client.indices.get_mapping(index=self._index)
-        index_mapping = mapping[self._index]["mappings"]["properties"]
+        actual_index = next(iter(mapping))
+        index_mapping = mapping[actual_index]["mappings"]["properties"]
 
         # normalize field names
         normalized_metadata_fields = [_normalize_metadata_field_name(field) for field in metadata_fields]
@@ -1860,7 +1879,8 @@ class OpenSearchDocumentStore:
 
         # use index mapping to get all fields
         mapping = await self._async_client.indices.get_mapping(index=self._index)
-        index_mapping = mapping[self._index]["mappings"]["properties"]
+        actual_index = next(iter(mapping))
+        index_mapping = mapping[actual_index]["mappings"]["properties"]
 
         # normalize field names
         normalized_metadata_fields = [_normalize_metadata_field_name(field) for field in metadata_fields]
@@ -1912,7 +1932,8 @@ class OpenSearchDocumentStore:
         assert self._client is not None
 
         mapping = self._client.indices.get_mapping(index=self._index)
-        index_mapping = mapping[self._index]["mappings"]["properties"]
+        actual_index = next(iter(mapping))
+        index_mapping = mapping[actual_index]["mappings"]["properties"]
         # remove all fields that are not metadata fields
         index_mapping = {k: v for k, v in index_mapping.items() if k not in SPECIAL_FIELDS}
         return index_mapping
@@ -1945,7 +1966,8 @@ class OpenSearchDocumentStore:
         assert self._async_client is not None
 
         mapping = await self._async_client.indices.get_mapping(index=self._index)
-        index_mapping = mapping[self._index]["mappings"]["properties"]
+        actual_index = next(iter(mapping))
+        index_mapping = mapping[actual_index]["mappings"]["properties"]
         # remove all fields that are not metadata fields
         index_mapping = {k: v for k, v in index_mapping.items() if k not in SPECIAL_FIELDS}
         return index_mapping
