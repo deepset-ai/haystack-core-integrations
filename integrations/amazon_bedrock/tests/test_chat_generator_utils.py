@@ -17,6 +17,7 @@ from haystack.dataclasses import (
 from haystack.tools import Tool
 
 from haystack_integrations.components.generators.amazon_bedrock.chat.utils import (
+    _convert_event_to_streaming_chunk,
     _convert_file_content_to_bedrock_format,
     _convert_streaming_chunks_to_chat_message,
     _format_messages,
@@ -2099,3 +2100,42 @@ class TestAmazonBedrockChatGeneratorUtils:
 
         with pytest.raises(ValueError, match=r"Cache point can only contain 'type' and 'ttl' keys."):
             _validate_and_format_cache_point({"type": "default", "invalid": "config"})
+
+    def test_convert_event_to_streaming_chunk_tool_use_input_int(self):
+        model = "global.anthropic.claude-sonnet-4-6"
+        component_info = ComponentInfo(
+            type="haystack_integrations.components.generators.amazon_bedrock.chat.chat_generator.AmazonBedrockChatGenerator"
+        )
+
+        # boto3 may return an int for toolUse input — must be cast to str
+        event_int = {
+            "contentBlockDelta": {
+                "delta": {"toolUse": {"input": 42}},
+                "contentBlockIndex": 1,
+            }
+        }
+        chunk = _convert_event_to_streaming_chunk(event_int, model, component_info)
+        assert chunk.tool_calls is not None
+        assert chunk.tool_calls[0].arguments == "42"
+
+        # None input should stay None
+        event_none = {
+            "contentBlockDelta": {
+                "delta": {"toolUse": {"input": None}},
+                "contentBlockIndex": 1,
+            }
+        }
+        chunk = _convert_event_to_streaming_chunk(event_none, model, component_info)
+        assert chunk.tool_calls is not None
+        assert chunk.tool_calls[0].arguments is None
+
+        # Normal string input should pass through unchanged
+        event_str = {
+            "contentBlockDelta": {
+                "delta": {"toolUse": {"input": '{"city": "Berlin"}'}},
+                "contentBlockIndex": 1,
+            }
+        }
+        chunk = _convert_event_to_streaming_chunk(event_str, model, component_info)
+        assert chunk.tool_calls is not None
+        assert chunk.tool_calls[0].arguments == '{"city": "Berlin"}'
