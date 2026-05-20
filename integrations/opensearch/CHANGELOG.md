@@ -1,5 +1,20 @@
 # Changelog
 
+## [integrations/opensearch-v8.0.0] - 2026-04-29
+
+### 🚀 Features
+
+- [**breaking**] Change default fuzziness from AUTO to 0 in OpenSearch retrievers (#3198)
+
+### 🚜 Refactor
+
+- *(opensearch)* Use async DocumentStore mixin tests (#3224)
+
+### 🧪 Testing
+
+- Opensearch - add unit tests (#3182)
+
+
 ## [integrations/opensearch-v7.2.1] - 2026-04-13
 
 ### 🐛 Bug Fixes

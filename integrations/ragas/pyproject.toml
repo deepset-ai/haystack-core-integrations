@@ -82,7 +82,7 @@ ignore_missing_imports = true
 
 [tool.ruff]
 line-length = 120
-exclude = ["example", "tests"]
+exclude = ["example"]
 
 [tool.ruff.lint]
 select = [
@@ -151,7 +151,7 @@ ban-relative-imports = "all"
 
 [tool.ruff.lint.per-file-ignores]
 # Tests can use magic values, assertions, and relative imports
-"tests/**/*" = ["D", "PLR2004", "S101", "TID252", "ANN"]
+"tests/**/*" = ["D", "PLR2004", "S101", "TID252", "ANN", "ARG"]
 
 [tool.coverage.run]
 source = ["haystack_integrations"]

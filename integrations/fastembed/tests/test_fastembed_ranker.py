@@ -28,6 +28,7 @@ class TestFastembedRanker:
         assert not ranker.local_files_only
         assert ranker.meta_fields_to_embed == []
         assert ranker.meta_data_separator == "\n"
+        assert ranker.score_threshold is None
 
     def test_init_with_parameters(self):
         """
@@ -43,6 +44,7 @@ class TestFastembedRanker:
             local_files_only=True,
             meta_fields_to_embed=["test_field"],
             meta_data_separator=" | ",
+            score_threshold=0.5,
         )
         assert ranker.model_name == "BAAI/bge-reranker-base"
         assert ranker.top_k == 64
@@ -53,6 +55,7 @@ class TestFastembedRanker:
         assert ranker.local_files_only
         assert ranker.meta_fields_to_embed == ["test_field"]
         assert ranker.meta_data_separator == " | "
+        assert ranker.score_threshold == 0.5
 
     def test_init_with_incorrect_input(self):
         """
@@ -88,6 +91,7 @@ class TestFastembedRanker:
                 "local_files_only": False,
                 "meta_fields_to_embed": [],
                 "meta_data_separator": "\n",
+                "score_threshold": None,
             },
         }
 
@@ -105,6 +109,7 @@ class TestFastembedRanker:
             local_files_only=True,
             meta_fields_to_embed=["test_field"],
             meta_data_separator=" | ",
+            score_threshold=0.5,
         )
         ranker_dict = ranker.to_dict()
         assert ranker_dict == {
@@ -119,6 +124,7 @@ class TestFastembedRanker:
                 "local_files_only": True,
                 "meta_fields_to_embed": ["test_field"],
                 "meta_data_separator": " | ",
+                "score_threshold": 0.5,
             },
         }
 
@@ -138,6 +144,7 @@ class TestFastembedRanker:
                 "local_files_only": False,
                 "meta_fields_to_embed": [],
                 "meta_data_separator": "\n",
+                "score_threshold": None,
             },
         }
         ranker = default_from_dict(FastembedRanker, ranker_dict)
@@ -150,6 +157,7 @@ class TestFastembedRanker:
         assert not ranker.local_files_only
         assert ranker.meta_fields_to_embed == []
         assert ranker.meta_data_separator == "\n"
+        assert ranker.score_threshold is None
 
     def test_from_dict_with_custom_init_parameters(self):
         """
@@ -167,6 +175,7 @@ class TestFastembedRanker:
                 "local_files_only": True,
                 "meta_fields_to_embed": ["test_field"],
                 "meta_data_separator": " | ",
+                "score_threshold": 0.5,
             },
         }
         ranker = default_from_dict(FastembedRanker, ranker_dict)
@@ -179,6 +188,7 @@ class TestFastembedRanker:
         assert ranker.local_files_only
         assert ranker.meta_fields_to_embed == ["test_field"]
         assert ranker.meta_data_separator == " | "
+        assert ranker.score_threshold == 0.5
 
     def test_run_incorrect_input_format(self):
         """
@@ -256,6 +266,20 @@ class TestFastembedRanker:
             batch_size=64,
             parallel=None,
         )
+
+    def test_run_with_score_threshold(self):
+        """
+        Tests that documents below score_threshold are filtered out.
+        """
+        ranker = FastembedRanker(model_name="model_name", score_threshold=0.5)
+        ranker._model = MagicMock()
+        ranker._model.rerank.return_value = [0.9, 0.3, 0.7]
+
+        documents = [Document(content=f"doc {i}") for i in range(3)]
+        result = ranker.run(query="test", documents=documents)
+
+        assert len(result["documents"]) == 2
+        assert all(doc.score >= 0.5 for doc in result["documents"])
 
     def test_run_calls_warm_up(self):
         """
