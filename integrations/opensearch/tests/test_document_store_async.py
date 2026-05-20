@@ -627,3 +627,29 @@ class TestDocumentStoreAsync(
 
         for row in result["datarows"]:
             assert len(row) == 3
+
+    @pytest.mark.asyncio
+    async def test_document_store_async_with_alias(self, document_store: OpenSearchDocumentStore):
+        """Async init with an alias as the index name must not raise KeyError."""
+        alias_name = f"alias_for_{document_store._index}"
+        client = document_store._client
+        client.indices.put_alias(index=document_store._index, name=alias_name)
+        try:
+            alias_store = OpenSearchDocumentStore(
+                hosts=["https://localhost:9200"],
+                http_auth=("admin", "SecureHaystack!2026"),
+                verify_certs=False,
+                index=alias_name,
+                embedding_dim=768,
+            )
+            await alias_store._ensure_initialized_async()
+
+            docs = [Document(content="async doc via alias")]
+            assert await alias_store.write_documents_async(docs) == 1
+            results = await alias_store.filter_documents_async()
+            assert len(results) == 1
+            assert results[0].content == "async doc via alias"
+        finally:
+            client.indices.delete_alias(index=document_store._index, name=alias_name)
+            if alias_store._async_client:
+                await alias_store._async_client.close()
