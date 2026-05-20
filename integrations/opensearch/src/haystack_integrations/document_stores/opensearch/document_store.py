@@ -400,7 +400,10 @@ class OpenSearchDocumentStore:
                 index=self._index,
             )
             mapping = await self._async_client.indices.get_mapping(index=self._index)
-            properties = mapping[self._index]["mappings"].get("properties", {})
+            # get_mapping keys the response by the real index name; when self._index is an alias
+            # the key differs from the alias, so we use next(iter(...)) to handle both cases.
+            actual_index = next(iter(mapping))
+            properties = mapping[actual_index]["mappings"].get("properties", {})
             self._populate_nested_fields_from_mapping(properties)
         elif self._create_index:
             # Create the index if it doesn't exist
@@ -417,7 +420,10 @@ class OpenSearchDocumentStore:
                 index=self._index,
             )
             mapping = self._client.indices.get_mapping(index=self._index)
-            properties = mapping[self._index]["mappings"].get("properties", {})
+            # get_mapping keys the response by the real index name; when self._index is an alias
+            # the key differs from the alias, so we use next(iter(...)) to handle both cases.
+            actual_index = next(iter(mapping))
+            properties = mapping[actual_index]["mappings"].get("properties", {})
             self._populate_nested_fields_from_mapping(properties)
         elif self._create_index:
             # Create the index if it doesn't exist
