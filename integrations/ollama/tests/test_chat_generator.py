@@ -1392,6 +1392,33 @@ class TestOllamaChatGeneratorLiveInference:
         assert new_response.tool_calls[0].tool_name == "multiply"
         assert new_response.tool_calls[0].arguments == {"a": 5, "b": 10}
 
+    @pytest.mark.parametrize("streaming_callback", [None, print_streaming_chunk])
+    def test_live_run_with_repeated_tool_calls(self, tools, streaming_callback):
+        component = OllamaChatGenerator(model="qwen3:0.6b", tools=tools, streaming_callback=streaming_callback)
+        tool_invoker = ToolInvoker(tools=tools)
+
+        messages = [ChatMessage.from_user("What is the weather in Paris and London?")]
+        response = component.run(messages)
+
+        assert len(response["replies"]) == 1
+        assistant_msg = response["replies"][0]
+
+        assert assistant_msg.tool_calls
+        assert len(assistant_msg.tool_calls) == 2
+        for tc in assistant_msg.tool_calls:
+            assert isinstance(tc, ToolCall)
+            assert tc.tool_name == "weather"
+            assert "city" in tc.arguments
+
+        cities = {tc.arguments["city"].lower() for tc in assistant_msg.tool_calls}
+        assert any("paris" in c for c in cities)
+        assert any("london" in c for c in cities)
+
+        tool_messages = tool_invoker.run(messages=[assistant_msg])["tool_messages"]
+        final_response = component.run(messages + [assistant_msg] + tool_messages)
+        assert len(final_response["replies"]) == 1
+        assert final_response["replies"][0].text
+
     def test_live_run_with_tools_and_format(self, tools):
         response_format = {
             "type": "object",
