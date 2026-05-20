@@ -10,9 +10,9 @@ inside the `filters` object. They also reserve a fixed set of top-level filter f
 `categories`, `keywords`, and `memory_ids`.
 
 See:
-- https://docs.mem0.ai/api-reference/memory/search-memories
-- https://docs.mem0.ai/api-reference/memory/get-memories
-- https://docs.mem0.ai/platform/features/v2-memory-filters
+- [Search Memories API](https://docs.mem0.ai/api-reference/memory/search-memories)
+- [Get Memories API](https://docs.mem0.ai/api-reference/memory/get-memories)
+- [Memory Filters](https://docs.mem0.ai/platform/features/v2-memory-filters)
 
 Haystack users usually think of arbitrary fields as metadata filters. To keep that API natural while sending valid
 Mem0 filters, fields that are not native Mem0 filter fields are nested under `metadata`. For example,
@@ -60,8 +60,8 @@ def _build_search_filters(
     Fields that are not native Mem0 filter fields are treated as Mem0 metadata fields.
 
     Mem0 filter reference:
-    - https://docs.mem0.ai/api-reference/memory/search-memories
-    - https://docs.mem0.ai/api-reference/memory/get-memories
+    - [Search Memories API](https://docs.mem0.ai/api-reference/memory/search-memories)
+    - [Get Memories API](https://docs.mem0.ai/api-reference/memory/get-memories)
 
     :param filters: Haystack-style filters to combine with IDs.
     :param user_id: User ID to scope the search.
@@ -97,7 +97,8 @@ def normalize_filters(filters: dict[str, Any]) -> dict[str, Any]:
 
     Mem0 Platform supports logical filters (`AND`, `OR`, `NOT`) and comparison operators on native fields.
     It also supports metadata filters under the top-level `metadata` key.
-    See https://docs.mem0.ai/platform/features/v2-memory-filters for the list of fields and operators.
+    See [Memory Filters](https://docs.mem0.ai/platform/features/v2-memory-filters) for the list of fields and
+    operators.
 
     :param filters: Haystack filter dictionary.
     :returns: Equivalent Mem0 filter dictionary. Fields that are not native Mem0 filter fields are nested under
@@ -117,7 +118,7 @@ def _parse_logical_condition(condition: dict[str, Any]) -> dict[str, Any]:
     Parse a Haystack logical condition into Mem0's logical filter shape.
 
     Mem0 documents `AND`, `OR`, and `NOT` as supported logical operators:
-    https://docs.mem0.ai/platform/features/v2-memory-filters
+    [Memory Filters](https://docs.mem0.ai/platform/features/v2-memory-filters)
     """
     if "operator" not in condition:
         msg = f"'operator' key missing in: {condition}"
@@ -141,7 +142,7 @@ def _parse_comparison_condition(condition: dict[str, Any]) -> dict[str, Any]:
 
     Native Mem0 fields are kept at the top level. All other fields are treated as metadata fields because Mem0's
     Platform API expects metadata filters under the `metadata` key:
-    https://docs.mem0.ai/platform/features/v2-memory-filters
+    [Memory Filters](https://docs.mem0.ai/platform/features/v2-memory-filters)
     """
     if "field" not in condition:
         msg = f"'field' key missing in: {condition}"
@@ -188,7 +189,7 @@ def _parse_metadata_comparison_condition(field: str, operator: str, value: Any) 
     supported for metadata filters.
     For multi-value metadata checks, Mem0 recommends composing equality clauses with `OR`.
 
-    See https://docs.mem0.ai/platform/features/v2-memory-filters
+    See [Memory Filters](https://docs.mem0.ai/platform/features/v2-memory-filters).
     """
     metadata_field = field.removeprefix("metadata.")
     op_map = {

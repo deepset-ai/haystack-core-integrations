@@ -53,6 +53,21 @@ class TestMem0MemoryRetriever:
             app_id=None,
         )
 
+    def test_run_accepts_none_query(self, store):
+        store.search_memories = Mock(return_value=[ChatMessage.from_system("Memory A")])
+        retriever = Mem0MemoryRetriever(memory_store=store)
+        result = retriever.run(None, user_id="u1")
+        assert result["memories"][0].text == "Memory A"
+        store.search_memories.assert_called_once_with(
+            query=None,
+            filters=None,
+            top_k=5,
+            user_id="u1",
+            run_id=None,
+            agent_id=None,
+            app_id=None,
+        )
+
     def test_to_dict(self, store):
         retriever = Mem0MemoryRetriever(memory_store=store, top_k=7)
         data = retriever.to_dict()

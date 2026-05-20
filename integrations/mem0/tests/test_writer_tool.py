@@ -124,7 +124,6 @@ class TestMem0MemoryWriterTool:
         tool = Mem0MemoryWriterTool(memory_store=store)
         tool.warm_up()
         tool.warm_up()
-        tool.warm_up()
         store.warm_up.assert_called_once()
 
     def test_to_dict(self):
