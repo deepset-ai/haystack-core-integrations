@@ -124,7 +124,10 @@ class SupabaseGroongaDocumentStore(DocumentStore):
         if self._client is None:
             msg = "Call warm_up() before using the document store."
             raise RuntimeError(msg)
-        result = self._client.table(self.table_name).select("*", count=CountMethod.exact).execute()
+        result = self._client.rpc(
+            "groonga_search",
+            {"query_text": query, "table_name": self.table_name, "top_k": top_k},
+        ).execute()
         return int(result.count) if result.count is not None else 0
 
     def filter_documents(self, filters: dict[str, Any] | None = None) -> list[Document]:
