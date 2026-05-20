@@ -8,15 +8,15 @@ from ollama import AsyncClient, Client
 @component
 class OllamaTextEmbedder:
     """
-        Computes the embeddings of a string using embedding models compatible with the Ollama Library.
+    Computes the embeddings of a string using embedding models compatible with the Ollama Library.
 
-        Usage example:
+    Usage example:
     ```python
-        from haystack_integrations.components.embedders.ollama import OllamaTextEmbedder
+    from haystack_integrations.components.embedders.ollama import OllamaTextEmbedder
 
-        embedder = OllamaTextEmbedder()
-        result = embedder.run(text="What do llamas say once you have thanked them? No probllama!")
-        print(result['embedding'])
+    embedder = OllamaTextEmbedder()
+    result = embedder.run(text="What do llamas say once you have thanked them? No probllama!")
+    print(result['embedding'])
     ```
     """
 
@@ -54,7 +54,6 @@ class OllamaTextEmbedder:
             The desired number of dimensions in the embedding output. Only supported by models
             that implement Matryoshka Representation Learning (MRL), such as nomic-embed-text-v1.5,
             mxbai-embed-large, and qwen3-embedding. If None (default), the full vector is returned.
-            Requires ollama-python >= 0.6.2.
         """
         self.keep_alive = keep_alive
         self.timeout = timeout

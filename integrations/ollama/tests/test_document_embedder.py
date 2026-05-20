@@ -1,4 +1,3 @@
-import asyncio
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -88,7 +87,6 @@ class TestOllamaDocumentEmbedder:
         assert embedder.dimensions == 512
 
     def test_dimensions_passed_to_embed_client(self):
-
         embedder = OllamaDocumentEmbedder(dimensions=512)
         mock_response = {"embeddings": [[0.1, 0.2, 0.3]]}
         embedder._client.embed = MagicMock(return_value=mock_response)
@@ -99,7 +97,6 @@ class TestOllamaDocumentEmbedder:
         assert call_kwargs["dimensions"] == 512
 
     def test_none_dimensions_passed_to_embed_client(self):
-
         embedder = OllamaDocumentEmbedder(dimensions=None)
         mock_response = {"embeddings": [[0.1, 0.2, 0.3]]}
         embedder._client.embed = MagicMock(return_value=mock_response)
@@ -109,19 +106,18 @@ class TestOllamaDocumentEmbedder:
         call_kwargs = embedder._client.embed.call_args.kwargs
         assert call_kwargs["dimensions"] is None
 
-    def test_dimensions_passed_to_async_embed_client(self):
-
+    @pytest.mark.asyncio
+    async def test_dimensions_passed_to_async_embed_client(self):
         embedder = OllamaDocumentEmbedder(dimensions=256)
         mock_response = {"embeddings": [[0.1, 0.2, 0.3]]}
         embedder._async_client.embed = AsyncMock(return_value=mock_response)
 
-        asyncio.run(embedder._embed_batch_async(["hello"], batch_size=32))
+        await embedder._embed_batch_async(["hello"], batch_size=32)
 
         call_kwargs = embedder._async_client.embed.call_args.kwargs
         assert call_kwargs["dimensions"] == 256
 
     def test_to_dict_contains_dimensions(self):
-
         embedder = OllamaDocumentEmbedder(dimensions=512)
         embedder_dict = default_to_dict(
             embedder,
@@ -141,7 +137,6 @@ class TestOllamaDocumentEmbedder:
         assert embedder_dict["init_parameters"]["dimensions"] == 512
 
     def test_to_dict_contains_dimensions_none(self):
-
         embedder = OllamaDocumentEmbedder()
         embedder_dict = default_to_dict(
             embedder,
@@ -161,7 +156,6 @@ class TestOllamaDocumentEmbedder:
         assert embedder_dict["init_parameters"]["dimensions"] is None
 
     def test_from_dict_restores_dimensions(self):
-
         embedder_dict = {
             "type": "haystack_integrations.components.embedders.ollama.document_embedder.OllamaDocumentEmbedder",
             "init_parameters": {
