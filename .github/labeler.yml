@@ -34,6 +34,11 @@ integration:astra:
       - any-glob-to-any-file: "integrations/astra/**/*"
       - any-glob-to-any-file: ".github/workflows/astra.yml"
 
+integration:brave:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/brave/**/*"
+      - any-glob-to-any-file: ".github/workflows/brave.yml"
+
 integration:azure-ai-search:
   - changed-files:
       - any-glob-to-any-file: "integrations/azure_ai_search/**/*"
@@ -73,6 +78,11 @@ integration:docling:
   - changed-files:
       - any-glob-to-any-file: "integrations/docling/**/*"
       - any-glob-to-any-file: ".github/workflows/docling.yml"
+
+integration:docling-serve:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/docling_serve/**/*"
+      - any-glob-to-any-file: ".github/workflows/docling_serve.yml"
 
 integration:dspy:
   - changed-files:
@@ -228,6 +238,11 @@ integration:paddleocr:
       - any-glob-to-any-file: "integrations/paddleocr/**/*"
       - any-glob-to-any-file: ".github/workflows/paddleocr.yml"
 
+integration:perplexity:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/perplexity/**/*"
+      - any-glob-to-any-file: ".github/workflows/perplexity.yml"
+
 integration:pgvector:
   - changed-files:
       - any-glob-to-any-file: "integrations/pgvector/**/*"
@@ -297,6 +312,11 @@ integration:valkey:
   - changed-files:
       - any-glob-to-any-file: "integrations/valkey/**/*"
       - any-glob-to-any-file: ".github/workflows/valkey.yml"
+
+integration:vespa:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/vespa/**/*"
+      - any-glob-to-any-file: ".github/workflows/vespa.yml"
 
 integration:vllm:
   - changed-files:

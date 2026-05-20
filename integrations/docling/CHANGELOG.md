@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/docling-v1.0.0] - 2026-05-11
+
+### 🐛 Bug Fixes
+
+- *(docling)* [**breaking**] Change default export type to MARKDOWN and add page_number to chunk metadata (#3276)
+
+
 ## [integrations/docling-v0.4.0] - 2026-05-04
 
 ### 🚀 Features

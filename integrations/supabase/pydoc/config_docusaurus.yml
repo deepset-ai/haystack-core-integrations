@@ -3,6 +3,7 @@ loaders:
       - haystack_integrations.document_stores.supabase.document_store
       - haystack_integrations.components.retrievers.supabase.embedding_retriever
       - haystack_integrations.components.retrievers.supabase.keyword_retriever
+      - haystack_integrations.components.downloaders.supabase.supabase_bucket_downloader
     search_path: [../src]
 processors:
   - type: filter
