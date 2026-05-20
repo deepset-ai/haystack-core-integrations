@@ -1415,7 +1415,7 @@ class TestOllamaChatGeneratorLiveInference:
         assert any("london" in c for c in cities)
 
         tool_messages = tool_invoker.run(messages=[assistant_msg])["tool_messages"]
-        final_response = component.run(messages + [assistant_msg] + tool_messages)
+        final_response = component.run([*messages, assistant_msg, *tool_messages])
         assert len(final_response["replies"]) == 1
         assert final_response["replies"][0].text
 
