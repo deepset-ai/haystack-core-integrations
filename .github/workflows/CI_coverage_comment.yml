@@ -6,6 +6,7 @@ on:
       - "Test / aimlapi"
       - "Test / amazon-bedrock"
       - "Test / amazon-sagemaker"
+      - "Test / amazon-s3-vectors"
       - "Test / anthropic"
       - "Test / arcadedb"
       - "Test / astra"
