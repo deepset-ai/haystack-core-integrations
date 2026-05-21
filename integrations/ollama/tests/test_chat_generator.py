@@ -194,6 +194,33 @@ class TestUtils:
             arguments={"format": "celsius", "location": "Paris, FR"},
         )
 
+    def test_convert_ollama_response_to_chatmessage_with_repeated_tool(self):
+        ollama_response = ChatResponse(
+            model="some_model",
+            created_at="2023-12-12T14:13:43.416799Z",
+            message={
+                "role": "assistant",
+                "content": "",
+                "tool_calls": [
+                    {"function": {"name": "weather", "arguments": {"city": "Paris"}}},
+                    {"function": {"name": "weather", "arguments": {"city": "London"}}},
+                ],
+            },
+            done=True,
+            total_duration=5191566416,
+            load_duration=2154458,
+            prompt_eval_count=26,
+            prompt_eval_duration=383809000,
+            eval_count=298,
+            eval_duration=4799921000,
+        )
+
+        observed = _convert_ollama_response_to_chatmessage(ollama_response)
+
+        assert len(observed.tool_calls) == 2
+        assert observed.tool_calls[0] == ToolCall(tool_name="weather", arguments={"city": "Paris"})
+        assert observed.tool_calls[1] == ToolCall(tool_name="weather", arguments={"city": "London"})
+
     def test_build_chunk(self):
         generator = OllamaChatGenerator()
 
@@ -386,8 +413,10 @@ class TestUtils:
         assert result["replies"][0].text is None
         assert result["replies"][0].tool_calls[0].tool_name == "calculator"
         assert result["replies"][0].tool_calls[0].arguments == {"expression": "7 * (4 + 2)"}
+        assert result["replies"][0].tool_calls[0].id is None
         assert result["replies"][0].tool_calls[1].tool_name == "factorial"
         assert result["replies"][0].tool_calls[1].arguments == {"n": 5}
+        assert result["replies"][0].tool_calls[1].id is None
         assert result["replies"][0].meta["finish_reason"] == "stop"
         assert result["replies"][0].meta["model"] == "qwen3:0.6b"
 
@@ -421,6 +450,123 @@ class TestUtils:
             expected["extra"] = streaming_chunks[1].tool_calls[0].to_dict()["extra"]
         assert streaming_chunks[1].tool_calls[0].to_dict() == expected
         assert len(streaming_chunks[2].tool_calls) == 0
+
+    def test_handle_streaming_response_repeated_tool_calls(self):
+        ollama_chunks = [
+            ChatResponse(
+                model="qwen3:0.6b",
+                created_at="2025-07-31T14:48:03.471292Z",
+                done=False,
+                message=Message(
+                    role="assistant",
+                    content="",
+                    tool_calls=[
+                        Message.ToolCall(
+                            function=Message.ToolCall.Function(name="weather", arguments={"city": "Paris"})
+                        )
+                    ],
+                ),
+            ),
+            ChatResponse(
+                model="qwen3:0.6b",
+                created_at="2025-07-31T14:48:03.660179Z",
+                done=False,
+                message=Message(
+                    role="assistant",
+                    content="",
+                    tool_calls=[
+                        Message.ToolCall(
+                            function=Message.ToolCall.Function(name="weather", arguments={"city": "London"})
+                        )
+                    ],
+                ),
+            ),
+            ChatResponse(
+                model="qwen3:0.6b",
+                created_at="2025-07-31T14:48:03.678729Z",
+                done=True,
+                done_reason="stop",
+                total_duration=774786292,
+                load_duration=43608375,
+                prompt_eval_count=217,
+                prompt_eval_duration=312974541,
+                eval_count=46,
+                eval_duration=417069750,
+                message=Message(role="assistant", content=""),
+            ),
+        ]
+
+        generator = OllamaChatGenerator()
+        result = generator._handle_streaming_response(ollama_chunks, None)
+
+        assert len(result["replies"][0].tool_calls) == 2
+        assert result["replies"][0].tool_calls[0].tool_name == "weather"
+        assert result["replies"][0].tool_calls[0].arguments == {"city": "Paris"}
+        assert result["replies"][0].tool_calls[0].id is None
+        assert result["replies"][0].tool_calls[1].tool_name == "weather"
+        assert result["replies"][0].tool_calls[1].arguments == {"city": "London"}
+        assert result["replies"][0].tool_calls[1].id is None
+
+    @pytest.mark.asyncio
+    async def test_handle_streaming_response_async_repeated_tool_calls(self):
+        ollama_chunks = [
+            ChatResponse(
+                model="qwen3:0.6b",
+                created_at="2025-07-31T14:48:03.471292Z",
+                done=False,
+                message=Message(
+                    role="assistant",
+                    content="",
+                    tool_calls=[
+                        Message.ToolCall(
+                            function=Message.ToolCall.Function(name="weather", arguments={"city": "Paris"})
+                        )
+                    ],
+                ),
+            ),
+            ChatResponse(
+                model="qwen3:0.6b",
+                created_at="2025-07-31T14:48:03.660179Z",
+                done=False,
+                message=Message(
+                    role="assistant",
+                    content="",
+                    tool_calls=[
+                        Message.ToolCall(
+                            function=Message.ToolCall.Function(name="weather", arguments={"city": "London"})
+                        )
+                    ],
+                ),
+            ),
+            ChatResponse(
+                model="qwen3:0.6b",
+                created_at="2025-07-31T14:48:03.678729Z",
+                done=True,
+                done_reason="stop",
+                total_duration=774786292,
+                load_duration=43608375,
+                prompt_eval_count=217,
+                prompt_eval_duration=312974541,
+                eval_count=46,
+                eval_duration=417069750,
+                message=Message(role="assistant", content=""),
+            ),
+        ]
+
+        async def async_chunks():
+            for chunk in ollama_chunks:
+                yield chunk
+
+        generator = OllamaChatGenerator()
+        result = await generator._handle_streaming_response_async(async_chunks(), None)
+
+        assert len(result["replies"][0].tool_calls) == 2
+        assert result["replies"][0].tool_calls[0].tool_name == "weather"
+        assert result["replies"][0].tool_calls[0].arguments == {"city": "Paris"}
+        assert result["replies"][0].tool_calls[0].id is None
+        assert result["replies"][0].tool_calls[1].tool_name == "weather"
+        assert result["replies"][0].tool_calls[1].arguments == {"city": "London"}
+        assert result["replies"][0].tool_calls[1].id is None
 
     def test_handle_streaming_response_tool_calls_with_thinking(self):
         ollama_chunks = [
@@ -536,6 +682,7 @@ class TestUtils:
         assert result["replies"][0].text is None
         assert result["replies"][0].tool_calls[0].tool_name == "add_two_numbers"
         assert result["replies"][0].tool_calls[0].arguments == {"a": 2, "b": 2}
+        assert result["replies"][0].tool_calls[0].id is None
         assert result["replies"][0].reasoning.reasoning_text == "Okay, the user is asking 2 plus 2."
         assert result["replies"][0].meta["finish_reason"] == "stop"
         assert result["replies"][0].meta["model"] == "qwen3:0.6b"
@@ -1305,6 +1452,33 @@ class TestOllamaChatGeneratorLiveInference:
         assert new_response.tool_calls
         assert new_response.tool_calls[0].tool_name == "multiply"
         assert new_response.tool_calls[0].arguments == {"a": 5, "b": 10}
+
+    @pytest.mark.parametrize("streaming_callback", [None, print_streaming_chunk])
+    def test_live_run_with_repeated_tool_calls(self, tools, streaming_callback):
+        component = OllamaChatGenerator(model="qwen3:0.6b", tools=tools, streaming_callback=streaming_callback)
+        tool_invoker = ToolInvoker(tools=tools)
+
+        messages = [ChatMessage.from_user("What is the weather in Paris and London?")]
+        response = component.run(messages)
+
+        assert len(response["replies"]) == 1
+        assistant_msg = response["replies"][0]
+
+        assert assistant_msg.tool_calls
+        assert len(assistant_msg.tool_calls) == 2
+        for tc in assistant_msg.tool_calls:
+            assert isinstance(tc, ToolCall)
+            assert tc.tool_name == "weather"
+            assert "city" in tc.arguments
+
+        cities = {tc.arguments["city"].lower() for tc in assistant_msg.tool_calls}
+        assert any("paris" in c for c in cities)
+        assert any("london" in c for c in cities)
+
+        tool_messages = tool_invoker.run(messages=[assistant_msg])["tool_messages"]
+        final_response = component.run([*messages, assistant_msg, *tool_messages])
+        assert len(final_response["replies"]) == 1
+        assert final_response["replies"][0].text
 
     def test_live_run_with_tools_and_format(self, tools):
         response_format = {
