@@ -24,6 +24,11 @@ integration:anthropic:
       - any-glob-to-any-file: "integrations/anthropic/**/*"
       - any-glob-to-any-file: ".github/workflows/anthropic.yml"
 
+integration:arangodb:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/arangodb/**/*"
+      - any-glob-to-any-file: ".github/workflows/arangodb.yml"
+
 integration:arcadedb:
   - changed-files:
       - any-glob-to-any-file: "integrations/arcadedb/**/*"

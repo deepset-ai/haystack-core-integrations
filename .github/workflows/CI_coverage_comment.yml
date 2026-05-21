@@ -7,6 +7,7 @@ on:
       - "Test / amazon-bedrock"
       - "Test / amazon-sagemaker"
       - "Test / anthropic"
+      - "Test / arangodb"
       - "Test / arcadedb"
       - "Test / astra"
       - "Test / brave"
