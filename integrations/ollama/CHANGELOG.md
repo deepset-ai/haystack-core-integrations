@@ -1,5 +1,12 @@
 # Changelog
 
+## [unreleased]
+
+### 🚀 Features
+
+- *(ollama)* Add dimensions parameter to OllamaDocumentEmbedder and OllamaTextEmbedder (#3322)
+
+
 ## [integrations/ollama-v6.4.0] - 2026-05-21
 
 ### 🐛 Bug Fixes
