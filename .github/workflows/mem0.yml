@@ -1,29 +1,29 @@
 # This workflow comes from https://github.com/ofek/hatch-mypyc
 # https://github.com/ofek/hatch-mypyc/blob/5a198c0ba8660494d02716cfc9d79ce4adfb1442/.github/workflows/test.yml
-name: Test / $name
+name: Test / mem0
 
 on:
   schedule:
     - cron: "0 0 * * *"
   pull_request:
     paths:
-      - "integrations/$name/**"
-      - "!integrations/$name/*.md"
-      - ".github/workflows/$name.yml"
+      - "integrations/mem0/**"
+      - "!integrations/mem0/*.md"
+      - ".github/workflows/mem0.yml"
   push:
     branches:
       - main
     paths:
-      - "integrations/$name/**"
-      - "!integrations/$name/*.md"
-      - ".github/workflows/$name.yml"
+      - "integrations/mem0/**"
+      - "!integrations/mem0/*.md"
+      - ".github/workflows/mem0.yml"
 
 defaults:
   run:
-    working-directory: integrations/$name
+    working-directory: integrations/mem0
 
 concurrency:
-  group: $name-${{ github.head_ref || github.sha }}
+  group: mem0-${{ github.head_ref || github.sha }}
   cancel-in-progress: true
 
 env:
@@ -74,9 +74,7 @@ jobs:
           python-version: ${{ matrix.python-version }}
 
       - name: Install Hatch
-        run: |
-          python -m pip install --upgrade pip
-          pip install hatch --uploaded-prior-to=P1D
+        run: pip install --upgrade hatch
       - name: Lint
         if: matrix.python-version == '3.10' && runner.os == 'Linux'
         run: hatch run fmt-check && hatch run test:types
@@ -88,11 +86,11 @@ jobs:
       - name: Store unit tests coverage
         id: coverage_comment
         if: matrix.python-version == '3.10' && runner.os == 'Linux' && github.event_name != 'schedule'
-        uses: py-cov-action/python-coverage-comment-action@63f52f4fbbffada6e8dee8ec432de7e01df9ba79 # v3.41
+        uses: py-cov-action/python-coverage-comment-action@7188638f871f721a365d644f505d1ff3df20d683 # v3.40
         with:
           GITHUB_TOKEN: ${{ github.token }}
-          COVERAGE_PATH: integrations/$name
-          SUBPROJECT_ID: $name
+          COVERAGE_PATH: integrations/mem0
+          SUBPROJECT_ID: mem0
           MINIMUM_GREEN: 90
           MINIMUM_ORANGE: 60
 
@@ -100,19 +98,19 @@ jobs:
         if: matrix.python-version == '3.10' && runner.os == 'Linux' && github.event_name == 'pull_request' && steps.coverage_comment.outputs.COMMENT_FILE_WRITTEN == 'true'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: coverage-comment-$name
-          path: python-coverage-comment-action-$name.txt
+          name: coverage-comment-mem0
+          path: python-coverage-comment-action-mem0.txt
 
       - name: Run integration tests
         run: hatch run test:integration-cov-append-retry
 
       - name: Store combined coverage
         if: github.event_name == 'push'
-        uses: py-cov-action/python-coverage-comment-action@63f52f4fbbffada6e8dee8ec432de7e01df9ba79 # v3.41
+        uses: py-cov-action/python-coverage-comment-action@7188638f871f721a365d644f505d1ff3df20d683 # v3.40
         with:
           GITHUB_TOKEN: ${{ github.token }}
-          COVERAGE_PATH: integrations/$name
-          SUBPROJECT_ID: $name-combined
+          COVERAGE_PATH: integrations/mem0
+          SUBPROJECT_ID: mem0-combined
           MINIMUM_GREEN: 90
           MINIMUM_ORANGE: 60
 
@@ -130,11 +128,12 @@ jobs:
           hatch -e test env run -- uv pip install git+https://github.com/deepset-ai/haystack.git@main
           hatch run test:unit
 
+
   notify-slack-on-failure:
     needs: run
     if: failure() && github.event_name == 'schedule'
     runs-on: ubuntu-slim
     steps:
-      - uses: deepset-ai/notify-slack-action@a65def0c8bf91d6520286ab34280151c76a5a008 # v1.1.0
+      - uses: deepset-ai/notify-slack-action@3cda73b77a148f16f703274198e7771340cf862b # v1
         with:
           slack-webhook-url: ${{ secrets.SLACK_WEBHOOK_URL_NOTIFICATIONS }}

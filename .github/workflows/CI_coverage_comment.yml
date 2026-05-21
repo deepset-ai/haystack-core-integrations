@@ -37,6 +37,7 @@ on:
       - "Test / llama_stack"
       - "Test / markitdown"
       - "Test / mcp"
+      - "Test / mem0"
       - "Test / meta_llama"
       - "Test / mistral"
       - "Test / mongodb_atlas"
