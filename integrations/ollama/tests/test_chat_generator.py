@@ -507,6 +507,67 @@ class TestUtils:
         assert result["replies"][0].tool_calls[1].arguments == {"city": "London"}
         assert result["replies"][0].tool_calls[1].id is None
 
+    @pytest.mark.asyncio
+    async def test_handle_streaming_response_async_repeated_tool_calls(self):
+        ollama_chunks = [
+            ChatResponse(
+                model="qwen3:0.6b",
+                created_at="2025-07-31T14:48:03.471292Z",
+                done=False,
+                message=Message(
+                    role="assistant",
+                    content="",
+                    tool_calls=[
+                        Message.ToolCall(
+                            function=Message.ToolCall.Function(name="weather", arguments={"city": "Paris"})
+                        )
+                    ],
+                ),
+            ),
+            ChatResponse(
+                model="qwen3:0.6b",
+                created_at="2025-07-31T14:48:03.660179Z",
+                done=False,
+                message=Message(
+                    role="assistant",
+                    content="",
+                    tool_calls=[
+                        Message.ToolCall(
+                            function=Message.ToolCall.Function(name="weather", arguments={"city": "London"})
+                        )
+                    ],
+                ),
+            ),
+            ChatResponse(
+                model="qwen3:0.6b",
+                created_at="2025-07-31T14:48:03.678729Z",
+                done=True,
+                done_reason="stop",
+                total_duration=774786292,
+                load_duration=43608375,
+                prompt_eval_count=217,
+                prompt_eval_duration=312974541,
+                eval_count=46,
+                eval_duration=417069750,
+                message=Message(role="assistant", content=""),
+            ),
+        ]
+
+        async def async_chunks():
+            for chunk in ollama_chunks:
+                yield chunk
+
+        generator = OllamaChatGenerator()
+        result = await generator._handle_streaming_response_async(async_chunks(), None)
+
+        assert len(result["replies"][0].tool_calls) == 2
+        assert result["replies"][0].tool_calls[0].tool_name == "weather"
+        assert result["replies"][0].tool_calls[0].arguments == {"city": "Paris"}
+        assert result["replies"][0].tool_calls[0].id is None
+        assert result["replies"][0].tool_calls[1].tool_name == "weather"
+        assert result["replies"][0].tool_calls[1].arguments == {"city": "London"}
+        assert result["replies"][0].tool_calls[1].id is None
+
     def test_handle_streaming_response_tool_calls_with_thinking(self):
         ollama_chunks = [
             ChatResponse(
