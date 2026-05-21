@@ -149,3 +149,33 @@ class TestFilterConversion:
     def test_invalid_filter_raises(self, filter_dict):
         with pytest.raises(ValueError):
             _convert_filters(filter_dict)
+
+    @pytest.mark.parametrize(
+        "field",
+        [
+            "x; DROP TABLE Documents",
+            "x OR 1=1",
+            "x--",
+            "x; SELECT *",
+            "'injected'",
+            "1field",
+            "field name",
+        ],
+    )
+    def test_sql_injection_field_names_raise(self, field):
+        with pytest.raises(ValueError, match="Invalid field name"):
+            _convert_filters({"field": field, "operator": "==", "value": "v"})
+
+    def test_value_with_backslash(self):
+        # A single backslash must be doubled: \ → \\
+        result = _convert_filters({"field": "meta.x", "operator": "==", "value": "\\"})
+        assert result == "meta.x = '\\\\'"
+
+    def test_value_with_backslash_then_quote(self):
+        # \' in value → \\ (escaped backslash) + \' (escaped quote) in SQL
+        result = _convert_filters({"field": "meta.x", "operator": "==", "value": "a\\'b"})
+        assert result == "meta.x = 'a\\\\\\'b'"
+
+    def test_value_with_single_quote(self):
+        result = _convert_filters({"field": "meta.x", "operator": "==", "value": "it's"})
+        assert result == "meta.x = 'it\\'s'"

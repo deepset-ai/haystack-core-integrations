@@ -1,0 +1,99 @@
+schema doc {
+    document doc {
+        field content type string {
+            indexing: index | summary
+            index: enable-bm25
+        }
+
+        field embedding type tensor<float>(x[3]) {
+            indexing: attribute | summary
+            attribute {
+                distance-metric: angular
+            }
+        }
+
+        field category type string {
+            indexing: attribute | summary
+        }
+
+        field author type string {
+            indexing: attribute | summary
+        }
+
+        field name type string {
+            indexing: attribute | summary
+        }
+
+        field page type string {
+            indexing: attribute | summary
+        }
+
+        field chapter type string {
+            indexing: attribute | summary
+        }
+
+        field number type int {
+            indexing: attribute | summary
+        }
+
+        field date type string {
+            indexing: attribute | summary
+        }
+
+        field no_embedding type bool {
+            indexing: attribute | summary
+        }
+
+        field year type int {
+            indexing: attribute | summary
+        }
+
+        field status type string {
+            indexing: attribute | summary
+        }
+
+        field updated type bool {
+            indexing: attribute | summary
+        }
+
+        field extra_field type string {
+            indexing: attribute | summary
+        }
+
+        field featured type bool {
+            indexing: attribute | summary
+        }
+
+        field priority type int {
+            indexing: attribute | summary
+        }
+
+        field rating type double {
+            indexing: attribute | summary
+        }
+
+        field age type int {
+            indexing: attribute | summary
+        }
+    }
+
+    fieldset default {
+        fields: content
+    }
+
+    rank-profile bm25 {
+        first-phase {
+            expression: bm25(content)
+        }
+    }
+
+    rank-profile semantic {
+        inputs {
+            query(query_embedding) tensor<float>(x[3])
+        }
+
+        first-phase {
+            expression: closeness(field, embedding)
+        }
+    }
+}

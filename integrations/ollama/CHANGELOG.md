@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/ollama-v6.4.0] - 2026-05-21
+
+### 🐛 Bug Fixes
+
+- *(ollama)* Preserve tool call IDs to fix repeated same-tool calls (#3321)
+
+
 ## [integrations/ollama-v6.3.0] - 2026-04-10
 
 ### 🐛 Bug Fixes

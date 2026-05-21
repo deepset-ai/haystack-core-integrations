@@ -84,15 +84,19 @@ jobs:
         run: |
           # vLLM on PyPI is GPU-only and requires CUDA, so it won't run on CPU-only systems.
           # CPU wheels are not published to PyPI; they are only available as direct downloads from GitHub releases.
-          # We fetch the latest release and install the appropriate x86 CPU wheel.
+          # We query the latest release's assets and pick the x86_64 CPU wheel, since the manylinux/ABI
+          # tags in the filename can change between releases.
           # The --torch-backend cpu flag ensures uv installs PyTorch from the official CPU-only index,
           # since the required torch+cpu builds are also not available on PyPI.
-          VLLM_VERSION="$(curl -s https://api.github.com/repos/vllm-project/vllm/releases/latest | jq -r .tag_name | sed 's/^v//')"
-          export VLLM_VERSION
-          echo "Installing vLLM ${VLLM_VERSION} (CPU)"
-          hatch run -- uv pip install \
-            "https://github.com/vllm-project/vllm/releases/download/v${VLLM_VERSION}/vllm-${VLLM_VERSION}+cpu-cp38-abi3-manylinux_2_35_x86_64.whl" \
-            --torch-backend cpu
+          VLLM_WHEEL_URL="$(curl -s https://api.github.com/repos/vllm-project/vllm/releases/latest \
+            | jq -r '.assets[] | select(.name | test("\\+cpu.*x86_64\\.whl$")) | .browser_download_url' \
+            | head -n1)"
+          if [ -z "${VLLM_WHEEL_URL}" ]; then
+            echo "Could not find a CPU x86_64 wheel in the latest vLLM release" >&2
+            exit 1
+          fi
+          echo "Installing ${VLLM_WHEEL_URL}"
+          hatch run -- uv pip install "${VLLM_WHEEL_URL}" --torch-backend cpu
 
       - name: Start vLLM chat server
         run: |
@@ -222,6 +226,6 @@ jobs:
     if: failure() && github.event_name == 'schedule'
     runs-on: ubuntu-slim
     steps:
-      - uses: deepset-ai/notify-slack-action@3cda73b77a148f16f703274198e7771340cf862b # v1
+      - uses: deepset-ai/notify-slack-action@a65def0c8bf91d6520286ab34280151c76a5a008 # v1.1.0
         with:
           slack-webhook-url: ${{ secrets.SLACK_WEBHOOK_URL_NOTIFICATIONS }}
