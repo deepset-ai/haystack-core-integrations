@@ -2,10 +2,9 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+import logging
 from pathlib import Path
 from unittest.mock import MagicMock, patch
-
-import logging
 
 import pytest
 from botocore.exceptions import BotoCoreError, ClientError
@@ -351,8 +350,7 @@ class TestAmazonTextractConverterRun:
         assert len(result["documents"]) == 0
         assert len(result["raw_textract_response"]) == 0
         assert any(
-            "Failed to convert" in record.message and "AWS Textract" in record.message
-            for record in caplog.records
+            "Failed to convert" in record.message and "AWS Textract" in record.message for record in caplog.records
         )
 
     def test_run_botocore_error_logs_warning(self, tmp_path, caplog):
