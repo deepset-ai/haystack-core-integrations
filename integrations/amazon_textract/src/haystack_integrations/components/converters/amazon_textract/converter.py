@@ -148,10 +148,10 @@ class AmazonTextractConverter:
             If it's a list, the length of the list must match the number of sources.
         :param queries:
             Optional list of natural-language questions to ask about each document.
-            When provided, the Textract ``QUERIES`` feature type is enabled
+            When provided, the Textract `QUERIES` feature type is enabled
             automatically and each question is sent as a query. Answers are
             included in the raw Textract response. Example:
-            ``["What is the patient name?", "What is the total due?"]``
+            `["What is the patient name?", "What is the total due?"]`
         :returns:
             A dictionary with the following keys:
             - `documents`: List of created Documents with extracted text as content.
