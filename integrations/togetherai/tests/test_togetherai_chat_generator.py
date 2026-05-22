@@ -685,7 +685,7 @@ class TestTogetherAIChatGenerator:
         initial_messages = [
             ChatMessage.from_user("What's the weather like in Paris and what is the population of Berlin?")
         ]
-        component = TogetherAIChatGenerator(model="deepseek/deepseek-v4-flash", tools=mixed_tools)
+        component = TogetherAIChatGenerator(model="MiniMaxAI/MiniMax-M2.7", tools=mixed_tools)
         results = component.run(messages=initial_messages)
 
         assert len(results["replies"]) > 0, "No replies received"
