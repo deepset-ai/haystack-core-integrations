@@ -5,6 +5,8 @@
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
+import logging
+
 import pytest
 from botocore.exceptions import BotoCoreError, ClientError
 from haystack.dataclasses import ByteStream
@@ -335,7 +337,7 @@ class TestAmazonTextractConverterRun:
         assert result["documents"][0].meta["source"] == "first"
         assert result["documents"][1].meta["source"] == "second"
 
-    def test_run_skips_failed_sources(self, tmp_path):
+    def test_run_skips_failed_sources(self, tmp_path, caplog):
         converter = self._make_converter_with_mock_client()
         error_response = {"Error": {"Code": "InvalidParameterException", "Message": "bad image"}}
         converter._client.detect_document_text.side_effect = ClientError(error_response, "DetectDocumentText")
@@ -343,12 +345,32 @@ class TestAmazonTextractConverterRun:
         test_file = tmp_path / "broken_image.png"
         test_file.write_bytes(b"bad bytes")
 
-        result = converter.run(sources=[test_file])
+        with caplog.at_level(logging.WARNING):
+            result = converter.run(sources=[test_file])
 
         assert len(result["documents"]) == 0
         assert len(result["raw_textract_response"]) == 0
+        assert any(
+            "Failed to convert" in record.message and "AWS Textract" in record.message
+            for record in caplog.records
+        )
 
-    def test_run_broken_image_mixed_with_valid(self, tmp_path):
+    def test_run_botocore_error_logs_warning(self, tmp_path, caplog):
+        """A BotoCoreError during the Textract call should be logged as a warning and skipped."""
+        converter = self._make_converter_with_mock_client()
+        converter._client.detect_document_text.side_effect = BotoCoreError()
+
+        test_file = tmp_path / "doc.png"
+        test_file.write_bytes(b"bytes")
+
+        with caplog.at_level(logging.WARNING):
+            result = converter.run(sources=[test_file])
+
+        assert len(result["documents"]) == 0
+        assert len(result["raw_textract_response"]) == 0
+        assert any("Failed to convert" in record.message for record in caplog.records)
+
+    def test_run_broken_image_mixed_with_valid(self, tmp_path, caplog):
         """A broken image among valid sources should be skipped while valid ones succeed."""
         converter = self._make_converter_with_mock_client()
 
@@ -364,19 +386,24 @@ class TestAmazonTextractConverterRun:
         valid_file.write_bytes(b"fake valid image")
         broken_image = TEST_FILES_DIR / "broken_image.png"
 
-        result = converter.run(sources=[broken_image, valid_file])
+        with caplog.at_level(logging.WARNING):
+            result = converter.run(sources=[broken_image, valid_file])
 
         assert len(result["documents"]) == 1
         assert result["documents"][0].content == "Valid text"
         assert len(result["raw_textract_response"]) == 1
+        warning_messages = [r.message for r in caplog.records if r.levelno == logging.WARNING]
+        assert any("Failed to convert" in msg for msg in warning_messages)
 
-    def test_run_skips_unreadable_source(self):
+    def test_run_skips_unreadable_source(self, caplog):
         converter = self._make_converter_with_mock_client()
 
-        result = converter.run(sources=["/nonexistent/path/file.png"])
+        with caplog.at_level(logging.WARNING):
+            result = converter.run(sources=["/nonexistent/path/file.png"])
 
         assert len(result["documents"]) == 0
         assert len(result["raw_textract_response"]) == 0
+        assert any("Could not read" in record.message for record in caplog.records)
 
     def test_run_empty_response(self, tmp_path):
         converter = self._make_converter_with_mock_client()
