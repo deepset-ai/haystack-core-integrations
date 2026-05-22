@@ -2,9 +2,11 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+from dataclasses import asdict, is_dataclass
 from typing import Any
 
 from haystack import component, default_from_dict, default_to_dict, logging, tracing
+from pydantic import BaseModel
 
 from haystack_integrations.tracing.weave import WeaveTracer
 from weave.trace.settings import UserSettings
@@ -110,7 +112,10 @@ class WeaveConnector:
         weave_init_kwargs = self.weave_init_kwargs.copy()
         settings = weave_init_kwargs.get("settings", None)
         if isinstance(settings, UserSettings):
-            weave_init_kwargs["settings"] = settings.model_dump(mode="json", exclude_defaults=True)
+            if isinstance(settings, BaseModel):
+                weave_init_kwargs["settings"] = settings.model_dump(mode="json", exclude_defaults=True)
+            elif is_dataclass(settings):
+                weave_init_kwargs["settings"] = asdict(settings)
 
         return default_to_dict(self, pipeline_name=self.pipeline_name, weave_init_kwargs=weave_init_kwargs)
 

@@ -193,6 +193,11 @@ integration:mcp:
       - any-glob-to-any-file: "integrations/mcp/**/*"
       - any-glob-to-any-file: ".github/workflows/mcp.yml"
 
+integration:mem0:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/mem0/**/*"
+      - any-glob-to-any-file: ".github/workflows/mem0.yml"
+
 integration:meta-llama:
   - changed-files:
       - any-glob-to-any-file: "integrations/meta_llama/**/*"
@@ -237,6 +242,11 @@ integration:paddleocr:
   - changed-files:
       - any-glob-to-any-file: "integrations/paddleocr/**/*"
       - any-glob-to-any-file: ".github/workflows/paddleocr.yml"
+
+integration:perplexity:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/perplexity/**/*"
+      - any-glob-to-any-file: ".github/workflows/perplexity.yml"
 
 integration:pgvector:
   - changed-files:
@@ -307,6 +317,11 @@ integration:valkey:
   - changed-files:
       - any-glob-to-any-file: "integrations/valkey/**/*"
       - any-glob-to-any-file: ".github/workflows/valkey.yml"
+
+integration:vespa:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/vespa/**/*"
+      - any-glob-to-any-file: ".github/workflows/vespa.yml"
 
 integration:vllm:
   - changed-files:

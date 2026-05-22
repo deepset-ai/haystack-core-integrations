@@ -90,7 +90,7 @@ class LangfuseSpan(Span):
             return
         if key.endswith(".input"):
             if "messages" in value:
-                messages = [m.to_openai_dict_format(require_tool_call_ids=False) for m in value["messages"]]
+                messages = [m.to_openai_dict_format(require_tool_call_ids=False) for m in (value.get("messages") or [])]
                 if isinstance(gen_kwargs := value.get("generation_kwargs"), dict):
                     self._span.update(input={"messages": messages, "generation_kwargs": gen_kwargs})
                 else:
@@ -100,10 +100,11 @@ class LangfuseSpan(Span):
                 self._span.update(input=coerced_value)
         elif key.endswith(".output"):
             if "replies" in value:
-                if all(isinstance(r, ChatMessage) for r in value["replies"]):
-                    replies = [m.to_openai_dict_format(require_tool_call_ids=False) for m in value["replies"]]
+                replies_list = value.get("replies") or []
+                if all(isinstance(r, ChatMessage) for r in replies_list):
+                    replies = [m.to_openai_dict_format(require_tool_call_ids=False) for m in replies_list]
                 else:
-                    replies = value["replies"]
+                    replies = replies_list
                 self._span.update(output=replies)
             else:
                 coerced_value = tracing_utils.coerce_tag_value(value)
