@@ -2,29 +2,39 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+import base64
 import json
 import os
 
 import httpx
+import numpy as np
 import pytest
 from haystack.utils import Secret
 
 from haystack_integrations.components.embedders.perplexity import (
     text_embedder as text_embedder_module,
 )
+from haystack_integrations.components.embedders.perplexity.embedding_encoding import (
+    PERPLEXITY_FLOAT_ENCODING_FORMAT_ERROR,
+)
 from haystack_integrations.components.embedders.perplexity.text_embedder import (
     PerplexityTextEmbedder,
 )
 
+INT8_EMBEDDING = [-2.0, -1.0, 0.0, 1.0, 2.0]
+INT8_EMBEDDING_PAYLOAD = base64.b64encode(np.array(INT8_EMBEDDING, dtype=np.int8).tobytes()).decode()
+BINARY_EMBEDDING = [1.0, 0.0, 1.0, 1.0, 0.0, 0.0, 0.0, 1.0]
+BINARY_EMBEDDING_PAYLOAD = base64.b64encode(np.packbits(np.array(BINARY_EMBEDDING, dtype=np.uint8)).tobytes()).decode()
 
-def _make_transport(captured: list[httpx.Request]) -> httpx.MockTransport:
+
+def _make_transport(captured: list[httpx.Request], embedding: str = INT8_EMBEDDING_PAYLOAD) -> httpx.MockTransport:
     def handler(request: httpx.Request) -> httpx.Response:
         captured.append(request)
         return httpx.Response(
             200,
             json={
                 "object": "list",
-                "data": [{"object": "embedding", "embedding": [0.1, 0.2, 0.3], "index": 0}],
+                "data": [{"object": "embedding", "embedding": embedding, "index": 0}],
                 "model": "pplx-embed-v1-0.6b",
                 "usage": {"prompt_tokens": 3, "total_tokens": 3},
             },
@@ -67,6 +77,7 @@ class TestPerplexityTextEmbedder:
         assert embedder.model == "pplx-embed-v1-0.6b"
         assert embedder.prefix == ""
         assert embedder.suffix == ""
+        assert embedder.encoding_format == "base64_int8"
 
     def test_init_with_parameters(self):
         embedder = PerplexityTextEmbedder(
@@ -74,6 +85,7 @@ class TestPerplexityTextEmbedder:
             model="pplx-embed-v1-4b",
             prefix="START",
             suffix="END",
+            encoding_format="base64_binary",
         )
 
         assert embedder.api_key == Secret.from_token("test-api-key")
@@ -81,6 +93,15 @@ class TestPerplexityTextEmbedder:
         assert embedder.model == "pplx-embed-v1-4b"
         assert embedder.prefix == "START"
         assert embedder.suffix == "END"
+        assert embedder.encoding_format == "base64_binary"
+
+    def test_init_rejects_float_encoding_format(self):
+        with pytest.raises(ValueError) as exc_info:
+            PerplexityTextEmbedder(
+                api_key=Secret.from_token("test-api-key"),
+                encoding_format="float",
+            )
+        assert str(exc_info.value) == PERPLEXITY_FLOAT_ENCODING_FORMAT_ERROR
 
     def test_to_dict(self, monkeypatch):
         monkeypatch.setenv("PERPLEXITY_API_KEY", "test-api-key")
@@ -97,6 +118,7 @@ class TestPerplexityTextEmbedder:
                 "api_base_url": "https://api.perplexity.ai/v1",
                 "prefix": "",
                 "suffix": "",
+                "encoding_format": "base64_int8",
                 "timeout": None,
                 "max_retries": None,
                 "http_client_kwargs": None,
@@ -111,6 +133,7 @@ class TestPerplexityTextEmbedder:
             api_base_url="https://custom-api-base-url.com",
             prefix="START",
             suffix="END",
+            encoding_format="base64_binary",
             timeout=10.0,
             max_retries=2,
             http_client_kwargs={"proxy": "http://localhost:8080"},
@@ -126,6 +149,7 @@ class TestPerplexityTextEmbedder:
                 "api_base_url": "https://custom-api-base-url.com",
                 "prefix": "START",
                 "suffix": "END",
+                "encoding_format": "base64_binary",
                 "timeout": 10.0,
                 "max_retries": 2,
                 "http_client_kwargs": {"proxy": "http://localhost:8080"},
@@ -142,6 +166,7 @@ class TestPerplexityTextEmbedder:
                 "api_base_url": "https://api.perplexity.ai/v1",
                 "prefix": "",
                 "suffix": "",
+                "encoding_format": "base64_binary",
                 "timeout": None,
                 "max_retries": None,
                 "http_client_kwargs": None,
@@ -155,6 +180,7 @@ class TestPerplexityTextEmbedder:
         assert component.model == "pplx-embed-v1-0.6b"
         assert component.prefix == ""
         assert component.suffix == ""
+        assert component.encoding_format == "base64_binary"
         assert component.timeout is None
         assert component.max_retries is None
         assert component.http_client_kwargs is None
@@ -168,15 +194,54 @@ class TestPerplexityTextEmbedder:
 
         result = embedder.run(text="The food was delicious")
 
-        assert result["embedding"] == [0.1, 0.2, 0.3]
+        assert result["embedding"] == INT8_EMBEDDING
         assert len(captured) == 1
         request = captured[0]
         assert request.headers["Authorization"] == "Bearer test-api-key"
         assert request.headers["X-Pplx-Integration"].startswith("haystack/")
         body = json.loads(request.content)
         assert body["model"] == "pplx-embed-v1-0.6b"
-        assert body["input"] == "The food was delicious"
-        assert body["encoding_format"] == "float"
+        assert body["input"] == ["The food was delicious"]
+        assert body["encoding_format"] == "base64_int8"
+
+    @pytest.mark.parametrize(
+        ("encoding_format", "payload", "expected_embedding"),
+        [
+            ("base64_int8", INT8_EMBEDDING_PAYLOAD, INT8_EMBEDDING),
+            ("base64_binary", BINARY_EMBEDDING_PAYLOAD, BINARY_EMBEDDING),
+        ],
+    )
+    def test_run_decodes_base64_embeddings(self, encoding_format, payload, expected_embedding):
+        captured: list[httpx.Request] = []
+        embedder = PerplexityTextEmbedder(
+            api_key=Secret.from_token("test-api-key"),
+            encoding_format=encoding_format,
+            http_client_kwargs={"transport": _make_transport(captured, embedding=payload)},
+        )
+
+        result = embedder.run(text="The food was delicious")
+
+        embedding = result["embedding"]
+        assert embedding == expected_embedding
+        assert len(embedding) == len(expected_embedding)
+        assert all(isinstance(value, float) for value in embedding)
+        body = json.loads(captured[0].content)
+        assert body["encoding_format"] == encoding_format
+
+    @pytest.mark.asyncio
+    async def test_run_async_decodes_base64_embeddings(self):
+        captured: list[httpx.Request] = []
+        embedder = PerplexityTextEmbedder(
+            api_key=Secret.from_token("test-api-key"),
+            encoding_format="base64_binary",
+            http_client_kwargs={"transport": _make_transport(captured, embedding=BINARY_EMBEDDING_PAYLOAD)},
+        )
+
+        result = await embedder.run_async(text="The food was delicious")
+
+        assert result["embedding"] == BINARY_EMBEDDING
+        body = json.loads(captured[0].content)
+        assert body["encoding_format"] == "base64_binary"
 
     def test_run_wrong_input_format(self):
         embedder = PerplexityTextEmbedder(api_key=Secret.from_token("test-api-key"))
@@ -201,7 +266,7 @@ class TestPerplexityTextEmbedderInference:
         result = embedder.run(text=text)
 
         assert isinstance(result["embedding"], list)
-        assert len(result["embedding"]) > 0
+        assert len(result["embedding"]) == 1024
         assert all(isinstance(x, float) for x in result["embedding"])
 
     @pytest.mark.asyncio
@@ -211,4 +276,5 @@ class TestPerplexityTextEmbedderInference:
         result = await embedder.run_async(text=text)
 
         assert isinstance(result["embedding"], list)
-        assert len(result["embedding"]) > 0
+        assert len(result["embedding"]) == 1024
+        assert all(isinstance(x, float) for x in result["embedding"])

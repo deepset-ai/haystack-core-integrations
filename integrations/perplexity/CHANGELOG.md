@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### 🐛 Bug Fixes
+
+- Decode Perplexity embedding API responses for `PerplexityDocumentEmbedder` and `PerplexityTextEmbedder`.
+
 ## [integrations/perplexity-v0.1.0] - 2026-05-13
 
 ### 🌀 Miscellaneous

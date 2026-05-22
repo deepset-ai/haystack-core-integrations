@@ -3,11 +3,19 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import importlib.metadata
-from typing import Any, ClassVar
+from typing import TYPE_CHECKING, Any, ClassVar
 
 from haystack import component, default_from_dict, default_to_dict
 from haystack.components.embedders import OpenAITextEmbedder
 from haystack.utils.auth import Secret
+
+from haystack_integrations.components.embedders.perplexity.embedding_encoding import (
+    decode_embedding,
+    validate_encoding_format,
+)
+
+if TYPE_CHECKING:
+    from openai.types.create_embedding_response import CreateEmbeddingResponse
 
 _INTEGRATION_SLUG = "haystack"
 _PACKAGE_NAME = "perplexity-haystack"
@@ -64,6 +72,7 @@ class PerplexityTextEmbedder(OpenAITextEmbedder):
         api_base_url: str | None = "https://api.perplexity.ai/v1",
         prefix: str = "",
         suffix: str = "",
+        encoding_format: str = "base64_int8",
         timeout: float | None = None,
         max_retries: int | None = None,
         http_client_kwargs: dict[str, Any] | None = None,
@@ -81,6 +90,8 @@ class PerplexityTextEmbedder(OpenAITextEmbedder):
             A string to add to the beginning of each text.
         :param suffix:
             A string to add to the end of each text.
+        :param encoding_format:
+            The Perplexity embedding encoding format. Supported values are `base64_int8` and `base64_binary`.
         :param timeout:
             Timeout for Perplexity client calls. If not set, it defaults to either the `OPENAI_TIMEOUT` environment
             variable, or 30 seconds.
@@ -92,6 +103,7 @@ class PerplexityTextEmbedder(OpenAITextEmbedder):
             For more information, see the [HTTPX documentation](https://www.python-httpx.org/api/#client).
         """
 
+        self.encoding_format = validate_encoding_format(encoding_format)
         super(PerplexityTextEmbedder, self).__init__(  # noqa: UP008
             api_key=api_key,
             model=model,
@@ -108,6 +120,18 @@ class PerplexityTextEmbedder(OpenAITextEmbedder):
         self.timeout = timeout
         self.max_retries = max_retries
 
+    def _prepare_input(self, text: str) -> dict[str, Any]:
+        kwargs = OpenAITextEmbedder._prepare_input(self, text=text)
+        kwargs["input"] = [kwargs["input"]]
+        kwargs["encoding_format"] = self.encoding_format
+        return kwargs
+
+    def _prepare_output(self, result: "CreateEmbeddingResponse") -> dict[str, Any]:
+        return {
+            "embedding": decode_embedding(str(result.data[0].embedding), self.encoding_format),
+            "meta": {"model": result.model, "usage": dict(result.usage)},
+        }
+
     def to_dict(self) -> dict[str, Any]:
         """
         Serializes the component to a dictionary.
@@ -122,6 +146,7 @@ class PerplexityTextEmbedder(OpenAITextEmbedder):
             api_base_url=self.api_base_url,
             prefix=self.prefix,
             suffix=self.suffix,
+            encoding_format=self.encoding_format,
             timeout=self.timeout,
             max_retries=self.max_retries,
             http_client_kwargs=self.http_client_kwargs,
