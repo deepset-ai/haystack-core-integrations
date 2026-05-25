@@ -25,7 +25,7 @@ classifiers = [
 ]
 
 # langchain-community pinned due to https://github.com/vibrantlabsai/ragas/issues/2741
-dependencies = ["haystack-ai>=2.22.0", "ragas>=0.4.3", "langchain-community>=0.2.0,<0.4.2"]
+dependencies = ["haystack-ai>=2.22.0", "ragas>=0.4.3", "langchain-community>=0.3.9,<0.4.2"]
 
 [project.urls]
 Source = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/ragas"
