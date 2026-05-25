@@ -234,8 +234,9 @@ class InputConverters:
             An iterable of `LLMTestCase` objects.
         """
         InputConverters._validate_input_elements(questions=questions, contexts=contexts, responses=responses)
-        for q, c, r in zip(questions, contexts, responses, strict=True):  # type: ignore
-            test_case = LLMTestCase(input=q, actual_output=r, retrieval_context=c)
+        for q, c, r in zip(questions, contexts, responses, strict=True):
+            # deepeval expects list[str | RetrievedContextData]; we pass list[str] but mypy complains
+            test_case = LLMTestCase(input=q, actual_output=r, retrieval_context=c)  # type: ignore[arg-type]
             yield test_case
 
     @staticmethod
@@ -257,8 +258,9 @@ class InputConverters:
             An iterable of `LLMTestCase` objects.
         """
         InputConverters._validate_input_elements(questions=questions, contexts=contexts, responses=responses)
-        for q, c, r, gt in zip(questions, contexts, responses, ground_truths, strict=True):  # type: ignore
-            test_case = LLMTestCase(input=q, actual_output=r, retrieval_context=c, expected_output=gt)
+        for q, c, r, gt in zip(questions, contexts, responses, ground_truths, strict=True):
+            # deepeval expects list[str | RetrievedContextData]; we pass list[str] but mypy complains
+            test_case = LLMTestCase(input=q, actual_output=r, retrieval_context=c, expected_output=gt)  # type: ignore[arg-type]
             yield test_case
 
 
@@ -297,31 +299,31 @@ METRIC_DESCRIPTORS = {
     DeepEvalMetric.ANSWER_RELEVANCY: MetricDescriptor.new(
         DeepEvalMetric.ANSWER_RELEVANCY,
         AnswerRelevancyMetric,
-        InputConverters.question_context_response,  # type: ignore
-        init_parameters={"model": str | None},  # type: ignore
+        InputConverters.question_context_response,  # type: ignore[arg-type]
+        init_parameters={"model": str | None},  # type: ignore[dict-item]
     ),
     DeepEvalMetric.FAITHFULNESS: MetricDescriptor.new(
         DeepEvalMetric.FAITHFULNESS,
         FaithfulnessMetric,
-        InputConverters.question_context_response,  # type: ignore
-        init_parameters={"model": str | None},  # type: ignore
+        InputConverters.question_context_response,  # type: ignore[arg-type]
+        init_parameters={"model": str | None},  # type: ignore[dict-item]
     ),
     DeepEvalMetric.CONTEXTUAL_PRECISION: MetricDescriptor.new(
         DeepEvalMetric.CONTEXTUAL_PRECISION,
         ContextualPrecisionMetric,
-        InputConverters.question_context_response_ground_truth,  # type: ignore
-        init_parameters={"model": str | None},  # type: ignore
+        InputConverters.question_context_response_ground_truth,  # type: ignore[arg-type]
+        init_parameters={"model": str | None},  # type: ignore[dict-item]
     ),
     DeepEvalMetric.CONTEXTUAL_RECALL: MetricDescriptor.new(
         DeepEvalMetric.CONTEXTUAL_RECALL,
         ContextualRecallMetric,
-        InputConverters.question_context_response_ground_truth,  # type: ignore
-        init_parameters={"model": str | None},  # type: ignore
+        InputConverters.question_context_response_ground_truth,  # type: ignore[arg-type]
+        init_parameters={"model": str | None},  # type: ignore[dict-item]
     ),
     DeepEvalMetric.CONTEXTUAL_RELEVANCE: MetricDescriptor.new(
         DeepEvalMetric.CONTEXTUAL_RELEVANCE,
         ContextualRelevancyMetric,
-        InputConverters.question_context_response,  # type: ignore
-        init_parameters={"model": str | None},  # type: ignore
+        InputConverters.question_context_response,  # type: ignore[arg-type]
+        init_parameters={"model": str | None},  # type: ignore[dict-item]
     ),
 }
