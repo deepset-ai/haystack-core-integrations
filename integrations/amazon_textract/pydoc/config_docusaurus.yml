@@ -1,0 +1,13 @@
+loaders:
+  - modules:
+      - haystack_integrations.components.converters.amazon_textract.converter
+    search_path: [../src]
+processors:
+  - type: filter
+    documented_only: true
+    skip_empty_modules: true
+renderer:
+  description: Amazon Textract integration for Haystack
+  id: integrations-amazon_textract
+  filename: amazon_textract.md
+  title: Amazon Textract

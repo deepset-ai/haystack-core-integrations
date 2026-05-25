@@ -1,35 +1,35 @@
 # This workflow comes from https://github.com/ofek/hatch-mypyc
 # https://github.com/ofek/hatch-mypyc/blob/5a198c0ba8660494d02716cfc9d79ce4adfb1442/.github/workflows/test.yml
-name: Test / vespa
+name: Test / amazon-textract
 
 on:
   schedule:
     - cron: "0 0 * * *"
   pull_request:
     paths:
-      - "integrations/vespa/**"
-      - "!integrations/vespa/*.md"
-      - ".github/workflows/vespa.yml"
+      - "integrations/amazon_textract/**"
+      - "!integrations/amazon_textract/*.md"
+      - ".github/workflows/amazon_textract.yml"
   push:
     branches:
       - main
     paths:
-      - "integrations/vespa/**"
-      - "!integrations/vespa/*.md"
-      - ".github/workflows/vespa.yml"
+      - "integrations/amazon_textract/**"
+      - "!integrations/amazon_textract/*.md"
+      - ".github/workflows/amazon_textract.yml"
 
 defaults:
   run:
-    working-directory: integrations/vespa
+    working-directory: integrations/amazon_textract
 
 concurrency:
-  group: vespa-${{ github.head_ref || github.sha }}
+  group: amazon_textract-${{ github.head_ref || github.sha }}
   cancel-in-progress: true
 
 env:
   PYTHONUNBUFFERED: "1"
   FORCE_COLOR: "1"
-  TEST_MATRIX_OS: '["ubuntu-latest"]'
+  TEST_MATRIX_OS: '["ubuntu-latest", "windows-latest", "macos-latest"]'
   TEST_MATRIX_PYTHON: '["3.10", "3.14"]'
 
 jobs:
@@ -82,24 +82,26 @@ jobs:
       - name: Run unit tests
         run: hatch run test:unit-cov-retry
 
-      - name: Run Vespa container
-        run: docker compose up -d --wait
-
-      # On PR: generates coverage comment artifact. On push to main: stores coverage baseline on data branch.
+      # On PR: posts coverage comment (directly on same-repo PRs; via artifact for fork PRs). On push to main: stores coverage baseline on data branch.
       - name: Store unit tests coverage
+        id: coverage_comment
         if: matrix.python-version == '3.10' && runner.os == 'Linux' && github.event_name != 'schedule'
         uses: py-cov-action/python-coverage-comment-action@63f52f4fbbffada6e8dee8ec432de7e01df9ba79 # v3.41
         with:
           GITHUB_TOKEN: ${{ github.token }}
-          COVERAGE_PATH: integrations/vespa
-          SUBPROJECT_ID: vespa
-          COMMENT_ARTIFACT_NAME: coverage-comment-vespa
+          COVERAGE_PATH: integrations/amazon_textract
+          SUBPROJECT_ID: amazon_textract
           MINIMUM_GREEN: 90
           MINIMUM_ORANGE: 60
 
+      - name: Upload coverage comment to be posted
+        if: matrix.python-version == '3.10' && runner.os == 'Linux' && github.event_name == 'pull_request' && steps.coverage_comment.outputs.COMMENT_FILE_WRITTEN == 'true'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: coverage-comment-amazon_textract
+          path: python-coverage-comment-action-amazon_textract.txt
+
       - name: Run integration tests
-        env:
-          VESPA_URL: "http://localhost"
         run: hatch run test:integration-cov-append-retry
 
       - name: Store combined coverage
@@ -107,9 +109,8 @@ jobs:
         uses: py-cov-action/python-coverage-comment-action@63f52f4fbbffada6e8dee8ec432de7e01df9ba79 # v3.41
         with:
           GITHUB_TOKEN: ${{ github.token }}
-          COVERAGE_PATH: integrations/vespa
-          SUBPROJECT_ID: vespa-combined
-          COMMENT_ARTIFACT_NAME: coverage-comment-vespa-combined
+          COVERAGE_PATH: integrations/amazon_textract
+          SUBPROJECT_ID: amazon_textract-combined
           MINIMUM_GREEN: 90
           MINIMUM_ORANGE: 60
 
