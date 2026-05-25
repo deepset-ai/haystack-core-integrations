@@ -235,7 +235,7 @@ class InputConverters:
         """
         InputConverters._validate_input_elements(questions=questions, contexts=contexts, responses=responses)
         for q, c, r in zip(questions, contexts, responses, strict=True):
-            # deepeval expects list[str | RetrievedContextData]; we pass list[str] but mypy complains
+            # for retrieval_context, deepeval expects list[str | RetrievedContextData]; we pass list[str]
             test_case = LLMTestCase(input=q, actual_output=r, retrieval_context=c)  # type: ignore[arg-type]
             yield test_case
 
@@ -259,7 +259,7 @@ class InputConverters:
         """
         InputConverters._validate_input_elements(questions=questions, contexts=contexts, responses=responses)
         for q, c, r, gt in zip(questions, contexts, responses, ground_truths, strict=True):
-            # deepeval expects list[str | RetrievedContextData]; we pass list[str] but mypy complains
+            # for retrieval_context, deepeval expects list[str | RetrievedContextData]; we pass list[str]
             test_case = LLMTestCase(input=q, actual_output=r, retrieval_context=c, expected_output=gt)  # type: ignore[arg-type]
             yield test_case
 
