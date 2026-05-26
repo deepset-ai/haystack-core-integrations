@@ -4,23 +4,21 @@
 
 import importlib.metadata
 from collections.abc import Iterable
-from typing import TYPE_CHECKING, Any, ClassVar
+from typing import Any, ClassVar
 
 from haystack import component, default_from_dict, default_to_dict, logging
 from haystack.components.embedders import OpenAIDocumentEmbedder
 from haystack.utils.auth import Secret
 from more_itertools import batched
 from openai import APIError
+from openai.types.create_embedding_response import CreateEmbeddingResponse
 from tqdm import tqdm
 from tqdm.asyncio import tqdm as async_tqdm
 
 from haystack_integrations.components.embedders.perplexity.embedding_encoding import (
-    decode_embedding,
-    validate_encoding_format,
+    _decode_embedding,
+    _validate_encoding_format,
 )
-
-if TYPE_CHECKING:
-    from openai.types.create_embedding_response import CreateEmbeddingResponse
 
 logger = logging.getLogger(__name__)
 
@@ -127,7 +125,7 @@ class PerplexityDocumentEmbedder(OpenAIDocumentEmbedder):
             A dictionary of keyword arguments to configure a custom `httpx.Client`or `httpx.AsyncClient`.
             For more information, see the [HTTPX documentation](https://www.python-httpx.org/api/#client).
         """
-        self.encoding_format = validate_encoding_format(encoding_format)
+        self.encoding_format = _validate_encoding_format(encoding_format)
         super(PerplexityDocumentEmbedder, self).__init__(  # noqa: UP008
             api_key=api_key,
             model=model,
@@ -148,8 +146,8 @@ class PerplexityDocumentEmbedder(OpenAIDocumentEmbedder):
         self.timeout = timeout
         self.max_retries = max_retries
 
-    def _decode_response_embeddings(self, response: "CreateEmbeddingResponse") -> list[list[float]]:
-        return [decode_embedding(str(el.embedding), self.encoding_format) for el in response.data]
+    def _decode_response_embeddings(self, response: CreateEmbeddingResponse) -> list[list[float]]:
+        return [_decode_embedding(str(el.embedding), self.encoding_format) for el in response.data]
 
     def _embed_batch(
         self, texts_to_embed: dict[str, str], batch_size: int

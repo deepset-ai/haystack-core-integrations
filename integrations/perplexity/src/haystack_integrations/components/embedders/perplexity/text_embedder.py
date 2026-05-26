@@ -3,19 +3,17 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import importlib.metadata
-from typing import TYPE_CHECKING, Any, ClassVar
+from typing import Any, ClassVar
 
 from haystack import component, default_from_dict, default_to_dict
 from haystack.components.embedders import OpenAITextEmbedder
 from haystack.utils.auth import Secret
+from openai.types.create_embedding_response import CreateEmbeddingResponse
 
 from haystack_integrations.components.embedders.perplexity.embedding_encoding import (
-    decode_embedding,
-    validate_encoding_format,
+    _decode_embedding,
+    _validate_encoding_format,
 )
-
-if TYPE_CHECKING:
-    from openai.types.create_embedding_response import CreateEmbeddingResponse
 
 _INTEGRATION_SLUG = "haystack"
 _PACKAGE_NAME = "perplexity-haystack"
@@ -103,7 +101,7 @@ class PerplexityTextEmbedder(OpenAITextEmbedder):
             For more information, see the [HTTPX documentation](https://www.python-httpx.org/api/#client).
         """
 
-        self.encoding_format = validate_encoding_format(encoding_format)
+        self.encoding_format = _validate_encoding_format(encoding_format)
         super(PerplexityTextEmbedder, self).__init__(  # noqa: UP008
             api_key=api_key,
             model=model,
@@ -126,9 +124,9 @@ class PerplexityTextEmbedder(OpenAITextEmbedder):
         kwargs["encoding_format"] = self.encoding_format
         return kwargs
 
-    def _prepare_output(self, result: "CreateEmbeddingResponse") -> dict[str, Any]:
+    def _prepare_output(self, result: CreateEmbeddingResponse) -> dict[str, Any]:
         return {
-            "embedding": decode_embedding(str(result.data[0].embedding), self.encoding_format),
+            "embedding": _decode_embedding(str(result.data[0].embedding), self.encoding_format),
             "meta": {"model": result.model, "usage": dict(result.usage)},
         }
 

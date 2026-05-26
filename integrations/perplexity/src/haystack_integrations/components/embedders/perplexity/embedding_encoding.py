@@ -13,20 +13,21 @@ PERPLEXITY_FLOAT_ENCODING_FORMAT_ERROR = (
 SUPPORTED_ENCODING_FORMATS = {"base64_int8", "base64_binary"}
 
 
-def validate_encoding_format(encoding_format: str) -> str:
+def _validate_encoding_format(encoding_format: str) -> str:
     """
     Validate Perplexity's embedding encoding format.
     """
-    if encoding_format == "float":
-        raise ValueError(PERPLEXITY_FLOAT_ENCODING_FORMAT_ERROR)
     if encoding_format not in SUPPORTED_ENCODING_FORMATS:
-        supported_formats = "', '".join(sorted(SUPPORTED_ENCODING_FORMATS))
-        msg = f"Unsupported encoding_format='{encoding_format}'. Use '{supported_formats}'."
+        if encoding_format == "float":
+            msg = PERPLEXITY_FLOAT_ENCODING_FORMAT_ERROR
+        else:
+            supported_formats = "', '".join(sorted(SUPPORTED_ENCODING_FORMATS))
+            msg = f"Unsupported encoding_format='{encoding_format}'. Use '{supported_formats}'."
         raise ValueError(msg)
     return encoding_format
 
 
-def decode_embedding(embedding: str, encoding_format: str) -> list[float]:
+def _decode_embedding(embedding: str, encoding_format: str) -> list[float]:
     """
     Decode a Perplexity base64 embedding into Haystack's list[float] representation.
     """
