@@ -38,6 +38,9 @@ class TestCogneeMemoryStore:
         """Mirrors cognee.remember's default of self_improvement=True."""
         assert CogneeMemoryStore().self_improvement is True
 
+    def test_init_default_timeout(self):
+        assert CogneeMemoryStore().timeout == 300
+
     def test_to_from_dict_roundtrip(self):
         store = CogneeMemoryStore(
             search_type="SUMMARIES",
@@ -45,6 +48,7 @@ class TestCogneeMemoryStore:
             dataset_name="mem",
             session_id="abc",
             self_improvement=False,
+            timeout=600,
         )
         data = store.to_dict()
         assert data["type"] == "haystack_integrations.memory_stores.cognee.memory_store.CogneeMemoryStore"
@@ -54,6 +58,7 @@ class TestCogneeMemoryStore:
             "dataset_name": "mem",
             "session_id": "abc",
             "self_improvement": False,
+            "timeout": 600,
         }
         restored = CogneeMemoryStore.from_dict(data)
         assert restored.search_type == "SUMMARIES"
@@ -61,6 +66,7 @@ class TestCogneeMemoryStore:
         assert restored.dataset_name == "mem"
         assert restored.session_id == "abc"
         assert restored.self_improvement is False
+        assert restored.timeout == 600
 
     @patch("haystack_integrations.memory_stores.cognee.memory_store.cognee")
     def test_add_memories_batches_permanent_tier(self, mock_cognee):

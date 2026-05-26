@@ -45,7 +45,7 @@ _background_loop: asyncio.AbstractEventLoop | None = None
 _loop_lock = threading.Lock()
 
 
-def _run_sync(coro: Coroutine[Any, Any, T]) -> T:
+def _run_sync(coro: Coroutine[Any, Any, T], *, timeout: float = 300) -> T:
     try:
         asyncio.get_running_loop()
     except RuntimeError:
@@ -56,7 +56,7 @@ def _run_sync(coro: Coroutine[Any, Any, T]) -> T:
         if _background_loop is None or _background_loop.is_closed():
             _background_loop = asyncio.new_event_loop()
             threading.Thread(target=_background_loop.run_forever, daemon=True).start()
-    return asyncio.run_coroutine_threadsafe(coro, _background_loop).result(timeout=300)
+    return asyncio.run_coroutine_threadsafe(coro, _background_loop).result(timeout=timeout)
 
 
 async def _resolve_user(user_id: str | None) -> Any:
@@ -98,6 +98,11 @@ class CogneeMemoryStore:
     Set to `False` when you want `improve()` to be the only improve trigger
     — otherwise an explicit `improve()` runs improve twice and produces
     near-duplicate graph nodes.
+
+    `timeout` (seconds) caps how long any single cognee call may run before
+    raising `concurrent.futures.TimeoutError`. The default of 300s covers
+    single-message agent-memory writes comfortably; bulk ingestion of long
+    documents may need a larger value.
     """
 
     def __init__(
@@ -108,6 +113,7 @@ class CogneeMemoryStore:
         dataset_name: str = "haystack_memory",
         session_id: str | None = None,
         self_improvement: bool = True,
+        timeout: float = 300,
     ):
         """
         Initialize the store.
@@ -118,12 +124,15 @@ class CogneeMemoryStore:
         :param session_id: When set, use the session-cache tier; otherwise the permanent graph.
         :param self_improvement: Forwarded to `cognee.remember` (default `True`, matches cognee).
             Set to `False` when `improve()` should be the only improve trigger.
+        :param timeout: Per-call timeout in seconds for any cognee operation.
+            Raise this for bulk ingestion workloads that legitimately need >300s.
         """
         self.search_type = search_type
         self.top_k = top_k
         self.dataset_name = dataset_name
         self.session_id = session_id
         self.self_improvement = self_improvement
+        self.timeout = timeout
 
     def add_memories(
         self,
@@ -168,7 +177,7 @@ class CogneeMemoryStore:
                     self_improvement=self.self_improvement,
                 )
 
-        _run_sync(_store())
+        _run_sync(_store(), timeout=self.timeout)
         logger.info(
             "Stored {n} memories in '{ds}' (session={s})",
             n=len(texts),
@@ -204,7 +213,7 @@ class CogneeMemoryStore:
                 user=user,
             )
 
-        results = _run_sync(_search()) or []
+        results = _run_sync(_search(), timeout=self.timeout) or []
         memories = [ChatMessage.from_system(text) for item in results if (text := _render(item))]
         logger.info("Found {n} memories for '{q}'", n=len(memories), q=query[:80])
         return memories
@@ -228,7 +237,7 @@ class CogneeMemoryStore:
                 user=user,
             )
 
-        _run_sync(_improve())
+        _run_sync(_improve(), timeout=self.timeout)
         logger.info("Improved '{ds}' (session={s})", ds=self.dataset_name, s=target_session)
 
     def delete_all_memories(self, *, user_id: str | None = None) -> None:
@@ -243,7 +252,7 @@ class CogneeMemoryStore:
             user = await _resolve_user(user_id)
             await cognee.forget(dataset=self.dataset_name, user=user)
 
-        _run_sync(_delete())
+        _run_sync(_delete(), timeout=self.timeout)
         logger.info("Deleted '{ds}'", ds=self.dataset_name)
 
     def to_dict(self) -> dict[str, Any]:
@@ -255,6 +264,7 @@ class CogneeMemoryStore:
             dataset_name=self.dataset_name,
             session_id=self.session_id,
             self_improvement=self.self_improvement,
+            timeout=self.timeout,
         )
 
     @classmethod
