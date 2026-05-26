@@ -4,19 +4,19 @@ name: Test / meta_llama
 
 on:
   schedule:
-    - cron: '0 0 * * *'
+    - cron: "0 0 * * *"
   pull_request:
     paths:
-      - 'integrations/meta_llama/**'
-      - '!integrations/meta_llama/*.md'
-      - '.github/workflows/meta_llama.yml'
+      - "integrations/meta_llama/**"
+      - "!integrations/meta_llama/*.md"
+      - ".github/workflows/meta_llama.yml"
   push:
     branches:
       - main
     paths:
-      - 'integrations/meta_llama/**'
-      - '!integrations/meta_llama/*.md'
-      - '.github/workflows/meta_llama.yml'
+      - "integrations/meta_llama/**"
+      - "!integrations/meta_llama/*.md"
+      - ".github/workflows/meta_llama.yml"
 
 defaults:
   run:
@@ -27,8 +27,8 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  PYTHONUNBUFFERED: '1'
-  FORCE_COLOR: '1'
+  PYTHONUNBUFFERED: "1"
+  FORCE_COLOR: "1"
   LLAMA_API_KEY: ${{ secrets.LLAMA_API_KEY }}
   TEST_MATRIX_OS: '["ubuntu-latest", "windows-latest", "macos-latest"]'
   TEST_MATRIX_PYTHON: '["3.10", "3.14"]'
@@ -60,7 +60,7 @@ jobs:
       matrix:
         os: ${{ fromJSON(needs.compute-test-matrix.outputs.os) }}
         python-version: ${{ fromJSON(needs.compute-test-matrix.outputs.python-version) }}
-      max-parallel: 2  # to avoid rate limiting        
+      max-parallel: 2 # to avoid rate limiting
 
     steps:
       - name: Support longpaths
@@ -76,7 +76,9 @@ jobs:
           python-version: ${{ matrix.python-version }}
 
       - name: Install Hatch
-        run: pip install hatch
+        run: |
+          python -m pip install --upgrade pip
+          pip install hatch --uploaded-prior-to=P1D
       - name: Lint
         if: matrix.python-version == '3.10' && runner.os == 'Linux'
         run: hatch run fmt-check && hatch run test:types
@@ -137,6 +139,6 @@ jobs:
     if: failure() && github.event_name == 'schedule'
     runs-on: ubuntu-slim
     steps:
-      - uses: deepset-ai/notify-slack-action@3cda73b77a148f16f703274198e7771340cf862b # v1
+      - uses: deepset-ai/notify-slack-action@a65def0c8bf91d6520286ab34280151c76a5a008 # v1.1.0
         with:
           slack-webhook-url: ${{ secrets.SLACK_WEBHOOK_URL_NOTIFICATIONS }}

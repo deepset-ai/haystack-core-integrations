@@ -1,5 +1,19 @@
 # Changelog
 
+## [integrations/opensearch-v8.1.1] - 2026-05-20
+
+### 🐛 Bug Fixes
+
+- Support aliases in all OpenSearchDocumentStore methods (#3336)
+
+
+## [integrations/opensearch-v8.1.0] - 2026-05-20
+
+### 🐛 Bug Fixes
+
+- _ensure_index_exists for aliases in OpenSearch (#3335)
+
+
 ## [integrations/opensearch-v8.0.0] - 2026-04-29
 
 ### 🚀 Features
