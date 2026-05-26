@@ -8,10 +8,10 @@
 | src/haystack\_integrations/components/writers/mem0/writer.py       |       21 |        0 |        2 |        1 |     96% |   89-\>91 |
 | src/haystack\_integrations/memory\_stores/mem0/errors.py           |        1 |        0 |        0 |        0 |    100% |           |
 | src/haystack\_integrations/memory\_stores/mem0/filters.py          |       65 |        2 |       30 |        1 |     97% |   148-149 |
-| src/haystack\_integrations/memory\_stores/mem0/memory\_store.py    |       64 |        0 |       16 |        2 |     98% |50-\>exit, 112-\>120 |
+| src/haystack\_integrations/memory\_stores/mem0/memory\_store.py    |       64 |        0 |       16 |        1 |     99% | 112-\>120 |
 | src/haystack\_integrations/tools/mem0/retriever\_tool.py           |       32 |        0 |        4 |        0 |    100% |           |
 | src/haystack\_integrations/tools/mem0/writer\_tool.py              |       30 |        0 |        2 |        0 |    100% |           |
-| **TOTAL**                                                          |  **233** |    **2** |   **56** |    **5** | **98%** |           |
+| **TOTAL**                                                          |  **233** |    **2** |   **56** |    **4** | **98%** |           |
 
 
 ## Setup coverage badge
