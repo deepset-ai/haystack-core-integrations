@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/perplexity-v0.1.1] - 2026-05-27
+
+### 🐛 Bug Fixes
+
+- *(perplexity)* Decode embedding API responses (#3344)
+
+
 ## [integrations/perplexity-v0.1.0] - 2026-05-13
 
 ### 🌀 Miscellaneous
