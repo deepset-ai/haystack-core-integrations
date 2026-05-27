@@ -6,10 +6,10 @@
 |------------------------------------------------------------------------------- | -------: | -------: | -------: | -------: | ------: | --------: |
 | src/haystack\_integrations/components/retrievers/vespa/embedding\_retriever.py |       20 |        0 |        2 |        0 |    100% |           |
 | src/haystack\_integrations/components/retrievers/vespa/keyword\_retriever.py   |       18 |        0 |        2 |        0 |    100% |           |
-| src/haystack\_integrations/document\_stores/vespa/document\_store.py           |      237 |       38 |       80 |       16 |     80% |36-39, 47-48, 130-131, 186-188, 243, 276-289, 309, 336-342, 364-365, 399-400, 437-\>439, 450, 481-\>483, 492, 506, 510, 517-518, 525-\>528, 544, 547 |
+| src/haystack\_integrations/document\_stores/vespa/document\_store.py           |      237 |       34 |       80 |       14 |     82% |36-39, 47-48, 130-131, 186-188, 243, 276-289, 309, 336-342, 437-\>439, 450, 481-\>483, 492, 506, 510, 517-518, 525-\>528, 544, 547 |
 | src/haystack\_integrations/document\_stores/vespa/errors.py                    |        5 |        0 |        0 |        0 |    100% |           |
-| src/haystack\_integrations/document\_stores/vespa/filters.py                   |      109 |       56 |       64 |       15 |     44% |18, 20, 32, 35, 48, 51, 54-58, 66-69, 82, 90-120, 132, 136-143, 148-149, 157-158, 161-162 |
-| **TOTAL**                                                                      |  **389** |   **94** |  **148** |   **31** | **70%** |           |
+| src/haystack\_integrations/document\_stores/vespa/filters.py                   |      109 |        0 |       64 |        0 |    100% |           |
+| **TOTAL**                                                                      |  **389** |   **34** |  **148** |   **14** | **90%** |           |
 
 
 ## Setup coverage badge
