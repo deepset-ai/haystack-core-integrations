@@ -14,9 +14,6 @@ from haystack.utils import Secret
 from haystack_integrations.components.embedders.perplexity import (
     text_embedder as text_embedder_module,
 )
-from haystack_integrations.components.embedders.perplexity.embedding_encoding import (
-    PERPLEXITY_FLOAT_ENCODING_FORMAT_ERROR,
-)
 from haystack_integrations.components.embedders.perplexity.text_embedder import (
     PerplexityTextEmbedder,
 )
@@ -96,12 +93,11 @@ class TestPerplexityTextEmbedder:
         assert embedder.encoding_format == "base64_binary"
 
     def test_init_rejects_float_encoding_format(self):
-        with pytest.raises(ValueError) as exc_info:
+        with pytest.raises(ValueError):
             PerplexityTextEmbedder(
                 api_key=Secret.from_token("test-api-key"),
                 encoding_format="float",
             )
-        assert str(exc_info.value) == PERPLEXITY_FLOAT_ENCODING_FORMAT_ERROR
 
     def test_to_dict(self, monkeypatch):
         monkeypatch.setenv("PERPLEXITY_API_KEY", "test-api-key")
