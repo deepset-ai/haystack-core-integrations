@@ -2,13 +2,17 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+import base64
 import json
 import os
+from types import SimpleNamespace
 
 import httpx
+import numpy as np
 import pytest
 from haystack import Document
 from haystack.utils import Secret
+from openai import APIError
 
 from haystack_integrations.components.embedders.perplexity import (
     document_embedder as document_embedder_module,
@@ -17,17 +21,24 @@ from haystack_integrations.components.embedders.perplexity.document_embedder imp
     PerplexityDocumentEmbedder,
 )
 
+INT8_EMBEDDING = [-2.0, -1.0, 0.0, 1.0, 2.0]
+INT8_EMBEDDING_PAYLOAD = base64.b64encode(np.array(INT8_EMBEDDING, dtype=np.int8).tobytes()).decode()
+BINARY_EMBEDDING = [1.0, 0.0, 1.0, 1.0, 0.0, 0.0, 0.0, 1.0]
+BINARY_EMBEDDING_PAYLOAD = base64.b64encode(np.packbits(np.array(BINARY_EMBEDDING, dtype=np.uint8)).tobytes()).decode()
 
-def _make_transport(captured: list[httpx.Request]) -> httpx.MockTransport:
+
+def _make_transport(captured: list[httpx.Request], embeddings: list[str] | None = None) -> httpx.MockTransport:
     def handler(request: httpx.Request) -> httpx.Response:
         captured.append(request)
+        inputs = json.loads(request.content)["input"]
+        response_embeddings = embeddings or [INT8_EMBEDDING_PAYLOAD] * len(inputs)
         return httpx.Response(
             200,
             json={
                 "object": "list",
                 "data": [
-                    {"object": "embedding", "embedding": [0.1, 0.2, 0.3], "index": 0},
-                    {"object": "embedding", "embedding": [0.4, 0.5, 0.6], "index": 1},
+                    {"object": "embedding", "embedding": embedding, "index": index}
+                    for index, embedding in enumerate(response_embeddings)
                 ],
                 "model": "pplx-embed-v1-0.6b",
                 "usage": {"prompt_tokens": 6, "total_tokens": 6},
@@ -36,6 +47,14 @@ def _make_transport(captured: list[httpx.Request]) -> httpx.MockTransport:
         )
 
     return httpx.MockTransport(handler)
+
+
+def _make_api_error() -> APIError:
+    return APIError(
+        "Failed embedding",
+        request=httpx.Request("POST", "https://api.perplexity.ai/v1/embeddings"),
+        body=None,
+    )
 
 
 class TestPerplexityDocumentEmbedder:
@@ -77,6 +96,7 @@ class TestPerplexityDocumentEmbedder:
         assert embedder.progress_bar is True
         assert embedder.meta_fields_to_embed == []
         assert embedder.embedding_separator == "\n"
+        assert embedder.encoding_format == "base64_int8"
 
     def test_init_with_parameters(self):
         embedder = PerplexityDocumentEmbedder(
@@ -89,6 +109,7 @@ class TestPerplexityDocumentEmbedder:
             progress_bar=False,
             meta_fields_to_embed=["test_field"],
             embedding_separator="-",
+            encoding_format="base64_binary",
         )
 
         assert embedder.api_key == Secret.from_token("test-api-key")
@@ -100,6 +121,14 @@ class TestPerplexityDocumentEmbedder:
         assert embedder.progress_bar is False
         assert embedder.meta_fields_to_embed == ["test_field"]
         assert embedder.embedding_separator == "-"
+        assert embedder.encoding_format == "base64_binary"
+
+    def test_init_rejects_float_encoding_format(self):
+        with pytest.raises(ValueError):
+            PerplexityDocumentEmbedder(
+                api_key=Secret.from_token("test-api-key"),
+                encoding_format="float",
+            )
 
     def test_to_dict(self, monkeypatch):
         monkeypatch.setenv("PERPLEXITY_API_KEY", "test-api-key")
@@ -122,6 +151,7 @@ class TestPerplexityDocumentEmbedder:
                 "progress_bar": True,
                 "meta_fields_to_embed": [],
                 "embedding_separator": "\n",
+                "encoding_format": "base64_int8",
                 "timeout": None,
                 "max_retries": None,
                 "http_client_kwargs": None,
@@ -140,6 +170,7 @@ class TestPerplexityDocumentEmbedder:
             progress_bar=False,
             meta_fields_to_embed=["test_field"],
             embedding_separator="-",
+            encoding_format="base64_binary",
             timeout=10.0,
             max_retries=2,
             http_client_kwargs={"proxy": "http://localhost:8080"},
@@ -161,6 +192,7 @@ class TestPerplexityDocumentEmbedder:
                 "progress_bar": False,
                 "meta_fields_to_embed": ["test_field"],
                 "embedding_separator": "-",
+                "encoding_format": "base64_binary",
                 "timeout": 10.0,
                 "max_retries": 2,
                 "http_client_kwargs": {"proxy": "http://localhost:8080"},
@@ -183,6 +215,7 @@ class TestPerplexityDocumentEmbedder:
                 "progress_bar": True,
                 "meta_fields_to_embed": [],
                 "embedding_separator": "\n",
+                "encoding_format": "base64_binary",
                 "timeout": None,
                 "max_retries": None,
                 "http_client_kwargs": None,
@@ -200,6 +233,7 @@ class TestPerplexityDocumentEmbedder:
         assert component.progress_bar is True
         assert component.meta_fields_to_embed == []
         assert component.embedding_separator == "\n"
+        assert component.encoding_format == "base64_binary"
         assert component.timeout is None
         assert component.max_retries is None
         assert component.http_client_kwargs is None
@@ -222,8 +256,8 @@ class TestPerplexityDocumentEmbedder:
         result = embedder.run(docs)
 
         docs_with_embeddings = result["documents"]
-        assert docs_with_embeddings[0].embedding == [0.1, 0.2, 0.3]
-        assert docs_with_embeddings[1].embedding == [0.4, 0.5, 0.6]
+        assert docs_with_embeddings[0].embedding == INT8_EMBEDDING
+        assert docs_with_embeddings[1].embedding == INT8_EMBEDDING
         assert len(captured) == 1
         request = captured[0]
         assert request.headers["Authorization"] == "Bearer test-api-key"
@@ -234,7 +268,172 @@ class TestPerplexityDocumentEmbedder:
             "I love cheese",
             "A transformer is a deep learning architecture",
         ]
-        assert body["encoding_format"] == "float"
+        assert body["encoding_format"] == "base64_int8"
+
+    @pytest.mark.parametrize(
+        ("encoding_format", "payload", "expected_embedding"),
+        [
+            ("base64_int8", INT8_EMBEDDING_PAYLOAD, INT8_EMBEDDING),
+            ("base64_binary", BINARY_EMBEDDING_PAYLOAD, BINARY_EMBEDDING),
+        ],
+    )
+    def test_run_decodes_base64_embeddings(self, encoding_format, payload, expected_embedding):
+        captured: list[httpx.Request] = []
+        embedder = PerplexityDocumentEmbedder(
+            api_key=Secret.from_token("test-api-key"),
+            encoding_format=encoding_format,
+            progress_bar=False,
+            http_client_kwargs={"transport": _make_transport(captured, embeddings=[payload])},
+        )
+
+        result = embedder.run([Document(content="I love cheese")])
+
+        embedding = result["documents"][0].embedding
+        assert embedding == expected_embedding
+        assert len(embedding) == len(expected_embedding)
+        assert all(isinstance(value, float) for value in embedding)
+        body = json.loads(captured[0].content)
+        assert body["encoding_format"] == encoding_format
+
+    def test_run_accumulates_usage_across_batches(self):
+        captured: list[httpx.Request] = []
+        embedder = PerplexityDocumentEmbedder(
+            api_key=Secret.from_token("test-api-key"),
+            batch_size=1,
+            progress_bar=False,
+            http_client_kwargs={"transport": _make_transport(captured)},
+        )
+
+        result = embedder.run(
+            [
+                Document(content="I love cheese"),
+                Document(content="A transformer is a deep learning architecture"),
+            ]
+        )
+
+        assert [document.embedding for document in result["documents"]] == [INT8_EMBEDDING, INT8_EMBEDDING]
+        assert result["meta"]["usage"] == {"prompt_tokens": 12, "total_tokens": 12}
+        assert len(captured) == 2
+
+    def test_embed_batch_skips_api_error_when_raise_on_failure_is_false(self):
+        api_error = _make_api_error()
+
+        def create(**_kwargs):
+            raise api_error
+
+        embedder = PerplexityDocumentEmbedder(
+            api_key=Secret.from_token("test-api-key"),
+            progress_bar=False,
+        )
+        embedder.raise_on_failure = False
+        embedder.client = SimpleNamespace(embeddings=SimpleNamespace(create=create))
+
+        embeddings, meta = embedder._embed_batch({"doc-1": "I love cheese"}, batch_size=1)
+
+        assert embeddings == {}
+        assert meta == {}
+
+    def test_embed_batch_raises_api_error_when_raise_on_failure_is_true(self):
+        api_error = _make_api_error()
+
+        def create(**_kwargs):
+            raise api_error
+
+        embedder = PerplexityDocumentEmbedder(
+            api_key=Secret.from_token("test-api-key"),
+            progress_bar=False,
+        )
+        embedder.raise_on_failure = True
+        embedder.client = SimpleNamespace(embeddings=SimpleNamespace(create=create))
+
+        with pytest.raises(APIError) as exc_info:
+            embedder._embed_batch({"doc-1": "I love cheese"}, batch_size=1)
+
+        assert exc_info.value is api_error
+
+    @pytest.mark.asyncio
+    async def test_run_async_decodes_base64_embeddings(self):
+        captured: list[httpx.Request] = []
+        embedder = PerplexityDocumentEmbedder(
+            api_key=Secret.from_token("test-api-key"),
+            progress_bar=False,
+            http_client_kwargs={"transport": _make_transport(captured, embeddings=[BINARY_EMBEDDING_PAYLOAD])},
+            encoding_format="base64_binary",
+        )
+
+        result = await embedder.run_async([Document(content="I love cheese")])
+
+        assert result["documents"][0].embedding == BINARY_EMBEDDING
+        body = json.loads(captured[0].content)
+        assert body["encoding_format"] == "base64_binary"
+
+    @pytest.mark.asyncio
+    async def test_run_async_uses_progress_bar_and_accumulates_usage_across_batches(self, monkeypatch):
+        captured: list[httpx.Request] = []
+        batches_seen = []
+
+        def fake_async_tqdm(batches, desc):
+            assert desc == "Calculating embeddings"
+            batches_seen.extend(batches)
+            return batches
+
+        monkeypatch.setattr(document_embedder_module, "async_tqdm", fake_async_tqdm)
+        embedder = PerplexityDocumentEmbedder(
+            api_key=Secret.from_token("test-api-key"),
+            batch_size=1,
+            progress_bar=True,
+            http_client_kwargs={"transport": _make_transport(captured)},
+        )
+
+        result = await embedder.run_async(
+            [
+                Document(content="I love cheese"),
+                Document(content="A transformer is a deep learning architecture"),
+            ]
+        )
+
+        assert [document.embedding for document in result["documents"]] == [INT8_EMBEDDING, INT8_EMBEDDING]
+        assert result["meta"]["usage"] == {"prompt_tokens": 12, "total_tokens": 12}
+        assert len(batches_seen) == 2
+        assert len(captured) == 2
+
+    @pytest.mark.asyncio
+    async def test_embed_batch_async_skips_api_error_when_raise_on_failure_is_false(self):
+        api_error = _make_api_error()
+
+        async def create(**_kwargs):
+            raise api_error
+
+        embedder = PerplexityDocumentEmbedder(
+            api_key=Secret.from_token("test-api-key"),
+            progress_bar=False,
+        )
+        embedder.raise_on_failure = False
+        embedder.async_client = SimpleNamespace(embeddings=SimpleNamespace(create=create))
+
+        embeddings, meta = await embedder._embed_batch_async({"doc-1": "I love cheese"}, batch_size=1)
+
+        assert embeddings == {}
+        assert meta == {}
+
+    @pytest.mark.asyncio
+    async def test_embed_batch_async_raises_api_error_when_raise_on_failure_is_true(self):
+        api_error = _make_api_error()
+
+        async def create(**_kwargs):
+            raise api_error
+
+        embedder = PerplexityDocumentEmbedder(
+            api_key=Secret.from_token("test-api-key"),
+            progress_bar=False,
+        )
+        embedder.raise_on_failure = True
+        embedder.async_client = SimpleNamespace(embeddings=SimpleNamespace(create=create))
+
+        with pytest.raises(APIError) as exc_info:
+            await embedder._embed_batch_async({"doc-1": "I love cheese"}, batch_size=1)
+
+        assert exc_info.value is api_error
 
     def test_run_wrong_input_format(self):
         embedder = PerplexityDocumentEmbedder(api_key=Secret.from_token("test-api-key"))
@@ -269,7 +468,7 @@ class TestPerplexityDocumentEmbedderInference:
         assert len(embedded_docs) == len(docs)
         for doc in embedded_docs:
             assert isinstance(doc.embedding, list)
-            assert len(doc.embedding) > 0
+            assert len(doc.embedding) == 1024
             assert all(isinstance(x, float) for x in doc.embedding)
 
     @pytest.mark.asyncio
@@ -285,4 +484,5 @@ class TestPerplexityDocumentEmbedderInference:
         assert len(embedded_docs) == len(docs)
         for doc in embedded_docs:
             assert isinstance(doc.embedding, list)
-            assert len(doc.embedding) > 0
+            assert len(doc.embedding) == 1024
+            assert all(isinstance(x, float) for x in doc.embedding)
