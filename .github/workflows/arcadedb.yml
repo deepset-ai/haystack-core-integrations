@@ -64,7 +64,8 @@ jobs:
         python-version: ${{ fromJSON(needs.compute-test-matrix.outputs.python-version) }}
     services:
       arcadedb:
-        image: arcadedata/arcadedb:latest
+        # temporarily pinned due to https://github.com/ArcadeData/arcadedb/issues/4359
+        image: arcadedata/arcadedb:26.5.1
         env:
           # Default password so container starts in forks; main repo uses secret
           JAVA_OPTS: "-Darcadedb.server.rootPassword=${{ secrets.ARCADEDB_PASSWORD || 'arcadedb' }}"

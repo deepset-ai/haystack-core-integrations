@@ -239,6 +239,14 @@ class TestVespaDocumentStoreUnit:
         assert kwargs["body"]["ranking"] == "semantic"
         assert "targetHits:10" in kwargs["body"]["yql"]
 
+    def test_bm25_retrieval_requires_non_empty_query(self, mock_store):
+        with pytest.raises(ValueError, match="must be a non-empty"):
+            mock_store._bm25_retrieval(query="")
+
+    def test_embedding_retrieval_requires_non_empty_embedding(self, mock_store):
+        with pytest.raises(ValueError, match="must be a non-empty"):
+            mock_store._embedding_retrieval(query_embedding=[])
+
     def test_get_documents_by_id(self, mock_store):
         mock_store._app.get_data.return_value = DummyResponse(
             {"fields": {"id": "1", "content": "hello", "author": "sam"}}
