@@ -6,9 +6,6 @@ import base64
 
 import numpy as np
 
-PERPLEXITY_FLOAT_ENCODING_FORMAT_ERROR = (
-    "Perplexity's /v1/embeddings does not support encoding_format='float'; use 'base64_int8' or 'base64_binary'."
-)
 
 SUPPORTED_ENCODING_FORMATS = {"base64_int8", "base64_binary"}
 
@@ -18,11 +15,8 @@ def _validate_encoding_format(encoding_format: str) -> str:
     Validate Perplexity's embedding encoding format.
     """
     if encoding_format not in SUPPORTED_ENCODING_FORMATS:
-        if encoding_format == "float":
-            msg = PERPLEXITY_FLOAT_ENCODING_FORMAT_ERROR
-        else:
-            supported_formats = "', '".join(sorted(SUPPORTED_ENCODING_FORMATS))
-            msg = f"Unsupported encoding_format='{encoding_format}'. Use '{supported_formats}'."
+        supported_formats = "', '".join(sorted(SUPPORTED_ENCODING_FORMATS))
+        msg = f"Unsupported encoding_format='{encoding_format}'. Use '{supported_formats}'."
         raise ValueError(msg)
     return encoding_format
 
