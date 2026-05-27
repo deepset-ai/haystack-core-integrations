@@ -6,7 +6,6 @@ import base64
 
 import numpy as np
 
-
 SUPPORTED_ENCODING_FORMATS = {"base64_int8", "base64_binary"}
 
 
