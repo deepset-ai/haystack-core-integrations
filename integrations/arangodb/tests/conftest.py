@@ -2,6 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+import contextlib
 import os
 
 import pytest
@@ -27,9 +28,7 @@ def document_store(request):
         recreate_collection=True,
     )
     yield store
-    try:
+    with contextlib.suppress(Exception):
         store._ensure_connected()
         if store._db and store._db.has_collection(store.collection_name):
             store._db.delete_collection(store.collection_name)
-    except Exception:  # noqa: BLE001
-        pass
