@@ -19,7 +19,7 @@ class CogneeRetriever:
     the store; this retriever is a thin pipeline adapter over `search_memories`.
     """
 
-    def __init__(self, *, memory_store: CogneeMemoryStore, top_k: int | None = None):
+    def __init__(self, *, memory_store: CogneeMemoryStore, top_k: int | None = None) -> None:
         """
         Initialize the retriever.
 

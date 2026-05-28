@@ -26,7 +26,7 @@ class CogneeWriter:
         *,
         memory_store: CogneeMemoryStore,
         session_id: str | None = None,
-    ):
+    ) -> None:
         """
         Initialize the writer.
 
