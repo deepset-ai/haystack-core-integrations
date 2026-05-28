@@ -29,6 +29,48 @@ from .mcp_tool import (
 logger = logging.getLogger(__name__)
 
 
+def _check_response_shape(tool_name: str, parsed: Any, response_shapes: dict[str, set[str]]) -> None:
+    """
+    Warn when an MCP tool's response content block types change between invocations.
+
+    The MCP protocol lets servers return any content block types on each invocation. A
+    compromised or malicious server can present benign content (e.g. ``text``) on the first
+    call and substitute different types (e.g. ``resource_link`` pointing at an attacker
+    URI) on later calls. This function records the set of content block types seen for
+    each tool and emits a warning on drift. It is a best-effort detection signal — not a
+    blocking validation — and does not protect against attacks that use the same content
+    types as the baseline.
+    """
+    if not isinstance(parsed, dict):
+        return
+    content = parsed.get("content")
+    if not isinstance(content, list):
+        return
+    seen_types: set[str] = set()
+    for block in content:
+        if isinstance(block, dict):
+            block_type = block.get("type")
+            if isinstance(block_type, str):
+                seen_types.add(block_type)
+    if not seen_types:
+        return
+    baseline = response_shapes.get(tool_name)
+    if baseline is None:
+        response_shapes[tool_name] = seen_types
+        return
+    new_types = seen_types - baseline
+    if new_types:
+        logger.warning(
+            "MCP tool '{tool_name}' returned new content block types {new_types} not seen "
+            "in prior invocations (previously {baseline}). This may indicate the upstream "
+            "MCP server changed its behavior between calls.",
+            tool_name=tool_name,
+            new_types=sorted(new_types),
+            baseline=sorted(baseline),
+        )
+        response_shapes[tool_name] = baseline | seen_types
+
+
 def _serialize_state_config(config: dict[str, dict[str, Any]] | None) -> dict[str, dict[str, Any]] | None:
     """
     Serialize a state configuration dictionary, converting any callable handlers to their string representation.
@@ -272,6 +314,9 @@ class MCPToolset(Toolset):
         self.outputs_to_state = outputs_to_state or {}
         self.outputs_to_string = outputs_to_string or {}
         self._warmup_called = False
+        # Per-tool baseline of content block types seen in prior call_tool responses.
+        # Used by _check_response_shape to surface server-side drift between calls.
+        self._response_shapes: dict[str, set[str]] = {}
 
         if not eager_connect:
             # Do not connect during validation; expose a toolset with one fake tool to pass validation
@@ -332,22 +377,32 @@ class MCPToolset(Toolset):
                 tool_name: str,
                 tool_timeout: float,
                 outputs_to_state: dict[str, Any] | None = None,
+                response_shapes: dict[str, set[str]] | None = None,
             ) -> Callable[..., Any]:
                 """Return a closure that keeps a strong reference to *owner_toolset* alive."""
+
+                shapes = response_shapes if response_shapes is not None else {}
 
                 def invoke_tool(**kwargs: Any) -> Any:
                     _ = owner_toolset  # strong reference so GC can't collect the toolset too early
                     result = AsyncExecutor.get_instance().run(
                         mcp_client.call_tool(tool_name, kwargs), timeout=tool_timeout
                     )
+
+                    # Best-effort response-shape drift detection. Parse failure preserves
+                    # the original raw-string return contract for callers without outputs_to_state.
+                    try:
+                        parsed: Any = json.loads(result)
+                    except (json.JSONDecodeError, TypeError):
+                        return result
+                    _check_response_shape(tool_name, parsed, shapes)
+
                     # Parse JSON to dict only when outputs_to_state is configured.
                     # ToolInvoker requires dict for _merge_tool_outputs(); ToolCallResult.result expects str otherwise.
                     if outputs_to_state:
-                        parsed = json.loads(result)
-
                         # Per MCP spec, content[] may contain TextContent, ImageContent, AudioContent, etc.
                         # Parse only first TextContent block (ToolInvoker requires dict, not list).
-                        content = parsed.get("content", [])
+                        content = parsed.get("content", []) if isinstance(parsed, dict) else []
                         for block in content:
                             if isinstance(block, dict) and block.get("type") == "text":
                                 text = block.get("text", "")
@@ -380,7 +435,12 @@ class MCPToolset(Toolset):
                     description=tool_info.description or "",
                     parameters=tool_info.inputSchema,
                     function=create_invoke_tool(
-                        self, client, tool_info.name, self.invocation_timeout, tool_outputs_to_state
+                        self,
+                        client,
+                        tool_info.name,
+                        self.invocation_timeout,
+                        tool_outputs_to_state,
+                        self._response_shapes,
                     ),
                     inputs_from_state=self.inputs_from_state.get(tool_info.name),
                     outputs_to_state=tool_outputs_to_state,
