@@ -224,6 +224,7 @@ class ValkeyDocumentStore(DocumentStore):
                     addresses=addresses,
                     use_tls=self._use_tls,
                     credentials=self._build_credentials(self._username, self._password),
+                    client_name="haystack_vector_store_client",
                     request_timeout=self._request_timeout,
                     reconnect_strategy=reconnect_strategy,
                 )
@@ -233,6 +234,7 @@ class ValkeyDocumentStore(DocumentStore):
                     addresses=addresses,
                     use_tls=self._use_tls,
                     credentials=self._build_credentials(self._username, self._password),
+                    client_name="haystack_vector_store_client",
                     request_timeout=self._request_timeout,
                     reconnect_strategy=reconnect_strategy,
                 )
@@ -261,6 +263,7 @@ class ValkeyDocumentStore(DocumentStore):
                     addresses=addresses,
                     use_tls=self._use_tls,
                     credentials=self._build_credentials(self._username, self._password),
+                    client_name="haystack_vector_store_client",
                     request_timeout=self._request_timeout,
                     reconnect_strategy=reconnect_strategy,
                 )
@@ -270,6 +273,7 @@ class ValkeyDocumentStore(DocumentStore):
                     addresses=addresses,
                     use_tls=self._use_tls,
                     credentials=self._build_credentials(self._username, self._password),
+                    client_name="haystack_vector_store_client",
                     request_timeout=self._request_timeout,
                     reconnect_strategy=reconnect_strategy,
                 )
