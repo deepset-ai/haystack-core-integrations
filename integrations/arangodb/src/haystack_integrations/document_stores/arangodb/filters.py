@@ -35,6 +35,9 @@ def _parse_filter(node: dict[str, Any], bind_vars: dict[str, Any], counter: list
     if "operator" in node and "conditions" in node:
         op = node["operator"].upper()
         parts = [_parse_filter(c, bind_vars, counter) for c in node["conditions"]]
+        if op == "NOT":
+            inner = " AND ".join(parts)
+            return f"(NOT ({inner}))"
         joiner = " AND " if op == "AND" else " OR "
         inner = joiner.join(parts)
         return f"({inner})"

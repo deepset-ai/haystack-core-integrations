@@ -2,13 +2,18 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-import os
 from unittest.mock import MagicMock
 
 import pytest
 from haystack.dataclasses import Document
 from haystack.document_stores.errors import DuplicateDocumentError
 from haystack.document_stores.types import DuplicatePolicy
+from haystack.testing.document_store import (
+    CountDocumentsTest,
+    DeleteDocumentsTest,
+    FilterDocumentsTest,
+    WriteDocumentsTest,
+)
 from haystack.utils import Secret
 
 from haystack_integrations.document_stores.arangodb import ArangoDocumentStore
@@ -20,7 +25,7 @@ def _make_store(**kwargs) -> ArangoDocumentStore:
     return ArangoDocumentStore(
         host="http://localhost:8529",
         database="haystack",
-        username="root",
+        username=Secret.from_token("root"),
         password=Secret.from_token("test-password"),
         collection_name="test_docs",
         embedding_dimension=3,
@@ -31,7 +36,6 @@ def _make_store(**kwargs) -> ArangoDocumentStore:
 def _mock_db(store: ArangoDocumentStore, collection_docs: list[dict] | None = None) -> MagicMock:
     mock_col = MagicMock()
     mock_col.count.return_value = len(collection_docs or [])
-    mock_col.has.return_value = False
 
     mock_db = MagicMock()
     mock_db.aql.execute.return_value = iter(collection_docs or [])
@@ -47,23 +51,23 @@ class TestArangoDocumentStoreInit:
         store = ArangoDocumentStore(
             host="http://localhost:8529",
             database="mydb",
-            username="root",
             collection_name="docs",
             embedding_dimension=768,
         )
         assert store.host == "http://localhost:8529"
         assert store.database == "mydb"
-        assert store.username == "root"
         assert store.collection_name == "docs"
         assert store.embedding_dimension == 768
         assert store.recreate_collection is False
+        assert store.similarity_function == "cosine"
         assert store._db is None
         assert store._col is None
 
     def test_init_custom(self):
-        store = _make_store(recreate_collection=True)
+        store = _make_store(recreate_collection=True, similarity_function="dot_product")
         assert store.recreate_collection is True
         assert store.embedding_dimension == 3
+        assert store.similarity_function == "dot_product"
 
 
 class TestArangoDocumentStoreSerialization:
@@ -72,7 +76,6 @@ class TestArangoDocumentStoreSerialization:
         store = ArangoDocumentStore(
             host="http://localhost:8529",
             database="haystack",
-            username="root",
             collection_name="test_docs",
             embedding_dimension=3,
         )
@@ -84,32 +87,37 @@ class TestArangoDocumentStoreSerialization:
         assert params["collection_name"] == "test_docs"
         assert params["embedding_dimension"] == 3
         assert params["recreate_collection"] is False
+        assert params["similarity_function"] == "cosine"
+        assert params["username"]["type"] == "env_var"
+        assert params["password"]["type"] == "env_var"
 
     def test_from_dict(self, monkeypatch):
         monkeypatch.setenv("ARANGO_PASSWORD", "pw")
+        monkeypatch.setenv("ARANGO_USERNAME", "root")
         data = {
             "type": "haystack_integrations.document_stores.arangodb.document_store.ArangoDocumentStore",
             "init_parameters": {
                 "host": "http://localhost:8529",
                 "database": "haystack",
-                "username": "root",
+                "username": {"env_vars": ["ARANGO_USERNAME"], "strict": False, "type": "env_var"},
                 "password": {"env_vars": ["ARANGO_PASSWORD"], "strict": True, "type": "env_var"},
                 "collection_name": "test_docs",
                 "embedding_dimension": 3,
                 "recreate_collection": False,
+                "similarity_function": "cosine",
             },
         }
         store = ArangoDocumentStore.from_dict(data)
         assert store.host == "http://localhost:8529"
         assert store.collection_name == "test_docs"
         assert store.password.resolve_value() == "pw"
+        assert store.username.resolve_value() == "root"
 
     def test_to_from_dict_roundtrip(self, monkeypatch):
         monkeypatch.setenv("ARANGO_PASSWORD", "pw")
         store = ArangoDocumentStore(
             host="http://localhost:8529",
             database="haystack",
-            username="root",
             collection_name="test_docs",
             embedding_dimension=3,
         )
@@ -118,6 +126,7 @@ class TestArangoDocumentStoreSerialization:
         assert store.database == store2.database
         assert store.collection_name == store2.collection_name
         assert store.embedding_dimension == store2.embedding_dimension
+        assert store.similarity_function == store2.similarity_function
 
 
 class TestArangoDocumentStoreCountDocuments:
@@ -139,9 +148,10 @@ class TestArangoDocumentStoreWriteDocuments:
         store = _make_store()
         _mock_db(store)
         docs = [Document(content="hello"), Document(content="world")]
+        store._col.insert_many.return_value = [{"_key": docs[0].id}, {"_key": docs[1].id}]
         written = store.write_documents(docs)
         assert written == 2
-        assert store._col.insert.call_count == 2
+        store._col.insert_many.assert_called_once()
 
     def test_write_empty(self):
         store = _make_store()
@@ -158,49 +168,52 @@ class TestArangoDocumentStoreWriteDocuments:
         store = _make_store()
         _mock_db(store)
         doc = Document(content="test")
-        store._col.has.return_value = True
+        store._col.insert_many.return_value = [Exception("unique constraint violated")]
         with pytest.raises(DuplicateDocumentError):
             store.write_documents([doc], policy=DuplicatePolicy.FAIL)
 
     def test_write_duplicate_skip(self):
         store = _make_store()
         _mock_db(store)
-        store._col.has.return_value = True
         doc = Document(content="test")
+        store._col.insert_many.return_value = [Exception("unique constraint violated")]
         written = store.write_documents([doc], policy=DuplicatePolicy.SKIP)
         assert written == 0
-        store._col.insert.assert_not_called()
+        store._col.insert_many.assert_called_once()
 
     def test_write_duplicate_overwrite(self):
         store = _make_store()
         _mock_db(store)
-        store._col.has.return_value = True
         doc = Document(content="test")
+        store._col.insert_many.return_value = [{"_key": doc.id}]
         written = store.write_documents([doc], policy=DuplicatePolicy.OVERWRITE)
         assert written == 1
-        store._col.replace.assert_called_once()
+        call_kwargs = store._col.insert_many.call_args
+        assert call_kwargs.kwargs.get("overwrite") is True
 
 
 class TestArangoDocumentStoreDeleteDocuments:
     def test_delete_documents(self):
         store = _make_store()
         _mock_db(store)
-        store._col.has.return_value = True
         store.delete_documents(["id1", "id2"])
-        assert store._col.delete.call_count == 2
+        store._col.delete_many.assert_called_once_with(
+            [{"_key": "id1"}, {"_key": "id2"}], ignore_missing=True, silent=True
+        )
 
     def test_delete_empty(self):
         store = _make_store()
         _mock_db(store)
         store.delete_documents([])
-        store._col.delete.assert_not_called()
+        store._col.delete_many.assert_not_called()
 
     def test_delete_missing(self):
         store = _make_store()
         _mock_db(store)
-        store._col.has.return_value = False
         store.delete_documents(["missing"])
-        store._col.delete.assert_not_called()
+        store._col.delete_many.assert_called_once_with(
+            [{"_key": "missing"}], ignore_missing=True, silent=True
+        )
 
 
 class TestArangoDocumentStoreFilterDocuments:
@@ -249,6 +262,30 @@ class TestArangoDocumentStoreEmbeddingRetrieval:
         assert docs[0].score == pytest.approx(0.99)
         mock_db.aql.execute.assert_called_once()
 
+    def test_embedding_retrieval_uses_cosine_by_default(self):
+        store = _make_store()
+        _mock_db(store, [])
+        store._embedding_retrieval(query_embedding=[0.1, 0.2, 0.3], top_k=1)
+        aql = store._db.aql.execute.call_args[0][0]
+        assert "COSINE_SIMILARITY" in aql
+        assert "DESC" in aql
+
+    def test_embedding_retrieval_dot_product(self):
+        store = _make_store(similarity_function="dot_product")
+        _mock_db(store, [])
+        store._embedding_retrieval(query_embedding=[0.1, 0.2, 0.3], top_k=1)
+        aql = store._db.aql.execute.call_args[0][0]
+        assert "DOT_PRODUCT" in aql
+        assert "DESC" in aql
+
+    def test_embedding_retrieval_l2(self):
+        store = _make_store(similarity_function="l2")
+        _mock_db(store, [])
+        store._embedding_retrieval(query_embedding=[0.1, 0.2, 0.3], top_k=1)
+        aql = store._db.aql.execute.call_args[0][0]
+        assert "L2_DISTANCE" in aql
+        assert "ASC" in aql
+
     def test_embedding_retrieval_empty_query(self):
         store = _make_store()
         _mock_db(store)
@@ -256,33 +293,11 @@ class TestArangoDocumentStoreEmbeddingRetrieval:
             store._embedding_retrieval(query_embedding=[])
 
 
-@pytest.mark.skipif(
-    not os.environ.get("ARANGO_PASSWORD") or not os.environ.get("ARANGO_HOST"),
-    reason="Export ARANGO_HOST and ARANGO_PASSWORD to run integration tests.",
-)
 @pytest.mark.integration
-class TestArangoDocumentStoreIntegration:
-    def test_write_and_retrieve(self):
-        store = ArangoDocumentStore(
-            host=os.environ["ARANGO_HOST"],
-            database="haystack_test",
-            username="root",
-            password=Secret.from_env_var("ARANGO_PASSWORD"),
-            collection_name="integration_test",
-            embedding_dimension=3,
-            recreate_collection=True,
-        )
-        docs = [
-            Document(content="Paris is the capital of France.", embedding=[0.1, 0.2, 0.3]),
-            Document(content="London is the capital of the UK.", embedding=[0.4, 0.5, 0.6]),
-        ]
-        written = store.write_documents(docs)
-        assert written == 2
-        assert store.count_documents() == 2
-
-        results = store._embedding_retrieval(query_embedding=[0.1, 0.2, 0.3], top_k=1)
-        assert len(results) == 1
-        assert "Paris" in results[0].content
-
-        store.delete_documents([docs[0].id])
-        assert store.count_documents() == 1
+class TestArangoDocumentStoreIntegration(
+    CountDocumentsTest,
+    DeleteDocumentsTest,
+    FilterDocumentsTest,
+    WriteDocumentsTest,
+):
+    pass

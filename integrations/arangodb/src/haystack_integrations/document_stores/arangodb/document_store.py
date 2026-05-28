@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import dataclasses
-from typing import Any, cast
+from typing import Any, Literal, cast
 
 from arango import ArangoClient
 from arango.collection import StandardCollection
@@ -18,6 +18,12 @@ from haystack.utils.auth import Secret, deserialize_secrets_inplace
 from .filters import _convert_filters
 
 logger = logging.getLogger(__name__)
+
+_SIMILARITY_AQL: dict[str, tuple[str, str]] = {
+    "cosine": ("COSINE_SIMILARITY", "DESC"),
+    "dot_product": ("DOT_PRODUCT", "DESC"),
+    "l2": ("L2_DISTANCE", "ASC"),
+}
 
 
 def _doc_to_arango(doc: Document) -> dict[str, Any]:
@@ -39,7 +45,7 @@ class ArangoDocumentStore:
     A Haystack DocumentStore backed by [ArangoDB](https://www.arangodb.com/).
 
     Documents are stored in an ArangoDB collection and support vector similarity search
-    via AQL's `COSINE_SIMILARITY` function (requires ArangoDB 3.12+).
+    via AQL vector functions (requires ArangoDB 3.12+).
 
     Example usage:
 
@@ -50,7 +56,7 @@ class ArangoDocumentStore:
     store = ArangoDocumentStore(
         host="http://localhost:8529",
         database="haystack",
-        username="root",
+        username=Secret.from_env_var("ARANGO_USERNAME", strict=False),
         password=Secret.from_env_var("ARANGO_PASSWORD"),
         collection_name="documents",
         embedding_dimension=768,
@@ -63,22 +69,26 @@ class ArangoDocumentStore:
         *,
         host: str = "http://localhost:8529",
         database: str = "haystack",
-        username: str = "root",
+        username: Secret = Secret.from_env_var("ARANGO_USERNAME", strict=False),
         password: Secret = Secret.from_env_var("ARANGO_PASSWORD"),
         collection_name: str = "haystack_documents",
         embedding_dimension: int = 768,
         recreate_collection: bool = False,
+        similarity_function: Literal["cosine", "dot_product", "l2"] = "cosine",
     ) -> None:
         """
         Creates a new ArangoDocumentStore instance.
 
         :param host: ArangoDB server URL, e.g. `http://localhost:8529`.
         :param database: Name of the ArangoDB database to use. Created if it does not exist.
-        :param username: ArangoDB username.
+        :param username: ArangoDB username as a `Secret`. Defaults to `ARANGO_USERNAME` env var,
+            falling back to `root` if the variable is not set.
         :param password: ArangoDB password as a `Secret`. Defaults to `ARANGO_PASSWORD` env var.
         :param collection_name: Name of the collection to store documents in.
         :param embedding_dimension: Dimensionality of document embeddings.
         :param recreate_collection: If `True`, drop and recreate the collection on startup.
+        :param similarity_function: Vector similarity function to use for embedding retrieval.
+            One of `"cosine"` (default), `"dot_product"`, or `"l2"`.
         """
         self.host = host
         self.database = database
@@ -87,18 +97,20 @@ class ArangoDocumentStore:
         self.collection_name = collection_name
         self.embedding_dimension = embedding_dimension
         self.recreate_collection = recreate_collection
+        self.similarity_function = similarity_function
         self._db: StandardDatabase | None = None
         self._col: StandardCollection | None = None
 
     def _ensure_connected(self) -> None:
         if self._db is not None and self._col is not None:
             return
+        username = self.username.resolve_value() or "root"
         pwd = self.password.resolve_value() or ""
         client = ArangoClient(hosts=self.host)
-        sys_db = client.db("_system", username=self.username, password=pwd)
+        sys_db = client.db("_system", username=username, password=pwd)
         if not sys_db.has_database(self.database):
             sys_db.create_database(self.database)
-        db = client.db(self.database, username=self.username, password=pwd)
+        db = client.db(self.database, username=username, password=pwd)
         if self.recreate_collection and db.has_collection(self.collection_name):
             db.delete_collection(self.collection_name)
         if not db.has_collection(self.collection_name):
@@ -159,24 +171,18 @@ class ArangoDocumentStore:
         self._ensure_connected()
         col = cast(StandardCollection, self._col)
 
-        written = 0
-        for doc in documents:
-            arango_doc = _doc_to_arango(doc)
-            key = arango_doc["_key"]
-            exists = col.has(key)
+        arango_docs = [_doc_to_arango(doc) for doc in documents]
+        overwrite = policy == DuplicatePolicy.OVERWRITE
+        results = col.insert_many(arango_docs, overwrite=overwrite, silent=False)
 
-            if exists:
+        written = 0
+        for i, result in enumerate(results):
+            if isinstance(result, Exception):
                 if policy == DuplicatePolicy.FAIL:
-                    msg = f"Document with id '{doc.id}' already exists."
+                    msg = f"Document with id '{documents[i].id}' already exists."
                     raise DuplicateDocumentError(msg)
-                if policy == DuplicatePolicy.SKIP:
-                    continue
-                if policy == DuplicatePolicy.OVERWRITE:
-                    col.replace(arango_doc)
-                    written += 1
-                    continue
+                # SKIP: just move on
             else:
-                col.insert(arango_doc)
                 written += 1
 
         return written
@@ -191,9 +197,7 @@ class ArangoDocumentStore:
             return
         self._ensure_connected()
         col = cast(StandardCollection, self._col)
-        for doc_id in document_ids:
-            if col.has(doc_id):
-                col.delete(doc_id)
+        col.delete_many([{"_key": doc_id} for doc_id in document_ids], ignore_missing=True, silent=True)
 
     def _embedding_retrieval(
         self,
@@ -227,12 +231,13 @@ class ArangoDocumentStore:
             filter_clause = f"FILTER {expr} "
             bind_vars.update(fvars)
 
+        aql_func, sort_order = _SIMILARITY_AQL[self.similarity_function]
         aql = f"""
         FOR doc IN {self.collection_name}
             FILTER doc.embedding != null
             {filter_clause}
-            LET score = COSINE_SIMILARITY(doc.embedding, @query_vec)
-            SORT score DESC
+            LET score = {aql_func}(doc.embedding, @query_vec)
+            SORT score {sort_order}
             LIMIT @top_k
             RETURN MERGE(doc, {{score: score}})
         """
@@ -257,11 +262,12 @@ class ArangoDocumentStore:
             self,
             host=self.host,
             database=self.database,
-            username=self.username,
+            username=self.username.to_dict(),
             password=self.password.to_dict(),
             collection_name=self.collection_name,
             embedding_dimension=self.embedding_dimension,
             recreate_collection=self.recreate_collection,
+            similarity_function=self.similarity_function,
         )
 
     @classmethod
@@ -272,5 +278,5 @@ class ArangoDocumentStore:
         :param data: Dictionary to deserialize from.
         :returns: Deserialized component.
         """
-        deserialize_secrets_inplace(data["init_parameters"], ["password"])
+        deserialize_secrets_inplace(data["init_parameters"], ["password", "username"])
         return default_from_dict(cls, data)

@@ -42,6 +42,9 @@ class ArangoEmbeddingRetriever:
         :param top_k: Maximum number of documents to return.
         :param filters: Optional Haystack metadata filters applied at retrieval time.
         """
+        if not isinstance(document_store, ArangoDocumentStore):
+            msg = f"document_store must be an ArangoDocumentStore, got {type(document_store)}"
+            raise ValueError(msg)
         self.document_store = document_store
         self.top_k = top_k
         self.filters = filters

@@ -4,6 +4,7 @@
 
 from unittest.mock import MagicMock
 
+import pytest
 from haystack.dataclasses import Document
 from haystack.utils import Secret
 
@@ -15,7 +16,7 @@ def _make_store() -> ArangoDocumentStore:
     return ArangoDocumentStore(
         host="http://localhost:8529",
         database="haystack",
-        username="root",
+        username=Secret.from_token("root"),
         password=Secret.from_token("pw"),
         collection_name="docs",
         embedding_dimension=3,
@@ -65,7 +66,6 @@ class TestArangoEmbeddingRetriever:
         store = ArangoDocumentStore(
             host="http://localhost:8529",
             database="haystack",
-            username="root",
             collection_name="docs",
             embedding_dimension=3,
         )
@@ -77,6 +77,7 @@ class TestArangoEmbeddingRetriever:
 
     def test_from_dict(self, monkeypatch):
         monkeypatch.setenv("ARANGO_PASSWORD", "pw")
+        monkeypatch.setenv("ARANGO_USERNAME", "root")
         data = {
             "type": "haystack_integrations.components.retrievers.arangodb.embedding_retriever.ArangoEmbeddingRetriever",
             "init_parameters": {
@@ -87,11 +88,12 @@ class TestArangoEmbeddingRetriever:
                     "init_parameters": {
                         "host": "http://localhost:8529",
                         "database": "haystack",
-                        "username": "root",
+                        "username": {"env_vars": ["ARANGO_USERNAME"], "strict": False, "type": "env_var"},
                         "password": {"env_vars": ["ARANGO_PASSWORD"], "strict": True, "type": "env_var"},
                         "collection_name": "docs",
                         "embedding_dimension": 3,
                         "recreate_collection": False,
+                        "similarity_function": "cosine",
                     },
                 },
             },
@@ -99,3 +101,7 @@ class TestArangoEmbeddingRetriever:
         retriever = ArangoEmbeddingRetriever.from_dict(data)
         assert retriever.top_k == 7
         assert retriever.document_store.collection_name == "docs"
+
+    def test_invalid_document_store_type(self):
+        with pytest.raises(ValueError, match="ArangoDocumentStore"):
+            ArangoEmbeddingRetriever(document_store=MagicMock())
