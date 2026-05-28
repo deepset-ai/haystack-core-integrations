@@ -173,7 +173,8 @@ class ArangoDocumentStore:
 
         arango_docs = [_doc_to_arango(doc) for doc in documents]
         overwrite = policy == DuplicatePolicy.OVERWRITE
-        results = col.insert_many(arango_docs, overwrite=overwrite, silent=False)
+        raw = col.insert_many(arango_docs, overwrite=overwrite, silent=False)
+        results = raw if isinstance(raw, list) else []
 
         written = 0
         for i, result in enumerate(results):
@@ -197,7 +198,7 @@ class ArangoDocumentStore:
             return
         self._ensure_connected()
         col = cast(StandardCollection, self._col)
-        col.delete_many([{"_key": doc_id} for doc_id in document_ids], ignore_missing=True, silent=True)
+        col.delete_many([{"_key": doc_id} for doc_id in document_ids])
 
     def _embedding_retrieval(
         self,

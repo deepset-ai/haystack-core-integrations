@@ -197,9 +197,7 @@ class TestArangoDocumentStoreDeleteDocuments:
         store = _make_store()
         _mock_db(store)
         store.delete_documents(["id1", "id2"])
-        store._col.delete_many.assert_called_once_with(
-            [{"_key": "id1"}, {"_key": "id2"}], ignore_missing=True, silent=True
-        )
+        store._col.delete_many.assert_called_once_with([{"_key": "id1"}, {"_key": "id2"}])
 
     def test_delete_empty(self):
         store = _make_store()
@@ -211,7 +209,7 @@ class TestArangoDocumentStoreDeleteDocuments:
         store = _make_store()
         _mock_db(store)
         store.delete_documents(["missing"])
-        store._col.delete_many.assert_called_once_with([{"_key": "missing"}], ignore_missing=True, silent=True)
+        store._col.delete_many.assert_called_once_with([{"_key": "missing"}])
 
 
 class TestArangoDocumentStoreFilterDocuments:
