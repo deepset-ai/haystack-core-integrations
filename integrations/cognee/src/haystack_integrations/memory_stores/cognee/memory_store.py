@@ -114,7 +114,7 @@ class CogneeMemoryStore:
         session_id: str | None = None,
         self_improvement: bool = True,
         timeout: float = 300,
-    ):
+    ) -> None:
         """
         Initialize the store.
 

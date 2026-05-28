@@ -25,7 +25,7 @@ classifiers = [
 ]
 dependencies = [
   "haystack-ai>=2.24.0",
-  "cognee>=1.0.9,<2.0",
+  "cognee>=1.0.9",
 ]
 
 [project.urls]
@@ -84,6 +84,7 @@ line-length = 120
 [tool.ruff.lint]
 select = [
   "A",
+  "ANN",
   "ARG",
   "B",
   "C",
@@ -135,8 +136,9 @@ ignore = [
   "ARG002",
   # Allow assertions
   "S101",
+  # Allow `Any` type - used legitimately for dynamic types and SDK boundaries
+  "ANN401",
 ]
-exclude = ["examples"]
 
 [tool.ruff.lint.isort]
 known-first-party = ["haystack_integrations"]
@@ -145,14 +147,15 @@ known-first-party = ["haystack_integrations"]
 ban-relative-imports = "parents"
 
 [tool.ruff.lint.per-file-ignores]
-# Tests can use magic values, assertions, and relative imports
-"tests/**/*" = ["D", "PLR2004", "S101", "TID252"]
-"examples/**/*" = ["D", "T201", "E402"]
+# Tests can use magic values, assertions, relative imports, and don't need type annotations
+"tests/**/*" = ["D", "PLR2004", "S101", "TID252", "ANN"]
+"examples/**/*" = ["D", "T201", "E402", "ANN"]
 
 [tool.coverage.run]
 source = ["haystack_integrations"]
 branch = true
 parallel = false
+relative_files = true
 
 [tool.coverage.report]
 omit = ["*/tests/*", "*/__init__.py"]
