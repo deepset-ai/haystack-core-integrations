@@ -5,9 +5,6 @@
 from unittest.mock import MagicMock, patch
 
 import pytest
-from haystack.dataclasses import Document
-from haystack.document_stores.errors import DuplicateDocumentError
-from haystack.document_stores.types import DuplicatePolicy
 
 from haystack_integrations.components.retrievers.supabase import SupabaseGroongaRetriever
 from haystack_integrations.document_stores.supabase import SupabaseGroongaDocumentStore

@@ -11,6 +11,7 @@ from haystack.document_stores.types import DuplicatePolicy
 
 from haystack_integrations.document_stores.supabase import SupabaseGroongaDocumentStore
 
+
 @pytest.fixture
 def mock_supabase_client():
     """Creates a mock Supabase client so we never hit a real database."""
