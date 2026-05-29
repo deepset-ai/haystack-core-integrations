@@ -9,10 +9,13 @@ from haystack import component, default_from_dict, default_to_dict, logging
 from haystack.components.generators.utils import _convert_streaming_chunks_to_chat_message
 from haystack.dataclasses import ChatMessage, ToolCall
 from haystack.dataclasses.streaming_chunk import (
+    AsyncStreamingCallbackT,
     ComponentInfo,
+    FinishReason,
     StreamingCallbackT,
     StreamingChunk,
     SyncStreamingCallbackT,
+    ToolCallDelta,
     select_streaming_callback,
 )
 from haystack.tools import (
@@ -74,8 +77,10 @@ class LiteLLMChatGenerator:
         """Create a LiteLLMChatGenerator instance.
 
         :param api_key:
-            The API key for the provider. If not set, LiteLLM reads from the
-            provider's standard environment variable (e.g. ANTHROPIC_API_KEY).
+            The API key for the provider. Optional: when not set, LiteLLM resolves
+            credentials itself from the provider's standard environment variable
+            (e.g. ``ANTHROPIC_API_KEY``, ``OPENAI_API_KEY``). Pass a ``Secret`` only
+            when you want Haystack to manage and serialize the key explicitly.
         :param model:
             The model name in LiteLLM format (provider/model-name).
         :param streaming_callback:
@@ -95,17 +100,13 @@ class LiteLLMChatGenerator:
         self.generation_kwargs = generation_kwargs or {}
         self.tools = tools
 
-    def warm_up(self) -> None:
-        """Verify litellm is importable."""
-        import litellm  # noqa: F401
-
     def _build_litellm_kwargs(
         self,
         messages: list[ChatMessage],
         streaming_callback: StreamingCallbackT | None,
         generation_kwargs: dict[str, Any] | None,
         tools: ToolsType | None,
-    ) -> tuple[dict[str, Any], bool]:
+    ) -> dict[str, Any]:
         merged_kwargs = {**self.generation_kwargs, **(generation_kwargs or {})}
         openai_messages = [m.to_openai_dict_format() for m in messages]
 
@@ -121,18 +122,18 @@ class LiteLLMChatGenerator:
         if flattened_tools:
             tool_defs = [{"type": "function", "function": t.tool_spec} for t in flattened_tools]
 
-        is_streaming = streaming_callback is not None
-
-        kwargs = {
+        # User-supplied generation_kwargs go first so the framework-controlled keys below
+        # (model, messages, stream, tools, drop_params, credentials) always take precedence
+        # and can't be silently overridden.
+        return {
+            **merged_kwargs,
             "model": self.model,
             "messages": openai_messages,
-            "stream": is_streaming,
+            "stream": streaming_callback is not None,
             "tools": tool_defs,
             "drop_params": True,
-            **merged_kwargs,
             **extra,
         }
-        return kwargs, is_streaming
 
     @component.output_types(replies=list[ChatMessage])
     def run(
@@ -160,10 +161,10 @@ class LiteLLMChatGenerator:
             init_callback=self.streaming_callback, runtime_callback=streaming_callback, requires_async=False
         )
 
-        kwargs, is_streaming = self._build_litellm_kwargs(messages, streaming_callback, generation_kwargs, tools)
+        kwargs = self._build_litellm_kwargs(messages, streaming_callback, generation_kwargs, tools)
         response = litellm.completion(**kwargs)
 
-        if is_streaming:
+        if streaming_callback is not None:
             return {"replies": self._handle_streaming(response, streaming_callback)}
 
         completions = [_build_chat_message(response, choice) for choice in response.choices]
@@ -188,10 +189,10 @@ class LiteLLMChatGenerator:
             init_callback=self.streaming_callback, runtime_callback=streaming_callback, requires_async=True
         )
 
-        kwargs, is_streaming = self._build_litellm_kwargs(messages, streaming_callback, generation_kwargs, tools)
+        kwargs = self._build_litellm_kwargs(messages, streaming_callback, generation_kwargs, tools)
         response = await litellm.acompletion(**kwargs)
 
-        if is_streaming:
+        if streaming_callback is not None:
             return {"replies": await self._ahandle_streaming(response, streaming_callback)}
 
         completions = [_build_chat_message(response, choice) for choice in response.choices]
@@ -201,40 +202,18 @@ class LiteLLMChatGenerator:
         component_info = ComponentInfo.from_component(self)
         chunks: list[StreamingChunk] = []
         for chunk in stream_response:
-            if not chunk.choices:
-                continue
-            delta = chunk.choices[0].delta
-            content = getattr(delta, "content", None) or ""
-            meta: dict[str, Any] = {
-                "model": chunk.model,
-                "finish_reason": chunk.choices[0].finish_reason,
-            }
-            tool_calls_delta = getattr(delta, "tool_calls", None)
-            if tool_calls_delta:
-                meta["tool_calls"] = tool_calls_delta
-            sc = StreamingChunk(content=content, meta=meta, component_info=component_info)
-            chunks.append(sc)
-            callback(sc)
+            stream_chunk = _convert_litellm_chunk_to_streaming_chunk(chunk, chunks, component_info)
+            chunks.append(stream_chunk)
+            callback(stream_chunk)
         return [_convert_streaming_chunks_to_chat_message(chunks=chunks)]
 
-    async def _ahandle_streaming(self, stream_response: Any, callback: SyncStreamingCallbackT) -> list[ChatMessage]:
+    async def _ahandle_streaming(self, stream_response: Any, callback: AsyncStreamingCallbackT) -> list[ChatMessage]:
         component_info = ComponentInfo.from_component(self)
         chunks: list[StreamingChunk] = []
         async for chunk in stream_response:
-            if not chunk.choices:
-                continue
-            delta = chunk.choices[0].delta
-            content = getattr(delta, "content", None) or ""
-            meta: dict[str, Any] = {
-                "model": chunk.model,
-                "finish_reason": chunk.choices[0].finish_reason,
-            }
-            tool_calls_delta = getattr(delta, "tool_calls", None)
-            if tool_calls_delta:
-                meta["tool_calls"] = tool_calls_delta
-            sc = StreamingChunk(content=content, meta=meta, component_info=component_info)
-            chunks.append(sc)
-            await callback(sc)
+            stream_chunk = _convert_litellm_chunk_to_streaming_chunk(chunk, chunks, component_info)
+            chunks.append(stream_chunk)
+            await callback(stream_chunk)
         return [_convert_streaming_chunks_to_chat_message(chunks=chunks)]
 
     def to_dict(self) -> dict[str, Any]:
@@ -262,6 +241,29 @@ class LiteLLMChatGenerator:
         return default_from_dict(cls, data)
 
 
+# LiteLLM normalizes provider finish reasons to OpenAI's vocabulary, but we still map
+# explicitly so the value matches Haystack's FinishReason literal.
+_FINISH_REASON_MAPPING: dict[str, FinishReason] = {
+    "stop": "stop",
+    "length": "length",
+    "content_filter": "content_filter",
+    "tool_calls": "tool_calls",
+    "function_call": "tool_calls",
+}
+
+
+def _extract_usage(obj: Any) -> dict[str, int]:
+    """Pull token usage off a litellm response or chunk, tolerating its absence."""
+    usage = getattr(obj, "usage", None)
+    if not usage:
+        return {}
+    return {
+        "prompt_tokens": getattr(usage, "prompt_tokens", 0),
+        "completion_tokens": getattr(usage, "completion_tokens", 0),
+        "total_tokens": getattr(usage, "total_tokens", 0),
+    }
+
+
 def _build_chat_message(response: Any, choice: Any) -> ChatMessage:
     """Convert a single litellm choice into a haystack ChatMessage."""
     message = choice.message
@@ -275,7 +277,7 @@ def _build_chat_message(response: Any, choice: Any) -> ChatMessage:
                 try:
                     args = json.loads(args)
                 except json.JSONDecodeError:
-                    logger.warning("Failed to parse tool call arguments as JSON: %s", args)
+                    logger.warning("Failed to parse tool call arguments as JSON: {arguments}", arguments=args)
                     args = {"raw": args}
             tool_calls.append(ToolCall(tool_name=tc.function.name, arguments=args, id=tc.id))
 
@@ -284,13 +286,78 @@ def _build_chat_message(response: Any, choice: Any) -> ChatMessage:
         "model": response.model,
         "index": choice.index,
         "finish_reason": choice.finish_reason,
-        "usage": {},
+        "usage": _extract_usage(response),
     }
-    if hasattr(response, "usage") and response.usage:
-        meta["usage"] = {
-            "prompt_tokens": response.usage.prompt_tokens,
-            "completion_tokens": response.usage.completion_tokens,
-            "total_tokens": response.usage.total_tokens,
-        }
 
     return ChatMessage.from_assistant(text=text, tool_calls=tool_calls, meta=meta)
+
+
+def _convert_litellm_chunk_to_streaming_chunk(
+    chunk: Any, previous_chunks: list[StreamingChunk], component_info: ComponentInfo
+) -> StreamingChunk:
+    """Convert a single litellm streaming chunk into a Haystack ``StreamingChunk``.
+
+    The structured fields (``tool_calls``, ``finish_reason``, ``index``) are populated so that
+    ``_convert_streaming_chunks_to_chat_message`` can reconstruct tool calls and metadata; it reads
+    those fields, not ``meta``. LiteLLM returns OpenAI-compatible chunks, but unlike the OpenAI SDK
+    its chunk objects don't always expose a ``usage`` attribute, so it is accessed defensively.
+    """
+    usage = _extract_usage(chunk) or None
+
+    # Final usage-only chunk: no choices, just aggregate token counts.
+    if not chunk.choices:
+        return StreamingChunk(
+            content="",
+            component_info=component_info,
+            index=None,
+            finish_reason=None,
+            meta={"model": chunk.model, "usage": usage},
+        )
+
+    choice = chunk.choices[0]
+    delta = choice.delta
+    finish_reason = _FINISH_REASON_MAPPING.get(choice.finish_reason) if choice.finish_reason else None
+    meta: dict[str, Any] = {
+        "model": chunk.model,
+        "index": choice.index,
+        "finish_reason": choice.finish_reason,
+        "usage": usage,
+    }
+
+    tool_calls = getattr(delta, "tool_calls", None) if delta else None
+    if tool_calls:
+        tool_call_deltas = []
+        for tc in tool_calls:
+            function = tc.function
+            tool_call_deltas.append(
+                ToolCallDelta(
+                    index=tc.index,
+                    id=tc.id,
+                    tool_name=function.name if function else None,
+                    arguments=function.arguments if function and function.arguments else None,
+                )
+            )
+        return StreamingChunk(
+            content=(delta.content or "") if delta else "",
+            component_info=component_info,
+            # ToolCallDelta requires an index; adopt the first one as the chunk index.
+            index=tool_call_deltas[0].index,
+            tool_calls=tool_call_deltas,
+            start=tool_call_deltas[0].tool_name is not None,
+            finish_reason=finish_reason,
+            meta=meta,
+        )
+
+    content = (delta.content or "") if delta else ""
+    # The opening chunk only carries role info (no content), so it isn't a content block.
+    role = getattr(delta, "role", None) if delta else None
+    resolved_index = None if (delta is None or delta.content is None or role is not None) else 0
+
+    return StreamingChunk(
+        content=content,
+        component_info=component_info,
+        index=resolved_index,
+        start=len(previous_chunks) == 1,
+        finish_reason=finish_reason,
+        meta=meta,
+    )

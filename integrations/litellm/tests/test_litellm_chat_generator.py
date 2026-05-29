@@ -1,7 +1,9 @@
 """Tests for the LiteLLM Chat Generator integration."""
 
+import os
 import sys
 import types
+from types import SimpleNamespace
 from unittest import mock
 from unittest.mock import MagicMock
 
@@ -37,34 +39,39 @@ def _make_mock_response(content="Hello!", model="openai/gpt-4o", tool_calls=None
     return resp
 
 
-def _make_mock_stream_chunks(content="Hello!"):
-    """Build mock streaming chunks."""
-    chunks = []
+def _delta(content=None, role=None, tool_calls=None):
+    """Build a litellm-like streaming delta with explicit attributes.
+
+    We use SimpleNamespace rather than MagicMock so that unset attributes behave
+    like a real litellm delta (absent/None) instead of returning truthy mocks.
+    """
+    return SimpleNamespace(content=content, role=role, tool_calls=tool_calls)
+
+
+def _stream_chunk(choices, model="openai/gpt-4o", usage=None):
+    return SimpleNamespace(choices=choices, model=model, usage=usage)
+
+
+def _stream_choice(delta, finish_reason=None, index=0):
+    return SimpleNamespace(delta=delta, finish_reason=finish_reason, index=index)
+
+
+def _make_mock_stream_chunks(content="Hello!", usage=None):
+    """Build mock streaming chunks for a plain text completion."""
+    chunks = [_stream_chunk([_stream_choice(_delta(role="assistant", content=None))])]
     for char in content:
-        delta = MagicMock()
-        delta.content = char
-        delta.tool_calls = None
-
-        choice = MagicMock()
-        choice.delta = delta
-        choice.finish_reason = None
-
-        chunk = MagicMock()
-        chunk.choices = [choice]
-        chunk.model = "openai/gpt-4o"
-        chunks.append(chunk)
-
-    # Final chunk with finish_reason
-    delta = MagicMock()
-    delta.content = None
-    choice = MagicMock()
-    choice.delta = delta
-    choice.finish_reason = "stop"
-    chunk = MagicMock()
-    chunk.choices = [choice]
-    chunk.model = "openai/gpt-4o"
-    chunks.append(chunk)
+        chunks.append(_stream_chunk([_stream_choice(_delta(content=char))]))
+    # Final content chunk carrying the finish reason.
+    chunks.append(_stream_chunk([_stream_choice(_delta(content=None), finish_reason="stop")]))
+    if usage is not None:
+        # Providers commonly send a trailing usage-only chunk with empty choices.
+        chunks.append(_stream_chunk([], usage=usage))
     return chunks
+
+
+def _tool_call_chunk_delta(index, call_id=None, name=None, arguments=None):
+    function = SimpleNamespace(name=name, arguments=arguments)
+    return SimpleNamespace(index=index, id=call_id, function=function)
 
 
 class TestLiteLLMChatGeneratorInit:
@@ -234,7 +241,8 @@ class TestRun:
 
     def test_streaming_content_accumulated(self):
         gen = LiteLLMChatGenerator(model="openai/gpt-4o")
-        chunks = _make_mock_stream_chunks("Hi!")
+        usage = SimpleNamespace(prompt_tokens=10, completion_tokens=5, total_tokens=15)
+        chunks = _make_mock_stream_chunks("Hi!", usage=usage)
 
         fake_litellm = types.ModuleType("litellm")
         fake_litellm.completion = MagicMock(return_value=iter(chunks))
@@ -248,8 +256,48 @@ class TestRun:
             result = gen.run(messages=[ChatMessage.from_user("hi")], streaming_callback=callback)
             assert len(collected) > 0
             assert len(result["replies"]) == 1
+
             full_text = "".join(c.content for c in collected)
             assert "Hi!" in full_text
+
+            # finish_reason and usage must survive aggregation, not just the streamed text.
+            reply = result["replies"][0]
+            assert reply.text == "Hi!"
+            assert reply.meta["finish_reason"] == "stop"
+            assert reply.meta["usage"]["prompt_tokens"] == 10
+            assert reply.meta["usage"]["total_tokens"] == 15
+
+    def test_streaming_tool_calls_reconstructed(self):
+        # Tool call arguments stream across multiple chunks and must be reassembled.
+        gen = LiteLLMChatGenerator(model="openai/gpt-4o")
+        chunks = [
+            _stream_chunk([_stream_choice(_delta(role="assistant", content=None))]),
+            _stream_chunk(
+                [
+                    _stream_choice(
+                        _delta(tool_calls=[_tool_call_chunk_delta(index=0, call_id="call_1", name="get_weather")])
+                    )
+                ]
+            ),
+            _stream_chunk(
+                [_stream_choice(_delta(tool_calls=[_tool_call_chunk_delta(index=0, arguments='{"city": ')]))]
+            ),
+            _stream_chunk([_stream_choice(_delta(tool_calls=[_tool_call_chunk_delta(index=0, arguments='"Paris"}')]))]),
+            _stream_chunk([_stream_choice(_delta(content=None), finish_reason="tool_calls")]),
+        ]
+
+        fake_litellm = types.ModuleType("litellm")
+        fake_litellm.completion = MagicMock(return_value=iter(chunks))
+
+        with mock.patch.dict(sys.modules, {"litellm": fake_litellm}):
+            result = gen.run(messages=[ChatMessage.from_user("weather in Paris?")], streaming_callback=lambda _c: None)
+            reply = result["replies"][0]
+            assert reply.tool_calls is not None
+            assert len(reply.tool_calls) == 1
+            assert reply.tool_calls[0].id == "call_1"
+            assert reply.tool_calls[0].tool_name == "get_weather"
+            assert reply.tool_calls[0].arguments == {"city": "Paris"}
+            assert reply.meta["finish_reason"] == "tool_calls"
 
     def test_generation_kwargs_runtime_overrides_init(self):
         gen = LiteLLMChatGenerator(model="openai/gpt-4o", generation_kwargs={"temperature": 0.5})
@@ -347,3 +395,44 @@ class TestAsync:
         gen = LiteLLMChatGenerator(model="openai/gpt-4o")
         result = await gen.run_async(messages=[])
         assert result == {"replies": []}
+
+    @pytest.mark.asyncio
+    async def test_run_async_streaming(self):
+        gen = LiteLLMChatGenerator(model="openai/gpt-4o")
+        usage = SimpleNamespace(prompt_tokens=10, completion_tokens=5, total_tokens=15)
+        chunks = _make_mock_stream_chunks("Hi!", usage=usage)
+
+        async def _aiter():
+            for chunk in chunks:
+                yield chunk
+
+        fake_litellm = types.ModuleType("litellm")
+
+        async def _acompletion(**_kwargs):
+            return _aiter()
+
+        fake_litellm.acompletion = _acompletion
+
+        collected = []
+
+        async def callback(chunk: StreamingChunk) -> None:
+            collected.append(chunk)
+
+        with mock.patch.dict(sys.modules, {"litellm": fake_litellm}):
+            result = await gen.run_async(messages=[ChatMessage.from_user("hi")], streaming_callback=callback)
+            assert len(collected) > 0
+            reply = result["replies"][0]
+            assert reply.text == "Hi!"
+            assert reply.meta["finish_reason"] == "stop"
+            assert reply.meta["usage"]["total_tokens"] == 15
+
+
+@pytest.mark.integration
+@pytest.mark.skipif(not os.environ.get("OPENAI_API_KEY"), reason="OPENAI_API_KEY not set")
+class TestLiveIntegration:
+    def test_live_completion(self):
+        gen = LiteLLMChatGenerator(model="openai/gpt-4o-mini", generation_kwargs={"max_tokens": 16})
+        result = gen.run(messages=[ChatMessage.from_user("Reply with the single word: OK")])
+        assert len(result["replies"]) == 1
+        assert result["replies"][0].text
+        assert result["replies"][0].meta["usage"]["total_tokens"] > 0
