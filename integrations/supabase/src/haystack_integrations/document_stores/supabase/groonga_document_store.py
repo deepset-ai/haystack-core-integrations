@@ -66,6 +66,10 @@ class SupabaseGroongaDocumentStore(DocumentStore):
         :param recreate_table: Whether to drop and recreate the table on startup.
             Defaults to `False`.
         """
+        if not re.fullmatch(r"[a-zA-Z_][a-zA-Z0-9_]*", table_name):
+            msg = f"Invalid table_name {table_name!r}: must match [a-zA-Z_][a-zA-Z0-9_]*"
+            raise ValueError(msg)
+
         self.supabase_url = supabase_url
         self.supabase_key = supabase_key
         self.table_name = table_name
