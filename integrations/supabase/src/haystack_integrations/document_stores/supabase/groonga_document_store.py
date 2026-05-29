@@ -2,6 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+import re
 from typing import Any
 
 from haystack import default_from_dict, default_to_dict, logging
