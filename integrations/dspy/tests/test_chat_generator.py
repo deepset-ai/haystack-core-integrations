@@ -345,10 +345,11 @@ class TestDSPySignatureChatGenerator:
         response = component.run(chat_messages, generation_kwargs={"temperature": 0.9})
 
         _, kwargs = mock_dspy_module.call_args
-        assert kwargs["config"] == {"temperature": 0.9}
+        assert kwargs["config"] == {"max_tokens": 10, "temperature": 0.9}
 
         assert isinstance(response, dict)
         assert "replies" in response
+        assert "metadata" in response
         assert len(response["replies"]) == 1
         assert all(isinstance(reply, ChatMessage) for reply in response["replies"])
 
@@ -438,6 +439,50 @@ class TestDSPySignatureChatGenerator:
 
         with pytest.raises(Exception, match="Invalid model name"):
             generator.run(messages=[ChatMessage.from_user("Whatever")])
+
+    def test_run_mistral_prompt_formatting(self, mock_dspy_module):
+        component = DSPySignatureChatGenerator(signature="question -> answer", model="mistral-small")
+        messages = [ChatMessage.from_user("Test mistral prompt")]
+        component.run(messages=messages)
+        call_kwargs = mock_dspy_module.call_args.kwargs
+        assert "<s>[INST] Test mistral prompt [/INST]" in call_kwargs.get("question")
+
+    def test_run_without_input_mapping_but_with_kwargs(self, mock_dspy_module):
+        component = DSPySignatureChatGenerator(signature="context, question -> answer")
+        messages = [ChatMessage.from_user("The prompt text")]
+        component.run(messages=messages, question="The question kwarg")
+        call_kwargs = mock_dspy_module.call_args.kwargs
+        assert call_kwargs.get("context") == "The prompt text"
+        assert call_kwargs.get("question") == "The question kwarg"
+
+    def test_run_without_input_mapping_and_missing_kwargs(self, mock_dspy_module):
+        component = DSPySignatureChatGenerator(signature="context, question -> answer")
+        messages = [ChatMessage.from_user("The context text")]
+        component.run(messages=messages)
+        call_kwargs = mock_dspy_module.call_args.kwargs
+        assert call_kwargs.get("context") == "The context text"
+        assert "question" not in call_kwargs
+
+    def test_run_with_signature_class_without_mapping(self, mock_dspy_module, sample_qa_signature):
+        component = DSPySignatureChatGenerator(
+            signature=sample_qa_signature,
+        )
+        messages = [ChatMessage.from_user("The question")]
+        component.run(messages=messages)
+        call_kwargs = mock_dspy_module.call_args.kwargs
+        assert call_kwargs.get("question") == "The question"
+
+    def test_from_dict_without_signature_dict_in_init_params(self, mock_dspy_module):
+        """Test deserialization when signature is a plain string instead of a dict."""
+        data = {
+            "type": "haystack_integrations.components.generators.dspy.chat.chat_generator.DSPySignatureChatGenerator",
+            "init_parameters": {
+                "signature": "question -> answer",
+                "model": "openai/gpt-4o",
+            },
+        }
+        component = DSPySignatureChatGenerator.from_dict(data)
+        assert component.signature == "question -> answer"
 
     @pytest.mark.skipif(
         not os.environ.get("OPENAI_API_KEY", None),

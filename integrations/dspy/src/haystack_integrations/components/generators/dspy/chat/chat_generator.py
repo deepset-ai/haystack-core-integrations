@@ -228,7 +228,7 @@ class DSPySignatureChatGenerator:
 
         return default_from_dict(cls, data)
 
-    @component.output_types(replies=list[ChatMessage])
+    @component.output_types(replies=list[ChatMessage], metadata=list[dict[str, Any]])
     def run(
         self,
         messages: list[ChatMessage],
@@ -246,22 +246,36 @@ class DSPySignatureChatGenerator:
         if not messages:
             msg = "The 'messages' parameter cannot be empty."
             raise ValueError(msg)
-
+        # 1. Extract prompt and handle model-specific formatting
         prompt = self._extract_last_user_message(messages)
+
+        if "mistral" in self.model.lower():
+            prompt = f"<s>[INST] {prompt} [/INST]"
+            # This fixes the issue for Mistral users
+        # 2. Prepare inputs and merge generation config
         dspy_inputs = self._build_dspy_inputs(prompt, **kwargs)
 
-        prediction = self._module(**dspy_inputs, config=generation_kwargs or {})
-
+        # Merge component-level kwargs with runtime-level kwargs
+        config = {**self.generation_kwargs, **(generation_kwargs or {})}
+        # 3. Execute the DSPy module
+        prediction = self._module(**dspy_inputs, config=config)
+        # 4. Extract result with safety check
         if not hasattr(prediction, self.output_field):
             available = list(prediction.keys())
             msg = f"Output field '{self.output_field}' not found in prediction. Available fields: {available}"
             raise ValueError(msg)
         output_text = getattr(prediction, self.output_field)
+        # 5. Build rich metadata (Important for Haystack)
+        metadata = {
+            "model": self.model,
+            "module_type": self.module_type,
+            "signature": str(self.signature),
+            # DSPy predictions often store reasoning in 'rationale' for CoT
+            "rationale": getattr(prediction, "rationale", None),
+        }
+        return {"replies": [ChatMessage.from_assistant(text=output_text)], "metadata": [metadata]}
 
-        replies = [ChatMessage.from_assistant(text=output_text)]
-        return {"replies": replies}
-
-    @component.output_types(replies=list[ChatMessage])
+    @component.output_types(replies=list[ChatMessage], metadata=list[dict[str, Any]])
     async def run_async(
         self,
         messages: list[ChatMessage],
@@ -284,14 +298,17 @@ class DSPySignatureChatGenerator:
 
         prompt = self._extract_last_user_message(messages)
         dspy_inputs = self._build_dspy_inputs(prompt, **kwargs)
-
-        prediction = await self._module.acall(**dspy_inputs, config=generation_kwargs or {})
+        config = {**self.generation_kwargs, **(generation_kwargs or {})}
+        prediction = await self._module.acall(**dspy_inputs, config=config)
 
         if not hasattr(prediction, self.output_field):
             available = list(prediction.keys())
             msg = f"Output field '{self.output_field}' not found in prediction. Available fields: {available}"
             raise ValueError(msg)
         output_text = getattr(prediction, self.output_field)
+        metadata = {
+            "model": self.model,
+            "rationale": getattr(prediction, "rationale", None),
+        }
 
-        replies = [ChatMessage.from_assistant(text=output_text)]
-        return {"replies": replies}
+        return {"replies": [ChatMessage.from_assistant(text=output_text)], "metadata": [metadata]}

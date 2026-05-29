@@ -74,6 +74,7 @@ class TestDSPySignatureChatGeneratorAsync:
     async def test_run_async_with_params(self, chat_messages, mock_dspy_module):
         component = DSPySignatureChatGenerator(
             signature="question -> answer",
+            generation_kwargs={"max_tokens": 10, "temperature": 0.5},
         )
         response = await component.run_async(
             messages=chat_messages,
@@ -81,10 +82,11 @@ class TestDSPySignatureChatGeneratorAsync:
         )
 
         _, kwargs = mock_dspy_module.acall.call_args
-        assert kwargs["config"] == {"temperature": 0.9}
+        assert kwargs["config"] == {"max_tokens": 10, "temperature": 0.9}
 
         assert isinstance(response, dict)
         assert "replies" in response
+        assert "metadata" in response
         assert len(response["replies"]) == 1
         assert all(isinstance(reply, ChatMessage) for reply in response["replies"])
 
@@ -95,3 +97,16 @@ class TestDSPySignatureChatGeneratorAsync:
         )
         with pytest.raises(ValueError, match="messages"):
             await component.run_async(messages=[])
+
+    @pytest.mark.asyncio
+    async def test_run_async_with_wrong_output_field(self, mock_dspy_module):
+        prediction = MagicMock(spec=["answer", "keys"])
+        prediction.keys.return_value = ["answer"]
+        mock_dspy_module.acall.return_value = prediction
+        component = DSPySignatureChatGenerator(
+            signature="question -> answer",
+            output_field="nonexistent",
+        )
+        messages = [ChatMessage.from_user("Hello")]
+        with pytest.raises(ValueError, match="Output field 'nonexistent' not found"):
+            await component.run_async(messages=messages)
