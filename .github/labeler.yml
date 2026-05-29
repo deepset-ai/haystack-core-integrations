@@ -63,6 +63,11 @@ integration:chroma:
   - changed-files:
       - any-glob-to-any-file: "integrations/chroma/**/*"
       - any-glob-to-any-file: ".github/workflows/chroma.yml"
+      
+integration:cognee:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/cognee/**/*"
+      - any-glob-to-any-file: ".github/workflows/cognee.yml"
 
 integration:cohere:
   - changed-files:
