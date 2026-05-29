@@ -427,6 +427,19 @@ class TestAsync:
             assert reply.meta["usage"]["total_tokens"] == 15
 
 
+def _weather_tool():
+    def get_weather(city: str) -> str:
+        """Get the weather for a city."""
+        return f"Sunny in {city}"
+
+    return Tool(
+        function=get_weather,
+        name="get_weather",
+        description="Get the current weather for a given city.",
+        parameters={"type": "object", "properties": {"city": {"type": "string"}}, "required": ["city"]},
+    )
+
+
 @pytest.mark.integration
 @pytest.mark.skipif(not os.environ.get("OPENAI_API_KEY"), reason="OPENAI_API_KEY not set")
 class TestLiveIntegration:
@@ -436,3 +449,53 @@ class TestLiveIntegration:
         assert len(result["replies"]) == 1
         assert result["replies"][0].text
         assert result["replies"][0].meta["usage"]["total_tokens"] > 0
+
+    def test_live_streaming(self):
+        collected = []
+
+        def callback(chunk: StreamingChunk) -> None:
+            collected.append(chunk)
+
+        gen = LiteLLMChatGenerator(
+            model="openai/gpt-4o-mini",
+            streaming_callback=callback,
+            # Ask OpenAI to emit a trailing usage-only chunk so the no-choices branch is exercised.
+            generation_kwargs={"max_tokens": 32, "stream_options": {"include_usage": True}},
+        )
+        result = gen.run(messages=[ChatMessage.from_user("Count from 1 to 5, comma-separated.")])
+
+        assert len(collected) > 1  # genuinely streamed in multiple chunks
+        reply = result["replies"][0]
+        assert reply.text.strip()
+        assert reply.meta["finish_reason"] == "stop"
+        assert reply.meta["usage"]["total_tokens"] > 0
+
+    def test_live_tool_call(self):
+        gen = LiteLLMChatGenerator(model="openai/gpt-4o-mini", tools=[_weather_tool()])
+        result = gen.run(messages=[ChatMessage.from_user("What's the weather in Paris? Use the get_weather tool.")])
+        reply = result["replies"][0]
+        assert reply.tool_calls, "expected the model to request a tool call"
+        assert reply.tool_calls[0].tool_name == "get_weather"
+        assert reply.tool_calls[0].arguments.get("city")
+        assert reply.meta["finish_reason"] == "tool_calls"
+
+    def test_live_streaming_tool_call(self):
+        collected = []
+
+        def callback(chunk: StreamingChunk) -> None:
+            collected.append(chunk)
+
+        gen = LiteLLMChatGenerator(
+            model="openai/gpt-4o-mini",
+            tools=[_weather_tool()],
+            streaming_callback=callback,
+        )
+        result = gen.run(messages=[ChatMessage.from_user("What's the weather in Paris? Use the get_weather tool.")])
+
+        assert len(collected) > 0
+        reply = result["replies"][0]
+        # The streamed tool-call deltas must be reassembled into a single parsed ToolCall.
+        assert reply.tool_calls, "expected the streamed response to contain a tool call"
+        assert reply.tool_calls[0].tool_name == "get_weather"
+        assert reply.tool_calls[0].arguments.get("city")
+        assert reply.meta["finish_reason"] == "tool_calls"
