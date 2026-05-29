@@ -152,10 +152,10 @@ class LiteLLMChatGenerator:
         :param tools: Override tools for this call.
         :returns: A dict with key ``replies`` containing ChatMessage instances.
         """
-        import litellm
-
         if not messages:
             return {"replies": []}
+
+        import litellm
 
         streaming_callback = select_streaming_callback(
             init_callback=self.streaming_callback, runtime_callback=streaming_callback, requires_async=False
@@ -180,10 +180,10 @@ class LiteLLMChatGenerator:
         tools: ToolsType | None = None,
     ) -> dict[str, list[ChatMessage]]:
         """Async version of run()."""
-        import litellm
-
         if not messages:
             return {"replies": []}
+
+        import litellm
 
         streaming_callback = select_streaming_callback(
             init_callback=self.streaming_callback, runtime_callback=streaming_callback, requires_async=True
