@@ -318,7 +318,25 @@ class TestRun:
 
         with mock.patch.dict(sys.modules, {"litellm": fake_litellm}):
             result = gen.run(messages=[ChatMessage.from_user("hi")])
-            assert result["replies"][0].text == ""
+            # None content yields no text block (matching the OpenAI generator), not an empty string.
+            assert result["replies"][0].text is None
+
+    def test_malformed_tool_call_arguments_skipped(self):
+        tc = MagicMock()
+        tc.id = "call_bad"
+        tc.function.name = "get_weather"
+        tc.function.arguments = "{not valid json"
+
+        gen = LiteLLMChatGenerator(model="openai/gpt-4o")
+        mock_resp = _make_mock_response(content=None, tool_calls=[tc])
+
+        fake_litellm = types.ModuleType("litellm")
+        fake_litellm.completion = MagicMock(return_value=mock_resp)
+
+        with mock.patch.dict(sys.modules, {"litellm": fake_litellm}):
+            result = gen.run(messages=[ChatMessage.from_user("weather?")])
+            # A tool call with unparseable arguments is dropped rather than passed through.
+            assert not result["replies"][0].tool_calls
 
     def test_tools_sent_to_litellm(self):
         def weather(city: str) -> str:
@@ -376,16 +394,13 @@ class TestAsync:
         mock_resp = _make_mock_response("async reply")
 
         fake_litellm = types.ModuleType("litellm")
-        fake_litellm.acompletion = MagicMock(return_value=mock_resp)
+
+        async def _acompletion(**_kwargs):
+            return mock_resp
+
+        fake_litellm.acompletion = _acompletion
 
         with mock.patch.dict(sys.modules, {"litellm": fake_litellm}):
-            # acompletion needs to be an awaitable
-            import asyncio
-
-            future = asyncio.Future()
-            future.set_result(mock_resp)
-            fake_litellm.acompletion = MagicMock(return_value=future)
-
             result = await gen.run_async(messages=[ChatMessage.from_user("hi")])
             assert len(result["replies"]) == 1
             assert result["replies"][0].text == "async reply"

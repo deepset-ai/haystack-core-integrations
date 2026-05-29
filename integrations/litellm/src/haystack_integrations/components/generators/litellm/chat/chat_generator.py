@@ -267,21 +267,29 @@ def _extract_usage(obj: Any) -> dict[str, int]:
 def _build_chat_message(response: Any, choice: Any) -> ChatMessage:
     """Convert a single litellm choice into a haystack ChatMessage."""
     message = choice.message
-    tool_calls = None
 
-    if hasattr(message, "tool_calls") and message.tool_calls:
-        tool_calls = []
+    # Keep content as-is (None for tool-only replies) so we don't attach an empty text block,
+    # matching both Haystack's OpenAI generator and our own streaming aggregation.
+    text = message.content
+
+    tool_calls = []
+    if getattr(message, "tool_calls", None):
         for tc in message.tool_calls:
-            args = tc.function.arguments
-            if isinstance(args, str):
+            arguments = tc.function.arguments
+            if isinstance(arguments, str):
                 try:
-                    args = json.loads(args)
+                    arguments = json.loads(arguments)
                 except json.JSONDecodeError:
-                    logger.warning("Failed to parse tool call arguments as JSON: {arguments}", arguments=args)
-                    args = {"raw": args}
-            tool_calls.append(ToolCall(tool_name=tc.function.name, arguments=args, id=tc.id))
+                    logger.warning(
+                        "The LLM provider returned a malformed JSON string for tool call arguments. This tool "
+                        "call will be skipped. Tool call ID: {_id}, Tool name: {_name}, Arguments: {_arguments}",
+                        _id=tc.id,
+                        _name=tc.function.name,
+                        _arguments=arguments,
+                    )
+                    continue
+            tool_calls.append(ToolCall(tool_name=tc.function.name, arguments=arguments, id=tc.id))
 
-    text = message.content or ""
     meta: dict[str, Any] = {
         "model": response.model,
         "index": choice.index,
