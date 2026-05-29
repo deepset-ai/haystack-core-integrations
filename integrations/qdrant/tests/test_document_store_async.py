@@ -1,12 +1,27 @@
 from unittest.mock import MagicMock, patch
 
 import pytest
+import pytest_asyncio
 from haystack import Document
 from haystack.dataclasses import SparseEmbedding
 from haystack.document_stores.errors import DuplicateDocumentError
 from haystack.document_stores.types import DuplicatePolicy
 from haystack.testing.document_store import (
     _random_embeddings,
+)
+from haystack.testing.document_store_async import (
+    CountDocumentsAsyncTest,
+    CountDocumentsByFilterAsyncTest,
+    CountUniqueMetadataByFilterAsyncTest,
+    DeleteAllAsyncTest,
+    DeleteByFilterAsyncTest,
+    DeleteDocumentsAsyncTest,
+    FilterDocumentsAsyncTest,
+    GetMetadataFieldMinMaxAsyncTest,
+    GetMetadataFieldsInfoAsyncTest,
+    GetMetadataFieldUniqueValuesAsyncTest,
+    UpdateByFilterAsyncTest,
+    WriteDocumentsAsyncTest,
 )
 from qdrant_client.http import models as rest
 
@@ -150,10 +165,23 @@ class TestQdrantDocumentStoreAsyncUnit:
 
 @pytest.mark.integration
 @pytest.mark.asyncio
-class TestQdrantDocumentStoreAsync:
-    @pytest.fixture
-    def document_store(self) -> QdrantDocumentStore:
-        return QdrantDocumentStore(
+class TestQdrantDocumentStoreAsync(
+    CountDocumentsAsyncTest,
+    WriteDocumentsAsyncTest,
+    DeleteDocumentsAsyncTest,
+    DeleteAllAsyncTest,
+    DeleteByFilterAsyncTest,
+    FilterDocumentsAsyncTest,
+    UpdateByFilterAsyncTest,
+    CountDocumentsByFilterAsyncTest,
+    CountUniqueMetadataByFilterAsyncTest,
+    GetMetadataFieldsInfoAsyncTest,
+    GetMetadataFieldMinMaxAsyncTest,
+    GetMetadataFieldUniqueValuesAsyncTest,
+):
+    @pytest_asyncio.fixture
+    async def document_store(self):
+        store = QdrantDocumentStore(
             ":memory:",
             recreate_index=True,
             return_embedding=True,
@@ -161,12 +189,16 @@ class TestQdrantDocumentStoreAsync:
             use_sparse_embeddings=False,
             progress_bar=False,
         )
+        yield store
 
+    def assert_documents_are_equal(self, received: list[Document], expected: list[Document]):
+        assert len(received) == len(expected)
+        assert {doc.id for doc in received} == {doc.id for doc in expected}
+
+    @pytest.mark.asyncio
     async def test_write_documents_async(self, document_store: QdrantDocumentStore):
         docs = [Document(id="1")]
-
-        result = await document_store.write_documents_async(docs)
-        assert result == 1
+        assert await document_store.write_documents_async(docs) == 1
         with pytest.raises(DuplicateDocumentError):
             await document_store.write_documents_async(docs, DuplicatePolicy.FAIL)
 
@@ -183,7 +215,6 @@ class TestQdrantDocumentStoreAsync:
         sparse_config = collection.config.params.sparse_vectors
 
         assert SPARSE_VECTORS_NAME in sparse_config
-
         # check that the `sparse_idf` parameter takes effect
         assert hasattr(sparse_config[SPARSE_VECTORS_NAME], "modifier")
         assert sparse_config[SPARSE_VECTORS_NAME].modifier == rest.Modifier.IDF
@@ -255,235 +286,6 @@ class TestQdrantDocumentStoreAsync:
                 query_embedding=embedding,
             )
 
-    async def test_delete_all_documents_async_no_index_recreation(self, document_store):
-        await document_store._initialize_async_client()
-
-        # write some documents
-        docs = [Document(id=str(i)) for i in range(5)]
-        await document_store.write_documents_async(docs)
-
-        # delete all documents without recreating the index
-        await document_store.delete_all_documents_async(recreate_index=False)
-        assert await document_store.count_documents_async() == 0
-
-        # ensure the collection still exists by writing documents again
-        await document_store.write_documents_async(docs)
-        assert await document_store.count_documents_async() == 5
-
-    async def test_delete_all_documents_async_index_recreation(self, document_store):
-        await document_store._initialize_async_client()
-
-        # write some documents
-        docs = [Document(id=str(i)) for i in range(5)]
-        await document_store.write_documents_async(docs)
-
-        # get the current document_store config
-        config_before = await document_store._async_client.get_collection(document_store.index)
-
-        # delete all documents with recreating the index
-        await document_store.delete_all_documents_async(recreate_index=True)
-        assert await document_store.count_documents_async() == 0
-
-        # assure that with the same config
-        config_after = await document_store._async_client.get_collection(document_store.index)
-
-        assert config_before.config == config_after.config
-
-        # ensure the collection still exists by writing documents again
-        await document_store.write_documents_async(docs)
-        assert await document_store.count_documents_async() == 5
-
-    async def test_delete_by_filter_async(self, document_store: QdrantDocumentStore):
-        docs = [
-            Document(content="Doc 1", meta={"category": "A", "year": 2023}),
-            Document(content="Doc 2", meta={"category": "B", "year": 2023}),
-            Document(content="Doc 3", meta={"category": "A", "year": 2024}),
-        ]
-        await document_store.write_documents_async(docs)
-        assert await document_store.count_documents_async() == 3
-
-        # Delete documents with category="A"
-        deleted_count = await document_store.delete_by_filter_async(
-            filters={"field": "meta.category", "operator": "==", "value": "A"}
-        )
-        assert deleted_count == 2
-        assert await document_store.count_documents_async() == 1
-
-        # Verify only category B remains
-        remaining_docs = []
-        async for doc in document_store._get_documents_generator_async():
-            remaining_docs.append(doc)
-        assert len(remaining_docs) == 1
-        assert remaining_docs[0].meta["category"] == "B"
-
-        # Delete remaining document by year
-        deleted_count = await document_store.delete_by_filter_async(
-            filters={"field": "meta.year", "operator": "==", "value": 2023}
-        )
-        assert deleted_count == 1
-        assert await document_store.count_documents_async() == 0
-
-    async def test_delete_by_filter_async_no_matches(self, document_store: QdrantDocumentStore):
-        docs = [
-            Document(content="Doc 1", meta={"category": "A"}),
-            Document(content="Doc 2", meta={"category": "B"}),
-        ]
-        await document_store.write_documents_async(docs)
-        assert await document_store.count_documents_async() == 2
-
-        # Try to delete documents with category="C" (no matches)
-        deleted_count = await document_store.delete_by_filter_async(
-            filters={"field": "meta.category", "operator": "==", "value": "C"}
-        )
-        assert deleted_count == 0
-        assert await document_store.count_documents_async() == 2
-
-    async def test_delete_by_filter_async_advanced_filters(self, document_store: QdrantDocumentStore):
-        docs = [
-            Document(content="Doc 1", meta={"category": "A", "year": 2023, "status": "draft"}),
-            Document(content="Doc 2", meta={"category": "A", "year": 2024, "status": "published"}),
-            Document(content="Doc 3", meta={"category": "B", "year": 2023, "status": "draft"}),
-        ]
-        await document_store.write_documents_async(docs)
-        assert await document_store.count_documents_async() == 3
-
-        # AND condition (matches only Doc 1)
-        deleted_count = await document_store.delete_by_filter_async(
-            filters={
-                "operator": "AND",
-                "conditions": [
-                    {"field": "meta.category", "operator": "==", "value": "A"},
-                    {"field": "meta.year", "operator": "==", "value": 2023},
-                ],
-            }
-        )
-        assert deleted_count == 1
-        assert await document_store.count_documents_async() == 2
-
-        # OR condition (matches Doc 2 and Doc 3)
-        deleted_count = await document_store.delete_by_filter_async(
-            filters={
-                "operator": "OR",
-                "conditions": [
-                    {"field": "meta.category", "operator": "==", "value": "B"},
-                    {"field": "meta.status", "operator": "==", "value": "published"},
-                ],
-            }
-        )
-        assert deleted_count == 2
-        assert await document_store.count_documents_async() == 0
-
-    async def test_update_by_filter_async(self, document_store: QdrantDocumentStore):
-        docs = [
-            Document(content="Doc 1", meta={"category": "A", "status": "draft"}),
-            Document(content="Doc 2", meta={"category": "B", "status": "draft"}),
-            Document(content="Doc 3", meta={"category": "A", "status": "draft"}),
-        ]
-        await document_store.write_documents_async(docs)
-        assert await document_store.count_documents_async() == 3
-
-        # Update status for category="A" documents
-        updated_count = await document_store.update_by_filter_async(
-            filters={"field": "meta.category", "operator": "==", "value": "A"}, meta={"status": "published"}
-        )
-        assert updated_count == 2
-
-        # Verify the updated documents have the new metadata
-        published_docs = []
-        async for doc in document_store._get_documents_generator_async(
-            filters={"field": "meta.status", "operator": "==", "value": "published"}
-        ):
-            published_docs.append(doc)
-        assert len(published_docs) == 2
-        for doc in published_docs:
-            assert doc.meta["status"] == "published"
-            assert doc.meta["category"] == "A"
-
-        # Verify documents with category="B" were not updated
-        draft_docs = []
-        async for doc in document_store._get_documents_generator_async(
-            filters={"field": "meta.status", "operator": "==", "value": "draft"}
-        ):
-            draft_docs.append(doc)
-        assert len(draft_docs) == 1
-        assert draft_docs[0].meta["category"] == "B"
-
-    async def test_update_by_filter_async_multiple_fields(self, document_store: QdrantDocumentStore):
-        docs = [
-            Document(content="Doc 1", meta={"category": "A", "year": 2023}),
-            Document(content="Doc 2", meta={"category": "A", "year": 2023}),
-            Document(content="Doc 3", meta={"category": "B", "year": 2024}),
-        ]
-        await document_store.write_documents_async(docs)
-        assert await document_store.count_documents_async() == 3
-
-        # Update multiple fields for category="A" documents
-        updated_count = await document_store.update_by_filter_async(
-            filters={"field": "meta.category", "operator": "==", "value": "A"},
-            meta={"status": "published", "reviewed": True},
-        )
-        assert updated_count == 2
-
-        # Verify updates
-        published_docs = []
-        async for doc in document_store._get_documents_generator_async(
-            filters={"field": "meta.status", "operator": "==", "value": "published"}
-        ):
-            published_docs.append(doc)
-        assert len(published_docs) == 2
-        for doc in published_docs:
-            assert doc.meta["status"] == "published"
-            assert doc.meta["reviewed"] is True
-            assert doc.meta["category"] == "A"
-            assert doc.meta["year"] == 2023  # Existing field preserved
-
-    async def test_update_by_filter_async_no_matches(self, document_store: QdrantDocumentStore):
-        docs = [
-            Document(content="Doc 1", meta={"category": "A"}),
-            Document(content="Doc 2", meta={"category": "B"}),
-        ]
-        await document_store.write_documents_async(docs)
-        assert await document_store.count_documents_async() == 2
-
-        # Try to update documents with category="C" (no matches)
-        updated_count = await document_store.update_by_filter_async(
-            filters={"field": "meta.category", "operator": "==", "value": "C"}, meta={"status": "published"}
-        )
-        assert updated_count == 0
-        assert await document_store.count_documents_async() == 2
-
-    async def test_update_by_filter_async_advanced_filters(self, document_store: QdrantDocumentStore):
-        docs = [
-            Document(content="Doc 1", meta={"category": "A", "year": 2023, "status": "draft"}),
-            Document(content="Doc 2", meta={"category": "A", "year": 2024, "status": "draft"}),
-            Document(content="Doc 3", meta={"category": "B", "year": 2023, "status": "draft"}),
-        ]
-        await document_store.write_documents_async(docs)
-        assert await document_store.count_documents_async() == 3
-
-        # Update with AND condition
-        updated_count = await document_store.update_by_filter_async(
-            filters={
-                "operator": "AND",
-                "conditions": [
-                    {"field": "meta.category", "operator": "==", "value": "A"},
-                    {"field": "meta.year", "operator": "==", "value": 2023},
-                ],
-            },
-            meta={"status": "published"},
-        )
-        assert updated_count == 1
-
-        # Verify only one document was updated
-        published_docs = []
-        async for doc in document_store._get_documents_generator_async(
-            filters={"field": "meta.status", "operator": "==", "value": "published"}
-        ):
-            published_docs.append(doc)
-        assert len(published_docs) == 1
-        assert published_docs[0].meta["category"] == "A"
-        assert published_docs[0].meta["year"] == 2023
-
     async def test_update_by_filter_async_preserves_vectors(self, document_store: QdrantDocumentStore):
         """Test that update_by_filter_async preserves document embeddings."""
         docs = [
@@ -507,146 +309,3 @@ class TestQdrantDocumentStoreAsync:
         assert len(updated_docs) == 1
         assert updated_docs[0].embedding is not None
         assert len(updated_docs[0].embedding) == 768
-
-    async def test_count_documents_by_filter_async(self, document_store: QdrantDocumentStore):
-        """Test counting documents with filters (async)."""
-        docs = [
-            Document(content="Doc 1", meta={"category": "A", "year": 2023}),
-            Document(content="Doc 2", meta={"category": "A", "year": 2024}),
-            Document(content="Doc 3", meta={"category": "B", "year": 2023}),
-            Document(content="Doc 4", meta={"category": "B", "year": 2024}),
-        ]
-        await document_store.write_documents_async(docs)
-
-        # Test counting all documents
-        count = await document_store.count_documents_async()
-        assert count == 4
-
-        # Test counting with single filter
-        count = await document_store.count_documents_by_filter_async(
-            filters={"field": "meta.category", "operator": "==", "value": "A"}
-        )
-        assert count == 2
-
-        # Test counting with multiple filters
-        count = await document_store.count_documents_by_filter_async(
-            filters={
-                "operator": "AND",
-                "conditions": [
-                    {"field": "meta.category", "operator": "==", "value": "B"},
-                    {"field": "meta.year", "operator": "==", "value": 2023},
-                ],
-            }
-        )
-        assert count == 1
-
-    async def test_get_metadata_fields_info_async(self, document_store: QdrantDocumentStore):
-        """Test getting metadata field information (async)."""
-        docs = [
-            Document(content="Doc 1", meta={"category": "A", "score": 0.9, "tags": ["tag1", "tag2"]}),
-            Document(content="Doc 2", meta={"category": "B", "score": 0.8, "tags": ["tag2"]}),
-        ]
-        await document_store.write_documents_async(docs)
-
-        fields_info = await document_store.get_metadata_fields_info_async()
-        # Should return empty dict or field info depending on Qdrant collection setup
-        assert isinstance(fields_info, dict)
-
-    async def test_get_metadata_field_min_max_async(self, document_store: QdrantDocumentStore):
-        """Test getting min/max values for a metadata field (async)."""
-        docs = [
-            Document(content="Doc 1", meta={"score": 0.5}),
-            Document(content="Doc 2", meta={"score": 0.8}),
-            Document(content="Doc 3", meta={"score": 0.3}),
-        ]
-        await document_store.write_documents_async(docs)
-
-        result = await document_store.get_metadata_field_min_max_async("score")
-        assert result.get("min") == 0.3
-        assert result.get("max") == 0.8
-
-    async def test_count_unique_metadata_by_filter_async(self, document_store: QdrantDocumentStore):
-        """Test counting unique metadata field values (async)."""
-        docs = [
-            Document(content="Doc 1", meta={"category": "A"}),
-            Document(content="Doc 2", meta={"category": "B"}),
-            Document(content="Doc 3", meta={"category": "A"}),
-            Document(content="Doc 4", meta={"category": "C"}),
-        ]
-        await document_store.write_documents_async(docs)
-
-        result = await document_store.count_unique_metadata_by_filter_async(filters={}, metadata_fields=["category"])
-        assert result == {"category": 3}
-
-    async def test_count_unique_metadata_by_filter_async_multiple_fields(self, document_store: QdrantDocumentStore):
-        """Test counting unique values for multiple metadata fields (async)."""
-        docs = [
-            Document(content="Doc 1", meta={"category": "A", "status": "active"}),
-            Document(content="Doc 2", meta={"category": "B", "status": "active"}),
-            Document(content="Doc 3", meta={"category": "A", "status": "inactive"}),
-        ]
-        await document_store.write_documents_async(docs)
-
-        result = await document_store.count_unique_metadata_by_filter_async(
-            filters={}, metadata_fields=["category", "status"]
-        )
-        assert result == {"category": 2, "status": 2}
-
-    async def test_count_unique_metadata_by_filter_async_with_filter(self, document_store: QdrantDocumentStore):
-        """Test counting unique metadata field values with filtering (async)."""
-        docs = [
-            Document(content="Doc 1", meta={"category": "A", "status": "active"}),
-            Document(content="Doc 2", meta={"category": "B", "status": "active"}),
-            Document(content="Doc 3", meta={"category": "A", "status": "inactive"}),
-        ]
-        await document_store.write_documents_async(docs)
-
-        result = await document_store.count_unique_metadata_by_filter_async(
-            filters={"field": "meta.status", "operator": "==", "value": "active"},
-            metadata_fields=["category"],
-        )
-        assert result == {"category": 2}
-
-    async def test_get_metadata_field_unique_values_async(self, document_store: QdrantDocumentStore):
-        """Test getting unique metadata field values (async)."""
-        docs = [
-            Document(content="Doc 1", meta={"category": "A"}),
-            Document(content="Doc 2", meta={"category": "B"}),
-            Document(content="Doc 3", meta={"category": "A"}),
-            Document(content="Doc 4", meta={"category": "C"}),
-        ]
-        await document_store.write_documents_async(docs)
-
-        values = await document_store.get_metadata_field_unique_values_async("category")
-        assert len(values) == 3
-        assert set(values) == {"A", "B", "C"}
-
-    async def test_get_metadata_field_unique_values_async_pagination(self, document_store: QdrantDocumentStore):
-        """Test getting unique metadata field values with pagination (async)."""
-        docs = [Document(content=f"Doc {i}", meta={"value": i % 5}) for i in range(10)]
-        await document_store.write_documents_async(docs)
-
-        # Get first 2 unique values
-        values_page_1 = await document_store.get_metadata_field_unique_values_async("value", limit=2, offset=0)
-        assert len(values_page_1) == 2
-
-        # Get next 2 unique values
-        values_page_2 = await document_store.get_metadata_field_unique_values_async("value", limit=2, offset=2)
-        assert len(values_page_2) == 2
-
-        # Values should not overlap
-        assert set(values_page_1) != set(values_page_2)
-
-    async def test_get_metadata_field_unique_values_async_with_filter(self, document_store: QdrantDocumentStore):
-        """Test getting unique metadata field values with filtering (async)."""
-        docs = [
-            Document(content="Doc 1", meta={"category": "A", "status": "active"}),
-            Document(content="Doc 2", meta={"category": "B", "status": "active"}),
-            Document(content="Doc 3", meta={"category": "A", "status": "inactive"}),
-        ]
-        await document_store.write_documents_async(docs)
-
-        values = await document_store.get_metadata_field_unique_values_async(
-            "category", filters={"field": "meta.status", "operator": "==", "value": "active"}
-        )
-        assert set(values) == {"A", "B"}

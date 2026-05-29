@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/anthropic-v5.9.0] - 2026-05-12
+
+### 🚀 Features
+
+- Support adaptive_thinking_effort flat param for Claude (#3297)
+
+
 ## [integrations/anthropic-v5.8.0] - 2026-04-28
 
 ### 🚀 Features

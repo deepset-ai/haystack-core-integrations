@@ -1,5 +1,13 @@
 # Changelog
 
+## [integrations/elasticsearch-v6.1.0] - 2026-05-04
+
+### 🚀 Features
+
+- *(elasticsearch)* Add ElasticsearchInferenceHybridRetriever (#3228)
+- *(elasticsearch)* Optional ingest_pipeline for bulk writes (#3252)
+
+
 ## [integrations/elasticsearch-v6.0.0] - 2026-04-22
 
 ### 🚀 Features

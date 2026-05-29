@@ -279,15 +279,13 @@ def test_get_metadata_fields_info_impl_type_inference(documents, expected, warni
         assert warning_fragment in caplog.text
 
 
-def test_get_metadata_field_min_max_impl_strips_meta_prefix_and_errors():
+def test_get_metadata_field_min_max_impl_strips_meta_prefix_and_handles_missing():
     docs = [
         Document(content="a", meta={"priority": 1}),
         Document(content="b", meta={"priority": 5}),
     ]
     assert PineconeDocumentStore._get_metadata_field_min_max_impl(docs, "meta.priority") == {"min": 1, "max": 5}
-
-    with pytest.raises(ValueError, match="No values found"):
-        PineconeDocumentStore._get_metadata_field_min_max_impl(docs, "missing")
+    assert PineconeDocumentStore._get_metadata_field_min_max_impl(docs, "missing") == {"min": None, "max": None}
 
 
 def test_get_metadata_field_unique_values_impl_pagination_search_and_lists():
@@ -523,11 +521,6 @@ class TestDocumentStore(
         assert min_max["min"] == "Alpha"
         assert min_max["max"] == "Zebra"
 
-    def test_get_metadata_field_min_max_empty_collection(self, document_store: PineconeDocumentStore):
-        assert document_store.count_documents() == 0
-        with pytest.raises(ValueError, match="No values found"):
-            document_store.get_metadata_field_min_max("priority")
-
     def test_get_metadata_field_min_max_no_values(self, document_store: PineconeDocumentStore):
         docs = [
             Document(content="Doc 1", meta={"tags": ["tag1", "tag2"]}),
@@ -535,13 +528,11 @@ class TestDocumentStore(
         ]
         document_store.write_documents(docs)
 
-        # Try to get min/max for unsupported field type (list)
-        with pytest.raises(ValueError, match="No values found"):
-            document_store.get_metadata_field_min_max("tags")
+        # Unsupported field type (list) — no comparable values collected
+        assert document_store.get_metadata_field_min_max("tags") == {"min": None, "max": None}
 
-        # Try to get min/max for non-existent field
-        with pytest.raises(ValueError, match="No values found"):
-            document_store.get_metadata_field_min_max("nonexistent")
+        # Non-existent field
+        assert document_store.get_metadata_field_min_max("nonexistent") == {"min": None, "max": None}
 
     def test_get_metadata_field_unique_values(self, document_store: PineconeDocumentStore):
         docs = [

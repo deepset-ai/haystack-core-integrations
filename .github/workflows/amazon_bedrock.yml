@@ -41,7 +41,6 @@ env:
   AWS_BEDROCK_GUARDRAIL_VERSION: "1"
   S3_DOWNLOADER_BUCKET: ${{ secrets.S3_DOWNLOADER_BUCKET }}
 
-
 jobs:
   compute-test-matrix:
     runs-on: ubuntu-slim
@@ -85,7 +84,9 @@ jobs:
           python-version: ${{ matrix.python-version }}
 
       - name: Install Hatch
-        run: pip install hatch
+        run: |
+          python -m pip install --upgrade pip
+          pip install hatch --uploaded-prior-to=P1D
 
       - name: Lint
         if: matrix.python-version == '3.10' && runner.os == 'Linux'
@@ -117,7 +118,7 @@ jobs:
       - name: AWS authentication
         id: aws-auth
         if: github.event_name == 'schedule' || (github.event.pull_request.head.repo.full_name == github.repository && !startsWith(github.event.pull_request.head.ref, 'dependabot/'))
-        uses: aws-actions/configure-aws-credentials@ec61189d14ec14c8efccab744f656cffd0e33f37
+        uses: aws-actions/configure-aws-credentials@d979d5b3a71173a29b74b5b88418bfda9437d885
         with:
           aws-region: ${{ env.AWS_REGION }}
           role-to-assume: ${{ secrets.AWS_CI_ROLE_ARN }}
@@ -155,6 +156,6 @@ jobs:
     if: failure() && github.event_name == 'schedule'
     runs-on: ubuntu-slim
     steps:
-      - uses: deepset-ai/notify-slack-action@3cda73b77a148f16f703274198e7771340cf862b # v1
+      - uses: deepset-ai/notify-slack-action@a65def0c8bf91d6520286ab34280151c76a5a008 # v1.1.0
         with:
           slack-webhook-url: ${{ secrets.SLACK_WEBHOOK_URL_NOTIFICATIONS }}

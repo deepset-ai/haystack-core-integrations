@@ -734,7 +734,9 @@ class ValkeyDocumentStore(DocumentStore):
         """
         client = self._get_connection()
 
-        keys: list[str | bytes] = [f"{self._index_name}:{doc_id}" for doc_id in document_ids]
+        keys: list[str | bytes | bytearray | memoryview[int]] = [
+            f"{self._index_name}:{doc_id}" for doc_id in document_ids
+        ]
         try:
             result = client.delete(keys)
             if result < len(document_ids):
@@ -770,7 +772,9 @@ class ValkeyDocumentStore(DocumentStore):
         """
         client = await self._get_connection_async()
 
-        keys: list[str | bytes] = [f"{self._index_name}:{doc_id}" for doc_id in document_ids]
+        keys: list[str | bytes | bytearray | memoryview[int]] = [
+            f"{self._index_name}:{doc_id}" for doc_id in document_ids
+        ]
         try:
             result = await client.delete(keys)
             if result < len(document_ids):

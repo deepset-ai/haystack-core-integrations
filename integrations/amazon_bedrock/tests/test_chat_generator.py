@@ -628,8 +628,18 @@ class TestAmazonBedrockChatGenerator:
                     "thinking_budget_tokens": None,
                     "parallel_tool_use": None,
                     "tool_choice_type": None,
+                    "adaptive_thinking_effort": None,
                 },
                 {},
+            ),
+            (
+                {
+                    "adaptive_thinking_effort": "max",
+                },
+                {
+                    "thinking": {"type": "adaptive"},
+                    "output_config": {"effort": "max"},
+                },
             ),
         ],
     )

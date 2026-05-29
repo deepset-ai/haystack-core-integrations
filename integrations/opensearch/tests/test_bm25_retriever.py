@@ -68,7 +68,7 @@ def test_to_dict(_mock_opensearch_client):
                 "type": "haystack_integrations.document_stores.opensearch.document_store.OpenSearchDocumentStore",
             },
             "filters": {},
-            "fuzziness": "AUTO",
+            "fuzziness": 0,
             "top_k": 10,
             "scale_score": False,
             "filter_policy": "replace",
@@ -163,7 +163,7 @@ def test_run():
     mock_store._bm25_retrieval.assert_called_once_with(
         query="some query",
         filters={},
-        fuzziness="AUTO",
+        fuzziness=0,
         top_k=10,
         scale_score=False,
         all_terms_must_match=False,
@@ -183,7 +183,7 @@ async def test_run_async():
     mock_store._bm25_retrieval_async.assert_called_once_with(
         query="some query",
         filters={},
-        fuzziness="AUTO",
+        fuzziness=0,
         top_k=10,
         scale_score=False,
         all_terms_must_match=False,
@@ -359,7 +359,7 @@ def test_run_with_runtime_document_store():
     runtime_store._bm25_retrieval.assert_called_once_with(
         query="some query",
         filters={},
-        fuzziness="AUTO",
+        fuzziness=0,
         top_k=10,
         scale_score=False,
         all_terms_must_match=False,
@@ -390,7 +390,7 @@ async def test_run_async_with_runtime_document_store():
     runtime_store._bm25_retrieval_async.assert_called_once_with(
         query="some query",
         filters={},
-        fuzziness="AUTO",
+        fuzziness=0,
         top_k=10,
         scale_score=False,
         all_terms_must_match=False,

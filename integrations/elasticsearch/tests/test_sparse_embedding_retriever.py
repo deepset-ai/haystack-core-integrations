@@ -65,6 +65,7 @@ def test_to_dict(_mock_elasticsearch_client):
                     "index": "default",
                     "embedding_similarity_function": "cosine",
                     "sparse_vector_field": "sparse_vec",
+                    "ingest_pipeline": None,
                 },
                 "type": "haystack_integrations.document_stores.elasticsearch.document_store.ElasticsearchDocumentStore",
             },

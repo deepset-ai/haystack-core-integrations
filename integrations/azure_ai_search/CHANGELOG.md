@@ -1,5 +1,17 @@
 # Changelog
 
+## [integrations/azure_ai_search-v4.0.0] - 2026-05-04
+
+### 🧪 Testing
+
+- Track test coverage for all integrations (#3065)
+- Azure AI Search - add unit tests (#3201)
+
+### 🧹 Chores
+
+- [**breaking**] Azure AI - adaptations for the new SDK (#3269)
+
+
 ## [integrations/azure_ai_search-v3.2.0] - 2026-03-30
 
 ### 🚀 Features

@@ -1,5 +1,17 @@
 # Changelog
 
+## [integrations/arcadedb-v1.3.0] - 2026-05-19
+
+### 🐛 Bug Fixes
+
+- Arcade db sql injection (#3329)
+
+### 🧪 Testing
+
+- Track test coverage for all integrations (#3065)
+- Arcadedb - add unit tests (#3192)
+
+
 ## [integrations/arcadedb-v1.2.0] - 2026-03-24
 
 ### 🚀 Features

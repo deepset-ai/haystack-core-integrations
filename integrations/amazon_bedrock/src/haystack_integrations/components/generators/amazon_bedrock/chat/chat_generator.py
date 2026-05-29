@@ -508,6 +508,13 @@ class AmazonBedrockChatGenerator:
             thinking["budget_tokens"] = thinking_budget_tokens
             thinking.setdefault("type", "enabled")
 
+        adaptive_thinking_effort = generation_kwargs.pop("adaptive_thinking_effort", None)
+        if adaptive_thinking_effort is not None:
+            thinking = generation_kwargs.setdefault("thinking", {})
+            thinking.setdefault("type", "adaptive")
+            output_config = generation_kwargs.setdefault("output_config", {})
+            output_config["effort"] = adaptive_thinking_effort
+
         return generation_kwargs
 
     @component.output_types(replies=list[ChatMessage])
