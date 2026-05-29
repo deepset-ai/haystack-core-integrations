@@ -1,4 +1,6 @@
-"""Tests for the LiteLLM Chat Generator integration."""
+# SPDX-FileCopyrightText: 2025-present deepset GmbH <info@deepset.ai>
+#
+# SPDX-License-Identifier: Apache-2.0
 
 import os
 import sys
