@@ -22,9 +22,7 @@ class MockedTextEmbedder:
         return {"embedding": [0.1, 0.2, 0.3], "metadata": {"text": text, "param_a": param_a, "param_b": param_b}}
 
     @component.output_types(embedding=list[float])
-    async def run_async(
-        self, text: str, param_a: str = "default", param_b: str = "another_default"
-    ) -> dict[str, Any]:
+    async def run_async(self, text: str, param_a: str = "default", param_b: str = "another_default") -> dict[str, Any]:
         return {"embedding": [0.1, 0.2, 0.3], "metadata": {"text": text, "param_a": param_a, "param_b": param_b}}
 
 
