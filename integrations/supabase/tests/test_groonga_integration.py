@@ -20,8 +20,12 @@ def document_store():
     Creates a real SupabaseGroongaDocumentStore connected to a test Supabase project.
     Requires SUPABASE_URL and SUPABASE_SERVICE_KEY environment variables to be set.
     """
+    supabase_url = os.environ.get("SUPABASE_URL")
+    if not supabase_url:
+        pytest.skip("SUPABASE_URL not set")
+
     store = SupabaseGroongaDocumentStore(
-        supabase_url=os.environ["SUPABASE_URL"],
+        supabase_url=supabase_url,
         supabase_key=Secret.from_env_var("SUPABASE_SERVICE_KEY"),
         table_name="haystack_groonga_integration_test",
         recreate_table=False,
@@ -168,4 +172,3 @@ class TestSupabaseGroongaDocumentStoreIntegration:
         retriever = SupabaseGroongaRetriever(document_store=document_store)
         result = retriever.run(query="")
         assert result == {"documents": []}
-        
