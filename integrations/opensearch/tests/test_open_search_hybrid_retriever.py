@@ -7,7 +7,7 @@ from typing import Any
 from unittest.mock import Mock
 
 import pytest
-from haystack import Document, Pipeline
+from haystack import AsyncPipeline, Document, Pipeline
 from haystack.components.embedders import SentenceTransformersTextEmbedder
 from haystack.core.component import component
 
@@ -19,6 +19,12 @@ from haystack_integrations.document_stores.opensearch import OpenSearchDocumentS
 class MockedTextEmbedder:
     @component.output_types(embedding=list[float])
     def run(self, text: str, param_a: str = "default", param_b: str = "another_default") -> dict[str, Any]:
+        return {"embedding": [0.1, 0.2, 0.3], "metadata": {"text": text, "param_a": param_a, "param_b": param_b}}
+
+    @component.output_types(embedding=list[float])
+    async def run_async(
+        self, text: str, param_a: str = "default", param_b: str = "another_default"
+    ) -> dict[str, Any]:
         return {"embedding": [0.1, 0.2, 0.3], "metadata": {"text": text, "param_a": param_a, "param_b": param_b}}
 
 
@@ -153,8 +159,8 @@ class TestOpenSearchHybridRetriever:
     def test_run(self, mock_embedder):
         # mocked document store
         mock_store = Mock(spec=OpenSearchDocumentStore)
-        mock_store._bm25_retrieval.return_value = [Document(content="Test doc BM25")]
-        mock_store._embedding_retrieval.return_value = [Document(content="Test doc Embedding")]
+        mock_store._bm25_retrieval_async.return_value = [Document(content="Test doc BM25")]
+        mock_store._embedding_retrieval_async.return_value = [Document(content="Test doc Embedding")]
 
         # use the mocked embedder
         retriever = OpenSearchHybridRetriever(document_store=mock_store, embedder=mock_embedder)
@@ -168,8 +174,8 @@ class TestOpenSearchHybridRetriever:
     def test_run_with_extra_arg(self, mock_embedder):
         # mocked document store
         mock_store = Mock(spec=OpenSearchDocumentStore)
-        mock_store._bm25_retrieval.return_value = [Document(content="Test doc BM25")]
-        mock_store._embedding_retrieval.return_value = [Document(content="Test doc Embedding")]
+        mock_store._bm25_retrieval_async.return_value = [Document(content="Test doc BM25")]
+        mock_store._embedding_retrieval_async.return_value = [Document(content="Test doc Embedding")]
 
         # use the mocked embedder
         retriever = OpenSearchHybridRetriever(
@@ -181,8 +187,8 @@ class TestOpenSearchHybridRetriever:
         result = retriever.run(query="test query")
 
         # Verify the retrievers were called with the extra arguments
-        mock_store._bm25_retrieval.assert_called_once()
-        mock_store._embedding_retrieval.assert_called_once()
+        mock_store._bm25_retrieval_async.assert_called_once()
+        mock_store._embedding_retrieval_async.assert_called_once()
 
         # Verify the results
         assert len(result) == 1
@@ -193,8 +199,8 @@ class TestOpenSearchHybridRetriever:
     def test_run_with_extra_arg_invalid_param(self, mock_embedder):
         # mocked document store
         mock_store = Mock(spec=OpenSearchDocumentStore)
-        mock_store._bm25_retrieval.return_value = [Document(content="Test doc BM25")]
-        mock_store._embedding_retrieval.return_value = [Document(content="Test doc Embedding")]
+        mock_store._bm25_retrieval_async.return_value = [Document(content="Test doc BM25")]
+        mock_store._embedding_retrieval_async.return_value = [Document(content="Test doc Embedding")]
 
         with pytest.raises(
             ValueError, match=r"valid extra args are only: 'bm25_retriever' and 'embedding_retriever'\."
@@ -209,8 +215,8 @@ class TestOpenSearchHybridRetriever:
     def test_run_with_extra_runtime_params(self, mock_embedder):
         # mocked document store
         mock_store = Mock(spec=OpenSearchDocumentStore)
-        mock_store._bm25_retrieval.return_value = [Document(content="Test doc BM25")]
-        mock_store._embedding_retrieval.return_value = [Document(content="Test doc Embedding")]
+        mock_store._bm25_retrieval_async.return_value = [Document(content="Test doc BM25")]
+        mock_store._embedding_retrieval_async.return_value = [Document(content="Test doc Embedding")]
 
         # use the mocked embedder
         retriever = OpenSearchHybridRetriever(document_store=mock_store, embedder=mock_embedder)
@@ -222,7 +228,7 @@ class TestOpenSearchHybridRetriever:
             top_k_embedding=1,
         )
 
-        mock_store._bm25_retrieval.assert_called_once_with(
+        mock_store._bm25_retrieval_async.assert_called_once_with(
             query="test query",
             filters={"key": "value"},
             top_k=1,
@@ -231,7 +237,7 @@ class TestOpenSearchHybridRetriever:
             scale_score=False,
             custom_query=None,
         )
-        mock_store._embedding_retrieval.assert_called_once_with(
+        mock_store._embedding_retrieval_async.assert_called_once_with(
             query_embedding=[0.1, 0.2, 0.3],
             filters={"key": "value"},
             top_k=1,
@@ -244,8 +250,8 @@ class TestOpenSearchHybridRetriever:
         # mocked document store
         pipeline = Pipeline()
         mock_store = Mock(spec=OpenSearchDocumentStore)
-        mock_store._bm25_retrieval.return_value = [Document(content="Test doc BM25")]
-        mock_store._embedding_retrieval.return_value = [Document(content="Test doc Embedding")]
+        mock_store._bm25_retrieval_async.return_value = [Document(content="Test doc BM25")]
+        mock_store._embedding_retrieval_async.return_value = [Document(content="Test doc Embedding")]
 
         # use the mocked embedder
         retriever = OpenSearchHybridRetriever(document_store=mock_store, embedder=mock_embedder)
@@ -255,7 +261,7 @@ class TestOpenSearchHybridRetriever:
         # Should not fail
         _ = pipeline.run(data={"retriever": {"query": "test query", "filters_bm25": {"param_a": "default"}}})
 
-        mock_store._bm25_retrieval.assert_called_once_with(
+        mock_store._bm25_retrieval_async.assert_called_once_with(
             query="test query",
             filters={"param_a": "default"},
             top_k=10,
@@ -264,7 +270,106 @@ class TestOpenSearchHybridRetriever:
             scale_score=False,
             custom_query=None,
         )
-        mock_store._embedding_retrieval.assert_called_once_with(
+        mock_store._embedding_retrieval_async.assert_called_once_with(
+            query_embedding=[0.1, 0.2, 0.3],
+            filters={},
+            top_k=10,
+            custom_query=None,
+            efficient_filtering=False,
+            search_kwargs=None,
+        )
+
+    @pytest.mark.asyncio
+    async def test_run_async(self, mock_embedder):
+        mock_store = Mock(spec=OpenSearchDocumentStore)
+        mock_store._bm25_retrieval_async.return_value = [Document(content="Test doc BM25")]
+        mock_store._embedding_retrieval_async.return_value = [Document(content="Test doc Embedding")]
+
+        retriever = OpenSearchHybridRetriever(document_store=mock_store, embedder=mock_embedder)
+        result = await retriever.run_async(query="test query")
+
+        assert len(result) == 1
+        assert len(result["documents"]) == 2
+        assert any(doc.content == "Test doc BM25" for doc in result["documents"])
+        assert any(doc.content == "Test doc Embedding" for doc in result["documents"])
+
+    @pytest.mark.asyncio
+    async def test_run_async_with_extra_arg(self, mock_embedder):
+        mock_store = Mock(spec=OpenSearchDocumentStore)
+        mock_store._bm25_retrieval_async.return_value = [Document(content="Test doc BM25")]
+        mock_store._embedding_retrieval_async.return_value = [Document(content="Test doc Embedding")]
+
+        retriever = OpenSearchHybridRetriever(
+            document_store=mock_store,
+            embedder=mock_embedder,
+            bm25_retriever={"raise_on_failure": True},
+            embedding_retriever={"raise_on_failure": False},
+        )
+        result = await retriever.run_async(query="test query")
+
+        mock_store._bm25_retrieval_async.assert_called_once()
+        mock_store._embedding_retrieval_async.assert_called_once()
+
+        assert len(result) == 1
+        assert len(result["documents"]) == 2
+        assert any(doc.content == "Test doc BM25" for doc in result["documents"])
+        assert any(doc.content == "Test doc Embedding" for doc in result["documents"])
+
+    @pytest.mark.asyncio
+    async def test_run_async_with_extra_runtime_params(self, mock_embedder):
+        mock_store = Mock(spec=OpenSearchDocumentStore)
+        mock_store._bm25_retrieval_async.return_value = [Document(content="Test doc BM25")]
+        mock_store._embedding_retrieval_async.return_value = [Document(content="Test doc Embedding")]
+
+        retriever = OpenSearchHybridRetriever(document_store=mock_store, embedder=mock_embedder)
+        await retriever.run_async(
+            query="test query",
+            filters_bm25={"key": "value"},
+            filters_embedding={"key": "value"},
+            top_k_bm25=1,
+            top_k_embedding=1,
+        )
+
+        mock_store._bm25_retrieval_async.assert_called_once_with(
+            query="test query",
+            filters={"key": "value"},
+            top_k=1,
+            all_terms_must_match=False,
+            fuzziness=0,
+            scale_score=False,
+            custom_query=None,
+        )
+        mock_store._embedding_retrieval_async.assert_called_once_with(
+            query_embedding=[0.1, 0.2, 0.3],
+            filters={"key": "value"},
+            top_k=1,
+            custom_query=None,
+            efficient_filtering=False,
+            search_kwargs=None,
+        )
+
+    @pytest.mark.asyncio
+    async def test_run_async_in_pipeline(self, mock_embedder):
+        pipeline = AsyncPipeline()
+        mock_store = Mock(spec=OpenSearchDocumentStore)
+        mock_store._bm25_retrieval_async.return_value = [Document(content="Test doc BM25")]
+        mock_store._embedding_retrieval_async.return_value = [Document(content="Test doc Embedding")]
+
+        retriever = OpenSearchHybridRetriever(document_store=mock_store, embedder=mock_embedder)
+        pipeline.add_component("retriever", retriever)
+
+        await pipeline.run_async(data={"retriever": {"query": "test query", "filters_bm25": {"param_a": "default"}}})
+
+        mock_store._bm25_retrieval_async.assert_called_once_with(
+            query="test query",
+            filters={"param_a": "default"},
+            top_k=10,
+            all_terms_must_match=False,
+            fuzziness=0,
+            scale_score=False,
+            custom_query=None,
+        )
+        mock_store._embedding_retrieval_async.assert_called_once_with(
             query_embedding=[0.1, 0.2, 0.3],
             filters={},
             top_k=10,
