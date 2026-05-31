@@ -48,7 +48,7 @@ class SupabaseGroongaDocumentStore(DocumentStore):
         self,
         *,
         supabase_url: str,
-        supabase_key: Secret = Secret.from_env_var("SUPABASE_SERVICE_KEY"),
+        supabase_key: Secret = Secret.from_env_var("SUPABASE_SERVICE_KEY", strict=False),
         table_name: str = "haystack_groonga_documents",
         recreate_table: bool = False,
     ) -> None:
@@ -129,10 +129,7 @@ class SupabaseGroongaDocumentStore(DocumentStore):
         if self._client is None:
             msg = "Call warm_up() before using the document store."
             raise RuntimeError(msg)
-        result = self._client.rpc(
-            "groonga_search",
-            {"query_text": query, "table_name": self.table_name, "top_k": top_k},
-        ).execute()
+        result = self._client.table(self.table_name).select("*", count=CountMethod.exact).execute()
         return int(result.count) if result.count is not None else 0
 
     def filter_documents(self, filters: dict[str, Any] | None = None) -> list[Document]:

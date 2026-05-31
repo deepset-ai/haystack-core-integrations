@@ -168,3 +168,4 @@ class TestSupabaseGroongaDocumentStoreIntegration:
         retriever = SupabaseGroongaRetriever(document_store=document_store)
         result = retriever.run(query="")
         assert result == {"documents": []}
+        
