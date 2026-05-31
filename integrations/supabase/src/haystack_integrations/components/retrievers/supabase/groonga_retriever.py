@@ -8,6 +8,7 @@ from typing import Any
 from haystack import component, default_from_dict, default_to_dict
 from haystack.dataclasses import Document
 from haystack.document_stores.types import FilterPolicy
+from haystack.document_stores.types.filter_policy import apply_filter_policy
 
 from haystack_integrations.document_stores.supabase import SupabaseGroongaDocumentStore
 
@@ -89,7 +90,7 @@ class SupabaseGroongaRetriever:
         if not query:
             return {"documents": []}
 
-        merged_filters = self._merge_filters(filters)
+        merged_filters = apply_filter_policy(self.filter_policy, self.filters, filters)
         effective_top_k = top_k if top_k is not None else self.top_k
 
         documents = self.document_store._groonga_retrieval(
@@ -121,19 +122,6 @@ class SupabaseGroongaRetriever:
         :returns: Dictionary with key "documents" containing list of matching Documents.
         """
         return self.run(query=query, filters=filters, top_k=top_k)
-
-    def _merge_filters(self, runtime_filters: dict[str, Any] | None) -> dict[str, Any]:
-        """
-        Merges runtime filters with init filters based on filter_policy.
-
-        :param runtime_filters: Filters passed at runtime.
-        :returns: Merged filters dictionary.
-        """
-        if runtime_filters is not None:
-            if self.filter_policy == FilterPolicy.MERGE:
-                return {**self.filters, **runtime_filters}
-            return runtime_filters
-        return self.filters
 
     def to_dict(self) -> dict[str, Any]:
         """

@@ -108,6 +108,16 @@ jobs:
       - name: Run integration tests
         run: hatch run test:integration-cov-append-retry
 
+      - name: Store combined coverage
+        if: github.event_name == 'push'
+        uses: py-cov-action/python-coverage-comment-action@63f52f4fbbffada6e8dee8ec432de7e01df9ba79 # v3.41
+        with:
+          GITHUB_TOKEN: ${{ github.token }}
+          COVERAGE_PATH: integrations/ragas
+          SUBPROJECT_ID: ragas-combined
+          MINIMUM_GREEN: 90
+          MINIMUM_ORANGE: 60
+
       - name: Run unit tests with lowest direct dependencies
         if: github.event_name != 'push'
         run: |
@@ -127,6 +137,6 @@ jobs:
     if: failure() && github.event_name == 'schedule'
     runs-on: ubuntu-slim
     steps:
-      - uses: deepset-ai/notify-slack-action@3cda73b77a148f16f703274198e7771340cf862b # v1
+      - uses: deepset-ai/notify-slack-action@a65def0c8bf91d6520286ab34280151c76a5a008 # v1.1.0
         with:
           slack-webhook-url: ${{ secrets.SLACK_WEBHOOK_URL_NOTIFICATIONS }}

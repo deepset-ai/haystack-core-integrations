@@ -185,6 +185,7 @@ def test_get_default_mappings(_mock_opensearch_client):
 def test_routing_extracted_from_metadata(mock_bulk, _mock_opensearch_client):
     """Test routing extraction from document metadata"""
     mock_bulk.return_value = (2, [])
+    _mock_opensearch_client.return_value.indices.exists.return_value = False
 
     store = OpenSearchDocumentStore(hosts="testhost", http_auth=("admin", "admin"))
 
@@ -213,6 +214,7 @@ def test_routing_extracted_from_metadata(mock_bulk, _mock_opensearch_client):
 def test_routing_in_delete(mock_bulk, _mock_opensearch_client):
     """Test routing parameter in delete operations"""
     mock_bulk.return_value = (2, [])
+    _mock_opensearch_client.return_value.indices.exists.return_value = False
 
     store = OpenSearchDocumentStore(hosts="testhost", http_auth=("admin", "admin"))
 
@@ -551,6 +553,206 @@ def test_explicit_nested_fields_no_detection_on_write(mock_bulk, _mock_opensearc
     assert "tags" not in store._resolved_nested_fields
     assert store._resolved_nested_fields == {"refs"}
     store._client.indices.put_mapping.assert_not_called()
+
+
+@patch("haystack_integrations.document_stores.opensearch.document_store.OpenSearch")
+def test_ensure_index_exists_direct_index(_mock_opensearch_client):
+    """When an index exists and is referenced directly, mappings are loaded without error."""
+    store = OpenSearchDocumentStore(hosts="testhost", index="my-index", http_auth=("a", "b"))
+    mock_client = MagicMock()
+    store._client = mock_client
+    mock_client.indices.exists.return_value = True
+    mock_client.indices.get_mapping.return_value = {
+        "my-index": {"mappings": {"properties": {"content": {"type": "text"}}}}
+    }
+
+    store._ensure_index_exists()
+
+    mock_client.indices.exists.assert_called_once_with(index="my-index")
+    mock_client.indices.get_mapping.assert_called_once_with(index="my-index")
+    mock_client.indices.create.assert_not_called()
+
+
+@patch("haystack_integrations.document_stores.opensearch.document_store.OpenSearch")
+def test_ensure_index_exists_with_alias(_mock_opensearch_client):
+    """When self._index is an alias, get_mapping keys the response by the real index name.
+
+    Before the fix this raised KeyError because mapping[self._index] was used directly.
+    """
+    store = OpenSearchDocumentStore(hosts="testhost", index="my-alias", http_auth=("a", "b"))
+    mock_client = MagicMock()
+    store._client = mock_client
+    mock_client.indices.exists.return_value = True
+    mock_client.indices.get_mapping.return_value = {
+        "my-real-index-v1": {"mappings": {"properties": {"content": {"type": "text"}}}}
+    }
+
+    store._ensure_index_exists()  # must not raise KeyError
+
+    mock_client.indices.get_mapping.assert_called_once_with(index="my-alias")
+    mock_client.indices.create.assert_not_called()
+
+
+@patch("haystack_integrations.document_stores.opensearch.document_store.OpenSearch")
+def test_ensure_index_exists_creates_index_when_not_exists(_mock_opensearch_client):
+    """When the index does not exist and create_index=True, the index is created."""
+    store = OpenSearchDocumentStore(hosts="testhost", index="new-index", http_auth=("a", "b"))
+    mock_client = MagicMock()
+    store._client = mock_client
+    mock_client.indices.exists.return_value = False
+
+    store._ensure_index_exists()
+
+    mock_client.indices.create.assert_called_once()
+    mock_client.indices.get_mapping.assert_not_called()
+
+
+@patch("haystack_integrations.document_stores.opensearch.document_store.OpenSearch")
+def test_ensure_index_exists_no_create_when_disabled(_mock_opensearch_client):
+    """When the index does not exist and create_index=False, no index is created."""
+    store = OpenSearchDocumentStore(hosts="testhost", index="new-index", create_index=False, http_auth=("a", "b"))
+    mock_client = MagicMock()
+    store._client = mock_client
+    mock_client.indices.exists.return_value = False
+
+    store._ensure_index_exists()
+
+    mock_client.indices.create.assert_not_called()
+    mock_client.indices.get_mapping.assert_not_called()
+
+
+@pytest.mark.asyncio
+@patch("haystack_integrations.document_stores.opensearch.document_store.AsyncOpenSearch")
+@patch("haystack_integrations.document_stores.opensearch.document_store.OpenSearch")
+async def test_ensure_index_exists_async_direct_index(_mock_sync_client, _mock_async_client):
+    """Async: When an index exists and is referenced directly, mappings are loaded without error."""
+    store = OpenSearchDocumentStore(hosts="testhost", index="my-index", http_auth=("a", "b"))
+    mock_client = AsyncMock()
+    store._async_client = mock_client
+    mock_client.indices.exists = AsyncMock(return_value=True)
+    mock_client.indices.get_mapping = AsyncMock(
+        return_value={"my-index": {"mappings": {"properties": {"content": {"type": "text"}}}}}
+    )
+
+    await store._ensure_index_exists_async()
+
+    mock_client.indices.exists.assert_called_once_with(index="my-index")
+    mock_client.indices.get_mapping.assert_called_once_with(index="my-index")
+    mock_client.indices.create.assert_not_called()
+
+
+@pytest.mark.asyncio
+@patch("haystack_integrations.document_stores.opensearch.document_store.AsyncOpenSearch")
+@patch("haystack_integrations.document_stores.opensearch.document_store.OpenSearch")
+async def test_ensure_index_exists_async_with_alias(_mock_sync_client, _mock_async_client):
+    """Async: When self._index is an alias, get_mapping keys by real index name; no KeyError."""
+    store = OpenSearchDocumentStore(hosts="testhost", index="my-alias", http_auth=("a", "b"))
+    mock_client = AsyncMock()
+    store._async_client = mock_client
+    mock_client.indices.exists = AsyncMock(return_value=True)
+    mock_client.indices.get_mapping = AsyncMock(
+        return_value={"my-real-index-v1": {"mappings": {"properties": {"content": {"type": "text"}}}}}
+    )
+
+    await store._ensure_index_exists_async()  # must not raise KeyError
+
+    mock_client.indices.get_mapping.assert_called_once_with(index="my-alias")
+    mock_client.indices.create.assert_not_called()
+
+
+@pytest.mark.asyncio
+@patch("haystack_integrations.document_stores.opensearch.document_store.AsyncOpenSearch")
+@patch("haystack_integrations.document_stores.opensearch.document_store.OpenSearch")
+async def test_ensure_index_exists_async_creates_index_when_not_exists(_mock_sync_client, _mock_async_client):
+    """Async: When the index does not exist and create_index=True, the index is created."""
+    store = OpenSearchDocumentStore(hosts="testhost", index="new-index", http_auth=("a", "b"))
+    mock_client = AsyncMock()
+    store._async_client = mock_client
+    mock_client.indices.exists = AsyncMock(return_value=False)
+
+    await store._ensure_index_exists_async()
+
+    mock_client.indices.create.assert_called_once()
+    mock_client.indices.get_mapping.assert_not_called()
+
+
+@pytest.mark.asyncio
+@patch("haystack_integrations.document_stores.opensearch.document_store.AsyncOpenSearch")
+@patch("haystack_integrations.document_stores.opensearch.document_store.OpenSearch")
+async def test_ensure_index_exists_async_no_create_when_disabled(_mock_sync_client, _mock_async_client):
+    """Async: When the index does not exist and create_index=False, no index is created."""
+    store = OpenSearchDocumentStore(hosts="testhost", index="new-index", create_index=False, http_auth=("a", "b"))
+    mock_client = AsyncMock()
+    store._async_client = mock_client
+    mock_client.indices.exists = AsyncMock(return_value=False)
+
+    await store._ensure_index_exists_async()
+
+    mock_client.indices.create.assert_not_called()
+    mock_client.indices.get_mapping.assert_not_called()
+
+
+@patch("haystack_integrations.document_stores.opensearch.document_store.OpenSearch")
+def test_delete_all_documents_recreate_raises_for_alias(_mock_opensearch_client):
+    """delete_all_documents(recreate_index=True) raises DocumentStoreError when self._index is an alias."""
+    store = OpenSearchDocumentStore(hosts="testhost", index="my-alias", http_auth=("a", "b"))
+    mock_client = MagicMock()
+    store._client = mock_client
+    # indices.get() returns a key that differs from self._index — signals an alias
+    mock_client.indices.get.return_value = {"my-real-index-v1": {"mappings": {}, "settings": {"index": {}}}}
+
+    with pytest.raises(DocumentStoreError, match="is an alias"):
+        store.delete_all_documents(recreate_index=True)
+
+    mock_client.indices.delete.assert_not_called()
+    mock_client.indices.create.assert_not_called()
+
+
+@patch("haystack_integrations.document_stores.opensearch.document_store.OpenSearch")
+def test_delete_all_documents_recreate_works_for_concrete_index(_mock_opensearch_client):
+    """delete_all_documents(recreate_index=True) proceeds normally when self._index is a concrete index."""
+    store = OpenSearchDocumentStore(hosts="testhost", index="my-index", http_auth=("a", "b"))
+    mock_client = MagicMock()
+    store._client = mock_client
+    mock_client.indices.get.return_value = {"my-index": {"mappings": {}, "settings": {"index": {}}}}
+
+    store.delete_all_documents(recreate_index=True)
+
+    mock_client.indices.delete.assert_called_once_with(index="my-index")
+    mock_client.indices.create.assert_called_once()
+
+
+@pytest.mark.asyncio
+@patch("haystack_integrations.document_stores.opensearch.document_store.AsyncOpenSearch")
+@patch("haystack_integrations.document_stores.opensearch.document_store.OpenSearch")
+async def test_delete_all_documents_async_recreate_raises_for_alias(_mock_sync_client, _mock_async_client):
+    """delete_all_documents_async(recreate_index=True) raises DocumentStoreError when self._index is an alias."""
+    store = OpenSearchDocumentStore(hosts="testhost", index="my-alias", http_auth=("a", "b"))
+    mock_client = AsyncMock()
+    store._async_client = mock_client
+    mock_client.indices.get = AsyncMock(return_value={"my-real-index-v1": {"mappings": {}, "settings": {"index": {}}}})
+
+    with pytest.raises(DocumentStoreError, match="is an alias"):
+        await store.delete_all_documents_async(recreate_index=True)
+
+    mock_client.indices.delete.assert_not_called()
+    mock_client.indices.create.assert_not_called()
+
+
+@pytest.mark.asyncio
+@patch("haystack_integrations.document_stores.opensearch.document_store.AsyncOpenSearch")
+@patch("haystack_integrations.document_stores.opensearch.document_store.OpenSearch")
+async def test_delete_all_documents_async_recreate_works_for_concrete_index(_mock_sync_client, _mock_async_client):
+    """delete_all_documents_async(recreate_index=True) proceeds normally when self._index is a concrete index."""
+    store = OpenSearchDocumentStore(hosts="testhost", index="my-index", http_auth=("a", "b"))
+    mock_client = AsyncMock()
+    store._async_client = mock_client
+    mock_client.indices.get = AsyncMock(return_value={"my-index": {"mappings": {}, "settings": {"index": {}}}})
+
+    await store.delete_all_documents_async(recreate_index=True)
+
+    mock_client.indices.delete.assert_called_once_with(index="my-index")
+    mock_client.indices.create.assert_called_once()
 
 
 @pytest.mark.integration
@@ -1487,3 +1689,123 @@ class TestDocumentStore(
         )
         assert len(results) == 1
         assert results[0].content == "both"
+
+    def test_document_store_with_alias(self, document_store: OpenSearchDocumentStore):
+        """Initializing the document store with an alias instead of a concrete index name must not raise KeyError."""
+        alias_name = f"alias_for_{document_store._index}"
+        client = document_store._client
+        client.indices.put_alias(index=document_store._index, name=alias_name)
+        try:
+            alias_store = OpenSearchDocumentStore(
+                hosts=["https://localhost:9200"],
+                http_auth=("admin", "SecureHaystack!2026"),
+                verify_certs=False,
+                index=alias_name,
+                embedding_dim=768,
+            )
+            alias_store._ensure_initialized()
+
+            docs = [Document(content="doc via alias")]
+            assert alias_store.write_documents(docs) == 1
+            results = alias_store.filter_documents()
+            assert len(results) == 1
+            assert results[0].content == "doc via alias"
+        finally:
+            client.indices.delete_alias(index=document_store._index, name=alias_name)
+
+    def test_delete_all_documents_with_alias(self, document_store: OpenSearchDocumentStore):
+        """delete_all_documents(recreate_index=True) raises DocumentStoreError when self._index is an alias."""
+        alias_name = f"alias_del_{document_store._index}"
+        client = document_store._client
+        client.indices.put_alias(index=document_store._index, name=alias_name)
+        try:
+            alias_store = OpenSearchDocumentStore(
+                hosts=["https://localhost:9200"],
+                http_auth=("admin", "SecureHaystack!2026"),
+                verify_certs=False,
+                index=alias_name,
+                embedding_dim=768,
+            )
+            alias_store._ensure_initialized()
+
+            with pytest.raises(DocumentStoreError, match="is an alias"):
+                alias_store.delete_all_documents(recreate_index=True)
+        finally:
+            client.indices.delete_alias(index=document_store._index, name=alias_name)
+
+    def test_delete_all_documents_no_recreate_with_alias(self, document_store: OpenSearchDocumentStore):
+        """delete_all_documents(recreate_index=False) removes all documents when self._index is an alias."""
+        alias_name = f"alias_del_norecr_{document_store._index}"
+        client = document_store._client
+        client.indices.put_alias(index=document_store._index, name=alias_name)
+        try:
+            alias_store = OpenSearchDocumentStore(
+                hosts=["https://localhost:9200"],
+                http_auth=("admin", "SecureHaystack!2026"),
+                verify_certs=False,
+                index=alias_name,
+                embedding_dim=768,
+            )
+            alias_store._ensure_initialized()
+            alias_store.write_documents([Document(content="a"), Document(content="b")])
+            assert alias_store.count_documents() == 2
+
+            alias_store.delete_all_documents(recreate_index=False)
+
+            assert alias_store.count_documents() == 0
+            assert alias_store.write_documents([Document(content="after delete")]) == 1
+        finally:
+            client.indices.delete_alias(index=document_store._index, name=alias_name)
+
+    def test_count_unique_metadata_by_filter_with_alias(self, document_store: OpenSearchDocumentStore):
+        """count_unique_metadata_by_filter reads the mapping via alias without KeyError."""
+        alias_name = f"alias_cnt_{document_store._index}"
+        client = document_store._client
+        client.indices.put_alias(index=document_store._index, name=alias_name)
+        try:
+            alias_store = OpenSearchDocumentStore(
+                hosts=["https://localhost:9200"],
+                http_auth=("admin", "SecureHaystack!2026"),
+                verify_certs=False,
+                index=alias_name,
+                embedding_dim=768,
+            )
+            alias_store._ensure_initialized()
+            alias_store.write_documents(
+                [
+                    Document(content="a", meta={"category": "X"}),
+                    Document(content="b", meta={"category": "X"}),
+                    Document(content="c", meta={"category": "Y"}),
+                ]
+            )
+
+            result = alias_store.count_unique_metadata_by_filter(
+                filters={"field": "meta.category", "operator": "in", "value": ["X", "Y"]},
+                metadata_fields=["category"],
+            )
+            assert result == {"category": 2}
+        finally:
+            client.indices.delete_alias(index=document_store._index, name=alias_name)
+
+    def test_get_metadata_fields_info_with_alias(self, document_store: OpenSearchDocumentStore):
+        """get_metadata_fields_info reads the mapping via alias without KeyError."""
+        alias_name = f"alias_mfi_{document_store._index}"
+        client = document_store._client
+        client.indices.put_alias(index=document_store._index, name=alias_name)
+        try:
+            alias_store = OpenSearchDocumentStore(
+                hosts=["https://localhost:9200"],
+                http_auth=("admin", "SecureHaystack!2026"),
+                verify_certs=False,
+                index=alias_name,
+                embedding_dim=768,
+            )
+            alias_store._ensure_initialized()
+            alias_store.write_documents([Document(content="doc", meta={"category": "A", "count": 1})])
+
+            fields_info = alias_store.get_metadata_fields_info()
+            assert "category" in fields_info
+            assert fields_info["category"]["type"] == "keyword"
+            assert "count" in fields_info
+        finally:
+            client.indices.delete_alias(index=document_store._index, name=alias_name)

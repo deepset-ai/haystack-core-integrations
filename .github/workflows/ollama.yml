@@ -61,7 +61,7 @@ jobs:
       fail-fast: false
       matrix:
         os: ${{ fromJSON(needs.compute-test-matrix.outputs.os) }}
-        python-version: ${{ fromJSON(needs.compute-test-matrix.outputs.python-version) }}  
+        python-version: ${{ fromJSON(needs.compute-test-matrix.outputs.python-version) }}
 
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -89,7 +89,7 @@ jobs:
             fi
 
             echo "Ollama service started successfully."
-      
+
       - name: Pull models
         uses: nick-fields/retry@ad984534de44a9489a53aefd81eb77f87c70dc60 # v4.0.0
         with:
@@ -100,7 +100,7 @@ jobs:
             ollama list | grep -q "${{ env.LLM_FOR_TESTS }}" || { echo "Model ${{ env.LLM_FOR_TESTS }} not pulled."; exit 1; }
 
             ollama pull ${{ env.VISION_LLM_FOR_TESTS }}
-            ollama list | grep -q "${{ env.VISION_LLM_FOR_TESTS }}" || { echo "Model ${{ env.VISION_LLM_FOR_TESTS }} not pulled."; exit 1; }            
+            ollama list | grep -q "${{ env.VISION_LLM_FOR_TESTS }}" || { echo "Model ${{ env.VISION_LLM_FOR_TESTS }} not pulled."; exit 1; }
 
             ollama pull ${{ env.EMBEDDER_FOR_TESTS }}
             ollama list | grep -q "${{ env.EMBEDDER_FOR_TESTS }}" || { echo "Model ${{ env.EMBEDDER_FOR_TESTS }} not pulled."; exit 1; }
@@ -175,6 +175,6 @@ jobs:
     if: failure() && github.event_name == 'schedule'
     runs-on: ubuntu-slim
     steps:
-      - uses: deepset-ai/notify-slack-action@3cda73b77a148f16f703274198e7771340cf862b # v1
+      - uses: deepset-ai/notify-slack-action@a65def0c8bf91d6520286ab34280151c76a5a008 # v1.1.0
         with:
           slack-webhook-url: ${{ secrets.SLACK_WEBHOOK_URL_NOTIFICATIONS }}
