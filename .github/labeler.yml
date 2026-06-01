@@ -68,6 +68,11 @@ integration:chroma:
   - changed-files:
       - any-glob-to-any-file: "integrations/chroma/**/*"
       - any-glob-to-any-file: ".github/workflows/chroma.yml"
+      
+integration:cognee:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/cognee/**/*"
+      - any-glob-to-any-file: ".github/workflows/cognee.yml"
 
 integration:cohere:
   - changed-files:
@@ -177,6 +182,11 @@ integration:libreoffice:
   - changed-files:
       - any-glob-to-any-file: "integrations/libreoffice/**/*"
       - any-glob-to-any-file: ".github/workflows/libreoffice.yml"
+
+integration:litellm:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/litellm/**/*"
+      - any-glob-to-any-file: ".github/workflows/litellm.yml"
 
 integration:markitdown:
   - changed-files:
