@@ -25,9 +25,14 @@ from haystack.testing.document_store import (
 )
 from haystack.utils import Secret
 from psycopg import Connection, Cursor, Error
-from psycopg.sql import SQL
+from psycopg.adapt import Transformer
+from psycopg.sql import SQL, Composed
 
 from haystack_integrations.document_stores.pgvector import PgvectorDocumentStore
+
+
+def _render(composed: Composed) -> str:
+    return composed.as_string(Transformer())
 
 
 @pytest.mark.integration
@@ -248,6 +253,44 @@ def test_check_and_build_embedding_retrieval_query_rejects_invalid_vector_functi
             vector_function="invalid",
             top_k=5,
         )
+
+
+@pytest.mark.parametrize(
+    ("vector_function", "score_sql", "order_by_sql"),
+    [
+        (
+            "cosine_similarity",
+            "1 - (embedding <=> '[0.1,0.2]') AS score",
+            "embedding <=> '[0.1,0.2]'",
+        ),
+        (
+            "inner_product",
+            "(embedding <#> '[0.1,0.2]') * -1 AS score",
+            "embedding <#> '[0.1,0.2]'",
+        ),
+        (
+            "l2_distance",
+            "embedding <-> '[0.1,0.2]' AS score",
+            "embedding <-> '[0.1,0.2]'",
+        ),
+    ],
+)
+def test_check_and_build_embedding_retrieval_query_orders_by_distance_operator(
+    mock_store, vector_function, score_sql, order_by_sql
+):
+    mock_store.embedding_dimension = 2
+
+    sql_query, params = mock_store._check_and_build_embedding_retrieval_query(
+        query_embedding=[0.1, 0.2],
+        vector_function=vector_function,
+        top_k=5,
+    )
+
+    rendered = _render(sql_query)
+    assert score_sql in rendered
+    assert f"ORDER BY {order_by_sql} ASC LIMIT 5" in rendered
+    assert "ORDER BY score" not in rendered
+    assert params == ()
 
 
 @pytest.mark.parametrize(
