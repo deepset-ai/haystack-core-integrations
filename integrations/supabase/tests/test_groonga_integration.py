@@ -10,7 +10,10 @@ from haystack.dataclasses import Document
 from haystack.document_stores.types import DuplicatePolicy
 from haystack.testing.document_store import (
     DeleteAllTest,
+    DeleteByFilterTest,
     DocumentStoreBaseTests,
+    FilterableDocsFixtureMixin,
+    UpdateByFilterTest,
 )
 from haystack.utils import Secret
 
@@ -43,7 +46,13 @@ def document_store(request):
 
 
 @pytest.mark.integration
-class TestSupabaseGroongaDocumentStoreIntegration(DocumentStoreBaseTests, DeleteAllTest):
+class TestSupabaseGroongaDocumentStoreIntegration(
+    DocumentStoreBaseTests,
+    DeleteAllTest,
+    DeleteByFilterTest,
+    FilterableDocsFixtureMixin,
+    UpdateByFilterTest,
+):
     pass
 
 

@@ -234,6 +234,48 @@ class SupabaseGroongaDocumentStore(DocumentStore):
 
         return written
 
+    def delete_by_filter(self, filters: dict[str, Any]) -> int:
+        """
+        Deletes documents matching the given filters.
+
+        :param filters: Filters to select documents for deletion.
+        :returns: Number of documents deleted.
+        """
+        docs = self.filter_documents(filters=filters)
+        if not docs:
+            return 0
+        self.delete_documents([doc.id for doc in docs])
+        return len(docs)
+
+    def update_by_filter(self, filters: dict[str, Any], meta: dict[str, Any]) -> int:
+        """
+        Updates the metadata of documents matching the given filters.
+
+        Provided meta fields are merged into the existing document metadata.
+
+        :param filters: Filters to select documents to update.
+        :param meta: Metadata fields to set on matching documents.
+        :returns: Number of documents updated.
+        """
+        if self._client is None:
+            msg = "Call warm_up() before using the document store."
+            raise RuntimeError(msg)
+
+        docs = self.filter_documents(filters=filters)
+        if not docs:
+            return 0
+
+        for doc in docs:
+            row = {
+                "id": doc.id,
+                "content": doc.content or "",
+                "meta": {**doc.meta, **meta},
+                "score": None,
+            }
+            self._client.table(self.table_name).upsert(row).execute()
+
+        return len(docs)
+
     def delete_all_documents(self) -> None:
         """
         Deletes all documents from the store.
