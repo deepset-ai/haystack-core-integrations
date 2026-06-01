@@ -20,14 +20,14 @@ from .filters import _convert_filters
 logger = logging.getLogger(__name__)
 
 _SIMILARITY_AQL: dict[str, tuple[str, str]] = {
-    "cosine": ("COSINE_SIMILARITY", "DESC"),
-    "dot_product": ("DOT_PRODUCT", "DESC"),
-    "l2": ("L2_DISTANCE", "ASC"),
+    "cosine": ("APPROX_NEAR_COSINE", "DESC"),
+    "dot_product": ("APPROX_NEAR_INNER_PRODUCT", "DESC"),
+    "l2": ("APPROX_NEAR_L2", "ASC"),
 }
 
 
 def _doc_to_arango(doc: Document) -> dict[str, Any]:
-    d = doc.to_dict()
+    d = doc.to_dict(flatten=False)
     d["_key"] = d.pop("id")
     return d
 

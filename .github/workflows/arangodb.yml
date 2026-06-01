@@ -29,7 +29,7 @@ concurrency:
 env:
   PYTHONUNBUFFERED: "1"
   FORCE_COLOR: "1"
-  TEST_MATRIX_OS: '["ubuntu-latest", "windows-latest", "macos-latest"]'
+  TEST_MATRIX_OS: '["ubuntu-latest"]'
   TEST_MATRIX_PYTHON: '["3.10", "3.14"]'
 
 jobs:
@@ -60,12 +60,11 @@ jobs:
         os: ${{ fromJSON(needs.compute-test-matrix.outputs.os) }}
         python-version: ${{ fromJSON(needs.compute-test-matrix.outputs.python-version) }}
 
-    steps:
-      - name: Support longpaths
-        if: matrix.os == 'windows-latest'
-        working-directory: .
-        run: git config --system core.longpaths true
+    env:
+      ARANGO_HOST: http://localhost:8529
+      ARANGO_PASSWORD: test-password
 
+    steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: Set up Python ${{ matrix.python-version }}
@@ -80,6 +79,9 @@ jobs:
       - name: Lint
         if: matrix.python-version == '3.10' && runner.os == 'Linux'
         run: hatch run fmt-check && hatch run test:types
+
+      - name: Run ArangoDB container
+        run: docker compose up -d
 
       - name: Run unit tests
         run: hatch run test:unit-cov-retry

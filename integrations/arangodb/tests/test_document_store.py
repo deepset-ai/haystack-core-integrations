@@ -2,18 +2,15 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+import contextlib
+import os
 from unittest.mock import MagicMock
 
 import pytest
 from haystack.dataclasses import Document
 from haystack.document_stores.errors import DuplicateDocumentError
 from haystack.document_stores.types import DuplicatePolicy
-from haystack.testing.document_store import (
-    CountDocumentsTest,
-    DeleteDocumentsTest,
-    FilterDocumentsTest,
-    WriteDocumentsTest,
-)
+from haystack.testing.document_store import DocumentStoreBaseTests
 from haystack.utils import Secret
 
 from haystack_integrations.document_stores.arangodb import ArangoDocumentStore
@@ -263,7 +260,7 @@ class TestArangoDocumentStoreEmbeddingRetrieval:
         _mock_db(store, [])
         store._embedding_retrieval(query_embedding=[0.1, 0.2, 0.3], top_k=1)
         aql = store._db.aql.execute.call_args[0][0]
-        assert "COSINE_SIMILARITY" in aql
+        assert "APPROX_NEAR_COSINE" in aql
         assert "DESC" in aql
 
     def test_embedding_retrieval_dot_product(self):
@@ -271,7 +268,7 @@ class TestArangoDocumentStoreEmbeddingRetrieval:
         _mock_db(store, [])
         store._embedding_retrieval(query_embedding=[0.1, 0.2, 0.3], top_k=1)
         aql = store._db.aql.execute.call_args[0][0]
-        assert "DOT_PRODUCT" in aql
+        assert "APPROX_NEAR_INNER_PRODUCT" in aql
         assert "DESC" in aql
 
     def test_embedding_retrieval_l2(self):
@@ -279,7 +276,7 @@ class TestArangoDocumentStoreEmbeddingRetrieval:
         _mock_db(store, [])
         store._embedding_retrieval(query_embedding=[0.1, 0.2, 0.3], top_k=1)
         aql = store._db.aql.execute.call_args[0][0]
-        assert "L2_DISTANCE" in aql
+        assert "APPROX_NEAR_L2" in aql
         assert "ASC" in aql
 
     def test_embedding_retrieval_empty_query(self):
@@ -290,10 +287,28 @@ class TestArangoDocumentStoreEmbeddingRetrieval:
 
 
 @pytest.mark.integration
-class TestArangoDocumentStoreIntegration(
-    CountDocumentsTest,
-    DeleteDocumentsTest,
-    FilterDocumentsTest,
-    WriteDocumentsTest,
-):
-    pass
+class TestArangoDocumentStoreIntegration(DocumentStoreBaseTests):
+    def test_write_documents(self, document_store):
+        docs = [Document(content="doc1"), Document(content="doc2")]
+        assert document_store.write_documents(docs) == 2
+
+    @pytest.fixture
+    def document_store(self, request):
+        host = os.environ.get("ARANGO_HOST")
+        password = os.environ.get("ARANGO_PASSWORD")
+        if not host or not password:
+            pytest.skip("Set ARANGO_HOST and ARANGO_PASSWORD to run integration tests.")
+        store = ArangoDocumentStore(
+            host=host,
+            database="haystack_test",
+            username=Secret.from_env_var("ARANGO_USERNAME", strict=False),
+            password=Secret.from_env_var("ARANGO_PASSWORD"),
+            collection_name=f"test_{request.node.name}",
+            embedding_dimension=768,
+            recreate_collection=True,
+        )
+        yield store
+        with contextlib.suppress(Exception):
+            store._ensure_connected()
+            if store._db and store._db.has_collection(store.collection_name):
+                store._db.delete_collection(store.collection_name)
