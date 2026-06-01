@@ -138,11 +138,22 @@ class SupabaseGroongaDocumentStore(DocumentStore):
         """
         Returns documents matching the given filters.
 
-        Supported filters: equality filters on `id`, `content`, and `meta` fields.
+        Supports the standard Haystack filter syntax with the following operators:
 
-        :param filters: Optional dictionary of filters.
-            Example: ``{"field": "meta.language", "operator": "==", "value": "en"}``
+        - Comparison: ``==``, ``!=``, ``>``, ``>=``, ``<``, ``<=``, ``in``, ``not in``
+        - Logical: ``AND``, ``OR``, ``NOT`` (``OR`` and ``NOT`` support simple conditions
+          only — no nested logical operators inside them)
+
+        **Known limitation:** For ``!=`` and ``not in`` on ``meta.*`` fields, documents
+        where the field is absent are included in the result (matching Python ``None != value``
+        semantics). For ``>`` / ``>=`` / ``<`` / ``<=``, documents where the field is absent
+        are excluded (SQL ``NULL`` comparison semantics).
+
+        :param filters: Optional Haystack filter dict.
+            Simple comparison: ``{"field": "meta.language", "operator": "==", "value": "en"}``
+            Logical: ``{"operator": "AND", "conditions": [...]}``
         :returns: List of matching Document objects.
+        :raises FilterError: If the filter structure is malformed or uses an unsupported operator.
         """
         if self._client is None:
             msg = "Call warm_up() before using the document store."

@@ -2,11 +2,11 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 from .embedding_retriever import SupabasePgvectorEmbeddingRetriever
-from .groonga_retriever import SupabaseGroongaRetriever
+from .groonga_bm25_retriever import SupabaseGroongaBM25Retriever
 from .keyword_retriever import SupabasePgvectorKeywordRetriever
 
 __all__ = [
-    "SupabaseGroongaRetriever",
+    "SupabaseGroongaBM25Retriever",
     "SupabasePgvectorEmbeddingRetriever",
     "SupabasePgvectorKeywordRetriever",
 ]

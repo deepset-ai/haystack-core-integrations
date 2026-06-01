@@ -16,7 +16,7 @@ from haystack.testing.document_store import (
 )
 from haystack.utils import Secret
 
-from haystack_integrations.components.retrievers.supabase import SupabaseGroongaRetriever
+from haystack_integrations.components.retrievers.supabase import SupabaseGroongaBM25Retriever
 from haystack_integrations.document_stores.supabase import SupabaseGroongaDocumentStore
 
 # Defaults for the local Docker stack (docker-compose-groonga.yml).
@@ -108,7 +108,7 @@ class TestGroongaRetriever:
         ]
         document_store.write_documents(docs, policy=DuplicatePolicy.OVERWRITE)
 
-        retriever = SupabaseGroongaRetriever(document_store=document_store, top_k=5)
+        retriever = SupabaseGroongaBM25Retriever(document_store=document_store, top_k=5)
         result = retriever.run(query="Python")
 
         assert "documents" in result
@@ -116,5 +116,5 @@ class TestGroongaRetriever:
         assert any("Python" in doc.content for doc in result["documents"])
 
     def test_retriever_empty_query(self, document_store):
-        retriever = SupabaseGroongaRetriever(document_store=document_store)
+        retriever = SupabaseGroongaBM25Retriever(document_store=document_store)
         assert retriever.run(query="") == {"documents": []}
