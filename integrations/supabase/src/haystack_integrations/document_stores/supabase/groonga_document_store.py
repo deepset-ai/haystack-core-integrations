@@ -273,9 +273,9 @@ class SupabaseGroongaDocumentStore(DocumentStore):
             if isinstance(value, str):
                 try:
                     _datetime.fromisoformat(value)
-                except ValueError:
-                    msg = f"Filter operator '{op}' does not support plain string values. Use a numeric or ISO date value."
-                    raise FilterError(msg)
+                except ValueError as err:
+                    msg = f"Filter operator '{op}' does not support string values. Use a numeric or ISO date value."
+                    raise FilterError(msg) from err
             if op == ">":
                 return query.gt(col, norm)
             if op == ">=":
