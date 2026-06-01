@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from haystack.dataclasses import Document
@@ -204,3 +204,138 @@ class TestDocumentStore:
         assert store.table_name == "test_groonga_documents"
         assert store.supabase_url == "https://fake-project.supabase.co"
         assert store._client is None
+
+
+@pytest.fixture
+def mock_async_supabase_client():
+    """Creates a mock async Supabase client for async tests."""
+    with patch(
+        "haystack_integrations.document_stores.supabase.groonga_document_store.acreate_client",
+        new_callable=AsyncMock,
+    ) as mock_acreate:
+        mock_client = MagicMock()
+        mock_acreate.return_value = mock_client
+
+        mock_client.rpc.return_value.execute = AsyncMock(return_value=MagicMock(data=[], count=0))
+
+        mock_table = MagicMock()
+        mock_client.table.return_value = mock_table
+        mock_table.select.return_value = mock_table
+        mock_table.insert.return_value = mock_table
+        mock_table.upsert.return_value = mock_table
+        mock_table.delete.return_value = mock_table
+        mock_table.eq.return_value = mock_table
+        mock_table.in_.return_value = mock_table
+        mock_table.neq.return_value = mock_table
+        mock_table.execute = AsyncMock(return_value=MagicMock(data=[], count=0))
+
+        yield mock_client
+
+
+@pytest.fixture
+async def groonga_store_async(mock_async_supabase_client, monkeypatch):  # noqa: ARG001
+    """Creates a SupabaseGroongaDocumentStore with async client via warm_up_async()."""
+    monkeypatch.setenv("SUPABASE_SERVICE_KEY", "fake-test-key")
+    store = SupabaseGroongaDocumentStore(
+        supabase_url="https://fake-project.supabase.co",
+        table_name="test_groonga_documents",
+        recreate_table=False,
+    )
+    await store.warm_up_async()
+    return store
+
+
+@pytest.mark.asyncio
+class TestDocumentStoreAsync:
+    async def test_warm_up_async_initializes_client(self, mock_async_supabase_client, monkeypatch):  # noqa: ARG002
+        monkeypatch.setenv("SUPABASE_SERVICE_KEY", "fake-test-key")
+        store = SupabaseGroongaDocumentStore(supabase_url="https://fake-project.supabase.co")
+        assert store._async_client is None
+        await store.warm_up_async()
+        assert store._async_client is not None
+
+    async def test_count_documents_async(self, groonga_store_async, mock_async_supabase_client):
+        mock_async_supabase_client.table.return_value.execute = AsyncMock(return_value=MagicMock(count=7))
+        count = await groonga_store_async.count_documents_async()
+        assert count == 7
+
+    async def test_count_documents_async_empty(self, groonga_store_async, mock_async_supabase_client):
+        mock_async_supabase_client.table.return_value.execute = AsyncMock(return_value=MagicMock(count=0))
+        count = await groonga_store_async.count_documents_async()
+        assert count == 0
+
+    async def test_filter_documents_async(self, groonga_store_async, mock_async_supabase_client):
+        mock_async_supabase_client.table.return_value.execute = AsyncMock(
+            return_value=MagicMock(
+                data=[
+                    {"id": "1", "content": "Python is great", "meta": {}, "score": None},
+                    {"id": "2", "content": "Haystack rocks", "meta": {}, "score": None},
+                ]
+            )
+        )
+        docs = await groonga_store_async.filter_documents_async()
+        assert len(docs) == 2
+        assert docs[0].content == "Python is great"
+
+    async def test_write_documents_async_overwrite(self, groonga_store_async, mock_async_supabase_client):
+        mock_async_supabase_client.table.return_value.execute = AsyncMock(return_value=MagicMock(data=[{}]))
+        documents = [Document(content="test document")]
+        written = await groonga_store_async.write_documents_async(documents, policy=DuplicatePolicy.OVERWRITE)
+        assert written == 1
+        mock_async_supabase_client.table.return_value.upsert.assert_called_once()
+
+    async def test_write_documents_async_empty(self, groonga_store_async):
+        written = await groonga_store_async.write_documents_async([])
+        assert written == 0
+
+    async def test_write_documents_async_skip_existing(self, groonga_store_async, mock_async_supabase_client):
+        mock_async_supabase_client.table.return_value.eq.return_value.execute = AsyncMock(
+            return_value=MagicMock(data=[{"id": "existing"}])
+        )
+        written = await groonga_store_async.write_documents_async(
+            [Document(content="already exists")], policy=DuplicatePolicy.SKIP
+        )
+        assert written == 0
+
+    async def test_write_documents_async_fail_on_duplicate(self, groonga_store_async, mock_async_supabase_client):
+        mock_async_supabase_client.table.return_value.eq.return_value.execute = AsyncMock(
+            return_value=MagicMock(data=[{"id": "existing"}])
+        )
+        with pytest.raises(DuplicateDocumentError):
+            await groonga_store_async.write_documents_async(
+                [Document(content="duplicate")], policy=DuplicatePolicy.FAIL
+            )
+
+    async def test_delete_all_documents_async(self, groonga_store_async, mock_async_supabase_client):
+        mock_async_supabase_client.table.return_value.neq.return_value.execute = AsyncMock(
+            return_value=MagicMock(data=[])
+        )
+        await groonga_store_async.delete_all_documents_async()
+        mock_async_supabase_client.table.return_value.delete.assert_called_once()
+
+    async def test_delete_documents_async(self, groonga_store_async, mock_async_supabase_client):
+        mock_async_supabase_client.table.return_value.in_.return_value.execute = AsyncMock(
+            return_value=MagicMock(data=[])
+        )
+        await groonga_store_async.delete_documents_async(["id1", "id2"])
+        mock_async_supabase_client.table.return_value.delete.assert_called()
+
+    async def test_delete_documents_async_empty(self, groonga_store_async, mock_async_supabase_client):
+        await groonga_store_async.delete_documents_async([])
+        mock_async_supabase_client.table.return_value.delete.assert_not_called()
+
+    async def test_groonga_retrieval_async(self, groonga_store_async, mock_async_supabase_client):
+        mock_async_supabase_client.rpc.return_value.execute = AsyncMock(
+            return_value=MagicMock(
+                data=[{"id": "1", "content": "Python async rocks", "meta": {}, "score": 0.9}]
+            )
+        )
+        docs = await groonga_store_async._groonga_retrieval_async(query="Python", top_k=5)
+        assert len(docs) == 1
+        assert docs[0].content == "Python async rocks"
+
+    async def test_async_client_not_initialized_raises(self, monkeypatch):
+        monkeypatch.setenv("SUPABASE_SERVICE_KEY", "fake-test-key")
+        store = SupabaseGroongaDocumentStore(supabase_url="https://fake-project.supabase.co")
+        with pytest.raises(RuntimeError, match="warm_up_async"):
+            await store.count_documents_async()

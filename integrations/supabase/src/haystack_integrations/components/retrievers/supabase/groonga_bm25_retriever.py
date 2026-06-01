@@ -21,8 +21,8 @@ class SupabaseGroongaBM25Retriever:
     This retriever works without embeddings — it searches documents using plain text queries.
     It can be used alongside SupabasePgvectorEmbeddingRetriever in hybrid search pipelines.
 
-    Note: async operations are not supported as the supabase-py sync client does not expose
-    awaitable query methods. Use the sync run() method instead.
+    Supports both synchronous and asynchronous retrieval. For async usage, initialize the
+    document store with ``warm_up_async()`` instead of ``warm_up()`` and call ``run_async()``.
 
     Example usage:
 
@@ -109,19 +109,26 @@ class SupabaseGroongaBM25Retriever:
         top_k: int | None = None,
     ) -> dict[str, list[Document]]:
         """
-        Async version of run().
-
-        Note: supabase-py's sync client does not support native async queries.
-        This method runs the synchronous retrieval and returns the result.
-        For fully async support, consider using acreate_client() from supabase-py
-        and refactoring the document store accordingly.
+        Async version of run(). Requires the document store to be initialized with warm_up_async().
 
         :param query: The text query to search for.
         :param filters: Optional runtime filters. Merged or replaced based on filter_policy.
         :param top_k: Optional override for maximum number of documents to return.
         :returns: Dictionary with key "documents" containing list of matching Documents.
         """
-        return self.run(query=query, filters=filters, top_k=top_k)
+        if not query:
+            return {"documents": []}
+
+        merged_filters = apply_filter_policy(self.filter_policy, self.filters, filters)
+        effective_top_k = top_k if top_k is not None else self.top_k
+
+        documents = await self.document_store._groonga_retrieval_async(
+            query=query,
+            top_k=effective_top_k,
+            filters=merged_filters,
+        )
+
+        return {"documents": documents}
 
     def to_dict(self) -> dict[str, Any]:
         """

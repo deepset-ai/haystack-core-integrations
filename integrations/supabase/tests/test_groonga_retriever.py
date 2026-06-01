@@ -2,9 +2,10 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from haystack.dataclasses import Document
 
 from haystack_integrations.components.retrievers.supabase import SupabaseGroongaBM25Retriever
 from haystack_integrations.document_stores.supabase import SupabaseGroongaDocumentStore
@@ -73,13 +74,17 @@ class TestRetriever:
         assert result["documents"][0].content == "Python is great"
 
     @pytest.mark.asyncio
-    async def test_run_async(self, groonga_store, mock_supabase_client):
-        mock_supabase_client.rpc.return_value.execute.return_value = MagicMock(
-            data=[{"id": "1", "content": "Python is great", "meta": {}, "score": 1.0}]
-        )
+    async def test_run_async_uses_async_retrieval(self, groonga_store):
+        """run_async() must delegate to _groonga_retrieval_async, not the sync path."""
+        expected_doc = Document(id="1", content="Python is great")
+        groonga_store._groonga_retrieval_async = AsyncMock(return_value=[expected_doc])
+
         retriever = SupabaseGroongaBM25Retriever(document_store=groonga_store, top_k=5)
         result = await retriever.run_async(query="Python")
+
+        groonga_store._groonga_retrieval_async.assert_awaited_once()
         assert len(result["documents"]) == 1
+        assert result["documents"][0].content == "Python is great"
 
     @pytest.mark.asyncio
     async def test_run_async_empty_query(self, groonga_store):
