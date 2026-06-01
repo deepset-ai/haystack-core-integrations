@@ -46,12 +46,6 @@ def groonga_store(mock_supabase_client, monkeypatch):  # noqa: ARG001
     store.warm_up()
     return store
 
-
-# ─────────────────────────────────────────────
-# DOCUMENT STORE TESTS
-# ─────────────────────────────────────────────
-
-
 class TestDocumentStore:
     def test_init_defaults(self, monkeypatch):
         monkeypatch.setenv("SUPABASE_SERVICE_KEY", "fake-test-key")

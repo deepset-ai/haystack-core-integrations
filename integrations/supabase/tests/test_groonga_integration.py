@@ -3,7 +3,6 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import os
-import re
 
 import pytest
 from haystack.dataclasses import Document
@@ -20,29 +19,25 @@ from haystack.utils import Secret
 from haystack_integrations.components.retrievers.supabase import SupabaseGroongaRetriever
 from haystack_integrations.document_stores.supabase import SupabaseGroongaDocumentStore
 
+# Defaults for the local Docker stack (docker-compose-groonga.yml).
+# PostgREST is configured without a JWT secret, so the key is not validated.
+_LOCAL_SUPABASE_URL = "http://localhost:8000"
+_LOCAL_SERVICE_KEY = "local-dev-key-not-validated"
 
-@pytest.fixture()
-def document_store(request):
-    """
-    Creates a real SupabaseGroongaDocumentStore connected to a test Supabase project.
-    Requires SUPABASE_URL and SUPABASE_SERVICE_KEY environment variables to be set.
-    """
-    supabase_url = os.environ.get("SUPABASE_URL")
-    if not supabase_url:
-        pytest.skip("SUPABASE_URL not set")
 
-    safe_name = re.sub(r"[^a-zA-Z0-9]", "_", request.node.name)[:40]
-    table_name = f"hg_{safe_name}"
-
+def _make_store(request: pytest.FixtureRequest) -> SupabaseGroongaDocumentStore:  # noqa: ARG001
+    supabase_url = os.environ.get("SUPABASE_URL", _LOCAL_SUPABASE_URL)
+    service_key = os.environ.get("SUPABASE_SERVICE_KEY", _LOCAL_SERVICE_KEY)
     store = SupabaseGroongaDocumentStore(
         supabase_url=supabase_url,
-        supabase_key=Secret.from_env_var("SUPABASE_SERVICE_KEY"),
-        table_name=table_name,
-        recreate_table=True,
+        supabase_key=Secret.from_token(service_key),
+        # Fixed table pre-created in init-pgroonga.sql so PostgREST knows about it at startup.
+        # Tests clear data in teardown instead of recreating the table.
+        table_name="haystack_groonga_test",
+        recreate_table=False,
     )
     store.warm_up()
-    yield store
-    store.delete_all_documents()
+    return store
 
 
 @pytest.mark.integration
@@ -53,11 +48,41 @@ class TestSupabaseGroongaDocumentStoreIntegration(
     FilterableDocsFixtureMixin,
     UpdateByFilterTest,
 ):
-    pass
+    @pytest.fixture
+    def document_store(self, request):
+        store = _make_store(request)
+        yield store
+        store.delete_all_documents()
+
+    @staticmethod
+    def assert_documents_are_equal(received: list[Document], expected: list[Document]) -> None:
+        # Embeddings are not stored; strip them and sort by id for order-independent comparison.
+        def normalize(doc: Document) -> Document:
+            return Document(id=doc.id, content=doc.content, meta=doc.meta)
+
+        assert sorted([normalize(d) for d in received], key=lambda d: d.id or "") == sorted(
+            [normalize(d) for d in expected], key=lambda d: d.id or ""
+        )
+
+    def test_write_documents(self, document_store: SupabaseGroongaDocumentStore) -> None:
+        docs = [
+            Document(content="First document", meta={"key": "val"}),
+            Document(content="Second document"),
+        ]
+        assert document_store.write_documents(docs, DuplicatePolicy.FAIL) == len(docs)
+        result = document_store.filter_documents()
+        self.assert_documents_are_equal(result, docs)
 
 
 @pytest.mark.integration
 class TestGroongaRetriever:
+    @pytest.fixture
+    def document_store(self, request):
+        store = _make_store(request)
+        yield store
+        store.delete_all_documents()
+
+
     def test_groonga_retrieval(self, document_store):
         docs = [
             Document(content="Python is a great programming language"),

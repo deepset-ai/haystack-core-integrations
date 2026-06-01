@@ -3,11 +3,13 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import re
+from datetime import datetime as _datetime
 from typing import Any
 
 from haystack import default_from_dict, default_to_dict, logging
 from haystack.dataclasses import Document
 from haystack.document_stores.errors import DuplicateDocumentError
+from haystack.errors import FilterError
 from haystack.document_stores.types import DocumentStore, DuplicatePolicy
 from haystack.utils.auth import Secret, deserialize_secrets_inplace
 from postgrest import CountMethod
@@ -157,32 +159,107 @@ class SupabaseGroongaDocumentStore(DocumentStore):
     @staticmethod
     def _apply_filters(query: Any, filters: dict[str, Any]) -> Any:
         """
-        Applies filters to a Supabase query.
+        Applies Haystack filters to a PostgREST query builder.
+
+        Supports AND logical operator and all standard comparison operators.
+        OR is supported for simple (non-nested) equality/comparison conditions.
 
         :param query: The Supabase query builder.
-        :param filters: Dictionary of filters to apply.
+        :param filters: Haystack filter dict.
         :returns: The query with filters applied.
+        :raises FilterError: For unsupported operators or invalid value types.
         """
+        if not filters:
+            return query
+
+        # Simple comparison: {"field": "...", "operator": "...", "value": "..."}
+        if "field" in filters:
+            return SupabaseGroongaDocumentStore._apply_condition(query, filters)
+
+        op = filters.get("operator", "AND")
         conditions = filters.get("conditions", [])
 
-        for condition in conditions:
-            field = condition.get("field", "")
-            op = condition.get("operator", "==")
-            value = condition.get("value")
+        if op == "AND":
+            for cond in conditions:
+                query = SupabaseGroongaDocumentStore._apply_filters(query, cond)
+            return query
 
-            # Handle nested meta fields e.g. "meta.language"
-            if field.startswith("meta."):
-                meta_key = field[len("meta.") :]
-                if op == "==":
-                    query = query.eq(f"meta->>'{meta_key}'", value)
-                elif op == "!=":
-                    query = query.neq(f"meta->>'{meta_key}'", value)
-            elif op == "==":
-                query = query.eq(field, value)
-            elif op == "!=":
-                query = query.neq(field, value)
-            elif op == "in":
-                query = query.in_(field, value)
+        if op == "OR":
+            parts = []
+            for cond in conditions:
+                if "field" not in cond:
+                    msg = "Nested logical operators inside OR are not supported."
+                    raise FilterError(msg)
+                parts.append(SupabaseGroongaDocumentStore._condition_to_or_part(cond))
+            return query.or_(",".join(parts))
+
+        msg = f"Filter operator '{op}' is not supported. Supported logical operators: AND, OR."
+        raise FilterError(msg)
+
+    @staticmethod
+    def _condition_to_or_part(condition: dict[str, Any]) -> str:
+        field: str = condition.get("field", "")
+        op: str = condition.get("operator", "==")
+        value = condition.get("value")
+        col = f"meta->>{field[len('meta.'):]}" if field.startswith("meta.") else field
+        pg_op = {"==": "eq", "!=": "neq", ">": "gt", ">=": "gte", "<": "lt", "<=": "lte"}
+        if op not in pg_op:
+            msg = f"Operator '{op}' inside OR filter is not supported."
+            raise FilterError(msg)
+        return f"{col}.{pg_op[op]}.{value}"
+
+    @staticmethod
+    def _apply_condition(query: Any, condition: dict[str, Any]) -> Any:
+        field: str = condition.get("field", "")
+        op: str = condition.get("operator", "==")
+        value = condition.get("value")
+
+        # PostgREST JSONB text accessor: meta->>key (no quotes around key name)
+        col = f"meta->>{field[len('meta.'):]}" if field.startswith("meta.") else field
+
+        if op == "==":
+            return query.is_(col, "null") if value is None else query.eq(col, value)
+
+        if op == "!=":
+            return query.not_.is_(col, "null") if value is None else query.neq(col, value)
+
+        if op in (">", ">=", "<", "<="):
+            if isinstance(value, list):
+                msg = f"Filter operator '{op}' does not support list values."
+                raise FilterError(msg)
+            if value is None:
+                # No document satisfies an ordering comparison against NULL.
+                return query.eq("id", "")
+            if isinstance(value, str):
+                try:
+                    _datetime.fromisoformat(value)
+                except ValueError:
+                    msg = f"Filter operator '{op}' does not support plain string values. Use a numeric or ISO date value."
+                    raise FilterError(msg)
+                # ISO date strings sort correctly as text; no cast needed.
+                col_cmp = col
+            else:
+                # Numeric value: cast JSONB text to numeric for correct ordering.
+                col_cmp = f"{col}::numeric"
+            if op == ">":
+                return query.gt(col_cmp, value)
+            if op == ">=":
+                return query.gte(col_cmp, value)
+            if op == "<":
+                return query.lt(col_cmp, value)
+            return query.lte(col_cmp, value)
+
+        if op == "in":
+            if not isinstance(value, list):
+                msg = "Filter operator 'in' requires a list value."
+                raise FilterError(msg)
+            return query.in_(col, value)
+
+        if op == "not in":
+            if not isinstance(value, list):
+                msg = "Filter operator 'not in' requires a list value."
+                raise FilterError(msg)
+            return query.not_.in_(col, value)
 
         return query
 
@@ -198,6 +275,14 @@ class SupabaseGroongaDocumentStore(DocumentStore):
         :param policy: How to handle duplicate documents. Defaults to DuplicatePolicy.FAIL.
         :returns: Number of documents written.
         """
+        if not isinstance(documents, list):
+            msg = f"write_documents() expects a list of Document objects, got {type(documents).__name__}"
+            raise ValueError(msg)
+        for doc in documents:
+            if not isinstance(doc, Document):
+                msg = f"write_documents() expects Document objects, got {type(doc).__name__}"
+                raise ValueError(msg)
+
         if self._client is None:
             msg = "Call warm_up() before using the document store."
             raise RuntimeError(msg)
