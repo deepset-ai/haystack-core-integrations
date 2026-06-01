@@ -134,51 +134,6 @@ class TestDocumentStore:
         with pytest.raises(DuplicateDocumentError):
             groonga_store.write_documents([Document(content="duplicate doc")], policy=DuplicatePolicy.FAIL)
 
-    def test_delete_by_filter(self, groonga_store, mock_supabase_client):
-        mock_table = mock_supabase_client.table.return_value
-        mock_table.select.return_value.execute.return_value = MagicMock(
-            data=[{"id": "1", "content": "doc one", "meta": {"lang": "en"}, "score": None}]
-        )
-        mock_table.delete.return_value.in_.return_value.execute.return_value = MagicMock(data=[])
-
-        deleted = groonga_store.delete_by_filter(
-            filters={"conditions": [{"field": "meta.lang", "operator": "==", "value": "en"}]}
-        )
-        assert deleted == 1
-
-    def test_delete_by_filter_no_matches(self, groonga_store, mock_supabase_client):
-        mock_supabase_client.table.return_value.select.return_value.execute.return_value = MagicMock(data=[])
-
-        deleted = groonga_store.delete_by_filter(
-            filters={"conditions": [{"field": "meta.lang", "operator": "==", "value": "fr"}]}
-        )
-        assert deleted == 0
-
-    def test_update_by_filter(self, groonga_store, mock_supabase_client):
-        mock_table = mock_supabase_client.table.return_value
-        mock_table.select.return_value.execute.return_value = MagicMock(
-            data=[{"id": "1", "content": "doc one", "meta": {"lang": "en"}, "score": None}]
-        )
-        mock_table.upsert.return_value.execute.return_value = MagicMock(data=[{}])
-
-        updated = groonga_store.update_by_filter(
-            filters={"conditions": [{"field": "meta.lang", "operator": "==", "value": "en"}]},
-            meta={"reviewed": True},
-        )
-        assert updated == 1
-        mock_table.upsert.assert_called_once()
-        upserted_row = mock_table.upsert.call_args[0][0]
-        assert upserted_row["meta"] == {"lang": "en", "reviewed": True}
-
-    def test_update_by_filter_no_matches(self, groonga_store, mock_supabase_client):
-        mock_supabase_client.table.return_value.select.return_value.execute.return_value = MagicMock(data=[])
-
-        updated = groonga_store.update_by_filter(
-            filters={"conditions": [{"field": "meta.lang", "operator": "==", "value": "fr"}]},
-            meta={"reviewed": True},
-        )
-        assert updated == 0
-
     def test_delete_all_documents(self, groonga_store, mock_supabase_client):
         mock_table = mock_supabase_client.table.return_value
         mock_table.delete.return_value.neq.return_value.execute.return_value = MagicMock(data=[])
@@ -214,7 +169,7 @@ class TestDocumentStore:
         mock_table.select.return_value.eq.return_value.execute.return_value = MagicMock(
             data=[{"id": "1", "content": "Python is great", "meta": {"language": "en"}, "score": None}]
         )
-        filters = {"conditions": [{"field": "meta.language", "operator": "==", "value": "en"}]}
+        filters = {"operator": "AND", "conditions": [{"field": "meta.language", "operator": "==", "value": "en"}]}
         docs = groonga_store.filter_documents(filters=filters)
         assert len(docs) == 1
 

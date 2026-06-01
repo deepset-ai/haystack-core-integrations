@@ -217,24 +217,46 @@ class SupabaseGroongaDocumentStore(DocumentStore):
                 query = SupabaseGroongaDocumentStore._apply_filters(query, cond)
             return query
 
-        if op in ("OR", "NOT"):
-            neg_map = {"==": "neq", "!=": "eq", ">": "lte", ">=": "lt", "<": "gte", "<=": "gt"}
+        if op == "OR":
             pg_op_map = {"==": "eq", "!=": "neq", ">": "gt", ">=": "gte", "<": "lt", "<=": "lte"}
-            op_map = neg_map if op == "NOT" else pg_op_map
             parts = []
             for cond in conditions:
                 if "field" not in cond:
-                    msg = f"Nested logical operators inside {op} are not supported."
+                    msg = "Nested logical operators inside OR are not supported."
                     raise FilterError(msg)
                 cond_field = cond.get("field", "")
                 cond_op = cond.get("operator", "")
                 cond_value = cond.get("value")
-                if cond_op not in op_map:
-                    msg = f"Operator '{cond_op}' inside {op} filter is not supported."
+                if cond_op not in pg_op_map:
+                    msg = f"Operator '{cond_op}' inside OR filter is not supported."
                     raise FilterError(msg)
-                col = SupabaseGroongaDocumentStore._meta_col(cond_field, cond_value)
+                # Use text accessor (->>): PostgREST OR strings don't support JSONB (->) expressions.
+                col = f"meta->>{cond_field[len('meta.'):]}" if cond_field.startswith("meta.") else cond_field
                 norm = SupabaseGroongaDocumentStore._normalize_value(cond_value)
-                parts.append(f"{col}.{op_map[cond_op]}.{norm}")
+                parts.append(f"{col}.{pg_op_map[cond_op]}.{norm}")
+            return query.or_(",".join(parts))
+
+        if op == "NOT":
+            # NOT(A AND B) = NOT_A OR NOT_B, with null-inclusive semantics.
+            # Use text accessor: PostgREST OR strings don't support JSONB (->) expressions.
+            neg_map = {"==": "neq", "!=": "eq", ">": "lte", ">=": "lt", "<": "gte", "<=": "gt"}
+            parts = []
+            for cond in conditions:
+                if "field" not in cond:
+                    msg = "Nested logical operators inside NOT are not supported."
+                    raise FilterError(msg)
+                cond_field = cond.get("field", "")
+                cond_op = cond.get("operator", "")
+                cond_value = cond.get("value")
+                if cond_op not in neg_map:
+                    msg = f"Operator '{cond_op}' inside NOT filter is not supported."
+                    raise FilterError(msg)
+                col = f"meta->>{cond_field[len('meta.'):]}" if cond_field.startswith("meta.") else cond_field
+                norm = SupabaseGroongaDocumentStore._normalize_value(cond_value)
+                parts.append(f"{col}.{neg_map[cond_op]}.{norm}")
+                if cond_op == "==" and cond_field.startswith("meta."):
+                    # NOT(field==value) also covers docs where the field is absent (SQL NULL semantics)
+                    parts.append(f"{col}.is.null")
             return query.or_(",".join(parts))
 
         msg = f"Filter operator '{op}' is not supported. Supported logical operators: AND, OR, NOT."
@@ -262,7 +284,13 @@ class SupabaseGroongaDocumentStore(DocumentStore):
             return query.is_(col, "null") if norm is None else query.eq(col, norm)
 
         if op == "!=":
-            return query.not_.is_(col, "null") if norm is None else query.neq(col, norm)
+            if norm is None:
+                return query.not_.is_(col, "null")
+            if field.startswith("meta."):
+                # SQL: NULL != value returns NULL (not TRUE), so include docs where the field is absent.
+                key = field[len("meta."):]
+                return query.or_(f"{col}.neq.{norm},meta->>{key}.is.null")
+            return query.neq(col, norm)
 
         if op in (">", ">=", "<", "<="):
             if isinstance(value, list):
@@ -294,6 +322,12 @@ class SupabaseGroongaDocumentStore(DocumentStore):
             if not isinstance(value, list):
                 msg = "Filter operator 'not in' requires a list value."
                 raise FilterError(msg)
+            if field.startswith("meta."):
+                # SQL: NULL NOT IN (...) returns NULL, so include docs where the field is absent.
+                key = field[len("meta."):]
+                non_none = [v for v in value if v is not None]
+                vals = ",".join(str(v) for v in non_none)
+                return query.or_(f"{col}.not.in.({vals}),meta->>{key}.is.null")
             return query.not_.in_(col, value)
 
         return query
