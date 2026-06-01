@@ -4,9 +4,9 @@
 
 | Name                                                                             |    Stmts |     Miss |   Branch |   BrPart |   Cover |   Missing |
 |--------------------------------------------------------------------------------- | -------: | -------: | -------: | -------: | ------: | --------: |
-| src/haystack\_integrations/components/connectors/langfuse/langfuse\_connector.py |       37 |        0 |        2 |        0 |    100% |           |
+| src/haystack\_integrations/components/connectors/langfuse/langfuse\_connector.py |       38 |        0 |        4 |        0 |    100% |           |
 | src/haystack\_integrations/tracing/langfuse/tracer.py                            |      251 |       16 |       90 |       13 |     90% |90, 101-\>113, 133, 220, 238, 285-290, 318, 320, 350-\>349, 353-\>360, 362-\>exit, 395-\>401, 397-\>401, 406-\>exit, 514-519, 540-545 |
-| **TOTAL**                                                                        |  **288** |   **16** |   **92** |   **13** | **91%** |           |
+| **TOTAL**                                                                        |  **289** |   **16** |   **94** |   **13** | **91%** |           |
 
 
 ## Setup coverage badge
