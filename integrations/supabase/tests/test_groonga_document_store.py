@@ -140,6 +140,13 @@ class TestDocumentStore:
         with pytest.raises(DuplicateDocumentError):
             groonga_store.write_documents([Document(content="duplicate doc")], policy=DuplicatePolicy.FAIL)
 
+    def test_delete_all_documents(self, groonga_store, mock_supabase_client):
+        mock_table = mock_supabase_client.table.return_value
+        mock_table.delete.return_value.neq.return_value.execute.return_value = MagicMock(data=[])
+
+        groonga_store.delete_all_documents()
+        mock_table.delete.assert_called_once()
+
     def test_delete_documents(self, groonga_store, mock_supabase_client):
         mock_table = mock_supabase_client.table.return_value
         mock_table.delete.return_value.in_.return_value.execute.return_value = MagicMock(data=[])

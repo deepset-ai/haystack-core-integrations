@@ -234,6 +234,15 @@ class SupabaseGroongaDocumentStore(DocumentStore):
 
         return written
 
+    def delete_all_documents(self) -> None:
+        """
+        Deletes all documents from the store.
+        """
+        if self._client is None:
+            msg = "Call warm_up() before using the document store."
+            raise RuntimeError(msg)
+        self._client.table(self.table_name).delete().neq("id", "").execute()
+
     def delete_documents(self, document_ids: list[str]) -> None:
         """
         Deletes documents with the given IDs.
