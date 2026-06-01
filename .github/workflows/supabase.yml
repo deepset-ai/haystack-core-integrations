@@ -120,11 +120,31 @@ jobs:
           name: coverage-comment-supabase
           path: python-coverage-comment-action-supabase.txt
 
-      - name: Run integration tests
+      - name: Run pgvector integration tests
         if: runner.os == 'Linux'
         env:
           SUPABASE_DB_URL: "postgresql://postgres:postgres@localhost:5432/postgres"
-        run: hatch run test:integration-cov-append-retry
+        run: hatch run test:integration-cov-append-retry --ignore=tests/test_groonga_integration.py
+
+      - name: Start PGroonga + PostgREST stack
+        if: runner.os == 'Linux'
+        run: docker compose -f docker-compose-groonga.yml up -d --build
+
+      - name: Wait for PGroonga stack to be ready
+        if: runner.os == 'Linux'
+        run: |
+          for i in $(seq 1 30); do
+            if curl -sf http://localhost:8000/rest/v1/ -H "apikey: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImV4cCI6MTk4MzgxMjk5Nn0.EGIM96RAZx35lJzdJsyH-qQwv8Hj04zWl196z2-SBc0"; then
+              echo "PGroonga stack is ready"
+              break
+            fi
+            echo "Waiting for PGroonga stack... ($i/30)"
+            sleep 5
+          done
+
+      - name: Run PGroonga integration tests
+        if: runner.os == 'Linux'
+        run: hatch run test:integration-cov-append-retry tests/test_groonga_integration.py
 
       - name: Store combined coverage
         if: github.event_name == 'push'
