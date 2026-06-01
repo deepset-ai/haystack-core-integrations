@@ -25,14 +25,9 @@ from haystack.testing.document_store import (
 )
 from haystack.utils import Secret
 from psycopg import Connection, Cursor, Error
-from psycopg.adapt import Transformer
-from psycopg.sql import SQL, Composed
+from psycopg.sql import SQL
 
 from haystack_integrations.document_stores.pgvector import PgvectorDocumentStore
-
-
-def _render(composed: Composed) -> str:
-    return composed.as_string(Transformer())
 
 
 @pytest.mark.integration
@@ -286,9 +281,12 @@ def test_check_and_build_embedding_retrieval_query_orders_by_distance_operator(
         top_k=5,
     )
 
-    rendered = _render(sql_query)
+    rendered = repr(sql_query)
     assert score_sql in rendered
-    assert f"ORDER BY {order_by_sql} ASC LIMIT 5" in rendered
+    assert "SQL(' ORDER BY ')" in rendered
+    assert f'SQL("{order_by_sql}")' in rendered
+    assert "SQL(' ASC LIMIT ')" in rendered
+    assert "Literal(5)" in rendered
     assert "ORDER BY score" not in rendered
     assert params == ()
 
