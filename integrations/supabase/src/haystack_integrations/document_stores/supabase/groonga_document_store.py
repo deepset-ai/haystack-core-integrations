@@ -9,8 +9,8 @@ from typing import Any
 from haystack import default_from_dict, default_to_dict, logging
 from haystack.dataclasses import Document
 from haystack.document_stores.errors import DuplicateDocumentError
-from haystack.errors import FilterError
 from haystack.document_stores.types import DocumentStore, DuplicatePolicy
+from haystack.errors import FilterError
 from haystack.utils.auth import Secret, deserialize_secrets_inplace
 from postgrest import CountMethod
 
@@ -157,78 +157,118 @@ class SupabaseGroongaDocumentStore(DocumentStore):
         return [self._to_haystack_document(row) for row in result.data if isinstance(row, dict)]
 
     @staticmethod
+    def _meta_col(field: str, value: Any) -> str:
+        """
+        Choose the PostgREST column expression for a meta field.
+
+        Uses the JSONB accessor (->) for numeric values so that PostgREST performs
+        correct numeric comparison. Uses the text accessor (->>) for strings, booleans,
+        None, and mixed lists, which return the JSON value as text.
+        """
+        if not field.startswith("meta."):
+            return field
+        key = field[len("meta."):]
+        if isinstance(value, list):
+            all_numeric = all(isinstance(v, (int, float)) and not isinstance(v, bool) for v in value if v is not None)
+            return f"meta->{key}" if (all_numeric and value) else f"meta->>{key}"
+        if isinstance(value, (int, float)) and not isinstance(value, bool):
+            return f"meta->{key}"
+        return f"meta->>{key}"
+
+    @staticmethod
+    def _normalize_value(value: Any) -> Any:
+        """Convert Python booleans to lowercase strings compatible with JSONB text accessor."""
+        if isinstance(value, bool):
+            return "true" if value else "false"
+        return value
+
+    @staticmethod
     def _apply_filters(query: Any, filters: dict[str, Any]) -> Any:
         """
         Applies Haystack filters to a PostgREST query builder.
 
-        Supports AND logical operator and all standard comparison operators.
-        OR is supported for simple (non-nested) equality/comparison conditions.
+        Supports AND, OR, NOT logical operators and all standard comparison operators.
+        OR and NOT are supported for simple (non-nested) conditions only.
 
         :param query: The Supabase query builder.
         :param filters: Haystack filter dict.
         :returns: The query with filters applied.
-        :raises FilterError: For unsupported operators or invalid value types.
+        :raises FilterError: For unsupported operators, invalid value types, or malformed filters.
         """
         if not filters:
             return query
 
-        # Simple comparison: {"field": "...", "operator": "...", "value": "..."}
         if "field" in filters:
             return SupabaseGroongaDocumentStore._apply_condition(query, filters)
 
-        op = filters.get("operator", "AND")
-        conditions = filters.get("conditions", [])
+        if "operator" not in filters:
+            msg = "Logical filter must include an 'operator' key ('AND', 'OR', 'NOT')."
+            raise FilterError(msg)
+
+        if "conditions" not in filters:
+            msg = "Logical filter must include a 'conditions' key."
+            raise FilterError(msg)
+
+        op = filters["operator"]
+        conditions = filters["conditions"]
 
         if op == "AND":
             for cond in conditions:
                 query = SupabaseGroongaDocumentStore._apply_filters(query, cond)
             return query
 
-        if op == "OR":
+        if op in ("OR", "NOT"):
+            neg_map = {"==": "neq", "!=": "eq", ">": "lte", ">=": "lt", "<": "gte", "<=": "gt"}
+            pg_op_map = {"==": "eq", "!=": "neq", ">": "gt", ">=": "gte", "<": "lt", "<=": "lte"}
+            op_map = neg_map if op == "NOT" else pg_op_map
             parts = []
             for cond in conditions:
                 if "field" not in cond:
-                    msg = "Nested logical operators inside OR are not supported."
+                    msg = f"Nested logical operators inside {op} are not supported."
                     raise FilterError(msg)
-                parts.append(SupabaseGroongaDocumentStore._condition_to_or_part(cond))
+                cond_field = cond.get("field", "")
+                cond_op = cond.get("operator", "")
+                cond_value = cond.get("value")
+                if cond_op not in op_map:
+                    msg = f"Operator '{cond_op}' inside {op} filter is not supported."
+                    raise FilterError(msg)
+                col = SupabaseGroongaDocumentStore._meta_col(cond_field, cond_value)
+                norm = SupabaseGroongaDocumentStore._normalize_value(cond_value)
+                parts.append(f"{col}.{op_map[cond_op]}.{norm}")
             return query.or_(",".join(parts))
 
-        msg = f"Filter operator '{op}' is not supported. Supported logical operators: AND, OR."
+        msg = f"Filter operator '{op}' is not supported. Supported logical operators: AND, OR, NOT."
         raise FilterError(msg)
-
-    @staticmethod
-    def _condition_to_or_part(condition: dict[str, Any]) -> str:
-        field: str = condition.get("field", "")
-        op: str = condition.get("operator", "==")
-        value = condition.get("value")
-        col = f"meta->>{field[len('meta.'):]}" if field.startswith("meta.") else field
-        pg_op = {"==": "eq", "!=": "neq", ">": "gt", ">=": "gte", "<": "lt", "<=": "lte"}
-        if op not in pg_op:
-            msg = f"Operator '{op}' inside OR filter is not supported."
-            raise FilterError(msg)
-        return f"{col}.{pg_op[op]}.{value}"
 
     @staticmethod
     def _apply_condition(query: Any, condition: dict[str, Any]) -> Any:
         field: str = condition.get("field", "")
-        op: str = condition.get("operator", "==")
-        value = condition.get("value")
 
-        # PostgREST JSONB text accessor: meta->>key (no quotes around key name)
-        col = f"meta->>{field[len('meta.'):]}" if field.startswith("meta.") else field
+        if "operator" not in condition:
+            msg = "Comparison filter must include an 'operator' key."
+            raise FilterError(msg)
+
+        if "value" not in condition:
+            msg = "Comparison filter must include a 'value' key."
+            raise FilterError(msg)
+
+        op: str = condition["operator"]
+        value = condition["value"]
+
+        col = SupabaseGroongaDocumentStore._meta_col(field, value)
+        norm = SupabaseGroongaDocumentStore._normalize_value(value)
 
         if op == "==":
-            return query.is_(col, "null") if value is None else query.eq(col, value)
+            return query.is_(col, "null") if norm is None else query.eq(col, norm)
 
         if op == "!=":
-            return query.not_.is_(col, "null") if value is None else query.neq(col, value)
+            return query.not_.is_(col, "null") if norm is None else query.neq(col, norm)
 
         if op in (">", ">=", "<", "<="):
             if isinstance(value, list):
                 msg = f"Filter operator '{op}' does not support list values."
                 raise FilterError(msg)
             if value is None:
-                # No document satisfies an ordering comparison against NULL.
                 return query.eq("id", "")
             if isinstance(value, str):
                 try:
@@ -236,18 +276,13 @@ class SupabaseGroongaDocumentStore(DocumentStore):
                 except ValueError:
                     msg = f"Filter operator '{op}' does not support plain string values. Use a numeric or ISO date value."
                     raise FilterError(msg)
-                # ISO date strings sort correctly as text; no cast needed.
-                col_cmp = col
-            else:
-                # Numeric value: cast JSONB text to numeric for correct ordering.
-                col_cmp = f"{col}::numeric"
             if op == ">":
-                return query.gt(col_cmp, value)
+                return query.gt(col, norm)
             if op == ">=":
-                return query.gte(col_cmp, value)
+                return query.gte(col, norm)
             if op == "<":
-                return query.lt(col_cmp, value)
-            return query.lte(col_cmp, value)
+                return query.lt(col, norm)
+            return query.lte(col, norm)
 
         if op == "in":
             if not isinstance(value, list):
@@ -404,7 +439,7 @@ class SupabaseGroongaDocumentStore(DocumentStore):
 
         result = self._client.rpc(
             "groonga_search",
-            {"query_text": query, "table": self.table_name, "top_k": top_k},
+            {"query_text": query, "table_name": self.table_name, "top_k": top_k},
         ).execute()
 
         data = result.data if isinstance(result.data, list) else []
