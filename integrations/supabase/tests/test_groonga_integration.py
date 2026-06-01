@@ -2,6 +2,28 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+# Integration tests for SupabaseGroongaDocumentStore and SupabaseGroongaBM25Retriever.
+#
+# These tests require a running stack of three Docker containers defined in
+# docker-compose-groonga.yml:
+#
+#   pgroonga-postgres  PostgreSQL 17 + PGroonga extension (port 5433)
+#   postgrest          PostgREST REST API on top of PostgreSQL (port 3000)
+#   nginx              Reverse proxy that strips the /rest/v1/ prefix that
+#                      supabase-py always appends, then forwards to PostgREST
+#                      (port 8000 — the URL used by supabase-py)
+#
+# Start the stack locally with:
+#   make docker-groonga
+#
+# The test fixture falls back to http://localhost:8000 when SUPABASE_URL is not
+# set, so no environment variables are required for local development.
+#
+# All tests share a single pre-created table (haystack_groonga_test) defined in
+# init-pgroonga.sql. PostgREST caches its schema at startup and does not reload
+# it for tables created later, so the table must exist before PostgREST starts.
+# Data is cleared in fixture teardown instead of recreating the table.
+
 import os
 
 import pytest
