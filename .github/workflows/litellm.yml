@@ -1,34 +1,35 @@
 # This workflow comes from https://github.com/ofek/hatch-mypyc
 # https://github.com/ofek/hatch-mypyc/blob/5a198c0ba8660494d02716cfc9d79ce4adfb1442/.github/workflows/test.yml
-name: Test / libreoffice
+name: Test / litellm
 
 on:
   schedule:
     - cron: "0 0 * * *"
   pull_request:
     paths:
-      - "integrations/libreoffice/**"
-      - "!integrations/libreoffice/*.md"
-      - ".github/workflows/libreoffice.yml"
+      - "integrations/litellm/**"
+      - "!integrations/litellm/*.md"
+      - ".github/workflows/litellm.yml"
   push:
     branches:
       - main
     paths:
-      - "integrations/libreoffice/**"
-      - "!integrations/libreoffice/*.md"
-      - ".github/workflows/libreoffice.yml"
+      - "integrations/litellm/**"
+      - "!integrations/litellm/*.md"
+      - ".github/workflows/litellm.yml"
 
 defaults:
   run:
-    working-directory: integrations/libreoffice
+    working-directory: integrations/litellm
 
 concurrency:
-  group: libreoffice-${{ github.head_ref || github.sha }}
+  group: litellm-${{ github.head_ref || github.sha }}
   cancel-in-progress: true
 
 env:
   PYTHONUNBUFFERED: "1"
   FORCE_COLOR: "1"
+  OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
   TEST_MATRIX_OS: '["ubuntu-latest", "windows-latest", "macos-latest"]'
   TEST_MATRIX_PYTHON: '["3.10", "3.14"]'
 
@@ -76,25 +77,11 @@ jobs:
       - name: Install Hatch
         run: |
           python -m pip install --upgrade pip
-          pip install --upgrade hatch --uploaded-prior-to=P1D
+          pip install hatch --uploaded-prior-to=P1D
+
       - name: Lint
         if: matrix.python-version == '3.10' && runner.os == 'Linux'
         run: hatch run fmt-check && hatch run test:types
-
-      - name: Install LibreOffice headless (Ubuntu)
-        if: runner.os == 'Linux'
-        run: sudo apt-get update && sudo apt-get install -y libreoffice-common libreoffice-writer libreoffice-calc libreoffice-impress
-
-      - name: Install LibreOffice headless (Windows)
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: |
-          choco install libreoffice-fresh -y
-          echo "C:\Program Files\LibreOffice\program" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
-
-      - name: Install LibreOffice headless (macOS)
-        if: runner.os == 'macOS'
-        run: brew install --cask libreoffice
 
       - name: Run unit tests
         run: hatch run test:unit-cov-retry
@@ -106,8 +93,8 @@ jobs:
         uses: py-cov-action/python-coverage-comment-action@63f52f4fbbffada6e8dee8ec432de7e01df9ba79 # v3.41
         with:
           GITHUB_TOKEN: ${{ github.token }}
-          COVERAGE_PATH: integrations/libreoffice
-          SUBPROJECT_ID: libreoffice
+          COVERAGE_PATH: integrations/litellm
+          SUBPROJECT_ID: litellm
           MINIMUM_GREEN: 90
           MINIMUM_ORANGE: 60
 
@@ -115,8 +102,8 @@ jobs:
         if: matrix.python-version == '3.10' && runner.os == 'Linux' && github.event_name == 'pull_request' && steps.coverage_comment.outputs.COMMENT_FILE_WRITTEN == 'true'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: coverage-comment-libreoffice
-          path: python-coverage-comment-action-libreoffice.txt
+          name: coverage-comment-litellm
+          path: python-coverage-comment-action-litellm.txt
 
       - name: Run integration tests
         run: hatch run test:integration-cov-append-retry
@@ -126,8 +113,8 @@ jobs:
         uses: py-cov-action/python-coverage-comment-action@63f52f4fbbffada6e8dee8ec432de7e01df9ba79 # v3.41
         with:
           GITHUB_TOKEN: ${{ github.token }}
-          COVERAGE_PATH: integrations/libreoffice
-          SUBPROJECT_ID: libreoffice-combined
+          COVERAGE_PATH: integrations/litellm
+          SUBPROJECT_ID: litellm-combined
           MINIMUM_GREEN: 90
           MINIMUM_ORANGE: 60
 
@@ -138,18 +125,18 @@ jobs:
           hatch -e test env run -- uv pip install -r requirements_lowest_direct.txt
           hatch run test:unit
 
-      - name: Nightly - run unit tests with Haystack main branch
+      - name: Nightly - run tests with Haystack main branch
         if: github.event_name == 'schedule'
         run: |
           hatch env prune
           hatch -e test env run -- uv pip install git+https://github.com/deepset-ai/haystack.git@main
-          hatch run test:unit
+          hatch run test:unit-cov-retry
 
   notify-slack-on-failure:
     needs: run
     if: failure() && github.event_name == 'schedule'
     runs-on: ubuntu-slim
     steps:
-      - uses: deepset-ai/notify-slack-action@a65def0c8bf91d6520286ab34280151c76a5a008 # v1.1.0
+      - uses: deepset-ai/notify-slack-action@3cda73b77a148f16f703274198e7771340cf862b # v1
         with:
           slack-webhook-url: ${{ secrets.SLACK_WEBHOOK_URL_NOTIFICATIONS }}
