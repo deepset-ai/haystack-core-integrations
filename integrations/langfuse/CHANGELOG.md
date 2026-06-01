@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/langfuse-v5.0.2] - 2026-06-01
+
+### 🐛 Bug Fixes
+
+- Update langfuse deserialization to not require `span_handler` key (#3378)
+
+
 ## [integrations/langfuse-v5.0.1] - 2026-05-18
 
 ### 🐛 Bug Fixes
