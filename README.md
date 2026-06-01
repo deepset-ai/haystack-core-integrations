@@ -6,9 +6,11 @@
 |------------------------------------------------------------------------------------------- | -------: | -------: | -------: | -------: | ------: | --------: |
 | src/haystack\_integrations/components/downloaders/supabase/supabase\_bucket\_downloader.py |       49 |        2 |       12 |        2 |     93% |75-76, 90-\>92 |
 | src/haystack\_integrations/components/retrievers/supabase/embedding\_retriever.py          |       23 |        0 |        4 |        0 |    100% |           |
+| src/haystack\_integrations/components/retrievers/supabase/groonga\_bm25\_retriever.py      |       38 |        0 |        6 |        1 |     98% | 151-\>153 |
 | src/haystack\_integrations/components/retrievers/supabase/keyword\_retriever.py            |       23 |        0 |        4 |        0 |    100% |           |
 | src/haystack\_integrations/document\_stores/supabase/document\_store.py                    |       13 |        0 |        0 |        0 |    100% |           |
-| **TOTAL**                                                                                  |  **108** |    **2** |   **20** |    **2** | **97%** |           |
+| src/haystack\_integrations/document\_stores/supabase/groonga\_document\_store.py           |      287 |       59 |      140 |       22 |     78% |100-101, 104, 132-133, 159-160, 180, 210, 236-237, 242-243, 257-258, 263-264, 268-\>255, 273-274, 304, 342-344, 367-368, 397-398, 426-427, 449-450, 460-461, 482-483, 495, 508-537 |
+| **TOTAL**                                                                                  |  **433** |   **61** |  **166** |   **25** | **83%** |           |
 
 
 ## Setup coverage badge
