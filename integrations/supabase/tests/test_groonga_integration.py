@@ -82,7 +82,6 @@ class TestGroongaRetriever:
         yield store
         store.delete_all_documents()
 
-
     def test_groonga_retrieval(self, document_store):
         docs = [
             Document(content="Python is a great programming language"),

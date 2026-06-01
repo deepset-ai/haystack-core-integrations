@@ -95,9 +95,7 @@ class TestRetriever:
     def test_from_dict(self, mock_supabase_client, monkeypatch):  # noqa: ARG002
         monkeypatch.setenv("SUPABASE_SERVICE_KEY", "fake-test-key")
         data = {
-            "type": (
-                "haystack_integrations.components.retrievers.supabase.groonga_retriever.SupabaseGroongaRetriever"
-            ),
+            "type": ("haystack_integrations.components.retrievers.supabase.groonga_retriever.SupabaseGroongaRetriever"),
             "init_parameters": {
                 "top_k": 7,
                 "filters": {},
