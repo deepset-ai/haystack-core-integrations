@@ -97,7 +97,7 @@ class TestRetriever:
         data = {
             "type": (
                 "haystack_integrations.components.retrievers.supabase.groonga_bm25_retriever.SupabaseGroongaBM25Retriever"
-            ),  # noqa: E501
+            ),
             "init_parameters": {
                 "top_k": 7,
                 "filters": {},
