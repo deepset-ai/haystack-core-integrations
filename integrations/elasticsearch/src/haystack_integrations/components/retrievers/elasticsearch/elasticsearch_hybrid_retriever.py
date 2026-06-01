@@ -4,7 +4,7 @@
 
 from typing import TYPE_CHECKING, Any
 
-from haystack import Document, Pipeline, default_from_dict, default_to_dict, logging, super_component
+from haystack import AsyncPipeline, Document, default_from_dict, default_to_dict, logging, super_component
 from haystack.components.embedders.types import TextEmbedder
 from haystack.components.joiners import DocumentJoiner
 from haystack.components.joiners.document_joiner import JoinMode
@@ -246,7 +246,7 @@ class ElasticsearchHybridRetriever:
             """Run the hybrid retrieval pipeline and return retrieved documents."""
             ...
 
-    def _create_pipeline(self, data: dict[str, Any]) -> Pipeline:
+    def _create_pipeline(self, data: dict[str, Any]) -> AsyncPipeline:
         """
         Create the pipeline for the ElasticsearchHybridRetriever.
 
@@ -257,7 +257,7 @@ class ElasticsearchHybridRetriever:
         bm25_retriever = ElasticsearchBM25Retriever(**data["bm25_retriever"])
         document_joiner = DocumentJoiner(**data["document_joiner"])
 
-        hybrid_retrieval = Pipeline()
+        hybrid_retrieval = AsyncPipeline()
         hybrid_retrieval.add_component("text_embedder", self.embedder)
         hybrid_retrieval.add_component("embedding_retriever", embedding_retriever)
         hybrid_retrieval.add_component("bm25_retriever", bm25_retriever)
