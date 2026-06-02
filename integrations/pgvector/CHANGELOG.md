@@ -1,5 +1,29 @@
 # Changelog
 
+## [integrations/pgvector-v6.3.1] - 2026-06-01
+
+### 🐛 Bug Fixes
+
+- Replace in place dataclass mutations for pgvector #11087 (#3142)
+- *(pgvector)* Order retrieval by distance operator (#3370)
+
+### 🚜 Refactor
+
+- *(pgvector)* Use async DocumentStore mixin tests (#3094)
+
+### 🧪 Testing
+
+- `PGVectorDocumentStore`e use Mixin tests (#3003)
+- Test compatible integrations with python 3.14; update pyproject (#3001)
+- Track test coverage for all integrations (#3065)
+- Add tests for pgvector document store (#3156)
+
+### 🧹 Chores
+
+- Add ANN ruff ruleset to optimum, paddleocr, pgvector, pinecone, pyversity, qdrant, ragas, snowflake (#2992)
+- Enforce ruff docstring rules in integrations 31-40 (openrouter, opensearch, optimum, paddleocr, pgvector, pinecone, pyversity, qdrant, ragas, snowflake) (#3011)
+
+
 ## [integrations/pgvector-v6.3.0] - 2026-03-17
 
 ### 🐛 Bug Fixes

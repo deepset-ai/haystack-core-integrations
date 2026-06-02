@@ -23,7 +23,7 @@ classifiers = [
   "Programming Language :: Python :: Implementation :: CPython",
   "Programming Language :: Python :: Implementation :: PyPy",
 ]
-dependencies = ["haystack-ai>=2.26.1", "pgvector-haystack>=6.3.0", "supabase>=2.9.0"]
+dependencies = ["haystack-ai>=2.26.1", "pgvector-haystack>=6.3.0", "supabase>=2.23.0"]
 
 [project.urls]
 Documentation = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/supabase#readme"
@@ -58,6 +58,7 @@ dependencies = [
     "pytest-rerunfailures",
     "mypy",
     "pip",
+    "supabase",
 ]
 
 [tool.hatch.envs.test.scripts]
@@ -153,6 +154,7 @@ show_missing = true
 exclude_lines = ["no cov", "if __name__ == .__main__.:", "if TYPE_CHECKING:"]
 
 [tool.pytest.ini_options]
+asyncio_mode = "auto"
 addopts = "--strict-markers"
 markers = [
   "integration: integration tests",

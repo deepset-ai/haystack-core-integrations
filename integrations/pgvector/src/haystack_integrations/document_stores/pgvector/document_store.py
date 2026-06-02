@@ -1351,10 +1351,13 @@ class PgvectorDocumentStore:
         # cosine_similarity and inner_product are modified from the result of the operator
         if vector_function == "cosine_similarity":
             score_definition = f"1 - (embedding <=> {query_embedding_for_postgres}) AS score"
+            order_by_definition = f"embedding <=> {query_embedding_for_postgres}"
         elif vector_function == "inner_product":
             score_definition = f"(embedding <#> {query_embedding_for_postgres}) * -1 AS score"
+            order_by_definition = f"embedding <#> {query_embedding_for_postgres}"
         elif vector_function == "l2_distance":
             score_definition = f"embedding <-> {query_embedding_for_postgres} AS score"
+            order_by_definition = f"embedding <-> {query_embedding_for_postgres}"
 
         sql_select = SQL("SELECT *, {score} FROM {schema_name}.{table_name}").format(
             schema_name=Identifier(self.schema_name),
@@ -1367,13 +1370,9 @@ class PgvectorDocumentStore:
         if filters:
             sql_where_clause, params = _convert_filters_to_where_clause_and_params(filters)
 
-        # we always want to return the most similar documents first
-        # so when using l2_distance, the sort order must be ASC
-        sort_order = "ASC" if vector_function == "l2_distance" else "DESC"
-
-        sql_sort = SQL(" ORDER BY score {sort_order} LIMIT {top_k}").format(
+        sql_sort = SQL(" ORDER BY {order_by} ASC LIMIT {top_k}").format(
             top_k=SQLLiteral(top_k),
-            sort_order=SQL(sort_order),
+            order_by=SQL(order_by_definition),
         )
 
         sql_query = sql_select + sql_where_clause + sql_sort
