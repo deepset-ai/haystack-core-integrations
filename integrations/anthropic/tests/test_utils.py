@@ -413,7 +413,7 @@ class TestUtils:
         assert isinstance(usage, dict)
         assert usage["cache_creation_input_tokens"] is None
         assert usage["cache_read_input_tokens"] is None
-        assert usage["input_tokens"] is None
+        assert usage["input_tokens"] == 393
         assert usage["output_tokens"] == 77
         assert usage["server_tool_use"] is None
 
