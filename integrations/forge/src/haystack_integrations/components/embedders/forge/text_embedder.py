@@ -5,6 +5,7 @@ from typing import Any, ClassVar
 
 from haystack import component, default_from_dict, default_to_dict
 from haystack.components.embedders import OpenAITextEmbedder
+from haystack.utils import deserialize_secrets_inplace
 from haystack.utils.auth import Secret
 
 
@@ -129,4 +130,5 @@ class ForgeTextEmbedder(OpenAITextEmbedder):
         :returns:
             Deserialized component.
         """
+        deserialize_secrets_inplace(data["init_parameters"], keys=["api_key"])
         return default_from_dict(cls, data)
