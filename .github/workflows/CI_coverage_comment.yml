@@ -27,6 +27,7 @@ on:
       - "Test / falkordb"
       - "Test / fastembed"
       - "Test / firecrawl"
+      - "Test / forge"
       - "Test / github"
       - "Test / google-genai"
       - "Test / hanlp"

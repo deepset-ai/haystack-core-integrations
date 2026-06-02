@@ -130,6 +130,11 @@ integration:firecrawl:
       - any-glob-to-any-file: "integrations/firecrawl/**/*"
       - any-glob-to-any-file: ".github/workflows/firecrawl.yml"
 
+integration:forge:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/forge/**/*"
+      - any-glob-to-any-file: ".github/workflows/forge.yml"
+
 integration:github:
   - changed-files:
       - any-glob-to-any-file: "integrations/github/**/*"

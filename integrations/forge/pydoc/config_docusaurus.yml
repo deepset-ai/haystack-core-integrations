@@ -1,0 +1,14 @@
+loaders:
+  - modules:
+      - haystack_integrations.components.embedders.forge.document_embedder
+      - haystack_integrations.components.embedders.forge.text_embedder
+    search_path: [../src]
+processors:
+  - type: filter
+    documented_only: true
+    skip_empty_modules: true
+renderer:
+  description: Forge integration for Haystack
+  id: integrations-forge
+  filename: forge.md
+  title: Forge
