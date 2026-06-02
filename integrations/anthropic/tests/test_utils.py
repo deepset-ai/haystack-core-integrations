@@ -415,6 +415,7 @@ class TestUtils:
             "input_tokens": 393,
             "output_tokens": 77,
             "server_tool_use": None,
+            "output_tokens_details": None,
         }
 
     def test_convert_streaming_chunks_to_chat_message_with_multiple_tool_calls(self):
