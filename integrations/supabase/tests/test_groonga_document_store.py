@@ -326,9 +326,7 @@ class TestDocumentStoreAsync:
 
     async def test_groonga_retrieval_async(self, groonga_store_async, mock_async_supabase_client):
         mock_async_supabase_client.rpc.return_value.execute = AsyncMock(
-            return_value=MagicMock(
-                data=[{"id": "1", "content": "Python async rocks", "meta": {}, "score": 0.9}]
-            )
+            return_value=MagicMock(data=[{"id": "1", "content": "Python async rocks", "meta": {}, "score": 0.9}])
         )
         docs = await groonga_store_async._groonga_retrieval_async(query="Python", top_k=5)
         assert len(docs) == 1

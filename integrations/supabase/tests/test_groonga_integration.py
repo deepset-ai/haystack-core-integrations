@@ -140,3 +140,112 @@ class TestGroongaRetriever:
     def test_retriever_empty_query(self, document_store):
         retriever = SupabaseGroongaBM25Retriever(document_store=document_store)
         assert retriever.run(query="") == {"documents": []}
+
+
+@pytest.mark.integration
+class TestGroongaDocumentStoreAsyncIntegration:
+    """Integration tests for the async methods of SupabaseGroongaDocumentStore."""
+
+    @pytest.fixture
+    async def async_store(self, request):  # noqa: ARG002
+        supabase_url = os.environ.get("SUPABASE_URL", _LOCAL_SUPABASE_URL)
+        service_key = os.environ.get("SUPABASE_SERVICE_KEY", _LOCAL_SERVICE_KEY)
+        store = SupabaseGroongaDocumentStore(
+            supabase_url=supabase_url,
+            supabase_key=Secret.from_token(service_key),
+            table_name="haystack_groonga_test",
+            recreate_table=False,
+        )
+        await store.warm_up_async()
+        yield store
+        await store.delete_all_documents_async()
+
+    async def test_write_and_count_async(self, async_store):
+        docs = [Document(content="async doc one"), Document(content="async doc two")]
+        written = await async_store.write_documents_async(docs)
+        assert written == 2
+        count = await async_store.count_documents_async()
+        assert count >= 2
+
+    async def test_write_documents_async_empty(self, async_store):
+        written = await async_store.write_documents_async([])
+        assert written == 0
+
+    async def test_filter_documents_async(self, async_store):
+        docs = [
+            Document(content="filter async test A", meta={"lang": "en"}),
+            Document(content="filter async test B", meta={"lang": "fr"}),
+        ]
+        await async_store.write_documents_async(docs, policy=DuplicatePolicy.OVERWRITE)
+        results = await async_store.filter_documents_async()
+        assert len(results) >= 2
+
+    async def test_delete_all_documents_async(self, async_store):
+        docs = [Document(content="to delete async")]
+        await async_store.write_documents_async(docs)
+        await async_store.delete_all_documents_async()
+        count = await async_store.count_documents_async()
+        assert count == 0
+
+    async def test_delete_documents_async_by_id(self, async_store):
+        doc = Document(content="delete by id async")
+        await async_store.write_documents_async([doc])
+        await async_store.delete_documents_async([doc.id])
+        results = await async_store.filter_documents_async()
+        assert all(d.id != doc.id for d in results)
+
+    async def test_groonga_retrieval_async(self, async_store):
+        docs = [
+            Document(content="async full-text search with PGroonga"),
+            Document(content="synchronous query comparison"),
+        ]
+        await async_store.write_documents_async(docs, policy=DuplicatePolicy.OVERWRITE)
+        results = await async_store._groonga_retrieval_async(query="PGroonga", top_k=5)
+        assert len(results) >= 1
+        assert any("PGroonga" in (d.content or "") for d in results)
+
+
+@pytest.mark.integration
+class TestGroongaBM25RetrieverAsyncIntegration:
+    """Integration tests for the async run method of SupabaseGroongaBM25Retriever."""
+
+    @pytest.fixture
+    async def async_store(self, request):  # noqa: ARG002
+        supabase_url = os.environ.get("SUPABASE_URL", _LOCAL_SUPABASE_URL)
+        service_key = os.environ.get("SUPABASE_SERVICE_KEY", _LOCAL_SERVICE_KEY)
+        store = SupabaseGroongaDocumentStore(
+            supabase_url=supabase_url,
+            supabase_key=Secret.from_token(service_key),
+            table_name="haystack_groonga_test",
+            recreate_table=False,
+        )
+        await store.warm_up_async()
+        yield store
+        await store.delete_all_documents_async()
+
+    async def test_run_async(self, async_store):
+        docs = [
+            Document(content="Haystack is a powerful NLP framework"),
+            Document(content="Supabase is a Firebase alternative"),
+        ]
+        await async_store.write_documents_async(docs, policy=DuplicatePolicy.OVERWRITE)
+
+        retriever = SupabaseGroongaBM25Retriever(document_store=async_store, top_k=5)
+        result = await retriever.run_async(query="Haystack")
+
+        assert "documents" in result
+        assert len(result["documents"]) >= 1
+        assert any("Haystack" in (d.content or "") for d in result["documents"])
+
+    async def test_run_async_empty_query(self, async_store):
+        retriever = SupabaseGroongaBM25Retriever(document_store=async_store)
+        result = await retriever.run_async(query="")
+        assert result == {"documents": []}
+
+    async def test_run_async_top_k(self, async_store):
+        docs = [Document(content=f"async python document {i}") for i in range(4)]
+        await async_store.write_documents_async(docs, policy=DuplicatePolicy.OVERWRITE)
+
+        retriever = SupabaseGroongaBM25Retriever(document_store=async_store, top_k=2)
+        result = await retriever.run_async(query="python")
+        assert len(result["documents"]) <= 2
