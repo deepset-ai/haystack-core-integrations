@@ -13,7 +13,9 @@ from haystack_integrations.document_stores.arangodb.document_store import Arango
 @component
 class ArangoEmbeddingRetriever:
     """
-    Retrieves documents from an `ArangoDocumentStore` using cosine similarity on embeddings.
+    Retrieves documents from an `ArangoDocumentStore` using vector similarity on embeddings.
+
+    The similarity function is configured on the `ArangoDocumentStore` (cosine, dot product, or L2).
 
     Example usage:
 

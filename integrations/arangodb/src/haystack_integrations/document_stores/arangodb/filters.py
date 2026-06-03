@@ -113,29 +113,16 @@ def _parse_comparison(node: dict[str, Any], bind_vars: dict[str, Any], counter: 
         bind_vars[var] = value
         return f"{field} != @{var}"
 
-    idx = counter[0]
-    counter[0] += 1
-    var = f"fv{idx}"
-    bind_vars[var] = value
-
-    op_map = {
-        ">": ">",
-        ">=": ">=",
-        "<": "<",
-        "<=": "<=",
-        "in": "IN",
-        "not in": "NOT IN",
-    }
-
     if op in ("in", "not in"):
         if not isinstance(value, list):
             msg = f"Filter operator '{op}' requires a list value, got {type(value).__name__}."
             raise FilterError(msg)
+        idx = counter[0]
+        counter[0] += 1
+        var = f"fv{idx}"
+        bind_vars[var] = value
         aql_op = "IN" if op == "in" else "NOT IN"
         return f"{field} {aql_op} @{var}"
-
-    if op in op_map:
-        return f"{field} {op_map[op]} @{var}"
 
     msg = f"Unsupported filter operator: {op}"
     raise FilterError(msg)
