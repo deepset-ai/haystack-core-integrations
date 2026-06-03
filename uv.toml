@@ -2,3 +2,6 @@
 # attacks via compromised dependencies. uv resolves this relative to the current clock at
 # install/lock time, so no manual date updates are needed.
 exclude-newer = "24 hours"
+
+# haystack-ai is a first-party dependency
+haystack-ai = "2026-06-04T00:00:00Z"

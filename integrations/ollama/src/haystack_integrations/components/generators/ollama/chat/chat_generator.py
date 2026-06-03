@@ -4,6 +4,7 @@ from dataclasses import replace
 from typing import Any, Literal
 
 from haystack import component, default_from_dict, default_to_dict
+from haystack.components.generators.utils import _normalize_messages
 from haystack.dataclasses import (
     AsyncStreamingCallbackT,
     ChatMessage,
@@ -577,7 +578,7 @@ class OllamaChatGenerator:
     @component.output_types(replies=list[ChatMessage])
     def run(
         self,
-        messages: list[ChatMessage],
+        messages: list[ChatMessage] | str,
         generation_kwargs: dict[str, Any] | None = None,
         tools: ToolsType | None = None,
         *,
@@ -587,7 +588,8 @@ class OllamaChatGenerator:
         Runs an Ollama Model on a given chat history.
 
         :param messages:
-            A list of ChatMessage instances representing the input messages.
+            A list of ChatMessage instances representing the input messages. If a string is provided, it is converted
+            to a list containing a ChatMessage with user role.
         :param generation_kwargs:
             Per-call overrides for Ollama inference options.
             These are merged on top of the instance-level `generation_kwargs`.
@@ -603,6 +605,7 @@ class OllamaChatGenerator:
         :returns: A dictionary with the following keys:
             - `replies`: A list of ChatMessages containing the model's response
         """
+        messages = _normalize_messages(messages)
 
         # Validate and select the streaming callback
         callback = select_streaming_callback(
@@ -636,7 +639,7 @@ class OllamaChatGenerator:
     @component.output_types(replies=list[ChatMessage])
     async def run_async(
         self,
-        messages: list[ChatMessage],
+        messages: list[ChatMessage] | str,
         generation_kwargs: dict[str, Any] | None = None,
         tools: ToolsType | None = None,
         *,
@@ -646,7 +649,8 @@ class OllamaChatGenerator:
         Async version of run. Runs an Ollama Model on a given chat history.
 
         :param messages:
-            A list of ChatMessage instances representing the input messages.
+            A list of ChatMessage instances representing the input messages. If a string is provided, it is converted
+            to a list containing a ChatMessage with user role.
         :param generation_kwargs:
             Per-call overrides for Ollama inference options.
             These are merged on top of the instance-level `generation_kwargs`.
@@ -659,6 +663,8 @@ class OllamaChatGenerator:
         :returns: A dictionary with the following keys:
             - `replies`: A list of ChatMessages containing the model's response
         """
+        messages = _normalize_messages(messages)
+
         # Validate and select the streaming callback
         callback = select_streaming_callback(self.streaming_callback, streaming_callback, requires_async=True)
 
