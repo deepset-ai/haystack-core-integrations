@@ -1008,6 +1008,57 @@ class TestOllamaChatGeneratorRun:
         assert result["replies"][0].role == "assistant"
 
     @patch("haystack_integrations.components.generators.ollama.chat.chat_generator.Client")
+    def test_run_with_string_input(self, mock_client):
+        generator = OllamaChatGenerator()
+
+        mock_response = ChatResponse(
+            model="qwen3:0.6b",
+            created_at="2023-12-12T14:13:43.416799Z",
+            message={"role": "assistant", "content": "Paris"},
+            done=True,
+            prompt_eval_count=1,
+            eval_count=1,
+        )
+
+        mock_client_instance = mock_client.return_value
+        mock_client_instance.chat.return_value = mock_response
+
+        result = generator.run("What's the capital of France?")
+
+        _, kwargs = mock_client_instance.chat.call_args
+        assert kwargs["messages"] == [{"role": "user", "content": "What's the capital of France?"}]
+
+        assert isinstance(result["replies"], list)
+        assert len(result["replies"]) == 1
+        assert isinstance(result["replies"][0], ChatMessage)
+
+    @pytest.mark.asyncio
+    @patch("haystack_integrations.components.generators.ollama.chat.chat_generator.AsyncClient")
+    async def test_run_async_with_string_input(self, mock_async_client):
+        generator = OllamaChatGenerator()
+
+        mock_response = ChatResponse(
+            model="qwen3:0.6b",
+            created_at="2023-12-12T14:13:43.416799Z",
+            message={"role": "assistant", "content": "Paris"},
+            done=True,
+            prompt_eval_count=1,
+            eval_count=1,
+        )
+
+        mock_async_client_instance = mock_async_client.return_value
+        mock_async_client_instance.chat = AsyncMock(return_value=mock_response)
+
+        result = await generator.run_async("What's the capital of France?")
+
+        _, kwargs = mock_async_client_instance.chat.call_args
+        assert kwargs["messages"] == [{"role": "user", "content": "What's the capital of France?"}]
+
+        assert isinstance(result["replies"], list)
+        assert len(result["replies"]) == 1
+        assert isinstance(result["replies"][0], ChatMessage)
+
+    @patch("haystack_integrations.components.generators.ollama.chat.chat_generator.Client")
     def test_run_retries_after_failure(self, mock_client):
         generator = OllamaChatGenerator(max_retries=1)
 
