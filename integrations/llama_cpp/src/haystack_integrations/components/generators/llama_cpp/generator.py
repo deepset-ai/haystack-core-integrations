@@ -2,6 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+import warnings
 from typing import Any
 
 from haystack import component, logging
@@ -54,6 +55,12 @@ class LlamaCppGenerator:
             For more information on the available kwargs, see
             [llama.cpp documentation](https://llama-cpp-python.readthedocs.io/en/latest/api-reference/#llama_cpp.Llama.create_completion).
         """
+        warnings.warn(
+            "The `LlamaCppGenerator` component is deprecated and will be removed in a future version. "
+            "Use `LlamaCppChatGenerator` instead, which now also supports string inputs.",
+            FutureWarning,
+            stacklevel=2,
+        )
 
         model_kwargs = model_kwargs or {}
         generation_kwargs = generation_kwargs or {}
