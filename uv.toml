@@ -4,4 +4,5 @@
 exclude-newer = "24 hours"
 
 # haystack-ai is a first-party dependency
-haystack-ai = "2026-06-04T00:00:00Z"
+[exclude-newer-package]
+haystack-ai = false
