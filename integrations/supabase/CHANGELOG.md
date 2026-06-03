@@ -1,5 +1,13 @@
 # Changelog
 
+## [integrations/supabase-v0.2.0] - 2026-06-01
+
+### 🚀 Features
+
+- *(supabase)* Add SupabaseBucketDownloader component (#3250)
+- *(supabase)* Add SupabaseGroongaDocumentStore and SupabaseGroongaRetriever (#3266)
+
+
 ## [integrations/supabase-v0.1.0] - 2026-04-22
 
 ### 🚀 Features
