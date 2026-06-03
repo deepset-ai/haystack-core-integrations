@@ -2,6 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+import warnings
 from typing import Any, ClassVar, cast
 
 from haystack import component, logging
@@ -143,6 +144,12 @@ class WatsonxGenerator(WatsonxChatGenerator):
             - Path to CA bundle for custom certificates
         :param streaming_callback: A callback function for streaming responses.
         """
+        warnings.warn(
+            "The `WatsonxGenerator` component is deprecated and will be removed in a future version. "
+            "Use `WatsonxChatGenerator` instead, which now also supports string inputs.",
+            FutureWarning,
+            stacklevel=2,
+        )
         super(WatsonxGenerator, self).__init__(  # noqa: UP008
             api_key=api_key,
             model=model,
