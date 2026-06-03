@@ -182,6 +182,7 @@ class TestAnthropicChatGenerator:
                 "ignore_tools_thinking_messages": True,
                 "generation_kwargs": {},
                 "tools": None,
+                "anthropic_server_tools": None,
                 "timeout": None,
                 "max_retries": None,
             },
@@ -218,6 +219,7 @@ class TestAnthropicChatGenerator:
                 "streaming_callback": "haystack.components.generators.utils.print_streaming_chunk",
                 "ignore_tools_thinking_messages": True,
                 "generation_kwargs": {"max_tokens": 10, "some_test_param": "test-params"},
+                "anthropic_server_tools": None,
                 "timeout": 10.0,
                 "max_retries": 1,
             },
@@ -449,6 +451,51 @@ class TestAnthropicChatGenerator:
         with pytest.raises(ValueError):
             AnthropicChatGenerator(tools=tools + tools)
 
+    def test_init_with_anthropic_server_tools(self, monkeypatch):
+        monkeypatch.setenv("ANTHROPIC_API_KEY", "test-api-key")
+        server_tools = [{"type": "web_search_20250305"}]
+        component = AnthropicChatGenerator(anthropic_server_tools=server_tools)
+        assert component.anthropic_server_tools == server_tools
+
+    def test_to_dict_with_anthropic_server_tools(self, monkeypatch):
+        monkeypatch.setenv("ANTHROPIC_API_KEY", "test-api-key")
+        server_tools = [{"type": "web_search_20250305"}]
+        component = AnthropicChatGenerator(anthropic_server_tools=server_tools)
+        data = component.to_dict()
+        assert data["init_parameters"]["anthropic_server_tools"] == server_tools
+
+    def test_from_dict_with_anthropic_server_tools(self, monkeypatch):
+        monkeypatch.setenv("ANTHROPIC_API_KEY", "test-api-key")
+        data = {
+            "type": "haystack_integrations.components.generators.anthropic.chat.chat_generator.AnthropicChatGenerator",
+            "init_parameters": {
+                "api_key": {"env_vars": ["ANTHROPIC_API_KEY"], "type": "env_var", "strict": True},
+                "model": "claude-sonnet-4-5",
+                "anthropic_server_tools": [{"type": "web_search_20250305"}],
+            },
+        }
+        component = AnthropicChatGenerator.from_dict(data)
+        assert component.anthropic_server_tools == [{"type": "web_search_20250305"}]
+
+    def test_run_with_anthropic_server_tools(self, chat_messages, mock_anthropic_completion):
+        server_tools = [{"type": "web_search_20250305"}]
+        component = AnthropicChatGenerator(
+            api_key=Secret.from_token("test-api-key"), anthropic_server_tools=server_tools
+        )
+        component.run(messages=chat_messages)
+        _, kwargs = mock_anthropic_completion.call_args
+        assert kwargs["tools"] == server_tools
+
+    def test_run_with_tools_and_anthropic_server_tools(self, chat_messages, mock_anthropic_completion, tools):
+        server_tools = [{"type": "web_search_20250305"}]
+        component = AnthropicChatGenerator(
+            api_key=Secret.from_token("test-api-key"), tools=tools, anthropic_server_tools=server_tools
+        )
+        component.run(messages=chat_messages)
+        _, kwargs = mock_anthropic_completion.call_args
+        assert len(kwargs["tools"]) == 2
+        assert kwargs["tools"][-1] == {"type": "web_search_20250305"}
+
     def test_serde_in_pipeline(self):
         tool = Tool(name="name", description="description", parameters={"x": {"type": "string"}}, function=print)
 
@@ -483,6 +530,7 @@ class TestAnthropicChatGenerator:
                         "generation_kwargs": {"temperature": 0.6},
                         "ignore_tools_thinking_messages": True,
                         "streaming_callback": None,
+                        "anthropic_server_tools": None,
                         "timeout": None,
                         "max_retries": None,
                     },
