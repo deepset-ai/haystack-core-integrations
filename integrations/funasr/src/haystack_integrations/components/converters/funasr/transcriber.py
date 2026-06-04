@@ -11,8 +11,13 @@ from typing import Any
 from haystack import Document, component, default_from_dict, default_to_dict, logging
 from haystack.components.converters.utils import normalize_metadata
 from haystack.dataclasses import ByteStream
+from haystack.lazy_imports import LazyImport
+from haystack.utils import ComponentDevice
 
 logger = logging.getLogger(__name__)
+
+with LazyImport(message="Run 'pip install funasr>=1.0.0'") as funasr_import:
+    from funasr import AutoModel
 
 _MIME_TO_SUFFIX: dict[str, str] = {
     "audio/wav": ".wav",
@@ -55,12 +60,14 @@ class FunASRTranscriber:
     **Speaker diarization and punctuation:**
 
     ```python
+    from haystack.utils import ComponentDevice
+
     transcriber = FunASRTranscriber(
         model="paraformer-zh",
         vad_model="fsmn-vad",
         punc_model="ct-punc",
         spk_model="cam++",
-        device="cuda",
+        device=ComponentDevice.from_str("cuda"),
     )
     ```
 
@@ -69,7 +76,7 @@ class FunASRTranscriber:
     ```python
     transcriber = FunASRTranscriber(
         model="iic/SenseVoiceSmall",
-        generate_kwargs={"use_itn": True, "merge_vad": True, "language": "auto"},
+        generation_kwargs={"use_itn": True, "merge_vad": True, "language": "auto"},
     )
     ```
     """
@@ -81,10 +88,10 @@ class FunASRTranscriber:
         vad_model: str | None = "fsmn-vad",
         punc_model: str | None = "ct-punc",
         spk_model: str | None = None,
-        device: str = "cpu",
+        device: ComponentDevice | None = None,
         batch_size_s: int = 300,
         store_full_path: bool = False,
-        generate_kwargs: dict[str, Any] | None = None,
+        generation_kwargs: dict[str, Any] | None = None,
     ) -> None:
         """
         Create a FunASRTranscriber component.
@@ -92,17 +99,22 @@ class FunASRTranscriber:
         :param model: FunASR model name or local path. Defaults to `"iic/SenseVoiceSmall"`,
             a multilingual model supporting 50+ languages that is 5-10x faster than Whisper.
             Alternatives include `"paraformer-zh"` (Chinese) or `"paraformer-en"` (English).
+            Browse available models at https://www.modelscope.cn/models.
         :param vad_model: Voice activity detection model used to split long audio into segments.
             Set to `None` to process the audio as a single stream.
+            Browse available VAD models at https://www.modelscope.cn/models.
         :param punc_model: Punctuation restoration model. Set to `None` to disable punctuation.
+            Browse available punctuation models at https://www.modelscope.cn/models.
         :param spk_model: Speaker diarization model (e.g. `"cam++"`). When set, a `"speakers"`
             key is included in the Document metadata. Defaults to `None` (diarization disabled).
-        :param device: Inference device — `"cpu"` or `"cuda"`.
+            Browse available speaker diarization models at https://www.modelscope.cn/models.
+        :param device: The device to run inference on. If `None`, the default device is selected
+            automatically. Use `ComponentDevice.from_str("cuda")` for GPU inference.
         :param batch_size_s: Batch size in seconds for VAD-segmented audio. Larger values
             improve throughput at the cost of memory.
         :param store_full_path: If `True`, store the full audio file path in Document metadata.
             If `False` (default), store only the file name.
-        :param generate_kwargs: Extra keyword arguments forwarded to `AutoModel.generate()`.
+        :param generation_kwargs: Extra keyword arguments forwarded to `AutoModel.generate()`.
             Use this for model-specific options such as `use_itn=True` or `merge_vad=True`
             for SenseVoice, or `hotword="..."` for contextual recognition.
         """
@@ -113,7 +125,7 @@ class FunASRTranscriber:
         self.device = device
         self.batch_size_s = batch_size_s
         self.store_full_path = store_full_path
-        self.generate_kwargs: dict[str, Any] = generate_kwargs or {}
+        self.generation_kwargs: dict[str, Any] = generation_kwargs or {}
         self._asr_model: Any = None
 
     def warm_up(self) -> None:
@@ -125,14 +137,13 @@ class FunASRTranscriber:
         """
         if self._asr_model is not None:
             return
-        from funasr import AutoModel  # noqa: PLC0415
-
+        funasr_import.check()
         self._asr_model = AutoModel(
             model=self.model,
             vad_model=self.vad_model,
             punc_model=self.punc_model,
             spk_model=self.spk_model,
-            device=self.device,
+            device=ComponentDevice.resolve_device(self.device).to_torch_str(),
         )
 
     def to_dict(self) -> dict[str, Any]:
@@ -147,10 +158,10 @@ class FunASRTranscriber:
             vad_model=self.vad_model,
             punc_model=self.punc_model,
             spk_model=self.spk_model,
-            device=self.device,
+            device=self.device.to_dict() if self.device else None,
             batch_size_s=self.batch_size_s,
             store_full_path=self.store_full_path,
-            generate_kwargs=self.generate_kwargs or None,
+            generation_kwargs=self.generation_kwargs or None,
         )
 
     @classmethod
@@ -161,6 +172,9 @@ class FunASRTranscriber:
         :param data: Dictionary to deserialize from.
         :returns: Deserialized component.
         """
+        init_params = data.get("init_parameters", {})
+        if init_params.get("device"):
+            init_params["device"] = ComponentDevice.from_dict(init_params["device"])
         return default_from_dict(cls, data)
 
     @component.output_types(documents=list[Document])
@@ -225,7 +239,7 @@ class FunASRTranscriber:
             results: list[dict[str, Any]] = self._asr_model.generate(
                 input=audio_path,
                 batch_size_s=self.batch_size_s,
-                **self.generate_kwargs,
+                **self.generation_kwargs,
             )
 
             if not results:

@@ -2,15 +2,15 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-import math
 import os
-import struct
-import wave
+import urllib.request
 from unittest.mock import MagicMock, patch
 
 import pytest
 from haystack.dataclasses import ByteStream
+from haystack.utils import ComponentDevice
 
+import haystack_integrations.components.converters.funasr.transcriber as transcriber_mod
 from haystack_integrations.components.converters.funasr import FunASRTranscriber
 
 
@@ -32,10 +32,10 @@ class TestFunASRTranscriberInit:
         assert t.vad_model == "fsmn-vad"
         assert t.punc_model == "ct-punc"
         assert t.spk_model is None
-        assert t.device == "cpu"
+        assert t.device is None
         assert t.batch_size_s == 300
         assert t.store_full_path is False
-        assert t.generate_kwargs == {}
+        assert t.generation_kwargs == {}
         assert t._asr_model is None
 
     def test_custom_params(self):
@@ -44,19 +44,19 @@ class TestFunASRTranscriberInit:
             vad_model=None,
             punc_model=None,
             spk_model="cam++",
-            device="cuda",
+            device=ComponentDevice.from_str("cuda"),
             batch_size_s=60,
             store_full_path=True,
-            generate_kwargs={"use_itn": True},
+            generation_kwargs={"use_itn": True},
         )
         assert t.model == "paraformer-zh"
         assert t.vad_model is None
         assert t.punc_model is None
         assert t.spk_model == "cam++"
-        assert t.device == "cuda"
+        assert t.device == ComponentDevice.from_str("cuda")
         assert t.batch_size_s == 60
         assert t.store_full_path is True
-        assert t.generate_kwargs == {"use_itn": True}
+        assert t.generation_kwargs == {"use_itn": True}
 
 
 class TestFunASRTranscriberSerialization:
@@ -69,15 +69,20 @@ class TestFunASRTranscriberSerialization:
         assert p["vad_model"] == "fsmn-vad"
         assert p["punc_model"] == "ct-punc"
         assert p["spk_model"] is None
-        assert p["device"] == "cpu"
+        assert p["device"] is None
         assert p["batch_size_s"] == 300
         assert p["store_full_path"] is False
-        assert p["generate_kwargs"] is None
+        assert p["generation_kwargs"] is None
 
-    def test_to_dict_with_generate_kwargs(self):
-        t = _make_transcriber(generate_kwargs={"use_itn": True, "merge_vad": True})
+    def test_to_dict_with_generation_kwargs(self):
+        t = _make_transcriber(generation_kwargs={"use_itn": True, "merge_vad": True})
         d = t.to_dict()
-        assert d["init_parameters"]["generate_kwargs"] == {"use_itn": True, "merge_vad": True}
+        assert d["init_parameters"]["generation_kwargs"] == {"use_itn": True, "merge_vad": True}
+
+    def test_to_dict_with_device(self):
+        t = _make_transcriber(device=ComponentDevice.from_str("cuda"))
+        d = t.to_dict()
+        assert d["init_parameters"]["device"] == {"type": "single", "device": "cuda"}
 
     def test_from_dict(self):
         data = {
@@ -87,20 +92,42 @@ class TestFunASRTranscriberSerialization:
                 "vad_model": "fsmn-vad",
                 "punc_model": "ct-punc",
                 "spk_model": "cam++",
-                "device": "cuda",
+                "device": {"type": "single", "device": "cuda"},
                 "batch_size_s": 60,
                 "store_full_path": False,
-                "generate_kwargs": {"use_itn": True},
+                "generation_kwargs": {"use_itn": True},
             },
         }
         t = FunASRTranscriber.from_dict(data)
         assert t.model == "paraformer-zh"
         assert t.spk_model == "cam++"
-        assert t.device == "cuda"
-        assert t.generate_kwargs == {"use_itn": True}
+        assert t.device == ComponentDevice.from_str("cuda")
+        assert t.generation_kwargs == {"use_itn": True}
+
+    def test_from_dict_no_device(self):
+        data = {
+            "type": "haystack_integrations.components.converters.funasr.transcriber.FunASRTranscriber",
+            "init_parameters": {
+                "model": "iic/SenseVoiceSmall",
+                "vad_model": "fsmn-vad",
+                "punc_model": "ct-punc",
+                "spk_model": None,
+                "device": None,
+                "batch_size_s": 300,
+                "store_full_path": False,
+                "generation_kwargs": None,
+            },
+        }
+        t = FunASRTranscriber.from_dict(data)
+        assert t.device is None
 
     def test_to_from_dict_roundtrip(self):
-        t = _make_transcriber(model="paraformer-zh", spk_model="cam++", batch_size_s=60)
+        t = _make_transcriber(
+            model="paraformer-zh",
+            spk_model="cam++",
+            batch_size_s=60,
+            device=ComponentDevice.from_str("cpu"),
+        )
         t2 = FunASRTranscriber.from_dict(t.to_dict())
         assert t.model == t2.model
         assert t.spk_model == t2.spk_model
@@ -113,10 +140,13 @@ class TestFunASRTranscriberWarmUp:
         t = _make_transcriber()
         mock_instance = MagicMock()
         mock_cls = MagicMock(return_value=mock_instance)
-        mock_funasr = MagicMock()
-        mock_funasr.AutoModel = mock_cls
-        with patch.dict("sys.modules", {"funasr": mock_funasr}):
+
+        with (
+            patch.object(transcriber_mod, "AutoModel", mock_cls, create=True),
+            patch.object(transcriber_mod.funasr_import, "check"),
+        ):
             t.warm_up()
+
         assert t._asr_model is mock_instance
         mock_cls.assert_called_once_with(
             model="iic/SenseVoiceSmall",
@@ -130,7 +160,6 @@ class TestFunASRTranscriberWarmUp:
         t = _make_transcriber()
         existing_model = MagicMock()
         t._asr_model = existing_model
-        # warm_up should not replace an existing model
         t.warm_up()
         assert t._asr_model is existing_model
 
@@ -239,7 +268,7 @@ class TestFunASRTranscriberRun:
         t = _make_transcriber()
         audio = tmp_path / "test.wav"
         audio.write_bytes(b"x")
-        _inject_mock_model(t, [])  # empty result
+        _inject_mock_model(t, [])
 
         result = t.run(sources=[str(audio)])
         assert result["documents"] == []
@@ -254,8 +283,8 @@ class TestFunASRTranscriberRun:
         result = t.run(sources=[str(audio)])
         assert result["documents"] == []
 
-    def test_run_passes_generate_kwargs(self, tmp_path):
-        t = _make_transcriber(generate_kwargs={"use_itn": True, "language": "en"})
+    def test_run_passes_generation_kwargs(self, tmp_path):
+        t = _make_transcriber(generation_kwargs={"use_itn": True, "language": "en"})
         audio = tmp_path / "test.wav"
         audio.write_bytes(b"x")
         mock = _inject_mock_model(t, [{"text": "Hello"}])
@@ -284,7 +313,6 @@ class TestFunASRTranscriberByteStream:
         mock = _inject_mock_model(t, [{"text": "text"}])
 
         t.run(sources=[bs])
-        # The temp file should have been written — verify generate was called
         mock.generate.assert_called_once()
 
     def test_run_bytestream_cleans_up_temp_file(self):
@@ -330,24 +358,14 @@ class TestFunASRTranscriberByteStream:
 @pytest.mark.integration
 class TestFunASRTranscriberIntegration:
     def test_transcribe_wav(self, tmp_path):
-        if not os.environ.get("FUNASR_INTEGRATION_TESTS"):
-            pytest.skip("Set FUNASR_INTEGRATION_TESTS=1 to run integration tests")
-
-        # Generate a 1-second 440 Hz sine wave at 16 kHz
-        sample_rate = 16000
-        freq = 440
-        duration = 1
-        samples = [int(32767 * math.sin(2 * math.pi * freq * i / sample_rate)) for i in range(sample_rate * duration)]
-
-        wav_path = tmp_path / "tone.wav"
-        with wave.open(str(wav_path), "w") as wf:
-            wf.setnchannels(1)
-            wf.setsampwidth(2)
-            wf.setframerate(sample_rate)
-            wf.writeframes(struct.pack(f"<{len(samples)}h", *samples))
+        audio_url = "https://raw.githubusercontent.com/deepset-ai/haystack/main/test/test_files/audio/answer.wav"
+        audio_path = tmp_path / "answer.wav"
+        urllib.request.urlretrieve(audio_url, audio_path)  # noqa: S310
 
         t = FunASRTranscriber(model="iic/SenseVoiceSmall", vad_model=None, punc_model=None)
         t.warm_up()
-        result = t.run(sources=[str(wav_path)])
-        # A pure tone has no speech — result may be empty or contain silence tag
+        result = t.run(sources=[str(audio_path)])
         assert "documents" in result
+        assert len(result["documents"]) == 1
+        assert isinstance(result["documents"][0].content, str)
+        assert len(result["documents"][0].content) > 0
