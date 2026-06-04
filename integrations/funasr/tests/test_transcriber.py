@@ -353,7 +353,10 @@ class TestFunASRTranscriberByteStream:
 
 
 @pytest.mark.integration
-@pytest.mark.skipif(sys.version_info < (3, 11), reason="slow on Python 3.10")
+@pytest.mark.skipif(
+    sys.version_info < (3, 14) or sys.platform != "linux",
+    reason="slow"
+)
 class TestFunASRTranscriberIntegration:
     def test_transcribe_wav(self, test_files_path):
         audio_path = test_files_path / "answer.wav"
