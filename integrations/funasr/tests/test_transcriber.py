@@ -10,7 +10,7 @@ import pytest
 from haystack.dataclasses import ByteStream
 from haystack.utils import ComponentDevice
 
-from haystack_integrations.components.converters.funasr import FunASRTranscriber
+from haystack_integrations.components.audio.funasr import FunASRTranscriber
 
 
 def _make_transcriber(**kwargs) -> FunASRTranscriber:
@@ -85,7 +85,7 @@ class TestFunASRTranscriberSerialization:
 
     def test_from_dict(self):
         data = {
-            "type": "haystack_integrations.components.converters.funasr.transcriber.FunASRTranscriber",
+            "type": "haystack_integrations.components.audio.funasr.transcriber.FunASRTranscriber",
             "init_parameters": {
                 "model": "paraformer-zh",
                 "vad_model": "fsmn-vad",
@@ -105,7 +105,7 @@ class TestFunASRTranscriberSerialization:
 
     def test_from_dict_no_device(self):
         data = {
-            "type": "haystack_integrations.components.converters.funasr.transcriber.FunASRTranscriber",
+            "type": "haystack_integrations.components.audio.funasr.transcriber.FunASRTranscriber",
             "init_parameters": {
                 "model": "iic/SenseVoiceSmall",
                 "vad_model": "fsmn-vad",
@@ -140,7 +140,7 @@ class TestFunASRTranscriberWarmUp:
         mock_instance = MagicMock()
         mock_cls = MagicMock(return_value=mock_instance)
 
-        with patch("haystack_integrations.components.converters.funasr.transcriber.AutoModel", mock_cls):
+        with patch("haystack_integrations.components.audio.funasr.transcriber.AutoModel", mock_cls):
             t.warm_up()
 
         assert t._asr_model is mock_instance

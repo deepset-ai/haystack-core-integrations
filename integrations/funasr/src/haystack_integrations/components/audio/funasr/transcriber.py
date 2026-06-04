@@ -48,7 +48,7 @@ class FunASRTranscriber:
     **Usage Example:**
 
     ```python
-    from haystack_integrations.components.converters.funasr import FunASRTranscriber
+    from haystack_integrations.components.audio.funasr import FunASRTranscriber
 
     transcriber = FunASRTranscriber()
     result = transcriber.run(sources=["speech.wav", "interview.mp3"])

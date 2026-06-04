@@ -1,6 +1,6 @@
 loaders:
   - modules:
-      - haystack_integrations.components.converters.funasr.transcriber
+      - haystack_integrations.components.audio.funasr.transcriber
     search_path: [../src]
 processors:
   - type: filter

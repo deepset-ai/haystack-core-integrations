@@ -2,6 +2,6 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from haystack_integrations.components.converters.funasr.transcriber import FunASRTranscriber
+from haystack_integrations.components.audio.funasr.transcriber import FunASRTranscriber
 
 __all__ = ["FunASRTranscriber"]
