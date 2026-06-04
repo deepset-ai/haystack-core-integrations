@@ -6,11 +6,11 @@
 |------------------------------------------------------------------------------------------- | -------: | -------: | -------: | -------: | ------: | --------: |
 | src/haystack\_integrations/components/downloaders/supabase/supabase\_bucket\_downloader.py |       49 |        2 |       12 |        2 |     93% |75-76, 90-\>92 |
 | src/haystack\_integrations/components/retrievers/supabase/embedding\_retriever.py          |       23 |        0 |        4 |        0 |    100% |           |
-| src/haystack\_integrations/components/retrievers/supabase/groonga\_bm25\_retriever.py      |       38 |        0 |        6 |        1 |     98% | 151-\>153 |
+| src/haystack\_integrations/components/retrievers/supabase/groonga\_bm25\_retriever.py      |       60 |        0 |       14 |        1 |     99% | 181-\>183 |
 | src/haystack\_integrations/components/retrievers/supabase/keyword\_retriever.py            |       23 |        0 |        4 |        0 |    100% |           |
 | src/haystack\_integrations/document\_stores/supabase/document\_store.py                    |       13 |        0 |        0 |        0 |    100% |           |
-| src/haystack\_integrations/document\_stores/supabase/groonga\_document\_store.py           |      287 |      159 |      140 |       25 |     41% |100-101, 104, 132-133, 159-160, 180, 183-184, 186, 193, 210, 216-217, 220-221, 231-274, 281-282, 285-286, 297-344, 359-360, 363-364, 367-368, 387-388, 394-398, 409-413, 425-442, 449-450, 460-461, 482-483, 495, 508-537 |
-| **TOTAL**                                                                                  |  **433** |  **161** |  **166** |   **28** | **57%** |           |
+| src/haystack\_integrations/document\_stores/supabase/groonga\_document\_store.py           |      393 |      252 |      192 |       19 |     32% |101-102, 105, 136-137, 140, 165-169, 202-212, 222-229, 240-248, 253-255, 270-335, 339-405, 420-421, 423-425, 428-429, 434-461, 476-477, 479-481, 486-515, 524-528, 537-541, 553-570, 580-593, 599-602, 608-609, 618-619, 623, 633-634, 651-652, 664, 682-694, 731, 743, 761 |
+| **TOTAL**                                                                                  |  **561** |  **254** |  **226** |   **22** | **49%** |           |
 
 
 ## Setup coverage badge
