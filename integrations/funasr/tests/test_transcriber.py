@@ -10,7 +10,6 @@ import pytest
 from haystack.dataclasses import ByteStream
 from haystack.utils import ComponentDevice
 
-import haystack_integrations.components.converters.funasr.transcriber as transcriber_mod
 from haystack_integrations.components.converters.funasr import FunASRTranscriber
 
 
@@ -141,10 +140,7 @@ class TestFunASRTranscriberWarmUp:
         mock_instance = MagicMock()
         mock_cls = MagicMock(return_value=mock_instance)
 
-        with (
-            patch.object(transcriber_mod, "AutoModel", mock_cls, create=True),
-            patch.object(transcriber_mod.funasr_import, "check"),
-        ):
+        with patch("haystack_integrations.components.converters.funasr.transcriber.AutoModel", mock_cls):
             t.warm_up()
 
         assert t._asr_model is mock_instance

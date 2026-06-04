@@ -25,6 +25,8 @@ classifiers = [
 dependencies = [
     "haystack-ai>=2.9.0",
     "funasr>=1.0.0",
+    "torch",
+    "torchaudio",
 ]
 
 [project.urls]
@@ -61,7 +63,6 @@ dependencies = [
     "mypy",
     "pip",
     "funasr>=1.0.0",
-    "torch",
 ]
 
 [tool.hatch.envs.test.scripts]

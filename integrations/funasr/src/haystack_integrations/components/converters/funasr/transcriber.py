@@ -8,16 +8,13 @@ import tempfile
 from pathlib import Path
 from typing import Any
 
+from funasr import AutoModel
 from haystack import Document, component, default_from_dict, default_to_dict, logging
 from haystack.components.converters.utils import normalize_metadata
 from haystack.dataclasses import ByteStream
-from haystack.lazy_imports import LazyImport
 from haystack.utils import ComponentDevice
 
 logger = logging.getLogger(__name__)
-
-with LazyImport(message="Run 'pip install funasr>=1.0.0'") as funasr_import:
-    from funasr import AutoModel
 
 _MIME_TO_SUFFIX: dict[str, str] = {
     "audio/wav": ".wav",
@@ -99,7 +96,7 @@ class FunASRTranscriber:
         :param model: FunASR model name or local path. Defaults to `"iic/SenseVoiceSmall"`,
             a multilingual model supporting 50+ languages that is 5-10x faster than Whisper.
             Alternatives include `"paraformer-zh"` (Chinese) or `"paraformer-en"` (English).
-            Browse available models at https://www.modelscope.cn/models.
+            Browse available models at https://modelscope.github.io/FunASR/model-selection.html.
         :param vad_model: Voice activity detection model used to split long audio into segments.
             Set to `None` to process the audio as a single stream.
             Browse available VAD models at https://www.modelscope.cn/models.
@@ -137,7 +134,6 @@ class FunASRTranscriber:
         """
         if self._asr_model is not None:
             return
-        funasr_import.check()
         self._asr_model = AutoModel(
             model=self.model,
             vad_model=self.vad_model,
