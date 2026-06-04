@@ -4,8 +4,8 @@
 
 | Name                                                                             |    Stmts |     Miss |   Branch |   BrPart |   Cover |   Missing |
 |--------------------------------------------------------------------------------- | -------: | -------: | -------: | -------: | ------: | --------: |
-| src/haystack\_integrations/components/generators/litellm/chat/chat\_generator.py |      124 |        1 |       34 |        2 |     98% |238, 279-\>291 |
-| **TOTAL**                                                                        |  **124** |    **1** |   **34** |    **2** | **98%** |           |
+| src/haystack\_integrations/components/generators/litellm/chat/chat\_generator.py |      126 |        1 |       34 |        2 |     98% |249, 290-\>302 |
+| **TOTAL**                                                                        |  **126** |    **1** |   **34** |    **2** | **98%** |           |
 
 
 ## Setup coverage badge
