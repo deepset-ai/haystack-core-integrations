@@ -99,6 +99,7 @@ class AnthropicFoundryChatGenerator(AnthropicChatGenerator):
         generation_kwargs: dict[str, Any] | None = None,
         ignore_tools_thinking_messages: bool = True,
         tools: ToolsType | None = None,
+        anthropic_server_tools: list[dict[str, Any]] | None = None,
         timeout: float | None = None,
         max_retries: int | None = None,
         azure_ad_token_provider: Callable[[], str] | None = None,
@@ -136,6 +137,8 @@ class AnthropicFoundryChatGenerator(AnthropicChatGenerator):
             for more details.
         :param tools: A list of Tool and/or Toolset objects, or a single Toolset, that the model can use.
             Each tool should have a unique name.
+        :param anthropic_server_tools: A list of Anthropic server-side (built-in) tools passed directly to the API.
+            Use this for native Anthropic tools such as web search, computer use, or other provider-managed tools.
         :param timeout:
             Timeout for Anthropic client calls. If not set, it defaults to the default set by the Anthropic client.
         :param max_retries:
@@ -160,6 +163,7 @@ class AnthropicFoundryChatGenerator(AnthropicChatGenerator):
         self.streaming_callback = streaming_callback
         self.ignore_tools_thinking_messages = ignore_tools_thinking_messages
         self.tools = tools
+        self.anthropic_server_tools = anthropic_server_tools
         self.timeout = timeout
         self.max_retries = max_retries
         self.azure_ad_token_provider = azure_ad_token_provider
@@ -280,6 +284,7 @@ class AnthropicFoundryChatGenerator(AnthropicChatGenerator):
             generation_kwargs=self.generation_kwargs,
             ignore_tools_thinking_messages=self.ignore_tools_thinking_messages,
             tools=serialize_tools_or_toolset(self.tools),
+            anthropic_server_tools=self.anthropic_server_tools,
             timeout=self.timeout,
             max_retries=self.max_retries,
             azure_ad_token_provider=azure_ad_token_provider_name,
