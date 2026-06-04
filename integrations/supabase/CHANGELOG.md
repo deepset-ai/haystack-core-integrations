@@ -1,5 +1,16 @@
 # Changelog
 
+## [integrations/supabase-v0.3.0] - 2026-06-04
+
+### 🚀 Features
+
+- *(supabase)* Add async support to SupabaseGroongaDocumentStore and SupabaseGroongaBM25Retriever (#3380)
+
+### 🐛 Bug Fixes
+
+- `Supabase` integration tests (#3402)
+
+
 ## [integrations/supabase-v0.2.0] - 2026-06-01
 
 ### 🚀 Features

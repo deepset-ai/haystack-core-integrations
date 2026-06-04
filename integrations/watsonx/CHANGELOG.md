@@ -1,5 +1,21 @@
 # Changelog
 
+## [integrations/watsonx-v1.5.0] - 2026-06-04
+
+### 🚀 Features
+
+- Watsonx - accept str as ChatGenerator input; deprecate generator; rm generator example (#3396)
+
+### 🧪 Testing
+
+- Track test coverage for all integrations (#3065)
+
+### 🧹 Chores
+
+- Add ANN type annotations to stackit, togetherai, unstructured, valkey, watsonx, weave, weaviate (#2994)
+- Enforce ruff docstring rules (D102/D103/D205/D209/D213/D417/D419) in integrations 41-47 (#3012)
+
+
 ## [integrations/watsonx-v1.4.0] - 2026-03-13
 
 ### 🚀 Features

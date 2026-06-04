@@ -8,7 +8,7 @@ from datetime import datetime, timezone
 from typing import Any, ClassVar, Literal, get_args
 
 from haystack import component, default_from_dict, default_to_dict, logging
-from haystack.components.generators.utils import _convert_streaming_chunks_to_chat_message
+from haystack.components.generators.utils import _convert_streaming_chunks_to_chat_message, _normalize_messages
 from haystack.dataclasses import (
     AsyncStreamingCallbackT,
     ChatMessage,
@@ -260,7 +260,7 @@ class WatsonxChatGenerator:
     def run(
         self,
         *,
-        messages: list[ChatMessage],
+        messages: list[ChatMessage] | str,
         generation_kwargs: dict[str, Any] | None = None,
         streaming_callback: StreamingCallbackT | None = None,
         tools: ToolsType | None = None,
@@ -270,6 +270,7 @@ class WatsonxChatGenerator:
 
         :param messages:
             A list of ChatMessage instances representing the input messages.
+            If a string is provided, it is converted to a list containing a ChatMessage with user role.
         :param generation_kwargs:
             Additional keyword arguments for text generation. These parameters will potentially override the parameters
             passed in the `__init__` method.
@@ -283,6 +284,7 @@ class WatsonxChatGenerator:
             A dictionary with the following key:
             - `replies`: A list containing the generated responses as ChatMessage instances.
         """
+        messages = _normalize_messages(messages)
         if not messages:
             return {"replies": []}
 
@@ -301,7 +303,7 @@ class WatsonxChatGenerator:
     async def run_async(
         self,
         *,
-        messages: list[ChatMessage],
+        messages: list[ChatMessage] | str,
         generation_kwargs: dict[str, Any] | None = None,
         streaming_callback: StreamingCallbackT | None = None,
         tools: ToolsType | None = None,
@@ -311,6 +313,7 @@ class WatsonxChatGenerator:
 
         :param messages:
             A list of ChatMessage instances representing the input messages.
+            If a string is provided, it is converted to a list containing a ChatMessage with user role.
         :param generation_kwargs:
             Additional keyword arguments for text generation. These parameters will potentially override the parameters
             passed in the `__init__` method.
@@ -324,6 +327,7 @@ class WatsonxChatGenerator:
             A dictionary with the following key:
             - `replies`: A list containing the generated responses as ChatMessage instances.
         """
+        messages = _normalize_messages(messages)
         if not messages:
             return {"replies": []}
 

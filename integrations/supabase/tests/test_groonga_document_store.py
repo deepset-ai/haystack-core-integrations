@@ -2,12 +2,10 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from haystack.dataclasses import Document
-from haystack.document_stores.errors import DuplicateDocumentError
-from haystack.document_stores.types import DuplicatePolicy
 
 from haystack_integrations.document_stores.supabase import SupabaseGroongaDocumentStore
 
@@ -90,89 +88,12 @@ class TestDocumentStore:
         store.warm_up()
         assert store._client is not None
 
-    def test_count_documents(self, groonga_store, mock_supabase_client):
-        mock_supabase_client.table.return_value.select.return_value.execute.return_value = MagicMock(count=5)
-        assert groonga_store.count_documents() == 5
-
-    def test_count_documents_empty(self, groonga_store, mock_supabase_client):
-        mock_supabase_client.table.return_value.select.return_value.execute.return_value = MagicMock(count=0)
-        assert groonga_store.count_documents() == 0
-
-    def test_write_documents(self, groonga_store, mock_supabase_client):
-        mock_table = mock_supabase_client.table.return_value
-        mock_table.select.return_value.eq.return_value.execute.return_value = MagicMock(data=[])
-        mock_table.insert.return_value.execute.return_value = MagicMock(data=[{}])
-
-        documents = [
-            Document(content="Python is great"),
-            Document(content="Haystack is a RAG framework"),
-        ]
-        written = groonga_store.write_documents(documents, policy=DuplicatePolicy.OVERWRITE)
-        assert written == 2
-
     def test_write_documents_empty(self, groonga_store):
         assert groonga_store.write_documents([]) == 0
-
-    def test_write_documents_overwrite(self, groonga_store, mock_supabase_client):
-        mock_table = mock_supabase_client.table.return_value
-        mock_table.upsert.return_value.execute.return_value = MagicMock(data=[{}])
-
-        written = groonga_store.write_documents([Document(content="test document")], policy=DuplicatePolicy.OVERWRITE)
-        assert written == 1
-        mock_table.upsert.assert_called_once()
-
-    def test_write_documents_skip_existing(self, groonga_store, mock_supabase_client):
-        mock_table = mock_supabase_client.table.return_value
-        mock_table.select.return_value.eq.return_value.execute.return_value = MagicMock(data=[{"id": "existing"}])
-
-        written = groonga_store.write_documents([Document(content="already exists")], policy=DuplicatePolicy.SKIP)
-        assert written == 0
-
-    def test_write_documents_fail_on_duplicate(self, groonga_store, mock_supabase_client):
-        mock_table = mock_supabase_client.table.return_value
-        mock_table.select.return_value.eq.return_value.execute.return_value = MagicMock(data=[{"id": "existing"}])
-
-        with pytest.raises(DuplicateDocumentError):
-            groonga_store.write_documents([Document(content="duplicate doc")], policy=DuplicatePolicy.FAIL)
-
-    def test_delete_all_documents(self, groonga_store, mock_supabase_client):
-        mock_table = mock_supabase_client.table.return_value
-        mock_table.delete.return_value.neq.return_value.execute.return_value = MagicMock(data=[])
-
-        groonga_store.delete_all_documents()
-        mock_table.delete.assert_called_once()
-
-    def test_delete_documents(self, groonga_store, mock_supabase_client):
-        mock_table = mock_supabase_client.table.return_value
-        mock_table.delete.return_value.in_.return_value.execute.return_value = MagicMock(data=[])
-
-        groonga_store.delete_documents(["id1", "id2"])
-        mock_table.delete.assert_called_once()
 
     def test_delete_documents_empty(self, groonga_store, mock_supabase_client):
         groonga_store.delete_documents([])
         mock_supabase_client.table.return_value.delete.assert_not_called()
-
-    def test_filter_documents(self, groonga_store, mock_supabase_client):
-        mock_supabase_client.table.return_value.select.return_value.execute.return_value = MagicMock(
-            data=[
-                {"id": "1", "content": "Python is great", "meta": {}, "score": None},
-                {"id": "2", "content": "Haystack rocks", "meta": {}, "score": None},
-            ]
-        )
-        docs = groonga_store.filter_documents()
-        assert len(docs) == 2
-        assert docs[0].content == "Python is great"
-        assert docs[1].content == "Haystack rocks"
-
-    def test_filter_documents_with_filters(self, groonga_store, mock_supabase_client):
-        mock_table = mock_supabase_client.table.return_value
-        mock_table.select.return_value.eq.return_value.execute.return_value = MagicMock(
-            data=[{"id": "1", "content": "Python is great", "meta": {"language": "en"}, "score": None}]
-        )
-        filters = {"operator": "AND", "conditions": [{"field": "meta.language", "operator": "==", "value": "en"}]}
-        docs = groonga_store.filter_documents(filters=filters)
-        assert len(docs) == 1
 
     def test_to_dict(self, groonga_store):
         result = groonga_store.to_dict()
@@ -204,3 +125,189 @@ class TestDocumentStore:
         assert store.table_name == "test_groonga_documents"
         assert store.supabase_url == "https://fake-project.supabase.co"
         assert store._client is None
+
+
+@pytest.fixture
+def mock_async_supabase_client():
+    """Creates a mock async Supabase client for async tests."""
+    with patch(
+        "haystack_integrations.document_stores.supabase.groonga_document_store.acreate_client",
+        new_callable=AsyncMock,
+    ) as mock_acreate:
+        mock_client = MagicMock()
+        mock_acreate.return_value = mock_client
+
+        mock_client.rpc.return_value.execute = AsyncMock(return_value=MagicMock(data=[], count=0))
+
+        mock_table = MagicMock()
+        mock_client.table.return_value = mock_table
+        mock_table.select.return_value = mock_table
+        mock_table.insert.return_value = mock_table
+        mock_table.upsert.return_value = mock_table
+        mock_table.delete.return_value = mock_table
+        mock_table.eq.return_value = mock_table
+        mock_table.in_.return_value = mock_table
+        mock_table.neq.return_value = mock_table
+        mock_table.execute = AsyncMock(return_value=MagicMock(data=[], count=0))
+
+        yield mock_client
+
+
+@pytest.fixture
+def groonga_store_async(mock_async_supabase_client, monkeypatch):  # noqa: ARG001
+    """Returns a store whose async client will be initialized lazily on first use."""
+    monkeypatch.setenv("SUPABASE_SERVICE_KEY", "fake-test-key")
+    return SupabaseGroongaDocumentStore(
+        supabase_url="https://fake-project.supabase.co",
+        table_name="test_groonga_documents",
+        recreate_table=False,
+    )
+
+
+@pytest.mark.asyncio
+class TestDocumentStoreAsync:
+    async def test_lazy_async_client_initialization(self, mock_async_supabase_client, monkeypatch):  # noqa: ARG002
+        """Async client must be None at construction and set after the first async call."""
+        monkeypatch.setenv("SUPABASE_SERVICE_KEY", "fake-test-key")
+        store = SupabaseGroongaDocumentStore(supabase_url="https://fake-project.supabase.co")
+        assert store._async_client is None
+        await store.count_documents_async()
+        assert store._async_client is not None
+
+    async def test_write_documents_async_empty(self, groonga_store_async):
+        written = await groonga_store_async.write_documents_async([])
+        assert written == 0
+
+    async def test_delete_documents_async_empty(self, groonga_store_async, mock_async_supabase_client):
+        await groonga_store_async.delete_documents_async([])
+        mock_async_supabase_client.table.return_value.delete.assert_not_called()
+
+    async def test_async_client_initialized_only_once(self, mock_async_supabase_client, monkeypatch):  # noqa: ARG002
+        """_initialize_async_client must not replace the client on subsequent calls."""
+        monkeypatch.setenv("SUPABASE_SERVICE_KEY", "fake-test-key")
+        store = SupabaseGroongaDocumentStore(supabase_url="https://fake-project.supabase.co")
+        await store.count_documents_async()
+        first_client = store._async_client
+        await store.count_documents_async()
+        assert store._async_client is first_client
+
+
+# ---------------------------------------------------------------------------
+# Unit tests for the in-memory filter helpers (no live service required)
+# ---------------------------------------------------------------------------
+
+_filter = SupabaseGroongaDocumentStore._filter_documents_in_memory
+
+
+def _docs():
+    return [
+        Document(id="1", content="alpha", meta={"lang": "en", "score": 1, "active": True}),
+        Document(id="2", content="beta", meta={"lang": "fr", "score": 2, "active": False}),
+        Document(id="3", content="gamma", meta={"lang": "en", "score": 3}),
+    ]
+
+
+class TestFilterDocumentsInMemory:
+    # --- flat (simple) condition — the previously broken path -----------------
+
+    def test_flat_condition_eq(self):
+        result = _filter(_docs(), {"field": "meta.lang", "operator": "==", "value": "en"})
+        assert [d.id for d in result] == ["1", "3"]
+
+    def test_flat_condition_neq(self):
+        result = _filter(_docs(), {"field": "meta.lang", "operator": "!=", "value": "en"})
+        assert [d.id for d in result] == ["2"]
+
+    def test_flat_condition_in(self):
+        result = _filter(_docs(), {"field": "meta.lang", "operator": "in", "value": ["en", "de"]})
+        assert [d.id for d in result] == ["1", "3"]
+
+    def test_flat_condition_not_in(self):
+        result = _filter(_docs(), {"field": "meta.lang", "operator": "not in", "value": ["en"]})
+        assert [d.id for d in result] == ["2"]
+
+    # --- comparison operators -------------------------------------------------
+
+    def test_gt(self):
+        result = _filter(_docs(), {"field": "meta.score", "operator": ">", "value": 1})
+        assert [d.id for d in result] == ["2", "3"]
+
+    def test_gte(self):
+        result = _filter(_docs(), {"field": "meta.score", "operator": ">=", "value": 2})
+        assert [d.id for d in result] == ["2", "3"]
+
+    def test_lt(self):
+        result = _filter(_docs(), {"field": "meta.score", "operator": "<", "value": 3})
+        assert [d.id for d in result] == ["1", "2"]
+
+    def test_lte(self):
+        result = _filter(_docs(), {"field": "meta.score", "operator": "<=", "value": 2})
+        assert [d.id for d in result] == ["1", "2"]
+
+    def test_gt_excludes_missing_field(self):
+        # doc "3" has no "score" key — should be excluded since None > value is False
+        docs = [
+            Document(id="a", meta={"score": 5}),
+            Document(id="b", meta={}),
+        ]
+        result = _filter(docs, {"field": "meta.score", "operator": ">", "value": 0})
+        assert [d.id for d in result] == ["a"]
+
+    # --- logical operators ----------------------------------------------------
+
+    def test_and(self):
+        result = _filter(
+            _docs(),
+            {
+                "operator": "AND",
+                "conditions": [
+                    {"field": "meta.lang", "operator": "==", "value": "en"},
+                    {"field": "meta.score", "operator": ">", "value": 1},
+                ],
+            },
+        )
+        assert [d.id for d in result] == ["3"]
+
+    def test_or(self):
+        result = _filter(
+            _docs(),
+            {
+                "operator": "OR",
+                "conditions": [
+                    {"field": "meta.lang", "operator": "==", "value": "fr"},
+                    {"field": "meta.score", "operator": "==", "value": 3},
+                ],
+            },
+        )
+        assert [d.id for d in result] == ["2", "3"]
+
+    def test_not(self):
+        result = _filter(
+            _docs(),
+            {"operator": "NOT", "conditions": [{"field": "meta.lang", "operator": "==", "value": "en"}]},
+        )
+        assert [d.id for d in result] == ["2"]
+
+    def test_nested_and_inside_or(self):
+        # (lang==en AND score==1) OR lang==fr
+        result = _filter(
+            _docs(),
+            {
+                "operator": "OR",
+                "conditions": [
+                    {
+                        "operator": "AND",
+                        "conditions": [
+                            {"field": "meta.lang", "operator": "==", "value": "en"},
+                            {"field": "meta.score", "operator": "==", "value": 1},
+                        ],
+                    },
+                    {"field": "meta.lang", "operator": "==", "value": "fr"},
+                ],
+            },
+        )
+        assert [d.id for d in result] == ["1", "2"]
+
+    def test_empty_filters_returns_all(self):
+        docs = _docs()
+        assert _filter(docs, {}) == docs

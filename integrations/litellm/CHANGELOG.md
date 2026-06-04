@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/litellm-v1.1.0] - 2026-06-04
+
+### 🚀 Features
+
+- LiteLLM - accept str as ChatGenerator input (#3393)
+
+
 ## [integrations/litellm-v1.0.0] - 2026-05-29
 
 ### 🚀 Features
