@@ -339,3 +339,124 @@ class TestDocumentStoreAsync:
         first_client = store._async_client
         await store.count_documents_async()
         assert store._async_client is first_client
+
+
+# ---------------------------------------------------------------------------
+# Unit tests for the in-memory filter helpers (no live service required)
+# ---------------------------------------------------------------------------
+
+_filter = SupabaseGroongaDocumentStore._filter_documents_in_memory
+
+
+def _docs():
+    return [
+        Document(id="1", content="alpha", meta={"lang": "en", "score": 1, "active": True}),
+        Document(id="2", content="beta", meta={"lang": "fr", "score": 2, "active": False}),
+        Document(id="3", content="gamma", meta={"lang": "en", "score": 3}),
+    ]
+
+
+class TestFilterDocumentsInMemory:
+    # --- flat (simple) condition — the previously broken path -----------------
+
+    def test_flat_condition_eq(self):
+        result = _filter(_docs(), {"field": "meta.lang", "operator": "==", "value": "en"})
+        assert [d.id for d in result] == ["1", "3"]
+
+    def test_flat_condition_neq(self):
+        result = _filter(_docs(), {"field": "meta.lang", "operator": "!=", "value": "en"})
+        assert [d.id for d in result] == ["2"]
+
+    def test_flat_condition_in(self):
+        result = _filter(_docs(), {"field": "meta.lang", "operator": "in", "value": ["en", "de"]})
+        assert [d.id for d in result] == ["1", "3"]
+
+    def test_flat_condition_not_in(self):
+        result = _filter(_docs(), {"field": "meta.lang", "operator": "not in", "value": ["en"]})
+        assert [d.id for d in result] == ["2"]
+
+    # --- comparison operators -------------------------------------------------
+
+    def test_gt(self):
+        result = _filter(_docs(), {"field": "meta.score", "operator": ">", "value": 1})
+        assert [d.id for d in result] == ["2", "3"]
+
+    def test_gte(self):
+        result = _filter(_docs(), {"field": "meta.score", "operator": ">=", "value": 2})
+        assert [d.id for d in result] == ["2", "3"]
+
+    def test_lt(self):
+        result = _filter(_docs(), {"field": "meta.score", "operator": "<", "value": 3})
+        assert [d.id for d in result] == ["1", "2"]
+
+    def test_lte(self):
+        result = _filter(_docs(), {"field": "meta.score", "operator": "<=", "value": 2})
+        assert [d.id for d in result] == ["1", "2"]
+
+    def test_gt_excludes_missing_field(self):
+        # doc "3" has no "score" key — should be excluded since None > value is False
+        docs = [
+            Document(id="a", meta={"score": 5}),
+            Document(id="b", meta={}),
+        ]
+        result = _filter(docs, {"field": "meta.score", "operator": ">", "value": 0})
+        assert [d.id for d in result] == ["a"]
+
+    # --- logical operators ----------------------------------------------------
+
+    def test_and(self):
+        result = _filter(
+            _docs(),
+            {
+                "operator": "AND",
+                "conditions": [
+                    {"field": "meta.lang", "operator": "==", "value": "en"},
+                    {"field": "meta.score", "operator": ">", "value": 1},
+                ],
+            },
+        )
+        assert [d.id for d in result] == ["3"]
+
+    def test_or(self):
+        result = _filter(
+            _docs(),
+            {
+                "operator": "OR",
+                "conditions": [
+                    {"field": "meta.lang", "operator": "==", "value": "fr"},
+                    {"field": "meta.score", "operator": "==", "value": 3},
+                ],
+            },
+        )
+        assert [d.id for d in result] == ["2", "3"]
+
+    def test_not(self):
+        result = _filter(
+            _docs(),
+            {"operator": "NOT", "conditions": [{"field": "meta.lang", "operator": "==", "value": "en"}]},
+        )
+        assert [d.id for d in result] == ["2"]
+
+    def test_nested_and_inside_or(self):
+        # (lang==en AND score==1) OR lang==fr
+        result = _filter(
+            _docs(),
+            {
+                "operator": "OR",
+                "conditions": [
+                    {
+                        "operator": "AND",
+                        "conditions": [
+                            {"field": "meta.lang", "operator": "==", "value": "en"},
+                            {"field": "meta.score", "operator": "==", "value": 1},
+                        ],
+                    },
+                    {"field": "meta.lang", "operator": "==", "value": "fr"},
+                ],
+            },
+        )
+        assert [d.id for d in result] == ["1", "2"]
+
+    def test_empty_filters_returns_all(self):
+        docs = _docs()
+        assert _filter(docs, {}) == docs

@@ -696,42 +696,69 @@ class SupabaseGroongaDocumentStore(DocumentStore):
     @staticmethod
     def _filter_documents_in_memory(documents: list[Document], filters: dict[str, Any]) -> list[Document]:
         """
-        Filters a list of documents in memory based on the given filters.
+        Filters a list of documents in memory using Haystack's standard filter syntax.
+
+        Supports the full filter syntax: comparison operators (``==``, ``!=``, ``>``,
+        ``>=``, ``<``, ``<=``, ``in``, ``not in``) and logical operators (``AND``,
+        ``OR``, ``NOT``) including arbitrary nesting.
 
         :param documents: List of documents to filter.
-        :param filters: Dictionary of filters to apply.
+        :param filters: Haystack filter dict (comparison or logical).
         :returns: Filtered list of documents.
         """
-        conditions = filters.get("conditions", [])
-        filtered = []
+        return [doc for doc in documents if SupabaseGroongaDocumentStore._match_document(doc, filters)]
 
-        for doc in documents:
-            match = True
-            for condition in conditions:
-                field = condition.get("field", "")
-                op = condition.get("operator", "==")
-                value = condition.get("value")
+    @staticmethod
+    def _match_document(doc: Document, filters: dict[str, Any]) -> bool:
+        """Returns True if *doc* satisfies the filter expression."""
+        if not filters:
+            return True
 
-                if field.startswith("meta."):
-                    meta_key = field[len("meta.") :]
-                    doc_value = doc.meta.get(meta_key)
-                else:
-                    doc_value = getattr(doc, field, None)
+        if "field" in filters:
+            return SupabaseGroongaDocumentStore._match_condition(doc, filters)
 
-                if op == "==" and doc_value != value:
-                    match = False
-                    break
-                elif op == "!=" and doc_value == value:
-                    match = False
-                    break
-                elif op == "in" and doc_value not in value:
-                    match = False
-                    break
+        op = filters.get("operator")
+        conditions: list[dict[str, Any]] = filters.get("conditions", [])
 
-            if match:
-                filtered.append(doc)
+        if op == "AND":
+            return all(SupabaseGroongaDocumentStore._match_document(doc, c) for c in conditions)
+        if op == "OR":
+            return any(SupabaseGroongaDocumentStore._match_document(doc, c) for c in conditions)
+        if op == "NOT":
+            # De Morgan: NOT(A AND B) = NOT_A OR NOT_B — doc passes if it fails at least one condition.
+            return not all(SupabaseGroongaDocumentStore._match_document(doc, c) for c in conditions)
 
-        return filtered
+        return True
+
+    @staticmethod
+    def _match_condition(doc: Document, condition: dict[str, Any]) -> bool:
+        """Returns True if *doc* satisfies a single comparison condition."""
+        field: str = condition.get("field", "")
+        op: str = condition.get("operator", "==")
+        value = condition.get("value")
+
+        if field.startswith("meta."):
+            doc_value = doc.meta.get(field[len("meta.") :])
+        else:
+            doc_value = getattr(doc, field, None)
+
+        if op == "==":
+            return doc_value == value  # type: ignore[no-any-return]
+        if op == "!=":
+            return doc_value != value  # type: ignore[no-any-return]
+        if op == ">":
+            return doc_value is not None and doc_value > value  # type: ignore[operator]
+        if op == ">=":
+            return doc_value is not None and doc_value >= value  # type: ignore[operator]
+        if op == "<":
+            return doc_value is not None and doc_value < value  # type: ignore[operator]
+        if op == "<=":
+            return doc_value is not None and doc_value <= value  # type: ignore[operator]
+        if op == "in":
+            return doc_value in value  # type: ignore[operator]
+        if op == "not in":
+            return doc_value not in value  # type: ignore[operator]
+        return True
 
     def _to_haystack_document(self, row: dict[str, Any]) -> Document:
         """
