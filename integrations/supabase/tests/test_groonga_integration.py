@@ -156,7 +156,6 @@ class TestGroongaDocumentStoreAsyncIntegration:
             table_name="haystack_groonga_test",
             recreate_table=False,
         )
-        await store.warm_up_async()
         yield store
         await store.delete_all_documents_async()
 
@@ -219,7 +218,6 @@ class TestGroongaBM25RetrieverAsyncIntegration:
             table_name="haystack_groonga_test",
             recreate_table=False,
         )
-        await store.warm_up_async()
         yield store
         await store.delete_all_documents_async()
 

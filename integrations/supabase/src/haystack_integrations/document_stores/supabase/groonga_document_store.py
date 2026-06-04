@@ -77,7 +77,7 @@ class SupabaseGroongaDocumentStore(DocumentStore):
         self.table_name = table_name
         self.recreate_table = recreate_table
 
-        # Clients are initialized lazily in warm_up() / warm_up_async()
+        # Sync client initialized in warm_up(); async client initialized lazily on first use
         self._client: Client | None = None
         self._async_client: AsyncClient | None = None
 
@@ -123,20 +123,17 @@ class SupabaseGroongaDocumentStore(DocumentStore):
         """
         self._client.rpc("exec_sql", {"query": create_index_sql}).execute()
 
-    async def warm_up_async(self) -> None:
-        """
-        Initializes the async Supabase client and sets up the table.
-
-        Must be called before using the async methods of the document store.
-        """
-        key = self.supabase_key.resolve_value() or ""
-        self._async_client = await acreate_client(self.supabase_url, key)
-        await self._setup_table_async()
+    async def _initialize_async_client(self) -> None:
+        """Lazily creates the async Supabase client and sets up the table on first use."""
+        if self._async_client is None:
+            key = self.supabase_key.resolve_value() or ""
+            self._async_client = await acreate_client(self.supabase_url, key)
+            await self._setup_table_async()
 
     async def _setup_table_async(self) -> None:
-        """Async version of _setup_table."""
+        """Async counterpart of _setup_table; called by _initialize_async_client."""
         if self._async_client is None:
-            msg = "Call warm_up_async() before using async methods."
+            msg = "Async client not initialized."
             raise RuntimeError(msg)
 
         if self.recreate_table:
@@ -177,10 +174,8 @@ class SupabaseGroongaDocumentStore(DocumentStore):
 
         :returns: Number of documents.
         """
-        if self._async_client is None:
-            msg = "Call warm_up_async() before using async methods."
-            raise RuntimeError(msg)
-        result = await self._async_client.table(self.table_name).select("*", count=CountMethod.exact).execute()
+        await self._initialize_async_client()
+        result = await self._async_client.table(self.table_name).select("*", count=CountMethod.exact).execute()  # type: ignore[union-attr]
         return int(result.count) if result.count is not None else 0
 
     def filter_documents(self, filters: dict[str, Any] | None = None) -> list[Document]:
@@ -224,11 +219,8 @@ class SupabaseGroongaDocumentStore(DocumentStore):
         :returns: List of matching Document objects.
         :raises FilterError: If the filter structure is malformed or uses an unsupported operator.
         """
-        if self._async_client is None:
-            msg = "Call warm_up_async() before using async methods."
-            raise RuntimeError(msg)
-
-        query = self._async_client.table(self.table_name).select("*")
+        await self._initialize_async_client()
+        query = self._async_client.table(self.table_name).select("*")  # type: ignore[union-attr]
 
         if filters:
             query = SupabaseGroongaDocumentStore._apply_filters(query, filters)
@@ -488,12 +480,10 @@ class SupabaseGroongaDocumentStore(DocumentStore):
                 msg = f"write_documents_async() expects Document objects, got {type(doc).__name__}"
                 raise ValueError(msg)
 
-        if self._async_client is None:
-            msg = "Call warm_up_async() before using async methods."
-            raise RuntimeError(msg)
-
         if not documents:
             return 0
+
+        await self._initialize_async_client()
 
         written = 0
         for doc in documents:
@@ -504,22 +494,22 @@ class SupabaseGroongaDocumentStore(DocumentStore):
                 "score": None,
             }
             if policy == DuplicatePolicy.OVERWRITE:
-                await self._async_client.table(self.table_name).upsert(row).execute()
+                await self._async_client.table(self.table_name).upsert(row).execute()  # type: ignore[union-attr]
                 written += 1
             elif policy == DuplicatePolicy.SKIP:
-                existing = await self._async_client.table(self.table_name).select("id").eq("id", doc.id).execute()
+                existing = await self._async_client.table(self.table_name).select("id").eq("id", doc.id).execute()  # type: ignore[union-attr]
                 if not existing.data:
-                    await self._async_client.table(self.table_name).insert(row).execute()
+                    await self._async_client.table(self.table_name).insert(row).execute()  # type: ignore[union-attr]
                     written += 1
             elif policy == DuplicatePolicy.FAIL:
-                existing = await self._async_client.table(self.table_name).select("id").eq("id", doc.id).execute()
+                existing = await self._async_client.table(self.table_name).select("id").eq("id", doc.id).execute()  # type: ignore[union-attr]
                 if existing.data:
                     msg = f"Document with id {doc.id!r} already exists."
                     raise DuplicateDocumentError(msg)
-                await self._async_client.table(self.table_name).insert(row).execute()
+                await self._async_client.table(self.table_name).insert(row).execute()  # type: ignore[union-attr]
                 written += 1
             else:
-                await self._async_client.table(self.table_name).insert(row).execute()
+                await self._async_client.table(self.table_name).insert(row).execute()  # type: ignore[union-attr]
                 written += 1
 
         return written
@@ -587,10 +577,6 @@ class SupabaseGroongaDocumentStore(DocumentStore):
         :param meta: Metadata fields to set on matching documents.
         :returns: Number of documents updated.
         """
-        if self._async_client is None:
-            msg = "Call warm_up_async() before using async methods."
-            raise RuntimeError(msg)
-
         docs = await self.filter_documents_async(filters=filters)
         if not docs:
             return 0
@@ -602,7 +588,7 @@ class SupabaseGroongaDocumentStore(DocumentStore):
                 "meta": {**doc.meta, **meta},
                 "score": None,
             }
-            await self._async_client.table(self.table_name).upsert(row).execute()
+            await self._async_client.table(self.table_name).upsert(row).execute()  # type: ignore[union-attr]
 
         return len(docs)
 
@@ -619,10 +605,8 @@ class SupabaseGroongaDocumentStore(DocumentStore):
         """
         Async version of delete_all_documents.
         """
-        if self._async_client is None:
-            msg = "Call warm_up_async() before using async methods."
-            raise RuntimeError(msg)
-        await self._async_client.table(self.table_name).delete().neq("id", "").execute()
+        await self._initialize_async_client()
+        await self._async_client.table(self.table_name).delete().neq("id", "").execute()  # type: ignore[union-attr]
 
     def delete_documents(self, document_ids: list[str]) -> None:
         """
@@ -644,13 +628,10 @@ class SupabaseGroongaDocumentStore(DocumentStore):
 
         :param document_ids: List of document IDs to delete.
         """
-        if self._async_client is None:
-            msg = "Call warm_up_async() before using async methods."
-            raise RuntimeError(msg)
-
         if not document_ids:
             return
-        await self._async_client.table(self.table_name).delete().in_("id", document_ids).execute()
+        await self._initialize_async_client()
+        await self._async_client.table(self.table_name).delete().in_("id", document_ids).execute()  # type: ignore[union-attr]
 
     def _groonga_retrieval(
         self,
@@ -698,11 +679,8 @@ class SupabaseGroongaDocumentStore(DocumentStore):
         :param filters: Optional filters to apply after retrieval.
         :returns: List of matching Document objects ranked by relevance.
         """
-        if self._async_client is None:
-            msg = "Call warm_up_async() before using async methods."
-            raise RuntimeError(msg)
-
-        result = await self._async_client.rpc(
+        await self._initialize_async_client()
+        result = await self._async_client.rpc(  # type: ignore[union-attr]
             "groonga_search",
             {"query_text": query, "table_name": self.table_name, "top_k": top_k},
         ).execute()

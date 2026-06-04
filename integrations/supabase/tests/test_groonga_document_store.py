@@ -233,25 +233,24 @@ def mock_async_supabase_client():
 
 
 @pytest.fixture
-async def groonga_store_async(mock_async_supabase_client, monkeypatch):  # noqa: ARG001
-    """Creates a SupabaseGroongaDocumentStore with async client via warm_up_async()."""
+def groonga_store_async(mock_async_supabase_client, monkeypatch):  # noqa: ARG001
+    """Returns a store whose async client will be initialized lazily on first use."""
     monkeypatch.setenv("SUPABASE_SERVICE_KEY", "fake-test-key")
-    store = SupabaseGroongaDocumentStore(
+    return SupabaseGroongaDocumentStore(
         supabase_url="https://fake-project.supabase.co",
         table_name="test_groonga_documents",
         recreate_table=False,
     )
-    await store.warm_up_async()
-    return store
 
 
 @pytest.mark.asyncio
 class TestDocumentStoreAsync:
-    async def test_warm_up_async_initializes_client(self, mock_async_supabase_client, monkeypatch):  # noqa: ARG002
+    async def test_lazy_async_client_initialization(self, mock_async_supabase_client, monkeypatch):  # noqa: ARG002
+        """Async client must be None at construction and set after the first async call."""
         monkeypatch.setenv("SUPABASE_SERVICE_KEY", "fake-test-key")
         store = SupabaseGroongaDocumentStore(supabase_url="https://fake-project.supabase.co")
         assert store._async_client is None
-        await store.warm_up_async()
+        await store.count_documents_async()
         assert store._async_client is not None
 
     async def test_count_documents_async(self, groonga_store_async, mock_async_supabase_client):
@@ -332,8 +331,11 @@ class TestDocumentStoreAsync:
         assert len(docs) == 1
         assert docs[0].content == "Python async rocks"
 
-    async def test_async_client_not_initialized_raises(self, monkeypatch):
+    async def test_async_client_initialized_only_once(self, mock_async_supabase_client, monkeypatch):  # noqa: ARG002
+        """_initialize_async_client must not replace the client on subsequent calls."""
         monkeypatch.setenv("SUPABASE_SERVICE_KEY", "fake-test-key")
         store = SupabaseGroongaDocumentStore(supabase_url="https://fake-project.supabase.co")
-        with pytest.raises(RuntimeError, match="warm_up_async"):
-            await store.count_documents_async()
+        await store.count_documents_async()
+        first_client = store._async_client
+        await store.count_documents_async()
+        assert store._async_client is first_client

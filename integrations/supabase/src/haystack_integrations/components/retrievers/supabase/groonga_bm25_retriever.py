@@ -21,8 +21,8 @@ class SupabaseGroongaBM25Retriever:
     This retriever works without embeddings — it searches documents using plain text queries.
     It can be used alongside SupabasePgvectorEmbeddingRetriever in hybrid search pipelines.
 
-    Supports both synchronous and asynchronous retrieval. For async usage, initialize the
-    document store with ``warm_up_async()`` instead of ``warm_up()`` and call ``run_async()``.
+    Supports both synchronous and asynchronous retrieval. For async pipelines, call
+    ``run_async()`` — the document store's async client is initialized lazily on first use.
 
     Example usage:
 
@@ -109,7 +109,7 @@ class SupabaseGroongaBM25Retriever:
         top_k: int | None = None,
     ) -> dict[str, list[Document]]:
         """
-        Async version of run(). Requires the document store to be initialized with warm_up_async().
+        Async version of run(). The document store's async client is initialized lazily on first use.
 
         :param query: The text query to search for.
         :param filters: Optional runtime filters. Merged or replaced based on filter_policy.
