@@ -8,11 +8,12 @@ import tempfile
 from pathlib import Path
 from typing import Any
 
-from funasr import AutoModel
 from haystack import Document, component, default_from_dict, default_to_dict, logging
 from haystack.components.converters.utils import normalize_metadata
 from haystack.dataclasses import ByteStream
 from haystack.utils import ComponentDevice
+
+from funasr import AutoModel
 
 logger = logging.getLogger(__name__)
 

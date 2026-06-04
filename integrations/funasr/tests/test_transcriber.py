@@ -144,12 +144,13 @@ class TestFunASRTranscriberWarmUp:
             t.warm_up()
 
         assert t._asr_model is mock_instance
+        expected_device = ComponentDevice.resolve_device(None).to_torch_str()
         mock_cls.assert_called_once_with(
             model="iic/SenseVoiceSmall",
             vad_model="fsmn-vad",
             punc_model="ct-punc",
             spk_model=None,
-            device="cpu",
+            device=expected_device,
         )
 
     def test_warm_up_idempotent(self):
