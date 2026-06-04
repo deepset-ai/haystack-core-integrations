@@ -61,6 +61,7 @@ dependencies = [
     "mypy",
     "pip",
     "funasr>=1.0.0",
+    "torch",
 ]
 
 [tool.hatch.envs.test.scripts]
