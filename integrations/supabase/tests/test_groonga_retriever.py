@@ -2,9 +2,10 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from haystack.dataclasses import Document
 
 from haystack_integrations.components.retrievers.supabase import SupabaseGroongaBM25Retriever
 from haystack_integrations.document_stores.supabase import SupabaseGroongaDocumentStore
@@ -50,6 +51,10 @@ class TestRetriever:
         with pytest.raises(ValueError, match="document_store must be an instance"):
             SupabaseGroongaBM25Retriever(document_store="not_a_store")
 
+    def test_init_invalid_top_k(self, groonga_store):
+        with pytest.raises(ValueError, match="top_k must be greater than 0"):
+            SupabaseGroongaBM25Retriever(document_store=groonga_store, top_k=0)
+
     def test_init(self, groonga_store):
         retriever = SupabaseGroongaBM25Retriever(document_store=groonga_store, top_k=5)
         assert retriever.top_k == 5
@@ -73,18 +78,46 @@ class TestRetriever:
         assert result["documents"][0].content == "Python is great"
 
     @pytest.mark.asyncio
-    async def test_run_async(self, groonga_store, mock_supabase_client):
-        mock_supabase_client.rpc.return_value.execute.return_value = MagicMock(
-            data=[{"id": "1", "content": "Python is great", "meta": {}, "score": 1.0}]
-        )
+    async def test_run_async_uses_async_retrieval(self, groonga_store):
+        """run_async() must delegate to _groonga_retrieval_async, not the sync path."""
+        expected_doc = Document(id="1", content="Python is great")
+        groonga_store._groonga_retrieval_async = AsyncMock(return_value=[expected_doc])
+
         retriever = SupabaseGroongaBM25Retriever(document_store=groonga_store, top_k=5)
         result = await retriever.run_async(query="Python")
+
+        groonga_store._groonga_retrieval_async.assert_awaited_once()
         assert len(result["documents"]) == 1
+        assert result["documents"][0].content == "Python is great"
 
     @pytest.mark.asyncio
     async def test_run_async_empty_query(self, groonga_store):
         retriever = SupabaseGroongaBM25Retriever(document_store=groonga_store)
         assert await retriever.run_async(query="") == {"documents": []}
+
+    def test_run_ignore_errors(self, groonga_store):
+        groonga_store._groonga_retrieval = MagicMock(side_effect=Exception("DB error"))
+        retriever = SupabaseGroongaBM25Retriever(document_store=groonga_store, raise_on_failure=False)
+        assert retriever.run(query="test") == {"documents": []}
+
+    def test_run_raises_on_failure_by_default(self, groonga_store):
+        groonga_store._groonga_retrieval = MagicMock(side_effect=Exception("DB error"))
+        retriever = SupabaseGroongaBM25Retriever(document_store=groonga_store)
+        with pytest.raises(Exception, match="DB error"):
+            retriever.run(query="test")
+
+    @pytest.mark.asyncio
+    async def test_run_async_ignore_errors(self, groonga_store):
+        groonga_store._groonga_retrieval_async = AsyncMock(side_effect=Exception("async DB error"))
+        retriever = SupabaseGroongaBM25Retriever(document_store=groonga_store, raise_on_failure=False)
+        assert await retriever.run_async(query="test") == {"documents": []}
+
+    @pytest.mark.asyncio
+    async def test_run_async_raises_on_failure_by_default(self, groonga_store):
+        groonga_store._groonga_retrieval_async = AsyncMock(side_effect=Exception("async DB error"))
+        retriever = SupabaseGroongaBM25Retriever(document_store=groonga_store)
+        with pytest.raises(Exception, match="async DB error"):
+            await retriever.run_async(query="test")
 
     def test_to_dict(self, groonga_store):
         retriever = SupabaseGroongaBM25Retriever(document_store=groonga_store, top_k=5)

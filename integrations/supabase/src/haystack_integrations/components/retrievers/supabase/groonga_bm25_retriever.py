@@ -5,12 +5,14 @@
 import copy
 from typing import Any
 
-from haystack import component, default_from_dict, default_to_dict
+from haystack import component, default_from_dict, default_to_dict, logging
 from haystack.dataclasses import Document
 from haystack.document_stores.types import FilterPolicy
 from haystack.document_stores.types.filter_policy import apply_filter_policy
 
 from haystack_integrations.document_stores.supabase import SupabaseGroongaDocumentStore
+
+logger = logging.getLogger(__name__)
 
 
 @component
@@ -21,8 +23,8 @@ class SupabaseGroongaBM25Retriever:
     This retriever works without embeddings — it searches documents using plain text queries.
     It can be used alongside SupabasePgvectorEmbeddingRetriever in hybrid search pipelines.
 
-    Note: async operations are not supported as the supabase-py sync client does not expose
-    awaitable query methods. Use the sync run() method instead.
+    Supports both synchronous and asynchronous retrieval. For async pipelines, call
+    ``run_async()`` — the document store's async client is initialized lazily on first use.
 
     Example usage:
 
@@ -51,6 +53,7 @@ class SupabaseGroongaBM25Retriever:
         filters: dict[str, Any] | None = None,
         top_k: int = 10,
         filter_policy: str | FilterPolicy = FilterPolicy.REPLACE,
+        raise_on_failure: bool = True,
     ) -> None:
         """
         Initialize the SupabaseGroongaBM25Retriever.
@@ -59,15 +62,22 @@ class SupabaseGroongaBM25Retriever:
         :param filters: Optional filters applied to retrieved Documents.
         :param top_k: Maximum number of Documents to return. Defaults to 10.
         :param filter_policy: Policy to determine how filters are applied.
-        :raises ValueError: If document_store is not an instance of SupabaseGroongaDocumentStore.
+        :param raise_on_failure: If True, raises exceptions from the document store.
+            If False, logs the error and returns an empty document list.
+        :raises ValueError: If document_store is not an instance of SupabaseGroongaDocumentStore
+            or if top_k is not a positive integer.
         """
         if not isinstance(document_store, SupabaseGroongaDocumentStore):
             msg = "document_store must be an instance of SupabaseGroongaDocumentStore"
+            raise ValueError(msg)
+        if top_k <= 0:
+            msg = f"top_k must be greater than 0, got {top_k}"
             raise ValueError(msg)
 
         self.document_store = document_store
         self.filters = filters or {}
         self.top_k = top_k
+        self.raise_on_failure = raise_on_failure
         self.filter_policy = (
             filter_policy if isinstance(filter_policy, FilterPolicy) else FilterPolicy.from_str(filter_policy)
         )
@@ -93,11 +103,17 @@ class SupabaseGroongaBM25Retriever:
         merged_filters = apply_filter_policy(self.filter_policy, self.filters, filters)
         effective_top_k = top_k if top_k is not None else self.top_k
 
-        documents = self.document_store._groonga_retrieval(
-            query=query,
-            top_k=effective_top_k,
-            filters=merged_filters,
-        )
+        try:
+            documents = self.document_store._groonga_retrieval(
+                query=query,
+                top_k=effective_top_k,
+                filters=merged_filters,
+            )
+        except Exception as e:
+            if self.raise_on_failure:
+                raise
+            logger.warning(f"SupabaseGroongaBM25Retriever run() failed: {e}")
+            return {"documents": []}
 
         return {"documents": documents}
 
@@ -109,19 +125,32 @@ class SupabaseGroongaBM25Retriever:
         top_k: int | None = None,
     ) -> dict[str, list[Document]]:
         """
-        Async version of run().
-
-        Note: supabase-py's sync client does not support native async queries.
-        This method runs the synchronous retrieval and returns the result.
-        For fully async support, consider using acreate_client() from supabase-py
-        and refactoring the document store accordingly.
+        Async version of run(). The document store's async client is initialized lazily on first use.
 
         :param query: The text query to search for.
         :param filters: Optional runtime filters. Merged or replaced based on filter_policy.
         :param top_k: Optional override for maximum number of documents to return.
         :returns: Dictionary with key "documents" containing list of matching Documents.
         """
-        return self.run(query=query, filters=filters, top_k=top_k)
+        if not query:
+            return {"documents": []}
+
+        merged_filters = apply_filter_policy(self.filter_policy, self.filters, filters)
+        effective_top_k = top_k if top_k is not None else self.top_k
+
+        try:
+            documents = await self.document_store._groonga_retrieval_async(
+                query=query,
+                top_k=effective_top_k,
+                filters=merged_filters,
+            )
+        except Exception as e:
+            if self.raise_on_failure:
+                raise
+            logger.warning(f"SupabaseGroongaBM25Retriever run_async() failed: {e}")
+            return {"documents": []}
+
+        return {"documents": documents}
 
     def to_dict(self) -> dict[str, Any]:
         """
@@ -134,6 +163,7 @@ class SupabaseGroongaBM25Retriever:
             filters=self.filters,
             top_k=self.top_k,
             filter_policy=self.filter_policy.value,
+            raise_on_failure=self.raise_on_failure,
             document_store=self.document_store.to_dict(),
         )
 
