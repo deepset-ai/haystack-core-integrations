@@ -142,6 +142,21 @@ class TestRun:
             assert result["replies"][0].text == "The capital is Paris."
             fake_litellm.completion.assert_called_once()
 
+    def test_run_with_string_input(self):
+        gen = LiteLLMChatGenerator(model="openai/gpt-4o")
+        mock_resp = _make_mock_response("Paris")
+
+        fake_litellm = types.ModuleType("litellm")
+        fake_litellm.completion = MagicMock(return_value=mock_resp)
+
+        with mock.patch.dict(sys.modules, {"litellm": fake_litellm}):
+            result = gen.run("What's the capital of France?")
+            call_kwargs = fake_litellm.completion.call_args
+            assert call_kwargs.kwargs["messages"] == [{"role": "user", "content": "What's the capital of France?"}]
+            assert isinstance(result["replies"], list)
+            assert len(result["replies"]) == 1
+            assert isinstance(result["replies"][0], ChatMessage)
+
     def test_drop_params_always_set(self):
         gen = LiteLLMChatGenerator(model="openai/gpt-4o")
         mock_resp = _make_mock_response()
@@ -406,6 +421,27 @@ class TestAsync:
             result = await gen.run_async(messages=[ChatMessage.from_user("hi")])
             assert len(result["replies"]) == 1
             assert result["replies"][0].text == "async reply"
+
+    @pytest.mark.asyncio
+    async def test_run_async_with_string_input(self):
+        gen = LiteLLMChatGenerator(model="openai/gpt-4o")
+        mock_resp = _make_mock_response("Paris")
+
+        fake_litellm = types.ModuleType("litellm")
+        captured_kwargs = {}
+
+        async def _acompletion(**kwargs):
+            captured_kwargs.update(kwargs)
+            return mock_resp
+
+        fake_litellm.acompletion = _acompletion
+
+        with mock.patch.dict(sys.modules, {"litellm": fake_litellm}):
+            result = await gen.run_async("What's the capital of France?")
+            assert captured_kwargs["messages"] == [{"role": "user", "content": "What's the capital of France?"}]
+            assert isinstance(result["replies"], list)
+            assert len(result["replies"]) == 1
+            assert isinstance(result["replies"][0], ChatMessage)
 
     @pytest.mark.asyncio
     async def test_run_async_empty_messages(self):

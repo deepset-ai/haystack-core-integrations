@@ -6,7 +6,7 @@ import json
 from typing import Any
 
 from haystack import component, default_from_dict, default_to_dict, logging
-from haystack.components.generators.utils import _convert_streaming_chunks_to_chat_message
+from haystack.components.generators.utils import _convert_streaming_chunks_to_chat_message, _normalize_messages
 from haystack.dataclasses import ChatMessage, ToolCall
 from haystack.dataclasses.streaming_chunk import (
     AsyncStreamingCallbackT,
@@ -138,7 +138,7 @@ class LiteLLMChatGenerator:
     @component.output_types(replies=list[ChatMessage])
     def run(
         self,
-        messages: list[ChatMessage],
+        messages: list[ChatMessage] | str,
         streaming_callback: StreamingCallbackT | None = None,
         generation_kwargs: dict[str, Any] | None = None,
         *,
@@ -147,11 +147,13 @@ class LiteLLMChatGenerator:
         """Invoke chat completion via LiteLLM.
 
         :param messages: Input messages as ChatMessage instances.
+            If a string is provided, it is converted to a list containing a ChatMessage with user role.
         :param streaming_callback: Override the streaming callback for this call.
         :param generation_kwargs: Override generation parameters for this call.
         :param tools: Override tools for this call.
         :returns: A dict with key ``replies`` containing ChatMessage instances.
         """
+        messages = _normalize_messages(messages)
         if not messages:
             return {"replies": []}
 
@@ -173,13 +175,22 @@ class LiteLLMChatGenerator:
     @component.output_types(replies=list[ChatMessage])
     async def run_async(
         self,
-        messages: list[ChatMessage],
+        messages: list[ChatMessage] | str,
         streaming_callback: StreamingCallbackT | None = None,
         generation_kwargs: dict[str, Any] | None = None,
         *,
         tools: ToolsType | None = None,
     ) -> dict[str, list[ChatMessage]]:
-        """Async version of run()."""
+        """Async version of run(). Invoke chat completion via LiteLLM.
+
+        :param messages: Input messages as ChatMessage instances.
+            If a string is provided, it is converted to a list containing a ChatMessage with user role.
+        :param streaming_callback: Override the streaming callback for this call.
+        :param generation_kwargs: Override generation parameters for this call.
+        :param tools: Override tools for this call.
+        :returns: A dict with key ``replies`` containing ChatMessage instances.
+        """
+        messages = _normalize_messages(messages)
         if not messages:
             return {"replies": []}
 
