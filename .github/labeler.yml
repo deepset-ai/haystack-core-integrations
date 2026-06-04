@@ -153,6 +153,11 @@ integration:hanlp:
       - any-glob-to-any-file: "integrations/hanlp/**/*"
       - any-glob-to-any-file: ".github/workflows/hanlp.yml"
 
+integration:huggingface-api:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/huggingface_api/**/*"
+      - any-glob-to-any-file: ".github/workflows/huggingface_api.yml"
+
 integration:jina:
   - changed-files:
       - any-glob-to-any-file: "integrations/jina/**/*"

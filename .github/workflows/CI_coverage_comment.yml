@@ -30,6 +30,7 @@ on:
       - "Test / github"
       - "Test / google-genai"
       - "Test / hanlp"
+      - "Test / huggingface_api"
       - "Test / jina"
       - "Test / kreuzberg"
       - "Test / langfuse"
