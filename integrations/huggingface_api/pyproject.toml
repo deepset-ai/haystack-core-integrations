@@ -23,7 +23,7 @@ classifiers = [
   "Programming Language :: Python :: Implementation :: CPython",
   "Programming Language :: Python :: Implementation :: PyPy",
 ]
-dependencies = ["haystack-ai>=2.30.0", "huggingface_hub[inference]>=0.27.0"]
+dependencies = ["haystack-ai>=2.30.0", "huggingface_hub[inference]>=0.35.0"]
 
 [project.urls]
 Documentation = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/huggingface_api#readme"

@@ -148,20 +148,15 @@ def _convert_tools_to_hfapi_tools(tools: ToolsType | None) -> list["ChatCompleti
     if not tools:
         return None
 
-    # huggingface_hub<0.31.0 uses "arguments", huggingface_hub>=0.31.0 uses "parameters"
-    parameters_name = "arguments" if hasattr(ChatCompletionInputFunctionDefinition, "arguments") else "parameters"
-
     hf_tools = []
     for tool in flatten_tools_or_toolsets(tools):
-        hf_tools_args = {
-            "name": tool.name,
-            "description": tool.description,
-            parameters_name: _resolve_schema_refs(tool.parameters),
-        }
-
         hf_tools.append(
             ChatCompletionInputTool(
-                function=ChatCompletionInputFunctionDefinition(**hf_tools_args),  # type: ignore[arg-type]
+                function=ChatCompletionInputFunctionDefinition(
+                    name=tool.name,
+                    description=tool.description,
+                    parameters=_resolve_schema_refs(tool.parameters),
+                ),
                 type="function",
             )
         )

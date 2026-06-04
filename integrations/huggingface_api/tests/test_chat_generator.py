@@ -1231,28 +1231,6 @@ class TestHuggingFaceAPIChatGenerator:
         assert hf_tools[0].function.description == "useful to determine the weather in a given location"
         assert hf_tools[0].function.parameters == {"city": {"type": "string"}}
 
-    def test_convert_tools_to_hfapi_tools_legacy(self):
-        # this satisfies the check hasattr(ChatCompletionInputFunctionDefinition, "arguments")
-        mock_class = MagicMock()
-
-        with patch(
-            "haystack_integrations.components.generators.huggingface_api.chat.chat_generator.ChatCompletionInputFunctionDefinition",
-            mock_class,
-        ):
-            tool = Tool(
-                name="weather",
-                description="useful to determine the weather in a given location",
-                parameters={"city": {"type": "string"}},
-                function=get_weather,
-            )
-            _convert_tools_to_hfapi_tools([tool])
-
-        mock_class.assert_called_once_with(
-            name="weather",
-            arguments={"city": {"type": "string"}},
-            description="useful to determine the weather in a given location",
-        )
-
     def test_warm_up_with_tools(self, mock_check_valid_model):
         """Test that warm_up() calls warm_up on tools and is idempotent."""
 
