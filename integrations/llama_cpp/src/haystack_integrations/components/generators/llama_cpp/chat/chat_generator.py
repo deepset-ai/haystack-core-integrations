@@ -9,7 +9,7 @@ from datetime import datetime, timezone
 from typing import Any
 
 from haystack import component, default_from_dict, default_to_dict, logging
-from haystack.components.generators.utils import _convert_streaming_chunks_to_chat_message
+from haystack.components.generators.utils import _convert_streaming_chunks_to_chat_message, _normalize_messages
 from haystack.dataclasses import (
     ChatMessage,
     ComponentInfo,
@@ -337,7 +337,7 @@ class LlamaCppChatGenerator:
     @component.output_types(replies=list[ChatMessage])
     def run(
         self,
-        messages: list[ChatMessage],
+        messages: list[ChatMessage] | str,
         generation_kwargs: dict[str, Any] | None = None,
         *,
         tools: ToolsType | None = None,
@@ -348,6 +348,7 @@ class LlamaCppChatGenerator:
 
         :param messages:
             A list of ChatMessage instances representing the input messages.
+            If a string is provided, it is converted to a list containing a ChatMessage with user role.
         :param generation_kwargs:  A dictionary containing keyword arguments to customize text generation.
             For more information on the available kwargs, see
             [llama.cpp documentation](https://llama-cpp-python.readthedocs.io/en/latest/api-reference/#llama_cpp.Llama.create_chat_completion).
@@ -360,6 +361,7 @@ class LlamaCppChatGenerator:
         :returns: A dictionary with the following keys:
             - `replies`: The responses from the model
         """
+        messages = _normalize_messages(messages)
         if self._model is None:
             self.warm_up()
 
@@ -423,7 +425,7 @@ class LlamaCppChatGenerator:
     @component.output_types(replies=list[ChatMessage])
     async def run_async(
         self,
-        messages: list[ChatMessage],
+        messages: list[ChatMessage] | str,
         generation_kwargs: dict[str, Any] | None = None,
         *,
         tools: ToolsType | None = None,
@@ -437,6 +439,7 @@ class LlamaCppChatGenerator:
 
         :param messages:
             A list of ChatMessage instances representing the input messages.
+            If a string is provided, it is converted to a list containing a ChatMessage with user role.
         :param generation_kwargs:  A dictionary containing keyword arguments to customize text generation.
             For more information on the available kwargs, see
             [llama.cpp documentation](https://llama-cpp-python.readthedocs.io/en/latest/api-reference/#llama_cpp.Llama.create_chat_completion).
@@ -449,6 +452,7 @@ class LlamaCppChatGenerator:
         :returns: A dictionary with the following keys:
             - `replies`: The responses from the model
         """
+        messages = _normalize_messages(messages)
         async with self._inference_lock:
             return await asyncio.to_thread(
                 self.run,
