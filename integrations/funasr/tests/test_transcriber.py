@@ -4,7 +4,6 @@
 
 import os
 import sys
-from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -356,8 +355,8 @@ class TestFunASRTranscriberByteStream:
 @pytest.mark.integration
 @pytest.mark.skipif(sys.version_info < (3, 11), reason="slow on Python 3.10")
 class TestFunASRTranscriberIntegration:
-    def test_transcribe_wav(self):
-        audio_path = Path(__file__).parent / "answer.wav"
+    def test_transcribe_wav(self, test_files_path):
+        audio_path = test_files_path / "answer.wav"
 
         t = FunASRTranscriber(model="iic/SenseVoiceSmall", vad_model=None, punc_model=None)
         t.warm_up()
