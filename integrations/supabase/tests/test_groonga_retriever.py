@@ -51,6 +51,10 @@ class TestRetriever:
         with pytest.raises(ValueError, match="document_store must be an instance"):
             SupabaseGroongaBM25Retriever(document_store="not_a_store")
 
+    def test_init_invalid_top_k(self, groonga_store):
+        with pytest.raises(ValueError, match="top_k must be greater than 0"):
+            SupabaseGroongaBM25Retriever(document_store=groonga_store, top_k=0)
+
     def test_init(self, groonga_store):
         retriever = SupabaseGroongaBM25Retriever(document_store=groonga_store, top_k=5)
         assert retriever.top_k == 5
@@ -90,6 +94,30 @@ class TestRetriever:
     async def test_run_async_empty_query(self, groonga_store):
         retriever = SupabaseGroongaBM25Retriever(document_store=groonga_store)
         assert await retriever.run_async(query="") == {"documents": []}
+
+    def test_run_ignore_errors(self, groonga_store):
+        groonga_store._groonga_retrieval = MagicMock(side_effect=Exception("DB error"))
+        retriever = SupabaseGroongaBM25Retriever(document_store=groonga_store, raise_on_failure=False)
+        assert retriever.run(query="test") == {"documents": []}
+
+    def test_run_raises_on_failure_by_default(self, groonga_store):
+        groonga_store._groonga_retrieval = MagicMock(side_effect=Exception("DB error"))
+        retriever = SupabaseGroongaBM25Retriever(document_store=groonga_store)
+        with pytest.raises(Exception, match="DB error"):
+            retriever.run(query="test")
+
+    @pytest.mark.asyncio
+    async def test_run_async_ignore_errors(self, groonga_store):
+        groonga_store._groonga_retrieval_async = AsyncMock(side_effect=Exception("async DB error"))
+        retriever = SupabaseGroongaBM25Retriever(document_store=groonga_store, raise_on_failure=False)
+        assert await retriever.run_async(query="test") == {"documents": []}
+
+    @pytest.mark.asyncio
+    async def test_run_async_raises_on_failure_by_default(self, groonga_store):
+        groonga_store._groonga_retrieval_async = AsyncMock(side_effect=Exception("async DB error"))
+        retriever = SupabaseGroongaBM25Retriever(document_store=groonga_store)
+        with pytest.raises(Exception, match="async DB error"):
+            await retriever.run_async(query="test")
 
     def test_to_dict(self, groonga_store):
         retriever = SupabaseGroongaBM25Retriever(document_store=groonga_store, top_k=5)
