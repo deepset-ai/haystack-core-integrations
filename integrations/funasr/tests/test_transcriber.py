@@ -3,7 +3,8 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import os
-import urllib.request
+import sys
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -353,16 +354,13 @@ class TestFunASRTranscriberByteStream:
 
 
 @pytest.mark.integration
+@pytest.mark.skipif(sys.version_info < (3, 11), reason="slow on Python 3.10")
 class TestFunASRTranscriberIntegration:
-    def test_transcribe_wav(self, tmp_path):
-        audio_url = "https://raw.githubusercontent.com/deepset-ai/haystack/main/test/test_files/audio/answer.wav"
-        audio_path = tmp_path / "answer.wav"
-        urllib.request.urlretrieve(audio_url, audio_path)  # noqa: S310
+    def test_transcribe_wav(self):
+        audio_path = Path(__file__).parent / "answer.wav"
 
         t = FunASRTranscriber(model="iic/SenseVoiceSmall", vad_model=None, punc_model=None)
         t.warm_up()
         result = t.run(sources=[str(audio_path)])
-        assert "documents" in result
         assert len(result["documents"]) == 1
-        assert isinstance(result["documents"][0].content, str)
-        assert len(result["documents"][0].content) > 0
+        assert "answer" in result["documents"][0].content.lower()
