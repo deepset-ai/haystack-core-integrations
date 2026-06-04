@@ -312,6 +312,22 @@ class TestAnthropicChatGenerator:
         assert len(response["replies"]) == 1
         assert [isinstance(reply, ChatMessage) for reply in response["replies"]]
 
+    def test_run_with_string_input(self, mock_anthropic_completion):
+        component = AnthropicChatGenerator(api_key=Secret.from_token("test-api-key"))
+        result = component.run("What's the capital of France?")
+
+        # Check that the backend received exactly one user message
+        _, kwargs = mock_anthropic_completion.call_args
+        assert len(kwargs["messages"]) == 1
+        assert kwargs["messages"][0]["role"] == "user"
+        assert kwargs["messages"][0]["content"][0]["type"] == "text"
+        assert kwargs["messages"][0]["content"][0]["text"] == "What's the capital of France?"
+
+        # Check that the result contains exactly one ChatMessage
+        assert isinstance(result["replies"], list)
+        assert len(result["replies"]) == 1
+        assert isinstance(result["replies"][0], ChatMessage)
+
     def test_run_with_params(self, chat_messages, mock_anthropic_completion):
         """
         Test that the AnthropicChatGenerator component can run with parameters.
@@ -1456,6 +1472,26 @@ class TestAnthropicChatGeneratorAsync:
         assert isinstance(response["replies"], list)
         assert len(response["replies"]) == 1
         assert [isinstance(reply, ChatMessage) for reply in response["replies"]]
+
+    @pytest.mark.asyncio
+    async def test_run_async_with_string_input(self, mock_anthropic_completion_async):
+        """
+        Test that the async run method of AnthropicChatGenerator works with string input.
+        """
+        component = AnthropicChatGenerator(api_key=Secret.from_token("test-api-key"))
+        result = await component.run_async("What's the capital of France?")
+
+        # Check that the backend received exactly one user message
+        _, kwargs = mock_anthropic_completion_async.call_args
+        assert len(kwargs["messages"]) == 1
+        assert kwargs["messages"][0]["role"] == "user"
+        assert kwargs["messages"][0]["content"][0]["type"] == "text"
+        assert kwargs["messages"][0]["content"][0]["text"] == "What's the capital of France?"
+
+        # Check that the result contains exactly one ChatMessage
+        assert isinstance(result["replies"], list)
+        assert len(result["replies"]) == 1
+        assert isinstance(result["replies"][0], ChatMessage)
 
     @pytest.mark.asyncio
     async def test_run_async_with_params(self, chat_messages, mock_anthropic_completion_async):

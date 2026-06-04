@@ -7,6 +7,7 @@ from collections.abc import Callable
 from typing import Any, ClassVar
 
 from haystack import component, default_from_dict, default_to_dict, logging
+from haystack.components.generators.utils import _normalize_messages
 from haystack.dataclasses import ChatMessage, StreamingChunk
 from haystack.dataclasses.streaming_chunk import StreamingCallbackT
 from haystack.tools import (
@@ -210,7 +211,7 @@ class AnthropicFoundryChatGenerator(AnthropicChatGenerator):
     @component.output_types(replies=list[ChatMessage])
     def run(
         self,
-        messages: list[ChatMessage],
+        messages: list[ChatMessage] | str,
         streaming_callback: StreamingCallbackT | None = None,
         generation_kwargs: dict[str, Any] | None = None,
         tools: ToolsType | None = None,
@@ -219,6 +220,7 @@ class AnthropicFoundryChatGenerator(AnthropicChatGenerator):
         Invokes the AnthropicFoundry API with the given messages and generation kwargs.
 
         :param messages: A list of ChatMessage instances representing the input messages.
+            If a string is provided, it is converted to a list containing a ChatMessage with user role.
         :param streaming_callback: A callback function that is called when a new token is received from the stream.
         :param generation_kwargs: Optional arguments to pass to the Anthropic generation endpoint.
         :param tools: A list of Tool and/or Toolset objects, or a single Toolset, that the model can use.
@@ -227,6 +229,7 @@ class AnthropicFoundryChatGenerator(AnthropicChatGenerator):
         :returns: A dictionary with the following keys:
             - `replies`: The responses from the model
         """
+        messages = _normalize_messages(messages)
         if not self._is_warmed_up:
             self.warm_up()
         return super(AnthropicFoundryChatGenerator, self).run(  # noqa: UP008
@@ -236,7 +239,7 @@ class AnthropicFoundryChatGenerator(AnthropicChatGenerator):
     @component.output_types(replies=list[ChatMessage])
     async def run_async(
         self,
-        messages: list[ChatMessage],
+        messages: list[ChatMessage] | str,
         streaming_callback: StreamingCallbackT | None = None,
         generation_kwargs: dict[str, Any] | None = None,
         tools: ToolsType | None = None,
@@ -245,6 +248,7 @@ class AnthropicFoundryChatGenerator(AnthropicChatGenerator):
         Async version of the run method. Invokes the AnthropicFoundry API with the given messages and generation kwargs.
 
         :param messages: A list of ChatMessage instances representing the input messages.
+            If a string is provided, it is converted to a list containing a ChatMessage with user role.
         :param streaming_callback: A callback function that is called when a new token is received from the stream.
         :param generation_kwargs: Optional arguments to pass to the Anthropic generation endpoint.
         :param tools: A list of Tool and/or Toolset objects, or a single Toolset, that the model can use.
@@ -253,6 +257,7 @@ class AnthropicFoundryChatGenerator(AnthropicChatGenerator):
         :returns: A dictionary with the following keys:
             - `replies`: The responses from the model
         """
+        messages = _normalize_messages(messages)
         if not self._is_warmed_up:
             self.warm_up()
         return await super(AnthropicFoundryChatGenerator, self).run_async(  # noqa: UP008
