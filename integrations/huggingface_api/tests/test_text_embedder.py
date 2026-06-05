@@ -115,7 +115,7 @@ class TestHuggingFaceAPITextEmbedder:
             "init_parameters": {
                 "api_type": HFEmbeddingAPIType.SERVERLESS_INFERENCE_API,
                 "api_params": {"model": "BAAI/bge-small-en-v1.5"},
-                "token": {"env_vars": ["HF_API_TOKEN", "HF_TOKEN"], "strict": False, "type": "env_var"},
+                "token": {"env_vars": ["HF_TOKEN", "HF_TOKEN"], "strict": False, "type": "env_var"},
                 "prefix": "prefix",
                 "suffix": "suffix",
                 "truncate": False,
@@ -220,8 +220,8 @@ class TestHuggingFaceAPITextEmbedder:
 
     @pytest.mark.integration
     @pytest.mark.skipif(
-        not os.environ.get("HF_API_TOKEN", None),
-        reason="Export an env var called HF_API_TOKEN containing the Hugging Face token to run this test.",
+        not os.environ.get("HF_TOKEN", None),
+        reason="Export an env var called HF_TOKEN containing the Hugging Face token to run this test.",
     )
     @pytest.mark.skipif(sys.platform != "linux", reason="We only test on Linux to avoid overloading the HF server")
     def test_live_run_serverless(self):
@@ -238,7 +238,7 @@ class TestHuggingFaceAPITextEmbedder:
     @pytest.mark.integration
     @pytest.mark.asyncio
     @pytest.mark.skipif(sys.platform != "linux", reason="We only test on Linux to avoid overloading the HF server")
-    @pytest.mark.skipif(os.environ.get("HF_API_TOKEN", "") == "", reason="HF_API_TOKEN is not set")
+    @pytest.mark.skipif(os.environ.get("HF_TOKEN", "") == "", reason="HF_TOKEN is not set")
     @pytest.mark.skipif(sys.platform != "linux", reason="We only test on Linux to avoid overloading the HF server")
     async def test_live_run_async_serverless(self):
         model_name = "sentence-transformers/all-MiniLM-L6-v2"

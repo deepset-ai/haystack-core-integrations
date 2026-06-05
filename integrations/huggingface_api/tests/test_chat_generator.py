@@ -763,8 +763,8 @@ class TestHuggingFaceAPIChatGenerator:
 
     @pytest.mark.integration
     @pytest.mark.skipif(
-        not os.environ.get("HF_API_TOKEN", None),
-        reason="Export an env var called HF_API_TOKEN containing the Hugging Face token to run this test.",
+        not os.environ.get("HF_TOKEN", None),
+        reason="Export an env var called HF_TOKEN containing the Hugging Face token to run this test.",
     )
     def test_live_run_serverless(self):
         generator = HuggingFaceAPIChatGenerator(
@@ -796,8 +796,8 @@ class TestHuggingFaceAPIChatGenerator:
 
     @pytest.mark.integration
     @pytest.mark.skipif(
-        not os.environ.get("HF_API_TOKEN", None),
-        reason="Export an env var called HF_API_TOKEN containing the Hugging Face token to run this test.",
+        not os.environ.get("HF_TOKEN", None),
+        reason="Export an env var called HF_TOKEN containing the Hugging Face token to run this test.",
     )
     def test_live_run_serverless_streaming(self):
         generator = HuggingFaceAPIChatGenerator(
@@ -834,8 +834,8 @@ class TestHuggingFaceAPIChatGenerator:
 
     @pytest.mark.integration
     @pytest.mark.skipif(
-        not os.environ.get("HF_API_TOKEN", None),
-        reason="Export an env var called HF_API_TOKEN containing the Hugging Face token to run this test.",
+        not os.environ.get("HF_TOKEN", None),
+        reason="Export an env var called HF_TOKEN containing the Hugging Face token to run this test.",
     )
     def test_live_run_with_tools(self, tools):
         """
@@ -876,8 +876,8 @@ class TestHuggingFaceAPIChatGenerator:
 
     @pytest.mark.integration
     @pytest.mark.skipif(
-        not os.environ.get("HF_API_TOKEN", None),
-        reason="Export an env var called HF_API_TOKEN containing the Hugging Face token to run this test.",
+        not os.environ.get("HF_TOKEN", None),
+        reason="Export an env var called HF_TOKEN containing the Hugging Face token to run this test.",
     )
     def test_live_run_multimodal(self, test_files_path):
         image_path = test_files_path / "apple.jpg"
@@ -1072,8 +1072,8 @@ class TestHuggingFaceAPIChatGenerator:
 
     @pytest.mark.integration
     @pytest.mark.skipif(
-        not os.environ.get("HF_API_TOKEN", None),
-        reason="Export an env var called HF_API_TOKEN containing the Hugging Face token to run this test.",
+        not os.environ.get("HF_TOKEN", None),
+        reason="Export an env var called HF_TOKEN containing the Hugging Face token to run this test.",
     )
     @pytest.mark.asyncio
     async def test_live_run_async_serverless(self):
@@ -1108,8 +1108,8 @@ class TestHuggingFaceAPIChatGenerator:
 
     @pytest.mark.integration
     @pytest.mark.skipif(
-        not os.environ.get("HF_API_TOKEN", None),
-        reason="Export an env var called HF_API_TOKEN containing the Hugging Face token to run this test.",
+        not os.environ.get("HF_TOKEN", None),
+        reason="Export an env var called HF_TOKEN containing the Hugging Face token to run this test.",
     )
     @pytest.mark.flaky(reruns=2, reruns_delay=10)
     def test_live_run_multi_turn_with_reasoning_model(self):
