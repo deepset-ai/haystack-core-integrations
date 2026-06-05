@@ -142,6 +142,12 @@ class AmazonBedrockGenerator:
         :raises AmazonBedrockConfigurationError: If the AWS environment is not configured correctly or the model is
             not supported.
         """
+        warnings.warn(
+            "The `AmazonBedrockGenerator` component is deprecated and will be removed in a future version. "
+            "Use `AmazonBedrockChatGenerator` instead, which now also supports string inputs.",
+            FutureWarning,
+            stacklevel=2,
+        )
         if not model:
             msg = "'model' cannot be None or empty string"
             raise ValueError(msg)
