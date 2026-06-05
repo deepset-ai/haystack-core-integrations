@@ -147,6 +147,9 @@ class HuggingFaceAPIDocumentEmbedder:
         :param concurrency_limit:
             The maximum number of requests that should be allowed to run concurrently.
             This parameter is only used in the `run_async` method.
+        :raises ValueError:
+            If the required `model` or `url` is missing from `api_params`, the `url` is invalid,
+            or the `api_type` is unknown.
         """
         if isinstance(api_type, str):
             api_type = HFEmbeddingAPIType.from_str(api_type)
@@ -331,6 +334,10 @@ class HuggingFaceAPIDocumentEmbedder:
         :param documents:
             Documents to embed.
 
+        :raises TypeError:
+            If `documents` is not a list of Documents.
+        :raises ValueError:
+            If the embeddings returned by the API have an unexpected shape.
         :returns:
             A dictionary with the following keys:
             - `documents`: A list of documents with embeddings.
@@ -360,6 +367,10 @@ class HuggingFaceAPIDocumentEmbedder:
         :param documents:
             Documents to embed.
 
+        :raises TypeError:
+            If `documents` is not a list of Documents.
+        :raises ValueError:
+            If the embeddings returned by the API have an unexpected shape.
         :returns:
             A dictionary with the following keys:
             - `documents`: A list of documents with embeddings.

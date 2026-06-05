@@ -113,6 +113,9 @@ class HuggingFaceAPITextEmbedder:
             Applicable when `api_type` is `TEXT_EMBEDDINGS_INFERENCE`, or `INFERENCE_ENDPOINTS`
             if the backend uses Text Embeddings Inference.
             If `api_type` is `SERVERLESS_INFERENCE_API`, this parameter is ignored.
+        :raises ValueError:
+            If the required `model` or `url` is missing from `api_params`, the `url` is invalid,
+            or the `api_type` is unknown.
         """
         if isinstance(api_type, str):
             api_type = HFEmbeddingAPIType.from_str(api_type)
@@ -213,6 +216,10 @@ class HuggingFaceAPITextEmbedder:
         :param text:
             Text to embed.
 
+        :raises TypeError:
+            If `text` is not a string.
+        :raises ValueError:
+            If the embedding returned by the API has an unexpected shape.
         :returns:
             A dictionary with the following keys:
             - `embedding`: The embedding of the input text.
@@ -241,6 +248,10 @@ class HuggingFaceAPITextEmbedder:
         :param text:
             Text to embed.
 
+        :raises TypeError:
+            If `text` is not a string.
+        :raises ValueError:
+            If the embedding returned by the API has an unexpected shape.
         :returns:
             A dictionary with the following keys:
             - `embedding`: The embedding of the input text.
