@@ -380,6 +380,16 @@ class TestVLLMChatGeneratorRun:
         assert kwargs["max_tokens"] == 100
         assert kwargs["temperature"] == 0.5
 
+    def test_run_with_string_input(self, mock_chat_completion):
+        component = VLLMChatGenerator(model=MODEL)
+        result = component.run("What's the capital of France?")
+
+        _, kwargs = mock_chat_completion.call_args
+        assert kwargs["messages"] == [{"role": "user", "content": "What's the capital of France?"}]
+        assert isinstance(result["replies"], list)
+        assert len(result["replies"]) == 1
+        assert isinstance(result["replies"][0], ChatMessage)
+
     def test_run_empty_messages(self):
         component = VLLMChatGenerator(model=MODEL)
         assert component.run([]) == {"replies": []}
@@ -445,6 +455,16 @@ class TestVLLMChatGeneratorRunAsync:
     async def test_run_async_empty_messages(self):
         component = VLLMChatGenerator(model=MODEL)
         assert await component.run_async([]) == {"replies": []}
+
+    async def test_run_async_with_string_input(self, mock_async_chat_completion):
+        component = VLLMChatGenerator(model=MODEL)
+        result = await component.run_async("What's the capital of France?")
+
+        _, kwargs = mock_async_chat_completion.call_args
+        assert kwargs["messages"] == [{"role": "user", "content": "What's the capital of France?"}]
+        assert isinstance(result["replies"], list)
+        assert len(result["replies"]) == 1
+        assert isinstance(result["replies"][0], ChatMessage)
 
     async def test_run_async(self, mock_async_chat_completion):  # noqa: ARG002
         component = VLLMChatGenerator(model=MODEL)
