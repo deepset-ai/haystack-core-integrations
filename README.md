@@ -8,14 +8,14 @@
 | src/haystack\_integrations/components/embedders/nvidia/text\_embedder.py        |       75 |        5 |       24 |        4 |     91% |93, 116-\>exit, 119-120, 127, 131 |
 | src/haystack\_integrations/components/embedders/nvidia/truncate.py              |       15 |        0 |        2 |        0 |    100% |           |
 | src/haystack\_integrations/components/generators/nvidia/chat/chat\_generator.py |       17 |        0 |        0 |        0 |    100% |           |
-| src/haystack\_integrations/components/generators/nvidia/generator.py            |       56 |        2 |       14 |        2 |     94% |93, 110-\>exit, 135 |
+| src/haystack\_integrations/components/generators/nvidia/generator.py            |       57 |        2 |       14 |        2 |     94% |99, 116-\>exit, 141 |
 | src/haystack\_integrations/components/rankers/nvidia/ranker.py                  |       95 |        3 |       36 |        1 |     95% |124, 179-180 |
 | src/haystack\_integrations/components/rankers/nvidia/truncate.py                |        9 |        0 |        0 |        0 |    100% |           |
 | src/haystack\_integrations/utils/nvidia/client.py                               |       16 |        0 |        2 |        0 |    100% |           |
 | src/haystack\_integrations/utils/nvidia/models.py                               |       29 |        0 |        4 |        0 |    100% |           |
 | src/haystack\_integrations/utils/nvidia/nim\_backend.py                         |      109 |        0 |       30 |        3 |     98% |147-\>149, 149-\>152, 170-\>172 |
 | src/haystack\_integrations/utils/nvidia/utils.py                                |       46 |        0 |       24 |        0 |    100% |           |
-| **TOTAL**                                                                       |  **568** |   **15** |  **168** |   **14** | **96%** |           |
+| **TOTAL**                                                                       |  **569** |   **15** |  **168** |   **14** | **96%** |           |
 
 
 ## Setup coverage badge
