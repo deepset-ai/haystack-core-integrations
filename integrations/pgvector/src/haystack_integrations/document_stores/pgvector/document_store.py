@@ -9,6 +9,8 @@ from haystack.document_stores.errors import DocumentStoreError
 from haystack.utils.auth import Secret, deserialize_secrets_inplace
 from psycopg import AsyncConnection, Connection, Error
 from psycopg.rows import dict_row
+from psycopg.sql import SQL, Composed, Identifier
+from psycopg.sql import Literal as SQLLiteral
 
 from pgvector.psycopg import register_vector, register_vector_async
 
