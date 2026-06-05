@@ -5,21 +5,27 @@
 from typing import Any, Literal
 
 from haystack import default_from_dict, default_to_dict, logging
+from haystack.dataclasses.document import Document
 from haystack.document_stores.errors import DocumentStoreError
+from haystack.document_stores.types import DuplicatePolicy
 from haystack.utils.auth import Secret, deserialize_secrets_inplace
 from psycopg import AsyncConnection, Connection, Error
 from psycopg.rows import dict_row
 from psycopg.sql import SQL, Composed, Identifier
 from psycopg.sql import Literal as SQLLiteral
+from psycopg.types.json import Jsonb
 
 from pgvector.psycopg import register_vector, register_vector_async
 
 from ._base import (
     HNSW_INDEX_CREATION_VALID_KWARGS,
+    KEYWORD_QUERY,
     VALID_VECTOR_FUNCTIONS,
     VECTOR_FUNCTION_TO_POSTGRESQL_OPS,
     PostgreSQLDocumentStore,
 )
+from .converters import _from_pg_to_haystack_documents
+from .filters import _convert_filters_to_where_clause_and_params, _validate_filters
 
 __all__ = [
     "HNSW_INDEX_CREATION_VALID_KWARGS",
