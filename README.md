@@ -5,8 +5,8 @@
 | Name                                                                                |    Stmts |     Miss |   Branch |   BrPart |   Cover |   Missing |
 |------------------------------------------------------------------------------------ | -------: | -------: | -------: | -------: | ------: | --------: |
 | src/haystack\_integrations/components/generators/togetherai/chat/chat\_generator.py |       22 |        0 |        2 |        0 |    100% |           |
-| src/haystack\_integrations/components/generators/togetherai/generator.py            |       52 |        6 |        4 |        1 |     88% |205-212, 225 |
-| **TOTAL**                                                                           |   **74** |    **6** |    **6** |    **1** | **91%** |           |
+| src/haystack\_integrations/components/generators/togetherai/generator.py            |       54 |        6 |        4 |        1 |     88% |212-219, 232 |
+| **TOTAL**                                                                           |   **76** |    **6** |    **6** |    **1** | **91%** |           |
 
 
 ## Setup coverage badge
