@@ -70,7 +70,8 @@ unit-cov-retry = 'pytest --cov=haystack_integrations --reruns 3 --reruns-delay 3
 integration-cov-append-retry = 'pytest --cov=haystack_integrations --cov-append --reruns 3 --reruns-delay 30 -x -m "integration" {args:tests}'
 types = """mypy -p haystack_integrations.components.common.huggingface_api \
 -p haystack_integrations.components.embedders.huggingface_api \
--p haystack_integrations.components.generators.huggingface_api {args}"""
+-p haystack_integrations.components.generators.huggingface_api \
+-p haystack_integrations.components.rankers.huggingface_api {args}"""
 
 [tool.mypy]
 install_types = true
