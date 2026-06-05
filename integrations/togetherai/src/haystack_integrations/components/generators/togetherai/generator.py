@@ -2,6 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+import warnings
 from typing import Any, cast
 
 from haystack import component, default_to_dict, logging
@@ -78,6 +79,12 @@ class TogetherAIGenerator(TogetherAIChatGenerator):
             Maximum retries to establish contact with Together AI if it returns an internal error, if not set it is
             inferred from the `OPENAI_MAX_RETRIES` environment variable or set to 5.
         """
+        warnings.warn(
+            "The `TogetherAIGenerator` component is deprecated and will be removed in a future version. "
+            "Use `TogetherAIChatGenerator` instead, which now also supports string inputs.",
+            FutureWarning,
+            stacklevel=2,
+        )
 
         self.api_key = api_key
         self.api_base_url = api_base_url

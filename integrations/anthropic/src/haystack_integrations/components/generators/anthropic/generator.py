@@ -1,3 +1,4 @@
+import warnings
 from collections.abc import Callable
 from typing import Any, ClassVar
 
@@ -78,6 +79,12 @@ class AnthropicGenerator:
         :param system_prompt: An optional system prompt to use for generation.
         :param generation_kwargs: Additional keyword arguments for generation.
         """
+        warnings.warn(
+            "The `AnthropicGenerator` component is deprecated and will be removed in a future version. "
+            "Use `AnthropicChatGenerator` instead, which now also supports string inputs.",
+            FutureWarning,
+            stacklevel=2,
+        )
         self.api_key = api_key
         self.model = model
         self.generation_kwargs = generation_kwargs or {}

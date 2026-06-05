@@ -1,5 +1,23 @@
 # Changelog
 
+## [integrations/anthropic-v5.10.0] - 2026-06-04
+
+### 🚀 Features
+
+- Anthropic - accept str as ChatGenerator input; deprecate generator (#3399)
+
+### 🧪 Testing
+
+- Fix unit test in anthropic tests (#3382)
+
+
+## [integrations/anthropic-v5.9.0] - 2026-05-12
+
+### 🚀 Features
+
+- Support adaptive_thinking_effort flat param for Claude (#3297)
+
+
 ## [integrations/anthropic-v5.8.0] - 2026-04-28
 
 ### 🚀 Features

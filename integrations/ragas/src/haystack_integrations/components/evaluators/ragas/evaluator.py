@@ -1,4 +1,5 @@
 import inspect
+from asyncio import Semaphore, gather
 from typing import Any, Union, cast, get_args, get_origin
 
 from haystack import Document, component, default_from_dict, default_to_dict
@@ -50,7 +51,7 @@ class RagasEvaluator:
     ```
     """
 
-    def __init__(self, ragas_metrics: list[SimpleBaseMetric]) -> None:
+    def __init__(self, ragas_metrics: list[SimpleBaseMetric], concurrency_limit: int = 4) -> None:
         """
         Constructs a new Ragas evaluator.
 
@@ -58,9 +59,12 @@ class RagasEvaluator:
             Each metric must be fully configured (including its LLM) at construction time.
             Available metrics can be found in the
             [Ragas documentation](https://docs.ragas.io/en/stable/concepts/metrics/available_metrics/).
+        :param concurrency_limit: The maximum number of metric evaluations that should be allowed to run concurrently.
+            This parameter is only used in the `run_async` method.
         """
         self._validate_inputs(ragas_metrics)
         self.metrics = ragas_metrics
+        self.concurrency_limit = concurrency_limit
 
     @staticmethod
     def _validate_inputs(metrics: list[SimpleBaseMetric]) -> None:
@@ -148,6 +152,57 @@ class RagasEvaluator:
 
         return {"result": results}
 
+    @component.output_types(result=dict[str, dict[str, MetricResult]])
+    async def run_async(
+        self,
+        query: str | None = None,
+        response: list[ChatMessage] | str | None = None,
+        documents: list[Document | str] | None = None,
+        reference_contexts: list[str] | None = None,
+        multi_responses: list[str] | None = None,
+        reference: str | None = None,
+        rubrics: dict[str, str] | None = None,
+    ) -> dict[str, dict[str, MetricResult]]:
+        """
+        Asynchronously evaluates the provided inputs against each metric and returns the results.
+
+        :param query: The input query from the user.
+        :param response: A list of ChatMessage responses (typically from a language model or agent).
+        :param documents: A list of Haystack Document or strings that were retrieved for the query.
+        :param reference_contexts: A list of reference contexts that should have been retrieved for the query.
+        :param multi_responses: List of multiple responses generated for the query.
+        :param reference: A string reference answer for the query.
+        :param rubrics: A dictionary of evaluation rubric, where keys represent the score
+                        and the values represent the corresponding evaluation criteria.
+        :return: A dictionary with key `result` mapping metric names to their `MetricResult`.
+        """
+        processed_docs = self._process_documents(documents)
+        processed_response = self._process_response(response)
+
+        try:
+            sample = SingleTurnSample(
+                user_input=query,
+                retrieved_contexts=processed_docs,
+                reference_contexts=reference_contexts,
+                response=processed_response,
+                multi_responses=multi_responses,
+                reference=reference,
+                rubrics=rubrics,
+            )
+        except ValidationError as e:
+            self._handle_conversion_error(e)
+
+        sem = Semaphore(max(1, self.concurrency_limit))
+
+        async def _runner(metric: SimpleBaseMetric) -> tuple[str, MetricResult]:
+            async with sem:
+                return metric.name, await self._score_metric_async(metric, sample)
+
+        pairs = await gather(*[_runner(m) for m in self.metrics])
+        results: dict[str, MetricResult] = dict(pairs)
+
+        return {"result": results}
+
     def _score_metric(self, metric: SimpleBaseMetric, sample: SingleTurnSample) -> MetricResult:
         """
         Score a metric by inspecting its ascore() signature and passing only matching sample fields.
@@ -167,6 +222,26 @@ class RagasEvaluator:
         sample_dict = sample.model_dump()
         kwargs = {k: v for k, v in sample_dict.items() if k in valid_params and v is not None}
         return metric.score(**kwargs)
+
+    async def _score_metric_async(self, metric: SimpleBaseMetric, sample: SingleTurnSample) -> MetricResult:
+        """
+        Score a metric by inspecting its ascore() signature and passing only matching sample fields.
+
+        :param metric: A SimpleBaseMetric instance to score.
+        :param sample: The SingleTurnSample holding all available input fields.
+        :return: MetricResult from the metric.
+        """
+        sig = inspect.signature(metric.ascore)
+        excluded = {"self", "callbacks"}
+        valid_params = {
+            name
+            for name, param in sig.parameters.items()
+            if name not in excluded
+            and param.kind not in (inspect.Parameter.VAR_POSITIONAL, inspect.Parameter.VAR_KEYWORD)
+        }
+        sample_dict = sample.model_dump()
+        kwargs = {k: v for k, v in sample_dict.items() if k in valid_params and v is not None}
+        return await metric.ascore(**kwargs)
 
     def _process_documents(self, documents: list[Document | str] | None) -> list[str] | None:
         """

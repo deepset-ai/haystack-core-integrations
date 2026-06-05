@@ -3,6 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import logging as python_logging
+from collections.abc import Mapping, Sequence
 from datetime import datetime
 from typing import Any
 
@@ -37,7 +38,7 @@ from azure.search.documents.indexes.models import (
     VectorSearchAlgorithmMetric,
     VectorSearchProfile,
 )
-from azure.search.documents.models import VectorizedQuery
+from azure.search.documents.models import LookupDocument, VectorizedQuery
 from haystack import default_from_dict, default_to_dict, logging
 from haystack.dataclasses import Document
 from haystack.document_stores.types import DuplicatePolicy
@@ -57,6 +58,20 @@ type_mapping = {
     float: "Edm.Double",
     datetime: "Edm.DateTimeOffset",
 }
+
+
+def _instantiate_azure_model(model_class: Any, data: Any) -> Any:
+    """Instantiate an Azure SDK model from a dict, picking the right subclass if the model has subtypes."""
+    # Some Azure base classes (e.g. LexicalAnalyzer) have multiple subclasses (e.g. CustomAnalyzer);
+    # the concrete subclass to use is named in the "@odata.type" field of the dict, and the base class
+    # exposes a __mapping__ from that name to the subclass.
+    if isinstance(data, Mapping):
+        subtype_name = data.get("@odata.type")
+        subtypes = getattr(model_class, "__mapping__", {})
+        if subtype_name in subtypes:
+            return subtypes[subtype_name](data)
+    return model_class(data)
+
 
 # Map of expected field names to their corresponding classes
 AZURE_CLASS_MAPPING: dict[str, Any] = {
@@ -273,11 +288,11 @@ class AzureAISearchDocumentStore:
 
         # default fields to create index based on Haystack Document (id, content, embedding)
         default_fields = [
-            SimpleField(name="id", type=SearchFieldDataType.String, key=True, filterable=True),
-            SearchableField(name="content", type=SearchFieldDataType.String),
+            SimpleField(name="id", type=SearchFieldDataType.STRING, key=True, filterable=True),
+            SearchableField(name="content", type=SearchFieldDataType.STRING),
             SearchField(
                 name="embedding",
-                type=SearchFieldDataType.Collection(SearchFieldDataType.Single),
+                type=f"Collection({SearchFieldDataType.SINGLE.value})",
                 searchable=True,
                 hidden=False,
                 vector_search_dimensions=self._embedding_dimension,
@@ -355,9 +370,7 @@ class AzureAISearchDocumentStore:
             Deserialized component.
         """
         if (fields := data["init_parameters"]["metadata_fields"]) is not None:
-            data["init_parameters"]["metadata_fields"] = {
-                key: SearchField.from_dict(field) for key, field in fields.items()
-            }
+            data["init_parameters"]["metadata_fields"] = {key: SearchField(field) for key, field in fields.items()}
         else:
             data["init_parameters"]["metadata_fields"] = {}
 
@@ -365,13 +378,13 @@ class AzureAISearchDocumentStore:
             if key in data["init_parameters"]:
                 value = data["init_parameters"][key]
                 if isinstance(value, list):
-                    data["init_parameters"][key] = [model_class.from_dict(item) for item in value]
+                    data["init_parameters"][key] = [_instantiate_azure_model(model_class, item) for item in value]
                 else:
-                    data["init_parameters"][key] = model_class.from_dict(value)
+                    data["init_parameters"][key] = _instantiate_azure_model(model_class, value)
 
         deserialize_secrets_inplace(data["init_parameters"], keys=["api_key", "azure_endpoint"])
         if (vector_search_configuration := data["init_parameters"].get("vector_search_configuration")) is not None:
-            data["init_parameters"]["vector_search_configuration"] = VectorSearch.from_dict(vector_search_configuration)
+            data["init_parameters"]["vector_search_configuration"] = VectorSearch(vector_search_configuration)
         return default_from_dict(cls, data)
 
     def count_documents(self) -> int:
@@ -460,7 +473,7 @@ class AzureAISearchDocumentStore:
         if field_type is None:
             return "keyword"
 
-        field_type_name = str(field_type)
+        field_type_name = field_type.value if hasattr(field_type, "value") else str(field_type)
         if field_type_name.startswith("Collection("):
             inner_type = field_type_name[len("Collection(") : -1]
             return FIELD_TYPE_MAPPING.get(inner_type, "keyword")
@@ -604,7 +617,7 @@ class AzureAISearchDocumentStore:
             return
         documents = self._get_raw_documents_by_id(document_ids)
         if documents:
-            self.client.delete_documents(documents)
+            self.client.delete_documents([dict(doc) for doc in documents])
 
     def delete_all_documents(self, recreate_index: bool = False) -> None:  # noqa: FBT002, FBT001
         """
@@ -758,7 +771,7 @@ class AzureAISearchDocumentStore:
         else:
             return self.search_documents()
 
-    def _convert_search_result_to_documents(self, azure_docs: list[dict[str, Any]]) -> list[Document]:
+    def _convert_search_result_to_documents(self, azure_docs: Sequence[Mapping[str, Any]]) -> list[Document]:
         """
         Converts Azure search results to Haystack Documents.
         """
@@ -807,7 +820,7 @@ class AzureAISearchDocumentStore:
             msg = "Index name is required to check if the index exists."
             raise ValueError(msg)
 
-    def _get_raw_documents_by_id(self, document_ids: list[str]) -> list[dict]:
+    def _get_raw_documents_by_id(self, document_ids: list[str]) -> list[LookupDocument]:
         """
         Retrieves all Azure documents with a matching document_ids from the document store.
 

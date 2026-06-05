@@ -1,5 +1,30 @@
 # Changelog
 
+## [integrations/valkey-v0.2.1] - 2026-05-26
+
+### 🐛 Bug Fixes
+
+- Skip valkey-glide version 2.4.0 (#3350)
+
+### 🚜 Refactor
+
+-   refactor(valkey): use async DocumentStore mixin tests (#3060)
+
+### 🧪 Testing
+
+- `ValkeyDocumentStore` using Mixin Test (#3019)
+- Track test coverage for all integrations (#3065)
+- Better categorize some Document Stores tests (#3085)
+- Valkey - add unit tests (#3210)
+
+### 🧹 Chores
+
+- Add ANN type annotations to stackit, togetherai, unstructured, valkey, watsonx, weave, weaviate (#2994)
+- Increase lower pins for 3.14 support in some integrations + test with 3.14 (#3033)
+- Enforce ruff docstring rules (D102/D103/D205/D209/D213/D417/D419) in integrations 41-47 (#3012)
+- Valkey - improve typing (#3285)
+
+
 ## [integrations/valkey-v0.2.0] - 2026-03-06
 
 ### 🚀 Features

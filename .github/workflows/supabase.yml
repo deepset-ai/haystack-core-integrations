@@ -76,7 +76,7 @@ jobs:
           --health-retries 5
 
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
 
       - name: Create pgvector extension
         run: >
@@ -91,7 +91,9 @@ jobs:
           python-version: ${{ matrix.python-version }}
 
       - name: Install Hatch
-        run: pip install hatch
+        run: |
+          python -m pip install --upgrade pip
+          pip install hatch --uploaded-prior-to=P1D
       - name: Lint
         if: matrix.python-version == '3.10' && runner.os == 'Linux'
         run: hatch run fmt-check && hatch run test:types
@@ -118,11 +120,31 @@ jobs:
           name: coverage-comment-supabase
           path: python-coverage-comment-action-supabase.txt
 
-      - name: Run integration tests
+      - name: Run pgvector integration tests
         if: runner.os == 'Linux'
         env:
           SUPABASE_DB_URL: "postgresql://postgres:postgres@localhost:5432/postgres"
-        run: hatch run test:integration-cov-append-retry
+        run: hatch run test:integration-cov-append-retry --ignore=tests/test_groonga_integration.py
+
+      - name: Start PGroonga + PostgREST stack
+        if: runner.os == 'Linux'
+        run: docker compose -f docker-compose-groonga.yml up -d --build
+
+      - name: Wait for PGroonga stack to be ready
+        if: runner.os == 'Linux'
+        run: |
+          for i in $(seq 1 30); do
+            if curl -sf http://localhost:8000/rest/v1/ -H "apikey: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImV4cCI6MTk4MzgxMjk5Nn0.EGIM96RAZx35lJzdJsyH-qQwv8Hj04zWl196z2-SBc0"; then
+              echo "PGroonga stack is ready"
+              break
+            fi
+            echo "Waiting for PGroonga stack... ($i/30)"
+            sleep 5
+          done
+
+      - name: Run PGroonga integration tests
+        if: runner.os == 'Linux'
+        run: hatch run test:integration-cov-append-retry tests/test_groonga_integration.py
 
       - name: Store combined coverage
         if: github.event_name == 'push'
@@ -148,12 +170,11 @@ jobs:
           hatch -e test env run -- uv pip install git+https://github.com/deepset-ai/haystack.git@main
           hatch run test:unit
 
-
   notify-slack-on-failure:
     needs: run
     if: failure() && github.event_name == 'schedule'
     runs-on: ubuntu-slim
     steps:
-      - uses: deepset-ai/notify-slack-action@3cda73b77a148f16f703274198e7771340cf862b # v1
+      - uses: deepset-ai/notify-slack-action@a65def0c8bf91d6520286ab34280151c76a5a008 # v1.1.0
         with:
           slack-webhook-url: ${{ secrets.SLACK_WEBHOOK_URL_NOTIFICATIONS }}

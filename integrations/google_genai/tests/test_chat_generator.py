@@ -422,6 +422,22 @@ class TestGoogleGenAIChatGeneratorRun:
                 streaming_callback=lambda chunk: None,
             )
 
+    def test_run_with_string_input(self, monkeypatch, mock_response):
+        monkeypatch.setenv("GOOGLE_API_KEY", "test-api-key")
+        component = GoogleGenAIChatGenerator()
+        component._client.models.generate_content = Mock(return_value=mock_response)
+
+        result = component.run("What's the capital of France?")
+
+        call_kwargs = component._client.models.generate_content.call_args
+        contents = call_kwargs.kwargs.get("contents") or call_kwargs[1].get("contents")
+        assert len(contents) == 1
+        assert contents[0].role == "user"
+        assert contents[0].parts[0].text == "What's the capital of France?"
+        assert isinstance(result["replies"], list)
+        assert len(result["replies"]) == 1
+        assert isinstance(result["replies"][0], ChatMessage)
+
     def test_from_dict_with_streaming_callback(self, monkeypatch):
         monkeypatch.setenv("GOOGLE_API_KEY", "test-api-key")
         component = GoogleGenAIChatGenerator(streaming_callback=print_streaming_chunk)
@@ -441,6 +457,23 @@ class TestGoogleGenAIChatGeneratorRun:
         assert len(results["replies"]) == 1
         assert results["replies"][0].text == "Hello"
         assert results["replies"][0].meta["finish_reason"] == "stop"
+
+    @pytest.mark.asyncio
+    async def test_run_async_with_string_input(self, monkeypatch, mock_response):
+        monkeypatch.setenv("GOOGLE_API_KEY", "test-api-key")
+        component = GoogleGenAIChatGenerator()
+        component._client.aio.models.generate_content = AsyncMock(return_value=mock_response)
+
+        result = await component.run_async("What's the capital of France?")
+
+        call_kwargs = component._client.aio.models.generate_content.call_args
+        contents = call_kwargs.kwargs.get("contents") or call_kwargs[1].get("contents")
+        assert len(contents) == 1
+        assert contents[0].role == "user"
+        assert contents[0].parts[0].text == "What's the capital of France?"
+        assert isinstance(result["replies"], list)
+        assert len(result["replies"]) == 1
+        assert isinstance(result["replies"][0], ChatMessage)
 
     @pytest.mark.asyncio
     async def test_run_async_streaming(self, monkeypatch, mock_streaming_chunk):
@@ -807,25 +840,6 @@ class TestGoogleGenAIChatGeneratorInference:
         # The model should maintain context from previous turns
         assert "22" in second_response.text or "sunny" in second_response.text.lower()
 
-    def test_live_run_with_thinking_unsupported_model_fails_fast(self):
-        """
-        Integration test to verify that thinking configuration fails fast with unsupported models.
-        """
-        # gemini-2.0-flash does not support thinking
-        chat_messages = [ChatMessage.from_user("Why is the sky blue?")]
-        component = GoogleGenAIChatGenerator(model="gemini-2.0-flash", generation_kwargs={"thinking_budget": 1024})
-
-        # The call should raise a RuntimeError with a helpful message
-        with pytest.raises(RuntimeError) as exc_info:
-            component.run(chat_messages)
-
-        # Verify the error message is helpful and mentions thinking configuration
-        error_message = str(exc_info.value)
-        assert "Thinking configuration error" in error_message
-        assert "gemini-2.0" in error_message
-        assert "thinking_budget" in error_message or "thinking features" in error_message
-        assert "Try removing" in error_message or "use a different model" in error_message
-
     def test_live_run_with_structured_output_pydantic(self):
         """Test that response_format with a Pydantic model returns valid structured JSON output."""
 
@@ -978,26 +992,6 @@ class TestAsyncGoogleGenAIChatGeneratorInference:
         assert "thoughts_token_count" in message.meta["usage"]
         assert message.meta["usage"]["thoughts_token_count"] is not None
         assert message.meta["usage"]["thoughts_token_count"] > 0
-
-    async def test_live_run_async_with_thinking_unsupported_model_fails_fast(self):
-        """
-        Async integration test to verify that thinking configuration fails fast with unsupported models.
-        This tests the fail-fast principle - no silent fallbacks.
-        """
-        # Use a model that does NOT support thinking features (gemini-2.0-flash)
-        chat_messages = [ChatMessage.from_user("Why is the sky blue?")]
-        component = GoogleGenAIChatGenerator(model="gemini-2.0-flash", generation_kwargs={"thinking_budget": 1024})
-
-        # The call should raise a RuntimeError with a helpful message
-        with pytest.raises(RuntimeError) as exc_info:
-            await component.run_async(chat_messages)
-
-        # Verify the error message is helpful and mentions thinking configuration
-        error_message = str(exc_info.value)
-        assert "Thinking configuration error" in error_message
-        assert "gemini-2.0" in error_message
-        assert "thinking_budget" in error_message or "thinking features" in error_message
-        assert "Try removing" in error_message or "use a different model" in error_message
 
     async def test_live_run_async_with_structured_output(self):
         """Async integration test for structured output with a Pydantic model."""

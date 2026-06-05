@@ -4,20 +4,23 @@
 # Note: if you change the model, update the model-specific inference parameters.
 
 from haystack import Document, Pipeline
-from haystack.components.builders import PromptBuilder
+from haystack.components.builders import ChatPromptBuilder
 from haystack.components.retrievers.in_memory import InMemoryEmbeddingRetriever
+from haystack.dataclasses import ChatMessage
 from haystack.document_stores.in_memory import InMemoryDocumentStore
 
 from haystack_integrations.components.embedders.amazon_bedrock import (
     AmazonBedrockDocumentEmbedder,
     AmazonBedrockTextEmbedder,
 )
-from haystack_integrations.components.generators.amazon_bedrock import AmazonBedrockGenerator
+from haystack_integrations.components.generators.amazon_bedrock import AmazonBedrockChatGenerator
 
-generator_model_name = "amazon.titan-text-lite-v1"
+generator_model_name = "amazon.nova-lite-v1:0"
 embedder_model_name = "amazon.titan-embed-text-v1"
 
-prompt_template = """
+prompt_template = [
+    ChatMessage.from_user(
+        """
 Context:
 {% for document in documents %}
     {{ document.content }}
@@ -30,6 +33,8 @@ If you cannot answer the question, output "I do not know".
 
 Question: {{ question }}?
 """
+    )
+]
 
 docs = [
     Document(content="User ABC is using Amazon SageMaker to train ML models."),
@@ -47,21 +52,21 @@ doc_store.write_documents(docs_with_embeddings)
 pipe = Pipeline()
 pipe.add_component("text_embedder", AmazonBedrockTextEmbedder(embedder_model_name))
 pipe.add_component("retriever", InMemoryEmbeddingRetriever(doc_store, top_k=1))
-pipe.add_component("prompt_builder", PromptBuilder(prompt_template))
+pipe.add_component("prompt_builder", ChatPromptBuilder(prompt_template))
 pipe.add_component(
-    "generator",
-    AmazonBedrockGenerator(
+    "llm",
+    AmazonBedrockChatGenerator(
         model=generator_model_name,
         # model-specific inference parameters
         generation_kwargs={
-            "maxTokenCount": 1024,
+            "maxTokens": 1024,
             "temperature": 0.0,
         },
     ),
 )
 pipe.connect("text_embedder", "retriever")
 pipe.connect("retriever", "prompt_builder")
-pipe.connect("prompt_builder", "generator")
+pipe.connect("prompt_builder.prompt", "llm.messages")
 
 
 question = "Which user is using IaaS services for Machine Learning?"
@@ -71,4 +76,4 @@ results = pipe.run(
         "prompt_builder": {"question": question},
     }
 )
-results["generator"]["replies"]
+print(results["llm"]["replies"][0].text)  # noqa: T201

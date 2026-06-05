@@ -1,5 +1,27 @@
 # Changelog
 
+## [integrations/togetherai-v3.1.0] - 2026-06-05
+
+### 📚 Documentation
+
+- Simplify pydoc configs (#2855)
+
+### 🧪 Testing
+
+- Together AI - change tool calling model in tests (#2936)
+- Test compatible integrations with python 3.14; update pyproject (#3001)
+- Track test coverage for all integrations (#3065)
+- Together ai - replace Kimi K2.5 retired model with K2.6 (#3341)
+
+### 🧹 Chores
+
+- Remove unused allow-direct-references (#2866)
+- Add ANN type annotations to stackit, togetherai, unstructured, valkey, watsonx, weave, weaviate (#2994)
+- Enforce ruff docstring rules (D102/D103/D205/D209/D213/D417/D419) in integrations 41-47 (#3012)
+- Clean up CI workflows (#3070)
+- TogetherAI - deprecate generator; rm generator example (#3390)
+
+
 ## [integrations/togetherai-v3.0.0] - 2026-01-13
 
 ### 🚀 Features

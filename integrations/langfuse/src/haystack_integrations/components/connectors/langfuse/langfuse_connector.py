@@ -228,7 +228,6 @@ class LangfuseConnector:
         """
         init_params = data["init_parameters"]
         deserialize_secrets_inplace(init_params, keys=["secret_key", "public_key"])
-        init_params["span_handler"] = (
-            deserialize_class_instance(init_params["span_handler"]) if init_params["span_handler"] else None
-        )
+        if init_params.get("span_handler") is not None:
+            init_params["span_handler"] = deserialize_class_instance(init_params["span_handler"])
         return default_from_dict(cls, data)

@@ -1,5 +1,16 @@
 # Changelog
 
+## [integrations/cohere-v9.2.0] - 2026-06-05
+
+### 🚀 Features
+
+- Cohere - accept str as ChatGenerator input; deprecate generator (#3395)
+
+### 🧹 Chores
+
+- Cohere - set lower bound pin for Pydantic (#3284)
+
+
 ## [integrations/cohere-v9.1.0] - 2026-04-13
 
 ### 🚀 Features

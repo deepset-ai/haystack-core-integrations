@@ -21,7 +21,7 @@ def message_handler(documents: list[Document], max_length: int = 150_000) -> str
     result_str = ""
     for document in documents:
         if document.meta["type"] in ["file", "dir", "error"]:
-            result_str += document.content or "" + "\n"
+            result_str += (document.content or "") + "\n"
         else:
             result_str += f"File Content for {document.meta['path']}\n\n"
             result_str += document.content or ""
@@ -29,7 +29,7 @@ def message_handler(documents: list[Document], max_length: int = 150_000) -> str
     if len(result_str) > max_length:
         result_str = result_str[:max_length] + "...(large file can't be fully displayed)"
 
-    return result_str
+    return result_str.strip()
 
 
 def serialize_handlers(

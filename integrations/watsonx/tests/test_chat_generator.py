@@ -366,6 +366,39 @@ class TestWatsonxChatGenerator:
         assert result["replies"][0].text == "Streaming response"
         assert result["replies"][0].meta["finish_reason"] == "stop"
 
+    def test_run_with_string_input(self, mock_watsonx):
+        generator = WatsonxChatGenerator(
+            api_key=Secret.from_token("test-api-key"),
+            project_id=Secret.from_token("test-project"),
+        )
+
+        result = generator.run(messages="What's the capital of France?")
+
+        assert isinstance(result["replies"], list)
+        assert len(result["replies"]) == 1
+        assert isinstance(result["replies"][0], ChatMessage)
+
+        mock_watsonx["model_instance"].chat.assert_called_once_with(
+            messages=[{"role": "user", "content": "What's the capital of France?"}], params={}, tools=None
+        )
+
+    @pytest.mark.asyncio
+    async def test_run_async_with_string_input(self, mock_watsonx):
+        generator = WatsonxChatGenerator(
+            api_key=Secret.from_token("test-api-key"),
+            project_id=Secret.from_token("test-project"),
+        )
+
+        result = await generator.run_async(messages="What's the capital of France?")
+
+        assert isinstance(result["replies"], list)
+        assert len(result["replies"]) == 1
+        assert isinstance(result["replies"][0], ChatMessage)
+
+        mock_watsonx["model_instance"].achat.assert_called_once_with(
+            messages=[{"role": "user", "content": "What's the capital of France?"}], params={}, tools=None
+        )
+
     def test_run_with_empty_messages(self, mock_watsonx):
         generator = WatsonxChatGenerator(
             api_key=Secret.from_token("test-api-key"),

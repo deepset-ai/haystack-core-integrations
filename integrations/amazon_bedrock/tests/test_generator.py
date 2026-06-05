@@ -1,3 +1,5 @@
+import json
+from io import BytesIO
 from typing import Any
 from unittest.mock import MagicMock, call
 
@@ -334,6 +336,137 @@ def test_run_client_error(mock_boto3_session):
 
     with pytest.raises(AmazonBedrockInferenceError):
         generator.run("Hello")
+
+
+def test_run_non_streaming_normalizes_usage_from_headers(mock_boto3_session):
+    generator = AmazonBedrockGenerator(model="anthropic.claude-v2")
+    mock_client = mock_boto3_session.return_value.client.return_value
+    mock_client.invoke_model.return_value = {
+        "body": BytesIO(json.dumps({"content": [{"type": "text", "text": "ok"}]}).encode()),
+        "ResponseMetadata": {
+            "HTTPHeaders": {
+                "x-amzn-bedrock-input-token-count": "20",
+                "x-amzn-bedrock-output-token-count": "10",
+                "x-amzn-bedrock-cache-read-input-token-count": "0",
+                "x-amzn-bedrock-cache-write-input-token-count": "0",
+            }
+        },
+    }
+
+    result = generator.run("hi")
+
+    assert result["replies"] == ["ok"]
+    assert result["meta"]["usage"] == {
+        "input_tokens": 20,
+        "output_tokens": 10,
+        "total_tokens": 30,
+        "cache_read_input_tokens": 0,
+        "cache_write_input_tokens": 0,
+    }
+
+
+def test_run_non_streaming_without_usage_headers_omits_usage(mock_boto3_session):
+    generator = AmazonBedrockGenerator(model="anthropic.claude-v2")
+    mock_client = mock_boto3_session.return_value.client.return_value
+    mock_client.invoke_model.return_value = {
+        "body": BytesIO(json.dumps({"content": [{"type": "text", "text": "ok"}]}).encode()),
+        "ResponseMetadata": {"HTTPHeaders": {}},
+    }
+
+    result = generator.run("hi")
+
+    assert "usage" not in result["meta"]
+
+
+def test_run_streaming_normalizes_anthropic_usage(mock_boto3_session):
+    generator = AmazonBedrockGenerator(model="anthropic.claude-v2")
+    mock_client = mock_boto3_session.return_value.client.return_value
+
+    stream_body = MagicMock()
+    stream_body.__iter__.return_value = [
+        {
+            "chunk": {
+                "bytes": json.dumps(
+                    {
+                        "type": "message_start",
+                        "message": {"usage": {"input_tokens": 20, "output_tokens": 1}},
+                    }
+                ).encode()
+            }
+        },
+        {"chunk": {"bytes": json.dumps({"type": "content_block_delta", "delta": {"text": "ok"}}).encode()}},
+        {"chunk": {"bytes": json.dumps({"type": "message_delta", "usage": {"output_tokens": 10}}).encode()}},
+    ]
+    mock_client.invoke_model_with_response_stream.return_value = {
+        "body": stream_body,
+        "ResponseMetadata": {"RequestId": "req-1"},
+    }
+
+    result = generator.run("hi", streaming_callback=lambda chunk: None)
+
+    assert result["replies"] == ["ok"]
+    assert result["meta"]["usage"]["input_tokens"] == 20
+    assert result["meta"]["usage"]["output_tokens"] == 10
+    assert result["meta"]["usage"]["total_tokens"] == 30
+
+
+def test_run_streaming_with_cache_usage(mock_boto3_session):
+    generator = AmazonBedrockGenerator(model="anthropic.claude-v2")
+    mock_client = mock_boto3_session.return_value.client.return_value
+
+    stream_body = MagicMock()
+    stream_body.__iter__.return_value = [
+        {
+            "chunk": {
+                "bytes": json.dumps(
+                    {
+                        "type": "message_start",
+                        "message": {
+                            "usage": {
+                                "input_tokens": 5,
+                                "output_tokens": 1,
+                                "cache_read_input_tokens": 100,
+                                "cache_creation_input_tokens": 50,
+                            }
+                        },
+                    }
+                ).encode()
+            }
+        },
+        {"chunk": {"bytes": json.dumps({"type": "message_delta", "usage": {"output_tokens": 7}}).encode()}},
+    ]
+    mock_client.invoke_model_with_response_stream.return_value = {
+        "body": stream_body,
+        "ResponseMetadata": {},
+    }
+
+    result = generator.run("hi", streaming_callback=lambda chunk: None)
+
+    assert result["meta"]["usage"] == {
+        "input_tokens": 5,
+        "output_tokens": 7,
+        "total_tokens": 12,
+        "cache_read_input_tokens": 100,
+        "cache_write_input_tokens": 50,
+    }
+
+
+def test_run_streaming_without_usage_omits_usage(mock_boto3_session):
+    generator = AmazonBedrockGenerator(model="anthropic.claude-v2")
+    mock_client = mock_boto3_session.return_value.client.return_value
+
+    stream_body = MagicMock()
+    stream_body.__iter__.return_value = [
+        {"chunk": {"bytes": b'{"delta": {"text": "ok"}}'}},
+    ]
+    mock_client.invoke_model_with_response_stream.return_value = {
+        "body": stream_body,
+        "ResponseMetadata": {"RequestId": "req-1"},
+    }
+
+    result = generator.run("hi", streaming_callback=lambda chunk: None)
+
+    assert "usage" not in result["meta"]
 
 
 def test_from_dict_with_streaming_callback(mock_boto3_session):

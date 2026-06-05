@@ -1,0 +1,16 @@
+loaders:
+  - modules:
+      - haystack_integrations.components.embedders.perplexity.document_embedder
+      - haystack_integrations.components.embedders.perplexity.text_embedder
+      - haystack_integrations.components.generators.perplexity.chat.chat_generator
+      - haystack_integrations.components.websearch.perplexity.perplexity_websearch
+    search_path: [../src]
+processors:
+  - type: filter
+    documented_only: true
+    skip_empty_modules: true
+renderer:
+  description: Perplexity integration for Haystack
+  id: integrations-perplexity
+  filename: perplexity.md
+  title: Perplexity

@@ -280,3 +280,94 @@ class TestGitHubFileEditor:
         assert "Authorization" not in headers
         assert headers["Accept"] == "application/vnd.github.v3+json"
         assert headers["User-Agent"] == "Haystack/GitHubFileEditor"
+
+    @pytest.mark.parametrize(
+        "file_b64,original,expected",
+        [
+            ("SGVsbG8gV29ybGQ=", "missing", "Error: Original string not found in file"),
+            ("SGVsbG8gSGVsbG8=", "Hello", "Error: Original string appears multiple times. Please provide more context"),
+        ],
+    )
+    @patch("requests.get")
+    def test_run_edit_string_edge_cases(self, mock_get, file_b64, original, expected, monkeypatch):
+        monkeypatch.setenv("GITHUB_TOKEN", "test-token")
+        mock_get.return_value.json.return_value = {"content": file_b64, "sha": "abc123"}
+        mock_get.return_value.raise_for_status.return_value = None
+
+        editor = GitHubFileEditor()
+        result = editor.run(
+            command=Command.EDIT,
+            payload={"path": "f.txt", "original": original, "replacement": "X", "message": "m"},
+            repo="owner/repo",
+            branch="main",
+        )
+        assert result["result"] == expected
+
+    @patch("requests.get")
+    def test_run_undo_not_last_user(self, mock_get, monkeypatch):
+        monkeypatch.setenv("GITHUB_TOKEN", "test-token")
+
+        mock_get.return_value.raise_for_status.return_value = None
+        mock_get.return_value.json.side_effect = [
+            [{"author": {"login": "different_user"}, "sha": "sha1"}],
+            {"login": "another_user"},
+        ]
+
+        editor = GitHubFileEditor()
+        result = editor.run(command=Command.UNDO, payload={"message": "m"}, repo="owner/repo", branch="main")
+        assert result["result"] == "Error: Last commit was not made by the current user"
+
+    @pytest.mark.parametrize(
+        "kwargs,expected_substring",
+        [
+            ({"command": Command.EDIT, "payload": {}}, "Error: No repository specified"),
+            (
+                {"command": "bogus", "payload": {}, "repo": "owner/repo"},
+                None,
+            ),
+        ],
+    )
+    def test_run_validation_errors(self, kwargs, expected_substring, monkeypatch):
+        monkeypatch.setenv("GITHUB_TOKEN", "test-token")
+        editor = GitHubFileEditor()
+        if expected_substring is None:
+            with pytest.raises(ValueError):
+                editor.run(**kwargs)
+        else:
+            result = editor.run(**kwargs)
+            assert expected_substring in result["result"]
+
+    @patch("requests.get")
+    def test_run_command_as_string(self, mock_get, monkeypatch):
+        monkeypatch.setenv("GITHUB_TOKEN", "test-token")
+        mock_get.return_value.json.return_value = {"content": "SGVsbG8=", "sha": "abc"}
+        mock_get.return_value.raise_for_status.return_value = None
+
+        editor = GitHubFileEditor(repo="owner/repo")
+        with patch.object(editor, "_update_file", return_value=True):
+            result = editor.run(
+                command="EDIT",
+                payload={"path": "f.txt", "original": "Hello", "replacement": "Hi", "message": "m"},
+            )
+        assert result["result"] == "Edit successful"
+
+    @pytest.mark.parametrize(
+        "command,payload",
+        [
+            (Command.UNDO, {"message": "m"}),
+            (Command.CREATE, {"path": "n.txt", "content": "x", "message": "m"}),
+            (Command.DELETE, {"path": "n.txt", "message": "m"}),
+        ],
+    )
+    @patch("requests.get")
+    def test_run_command_error_handling_no_raise(self, mock_get, command, payload, monkeypatch):
+        monkeypatch.setenv("GITHUB_TOKEN", "test-token")
+        mock_get.side_effect = requests.RequestException("API Error")
+
+        editor = GitHubFileEditor(raise_on_failure=False)
+        with (
+            patch("requests.put", side_effect=requests.RequestException("API Error")),
+            patch("requests.delete", side_effect=requests.RequestException("API Error")),
+        ):
+            result = editor.run(command=command, payload=payload, repo="owner/repo", branch="main")
+        assert "Error: API Error" in result["result"]

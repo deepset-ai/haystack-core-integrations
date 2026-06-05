@@ -6,6 +6,7 @@ from botocore.config import Config
 from botocore.eventstream import EventStream
 from botocore.exceptions import ClientError
 from haystack import component, default_from_dict, default_to_dict, logging
+from haystack.components.generators.utils import _normalize_messages
 from haystack.dataclasses import (
     ChatMessage,
     ComponentInfo,
@@ -508,12 +509,19 @@ class AmazonBedrockChatGenerator:
             thinking["budget_tokens"] = thinking_budget_tokens
             thinking.setdefault("type", "enabled")
 
+        adaptive_thinking_effort = generation_kwargs.pop("adaptive_thinking_effort", None)
+        if adaptive_thinking_effort is not None:
+            thinking = generation_kwargs.setdefault("thinking", {})
+            thinking.setdefault("type", "adaptive")
+            output_config = generation_kwargs.setdefault("output_config", {})
+            output_config["effort"] = adaptive_thinking_effort
+
         return generation_kwargs
 
     @component.output_types(replies=list[ChatMessage])
     def run(
         self,
-        messages: list[ChatMessage],
+        messages: list[ChatMessage] | str,
         streaming_callback: StreamingCallbackT | None = None,
         generation_kwargs: dict[str, Any] | None = None,
         tools: ToolsType | None = None,
@@ -524,6 +532,7 @@ class AmazonBedrockChatGenerator:
         Supports both standard and streaming responses depending on whether a streaming callback is provided.
 
         :param messages: A list of `ChatMessage` objects forming the chat history.
+            If a string is provided, it is converted to a list containing a ChatMessage with user role.
         :param streaming_callback: Optional callback for handling streaming outputs.
         :param generation_kwargs: Optional dictionary of generation parameters. Some common parameters are:
             - `maxTokens`: Maximum number of tokens to generate.
@@ -539,6 +548,7 @@ class AmazonBedrockChatGenerator:
         :raises AmazonBedrockInferenceError:
             If the Bedrock inference API call fails.
         """
+        messages = _normalize_messages(messages)
         component_info = ComponentInfo.from_component(self)
 
         params, callback = self._prepare_request_params(
@@ -575,7 +585,7 @@ class AmazonBedrockChatGenerator:
     @component.output_types(replies=list[ChatMessage])
     async def run_async(
         self,
-        messages: list[ChatMessage],
+        messages: list[ChatMessage] | str,
         streaming_callback: StreamingCallbackT | None = None,
         generation_kwargs: dict[str, Any] | None = None,
         tools: ToolsType | None = None,
@@ -586,6 +596,7 @@ class AmazonBedrockChatGenerator:
         Designed for use cases where non-blocking or concurrent execution is desired.
 
         :param messages: A list of `ChatMessage` objects forming the chat history.
+            If a string is provided, it is converted to a list containing a ChatMessage with user role.
         :param streaming_callback: Optional async-compatible callback for handling streaming outputs.
         :param generation_kwargs: Optional dictionary of generation parameters. Some common parameters are:
             - `maxTokens`: Maximum number of tokens to generate.
@@ -601,6 +612,7 @@ class AmazonBedrockChatGenerator:
         :raises AmazonBedrockInferenceError:
             If the Bedrock inference API call fails.
         """
+        messages = _normalize_messages(messages)
         component_info = ComponentInfo.from_component(self)
 
         params, callback = self._prepare_request_params(

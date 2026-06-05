@@ -1,0 +1,13 @@
+loaders:
+  - modules:
+      - haystack_integrations.components.websearch.brave.brave_websearch
+    search_path: [../src]
+processors:
+  - type: filter
+    documented_only: true
+    skip_empty_modules: true
+renderer:
+  description: Brave Search integration for Haystack
+  id: integrations-brave
+  filename: brave.md
+  title: Brave Search
