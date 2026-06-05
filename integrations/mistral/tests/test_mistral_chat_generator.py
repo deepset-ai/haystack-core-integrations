@@ -1,7 +1,7 @@
 import json
 import logging
 import os
-from unittest.mock import ANY, patch
+from unittest.mock import ANY, AsyncMock, patch
 
 import pytest
 from haystack import Pipeline
@@ -434,6 +434,55 @@ class TestMistralChatGenerator:
         assert isinstance(response["replies"], list)
         assert len(response["replies"]) == 1
         assert [isinstance(reply, ChatMessage) for reply in response["replies"]]
+
+    def test_run_with_string_input(self, mock_chat_completion, monkeypatch):
+        monkeypatch.setenv("MISTRAL_API_KEY", "fake-api-key")
+        component = MistralChatGenerator()
+        response = component.run("What's the capital of France?")
+
+        # check that the backend received exactly one user message
+        _, kwargs = mock_chat_completion.call_args
+        assert kwargs["messages"] == [{"role": "user", "content": "What's the capital of France?"}]
+
+        # check that the component returns the correct ChatMessage response
+        assert isinstance(response["replies"], list)
+        assert len(response["replies"]) == 1
+        assert isinstance(response["replies"][0], ChatMessage)
+
+    @pytest.mark.asyncio
+    async def test_run_async_with_string_input(self, monkeypatch):
+        monkeypatch.setenv("MISTRAL_API_KEY", "fake-api-key")
+        component = MistralChatGenerator()
+
+        mock_raw_response = type("MockRawResponse", (), {})()
+        mock_raw_response.text = json.dumps(
+            {
+                "id": "foo",
+                "model": "mistral-small-latest",
+                "object": "chat.completion",
+                "choices": [
+                    {
+                        "finish_reason": "stop",
+                        "index": 0,
+                        "message": {"role": "assistant", "content": "Paris"},
+                    }
+                ],
+                "created": 1234567890,
+                "usage": {"prompt_tokens": 10, "completion_tokens": 5, "total_tokens": 15},
+            }
+        )
+
+        with patch(
+            "openai.resources.chat.completions.AsyncCompletions.create", new_callable=AsyncMock
+        ) as mock_async_create:
+            mock_async_create.return_value = mock_raw_response
+            result = await component.run_async("What's the capital of France?")
+
+        _, kwargs = mock_async_create.call_args
+        assert kwargs["messages"] == [{"role": "user", "content": "What's the capital of France?"}]
+        assert isinstance(result["replies"], list)
+        assert len(result["replies"]) == 1
+        assert isinstance(result["replies"][0], ChatMessage)
 
     def test_run_with_params(self, chat_messages, mock_chat_completion, monkeypatch):
         monkeypatch.setenv("MISTRAL_API_KEY", "fake-api-key")
