@@ -193,7 +193,7 @@ class TestNvidiaGenerator:
     @pytest.mark.integration
     def test_run_integration_with_api_catalog(self):
         generator = NvidiaGenerator(
-            model="meta/llama3-8b-instruct",
+            model="meta/llama-3.1-8b-instruct",
             api_url="https://integrate.api.nvidia.com/v1",
             api_key=Secret.from_env_var("NVIDIA_API_KEY"),
             model_arguments={
@@ -256,7 +256,7 @@ class TestNvidiaGenerator:
 
     def test_warm_up_is_idempotent(self, monkeypatch):
         monkeypatch.setenv("NVIDIA_API_KEY", "fake-api-key")
-        generator = NvidiaGenerator("meta/llama3-8b-instruct")
+        generator = NvidiaGenerator("meta/llama-3.1-8b-instruct")
         generator.warm_up()
         backend = generator.backend
         generator.warm_up()
@@ -264,7 +264,7 @@ class TestNvidiaGenerator:
 
     def test_available_models_without_backend(self, monkeypatch):
         monkeypatch.setenv("NVIDIA_API_KEY", "fake-api-key")
-        generator = NvidiaGenerator("meta/llama3-8b-instruct")
+        generator = NvidiaGenerator("meta/llama-3.1-8b-instruct")
         assert generator.available_models == []
 
     @pytest.mark.usefixtures("mock_local_models")
@@ -283,12 +283,12 @@ class TestNvidiaGenerator:
             "init_parameters": {
                 "api_key": {"env_vars": ["NVIDIA_API_KEY"], "strict": True, "type": "env_var"},
                 "api_url": "https://my.url.com/v1",
-                "model": "meta/llama3-8b-instruct",
+                "model": "meta/llama-3.1-8b-instruct",
                 "model_arguments": {"temperature": 0.5},
             },
         }
         generator = NvidiaGenerator.from_dict(data)
-        assert generator._model == "meta/llama3-8b-instruct"
+        assert generator._model == "meta/llama-3.1-8b-instruct"
         assert generator.api_url == "https://my.url.com/v1"
         assert generator._model_arguments == {"temperature": 0.5}
 
