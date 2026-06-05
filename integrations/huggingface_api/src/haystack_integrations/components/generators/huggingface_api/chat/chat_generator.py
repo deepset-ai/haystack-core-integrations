@@ -392,6 +392,9 @@ class HuggingFaceAPIChatGenerator:
             The chosen model should support tool/function calling, according to the model card.
             Support for tools in the Hugging Face API and TGI is not yet fully refined and you may experience
             unexpected behavior.
+        :raises ValueError:
+            If the required `model` or `url` is missing from `api_params`, the `url` is invalid, the `api_type`
+            is unknown, `tools` and `streaming_callback` are used together, or duplicate tool names are provided.
         """
         if isinstance(api_type, str):
             api_type = HFGenerationAPIType.from_str(api_type)
@@ -510,6 +513,8 @@ class HuggingFaceAPIChatGenerator:
         :param streaming_callback:
             An optional callable for handling streaming responses. If set, it will override the `streaming_callback`
             parameter set during component initialization.
+        :raises ValueError:
+            If `tools` and a streaming callback are used together, or if duplicate tool names are provided.
         :returns: A dictionary with the following keys:
             - `replies`: A list containing the generated responses as ChatMessage objects.
         """
@@ -568,6 +573,8 @@ class HuggingFaceAPIChatGenerator:
         :param streaming_callback:
             An optional callable for handling streaming responses. If set, it will override the `streaming_callback`
             parameter set during component initialization.
+        :raises ValueError:
+            If `tools` and a streaming callback are used together, or if duplicate tool names are provided.
         :returns: A dictionary with the following keys:
             - `replies`: A list containing the generated responses as ChatMessage objects.
         """
