@@ -1,5 +1,15 @@
 # Changelog
 
+## [integrations/mistral-v1.4.0] - 2026-06-05
+
+### 🚀 Features
+
+- Mistral - accept str as ChatGenerator input (#3397)
+
+### 🌀 Miscellaneous
+
+- Exclude mistralai 2.4.6 from dependencies (#3305)
+
 ## [integrations/mistral-v1.3.0] - 2026-05-14
 
 ### 🚀 Features
