@@ -6,7 +6,7 @@ import os
 from unittest.mock import patch
 
 import pytest
-from haystack import DeserializationError, Document, Pipeline
+from haystack import ComponentError, DeserializationError, Document, Pipeline
 from haystack.utils.auth import Secret
 from haystack.utils.device import ComponentDevice
 
@@ -211,6 +211,18 @@ def test_named_entity_extractor_run():
         assert "named_entities" in result["documents"][0].meta
         assert result["documents"][0].meta["named_entities"] == expected_annotations[0]
         assert "named_entities" not in documents[0].meta
+
+
+def test_named_entity_extractor_run_fails_with_wrong_number_of_annotations():
+    documents = [Document(content="My name is Clara."), Document(content="I'm Merlin, the happy pig!")]
+
+    extractor = TransformersNamedEntityExtractor(model="dslim/bert-base-NER")
+
+    with patch.object(extractor, "_annotate", return_value=[[]]):
+        extractor._warmed_up = True
+
+        with pytest.raises(ComponentError, match="did not return the correct number of annotations"):
+            extractor.run(documents=documents)
 
 
 @pytest.mark.integration

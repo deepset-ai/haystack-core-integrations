@@ -17,6 +17,7 @@ from packaging.version import Version
 from transformers import PreTrainedTokenizer
 
 from haystack_integrations.components.generators.transformers import TransformersChatGenerator
+from haystack_integrations.components.generators.transformers.chat.chat_generator import default_tool_parser
 
 
 # used to test serialization of streaming_callback
@@ -538,6 +539,35 @@ class TestTransformersChatGenerator:
         assert "</think>" in reply_text
         assert len(reply_text) > 0
         assert "4" in reply_text.lower()
+
+    @pytest.mark.parametrize(
+        "generated_text",
+        [
+            "Berlin is the capital of Germany.",  # no tool call
+            '{"name": "weather", "arguments": {"city": broken}}',  # malformed JSON arguments
+        ],
+    )
+    def test_default_tool_parser_returns_none_for_invalid_input(self, generated_text):
+        assert default_tool_parser(generated_text) is None
+
+    def test_init_fail_with_stop_words_and_stopping_criteria(self, model_info_mock):
+        with pytest.raises(ValueError, match="Found both the `stop_words` init parameter"):
+            TransformersChatGenerator(
+                model="irrelevant", stop_words=["stop"], generation_kwargs={"stopping_criteria": "fake-criteria"}
+            )
+
+    def test_run_with_stop_words_removed_from_replies(self, model_info_mock, mock_pipeline_with_tokenizer):
+        generator = TransformersChatGenerator(model="meta-llama/Llama-2-13b-chat-hf", stop_words=["unambiguously"])
+        mock_pipeline_with_tokenizer.return_value = [{"generated_text": "Berlin is cool unambiguously"}]
+        # tokenizer without a pad token: _StopWordsCriteria falls back to the eos token
+        mock_pipeline_with_tokenizer.tokenizer.pad_token = None
+        mock_pipeline_with_tokenizer.tokenizer.eos_token = "</s>"
+        generator.pipeline = mock_pipeline_with_tokenizer
+
+        results = generator.run(messages=[ChatMessage.from_user("Tell me about Berlin")])
+
+        assert results["replies"][0].text == "Berlin is cool"
+        assert "stopping_criteria" in generator.pipeline.call_args[1]
 
     def test_init_fail_with_duplicate_tool_names(self, model_info_mock, tools):
         duplicate_tools = [tools[0], tools[0]]

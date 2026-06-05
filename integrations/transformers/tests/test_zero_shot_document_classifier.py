@@ -152,6 +152,18 @@ class TestTransformersZeroShotDocumentClassifier:
         assert "classification" not in positive_document.to_dict()
         assert "classification" not in negative_document.to_dict()
 
+    @patch("haystack_integrations.components.classifiers.transformers.zero_shot_document_classifier.pipeline")
+    def test_run_fails_with_documents_missing_classification_field(self, hf_pipeline_mock):
+        component = TransformersZeroShotDocumentClassifier(
+            model="cross-encoder/nli-deberta-v3-xsmall",
+            labels=["positive", "negative"],
+            classification_field="title",
+        )
+        component.pipeline = hf_pipeline_mock
+        documents = [Document(id="0", content="That's good. I like it."), Document(id="1", meta={"title": "spam"})]
+        with pytest.raises(ValueError, match="do not have the classification field 'title': 0"):
+            component.run(documents=documents)
+
     @pytest.mark.integration
     def test_run(self, del_hf_env_vars):
         component = TransformersZeroShotDocumentClassifier(
