@@ -328,6 +328,11 @@ integration:togetherai:
       - any-glob-to-any-file: "integrations/togetherai/**/*"
       - any-glob-to-any-file: ".github/workflows/togetherai.yml"
 
+integration:transformers:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/transformers/**/*"
+      - any-glob-to-any-file: ".github/workflows/transformers.yml"
+
 integration:unstructured-fileconverter:
   - changed-files:
       - any-glob-to-any-file: "integrations/unstructured/**/*"

@@ -64,6 +64,7 @@ on:
       - "Test / supabase"
       - "Test / tavily"
       - "Test / togetherai"
+      - "Test / transformers"
       - "Test / unstructured"
       - "Test / valkey"
       - "Test / vespa"
