@@ -361,8 +361,6 @@ class GoogleGenAIChatGenerator:
             i = 0
             chunk = None
             async for chunk in response_stream:
-                i += 1
-
                 streaming_chunk = _convert_google_chunk_to_streaming_chunk(
                     chunk=chunk, index=i, component_info=component_info, model=self._model
                 )
@@ -370,6 +368,7 @@ class GoogleGenAIChatGenerator:
 
                 # Stream the chunk
                 await streaming_callback(streaming_chunk)
+                i += 1
 
             # Use custom aggregation that supports reasoning content
             message = _aggregate_streaming_chunks_with_reasoning(chunks)
