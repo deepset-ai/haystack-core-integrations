@@ -3,7 +3,6 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import os
-from asyncio import timeout
 
 import pytest
 from google.genai.types import ContentEmbedding, EmbedContentResponse

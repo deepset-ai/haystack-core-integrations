@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Any, Literal
 
 from google.genai.types import Content, EmbedContentConfig, Part
-from haystack import Document, component, logging, default_from_dict, default_to_dict
+from haystack import Document, component, logging
 from haystack.components.converters.image.image_utils import (
     _batch_convert_pdf_pages_to_images,
     _encode_image_to_base64,
