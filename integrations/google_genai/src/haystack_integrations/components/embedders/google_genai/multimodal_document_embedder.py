@@ -224,7 +224,6 @@ class GoogleGenAIMultimodalDocumentEmbedder:
         :param max_retries:
             The maximum number of retries for the underlying Google GenAI client network requests.
         """
-        """
         self._api_key = api_key
         self._api = api
         self._vertex_ai_project = vertex_ai_project
