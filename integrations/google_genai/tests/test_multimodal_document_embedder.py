@@ -76,6 +76,8 @@ class TestGoogleGenAIMultimodalDocumentEmbedder:
             root_path="root_path",
             image_size=(1024, 1024),
             config={"task_type": "CLASSIFICATION"},
+            timeout=30.0,
+            max_retries=3,
         )
         assert embedder._api_key.resolve_value() == "fake-api-key-2"
         assert embedder._model == "model"
@@ -85,6 +87,8 @@ class TestGoogleGenAIMultimodalDocumentEmbedder:
         assert embedder._batch_size == 64
         assert embedder._progress_bar is False
         assert embedder._config == {"task_type": "CLASSIFICATION"}
+        assert embedder._timeout == 30.0
+        assert embedder._max_retries == 3
 
     def test_init_fail_wo_api_key(self, monkeypatch):
         monkeypatch.delenv("GOOGLE_API_KEY", raising=False)
@@ -114,6 +118,8 @@ class TestGoogleGenAIMultimodalDocumentEmbedder:
                 "vertex_ai_project": None,
                 "vertex_ai_location": None,
                 "config": None,
+                "timeout": None,
+                "max_retries": None,
             },
         }
 
@@ -134,6 +140,8 @@ class TestGoogleGenAIMultimodalDocumentEmbedder:
                 "vertex_ai_project": None,
                 "vertex_ai_location": None,
                 "config": {"task_type": "CLASSIFICATION"},
+                "timeout": 30.0,
+                "max_retries": 3,
             },
         }
         monkeypatch.setenv("GOOGLE_API_KEY", "fake-api-key")
@@ -150,6 +158,8 @@ class TestGoogleGenAIMultimodalDocumentEmbedder:
         assert embedder._api == "gemini"
         assert embedder._vertex_ai_project is None
         assert embedder._vertex_ai_location is None
+        assert embedder._timeout == 30.0
+        assert embedder._max_retries == 3
 
     def test_extract_parts_to_embed_images(self, test_files_path):
         embedder = GoogleGenAIMultimodalDocumentEmbedder(api_key=Secret.from_token("fake-api-key"))

@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Any, Literal
 
 from google.genai.types import Content, EmbedContentConfig, Part
-from haystack import Document, component, logging
+from haystack import Document, component, logging, default_from_dict, default_to_dict
 from haystack.components.converters.image.image_utils import (
     _batch_convert_pdf_pages_to_images,
     _encode_image_to_base64,
@@ -181,6 +181,8 @@ class GoogleGenAIMultimodalDocumentEmbedder:
         batch_size: int = 6,
         progress_bar: bool = True,
         config: dict[str, Any] | None = None,
+        timeout: float | None = None,
+        max_retries: int | None = None,
     ) -> None:
         """
         Creates an GoogleGenAIMultimodalDocumentEmbedder component.
@@ -229,12 +231,16 @@ class GoogleGenAIMultimodalDocumentEmbedder:
         self._batch_size = batch_size
         self._progress_bar = progress_bar
         self._config = config
+        self._timeout = timeout
+        self._max_retries = max_retries
 
         self._client = _get_client(
             api_key=api_key,
             api=api,
             vertex_ai_project=vertex_ai_project,
             vertex_ai_location=vertex_ai_location,
+            timeout=timeout,
+            max_retries=max_retries,
         )
 
     def _extract_parts_to_embed(self, documents: list[Document]) -> list[Part]:

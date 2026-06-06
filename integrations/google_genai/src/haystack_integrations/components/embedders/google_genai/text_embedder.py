@@ -82,6 +82,8 @@ class GoogleGenAITextEmbedder:
         prefix: str = "",
         suffix: str = "",
         config: dict[str, Any] | None = None,
+        timeout: float | None = None,
+        max_retries: int | None = None,
     ) -> None:
         """
         Creates an GoogleGenAITextEmbedder component.
@@ -121,11 +123,15 @@ class GoogleGenAITextEmbedder:
         self._prefix = prefix
         self._suffix = suffix
         self._config = config
+        self._timeout = timeout
+        self._max_retries = max_retries
         self._client = _get_client(
             api_key=api_key,
             api=api,
             vertex_ai_project=vertex_ai_project,
             vertex_ai_location=vertex_ai_location,
+            timeout=timeout,
+            max_retries=max_retries,
         )
 
     def to_dict(self) -> dict[str, Any]:
@@ -145,6 +151,8 @@ class GoogleGenAITextEmbedder:
             prefix=self._prefix,
             suffix=self._suffix,
             config=self._config,
+            timeout=self._timeout,
+            max_retries=self._max_retries,
         )
 
     @classmethod
