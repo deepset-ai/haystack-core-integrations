@@ -219,6 +219,11 @@ class GoogleGenAIMultimodalDocumentEmbedder:
             You can for example set the output dimensionality of the embedding: `{"output_dimensionality": 768}`.
             See [Google API documentation](https://googleapis.github.io/python-genai/genai.html#genai.types.EmbedContentConfig)
             for the available options.
+        :param timeout:
+            The timeout in seconds for the underlying Google GenAI client network requests.
+        :param max_retries:
+            The maximum number of retries for the underlying Google GenAI client network requests.
+        """
         """
         self._api_key = api_key
         self._api = api

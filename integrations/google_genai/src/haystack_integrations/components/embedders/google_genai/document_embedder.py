@@ -124,6 +124,11 @@ class GoogleGenAIDocumentEmbedder:
             Specifying task types in `config` does not take effect for `gemini-embedding-2`.
             See [Gemini documentation](https://ai.google.dev/gemini-api/docs/embeddings#task-types) for more
             information.
+        :param timeout:
+            The timeout in seconds for the underlying Google GenAI client network requests.
+        :param max_retries:
+            The maximum number of retries for the underlying Google GenAI client network requests.
+
         """
         self._api_key = api_key
         self._api = api
