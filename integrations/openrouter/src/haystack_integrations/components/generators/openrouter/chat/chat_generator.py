@@ -2,40 +2,33 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-import asyncio
 import json
-from datetime import datetime, timezone
 from typing import Any
 
 from haystack import component, default_to_dict, logging
 from haystack.components.generators.chat import OpenAIChatGenerator
 from haystack.components.generators.chat.openai import _check_finish_reason
-from haystack.components.generators.utils import _convert_streaming_chunks_to_chat_message, _serialize_object
+from haystack.components.generators.utils import _normalize_messages, _serialize_object
 from haystack.dataclasses import (
-    AsyncStreamingCallbackT,
     ChatMessage,
-    ComponentInfo,
-    FinishReason,
     ReasoningContent,
     StreamingCallbackT,
-    StreamingChunk,
-    SyncStreamingCallbackT,
     ToolCall,
-    ToolCallDelta,
     select_streaming_callback,
 )
 from haystack.tools import ToolsType, _check_duplicate_tool_names, flatten_tools_or_toolsets, serialize_tools_or_toolset
 from haystack.utils import serialize_callable
 from haystack.utils.auth import Secret
-from openai.types.chat import ChatCompletion, ChatCompletionChunk, ParsedChatCompletion
+from openai.types.chat import ChatCompletion, ParsedChatCompletion
 from openai.types.chat.chat_completion import Choice
-from openai.types.chat.chat_completion_chunk import Choice as ChunkChoice
 
 logger = logging.getLogger(__name__)
 
 
 def _extract_reasoning(message: Any) -> ReasoningContent | None:
-    """Extract reasoning content from an OpenRouter API response message or delta."""
+    """Extract reasoning content from an OpenRouter API response message."""
+    # OpenRouter attaches reasoning content as extra attributes on the standard OpenAI SDK message,
+    # so we read them with getattr rather than relying on typed fields.
     reasoning_text = getattr(message, "reasoning", None) or ""
     raw_details = getattr(message, "reasoning_details", None) or []
 
@@ -51,6 +44,8 @@ def _extract_reasoning(message: Any) -> ReasoningContent | None:
         else:
             details.append(vars(d))
 
+    # Some models only return structured details without a flat `reasoning` string, so we
+    # reconstruct the text from the known detail types.
     if not reasoning_text and details:
         parts = []
         for d in details:
@@ -106,131 +101,6 @@ def _convert_openrouter_completion_to_chat_message(
     return ChatMessage.from_assistant(text=text, tool_calls=tool_calls, meta=meta, reasoning=reasoning)
 
 
-def _convert_openrouter_chunk_to_streaming_chunk(
-    chunk: ChatCompletionChunk, previous_chunks: list[StreamingChunk], component_info: ComponentInfo | None = None
-) -> StreamingChunk:
-    """Convert an OpenRouter streaming chunk to a StreamingChunk, handling reasoning_details in deltas."""
-    finish_reason_mapping: dict[str, FinishReason] = {
-        "stop": "stop",
-        "length": "length",
-        "content_filter": "content_filter",
-        "tool_calls": "tool_calls",
-        "function_call": "tool_calls",
-    }
-
-    if len(chunk.choices) == 0:
-        return StreamingChunk(
-            content="",
-            component_info=component_info,
-            index=None,
-            finish_reason=None,
-            meta={
-                "model": chunk.model,
-                "received_at": datetime.now(tz=timezone.utc).isoformat(),
-                "usage": _serialize_object(chunk.usage),
-            },
-        )
-
-    choice: ChunkChoice = chunk.choices[0]
-
-    raw_details = getattr(choice.delta, "reasoning_details", None) if choice.delta else None
-    if raw_details:
-        reasoning_parts = []
-        details = []
-        for d in raw_details:
-            entry = d if isinstance(d, dict) else (d.model_dump() if hasattr(d, "model_dump") else vars(d))
-            details.append(entry)
-            dtype = entry.get("type", "")
-            if dtype == "reasoning.text":
-                reasoning_parts.append(entry.get("text", ""))
-            elif dtype == "reasoning.summary":
-                reasoning_parts.append(entry.get("summary", ""))
-
-        reasoning_text = "".join(reasoning_parts)
-        reasoning = ReasoningContent(
-            reasoning_text=reasoning_text,
-            extra={"reasoning_details": details} if details else {},
-        )
-
-        meta = {
-            "model": chunk.model,
-            "index": choice.index,
-            "finish_reason": choice.finish_reason,
-            "received_at": datetime.now(tz=timezone.utc).isoformat(),
-            "usage": _serialize_object(chunk.usage),
-        }
-
-        return StreamingChunk(
-            content="",
-            reasoning=reasoning,
-            component_info=component_info,
-            index=0,
-            start=len(previous_chunks) <= 1,
-            finish_reason=finish_reason_mapping.get(choice.finish_reason) if choice.finish_reason else None,
-            meta=meta,
-        )
-
-    if choice.delta and choice.delta.tool_calls:
-        tool_calls_deltas = []
-        for tool_call in choice.delta.tool_calls:
-            function = tool_call.function
-            tool_calls_deltas.append(
-                ToolCallDelta(
-                    index=tool_call.index,
-                    id=tool_call.id,
-                    tool_name=function.name if function else None,
-                    arguments=function.arguments if function and function.arguments else None,
-                )
-            )
-        return StreamingChunk(
-            content=choice.delta.content or "",
-            component_info=component_info,
-            index=tool_calls_deltas[0].index,
-            tool_calls=tool_calls_deltas,
-            start=tool_calls_deltas[0].tool_name is not None,
-            finish_reason=finish_reason_mapping.get(choice.finish_reason) if choice.finish_reason else None,
-            meta={
-                "model": chunk.model,
-                "index": choice.index,
-                "tool_calls": choice.delta.tool_calls,
-                "finish_reason": choice.finish_reason,
-                "received_at": datetime.now(tz=timezone.utc).isoformat(),
-                "usage": _serialize_object(chunk.usage),
-            },
-        )
-
-    if choice.delta and (choice.delta.content is None or choice.delta.role is not None):
-        resolved_index = None
-    else:
-        resolved_index = 0
-
-    meta = {
-        "model": chunk.model,
-        "index": choice.index,
-        "tool_calls": choice.delta.tool_calls if choice.delta and choice.delta.tool_calls else None,
-        "finish_reason": choice.finish_reason,
-        "received_at": datetime.now(tz=timezone.utc).isoformat(),
-        "usage": _serialize_object(chunk.usage),
-    }
-
-    logprobs = _serialize_object(choice.logprobs) if choice.logprobs else None
-    if logprobs:
-        meta["logprobs"] = logprobs
-
-    content = ""
-    if choice.delta and choice.delta.content:
-        content = choice.delta.content
-
-    return StreamingChunk(
-        content=content,
-        component_info=component_info,
-        index=resolved_index,
-        start=len(previous_chunks) == 1,
-        finish_reason=finish_reason_mapping.get(choice.finish_reason) if choice.finish_reason else None,
-        meta=meta,
-    )
-
-
 @component
 class OpenRouterChatGenerator(OpenAIChatGenerator):
     """
@@ -248,7 +118,7 @@ class OpenRouterChatGenerator(OpenAIChatGenerator):
     - **Customizability**: Supports all parameters supported by the OpenRouter chat completion endpoint.
     - **Reasoning Support**: Extracts reasoning/thinking content from models that support it
       (e.g., DeepSeek R1, Claude with extended thinking) and stores it in the `ReasoningContent`
-      field on `ChatMessage`.
+      field on `ChatMessage`. Reasoning content is only captured for non-streaming requests.
 
     This component uses the ChatMessage format for structuring both input and output,
     ensuring coherent and contextually relevant responses in chat-based text generation scenarios.
@@ -260,7 +130,9 @@ class OpenRouterChatGenerator(OpenAIChatGenerator):
 
     Usage example:
     ```python
-    from haystack_integrations.components.generators.openrouter import OpenRouterChatGenerator
+    from haystack_integrations.components.generators.openrouter import (
+        OpenRouterChatGenerator,
+    )
     from haystack.dataclasses import ChatMessage
 
     messages = [ChatMessage.from_user("What's Natural Language Processing?")]
@@ -271,7 +143,7 @@ class OpenRouterChatGenerator(OpenAIChatGenerator):
     )
     response = client.run(messages)
     print(response["replies"][0].reasoning)  # Access reasoning content
-    print(response["replies"][0].text)       # Access final answer
+    print(response["replies"][0].text)  # Access final answer
     ```
     """
 
@@ -318,6 +190,7 @@ class OpenRouterChatGenerator(OpenAIChatGenerator):
             - `random_seed`: The seed to use for random sampling.
             - `reasoning`: A dict to configure reasoning/thinking tokens for models that support it.
                 Example: `{"effort": "high"}` or `{"max_tokens": 2000}`.
+                Reasoning content is only captured for non-streaming requests.
                 See [OpenRouter reasoning docs](https://openrouter.ai/docs/use-cases/reasoning-tokens).
             - `response_format`: A JSON schema or a Pydantic model that enforces the structure of the model's response.
         :param tools:
@@ -359,6 +232,10 @@ class OpenRouterChatGenerator(OpenAIChatGenerator):
         """
         callback_name = serialize_callable(self.streaming_callback) if self.streaming_callback else None
 
+        # if we didn't implement the to_dict method here then the to_dict method of the superclass would be used
+        # which would serialiaze some fields that we don't want to serialize (e.g. the ones we don't have in
+        # the __init__)
+        # it would be hard to maintain the compatibility as superclass changes
         return default_to_dict(
             self,
             model=self.model,
@@ -382,6 +259,7 @@ class OpenRouterChatGenerator(OpenAIChatGenerator):
         tools: ToolsType | None = None,
         tools_strict: bool | None = None,
     ) -> dict[str, Any]:
+        # update generation kwargs by merging with the generation kwargs passed to the run method
         generation_kwargs = {**self.generation_kwargs, **(generation_kwargs or {})}
         extra_headers = {**(self.extra_headers or {})}
 
@@ -393,8 +271,11 @@ class OpenRouterChatGenerator(OpenAIChatGenerator):
             raise ValueError(msg)
         response_format = generation_kwargs.pop("response_format", None)
 
+        # adapt ChatMessage(s) to the format expected by the OpenAI API
         openai_formatted_messages = [message.to_openai_dict_format() for message in messages]
 
+        # OpenRouter expects reasoning_details to be sent back in multi-turn conversations, but
+        # to_openai_dict_format() strips reasoning, so we re-inject it into the formatted message dicts.
         for i, chat_msg in enumerate(messages):
             if chat_msg.reasoning and chat_msg.reasoning.extra.get("reasoning_details"):
                 openai_formatted_messages[i]["reasoning_details"] = chat_msg.reasoning.extra["reasoning_details"]
@@ -424,10 +305,18 @@ class OpenRouterChatGenerator(OpenAIChatGenerator):
         }
 
         if response_format and not is_streaming:
+            # for structured outputs without streaming, we use openai's parse endpoint
+            # Note: `stream` cannot be passed to chat.completions.parse
+            # we pass a key `openai_endpoint` as a hint to the run method to use the parse endpoint
+            # this key will be removed before the API call is made
             return {**base_args, "response_format": response_format, "openai_endpoint": "parse"}
 
+        # for structured outputs with streaming, we use openai's create endpoint
+        # we pass a key `openai_endpoint` as a hint to the run method to use the create endpoint
+        # this key will be removed before the API call is made
         final_args = {**base_args, "stream": is_streaming, "openai_endpoint": "create"}
 
+        # We only set the response_format parameter if it's not None since None is not a valid value in the API.
         if response_format:
             final_args["response_format"] = response_format
         return final_args
@@ -435,7 +324,7 @@ class OpenRouterChatGenerator(OpenAIChatGenerator):
     @component.output_types(replies=list[ChatMessage])
     def run(
         self,
-        messages: list[ChatMessage],
+        messages: list[ChatMessage] | str,
         streaming_callback: StreamingCallbackT | None = None,
         generation_kwargs: dict[str, Any] | None = None,
         *,
@@ -447,6 +336,7 @@ class OpenRouterChatGenerator(OpenAIChatGenerator):
 
         :param messages:
             A list of ChatMessage instances representing the input messages.
+            If a string is provided, it is converted to a list containing a ChatMessage with user role.
         :param streaming_callback:
             A callback function that is called when a new token is received from the stream.
         :param generation_kwargs:
@@ -463,6 +353,7 @@ class OpenRouterChatGenerator(OpenAIChatGenerator):
             A dictionary with the following key:
             - `replies`: A list containing the generated responses as ChatMessage instances.
         """
+        messages = _normalize_messages(messages)
         if not self._is_warmed_up:
             self.warm_up()
 
@@ -472,6 +363,16 @@ class OpenRouterChatGenerator(OpenAIChatGenerator):
         streaming_callback = select_streaming_callback(
             init_callback=self.streaming_callback, runtime_callback=streaming_callback, requires_async=False
         )
+
+        # Reasoning content is reconstructed from the full response message, which is not available while
+        # streaming, so we warn the user that it will not be captured in this mode.
+        if streaming_callback is not None:
+            merged_kwargs = {**self.generation_kwargs, **(generation_kwargs or {})}
+            if merged_kwargs.get("reasoning"):
+                logger.warning(
+                    "Streaming with reasoning is active. Reasoning content will not be captured during "
+                    "streaming. Use non-streaming mode to extract reasoning content."
+                )
 
         api_args = self._prepare_api_call(
             messages=messages,
@@ -484,6 +385,7 @@ class OpenRouterChatGenerator(OpenAIChatGenerator):
         chat_completion = getattr(self.client.chat.completions, openai_endpoint)(**api_args)
 
         if streaming_callback is not None:
+            # streaming uses the inherited handler so reasoning extraction is intentionally skipped
             completions = self._handle_stream_response(chat_completion, streaming_callback)
         else:
             assert isinstance(chat_completion, ChatCompletion), "Unexpected response type for non-streaming request."
@@ -500,7 +402,7 @@ class OpenRouterChatGenerator(OpenAIChatGenerator):
     @component.output_types(replies=list[ChatMessage])
     async def run_async(
         self,
-        messages: list[ChatMessage],
+        messages: list[ChatMessage] | str,
         streaming_callback: StreamingCallbackT | None = None,
         generation_kwargs: dict[str, Any] | None = None,
         *,
@@ -512,6 +414,7 @@ class OpenRouterChatGenerator(OpenAIChatGenerator):
 
         :param messages:
             A list of ChatMessage instances representing the input messages.
+            If a string is provided, it is converted to a list containing a ChatMessage with user role.
         :param streaming_callback:
             A callback function that is called when a new token is received from the stream.
             Must be a coroutine.
@@ -525,6 +428,7 @@ class OpenRouterChatGenerator(OpenAIChatGenerator):
             A dictionary with the following key:
             - `replies`: A list containing the generated responses as ChatMessage instances.
         """
+        messages = _normalize_messages(messages)
         if not self._is_warmed_up:
             self.warm_up()
 
@@ -534,6 +438,16 @@ class OpenRouterChatGenerator(OpenAIChatGenerator):
         streaming_callback = select_streaming_callback(
             init_callback=self.streaming_callback, runtime_callback=streaming_callback, requires_async=True
         )
+
+        # Reasoning content is reconstructed from the full response message, which is not available while
+        # streaming, so we warn the user that it will not be captured in this mode.
+        if streaming_callback is not None:
+            merged_kwargs = {**self.generation_kwargs, **(generation_kwargs or {})}
+            if merged_kwargs.get("reasoning"):
+                logger.warning(
+                    "Streaming with reasoning is active. Reasoning content will not be captured during "
+                    "streaming. Use non-streaming mode to extract reasoning content."
+                )
 
         api_args = self._prepare_api_call(
             messages=messages,
@@ -546,6 +460,7 @@ class OpenRouterChatGenerator(OpenAIChatGenerator):
         chat_completion = await getattr(self.async_client.chat.completions, openai_endpoint)(**api_args)
 
         if streaming_callback is not None:
+            # streaming uses the inherited handler so reasoning extraction is intentionally skipped
             completions = await self._handle_async_stream_response(chat_completion, streaming_callback)
         else:
             assert isinstance(chat_completion, ChatCompletion), "Unexpected response type for non-streaming request."
@@ -558,33 +473,3 @@ class OpenRouterChatGenerator(OpenAIChatGenerator):
             _check_finish_reason(message.meta)
 
         return {"replies": completions}
-
-    def _handle_stream_response(self, chat_completion: Any, callback: SyncStreamingCallbackT) -> list[ChatMessage]:
-        component_info = ComponentInfo.from_component(self)
-        chunks: list[StreamingChunk] = []
-        for chunk in chat_completion:
-            assert len(chunk.choices) <= 1, "Streaming responses should have at most one choice."
-            chunk_delta = _convert_openrouter_chunk_to_streaming_chunk(
-                chunk=chunk, previous_chunks=chunks, component_info=component_info
-            )
-            chunks.append(chunk_delta)
-            callback(chunk_delta)
-        return [_convert_streaming_chunks_to_chat_message(chunks=chunks)]
-
-    async def _handle_async_stream_response(
-        self, chat_completion: Any, callback: AsyncStreamingCallbackT
-    ) -> list[ChatMessage]:
-        component_info = ComponentInfo.from_component(self)
-        chunks: list[StreamingChunk] = []
-        try:
-            async for chunk in chat_completion:
-                assert len(chunk.choices) <= 1, "Streaming responses should have at most one choice."
-                chunk_delta = _convert_openrouter_chunk_to_streaming_chunk(
-                    chunk=chunk, previous_chunks=chunks, component_info=component_info
-                )
-                chunks.append(chunk_delta)
-                await callback(chunk_delta)
-        except asyncio.CancelledError:
-            await asyncio.shield(chat_completion.close())
-            raise
-        return [_convert_streaming_chunks_to_chat_message(chunks=chunks)]

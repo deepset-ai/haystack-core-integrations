@@ -1,4 +1,5 @@
 import json
+import logging
 import os
 from datetime import datetime
 from types import SimpleNamespace
@@ -22,7 +23,6 @@ from pydantic import BaseModel
 
 from haystack_integrations.components.generators.openrouter.chat.chat_generator import (
     OpenRouterChatGenerator,
-    _convert_openrouter_chunk_to_streaming_chunk,
     _convert_openrouter_completion_to_chat_message,
     _extract_reasoning,
 )
@@ -427,6 +427,28 @@ class TestOpenRouterChatGenerator:
         assert len(final_message.text) > 0
         assert "paris" in final_message.text.lower()
         assert "berlin" in final_message.text.lower()
+
+    @pytest.mark.skipif(
+        not os.environ.get("OPENROUTER_API_KEY", None),
+        reason="Export an env var called OPENROUTER_API_KEY containing the OpenRouter API key to run this test.",
+    )
+    @pytest.mark.integration
+    def test_live_run_with_reasoning(self):
+        chat_messages = [ChatMessage.from_user("If x + 3 = 7, what is x?")]
+        component = OpenRouterChatGenerator(
+            model="deepseek/deepseek-r1",
+            generation_kwargs={"reasoning": {"effort": "high"}},
+        )
+        results = component.run(chat_messages)
+
+        assert len(results["replies"]) == 1
+        message: ChatMessage = results["replies"][0]
+        assert message.reasoning is not None
+        assert message.reasoning.reasoning_text
+        assert message.reasoning.extra.get("reasoning_details")
+        assert message.text
+        assert "4" in message.text
+        assert message.meta["finish_reason"] == "stop"
 
     @pytest.mark.skipif(
         not os.environ.get("OPENROUTER_API_KEY", None),
@@ -1288,92 +1310,53 @@ class TestReasoningSupport:
             assert "capitals" in reply.reasoning.reasoning_text
             assert reply.reasoning.extra["reasoning_details"][0]["type"] == "reasoning.text"
 
-    def test_handle_stream_response_with_reasoning(self):
-        chunks = [
-            ChatCompletionChunk(
-                id="gen-reasoning",
+    def test_run_with_string_input(self, monkeypatch):
+        monkeypatch.setenv("OPENROUTER_API_KEY", "fake-api-key")
+
+        with patch("openai.resources.chat.completions.Completions.create") as mock_create:
+            completion = ChatCompletion(
+                id="test-string-input",
+                model="openai/gpt-5-mini",
+                object="chat.completion",
                 choices=[
-                    ChoiceChunk(
-                        delta=ChoiceDelta(content="", role="assistant"),
-                        index=0,
-                        native_finish_reason=None,
-                    )
-                ],
-                created=1750162525,
-                model="deepseek/deepseek-r1",
-                object="chat.completion.chunk",
-            ),
-            ChatCompletionChunk(
-                id="gen-reasoning",
-                choices=[
-                    ChoiceChunk(
-                        delta=ChoiceDelta(
-                            content=None,
-                            role="assistant",
-                            reasoning_details=[{"type": "reasoning.text", "text": "Thinking about capitals..."}],
-                        ),
-                        index=0,
-                        native_finish_reason=None,
-                    )
-                ],
-                created=1750162525,
-                model="deepseek/deepseek-r1",
-                object="chat.completion.chunk",
-            ),
-            ChatCompletionChunk(
-                id="gen-reasoning",
-                choices=[
-                    ChoiceChunk(
-                        delta=ChoiceDelta(content="Paris.", role="assistant"),
-                        index=0,
-                        native_finish_reason=None,
-                    )
-                ],
-                created=1750162525,
-                model="deepseek/deepseek-r1",
-                object="chat.completion.chunk",
-            ),
-            ChatCompletionChunk(
-                id="gen-reasoning",
-                choices=[
-                    ChoiceChunk(
-                        delta=ChoiceDelta(content="", role="assistant"),
+                    Choice(
                         finish_reason="stop",
+                        logprobs=None,
                         index=0,
-                        native_finish_reason="stop",
+                        message=ChatCompletionMessage(content="Paris.", role="assistant"),
                     )
                 ],
-                created=1750162525,
-                model="deepseek/deepseek-r1",
-                object="chat.completion.chunk",
-            ),
-            ChatCompletionChunk(
-                id="gen-reasoning",
-                choices=[
-                    ChoiceChunk(
-                        delta=ChoiceDelta(content="", role="assistant"),
-                        index=0,
-                        native_finish_reason=None,
-                    )
-                ],
-                created=1750162525,
-                model="deepseek/deepseek-r1",
-                object="chat.completion.chunk",
-                usage=CompletionUsage(
-                    completion_tokens=50,
-                    prompt_tokens=30,
-                    total_tokens=80,
-                ),
-            ),
-        ]
+                created=int(datetime.now(tz=pytz.timezone("UTC")).timestamp()),
+                usage={"prompt_tokens": 10, "completion_tokens": 5, "total_tokens": 15},
+            )
+            mock_create.return_value = completion
 
-        collector = CollectorCallback()
-        llm = OpenRouterChatGenerator(api_key=Secret.from_token("test-api-key"))
-        result = llm._handle_stream_response(chunks, callback=collector)[0]
+            component = OpenRouterChatGenerator()
+            response = component.run("What's the capital of France?")
 
-        assert result.text == "Paris."
-        assert result.reasoning is not None
-        assert "capitals" in result.reasoning.reasoning_text
+            # the backend should receive exactly one user message
+            _, kwargs = mock_create.call_args
+            assert kwargs["messages"] == [{"role": "user", "content": "What's the capital of France?"}]
+
+            assert len(response["replies"]) == 1
+            assert response["replies"][0].text == "Paris."
+
+    def test_streaming_with_reasoning_logs_warning(self, monkeypatch, caplog):
+        monkeypatch.setenv("OPENROUTER_API_KEY", "fake-api-key")
+        component = OpenRouterChatGenerator(
+            generation_kwargs={"reasoning": {"effort": "high"}},
+            streaming_callback=print_streaming_chunk,
+        )
+
+        # _prepare_api_call is patched to fail fast: we only care that the warning is emitted beforehand.
+        with (
+            caplog.at_level(logging.WARNING),
+            patch.object(component, "_prepare_api_call", side_effect=RuntimeError),
+            pytest.raises(RuntimeError),
+        ):
+            component.run([ChatMessage.from_user("test")])
+
+        assert "Reasoning content will not be captured during streaming" in caplog.text
 
     def test_prepare_api_call_preserves_reasoning(self, monkeypatch):
         monkeypatch.setenv("OPENROUTER_API_KEY", "fake-api-key")
@@ -1461,17 +1444,3 @@ class TestReasoningSupport:
         result = _convert_openrouter_completion_to_chat_message(completion, completion.choices[0])
         assert len(result.tool_calls) == 1
         assert result.tool_calls[0].id == "call_good"
-
-    def test_convert_chunk_empty_choices(self):
-        chunk = ChatCompletionChunk(
-            id="gen-empty",
-            choices=[],
-            created=1750162525,
-            model="openai/gpt-5-mini",
-            object="chat.completion.chunk",
-            usage=CompletionUsage(completion_tokens=10, prompt_tokens=5, total_tokens=15),
-        )
-        result = _convert_openrouter_chunk_to_streaming_chunk(chunk, previous_chunks=[])
-        assert result.content == ""
-        assert result.index is None
-        assert result.finish_reason is None

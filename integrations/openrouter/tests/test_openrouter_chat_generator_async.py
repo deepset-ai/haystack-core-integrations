@@ -10,13 +10,9 @@ from haystack.dataclasses import (
     StreamingChunk,
 )
 from haystack.tools import Tool, Toolset
-from haystack.utils.auth import Secret
 from openai import AsyncOpenAI
-from openai.types.chat import ChatCompletion, ChatCompletionChunk, ChatCompletionMessage
+from openai.types.chat import ChatCompletion, ChatCompletionMessage
 from openai.types.chat.chat_completion import Choice
-from openai.types.chat.chat_completion_chunk import Choice as ChoiceChunk
-from openai.types.chat.chat_completion_chunk import ChoiceDelta
-from openai.types.completion_usage import CompletionUsage
 
 from haystack_integrations.components.generators.openrouter.chat.chat_generator import (
     OpenRouterChatGenerator,
@@ -386,101 +382,36 @@ class TestOpenRouterChatGeneratorAsync:
         assert response == {"replies": []}
 
     @pytest.mark.asyncio
-    async def test_handle_async_stream_response_with_reasoning(self, monkeypatch):
+    async def test_run_async_with_string_input(self, monkeypatch):
         monkeypatch.setenv("OPENROUTER_API_KEY", "fake-api-key")
 
-        chunks = [
-            ChatCompletionChunk(
-                id="gen-async-reasoning",
+        with patch(
+            "openai.resources.chat.completions.AsyncCompletions.create",
+            new_callable=AsyncMock,
+        ) as mock_create:
+            completion = ChatCompletion(
+                id="test-async-string-input",
+                model="openai/gpt-5-mini",
+                object="chat.completion",
                 choices=[
-                    ChoiceChunk(
-                        delta=ChoiceDelta(content="", role="assistant"),
-                        index=0,
-                        native_finish_reason=None,
-                    )
-                ],
-                created=1750162525,
-                model="deepseek/deepseek-r1",
-                object="chat.completion.chunk",
-            ),
-            ChatCompletionChunk(
-                id="gen-async-reasoning",
-                choices=[
-                    ChoiceChunk(
-                        delta=ChoiceDelta(
-                            content=None,
-                            role="assistant",
-                            reasoning_details=[{"type": "reasoning.text", "text": "Thinking about capitals..."}],
-                        ),
-                        index=0,
-                        native_finish_reason=None,
-                    )
-                ],
-                created=1750162525,
-                model="deepseek/deepseek-r1",
-                object="chat.completion.chunk",
-            ),
-            ChatCompletionChunk(
-                id="gen-async-reasoning",
-                choices=[
-                    ChoiceChunk(
-                        delta=ChoiceDelta(content="Paris.", role="assistant"),
-                        index=0,
-                        native_finish_reason=None,
-                    )
-                ],
-                created=1750162525,
-                model="deepseek/deepseek-r1",
-                object="chat.completion.chunk",
-            ),
-            ChatCompletionChunk(
-                id="gen-async-reasoning",
-                choices=[
-                    ChoiceChunk(
-                        delta=ChoiceDelta(content="", role="assistant"),
+                    Choice(
                         finish_reason="stop",
+                        logprobs=None,
                         index=0,
-                        native_finish_reason="stop",
+                        message=ChatCompletionMessage(content="Paris.", role="assistant"),
                     )
                 ],
-                created=1750162525,
-                model="deepseek/deepseek-r1",
-                object="chat.completion.chunk",
-            ),
-            ChatCompletionChunk(
-                id="gen-async-reasoning",
-                choices=[
-                    ChoiceChunk(
-                        delta=ChoiceDelta(content="", role="assistant"),
-                        index=0,
-                        native_finish_reason=None,
-                    )
-                ],
-                created=1750162525,
-                model="deepseek/deepseek-r1",
-                object="chat.completion.chunk",
-                usage=CompletionUsage(
-                    completion_tokens=50,
-                    prompt_tokens=30,
-                    total_tokens=80,
-                ),
-            ),
-        ]
+                created=int(datetime.now(tz=pytz.timezone("UTC")).timestamp()),
+                usage={"prompt_tokens": 10, "completion_tokens": 5, "total_tokens": 15},
+            )
+            mock_create.return_value = completion
 
-        async def async_chunk_iter(items):
-            for item in items:
-                yield item
+            component = OpenRouterChatGenerator()
+            response = await component.run_async("What's the capital of France?")
 
-        collected = []
+            # the backend should receive exactly one user message
+            _, kwargs = mock_create.call_args
+            assert kwargs["messages"] == [{"role": "user", "content": "What's the capital of France?"}]
 
-        async def collector(chunk):
-            collected.append(chunk)
-
-        llm = OpenRouterChatGenerator(api_key=Secret.from_token("test-api-key"))
-        result = await llm._handle_async_stream_response(async_chunk_iter(chunks), callback=collector)
-
-        assert len(result) == 1
-        assert result[0].text == "Paris."
-        assert result[0].reasoning is not None
-        assert "capitals" in result[0].reasoning.reasoning_text
-        assert len(collected) == 5
+            assert len(response["replies"]) == 1
+            assert response["replies"][0].text == "Paris."
