@@ -1017,7 +1017,7 @@ class TestWatsonxChatGeneratorIntegration:
     )
     def test_live_run_multimodal(self):
         generator = WatsonxChatGenerator(
-            model="meta-llama/llama-3-2-11b-vision-instruct",
+            model="meta-llama/llama-4-maverick-17b-128e-instruct-fp8",
             project_id=Secret.from_env_var("WATSONX_PROJECT_ID"),
         )
 
