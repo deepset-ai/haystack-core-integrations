@@ -1511,7 +1511,7 @@ class TestOllamaChatGeneratorLiveInference:
 
         messages = [
             ChatMessage.from_system("Use the tools to answer the question."),
-            ChatMessage.from_user("What is the weather in Paris and London?")
+            ChatMessage.from_user("What is the weather in Paris and London?"),
         ]
         response = component.run(messages)
 
@@ -1543,7 +1543,7 @@ class TestOllamaChatGeneratorLiveInference:
         chat_generator = OllamaChatGenerator(model="qwen3:0.6b", tools=tools, response_format=response_format)
         messages = [
             ChatMessage.from_system("Use the tools to answer the question."),
-            ChatMessage.from_user("What's the weather in Paris?")
+            ChatMessage.from_user("What's the weather in Paris?"),
         ]
 
         result = chat_generator.run(messages)
@@ -1577,7 +1577,7 @@ class TestOllamaChatGeneratorLiveInference:
 
         messages = [
             ChatMessage.from_system("Use the tools to answer the question."),
-            ChatMessage.from_user("What is the weather and population in Paris?")
+            ChatMessage.from_user("What is the weather and population in Paris?"),
         ]
         response = component.run(messages)
 
@@ -1630,7 +1630,7 @@ class TestOllamaChatGeneratorAsync:
         chat_generator = OllamaChatGenerator(model="qwen3:0.6b", tools=tools)
         messages = [
             ChatMessage.from_system("Use the tools to answer the question."),
-            ChatMessage.from_user("What's the weather in Paris?")
+            ChatMessage.from_user("What's the weather in Paris?"),
         ]
 
         response = await chat_generator.run_async(messages)
@@ -1666,7 +1666,7 @@ class TestOllamaChatGeneratorAsync:
         chat_generator = OllamaChatGenerator(model="qwen3:0.6b", tools=tools, streaming_callback=callback)
         messages = [
             ChatMessage.from_system("Use the tools to answer the question."),
-            ChatMessage.from_user("What's the weather in Berlin?")
+            ChatMessage.from_user("What's the weather in Berlin?"),
         ]
 
         response = await chat_generator.run_async(messages)
