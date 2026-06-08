@@ -970,11 +970,16 @@ class WeaviateDocumentStore:
         if failed_objects := self.client.batch.failed_objects:
             self._handle_failed_objects(failed_objects)
 
+        # If the document already exists we get no status message back from Weaviate.
+        # So we assume that all Documents were written.
         return len(documents)
 
     async def _batch_write_async(self, documents: list[Document], tenant: str | None = None) -> int:
         """
         Asynchronously writes document to Weaviate in batches.
+
+        Documents with the same id will be overwritten.
+        Raises in case of errors.
         """
 
         client = await self.async_client
@@ -1358,7 +1363,9 @@ class WeaviateDocumentStore:
             matching_objects = self._query_with_filters(filters)
             if not matching_objects:
                 return 0
-
+            
+            # Update each object with the new metadata
+            # Since metadata is stored flattened in Weaviate properties, we update properties directly
             updated_count = 0
             failed_updates = []
 
