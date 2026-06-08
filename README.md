@@ -2,10 +2,10 @@
 
 [Full report](https://htmlpreview.github.io/?https://github.com/deepset-ai/haystack-core-integrations/blob/python-coverage-comment-action-data-openrouter-combined/htmlcov/index.html)
 
-| Name                                                                                |    Stmts |     Miss |   Branch |   BrPart |    Cover |   Missing |
-|------------------------------------------------------------------------------------ | -------: | -------: | -------: | -------: | -------: | --------: |
-| src/haystack\_integrations/components/generators/openrouter/chat/chat\_generator.py |       46 |        0 |       12 |        0 |     100% |           |
-| **TOTAL**                                                                           |   **46** |    **0** |   **12** |    **0** | **100%** |           |
+| Name                                                                                |    Stmts |     Miss |   Branch |   BrPart |   Cover |   Missing |
+|------------------------------------------------------------------------------------ | -------: | -------: | -------: | -------: | ------: | --------: |
+| src/haystack\_integrations/components/generators/openrouter/chat/chat\_generator.py |      143 |        2 |       66 |        3 |     98% |60-\>63, 77, 447 |
+| **TOTAL**                                                                           |  **143** |    **2** |   **66** |    **3** | **98%** |           |
 
 
 ## Setup coverage badge
