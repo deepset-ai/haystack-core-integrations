@@ -3,7 +3,7 @@ from collections.abc import AsyncIterator, Iterator
 from typing import Any, ClassVar, Literal, get_args
 
 from haystack import component, default_from_dict, default_to_dict, logging
-from haystack.components.generators.utils import _convert_streaming_chunks_to_chat_message
+from haystack.components.generators.utils import _convert_streaming_chunks_to_chat_message, _normalize_messages
 from haystack.dataclasses import ChatMessage, ComponentInfo, ImageContent, TextContent, ToolCall
 from haystack.dataclasses.streaming_chunk import (
     AsyncStreamingCallbackT,
@@ -616,7 +616,7 @@ class CohereChatGenerator:
     @component.output_types(replies=list[ChatMessage])
     def run(
         self,
-        messages: list[ChatMessage],
+        messages: list[ChatMessage] | str,
         generation_kwargs: dict[str, Any] | None = None,
         tools: ToolsType | None = None,
         streaming_callback: StreamingCallbackT | None = None,
@@ -625,6 +625,7 @@ class CohereChatGenerator:
         Invoke the chat endpoint based on the provided messages and generation parameters.
 
         :param messages: list of `ChatMessage` instances representing the input messages.
+            If a string is provided, it is converted to a list containing a ChatMessage with user role.
         :param generation_kwargs: additional keyword arguments for chat generation. These parameters will
             potentially override the parameters passed in the __init__ method.
             For more details on the parameters supported by the Cohere API, refer to the
@@ -637,6 +638,7 @@ class CohereChatGenerator:
         :returns: A dictionary with the following keys:
             - `replies`: a list of `ChatMessage` instances representing the generated responses.
         """
+        messages = _normalize_messages(messages)
 
         # update generation kwargs by merging with the generation kwargs passed to the run method
         generation_kwargs = {**self.generation_kwargs, **(generation_kwargs or {})}
@@ -682,7 +684,7 @@ class CohereChatGenerator:
     @component.output_types(replies=list[ChatMessage])
     async def run_async(
         self,
-        messages: list[ChatMessage],
+        messages: list[ChatMessage] | str,
         generation_kwargs: dict[str, Any] | None = None,
         tools: ToolsType | None = None,
         streaming_callback: StreamingCallbackT | None = None,
@@ -691,6 +693,7 @@ class CohereChatGenerator:
         Asynchronously invoke the chat endpoint based on the provided messages and generation parameters.
 
         :param messages: list of `ChatMessage` instances representing the input messages.
+            If a string is provided, it is converted to a list containing a ChatMessage with user role.
         :param generation_kwargs: additional keyword arguments for chat generation. These parameters will
             potentially override the parameters passed in the __init__ method.
             For more details on the parameters supported by the Cohere API, refer to the
@@ -701,6 +704,7 @@ class CohereChatGenerator:
         :returns: A dictionary with the following keys:
             - `replies`: a list of `ChatMessage` instances representing the generated responses.
         """
+        messages = _normalize_messages(messages)
 
         # update generation kwargs by merging with the generation kwargs passed to the run method
         generation_kwargs = {**self.generation_kwargs, **(generation_kwargs or {})}

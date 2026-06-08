@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/amazon_bedrock-v6.11.0] - 2026-06-05
+
+### 🚀 Features
+
+- Amazon Bedrock - accept str as ChatGenerator input; deprecate generator; migrate generator example to chat generator (#3398)
+
+
 ## [integrations/amazon_bedrock-v6.10.2] - 2026-05-19
 
 ### 🐛 Bug Fixes

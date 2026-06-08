@@ -14,7 +14,7 @@ from haystack.errors import FilterError
 from haystack.utils.auth import Secret, deserialize_secrets_inplace
 from postgrest import CountMethod
 
-from supabase import Client, create_client
+from supabase import AsyncClient, Client, acreate_client, create_client
 
 logger = logging.getLogger(__name__)
 
@@ -77,8 +77,9 @@ class SupabaseGroongaDocumentStore(DocumentStore):
         self.table_name = table_name
         self.recreate_table = recreate_table
 
-        # Client is initialized lazily in warm_up()
+        # Sync client initialized in warm_up(); async client initialized lazily on first use
         self._client: Client | None = None
+        self._async_client: AsyncClient | None = None
 
     def warm_up(self) -> None:
         """
@@ -122,6 +123,39 @@ class SupabaseGroongaDocumentStore(DocumentStore):
         """
         self._client.rpc("exec_sql", {"query": create_index_sql}).execute()
 
+    async def _initialize_async_client(self) -> None:
+        """Lazily creates the async Supabase client and sets up the table on first use."""
+        if self._async_client is None:
+            key = self.supabase_key.resolve_value() or ""
+            self._async_client = await acreate_client(self.supabase_url, key)
+            await self._setup_table_async()
+
+    async def _setup_table_async(self) -> None:
+        """Async counterpart of _setup_table; called by _initialize_async_client."""
+        if self._async_client is None:
+            msg = "Async client not initialized."
+            raise RuntimeError(msg)
+
+        if self.recreate_table:
+            await self._async_client.rpc("exec_sql", {"query": f"DROP TABLE IF EXISTS {self.table_name};"}).execute()
+
+        create_table_sql = f"""
+            CREATE TABLE IF NOT EXISTS {self.table_name} (
+                id TEXT PRIMARY KEY,
+                content TEXT,
+                meta JSONB,
+                score REAL
+            );
+        """
+        await self._async_client.rpc("exec_sql", {"query": create_table_sql}).execute()
+
+        create_index_sql = f"""
+            CREATE INDEX IF NOT EXISTS pgroonga_{self.table_name}_index
+            ON {self.table_name}
+            USING pgroonga (content);
+        """
+        await self._async_client.rpc("exec_sql", {"query": create_index_sql}).execute()
+
     def count_documents(self) -> int:
         """
         Returns the number of documents in the store.
@@ -132,6 +166,16 @@ class SupabaseGroongaDocumentStore(DocumentStore):
             msg = "Call warm_up() before using the document store."
             raise RuntimeError(msg)
         result = self._client.table(self.table_name).select("*", count=CountMethod.exact).execute()
+        return int(result.count) if result.count is not None else 0
+
+    async def count_documents_async(self) -> int:
+        """
+        Async version of count_documents.
+
+        :returns: Number of documents.
+        """
+        await self._initialize_async_client()
+        result = await self._async_client.table(self.table_name).select("*", count=CountMethod.exact).execute()  # type: ignore[union-attr]
         return int(result.count) if result.count is not None else 0
 
     def filter_documents(self, filters: dict[str, Any] | None = None) -> list[Document]:
@@ -165,6 +209,23 @@ class SupabaseGroongaDocumentStore(DocumentStore):
             query = SupabaseGroongaDocumentStore._apply_filters(query, filters)
 
         result = query.execute()
+        return [self._to_haystack_document(row) for row in result.data if isinstance(row, dict)]
+
+    async def filter_documents_async(self, filters: dict[str, Any] | None = None) -> list[Document]:
+        """
+        Async version of filter_documents.
+
+        :param filters: Optional Haystack filter dict.
+        :returns: List of matching Document objects.
+        :raises FilterError: If the filter structure is malformed or uses an unsupported operator.
+        """
+        await self._initialize_async_client()
+        query = self._async_client.table(self.table_name).select("*")  # type: ignore[union-attr]
+
+        if filters:
+            query = SupabaseGroongaDocumentStore._apply_filters(query, filters)
+
+        result = await query.execute()
         return [self._to_haystack_document(row) for row in result.data if isinstance(row, dict)]
 
     @staticmethod
@@ -399,6 +460,60 @@ class SupabaseGroongaDocumentStore(DocumentStore):
 
         return written
 
+    async def write_documents_async(
+        self,
+        documents: list[Document],
+        policy: DuplicatePolicy = DuplicatePolicy.FAIL,
+    ) -> int:
+        """
+        Async version of write_documents.
+
+        :param documents: List of Haystack Document objects to write.
+        :param policy: How to handle duplicate documents. Defaults to DuplicatePolicy.FAIL.
+        :returns: Number of documents written.
+        """
+        if not isinstance(documents, list):
+            msg = f"write_documents_async() expects a list of Document objects, got {type(documents).__name__}"
+            raise ValueError(msg)
+        for doc in documents:
+            if not isinstance(doc, Document):
+                msg = f"write_documents_async() expects Document objects, got {type(doc).__name__}"
+                raise ValueError(msg)
+
+        if not documents:
+            return 0
+
+        await self._initialize_async_client()
+
+        written = 0
+        for doc in documents:
+            row = {
+                "id": doc.id,
+                "content": doc.content or "",
+                "meta": doc.meta or {},
+                "score": None,
+            }
+            if policy == DuplicatePolicy.OVERWRITE:
+                await self._async_client.table(self.table_name).upsert(row).execute()  # type: ignore[union-attr]
+                written += 1
+            elif policy == DuplicatePolicy.SKIP:
+                existing = await self._async_client.table(self.table_name).select("id").eq("id", doc.id).execute()  # type: ignore[union-attr]
+                if not existing.data:
+                    await self._async_client.table(self.table_name).insert(row).execute()  # type: ignore[union-attr]
+                    written += 1
+            elif policy == DuplicatePolicy.FAIL:
+                existing = await self._async_client.table(self.table_name).select("id").eq("id", doc.id).execute()  # type: ignore[union-attr]
+                if existing.data:
+                    msg = f"Document with id {doc.id!r} already exists."
+                    raise DuplicateDocumentError(msg)
+                await self._async_client.table(self.table_name).insert(row).execute()  # type: ignore[union-attr]
+                written += 1
+            else:
+                await self._async_client.table(self.table_name).insert(row).execute()  # type: ignore[union-attr]
+                written += 1
+
+        return written
+
     def delete_by_filter(self, filters: dict[str, Any]) -> int:
         """
         Deletes documents matching the given filters.
@@ -410,6 +525,19 @@ class SupabaseGroongaDocumentStore(DocumentStore):
         if not docs:
             return 0
         self.delete_documents([doc.id for doc in docs])
+        return len(docs)
+
+    async def delete_by_filter_async(self, filters: dict[str, Any]) -> int:
+        """
+        Async version of delete_by_filter.
+
+        :param filters: Filters to select documents for deletion.
+        :returns: Number of documents deleted.
+        """
+        docs = await self.filter_documents_async(filters=filters)
+        if not docs:
+            return 0
+        await self.delete_documents_async([doc.id for doc in docs])
         return len(docs)
 
     def update_by_filter(self, filters: dict[str, Any], meta: dict[str, Any]) -> int:
@@ -441,6 +569,29 @@ class SupabaseGroongaDocumentStore(DocumentStore):
 
         return len(docs)
 
+    async def update_by_filter_async(self, filters: dict[str, Any], meta: dict[str, Any]) -> int:
+        """
+        Async version of update_by_filter.
+
+        :param filters: Filters to select documents to update.
+        :param meta: Metadata fields to set on matching documents.
+        :returns: Number of documents updated.
+        """
+        docs = await self.filter_documents_async(filters=filters)
+        if not docs:
+            return 0
+
+        for doc in docs:
+            row = {
+                "id": doc.id,
+                "content": doc.content or "",
+                "meta": {**doc.meta, **meta},
+                "score": None,
+            }
+            await self._async_client.table(self.table_name).upsert(row).execute()  # type: ignore[union-attr]
+
+        return len(docs)
+
     def delete_all_documents(self) -> None:
         """
         Deletes all documents from the store.
@@ -449,6 +600,13 @@ class SupabaseGroongaDocumentStore(DocumentStore):
             msg = "Call warm_up() before using the document store."
             raise RuntimeError(msg)
         self._client.table(self.table_name).delete().neq("id", "").execute()
+
+    async def delete_all_documents_async(self) -> None:
+        """
+        Async version of delete_all_documents.
+        """
+        await self._initialize_async_client()
+        await self._async_client.table(self.table_name).delete().neq("id", "").execute()  # type: ignore[union-attr]
 
     def delete_documents(self, document_ids: list[str]) -> None:
         """
@@ -463,6 +621,17 @@ class SupabaseGroongaDocumentStore(DocumentStore):
         if not document_ids:
             return
         self._client.table(self.table_name).delete().in_("id", document_ids).execute()
+
+    async def delete_documents_async(self, document_ids: list[str]) -> None:
+        """
+        Async version of delete_documents.
+
+        :param document_ids: List of document IDs to delete.
+        """
+        if not document_ids:
+            return
+        await self._initialize_async_client()
+        await self._async_client.table(self.table_name).delete().in_("id", document_ids).execute()  # type: ignore[union-attr]
 
     def _groonga_retrieval(
         self,
@@ -496,45 +665,100 @@ class SupabaseGroongaDocumentStore(DocumentStore):
 
         return documents
 
+    async def _groonga_retrieval_async(
+        self,
+        query: str,
+        top_k: int = 10,
+        filters: dict[str, Any] | None = None,
+    ) -> list[Document]:
+        """
+        Async version of _groonga_retrieval.
+
+        :param query: The text query to search for.
+        :param top_k: Maximum number of results to return.
+        :param filters: Optional filters to apply after retrieval.
+        :returns: List of matching Document objects ranked by relevance.
+        """
+        await self._initialize_async_client()
+        result = await self._async_client.rpc(  # type: ignore[union-attr]
+            "groonga_search",
+            {"query_text": query, "table_name": self.table_name, "top_k": top_k},
+        ).execute()
+
+        data = result.data if isinstance(result.data, list) else []
+        documents = [self._to_haystack_document(row) for row in data if isinstance(row, dict)]
+
+        if filters:
+            documents = SupabaseGroongaDocumentStore._filter_documents_in_memory(documents, filters)
+
+        return documents
+
     @staticmethod
     def _filter_documents_in_memory(documents: list[Document], filters: dict[str, Any]) -> list[Document]:
         """
-        Filters a list of documents in memory based on the given filters.
+        Filters a list of documents in memory using Haystack's standard filter syntax.
+
+        Supports the full filter syntax: comparison operators (``==``, ``!=``, ``>``,
+        ``>=``, ``<``, ``<=``, ``in``, ``not in``) and logical operators (``AND``,
+        ``OR``, ``NOT``) including arbitrary nesting.
 
         :param documents: List of documents to filter.
-        :param filters: Dictionary of filters to apply.
+        :param filters: Haystack filter dict (comparison or logical).
         :returns: Filtered list of documents.
         """
-        conditions = filters.get("conditions", [])
-        filtered = []
+        return [doc for doc in documents if SupabaseGroongaDocumentStore._match_document(doc, filters)]
 
-        for doc in documents:
-            match = True
-            for condition in conditions:
-                field = condition.get("field", "")
-                op = condition.get("operator", "==")
-                value = condition.get("value")
+    @staticmethod
+    def _match_document(doc: Document, filters: dict[str, Any]) -> bool:
+        """Returns True if *doc* satisfies the filter expression."""
+        if not filters:
+            return True
 
-                if field.startswith("meta."):
-                    meta_key = field[len("meta.") :]
-                    doc_value = doc.meta.get(meta_key)
-                else:
-                    doc_value = getattr(doc, field, None)
+        if "field" in filters:
+            return SupabaseGroongaDocumentStore._match_condition(doc, filters)
 
-                if op == "==" and doc_value != value:
-                    match = False
-                    break
-                elif op == "!=" and doc_value == value:
-                    match = False
-                    break
-                elif op == "in" and doc_value not in value:
-                    match = False
-                    break
+        op = filters.get("operator")
+        conditions: list[dict[str, Any]] = filters.get("conditions", [])
 
-            if match:
-                filtered.append(doc)
+        if op == "AND":
+            return all(SupabaseGroongaDocumentStore._match_document(doc, c) for c in conditions)
+        if op == "OR":
+            return any(SupabaseGroongaDocumentStore._match_document(doc, c) for c in conditions)
+        if op == "NOT":
+            # De Morgan: NOT(A AND B) = NOT_A OR NOT_B — doc passes if it fails at least one condition.
+            return not all(SupabaseGroongaDocumentStore._match_document(doc, c) for c in conditions)
 
-        return filtered
+        return True
+
+    @staticmethod
+    def _match_condition(doc: Document, condition: dict[str, Any]) -> bool:
+        """Returns True if *doc* satisfies a single comparison condition."""
+        field: str = condition.get("field", "")
+        op: str = condition.get("operator", "==")
+        value = condition.get("value")
+
+        if field.startswith("meta."):
+            doc_value = doc.meta.get(field[len("meta.") :])
+        else:
+            doc_value = getattr(doc, field, None)
+
+        if op == "==":
+            return doc_value == value  # type: ignore[no-any-return]
+        if op == "!=":
+            return doc_value != value  # type: ignore[no-any-return]
+        if op == ">":
+            return doc_value is not None and doc_value > value  # type: ignore[operator]
+        if op == ">=":
+            return doc_value is not None and doc_value >= value  # type: ignore[operator]
+        if op == "<":
+            return doc_value is not None and doc_value < value  # type: ignore[operator]
+        if op == "<=":
+            return doc_value is not None and doc_value <= value  # type: ignore[operator]
+        if op == "in":
+            return doc_value in value  # type: ignore[operator]
+        if op == "not in":
+            return doc_value not in value  # type: ignore[operator]
+        return True
 
     def _to_haystack_document(self, row: dict[str, Any]) -> Document:
         """

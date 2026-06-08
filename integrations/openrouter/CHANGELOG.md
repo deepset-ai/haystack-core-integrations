@@ -1,5 +1,28 @@
 # Changelog
 
+## [integrations/openrouter-v1.1.0] - 2026-06-08
+
+### 🚀 Features
+
+- Add reasoning token support to OpenRouter integration (#3264)
+
+### 📚 Documentation
+
+- Simplify pydoc configs (#2855)
+
+### 🧪 Testing
+
+- Openrouter - make test_live_run_with_tools more robust (#2909)
+- Test compatible integrations with python 3.14; update pyproject (#3001)
+- Track test coverage for all integrations (#3065)
+- Openrouter - add unit tests (#3216)
+
+### 🧹 Chores
+
+- Add ANN ruff ruleset to llama_cpp, llama_stack, mcp, meta_llama, mistral, mongodb_atlas, nvidia, ollama, openrouter, opensearch (#2991)
+- Enforce ruff docstring rules in integrations 31-40 (openrouter, opensearch, optimum, paddleocr, pgvector, pinecone, pyversity, qdrant, ragas, snowflake) (#3011)
+
+
 ## [integrations/openrouter-v1.0.0] - 2026-01-13
 
 ### 🧹 Chores

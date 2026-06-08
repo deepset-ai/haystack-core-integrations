@@ -39,20 +39,6 @@ class TestDocumentStore(
     GetMetadataFieldMinMaxTest,
     GetMetadataFieldUniqueValuesTest,
 ):
-    def test_get_metadata_fields_info_empty_collection(self, document_store: SupabasePgvectorDocumentStore):
-        """SupabasePgvectorDocumentStore always includes 'content' in fields info, even for empty stores."""
-        assert document_store.count_documents() == 0
-
-        fields_info = document_store.get_metadata_fields_info()
-        assert fields_info == {"content": {"type": "text"}}
-
-    def test_get_metadata_field_min_max_empty_collection(self, document_store: SupabasePgvectorDocumentStore):
-        """SupabasePgvectorDocumentStore raises ValueError when the field doesn't exist in the store."""
-        assert document_store.count_documents() == 0
-
-        with pytest.raises(ValueError, match="not found in document store"):
-            document_store.get_metadata_field_min_max("priority")
-
     def test_write_documents(self, document_store: SupabasePgvectorDocumentStore):
         docs = [Document(id="1")]
         assert document_store.write_documents(docs) == 1

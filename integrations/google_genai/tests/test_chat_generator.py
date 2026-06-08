@@ -422,6 +422,22 @@ class TestGoogleGenAIChatGeneratorRun:
                 streaming_callback=lambda chunk: None,
             )
 
+    def test_run_with_string_input(self, monkeypatch, mock_response):
+        monkeypatch.setenv("GOOGLE_API_KEY", "test-api-key")
+        component = GoogleGenAIChatGenerator()
+        component._client.models.generate_content = Mock(return_value=mock_response)
+
+        result = component.run("What's the capital of France?")
+
+        call_kwargs = component._client.models.generate_content.call_args
+        contents = call_kwargs.kwargs.get("contents") or call_kwargs[1].get("contents")
+        assert len(contents) == 1
+        assert contents[0].role == "user"
+        assert contents[0].parts[0].text == "What's the capital of France?"
+        assert isinstance(result["replies"], list)
+        assert len(result["replies"]) == 1
+        assert isinstance(result["replies"][0], ChatMessage)
+
     def test_from_dict_with_streaming_callback(self, monkeypatch):
         monkeypatch.setenv("GOOGLE_API_KEY", "test-api-key")
         component = GoogleGenAIChatGenerator(streaming_callback=print_streaming_chunk)
@@ -441,6 +457,23 @@ class TestGoogleGenAIChatGeneratorRun:
         assert len(results["replies"]) == 1
         assert results["replies"][0].text == "Hello"
         assert results["replies"][0].meta["finish_reason"] == "stop"
+
+    @pytest.mark.asyncio
+    async def test_run_async_with_string_input(self, monkeypatch, mock_response):
+        monkeypatch.setenv("GOOGLE_API_KEY", "test-api-key")
+        component = GoogleGenAIChatGenerator()
+        component._client.aio.models.generate_content = AsyncMock(return_value=mock_response)
+
+        result = await component.run_async("What's the capital of France?")
+
+        call_kwargs = component._client.aio.models.generate_content.call_args
+        contents = call_kwargs.kwargs.get("contents") or call_kwargs[1].get("contents")
+        assert len(contents) == 1
+        assert contents[0].role == "user"
+        assert contents[0].parts[0].text == "What's the capital of France?"
+        assert isinstance(result["replies"], list)
+        assert len(result["replies"]) == 1
+        assert isinstance(result["replies"][0], ChatMessage)
 
     @pytest.mark.asyncio
     async def test_run_async_streaming(self, monkeypatch, mock_streaming_chunk):

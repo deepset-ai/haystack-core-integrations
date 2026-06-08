@@ -1,5 +1,16 @@
 # Changelog
 
+## [integrations/google_genai-v4.3.0] - 2026-06-05
+
+### 🚀 Features
+
+- Google GenAI - accept str as ChatGenerator input (#3394)
+
+### 🧪 Testing
+
+- Remove old integration tests using deprecated model (#3381)
+
+
 ## [integrations/google_genai-v4.2.0] - 2026-04-29
 
 ### 🚜 Refactor

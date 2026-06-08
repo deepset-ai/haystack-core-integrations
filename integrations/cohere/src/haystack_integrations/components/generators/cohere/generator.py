@@ -1,6 +1,7 @@
 # SPDX-FileCopyrightText: 2023-present deepset GmbH <info@deepset.ai>
 #
 # SPDX-License-Identifier: Apache-2.0
+import warnings
 from collections.abc import Callable
 from typing import Any, ClassVar
 
@@ -70,6 +71,12 @@ class CohereGenerator(CohereChatGenerator):
             You can check them in model's documentation.
         """
 
+        warnings.warn(
+            "The `CohereGenerator` component is deprecated and will be removed in a future version. "
+            "Use `CohereChatGenerator` instead, which now also supports string inputs.",
+            FutureWarning,
+            stacklevel=2,
+        )
         # from_dict deserialization, where `generation_kwargs` is in **kwargs
         if "generation_kwargs" in kwargs:
             generation_kwargs = kwargs.pop("generation_kwargs")
