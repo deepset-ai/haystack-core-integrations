@@ -8,6 +8,7 @@ on:
       - "Test / amazon-sagemaker"
       - "Test / amazon-textract"
       - "Test / anthropic"
+      - "Test / arangodb"
       - "Test / arcadedb"
       - "Test / astra"
       - "Test / brave"
