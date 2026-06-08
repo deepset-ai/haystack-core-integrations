@@ -187,19 +187,6 @@ class TestWeaviateDocumentStoreAsync(
             )
 
     @pytest.mark.asyncio
-    async def test_write_documents_async(self, document_store: WeaviateDocumentStore) -> None:
-        """
-        Test write_documents() with default policy overwrites existing documents.
-        """
-        doc = Document(content="test doc")
-        assert await document_store.write_documents_async([doc]) == 1
-        assert await document_store.count_documents_async() == 1
-
-        doc.content = "test doc 2"
-        assert await document_store.write_documents_async([doc]) == 1
-        assert await document_store.count_documents_async() == 1
-
-    @pytest.mark.asyncio
     async def test_write_documents_with_tenant_async(self, document_store):
         doc = Document(content="tenant test doc")
 

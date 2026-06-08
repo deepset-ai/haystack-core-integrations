@@ -1363,7 +1363,7 @@ class WeaviateDocumentStore:
             matching_objects = self._query_with_filters(filters)
             if not matching_objects:
                 return 0
-            
+
             # Update each object with the new metadata
             # Since metadata is stored flattened in Weaviate properties, we update properties directly
             updated_count = 0
