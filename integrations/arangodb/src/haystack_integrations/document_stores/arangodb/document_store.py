@@ -130,12 +130,30 @@ class ArangoDocumentStore:
         requires the collection to already contain training documents with non-null embeddings,
         and `nLists` must be `<=` the number of such documents. We use `nLists=1`, which
         probes the single Voronoi cell (a full scan) and therefore returns exact, complete results.
+
+        If a vector index already exists on the `embedding` field, its `metric` and `dimension`
+        must match this store's configuration; otherwise a `ValueError` is raised, since an
+        incompatible index would make `APPROX_NEAR_*` fail or silently return wrong results.
+
+        :raises ValueError: If an incompatible vector index already exists on the collection.
         """
         col = cast(StandardCollection, self._col)
-        existing = cast("list[dict[str, Any]]", col.indexes())
-        if any(index.get("type") == "vector" for index in existing):
-            return
         _, _, metric = _SIMILARITY_AQL[self.similarity_function]
+        existing = cast("list[dict[str, Any]]", col.indexes())
+        for index in existing:
+            if index.get("type") != "vector" or index.get("fields") != ["embedding"]:
+                continue
+            params = index.get("params") or {}
+            if params.get("metric") == metric and params.get("dimension") == self.embedding_dimension:
+                return
+            msg = (
+                f"Collection '{self.collection_name}' already has a vector index on 'embedding' "
+                f"with metric={params.get('metric')!r} and dimension={params.get('dimension')}, "
+                f"which is incompatible with this store's configuration "
+                f"(metric={metric!r}, dimension={self.embedding_dimension}). "
+                f"Use a different collection or set recreate_collection=True to rebuild it."
+            )
+            raise ValueError(msg)
         col.add_index(
             {
                 "type": "vector",

@@ -33,7 +33,7 @@ def _make_store(**kwargs) -> ArangoDocumentStore:
 def _mock_db(store: ArangoDocumentStore, collection_docs: list[dict] | None = None) -> MagicMock:
     mock_col = MagicMock()
     mock_col.count.return_value = len(collection_docs or [])
-    mock_col.indexes.return_value = [{"type": "vector", "name": "haystack_vector_index"}]
+    mock_col.indexes.return_value = []
 
     mock_db = MagicMock()
     mock_db.aql.execute.return_value = iter(collection_docs or [])
@@ -234,6 +234,66 @@ class TestArangoDocumentStoreFilterDocuments:
         mock_db.aql.execute.assert_called_once()
         call_args = mock_db.aql.execute.call_args
         assert "FILTER" in call_args[0][0]
+
+
+class TestArangoDocumentStoreVectorIndex:
+    @staticmethod
+    def _vector_index(metric: str = "cosine", dimension: int = 3) -> dict:
+        return {
+            "type": "vector",
+            "name": "haystack_vector_index",
+            "fields": ["embedding"],
+            "params": {"metric": metric, "dimension": dimension, "nLists": 1},
+        }
+
+    def test_creates_index_when_missing(self):
+        store = _make_store()
+        _mock_db(store)
+        store._col.indexes.return_value = []
+        store._ensure_vector_index()
+        store._col.add_index.assert_called_once()
+        definition = store._col.add_index.call_args[0][0]
+        assert definition["type"] == "vector"
+        assert definition["fields"] == ["embedding"]
+        assert definition["params"] == {"metric": "cosine", "dimension": 3, "nLists": 1}
+
+    def test_uses_metric_for_similarity_function(self):
+        store = _make_store(similarity_function="dot_product")
+        _mock_db(store)
+        store._col.indexes.return_value = []
+        store._ensure_vector_index()
+        assert store._col.add_index.call_args[0][0]["params"]["metric"] == "innerProduct"
+
+    def test_skips_when_compatible_index_exists(self):
+        store = _make_store()
+        _mock_db(store)
+        store._col.indexes.return_value = [self._vector_index(metric="cosine", dimension=3)]
+        store._ensure_vector_index()
+        store._col.add_index.assert_not_called()
+
+    def test_ignores_vector_index_on_other_field(self):
+        store = _make_store()
+        _mock_db(store)
+        other = {**self._vector_index(), "fields": ["other_field"]}
+        store._col.indexes.return_value = [other]
+        store._ensure_vector_index()
+        store._col.add_index.assert_called_once()
+
+    def test_raises_on_metric_mismatch(self):
+        store = _make_store(similarity_function="cosine")
+        _mock_db(store)
+        store._col.indexes.return_value = [self._vector_index(metric="l2", dimension=3)]
+        with pytest.raises(ValueError, match="incompatible"):
+            store._ensure_vector_index()
+        store._col.add_index.assert_not_called()
+
+    def test_raises_on_dimension_mismatch(self):
+        store = _make_store()
+        _mock_db(store)
+        store._col.indexes.return_value = [self._vector_index(metric="cosine", dimension=768)]
+        with pytest.raises(ValueError, match="incompatible"):
+            store._ensure_vector_index()
+        store._col.add_index.assert_not_called()
 
 
 class TestArangoDocumentStoreEmbeddingRetrieval:
