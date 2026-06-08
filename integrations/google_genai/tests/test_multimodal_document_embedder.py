@@ -76,6 +76,8 @@ class TestGoogleGenAIMultimodalDocumentEmbedder:
             root_path="root_path",
             image_size=(1024, 1024),
             config={"task_type": "CLASSIFICATION"},
+            timeout=30.0,
+            max_retries=3,
         )
         assert embedder._api_key.resolve_value() == "fake-api-key-2"
         assert embedder._model == "model"
@@ -85,6 +87,8 @@ class TestGoogleGenAIMultimodalDocumentEmbedder:
         assert embedder._batch_size == 64
         assert embedder._progress_bar is False
         assert embedder._config == {"task_type": "CLASSIFICATION"}
+        assert embedder._timeout == 30.0
+        assert embedder._max_retries == 3
 
     def test_init_fail_wo_api_key(self, monkeypatch):
         monkeypatch.delenv("GOOGLE_API_KEY", raising=False)
@@ -114,6 +118,8 @@ class TestGoogleGenAIMultimodalDocumentEmbedder:
                 "vertex_ai_project": None,
                 "vertex_ai_location": None,
                 "config": None,
+                "timeout": None,
+                "max_retries": None,
             },
         }
 
@@ -134,6 +140,8 @@ class TestGoogleGenAIMultimodalDocumentEmbedder:
                 "vertex_ai_project": None,
                 "vertex_ai_location": None,
                 "config": {"task_type": "CLASSIFICATION"},
+                "timeout": 30.0,
+                "max_retries": 3,
             },
         }
         monkeypatch.setenv("GOOGLE_API_KEY", "fake-api-key")
@@ -150,6 +158,70 @@ class TestGoogleGenAIMultimodalDocumentEmbedder:
         assert embedder._api == "gemini"
         assert embedder._vertex_ai_project is None
         assert embedder._vertex_ai_location is None
+        assert embedder._timeout == 30.0
+        assert embedder._max_retries == 3
+
+    def test_to_dict_with_custom_init_parameters(self, monkeypatch):
+        monkeypatch.setenv("GOOGLE_API_KEY", "fake-api-key")
+        component = GoogleGenAIMultimodalDocumentEmbedder(
+            model="model",
+            batch_size=12,
+            timeout=30.0,
+            max_retries=3,
+            config={"output_dimensionality": 768},
+            root_path="some_root_path",
+            image_size=(512, 512),
+            progress_bar=False,
+        )
+        data = component.to_dict()
+        assert data == {
+            "type": (
+                "haystack_integrations.components.embedders.google_genai.multimodal_document_embedder.GoogleGenAIMultimodalDocumentEmbedder"
+            ),
+            "init_parameters": {
+                "model": "model",
+                "file_path_meta_field": "file_path",
+                "root_path": "some_root_path",
+                "image_size": (512, 512),
+                "batch_size": 12,
+                "progress_bar": False,
+                "api_key": {"type": "env_var", "env_vars": ["GOOGLE_API_KEY", "GEMINI_API_KEY"], "strict": False},
+                "api": "gemini",
+                "vertex_ai_project": None,
+                "vertex_ai_location": None,
+                "config": {"output_dimensionality": 768},
+                "timeout": 30.0,
+                "max_retries": 3,
+            },
+        }
+
+    def test_to_dict_from_dict_roundtrip(self, monkeypatch):
+        monkeypatch.setenv("GOOGLE_API_KEY", "fake-api-key")
+        original = GoogleGenAIMultimodalDocumentEmbedder(
+            model="model",
+            batch_size=12,
+            timeout=30.0,
+            max_retries=3,
+            image_size=(512, 512),
+            progress_bar=False,
+            config={"output_dimensionality": 768},
+            root_path="some_root_path",
+        )
+        data = original.to_dict()
+        restored = component_from_dict(GoogleGenAIMultimodalDocumentEmbedder, data, "embedder")
+        assert restored._api_key.resolve_value() == "fake-api-key"
+        assert restored._model == "model"
+        assert restored._batch_size == 12
+        assert restored._timeout == 30.0
+        assert restored._max_retries == 3
+        assert restored._config == {"output_dimensionality": 768}
+        assert restored._root_path == "some_root_path"
+        assert restored._image_size == (512, 512)
+        assert restored._progress_bar is False
+        assert restored._file_path_meta_field == "file_path"
+        assert restored._api == "gemini"
+        assert restored._vertex_ai_project is None
+        assert restored._vertex_ai_location is None
 
     def test_extract_parts_to_embed_images(self, test_files_path):
         embedder = GoogleGenAIMultimodalDocumentEmbedder(api_key=Secret.from_token("fake-api-key"))
