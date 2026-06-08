@@ -299,6 +299,11 @@ class TokenExchangeSource:
             `urn:ietf:params:oauth:grant-type:jwt-bearer` grant for Microsoft on-behalf-of).
         :param subject_token_param: The name of the form parameter carrying the per-request subject token. Defaults
             to `subject_token` (RFC 8693). Some providers expect a different name, such as `assertion`.
+        :param subject_token_type: The RFC 8693 identifier for the type of the supplied subject token, sent as the
+            `subject_token_type` form parameter (omitted when not set). Required by RFC 8693 token exchange
+            (e.g. `urn:ietf:params:oauth:token-type:access_token`); not used by Microsoft's on-behalf-of flow.
+        :param requested_token_type: The RFC 8693 identifier for the token to return, sent as the
+            `requested_token_type` form parameter (omitted when not set). Optional.
         :param scopes: The scopes to request, joined with `scope_delimiter`.
         :param scope_delimiter: The delimiter used to join scopes. Defaults to a space.
         :param extra_token_params: Additional form parameters included verbatim in every request (for example
