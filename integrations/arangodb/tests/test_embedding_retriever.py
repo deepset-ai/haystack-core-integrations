@@ -2,6 +2,8 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+import contextlib
+import os
 from unittest.mock import MagicMock
 
 import pytest
@@ -105,3 +107,43 @@ class TestArangoEmbeddingRetriever:
     def test_invalid_document_store_type(self):
         with pytest.raises(ValueError, match="ArangoDocumentStore"):
             ArangoEmbeddingRetriever(document_store=MagicMock())
+
+
+@pytest.mark.integration
+class TestArangoEmbeddingRetrieverIntegration:
+    @pytest.fixture
+    def document_store(self, request):
+        host = os.environ.get("ARANGO_HOST")
+        password = os.environ.get("ARANGO_PASSWORD")
+        if not host or not password:
+            pytest.skip("Set ARANGO_HOST and ARANGO_PASSWORD to run integration tests.")
+        store = ArangoDocumentStore(
+            host=host,
+            database="haystack_test",
+            username=Secret.from_env_var("ARANGO_USERNAME", strict=False),
+            password=Secret.from_env_var("ARANGO_PASSWORD"),
+            collection_name=f"test_{request.node.name}",
+            embedding_dimension=3,
+            recreate_collection=True,
+        )
+        yield store
+        with contextlib.suppress(Exception):
+            store._ensure_connected()
+            if store._db and store._db.has_collection(store.collection_name):
+                store._db.delete_collection(store.collection_name)
+
+    def test_run(self, document_store):
+        documents = [
+            Document(content="doc1", embedding=[1.0, 0.0, 0.0]),
+            Document(content="doc2", embedding=[0.0, 1.0, 0.0]),
+            Document(content="doc3", embedding=[0.0, 0.0, 1.0]),
+        ]
+        document_store.write_documents(documents)
+        retriever = ArangoEmbeddingRetriever(document_store=document_store, top_k=3)
+
+        result = retriever.run(query_embedding=[1.0, 0.0, 0.0])
+
+        retrieved = result["documents"]
+        assert len(retrieved) == 3
+        assert retrieved[0].content == "doc1"
+        assert all(doc.score is not None for doc in retrieved)

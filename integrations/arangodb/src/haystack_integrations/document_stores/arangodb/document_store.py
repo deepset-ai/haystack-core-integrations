@@ -19,11 +19,15 @@ from .filters import _convert_filters
 
 logger = logging.getLogger(__name__)
 
-_SIMILARITY_AQL: dict[str, tuple[str, str]] = {
-    "cosine": ("APPROX_NEAR_COSINE", "DESC"),
-    "dot_product": ("APPROX_NEAR_INNER_PRODUCT", "DESC"),
-    "l2": ("APPROX_NEAR_L2", "ASC"),
+# Maps the configured similarity function to the AQL vector function, its sort order,
+# and the metric name used when creating the vector index.
+_SIMILARITY_AQL: dict[str, tuple[str, str, str]] = {
+    "cosine": ("APPROX_NEAR_COSINE", "DESC", "cosine"),
+    "dot_product": ("APPROX_NEAR_INNER_PRODUCT", "DESC", "innerProduct"),
+    "l2": ("APPROX_NEAR_L2", "ASC", "l2"),
 }
+
+_VECTOR_INDEX_NAME = "haystack_vector_index"
 
 
 def _doc_to_arango(doc: Document) -> dict[str, Any]:
@@ -117,6 +121,33 @@ class ArangoDocumentStore:
             db.create_collection(self.collection_name)
         self._db = db
         self._col = db.collection(self.collection_name)
+
+    def _ensure_vector_index(self) -> None:
+        """
+        Lazily creates the FAISS vector index used by the `APPROX_NEAR_*` functions.
+
+        The index is created on first retrieval rather than at write time because ArangoDB
+        requires the collection to already contain training documents with non-null embeddings,
+        and `nLists` must be `<=` the number of such documents. We use `nLists=1`, which
+        probes the single Voronoi cell (a full scan) and therefore returns exact, complete results.
+        """
+        col = cast(StandardCollection, self._col)
+        existing = cast("list[dict[str, Any]]", col.indexes())
+        if any(index.get("type") == "vector" for index in existing):
+            return
+        _, _, metric = _SIMILARITY_AQL[self.similarity_function]
+        col.add_index(
+            {
+                "type": "vector",
+                "name": _VECTOR_INDEX_NAME,
+                "fields": ["embedding"],
+                "params": {
+                    "metric": metric,
+                    "dimension": self.embedding_dimension,
+                    "nLists": 1,
+                },
+            }
+        )
 
     def count_documents(self) -> int:
         """
@@ -223,25 +254,43 @@ class ArangoDocumentStore:
 
         self._ensure_connected()
         db = cast(StandardDatabase, self._db)
+        col = cast(StandardCollection, self._col)
+        doc_count = col.count()
+        if doc_count == 0:
+            return []
 
-        filter_clause = ""
+        self._ensure_vector_index()
+
+        aql_func, sort_order, _ = _SIMILARITY_AQL[self.similarity_function]
         bind_vars: dict[str, Any] = {"query_vec": query_embedding, "top_k": top_k}
 
+        # ArangoDB only uses the vector index when the `APPROX_NEAR_*` call is followed
+        # directly by `SORT` + `LIMIT` with no preceding `FILTER`. Metadata filters are
+        # therefore applied *after* the vector search.
         if filters:
             expr, fvars = _convert_filters(filters)
-            filter_clause = f"FILTER {expr} "
             bind_vars.update(fvars)
-
-        aql_func, sort_order = _SIMILARITY_AQL[self.similarity_function]
-        aql = f"""
-        FOR doc IN {self.collection_name}
-            FILTER doc.embedding != null
-            {filter_clause}
-            LET score = {aql_func}(doc.embedding, @query_vec)
-            SORT score {sort_order}
-            LIMIT @top_k
-            RETURN MERGE(doc, {{score: score}})
-        """
+            bind_vars["candidates"] = doc_count
+            aql = f"""
+            FOR doc IN (
+                FOR d IN {self.collection_name}
+                    LET score = {aql_func}(d.embedding, @query_vec)
+                    SORT score {sort_order}
+                    LIMIT @candidates
+                    RETURN MERGE(d, {{score: score}})
+            )
+                FILTER {expr}
+                LIMIT @top_k
+                RETURN doc
+            """
+        else:
+            aql = f"""
+            FOR doc IN {self.collection_name}
+                LET score = {aql_func}(doc.embedding, @query_vec)
+                SORT score {sort_order}
+                LIMIT @top_k
+                RETURN MERGE(doc, {{score: score}})
+            """
 
         cursor = cast(Cursor, db.aql.execute(aql, bind_vars=bind_vars))
         docs = []

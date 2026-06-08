@@ -33,6 +33,7 @@ def _make_store(**kwargs) -> ArangoDocumentStore:
 def _mock_db(store: ArangoDocumentStore, collection_docs: list[dict] | None = None) -> MagicMock:
     mock_col = MagicMock()
     mock_col.count.return_value = len(collection_docs or [])
+    mock_col.indexes.return_value = [{"type": "vector", "name": "haystack_vector_index"}]
 
     mock_db = MagicMock()
     mock_db.aql.execute.return_value = iter(collection_docs or [])
@@ -257,7 +258,7 @@ class TestArangoDocumentStoreEmbeddingRetrieval:
 
     def test_embedding_retrieval_uses_cosine_by_default(self):
         store = _make_store()
-        _mock_db(store, [])
+        _mock_db(store, [{"_key": "1", "content": "x", "meta": {}}])
         store._embedding_retrieval(query_embedding=[0.1, 0.2, 0.3], top_k=1)
         aql = store._db.aql.execute.call_args[0][0]
         assert "APPROX_NEAR_COSINE" in aql
@@ -265,7 +266,7 @@ class TestArangoDocumentStoreEmbeddingRetrieval:
 
     def test_embedding_retrieval_dot_product(self):
         store = _make_store(similarity_function="dot_product")
-        _mock_db(store, [])
+        _mock_db(store, [{"_key": "1", "content": "x", "meta": {}}])
         store._embedding_retrieval(query_embedding=[0.1, 0.2, 0.3], top_k=1)
         aql = store._db.aql.execute.call_args[0][0]
         assert "APPROX_NEAR_INNER_PRODUCT" in aql
@@ -273,11 +274,35 @@ class TestArangoDocumentStoreEmbeddingRetrieval:
 
     def test_embedding_retrieval_l2(self):
         store = _make_store(similarity_function="l2")
-        _mock_db(store, [])
+        _mock_db(store, [{"_key": "1", "content": "x", "meta": {}}])
         store._embedding_retrieval(query_embedding=[0.1, 0.2, 0.3], top_k=1)
         aql = store._db.aql.execute.call_args[0][0]
         assert "APPROX_NEAR_L2" in aql
         assert "ASC" in aql
+
+    def test_embedding_retrieval_no_pre_sort_filter(self):
+        # The vector index is only used when APPROX_NEAR_* is followed directly by SORT/LIMIT.
+        store = _make_store()
+        _mock_db(store, [{"_key": "1", "content": "x", "meta": {}}])
+        store._embedding_retrieval(query_embedding=[0.1, 0.2, 0.3], top_k=1)
+        aql = store._db.aql.execute.call_args[0][0]
+        assert aql.index("APPROX_NEAR_COSINE") < aql.index("SORT") < aql.index("LIMIT")
+        assert "FILTER" not in aql
+
+    def test_embedding_retrieval_filters_applied_after_vector_search(self):
+        store = _make_store()
+        _mock_db(store, [{"_key": "1", "content": "x", "meta": {"lang": "en"}}])
+        filters = {"field": "meta.lang", "operator": "==", "value": "en"}
+        store._embedding_retrieval(query_embedding=[0.1, 0.2, 0.3], top_k=1, filters=filters)
+        aql = store._db.aql.execute.call_args[0][0]
+        # The metadata FILTER must come after the APPROX_NEAR_* sort, not before it.
+        assert aql.index("APPROX_NEAR_COSINE") < aql.index("FILTER")
+
+    def test_embedding_retrieval_empty_store_returns_empty(self):
+        store = _make_store()
+        _mock_db(store, [])
+        assert store._embedding_retrieval(query_embedding=[0.1, 0.2, 0.3]) == []
+        store._db.aql.execute.assert_not_called()
 
     def test_embedding_retrieval_empty_query(self):
         store = _make_store()

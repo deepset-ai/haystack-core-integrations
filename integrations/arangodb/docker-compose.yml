@@ -1,6 +1,7 @@
 services:
   arangodb:
     image: "arangodb:3.12"
+    command: ["arangod", "--vector-index"]
     ports:
       - 8529:8529
     environment:
