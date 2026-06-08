@@ -57,6 +57,10 @@ class DoclingServeConversionError(Exception):
     """Raised when DoclingServe reports an async task or conversion failure."""
 
 
+class DoclingServeTimeoutError(DoclingServeConversionError):
+    """Raised when a DoclingServe async task exceeds job_timeout."""
+
+
 def _is_url(source: str) -> bool:
     parsed = urlparse(source)
     return parsed.scheme in ("http", "https")
@@ -137,23 +141,25 @@ class DoclingServeConverter:
             Conversion mode. `sync` uses DoclingServe's synchronous endpoints. `async` submits
             conversion jobs to DoclingServe's async endpoints and polls until completion.
         :param poll_interval:
-            Maximum server-side long-poll wait in seconds when `mode="async"`.
+            Controls both the server-side long-poll wait (?wait= parameter) and the maximum local sleep between polls.
+            A higher value reduces round-trips; a lower value increases polling frequency.
         :param job_timeout:
             Maximum time in seconds to wait for each async conversion job.
         """
-        if poll_interval <= 0:
-            msg = "poll_interval must be greater than 0."
-            raise ValueError(msg)
-        if job_timeout <= 0:
-            msg = "job_timeout must be greater than 0."
-            raise ValueError(msg)
+        self.mode = ConversionMode(mode)
+        if self.mode == ConversionMode.ASYNC:
+            if poll_interval <= 0:
+                msg = "poll_interval must be greater than 0."
+                raise ValueError(msg)
+            if job_timeout <= 0:
+                msg = "job_timeout must be greater than 0."
+                raise ValueError(msg)
 
         self.base_url = base_url.rstrip("/")
         self.export_type = ExportType(export_type)
         self.convert_options = dict(convert_options) if convert_options else {}
         self.timeout = timeout
         self.api_key = api_key
-        self.mode = ConversionMode(mode)
         self.poll_interval = poll_interval
         self.job_timeout = job_timeout
 
@@ -262,7 +268,9 @@ class DoclingServeConverter:
             headers=self._headers(),
         )
         response.raise_for_status()
-        return response.json()
+        data = response.json()
+        self._raise_for_failed_conversion(data)
+        return data
 
     def _submit_file_job(self, client: httpx.Client, source: str | Path | ByteStream) -> str:
         filename = _resolve_filename(source)
@@ -293,7 +301,9 @@ class DoclingServeConverter:
             headers=self._headers(),
         )
         response.raise_for_status()
-        return response.json()
+        data = response.json()
+        self._raise_for_failed_conversion(data)
+        return data
 
     def _submit_url_job(self, client: httpx.Client, url: str) -> str:
         response = client.post(
@@ -319,7 +329,7 @@ class DoclingServeConverter:
             remaining = deadline - time.monotonic()
             if remaining <= 0:
                 msg = f"Timed out waiting for DoclingServe task {task_id} after {self.job_timeout:.2f}s."
-                raise DoclingServeConversionError(msg)
+                raise DoclingServeTimeoutError(msg)
 
             wait = min(self.poll_interval, remaining)
             poll_started = time.monotonic()
@@ -369,7 +379,9 @@ class DoclingServeConverter:
             headers=self._headers(),
         )
         response.raise_for_status()
-        return response.json()
+        data = response.json()
+        self._raise_for_failed_conversion(data)
+        return data
 
     async def _submit_file_job_async(self, client: httpx.AsyncClient, source: str | Path | ByteStream) -> str:
         filename = _resolve_filename(source)
@@ -400,7 +412,9 @@ class DoclingServeConverter:
             headers=self._headers(),
         )
         response.raise_for_status()
-        return response.json()
+        data = response.json()
+        self._raise_for_failed_conversion(data)
+        return data
 
     async def _submit_url_job_async(self, client: httpx.AsyncClient, url: str) -> str:
         response = await client.post(
@@ -426,7 +440,7 @@ class DoclingServeConverter:
             remaining = deadline - time.monotonic()
             if remaining <= 0:
                 msg = f"Timed out waiting for DoclingServe task {task_id} after {self.job_timeout:.2f}s."
-                raise DoclingServeConversionError(msg)
+                raise DoclingServeTimeoutError(msg)
 
             wait = min(self.poll_interval, remaining)
             poll_started = time.monotonic()
@@ -517,6 +531,12 @@ class DoclingServeConverter:
                         source=source,
                         error=e,
                     )
+                except DoclingServeTimeoutError as e:
+                    logger.warning(
+                        "Timed out waiting for DoclingServe conversion for {source}. Skipping it. Error: {error}",
+                        source=source,
+                        error=e,
+                    )
                 except DoclingServeConversionError as e:
                     logger.warning(
                         "DoclingServe conversion failed for {source}. Skipping it. Error: {error}",
@@ -582,6 +602,12 @@ class DoclingServeConverter:
                 except httpx.HTTPError as e:
                     logger.warning(
                         "Could not connect to DoclingServe for {source}. Skipping it. Error: {error}",
+                        source=source,
+                        error=e,
+                    )
+                except DoclingServeTimeoutError as e:
+                    logger.warning(
+                        "Timed out waiting for DoclingServe conversion for {source}. Skipping it. Error: {error}",
                         source=source,
                         error=e,
                     )

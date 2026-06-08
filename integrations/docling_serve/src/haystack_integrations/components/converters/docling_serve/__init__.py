@@ -6,7 +6,14 @@ from haystack_integrations.components.converters.docling_serve.converter import 
     ConversionMode,
     DoclingServeConversionError,
     DoclingServeConverter,
+    DoclingServeTimeoutError,
     ExportType,
 )
 
-__all__ = ["ConversionMode", "DoclingServeConversionError", "DoclingServeConverter", "ExportType"]
+__all__ = [
+    "ConversionMode",
+    "DoclingServeConversionError",
+    "DoclingServeConverter",
+    "DoclingServeTimeoutError",
+    "ExportType",
+]

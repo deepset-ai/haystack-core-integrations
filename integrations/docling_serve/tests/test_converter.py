@@ -37,6 +37,11 @@ def _mock_status_response(
     return httpx.Response(200, json=json_data, request=httpx.Request("GET", "http://test"))
 
 
+def _mock_failed_result_response(error_message: str = "conversion failed", status: str = "failure") -> httpx.Response:
+    json_data = {"status": status, "errors": [{"error_message": error_message}]}
+    return httpx.Response(200, json=json_data, request=httpx.Request("GET", "http://test"))
+
+
 class TestDoclingServeConverterInit:
     def test_defaults(self, monkeypatch):
         monkeypatch.delenv("DOCLING_SERVE_API_KEY", raising=False)
@@ -88,10 +93,16 @@ class TestDoclingServeConverterInit:
 
     def test_invalid_async_job_settings(self):
         with pytest.raises(ValueError, match="poll_interval"):
-            DoclingServeConverter(poll_interval=0)
+            DoclingServeConverter(mode=ConversionMode.ASYNC, poll_interval=0)
 
         with pytest.raises(ValueError, match="job_timeout"):
-            DoclingServeConverter(job_timeout=0)
+            DoclingServeConverter(mode=ConversionMode.ASYNC, job_timeout=0)
+
+    def test_sync_mode_allows_unused_async_job_settings(self):
+        converter = DoclingServeConverter(poll_interval=0, job_timeout=0)
+        assert converter.mode == ConversionMode.SYNC
+        assert converter.poll_interval == 0
+        assert converter.job_timeout == 0
 
 
 class TestDoclingServeConverterSerialization:
@@ -290,6 +301,30 @@ class TestDoclingServeConverterRun:
         assert result["documents"] == []
         assert "No content returned" in caplog.text
 
+    def test_run_skips_failed_sync_url_response_details(self, caplog):
+        converter = DoclingServeConverter(api_key=None)
+        mock_resp = _mock_failed_result_response("url conversion failed")
+
+        with patch("httpx.Client.post", return_value=mock_resp):
+            with caplog.at_level(logging.WARNING):
+                result = converter.run(sources=["https://example.com/doc.pdf"])
+
+        assert result["documents"] == []
+        assert "url conversion failed" in caplog.text
+
+    def test_run_skips_failed_sync_file_response_details(self, tmp_path, caplog):
+        pdf = tmp_path / "test.pdf"
+        pdf.write_bytes(b"%PDF-test")
+        converter = DoclingServeConverter(api_key=None)
+        mock_resp = _mock_failed_result_response("file conversion failed")
+
+        with patch("httpx.Client.post", return_value=mock_resp):
+            with caplog.at_level(logging.WARNING):
+                result = converter.run(sources=[pdf])
+
+        assert result["documents"] == []
+        assert "file conversion failed" in caplog.text
+
     def test_run_text_export(self):
         converter = DoclingServeConverter(export_type=ExportType.TEXT, api_key=None)
         mock_resp = _mock_httpx_response("plain text content", ExportType.TEXT)
@@ -400,6 +435,50 @@ class TestDoclingServeConverterRun:
         assert result["documents"] == []
         assert "conversion failed" in caplog.text
 
+    def test_run_async_mode_skips_failed_result(self, caplog):
+        converter = DoclingServeConverter(api_key=None, mode=ConversionMode.ASYNC)
+
+        with (
+            patch("httpx.Client.post", return_value=_mock_task_response()),
+            patch("httpx.Client.get", side_effect=[_mock_status_response(), _mock_failed_result_response("bad file")]),
+        ):
+            with caplog.at_level(logging.WARNING):
+                result = converter.run(sources=["https://example.com/doc.pdf"])
+
+        assert result["documents"] == []
+        assert "bad file" in caplog.text
+
+    def test_run_async_mode_skips_skipped_result(self, caplog):
+        converter = DoclingServeConverter(api_key=None, mode=ConversionMode.ASYNC)
+
+        with (
+            patch("httpx.Client.post", return_value=_mock_task_response()),
+            patch(
+                "httpx.Client.get",
+                side_effect=[_mock_status_response(), _mock_failed_result_response("skipped file", status="skipped")],
+            ),
+        ):
+            with caplog.at_level(logging.WARNING):
+                result = converter.run(sources=["https://example.com/doc.pdf"])
+
+        assert result["documents"] == []
+        assert "skipped file" in caplog.text
+
+    def test_run_async_mode_skips_timed_out_job(self, caplog):
+        converter = DoclingServeConverter(
+            api_key=None, mode=ConversionMode.ASYNC, poll_interval=0.001, job_timeout=0.001
+        )
+
+        with (
+            patch("httpx.Client.post", return_value=_mock_task_response()),
+            patch("httpx.Client.get", return_value=_mock_status_response(status="pending")),
+        ):
+            with caplog.at_level(logging.WARNING):
+                result = converter.run(sources=["https://example.com/doc.pdf"])
+
+        assert result["documents"] == []
+        assert "Timed out" in caplog.text
+
 
 class TestDoclingServeConverterFilename:
     def test_bytestream_filename_from_file_name(self):
@@ -462,6 +541,37 @@ class TestDoclingServeConverterRunAsync:
 
         assert len(result["documents"]) == 1
         assert result["documents"][0].content == "# Async content"
+
+    @pytest.mark.asyncio
+    async def test_run_async_file_source(self, tmp_path):
+        pdf = tmp_path / "test.pdf"
+        pdf.write_bytes(b"%PDF-test")
+        converter = DoclingServeConverter(api_key=None)
+        mock_resp = httpx.Response(
+            200,
+            json={"document": {"md_content": "# Async file content"}, "status": "success"},
+            request=httpx.Request("POST", "http://test"),
+        )
+
+        with patch("httpx.AsyncClient.post", new_callable=AsyncMock, return_value=mock_resp) as mock_post:
+            result = await converter.run_async(sources=[pdf])
+
+        post_url = mock_post.call_args[0][0]
+        assert post_url.endswith("/v1/convert/file")
+        assert result["documents"][0].content == "# Async file content"
+
+    @pytest.mark.asyncio
+    async def test_run_async_skips_failed_sync_response_details(self, caplog):
+        converter = DoclingServeConverter(api_key=None)
+
+        with patch(
+            "httpx.AsyncClient.post", new_callable=AsyncMock, return_value=_mock_failed_result_response("async failure")
+        ):
+            with caplog.at_level(logging.WARNING):
+                result = await converter.run_async(sources=["https://example.com/doc.pdf"])
+
+        assert result["documents"] == []
+        assert "async failure" in caplog.text
 
     @pytest.mark.asyncio
     async def test_run_async_skips_on_status_error(self, caplog):
@@ -533,6 +643,66 @@ class TestDoclingServeConverterRunAsync:
         assert status_call.args[0].endswith("/v1/status/poll/task-1")
         assert status_call.kwargs["params"] == {"wait": 1.5}
         assert result_call.args[0].endswith("/v1/result/task-1")
+
+    @pytest.mark.asyncio
+    async def test_run_async_async_mode_uses_job_endpoints_for_file_source(self, tmp_path):
+        pdf = tmp_path / "test.pdf"
+        pdf.write_bytes(b"%PDF-test")
+        converter = DoclingServeConverter(api_key=None, mode=ConversionMode.ASYNC)
+
+        with (
+            patch("httpx.AsyncClient.post", new_callable=AsyncMock, return_value=_mock_task_response()) as mock_post,
+            patch(
+                "httpx.AsyncClient.get",
+                new_callable=AsyncMock,
+                side_effect=[_mock_status_response(), _mock_httpx_response("async file content")],
+            ),
+        ):
+            result = await converter.run_async(sources=[pdf])
+
+        post_url = mock_post.call_args[0][0]
+        data = mock_post.call_args[1]["data"]
+        assert post_url.endswith("/v1/convert/file/async")
+        assert data["target_type"] == "inbody"
+        assert result["documents"][0].content == "async file content"
+
+    @pytest.mark.asyncio
+    async def test_run_async_async_mode_skips_failed_result(self, caplog):
+        converter = DoclingServeConverter(api_key=None, mode=ConversionMode.ASYNC)
+
+        with (
+            patch("httpx.AsyncClient.post", new_callable=AsyncMock, return_value=_mock_task_response()),
+            patch(
+                "httpx.AsyncClient.get",
+                new_callable=AsyncMock,
+                side_effect=[_mock_status_response(), _mock_failed_result_response("bad async result")],
+            ),
+        ):
+            with caplog.at_level(logging.WARNING):
+                result = await converter.run_async(sources=["https://example.com/doc.pdf"])
+
+        assert result["documents"] == []
+        assert "bad async result" in caplog.text
+
+    @pytest.mark.asyncio
+    async def test_run_async_async_mode_skips_timed_out_job(self, caplog):
+        converter = DoclingServeConverter(
+            api_key=None, mode=ConversionMode.ASYNC, poll_interval=0.001, job_timeout=0.001
+        )
+
+        with (
+            patch("httpx.AsyncClient.post", new_callable=AsyncMock, return_value=_mock_task_response()),
+            patch(
+                "httpx.AsyncClient.get",
+                new_callable=AsyncMock,
+                return_value=_mock_status_response(status="pending"),
+            ),
+        ):
+            with caplog.at_level(logging.WARNING):
+                result = await converter.run_async(sources=["https://example.com/doc.pdf"])
+
+        assert result["documents"] == []
+        assert "Timed out" in caplog.text
 
 
 class TestDoclingServeConverterIntegration:
