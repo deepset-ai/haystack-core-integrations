@@ -243,6 +243,11 @@ integration:nvidia:
       - any-glob-to-any-file: "integrations/nvidia/**/*"
       - any-glob-to-any-file: ".github/workflows/nvidia.yml"
 
+integration:oauth:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/oauth/**/*"
+      - any-glob-to-any-file: ".github/workflows/oauth.yml"
+
 integration:ollama:
   - changed-files:
       - any-glob-to-any-file: "integrations/ollama/**/*"
