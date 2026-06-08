@@ -1,0 +1,16 @@
+loaders:
+  - modules:
+      - haystack_integrations.components.generators.vllm.chat.chat_generator
+      - haystack_integrations.components.embedders.vllm.text_embedder
+      - haystack_integrations.components.embedders.vllm.document_embedder
+      - haystack_integrations.components.rankers.vllm.ranker
+    search_path: [../src]
+processors:
+  - type: filter
+    documented_only: true
+    skip_empty_modules: true
+renderer:
+  description: vLLM integration for Haystack
+  id: integrations-vllm
+  filename: vllm.md
+  title: vLLM

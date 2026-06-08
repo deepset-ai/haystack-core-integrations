@@ -1,5 +1,16 @@
 # Changelog
 
+## [integrations/astra-v4.3.0] - 2026-04-27
+
+### 🚀 Features
+
+- Astra - improve filters and add unit tests (#3194)
+
+### 🧪 Testing
+
+- Track test coverage for all integrations (#3065)
+
+
 ## [integrations/astra-v4.2.0] - 2026-03-24
 
 ### 🚀 Features

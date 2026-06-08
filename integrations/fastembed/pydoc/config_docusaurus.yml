@@ -5,6 +5,7 @@ loaders:
       - haystack_integrations.components.embedders.fastembed.fastembed_sparse_document_embedder
       - haystack_integrations.components.embedders.fastembed.fastembed_sparse_text_embedder
       - haystack_integrations.components.rankers.fastembed.ranker
+      - haystack_integrations.components.rankers.fastembed.late_interaction_ranker
     search_path: [../src]
 processors:
   - type: filter

@@ -1,4 +1,5 @@
 import asyncio
+from dataclasses import replace
 from typing import Any
 
 from haystack import Document, component
@@ -40,6 +41,7 @@ class OllamaDocumentEmbedder:
         meta_fields_to_embed: list[str] | None = None,
         embedding_separator: str = "\n",
         batch_size: int = 32,
+        dimensions: int | None = None,
     ) -> None:
         """
         Create a new OllamaDocumentEmbedder instance.
@@ -75,6 +77,11 @@ class OllamaDocumentEmbedder:
             Separator used to concatenate the metadata fields to the document text.
         :param batch_size:
             Number of documents to process at once.
+        :param dimensions:
+            The desired number of dimensions in the embedding output. Only supported by models
+            that implement Matryoshka Representation Learning (MRL), such as nomic-embed-text-v1.5,
+            mxbai-embed-large, and qwen3-embedding. If None (default), the full vector is returned.
+            Requires ollama-python >= 0.6.2.
         """
         self.keep_alive = keep_alive
         self.timeout = timeout
@@ -87,6 +94,7 @@ class OllamaDocumentEmbedder:
         self.embedding_separator = embedding_separator
         self.suffix = suffix
         self.prefix = prefix
+        self.dimensions = dimensions
 
         self._client = Client(host=self.url, timeout=self.timeout)
         self._async_client = AsyncClient(host=self.url, timeout=self.timeout)
@@ -144,6 +152,7 @@ class OllamaDocumentEmbedder:
                 input=batch,
                 options=generation_kwargs,
                 keep_alive=self.keep_alive,
+                dimensions=self.dimensions,
             )
             all_embeddings.extend(result["embeddings"])
 
@@ -165,6 +174,7 @@ class OllamaDocumentEmbedder:
                 input=batch,
                 options=generation_kwargs,
                 keep_alive=self.keep_alive,
+                dimensions=self.dimensions,
             )
             for batch in batches
         ]
@@ -209,8 +219,7 @@ class OllamaDocumentEmbedder:
             texts_to_embed=texts_to_embed, batch_size=self.batch_size, generation_kwargs=generation_kwargs
         )
 
-        for doc, emb in zip(documents, embeddings, strict=True):
-            doc.embedding = emb
+        documents = [replace(doc, embedding=emb) for doc, emb in zip(documents, embeddings, strict=True)]
 
         return {"documents": documents, "meta": {"model": self.model}}
 
@@ -245,7 +254,6 @@ class OllamaDocumentEmbedder:
             texts_to_embed=texts_to_embed, batch_size=self.batch_size, generation_kwargs=generation_kwargs
         )
 
-        for doc, emb in zip(documents, embeddings, strict=True):
-            doc.embedding = emb
+        documents = [replace(doc, embedding=emb) for doc, emb in zip(documents, embeddings, strict=True)]
 
         return {"documents": documents, "meta": {"model": self.model}}

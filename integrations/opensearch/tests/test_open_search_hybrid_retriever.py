@@ -53,6 +53,7 @@ class TestOpenSearchHybridRetriever:
                     "use_ssl": None,
                     "verify_certs": None,
                     "timeout": None,
+                    "nested_fields": None,
                 },
             },
             "embedder": {
@@ -77,7 +78,7 @@ class TestOpenSearchHybridRetriever:
                 },
             },
             "filters_bm25": None,
-            "fuzziness": "AUTO",
+            "fuzziness": 0,
             "top_k_bm25": 10,
             "scale_score": False,
             "all_terms_must_match": False,
@@ -140,6 +141,14 @@ class TestOpenSearchHybridRetriever:
         hybrid = OpenSearchHybridRetriever.from_dict(data)
         assert isinstance(hybrid, OpenSearchHybridRetriever)
         assert hybrid.to_dict()
+
+    def test_from_dict_without_optional_keys(self):
+        data = deepcopy(self.serialised)
+        del data["init_parameters"]["filter_policy_bm25"]
+        del data["init_parameters"]["filter_policy_embedding"]
+        del data["init_parameters"]["join_mode"]
+        hybrid = OpenSearchHybridRetriever.from_dict(data)
+        assert isinstance(hybrid, OpenSearchHybridRetriever)
 
     def test_run(self, mock_embedder):
         # mocked document store
@@ -218,7 +227,7 @@ class TestOpenSearchHybridRetriever:
             filters={"key": "value"},
             top_k=1,
             all_terms_must_match=False,
-            fuzziness="AUTO",
+            fuzziness=0,
             scale_score=False,
             custom_query=None,
         )
@@ -251,7 +260,7 @@ class TestOpenSearchHybridRetriever:
             filters={"param_a": "default"},
             top_k=10,
             all_terms_must_match=False,
-            fuzziness="AUTO",
+            fuzziness=0,
             scale_score=False,
             custom_query=None,
         )

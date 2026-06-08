@@ -1,5 +1,23 @@
 # Changelog
 
+## [integrations/hanlp-v2.2.0] - 2026-04-22
+
+### 📚 Documentation
+
+- Simplify pydoc configs (#2855)
+
+### 🧪 Testing
+
+- Track test coverage for all integrations (#3065)
+
+### 🧹 Chores
+
+- Add ANN type annotations to google_genai, hanlp, jina, langfuse, lara (#2990)
+- Enforce ruff docstring rules (D102/D103/D205/D209/D213/D417/D419) in integrations 11-20 (#3009)
+- Increase lower pins for 3.14 support in some integrations + test with 3.14 (#3033)
+- Hanlp - avoid mutating documents and add tests (#3206)
+
+
 ## [integrations/hanlp-v2.1.1] - 2026-01-27
 
 ### 🧹 Chores

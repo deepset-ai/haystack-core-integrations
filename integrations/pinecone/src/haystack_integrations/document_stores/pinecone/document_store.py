@@ -3,6 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 from copy import copy
+from dataclasses import replace
 from typing import Any, Literal
 
 from haystack import default_from_dict, default_to_dict, logging
@@ -97,7 +98,11 @@ class PineconeDocumentStore:
                 f"Connecting to existing index {self.index_name}. `dimension`, `spec`, and `metric` will be ignored."
             )
 
-        self._index = client.Index(name=self.index_name)
+        # client.Index returns _Index | GrpcIndex, but using the correct type would require bumping up the pinecone
+        # minimum supported version
+        self._index = client.Index(name=self.index_name)  # type: ignore[assignment]
+
+        assert self._index is not None
 
         actual_dimension = self._index.describe_index_stats().get("dimension")
         if actual_dimension and actual_dimension != self.dimension:
@@ -310,8 +315,7 @@ class PineconeDocumentStore:
 
         # when simply filtering, we don't want to return any scores
         # furthermore, we are querying with a dummy vector, so the scores are meaningless
-        for doc in documents:
-            doc.score = None
+        documents = [replace(doc, score=None) for doc in documents]
 
         if len(documents) == TOP_K_LIMIT:
             logger.warning(
@@ -336,8 +340,7 @@ class PineconeDocumentStore:
             query_embedding=self._dummy_vector, filters=filters, top_k=TOP_K_LIMIT
         )
 
-        for doc in documents:
-            doc.score = None
+        documents = [replace(doc, score=None) for doc in documents]
 
         if len(documents) == TOP_K_LIMIT:
             logger.warning(
@@ -399,10 +402,8 @@ class PineconeDocumentStore:
         :param documents: List of documents to update.
         :param meta: Metadata fields to merge into each document's existing metadata.
         """
-        for document in documents:
-            if document.meta is None:
-                document.meta = {}
-            document.meta.update(meta)
+        for i, document in enumerate(documents):
+            documents[i] = replace(document, meta={**(document.meta or {}), **meta})
 
     def delete_by_filter(self, filters: dict[str, Any]) -> int:
         """
@@ -671,7 +672,7 @@ class PineconeDocumentStore:
         return documents
 
     @staticmethod
-    def _discard_invalid_meta(document: Document) -> None:
+    def _discard_invalid_meta(document: Document) -> Document:
         """
         Remove metadata fields with unsupported types from the document.
         """
@@ -697,7 +698,9 @@ class PineconeDocumentStore:
                 )
                 logger.warning(msg)
 
-            document.meta = new_meta
+            return replace(document, meta=new_meta)
+
+        return document
 
     def _convert_documents_to_pinecone_format(
         self, documents: list[Document]
@@ -712,10 +715,9 @@ class PineconeDocumentStore:
                 )
                 embedding = self._dummy_vector
 
-            if document.meta:
-                self._discard_invalid_meta(document)
+            filtered_meta = self._discard_invalid_meta(document).meta if document.meta else {}
 
-            metadata = dict(document.meta) if document.meta else {}
+            metadata = dict(filtered_meta) if filtered_meta else {}
 
             # we save content as metadata
             if document.content is not None:
@@ -871,8 +873,7 @@ class PineconeDocumentStore:
                     values.append(value)
 
         if not values:
-            msg = f"No values found for metadata field '{metadata_field}'"
-            raise ValueError(msg)
+            return {"min": None, "max": None}
 
         result = {"min": min(values), "max": max(values)}
 
@@ -1039,8 +1040,8 @@ class PineconeDocumentStore:
         Subject to Pinecone's TOP_K_LIMIT of 1000 documents.
 
         :param metadata_field: The metadata field name to analyze.
-        :returns: Dictionary with 'min' and 'max' keys.
-        :raises ValueError: If the field doesn't exist or has no values.
+        :returns: Dictionary with 'min' and 'max' keys. Both values are None if the field has no
+            values (empty store, field absent, or unsupported field type).
         """
         documents = self.filter_documents(filters=None)
         return self._get_metadata_field_min_max_impl(documents, metadata_field)
@@ -1058,8 +1059,8 @@ class PineconeDocumentStore:
         Subject to Pinecone's TOP_K_LIMIT of 1000 documents.
 
         :param metadata_field: The metadata field name to analyze.
-        :returns: Dictionary with 'min' and 'max' keys.
-        :raises ValueError: If the field doesn't exist or has no values.
+        :returns: Dictionary with 'min' and 'max' keys. Both values are None if the field has no
+            values (empty store, field absent, or unsupported field type).
         """
         documents = await self.filter_documents_async(filters=None)
         return self._get_metadata_field_min_max_impl(documents, metadata_field)

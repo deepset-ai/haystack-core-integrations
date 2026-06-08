@@ -1,4 +1,9 @@
 # Integrations
+integration:alloydb:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/alloydb/**/*"
+      - any-glob-to-any-file: ".github/workflows/alloydb.yml"
+
 integration:aimlapi:
   - changed-files:
       - any-glob-to-any-file: "integrations/aimlapi/**/*"
@@ -14,10 +19,20 @@ integration:amazon-sagemaker:
       - any-glob-to-any-file: "integrations/amazon_sagemaker/**/*"
       - any-glob-to-any-file: ".github/workflows/amazon_sagemaker.yml"
 
+integration:amazon-textract:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/amazon_textract/**/*"
+      - any-glob-to-any-file: ".github/workflows/amazon_textract.yml"
+
 integration:anthropic:
   - changed-files:
       - any-glob-to-any-file: "integrations/anthropic/**/*"
       - any-glob-to-any-file: ".github/workflows/anthropic.yml"
+
+integration:arangodb:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/arangodb/**/*"
+      - any-glob-to-any-file: ".github/workflows/arangodb.yml"
 
 integration:arcadedb:
   - changed-files:
@@ -29,6 +44,11 @@ integration:astra:
       - any-glob-to-any-file: "integrations/astra/**/*"
       - any-glob-to-any-file: ".github/workflows/astra.yml"
 
+integration:brave:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/brave/**/*"
+      - any-glob-to-any-file: ".github/workflows/brave.yml"
+
 integration:azure-ai-search:
   - changed-files:
       - any-glob-to-any-file: "integrations/azure_ai_search/**/*"
@@ -39,10 +59,20 @@ integration:azure-doc-intelligence:
       - any-glob-to-any-file: "integrations/azure_doc_intelligence/**/*"
       - any-glob-to-any-file: ".github/workflows/azure_doc_intelligence.yml"
 
+integration:chonkie:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/chonkie/**/*"
+      - any-glob-to-any-file: ".github/workflows/chonkie.yml"
+
 integration:chroma:
   - changed-files:
       - any-glob-to-any-file: "integrations/chroma/**/*"
       - any-glob-to-any-file: ".github/workflows/chroma.yml"
+      
+integration:cognee:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/cognee/**/*"
+      - any-glob-to-any-file: ".github/workflows/cognee.yml"
 
 integration:cohere:
   - changed-files:
@@ -64,6 +94,21 @@ integration:docling:
       - any-glob-to-any-file: "integrations/docling/**/*"
       - any-glob-to-any-file: ".github/workflows/docling.yml"
 
+integration:docling-serve:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/docling_serve/**/*"
+      - any-glob-to-any-file: ".github/workflows/docling_serve.yml"
+
+integration:dspy:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/dspy/**/*"
+      - any-glob-to-any-file: ".github/workflows/dspy.yml"
+
+integration:e2b:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/e2b/**/*"
+      - any-glob-to-any-file: ".github/workflows/e2b.yml"
+
 integration:elasticsearch:
   - changed-files:
       - any-glob-to-any-file: "integrations/elasticsearch/**/*"
@@ -75,6 +120,11 @@ integration:faiss:
       - any-glob-to-any-file: ".github/workflows/faiss.yml"
 
 
+integration:falkordb:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/falkordb/**/*"
+      - any-glob-to-any-file: ".github/workflows/falkordb.yml"
+
 integration:fastembed:
   - changed-files:
       - any-glob-to-any-file: "integrations/fastembed/**/*"
@@ -84,6 +134,11 @@ integration:firecrawl:
   - changed-files:
       - any-glob-to-any-file: "integrations/firecrawl/**/*"
       - any-glob-to-any-file: ".github/workflows/firecrawl.yml"
+
+integration:funasr:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/funasr/**/*"
+      - any-glob-to-any-file: ".github/workflows/funasr.yml"
 
 integration:github:
   - changed-files:
@@ -107,6 +162,11 @@ integration:hanlp:
   - changed-files:
       - any-glob-to-any-file: "integrations/hanlp/**/*"
       - any-glob-to-any-file: ".github/workflows/hanlp.yml"
+
+integration:huggingface-api:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/huggingface_api/**/*"
+      - any-glob-to-any-file: ".github/workflows/huggingface_api.yml"
 
 integration:jina:
   - changed-files:
@@ -133,6 +193,11 @@ integration:libreoffice:
       - any-glob-to-any-file: "integrations/libreoffice/**/*"
       - any-glob-to-any-file: ".github/workflows/libreoffice.yml"
 
+integration:litellm:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/litellm/**/*"
+      - any-glob-to-any-file: ".github/workflows/litellm.yml"
+
 integration:markitdown:
   - changed-files:
       - any-glob-to-any-file: "integrations/markitdown/**/*"
@@ -152,6 +217,11 @@ integration:mcp:
   - changed-files:
       - any-glob-to-any-file: "integrations/mcp/**/*"
       - any-glob-to-any-file: ".github/workflows/mcp.yml"
+
+integration:mem0:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/mem0/**/*"
+      - any-glob-to-any-file: ".github/workflows/mem0.yml"
 
 integration:meta-llama:
   - changed-files:
@@ -198,10 +268,20 @@ integration:paddleocr:
       - any-glob-to-any-file: "integrations/paddleocr/**/*"
       - any-glob-to-any-file: ".github/workflows/paddleocr.yml"
 
+integration:perplexity:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/perplexity/**/*"
+      - any-glob-to-any-file: ".github/workflows/perplexity.yml"
+
 integration:pgvector:
   - changed-files:
       - any-glob-to-any-file: "integrations/pgvector/**/*"
       - any-glob-to-any-file: ".github/workflows/pgvector.yml"
+
+integration:presidio:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/presidio/**/*"
+      - any-glob-to-any-file: ".github/workflows/presidio.yml"
 
 integration:pinecone:
   - changed-files:
@@ -228,10 +308,20 @@ integration:snowflake:
       - any-glob-to-any-file: "integrations/snowflake/**/*"
       - any-glob-to-any-file: ".github/workflows/snowflake.yml"
 
+integration:sqlalchemy:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/sqlalchemy/**/*"
+      - any-glob-to-any-file: ".github/workflows/sqlalchemy.yml"
+
 integration:stackit:
   - changed-files:
       - any-glob-to-any-file: "integrations/stackit/**/*"
       - any-glob-to-any-file: ".github/workflows/stackit.yml"
+
+integration:supabase:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/supabase/**/*"
+      - any-glob-to-any-file: ".github/workflows/supabase.yml"
 
 integration:tavily:
   - changed-files:
@@ -252,6 +342,16 @@ integration:valkey:
   - changed-files:
       - any-glob-to-any-file: "integrations/valkey/**/*"
       - any-glob-to-any-file: ".github/workflows/valkey.yml"
+
+integration:vespa:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/vespa/**/*"
+      - any-glob-to-any-file: ".github/workflows/vespa.yml"
+
+integration:vllm:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/vllm/**/*"
+      - any-glob-to-any-file: ".github/workflows/vllm.yml"
 
 integration:watsonx:
   - changed-files:

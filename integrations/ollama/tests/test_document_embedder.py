@@ -1,5 +1,8 @@
+from unittest.mock import AsyncMock, MagicMock
+
 import pytest
 from haystack import Document
+from haystack.core.serialization import default_from_dict, default_to_dict
 from ollama._types import ResponseError
 
 from haystack_integrations.components.embedders.ollama import OllamaDocumentEmbedder
@@ -74,3 +77,92 @@ class TestOllamaDocumentEmbedder:
         documents = result["documents"]
         assert len(documents) == 3
         assert all(isinstance(element, float) for document in documents for element in document.embedding)
+
+    def test_dimensions_default_is_none(self):
+        embedder = OllamaDocumentEmbedder()
+        assert embedder.dimensions is None
+
+    def test_dimensions_stored_on_instance(self):
+        embedder = OllamaDocumentEmbedder(dimensions=512)
+        assert embedder.dimensions == 512
+
+    def test_dimensions_passed_to_embed_client(self):
+        embedder = OllamaDocumentEmbedder(dimensions=512)
+        mock_response = {"embeddings": [[0.1, 0.2, 0.3]]}
+        embedder._client.embed = MagicMock(return_value=mock_response)
+
+        embedder._embed_batch(["hello world"], batch_size=32)
+
+        call_kwargs = embedder._client.embed.call_args.kwargs
+        assert call_kwargs["dimensions"] == 512
+
+    def test_none_dimensions_passed_to_embed_client(self):
+        embedder = OllamaDocumentEmbedder(dimensions=None)
+        mock_response = {"embeddings": [[0.1, 0.2, 0.3]]}
+        embedder._client.embed = MagicMock(return_value=mock_response)
+
+        embedder._embed_batch(["hello"], batch_size=32)
+
+        call_kwargs = embedder._client.embed.call_args.kwargs
+        assert call_kwargs["dimensions"] is None
+
+    @pytest.mark.asyncio
+    async def test_dimensions_passed_to_async_embed_client(self):
+        embedder = OllamaDocumentEmbedder(dimensions=256)
+        mock_response = {"embeddings": [[0.1, 0.2, 0.3]]}
+        embedder._async_client.embed = AsyncMock(return_value=mock_response)
+
+        await embedder._embed_batch_async(["hello"], batch_size=32)
+
+        call_kwargs = embedder._async_client.embed.call_args.kwargs
+        assert call_kwargs["dimensions"] == 256
+
+    def test_to_dict_contains_dimensions(self):
+        embedder = OllamaDocumentEmbedder(dimensions=512)
+        embedder_dict = default_to_dict(
+            embedder,
+            model=embedder.model,
+            url=embedder.url,
+            generation_kwargs=embedder.generation_kwargs,
+            timeout=embedder.timeout,
+            keep_alive=embedder.keep_alive,
+            prefix=embedder.prefix,
+            suffix=embedder.suffix,
+            progress_bar=embedder.progress_bar,
+            meta_fields_to_embed=embedder.meta_fields_to_embed,
+            embedding_separator=embedder.embedding_separator,
+            batch_size=embedder.batch_size,
+            dimensions=embedder.dimensions,
+        )
+        assert embedder_dict["init_parameters"]["dimensions"] == 512
+
+    def test_to_dict_contains_dimensions_none(self):
+        embedder = OllamaDocumentEmbedder()
+        embedder_dict = default_to_dict(
+            embedder,
+            model=embedder.model,
+            url=embedder.url,
+            generation_kwargs=embedder.generation_kwargs,
+            timeout=embedder.timeout,
+            keep_alive=embedder.keep_alive,
+            prefix=embedder.prefix,
+            suffix=embedder.suffix,
+            progress_bar=embedder.progress_bar,
+            meta_fields_to_embed=embedder.meta_fields_to_embed,
+            embedding_separator=embedder.embedding_separator,
+            batch_size=embedder.batch_size,
+            dimensions=embedder.dimensions,
+        )
+        assert embedder_dict["init_parameters"]["dimensions"] is None
+
+    def test_from_dict_restores_dimensions(self):
+        embedder_dict = {
+            "type": "haystack_integrations.components.embedders.ollama.document_embedder.OllamaDocumentEmbedder",
+            "init_parameters": {
+                "model": "nomic-embed-text",
+                "url": "http://localhost:11434",
+                "dimensions": 512,
+            },
+        }
+        embedder = default_from_dict(OllamaDocumentEmbedder, embedder_dict)
+        assert embedder.dimensions == 512

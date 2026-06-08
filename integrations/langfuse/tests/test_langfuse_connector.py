@@ -147,6 +147,37 @@ class TestLangfuseConnector:
         assert langfuse_connector.host is None
         assert langfuse_connector.langfuse_client_kwargs is None
 
+    def test_from_dict_without_span_handler(self, monkeypatch):
+        monkeypatch.setenv("LANGFUSE_SECRET_KEY", "secret")
+        monkeypatch.setenv("LANGFUSE_PUBLIC_KEY", "public")
+
+        # All keys that would point to None (span_handler, host, langfuse_client_kwargs) are intentionally absent
+        data = {
+            "type": "haystack_integrations.components.connectors.langfuse.langfuse_connector.LangfuseConnector",
+            "init_parameters": {
+                "name": "Chat example - OpenAI",
+                "public": False,
+                "secret_key": {
+                    "type": "env_var",
+                    "env_vars": ["LANGFUSE_SECRET_KEY"],
+                    "strict": True,
+                },
+                "public_key": {
+                    "type": "env_var",
+                    "env_vars": ["LANGFUSE_PUBLIC_KEY"],
+                    "strict": True,
+                },
+            },
+        }
+        langfuse_connector = LangfuseConnector.from_dict(data)
+        assert langfuse_connector.name == "Chat example - OpenAI"
+        assert langfuse_connector.public is False
+        assert langfuse_connector.secret_key == Secret.from_env_var("LANGFUSE_SECRET_KEY")
+        assert langfuse_connector.public_key == Secret.from_env_var("LANGFUSE_PUBLIC_KEY")
+        assert langfuse_connector.span_handler is None
+        assert langfuse_connector.host is None
+        assert langfuse_connector.langfuse_client_kwargs is None
+
     def test_from_dict_with_params(self, monkeypatch):
         monkeypatch.setenv("LANGFUSE_SECRET_KEY", "secret")
         monkeypatch.setenv("LANGFUSE_PUBLIC_KEY", "public")

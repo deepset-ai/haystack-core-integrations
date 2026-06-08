@@ -1,0 +1,15 @@
+loaders:
+  - modules:
+      - haystack_integrations.components.retrievers.alloydb.embedding_retriever
+      - haystack_integrations.components.retrievers.alloydb.keyword_retriever
+      - haystack_integrations.document_stores.alloydb.document_store
+    search_path: [../src]
+processors:
+  - type: filter
+    documented_only: true
+    skip_empty_modules: true
+renderer:
+  description: AlloyDB integration for Haystack
+  id: integrations-alloydb
+  filename: alloydb.md
+  title: AlloyDB

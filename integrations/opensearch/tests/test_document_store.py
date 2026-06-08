@@ -21,6 +21,7 @@ from opensearchpy.exceptions import RequestError, TransportError
 
 from haystack_integrations.document_stores.opensearch import OpenSearchDocumentStore
 from haystack_integrations.document_stores.opensearch.document_store import DEFAULT_MAX_CHUNK_BYTES
+from tests.test_document_store_common import OpenSearchDocumentStoreTestMixin
 
 
 @patch("haystack_integrations.document_stores.opensearch.document_store.OpenSearch")
@@ -52,6 +53,7 @@ def test_to_dict(_mock_opensearch_client):
             "use_ssl": None,
             "verify_certs": None,
             "timeout": None,
+            "nested_fields": None,
         },
     }
 
@@ -183,6 +185,7 @@ def test_get_default_mappings(_mock_opensearch_client):
 def test_routing_extracted_from_metadata(mock_bulk, _mock_opensearch_client):
     """Test routing extraction from document metadata"""
     mock_bulk.return_value = (2, [])
+    _mock_opensearch_client.return_value.indices.exists.return_value = False
 
     store = OpenSearchDocumentStore(hosts="testhost", http_auth=("admin", "admin"))
 
@@ -211,6 +214,7 @@ def test_routing_extracted_from_metadata(mock_bulk, _mock_opensearch_client):
 def test_routing_in_delete(mock_bulk, _mock_opensearch_client):
     """Test routing parameter in delete operations"""
     mock_bulk.return_value = (2, [])
+    _mock_opensearch_client.return_value.indices.exists.return_value = False
 
     store = OpenSearchDocumentStore(hosts="testhost", http_auth=("admin", "admin"))
 
@@ -373,8 +377,387 @@ async def test_bm25_retrieval_async_reraises_other_transport_errors(_mock_opense
     assert store._async_client.search.call_count == 1
 
 
+@patch("haystack_integrations.document_stores.opensearch.document_store.OpenSearch")
+def test_to_dict_with_nested_fields(_mock_opensearch_client):
+    document_store = OpenSearchDocumentStore(hosts="some hosts", nested_fields=["attributes", "tags"])
+    res = document_store.to_dict()
+    assert res["init_parameters"]["nested_fields"] == ["attributes", "tags"]
+    props = res["init_parameters"]["mappings"]["properties"]
+    assert props["attributes"] == {"type": "nested"}
+    assert props["tags"] == {"type": "nested"}
+
+
+@patch("haystack_integrations.document_stores.opensearch.document_store.OpenSearch")
+def test_from_dict_with_nested_fields(_mock_opensearch_client):
+    data = {
+        "type": "haystack_integrations.document_stores.opensearch.document_store.OpenSearchDocumentStore",
+        "init_parameters": {
+            "hosts": "some hosts",
+            "index": "default",
+            "nested_fields": ["attributes"],
+            "http_auth": ("admin", "admin"),
+        },
+    }
+    document_store = OpenSearchDocumentStore.from_dict(data)
+    assert document_store._nested_fields == ["attributes"]
+    assert document_store._resolved_nested_fields == {"attributes"}
+
+
+@patch("haystack_integrations.document_stores.opensearch.document_store.OpenSearch")
+def test_detect_nested_fields_from_documents(_mock_opensearch_client):
+    docs = [
+        Document(
+            content="doc1",
+            meta={
+                "attributes": [{"color": "red"}, {"color": "blue"}],
+                "tags": [{"name": "sale"}],
+                "status": "active",
+                "scores": [1, 2, 3],
+            },
+        ),
+        Document(content="doc2", meta={"other_nested": [{"key": "val"}]}),
+        Document(content="doc3"),
+    ]
+    result = OpenSearchDocumentStore._detect_nested_fields_from_documents(docs)
+    assert result == {"attributes", "tags", "other_nested"}
+
+
+@patch("haystack_integrations.document_stores.opensearch.document_store.OpenSearch")
+def test_detect_nested_fields_empty_list(_mock_opensearch_client):
+    docs = [Document(content="doc1", meta={"items": []})]
+    result = OpenSearchDocumentStore._detect_nested_fields_from_documents(docs)
+    assert result == set()
+
+
+@patch("haystack_integrations.document_stores.opensearch.document_store.OpenSearch")
+def test_extract_nested_fields_from_mapping(_mock_opensearch_client):
+    mapping_properties = {
+        "attributes": {"type": "nested"},
+        "tags": {"type": "nested"},
+        "content": {"type": "text"},
+        "embedding": {"type": "knn_vector", "dimension": 768},
+        "status": {"type": "keyword"},
+    }
+    result = OpenSearchDocumentStore._extract_nested_fields_from_mapping(mapping_properties)
+    assert result == {"attributes", "tags"}
+
+
+@patch("haystack_integrations.document_stores.opensearch.document_store.OpenSearch")
+def test_extract_nested_fields_from_mapping_none_nested(_mock_opensearch_client):
+    mapping_properties = {
+        "content": {"type": "text"},
+        "status": {"type": "keyword"},
+    }
+    result = OpenSearchDocumentStore._extract_nested_fields_from_mapping(mapping_properties)
+    assert result == set()
+
+
+@patch("haystack_integrations.document_stores.opensearch.document_store.OpenSearch")
+def test_get_default_mappings_with_nested_fields(_mock_opensearch_client):
+    store = OpenSearchDocumentStore(hosts="testhost", nested_fields=["attributes", "tags"])
+    props = store._mappings["properties"]
+    assert props["attributes"] == {"type": "nested"}
+    assert props["tags"] == {"type": "nested"}
+    assert props["content"] == {"type": "text"}
+    assert "embedding" in props
+
+
+@patch("haystack_integrations.document_stores.opensearch.document_store.OpenSearch")
+def test_get_default_mappings_with_wildcard(_mock_opensearch_client):
+    store = OpenSearchDocumentStore(hosts="testhost", nested_fields="*")
+    props = store._mappings["properties"]
+    for val in props.values():
+        assert val.get("type") != "nested"
+
+
+@patch("haystack_integrations.document_stores.opensearch.document_store.OpenSearch")
+def test_populate_nested_fields_from_mapping(_mock_opensearch_client):
+    store = OpenSearchDocumentStore(hosts="testhost", nested_fields=["attributes"])
+    assert store._resolved_nested_fields == {"attributes"}
+
+    mapping_properties = {
+        "attributes": {"type": "nested"},
+        "tags": {"type": "nested"},
+        "content": {"type": "text"},
+    }
+    store._populate_nested_fields_from_mapping(mapping_properties)
+    assert store._resolved_nested_fields == {"attributes", "tags"}
+
+
+@patch("haystack_integrations.document_stores.opensearch.document_store.OpenSearch")
+def test_resolved_nested_fields_with_wildcard(_mock_opensearch_client):
+    store = OpenSearchDocumentStore(hosts="testhost", nested_fields="*")
+    assert store._resolved_nested_fields == set()
+    assert store._nested_fields == "*"
+
+
+@patch("haystack_integrations.document_stores.opensearch.document_store.OpenSearch")
+@patch("haystack_integrations.document_stores.opensearch.document_store.bulk")
+def test_wildcard_nested_fields_detected_on_write(mock_bulk, _mock_opensearch_client):
+    mock_bulk.return_value = (2, [])
+    store = OpenSearchDocumentStore(hosts="testhost", nested_fields="*")
+    store._client = MagicMock()
+    store._initialized = True
+
+    docs = [
+        Document(
+            content="doc1",
+            meta={
+                "refs": [{"law": "bgb", "section": "1"}],
+                "tags": [{"name": "important"}],
+                "status": "active",
+            },
+        ),
+        Document(content="doc2", meta={"refs": [{"law": "stgb"}]}),
+    ]
+
+    store.write_documents(docs)
+
+    assert "refs" in store._resolved_nested_fields
+    assert "tags" in store._resolved_nested_fields
+    assert "status" not in store._resolved_nested_fields
+    # put_mapping should have been called for each detected nested field
+    assert store._client.indices.put_mapping.call_count == 2
+
+
+@patch("haystack_integrations.document_stores.opensearch.document_store.OpenSearch")
+@patch("haystack_integrations.document_stores.opensearch.document_store.bulk")
+def test_wildcard_nested_fields_incremental_detection(mock_bulk, _mock_opensearch_client):
+    mock_bulk.return_value = (1, [])
+    store = OpenSearchDocumentStore(hosts="testhost", nested_fields="*")
+    store._client = MagicMock()
+    store._initialized = True
+
+    # First batch: detects "refs"
+    store.write_documents([Document(content="d1", meta={"refs": [{"law": "bgb"}]})])
+    assert store._resolved_nested_fields == {"refs"}
+    assert store._client.indices.put_mapping.call_count == 1
+
+    # Second batch: detects "tags" (refs already known)
+    store.write_documents([Document(content="d2", meta={"refs": [{"law": "stgb"}], "tags": [{"name": "x"}]})])
+    assert store._resolved_nested_fields == {"refs", "tags"}
+    assert store._client.indices.put_mapping.call_count == 2  # only one additional call for "tags"
+
+
+@patch("haystack_integrations.document_stores.opensearch.document_store.OpenSearch")
+@patch("haystack_integrations.document_stores.opensearch.document_store.bulk")
+def test_explicit_nested_fields_no_detection_on_write(mock_bulk, _mock_opensearch_client):
+    mock_bulk.return_value = (1, [])
+    store = OpenSearchDocumentStore(hosts="testhost", nested_fields=["refs"])
+    store._client = MagicMock()
+    store._initialized = True
+
+    store.write_documents([Document(content="d1", meta={"tags": [{"name": "x"}]})])
+
+    # "tags" should NOT be added because we used explicit nested_fields, not wildcard
+    assert "tags" not in store._resolved_nested_fields
+    assert store._resolved_nested_fields == {"refs"}
+    store._client.indices.put_mapping.assert_not_called()
+
+
+@patch("haystack_integrations.document_stores.opensearch.document_store.OpenSearch")
+def test_ensure_index_exists_direct_index(_mock_opensearch_client):
+    """When an index exists and is referenced directly, mappings are loaded without error."""
+    store = OpenSearchDocumentStore(hosts="testhost", index="my-index", http_auth=("a", "b"))
+    mock_client = MagicMock()
+    store._client = mock_client
+    mock_client.indices.exists.return_value = True
+    mock_client.indices.get_mapping.return_value = {
+        "my-index": {"mappings": {"properties": {"content": {"type": "text"}}}}
+    }
+
+    store._ensure_index_exists()
+
+    mock_client.indices.exists.assert_called_once_with(index="my-index")
+    mock_client.indices.get_mapping.assert_called_once_with(index="my-index")
+    mock_client.indices.create.assert_not_called()
+
+
+@patch("haystack_integrations.document_stores.opensearch.document_store.OpenSearch")
+def test_ensure_index_exists_with_alias(_mock_opensearch_client):
+    """When self._index is an alias, get_mapping keys the response by the real index name.
+
+    Before the fix this raised KeyError because mapping[self._index] was used directly.
+    """
+    store = OpenSearchDocumentStore(hosts="testhost", index="my-alias", http_auth=("a", "b"))
+    mock_client = MagicMock()
+    store._client = mock_client
+    mock_client.indices.exists.return_value = True
+    mock_client.indices.get_mapping.return_value = {
+        "my-real-index-v1": {"mappings": {"properties": {"content": {"type": "text"}}}}
+    }
+
+    store._ensure_index_exists()  # must not raise KeyError
+
+    mock_client.indices.get_mapping.assert_called_once_with(index="my-alias")
+    mock_client.indices.create.assert_not_called()
+
+
+@patch("haystack_integrations.document_stores.opensearch.document_store.OpenSearch")
+def test_ensure_index_exists_creates_index_when_not_exists(_mock_opensearch_client):
+    """When the index does not exist and create_index=True, the index is created."""
+    store = OpenSearchDocumentStore(hosts="testhost", index="new-index", http_auth=("a", "b"))
+    mock_client = MagicMock()
+    store._client = mock_client
+    mock_client.indices.exists.return_value = False
+
+    store._ensure_index_exists()
+
+    mock_client.indices.create.assert_called_once()
+    mock_client.indices.get_mapping.assert_not_called()
+
+
+@patch("haystack_integrations.document_stores.opensearch.document_store.OpenSearch")
+def test_ensure_index_exists_no_create_when_disabled(_mock_opensearch_client):
+    """When the index does not exist and create_index=False, no index is created."""
+    store = OpenSearchDocumentStore(hosts="testhost", index="new-index", create_index=False, http_auth=("a", "b"))
+    mock_client = MagicMock()
+    store._client = mock_client
+    mock_client.indices.exists.return_value = False
+
+    store._ensure_index_exists()
+
+    mock_client.indices.create.assert_not_called()
+    mock_client.indices.get_mapping.assert_not_called()
+
+
+@pytest.mark.asyncio
+@patch("haystack_integrations.document_stores.opensearch.document_store.AsyncOpenSearch")
+@patch("haystack_integrations.document_stores.opensearch.document_store.OpenSearch")
+async def test_ensure_index_exists_async_direct_index(_mock_sync_client, _mock_async_client):
+    """Async: When an index exists and is referenced directly, mappings are loaded without error."""
+    store = OpenSearchDocumentStore(hosts="testhost", index="my-index", http_auth=("a", "b"))
+    mock_client = AsyncMock()
+    store._async_client = mock_client
+    mock_client.indices.exists = AsyncMock(return_value=True)
+    mock_client.indices.get_mapping = AsyncMock(
+        return_value={"my-index": {"mappings": {"properties": {"content": {"type": "text"}}}}}
+    )
+
+    await store._ensure_index_exists_async()
+
+    mock_client.indices.exists.assert_called_once_with(index="my-index")
+    mock_client.indices.get_mapping.assert_called_once_with(index="my-index")
+    mock_client.indices.create.assert_not_called()
+
+
+@pytest.mark.asyncio
+@patch("haystack_integrations.document_stores.opensearch.document_store.AsyncOpenSearch")
+@patch("haystack_integrations.document_stores.opensearch.document_store.OpenSearch")
+async def test_ensure_index_exists_async_with_alias(_mock_sync_client, _mock_async_client):
+    """Async: When self._index is an alias, get_mapping keys by real index name; no KeyError."""
+    store = OpenSearchDocumentStore(hosts="testhost", index="my-alias", http_auth=("a", "b"))
+    mock_client = AsyncMock()
+    store._async_client = mock_client
+    mock_client.indices.exists = AsyncMock(return_value=True)
+    mock_client.indices.get_mapping = AsyncMock(
+        return_value={"my-real-index-v1": {"mappings": {"properties": {"content": {"type": "text"}}}}}
+    )
+
+    await store._ensure_index_exists_async()  # must not raise KeyError
+
+    mock_client.indices.get_mapping.assert_called_once_with(index="my-alias")
+    mock_client.indices.create.assert_not_called()
+
+
+@pytest.mark.asyncio
+@patch("haystack_integrations.document_stores.opensearch.document_store.AsyncOpenSearch")
+@patch("haystack_integrations.document_stores.opensearch.document_store.OpenSearch")
+async def test_ensure_index_exists_async_creates_index_when_not_exists(_mock_sync_client, _mock_async_client):
+    """Async: When the index does not exist and create_index=True, the index is created."""
+    store = OpenSearchDocumentStore(hosts="testhost", index="new-index", http_auth=("a", "b"))
+    mock_client = AsyncMock()
+    store._async_client = mock_client
+    mock_client.indices.exists = AsyncMock(return_value=False)
+
+    await store._ensure_index_exists_async()
+
+    mock_client.indices.create.assert_called_once()
+    mock_client.indices.get_mapping.assert_not_called()
+
+
+@pytest.mark.asyncio
+@patch("haystack_integrations.document_stores.opensearch.document_store.AsyncOpenSearch")
+@patch("haystack_integrations.document_stores.opensearch.document_store.OpenSearch")
+async def test_ensure_index_exists_async_no_create_when_disabled(_mock_sync_client, _mock_async_client):
+    """Async: When the index does not exist and create_index=False, no index is created."""
+    store = OpenSearchDocumentStore(hosts="testhost", index="new-index", create_index=False, http_auth=("a", "b"))
+    mock_client = AsyncMock()
+    store._async_client = mock_client
+    mock_client.indices.exists = AsyncMock(return_value=False)
+
+    await store._ensure_index_exists_async()
+
+    mock_client.indices.create.assert_not_called()
+    mock_client.indices.get_mapping.assert_not_called()
+
+
+@patch("haystack_integrations.document_stores.opensearch.document_store.OpenSearch")
+def test_delete_all_documents_recreate_raises_for_alias(_mock_opensearch_client):
+    """delete_all_documents(recreate_index=True) raises DocumentStoreError when self._index is an alias."""
+    store = OpenSearchDocumentStore(hosts="testhost", index="my-alias", http_auth=("a", "b"))
+    mock_client = MagicMock()
+    store._client = mock_client
+    # indices.get() returns a key that differs from self._index — signals an alias
+    mock_client.indices.get.return_value = {"my-real-index-v1": {"mappings": {}, "settings": {"index": {}}}}
+
+    with pytest.raises(DocumentStoreError, match="is an alias"):
+        store.delete_all_documents(recreate_index=True)
+
+    mock_client.indices.delete.assert_not_called()
+    mock_client.indices.create.assert_not_called()
+
+
+@patch("haystack_integrations.document_stores.opensearch.document_store.OpenSearch")
+def test_delete_all_documents_recreate_works_for_concrete_index(_mock_opensearch_client):
+    """delete_all_documents(recreate_index=True) proceeds normally when self._index is a concrete index."""
+    store = OpenSearchDocumentStore(hosts="testhost", index="my-index", http_auth=("a", "b"))
+    mock_client = MagicMock()
+    store._client = mock_client
+    mock_client.indices.get.return_value = {"my-index": {"mappings": {}, "settings": {"index": {}}}}
+
+    store.delete_all_documents(recreate_index=True)
+
+    mock_client.indices.delete.assert_called_once_with(index="my-index")
+    mock_client.indices.create.assert_called_once()
+
+
+@pytest.mark.asyncio
+@patch("haystack_integrations.document_stores.opensearch.document_store.AsyncOpenSearch")
+@patch("haystack_integrations.document_stores.opensearch.document_store.OpenSearch")
+async def test_delete_all_documents_async_recreate_raises_for_alias(_mock_sync_client, _mock_async_client):
+    """delete_all_documents_async(recreate_index=True) raises DocumentStoreError when self._index is an alias."""
+    store = OpenSearchDocumentStore(hosts="testhost", index="my-alias", http_auth=("a", "b"))
+    mock_client = AsyncMock()
+    store._async_client = mock_client
+    mock_client.indices.get = AsyncMock(return_value={"my-real-index-v1": {"mappings": {}, "settings": {"index": {}}}})
+
+    with pytest.raises(DocumentStoreError, match="is an alias"):
+        await store.delete_all_documents_async(recreate_index=True)
+
+    mock_client.indices.delete.assert_not_called()
+    mock_client.indices.create.assert_not_called()
+
+
+@pytest.mark.asyncio
+@patch("haystack_integrations.document_stores.opensearch.document_store.AsyncOpenSearch")
+@patch("haystack_integrations.document_stores.opensearch.document_store.OpenSearch")
+async def test_delete_all_documents_async_recreate_works_for_concrete_index(_mock_sync_client, _mock_async_client):
+    """delete_all_documents_async(recreate_index=True) proceeds normally when self._index is a concrete index."""
+    store = OpenSearchDocumentStore(hosts="testhost", index="my-index", http_auth=("a", "b"))
+    mock_client = AsyncMock()
+    store._async_client = mock_client
+    mock_client.indices.get = AsyncMock(return_value={"my-index": {"mappings": {}, "settings": {"index": {}}}})
+
+    await store.delete_all_documents_async(recreate_index=True)
+
+    mock_client.indices.delete.assert_called_once_with(index="my-index")
+    mock_client.indices.create.assert_called_once()
+
+
 @pytest.mark.integration
 class TestDocumentStore(
+    OpenSearchDocumentStoreTestMixin,
     CountDocumentsByFilterTest,
     CountUniqueMetadataByFilterTest,
     DocumentStoreBaseExtendedTests,
@@ -390,27 +773,6 @@ class TestDocumentStore(
     def document_store(self, document_store):
         """Override base class fixture to provide OpenSearch document store."""
         yield document_store
-
-    def assert_documents_are_equal(self, received: list[Document], expected: list[Document]):
-        """
-        The OpenSearchDocumentStore.filter_documents() method returns documents with their score set.
-
-        We don't want to compare the score, so we set it to None before comparing.
-
-        Embeddings are not exactly the same when retrieved from OpenSearch (float round-trip),
-        so we compare them approximately and then set both to None for the final equality check.
-        """
-        assert len(received) == len(expected)
-        received = sorted(received, key=lambda x: x.id)
-        expected = sorted(expected, key=lambda x: x.id)
-        for received_doc, expected_doc in zip(received, expected, strict=True):
-            received_doc.score = None
-            if received_doc.embedding is None:
-                assert expected_doc.embedding is None
-            else:
-                assert received_doc.embedding == pytest.approx(expected_doc.embedding)
-            received_doc.embedding, expected_doc.embedding = None, None
-            assert received_doc == expected_doc
 
     def test_write_documents(self, document_store: OpenSearchDocumentStore):
         docs = [Document(id="1")]
@@ -1103,3 +1465,347 @@ class TestDocumentStore(
         invalid_query = "SELECT * FROM non_existent_index"
         with pytest.raises(DocumentStoreError, match="Failed to execute SQL query"):
             document_store._query_sql(invalid_query)
+
+    def test_explicit_nested_fields_filter(self, document_store_nested: OpenSearchDocumentStore):
+        """Filtering on explicitly declared nested fields returns correct documents."""
+        docs = [
+            Document(
+                content="doc about bgb 1a",
+                meta={"refs": [{"law": "bgb", "section": "1", "paragraph": "a"}], "status": "active"},
+            ),
+            Document(
+                content="doc about bgb 2",
+                meta={"refs": [{"law": "bgb", "section": "2"}], "status": "active"},
+            ),
+            Document(
+                content="doc about stgb",
+                meta={"refs": [{"law": "stgb", "section": "1"}], "status": "active"},
+            ),
+        ]
+        document_store_nested.write_documents(docs)
+
+        # Filter for refs.law == bgb
+        results = document_store_nested.filter_documents(
+            filters={"field": "meta.refs.law", "operator": "==", "value": "bgb"}
+        )
+        assert len(results) == 2
+        assert all("bgb" in str(doc.meta["refs"]) for doc in results)
+
+    def test_explicit_nested_fields_combined_filter(self, document_store_nested: OpenSearchDocumentStore):
+        """AND filter across sub-fields of the same nested path matches within the same array element."""
+        docs = [
+            Document(
+                content="bgb section 1",
+                meta={"refs": [{"law": "bgb", "section": "1"}, {"law": "stgb", "section": "2"}]},
+            ),
+            Document(
+                content="bgb section 2",
+                meta={"refs": [{"law": "bgb", "section": "2"}]},
+            ),
+            Document(
+                content="stgb section 1",
+                meta={"refs": [{"law": "stgb", "section": "1"}]},
+            ),
+        ]
+        document_store_nested.write_documents(docs)
+
+        # Filter: refs.law == bgb AND refs.section == 1 (must match within same nested object)
+        results = document_store_nested.filter_documents(
+            filters={
+                "operator": "AND",
+                "conditions": [
+                    {"field": "meta.refs.law", "operator": "==", "value": "bgb"},
+                    {"field": "meta.refs.section", "operator": "==", "value": "1"},
+                ],
+            }
+        )
+        assert len(results) == 1
+        assert results[0].content == "bgb section 1"
+
+    def test_explicit_nested_fields_mixed_nested_and_flat(self, document_store_nested: OpenSearchDocumentStore):
+        """Filtering on both nested and flat fields works correctly."""
+        docs = [
+            Document(content="d1", meta={"refs": [{"law": "bgb"}], "status": "active"}),
+            Document(content="d2", meta={"refs": [{"law": "bgb"}], "status": "inactive"}),
+            Document(content="d3", meta={"refs": [{"law": "stgb"}], "status": "active"}),
+        ]
+        document_store_nested.write_documents(docs)
+
+        results = document_store_nested.filter_documents(
+            filters={
+                "operator": "AND",
+                "conditions": [
+                    {"field": "meta.refs.law", "operator": "==", "value": "bgb"},
+                    {"field": "meta.status", "operator": "==", "value": "active"},
+                ],
+            }
+        )
+        assert len(results) == 1
+        assert results[0].content == "d1"
+
+    def test_wildcard_nested_fields_auto_detection(self, document_store_wildcard_nested: OpenSearchDocumentStore):
+        """With nested_fields=['*'], writing docs with list[dict] metadata auto-detects and maps nested fields."""
+        assert document_store_wildcard_nested._resolved_nested_fields == set()
+
+        docs = [
+            Document(content="d1", meta={"refs": [{"law": "bgb", "section": "1"}], "status": "active"}),
+            Document(content="d2", meta={"refs": [{"law": "stgb"}], "tags": [{"name": "important"}]}),
+        ]
+        document_store_wildcard_nested.write_documents(docs)
+
+        # After writing, nested fields should be detected
+        assert "refs" in document_store_wildcard_nested._resolved_nested_fields
+        assert "tags" in document_store_wildcard_nested._resolved_nested_fields
+        assert "status" not in document_store_wildcard_nested._resolved_nested_fields
+
+    def test_wildcard_nested_fields_filter(self, document_store_wildcard_nested: OpenSearchDocumentStore):
+        """With wildcard auto-detection, nested filtering works correctly."""
+        docs = [
+            Document(content="bgb section 1", meta={"refs": [{"law": "bgb", "section": "1"}]}),
+            Document(content="bgb section 2", meta={"refs": [{"law": "bgb", "section": "2"}]}),
+            Document(content="stgb section 1", meta={"refs": [{"law": "stgb", "section": "1"}]}),
+        ]
+        document_store_wildcard_nested.write_documents(docs)
+
+        # Nested AND filter on refs.law + refs.section
+        results = document_store_wildcard_nested.filter_documents(
+            filters={
+                "operator": "AND",
+                "conditions": [
+                    {"field": "meta.refs.law", "operator": "==", "value": "bgb"},
+                    {"field": "meta.refs.section", "operator": "==", "value": "1"},
+                ],
+            }
+        )
+        assert len(results) == 1
+        assert results[0].content == "bgb section 1"
+
+    def test_wildcard_nested_fields_incremental_detection(
+        self, document_store_wildcard_nested: OpenSearchDocumentStore
+    ):
+        """A second write batch discovers new nested fields not seen in the first batch."""
+        # First batch: only refs
+        document_store_wildcard_nested.write_documents([Document(content="d1", meta={"refs": [{"law": "bgb"}]})])
+        assert "refs" in document_store_wildcard_nested._resolved_nested_fields
+        assert "tags" not in document_store_wildcard_nested._resolved_nested_fields
+
+        # Second batch: introduces tags
+        document_store_wildcard_nested.write_documents([Document(content="d2", meta={"tags": [{"name": "sale"}]})])
+        assert "tags" in document_store_wildcard_nested._resolved_nested_fields
+
+        # Both nested fields are now filterable
+        results = document_store_wildcard_nested.filter_documents(
+            filters={"field": "meta.refs.law", "operator": "==", "value": "bgb"}
+        )
+        assert len(results) == 1
+        assert results[0].content == "d1"
+
+        results = document_store_wildcard_nested.filter_documents(
+            filters={"field": "meta.tags.name", "operator": "==", "value": "sale"}
+        )
+        assert len(results) == 1
+        assert results[0].content == "d2"
+
+    def test_nested_fields_or_filter(self, document_store_nested: OpenSearchDocumentStore):
+        """OR filter on nested sub-fields works correctly."""
+        docs = [
+            Document(content="bgb doc", meta={"refs": [{"law": "bgb"}]}),
+            Document(content="stgb doc", meta={"refs": [{"law": "stgb"}]}),
+            Document(content="other doc", meta={"refs": [{"law": "zpo"}]}),
+        ]
+        document_store_nested.write_documents(docs)
+
+        results = document_store_nested.filter_documents(
+            filters={
+                "operator": "OR",
+                "conditions": [
+                    {"field": "meta.refs.law", "operator": "==", "value": "bgb"},
+                    {"field": "meta.refs.law", "operator": "==", "value": "stgb"},
+                ],
+            }
+        )
+        assert len(results) == 2
+        contents = sorted([r.content for r in results])
+        assert contents == ["bgb doc", "stgb doc"]
+
+    def test_nested_fields_not_filter(self, document_store_nested: OpenSearchDocumentStore):
+        """NOT filter on nested sub-fields excludes matching documents."""
+        docs = [
+            Document(
+                content="bgb section 1",
+                meta={"refs": [{"law": "bgb", "section": "1"}]},
+            ),
+            Document(
+                content="bgb section 2",
+                meta={"refs": [{"law": "bgb", "section": "2"}]},
+            ),
+            Document(
+                content="stgb section 1",
+                meta={"refs": [{"law": "stgb", "section": "1"}]},
+            ),
+        ]
+        document_store_nested.write_documents(docs)
+
+        # NOT (refs.law == bgb AND refs.section == 1) — only the first doc has both in the same nested object
+        results = document_store_nested.filter_documents(
+            filters={
+                "operator": "NOT",
+                "conditions": [
+                    {"field": "meta.refs.law", "operator": "==", "value": "bgb"},
+                    {"field": "meta.refs.section", "operator": "==", "value": "1"},
+                ],
+            }
+        )
+        assert len(results) == 2
+        contents = sorted([r.content for r in results])
+        assert contents == ["bgb section 2", "stgb section 1"]
+
+    def test_nested_fields_different_paths_filter(self, document_store_nested: OpenSearchDocumentStore):
+        """AND filter across different nested paths works correctly."""
+        docs = [
+            Document(
+                content="both",
+                meta={"refs": [{"law": "bgb"}], "tags": [{"name": "important"}]},
+            ),
+            Document(
+                content="refs only",
+                meta={"refs": [{"law": "bgb"}], "tags": [{"name": "unimportant"}]},
+            ),
+            Document(
+                content="tags only",
+                meta={"refs": [{"law": "stgb"}], "tags": [{"name": "important"}]},
+            ),
+        ]
+        document_store_nested.write_documents(docs)
+
+        results = document_store_nested.filter_documents(
+            filters={
+                "operator": "AND",
+                "conditions": [
+                    {"field": "meta.refs.law", "operator": "==", "value": "bgb"},
+                    {"field": "meta.tags.name", "operator": "==", "value": "important"},
+                ],
+            }
+        )
+        assert len(results) == 1
+        assert results[0].content == "both"
+
+    def test_document_store_with_alias(self, document_store: OpenSearchDocumentStore):
+        """Initializing the document store with an alias instead of a concrete index name must not raise KeyError."""
+        alias_name = f"alias_for_{document_store._index}"
+        client = document_store._client
+        client.indices.put_alias(index=document_store._index, name=alias_name)
+        try:
+            alias_store = OpenSearchDocumentStore(
+                hosts=["https://localhost:9200"],
+                http_auth=("admin", "SecureHaystack!2026"),
+                verify_certs=False,
+                index=alias_name,
+                embedding_dim=768,
+            )
+            alias_store._ensure_initialized()
+
+            docs = [Document(content="doc via alias")]
+            assert alias_store.write_documents(docs) == 1
+            results = alias_store.filter_documents()
+            assert len(results) == 1
+            assert results[0].content == "doc via alias"
+        finally:
+            client.indices.delete_alias(index=document_store._index, name=alias_name)
+
+    def test_delete_all_documents_with_alias(self, document_store: OpenSearchDocumentStore):
+        """delete_all_documents(recreate_index=True) raises DocumentStoreError when self._index is an alias."""
+        alias_name = f"alias_del_{document_store._index}"
+        client = document_store._client
+        client.indices.put_alias(index=document_store._index, name=alias_name)
+        try:
+            alias_store = OpenSearchDocumentStore(
+                hosts=["https://localhost:9200"],
+                http_auth=("admin", "SecureHaystack!2026"),
+                verify_certs=False,
+                index=alias_name,
+                embedding_dim=768,
+            )
+            alias_store._ensure_initialized()
+
+            with pytest.raises(DocumentStoreError, match="is an alias"):
+                alias_store.delete_all_documents(recreate_index=True)
+        finally:
+            client.indices.delete_alias(index=document_store._index, name=alias_name)
+
+    def test_delete_all_documents_no_recreate_with_alias(self, document_store: OpenSearchDocumentStore):
+        """delete_all_documents(recreate_index=False) removes all documents when self._index is an alias."""
+        alias_name = f"alias_del_norecr_{document_store._index}"
+        client = document_store._client
+        client.indices.put_alias(index=document_store._index, name=alias_name)
+        try:
+            alias_store = OpenSearchDocumentStore(
+                hosts=["https://localhost:9200"],
+                http_auth=("admin", "SecureHaystack!2026"),
+                verify_certs=False,
+                index=alias_name,
+                embedding_dim=768,
+            )
+            alias_store._ensure_initialized()
+            alias_store.write_documents([Document(content="a"), Document(content="b")])
+            assert alias_store.count_documents() == 2
+
+            alias_store.delete_all_documents(recreate_index=False)
+
+            assert alias_store.count_documents() == 0
+            assert alias_store.write_documents([Document(content="after delete")]) == 1
+        finally:
+            client.indices.delete_alias(index=document_store._index, name=alias_name)
+
+    def test_count_unique_metadata_by_filter_with_alias(self, document_store: OpenSearchDocumentStore):
+        """count_unique_metadata_by_filter reads the mapping via alias without KeyError."""
+        alias_name = f"alias_cnt_{document_store._index}"
+        client = document_store._client
+        client.indices.put_alias(index=document_store._index, name=alias_name)
+        try:
+            alias_store = OpenSearchDocumentStore(
+                hosts=["https://localhost:9200"],
+                http_auth=("admin", "SecureHaystack!2026"),
+                verify_certs=False,
+                index=alias_name,
+                embedding_dim=768,
+            )
+            alias_store._ensure_initialized()
+            alias_store.write_documents(
+                [
+                    Document(content="a", meta={"category": "X"}),
+                    Document(content="b", meta={"category": "X"}),
+                    Document(content="c", meta={"category": "Y"}),
+                ]
+            )
+
+            result = alias_store.count_unique_metadata_by_filter(
+                filters={"field": "meta.category", "operator": "in", "value": ["X", "Y"]},
+                metadata_fields=["category"],
+            )
+            assert result == {"category": 2}
+        finally:
+            client.indices.delete_alias(index=document_store._index, name=alias_name)
+
+    def test_get_metadata_fields_info_with_alias(self, document_store: OpenSearchDocumentStore):
+        """get_metadata_fields_info reads the mapping via alias without KeyError."""
+        alias_name = f"alias_mfi_{document_store._index}"
+        client = document_store._client
+        client.indices.put_alias(index=document_store._index, name=alias_name)
+        try:
+            alias_store = OpenSearchDocumentStore(
+                hosts=["https://localhost:9200"],
+                http_auth=("admin", "SecureHaystack!2026"),
+                verify_certs=False,
+                index=alias_name,
+                embedding_dim=768,
+            )
+            alias_store._ensure_initialized()
+            alias_store.write_documents([Document(content="doc", meta={"category": "A", "count": 1})])
+
+            fields_info = alias_store.get_metadata_fields_info()
+            assert "category" in fields_info
+            assert fields_info["category"]["type"] == "keyword"
+            assert "count" in fields_info
+        finally:
+            client.indices.delete_alias(index=document_store._index, name=alias_name)

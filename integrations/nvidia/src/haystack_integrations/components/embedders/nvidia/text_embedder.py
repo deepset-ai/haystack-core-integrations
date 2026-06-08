@@ -205,13 +205,13 @@ class NvidiaTextEmbedder:
         if not self._initialized:
             self.warm_up()
 
-        elif not isinstance(text, str):
+        if not isinstance(text, str):
             msg = (
                 "NvidiaTextEmbedder expects a string as an input."
                 "In case you want to embed a list of Documents, please use the NvidiaDocumentEmbedder."
             )
             raise TypeError(msg)
-        elif not text:
+        if not text:
             msg = "Cannot embed an empty string."
             raise ValueError(msg)
 

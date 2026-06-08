@@ -4,11 +4,32 @@
 
 import os
 from pathlib import Path
+from unittest.mock import MagicMock, patch
 
 import pytest
+from haystack.dataclasses import ByteStream
 from haystack.utils import Secret
 
 from haystack_integrations.components.converters.azure_doc_intelligence import AzureDocumentIntelligenceConverter
+
+
+def make_mock_analyze_result(content="# Title\n\nBody", pages=("p1",), as_dict_value=None):
+    result = MagicMock()
+    result.content = content
+    result.pages = list(pages) if pages is not None else None
+    result.as_dict.return_value = as_dict_value if as_dict_value is not None else {"content": content}
+    return result
+
+
+@pytest.fixture
+def warmed_converter():
+    converter = AzureDocumentIntelligenceConverter(
+        endpoint="https://test.cognitiveservices.azure.com/",
+        api_key=Secret.from_token("test_api_key"),
+    )
+    converter.client = MagicMock()
+    converter.client.begin_analyze_document.return_value.result.return_value = make_mock_analyze_result()
+    return converter
 
 
 class TestAzureDocumentIntelligenceConverter:
@@ -95,6 +116,131 @@ class TestAzureDocumentIntelligenceConverter:
         assert converter.endpoint == "https://test.cognitiveservices.azure.com/"
         assert converter.model_id == "prebuilt-layout"
         assert converter.store_full_path is False
+
+    def test_warm_up_initializes_client_only_once(self):
+        converter = AzureDocumentIntelligenceConverter(
+            endpoint="https://test.cognitiveservices.azure.com/",
+            api_key=Secret.from_token("test_api_key"),
+        )
+        assert converter.client is None
+        with patch(
+            "haystack_integrations.components.converters.azure_doc_intelligence.converter.DocumentIntelligenceClient"
+        ) as mock_client_cls:
+            converter.warm_up()
+            assert converter.client is mock_client_cls.return_value
+            mock_client_cls.assert_called_once()
+            converter.warm_up()
+            mock_client_cls.assert_called_once()
+
+    def test_run_calls_warm_up_when_client_is_none(self):
+        converter = AzureDocumentIntelligenceConverter(
+            endpoint="https://test.cognitiveservices.azure.com/",
+            api_key=Secret.from_token("test_api_key"),
+        )
+        with patch(
+            "haystack_integrations.components.converters.azure_doc_intelligence.converter.DocumentIntelligenceClient"
+        ) as mock_client_cls:
+            mock_client_cls.return_value.begin_analyze_document.return_value.result.return_value = (
+                make_mock_analyze_result()
+            )
+            result = converter.run(sources=[ByteStream.from_string("data")])
+
+        assert converter.client is mock_client_cls.return_value
+        assert len(result["documents"]) == 1
+
+    def test_run_returns_document_with_markdown_content_and_meta(self, warmed_converter):
+        warmed_converter.client.begin_analyze_document.return_value.result.return_value = make_mock_analyze_result(
+            content="# Heading\n\nHello", pages=("p1", "p2", "p3")
+        )
+
+        result = warmed_converter.run(sources=[ByteStream.from_string("data")])
+
+        assert len(result["documents"]) == 1
+        doc = result["documents"][0]
+        assert doc.content == "# Heading\n\nHello"
+        assert doc.meta["model_id"] == "prebuilt-document"
+        assert doc.meta["page_count"] == 3
+
+    def test_run_returns_raw_azure_response(self, warmed_converter):
+        raw_dict = {"content": "text", "pages": [{"page_number": 1}]}
+        warmed_converter.client.begin_analyze_document.return_value.result.return_value = make_mock_analyze_result(
+            content="text", as_dict_value=raw_dict
+        )
+
+        result = warmed_converter.run(sources=[ByteStream.from_string("data")])
+
+        assert result["raw_azure_response"] == [raw_dict]
+
+    def test_run_with_multiple_sources(self, warmed_converter):
+        sources = [ByteStream.from_string("one"), ByteStream.from_string("two")]
+
+        result = warmed_converter.run(sources=sources)
+
+        assert len(result["documents"]) == 2
+        assert len(result["raw_azure_response"]) == 2
+
+    @pytest.mark.parametrize("store_full_path", [True, False])
+    def test_run_respects_store_full_path(self, store_full_path):
+        pdf_path = Path(__file__).parent / "test_files" / "pdf" / "sample_pdf_1.pdf"
+        converter = AzureDocumentIntelligenceConverter(
+            endpoint="https://test.cognitiveservices.azure.com/",
+            api_key=Secret.from_token("test_api_key"),
+            store_full_path=store_full_path,
+        )
+        converter.client = MagicMock()
+        converter.client.begin_analyze_document.return_value.result.return_value = make_mock_analyze_result()
+
+        result = converter.run(sources=[str(pdf_path)])
+
+        expected_path = str(pdf_path) if store_full_path else "sample_pdf_1.pdf"
+        assert result["documents"][0].meta["file_path"] == expected_path
+
+    def test_run_applies_single_meta_dict_to_all_documents(self, warmed_converter):
+        sources = [ByteStream.from_string("one"), ByteStream.from_string("two")]
+
+        result = warmed_converter.run(sources=sources, meta={"shared": "value"})
+
+        assert all(doc.meta["shared"] == "value" for doc in result["documents"])
+
+    def test_run_applies_meta_list_pairwise(self, warmed_converter):
+        sources = [ByteStream.from_string("a"), ByteStream.from_string("b")]
+
+        result = warmed_converter.run(sources=sources, meta=[{"index": 0}, {"index": 1}])
+
+        assert result["documents"][0].meta["index"] == 0
+        assert result["documents"][1].meta["index"] == 1
+
+    def test_run_skips_unreadable_source(self, warmed_converter):
+        result = warmed_converter.run(sources=["/nonexistent/missing.pdf"])
+
+        assert result["documents"] == []
+        assert result["raw_azure_response"] == []
+
+    def test_run_skips_source_when_azure_analysis_fails(self, warmed_converter):
+        warmed_converter.client.begin_analyze_document.side_effect = RuntimeError("Azure failure")
+
+        result = warmed_converter.run(sources=[ByteStream.from_string("data")])
+
+        assert result["documents"] == []
+        assert result["raw_azure_response"] == []
+
+    def test_run_uses_empty_string_when_result_content_is_none(self, warmed_converter):
+        warmed_converter.client.begin_analyze_document.return_value.result.return_value = make_mock_analyze_result(
+            content=None
+        )
+
+        result = warmed_converter.run(sources=[ByteStream.from_string("data")])
+
+        assert result["documents"][0].content == ""
+
+    def test_run_sets_page_count_zero_when_result_has_no_pages(self, warmed_converter):
+        warmed_converter.client.begin_analyze_document.return_value.result.return_value = make_mock_analyze_result(
+            pages=None
+        )
+
+        result = warmed_converter.run(sources=[ByteStream.from_string("data")])
+
+        assert result["documents"][0].meta["page_count"] == 0
 
 
 @pytest.mark.integration

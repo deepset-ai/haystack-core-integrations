@@ -1,5 +1,5 @@
 import os
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from cohere.core import ApiError
@@ -497,6 +497,59 @@ class TestCohereChatGenerator:
         assert len(multimodal_msg["content"]) == 2
         assert multimodal_msg["content"][0]["type"] == "text"
         assert multimodal_msg["content"][1]["type"] == "image_url"
+
+    def test_run_with_string_input(self):
+        """Test that a string input is converted to a user ChatMessage before sending to the API."""
+        generator = CohereChatGenerator(api_key=Secret.from_token("test-api-key"))
+
+        mock_response = MagicMock()
+        mock_response.message.content = [MagicMock()]
+        mock_response.message.content[0].text = "Paris"
+        mock_response.message.content[0].type = "text"
+        mock_response.message.tool_calls = None
+        mock_response.finish_reason = "COMPLETE"
+        mock_response.usage = None
+
+        generator.client.chat = MagicMock(return_value=mock_response)
+
+        result = generator.run("What's the capital of France?")
+
+        generator.client.chat.assert_called_once()
+        call_args = generator.client.chat.call_args
+        sent_messages = call_args[1]["messages"]
+
+        assert len(sent_messages) == 1
+        assert sent_messages[0]["role"] == "user"
+        assert isinstance(result["replies"], list)
+        assert len(result["replies"]) == 1
+        assert isinstance(result["replies"][0], ChatMessage)
+
+    @pytest.mark.asyncio
+    async def test_run_async_with_string_input(self):
+        """Test that a string input is converted to a user ChatMessage before sending to the async API."""
+        generator = CohereChatGenerator(api_key=Secret.from_token("test-api-key"))
+
+        mock_response = MagicMock()
+        mock_response.message.content = [MagicMock()]
+        mock_response.message.content[0].text = "Paris"
+        mock_response.message.content[0].type = "text"
+        mock_response.message.tool_calls = None
+        mock_response.finish_reason = "COMPLETE"
+        mock_response.usage = None
+
+        generator.async_client.chat = AsyncMock(return_value=mock_response)
+
+        result = await generator.run_async("What's the capital of France?")
+
+        generator.async_client.chat.assert_called_once()
+        call_args = generator.async_client.chat.call_args
+        sent_messages = call_args[1]["messages"]
+
+        assert len(sent_messages) == 1
+        assert sent_messages[0]["role"] == "user"
+        assert isinstance(result["replies"], list)
+        assert len(result["replies"]) == 1
+        assert isinstance(result["replies"][0], ChatMessage)
 
 
 @pytest.mark.skipif(

@@ -5,6 +5,7 @@
 # ruff: noqa: FBT001, FBT002   boolean-type-hint-positional-argument and boolean-default-value-positional-argument
 
 from collections.abc import Generator, Mapping
+from dataclasses import replace
 from math import exp
 from typing import Any, Literal
 
@@ -14,7 +15,7 @@ from haystack.document_stores.errors import DocumentStoreError, DuplicateDocumen
 from haystack.document_stores.types import DuplicatePolicy
 from haystack.utils.auth import Secret
 from haystack.utils.misc import _normalize_metadata_field_name
-from opensearchpy import AsyncHttpConnection, AsyncOpenSearch, OpenSearch, TransportError
+from opensearchpy import AsyncHttpConnection, AsyncOpenSearch, OpenSearch, RequestError, TransportError
 from opensearchpy.helpers import async_bulk, bulk
 
 from haystack_integrations.document_stores.opensearch.auth import AsyncAWSAuth, AWSAuth
@@ -90,6 +91,7 @@ class OpenSearchDocumentStore:
         use_ssl: bool | None = None,
         verify_certs: bool | None = None,
         timeout: int | None = None,
+        nested_fields: list[str] | Literal["*"] | None = None,
         **kwargs: Any,
     ) -> None:
         """
@@ -127,6 +129,12 @@ class OpenSearchDocumentStore:
         :param use_ssl: Whether to use SSL. Defaults to None
         :param verify_certs: Whether to verify certificates. Defaults to None
         :param timeout: Timeout in seconds. Defaults to None
+        :param nested_fields: List of metadata field paths (without the `meta.` prefix) that should be mapped
+            as OpenSearch `nested` type, enabling multi-condition filtering on array-of-objects fields.
+            Pass `"*"` to auto-detect `list[dict]` fields and map them as nested from
+            the first `write_documents` batch.
+            When the index already exists, nested fields are discovered from the live mapping.
+            Defaults to None (no nested support).
         :param **kwargs: Optional arguments that ``OpenSearch`` takes. For the full list of supported kwargs,
             see the [official OpenSearch reference](https://opensearch-project.github.io/opensearch-py/api-ref/clients/opensearch_client.html)
         """
@@ -136,6 +144,7 @@ class OpenSearchDocumentStore:
         self._embedding_dim = embedding_dim
         self._return_embedding = return_embedding
         self._method = method
+        self._nested_fields = nested_fields
         self._mappings = mappings or self._get_default_mappings()
         self._settings = settings
         self._create_index = create_index
@@ -144,6 +153,10 @@ class OpenSearchDocumentStore:
         self._verify_certs = verify_certs
         self._timeout = timeout
         self._kwargs = kwargs
+
+        self._resolved_nested_fields: set[str] = set()
+        if nested_fields and nested_fields != "*":
+            self._resolved_nested_fields = set(nested_fields)
 
         # Client is initialized lazily to prevent side effects when
         # the document store is instantiated.
@@ -168,6 +181,9 @@ class OpenSearchDocumentStore:
         }
         if self._method:
             default_mappings["properties"]["embedding"]["method"] = self._method
+        if self._nested_fields and self._nested_fields != "*":
+            for field in self._nested_fields:
+                default_mappings["properties"][field] = {"type": "nested"}
         return default_mappings
 
     def create_index(
@@ -234,6 +250,7 @@ class OpenSearchDocumentStore:
             use_ssl=self._use_ssl,
             verify_certs=self._verify_certs,
             timeout=self._timeout,
+            nested_fields=self._nested_fields,
             **self._kwargs,
         )
 
@@ -308,6 +325,71 @@ class OpenSearchDocumentStore:
             self._initialized = True
             await self._ensure_index_exists_async()
 
+    @staticmethod
+    def _extract_nested_fields_from_mapping(mapping_properties: dict[str, Any]) -> set[str]:
+        return {name for name, defn in mapping_properties.items() if defn.get("type") == "nested"}
+
+    def _populate_nested_fields_from_mapping(self, mapping_properties: dict[str, Any]) -> None:
+        live_nested = self._extract_nested_fields_from_mapping(mapping_properties)
+        self._resolved_nested_fields.update(live_nested)
+
+        if self._nested_fields and self._nested_fields != "*":
+            declared_but_not_nested = set(self._nested_fields) - live_nested
+            for field in declared_but_not_nested:
+                logger.warning(
+                    "Field '{field}' was declared as nested but is not mapped as nested in the existing "
+                    "index '{index}'. A full re-index is required to change a field from object to nested.",
+                    field=field,
+                    index=self._index,
+                )
+
+    @staticmethod
+    def _detect_nested_fields_from_documents(documents: list[Document]) -> set[str]:
+        nested: set[str] = set()
+        for doc in documents:
+            if not doc.meta:
+                continue
+            for key, value in doc.meta.items():
+                if isinstance(value, list) and value and all(isinstance(elem, dict) for elem in value):
+                    nested.add(key)
+        return nested
+
+    def _update_mapping_for_nested_fields(self, new_nested_fields: set[str]) -> None:
+        assert self._client is not None
+        for field in new_nested_fields:
+            try:
+                self._client.indices.put_mapping(
+                    index=self._index,
+                    body={"properties": {field: {"type": "nested"}}},
+                )
+                self._resolved_nested_fields.add(field)
+            except RequestError as e:
+                logger.warning(
+                    "Could not map field '{field}' as nested in index '{index}': {error}. "
+                    "If it was previously mapped as object, a full re-index is required.",
+                    field=field,
+                    index=self._index,
+                    error=str(e),
+                )
+
+    async def _update_mapping_for_nested_fields_async(self, new_nested_fields: set[str]) -> None:
+        assert self._async_client is not None
+        for field in new_nested_fields:
+            try:
+                await self._async_client.indices.put_mapping(
+                    index=self._index,
+                    body={"properties": {field: {"type": "nested"}}},
+                )
+                self._resolved_nested_fields.add(field)
+            except RequestError as e:
+                logger.warning(
+                    "Could not map field '{field}' as nested in index '{index}': {error}. "
+                    "If it was previously mapped as object, a full re-index is required.",
+                    field=field,
+                    index=self._index,
+                    error=str(e),
+                )
+
     async def _ensure_index_exists_async(self) -> None:
         assert self._async_client is not None
 
@@ -317,6 +399,12 @@ class OpenSearchDocumentStore:
                 "`settings` values will be ignored.",
                 index=self._index,
             )
+            mapping = await self._async_client.indices.get_mapping(index=self._index)
+            # get_mapping keys the response by the real index name; when self._index is an alias
+            # the key differs from the alias, so we use next(iter(...)) to handle both cases.
+            actual_index = next(iter(mapping))
+            properties = mapping[actual_index]["mappings"].get("properties", {})
+            self._populate_nested_fields_from_mapping(properties)
         elif self._create_index:
             # Create the index if it doesn't exist
             body = {"mappings": self._mappings, "settings": self._settings}
@@ -331,6 +419,12 @@ class OpenSearchDocumentStore:
                 "`settings` values will be ignored.",
                 index=self._index,
             )
+            mapping = self._client.indices.get_mapping(index=self._index)
+            # get_mapping keys the response by the real index name; when self._index is an alias
+            # the key differs from the alias, so we use next(iter(...)) to handle both cases.
+            actual_index = next(iter(mapping))
+            properties = mapping[actual_index]["mappings"].get("properties", {})
+            self._populate_nested_fields_from_mapping(properties)
         elif self._create_index:
             # Create the index if it doesn't exist
             body = {"mappings": self._mappings, "settings": self._settings}
@@ -369,7 +463,9 @@ class OpenSearchDocumentStore:
     def _prepare_filter_search_request(self, filters: dict[str, Any] | None) -> dict[str, Any]:
         search_kwargs: dict[str, Any] = {"size": 10_000}
         if filters:
-            search_kwargs["query"] = {"bool": {"filter": normalize_filters(filters)}}
+            search_kwargs["query"] = {
+                "bool": {"filter": normalize_filters(filters, nested_fields=self._resolved_nested_fields)}
+            }
 
         # For some applications not returning the embedding can save a lot of bandwidth
         # if you don't need this data not retrieving it can be a good idea
@@ -520,6 +616,12 @@ class OpenSearchDocumentStore:
         """
         self._ensure_initialized()
 
+        if self._nested_fields == "*" and documents:
+            detected_nested_fields = self._detect_nested_fields_from_documents(documents)
+            new_nested_fields = detected_nested_fields - self._resolved_nested_fields
+            if new_nested_fields:
+                self._update_mapping_for_nested_fields(new_nested_fields)
+
         bulk_params = self._prepare_bulk_write_request(
             documents=documents, policy=policy, is_async=False, refresh=refresh
         )
@@ -547,6 +649,13 @@ class OpenSearchDocumentStore:
         """
         await self._ensure_initialized_async()
         assert self._async_client is not None
+
+        if self._nested_fields == "*" and documents:
+            detected_nested_fields = self._detect_nested_fields_from_documents(documents)
+            new_nested_fields = detected_nested_fields - self._resolved_nested_fields
+            if new_nested_fields:
+                await self._update_mapping_for_nested_fields_async(new_nested_fields)
+
         bulk_params = self._prepare_bulk_write_request(
             documents=documents, policy=policy, is_async=True, refresh=refresh
         )
@@ -665,6 +774,8 @@ class OpenSearchDocumentStore:
 
         :param recreate_index: If True, the index will be deleted and recreated with the original mappings and
             settings. If False, all documents will be deleted using the `delete_by_query` API.
+            ``recreate_index=True`` is not supported when the configured index name is an alias; a
+            :class:`haystack.document_stores.errors.DocumentStoreError` is raised in that case.
         :param refresh: If True, OpenSearch refreshes all shards involved in the delete by query after the request
             completes. If False, no refresh is performed. For more details, see the
             [OpenSearch delete_by_query refresh documentation](https://opensearch.org/docs/latest/api-reference/document-apis/delete-by-query/).
@@ -675,11 +786,18 @@ class OpenSearchDocumentStore:
         try:
             if recreate_index:
                 # get the current index mappings and settings
-                index_name = self._index
                 index_info = self._client.indices.get(index=self._index)
+                actual_index = next(iter(index_info))
+                if actual_index != self._index:
+                    msg = (
+                        f"Cannot recreate index '{self._index}' because it is an alias pointing to "
+                        f"'{actual_index}'. Use recreate_index=False to delete all documents via "
+                        f"delete_by_query, or operate directly on the concrete index."
+                    )
+                    raise DocumentStoreError(msg)
                 body = {
-                    "mappings": index_info[index_name]["mappings"],
-                    "settings": index_info[index_name]["settings"],
+                    "mappings": index_info[actual_index]["mappings"],
+                    "settings": index_info[actual_index]["settings"],
                 }
                 body["settings"]["index"].pop("uuid", None)
                 body["settings"]["index"].pop("creation_date", None)
@@ -709,6 +827,8 @@ class OpenSearchDocumentStore:
 
         :param recreate_index: If True, the index will be deleted and recreated with the original mappings and
             settings. If False, all documents will be deleted using the `delete_by_query` API.
+            ``recreate_index=True`` is not supported when the configured index name is an alias; a
+            :class:`haystack.document_stores.errors.DocumentStoreError` is raised in that case.
         :param refresh: If True, OpenSearch refreshes all shards involved in the delete by query after the request
             completes. If False, no refresh is performed. For more details, see the
             [OpenSearch delete_by_query refresh documentation](https://opensearch.org/docs/latest/api-reference/document-apis/delete-by-query/).
@@ -719,11 +839,18 @@ class OpenSearchDocumentStore:
         try:
             if recreate_index:
                 # get the current index mappings and settings
-                index_name = self._index
                 index_info = await self._async_client.indices.get(index=self._index)
+                actual_index = next(iter(index_info))
+                if actual_index != self._index:
+                    msg = (
+                        f"Cannot recreate index '{self._index}' because it is an alias pointing to "
+                        f"'{actual_index}'. Use recreate_index=False to delete all documents via "
+                        f"delete_by_query, or operate directly on the concrete index."
+                    )
+                    raise DocumentStoreError(msg)
                 body = {
-                    "mappings": index_info[index_name]["mappings"],
-                    "settings": index_info[index_name]["settings"],
+                    "mappings": index_info[actual_index]["mappings"],
+                    "settings": index_info[actual_index]["settings"],
                 }
                 body["settings"]["index"].pop("uuid", None)
                 body["settings"]["index"].pop("creation_date", None)
@@ -756,7 +883,7 @@ class OpenSearchDocumentStore:
         assert self._client is not None
 
         try:
-            normalized_filters = normalize_filters(filters)
+            normalized_filters = normalize_filters(filters, nested_fields=self._resolved_nested_fields)
             body = {"query": {"bool": {"filter": normalized_filters}}}
 
             result = self._client.delete_by_query(index=self._index, body=body, refresh=refresh)
@@ -786,7 +913,7 @@ class OpenSearchDocumentStore:
         assert self._async_client is not None
 
         try:
-            normalized_filters = normalize_filters(filters)
+            normalized_filters = normalize_filters(filters, nested_fields=self._resolved_nested_fields)
             body = {"query": {"bool": {"filter": normalized_filters}}}
             result = await self._async_client.delete_by_query(index=self._index, body=body, refresh=refresh)
             deleted_count = result.get("deleted", 0)
@@ -816,7 +943,7 @@ class OpenSearchDocumentStore:
         assert self._client is not None
 
         try:
-            normalized_filters = normalize_filters(filters)
+            normalized_filters = normalize_filters(filters, nested_fields=self._resolved_nested_fields)
             # Build the update script to modify metadata fields
             # Documents are stored with flattened metadata, so update fields directly in ctx._source
             update_script_lines = []
@@ -856,7 +983,7 @@ class OpenSearchDocumentStore:
         assert self._async_client is not None
 
         try:
-            normalized_filters = normalize_filters(filters)
+            normalized_filters = normalize_filters(filters, nested_fields=self._resolved_nested_fields)
             # Build the update script to modify metadata fields
             # Documents are stored with flattened metadata, so update fields directly in ctx._source
             update_script_lines = []
@@ -893,14 +1020,16 @@ class OpenSearchDocumentStore:
         if not query:
             body: dict[str, Any] = {"query": {"bool": {"must": {"match_all": {}}}}}
             if filters:
-                body["query"]["bool"]["filter"] = normalize_filters(filters)
+                body["query"]["bool"]["filter"] = normalize_filters(filters, nested_fields=self._resolved_nested_fields)
 
         if isinstance(custom_query, dict):
             body = self._render_custom_query(
                 custom_query,
                 {
                     "$query": query,
-                    "$filters": normalize_filters(filters) if filters else None,
+                    "$filters": normalize_filters(filters, nested_fields=self._resolved_nested_fields)
+                    if filters
+                    else None,
                 },
             )
 
@@ -924,7 +1053,7 @@ class OpenSearchDocumentStore:
             }
 
             if filters:
-                body["query"]["bool"]["filter"] = normalize_filters(filters)
+                body["query"]["bool"]["filter"] = normalize_filters(filters, nested_fields=self._resolved_nested_fields)
 
         body["size"] = top_k
 
@@ -940,17 +1069,19 @@ class OpenSearchDocumentStore:
         if not scale_score:
             return
 
-        for doc in results:
-            if doc.score is None:
-                continue
-            doc.score = float(1 / (1 + exp(-(doc.score / float(BM25_SCALING_FACTOR)))))
+        results = [
+            replace(doc, score=float(1 / (1 + exp(-(doc.score / float(BM25_SCALING_FACTOR))))))
+            if doc.score is not None
+            else doc
+            for doc in results
+        ]
 
     def _bm25_retrieval(
         self,
         query: str,
         *,
         filters: dict[str, Any] | None = None,
-        fuzziness: int | str = "AUTO",
+        fuzziness: int | str = 0,
         top_k: int = 10,
         scale_score: bool = False,
         all_terms_must_match: bool = False,
@@ -1008,7 +1139,7 @@ class OpenSearchDocumentStore:
         query: str,
         *,
         filters: dict[str, Any] | None = None,
-        fuzziness: str = "AUTO",
+        fuzziness: int | str = 0,
         top_k: int = 10,
         scale_score: bool = False,
         all_terms_must_match: bool = False,
@@ -1327,7 +1458,7 @@ class OpenSearchDocumentStore:
 
             # Add filters if provided
             if filters:
-                normalized_filters = normalize_filters(filters)
+                normalized_filters = normalize_filters(filters, nested_fields=self._resolved_nested_fields)
                 self._apply_metadata_search_filters(os_query, [normalized_filters], mode)
 
             body = {"size": 1000, "query": os_query}
@@ -1432,7 +1563,7 @@ class OpenSearchDocumentStore:
 
             # Add filters if provided
             if filters:
-                normalized_filters = normalize_filters(filters)
+                normalized_filters = normalize_filters(filters, nested_fields=self._resolved_nested_fields)
                 self._apply_metadata_search_filters(os_query, [normalized_filters], mode)
 
             body = {"size": 1000, "query": os_query}
@@ -1473,7 +1604,9 @@ class OpenSearchDocumentStore:
                 custom_query,
                 {
                     "$query_embedding": query_embedding,
-                    "$filters": normalize_filters(filters) if filters else None,
+                    "$filters": normalize_filters(filters, nested_fields=self._resolved_nested_fields)
+                    if filters
+                    else None,
                 },
             )
 
@@ -1498,9 +1631,13 @@ class OpenSearchDocumentStore:
 
             if filters:
                 if efficient_filtering:
-                    body["query"]["bool"]["must"][0]["knn"]["embedding"]["filter"] = normalize_filters(filters)
+                    body["query"]["bool"]["must"][0]["knn"]["embedding"]["filter"] = normalize_filters(
+                        filters, nested_fields=self._resolved_nested_fields
+                    )
                 else:
-                    body["query"]["bool"]["filter"] = normalize_filters(filters)
+                    body["query"]["bool"]["filter"] = normalize_filters(
+                        filters, nested_fields=self._resolved_nested_fields
+                    )
 
         body["size"] = top_k
 
@@ -1606,7 +1743,7 @@ class OpenSearchDocumentStore:
         self._ensure_initialized()
         assert self._client is not None
 
-        normalized_filters = normalize_filters(filters)
+        normalized_filters = normalize_filters(filters, nested_fields=self._resolved_nested_fields)
         body = {"query": {"bool": {"filter": normalized_filters}}}
         return self._client.count(index=self._index, body=body)["count"]
 
@@ -1621,7 +1758,7 @@ class OpenSearchDocumentStore:
         await self._ensure_initialized_async()
         assert self._async_client is not None
 
-        normalized_filters = normalize_filters(filters)
+        normalized_filters = normalize_filters(filters, nested_fields=self._resolved_nested_fields)
         body = {"query": {"bool": {"filter": normalized_filters}}}
         return (await self._async_client.count(index=self._index, body=body))["count"]
 
@@ -1642,13 +1779,12 @@ class OpenSearchDocumentStore:
                 aggs[f"{field_name}_cardinality"] = {"cardinality": {"field": field_name}}
         return aggs
 
-    @staticmethod
-    def _build_distinct_values_query_body(filters: dict[str, Any] | None, aggs: dict[str, Any]) -> dict[str, Any]:
+    def _build_distinct_values_query_body(self, filters: dict[str, Any] | None, aggs: dict[str, Any]) -> dict[str, Any]:
         """
         Builds the query body for distinct values counting with filters and aggregations.
         """
         if filters:
-            normalized_filters = normalize_filters(filters)
+            normalized_filters = normalize_filters(filters, nested_fields=self._resolved_nested_fields)
             return {
                 "query": {"bool": {"filter": normalized_filters}},
                 "aggs": aggs,
@@ -1699,7 +1835,8 @@ class OpenSearchDocumentStore:
 
         # use index mapping to get all fields
         mapping = self._client.indices.get_mapping(index=self._index)
-        index_mapping = mapping[self._index]["mappings"]["properties"]
+        actual_index = next(iter(mapping))
+        index_mapping = mapping[actual_index]["mappings"]["properties"]
 
         # normalize field names
         normalized_metadata_fields = [_normalize_metadata_field_name(field) for field in metadata_fields]
@@ -1742,7 +1879,8 @@ class OpenSearchDocumentStore:
 
         # use index mapping to get all fields
         mapping = await self._async_client.indices.get_mapping(index=self._index)
-        index_mapping = mapping[self._index]["mappings"]["properties"]
+        actual_index = next(iter(mapping))
+        index_mapping = mapping[actual_index]["mappings"]["properties"]
 
         # normalize field names
         normalized_metadata_fields = [_normalize_metadata_field_name(field) for field in metadata_fields]
@@ -1794,7 +1932,8 @@ class OpenSearchDocumentStore:
         assert self._client is not None
 
         mapping = self._client.indices.get_mapping(index=self._index)
-        index_mapping = mapping[self._index]["mappings"]["properties"]
+        actual_index = next(iter(mapping))
+        index_mapping = mapping[actual_index]["mappings"]["properties"]
         # remove all fields that are not metadata fields
         index_mapping = {k: v for k, v in index_mapping.items() if k not in SPECIAL_FIELDS}
         return index_mapping
@@ -1827,7 +1966,8 @@ class OpenSearchDocumentStore:
         assert self._async_client is not None
 
         mapping = await self._async_client.indices.get_mapping(index=self._index)
-        index_mapping = mapping[self._index]["mappings"]["properties"]
+        actual_index = next(iter(mapping))
+        index_mapping = mapping[actual_index]["mappings"]["properties"]
         # remove all fields that are not metadata fields
         index_mapping = {k: v for k, v in index_mapping.items() if k not in SPECIAL_FIELDS}
         return index_mapping
@@ -2048,9 +2188,13 @@ class OpenSearchDocumentStore:
             if fetch_size is not None:
                 body["fetch_size"] = fetch_size
 
+            # NOTE: method and url must be passed as positional args (not keyword args).
+            # ddtrace's Elasticsearch instrumentation patch wraps perform_request and unpacks
+            # the first two positional args as `method, target = args`. Passing them as
+            # keyword args results in an empty `args` tuple and raises a ValueError.
             response_data = self._client.transport.perform_request(
-                method="POST",
-                url="/_plugins/_sql",
+                "POST",
+                "/_plugins/_sql",
                 body=body,
             )
 
@@ -2081,9 +2225,13 @@ class OpenSearchDocumentStore:
             if fetch_size is not None:
                 body["fetch_size"] = fetch_size
 
+            # NOTE: method and url must be passed as positional args (not keyword args).
+            # ddtrace's Elasticsearch instrumentation patch wraps perform_request and unpacks
+            # the first two positional args as `method, target = args`. Passing them as
+            # keyword args results in an empty `args` tuple and raises a ValueError.
             response_data = await self._async_client.transport.perform_request(
-                method="POST",
-                url="/_plugins/_sql",
+                "POST",
+                "/_plugins/_sql",
                 body=body,
             )
 

@@ -99,13 +99,18 @@ class GoogleGenAITextEmbedder:
             The name of the model to use for calculating embeddings.
             The default model is `gemini-embedding-001`.
         :param prefix:
-            A string to add at the beginning of each text to embed.
+            A string to add at the beginning of each text. It can be used to specify a task type for
+            `gemini-embedding-2`. For available task types, see
+            [Gemini documentation](https://ai.google.dev/gemini-api/docs/embeddings#task-types).
         :param suffix:
             A string to add at the end of each text to embed.
         :param config:
-            A dictionary of keyword arguments to configure embedding content configuration `types.EmbedContentConfig`.
-            If not specified, it defaults to `{"task_type": "SEMANTIC_SIMILARITY"}`.
-            For more information, see the [Google AI Task types](https://ai.google.dev/gemini-api/docs/embeddings#task-types).
+            A dictionary of keyword arguments to configure embedding content configuration.
+            See [Google API documentation](https://googleapis.github.io/python-genai/genai.html#genai.types.EmbedContentConfig)
+            for the available options.
+            Specifying task types in `config` does not take effect for `gemini-embedding-2`.
+            See [Gemini documentation](https://ai.google.dev/gemini-api/docs/embeddings#task-types) for more
+            information.
         """
 
         self._api_key = api_key
@@ -115,7 +120,7 @@ class GoogleGenAITextEmbedder:
         self._model_name = model
         self._prefix = prefix
         self._suffix = suffix
-        self._config = config if config is not None else {"task_type": "SEMANTIC_SIMILARITY"}
+        self._config = config
         self._client = _get_client(
             api_key=api_key,
             api=api,

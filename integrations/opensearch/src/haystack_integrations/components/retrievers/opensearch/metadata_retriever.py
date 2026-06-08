@@ -9,6 +9,8 @@ from haystack import component, default_from_dict, default_to_dict, logging
 
 from haystack_integrations.document_stores.opensearch import OpenSearchDocumentStore
 
+from .utils import _resolve_document_store
+
 logger = logging.getLogger(__name__)
 
 
@@ -252,10 +254,7 @@ class OpenSearchMetadataRetriever:
             # Returns: {"metadata": [{"category": "Python", "status": "active", "priority": 1}]}
             ```
         """
-        doc_store = document_store or self._document_store
-        if not isinstance(doc_store, OpenSearchDocumentStore):
-            msg = "document_store must be an instance of OpenSearchDocumentStore"
-            raise ValueError(msg)
+        doc_store = _resolve_document_store(document_store, self._document_store)
 
         fields_to_use = metadata_fields if metadata_fields is not None else self._metadata_fields
         top_k_to_use = top_k if top_k is not None else self._top_k
@@ -366,10 +365,7 @@ class OpenSearchMetadataRetriever:
             # Returns: {"metadata": [{"category": "Python", "status": "active", "priority": 1}]}
             ```
         """
-        doc_store = document_store or self._document_store
-        if not isinstance(doc_store, OpenSearchDocumentStore):
-            msg = "document_store must be an instance of OpenSearchDocumentStore"
-            raise ValueError(msg)
+        doc_store = _resolve_document_store(document_store, self._document_store)
 
         fields_to_use = metadata_fields if metadata_fields is not None else self._metadata_fields
         top_k_to_use = top_k if top_k is not None else self._top_k

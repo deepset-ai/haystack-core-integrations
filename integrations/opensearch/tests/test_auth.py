@@ -5,10 +5,16 @@
 from unittest.mock import Mock, patch
 
 import pytest
+from botocore.exceptions import BotoCoreError
 from haystack.utils.auth import Secret
 from opensearchpy import AWSV4SignerAsyncAuth, Urllib3AWSV4SignerAuth
 
-from haystack_integrations.document_stores.opensearch.auth import AsyncAWSAuth, AWSAuth
+from haystack_integrations.document_stores.opensearch.auth import (
+    AsyncAWSAuth,
+    AWSAuth,
+    AWSConfigurationError,
+    _get_aws_session,
+)
 from haystack_integrations.document_stores.opensearch.document_store import (
     DEFAULT_MAX_CHUNK_BYTES,
     OpenSearchDocumentStore,
@@ -131,6 +137,17 @@ class TestAWSAuth:
         async_aws_auth(method="GET", url="http://some.url", body="some body", headers={"Host": "localhost"})
         signer_auth_mock.assert_called_once_with("GET", "http://some.url", "some body", {"Host": "localhost"})
 
+    def test_get_aws_session_wraps_boto_core_error(self, mock_boto3_session):
+        mock_boto3_session.side_effect = BotoCoreError()
+        with pytest.raises(AWSConfigurationError, match="Failed to initialize the session"):
+            _get_aws_session(aws_access_key_id="x", aws_secret_access_key="y")
+
+    @patch("haystack_integrations.document_stores.opensearch.auth.Urllib3AWSV4SignerAuth")
+    def test_get_aws_v4_signer_auth_wraps_exceptions(self, mock_signer):
+        mock_signer.side_effect = RuntimeError("signer creation failed")
+        with pytest.raises(AWSConfigurationError, match="Could not connect to AWS OpenSearch"):
+            AWSAuth()
+
     def test_async_aws_auth_init(self):
         data = {
             "type": "haystack_integrations.document_stores.opensearch.auth.AWSAuth",
@@ -209,6 +226,7 @@ class TestDocumentStoreWithAuth:
 
     @patch("haystack_integrations.document_stores.opensearch.document_store.OpenSearch")
     def test_ds_init_with_basic_auth(self, _mock_opensearch_client):
+        _mock_opensearch_client.return_value.indices.exists.return_value = False
         document_store = OpenSearchDocumentStore(hosts="testhost", http_auth=("user", "pw"))
         document_store._ensure_initialized()
         assert document_store._client
@@ -217,6 +235,7 @@ class TestDocumentStoreWithAuth:
 
     @patch("haystack_integrations.document_stores.opensearch.document_store.OpenSearch")
     def test_ds_init_without_auth(self, _mock_opensearch_client):
+        _mock_opensearch_client.return_value.indices.exists.return_value = False
         document_store = OpenSearchDocumentStore(hosts="testhost")
         document_store._ensure_initialized()
         assert document_store._client
@@ -225,6 +244,7 @@ class TestDocumentStoreWithAuth:
 
     @patch("haystack_integrations.document_stores.opensearch.document_store.OpenSearch")
     def test_ds_init_aws_auth(self, _mock_opensearch_client):
+        _mock_opensearch_client.return_value.indices.exists.return_value = False
         document_store = OpenSearchDocumentStore(
             hosts="testhost",
             http_auth=AWSAuth(aws_region_name=Secret.from_token("dummy-region")),
@@ -240,6 +260,7 @@ class TestDocumentStoreWithAuth:
 
     @patch("haystack_integrations.document_stores.opensearch.document_store.OpenSearch")
     def test_ds_from_dict_basic_auth(self, _mock_opensearch_client):
+        _mock_opensearch_client.return_value.indices.exists.return_value = False
         document_store = OpenSearchDocumentStore.from_dict(
             {
                 "type": "haystack_integrations.document_stores.opensearch.document_store.OpenSearchDocumentStore",
@@ -258,6 +279,7 @@ class TestDocumentStoreWithAuth:
 
     @patch("haystack_integrations.document_stores.opensearch.document_store.OpenSearch")
     def test_ds_from_dict_aws_auth(self, _mock_opensearch_client, monkeypatch: pytest.MonkeyPatch):
+        _mock_opensearch_client.return_value.indices.exists.return_value = False
         monkeypatch.setenv("AWS_DEFAULT_REGION", "dummy-region")
         document_store = OpenSearchDocumentStore.from_dict(
             {
@@ -308,6 +330,7 @@ class TestDocumentStoreWithAuth:
                 "use_ssl": None,
                 "verify_certs": None,
                 "timeout": None,
+                "nested_fields": None,
             },
         }
 
@@ -354,12 +377,14 @@ class TestDocumentStoreWithAuth:
                 "use_ssl": None,
                 "verify_certs": None,
                 "timeout": None,
+                "nested_fields": None,
             },
         }
 
     @patch("haystack_integrations.document_stores.opensearch.document_store.OpenSearch")
     def test_ds_init_with_env_var_secrets(self, _mock_opensearch_client, monkeypatch):
         """Test the default initialization using environment variables"""
+        _mock_opensearch_client.return_value.indices.exists.return_value = False
         monkeypatch.setenv("OPENSEARCH_USERNAME", "user")
         monkeypatch.setenv("OPENSEARCH_PASSWORD", "pass")
 
@@ -372,6 +397,7 @@ class TestDocumentStoreWithAuth:
     @patch("haystack_integrations.document_stores.opensearch.document_store.OpenSearch")
     def test_ds_init_with_missing_env_vars(self, _mock_opensearch_client):
         """Test that auth is None when environment variables are missing"""
+        _mock_opensearch_client.return_value.indices.exists.return_value = False
         document_store = OpenSearchDocumentStore(hosts="testhost")
         document_store._ensure_initialized()
         assert document_store._client
@@ -400,6 +426,7 @@ class TestDocumentStoreWithAuth:
     @patch("haystack_integrations.document_stores.opensearch.document_store.OpenSearch")
     def test_ds_from_dict_with_env_var_secrets(self, _mock_opensearch_client, monkeypatch):
         """Test deserialization with environment variables"""
+        _mock_opensearch_client.return_value.indices.exists.return_value = False
         # Set environment variables so the secrets resolve properly
         monkeypatch.setenv("OPENSEARCH_USERNAME", "user")
         monkeypatch.setenv("OPENSEARCH_PASSWORD", "pass")

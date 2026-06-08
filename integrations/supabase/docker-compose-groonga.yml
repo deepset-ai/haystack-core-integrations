@@ -1,0 +1,42 @@
+services:
+  pgroonga-postgres:
+    build:
+      context: .
+      dockerfile: Dockerfile.pgroonga
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: postgres
+    ports:
+      - "5433:5432"
+    volumes:
+      - ./init-pgroonga.sql:/docker-entrypoint-initdb.d/init-pgroonga.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  postgrest:
+    image: postgrest/postgrest:v12.2.0
+    environment:
+      PGRST_DB_URI: postgres://postgres:postgres@pgroonga-postgres:5432/postgres
+      PGRST_DB_SCHEMAS: public
+      # No PGRST_JWT_SECRET → JWT validation disabled; all requests run as PGRST_DB_ANON_ROLE.
+      # supabase-py still sends an apikey header but PostgREST ignores it.
+      PGRST_DB_ANON_ROLE: postgres
+      PGRST_LOG_LEVEL: info
+    ports:
+      - "3000:3000"
+    depends_on:
+      pgroonga-postgres:
+        condition: service_healthy
+
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./nginx-groonga.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - postgrest

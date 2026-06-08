@@ -20,10 +20,10 @@ def mock_boto3_session():
         yield mock_client
 
 
-# create a fixture with mocked aioboto3 client and session
+# create a fixture with mocked aiobotocore session
 @pytest.fixture
 def mock_aioboto3_session():
-    with patch("aioboto3.Session") as mock_client:
+    with patch("aiobotocore.session.AioSession") as mock_client:
         yield mock_client
 
 

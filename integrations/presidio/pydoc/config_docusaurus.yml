@@ -1,0 +1,15 @@
+loaders:
+  - modules:
+      - haystack_integrations.components.extractors.presidio.presidio_entity_extractor
+      - haystack_integrations.components.preprocessors.presidio.presidio_document_cleaner
+      - haystack_integrations.components.preprocessors.presidio.presidio_text_cleaner
+    search_path: [../src]
+processors:
+  - type: filter
+    documented_only: true
+    skip_empty_modules: true
+renderer:
+  description: Presidio integration for Haystack
+  id: integrations-presidio
+  filename: presidio.md
+  title: Presidio

@@ -1,4 +1,5 @@
 import logging
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from haystack.utils import Secret
@@ -428,3 +429,59 @@ class TestMCPServerInfo:
         assert any("Header 'X-API-Key' resolved to None" in record.message for record in caplog.records)
         # Verify the header is set to empty string
         assert client.headers == {"X-API-Key": ""}
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "client_cls,transport_patch_target,transport_tuple,info_kwargs",
+        [
+            (
+                StreamableHttpClient,
+                "haystack_integrations.tools.mcp.mcp_tool.streamablehttp_client",
+                (MagicMock(), MagicMock(), MagicMock()),
+                {"url": "http://x/mcp", "token": "mytok"},
+            ),
+            (
+                SSEClient,
+                "haystack_integrations.tools.mcp.mcp_tool.sse_client",
+                (MagicMock(), MagicMock()),
+                {"url": "http://x/sse", "token": "mytok"},
+            ),
+        ],
+    )
+    async def test_http_client_connect_builds_auth_header_from_token(
+        self, client_cls, transport_patch_target, transport_tuple, info_kwargs
+    ):
+        info_cls = StreamableHttpServerInfo if client_cls is StreamableHttpClient else SSEServerInfo
+        info = info_cls(**info_kwargs)
+        client = client_cls(info)
+
+        with (
+            patch.object(client, "exit_stack") as mock_stack,
+            patch(transport_patch_target) as mock_transport,
+            patch.object(client, "_initialize_session_with_transport", new_callable=AsyncMock) as mock_init,
+        ):
+            mock_stack.enter_async_context = AsyncMock(return_value=transport_tuple)
+            mock_init.return_value = []
+
+            await client.connect()
+
+            _, kwargs = mock_transport.call_args
+            assert kwargs["headers"] == {"Authorization": "Bearer mytok"}
+
+    @pytest.mark.asyncio
+    async def test_sse_client_connect_prefers_custom_headers_over_token(self):
+        info = SSEServerInfo(url="http://x/sse", token="tok", headers={"X-Key": "val"})
+        client = SSEClient(info)
+
+        with (
+            patch.object(client, "exit_stack") as mock_stack,
+            patch("haystack_integrations.tools.mcp.mcp_tool.sse_client") as mock_sse,
+            patch.object(client, "_initialize_session_with_transport", new_callable=AsyncMock) as mock_init,
+        ):
+            mock_stack.enter_async_context = AsyncMock(return_value=(MagicMock(), MagicMock()))
+            mock_init.return_value = []
+
+            await client.connect()
+
+            _, kwargs = mock_sse.call_args
+            assert kwargs["headers"] == {"X-Key": "val"}

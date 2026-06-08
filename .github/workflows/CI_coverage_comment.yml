@@ -1,4 +1,4 @@
-name: Add comment about test coverage to PRs
+name: Core / Add comment about test coverage to PRs
 
 on:
   workflow_run:
@@ -6,23 +6,33 @@ on:
       - "Test / aimlapi"
       - "Test / amazon-bedrock"
       - "Test / amazon-sagemaker"
+      - "Test / amazon-textract"
       - "Test / anthropic"
+      - "Test / arangodb"
       - "Test / arcadedb"
       - "Test / astra"
+      - "Test / brave"
       - "Test / azure_ai_search"
       - "Test / azure_doc_intelligence"
+      - "Test / chonkie"
       - "Test / chroma"
+      - "Test / cognee"
       - "Test / cohere"
       - "Test / cometapi"
       - "Test / deepeval"
+      - "Test / docling_serve"
       - "Test / dspy"
+      - "Test / e2b"
       - "Test / elasticsearch"
       - "Test / faiss"
+      - "Test / falkordb"
       - "Test / fastembed"
       - "Test / firecrawl"
+      - "Test / funasr"
       - "Test / github"
       - "Test / google-genai"
       - "Test / hanlp"
+      - "Test / huggingface_api"
       - "Test / jina"
       - "Test / kreuzberg"
       - "Test / langfuse"
@@ -32,6 +42,7 @@ on:
       - "Test / llama_stack"
       - "Test / markitdown"
       - "Test / mcp"
+      - "Test / mem0"
       - "Test / meta_llama"
       - "Test / mistral"
       - "Test / mongodb_atlas"
@@ -41,17 +52,23 @@ on:
       - "Test / opensearch"
       - "Test / optimum"
       - "Test / paddleocr"
+      - "Test / perplexity"
       - "Test / pgvector"
       - "Test / pinecone"
+      - "Test / presidio"
       - "Test / pyversity"
       - "Test / qdrant"
       - "Test / ragas"
       - "Test / snowflake"
+      - "Test / sqlalchemy"
       - "Test / stackit"
+      - "Test / supabase"
       - "Test / tavily"
       - "Test / togetherai"
       - "Test / unstructured"
       - "Test / valkey"
+      - "Test / vespa"
+      - "Test / vllm"
       - "Test / watsonx"
       - "Test / weave"
       - "Test / weaviate"
@@ -70,7 +87,7 @@ jobs:
           # Workflow names follow "Test / <name>" convention; normalize hyphens to underscores to match directory names
           echo "name=$(echo '${{ github.event.workflow_run.name }}' | sed 's/Test \/ //' | tr '-' '_')" >> "$GITHUB_OUTPUT"
 
-      - uses: py-cov-action/python-coverage-comment-action@7188638f871f721a365d644f505d1ff3df20d683 # v3.40
+      - uses: py-cov-action/python-coverage-comment-action@63f52f4fbbffada6e8dee8ec432de7e01df9ba79 # v3.41
         with:
           GITHUB_TOKEN: ${{ github.token }}
           GITHUB_PR_RUN_ID: ${{ github.event.workflow_run.id }}

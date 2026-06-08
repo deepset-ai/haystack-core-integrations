@@ -28,7 +28,7 @@ classifiers = [
   "Programming Language :: Python :: Implementation :: PyPy",
 ]
 dependencies = [
-  "haystack-ai>=2.26.1",
+  "haystack-ai>=2.29.0",
   "qdrant-client>=1.12.0"
 ]
 

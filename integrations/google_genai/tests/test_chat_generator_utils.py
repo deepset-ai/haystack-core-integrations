@@ -291,7 +291,7 @@ class TestStreamingChunkConversion:
         assert chunk.tool_calls[0].tool_name == "weather"
         assert chunk.tool_calls[0].arguments == '{"city": "Paris"}'
         assert chunk.tool_calls[0].id == "call_123"
-        assert chunk.finish_reason == "stop"
+        assert chunk.finish_reason == "tool_calls"
         assert chunk.index == 0
         assert "received_at" in chunk.meta
         assert chunk.component_info == component_info
@@ -337,7 +337,7 @@ class TestStreamingChunkConversion:
         assert len(chunk.tool_calls) == 1
         assert chunk.tool_calls[0].tool_name == "weather"
         assert chunk.tool_calls[0].arguments == '{"city": "London"}'
-        assert chunk.finish_reason == "stop"
+        assert chunk.finish_reason == "tool_calls"
         assert chunk.component_info == component_info
 
     def test_convert_google_chunk_to_streaming_chunk_empty_parts(self, monkeypatch):
@@ -513,7 +513,7 @@ class TestStreamingChunkConversion:
         assert streaming_chunk.content == ""
         assert streaming_chunk.tool_calls is not None
         assert len(streaming_chunk.tool_calls) == 6
-        assert streaming_chunk.finish_reason == "stop"
+        assert streaming_chunk.finish_reason == "tool_calls"
         assert streaming_chunk.index == 2
         assert "received_at" in streaming_chunk.meta
         assert streaming_chunk.meta["model"] == "gemini-2.5-flash"
@@ -701,6 +701,76 @@ class TestStreamingChunkConversion:
         assert result.meta["usage"]["thoughts_token_count"] == 42
         assert "thought_signatures" in result.meta
         assert result.meta["thought_signatures"][0]["signature"] == "sig_xyz"
+
+    def test_convert_google_chunk_to_streaming_chunk_with_cached_tokens(self, monkeypatch):
+        """cached_content_token_count from usage_metadata is included in the streaming chunk's usage."""
+        monkeypatch.setenv("GOOGLE_API_KEY", "test-api-key")
+        component_info = ComponentInfo.from_component(GoogleGenAIChatGenerator())
+
+        mock_usage = Mock()
+        mock_usage.prompt_token_count = 1000
+        mock_usage.candidates_token_count = 10
+        mock_usage.total_token_count = 1010
+        mock_usage.thoughts_token_count = None
+        mock_usage.cached_content_token_count = 800
+
+        mock_part = Mock()
+        mock_part.text = "The answer is 4."
+        mock_part.function_call = None
+        mock_part.thought = False
+        mock_part.thought_signature = None
+        mock_content = Mock()
+        mock_content.parts = [mock_part]
+        mock_candidate = Mock()
+        mock_candidate.content = mock_content
+        mock_candidate.finish_reason = "STOP"
+
+        mock_chunk = Mock()
+        mock_chunk.candidates = [mock_candidate]
+        mock_chunk.usage_metadata = mock_usage
+
+        chunk = _convert_google_chunk_to_streaming_chunk(
+            chunk=mock_chunk,
+            index=0,
+            component_info=component_info,
+            model="gemini-2.5-flash",
+        )
+
+        assert chunk.meta["usage"]["prompt_tokens"] == 1000
+        assert chunk.meta["usage"]["completion_tokens"] == 10
+        assert chunk.meta["usage"]["total_tokens"] == 1010
+        assert chunk.meta["usage"]["cached_content_token_count"] == 800
+
+    def test_aggregate_streaming_chunks_with_cached_tokens(self, monkeypatch):
+        """cached_content_token_count from the final chunk is propagated to the aggregated message."""
+        monkeypatch.setenv("GOOGLE_API_KEY", "test-api-key")
+        component_info = ComponentInfo.from_component(GoogleGenAIChatGenerator())
+
+        chunk1 = StreamingChunk(
+            content="Hello",
+            component_info=component_info,
+            index=0,
+            meta={"usage": {"prompt_tokens": 1000, "completion_tokens": 5, "total_tokens": 1005}},
+        )
+        final_chunk = StreamingChunk(
+            content=" world",
+            component_info=component_info,
+            index=1,
+            meta={
+                "usage": {
+                    "prompt_tokens": 1000,
+                    "completion_tokens": 10,
+                    "total_tokens": 1010,
+                    "cached_content_token_count": 800,
+                },
+                "model": "gemini-2.5-flash",
+            },
+        )
+
+        result = _aggregate_streaming_chunks_with_reasoning([chunk1, final_chunk])
+
+        assert result.text == "Hello world"
+        assert result.meta["usage"]["cached_content_token_count"] == 800
 
 
 class TestConvertMessageToGoogleGenAI:

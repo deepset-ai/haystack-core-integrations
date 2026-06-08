@@ -1,9 +1,9 @@
+import json
+import logging
 import os
-from datetime import datetime
 from unittest.mock import AsyncMock, patch
 
 import pytest
-import pytz
 from haystack.dataclasses import (
     ChatMessage,
     ChatRole,
@@ -11,8 +11,6 @@ from haystack.dataclasses import (
 )
 from haystack.tools import Tool
 from openai import AsyncOpenAI
-from openai.types.chat import ChatCompletion, ChatCompletionMessage
-from openai.types.chat.chat_completion import Choice
 
 from haystack_integrations.components.generators.mistral.chat.chat_generator import (
     MistralChatGenerator,
@@ -58,27 +56,24 @@ def mock_async_chat_completion():
         "openai.resources.chat.completions.AsyncCompletions.create",
         new_callable=AsyncMock,
     ) as mock_chat_completion_create:
-        completion = ChatCompletion(
-            id="foo",
-            model="mistral-small-latest",
-            object="chat.completion",
-            choices=[
-                Choice(
-                    finish_reason="stop",
-                    logprobs=None,
-                    index=0,
-                    message=ChatCompletionMessage(content="Hello world!", role="assistant"),
-                )
-            ],
-            created=int(datetime.now(tz=pytz.timezone("UTC")).timestamp()),
-            usage={
-                "prompt_tokens": 57,
-                "completion_tokens": 40,
-                "total_tokens": 97,
-            },
+        mock_response = type("MockRawResponse", (), {})()
+        mock_response.text = json.dumps(
+            {
+                "id": "foo",
+                "model": "mistral-small-latest",
+                "object": "chat.completion",
+                "choices": [
+                    {
+                        "finish_reason": "stop",
+                        "index": 0,
+                        "message": {"role": "assistant", "content": "Hello world!"},
+                    }
+                ],
+                "created": 1234567890,
+                "usage": {"prompt_tokens": 57, "completion_tokens": 40, "total_tokens": 97},
+            }
         )
-        # For async mocks, the return value should be awaitable
-        mock_chat_completion_create.return_value = completion
+        mock_chat_completion_create.return_value = mock_response
         yield mock_chat_completion_create
 
 
@@ -262,3 +257,93 @@ class TestMistralChatGeneratorAsync:
         assert tool_call.tool_name == "weather"
         assert tool_call.arguments == {"city": "Paris"}
         assert tool_message.meta["finish_reason"] == "tool_calls"
+
+    @pytest.mark.skipif(
+        not os.environ.get("MISTRAL_API_KEY", None),
+        reason="Export an env var called MISTRAL_API_KEY containing the Mistral API key to run this test.",
+    )
+    @pytest.mark.integration
+    @pytest.mark.asyncio
+    async def test_live_run_async_with_reasoning(self):
+        chat_messages = [ChatMessage.from_user("If x + 3 = 7, what is x?")]
+        component = MistralChatGenerator(generation_kwargs={"reasoning_effort": "high"})
+        results = await component.run_async(chat_messages)
+
+        assert len(results["replies"]) == 1
+        message: ChatMessage = results["replies"][0]
+        assert message.reasoning is not None
+        assert message.reasoning.reasoning_text
+        assert message.text
+        assert "4" in message.text
+        assert message.meta["finish_reason"] == "stop"
+
+    @pytest.mark.asyncio
+    async def test_run_async_with_reasoning(self, chat_messages, monkeypatch):
+        monkeypatch.setenv("MISTRAL_API_KEY", "fake-api-key")
+
+        mock_response = type("MockRawResponse", (), {})()
+        mock_response.text = json.dumps(
+            {
+                "id": "test-reasoning-async",
+                "model": "mistral-small-latest",
+                "object": "chat.completion",
+                "choices": [
+                    {
+                        "finish_reason": "stop",
+                        "index": 0,
+                        "message": {
+                            "role": "assistant",
+                            "content": [
+                                {
+                                    "type": "thinking",
+                                    "thinking": [{"type": "text", "text": "Async reasoning content."}],
+                                },
+                                {"type": "text", "text": "Async answer."},
+                            ],
+                        },
+                    }
+                ],
+                "created": 1234567890,
+                "usage": {"prompt_tokens": 10, "completion_tokens": 50, "total_tokens": 60},
+            }
+        )
+
+        with patch(
+            "openai.resources.chat.completions.AsyncCompletions.create",
+            new_callable=AsyncMock,
+        ) as mock_create:
+            mock_create.return_value = mock_response
+            component = MistralChatGenerator()
+            response = await component.run_async(chat_messages)
+
+        assert len(response["replies"]) == 1
+        msg = response["replies"][0]
+        assert msg.text == "Async answer."
+        assert msg.reasoning is not None
+        assert msg.reasoning.reasoning_text == "Async reasoning content."
+
+    @pytest.mark.asyncio
+    async def test_run_async_empty_messages(self, monkeypatch):
+        monkeypatch.setenv("MISTRAL_API_KEY", "fake-api-key")
+        component = MistralChatGenerator()
+        response = await component.run_async([])
+        assert response == {"replies": []}
+
+    @pytest.mark.asyncio
+    async def test_run_async_streaming_with_reasoning_logs_warning(self, monkeypatch, caplog):
+        monkeypatch.setenv("MISTRAL_API_KEY", "fake-api-key")
+
+        async def async_callback(chunk: StreamingChunk):
+            pass
+
+        component = MistralChatGenerator(
+            generation_kwargs={"reasoning_effort": "high"},
+            streaming_callback=async_callback,
+        )
+
+        with (
+            caplog.at_level(logging.WARNING),
+            patch.object(component, "_prepare_api_call", side_effect=RuntimeError),
+            pytest.raises(RuntimeError),
+        ):
+            await component.run_async([ChatMessage.from_user("test")])

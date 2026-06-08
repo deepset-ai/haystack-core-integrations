@@ -63,11 +63,12 @@ def test_to_dict(_mock_opensearch_client):
                     "use_ssl": None,
                     "verify_certs": None,
                     "timeout": None,
+                    "nested_fields": None,
                 },
                 "type": "haystack_integrations.document_stores.opensearch.document_store.OpenSearchDocumentStore",
             },
             "filters": {},
-            "fuzziness": "AUTO",
+            "fuzziness": 0,
             "top_k": 10,
             "scale_score": False,
             "filter_policy": "replace",
@@ -162,7 +163,7 @@ def test_run():
     mock_store._bm25_retrieval.assert_called_once_with(
         query="some query",
         filters={},
-        fuzziness="AUTO",
+        fuzziness=0,
         top_k=10,
         scale_score=False,
         all_terms_must_match=False,
@@ -182,7 +183,7 @@ async def test_run_async():
     mock_store._bm25_retrieval_async.assert_called_once_with(
         query="some query",
         filters={},
-        fuzziness="AUTO",
+        fuzziness=0,
         top_k=10,
         scale_score=False,
         all_terms_must_match=False,
@@ -325,6 +326,22 @@ def test_run_ignore_errors(caplog):
     assert "Some error" in caplog.text
 
 
+@pytest.mark.asyncio
+async def test_run_async_ignore_errors(caplog):
+    mock_store = Mock(spec=OpenSearchDocumentStore)
+    mock_store._bm25_retrieval_async.side_effect = Exception("Some error")
+    retriever = OpenSearchBM25Retriever(document_store=mock_store, raise_on_failure=False)
+    res = await retriever.run_async(query="some query")
+    assert len(res) == 1
+    assert res["documents"] == []
+    assert "Some error" in caplog.text
+
+
+def test_init_raises_on_invalid_document_store():
+    with pytest.raises(ValueError, match="document_store must be an instance of OpenSearchDocumentStore"):
+        OpenSearchBM25Retriever(document_store="not a document store")
+
+
 def test_run_with_runtime_document_store():
     # initial document store
     initial_store = Mock(spec=OpenSearchDocumentStore)
@@ -342,7 +359,7 @@ def test_run_with_runtime_document_store():
     runtime_store._bm25_retrieval.assert_called_once_with(
         query="some query",
         filters={},
-        fuzziness="AUTO",
+        fuzziness=0,
         top_k=10,
         scale_score=False,
         all_terms_must_match=False,
@@ -373,7 +390,7 @@ async def test_run_async_with_runtime_document_store():
     runtime_store._bm25_retrieval_async.assert_called_once_with(
         query="some query",
         filters={},
-        fuzziness="AUTO",
+        fuzziness=0,
         top_k=10,
         scale_score=False,
         all_terms_must_match=False,

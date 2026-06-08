@@ -354,6 +354,13 @@ class TestNvidiaDocumentEmbedder:
         with pytest.raises(TypeError, match="NvidiaDocumentEmbedder expects a list of Documents as input"):
             embedder.run(documents=list_integers_input)
 
+    def test_run_validates_input_without_prior_warm_up(self):
+        api_key = Secret.from_token("fake-api-key")
+        embedder = NvidiaDocumentEmbedder("nvidia/nv-embedqa-e5-v5", api_key=api_key)
+
+        with pytest.raises(TypeError, match="NvidiaDocumentEmbedder expects a list of Documents as input"):
+            embedder.run(documents="text")
+
     def test_run_empty_document(self, caplog):
         model = "nvidia/nv-embedqa-e5-v5"
         api_key = Secret.from_token("fake-api-key")

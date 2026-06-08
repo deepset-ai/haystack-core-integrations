@@ -1351,10 +1351,13 @@ class PgvectorDocumentStore:
         # cosine_similarity and inner_product are modified from the result of the operator
         if vector_function == "cosine_similarity":
             score_definition = f"1 - (embedding <=> {query_embedding_for_postgres}) AS score"
+            order_by_definition = f"embedding <=> {query_embedding_for_postgres}"
         elif vector_function == "inner_product":
             score_definition = f"(embedding <#> {query_embedding_for_postgres}) * -1 AS score"
+            order_by_definition = f"embedding <#> {query_embedding_for_postgres}"
         elif vector_function == "l2_distance":
             score_definition = f"embedding <-> {query_embedding_for_postgres} AS score"
+            order_by_definition = f"embedding <-> {query_embedding_for_postgres}"
 
         sql_select = SQL("SELECT *, {score} FROM {schema_name}.{table_name}").format(
             schema_name=Identifier(self.schema_name),
@@ -1367,13 +1370,9 @@ class PgvectorDocumentStore:
         if filters:
             sql_where_clause, params = _convert_filters_to_where_clause_and_params(filters)
 
-        # we always want to return the most similar documents first
-        # so when using l2_distance, the sort order must be ASC
-        sort_order = "ASC" if vector_function == "l2_distance" else "DESC"
-
-        sql_sort = SQL(" ORDER BY score {sort_order} LIMIT {top_k}").format(
+        sql_sort = SQL(" ORDER BY {order_by} ASC LIMIT {top_k}").format(
             top_k=SQLLiteral(top_k),
-            sort_order=SQL(sort_order),
+            order_by=SQL(order_by_definition),
         )
 
         sql_query = sql_select + sql_where_clause + sql_sort
@@ -1669,7 +1668,7 @@ class PgvectorDocumentStore:
         :param records: List of database records containing 'meta' field.
         :returns: A dictionary mapping field names to their type information.
         """
-        fields_info: dict[str, dict[str, str]] = {"content": {"type": "text"}}
+        fields_info: dict[str, dict[str, str]] = {}
 
         # Analyze metadata from all documents
         for record in records:
@@ -1706,7 +1705,6 @@ class PgvectorDocumentStore:
         Example return:
         ```python
         {
-            'content': {'type': 'text'},
             'category': {'type': 'text'},
             'status': {'type': 'text'},
             'priority': {'type': 'integer'},
@@ -1846,15 +1844,14 @@ class PgvectorDocumentStore:
         :returns: A dictionary with 'min' and 'max' keys containing the minimum and maximum values.
             For numeric fields (integer, real), returns numeric min/max.
             For text fields, returns lexicographic min/max based on database collation.
-        :raises ValueError: If the field doesn't exist or has no values.
+            Returns `{"min": None, "max": None}` when the field has no values or the store is empty.
         """
         normalized_field = PgvectorDocumentStore._normalize_metadata_field_name(metadata_field)
 
         # Get field type information from metadata fields info
         fields_info = self.get_metadata_fields_info()
         if normalized_field not in fields_info:
-            msg = f"Metadata field '{metadata_field}' not found in document store"
-            raise ValueError(msg)
+            return {"min": None, "max": None}
 
         field_type = fields_info[normalized_field]["type"]
         sql_query = self._build_min_max_query(normalized_field, field_type)
@@ -1879,15 +1876,14 @@ class PgvectorDocumentStore:
         :returns: A dictionary with 'min' and 'max' keys containing the minimum and maximum values.
             For numeric fields (integer, real), returns numeric min/max.
             For text fields, returns lexicographic min/max based on database collation.
-        :raises ValueError: If the field doesn't exist or has no values.
+            Returns ``{"min": None, "max": None}`` when the field has no values or the store is empty.
         """
         normalized_field = PgvectorDocumentStore._normalize_metadata_field_name(metadata_field)
 
         # Get field type information from metadata fields info
         fields_info = await self.get_metadata_fields_info_async()
         if normalized_field not in fields_info:
-            msg = f"Metadata field '{metadata_field}' not found in document store"
-            raise ValueError(msg)
+            return {"min": None, "max": None}
 
         field_type = fields_info[normalized_field]["type"]
         sql_query = self._build_min_max_query(normalized_field, field_type)

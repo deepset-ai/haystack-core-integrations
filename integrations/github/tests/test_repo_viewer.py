@@ -186,3 +186,52 @@ class TestGitHubRepoViewer:
         assert "Authorization" not in headers
         assert headers["Accept"] == "application/vnd.github.v3+json"
         assert headers["User-Agent"] == "Haystack/GitHubRepoViewer"
+
+    def test_run_no_repo_raises(self, monkeypatch):
+        monkeypatch.setenv("GITHUB_TOKEN", "test-token")
+        viewer = GitHubRepoViewer()
+        with pytest.raises(ValueError, match="Repository not provided"):
+            viewer.run(path="README.md")
+
+    @pytest.mark.parametrize(
+        "file_payload,error_substring",
+        [
+            (
+                {
+                    "name": "big.bin",
+                    "path": "big.bin",
+                    "size": 2_000_000,
+                    "html_url": "https://x",
+                    "content": "",
+                    "encoding": "base64",
+                },
+                "exceeds limit",
+            ),
+            (
+                {
+                    "name": "raw.txt",
+                    "path": "raw.txt",
+                    "size": 5,
+                    "html_url": "https://x",
+                    "content": "Hello",
+                    "encoding": "utf-8",
+                },
+                None,
+            ),
+        ],
+    )
+    @patch("requests.get")
+    def test_run_file_size_and_encoding(self, mock_get, file_payload, error_substring, monkeypatch):
+        monkeypatch.setenv("GITHUB_TOKEN", "test-token")
+        mock_get.return_value.json.return_value = file_payload
+        mock_get.return_value.raise_for_status.return_value = None
+
+        viewer = GitHubRepoViewer(raise_on_failure=False)
+        result = viewer.run(repo="owner/repo", path=file_payload["path"])
+        doc = result["documents"][0]
+        if error_substring is None:
+            assert doc.content == "Hello"
+            assert doc.meta["type"] == "file_content"
+        else:
+            assert doc.meta["type"] == "error"
+            assert error_substring in doc.content

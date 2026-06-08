@@ -8,7 +8,7 @@ from dataclasses import replace
 from pathlib import Path
 from typing import Any, Literal
 
-from google.genai.types import EmbedContentConfig, Part
+from google.genai.types import Content, EmbedContentConfig, Part
 from haystack import Document, component, logging
 from haystack.components.converters.image.image_utils import (
     _batch_convert_pdf_pages_to_images,
@@ -17,7 +17,6 @@ from haystack.components.converters.image.image_utils import (
 )
 from haystack.dataclasses import ByteStream
 from haystack.utils.auth import Secret
-from more_itertools import batched
 from tqdm import tqdm
 from tqdm.asyncio import tqdm as async_tqdm
 from typing_extensions import NotRequired, TypedDict
@@ -178,7 +177,7 @@ class GoogleGenAIMultimodalDocumentEmbedder:
         file_path_meta_field: str = "file_path",
         root_path: str | None = None,
         image_size: tuple[int, int] | None = None,
-        model: str = "gemini-embedding-2-preview",
+        model: str = "gemini-embedding-2",
         batch_size: int = 6,
         progress_bar: bool = True,
         config: dict[str, Any] | None = None,
@@ -214,11 +213,10 @@ class GoogleGenAIMultimodalDocumentEmbedder:
         :param progress_bar:
             If `True`, shows a progress bar when running.
         :param config:
-            A dictionary of keyword arguments to configure embedding content configuration `types.EmbedContentConfig`.
+            A dictionary of keyword arguments to configure embedding content configuration.
             You can for example set the output dimensionality of the embedding: `{"output_dimensionality": 768}`.
-            It also allows customizing the task type. If the task type is not specified, it defaults to
-            `{"task_type": "RETRIEVAL_DOCUMENT"}`.
-            For more information, see the [Google AI documentation](https://ai.google.dev/gemini-api/docs/embeddings#task-types).
+            See [Google API documentation](https://googleapis.github.io/python-genai/genai.html#genai.types.EmbedContentConfig)
+            for the available options.
         """
         self._api_key = api_key
         self._api = api
@@ -230,9 +228,6 @@ class GoogleGenAIMultimodalDocumentEmbedder:
         self._image_size = image_size
         self._batch_size = batch_size
         self._progress_bar = progress_bar
-
-        config = config or {}
-        config.setdefault("task_type", "RETRIEVAL_DOCUMENT")
         self._config = config
 
         self._client = _get_client(
@@ -323,10 +318,11 @@ class GoogleGenAIMultimodalDocumentEmbedder:
 
         all_embeddings: list[list[float] | None] = []
         meta: dict[str, Any] = {}
-        for batch in tqdm(
-            batched(parts_to_embed, batch_size), disable=not self._progress_bar, desc="Calculating embeddings"
+        for i in tqdm(
+            range(0, len(parts_to_embed), batch_size), disable=not self._progress_bar, desc="Calculating embeddings"
         ):
-            args: dict[str, Any] = {"model": self._model, "contents": batch}
+            batch = parts_to_embed[i : i + batch_size]
+            args: dict[str, Any] = {"model": self._model, "contents": [Content(parts=[p]) for p in batch]}
             if resolved_config:
                 args["config"] = resolved_config
 
@@ -365,10 +361,11 @@ class GoogleGenAIMultimodalDocumentEmbedder:
 
         all_embeddings: list[list[float] | None] = []
         meta: dict[str, Any] = {}
-        async for batch in async_tqdm(
-            batched(parts_to_embed, batch_size), disable=not self._progress_bar, desc="Calculating embeddings"
+        async for i in async_tqdm(
+            range(0, len(parts_to_embed), batch_size), disable=not self._progress_bar, desc="Calculating embeddings"
         ):
-            args: dict[str, Any] = {"model": self._model, "contents": batch}
+            batch = parts_to_embed[i : i + batch_size]
+            args: dict[str, Any] = {"model": self._model, "contents": [Content(parts=[p]) for p in batch]}
             if resolved_config:
                 args["config"] = resolved_config
 

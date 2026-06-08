@@ -233,6 +233,36 @@ class TestNimBackend:
                 timeout=60.0,
             )
 
+    def test_embed_raises_on_http_error(self, monkeypatch):
+        error_response = requests.Response()
+        error_response.status_code = 500
+        error_response._content = b"server exploded"
+        with patch("requests.sessions.Session.post", return_value=error_response):
+            monkeypatch.setenv("NVIDIA_API_KEY", "fake-api-key")
+            backend = NimBackend(model="nvidia/nv-embedqa-e5-v5", api_url=DEFAULT_API_URL, client="NvidiaTextEmbedder")
+            with pytest.raises(ValueError, match="Failed to query embedding endpoint"):
+                backend.embed(texts=["a"])
+
+    def test_generate_raises_on_http_error(self, monkeypatch):
+        error_response = requests.Response()
+        error_response.status_code = 500
+        error_response._content = b"server exploded"
+        with patch("requests.sessions.Session.post", return_value=error_response):
+            monkeypatch.setenv("NVIDIA_API_KEY", "fake-api-key")
+            backend = NimBackend(model="meta/llama3-8b-instruct", api_url=DEFAULT_API_URL, client="NvidiaGenerator")
+            with pytest.raises(ValueError, match="Failed to query chat completion endpoint"):
+                backend.generate(prompt="hi")
+
+    def test_models_raises_when_empty(self, monkeypatch):
+        empty_response = requests.Response()
+        empty_response.status_code = 200
+        empty_response._content = json.dumps({"data": []}).encode()
+        with patch("requests.sessions.Session.get", return_value=empty_response):
+            monkeypatch.setenv("NVIDIA_API_KEY", "fake-api-key")
+            backend = NimBackend(model="custom-model", api_url="http://localhost:8000")
+            with pytest.raises(ValueError, match="No hosted model were found"):
+                backend.models()
+
     def test_rank(self, monkeypatch):
         with patch("requests.sessions.Session.post", side_effect=mock_rank_post_response) as mock_post:
             monkeypatch.setenv("NVIDIA_API_KEY", "fake-api-key")
@@ -258,3 +288,27 @@ class TestNimBackend:
                 },
                 timeout=60.0,
             )
+
+    def test_rank_raises_on_http_error(self, monkeypatch):
+        error_response = requests.Response()
+        error_response.status_code = 500
+        error_response._content = b"server exploded"
+        with patch("requests.sessions.Session.post", return_value=error_response):
+            monkeypatch.setenv("NVIDIA_API_KEY", "fake-api-key")
+            backend = NimBackend(
+                model="nvidia/llama-3.2-nv-rerankqa-1b-v2", api_url=DEFAULT_API_URL, client="NvidiaRanker"
+            )
+            with pytest.raises(ValueError, match="Failed to rank endpoint"):
+                backend.rank(query_text="q", document_texts=["a"])
+
+    def test_rank_raises_when_rankings_missing(self, monkeypatch):
+        response = requests.Response()
+        response.status_code = 200
+        response._content = json.dumps({"unexpected": "payload"}).encode()
+        with patch("requests.sessions.Session.post", return_value=response):
+            monkeypatch.setenv("NVIDIA_API_KEY", "fake-api-key")
+            backend = NimBackend(
+                model="nvidia/llama-3.2-nv-rerankqa-1b-v2", api_url=DEFAULT_API_URL, client="NvidiaRanker"
+            )
+            with pytest.raises(ValueError, match="Expected 'rankings' in response"):
+                backend.rank(query_text="q", document_texts=["a"])

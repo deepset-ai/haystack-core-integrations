@@ -1,5 +1,29 @@
 # Changelog
 
+## [integrations/chroma-v4.3.0] - 2026-04-29
+
+### 🚀 Features
+
+- *(chroma)* Support DuplicatePolicy in write_documents and use async mixin tests (#3245)
+
+### 🚜 Refactor
+
+- Weaviate, chroma, elasticsearch, opensearch, azure_ai_search use `_normalize_metadata_field_name` from haystack.utils (#2953)
+
+### 🧪 Testing
+
+- `ChromaDocumentStore` use Mixin tests (#3026)
+- Track test coverage for all integrations (#3065)
+- Better categorize some Document Stores tests (#3085)
+- Chroma - add unit tests (#3175)
+
+### 🧹 Chores
+
+- Add missing -> None return type annotations to chroma __init__ methods (#2976)
+- Enforce ruff docstring rules (D102/D103/D205/D209/D213/D417/D419) in first 10 integrations (#3008)
+- Increase lower pins for 3.14 support in some integrations + test with 3.14 (#3033)
+
+
 ## [integrations/chroma-v4.2.0] - 2026-03-11
 
 ### 🚀 Features

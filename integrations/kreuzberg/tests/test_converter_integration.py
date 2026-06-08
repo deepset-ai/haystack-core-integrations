@@ -207,7 +207,6 @@ def test_metadata_keyword_extraction() -> None:
     )
     result = converter.run(sources=[FIXTURES_DIR / "sample.pdf"])
     doc = _docs(result)[0]
-    # Keywords flow through from result.metadata as-is (plain dicts)
     assert "keywords" in doc.meta
     keywords = doc.meta["keywords"]
     assert len(keywords) == 3

@@ -1,5 +1,27 @@
 # Changelog
 
+## [integrations/weave-v3.2.0] - 2026-05-15
+
+### 🐛 Bug Fixes
+
+- Adaptations for changes in Weave settings (#3304)
+
+### 📚 Documentation
+
+- Simplify pydoc configs (#2855)
+- *(weave)* Remove explicit warm_up calls (#2856)
+
+### 🧪 Testing
+
+- Test compatible integrations with python 3.14; update pyproject (#3001)
+- Track test coverage for all integrations (#3065)
+
+### 🧹 Chores
+
+- Add ANN type annotations to stackit, togetherai, unstructured, valkey, watsonx, weave, weaviate (#2994)
+- Enforce ruff docstring rules (D102/D103/D205/D209/D213/D417/D419) in integrations 41-47 (#3012)
+
+
 ## [integrations/weave-v3.1.0] - 2026-01-14
 
 ### 🚀 Features
