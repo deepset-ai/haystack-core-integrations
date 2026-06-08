@@ -81,7 +81,7 @@ jobs:
         run: hatch run fmt-check && hatch run test:types
 
       - name: Run ArangoDB container
-        run: docker compose up -d --wait
+        run: docker compose up -d
 
       - name: Run unit tests
         run: hatch run test:unit-cov-retry
