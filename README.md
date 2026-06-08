@@ -8,7 +8,7 @@
 | src/haystack\_integrations/components/embedders/google\_genai/document\_embedder.py             |      100 |        5 |       30 |        4 |     93% |241, 264, 274, 326-330 |
 | src/haystack\_integrations/components/embedders/google\_genai/multimodal\_document\_embedder.py |      151 |        8 |       52 |        7 |     93% |352-353, 374, 395-\>368, 417, 427-428, 431-436, 438-\>411 |
 | src/haystack\_integrations/components/embedders/google\_genai/text\_embedder.py                 |       48 |        0 |        4 |        0 |    100% |           |
-| src/haystack\_integrations/components/generators/google\_genai/chat/chat\_generator.py          |      158 |        1 |       36 |        1 |     99% |       565 |
+| src/haystack\_integrations/components/generators/google\_genai/chat/chat\_generator.py          |      158 |        1 |       36 |        1 |     99% |       564 |
 | src/haystack\_integrations/components/generators/google\_genai/chat/utils.py                    |      306 |       14 |      178 |       16 |     93% |222-223, 261-263, 270-\>278, 283-\>288, 327-329, 390-\>288, 453, 463-465, 503-\>537, 506-\>537, 533-\>507, 609-\>613, 661-\>632, 732-\>738, 738-\>724, 748, 754 |
 | **TOTAL**                                                                                       |  **795** |   **28** |  **316** |   **28** | **95%** |           |
 
