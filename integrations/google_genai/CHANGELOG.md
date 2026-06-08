@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/google_genai-v4.4.0] - 2026-06-08
+
+### 🚀 Features
+
+- *(google_genai)* Add timeout and max_retries to embedder components (#3412)
+
+
 ## [integrations/google_genai-v4.3.0] - 2026-06-05
 
 ### 🚀 Features
