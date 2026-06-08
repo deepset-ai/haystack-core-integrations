@@ -921,7 +921,7 @@ class TestWatsonxChatGeneratorIntegration:
             ChatMessage.from_user("What's the weather like in Paris and what is the population of Berlin?")
         ]
         component = WatsonxChatGenerator(
-            model="meta-llama/llama-3-2-11b-vision-instruct",
+            model="ibm/granite-4-h-small",
             project_id=Secret.from_env_var("WATSONX_PROJECT_ID"),
             tools=mixed_tools,
         )
