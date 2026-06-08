@@ -325,3 +325,93 @@ class TestOpenRouterChatGeneratorAsync:
         tool_call = message.tool_calls[0]
         assert tool_call.tool_name == "echo"
         assert tool_call.arguments == {"text": "Hello World"}
+
+    @pytest.mark.asyncio
+    async def test_run_async_with_reasoning(self, monkeypatch):
+        monkeypatch.setenv("OPENROUTER_API_KEY", "fake-api-key")
+
+        with patch(
+            "openai.resources.chat.completions.AsyncCompletions.create",
+            new_callable=AsyncMock,
+        ) as mock_create:
+            completion = ChatCompletion(
+                id="test-async-reasoning",
+                model="deepseek/deepseek-r1",
+                object="chat.completion",
+                choices=[
+                    Choice(
+                        finish_reason="stop",
+                        logprobs=None,
+                        index=0,
+                        message=ChatCompletionMessage(
+                            content="Paris is the capital of France.",
+                            role="assistant",
+                            reasoning="The user asked about capitals. France's capital is Paris.",
+                            reasoning_details=[
+                                {
+                                    "type": "reasoning.text",
+                                    "text": "The user asked about capitals. France's capital is Paris.",
+                                }
+                            ],
+                        ),
+                    )
+                ],
+                created=int(datetime.now(tz=pytz.timezone("UTC")).timestamp()),
+                usage={"prompt_tokens": 57, "completion_tokens": 40, "total_tokens": 97},
+            )
+            mock_create.return_value = completion
+
+            component = OpenRouterChatGenerator(
+                model="deepseek/deepseek-r1",
+                generation_kwargs={"reasoning": {"effort": "high"}},
+            )
+            response = await component.run_async([ChatMessage.from_user("What's the capital of France?")])
+
+            assert len(response["replies"]) == 1
+            reply = response["replies"][0]
+            assert reply.text == "Paris is the capital of France."
+            assert reply.reasoning is not None
+            assert "capitals" in reply.reasoning.reasoning_text
+            assert reply.reasoning.extra["reasoning_details"][0]["type"] == "reasoning.text"
+
+    @pytest.mark.asyncio
+    async def test_run_async_empty_messages(self, monkeypatch):
+        monkeypatch.setenv("OPENROUTER_API_KEY", "fake-api-key")
+        component = OpenRouterChatGenerator()
+        response = await component.run_async([])
+        assert response == {"replies": []}
+
+    @pytest.mark.asyncio
+    async def test_run_async_with_string_input(self, monkeypatch):
+        monkeypatch.setenv("OPENROUTER_API_KEY", "fake-api-key")
+
+        with patch(
+            "openai.resources.chat.completions.AsyncCompletions.create",
+            new_callable=AsyncMock,
+        ) as mock_create:
+            completion = ChatCompletion(
+                id="test-async-string-input",
+                model="openai/gpt-5-mini",
+                object="chat.completion",
+                choices=[
+                    Choice(
+                        finish_reason="stop",
+                        logprobs=None,
+                        index=0,
+                        message=ChatCompletionMessage(content="Paris.", role="assistant"),
+                    )
+                ],
+                created=int(datetime.now(tz=pytz.timezone("UTC")).timestamp()),
+                usage={"prompt_tokens": 10, "completion_tokens": 5, "total_tokens": 15},
+            )
+            mock_create.return_value = completion
+
+            component = OpenRouterChatGenerator()
+            response = await component.run_async("What's the capital of France?")
+
+            # the backend should receive exactly one user message
+            _, kwargs = mock_create.call_args
+            assert kwargs["messages"] == [{"role": "user", "content": "What's the capital of France?"}]
+
+            assert len(response["replies"]) == 1
+            assert response["replies"][0].text == "Paris."
