@@ -1,0 +1,149 @@
+# SPDX-FileCopyrightText: 2023-present deepset GmbH <info@deepset.ai>
+#
+# SPDX-License-Identifier: Apache-2.0
+
+import contextlib
+import os
+from unittest.mock import MagicMock
+
+import pytest
+from haystack.dataclasses import Document
+from haystack.utils import Secret
+
+from haystack_integrations.components.retrievers.arangodb import ArangoEmbeddingRetriever
+from haystack_integrations.document_stores.arangodb import ArangoDocumentStore
+
+
+def _make_store() -> ArangoDocumentStore:
+    return ArangoDocumentStore(
+        host="http://localhost:8529",
+        database="haystack",
+        username=Secret.from_token("root"),
+        password=Secret.from_token("pw"),
+        collection_name="docs",
+        embedding_dimension=3,
+    )
+
+
+class TestArangoEmbeddingRetriever:
+    def test_init_default(self):
+        store = _make_store()
+        retriever = ArangoEmbeddingRetriever(document_store=store)
+        assert retriever.document_store is store
+        assert retriever.top_k == 10
+        assert retriever.filters is None
+
+    def test_init_custom(self):
+        store = _make_store()
+        filters = {"field": "meta.lang", "operator": "==", "value": "en"}
+        retriever = ArangoEmbeddingRetriever(document_store=store, top_k=5, filters=filters)
+        assert retriever.top_k == 5
+        assert retriever.filters == filters
+
+    def test_run(self):
+        store = _make_store()
+        expected = [Document(content="result", score=0.9)]
+        store._embedding_retrieval = MagicMock(return_value=expected)
+        retriever = ArangoEmbeddingRetriever(document_store=store, top_k=3)
+
+        result = retriever.run(query_embedding=[0.1, 0.2, 0.3])
+
+        assert result["documents"] == expected
+        store._embedding_retrieval.assert_called_once_with(query_embedding=[0.1, 0.2, 0.3], top_k=3, filters=None)
+
+    def test_run_overrides_top_k_and_filters(self):
+        store = _make_store()
+        store._embedding_retrieval = MagicMock(return_value=[])
+        retriever = ArangoEmbeddingRetriever(document_store=store, top_k=10)
+        override_filter = {"field": "meta.x", "operator": "==", "value": 1}
+
+        retriever.run(query_embedding=[0.1, 0.2, 0.3], top_k=2, filters=override_filter)
+
+        store._embedding_retrieval.assert_called_once_with(
+            query_embedding=[0.1, 0.2, 0.3], top_k=2, filters=override_filter
+        )
+
+    def test_to_dict(self, monkeypatch):
+        monkeypatch.setenv("ARANGO_PASSWORD", "pw")
+        store = ArangoDocumentStore(
+            host="http://localhost:8529",
+            database="haystack",
+            collection_name="docs",
+            embedding_dimension=3,
+        )
+        retriever = ArangoEmbeddingRetriever(document_store=store, top_k=5)
+        d = retriever.to_dict()
+        assert d["type"].endswith("ArangoEmbeddingRetriever")
+        assert d["init_parameters"]["top_k"] == 5
+        assert d["init_parameters"]["document_store"]["type"].endswith("ArangoDocumentStore")
+
+    def test_from_dict(self, monkeypatch):
+        monkeypatch.setenv("ARANGO_PASSWORD", "pw")
+        monkeypatch.setenv("ARANGO_USERNAME", "root")
+        data = {
+            "type": "haystack_integrations.components.retrievers.arangodb.embedding_retriever.ArangoEmbeddingRetriever",
+            "init_parameters": {
+                "top_k": 7,
+                "filters": None,
+                "document_store": {
+                    "type": "haystack_integrations.document_stores.arangodb.document_store.ArangoDocumentStore",
+                    "init_parameters": {
+                        "host": "http://localhost:8529",
+                        "database": "haystack",
+                        "username": {"env_vars": ["ARANGO_USERNAME"], "strict": False, "type": "env_var"},
+                        "password": {"env_vars": ["ARANGO_PASSWORD"], "strict": True, "type": "env_var"},
+                        "collection_name": "docs",
+                        "embedding_dimension": 3,
+                        "recreate_collection": False,
+                        "similarity_function": "cosine",
+                    },
+                },
+            },
+        }
+        retriever = ArangoEmbeddingRetriever.from_dict(data)
+        assert retriever.top_k == 7
+        assert retriever.document_store.collection_name == "docs"
+
+    def test_invalid_document_store_type(self):
+        with pytest.raises(ValueError, match="ArangoDocumentStore"):
+            ArangoEmbeddingRetriever(document_store=MagicMock())
+
+
+@pytest.mark.integration
+class TestArangoEmbeddingRetrieverIntegration:
+    @pytest.fixture
+    def document_store(self, request):
+        host = os.environ.get("ARANGO_HOST")
+        password = os.environ.get("ARANGO_PASSWORD")
+        if not host or not password:
+            pytest.skip("Set ARANGO_HOST and ARANGO_PASSWORD to run integration tests.")
+        store = ArangoDocumentStore(
+            host=host,
+            database="haystack_test",
+            username=Secret.from_env_var("ARANGO_USERNAME", strict=False),
+            password=Secret.from_env_var("ARANGO_PASSWORD"),
+            collection_name=f"test_{request.node.name}",
+            embedding_dimension=3,
+            recreate_collection=True,
+        )
+        yield store
+        with contextlib.suppress(Exception):
+            store._ensure_connected()
+            if store._db and store._db.has_collection(store.collection_name):
+                store._db.delete_collection(store.collection_name)
+
+    def test_run(self, document_store):
+        documents = [
+            Document(content="doc1", embedding=[1.0, 0.0, 0.0]),
+            Document(content="doc2", embedding=[0.0, 1.0, 0.0]),
+            Document(content="doc3", embedding=[0.0, 0.0, 1.0]),
+        ]
+        document_store.write_documents(documents)
+        retriever = ArangoEmbeddingRetriever(document_store=document_store, top_k=3)
+
+        result = retriever.run(query_embedding=[1.0, 0.0, 0.0])
+
+        retrieved = result["documents"]
+        assert len(retrieved) == 3
+        assert retrieved[0].content == "doc1"
+        assert all(doc.score is not None for doc in retrieved)
