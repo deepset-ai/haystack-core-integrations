@@ -9,14 +9,14 @@ from pathlib import Path
 from typing import Any, Literal
 
 from google.genai.types import Content, EmbedContentConfig, Part
-from haystack import Document, component, logging
+from haystack import Document, component, default_from_dict, default_to_dict, logging
 from haystack.components.converters.image.image_utils import (
     _batch_convert_pdf_pages_to_images,
     _encode_image_to_base64,
     _PDFPageInfo,
 )
 from haystack.dataclasses import ByteStream
-from haystack.utils.auth import Secret
+from haystack.utils import Secret, deserialize_secrets_inplace
 from tqdm import tqdm
 from tqdm.asyncio import tqdm as async_tqdm
 from typing_extensions import NotRequired, TypedDict
@@ -246,6 +246,43 @@ class GoogleGenAIMultimodalDocumentEmbedder:
             timeout=timeout,
             max_retries=max_retries,
         )
+
+    def to_dict(self) -> dict[str, Any]:
+        """
+        Serializes the component to a dictionary.
+
+        :returns:
+            Dictionary with serialized data.
+        """
+        return default_to_dict(
+            self,
+            model=self._model,
+            file_path_meta_field=self._file_path_meta_field,
+            root_path=str(self._root_path) if self._root_path else None,
+            image_size=self._image_size,
+            batch_size=self._batch_size,
+            progress_bar=self._progress_bar,
+            api_key=self._api_key.to_dict(),
+            api=self._api,
+            vertex_ai_project=self._vertex_ai_project,
+            vertex_ai_location=self._vertex_ai_location,
+            config=self._config,
+            timeout=self._timeout,
+            max_retries=self._max_retries,
+        )
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "GoogleGenAIMultimodalDocumentEmbedder":
+        """
+        Deserializes the component from a dictionary.
+
+        :param data:
+            Dictionary to deserialize from.
+        :returns:
+            Deserialized component.
+        """
+        deserialize_secrets_inplace(data["init_parameters"], keys=["api_key"])
+        return default_from_dict(cls, data)
 
     def _extract_parts_to_embed(self, documents: list[Document]) -> list[Part]:
         """
