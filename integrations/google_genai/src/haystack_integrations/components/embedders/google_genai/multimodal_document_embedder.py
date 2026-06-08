@@ -258,7 +258,7 @@ class GoogleGenAIMultimodalDocumentEmbedder:
             self,
             model=self._model,
             file_path_meta_field=self._file_path_meta_field,
-            root_path=str(self._root_path) if self._root_path else None,
+            root_path=self._root_path if self._root_path != "" else None,
             image_size=self._image_size,
             batch_size=self._batch_size,
             progress_bar=self._progress_bar,
