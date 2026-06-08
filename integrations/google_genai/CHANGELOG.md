@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/google_genai-v4.4.1] - 2026-06-08
+
+### 🐛 Bug Fixes
+
+- Async streaming chunk indices in GoogleGenAIChatGenerator start at 0, not 1 (#3410)
+
+
 ## [integrations/google_genai-v4.4.0] - 2026-06-08
 
 ### 🚀 Features
