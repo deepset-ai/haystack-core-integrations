@@ -578,6 +578,33 @@ class TestArcadeDBDocumentStore(
         assert "tags" in info
         assert info["tags"] == {"type": "keyword"}
 
+    def test_get_metadata_fields_info_list_valued_bool(self, document_store: ArcadeDBDocumentStore):
+        """Boolean items inside list-valued metadata fields are inferred as boolean type."""
+        docs = [Document(id="lvb-1", content="doc", meta={"flags": [True, False]})]
+        document_store.write_documents(docs)
+
+        info = document_store.get_metadata_fields_info()
+
+        assert info.get("flags") == {"type": "boolean"}
+
+    def test_get_metadata_fields_info_list_valued_float(self, document_store: ArcadeDBDocumentStore):
+        """Float items inside list-valued metadata fields are inferred as double type."""
+        docs = [Document(id="lvf-1", content="doc", meta={"scores": [1.5, 2.5]})]
+        document_store.write_documents(docs)
+
+        info = document_store.get_metadata_fields_info()
+
+        assert info.get("scores") == {"type": "double"}
+
+    def test_get_metadata_fields_info_list_valued_int(self, document_store: ArcadeDBDocumentStore):
+        """Integer items inside list-valued metadata fields are inferred as long type."""
+        docs = [Document(id="lvi-1", content="doc", meta={"counts": [1, 2, 3]})]
+        document_store.write_documents(docs)
+
+        info = document_store.get_metadata_fields_info()
+
+        assert info.get("counts") == {"type": "long"}
+
     def test_count_unique_metadata_by_filter_list_valued_field(self, document_store: ArcadeDBDocumentStore):
         """count_unique_metadata_by_filter handles metadata fields whose values are lists."""
         docs = [
