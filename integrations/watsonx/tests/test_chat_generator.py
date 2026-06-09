@@ -917,9 +917,7 @@ class TestWatsonxChatGeneratorIntegration:
         # Mix standalone tool with toolset
         mixed_tools = [weather_tool, population_toolset]
 
-        initial_messages = [
-            ChatMessage.from_user("What's the weather like in Paris?")
-        ]
+        initial_messages = [ChatMessage.from_user("What's the weather like in Paris?")]
         component = WatsonxChatGenerator(
             project_id=Secret.from_env_var("WATSONX_PROJECT_ID"),
             tools=mixed_tools,
