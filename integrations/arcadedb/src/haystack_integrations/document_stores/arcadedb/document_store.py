@@ -456,11 +456,16 @@ class ArcadeDBDocumentStore:
             msg = "update_by_filter requires a non-empty filter."
             raise FilterError(msg)
 
-        sql_set = ",".join(f"meta[{_sql_str(key)}] = {_map_literal_base(value)}" for key, value in meta.items())
-        sql = f"UPDATE `{self._type_name}` SET {sql_set} WHERE {where}"
-        count_result = self._command(sql)
-
-        return count_result[0]["count"]
+        # ArcadeDB does not support in-place MAP key updates via SET or MERGE.
+        # Read-modify-write: fetch matching docs, merge meta in Python, write back.
+        rows = self._command(f"SELECT id, meta FROM `{self._type_name}` WHERE {where}")
+        for row in rows:
+            merged = {**(row.get("meta") or {}), **meta}
+            meta_str = _map_literal(merged)
+            self._command(
+                f"UPDATE `{self._type_name}` SET meta = {meta_str} WHERE id = {_sql_str(row['id'])}"
+            )
+        return len(rows)
 
     def count_documents_by_filter(self, filters: dict[str, Any]) -> int:
         """
