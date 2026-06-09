@@ -462,9 +462,7 @@ class ArcadeDBDocumentStore:
         for row in rows:
             merged = {**(row.get("meta") or {}), **meta}
             meta_str = _map_literal(merged)
-            self._command(
-                f"UPDATE `{self._type_name}` SET meta = {meta_str} WHERE id = {_sql_str(row['id'])}"
-            )
+            self._command(f"UPDATE `{self._type_name}` SET meta = {meta_str} WHERE id = {_sql_str(row['id'])}")
         return len(rows)
 
     def count_documents_by_filter(self, filters: dict[str, Any]) -> int:
