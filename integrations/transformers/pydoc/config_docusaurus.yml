@@ -1,0 +1,18 @@
+loaders:
+  - modules:
+      - haystack_integrations.components.classifiers.transformers.zero_shot_document_classifier
+      - haystack_integrations.components.extractors.transformers.named_entity_extractor
+      - haystack_integrations.components.generators.transformers.chat.chat_generator
+      - haystack_integrations.components.readers.transformers.extractive_reader
+      - haystack_integrations.components.routers.transformers.text_router
+      - haystack_integrations.components.routers.transformers.zero_shot_text_router
+    search_path: [../src]
+processors:
+  - type: filter
+    documented_only: true
+    skip_empty_modules: true
+renderer:
+  description: Transformers integration for Haystack
+  id: integrations-transformers
+  filename: transformers.md
+  title: Transformers

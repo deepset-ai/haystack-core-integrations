@@ -85,6 +85,8 @@ class GoogleGenAIDocumentEmbedder:
         meta_fields_to_embed: list[str] | None = None,
         embedding_separator: str = "\n",
         config: dict[str, Any] | None = None,
+        timeout: float | None = None,
+        max_retries: int | None = None,
     ) -> None:
         """
         Creates an GoogleGenAIDocumentEmbedder component.
@@ -122,6 +124,11 @@ class GoogleGenAIDocumentEmbedder:
             Specifying task types in `config` does not take effect for `gemini-embedding-2`.
             See [Gemini documentation](https://ai.google.dev/gemini-api/docs/embeddings#task-types) for more
             information.
+        :param timeout:
+            The timeout in seconds for the underlying Google GenAI client network requests.
+        :param max_retries:
+            The maximum number of retries for the underlying Google GenAI client network requests.
+
         """
         self._api_key = api_key
         self._api = api
@@ -135,12 +142,16 @@ class GoogleGenAIDocumentEmbedder:
         self._meta_fields_to_embed = meta_fields_to_embed or []
         self._embedding_separator = embedding_separator
         self._config = config
+        self._timeout = timeout
+        self._max_retries = max_retries
 
         self._client = _get_client(
             api_key=api_key,
             api=api,
             vertex_ai_project=vertex_ai_project,
             vertex_ai_location=vertex_ai_location,
+            timeout=timeout,
+            max_retries=max_retries,
         )
 
     def to_dict(self) -> dict[str, Any]:
@@ -164,6 +175,8 @@ class GoogleGenAIDocumentEmbedder:
             vertex_ai_project=self._vertex_ai_project,
             vertex_ai_location=self._vertex_ai_location,
             config=self._config,
+            timeout=self._timeout,
+            max_retries=self._max_retries,
         )
 
     @classmethod
