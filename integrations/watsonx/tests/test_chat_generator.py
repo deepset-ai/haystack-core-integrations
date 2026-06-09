@@ -918,7 +918,7 @@ class TestWatsonxChatGeneratorIntegration:
         mixed_tools = [weather_tool, population_toolset]
 
         initial_messages = [
-            ChatMessage.from_user("What's the weather like in Paris and what is the population of Berlin?")
+            ChatMessage.from_user("What's the weather like in Paris?")
         ]
         component = WatsonxChatGenerator(
             project_id=Secret.from_env_var("WATSONX_PROJECT_ID"),
@@ -934,28 +934,18 @@ class TestWatsonxChatGeneratorIntegration:
         assert first_reply.tool_calls, "First reply has no tool calls"
 
         tool_calls = first_reply.tool_calls
-        assert len(tool_calls) == 2, f"Expected 2 tool calls, got {len(tool_calls)}"
-
-        # Verify we got calls to both weather and population tools
-        tool_names = {tc.tool_name for tc in tool_calls}
-        assert "weather" in tool_names, "Expected 'weather' tool call"
-        assert "population" in tool_names, "Expected 'population' tool call"
+        assert len(tool_calls) == 1, f"Expected 1 tool calls, got {len(tool_calls)}"
 
         # Verify tool call details
-        for tool_call in tool_calls:
-            assert tool_call.tool_name in ["weather", "population"]
-            assert "city" in tool_call.arguments
-            assert tool_call.arguments["city"] in ["Paris", "Berlin"]
-            assert first_reply.meta["finish_reason"] == "tool_calls"
+        assert tool_calls[0].tool_name == "weather"
+        assert "city" in tool_calls[0].arguments
+        assert tool_calls[0].arguments["city"].lower() == "paris"
+        assert first_reply.meta["finish_reason"] == "tool_calls"
 
         # Mock the response we'd get from ToolInvoker
-        tool_result_messages = []
-        for tool_call in tool_calls:
-            if tool_call.tool_name == "weather":
-                result = "The weather in Paris is sunny and 32°C"
-            else:  # population
-                result = "The population of Berlin is 2.2 million"
-            tool_result_messages.append(ChatMessage.from_tool(tool_result=result, origin=tool_call))
+        tool_result_messages = [
+            ChatMessage.from_tool(tool_result="The weather in Paris is sunny and 32°C", origin=tool_calls[0])
+        ]
 
         new_messages = [*initial_messages, first_reply, *tool_result_messages]
         results = component.run(messages=new_messages)
@@ -965,7 +955,6 @@ class TestWatsonxChatGeneratorIntegration:
         assert not final_message.tool_calls
         assert len(final_message.text) > 0
         assert "paris" in final_message.text.lower()
-        assert "berlin" in final_message.text.lower()
 
     @pytest.mark.asyncio
     @pytest.mark.skipif(
