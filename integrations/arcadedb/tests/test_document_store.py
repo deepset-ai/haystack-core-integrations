@@ -539,3 +539,53 @@ class TestArcadeDBDocumentStore(
         assert document_store.count_documents() == 1
         results = document_store.filter_documents({"field": "id", "operator": "==", "value": "ow-hit"})
         assert results[0].content == "updated"
+
+    def test_get_metadata_fields_info_mixed_types_defaults_to_keyword(self, document_store: ArcadeDBDocumentStore):
+        """When the same metadata field has different types across documents, type defaults to 'keyword'."""
+        docs = [
+            Document(id="mt-1", content="doc 1", meta={"x": 1}),
+            Document(id="mt-2", content="doc 2", meta={"x": "one"}),
+        ]
+        document_store.write_documents(docs)
+
+        info = document_store.get_metadata_fields_info()
+
+        assert info["x"] == {"type": "keyword"}
+
+    def test_get_metadata_fields_info_no_content_documents(self, document_store: ArcadeDBDocumentStore):
+        """Documents with no content do not produce a 'content' entry in metadata fields info."""
+        docs = [
+            Document(id="nc-1", meta={"tag": "a"}),
+            Document(id="nc-2", meta={"tag": "b"}),
+        ]
+        document_store.write_documents(docs)
+
+        info = document_store.get_metadata_fields_info()
+
+        assert "content" not in info
+        assert "tag" in info
+
+    def test_get_metadata_fields_info_list_valued_metadata(self, document_store: ArcadeDBDocumentStore):
+        """List-valued metadata fields are recognised and their item types are inferred."""
+        docs = [
+            Document(id="lv-1", content="doc 1", meta={"tags": ["python", "haystack"]}),
+            Document(id="lv-2", content="doc 2", meta={"tags": ["arcadedb"]}),
+        ]
+        document_store.write_documents(docs)
+
+        info = document_store.get_metadata_fields_info()
+
+        assert "tags" in info
+        assert info["tags"] == {"type": "keyword"}
+
+    def test_count_unique_metadata_by_filter_list_valued_field(self, document_store: ArcadeDBDocumentStore):
+        """count_unique_metadata_by_filter handles metadata fields whose values are lists."""
+        docs = [
+            Document(id="cu-1", content="doc 1", meta={"tags": ["a", "b"]}),
+            Document(id="cu-2", content="doc 2", meta={"tags": ["b", "c"]}),
+        ]
+        document_store.write_documents(docs)
+
+        counts = document_store.count_unique_metadata_by_filter({}, ["meta.tags"])
+
+        assert counts["tags"] >= 1
