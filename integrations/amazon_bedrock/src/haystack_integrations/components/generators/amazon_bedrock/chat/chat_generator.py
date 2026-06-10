@@ -301,8 +301,8 @@ class AmazonBedrockChatGenerator:
             _validate_and_format_cache_point(tools_cachepoint_config) if tools_cachepoint_config else None
         )
 
-        def resolve_secret(secret: Secret | None) -> str | None:
-            return secret.resolve_value() if secret else None
+        def resolve_secret(secret: Secret | str | None) -> str | None:
+            return secret.resolve_value() if isinstance(secret, Secret) else secret
 
         config = Config(
             user_agent_extra="x-client-framework:haystack",
@@ -648,7 +648,11 @@ class AmazonBedrockChatGenerator:
                     self.aws_secret_access_key.resolve_value() if self.aws_secret_access_key else None
                 ),
                 aws_session_token=(self.aws_session_token.resolve_value() if self.aws_session_token else None),
-                region_name=(self.aws_region_name.resolve_value() if self.aws_region_name else None),
+                region_name=(
+                    self.aws_region_name.resolve_value()
+                    if isinstance(self.aws_region_name, Secret)
+                    else self.aws_region_name
+                ),
                 config=config,
             ) as async_client:
                 if callback:

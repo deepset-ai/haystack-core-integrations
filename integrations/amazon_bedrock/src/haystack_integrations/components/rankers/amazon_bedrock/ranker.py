@@ -201,8 +201,8 @@ class AmazonBedrockRanker:
         if not documents:
             return {"documents": []}
 
-        def resolve_secret(secret: Secret | None) -> str | None:
-            return secret.resolve_value() if secret else None
+        def resolve_secret(secret: Secret | str | None) -> str | None:
+            return secret.resolve_value() if isinstance(secret, Secret) else secret
 
         region = resolve_secret(self.aws_region_name)
 
