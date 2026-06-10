@@ -291,6 +291,23 @@ class TestAmazonBedrockChatGenerator:
         assert generator.streaming_callback == print_streaming_chunk
         assert generator.boto3_config == boto3_config
 
+    def test_from_dict_aws_region_name(self, mock_boto3_session: Any):
+        """
+        Test that the from_dict method returns the correct object
+        """
+        generator = AmazonBedrockChatGenerator.from_dict(
+            {
+                "type": CLASS_TYPE,
+                "init_parameters": {
+                    "aws_region_name": "my-fake-region",
+                    "model": "global.anthropic.claude-sonnet-4-6",
+                },
+            }
+        )
+        assert generator.model == "global.anthropic.claude-sonnet-4-6"
+        assert generator.aws_region_name.resolve_value() == "my-fake-region"
+
+
     def test_default_constructor(self, mock_boto3_session, mock_aioboto3_session, set_env_variables):
         """
         Test that the default constructor sets the correct values

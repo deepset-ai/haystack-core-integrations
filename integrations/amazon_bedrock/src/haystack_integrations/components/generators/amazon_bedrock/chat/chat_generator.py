@@ -387,6 +387,10 @@ class AmazonBedrockChatGenerator:
         if stop_words:
             logger.warning(msg)
 
+        region_name = init_params.get("aws_region_name", None)
+        if isinstance(region_name, str):
+            init_params["aws_region_name"] = Secret.from_token(region_name)
+
         serialized_callback_handler = init_params.get("streaming_callback")
         if serialized_callback_handler:
             data["init_parameters"]["streaming_callback"] = deserialize_callable(serialized_callback_handler)
