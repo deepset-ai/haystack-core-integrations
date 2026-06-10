@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import re
-from typing import Any, Literal
+from typing import Any, Literal, overload
 
 from haystack import default_from_dict, default_to_dict, logging
 from haystack.dataclasses.document import Document
@@ -1324,6 +1324,12 @@ class MongoDBAtlasDocumentStore:
 
         val, _ = rec_pop(doc, parts)
         return val
+
+    @overload
+    def _translate_filters(self, filters: None) -> None: ...
+
+    @overload
+    def _translate_filters(self, filters: dict[str, Any]) -> dict[str, Any]: ...
 
     def _translate_filters(self, filters: dict[str, Any] | None) -> dict[str, Any] | None:
         if not filters:
