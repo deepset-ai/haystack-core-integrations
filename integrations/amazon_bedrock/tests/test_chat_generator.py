@@ -293,7 +293,7 @@ class TestAmazonBedrockChatGenerator:
 
     def test_from_dict_aws_region_name(self, mock_boto3_session: Any):
         """
-        Test that the from_dict method returns the correct object
+        Test that aws_region_name as str value is correctly parsed
         """
         generator = AmazonBedrockChatGenerator.from_dict(
             {
