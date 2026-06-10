@@ -11,7 +11,7 @@ import re
 import threading
 import uuid
 from dataclasses import dataclass
-from typing import Any, Literal
+from typing import Any, Literal, cast
 
 import oracledb
 from haystack import default_from_dict, default_to_dict
@@ -32,6 +32,7 @@ _VALID_DISTANCE_METRICS = {"COSINE", "EUCLIDEAN", "DOT"}
 _VALID_VECTOR_INDEX_TYPES = {"HNSW", "IVF"}
 _VALID_HYBRID_SEARCH_MODES = {"keyword", "hybrid", "semantic"}
 MAX_INDEX_NAME_LEN = 128
+VectorIndexType = Literal["HNSW", "IVF"]
 
 
 def _validate_field_path(field_path: str) -> None:
@@ -82,12 +83,12 @@ def _validate_distance_metric(distance_metric: str) -> str:
     return metric
 
 
-def _validate_index_type(index_type: str) -> str:
+def _validate_index_type(index_type: str) -> VectorIndexType:
     normalized = index_type.upper()
     if normalized not in _VALID_VECTOR_INDEX_TYPES:
         msg = f"vector_index_type must be one of {_VALID_VECTOR_INDEX_TYPES}, got {index_type!r}"
         raise ValueError(msg)
-    return normalized
+    return cast(VectorIndexType, normalized)
 
 
 def _validate_int_param(config: dict[str, Any], name: str, minimum: int, maximum: int | None = None) -> None:
@@ -272,8 +273,7 @@ def _get_hybrid_index_ddl(
     parameter_parts = [f"vectorizer {_validate_identifier(vectorizer_preference.preference_name, 'preference_name')}"]
     for key, value in index_parameters.items():
         parameter_parts.append(
-            f"{_serialize_hybrid_parameter(key, 'parameter name')} "
-            f"{_serialize_hybrid_parameter(value, 'parameter')}"
+            f"{_serialize_hybrid_parameter(key, 'parameter name')} {_serialize_hybrid_parameter(value, 'parameter')}"
         )
 
     filter_by = ""
@@ -1480,8 +1480,7 @@ class OracleDocumentStore:
             search_rows = self._decode_hybrid_search_result(cur.fetchone()[0])
             for row in search_rows:
                 cur.execute(
-                    "SELECT id, text, JSON_SERIALIZE(metadata) AS metadata "
-                    f"FROM {self.table_name} WHERE ROWID = :rid",
+                    f"SELECT id, text, JSON_SERIALIZE(metadata) AS metadata FROM {self.table_name} WHERE ROWID = :rid",
                     rid=row["rowid"],
                 )
                 rows.extend(cur.fetchall())

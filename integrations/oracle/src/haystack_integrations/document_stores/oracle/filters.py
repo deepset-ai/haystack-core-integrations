@@ -86,7 +86,7 @@ class FilterTranslator:
             pname = f"p{counter[0]}"
             counter[0] += 1
             params[pname] = value
-            contains_sql = f'JSON_EXISTS(metadata, \'{json_path}[*]?(@ == $val)\' PASSING :{pname} AS "val")'
+            contains_sql = f"JSON_EXISTS(metadata, '{json_path}[*]?(@ == $val)' PASSING :{pname} AS \"val\")"
             if op == "contains":
                 return contains_sql
             return f"(NOT {contains_sql})"

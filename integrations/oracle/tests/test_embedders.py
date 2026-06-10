@@ -71,13 +71,7 @@ async def test_text_embedder_async_awaits_gettype(monkeypatch):
 
     class FakeCursor:
         def __init__(self):
-            self.rows = iter(
-                [
-                    (
-                        '{"embed_vector": "[0.1, 0.2, 0.3]"}',
-                    )
-                ]
-            )
+            self.rows = iter([('{"embed_vector": "[0.1, 0.2, 0.3]"}',)])
 
         def __enter__(self):
             return self

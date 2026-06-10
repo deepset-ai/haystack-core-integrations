@@ -78,4 +78,3 @@ async def test_run_async_calls_async_retrieval(mock_store):
     result = await retriever.run_async(query_embedding=[0.1, 0.2, 0.3, 0.4])
     mock_store._embedding_retrieval_async.assert_called_once_with([0.1, 0.2, 0.3, 0.4], filters={}, top_k=5)
     assert "documents" in result
-

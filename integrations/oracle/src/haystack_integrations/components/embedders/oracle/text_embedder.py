@@ -79,9 +79,7 @@ class OracleTextEmbedder:
         if cfg.wallet_location:
             connect_kwargs["config_dir"] = cfg.wallet_location
             connect_kwargs["wallet_location"] = cfg.wallet_location
-            connect_kwargs["wallet_password"] = (
-                cfg.wallet_password.resolve_value() if cfg.wallet_password else password
-            )
+            connect_kwargs["wallet_password"] = cfg.wallet_password.resolve_value() if cfg.wallet_password else password
         return connect_kwargs
 
     def _ensure_client(self) -> Any:
