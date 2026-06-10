@@ -126,7 +126,7 @@ def test_from_dict(mock_boto3_session: Any, boto3_config: dict[str, Any] | None)
     assert generator.model_family == "anthropic.claude"
 
 
-def test_from_dict_aws_region_name(self, mock_boto3_session: Any):
+def test_from_dict_aws_region_name(mock_boto3_session: Any):
     """
     Test that aws_region_name as str value is correctly parsed
     """
