@@ -235,6 +235,7 @@ class ValkeyDocumentStore(DocumentStore):
                     credentials=self._build_credentials(self._username, self._password),
                     request_timeout=self._request_timeout,
                     reconnect_strategy=reconnect_strategy,
+                    client_name="haystack_vector_store_client",
                 )
                 self._client = SyncGlideClient.create(client_config)
             return self._client
@@ -272,6 +273,7 @@ class ValkeyDocumentStore(DocumentStore):
                     credentials=self._build_credentials(self._username, self._password),
                     request_timeout=self._request_timeout,
                     reconnect_strategy=reconnect_strategy,
+                    client_name="haystack_vector_store_client",
                 )
                 self._async_client = await GlideClient.create(client_config)
             return self._async_client
