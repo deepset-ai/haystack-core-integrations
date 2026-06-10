@@ -307,7 +307,6 @@ class TestAmazonBedrockChatGenerator:
         assert generator.model == "global.anthropic.claude-sonnet-4-6"
         assert generator.aws_region_name.resolve_value() == "my-fake-region"
 
-
     def test_default_constructor(self, mock_boto3_session, mock_aioboto3_session, set_env_variables):
         """
         Test that the default constructor sets the correct values
