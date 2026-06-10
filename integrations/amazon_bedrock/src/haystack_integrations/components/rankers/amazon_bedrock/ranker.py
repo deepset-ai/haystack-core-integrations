@@ -31,12 +31,14 @@ class AmazonBedrockRanker:
     ```python
     from haystack import Document
     from haystack.utils import Secret
-    from haystack_integrations.components.rankers.amazon_bedrock import AmazonBedrockRanker
+    from haystack_integrations.components.rankers.amazon_bedrock import (
+        AmazonBedrockRanker,
+    )
 
     ranker = AmazonBedrockRanker(
         model="cohere.rerank-v3-5:0",
         top_k=2,
-        aws_region_name=Secret.from_token("eu-central-1")
+        aws_region_name=Secret.from_token("eu-central-1"),
     )
 
     docs = [Document(content="Paris"), Document(content="Berlin")]
@@ -66,7 +68,7 @@ class AmazonBedrockRanker:
             ["AWS_SECRET_ACCESS_KEY"], strict=False
         ),
         aws_session_token: Secret | None = Secret.from_env_var(["AWS_SESSION_TOKEN"], strict=False),  # noqa: B008
-        aws_region_name: Secret | None = Secret.from_env_var(["AWS_DEFAULT_REGION"], strict=False),  # noqa: B008
+        aws_region_name: Secret | str | None = Secret.from_env_var(["AWS_DEFAULT_REGION"], strict=False),  # noqa: B008
         aws_profile_name: Secret | None = Secret.from_env_var(["AWS_PROFILE"], strict=False),  # noqa: B008
         max_chunks_per_doc: int | None = None,
         meta_fields_to_embed: list[str] | None = None,
@@ -104,8 +106,8 @@ class AmazonBedrockRanker:
         self.meta_fields_to_embed = meta_fields_to_embed or []
         self.meta_data_separator = meta_data_separator
 
-        def resolve_secret(secret: Secret | None) -> str | None:
-            return secret.resolve_value() if secret else None
+        def resolve_secret(secret: Secret | str | None) -> str | None:
+            return secret.resolve_value() if isinstance(secret, Secret) else secret
 
         try:
             session = get_aws_session(

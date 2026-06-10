@@ -126,6 +126,26 @@ def test_from_dict(mock_boto3_session: Any, boto3_config: dict[str, Any] | None)
     assert generator.model_family == "anthropic.claude"
 
 
+def test_from_dict_aws_region_name(self, mock_boto3_session: Any):
+    """
+    Test that aws_region_name as str value is correctly parsed
+    """
+    generator = AmazonBedrockGenerator.from_dict(
+        {
+            "type": "haystack_integrations.components.generators.amazon_bedrock.generator.AmazonBedrockGenerator",
+            "init_parameters": {
+                "aws_region_name": "my-fake-region",
+                "model": "global.anthropic.claude-sonnet-4-6",
+            },
+        }
+    )
+    assert generator.model == "global.anthropic.claude-sonnet-4-6"
+    assert generator.aws_region_name == "my-fake-region"
+
+    serialized = generator.to_dict()
+    assert serialized["init_parameters"]["aws_region_name"] == "my-fake-region"
+
+
 def test_default_constructor(mock_boto3_session, set_env_variables):
     """
     Test that the default constructor sets the correct values

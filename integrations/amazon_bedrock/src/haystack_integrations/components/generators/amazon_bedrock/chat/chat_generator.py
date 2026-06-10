@@ -55,16 +55,24 @@ class AmazonBedrockChatGenerator:
     **Usage example**
 
     ```python
-    from haystack_integrations.components.generators.amazon_bedrock import AmazonBedrockChatGenerator
+    from haystack_integrations.components.generators.amazon_bedrock import (
+        AmazonBedrockChatGenerator,
+    )
     from haystack.dataclasses import ChatMessage
     from haystack.components.generators.utils import print_streaming_chunk
 
-    messages = [ChatMessage.from_system("\\nYou are a helpful, respectful and honest assistant, answer in German only"),
-                ChatMessage.from_user("What's Natural Language Processing?")]
+    messages = [
+        ChatMessage.from_system(
+            "\\nYou are a helpful, respectful and honest assistant, answer in German only"
+        ),
+        ChatMessage.from_user("What's Natural Language Processing?"),
+    ]
 
 
-    client = AmazonBedrockChatGenerator(model="global.anthropic.claude-sonnet-4-6",
-                                        streaming_callback=print_streaming_chunk)
+    client = AmazonBedrockChatGenerator(
+        model="global.anthropic.claude-sonnet-4-6",
+        streaming_callback=print_streaming_chunk,
+    )
     client.run(messages, generation_kwargs={"max_tokens": 512})
     ```
 
@@ -152,7 +160,9 @@ class AmazonBedrockChatGenerator:
     To cache messages, you can use the `cachePoint` key in `ChatMessage.meta` attribute.
 
     ```python
-    ChatMessage.from_user("Long message...", meta={"cachePoint": {"type": "default"}})
+    ChatMessage.from_user(
+        "Long message...", meta={"cachePoint": {"type": "default"}}
+    )
     ```
 
     For more information, see the [Amazon Bedrock documentation](https://docs.aws.amazon.com/bedrock/latest/userguide/prompt-caching.html).
@@ -179,7 +189,7 @@ class AmazonBedrockChatGenerator:
             ["AWS_SECRET_ACCESS_KEY"], strict=False
         ),
         aws_session_token: Secret | None = Secret.from_env_var(["AWS_SESSION_TOKEN"], strict=False),  # noqa: B008
-        aws_region_name: Secret | None = Secret.from_env_var(["AWS_DEFAULT_REGION"], strict=False),  # noqa: B008
+        aws_region_name: Secret | str | None = Secret.from_env_var(["AWS_DEFAULT_REGION"], strict=False),  # noqa: B008
         aws_profile_name: Secret | None = Secret.from_env_var(["AWS_PROFILE"], strict=False),  # noqa: B008
         generation_kwargs: dict[str, Any] | None = None,
         streaming_callback: StreamingCallbackT | None = None,
@@ -219,12 +229,15 @@ class AmazonBedrockChatGenerator:
 
                 Example::
 
-                    generation_kwargs={
+                    generation_kwargs = {
                         "response_format": {
                             "name": "person",
                             "schema": {
                                 "type": "object",
-                                "properties": {"name": {"type": "string"}, "age": {"type": "integer"}},
+                                "properties": {
+                                    "name": {"type": "string"},
+                                    "age": {"type": "integer"},
+                                },
                                 "required": ["name", "age"],
                                 "additionalProperties": False,
                             },
@@ -387,10 +400,6 @@ class AmazonBedrockChatGenerator:
         if stop_words:
             logger.warning(msg)
 
-        region_name = init_params.get("aws_region_name", None)
-        if isinstance(region_name, str):
-            init_params["aws_region_name"] = Secret.from_token(region_name)
-
         serialized_callback_handler = init_params.get("streaming_callback")
         if serialized_callback_handler:
             data["init_parameters"]["streaming_callback"] = deserialize_callable(serialized_callback_handler)
@@ -405,7 +414,6 @@ class AmazonBedrockChatGenerator:
         tools: ToolsType | None = None,
         requires_async: bool = False,
     ) -> tuple[dict[str, Any], StreamingCallbackT | None]:
-
         generation_kwargs = generation_kwargs or {}
 
         # Merge generation_kwargs with defaults

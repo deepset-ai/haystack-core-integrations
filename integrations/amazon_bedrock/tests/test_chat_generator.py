@@ -305,7 +305,10 @@ class TestAmazonBedrockChatGenerator:
             }
         )
         assert generator.model == "global.anthropic.claude-sonnet-4-6"
-        assert generator.aws_region_name.resolve_value() == "my-fake-region"
+        assert generator.aws_region_name == "my-fake-region"
+
+        serialized = generator.to_dict()
+        assert serialized["init_parameters"]["aws_region_name"] == "my-fake-region"
 
     def test_default_constructor(self, mock_boto3_session, mock_aioboto3_session, set_env_variables):
         """
@@ -464,7 +467,6 @@ class TestAmazonBedrockChatGenerator:
         }
 
     def test_prepare_request_params_response_format(self, mock_boto3_session, set_env_variables):
-
         generator = AmazonBedrockChatGenerator(model="global.anthropic.claude-sonnet-4-6")
         schema = {
             "type": "object",
@@ -740,7 +742,6 @@ class TestAmazonBedrockChatGenerator:
         assert result["replies"][0].text == "Paris"
 
     def test_run_client_error(self, mock_boto3_session, set_env_variables):
-
         generator = AmazonBedrockChatGenerator(model="global.anthropic.claude-sonnet-4-6")
         generator.client = MagicMock()
         generator.client.converse.side_effect = ClientError(
