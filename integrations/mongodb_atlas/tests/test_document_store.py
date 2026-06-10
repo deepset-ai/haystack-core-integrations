@@ -196,6 +196,125 @@ class TestMongoDBDocumentStoreConversion:
         assert haystack_doc.id == "test_id"
         assert not hasattr(haystack_doc, "_id")
 
+    def test_document_conversion_methods_with_meta_project_mapping(self):
+        custom_store = MongoDBAtlasDocumentStore(
+            mongo_connection_string=Secret.from_token("test"),
+            database_name="test_db",
+            collection_name="test_collection",
+            vector_search_index="test_index",
+            full_text_search_index="test_index",
+            meta_project_mapping={
+                "source": "source",
+                "author": "metadata.author",
+            },
+        )
+
+        # 1. Haystack -> MongoDB conversion
+        haystack_doc = Document(
+            content="test content",
+            meta={"source": "url", "author": "john", "other_meta": "keep_me"},
+        )
+        mongo_doc = custom_store._haystack_doc_to_mongo_doc(haystack_doc)
+
+        assert mongo_doc["source"] == "url"
+        assert mongo_doc["metadata"]["author"] == "john"
+        assert mongo_doc["meta"] == {"other_meta": "keep_me"}
+        assert "content" in mongo_doc
+        assert mongo_doc["embedding"] is None
+
+        # Test when all meta is mapped (meta dict should be removed)
+        haystack_doc_all_mapped = Document(
+            content="test content",
+            meta={"source": "url", "author": "john"},
+        )
+        mongo_doc_all_mapped = custom_store._haystack_doc_to_mongo_doc(haystack_doc_all_mapped)
+        assert "meta" not in mongo_doc_all_mapped
+        assert mongo_doc_all_mapped["source"] == "url"
+        assert mongo_doc_all_mapped["metadata"]["author"] == "john"
+
+        # 2. MongoDB -> Haystack conversion
+        converted_doc = {
+            "id": "test_id",
+            "content": "test content from mongo",
+            "source": "url2",
+            "metadata": {
+                "author": "jane",
+            },
+            "meta": {"other_meta": "keep_me_too"},
+            "_id": "mongodb_internal_id",
+        }
+        haystack_doc = custom_store._mongo_doc_to_haystack_doc(converted_doc)
+
+        assert haystack_doc.content == "test content from mongo"
+        assert haystack_doc.meta == {
+            "other_meta": "keep_me_too",
+            "source": "url2",
+            "author": "jane",
+        }
+        assert haystack_doc.id == "test_id"
+        assert not hasattr(haystack_doc, "_id")
+
+
+class TestMongoDBDocumentStoreHelpers:
+    def test_get_nested_value(self):
+        store = MongoDBAtlasDocumentStore(
+            mongo_connection_string=Secret.from_token("test"),
+            database_name="test_db",
+            collection_name="test_collection",
+            vector_search_index="test_index",
+            full_text_search_index="test_index",
+        )
+        doc = {"a": {"b": {"c": 123}}, "x": "y"}
+        assert store._get_nested_value(doc, "a.b.c") == 123
+        assert store._get_nested_value(doc, "$a.b.c") == 123
+        assert store._get_nested_value(doc, "x") == "y"
+        assert store._get_nested_value(doc, "a.b.d") is None
+        assert store._get_nested_value(doc, "non_existent") is None
+
+    def test_set_nested_value(self):
+        store = MongoDBAtlasDocumentStore(
+            mongo_connection_string=Secret.from_token("test"),
+            database_name="test_db",
+            collection_name="test_collection",
+            vector_search_index="test_index",
+            full_text_search_index="test_index",
+        )
+        doc = {}
+        store._set_nested_value(doc, "a.b.c", 123)
+        assert doc == {"a": {"b": {"c": 123}}}
+
+        store._set_nested_value(doc, "$x", "y")
+        assert doc == {"a": {"b": {"c": 123}}, "x": "y"}
+
+        # overwrite existing value or modify intermediate type
+        store._set_nested_value(doc, "a.b", "new_val")
+        assert doc == {"a": {"b": "new_val"}, "x": "y"}
+
+    def test_pop_nested_value(self):
+        store = MongoDBAtlasDocumentStore(
+            mongo_connection_string=Secret.from_token("test"),
+            database_name="test_db",
+            collection_name="test_collection",
+            vector_search_index="test_index",
+            full_text_search_index="test_index",
+        )
+        doc = {"a": {"b": {"c": 123, "d": 456}}, "x": "y"}
+
+        # Pop sibling leaves
+        val = store._pop_nested_value(doc, "a.b.c")
+        assert val == 123
+        assert doc == {"a": {"b": {"d": 456}}, "x": "y"}
+
+        # Pop remaining sibling, which should recursively delete parent dicts
+        val = store._pop_nested_value(doc, "$a.b.d")
+        assert val == 456
+        assert doc == {"x": "y"}
+
+        # Pop root field
+        val = store._pop_nested_value(doc, "x")
+        assert val == "y"
+        assert doc == {}
+
 
 @pytest.mark.skipif(
     not os.environ.get("MONGO_CONNECTION_STRING"),

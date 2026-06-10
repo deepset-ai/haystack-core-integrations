@@ -67,6 +67,7 @@ class MongoDBAtlasDocumentStore:
         full_text_search_index: str,
         embedding_field: str = "embedding",
         content_field: str = "content",
+        meta_project_mapping: dict[str, str] | None = None,
     ) -> None:
         """
         Creates a new MongoDBAtlasDocumentStore instance.
@@ -91,6 +92,8 @@ class MongoDBAtlasDocumentStore:
             This field allows defining which field to load into the Haystack Document object as content.
             It can be particularly useful when integrating with an existing collection for retrieval. We discourage
             using this parameter when working with collections created by Haystack.
+        :param meta_project_mapping: A dictionary mapping metadata fields in the Haystack Document (keys)
+            to custom fields in the MongoDB document (values). Default is None.
         :raises ValueError: If the collection name contains invalid characters.
         """
         if collection_name and not bool(re.match(r"^[a-zA-Z0-9\-_]+$", collection_name)):
@@ -105,6 +108,7 @@ class MongoDBAtlasDocumentStore:
         self.full_text_search_index = full_text_search_index
         self.embedding_field = embedding_field
         self.content_field = content_field
+        self.meta_project_mapping = meta_project_mapping
         self._connection: MongoClient | None = None
         self._connection_async: AsyncMongoClient | None = None
         self._collection: Collection | None = None
@@ -1210,6 +1214,54 @@ class MongoDBAtlasDocumentStore:
 
         return [self._mongo_doc_to_haystack_doc(doc) for doc in documents]
 
+    def _get_nested_value(self, doc: dict[str, Any], path: str) -> Any:
+        if path.startswith("$"):
+            path = path[1:]
+        parts = path.split(".")
+        val = doc
+        for part in parts:
+            if isinstance(val, dict) and part in val:
+                val = val[part]
+            else:
+                return None
+        return val
+
+    def _set_nested_value(self, doc: dict[str, Any], path: str, value: Any) -> None:
+        if path.startswith("$"):
+            path = path[1:]
+        parts = path.split(".")
+        val = doc
+        for part in parts[:-1]:
+            if part not in val or not isinstance(val[part], dict):
+                val[part] = {}
+            val = val[part]
+        val[parts[-1]] = value
+
+    def _pop_nested_value(self, doc: dict[str, Any], path: str) -> Any:
+        if path.startswith("$"):
+            path = path[1:]
+        parts = path.split(".")
+
+        def rec_pop(d: dict[str, Any], path_parts: list[str]) -> tuple[Any, bool]:
+            if not path_parts:
+                return None, False
+            key = path_parts[0]
+            if len(path_parts) == 1:
+                if key in d:
+                    val = d.pop(key)
+                    return val, len(d) == 0
+                return None, False
+
+            if key in d and isinstance(d[key], dict):
+                val, should_delete_parent = rec_pop(d[key], path_parts[1:])
+                if should_delete_parent:
+                    d.pop(key)
+                return val, len(d) == 0
+            return None, False
+
+        val, _ = rec_pop(doc, parts)
+        return val
+
     def _mongo_doc_to_haystack_doc(self, mongo_doc: dict[str, Any]) -> Document:
         """
         Converts the dictionary coming out of MongoDB into a Haystack document
@@ -1222,6 +1274,14 @@ class MongoDBAtlasDocumentStore:
             mongo_doc["content"] = mongo_doc.pop(self.content_field, None)
         if self.embedding_field != "embedding":
             mongo_doc["embedding"] = mongo_doc.pop(self.embedding_field, None)
+
+        if self.meta_project_mapping:
+            meta = mongo_doc.setdefault("meta", {})
+            for meta_key, mongo_field in self.meta_project_mapping.items():
+                val = self._pop_nested_value(mongo_doc, mongo_field)
+                if val is not None:
+                    meta[meta_key] = val
+
         return Document.from_dict(mongo_doc)
 
     def _haystack_doc_to_mongo_doc(self, haystack_doc: Document) -> dict[str, Any]:
@@ -1245,5 +1305,15 @@ class MongoDBAtlasDocumentStore:
                     "The `sparse_embedding` field will be ignored.",
                     id=haystack_doc.id,
                 )
+
+        if self.meta_project_mapping and "meta" in mongo_doc and isinstance(mongo_doc["meta"], dict):
+            meta = mongo_doc["meta"]
+            for meta_key, mongo_field in self.meta_project_mapping.items():
+                if meta_key in meta:
+                    val = meta.pop(meta_key)
+                    self._set_nested_value(mongo_doc, mongo_field, val)
+            if not meta:
+                mongo_doc.pop("meta", None)
+
         mongo_doc.pop("_id", None)
         return mongo_doc
