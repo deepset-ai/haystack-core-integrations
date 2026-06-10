@@ -2,6 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+import os
 import uuid
 from unittest.mock import MagicMock
 
@@ -11,9 +12,9 @@ from haystack.utils import Secret
 
 from haystack_integrations.document_stores.oracle import OracleConnectionConfig, OracleDocumentStore
 
-_USER = "haystack"
-_PASSWORD = "haystack"
-_DSN = "localhost:1521/freepdb1"
+_USER = os.getenv("ORACLE_USER") or os.getenv("VECDB_USER") or "haystack"
+_PASSWORD = os.getenv("ORACLE_PASSWORD") or os.getenv("VECDB_PASS") or "haystack"
+_DSN = os.getenv("ORACLE_DSN") or os.getenv("ORACLE_DB_DSN") or os.getenv("VECDB_HOST") or "localhost:1521/freepdb1"
 
 
 def _make_store(table: str, embedding_dim: int) -> OracleDocumentStore:
@@ -35,10 +36,13 @@ def document_store():
     """768-dim store required by the mixin's filterable_docs fixture."""
     table = f"hs_sync_{uuid.uuid4().hex[:8]}"
     s = _make_store(table, embedding_dim=768)
-    yield s
-    with s._get_connection() as conn, conn.cursor() as cur:
-        cur.execute(f"DROP TABLE {table} PURGE")
-        conn.commit()
+    try:
+        yield s
+    finally:
+        try:
+            s.delete_table()
+        finally:
+            s.close()
 
 
 @pytest.fixture
@@ -46,10 +50,13 @@ def embedding_store():
     """4-dim store for embedding-retrieval, HNSW, and async tests."""
     table = f"hs_emb_{uuid.uuid4().hex[:8]}"
     s = _make_store(table, embedding_dim=4)
-    yield s
-    with s._get_connection() as conn, conn.cursor() as cur:
-        cur.execute(f"DROP TABLE {table} PURGE")
-        conn.commit()
+    try:
+        yield s
+    finally:
+        try:
+            s.delete_table()
+        finally:
+            s.close()
 
 
 @pytest.fixture
@@ -97,11 +104,14 @@ def patched_store(monkeypatch):
 def mock_store():
     """MagicMock of OracleDocumentStore for retriever unit tests."""
     store = MagicMock(spec=OracleDocumentStore)
+    store.table_name = "test_docs"
     store.distance_metric = "COSINE"
     store._embedding_retrieval.return_value = [Document(id="A" * 32, content="hi")]
     store._embedding_retrieval_async.return_value = [Document(id="A" * 32, content="hi")]
     store._keyword_retrieval.return_value = [Document(id="A" * 32, content="hi")]
     store._keyword_retrieval_async.return_value = [Document(id="A" * 32, content="hi")]
+    store._hybrid_retrieval.return_value = [Document(id="A" * 32, content="hi")]
+    store._hybrid_retrieval_async.return_value = [Document(id="A" * 32, content="hi")]
     store.to_dict.return_value = {
         "type": "haystack_integrations.document_stores.oracle.document_store.OracleDocumentStore",
         "init_parameters": {

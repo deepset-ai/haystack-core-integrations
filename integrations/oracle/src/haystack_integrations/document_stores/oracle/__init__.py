@@ -5,6 +5,7 @@
 from haystack_integrations.document_stores.oracle.document_store import (
     OracleConnectionConfig,
     OracleDocumentStore,
+    OracleVectorizerPreference,
 )
 
-__all__ = ["OracleConnectionConfig", "OracleDocumentStore"]
+__all__ = ["OracleConnectionConfig", "OracleDocumentStore", "OracleVectorizerPreference"]

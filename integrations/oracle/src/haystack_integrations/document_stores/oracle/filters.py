@@ -2,12 +2,14 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+import re
 from datetime import datetime
 from typing import Any, ClassVar
 
 from haystack.errors import FilterError
 
 _RANGE_OPS = {">", ">=", "<", "<="}
+_JSON_FIELD_NAME = r"^[A-Za-z0-9_.]+$"
 
 
 class FilterTranslator:
@@ -69,12 +71,25 @@ class FilterTranslator:
             msg = f"'value' key missing in comparison filter: {filters}"
             raise FilterError(msg)
 
-        if not isinstance(op, str) or op not in {*self._OP_MAP, "in", "not in"}:
+        if not isinstance(op, str) or op not in {*self._OP_MAP, "in", "not in", "contains", "not contains"}:
             msg = f"Unsupported filter operator: {op!r}"
             raise FilterError(msg)
 
         field: str = filters["field"]
         value: Any = filters["value"]
+
+        if op in ("contains", "not contains"):
+            if isinstance(value, list):
+                msg = f"{op!r} filter values must be scalar, got list"
+                raise FilterError(msg)
+            json_path = FilterTranslator._field_to_json_path(field)
+            pname = f"p{counter[0]}"
+            counter[0] += 1
+            params[pname] = value
+            contains_sql = f'JSON_EXISTS(metadata, \'{json_path}[*]?(@ == $val)\' PASSING :{pname} AS "val")'
+            if op == "contains":
+                return contains_sql
+            return f"(NOT {contains_sql})"
 
         if op in ("in", "not in"):
             if not isinstance(value, list):
@@ -134,6 +149,102 @@ class FilterTranslator:
         if isinstance(value, (int, float)) and not isinstance(value, bool):
             return f"TO_NUMBER({json_path})"
         return json_path
+
+    @staticmethod
+    def _field_to_json_path(field: str) -> str:
+        if not field.startswith("meta."):
+            msg = f"Operator 'contains' supports only metadata fields, got {field!r}"
+            raise FilterError(msg)
+        key = field[len("meta.") :]
+        if not re.match(_JSON_FIELD_NAME, key):
+            msg = f"Invalid metadata field name: {field!r}"
+            raise FilterError(msg)
+        return f"$.{key}"
+
+
+def _infer_hybrid_filter_type(value: Any) -> str:
+    if isinstance(value, bool):
+        msg = "Boolean values are not supported for Oracle hybrid filters."
+        raise FilterError(msg)
+    if isinstance(value, (int, float)):
+        return "number"
+    if isinstance(value, str):
+        return "string"
+    msg = "Oracle hybrid filters support only string and numeric values."
+    raise FilterError(msg)
+
+
+def _hybrid_filter_path(field: str) -> str:
+    if not field.startswith("meta."):
+        msg = "Oracle hybrid retrieval supports only filters under the 'meta.' field."
+        raise FilterError(msg)
+    if not re.match(_JSON_FIELD_NAME, field):
+        msg = f"Invalid metadata field name: {field!r}"
+        raise FilterError(msg)
+    return field
+
+
+def to_hybrid_filter(filters: dict[str, Any]) -> dict[str, Any]:
+    """
+    Converts Haystack filters into DBMS_HYBRID_VECTOR.SEARCH filter_by JSON.
+    """
+    op = filters.get("operator")
+    if op in ("AND", "OR", "NOT"):
+        if "conditions" not in filters:
+            msg = f"'conditions' key missing in logical filter: {filters}"
+            raise FilterError(msg)
+        return {"op": op, "args": [to_hybrid_filter(condition) for condition in filters["conditions"]]}
+
+    if "field" not in filters:
+        msg = f"'field' key missing in comparison filter: {filters}"
+        raise FilterError(msg)
+    if "operator" not in filters:
+        msg = f"'operator' key missing in comparison filter: {filters}"
+        raise FilterError(msg)
+    if "value" not in filters:
+        msg = f"'value' key missing in comparison filter: {filters}"
+        raise FilterError(msg)
+
+    field = _hybrid_filter_path(filters["field"])
+    value = filters["value"]
+    if value is None:
+        msg = "Oracle hybrid retrieval does not support null comparisons."
+        raise FilterError(msg)
+    if op in {"contains", "not contains"}:
+        msg = f"Filter operation {op!r} is not supported for Oracle hybrid retrieval."
+        raise FilterError(msg)
+
+    if op in {"in", "not in"}:
+        if not isinstance(value, list) or not value:
+            msg = f"{op!r} filter requires a non-empty list."
+            raise FilterError(msg)
+        value_type = _infer_hybrid_filter_type(value[0])
+        if any(_infer_hybrid_filter_type(item) != value_type for item in value):
+            msg = "Oracle hybrid retrieval requires all 'in' filter values to share one type."
+            raise FilterError(msg)
+        hybrid_filter: dict[str, Any] = {"op": "IN", "path": field, "type": value_type, "args": value}
+        if op == "not in":
+            return {"op": "NOT", "args": [hybrid_filter]}
+        return hybrid_filter
+
+    hybrid_op_map = {
+        "==": "=",
+        "!=": "!=",
+        ">": ">",
+        ">=": ">=",
+        "<": "<",
+        "<=": "<=",
+    }
+    if not isinstance(op, str) or op not in hybrid_op_map:
+        msg = f"Unsupported filter operator: {op!r}"
+        raise FilterError(msg)
+
+    return {
+        "op": hybrid_op_map[op],
+        "path": field,
+        "type": _infer_hybrid_filter_type(value),
+        "args": [value],
+    }
 
 
 def _is_iso_date(value: Any) -> bool:
