@@ -45,6 +45,46 @@ class TestMongoDBDocumentStoreInit:
                 full_text_search_index="idx",
             )
 
+    def test_to_dict_and_from_dict(self):
+        store = MongoDBAtlasDocumentStore(
+            mongo_connection_string=Secret.from_env_var("MONGO_CONNECTION_STRING"),
+            database_name="database_name",
+            collection_name="collection_name",
+            vector_search_index="cosine_index",
+            full_text_search_index="full_text_index",
+            embedding_field="custom_embedding",
+            content_field="custom_content",
+            meta_project_mapping={"source": "source_field"},
+        )
+        serialized = store.to_dict()
+        assert serialized == {
+            "type": "haystack_integrations.document_stores.mongodb_atlas.document_store.MongoDBAtlasDocumentStore",
+            "init_parameters": {
+                "mongo_connection_string": {
+                    "env_vars": ["MONGO_CONNECTION_STRING"],
+                    "strict": True,
+                    "type": "env_var",
+                },
+                "database_name": "database_name",
+                "collection_name": "collection_name",
+                "vector_search_index": "cosine_index",
+                "full_text_search_index": "full_text_index",
+                "embedding_field": "custom_embedding",
+                "content_field": "custom_content",
+                "meta_project_mapping": {"source": "source_field"},
+            },
+        }
+
+        deserialized = MongoDBAtlasDocumentStore.from_dict(serialized)
+        assert deserialized.mongo_connection_string == Secret.from_env_var("MONGO_CONNECTION_STRING")
+        assert deserialized.database_name == "database_name"
+        assert deserialized.collection_name == "collection_name"
+        assert deserialized.vector_search_index == "cosine_index"
+        assert deserialized.full_text_search_index == "full_text_index"
+        assert deserialized.embedding_field == "custom_embedding"
+        assert deserialized.content_field == "custom_content"
+        assert deserialized.meta_project_mapping == {"source": "source_field"}
+
     @pytest.mark.parametrize("attr", ["connection", "collection"])
     def test_property_raises_when_not_setup(self, local_store, attr):
         with pytest.raises(DocumentStoreError, match="not established"):
@@ -315,6 +355,123 @@ class TestMongoDBDocumentStoreHelpers:
         assert val == "y"
         assert doc == {}
 
+    def test_translate_filters(self):
+        store = MongoDBAtlasDocumentStore(
+            mongo_connection_string=Secret.from_token("test"),
+            database_name="test_db",
+            collection_name="test_collection",
+            vector_search_index="test_index",
+            full_text_search_index="test_index",
+            meta_project_mapping={
+                "source": "source",
+                "author": "metadata.author",
+            },
+        )
+
+        # Simple condition
+        filters = {"field": "meta.source", "operator": "==", "value": "url"}
+        translated = store._translate_filters(filters)
+        assert translated == {"field": "source", "operator": "==", "value": "url"}
+
+        # With leading $ in mapping (should be stripped)
+        store.meta_project_mapping = {"source": "$source", "author": "$metadata.author"}
+        translated = store._translate_filters(filters)
+        assert translated == {"field": "source", "operator": "==", "value": "url"}
+
+        # Nested condition
+        filters = {
+            "operator": "AND",
+            "conditions": [
+                {"field": "meta.source", "operator": "==", "value": "url"},
+                {"field": "meta.author", "operator": "==", "value": "john"},
+                {"field": "meta.unmapped", "operator": "==", "value": "val"},
+            ]
+        }
+        translated = store._translate_filters(filters)
+        assert translated == {
+            "operator": "AND",
+            "conditions": [
+                {"field": "source", "operator": "==", "value": "url"},
+                {"field": "metadata.author", "operator": "==", "value": "john"},
+                {"field": "meta.unmapped", "operator": "==", "value": "val"},
+            ]
+        }
+
+        # None / empty filters
+        assert store._translate_filters(None) is None
+        assert store._translate_filters({}) == {}
+
+    def test_metadata_methods_and_filters_with_mapping(self):
+        store = MongoDBAtlasDocumentStore(
+            mongo_connection_string=Secret.from_token("test"),
+            database_name="test_db",
+            collection_name="test_collection",
+            vector_search_index="test_index",
+            full_text_search_index="test_index",
+            meta_project_mapping={
+                "source": "source",
+                "author": "metadata.author",
+            },
+        )
+        # Mock connection and collection
+        mock_collection = MagicMock()
+        store._collection = mock_collection
+        # Mock _ensure_connection_setup to do nothing
+        store._ensure_connection_setup = lambda: None
+
+        # 1. count_documents_by_filter
+        filters = {"field": "meta.source", "operator": "==", "value": "url"}
+        store.count_documents_by_filter(filters)
+        mock_collection.count_documents.assert_called_with({"source": {"$eq": "url"}})
+
+        # 2. delete_by_filter
+        store.delete_by_filter(filters)
+        mock_collection.delete_many.assert_called_with(filter={"source": {"$eq": "url"}})
+
+        # 3. update_by_filter
+        meta_to_update = {"source": "new_url", "author": "john", "unmapped": "val"}
+        store.update_by_filter(filters, meta_to_update)
+        mock_collection.update_many.assert_called_with(
+            filter={"source": {"$eq": "url"}},
+            update={"$set": {"source": "new_url", "metadata.author": "john", "meta.unmapped": "val"}}
+        )
+
+        # 4. get_metadata_field_min_max
+        mock_collection.aggregate.return_value = [{"min": 1, "max": 10}]
+        store.get_metadata_field_min_max("author")
+        # should construct group stage on $metadata.author
+        pipeline = mock_collection.aggregate.call_args[0][0]
+        assert pipeline[0]["$group"]["min"] == {"$min": "$metadata.author"}
+
+        # 5. get_metadata_field_unique_values
+        mock_collection.aggregate.return_value = [{"count": [{"count": 0}], "values": []}]
+        store.get_metadata_field_unique_values("author")
+        pipeline = mock_collection.aggregate.call_args[0][0]
+        assert pipeline[0]["$group"] == {"_id": "$metadata.author"}
+
+        # 6. count_unique_metadata_by_filter
+        mock_collection.aggregate.return_value = [{"source": [{"count": 1}]}]
+        store.count_unique_metadata_by_filter(filters, ["source"])
+        pipeline = mock_collection.aggregate.call_args[0][0]
+        assert pipeline[0] == {"$match": {"source": {"$eq": "url"}}}
+        assert pipeline[1]["$facet"]["source"][0]["$group"] == {"_id": "$source"}
+
+        # 7. get_metadata_fields_info
+        mock_cursor = MagicMock()
+        mock_cursor.sort.return_value = mock_cursor
+        mock_cursor.limit.return_value = [
+            {"source": "url", "metadata": {"author": "john"}, "meta": {"unmapped": "val"}}
+        ]
+        mock_collection.find.return_value = mock_cursor
+
+        info = store.get_metadata_fields_info()
+        # Verify find was called with expected projection
+        mock_collection.find.assert_called_with({}, {"meta": 1, "source": 1, "metadata.author": 1})
+        # Verify computed info contains mapped fields
+        assert info["source"] == {"type": "keyword"}
+        assert info["author"] == {"type": "keyword"}
+        assert info["unmapped"] == {"type": "keyword"}
+
 
 @pytest.mark.skipif(
     not os.environ.get("MONGO_CONNECTION_STRING"),
@@ -367,6 +524,9 @@ class TestDocumentStore(
                 "database_name": "haystack_integration_test",
                 "vector_search_index": "cosine_index",
                 "full_text_search_index": "full_text_index",
+                "embedding_field": "embedding",
+                "content_field": "content",
+                "meta_project_mapping": None,
             },
         }
 
