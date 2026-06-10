@@ -385,7 +385,7 @@ class TestMongoDBDocumentStoreHelpers:
                 {"field": "meta.source", "operator": "==", "value": "url"},
                 {"field": "meta.author", "operator": "==", "value": "john"},
                 {"field": "meta.unmapped", "operator": "==", "value": "val"},
-            ]
+            ],
         }
         translated = store._translate_filters(filters)
         assert translated == {
@@ -394,7 +394,7 @@ class TestMongoDBDocumentStoreHelpers:
                 {"field": "source", "operator": "==", "value": "url"},
                 {"field": "metadata.author", "operator": "==", "value": "john"},
                 {"field": "meta.unmapped", "operator": "==", "value": "val"},
-            ]
+            ],
         }
 
         # None / empty filters
@@ -433,7 +433,7 @@ class TestMongoDBDocumentStoreHelpers:
         store.update_by_filter(filters, meta_to_update)
         mock_collection.update_many.assert_called_with(
             filter={"source": {"$eq": "url"}},
-            update={"$set": {"source": "new_url", "metadata.author": "john", "meta.unmapped": "val"}}
+            update={"$set": {"source": "new_url", "metadata.author": "john", "meta.unmapped": "val"}},
         )
 
         # 4. get_metadata_field_min_max

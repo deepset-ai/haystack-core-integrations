@@ -423,9 +423,8 @@ class MongoDBAtlasDocumentStore:
             projection = {"meta": 1}
             if self.meta_project_mapping:
                 for mongo_field in self.meta_project_mapping.values():
-                    if mongo_field.startswith("$"):
-                        mongo_field = mongo_field[1:]
-                    projection[mongo_field] = 1
+                    field_name = mongo_field[1:] if mongo_field.startswith("$") else mongo_field
+                    projection[field_name] = 1
             cursor = self._collection.find({}, projection).sort("_id", -1).limit(50)
             return self._compute_metadata_fields_info(list(cursor))
         except Exception as e:
@@ -448,9 +447,8 @@ class MongoDBAtlasDocumentStore:
             projection = {"meta": 1}
             if self.meta_project_mapping:
                 for mongo_field in self.meta_project_mapping.values():
-                    if mongo_field.startswith("$"):
-                        mongo_field = mongo_field[1:]
-                    projection[mongo_field] = 1
+                    field_name = mongo_field[1:] if mongo_field.startswith("$") else mongo_field
+                    projection[field_name] = 1
             cursor = self._collection_async.find({}, projection).sort("_id", -1).limit(50)
             docs = await cursor.to_list(length=50)
             return self._compute_metadata_fields_info(docs)
@@ -464,11 +462,10 @@ class MongoDBAtlasDocumentStore:
             mongo_field = self.meta_project_mapping[clean_key]
             if not mongo_field.startswith("$"):
                 mongo_field = f"${mongo_field}"
+        elif metadata_field.startswith("meta."):
+            mongo_field = f"${metadata_field}"
         else:
-            if metadata_field.startswith("meta."):
-                mongo_field = f"${metadata_field}"
-            else:
-                mongo_field = f"$meta.{metadata_field}"
+            mongo_field = f"$meta.{metadata_field}"
         return [
             {
                 "$group": {
@@ -531,11 +528,10 @@ class MongoDBAtlasDocumentStore:
             mongo_field = self.meta_project_mapping[clean_key]
             if not mongo_field.startswith("$"):
                 mongo_field = f"${mongo_field}"
+        elif metadata_field.startswith("meta."):
+            mongo_field = f"${metadata_field}"
         else:
-            if metadata_field.startswith("meta."):
-                mongo_field = f"${metadata_field}"
-            else:
-                mongo_field = f"$meta.{metadata_field}"
+            mongo_field = f"$meta.{metadata_field}"
         pipeline: list[dict[str, Any]] = [
             {"$group": {"_id": mongo_field}},
         ]
@@ -1346,9 +1342,7 @@ class MongoDBAtlasDocumentStore:
                         mongo_field = mongo_field[1:]
                     translated["field"] = mongo_field
         elif "conditions" in translated:
-            translated["conditions"] = [
-                self._translate_filters(c) for c in translated["conditions"]
-            ]
+            translated["conditions"] = [self._translate_filters(c) for c in translated["conditions"]]
         return translated
 
     def _mongo_doc_to_haystack_doc(self, mongo_doc: dict[str, Any]) -> Document:
