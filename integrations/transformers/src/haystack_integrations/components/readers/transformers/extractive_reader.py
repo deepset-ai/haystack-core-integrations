@@ -14,7 +14,7 @@ from haystack.utils import ComponentDevice, Device, DeviceMap, Secret
 from haystack.utils.hf import deserialize_hf_model_kwargs, serialize_hf_model_kwargs
 from tokenizers import Encoding
 
-from haystack_integrations.components.common.transformers.utils import _resolve_hf_device_map
+from haystack_integrations.common.transformers.utils import _resolve_hf_device_map
 from transformers import AutoModelForQuestionAnswering, AutoTokenizer
 
 logger = logging.getLogger(__name__)
