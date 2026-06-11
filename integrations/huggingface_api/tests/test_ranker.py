@@ -20,7 +20,7 @@ class TestHuggingFaceTEIRanker:
         assert ranker.url == "https://api.my-tei-service.com"
         assert ranker.top_k == 10
         assert ranker.timeout == 30
-        assert not ranker.token.resolve_value()
+        assert ranker.token == Secret.from_env_var(["HF_API_TOKEN", "HF_TOKEN"], strict=False)
         assert ranker.max_retries == 3
         assert ranker.retry_status_codes is None
 
@@ -228,7 +228,7 @@ class TestHuggingFaceTEIRanker:
             url="https://api.my-tei-service.com/rerank",
             json={"query": "test query", "texts": ["keep me", "unique"], "raw_scores": False},
             timeout=30,
-            headers={},
+            headers={"Authorization": f"Bearer {ranker.token.resolve_value()}"} if ranker.token.resolve_value() else {},
             attempts=3,
             status_codes_to_retry=None,
         )
@@ -331,7 +331,7 @@ class TestHuggingFaceTEIRanker:
             url="https://api.my-tei-service.com/rerank",
             json={"query": "test query", "texts": ["keep me", "unique"], "raw_scores": False},
             timeout=30,
-            headers={},
+            headers={"Authorization": f"Bearer {ranker.token.resolve_value()}"} if ranker.token.resolve_value() else {},
             attempts=3,
             status_codes_to_retry=None,
         )

@@ -55,7 +55,7 @@ class TestTransformersZeroShotTextRouter:
             "model": "MoritzLaurer/deberta-v3-base-zeroshot-v1.1-all-33",
             "device": ComponentDevice.resolve_device(None).to_hf(),
             "task": "zero-shot-classification",
-            "token": None,
+            "token": component.token.resolve_value(),
         }
 
     def test_from_dict_no_default_parameters(self, del_hf_env_vars_if_empty):
@@ -73,7 +73,7 @@ class TestTransformersZeroShotTextRouter:
             "model": "MoritzLaurer/deberta-v3-base-zeroshot-v1.1-all-33",
             "device": ComponentDevice.resolve_device(None).to_hf(),
             "task": "zero-shot-classification",
-            "token": None,
+            "token": component.token.resolve_value(),
         }
 
     @patch("haystack_integrations.components.routers.transformers.zero_shot_text_router.pipeline")

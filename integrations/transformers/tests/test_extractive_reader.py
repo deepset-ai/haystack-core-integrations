@@ -651,7 +651,9 @@ def test_device_map_auto(mocked_automodel, _mocked_autotokenizer, del_hf_env_var
     mocked_automodel.return_value = MockedModel()
     reader.warm_up()
 
-    mocked_automodel.assert_called_once_with("deepset/roberta-base-squad2", token=None, device_map="auto")
+    mocked_automodel.assert_called_once_with(
+        "deepset/roberta-base-squad2", token=reader.token.resolve_value(), device_map="auto"
+    )
     assert reader.device == ComponentDevice.from_multiple(DeviceMap.from_hf({"": auto_device.to_hf()}))
 
 
@@ -670,7 +672,9 @@ def test_device_map_str(mocked_automodel, _mocked_autotokenizer, del_hf_env_vars
     mocked_automodel.return_value = MockedModel()
     reader.warm_up()
 
-    mocked_automodel.assert_called_once_with("deepset/roberta-base-squad2", token=None, device_map="cpu:0")
+    mocked_automodel.assert_called_once_with(
+        "deepset/roberta-base-squad2", token=reader.token.resolve_value(), device_map="cpu:0"
+    )
     assert reader.device == ComponentDevice.from_multiple(DeviceMap.from_hf({"": "cpu:0"}))
 
 
@@ -692,7 +696,9 @@ def test_device_map_dict(mocked_automodel, _mocked_autotokenizer, del_hf_env_var
     reader.warm_up()
 
     mocked_automodel.assert_called_once_with(
-        "deepset/roberta-base-squad2", token=None, device_map={"layer_1": 1, "classifier": "cpu"}
+        "deepset/roberta-base-squad2",
+        token=reader.token.resolve_value(),
+        device_map={"layer_1": 1, "classifier": "cpu"},
     )
     assert reader.device == ComponentDevice.from_multiple(DeviceMap.from_hf({"layer_1": 1, "classifier": "cpu"}))
 

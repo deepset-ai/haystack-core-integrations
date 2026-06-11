@@ -266,7 +266,10 @@ class TestTransformersChatGenerator:
         generator.warm_up()
 
         pipeline_mock.assert_called_once_with(
-            model="mistralai/Mistral-7B-Instruct-v0.2", task="text-generation", token=None, device="cpu"
+            model="mistralai/Mistral-7B-Instruct-v0.2",
+            task="text-generation",
+            token=generator.token.resolve_value(),
+            device="cpu",
         )
 
     @patch("haystack_integrations.components.generators.transformers.chat.chat_generator.pipeline")

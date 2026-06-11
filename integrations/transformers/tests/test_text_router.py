@@ -79,7 +79,7 @@ class TestTransformersTextRouter:
             "model": "papluca/xlm-roberta-base-language-detection",
             "device": ComponentDevice.resolve_device(None).to_hf(),
             "task": "text-classification",
-            "token": None,
+            "token": component.token.resolve_value(),
         }
 
     @patch("haystack_integrations.components.routers.transformers.text_router.AutoConfig.from_pretrained")
@@ -99,7 +99,7 @@ class TestTransformersTextRouter:
             "model": "papluca/xlm-roberta-base-language-detection",
             "device": ComponentDevice.resolve_device(None).to_hf(),
             "task": "text-classification",
-            "token": None,
+            "token": component.token.resolve_value(),
         }
 
     @patch("haystack_integrations.components.routers.transformers.text_router.AutoConfig.from_pretrained")
@@ -128,7 +128,7 @@ class TestTransformersTextRouter:
             "model": "papluca/xlm-roberta-base-language-detection",
             "device": ComponentDevice.from_str("cpu").to_hf(),
             "task": "text-classification",
-            "token": None,
+            "token": component.token.resolve_value(),
         }
 
     @patch("haystack_integrations.components.routers.transformers.text_router.AutoConfig.from_pretrained")

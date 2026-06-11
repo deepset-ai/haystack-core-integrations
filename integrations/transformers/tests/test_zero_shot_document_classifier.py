@@ -80,7 +80,7 @@ class TestTransformersZeroShotDocumentClassifier:
             "model": "cross-encoder/nli-deberta-v3-xsmall",
             "device": ComponentDevice.resolve_device(None).to_hf(),
             "task": "zero-shot-classification",
-            "token": None,
+            "token": component.token.resolve_value(),
         }
 
     def test_from_dict_no_default_parameters(self, del_hf_env_vars_if_empty):
@@ -98,7 +98,7 @@ class TestTransformersZeroShotDocumentClassifier:
             "model": "cross-encoder/nli-deberta-v3-xsmall",
             "device": ComponentDevice.resolve_device(None).to_hf(),
             "task": "zero-shot-classification",
-            "token": None,
+            "token": component.token.resolve_value(),
         }
 
     @patch("haystack_integrations.components.classifiers.transformers.zero_shot_document_classifier.pipeline")
