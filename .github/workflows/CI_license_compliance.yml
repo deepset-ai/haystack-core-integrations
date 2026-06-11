@@ -12,13 +12,14 @@ on:
 
 env:
   PYTHON_VERSION: "3.10"
-  EXCLUDE_PACKAGES: "(?i)^(azure-identity|azure-search-documents|fastembed|tqdm|psycopg|mistralai|pgvector).*"
+  EXCLUDE_PACKAGES: "(?i)^(azure-identity|azure-search-documents|fastembed|llama-cpp-python|tqdm|psycopg|mistralai|pgvector).*"
 
   # Exclusions must be explicitly motivated
   #
   # - azure-identity is MIT but the license is not available on PyPI
   # - azure-search-documents is MIT but the license is not available on PyPI
   # - fastembed is Apache 2.0 but the license on PyPI is unclear ("Other/Proprietary License (Apache License)")
+  # - llama-cpp-python is MIT but exposes no license classifier on PyPI (only a bare "MIT" string), so the checker errors
   # - mistralai is Apache 2.0 but the license is not available on PyPI
   # - pgvector is MIT but the license is not available on PyPI
 
