@@ -8,6 +8,6 @@ processors:
     skip_empty_modules: true
 renderer:
   description: Microsoft SharePoint integration for Haystack
-  id: integrations-microsoft_sharepoint
-  filename: microsoft-sharepoint.md
+  id: integrations-microsoft-sharepoint
+  filename: microsoft_sharepoint.md
   title: Microsoft SharePoint
