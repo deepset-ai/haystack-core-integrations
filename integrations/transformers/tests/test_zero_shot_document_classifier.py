@@ -52,7 +52,7 @@ class TestTransformersZeroShotDocumentClassifier:
             },
         }
 
-    def test_from_dict(self, del_hf_env_vars):
+    def test_from_dict(self, del_hf_env_vars_if_empty):
         data = {
             "type": COMPONENT_TYPE,
             "init_parameters": {
@@ -83,7 +83,7 @@ class TestTransformersZeroShotDocumentClassifier:
             "token": None,
         }
 
-    def test_from_dict_no_default_parameters(self, del_hf_env_vars):
+    def test_from_dict_no_default_parameters(self, del_hf_env_vars_if_empty):
         data = {
             "type": COMPONENT_TYPE,
             "init_parameters": {"model": "cross-encoder/nli-deberta-v3-xsmall", "labels": ["positive", "negative"]},
@@ -165,7 +165,7 @@ class TestTransformersZeroShotDocumentClassifier:
             component.run(documents=documents)
 
     @pytest.mark.integration
-    def test_run(self, del_hf_env_vars):
+    def test_run(self, del_hf_env_vars_if_empty):
         component = TransformersZeroShotDocumentClassifier(
             model="cross-encoder/nli-deberta-v3-xsmall", labels=["positive", "negative"]
         )

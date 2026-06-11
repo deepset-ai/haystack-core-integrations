@@ -256,7 +256,7 @@ class TestTransformersChatGenerator:
         }
 
     @patch("haystack_integrations.components.generators.transformers.chat.chat_generator.pipeline")
-    def test_warm_up(self, pipeline_mock, del_hf_env_vars):
+    def test_warm_up(self, pipeline_mock, del_hf_env_vars_if_empty):
         generator = TransformersChatGenerator(
             model="mistralai/Mistral-7B-Instruct-v0.2", task="text-generation", device=ComponentDevice.from_str("cpu")
         )
@@ -270,7 +270,7 @@ class TestTransformersChatGenerator:
         )
 
     @patch("haystack_integrations.components.generators.transformers.chat.chat_generator.pipeline")
-    def test_warm_up_with_tools(self, pipeline_mock, del_hf_env_vars):
+    def test_warm_up_with_tools(self, pipeline_mock, del_hf_env_vars_if_empty):
         """Test that warm_up() calls warm_up on tools and is idempotent."""
 
         # Create a mock tool that tracks if warm_up() was called
@@ -324,7 +324,7 @@ class TestTransformersChatGenerator:
         pipeline_mock.assert_called_once()
 
     @patch("haystack_integrations.components.generators.transformers.chat.chat_generator.pipeline")
-    def test_warm_up_with_no_tools(self, pipeline_mock, del_hf_env_vars):
+    def test_warm_up_with_no_tools(self, pipeline_mock, del_hf_env_vars_if_empty):
         """Test that warm_up() works when no tools are provided."""
 
         generator = TransformersChatGenerator(
@@ -349,7 +349,7 @@ class TestTransformersChatGenerator:
         pipeline_mock.assert_called_once()
 
     @patch("haystack_integrations.components.generators.transformers.chat.chat_generator.pipeline")
-    def test_warm_up_with_multiple_tools(self, pipeline_mock, del_hf_env_vars):
+    def test_warm_up_with_multiple_tools(self, pipeline_mock, del_hf_env_vars_if_empty):
         """Test that warm_up() works with multiple tools."""
 
         # Track warm_up calls
@@ -507,7 +507,7 @@ class TestTransformersChatGenerator:
 
     @pytest.mark.integration
     @pytest.mark.flaky(reruns=3, reruns_delay=10)
-    def test_live_run(self, del_hf_env_vars):
+    def test_live_run(self, del_hf_env_vars_if_empty):
         """Test live run with default behavior (no thinking)."""
         messages = [ChatMessage.from_user("Please create a summary about the following topic: Climate change")]
 
@@ -521,7 +521,7 @@ class TestTransformersChatGenerator:
 
     @pytest.mark.integration
     @pytest.mark.flaky(reruns=3, reruns_delay=10)
-    def test_live_run_thinking(self, del_hf_env_vars):
+    def test_live_run_thinking(self, del_hf_env_vars_if_empty):
         """Test live run with enable_thinking=True."""
         messages = [ChatMessage.from_user("What is 2+2?")]
 
@@ -865,7 +865,7 @@ class TestTransformersChatGeneratorAsync:
     @pytest.mark.integration
     @pytest.mark.flaky(reruns=3, reruns_delay=10)
     @pytest.mark.asyncio
-    async def test_live_run_async_with_streaming(self, del_hf_env_vars):
+    async def test_live_run_async_with_streaming(self, del_hf_env_vars_if_empty):
         """Test async streaming with a live model."""
         streaming_chunks = []
 

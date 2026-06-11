@@ -13,7 +13,7 @@ from haystack_integrations.components.rankers.huggingface_api import HuggingFace
 
 
 class TestHuggingFaceTEIRanker:
-    def test_init(self, del_hf_env_vars):
+    def test_init(self, del_hf_env_vars_if_empty):
         """Test initialization with default and custom parameters"""
         # Default parameters
         ranker = HuggingFaceTEIRanker(url="https://api.my-tei-service.com")
@@ -41,7 +41,7 @@ class TestHuggingFaceTEIRanker:
         assert ranker.max_retries == 5
         assert ranker.retry_status_codes == [500, 502, 503]
 
-    def test_to_dict(self, del_hf_env_vars):
+    def test_to_dict(self, del_hf_env_vars_if_empty):
         """Test serialization to dict with Secret token"""
         component = HuggingFaceTEIRanker(
             url="https://api.my-tei-service.com", top_k=5, timeout=30, max_retries=4, retry_status_codes=[500, 502]
@@ -60,7 +60,7 @@ class TestHuggingFaceTEIRanker:
         assert data["init_parameters"]["max_retries"] == 4
         assert data["init_parameters"]["retry_status_codes"] == [500, 502]
 
-    def test_from_dict(self, del_hf_env_vars):
+    def test_from_dict(self, del_hf_env_vars_if_empty):
         """Test deserialization from dict with environment variable token"""
         data = {
             "type": "haystack_integrations.components.rankers.huggingface_api.ranker.HuggingFaceTEIRanker",
@@ -82,14 +82,14 @@ class TestHuggingFaceTEIRanker:
         assert component.max_retries == 4
         assert component.retry_status_codes == [500, 502]
 
-    def test_empty_documents(self, del_hf_env_vars):
+    def test_empty_documents(self, del_hf_env_vars_if_empty):
         """Test that empty documents list returns empty result"""
         ranker = HuggingFaceTEIRanker(url="https://api.my-tei-service.com")
         result = ranker.run(query="test query", documents=[])
         assert result == {"documents": []}
 
     @patch("haystack_integrations.components.rankers.huggingface_api.ranker.request_with_retry")
-    def test_run_with_mock(self, mock_request, del_hf_env_vars):
+    def test_run_with_mock(self, mock_request, del_hf_env_vars_if_empty):
         """Test run method with mocked API response"""
         # Setup mock response
         mock_response = MagicMock(spec=httpx.Response)
@@ -137,7 +137,7 @@ class TestHuggingFaceTEIRanker:
         assert result["documents"][2].score == 0.75
 
     @patch("haystack_integrations.components.rankers.huggingface_api.ranker.request_with_retry")
-    def test_run_with_truncation_direction(self, mock_request, del_hf_env_vars):
+    def test_run_with_truncation_direction(self, mock_request, del_hf_env_vars_if_empty):
         """Test run method with truncation direction parameter"""
         # Setup mock response
         mock_response = MagicMock(spec=httpx.Response)
@@ -170,7 +170,7 @@ class TestHuggingFaceTEIRanker:
         )
 
     @patch("haystack_integrations.components.rankers.huggingface_api.ranker.request_with_retry")
-    def test_run_with_custom_top_k(self, mock_request, del_hf_env_vars):
+    def test_run_with_custom_top_k(self, mock_request, del_hf_env_vars_if_empty):
         """Test run method with custom top_k parameter"""
         # Setup mock response with 5 documents
         mock_response = MagicMock(spec=httpx.Response)
@@ -207,7 +207,7 @@ class TestHuggingFaceTEIRanker:
         assert result["documents"][1].content == "Document 3"
 
     @patch("haystack_integrations.components.rankers.huggingface_api.ranker.request_with_retry")
-    def test_run_deduplicates_documents(self, mock_request, del_hf_env_vars):
+    def test_run_deduplicates_documents(self, mock_request, del_hf_env_vars_if_empty):
         """Test that duplicate documents are removed before sending to the API."""
         mock_response = MagicMock(spec=httpx.Response)
         mock_response.json.return_value = [{"index": 1, "score": 0.9}, {"index": 0, "score": 0.2}]
@@ -237,7 +237,7 @@ class TestHuggingFaceTEIRanker:
         assert result["documents"][1].content == "keep me"
 
     @patch("haystack_integrations.components.rankers.huggingface_api.ranker.request_with_retry")
-    def test_error_handling(self, mock_request, del_hf_env_vars):
+    def test_error_handling(self, mock_request, del_hf_env_vars_if_empty):
         """Test error handling in the ranker"""
         # Setup mock response with error
         mock_response = MagicMock(spec=httpx.Response)
@@ -261,7 +261,7 @@ class TestHuggingFaceTEIRanker:
 
     @pytest.mark.asyncio
     @patch("haystack_integrations.components.rankers.huggingface_api.ranker.async_request_with_retry")
-    async def test_run_async_with_mock(self, mock_request, del_hf_env_vars):
+    async def test_run_async_with_mock(self, mock_request, del_hf_env_vars_if_empty):
         """Test run_async method with mocked API response"""
         # Setup mock response
         mock_response = MagicMock(spec=httpx.Response)
@@ -310,7 +310,7 @@ class TestHuggingFaceTEIRanker:
 
     @pytest.mark.asyncio
     @patch("haystack_integrations.components.rankers.huggingface_api.ranker.async_request_with_retry")
-    async def test_run_async_deduplicates_documents(self, mock_request, del_hf_env_vars):
+    async def test_run_async_deduplicates_documents(self, mock_request, del_hf_env_vars_if_empty):
         """Test that duplicate documents are removed before sending to the API."""
         mock_response = MagicMock(spec=httpx.Response)
         mock_response.json.return_value = [{"index": 1, "score": 0.9}, {"index": 0, "score": 0.2}]
@@ -341,7 +341,7 @@ class TestHuggingFaceTEIRanker:
 
     @pytest.mark.asyncio
     @patch("haystack_integrations.components.rankers.huggingface_api.ranker.async_request_with_retry")
-    async def test_run_async_empty_documents(self, mock_request, del_hf_env_vars):
+    async def test_run_async_empty_documents(self, mock_request, del_hf_env_vars_if_empty):
         """Test run_async with empty documents list"""
         ranker = HuggingFaceTEIRanker(url="https://api.my-tei-service.com")
         result = await ranker.run_async(query="test query", documents=[])

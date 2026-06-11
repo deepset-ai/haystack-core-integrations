@@ -54,7 +54,7 @@ class TestTransformersTextRouter:
         }
 
     @patch("haystack_integrations.components.routers.transformers.text_router.AutoConfig.from_pretrained")
-    def test_from_dict(self, mock_auto_config_from_pretrained, del_hf_env_vars):
+    def test_from_dict(self, mock_auto_config_from_pretrained, del_hf_env_vars_if_empty):
         mock_auto_config_from_pretrained.return_value = MagicMock(label2id={"en": 0, "de": 1})
         data = {
             "type": COMPONENT_TYPE,
@@ -83,7 +83,7 @@ class TestTransformersTextRouter:
         }
 
     @patch("haystack_integrations.components.routers.transformers.text_router.AutoConfig.from_pretrained")
-    def test_from_dict_no_default_parameters(self, mock_auto_config_from_pretrained, del_hf_env_vars):
+    def test_from_dict_no_default_parameters(self, mock_auto_config_from_pretrained, del_hf_env_vars_if_empty):
         mock_auto_config_from_pretrained.return_value = MagicMock(label2id={"en": 0, "de": 1})
         data = {
             "type": COMPONENT_TYPE,
@@ -103,7 +103,7 @@ class TestTransformersTextRouter:
         }
 
     @patch("haystack_integrations.components.routers.transformers.text_router.AutoConfig.from_pretrained")
-    def test_from_dict_with_cpu_device(self, mock_auto_config_from_pretrained, del_hf_env_vars):
+    def test_from_dict_with_cpu_device(self, mock_auto_config_from_pretrained, del_hf_env_vars_if_empty):
         mock_auto_config_from_pretrained.return_value = MagicMock(label2id={"en": 0, "de": 1})
         data = {
             "type": COMPONENT_TYPE,
@@ -172,7 +172,7 @@ class TestTransformersTextRouter:
         assert out == {"en": "What is the color of the sky?"}
 
     @pytest.mark.integration
-    def test_run(self, del_hf_env_vars):
+    def test_run(self, del_hf_env_vars_if_empty):
         router = TransformersTextRouter(model="papluca/xlm-roberta-base-language-detection")
         out = router.run("What is the color of the sky?")
         assert set(router.labels) == {
@@ -201,7 +201,7 @@ class TestTransformersTextRouter:
         assert out == {"en": "What is the color of the sky?"}
 
     @pytest.mark.integration
-    def test_wrong_labels(self, del_hf_env_vars):
+    def test_wrong_labels(self, del_hf_env_vars_if_empty):
         router = TransformersTextRouter(model="papluca/xlm-roberta-base-language-detection", labels=["en", "de"])
         with pytest.raises(ValueError):
             router.warm_up()

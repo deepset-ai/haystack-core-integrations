@@ -101,7 +101,7 @@ def test_named_entity_extractor_serde():
         _ = TransformersNamedEntityExtractor.from_dict(serde_data)
 
 
-def test_to_dict_default(del_hf_env_vars):
+def test_to_dict_default(del_hf_env_vars_if_empty):
     component = TransformersNamedEntityExtractor(
         model="dslim/bert-base-NER",
         device=ComponentDevice.from_str("mps"),
@@ -144,7 +144,7 @@ def test_to_dict_with_parameters():
     }
 
 
-def test_named_entity_extractor_from_dict_no_default_parameters(del_hf_env_vars):
+def test_named_entity_extractor_from_dict_no_default_parameters(del_hf_env_vars_if_empty):
     data = {
         "type": COMPONENT_TYPE,
         "init_parameters": {"model": "dslim/bert-base-NER"},
@@ -226,7 +226,7 @@ def test_named_entity_extractor_run_fails_with_wrong_number_of_annotations():
 
 
 @pytest.mark.integration
-def test_ner_extractor_init(del_hf_env_vars):
+def test_ner_extractor_init(del_hf_env_vars_if_empty):
     extractor = TransformersNamedEntityExtractor(model="dslim/bert-base-NER")
     extractor.warm_up()
     assert extractor.initialized
@@ -234,7 +234,7 @@ def test_ner_extractor_init(del_hf_env_vars):
 
 @pytest.mark.integration
 @pytest.mark.parametrize("batch_size", [1, 3])
-def test_ner_extractor(raw_texts, hf_annotations, batch_size, del_hf_env_vars):
+def test_ner_extractor(raw_texts, hf_annotations, batch_size, del_hf_env_vars_if_empty):
     extractor = TransformersNamedEntityExtractor(model="dslim/bert-base-NER")
     extractor.warm_up()
 
@@ -256,7 +256,7 @@ def test_ner_extractor_private_models(raw_texts, hf_annotations, batch_size):
 
 @pytest.mark.integration
 @pytest.mark.parametrize("batch_size", [1, 3])
-def test_ner_extractor_in_pipeline(raw_texts, hf_annotations, batch_size, del_hf_env_vars):
+def test_ner_extractor_in_pipeline(raw_texts, hf_annotations, batch_size, del_hf_env_vars_if_empty):
     pipeline = Pipeline()
     pipeline.add_component(
         name="ner_extractor",

@@ -31,7 +31,7 @@ class TestTransformersZeroShotTextRouter:
             },
         }
 
-    def test_from_dict(self, del_hf_env_vars):
+    def test_from_dict(self, del_hf_env_vars_if_empty):
         data = {
             "type": COMPONENT_TYPE,
             "init_parameters": {
@@ -58,7 +58,7 @@ class TestTransformersZeroShotTextRouter:
             "token": None,
         }
 
-    def test_from_dict_no_default_parameters(self, del_hf_env_vars):
+    def test_from_dict_no_default_parameters(self, del_hf_env_vars_if_empty):
         data = {
             "type": COMPONENT_TYPE,
             "init_parameters": {"labels": ["query", "passage"]},
@@ -110,7 +110,7 @@ class TestTransformersZeroShotTextRouter:
         assert out == {"query": "What is the color of the sky?"}
 
     @pytest.mark.integration
-    def test_run(self, del_hf_env_vars):
+    def test_run(self, del_hf_env_vars_if_empty):
         router = TransformersZeroShotTextRouter(labels=["query", "passage"])
         out = router.run("What is the color of the sky?")
         assert router.pipeline is not None
