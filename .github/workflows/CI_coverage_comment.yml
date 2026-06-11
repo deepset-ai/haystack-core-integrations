@@ -44,6 +44,7 @@ on:
       - "Test / mcp"
       - "Test / mem0"
       - "Test / meta_llama"
+      - "Test / microsoft_sharepoint"
       - "Test / mistral"
       - "Test / mongodb_atlas"
       - "Test / nvidia"
