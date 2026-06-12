@@ -59,6 +59,7 @@ on:
       - "Test / pyversity"
       - "Test / qdrant"
       - "Test / ragas"
+      - "Test / serperdev"
       - "Test / snowflake"
       - "Test / sqlalchemy"
       - "Test / stackit"

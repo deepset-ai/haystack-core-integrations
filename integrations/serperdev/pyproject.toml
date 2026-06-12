@@ -3,13 +3,13 @@ requires = ["hatchling", "hatch-vcs"]
 build-backend = "hatchling.build"
 
 [project]
-name = "huggingface-api-haystack"
+name = "serperdev-haystack"
 dynamic = ["version"]
-description = "Haystack integration for Hugging Face API"
+description = "Haystack integration for SerperDev Web Search"
 readme = "README.md"
 requires-python = ">=3.10"
 license = "Apache-2.0"
-keywords = []
+keywords = ["Haystack", "SerperDev", "Serper", "Web Search", "AI Search"]
 authors = [{ name = "deepset GmbH", email = "info@deepset.ai" }]
 classifiers = [
   "License :: OSI Approved :: Apache Software License",
@@ -23,23 +23,23 @@ classifiers = [
   "Programming Language :: Python :: Implementation :: CPython",
   "Programming Language :: Python :: Implementation :: PyPy",
 ]
-dependencies = ["haystack-ai>=2.30.0", "huggingface_hub[inference]>=0.35.0"]
+dependencies = ["haystack-ai>=2.24.1", "httpx>=0.27.0"]
 
 [project.urls]
-Documentation = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/huggingface_api#readme"
+Documentation = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/serperdev#readme"
 Issues = "https://github.com/deepset-ai/haystack-core-integrations/issues"
-Source = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/huggingface_api"
+Source = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/serperdev"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/haystack_integrations"]
 
 [tool.hatch.version]
 source = "vcs"
-tag-pattern = 'integrations\/huggingface_api-v(?P<version>.*)'
+tag-pattern = 'integrations\/serperdev-v(?P<version>.*)'
 
 [tool.hatch.version.raw-options]
 root = "../.."
-git_describe_command = 'git describe --tags --match="integrations/huggingface_api-v[0-9]*"'
+git_describe_command = 'git describe --tags --match="integrations/serperdev-v[0-9]*"'
 
 [tool.hatch.envs.default]
 installer = "uv"
@@ -58,8 +58,6 @@ dependencies = [
     "pytest-rerunfailures",
     "mypy",
     "pip",
-    "numpy",
-    "pillow",  # image resizing in multimodal tests
 ]
 
 [tool.hatch.envs.test.scripts]
@@ -68,16 +66,17 @@ integration = 'pytest -m "integration" {args:tests}'
 all = 'pytest {args:tests}'
 unit-cov-retry = 'pytest --cov=haystack_integrations --reruns 3 --reruns-delay 30 -x -m "not integration" {args:tests}'
 integration-cov-append-retry = 'pytest --cov=haystack_integrations --cov-append --reruns 3 --reruns-delay 30 -x -m "integration" {args:tests}'
-types = """mypy -p haystack_integrations.common.huggingface_api \
--p haystack_integrations.components.embedders.huggingface_api \
--p haystack_integrations.components.generators.huggingface_api \
--p haystack_integrations.components.rankers.huggingface_api {args}"""
+types = "mypy -p haystack_integrations.components.websearch.serperdev {args}"
 
 [tool.mypy]
 install_types = true
 non_interactive = true
 check_untyped_defs = true
 disallow_incomplete_defs = true
+
+[[tool.mypy.overrides]]
+module = ["httpx.*"]
+ignore_missing_imports = true
 
 [tool.ruff]
 line-length = 120
@@ -143,15 +142,14 @@ known-first-party = ["haystack_integrations"]
 ban-relative-imports = "parents"
 
 [tool.ruff.lint.per-file-ignores]
-# Tests can use magic values, assertions, relative imports, unused fixture arguments,
-# pseudo-random generators, and don't need type annotations
-"tests/**/*" = ["PLR2004", "S101", "TID252", "D", "ANN", "ARG", "S311"]
+# Tests can use magic values, assertions, relative imports, and don't need type annotations
+"tests/**/*" = ["PLR2004", "S101", "TID252", "D", "ANN"]
 
 [tool.coverage.run]
 source = ["haystack_integrations"]
 branch = true
-parallel = false
 relative_files = true
+parallel = false
 
 [tool.coverage.report]
 omit = ["*/tests/*", "*/__init__.py"]
