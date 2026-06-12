@@ -9,11 +9,11 @@
 | src/haystack\_integrations/common/s3/errors.py                                               |        3 |        0 |        0 |        0 |    100% |           |
 | src/haystack\_integrations/common/s3/utils.py                                                |       49 |        0 |        8 |        0 |    100% |           |
 | src/haystack\_integrations/components/downloaders/s3/s3\_downloader.py                       |       99 |        4 |       18 |        3 |     94% |134-\>exit, 157, 177, 240-241 |
-| src/haystack\_integrations/components/embedders/amazon\_bedrock/document\_embedder.py        |      101 |        6 |       20 |        2 |     93% |171, 217-219, 253-254 |
+| src/haystack\_integrations/components/embedders/amazon\_bedrock/document\_embedder.py        |      101 |        6 |       20 |        2 |     93% |173, 219-221, 255-256 |
 | src/haystack\_integrations/components/embedders/amazon\_bedrock/document\_image\_embedder.py |      123 |        4 |       32 |        2 |     96% |266-267, 274-278 |
-| src/haystack\_integrations/components/embedders/amazon\_bedrock/text\_embedder.py            |       63 |        3 |       14 |        3 |     92% |146, 148-\>153, 173-174 |
+| src/haystack\_integrations/components/embedders/amazon\_bedrock/text\_embedder.py            |       63 |        3 |       14 |        3 |     92% |148, 150-\>155, 175-176 |
 | src/haystack\_integrations/components/generators/amazon\_bedrock/adapters.py                 |      192 |        6 |       42 |        5 |     95% |35-36, 60, 84-\>86, 154-\>152, 181, 379-\>381, 531-532 |
-| src/haystack\_integrations/components/generators/amazon\_bedrock/chat/chat\_generator.py     |      176 |       11 |       44 |        2 |     93% |567-568, 643-649, 659-661 |
+| src/haystack\_integrations/components/generators/amazon\_bedrock/chat/chat\_generator.py     |      176 |       11 |       44 |        2 |     93% |579-580, 659-665, 675-677 |
 | src/haystack\_integrations/components/generators/amazon\_bedrock/chat/utils.py               |      306 |       20 |      180 |       19 |     91% |88, 203, 211-\>208, 214-215, 244-\>242, 336-337, 383-384, 420-\>422, 444-\>516, 446-\>516, 486-\>472, 489-\>472, 492-\>490, 498-\>505, 501-\>505, 543-\>634, 587-\>634, 617-\>627, 631-\>634, 675-\>682, 704-717 |
 | src/haystack\_integrations/components/generators/amazon\_bedrock/generator.py                |       98 |        0 |       16 |        0 |    100% |           |
 | src/haystack\_integrations/components/rankers/amazon\_bedrock/ranker.py                      |       79 |        0 |       12 |        0 |    100% |           |
