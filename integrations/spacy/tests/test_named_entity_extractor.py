@@ -6,7 +6,7 @@ from unittest.mock import patch
 
 import pytest
 from haystack import ComponentError, DeserializationError, Document, Pipeline
-from haystack.utils.device import ComponentDevice
+from haystack.utils.device import ComponentDevice, DeviceMap
 from thinc.api import NumpyOps, get_current_ops, set_current_ops
 
 from haystack_integrations.components.extractors.spacy import (
@@ -14,7 +14,8 @@ from haystack_integrations.components.extractors.spacy import (
     SpacyNamedEntityExtractor,
 )
 
-COMPONENT_TYPE = "haystack_integrations.components.extractors.spacy.named_entity_extractor.SpacyNamedEntityExtractor"
+MODULE = "haystack_integrations.components.extractors.spacy.named_entity_extractor"
+COMPONENT_TYPE = f"{MODULE}.SpacyNamedEntityExtractor"
 
 
 @pytest.fixture
@@ -46,6 +47,12 @@ def test_named_entity_extractor_init():
     assert extractor.model_name_or_path == "en_core_web_trf"
     assert extractor.pipeline_kwargs == {}
     assert not extractor.initialized
+
+
+def test_init_raises_with_multiple_devices():
+    device = ComponentDevice.from_multiple(DeviceMap.from_dict({"layer1": "cpu", "layer2": "cuda:0"}))
+    with pytest.raises(ValueError, match="only supports inference on single devices"):
+        SpacyNamedEntityExtractor(model="en_core_web_trf", device=device)
 
 
 def test_named_entity_extractor_to_dict():
@@ -150,6 +157,35 @@ def test_named_entity_extractor_pipeline_serde(tmp_path):
     assert p.to_dict() == q.to_dict(), "Pipeline serialization/deserialization with SpacyNamedEntityExtractor failed."
 
 
+def test_warm_up_skips_when_already_warmed_up():
+    extractor = SpacyNamedEntityExtractor(model="en_core_web_trf")
+    extractor._warmed_up = True
+
+    with patch(f"{MODULE}.spacy.load") as mock_load:
+        extractor.warm_up()
+        mock_load.assert_not_called()
+
+
+def test_warm_up_fails_when_model_load_raises():
+    extractor = SpacyNamedEntityExtractor(model="en_core_web_trf")
+
+    with patch(f"{MODULE}.spacy") as mock_spacy:
+        mock_spacy.load.side_effect = RuntimeError("boom")
+
+        with pytest.raises(ComponentError, match="failed to initialize"):
+            extractor.warm_up()
+
+
+def test_warm_up_fails_when_model_has_no_ner_component():
+    extractor = SpacyNamedEntityExtractor(model="en_core_web_trf")
+
+    with patch(f"{MODULE}.spacy") as mock_spacy:
+        mock_spacy.load.return_value.has_pipe.return_value = False
+
+        with pytest.raises(ComponentError, match="failed to initialize"):
+            extractor.warm_up()
+
+
 def test_named_entity_extractor_run():
     """Test the SpacyNamedEntityExtractor.run method with mocked model interaction."""
     documents = [Document(content="My name is Clara and I live in Berkeley, California.")]
@@ -192,6 +228,29 @@ def test_named_entity_extractor_run_fails_with_wrong_number_of_annotations():
 
         with pytest.raises(ComponentError, match="did not return the correct number of annotations"):
             extractor.run(documents=documents)
+
+
+def test_run_triggers_warm_up_when_not_warmed_up():
+    documents = [Document(content="My name is Clara and I live in Berkeley, California.")]
+    expected_annotations = [[NamedEntityAnnotation(entity="PERSON", start=11, end=16)]]
+
+    extractor = SpacyNamedEntityExtractor(model="en_core_web_trf")
+
+    with (
+        patch.object(extractor, "warm_up") as mock_warm_up,
+        patch.object(extractor, "_annotate", return_value=expected_annotations),
+    ):
+        result = extractor.run(documents=documents)
+
+        mock_warm_up.assert_called_once()
+        assert result["documents"][0].meta["named_entities"] == expected_annotations[0]
+
+
+def test_annotate_raises_when_not_initialized():
+    extractor = SpacyNamedEntityExtractor(model="en_core_web_trf")
+
+    with pytest.raises(ComponentError, match="was not initialized"):
+        extractor._annotate(["My name is Clara."])
 
 
 def test_spacy_backend_restores_device_state():
