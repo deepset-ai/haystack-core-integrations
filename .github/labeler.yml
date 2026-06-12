@@ -313,6 +313,11 @@ integration:snowflake:
       - any-glob-to-any-file: "integrations/snowflake/**/*"
       - any-glob-to-any-file: ".github/workflows/snowflake.yml"
 
+integration:spacy:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/spacy/**/*"
+      - any-glob-to-any-file: ".github/workflows/spacy.yml"
+
 integration:sqlalchemy:
   - changed-files:
       - any-glob-to-any-file: "integrations/sqlalchemy/**/*"

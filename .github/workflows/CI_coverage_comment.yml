@@ -61,6 +61,7 @@ on:
       - "Test / ragas"
       - "Test / serperdev"
       - "Test / snowflake"
+      - "Test / spacy"
       - "Test / sqlalchemy"
       - "Test / stackit"
       - "Test / supabase"
