@@ -156,7 +156,7 @@ class SerperDevWebSearch:
         try:
             response = httpx.post(SERPERDEV_BASE_URL, headers=headers, json=payload, timeout=30)
             response.raise_for_status()  # Will raise an HTTPError for bad responses
-        except httpx.ConnectTimeout as error:
+        except httpx.TimeoutException as error:
             msg = f"Request to {self.__class__.__name__} timed out."
             raise TimeoutError(msg) from error
 
@@ -196,7 +196,7 @@ class SerperDevWebSearch:
             async with httpx.AsyncClient() as client:
                 response = await client.post(SERPERDEV_BASE_URL, headers=headers, json=payload, timeout=30)
             response.raise_for_status()  # Will raise an HTTPError for bad responses
-        except httpx.ConnectTimeout as error:
+        except httpx.TimeoutException as error:
             msg = f"Request to {self.__class__.__name__} timed out."
             raise TimeoutError(msg) from error
 

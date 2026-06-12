@@ -2,6 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+import copy
 import os
 from collections.abc import Generator
 from unittest.mock import AsyncMock, MagicMock, Mock, patch
@@ -9,7 +10,7 @@ from unittest.mock import AsyncMock, MagicMock, Mock, patch
 import pytest
 from haystack import Document
 from haystack.utils.auth import Secret
-from httpx import ConnectTimeout, HTTPStatusError, Request, RequestError, Response
+from httpx import ConnectTimeout, HTTPStatusError, ReadTimeout, Request, RequestError, Response
 
 from haystack_integrations.components.websearch.serperdev import SerperDevError, SerperDevWebSearch
 
@@ -136,7 +137,7 @@ def mock_serper_dev_search_result_async() -> Generator[MagicMock, None, None]:
 
 @pytest.fixture
 def mock_serper_dev_search_result_no_snippet() -> Generator[MagicMock, None, None]:
-    resp = {**EXAMPLE_SERPERDEV_RESPONSE}
+    resp = copy.deepcopy(EXAMPLE_SERPERDEV_RESPONSE)
     del resp["organic"][0]["snippet"]
     with patch(HTTPX_PATH) as mock_run:
         mock_run.post.return_value = Mock(status_code=200, json=lambda: resp)
@@ -145,8 +146,8 @@ def mock_serper_dev_search_result_no_snippet() -> Generator[MagicMock, None, Non
 
 @pytest.fixture
 def mock_serper_dev_search_result_no_snippet_async() -> Generator[MagicMock, None, None]:
-    resp = {**EXAMPLE_SERPERDEV_RESPONSE}
-    resp["organic"][0].pop("snippet", None)
+    resp = copy.deepcopy(EXAMPLE_SERPERDEV_RESPONSE)
+    del resp["organic"][0]["snippet"]
     with patch(f"{HTTPX_PATH}.AsyncClient") as mock_run:
         mock_client = AsyncMock()
         mock_client.post.return_value = Mock(status_code=200, json=lambda: resp)
@@ -231,18 +232,20 @@ class TestSerperDevSearchAPI:
         ws = SerperDevWebSearch(api_key=Secret.from_token("test-api-key"), top_k=1)
         await ws.run_async(query="Who is the boyfriend of Olivia Wilde?")
 
+    @pytest.mark.parametrize("timeout_exception", [ConnectTimeout, ReadTimeout])
     @patch("httpx.post")
-    def test_timeout_error(self, mock_post: MagicMock) -> None:
-        mock_post.side_effect = ConnectTimeout("Request has timed out.")
+    def test_timeout_error(self, mock_post: MagicMock, timeout_exception: type[Exception]) -> None:
+        mock_post.side_effect = timeout_exception("Request has timed out.")
         ws = SerperDevWebSearch(api_key=Secret.from_token("test-api-key"))
 
         with pytest.raises(TimeoutError):
             ws.run(query="Who is the boyfriend of Olivia Wilde?")
 
+    @pytest.mark.parametrize("timeout_exception", [ConnectTimeout, ReadTimeout])
     @pytest.mark.asyncio
     @patch("httpx.AsyncClient.post")
-    async def test_timeout_error_async(self, mock_post: AsyncMock) -> None:
-        mock_post.side_effect = ConnectTimeout("Request has timed out.")
+    async def test_timeout_error_async(self, mock_post: AsyncMock, timeout_exception: type[Exception]) -> None:
+        mock_post.side_effect = timeout_exception("Request has timed out.")
         ws = SerperDevWebSearch(api_key=Secret.from_token("test-api-key"))
 
         with pytest.raises(TimeoutError):
