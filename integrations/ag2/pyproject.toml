@@ -1,0 +1,157 @@
+[build-system]
+requires = ["hatchling", "hatch-vcs"]
+build-backend = "hatchling.build"
+
+[project]
+name = "ag2-haystack"
+dynamic = ["version"]
+description = "An integration between AG2 (formerly AutoGen) multi-agent framework and Haystack"
+readme = "README.md"
+requires-python = ">=3.10"
+license = "Apache-2.0"
+keywords = ["haystack", "ag2", "autogen", "multi-agent", "llm", "nlp", "agents"]
+authors = [{ name = "deepset GmbH", email = "info@deepset.ai" }]
+classifiers = [
+    "License :: OSI Approved :: Apache Software License",
+    "Development Status :: 4 - Beta",
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: Implementation :: CPython",
+    "Programming Language :: Python :: Implementation :: PyPy",
+]
+dependencies = ["haystack-ai>=2.9.0", "ag2>=0.6.0"]
+
+[project.urls]
+Documentation = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/ag2#readme"
+Issues = "https://github.com/deepset-ai/haystack-core-integrations/issues"
+Source = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/ag2"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/haystack_integrations"]
+
+[tool.hatch.version]
+source = "vcs"
+tag-pattern = 'integrations\/ag2-v(?P<version>.*)'
+
+[tool.hatch.version.raw-options]
+root = "../.."
+git_describe_command = 'git describe --tags --match="integrations/ag2-v[0-9]*"'
+
+[tool.hatch.envs.default]
+installer = "uv"
+dependencies = ["haystack-pydoc-tools", "ruff"]
+
+[tool.hatch.envs.default.scripts]
+docs = ["haystack-pydoc pydoc/config_docusaurus.yml"]
+fmt = "ruff check --fix {args}; ruff format {args}"
+fmt-check = "ruff check {args} && ruff format --check {args}"
+
+[tool.hatch.envs.test]
+installer = "uv"
+dependencies = [
+    "pytest",
+    "pytest-cov",
+    "pytest-rerunfailures",
+    "mypy",
+    "pip",
+]
+
+[tool.hatch.envs.test.scripts]
+unit = 'pytest -m "not integration" {args:tests}'
+integration = 'pytest -m "integration" {args:tests}'
+all = 'pytest {args:tests}'
+unit-cov-retry = 'pytest --cov=haystack_integrations --reruns 3 --reruns-delay 30 -x -m "not integration" {args:tests}'
+integration-cov-append-retry = 'pytest --cov=haystack_integrations --cov-append --reruns 3 --reruns-delay 30 -x -m "integration" {args:tests}'
+
+types = "mypy -p haystack_integrations.components.agents.ag2 {args}"
+
+[tool.mypy]
+install_types = true
+non_interactive = true
+check_untyped_defs = true
+disallow_incomplete_defs = true
+
+[[tool.mypy.overrides]]
+module = "autogen.*"
+ignore_missing_imports = true
+
+[tool.hatch.metadata]
+allow-direct-references = true
+
+[tool.ruff.lint.isort]
+known-first-party = ["haystack_integrations"]
+
+[tool.ruff]
+line-length = 120
+
+[tool.ruff.lint]
+select = [
+    "A",
+    "ARG",
+    "B",
+    "C",
+    "D102",
+    "D103",
+    "D205",
+    "D209",
+    "D213",
+    "D417",
+    "D419",
+    "DTZ",
+    "E",
+    "EM",
+    "F",
+    "I",
+    "ICN",
+    "ISC",
+    "N",
+    "PLC",
+    "PLE",
+    "PLR",
+    "PLW",
+    "Q",
+    "RUF",
+    "S",
+    "T",
+    "TID",
+    "UP",
+    "W",
+    "YTT",
+]
+ignore = [
+    "B027",
+    "S105",
+    "S106",
+    "S107",
+    "C901",
+    "PLR0911",
+    "PLR0912",
+    "PLR0913",
+    "PLR0915",
+]
+
+[tool.ruff.lint.flake8-tidy-imports]
+ban-relative-imports = "parents"
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**/*" = ["PLR2004", "S101", "TID252", "ARG002", "D102", "D103"]
+"examples/**" = ["T201"]
+
+[tool.coverage.run]
+source = ["haystack_integrations"]
+branch = true
+parallel = false
+relative_files = true
+
+[tool.coverage.report]
+omit = ["*/tests/*", "*/__init__.py"]
+show_missing = true
+exclude_lines = ["no cov", "if __name__ == .__main__.:", "if TYPE_CHECKING:"]
+
+[tool.pytest.ini_options]
+markers = ["integration: integration tests"]
+log_cli = true
+addopts = ["--strict-markers"]
