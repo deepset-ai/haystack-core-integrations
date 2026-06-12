@@ -23,10 +23,9 @@ classifiers = [
   "Programming Language :: Python :: Implementation :: CPython",
   "Programming Language :: Python :: Implementation :: PyPy",
 ]
-# `click` is required by spaCy's CLI (imported at `import spacy`) but not declared by spaCy itself;
-# recent `typer` releases no longer pull it in transitively, so we declare it explicitly.
+# `click` is required to make spacy work but not declared by spacy itself.
 # See https://github.com/explosion/spaCy/issues/13971
-dependencies = ["haystack-ai", "spacy>=3.8.13,<3.9", "click"]
+dependencies = ["haystack-ai>=2.23.0", "spacy>=3.8.13,<3.9", "click>=8.0.0"]
 
 [project.urls]
 Documentation = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/spacy#readme"
