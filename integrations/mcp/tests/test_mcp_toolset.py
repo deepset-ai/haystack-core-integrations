@@ -25,13 +25,21 @@ from haystack_integrations.tools.mcp.mcp_tool import (
     StreamableHttpServerInfo,
 )
 from haystack_integrations.tools.mcp.mcp_toolset import (
+    _check_response_shape,
     _deserialize_state_config,
     _serialize_state_config,
 )
 
 # Import in-memory transport and fixtures
 from .mcp_memory_transport import InMemoryServerInfo
-from .mcp_servers_fixtures import calculator_mcp, echo_mcp, image_mcp, state_calculator_mcp
+from .mcp_servers_fixtures import (
+    calculator_mcp,
+    echo_mcp,
+    image_mcp,
+    reset_rugpull_counter,
+    rugpull_mcp,
+    state_calculator_mcp,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -373,6 +381,34 @@ class TestMCPToolset:
         result = echo_tool.invoke(text="Hello MCP!")
 
         assert result == "Hello MCP!"
+
+    async def test_response_shape_drift_logs_warning(self, mcp_tool_cleanup, caplog):
+        """A server that swaps content block types between calls should trigger a warning."""
+        reset_rugpull_counter()
+        server_info = InMemoryServerInfo(server=rugpull_mcp._mcp_server)
+        toolset = MCPToolset(
+            server_info=server_info,
+            tool_names=["rugpull_tool"],
+            eager_connect=True,
+        )
+        mcp_tool_cleanup(toolset)
+
+        rugpull = toolset.tools[0]
+
+        # First call establishes the baseline; no warning expected yet.
+        with caplog.at_level("WARNING"):
+            caplog.clear()
+            rugpull.invoke()
+            assert not any("returned new content block types" in record.message for record in caplog.records)
+
+            # Second call returns a ResourceLink instead of TextContent: drift warning expected.
+            caplog.clear()
+            rugpull.invoke()
+            drift_records = [
+                record for record in caplog.records if "returned new content block types" in record.message
+            ]
+            assert drift_records, "expected a drift warning when content block types change"
+            assert "resource_link" in drift_records[0].message
 
     async def test_toolset_state_config_serde(self, calculator_toolset_with_state_config, mcp_tool_cleanup):
         """Test serialization and deserialization of MCPToolset with state configuration."""
@@ -940,3 +976,57 @@ class TestStateConfigHelpers:
         assert "keep" in result
         assert "empty" not in result
         assert "none" not in result
+
+
+class TestCheckResponseShape:
+    """Tests for the _check_response_shape drift detector."""
+
+    def test_first_call_establishes_baseline(self, caplog):
+        shapes: dict[str, set[str]] = {}
+        parsed = {"content": [{"type": "text", "text": "hi"}]}
+
+        with caplog.at_level("WARNING"):
+            _check_response_shape("tool_a", parsed, shapes)
+
+        assert shapes == {"tool_a": {"text"}}
+        assert not any("returned new content block types" in r.message for r in caplog.records)
+
+    def test_drift_emits_warning_and_extends_baseline(self, caplog):
+        shapes: dict[str, set[str]] = {"tool_a": {"text"}}
+        parsed = {
+            "content": [
+                {"type": "resource_link", "uri": "http://example.com/x"},
+            ]
+        }
+
+        with caplog.at_level("WARNING"):
+            _check_response_shape("tool_a", parsed, shapes)
+
+        drift = [r for r in caplog.records if "returned new content block types" in r.message]
+        assert drift, "expected a drift warning"
+        assert "resource_link" in drift[0].message
+        assert shapes["tool_a"] == {"text", "resource_link"}
+
+    def test_same_shape_does_not_warn(self, caplog):
+        shapes: dict[str, set[str]] = {"tool_a": {"text"}}
+        parsed = {"content": [{"type": "text", "text": "again"}]}
+
+        with caplog.at_level("WARNING"):
+            _check_response_shape("tool_a", parsed, shapes)
+
+        assert not any("returned new content block types" in r.message for r in caplog.records)
+        assert shapes["tool_a"] == {"text"}
+
+    def test_non_dict_parsed_is_ignored(self):
+        shapes: dict[str, set[str]] = {}
+        _check_response_shape("tool_a", "not a dict", shapes)
+        _check_response_shape("tool_a", None, shapes)
+        _check_response_shape("tool_a", [1, 2, 3], shapes)
+        assert shapes == {}
+
+    def test_missing_or_malformed_content_field_is_ignored(self):
+        shapes: dict[str, set[str]] = {}
+        _check_response_shape("tool_a", {"isError": False}, shapes)
+        _check_response_shape("tool_b", {"content": "string-not-list"}, shapes)
+        _check_response_shape("tool_c", {"content": [{"no_type": True}]}, shapes)
+        assert shapes == {}
