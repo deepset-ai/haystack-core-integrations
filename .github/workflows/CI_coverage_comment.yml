@@ -47,6 +47,7 @@ on:
       - "Test / mistral"
       - "Test / mongodb_atlas"
       - "Test / nvidia"
+      - "Test / oauth"
       - "Test / ollama"
       - "Test / openrouter"
       - "Test / opensearch"
