@@ -8,7 +8,7 @@ from haystack import component, default_from_dict, default_to_dict
 from haystack.utils import ComponentDevice, Secret
 from haystack.utils.hf import deserialize_hf_model_kwargs, serialize_hf_model_kwargs
 
-from haystack_integrations.components.common.transformers.utils import _resolve_hf_pipeline_kwargs
+from haystack_integrations.common.transformers.utils import _resolve_hf_pipeline_kwargs
 from transformers import AutoConfig, Pipeline, pipeline
 
 

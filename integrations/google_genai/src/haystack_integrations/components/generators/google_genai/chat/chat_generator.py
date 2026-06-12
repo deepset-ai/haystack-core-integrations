@@ -22,7 +22,7 @@ from haystack.tools import (
 from haystack.utils import Secret, deserialize_callable, deserialize_secrets_inplace, serialize_callable
 from pydantic import BaseModel
 
-from haystack_integrations.components.common.google_genai.utils import _get_client
+from haystack_integrations.common.google_genai.utils import _get_client
 from haystack_integrations.components.generators.google_genai.chat.utils import (
     _aggregate_streaming_chunks_with_reasoning,
     _convert_google_chunk_to_streaming_chunk,
