@@ -59,6 +59,7 @@ on:
       - "Test / pyversity"
       - "Test / qdrant"
       - "Test / ragas"
+      - "Test / searchapi"
       - "Test / serperdev"
       - "Test / snowflake"
       - "Test / spacy"

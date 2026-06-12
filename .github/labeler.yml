@@ -303,6 +303,11 @@ integration:ragas:
       - any-glob-to-any-file: "integrations/ragas/**/*"
       - any-glob-to-any-file: ".github/workflows/ragas.yml"
 
+integration:searchapi:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/searchapi/**/*"
+      - any-glob-to-any-file: ".github/workflows/searchapi.yml"
+
 integration:serperdev:
   - changed-files:
       - any-glob-to-any-file: "integrations/serperdev/**/*"
