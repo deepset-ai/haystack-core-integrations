@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from haystack_integrations.components.websearch.serperdev.serperdev_websearch import (
+from haystack_integrations.components.websearch.serperdev.websearch import (
     SerperDevError,
     SerperDevWebSearch,
 )

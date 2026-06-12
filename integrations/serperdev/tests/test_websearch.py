@@ -115,7 +115,7 @@ EXAMPLE_SERPERDEV_RESPONSE = {
     ],
 }
 
-HTTPX_PATH = "haystack_integrations.components.websearch.serperdev.serperdev_websearch.httpx"
+HTTPX_PATH = "haystack_integrations.components.websearch.serperdev.websearch.httpx"
 
 
 @pytest.fixture
@@ -167,7 +167,7 @@ class TestSerperDevSearchAPI:
         component = SerperDevWebSearch(top_k=10, allowed_domains=["test.com"], search_params={"param": "test"})
         data = component.to_dict()
         assert data == {
-            "type": ("haystack_integrations.components.websearch.serperdev.serperdev_websearch.SerperDevWebSearch"),
+            "type": ("haystack_integrations.components.websearch.serperdev.websearch.SerperDevWebSearch"),
             "init_parameters": {
                 "api_key": {"env_vars": ["SERPERDEV_API_KEY"], "strict": True, "type": "env_var"},
                 "top_k": 10,
@@ -180,7 +180,7 @@ class TestSerperDevSearchAPI:
     def test_from_dict(self, monkeypatch):
         monkeypatch.setenv("SERPERDEV_API_KEY", "test-api-key")
         data = {
-            "type": ("haystack_integrations.components.websearch.serperdev.serperdev_websearch.SerperDevWebSearch"),
+            "type": ("haystack_integrations.components.websearch.serperdev.websearch.SerperDevWebSearch"),
             "init_parameters": {
                 "api_key": {"env_vars": ["SERPERDEV_API_KEY"], "strict": True, "type": "env_var"},
                 "top_k": 10,

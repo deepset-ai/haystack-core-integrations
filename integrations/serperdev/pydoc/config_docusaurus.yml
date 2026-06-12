@@ -1,6 +1,6 @@
 loaders:
   - modules:
-      - haystack_integrations.components.websearch.serperdev.serperdev_websearch
+      - haystack_integrations.components.websearch.serperdev.websearch
     search_path: [../src]
 processors:
   - type: filter
