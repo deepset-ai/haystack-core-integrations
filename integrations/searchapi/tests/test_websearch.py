@@ -419,6 +419,30 @@ class TestSearchApiSearchAPI:
             },
         }
 
+    def test_from_dict(self, monkeypatch):
+        monkeypatch.setenv("SEARCHAPI_API_KEY", "test-api-key")
+        data = {
+            "type": "haystack_integrations.components.websearch.searchapi.websearch.SearchApiWebSearch",
+            "init_parameters": {
+                "api_key": {"env_vars": ["SEARCHAPI_API_KEY"], "strict": True, "type": "env_var"},
+                "top_k": 10,
+                "allowed_domains": ["testdomain.com"],
+                "search_params": {"param": "test params", "engine": "google"},
+            },
+        }
+        component = SearchApiWebSearch.from_dict(data)
+        assert component.api_key == Secret.from_env_var("SEARCHAPI_API_KEY")
+        assert component.top_k == 10
+        assert component.allowed_domains == ["testdomain.com"]
+        assert component.search_params == {"param": "test params", "engine": "google"}
+
+    def test_parse_response_without_organic_results(self) -> None:
+        response = Mock(json=lambda: {"answer_box": {"title": "Microsoft Corporation/CEO", "answer": "Satya Nadella"}})
+        documents, links = SearchApiWebSearch._parse_response(response)
+        assert len(documents) == 1
+        assert documents[0].content == "Satya Nadella"
+        assert links == []
+
     @pytest.mark.parametrize("top_k", [1, 5, 7])
     @pytest.mark.usefixtures("mock_searchapi_search_result")
     def test_web_search_top_k(self, top_k: int) -> None:

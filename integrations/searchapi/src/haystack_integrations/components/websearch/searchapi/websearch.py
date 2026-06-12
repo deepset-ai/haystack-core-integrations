@@ -180,7 +180,6 @@ class SearchApiWebSearch:
 
     @staticmethod
     def _parse_response(response: httpx.Response) -> tuple[list[Document], list[str]]:
-        # Request succeeded
         json_result = response.json()
 
         # organic results are the main results from the search engine
@@ -230,5 +229,5 @@ class SearchApiWebSearch:
 
         documents = answer_box + knowledge_graph + organic_results + related_questions
 
-        links = [result["link"] for result in json_result["organic_results"]]
+        links = [result["link"] for result in json_result.get("organic_results", [])]
         return documents, links
