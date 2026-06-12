@@ -4,12 +4,12 @@
 
 | Name                                                                                      |    Stmts |     Miss |   Branch |   BrPart |   Cover |   Missing |
 |------------------------------------------------------------------------------------------ | -------: | -------: | -------: | -------: | ------: | --------: |
-| src/haystack\_integrations/components/common/huggingface\_api/utils.py                    |       52 |        2 |       10 |        1 |     95% |   108-109 |
+| src/haystack\_integrations/common/huggingface\_api/utils.py                               |       52 |        2 |       10 |        1 |     95% |   108-109 |
 | src/haystack\_integrations/components/embedders/huggingface\_api/document\_embedder.py    |      126 |        6 |       34 |        5 |     93% |179-180, 259-\>263, 263-\>267, 346-350, 379-383 |
 | src/haystack\_integrations/components/embedders/huggingface\_api/text\_embedder.py        |       84 |        4 |       28 |        6 |     91% |143-144, 167-\>177, 168-\>172, 172-\>177, 267, 269 |
 | src/haystack\_integrations/components/generators/huggingface\_api/chat/chat\_generator.py |      232 |        8 |       86 |       14 |     93% |135-\>139, 137-\>139, 187, 220-\>222, 422-423, 490, 581-\>584, 593-594, 631-\>634, 647, 669-\>674, 702-\>705, 718, 737-\>742 |
-| src/haystack\_integrations/components/rankers/huggingface\_api/ranker.py                  |       82 |        7 |       18 |        1 |     92% |227-229, 274, 291-293 |
-| **TOTAL**                                                                                 |  **576** |   **27** |  **176** |   **27** | **93%** |           |
+| src/haystack\_integrations/components/rankers/huggingface\_api/ranker.py                  |       82 |        7 |       18 |        3 |     90% |213-\>217, 227-229, 274, 277-\>281, 291-293 |
+| **TOTAL**                                                                                 |  **576** |   **27** |  **176** |   **29** | **93%** |           |
 
 
 ## Setup coverage badge
