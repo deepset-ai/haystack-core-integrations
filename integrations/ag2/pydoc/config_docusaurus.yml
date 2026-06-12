@@ -1,0 +1,13 @@
+loaders:
+  - modules:
+      - haystack_integrations.components.agents.ag2.ag2_agent
+    search_path: [../src]
+processors:
+  - type: filter
+    documented_only: true
+    skip_empty_modules: true
+renderer:
+  description: AG2 multi-agent framework integration for Haystack
+  id: integrations-ag2
+  filename: ag2.md
+  title: AG2
