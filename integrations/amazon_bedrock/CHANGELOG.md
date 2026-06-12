@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/amazon_bedrock-v6.12.0] - 2026-06-12
+
+### 🚀 Features
+
+- Support str in addition to Secret for aws_region_name (#3423)
+
+
 ## [integrations/amazon_bedrock-v6.11.0] - 2026-06-05
 
 ### 🚀 Features

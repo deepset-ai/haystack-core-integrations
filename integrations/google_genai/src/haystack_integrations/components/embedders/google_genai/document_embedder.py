@@ -10,7 +10,7 @@ from haystack import Document, component, default_from_dict, default_to_dict, lo
 from haystack.utils import Secret, deserialize_secrets_inplace
 from tqdm import tqdm
 
-from haystack_integrations.components.common.google_genai.utils import _get_client
+from haystack_integrations.common.google_genai.utils import _get_client
 
 logger = logging.getLogger(__name__)
 
