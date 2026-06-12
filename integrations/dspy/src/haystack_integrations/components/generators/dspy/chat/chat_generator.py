@@ -86,6 +86,7 @@ class DSPySignatureChatGenerator:
         generation_kwargs: dict[str, Any] | None = None,
         module_kwargs: dict[str, Any] | None = None,
         input_mapping: dict[str, str] | None = None,
+        pipeline_inputs: list[str] | None = None,
     ):
         """
         Initialize the DSPySignatureChatGenerator.
@@ -101,9 +102,13 @@ class DSPySignatureChatGenerator:
             For example, use `{"tools": [tool1, tool2]}` when using the `"ReAct"` module type.
         :param input_mapping: Maps DSPy signature input field names to `run()` kwarg names.
             For example, if your signature has an input field `"context"` but your pipeline
-            provides it as `"documents"`, use `{"context": "documents"}`. When not provided,
-            the first input field receives the last user message text, and remaining fields
-            are matched by name from `**kwargs`.
+            provides it as `"documents"`, use `{"context": "documents"}`. When neither
+            `input_mapping` nor `pipeline_inputs` is provided, the first input field receives
+            the last user message text, and remaining fields are matched by name from `**kwargs`.
+        :param pipeline_inputs: Signature input fields exposed as Haystack pipeline input
+            sockets, so upstream components (e.g. a retriever or a text input) can connect
+            to them. Each name in this list must be a signature input field and becomes a
+            real `str` socket on the component.
         """
         if module_type not in VALID_MODULE_TYPES:
             msg = f"Invalid module_type '{module_type}'. Must be one of {sorted(VALID_MODULE_TYPES)}"
@@ -117,6 +122,7 @@ class DSPySignatureChatGenerator:
         self.generation_kwargs = generation_kwargs or {}
         self.module_kwargs = module_kwargs or {}
         self.input_mapping = input_mapping
+        self.pipeline_inputs = pipeline_inputs
 
         self._lm = _create_dspy_lm(
             model=self.model,
@@ -127,6 +133,9 @@ class DSPySignatureChatGenerator:
         module_class = _get_dspy_module_class(self.module_type)
         self._module = module_class(self.signature, **self.module_kwargs)
         self._module.set_lm(self._lm)
+
+        for extra_input in self.pipeline_inputs or []:
+            component.set_input_type(self, extra_input, str, "")
 
     def _build_dspy_inputs(self, prompt: str, **kwargs: Any) -> dict[str, Any]:
         """Build the input dict for the DSPy module call."""
