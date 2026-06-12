@@ -4,7 +4,7 @@
 
 | Name                                                                                            |    Stmts |     Miss |   Branch |   BrPart |   Cover |   Missing |
 |------------------------------------------------------------------------------------------------ | -------: | -------: | -------: | -------: | ------: | --------: |
-| src/haystack\_integrations/components/common/google\_genai/utils.py                             |       32 |        0 |       16 |        0 |    100% |           |
+| src/haystack\_integrations/common/google\_genai/utils.py                                        |       32 |        0 |       16 |        0 |    100% |           |
 | src/haystack\_integrations/components/embedders/google\_genai/document\_embedder.py             |      100 |        6 |       30 |        5 |     92% |231, 241, 264, 274, 326-330 |
 | src/haystack\_integrations/components/embedders/google\_genai/multimodal\_document\_embedder.py |      151 |        8 |       52 |        7 |     93% |352-353, 374, 395-\>368, 417, 427-428, 431-436, 438-\>411 |
 | src/haystack\_integrations/components/embedders/google\_genai/text\_embedder.py                 |       48 |        6 |        4 |        1 |     87% |188, 210-211, 229-231 |
