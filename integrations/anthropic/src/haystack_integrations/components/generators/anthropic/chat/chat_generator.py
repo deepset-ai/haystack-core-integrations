@@ -132,6 +132,7 @@ class AnthropicChatGenerator:
         generation_kwargs: dict[str, Any] | None = None,
         ignore_tools_thinking_messages: bool = True,
         tools: ToolsType | None = None,
+        anthropic_server_tools: list[dict[str, Any]] | None = None,
         *,
         timeout: float | None = None,
         max_retries: int | None = None,
@@ -168,6 +169,12 @@ class AnthropicChatGenerator:
             for more details.
         :param tools: A list of Tool and/or Toolset objects, or a single Toolset, that the model can use.
             Each tool should have a unique name.
+        :param anthropic_server_tools: A list of Anthropic server-side (built-in) tools passed directly to the API.
+            Use this for native Anthropic tools such as web search (`{"type": "web_search_20250305"}`),
+            computer use, or other provider-managed tools. These are appended after any function tools defined
+            via `tools`. Refer to the
+            [Anthropic documentation](https://docs.anthropic.com/en/docs/agents-and-tools/tool-use/web-search-tool)
+            for the exact dict format each native tool expects.
         :param timeout:
             Timeout for Anthropic client calls. If not set, it defaults to the default set by the Anthropic client.
         :param max_retries:
@@ -197,6 +204,7 @@ class AnthropicChatGenerator:
 
         self.ignore_tools_thinking_messages = ignore_tools_thinking_messages
         self.tools = tools
+        self.anthropic_server_tools = anthropic_server_tools
 
     def _get_telemetry_data(self) -> dict[str, Any]:
         """
@@ -220,6 +228,7 @@ class AnthropicChatGenerator:
             api_key=self.api_key.to_dict(),
             ignore_tools_thinking_messages=self.ignore_tools_thinking_messages,
             tools=serialize_tools_or_toolset(self.tools),
+            anthropic_server_tools=self.anthropic_server_tools,
             timeout=self.timeout,
             max_retries=self.max_retries,
         )
@@ -247,7 +256,7 @@ class AnthropicChatGenerator:
         messages: list[ChatMessage],
         generation_kwargs: dict[str, Any] | None = None,
         tools: ToolsType | None = None,
-    ) -> tuple[list[TextBlockParam], list[MessageParam], dict[str, Any], list[ToolParam]]:
+    ) -> tuple[list[TextBlockParam], list[MessageParam], dict[str, Any], list[Any]]:
         """
         Prepare the parameters for the Anthropic API request.
 
@@ -284,12 +293,14 @@ class AnthropicChatGenerator:
         flattened_tools = flatten_tools_or_toolsets(tools)
         _check_duplicate_tool_names(flattened_tools)
 
-        anthropic_tools: list[ToolParam] = []
+        anthropic_tools: list[Any] = []
         if flattened_tools:
             for tool in flattened_tools:
                 anthropic_tools.append(
                     ToolParam(name=tool.name, description=tool.description, input_schema=tool.parameters)
                 )
+        if self.anthropic_server_tools:
+            anthropic_tools.extend(self.anthropic_server_tools)
 
         return system_messages, non_system_messages, generation_kwargs, anthropic_tools
 
