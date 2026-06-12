@@ -134,3 +134,15 @@ def test_param_counter_increments_correctly():
         }
     )
     assert set(params.keys()) == {"p0", "p1", "p2"}
+
+
+def test_contains_operator_uses_json_exists():
+    sql, params = _translate({"field": "meta.tags", "operator": "contains", "value": "oracle"})
+    assert "JSON_EXISTS(metadata, '$.tags[*]?(@ == $val)' PASSING :p0 AS \"val\")" in sql
+    assert params == {"p0": "oracle"}
+
+
+def test_not_contains_operator_negates_json_exists():
+    sql, params = _translate({"field": "meta.tags", "operator": "not contains", "value": "draft"})
+    assert sql.startswith("(NOT JSON_EXISTS")
+    assert params == {"p0": "draft"}
