@@ -16,9 +16,7 @@ from haystack_integrations.components.websearch.crw import CRWWebSearch
 class TestCRWWebSearch:
     @pytest.fixture
     def search_response(self):
-        return [
-            {"title": "Example Title", "url": "https://example.com", "description": "Example content"}
-        ]
+        return [{"title": "Example Title", "url": "https://example.com", "description": "Example content"}]
 
     @pytest.fixture
     def mock_client(self, search_response):
