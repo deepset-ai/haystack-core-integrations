@@ -1,0 +1,13 @@
+loaders:
+  - modules:
+      - haystack_integrations.components.websearch.crw.crw_websearch
+    search_path: [../src]
+processors:
+  - type: filter
+    documented_only: true
+    skip_empty_modules: true
+renderer:
+  description: fastCRW integration for Haystack
+  id: integrations-crw
+  filename: crw.md
+  title: CRW
