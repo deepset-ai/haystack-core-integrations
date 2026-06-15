@@ -19,6 +19,7 @@ on:
       - "Test / cognee"
       - "Test / cohere"
       - "Test / cometapi"
+      - "Test / datadog"
       - "Test / deepeval"
       - "Test / docling_serve"
       - "Test / dspy"
