@@ -23,7 +23,7 @@ classifiers = [
   "Programming Language :: Python :: Implementation :: CPython",
   "Programming Language :: Python :: Implementation :: PyPy",
 ]
-dependencies = ["haystack-ai>=2.24.0", "sentence-transformers>=5.0.0", "pillow>=11.3.0", "pypdfium2>=4.0.0"]
+dependencies = ["haystack-ai>=2.24.0", "sentence-transformers>=5.4.0", "pillow>=11.3.0", "pypdfium2>=4.0.0"]
 
 [project.urls]
 Documentation = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/sentence_transformers#readme"

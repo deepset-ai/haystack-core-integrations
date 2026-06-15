@@ -279,7 +279,7 @@ class TestSentenceTransformersDiversityRanker:
                 device=ComponentDevice.resolve_device(None).to_torch_str(),
                 token=None,
                 model_kwargs=None,
-                tokenizer_kwargs=None,
+                processor_kwargs=None,
                 config_kwargs=None,
                 backend="torch",
             )
@@ -733,7 +733,7 @@ class TestSentenceTransformersDiversityRanker:
             device="cpu",
             token=None,
             model_kwargs={"file_name": "onnx/model.onnx"},
-            tokenizer_kwargs=None,
+            processor_kwargs=None,
             config_kwargs=None,
             backend="onnx",
         )
@@ -756,7 +756,7 @@ class TestSentenceTransformersDiversityRanker:
             device="cpu",
             token=None,
             model_kwargs={"file_name": "openvino/openvino_model.xml"},
-            tokenizer_kwargs=None,
+            processor_kwargs=None,
             config_kwargs=None,
             backend="openvino",
         )
@@ -779,7 +779,7 @@ class TestSentenceTransformersDiversityRanker:
             device="cuda:0",
             token=None,
             model_kwargs=model_kwargs,
-            tokenizer_kwargs=None,
+            processor_kwargs=None,
             config_kwargs=None,
             backend="torch",
         )

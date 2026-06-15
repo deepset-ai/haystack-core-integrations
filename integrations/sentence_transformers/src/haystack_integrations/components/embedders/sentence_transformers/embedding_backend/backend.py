@@ -99,7 +99,8 @@ class _SentenceTransformersEmbeddingBackend:
             local_files_only=local_files_only,
             truncate_dim=truncate_dim,
             model_kwargs=model_kwargs,
-            tokenizer_kwargs=tokenizer_kwargs,
+            # `tokenizer_kwargs` was renamed to `processor_kwargs` in sentence-transformers 5.4.0
+            processor_kwargs=tokenizer_kwargs,
             config_kwargs=config_kwargs,
             backend=backend,
         )

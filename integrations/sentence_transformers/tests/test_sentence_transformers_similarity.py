@@ -40,7 +40,7 @@ class TestSentenceTransformersSimilarityRanker:
             token=None,
             trust_remote_code=True,
             model_kwargs=None,
-            tokenizer_kwargs=None,
+            processor_kwargs=None,
             config_kwargs=None,
             backend="torch",
         )
@@ -63,7 +63,7 @@ class TestSentenceTransformersSimilarityRanker:
             token=None,
             trust_remote_code=False,
             model_kwargs=None,
-            tokenizer_kwargs=None,
+            processor_kwargs=None,
             config_kwargs=None,
             backend="onnx",
         )
@@ -86,7 +86,7 @@ class TestSentenceTransformersSimilarityRanker:
             token=None,
             trust_remote_code=False,
             model_kwargs=None,
-            tokenizer_kwargs=None,
+            processor_kwargs=None,
             config_kwargs=None,
             backend="openvino",
         )

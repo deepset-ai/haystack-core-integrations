@@ -56,7 +56,7 @@ def test_sparse_model_initialization(mock_sparse_encoder):
         revision=None,
         local_files_only=True,
         model_kwargs=None,
-        tokenizer_kwargs=None,
+        processor_kwargs=None,
         config_kwargs=None,
         backend="torch",
     )

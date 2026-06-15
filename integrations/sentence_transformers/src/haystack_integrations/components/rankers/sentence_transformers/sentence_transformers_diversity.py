@@ -115,6 +115,7 @@ class SentenceTransformersDiversityRanker:
 
     def __init__(
         self,
+        *,
         model: str = "sentence-transformers/all-MiniLM-L6-v2",
         top_k: int = 10,
         device: ComponentDevice | None = None,
@@ -204,7 +205,8 @@ class SentenceTransformersDiversityRanker:
                 device=self.device.to_torch_str(),
                 token=self.token.resolve_value() if self.token else None,
                 model_kwargs=self.model_kwargs,
-                tokenizer_kwargs=self.tokenizer_kwargs,
+                # `tokenizer_kwargs` was renamed to `processor_kwargs` in sentence-transformers 5.4.0
+                processor_kwargs=self.tokenizer_kwargs,
                 config_kwargs=self.config_kwargs,
                 backend=self.backend,
             )
