@@ -125,6 +125,9 @@ class TestLlamaChatGeneratorAsync:
         not os.environ.get("LLAMA_API_KEY", None),
         reason="Export an env var called LLAMA_API_KEY containing the Llama API key to run this test.",
     )
+    @pytest.mark.skip(
+        reason="Llama OpenAI-compat endpoint returns 403 for the CI key; see https://github.com/deepset-ai/haystack-core-integrations/issues/3438"
+    )
     @pytest.mark.integration
     @pytest.mark.asyncio
     async def test_live_run_streaming_async(self):
@@ -153,6 +156,9 @@ class TestLlamaChatGeneratorAsync:
     @pytest.mark.skipif(
         not os.environ.get("LLAMA_API_KEY", None),
         reason="Export an env var called LLAMA_API_KEY containing the Llama API key to run this test.",
+    )
+    @pytest.mark.skip(
+        reason="Llama OpenAI-compat endpoint returns 403 for the CI key; see https://github.com/deepset-ai/haystack-core-integrations/issues/3438"
     )
     @pytest.mark.integration
     @pytest.mark.asyncio
