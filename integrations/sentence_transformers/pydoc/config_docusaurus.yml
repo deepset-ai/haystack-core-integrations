@@ -14,6 +14,6 @@ processors:
     skip_empty_modules: true
 renderer:
   description: Sentence Transformers integration for Haystack
-  id: integrations-sentence_transformers
-  filename: sentence-transformers.md
+  id: integrations-sentence-transformers
+  filename: sentence_transformers.md
   title: Sentence Transformers

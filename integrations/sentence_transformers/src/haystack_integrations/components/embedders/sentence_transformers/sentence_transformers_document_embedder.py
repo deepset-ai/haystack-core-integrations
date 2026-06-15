@@ -26,7 +26,7 @@ class SentenceTransformersDocumentEmbedder:
     and send them to DocumentWriter to write into a Document Store.
 
     ### Usage example:
-    <!-- test-ignore -->
+
     ```python
     from haystack import Document
     from haystack_integrations.components.embedders.sentence_transformers import SentenceTransformersDocumentEmbedder
