@@ -308,6 +308,11 @@ integration:searchapi:
       - any-glob-to-any-file: "integrations/searchapi/**/*"
       - any-glob-to-any-file: ".github/workflows/searchapi.yml"
 
+integration:sentence-transformers:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/sentence_transformers/**/*"
+      - any-glob-to-any-file: ".github/workflows/sentence_transformers.yml"
+
 integration:serperdev:
   - changed-files:
       - any-glob-to-any-file: "integrations/serperdev/**/*"
