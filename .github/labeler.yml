@@ -84,6 +84,11 @@ integration:cometapi:
       - any-glob-to-any-file: "integrations/cometapi/**/*"
       - any-glob-to-any-file: ".github/workflows/cometapi.yml"
 
+integration:crw:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/crw/**/*"
+      - any-glob-to-any-file: ".github/workflows/crw.yml"
+
 integration:deepeval:
   - changed-files:
       - any-glob-to-any-file: "integrations/deepeval/**/*"
