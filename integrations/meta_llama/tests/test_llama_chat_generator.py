@@ -324,6 +324,9 @@ class TestLlamaChatGenerator:
         not os.environ.get("LLAMA_API_KEY", None),
         reason="Export an env var called LLAMA_API_KEY containing the OpenAI API key to run this test.",
     )
+    @pytest.mark.skip(
+        reason="Llama OpenAI-compat endpoint returns 403 for the CI key; see https://github.com/deepset-ai/haystack-core-integrations/issues/3438"
+    )
     @pytest.mark.integration
     def test_live_run(self):
         chat_messages = [ChatMessage.from_user("What's the capital of France")]
@@ -339,6 +342,9 @@ class TestLlamaChatGenerator:
         not os.environ.get("LLAMA_API_KEY", None),
         reason="Export an env var called LLAMA_API_KEY containing the OpenAI API key to run this test.",
     )
+    @pytest.mark.skip(
+        reason="Llama OpenAI-compat endpoint returns 403 for the CI key; see https://github.com/deepset-ai/haystack-core-integrations/issues/3438"
+    )
     @pytest.mark.integration
     def test_live_run_wrong_model(self, chat_messages):
         component = MetaLlamaChatGenerator(model="something-obviously-wrong")
@@ -348,6 +354,9 @@ class TestLlamaChatGenerator:
     @pytest.mark.skipif(
         not os.environ.get("LLAMA_API_KEY", None),
         reason="Export an env var called LLAMA_API_KEY containing the OpenAI API key to run this test.",
+    )
+    @pytest.mark.skip(
+        reason="Llama OpenAI-compat endpoint returns 403 for the CI key; see https://github.com/deepset-ai/haystack-core-integrations/issues/3438"
     )
     @pytest.mark.integration
     def test_live_run_streaming(self):
@@ -377,6 +386,9 @@ class TestLlamaChatGenerator:
     @pytest.mark.skipif(
         not os.environ.get("LLAMA_API_KEY", None),
         reason="Export an env var called LLAMA_API_KEY containing the Llama API key to run this test.",
+    )
+    @pytest.mark.skip(
+        reason="Llama OpenAI-compat endpoint returns 403 for the CI key; see https://github.com/deepset-ai/haystack-core-integrations/issues/3438"
     )
     @pytest.mark.integration
     def test_live_run_response_format(self):
@@ -413,6 +425,9 @@ class TestLlamaChatGenerator:
     @pytest.mark.skipif(
         not os.environ.get("LLAMA_API_KEY", None),
         reason="Export an env var called LLAMA_API_KEY containing the OpenAI API key to run this test.",
+    )
+    @pytest.mark.skip(
+        reason="Llama OpenAI-compat endpoint returns 403 for the CI key; see https://github.com/deepset-ai/haystack-core-integrations/issues/3438"
     )
     @pytest.mark.integration
     def test_live_run_with_tools_and_response(self, tools):
@@ -459,6 +474,9 @@ class TestLlamaChatGenerator:
     @pytest.mark.skipif(
         not os.environ.get("LLAMA_API_KEY", None),
         reason="Export an env var called LLAMA_API_KEY containing the OpenAI API key to run this test.",
+    )
+    @pytest.mark.skip(
+        reason="Llama OpenAI-compat endpoint returns 403 for the CI key; see https://github.com/deepset-ai/haystack-core-integrations/issues/3438"
     )
     @pytest.mark.integration
     def test_live_run_with_tools_streaming(self, tools):
@@ -509,6 +527,9 @@ class TestLlamaChatGenerator:
     @pytest.mark.skipif(
         not os.environ.get("LLAMA_API_KEY", None),
         reason="Export an env var called LLAMA_API_KEY containing the OpenAI API key to run this test.",
+    )
+    @pytest.mark.skip(
+        reason="Llama OpenAI-compat endpoint returns 403 for the CI key; see https://github.com/deepset-ai/haystack-core-integrations/issues/3438"
     )
     @pytest.mark.integration
     def test_pipeline_with_llama_chat_generator(self, tools):
@@ -667,6 +688,9 @@ class TestLlamaChatGenerator:
     @pytest.mark.skipif(
         not os.environ.get("LLAMA_API_KEY", None),
         reason="Export an env var called LLAMA_API_KEY containing the OpenAI API key to run this test.",
+    )
+    @pytest.mark.skip(
+        reason="Llama OpenAI-compat endpoint returns 403 for the CI key; see https://github.com/deepset-ai/haystack-core-integrations/issues/3438"
     )
     @pytest.mark.integration
     def test_live_run_with_mixed_tools(self, mixed_tools):
