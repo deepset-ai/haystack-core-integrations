@@ -13,12 +13,10 @@ import pytest
 from haystack import Pipeline
 from haystack.dataclasses import Document
 from haystack.document_stores.types import DuplicatePolicy
-from haystack.utils import Secret
 
 from haystack_integrations.components.embedders.oracle import OracleDocumentEmbedder, OracleTextEmbedder
 from haystack_integrations.components.retrievers.oracle import OracleEmbeddingRetriever, OracleHybridRetriever
 from haystack_integrations.document_stores.oracle import (
-    OracleConnectionConfig,
     OracleDocumentStore,
     OracleVectorizerPreference,
 )
@@ -34,21 +32,6 @@ def _env_value(*names: str, default: str | None = None) -> str | None:
         if value:
             return value
     return default
-
-
-def _connection_config() -> OracleConnectionConfig:
-    user = _env_value("ORACLE_USER", "VECDB_USER", default="haystack")
-    password = _env_value("ORACLE_PASSWORD", "VECDB_PASS", default="haystack")
-    dsn = _env_value("ORACLE_DSN", "ORACLE_DB_DSN", "VECDB_HOST", default="localhost:1521/freepdb1")
-    wallet_location = _env_value("ORACLE_WALLET_LOCATION")
-    wallet_password = _env_value("ORACLE_WALLET_PASSWORD")
-    return OracleConnectionConfig(
-        user=Secret.from_token(user),
-        password=Secret.from_token(password),
-        dsn=Secret.from_token(dsn),
-        wallet_location=wallet_location,
-        wallet_password=Secret.from_token(wallet_password) if wallet_password else None,
-    )
 
 
 def _embedding_params() -> dict:
@@ -73,9 +56,11 @@ def _drop_table(store: OracleDocumentStore) -> None:
 
 
 @contextmanager
-def _temporary_store(embedding_dim: int = 4, *, prefix: str = "HS_IT") -> Iterator[OracleDocumentStore]:
+def _temporary_store(
+    connection_config, embedding_dim: int = 4, *, prefix: str = "HS_IT"
+) -> Iterator[OracleDocumentStore]:
     store = OracleDocumentStore(
-        connection_config=_connection_config(),
+        connection_config=connection_config(),
         table_name=_table_name(prefix),
         embedding_dim=embedding_dim,
         distance_metric="COSINE",
@@ -90,26 +75,26 @@ def _temporary_store(embedding_dim: int = 4, *, prefix: str = "HS_IT") -> Iterat
             store.close()
 
 
-def _text_embedder() -> OracleTextEmbedder:
+def _text_embedder(connection_config) -> OracleTextEmbedder:
     return OracleTextEmbedder(
-        connection_config=_connection_config(),
+        connection_config=connection_config(),
         embedding_params=_embedding_params(),
         proxy=_proxy(),
     )
 
 
-def _document_embedder() -> OracleDocumentEmbedder:
+def _document_embedder(connection_config) -> OracleDocumentEmbedder:
     return OracleDocumentEmbedder(
-        connection_config=_connection_config(),
+        connection_config=connection_config(),
         embedding_params=_embedding_params(),
         proxy=_proxy(),
         meta_fields_to_embed=["title"],
     )
 
 
-def test_contains_and_not_contains_filters_live() -> None:
+def test_contains_and_not_contains_filters_live(connection_config) -> None:
     run_id = uuid.uuid4().hex
-    with _temporary_store(prefix="HS_FLT") as store:
+    with _temporary_store(connection_config, prefix="HS_FLT") as store:
         store.write_documents(
             [
                 Document(content="Oracle vector search", meta={"run_id": run_id, "tags": ["oracle", "vector"]}),
@@ -141,15 +126,15 @@ def test_contains_and_not_contains_filters_live() -> None:
         assert [doc.content for doc in not_contains_results] == ["Haystack pipelines"]
 
 
-def test_hnsw_and_ivf_vector_index_creation_live() -> None:
-    with _temporary_store(prefix="HS_HNSW") as hnsw_store:
+def test_hnsw_and_ivf_vector_index_creation_live(connection_config) -> None:
+    with _temporary_store(connection_config, prefix="HS_HNSW") as hnsw_store:
         hnsw_store.write_documents(
             [Document(content="hnsw", embedding=[1.0, 0.0, 0.0, 0.0])],
             policy=DuplicatePolicy.NONE,
         )
         hnsw_store.create_hnsw_index()
 
-    with _temporary_store(prefix="HS_IVF") as ivf_store:
+    with _temporary_store(connection_config, prefix="HS_IVF") as ivf_store:
         ivf_store.write_documents(
             [Document(content="ivf", embedding=[1.0, 0.0, 0.0, 0.0])],
             policy=DuplicatePolicy.NONE,
@@ -166,8 +151,8 @@ def test_hnsw_and_ivf_vector_index_creation_live() -> None:
 
 
 @pytest.mark.asyncio
-async def test_async_ivf_vector_index_creation_live() -> None:
-    with _temporary_store(prefix="HS_AIVF") as store:
+async def test_async_ivf_vector_index_creation_live(connection_config) -> None:
+    with _temporary_store(connection_config, prefix="HS_AIVF") as store:
         store.write_documents(
             [Document(content="async ivf", embedding=[1.0, 0.0, 0.0, 0.0])],
             policy=DuplicatePolicy.NONE,
@@ -183,17 +168,17 @@ async def test_async_ivf_vector_index_creation_live() -> None:
         )
 
 
-def test_oracle_embedders_pipeline_retrieval_live() -> None:
-    text_embedder = _text_embedder()
+def test_oracle_embedders_pipeline_retrieval_live(connection_config) -> None:
+    text_embedder = _text_embedder(connection_config)
     query_embedding = text_embedder.run("Oracle Database vector search")["embedding"]
     run_id = uuid.uuid4().hex
 
-    with _temporary_store(embedding_dim=len(query_embedding), prefix="HS_EMB") as store:
+    with _temporary_store(connection_config, embedding_dim=len(query_embedding), prefix="HS_EMB") as store:
         docs = [
             Document(content="Oracle Database supports AI Vector Search.", meta={"run_id": run_id, "title": "Oracle"}),
             Document(content="Haystack pipelines connect components.", meta={"run_id": run_id, "title": "Haystack"}),
         ]
-        embedded_docs = _document_embedder().run(docs)["documents"]
+        embedded_docs = _document_embedder(connection_config).run(docs)["documents"]
         store.write_documents(embedded_docs, policy=DuplicatePolicy.NONE)
 
         pipeline = Pipeline()
@@ -216,23 +201,23 @@ def test_oracle_embedders_pipeline_retrieval_live() -> None:
 
 
 @pytest.mark.asyncio
-async def test_oracle_text_embedder_async_live() -> None:
+async def test_oracle_text_embedder_async_live(connection_config) -> None:
     if not hasattr(oracledb, "connect_async"):
         pytest.skip("python-oracledb does not provide connect_async")
 
-    result = await _text_embedder().run_async("Oracle Database vector search")
+    result = await _text_embedder(connection_config).run_async("Oracle Database vector search")
 
     assert result["embedding"]
     assert all(isinstance(value, float) for value in result["embedding"])
 
 
-def test_vectorizer_preference_create_drop_live() -> None:
+def test_vectorizer_preference_create_drop_live(connection_config) -> None:
     preference: OracleVectorizerPreference | None = None
-    with _temporary_store(prefix="HS_PREF") as store:
+    with _temporary_store(connection_config, prefix="HS_PREF") as store:
         try:
             preference = OracleVectorizerPreference.create(
                 store,
-                _text_embedder(),
+                _text_embedder(connection_config),
                 preference_name=f"{store.table_name}_PREF",
             )
             assert preference.preference_name == f"{store.table_name}_PREF"
@@ -242,11 +227,11 @@ def test_vectorizer_preference_create_drop_live() -> None:
 
 
 @pytest.mark.asyncio
-async def test_async_hybrid_vector_index_creation_live() -> None:
-    text_embedder = _text_embedder()
+async def test_async_hybrid_vector_index_creation_live(connection_config) -> None:
+    text_embedder = _text_embedder(connection_config)
     query_embedding = text_embedder.run("Oracle hybrid vector search")["embedding"]
     store = OracleDocumentStore(
-        connection_config=_connection_config(),
+        connection_config=connection_config(),
         table_name=_table_name("HS_AHYB"),
         embedding_dim=len(query_embedding),
         distance_metric="COSINE",
@@ -274,12 +259,12 @@ async def test_async_hybrid_vector_index_creation_live() -> None:
             store.close()
 
 
-def test_hybrid_retriever_live() -> None:
-    text_embedder = _text_embedder()
-    document_embedder = _document_embedder()
+def test_hybrid_retriever_live(connection_config) -> None:
+    text_embedder = _text_embedder(connection_config)
+    document_embedder = _document_embedder(connection_config)
     query_embedding = text_embedder.run("Oracle hybrid search")["embedding"]
     store = OracleDocumentStore(
-        connection_config=_connection_config(),
+        connection_config=connection_config(),
         table_name=_table_name("HS_HYB"),
         embedding_dim=len(query_embedding),
         distance_metric="COSINE",
@@ -307,6 +292,49 @@ def test_hybrid_retriever_live() -> None:
         assert result["documents"]
         assert any("Oracle Database" in doc.content for doc in result["documents"])
         assert all(doc.score is not None for doc in result["documents"])
+    finally:
+        try:
+            try:
+                _drop_table(store)
+            finally:
+                if preference is not None:
+                    preference.drop()
+        finally:
+            store.close()
+
+
+def test_hybrid_retriever_with_filters_live(connection_config) -> None:
+    text_embedder = _text_embedder(connection_config)
+    document_embedder = _document_embedder(connection_config)
+    query_embedding = text_embedder.run("Oracle hybrid search")["embedding"]
+    store = OracleDocumentStore(
+        connection_config=connection_config(),
+        table_name=_table_name("HS_HYBF"),
+        embedding_dim=len(query_embedding),
+        distance_metric="COSINE",
+        create_table_if_not_exists=True,
+    )
+    preference: OracleVectorizerPreference | None = None
+    try:
+        docs = document_embedder.run(
+            [
+                Document(content="Oracle Database hybrid vector search.", meta={"title": "Oracle", "lang": "en"}),
+                Document(content="Oracle Database hybrid vector search.", meta={"title": "Oracle", "lang": "de"}),
+            ]
+        )["documents"]
+        store.write_documents(docs, policy=DuplicatePolicy.NONE)
+        preference = store.create_hybrid_vector_index(f"{store.table_name}_HIDX", text_embedder=text_embedder)
+
+        result = OracleHybridRetriever(
+            document_store=store,
+            index_name=f"{store.table_name}_HIDX",
+            search_mode="hybrid",
+            filters={"field": "meta.lang", "operator": "==", "value": "en"},
+            top_k=2,
+        ).run("Oracle hybrid vector search")
+
+        assert result["documents"]
+        assert all(doc.meta["lang"] == "en" for doc in result["documents"])
     finally:
         try:
             try:

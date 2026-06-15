@@ -18,6 +18,10 @@ _VALID_SEARCH_MODES = {"keyword", "hybrid", "semantic"}
 class OracleHybridRetriever:
     """
     Retrieves documents with DBMS_HYBRID_VECTOR.SEARCH.
+
+    The retriever runs against an existing Oracle hybrid vector index. It supports
+    keyword-only, semantic-only, and hybrid search modes, optional metadata filters,
+    and optional score metadata returned from Oracle.
     """
 
     def __init__(
@@ -32,6 +36,22 @@ class OracleHybridRetriever:
         return_scores: bool = False,
         filter_policy: FilterPolicy = FilterPolicy.REPLACE,
     ) -> None:
+        """
+        Create an Oracle hybrid retriever.
+
+        :param document_store: Oracle document store used to fetch documents by row id after hybrid search.
+        :param index_name: Name of the existing Oracle hybrid vector index.
+        :param search_mode: Search mode passed to Oracle. Supported values are ``"keyword"``,
+            ``"semantic"``, and ``"hybrid"``.
+        :param filters: Base Haystack metadata filters applied to every retrieval.
+        :param top_k: Maximum number of documents to return.
+        :param params: Optional DBMS_HYBRID_VECTOR.SEARCH parameters. ``search_text`` and
+            return settings derived by the retriever cannot be supplied here.
+        :param return_scores: When ``True``, include Oracle hybrid, text, and vector scores in document metadata.
+        :param filter_policy: Policy for combining constructor filters with runtime filters.
+        :raises TypeError: If ``document_store`` is not an ``OracleDocumentStore``.
+        :raises ValueError: If ``search_mode`` or ``params`` are invalid.
+        """
         if not isinstance(document_store, OracleDocumentStore):
             msg = "document_store must be an instance of OracleDocumentStore"
             raise TypeError(msg)
@@ -63,6 +83,12 @@ class OracleHybridRetriever:
     ) -> dict[str, list[Document]]:
         """
         Retrieve documents for a text query.
+
+        :param query: Text query used for keyword, semantic, or hybrid search.
+        :param filters: Runtime filters combined with constructor filters according to ``filter_policy``.
+        :param top_k: Optional override for the maximum number of returned documents.
+        :param params: Optional runtime DBMS_HYBRID_VECTOR.SEARCH parameters merged with constructor params.
+        :returns: A dictionary containing the retrieved ``documents``.
         """
         merged_filters = apply_filter_policy(self.filter_policy, self.filters, filters)
         documents = self.document_store._hybrid_retrieval(
@@ -86,6 +112,12 @@ class OracleHybridRetriever:
     ) -> dict[str, list[Document]]:
         """
         Asynchronously retrieve documents for a text query.
+
+        :param query: Text query used for keyword, semantic, or hybrid search.
+        :param filters: Runtime filters combined with constructor filters according to ``filter_policy``.
+        :param top_k: Optional override for the maximum number of returned documents.
+        :param params: Optional runtime DBMS_HYBRID_VECTOR.SEARCH parameters merged with constructor params.
+        :returns: A dictionary containing the retrieved ``documents``.
         """
         merged_filters = apply_filter_policy(self.filter_policy, self.filters, filters)
         documents = await self.document_store._hybrid_retrieval_async(

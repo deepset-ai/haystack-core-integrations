@@ -1,6 +1,10 @@
 loaders:
   - modules:
+      - haystack_integrations.components.embedders.oracle.document_embedder
+      - haystack_integrations.components.embedders.oracle.text_embedder
       - haystack_integrations.components.retrievers.oracle.embedding_retriever
+      - haystack_integrations.components.retrievers.oracle.hybrid_retriever
+      - haystack_integrations.components.retrievers.oracle.keyword_retriever
       - haystack_integrations.document_stores.oracle.document_store
     search_path: [../src]
 processors:

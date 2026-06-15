@@ -4,13 +4,12 @@
 
 import array as _array
 import asyncio
-import inspect
 import json
 import logging
 import re
 import threading
 import uuid
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Any, Literal, cast
 
 import oracledb
@@ -73,6 +72,19 @@ def _is_missing_object_error(error: oracledb.DatabaseError) -> bool:
     error_code = getattr(original_error, "code", None)
     message = str(error)
     return error_code in {942, 1418} or "DRG-10502" in message or "index does not exist" in message.lower()
+
+
+def _is_dbms_search_unavailable_error(error: oracledb.DatabaseError) -> bool:
+    message = str(error).upper()
+    return "PLS-00201" in message and "DBMS_SEARCH" in message
+
+
+def _output_type_string_handler(cursor: Any, metadata: Any) -> Any:
+    if metadata.type_code is oracledb.DB_TYPE_CLOB:
+        return cursor.var(oracledb.DB_TYPE_LONG, arraysize=cursor.arraysize)
+    if metadata.type_code is oracledb.DB_TYPE_NCLOB:
+        return cursor.var(oracledb.DB_TYPE_LONG_NVARCHAR, arraysize=cursor.arraysize)
+    return None
 
 
 def _validate_distance_metric(distance_metric: str) -> str:
@@ -232,12 +244,6 @@ def _get_vector_index_ddl(
         PARAMETERS ({parameters})
         PARALLEL {config["parallel"]}
     """
-
-
-async def _maybe_await(value: Any) -> Any:
-    if inspect.isawaitable(value):
-        return await value
-    return value
 
 
 def _serialize_hybrid_parameter(value: Any, field_name: str) -> str:
@@ -424,14 +430,12 @@ class OracleVectorizerPreference:
             pool = await document_store._get_async_pool()
             async with pool.acquire() as conn:
                 with conn.cursor() as cur:
-                    await _maybe_await(
-                        cur.execute(
-                            cls._CREATE_DDL,
-                            preference_name=preference.preference_name,
-                            preference_params=json.dumps(cls._preference_params(text_embedder, params)),
-                        )
+                    await cur.execute(
+                        cls._CREATE_DDL,
+                        preference_name=preference.preference_name,
+                        preference_params=json.dumps(cls._preference_params(text_embedder, params)),
                     )
-                    await _maybe_await(conn.commit())
+                    await conn.commit()
             return preference
         return await asyncio.to_thread(cls.create, document_store, text_embedder, preference_name, params)
 
@@ -451,8 +455,8 @@ class OracleVectorizerPreference:
             pool = await self.document_store._get_async_pool()
             async with pool.acquire() as conn:
                 with conn.cursor() as cur:
-                    await _maybe_await(cur.execute(self._DROP_DDL, preference_name=self.preference_name))
-                    await _maybe_await(conn.commit())
+                    await cur.execute(self._DROP_DDL, preference_name=self.preference_name)
+                    await conn.commit()
             return
         await asyncio.to_thread(self.drop)
 
@@ -596,8 +600,7 @@ class OracleDocumentStore:
         if create_pool_async is None:
             msg = "python-oracledb does not provide create_pool_async; install a version with async pool support."
             raise RuntimeError(msg)
-        pool = create_pool_async(**self._connect_kwargs())
-        self._async_pool = await pool if inspect.isawaitable(pool) else pool
+        self._async_pool = create_pool_async(**self._connect_kwargs())
         return self._async_pool
 
     def close(self) -> None:
@@ -624,7 +627,7 @@ class OracleDocumentStore:
             pool = self._async_pool
             self._async_pool = None
             try:
-                await _maybe_await(pool.close())
+                await pool.close()
             except Exception:
                 logger.warning("Failed to close Oracle async connection pool.", exc_info=True)
         self.close()
@@ -663,6 +666,13 @@ class OracleDocumentStore:
                 )
                 conn.commit()
         except oracledb.DatabaseError as e:
+            if _is_dbms_search_unavailable_error(e):
+                logger.warning(
+                    "DBMS_SEARCH is unavailable; skipping keyword index creation for %s. "
+                    "Oracle keyword retrieval requires DBMS_SEARCH.",
+                    index_name,
+                )
+                return
             logger.debug("Could not create keyword index (may already exist): %s", e)
 
     def create_keyword_index(self) -> None:
@@ -736,8 +746,8 @@ class OracleDocumentStore:
         pool = await self._get_async_pool()
         async with pool.acquire() as conn:
             with conn.cursor() as cur:
-                await _maybe_await(cur.execute(sql))
-                await _maybe_await(conn.commit())
+                await cur.execute(sql)
+                await conn.commit()
 
     async def create_hnsw_index_async(self) -> None:
         """
@@ -762,16 +772,31 @@ class OracleDocumentStore:
         preference can be created. The returned preference can be dropped by the caller if it was
         created only for this index.
         """
-        if vectorizer_preference is None:
+        created_preference = vectorizer_preference is None
+        if created_preference:
             if text_embedder is None:
                 msg = "text_embedder is required when vectorizer_preference is not provided."
                 raise ValueError(msg)
             vectorizer_preference = OracleVectorizerPreference.create(self, text_embedder)
+        if vectorizer_preference is None:
+            msg = "vectorizer_preference could not be created."
+            raise RuntimeError(msg)
         quoted_idx_name = _validate_identifier(idx_name, "idx_name")
         ddl = _get_hybrid_index_ddl(self.table_name, quoted_idx_name, vectorizer_preference, params)
-        with self._get_connection() as conn, conn.cursor() as cur:
-            cur.execute(ddl)
-            conn.commit()
+        try:
+            with self._get_connection() as conn, conn.cursor() as cur:
+                cur.execute(ddl)
+                conn.commit()
+        except Exception:
+            if created_preference:
+                try:
+                    vectorizer_preference.drop()
+                except Exception:
+                    logger.exception(
+                        "Failed to drop auto-created vectorizer preference %s after hybrid index creation failed.",
+                        vectorizer_preference.preference_name,
+                    )
+            raise
         return vectorizer_preference
 
     async def create_hybrid_vector_index_async(
@@ -785,25 +810,40 @@ class OracleDocumentStore:
         """
         Asynchronously create a DBMS_HYBRID_VECTOR hybrid index over the document text column.
         """
-        if vectorizer_preference is None:
+        created_preference = vectorizer_preference is None
+        if created_preference:
             if text_embedder is None:
                 msg = "text_embedder is required when vectorizer_preference is not provided."
                 raise ValueError(msg)
             vectorizer_preference = await OracleVectorizerPreference.create_async(self, text_embedder)
-        if not await self._has_async_pool():
-            return await asyncio.to_thread(
-                self.create_hybrid_vector_index,
-                idx_name,
-                vectorizer_preference=vectorizer_preference,
-                params=params,
-            )
-        quoted_idx_name = _validate_identifier(idx_name, "idx_name")
-        ddl = _get_hybrid_index_ddl(self.table_name, quoted_idx_name, vectorizer_preference, params)
-        pool = await self._get_async_pool()
-        async with pool.acquire() as conn:
-            with conn.cursor() as cur:
-                await _maybe_await(cur.execute(ddl))
-                await _maybe_await(conn.commit())
+        if vectorizer_preference is None:
+            msg = "vectorizer_preference could not be created."
+            raise RuntimeError(msg)
+        try:
+            if not await self._has_async_pool():
+                return await asyncio.to_thread(
+                    self.create_hybrid_vector_index,
+                    idx_name,
+                    vectorizer_preference=vectorizer_preference,
+                    params=params,
+                )
+            quoted_idx_name = _validate_identifier(idx_name, "idx_name")
+            ddl = _get_hybrid_index_ddl(self.table_name, quoted_idx_name, vectorizer_preference, params)
+            pool = await self._get_async_pool()
+            async with pool.acquire() as conn:
+                with conn.cursor() as cur:
+                    await cur.execute(ddl)
+                    await conn.commit()
+        except Exception:
+            if created_preference:
+                try:
+                    await vectorizer_preference.drop_async()
+                except Exception:
+                    logger.exception(
+                        "Failed to drop auto-created vectorizer preference %s after hybrid index creation failed.",
+                        vectorizer_preference.preference_name,
+                    )
+            raise
         return vectorizer_preference
 
     def write_documents(
@@ -894,20 +934,33 @@ class OracleDocumentStore:
 
     def _upsert_documents(self, documents: list[Document]) -> int:
         sql = f"""
-            MERGE INTO {self.table_name} t
-            USING (SELECT :doc_id AS id FROM dual) s ON (t.id = s.id)
-            WHEN MATCHED THEN
-                UPDATE SET t.text = :doc_text, t.metadata = :doc_meta, t.embedding = :doc_emb
-            WHEN NOT MATCHED THEN
-                INSERT (id, text, metadata, embedding)
-                VALUES (s.id, :doc_text, :doc_meta, :doc_emb)
+            BEGIN
+                UPDATE {self.table_name}
+                SET text = :doc_text,
+                    metadata = :doc_meta,
+                    embedding = :doc_emb
+                WHERE id = :doc_id;
+
+                IF SQL%ROWCOUNT = 0 THEN
+                    BEGIN
+                        INSERT INTO {self.table_name} (id, text, metadata, embedding)
+                        VALUES (:doc_id, :doc_text, :doc_meta, :doc_emb);
+                    EXCEPTION
+                        WHEN DUP_VAL_ON_INDEX THEN
+                            UPDATE {self.table_name}
+                            SET text = :doc_text,
+                                metadata = :doc_meta,
+                                embedding = :doc_emb
+                            WHERE id = :doc_id;
+                    END;
+                END IF;
+            END;
         """
         rows = [OracleDocumentStore._to_named_row(d) for d in documents]
         with self._get_connection() as conn, conn.cursor() as cur:
             cur.executemany(sql, rows)
-            written = cur.rowcount
             conn.commit()
-        return written
+        return len(rows)
 
     async def write_documents_async(
         self,
@@ -947,6 +1000,7 @@ class OracleDocumentStore:
         where, params = OracleDocumentStore._build_where(filters)
         sql = f"SELECT id, text, JSON_SERIALIZE(metadata) AS metadata FROM {self.table_name} {where}"
         with self._get_connection() as conn, conn.cursor() as cur:
+            cur.outputtypehandler = _output_type_string_handler
             cur.execute(sql, params)
             rows = cur.fetchall()
         return [OracleDocumentStore._row_to_document(r) for r in rows]
@@ -1020,6 +1074,9 @@ class OracleDocumentStore:
         except oracledb.DatabaseError as e:
             if _is_missing_object_error(e):
                 logger.debug("Keyword index %s was already absent during table cleanup.", index_name)
+                return
+            if _is_dbms_search_unavailable_error(e):
+                logger.debug("DBMS_SEARCH is unavailable; skipping keyword index cleanup for %s.", index_name)
                 return
             logger.debug("Failed to drop keyword index. SQL: %s", sql)
             msg = (
@@ -1236,15 +1293,15 @@ class OracleDocumentStore:
         """
         sql = f"SELECT JSON_DATAGUIDE(metadata) FROM {self.table_name}"
         with self._get_connection() as conn, conn.cursor() as cur:
+            cur.outputtypehandler = _output_type_string_handler
             cur.execute(sql)
             row = cur.fetchone()
             if not row or not row[0]:
                 return {}
-            raw_guide = row[0].read() if hasattr(row[0], "read") else row[0]
-            if not raw_guide:
+            if not row[0]:
                 return {}
             fields: dict[str, dict[str, str]] = {}
-            dataguide = json.loads(raw_guide)
+            dataguide = json.loads(row[0])
             for path_info in dataguide:
                 path = path_info.get("o:path", "")
                 if path.startswith("$."):
@@ -1393,18 +1450,6 @@ class OracleDocumentStore:
             raise ValueError(msg)
         return dict(params)
 
-    @staticmethod
-    def _decode_hybrid_search_result(value: Any) -> list[dict[str, Any]]:
-        if hasattr(value, "read"):
-            value = value.read()
-        return json.loads(value)
-
-    @staticmethod
-    async def _decode_hybrid_search_result_async(value: Any) -> list[dict[str, Any]]:
-        if hasattr(value, "read"):
-            value = await _maybe_await(value.read())
-        return json.loads(value)
-
     def _hybrid_search_params(
         self,
         query: str,
@@ -1443,15 +1488,20 @@ class OracleDocumentStore:
         return search_params
 
     @staticmethod
-    def _merge_hybrid_scores(
-        search_rows: list[dict[str, Any]], documents: list[Document], *, return_scores: bool
-    ) -> None:
-        for row, document in zip(search_rows, documents, strict=False):
-            document.score = row.get("score")
-            if return_scores:
-                document.meta["score"] = row.get("score")
-                document.meta["text_score"] = row.get("text_score")
-                document.meta["vector_score"] = row.get("vector_score")
+    def _with_hybrid_scores(search_row: dict[str, Any], document: Document, *, return_scores: bool) -> Document:
+        score = search_row.get("score")
+        if not return_scores:
+            return replace(document, score=score)
+        return replace(
+            document,
+            score=score,
+            meta={
+                **document.meta,
+                "score": score,
+                "text_score": search_row.get("text_score"),
+                "vector_score": search_row.get("vector_score"),
+            },
+        )
 
     def _hybrid_retrieval(
         self,
@@ -1473,20 +1523,24 @@ class OracleDocumentStore:
             params=params,
         )
 
-        rows: list[tuple[Any, ...]] = []
+        documents: list[Document] = []
         with self._get_connection() as conn, conn.cursor() as cur:
+            cur.outputtypehandler = _output_type_string_handler
             cur.setinputsizes(search_params=oracledb.DB_TYPE_JSON)
             cur.execute("SELECT DBMS_HYBRID_VECTOR.SEARCH(JSON(:search_params))", search_params=search_params)
-            search_rows = self._decode_hybrid_search_result(cur.fetchone()[0])
-            for row in search_rows:
+            search_rows = json.loads(cur.fetchone()[0])
+            for search_row in search_rows:
                 cur.execute(
                     f"SELECT id, text, JSON_SERIALIZE(metadata) AS metadata FROM {self.table_name} WHERE ROWID = :rid",
-                    rid=row["rowid"],
+                    rid=search_row["rowid"],
                 )
-                rows.extend(cur.fetchall())
+                document_row = cur.fetchone()
+                if document_row is None:
+                    continue
+                document = OracleDocumentStore._row_to_document(document_row)
+                document = OracleDocumentStore._with_hybrid_scores(search_row, document, return_scores=return_scores)
+                documents.append(document)
 
-        documents = [OracleDocumentStore._row_to_document(row) for row in rows]
-        self._merge_hybrid_scores(search_rows, documents, return_scores=return_scores)
         return documents
 
     async def _hybrid_retrieval_async(
@@ -1521,30 +1575,32 @@ class OracleDocumentStore:
             params=params,
         )
 
-        rows: list[tuple[Any, ...]] = []
+        documents: list[Document] = []
         pool = await self._get_async_pool()
         async with pool.acquire() as conn:
             with conn.cursor() as cur:
+                cur.outputtypehandler = _output_type_string_handler
                 cur.setinputsizes(search_params=oracledb.DB_TYPE_JSON)
-                await _maybe_await(
-                    cur.execute(
-                        "SELECT DBMS_HYBRID_VECTOR.SEARCH(JSON(:search_params))",
-                        search_params=search_params,
-                    )
+                await cur.execute(
+                    "SELECT DBMS_HYBRID_VECTOR.SEARCH(JSON(:search_params))",
+                    search_params=search_params,
                 )
-                search_rows = await self._decode_hybrid_search_result_async((await _maybe_await(cur.fetchone()))[0])
-                for row in search_rows:
-                    await _maybe_await(
-                        cur.execute(
-                            "SELECT id, text, JSON_SERIALIZE(metadata) AS metadata "
-                            f"FROM {self.table_name} WHERE ROWID = :rid",
-                            rid=row["rowid"],
-                        )
+                search_rows = json.loads((await cur.fetchone())[0])
+                for search_row in search_rows:
+                    await cur.execute(
+                        "SELECT id, text, JSON_SERIALIZE(metadata) AS metadata "
+                        f"FROM {self.table_name} WHERE ROWID = :rid",
+                        rid=search_row["rowid"],
                     )
-                    rows.extend(await _maybe_await(cur.fetchall()))
+                    document_row = await cur.fetchone()
+                    if document_row is None:
+                        continue
+                    document = OracleDocumentStore._row_to_document(document_row)
+                    document = OracleDocumentStore._with_hybrid_scores(
+                        search_row, document, return_scores=return_scores
+                    )
+                    documents.append(document)
 
-        documents = [OracleDocumentStore._row_to_document(row) for row in rows]
-        self._merge_hybrid_scores(search_rows, documents, return_scores=return_scores)
         return documents
 
     def _embedding_retrieval(
@@ -1569,6 +1625,7 @@ class OracleDocumentStore:
         params["query_vec"] = _array.array("f", query_embedding)
         params["top_k"] = top_k
         with self._get_connection() as conn, conn.cursor() as cur:
+            cur.outputtypehandler = _output_type_string_handler
             try:
                 cur.execute(sql, params)
             except oracledb.DatabaseError as e:
@@ -1611,8 +1668,9 @@ class OracleDocumentStore:
         pool = await self._get_async_pool()
         async with pool.acquire() as conn:
             with conn.cursor() as cur:
+                cur.outputtypehandler = _output_type_string_handler
                 try:
-                    await _maybe_await(cur.execute(sql, params))
+                    await cur.execute(sql, params)
                 except oracledb.DatabaseError as e:
                     logger.debug("Async embedding retrieval failed. SQL: %s\nParams: %s", sql, params)
                     msg = (
@@ -1620,7 +1678,7 @@ class OracleDocumentStore:
                         "You can find the SQL query and the parameters in the debug logs."
                     )
                     raise DocumentStoreError(msg) from e
-                rows = await _maybe_await(cur.fetchall())
+                rows = await cur.fetchall()
         return [OracleDocumentStore._row_to_document(r, with_score=True) for r in rows]
 
     def _keyword_retrieval(
@@ -1646,6 +1704,7 @@ class OracleDocumentStore:
         params["query"] = query
         params["top_k"] = top_k
         with self._get_connection() as conn, conn.cursor() as cur:
+            cur.outputtypehandler = _output_type_string_handler
             try:
                 cur.execute(sql, params)
             except oracledb.DatabaseError as e:
@@ -1669,12 +1728,6 @@ class OracleDocumentStore:
             raw_id, text, metadata_raw, score = row
         else:
             raw_id, text, metadata_raw, score = *row, None
-
-        # oracledb returns CLOB/JSON as LOB objects — read them to strings
-        if hasattr(text, "read"):
-            text = text.read()
-        if hasattr(metadata_raw, "read"):
-            metadata_raw = metadata_raw.read()
 
         if isinstance(metadata_raw, str):
             meta = json.loads(metadata_raw)

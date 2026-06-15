@@ -12,18 +12,45 @@ from haystack.utils import Secret
 
 from haystack_integrations.document_stores.oracle import OracleConnectionConfig, OracleDocumentStore
 
-_USER = os.getenv("ORACLE_USER") or os.getenv("VECDB_USER") or "haystack"
-_PASSWORD = os.getenv("ORACLE_PASSWORD") or os.getenv("VECDB_PASS") or "haystack"
-_DSN = os.getenv("ORACLE_DSN") or os.getenv("ORACLE_DB_DSN") or os.getenv("VECDB_HOST") or "localhost:1521/freepdb1"
+
+def _env_value(*names: str, default: str | None = None) -> str | None:
+    for name in names:
+        value = os.getenv(name)
+        if value:
+            return value
+    return default
+
+
+def connection_config(*, secret_source: str = "token") -> OracleConnectionConfig:
+    wallet_location = _env_value("ORACLE_WALLET_LOCATION")
+    if secret_source == "env_var":
+        wallet_password = Secret.from_env_var("ORACLE_WALLET_PASSWORD", strict=False) if wallet_location else None
+        return OracleConnectionConfig(
+            user=Secret.from_env_var("ORACLE_USER", strict=False),
+            password=Secret.from_env_var("ORACLE_PASSWORD", strict=False),
+            dsn=Secret.from_env_var("ORACLE_DSN", strict=False),
+            wallet_location=wallet_location,
+            wallet_password=wallet_password,
+        )
+
+    wallet_password = _env_value("ORACLE_WALLET_PASSWORD")
+    return OracleConnectionConfig(
+        user=Secret.from_token(_env_value("ORACLE_USER", default="haystack")),
+        password=Secret.from_token(_env_value("ORACLE_PASSWORD", default="haystack")),
+        dsn=Secret.from_token(_env_value("ORACLE_DSN", default="localhost:1521/freepdb1")),
+        wallet_location=wallet_location,
+        wallet_password=Secret.from_token(wallet_password) if wallet_password else None,
+    )
+
+
+@pytest.fixture(name="connection_config")
+def connection_config_fixture():
+    return connection_config
 
 
 def _make_store(table: str, embedding_dim: int) -> OracleDocumentStore:
     return OracleDocumentStore(
-        connection_config=OracleConnectionConfig(
-            user=Secret.from_token(_USER),
-            password=Secret.from_token(_PASSWORD),
-            dsn=Secret.from_token(_DSN),
-        ),
+        connection_config=connection_config(),
         table_name=table,
         embedding_dim=embedding_dim,
         distance_metric="COSINE",
@@ -88,12 +115,10 @@ def patched_store(monkeypatch):
     monkeypatch.setenv("ORACLE_USER", "u")
     monkeypatch.setenv("ORACLE_PASSWORD", "p")
     monkeypatch.setenv("ORACLE_DSN", "localhost/xe")
+    monkeypatch.delenv("ORACLE_WALLET_LOCATION", raising=False)
+    monkeypatch.delenv("ORACLE_WALLET_PASSWORD", raising=False)
     return OracleDocumentStore(
-        connection_config=OracleConnectionConfig(
-            user=Secret.from_env_var("ORACLE_USER"),
-            password=Secret.from_env_var("ORACLE_PASSWORD"),
-            dsn=Secret.from_env_var("ORACLE_DSN"),
-        ),
+        connection_config=connection_config(secret_source="env_var"),
         table_name="test_docs",
         embedding_dim=4,
         create_table_if_not_exists=False,

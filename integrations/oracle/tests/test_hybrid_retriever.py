@@ -51,7 +51,7 @@ def test_search_params_converts_filters(patched_store):
         params=None,
     )
 
-    assert params["filter_by"] == {"op": "=", "path": "meta.lang", "type": "string", "args": ["en"]}
+    assert params["filter_by"] == {"op": "=", "path": "metadata.lang", "type": "string", "args": ["en"]}
 
 
 def test_search_params_rejects_filter_by_collision(patched_store):
@@ -62,7 +62,7 @@ def test_search_params_rejects_filter_by_collision(patched_store):
             search_mode="hybrid",
             filters={"field": "meta.lang", "operator": "==", "value": "en"},
             top_k=10,
-            params={"filter_by": {"op": "=", "path": "meta.lang", "type": "string", "args": ["en"]}},
+            params={"filter_by": {"op": "=", "path": "metadata.lang", "type": "string", "args": ["en"]}},
         )
 
 

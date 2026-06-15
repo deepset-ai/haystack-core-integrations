@@ -2,20 +2,27 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+from collections.abc import Mapping
+from dataclasses import replace
 from typing import Any
 
-from haystack import component, default_to_dict
+from haystack import component, default_from_dict, default_to_dict
 from haystack.dataclasses import Document
+from haystack.utils import Secret, deserialize_secrets_inplace
 
 from haystack_integrations.document_stores.oracle import OracleConnectionConfig
 
-from .text_embedder import OracleTextEmbedder
+from ._base import _OracleEmbedderBase
 
 
 @component
-class OracleDocumentEmbedder(OracleTextEmbedder):
+class OracleDocumentEmbedder(_OracleEmbedderBase):
     """
     Embeds Haystack Documents with Oracle Database embedding functions.
+
+    The component embeds each document's content and can prepend selected metadata
+    values before sending text to Oracle. It returns copied documents with the
+    resulting vectors populated in ``Document.embedding``.
     """
 
     def __init__(
@@ -24,11 +31,23 @@ class OracleDocumentEmbedder(OracleTextEmbedder):
         connection_config: OracleConnectionConfig,
         embedding_params: dict[str, Any] | None = None,
         use_connection_pool: bool = False,
-        proxy: Any | None = None,
+        proxy: Secret | str | None = None,
         meta_fields_to_embed: list[str] | None = None,
         embedding_separator: str = "\n",
     ) -> None:
-        OracleTextEmbedder.__init__(
+        """
+        Create an Oracle document embedder.
+
+        :param connection_config: Oracle connection settings, including user, password, DSN, and optional wallet.
+        :param embedding_params: JSON-serializable Oracle embedding parameters, such as provider and model.
+        :param use_connection_pool: When ``True``, reuse a python-oracledb connection pool.
+        :param proxy: Optional HTTP proxy set in the Oracle session with ``UTL_HTTP.SET_PROXY``.
+        :param meta_fields_to_embed: Metadata keys to prepend to document content before embedding.
+            Missing keys and ``None`` values are skipped.
+        :param embedding_separator: Separator used between metadata values and document content.
+        :raises ValueError: If ``connection_config`` or ``embedding_params`` is missing.
+        """
+        _OracleEmbedderBase.__init__(
             self,
             connection_config=connection_config,
             embedding_params=embedding_params,
@@ -50,28 +69,40 @@ class OracleDocumentEmbedder(OracleTextEmbedder):
     @component.output_types(documents=list[Document], meta=dict[str, Any])
     def run(self, documents: list[Document]) -> dict[str, Any]:
         """
-        Compute embeddings and assign them to ``Document.embedding``.
+        Compute embeddings and return documents with ``Document.embedding`` populated.
+
+        :param documents: Documents to embed. Each item must be a Haystack ``Document``.
+        :returns: A dictionary containing ``documents`` and ``meta``. The returned documents are copies of the input
+            documents with ``embedding`` populated.
+        :raises TypeError: If ``documents`` is not a list of Haystack ``Document`` objects.
         """
         if not isinstance(documents, list) or any(not isinstance(document, Document) for document in documents):
             msg = "OracleDocumentEmbedder expects a list of Document objects."
             raise TypeError(msg)
         embeddings = self._embed_documents(self._prepare_texts_to_embed(documents))
-        for document, embedding in zip(documents, embeddings, strict=True):
-            document.embedding = embedding
-        return {"documents": documents, "meta": self.embedding_params}
+        embedded_documents = [
+            replace(document, embedding=embedding) for document, embedding in zip(documents, embeddings, strict=True)
+        ]
+        return {"documents": embedded_documents, "meta": self.embedding_params}
 
     @component.output_types(documents=list[Document], meta=dict[str, Any])
     async def run_async(self, documents: list[Document]) -> dict[str, Any]:
         """
-        Compute embeddings asynchronously and assign them to ``Document.embedding``.
+        Compute embeddings asynchronously and return documents with ``Document.embedding`` populated.
+
+        :param documents: Documents to embed. Each item must be a Haystack ``Document``.
+        :returns: A dictionary containing ``documents`` and ``meta``. The returned documents are copies of the input
+            documents with ``embedding`` populated.
+        :raises TypeError: If ``documents`` is not a list of Haystack ``Document`` objects.
         """
         if not isinstance(documents, list) or any(not isinstance(document, Document) for document in documents):
             msg = "OracleDocumentEmbedder expects a list of Document objects."
             raise TypeError(msg)
         embeddings = await self._embed_documents_async(self._prepare_texts_to_embed(documents))
-        for document, embedding in zip(documents, embeddings, strict=True):
-            document.embedding = embedding
-        return {"documents": documents, "meta": self.embedding_params}
+        embedded_documents = [
+            replace(document, embedding=embedding) for document, embedding in zip(documents, embeddings, strict=True)
+        ]
+        return {"documents": embedded_documents, "meta": self.embedding_params}
 
     def to_dict(self) -> dict[str, Any]:
         """
@@ -86,3 +117,16 @@ class OracleDocumentEmbedder(OracleTextEmbedder):
             meta_fields_to_embed=self.meta_fields_to_embed,
             embedding_separator=self.embedding_separator,
         )
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "OracleDocumentEmbedder":
+        """
+        Deserializes the component from a dictionary.
+        """
+        params = data.get("init_parameters", {})
+        connection_config = params.get("connection_config")
+        if isinstance(connection_config, Mapping):
+            params["connection_config"] = OracleConnectionConfig.from_dict(dict(connection_config))
+        if isinstance(params.get("proxy"), dict) and "type" in params["proxy"]:
+            deserialize_secrets_inplace(params, keys=["proxy"])
+        return default_from_dict(cls, data)

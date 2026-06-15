@@ -181,7 +181,7 @@ def _hybrid_filter_path(field: str) -> str:
     if not re.match(_JSON_FIELD_NAME, field):
         msg = f"Invalid metadata field name: {field!r}"
         raise FilterError(msg)
-    return field
+    return "metadata." + field[len("meta.") :]
 
 
 def to_hybrid_filter(filters: dict[str, Any]) -> dict[str, Any]:

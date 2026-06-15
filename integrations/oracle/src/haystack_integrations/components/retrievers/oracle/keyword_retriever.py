@@ -32,6 +32,15 @@ class OracleKeywordRetriever:
         top_k: int = 10,
         filter_policy: FilterPolicy = FilterPolicy.REPLACE,
     ) -> None:
+        """
+        Create an Oracle keyword retriever.
+
+        :param document_store: Oracle document store used for keyword search.
+        :param filters: Base Haystack metadata filters applied to every retrieval.
+        :param top_k: Maximum number of documents to return.
+        :param filter_policy: Policy for combining constructor filters with runtime filters.
+        :raises TypeError: If ``document_store`` is not an ``OracleDocumentStore``.
+        """
         if not isinstance(document_store, OracleDocumentStore):
             msg = "document_store must be an instance of OracleDocumentStore"
             raise TypeError(msg)
@@ -73,7 +82,14 @@ class OracleKeywordRetriever:
         filters: dict[str, Any] | None = None,
         top_k: int | None = None,
     ) -> dict[str, list[Document]]:
-        """Async variant of :meth:`run`."""
+        """
+        Asynchronously retrieve documents by keyword search.
+
+        :param query: Keyword query string.
+        :param filters: Runtime filters, merged with constructor filters according to filter_policy.
+        :param top_k: Override the constructor top_k for this call.
+        :returns: ``{"documents": [Document, ...]}``
+        """
         filters = apply_filter_policy(self.filter_policy, self.filters, filters)
         docs = await self.document_store._keyword_retrieval_async(
             query,
