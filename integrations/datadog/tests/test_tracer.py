@@ -2,39 +2,26 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-import functools
-import json
-
 import pytest
-from _pytest.capture import CaptureFixture
-from _pytest.monkeypatch import MonkeyPatch
 from ddtrace.trace import Span as ddSpan
-from ddtrace.trace import Tracer as ddTracer
+from ddtrace.trace import tracer as dd_tracer
 
 from haystack_integrations.tracing.datadog import DatadogTracer
 
 
-@pytest.fixture()
-def datadog_tracer(monkeypatch: MonkeyPatch) -> ddTracer:
-    # For the purpose of the tests we want to use the log writer.
-    # We simulate being in AWS Lambda, where the log writer is active.
-    # See https://github.com/DataDog/dd-trace-py/blob/ae4c189ebf8e539f39905f21c7918cc19de69d13/ddtrace/internal/writer/writer.py#L680
-    # for more details.
-    monkeypatch.setenv("AWS_LAMBDA_FUNCTION_NAME", "test-function")
-
-    return ddTracer()
-
-
-def get_traces_from_console(capfd: CaptureFixture) -> list[dict]:
-    output = capfd.readouterr().out
-    parsed = json.loads(output)
-    nested_traces = parsed["traces"]
-    return list(functools.reduce(lambda x, y: x + y, nested_traces, []))
+@pytest.fixture(autouse=True)
+def disable_agent_writer():
+    # Disable the global Datadog tracer so that spans are still created (and remain inspectable) but are never
+    # flushed to a Datadog agent over the network. This keeps the tests offline and avoids noisy connection errors.
+    original_enabled = dd_tracer.enabled
+    dd_tracer.enabled = False
+    yield
+    dd_tracer.enabled = original_enabled
 
 
 class TestDatadogTracer:
-    def test_opentelemetry_tracer(self, datadog_tracer: ddTracer, capfd: CaptureFixture) -> None:
-        tracer = DatadogTracer(datadog_tracer)
+    def test_trace_sets_component_resource_name(self) -> None:
+        tracer = DatadogTracer(dd_tracer)
 
         component_tags = {
             "haystack.component.name": "test_component",
@@ -45,29 +32,24 @@ class TestDatadogTracer:
 
         with tracer.trace("haystack.component.run", tags=component_tags) as span:
             span.set_tag("key", "value")
+            raw_span = span.raw_span()
 
-        traces = get_traces_from_console(capfd)
-        assert len(traces) == 1
+        assert raw_span.name == "haystack.component.run"
+        assert "test_component" in raw_span.resource
+        assert "TestType" in raw_span.resource
 
-        trace = traces[0]
-
-        assert trace["name"] == "haystack.component.run"
-        assert "test_component" in trace["resource"]
-        assert "TestType" in trace["resource"]
-
-    def test_tagging(self, datadog_tracer: ddTracer, capfd: CaptureFixture) -> None:
-        tracer = DatadogTracer(datadog_tracer)
+    def test_tagging(self) -> None:
+        tracer = DatadogTracer(dd_tracer)
 
         with tracer.trace("test", tags={"key1": "value1"}) as span:
             span.set_tag("key2", "value2")
+            raw_span = span.raw_span()
 
-        spans = get_traces_from_console(capfd)
-        assert len(spans) == 1
-        assert spans[0]["meta"]["key1"] == "value1"
-        assert spans[0]["meta"]["key2"] == "value2"
+        assert raw_span.get_tag("key1") == "value1"
+        assert raw_span.get_tag("key2") == "value2"
 
-    def test_current_span(self, datadog_tracer: ddTracer, capfd: CaptureFixture) -> None:
-        tracer = DatadogTracer(datadog_tracer)
+    def test_current_span(self) -> None:
+        tracer = DatadogTracer(dd_tracer)
 
         with tracer.trace("test"):
             current_span = tracer.current_span()
@@ -80,23 +62,21 @@ class TestDatadogTracer:
 
             raw_span.set_tag("key2", "value2")
 
-        spans = get_traces_from_console(capfd)
-        assert len(spans) == 1
-        assert spans[0]["meta"]["key1"] == "value1"
-        assert spans[0]["meta"]["key2"] == "value2"
+        assert raw_span.get_tag("key1") == "value1"
+        assert raw_span.get_tag("key2") == "value2"
 
-    def test_tracing_complex_values(self, datadog_tracer: ddTracer, capfd: CaptureFixture) -> None:
-        tracer = DatadogTracer(datadog_tracer)
+    def test_tracing_complex_values(self) -> None:
+        tracer = DatadogTracer(dd_tracer)
 
         with tracer.trace("test") as span:
             span.set_tag("key", {"a": 1, "b": [2, 3, 4]})
+            raw_span = span.raw_span()
 
-        spans = get_traces_from_console(capfd)
-        assert len(spans) == 1
-        assert spans[0]["meta"]["key"] == '{"a": 1, "b": [2, 3, 4]}'
+        assert raw_span.get_tag("key") == '{"a": 1, "b": [2, 3, 4]}'
 
-    def test_get_log_correlation_info(self, datadog_tracer: ddTracer) -> None:
-        tracer = DatadogTracer(datadog_tracer)
+    def test_get_log_correlation_info(self) -> None:
+        tracer = DatadogTracer(dd_tracer)
+
         with tracer.trace("test") as span:
             span.set_tag("key", "value")
 

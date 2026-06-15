@@ -4,13 +4,10 @@
 
 from typing import Any
 
+from ddtrace.trace import tracer as dd_tracer
 from haystack import component, default_from_dict, default_to_dict, logging, tracing
-from haystack.lazy_imports import LazyImport
 
 from haystack_integrations.tracing.datadog import DatadogTracer
-
-with LazyImport("Run 'pip install ddtrace'") as ddtrace_import:
-    import ddtrace
 
 logger = logging.getLogger(__name__)
 
@@ -71,9 +68,8 @@ class DatadogConnector:
         :param name: The name used to identify this tracing component. It is returned by the `run` method and can be
             used to mark traces produced by this connector.
         """
-        ddtrace_import.check()
         self.name = name
-        self.tracer = DatadogTracer(tracer=ddtrace.tracer)
+        self.tracer = DatadogTracer(tracer=dd_tracer)
         tracing.enable_tracing(self.tracer)
 
     @component.output_types(name=str)

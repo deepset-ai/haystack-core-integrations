@@ -6,14 +6,11 @@ import contextlib
 from collections.abc import Iterator
 from typing import Any
 
-from haystack.lazy_imports import LazyImport
+import ddtrace
+from ddtrace.trace import Span as ddSpan
+from ddtrace.trace import Tracer as ddTracer
 from haystack.tracing import Span, Tracer
 from haystack.tracing import utils as tracing_utils
-
-with LazyImport("Run 'pip install ddtrace'") as ddtrace_import:
-    import ddtrace
-    from ddtrace.trace import Span as ddSpan
-    from ddtrace.trace import Tracer as ddTracer
 
 _COMPONENT_NAME_KEY = "haystack.component.name"
 _COMPONENT_TYPE_KEY = "haystack.component.type"
@@ -21,7 +18,7 @@ _COMPONENT_RUN_OPERATION_NAME = "haystack.component.run"
 
 
 class DatadogSpan(Span):
-    def __init__(self, span: "ddSpan") -> None:
+    def __init__(self, span: ddSpan) -> None:
         """Creates an instance of DatadogSpan."""
         self._span = span
 
@@ -53,9 +50,8 @@ class DatadogSpan(Span):
 
 
 class DatadogTracer(Tracer):
-    def __init__(self, tracer: "ddTracer") -> None:
+    def __init__(self, tracer: ddTracer) -> None:
         """Creates an instance of DatadogTracer."""
-        ddtrace_import.check()
         self._tracer = tracer
 
     @staticmethod
