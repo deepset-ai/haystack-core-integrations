@@ -82,6 +82,8 @@ class TestDatadogTracer:
 
             correlation_data = span.get_correlation_data_for_logs()
 
-        for field in ["dd.trace_id", "dd.span_id", "dd.service", "dd.env", "dd.version"]:
-            assert field in correlation_data
-            assert isinstance(correlation_data[field], str)
+        # Depending on the ddtrace version, the correlation fields are returned either with or without a "dd." prefix.
+        normalized = {key.removeprefix("dd."): value for key, value in correlation_data.items()}
+        for field in ["trace_id", "span_id", "service", "env", "version"]:
+            assert field in normalized
+            assert isinstance(normalized[field], str)
