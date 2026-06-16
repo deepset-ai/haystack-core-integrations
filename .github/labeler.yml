@@ -84,6 +84,11 @@ integration:cometapi:
       - any-glob-to-any-file: "integrations/cometapi/**/*"
       - any-glob-to-any-file: ".github/workflows/cometapi.yml"
 
+integration:datadog:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/datadog/**/*"
+      - any-glob-to-any-file: ".github/workflows/datadog.yml"
+
 integration:deepeval:
   - changed-files:
       - any-glob-to-any-file: "integrations/deepeval/**/*"
