@@ -256,8 +256,8 @@ class DoclingConverter:
 
             if self.export_type == ExportType.DOC_CHUNKS:
                 split_idx_start = 0
-                for split_id, chunk in enumerate(self._chunker_instance.chunk(dl_doc=dl_doc)):
-                    content = self._chunker_instance.contextualize(chunk=chunk)
+                for split_id, chunk in enumerate(self._chunker_instance.chunk(dl_doc=dl_doc)):  # type: ignore[union-attr]
+                    content = self._chunker_instance.contextualize(chunk=chunk)  # type: ignore[union-attr]
                     meta = {
                         **self._meta_extractor_instance.extract_chunk_meta(chunk=chunk),
                         "split_id": split_id,
