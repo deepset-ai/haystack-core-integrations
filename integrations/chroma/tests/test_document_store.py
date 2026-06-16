@@ -101,6 +101,7 @@ class TestDocumentStoreUnit:
                 "port": None,
                 "api_key": "1234567890",
                 "distance_function": "l2",
+                "metadata": None,
                 "client_settings": {"anonymized_telemetry": False},
             },
         }
@@ -127,6 +128,24 @@ class TestDocumentStoreUnit:
         assert ds._embedding_function == function_name
         assert ds._embedding_function_params == {"api_key": "1234567890"}
         assert ds._client_settings == {"anonymized_telemetry": False}
+
+    def test_to_dict_and_from_dict_preserves_metadata(self):
+        """`metadata` configures the underlying Chroma collection (e.g.
+        ``hnsw:space`` and other HNSW index parameters). It must survive a
+        to_dict/from_dict round-trip, otherwise serializing a pipeline to YAML
+        silently drops the collection settings when the store is reloaded."""
+        metadata = {"hnsw:space": "cosine", "hnsw:search_ef": 200}
+        ds = ChromaDocumentStore(
+            collection_name="test_md",
+            embedding_function="HuggingFaceEmbeddingFunction",
+            api_key="1234567890",
+            metadata=metadata,
+        )
+
+        assert ds.to_dict()["init_parameters"]["metadata"] == metadata
+
+        restored = ChromaDocumentStore.from_dict(ds.to_dict())
+        assert restored._metadata == metadata
 
     def test_same_collection_name_reinitialization(self):
         ChromaDocumentStore("test_1")

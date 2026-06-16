@@ -1373,6 +1373,7 @@ class ChromaDocumentStore:
             host=self._host,
             port=self._port,
             distance_function=self._distance_function,
+            metadata=self._metadata,
             client_settings=self._client_settings,
             **self._embedding_function_params,
         )
