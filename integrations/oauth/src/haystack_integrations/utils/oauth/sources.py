@@ -8,7 +8,7 @@ import time
 from collections import OrderedDict
 from collections.abc import Callable
 from threading import Lock
-from typing import Any, Protocol, runtime_checkable
+from typing import Any
 
 import httpx
 from haystack import default_from_dict, default_to_dict, logging
@@ -24,56 +24,6 @@ DEFAULT_EXPIRY_BUFFER_SECONDS = 300
 DEFAULT_ACCESS_TOKEN_TTL_SECONDS = 3600
 DEFAULT_CACHE_MAX_SIZE = 1000
 DEFAULT_TIMEOUT_SECONDS = 30.0
-
-
-@runtime_checkable
-class TokenSource(Protocol):
-    """
-    A token source that resolves an access token with no per-request input (a config-only source).
-
-    Implemented by sources whose credential is fixed at construction time — e.g. `RefreshTokenSource` and
-    `StaticTokenSource`. Such sources set the class attribute `requires_subject_token = False` (the default the
-    resolver assumes), and `OAuthResolver` runs them as source nodes (no run input).
-    """
-
-    requires_subject_token: bool
-
-    def resolve(self) -> str:
-        """Return a valid access token."""
-        ...
-
-    async def resolve_async(self) -> str:
-        """Asynchronous counterpart of `resolve`."""
-        ...
-
-    def to_dict(self) -> dict[str, Any]:
-        """Serialize the source to a dictionary."""
-        ...
-
-
-@runtime_checkable
-class SubjectTokenSource(Protocol):
-    """
-    A token source that resolves an access token by exchanging a per-request subject token.
-
-    The `subject_token` is a controller-injected per-request credential (for example an incoming user assertion),
-    not chosen by an end user. Implemented by `TokenExchangeSource`. Such sources set the class attribute
-    `requires_subject_token = True`, which makes `OAuthResolver` declare a mandatory `subject_token` run input.
-    """
-
-    requires_subject_token: bool
-
-    def resolve(self, subject_token: str) -> str:
-        """Return a valid access token for the per-request `subject_token`."""
-        ...
-
-    async def resolve_async(self, subject_token: str) -> str:
-        """Asynchronous counterpart of `resolve`."""
-        ...
-
-    def to_dict(self) -> dict[str, Any]:
-        """Serialize the source to a dictionary."""
-        ...
 
 
 def _parse_token_response(response: httpx.Response) -> tuple[str, float, dict[str, Any]]:

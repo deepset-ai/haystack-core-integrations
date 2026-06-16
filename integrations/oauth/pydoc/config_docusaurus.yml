@@ -1,7 +1,8 @@
 loaders:
   - modules:
       - haystack_integrations.components.connectors.oauth.resolver
-      - haystack_integrations.components.connectors.oauth.sources
+      - haystack_integrations.utils.oauth.protocols
+      - haystack_integrations.utils.oauth.sources
     search_path: [../src]
 processors:
   - type: filter

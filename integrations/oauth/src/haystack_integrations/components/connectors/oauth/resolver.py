@@ -6,8 +6,7 @@ from typing import Any, cast
 
 from haystack import component, default_from_dict, default_to_dict
 
-from .errors import OAuthConfigError
-from .sources import SubjectTokenSource, TokenSource
+from haystack_integrations.utils.oauth import OAuthConfigError, SubjectTokenSource, TokenSource
 
 
 @component
@@ -29,7 +28,8 @@ class OAuthResolver:
     ### Usage example
     ```python
     from haystack.utils import Secret
-    from haystack_integrations.components.connectors.oauth import OAuthResolver, RefreshTokenSource
+    from haystack_integrations.components.connectors.oauth import OAuthResolver
+    from haystack_integrations.utils.oauth import RefreshTokenSource
 
     resolver = OAuthResolver(
         token_source=RefreshTokenSource(

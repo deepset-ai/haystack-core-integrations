@@ -8,14 +8,15 @@ import httpx
 import pytest
 from haystack.utils import Secret
 
-from haystack_integrations.components.connectors.oauth import (
+from haystack_integrations.utils.oauth import (
+    OAuthConfigError,
     RefreshTokenSource,
     StaticTokenSource,
     TokenExchangeSource,
+    TokenRefreshError,
 )
-from haystack_integrations.components.connectors.oauth.errors import OAuthConfigError, TokenRefreshError
 
-SOURCES_MODULE = "haystack_integrations.components.connectors.oauth.sources"
+SOURCES_MODULE = "haystack_integrations.utils.oauth.sources"
 TOKEN_URL = "https://idp.example.com/oauth2/token"
 
 

@@ -9,12 +9,12 @@ import pytest
 from haystack import Pipeline
 from haystack.utils import Secret
 
-from haystack_integrations.components.connectors.oauth import (
-    OAuthResolver,
+from haystack_integrations.components.connectors.oauth import OAuthResolver
+from haystack_integrations.utils.oauth import (
+    OAuthConfigError,
     RefreshTokenSource,
     TokenExchangeSource,
 )
-from haystack_integrations.components.connectors.oauth.errors import OAuthConfigError
 
 TOKEN_URL = "https://idp.example.com/oauth2/token"
 
