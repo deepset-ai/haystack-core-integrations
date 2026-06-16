@@ -11,8 +11,8 @@ from threading import Lock
 from typing import Any, Protocol, runtime_checkable
 
 import httpx
-from haystack import logging
-from haystack.utils import Secret, deserialize_callable, deserialize_secrets_inplace, serialize_callable
+from haystack import default_from_dict, default_to_dict, logging
+from haystack.utils import Secret, deserialize_callable, serialize_callable
 
 from .errors import OAuthConfigError, TokenRefreshError
 
@@ -74,10 +74,6 @@ class SubjectTokenSource(Protocol):
     def to_dict(self) -> dict[str, Any]:
         """Serialize the source to a dictionary."""
         ...
-
-
-def _type_name(cls: type) -> str:
-    return f"{cls.__module__}.{cls.__name__}"
 
 
 def _parse_token_response(response: httpx.Response) -> tuple[str, float, dict[str, Any]]:
@@ -228,32 +224,26 @@ class RefreshTokenSource:
 
     def to_dict(self) -> dict[str, Any]:
         """Serialize the source to a dictionary."""
-        return {
-            "type": _type_name(type(self)),
-            "init_parameters": {
-                "token_url": self.token_url,
-                "client_id": self.client_id,
-                "refresh_token": self.refresh_token.to_dict(),
-                "client_secret": self.client_secret.to_dict() if self.client_secret else None,
-                "scopes": self.scopes,
-                "scope_delimiter": self.scope_delimiter,
-                "expiry_buffer_seconds": self.expiry_buffer_seconds,
-                "timeout": self.timeout,
-                "on_rotate": serialize_callable(self.on_rotate) if self.on_rotate else None,
-            },
-        }
+        return default_to_dict(
+            self,
+            token_url=self.token_url,
+            client_id=self.client_id,
+            refresh_token=self.refresh_token.to_dict(),
+            client_secret=self.client_secret.to_dict() if self.client_secret else None,
+            scopes=self.scopes,
+            scope_delimiter=self.scope_delimiter,
+            expiry_buffer_seconds=self.expiry_buffer_seconds,
+            timeout=self.timeout,
+            on_rotate=serialize_callable(self.on_rotate) if self.on_rotate else None,
+        )
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "RefreshTokenSource":
         """Deserialize the source from a dictionary."""
         init_params = data["init_parameters"]
-        secret_keys = ["refresh_token"]
-        if init_params.get("client_secret") is not None:
-            secret_keys.append("client_secret")
-        deserialize_secrets_inplace(init_params, keys=secret_keys)
         if init_params.get("on_rotate"):
             init_params["on_rotate"] = deserialize_callable(init_params["on_rotate"])
-        return cls(**init_params)
+        return default_from_dict(cls, data)
 
 
 class TokenExchangeSource:
@@ -431,32 +421,27 @@ class TokenExchangeSource:
 
     def to_dict(self) -> dict[str, Any]:
         """Serialize the source to a dictionary."""
-        return {
-            "type": _type_name(type(self)),
-            "init_parameters": {
-                "token_url": self.token_url,
-                "client_id": self.client_id,
-                "client_secret": self.client_secret.to_dict() if self.client_secret else None,
-                "grant_type": self.grant_type,
-                "subject_token_param": self.subject_token_param,
-                "subject_token_type": self.subject_token_type,
-                "requested_token_type": self.requested_token_type,
-                "scopes": self.scopes,
-                "scope_delimiter": self.scope_delimiter,
-                "extra_token_params": self.extra_token_params,
-                "expiry_buffer_seconds": self.expiry_buffer_seconds,
-                "cache_max_size": self.cache_max_size,
-                "timeout": self.timeout,
-            },
-        }
+        return default_to_dict(
+            self,
+            token_url=self.token_url,
+            client_id=self.client_id,
+            client_secret=self.client_secret.to_dict() if self.client_secret else None,
+            grant_type=self.grant_type,
+            subject_token_param=self.subject_token_param,
+            subject_token_type=self.subject_token_type,
+            requested_token_type=self.requested_token_type,
+            scopes=self.scopes,
+            scope_delimiter=self.scope_delimiter,
+            extra_token_params=self.extra_token_params,
+            expiry_buffer_seconds=self.expiry_buffer_seconds,
+            cache_max_size=self.cache_max_size,
+            timeout=self.timeout,
+        )
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "TokenExchangeSource":
         """Deserialize the source from a dictionary."""
-        init_params = data["init_parameters"]
-        if init_params.get("client_secret") is not None:
-            deserialize_secrets_inplace(init_params, keys=["client_secret"])
-        return cls(**init_params)
+        return default_from_dict(cls, data)
 
 
 class StaticTokenSource:
@@ -491,34 +476,9 @@ class StaticTokenSource:
 
     def to_dict(self) -> dict[str, Any]:
         """Serialize the source to a dictionary."""
-        return {"type": _type_name(type(self)), "init_parameters": {"token": self.token.to_dict()}}
+        return default_to_dict(self, token=self.token.to_dict())
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "StaticTokenSource":
         """Deserialize the source from a dictionary."""
-        deserialize_secrets_inplace(data["init_parameters"], keys=["token"])
-        return cls(**data["init_parameters"])
-
-
-# Closed registry — deserialization never imports arbitrary types.
-_TOKEN_SOURCES: dict[str, Any] = {
-    _type_name(RefreshTokenSource): RefreshTokenSource,
-    _type_name(TokenExchangeSource): TokenExchangeSource,
-    _type_name(StaticTokenSource): StaticTokenSource,
-}
-
-
-def deserialize_token_source(data: dict[str, Any]) -> "TokenSource | SubjectTokenSource":
-    """
-    Reconstruct a token source from its serialized dictionary using a closed registry of known source types.
-
-    :param data: The serialized token source (a dict with `type` and `init_parameters`).
-    :returns: The deserialized token source.
-    :raises OAuthConfigError: If the `type` is unknown.
-    """
-    type_name = data.get("type")
-    source_cls = _TOKEN_SOURCES.get(type_name) if type_name else None
-    if source_cls is None:
-        msg = f"Unknown TokenSource type {type_name!r}."
-        raise OAuthConfigError(msg)
-    return source_cls.from_dict(data)
+        return default_from_dict(cls, data)

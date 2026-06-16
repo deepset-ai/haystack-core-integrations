@@ -155,6 +155,14 @@ class TestOAuthResolverSerialization:
         with pytest.raises(ValueError):
             pipe.run({})
 
+    def test_from_dict_unknown_source_type_raises(self):
+        data = {
+            "type": "haystack_integrations.components.connectors.oauth.resolver.OAuthResolver",
+            "init_parameters": {"token_source": {"type": "some.unknown.Source", "init_parameters": {}}},
+        }
+        with pytest.raises(ImportError):
+            OAuthResolver.from_dict(data)
+
 
 _REAL_IDP_VARS = ("OAUTH_TOKEN_URL", "OAUTH_CLIENT_ID", "OAUTH_REFRESH_TOKEN")
 

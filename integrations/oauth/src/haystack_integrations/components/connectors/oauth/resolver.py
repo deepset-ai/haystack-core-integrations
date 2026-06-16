@@ -7,7 +7,7 @@ from typing import Any, cast
 from haystack import component, default_from_dict, default_to_dict
 
 from .errors import OAuthConfigError
-from .sources import SubjectTokenSource, TokenSource, deserialize_token_source
+from .sources import SubjectTokenSource, TokenSource
 
 
 @component
@@ -108,6 +108,4 @@ class OAuthResolver:
         :param data: The dictionary representation of this component.
         :returns: The deserialized component instance.
         """
-        init_params = data["init_parameters"]
-        init_params["token_source"] = deserialize_token_source(init_params["token_source"])
         return default_from_dict(cls, data)

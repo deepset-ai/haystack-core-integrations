@@ -14,7 +14,6 @@ from haystack_integrations.components.connectors.oauth import (
     TokenExchangeSource,
 )
 from haystack_integrations.components.connectors.oauth.errors import OAuthConfigError, TokenRefreshError
-from haystack_integrations.components.connectors.oauth.sources import deserialize_token_source
 
 SOURCES_MODULE = "haystack_integrations.components.connectors.oauth.sources"
 TOKEN_URL = "https://idp.example.com/oauth2/token"
@@ -273,15 +272,3 @@ class TestStaticTokenSource:
         assert data["type"] == f"{SOURCES_MODULE}.StaticTokenSource"
         restored = StaticTokenSource.from_dict(source.to_dict())
         assert restored.to_dict() == data
-
-
-class TestDeserializeTokenSource:
-    def test_dispatches_to_correct_type(self, monkeypatch):
-        monkeypatch.setenv("SLACK_TOKEN", "pat")
-        source = StaticTokenSource(token=Secret.from_env_var("SLACK_TOKEN"))
-        restored = deserialize_token_source(source.to_dict())
-        assert isinstance(restored, StaticTokenSource)
-
-    def test_unknown_type_raises(self):
-        with pytest.raises(OAuthConfigError):
-            deserialize_token_source({"type": "some.unknown.Source", "init_parameters": {}})
