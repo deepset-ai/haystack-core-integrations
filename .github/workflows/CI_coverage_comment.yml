@@ -36,6 +36,7 @@ on:
       - "Test / huggingface_api"
       - "Test / jina"
       - "Test / kreuzberg"
+      - "Test / langdetect"
       - "Test / langfuse"
       - "Test / lara"
       - "Test / libreoffice"
