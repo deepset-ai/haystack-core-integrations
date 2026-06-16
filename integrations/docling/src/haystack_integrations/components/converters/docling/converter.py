@@ -135,11 +135,26 @@ class DoclingConverter:
         self.chunker = chunker
         self.meta_extractor = meta_extractor
 
-        # Resolved instances used internally at runtime.
+        # Resolved instances used internally at runtime. The default HybridChunker is built in
+        # warm_up() instead of here because its construction downloads a Hugging Face tokenizer.
         self._converter_instance = converter or DocumentConverter()
-        if self.export_type == ExportType.DOC_CHUNKS:
-            self._chunker_instance = chunker or HybridChunker()
+        self._chunker_instance = chunker
         self._meta_extractor_instance = meta_extractor or MetaExtractor()
+        self._is_warmed_up = False
+
+    def warm_up(self) -> None:
+        """
+        Build the default `HybridChunker` for `ExportType.DOC_CHUNKS` if no `chunker` was passed at
+        init time.
+
+        Deferred to warm-up time because constructing the default chunker downloads a Hugging Face
+        tokenizer.
+        """
+        if self._is_warmed_up:
+            return
+        if self.export_type == ExportType.DOC_CHUNKS and self._chunker_instance is None:
+            self._chunker_instance = HybridChunker()
+        self._is_warmed_up = True
 
     def to_dict(self) -> dict[str, Any]:
         """Serialize this component to a dictionary."""
@@ -224,6 +239,9 @@ class DoclingConverter:
         if sources is None:
             msg = "Either 'sources' or the deprecated 'paths' parameter must be provided."
             raise ValueError(msg)
+
+        if not self._is_warmed_up:
+            self.warm_up()
 
         meta_list = normalize_metadata(meta=meta, sources_count=len(sources))
 
