@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/anthropic-v5.11.0] - 2026-06-16
+
+### 🐛 Bug Fixes
+
+- Change default model in `AnthropicGenerator` to Sonnet 4.5 (#3447)
+
+
 ## [integrations/anthropic-v5.10.0] - 2026-06-04
 
 ### 🚀 Features
