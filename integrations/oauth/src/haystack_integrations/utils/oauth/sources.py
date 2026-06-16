@@ -154,6 +154,8 @@ class RefreshTokenSource:
 
     def resolve(self) -> str:
         """Return a cached access token, or run the refresh-token grant to obtain a fresh one."""
+        # Refreshes for this single-identity source are serialized, so a burst of concurrent callers
+        # collapses into one network efresh and the shared cache + on_rotate aren't updated concurrently
         with self._sync_lock:
             cached = self._cached_if_valid()
             if cached is not None:
@@ -168,6 +170,8 @@ class RefreshTokenSource:
 
     async def resolve_async(self) -> str:
         """Asynchronous counterpart of `resolve`. Use a single instance in either sync or async mode, not both."""
+        # Create the asyncio.Lock lazily (not in __init__): it must bind to the running event loop, but __init__
+        # is sync and may run without one.
         if self._async_lock is None:
             self._async_lock = asyncio.Lock()
         async with self._async_lock:
@@ -294,6 +298,8 @@ class TokenExchangeSource:
         self.timeout = timeout
 
         # Runtime state — never serialized.
+        # `_lock` guards the shared LRU cache. It's held only around cache access, never across the network call, so
+        # distinct subjects (users) exchange tokens concurrently.
         self._lock = Lock()
         self._cache: OrderedDict[str, tuple[str, float]] = OrderedDict()
 
