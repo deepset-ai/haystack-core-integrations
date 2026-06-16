@@ -118,6 +118,14 @@ class TestRefreshTokenSource:
             source.resolve()
         assert mock_post.call_args.kwargs["data"]["refresh_token"] == "env-rt"
 
+    def test_non_numeric_expires_in_falls_back_to_default_ttl(self):
+        source = self._source()
+        with patch("httpx.post", return_value=_json(access_token="acc-1", expires_in="bogus")) as mock_post:
+            assert source.resolve() == "acc-1"
+            # Served from cache on the second call => a sane fallback TTL was applied, not 0.
+            assert source.resolve() == "acc-1"
+        assert mock_post.call_count == 1
+
     def test_round_trip(self, monkeypatch):
         monkeypatch.setenv("MS_REFRESH_TOKEN", "rt")
         source = RefreshTokenSource(
@@ -265,6 +273,13 @@ class TestStaticTokenSource:
     def test_empty_token_raises(self, monkeypatch):
         monkeypatch.delenv("EMPTY_TOKEN", raising=False)
         source = StaticTokenSource(token=Secret.from_env_var("EMPTY_TOKEN", strict=False))
+        with pytest.raises(TokenRefreshError):
+            source.resolve()
+
+    def test_unresolvable_strict_token_raises_token_refresh_error(self, monkeypatch):
+        monkeypatch.delenv("MISSING_TOKEN", raising=False)
+        # A strict EnvVarSecret would raise ValueError on resolve; it must surface as TokenRefreshError.
+        source = StaticTokenSource(token=Secret.from_env_var("MISSING_TOKEN"))
         with pytest.raises(TokenRefreshError):
             source.resolve()
 

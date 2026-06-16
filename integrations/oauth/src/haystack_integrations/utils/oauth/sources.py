@@ -36,7 +36,16 @@ def _parse_token_response(response: httpx.Response) -> tuple[str, float, dict[st
     if not access_token:
         msg = "Token response did not contain an access_token."
         raise TokenRefreshError(msg)
-    expires_in = float(payload.get("expires_in", DEFAULT_ACCESS_TOKEN_TTL_SECONDS))
+    raw_expires_in = payload.get("expires_in", DEFAULT_ACCESS_TOKEN_TTL_SECONDS)
+    try:
+        expires_in = float(raw_expires_in)
+    except (TypeError, ValueError):
+        logger.warning(
+            "Token response had a non-numeric 'expires_in' value ({value}); falling back to {default}s.",
+            value=raw_expires_in,
+            default=DEFAULT_ACCESS_TOKEN_TTL_SECONDS,
+        )
+        expires_in = float(DEFAULT_ACCESS_TOKEN_TTL_SECONDS)
     return access_token, expires_in, payload
 
 
@@ -417,7 +426,12 @@ class StaticTokenSource:
 
     def resolve(self) -> str:
         """Return the configured token."""
-        value = self.token.resolve_value()
+        try:
+            value = self.token.resolve_value()
+        except ValueError as error:
+            # A strict `EnvVarSecret` raises ValueError when its env var is unset; surface it as our error type.
+            msg = "StaticTokenSource could not resolve its token."
+            raise TokenRefreshError(msg) from error
         if not value:
             msg = "StaticTokenSource has no token value."
             raise TokenRefreshError(msg)
