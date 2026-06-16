@@ -153,7 +153,11 @@ class RefreshTokenSource:
         return access_token
 
     def resolve(self) -> str:
-        """Return a cached access token, or run the refresh-token grant to obtain a fresh one."""
+        """
+        Return a cached access token, or run the refresh-token grant to obtain a fresh one.
+
+        :returns: A valid bearer access token.
+        """
         # Refreshes for this single-identity source are serialized, so a burst of concurrent callers
         # collapses into one network efresh and the shared cache + on_rotate aren't updated concurrently
         with self._sync_lock:
@@ -263,7 +267,9 @@ class TokenExchangeSource:
         :param scopes: The scopes to request, joined with `scope_delimiter`.
         :param scope_delimiter: The delimiter used to join scopes. Defaults to a space.
         :param extra_token_params: Additional form parameters included verbatim in every request (for example
-            `{"requested_token_use": "on_behalf_of"}`).
+            `{"requested_token_use": "on_behalf_of"}`). Applied last, so any key here overrides the corresponding
+            form parameter derived from the other arguments (for example `grant_type`, `subject_token_type`,
+            `requested_token_type`, `scope`, or `client_secret`).
         :param expiry_buffer_seconds: Refresh a cached access token this many seconds before its declared expiry.
         :param cache_max_size: The maximum number of per-user tokens to keep in the in-memory cache. The
             least-recently-used entry is evicted when the cache is full.
@@ -345,7 +351,13 @@ class TokenExchangeSource:
         return request_data
 
     def resolve(self, subject_token: str) -> str:
-        """Exchange the per-request `subject_token` for an access token (cached per subject token)."""
+        """
+        Exchange the per-request `subject_token` for an access token (cached per subject token).
+
+        :param subject_token: The controller-injected per-request subject token (for example an incoming user
+            assertion) to exchange for a downstream access token.
+        :returns: A valid bearer access token for the given `subject_token`.
+        """
         if not subject_token:
             msg = "TokenExchangeSource requires a non-empty subject_token."
             raise OAuthConfigError(msg)
@@ -431,7 +443,11 @@ class StaticTokenSource:
         self.token = token
 
     def resolve(self) -> str:
-        """Return the configured token."""
+        """
+        Return the configured token.
+
+        :returns: The configured long-lived access token.
+        """
         try:
             value = self.token.resolve_value()
         except ValueError as error:

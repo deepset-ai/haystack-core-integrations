@@ -14,7 +14,7 @@ class OAuthResolver:
     """
     Resolves an OAuth access token at pipeline runtime and emits it on the `access_token` output socket.
 
-    The resolver is a thin graph node over a pluggable token source that decides *where* the token comes from:
+    The resolver component is a thin wrapper over a pluggable token source that decides *where* the token comes from:
     a standalone OAuth refresh grant (`RefreshTokenSource`), a per-request token exchange (`TokenExchangeSource`),
     a static long-lived token (`StaticTokenSource`), or a custom source you provide. A downstream component (for
     example a SharePoint or Google Drive retriever) consumes the token via a normal connection and never knows how
