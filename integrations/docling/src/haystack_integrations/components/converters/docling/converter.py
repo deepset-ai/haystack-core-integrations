@@ -135,8 +135,8 @@ class DoclingConverter:
         self.chunker = chunker
         self.meta_extractor = meta_extractor
 
-        # Resolved instances used internally at runtime. The default HybridChunker is built in
-        # warm_up() instead of here because its construction downloads a Hugging Face tokenizer.
+        # Resolved instances used internally at runtime. The default HybridChunker is built in warm_up() instead of
+        # here because its construction downloads a Hugging Face tokenizer.
         self._converter_instance = converter or DocumentConverter()
         self._chunker_instance = chunker
         self._meta_extractor_instance = meta_extractor or MetaExtractor()
@@ -144,11 +144,9 @@ class DoclingConverter:
 
     def warm_up(self) -> None:
         """
-        Build the default `HybridChunker` for `ExportType.DOC_CHUNKS` if no `chunker` was passed at
-        init time.
+        Build the default `HybridChunker` for `ExportType.DOC_CHUNKS` if no `chunker` was passed at init time.
 
-        Deferred to warm-up time because constructing the default chunker downloads a Hugging Face
-        tokenizer.
+        Deferred to warm-up time because constructing the default chunker downloads a Hugging Face tokenizer.
         """
         if self._is_warmed_up:
             return
