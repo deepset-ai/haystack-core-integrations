@@ -61,6 +61,7 @@ on:
       - "Test / qdrant"
       - "Test / ragas"
       - "Test / searchapi"
+      - "Test / sentence_transformers"
       - "Test / serperdev"
       - "Test / snowflake"
       - "Test / spacy"

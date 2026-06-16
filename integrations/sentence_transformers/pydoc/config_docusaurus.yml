@@ -1,0 +1,19 @@
+loaders:
+  - modules:
+      - haystack_integrations.components.embedders.sentence_transformers.sentence_transformers_text_embedder
+      - haystack_integrations.components.embedders.sentence_transformers.sentence_transformers_document_embedder
+      - haystack_integrations.components.embedders.sentence_transformers.sentence_transformers_sparse_text_embedder
+      - haystack_integrations.components.embedders.sentence_transformers.sentence_transformers_sparse_document_embedder
+      - haystack_integrations.components.embedders.sentence_transformers.sentence_transformers_doc_image_embedder
+      - haystack_integrations.components.rankers.sentence_transformers.sentence_transformers_similarity
+      - haystack_integrations.components.rankers.sentence_transformers.sentence_transformers_diversity
+    search_path: [../src]
+processors:
+  - type: filter
+    documented_only: true
+    skip_empty_modules: true
+renderer:
+  description: Sentence Transformers integration for Haystack
+  id: integrations-sentence-transformers
+  filename: sentence_transformers.md
+  title: Sentence Transformers
