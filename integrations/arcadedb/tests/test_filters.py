@@ -41,7 +41,7 @@ class TestFilterConversion:
 
     def test_not_in_operator(self):
         result = _convert_filters({"field": "meta.tag", "operator": "not in", "value": ["x"]})
-        assert result == "meta.tag NOT IN ['x']"
+        assert result == "(meta.tag NOT IN ['x'] OR meta.tag IS NULL)"
 
     def test_and(self):
         result = _convert_filters(
