@@ -74,8 +74,21 @@ def test_to_dict(_mock_opensearch_client):
             "filter_policy": "replace",
             "custom_query": {"some": "custom query"},
             "raise_on_failure": True,
+            "all_terms_must_match": False,
         },
     }
+
+
+@patch("haystack_integrations.document_stores.opensearch.document_store.OpenSearch")
+def test_to_dict_and_from_dict_preserves_all_terms_must_match(_mock_opensearch_client):
+    document_store = OpenSearchDocumentStore(hosts="some fake host")
+    retriever = OpenSearchBM25Retriever(document_store=document_store, all_terms_must_match=True)
+
+    serialized = retriever.to_dict()
+    assert serialized["init_parameters"]["all_terms_must_match"] is True
+
+    restored = OpenSearchBM25Retriever.from_dict(serialized)
+    assert restored._all_terms_must_match is True
 
 
 @patch("haystack_integrations.document_stores.opensearch.document_store.OpenSearch")
