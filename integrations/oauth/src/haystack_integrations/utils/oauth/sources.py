@@ -59,7 +59,8 @@ class RefreshTokenSource:
         self,
         token_url: str,
         client_id: str,
-        refresh_token: Secret,
+        *,
+        refresh_token: Secret = Secret.from_env_var("OAUTH_REFRESH_TOKEN"),
         client_secret: Secret | None = None,
         scopes: list[str] | None = None,
         scope_delimiter: str = " ",
@@ -72,7 +73,8 @@ class RefreshTokenSource:
 
         :param token_url: The OAuth 2.0 token endpoint.
         :param client_id: The OAuth client identifier.
-        :param refresh_token: The refresh token to exchange.
+        :param refresh_token: The refresh token to exchange. Defaults to the value of the `OAUTH_REFRESH_TOKEN`
+            environment variable.
         :param client_secret: The client secret for confidential clients. Omit it for public clients.
         :param scopes: The scopes to request, joined with `scope_delimiter`.
         :param scope_delimiter: The delimiter used to join scopes. Defaults to a space (some providers use a comma).
@@ -216,6 +218,7 @@ class TokenExchangeSource:
         self,
         token_url: str,
         client_id: str,
+        *,
         client_secret: Secret | None = None,
         grant_type: str = DEFAULT_TOKEN_EXCHANGE_GRANT,
         subject_token_param: str = "subject_token",

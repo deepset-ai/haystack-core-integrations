@@ -43,7 +43,7 @@ class OAuthResolver:
     ```
     """
 
-    def __init__(self, token_source: "TokenSource | SubjectTokenSource") -> None:
+    def __init__(self, token_source: TokenSource | SubjectTokenSource) -> None:
         """
         Initialize the resolver.
 

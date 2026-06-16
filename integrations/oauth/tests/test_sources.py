@@ -111,6 +111,13 @@ class TestRefreshTokenSource:
         with pytest.raises(OAuthConfigError):
             RefreshTokenSource(token_url="", client_id="c", refresh_token=Secret.from_token("rt"))
 
+    def test_refresh_token_defaults_to_env_var(self, monkeypatch):
+        monkeypatch.setenv("OAUTH_REFRESH_TOKEN", "env-rt")
+        source = RefreshTokenSource(token_url=TOKEN_URL, client_id="client-1")
+        with patch("httpx.post", return_value=_json(access_token="acc-1", expires_in=3600)) as mock_post:
+            source.resolve()
+        assert mock_post.call_args.kwargs["data"]["refresh_token"] == "env-rt"
+
     def test_round_trip(self, monkeypatch):
         monkeypatch.setenv("MS_REFRESH_TOKEN", "rt")
         source = RefreshTokenSource(
