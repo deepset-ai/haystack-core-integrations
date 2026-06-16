@@ -281,6 +281,23 @@ class TestIncludeContent:
         # No raise; content falls back to the file name (this fixture has no description).
         assert documents[0].content == "Quarterly Roadmap"
 
+    def test_export_network_error_falls_back_to_metadata(self):
+        retriever = GoogleDriveRetriever(include_content=True)
+        list_resp = _make_response(json_body=GOOGLE_DOC_RESPONSE)
+        with patch.object(httpx.Client, "get", side_effect=[list_resp, httpx.ConnectError("boom")]):
+            documents = retriever.run(query="roadmap", access_token="tok")["documents"]
+        # A transport error during export is swallowed; content falls back to the file name.
+        assert documents[0].content == "Quarterly Roadmap"
+
+    def test_content_skipped_when_file_lacks_id_or_mime(self):
+        # A file without a mimeType cannot be exported, so no export call is made.
+        retriever = GoogleDriveRetriever(include_content=True)
+        page = _page([{"id": "x", "name": "notes"}])
+        with patch.object(httpx.Client, "get", return_value=_make_response(json_body=page)) as mock_get:
+            documents = retriever.run(query="q", access_token="tok")["documents"]
+        assert mock_get.call_count == 1
+        assert documents[0].content == "notes"
+
 
 class TestErrorHandling:
     def test_unauthorized_raises_with_status(self):
@@ -320,6 +337,29 @@ class TestErrorHandling:
         # Initial attempt + 1 retry.
         assert mock_get.call_count == 2
 
+    def test_forbidden_raises_with_status(self):
+        retriever = GoogleDriveRetriever(max_retries=0)
+        response = _make_response(status_code=403, json_body={"error": "forbidden"})
+        with patch.object(httpx.Client, "get", return_value=response):
+            with pytest.raises(GoogleDriveRequestError) as exc_info:
+                retriever.run(query="q", access_token="tok")
+        assert exc_info.value.status_code == 403
+
+
+class TestRetryDelay:
+    def test_uses_numeric_retry_after(self):
+        response = _make_response(status_code=429, headers={"Retry-After": "5"})
+        assert GoogleDriveRetriever._retry_delay(response, 1) == 5.0
+
+    def test_falls_back_when_retry_after_missing(self):
+        response = _make_response(status_code=429)
+        # Exponential backoff: 2 ** (attempt - 1).
+        assert GoogleDriveRetriever._retry_delay(response, 3) == 4.0
+
+    def test_falls_back_when_retry_after_not_numeric(self):
+        response = _make_response(status_code=429, headers={"Retry-After": "soon"})
+        assert GoogleDriveRetriever._retry_delay(response, 1) == 1.0
+
 
 class TestPipeline:
     def test_runs_in_pipeline(self):
@@ -346,6 +386,15 @@ class TestRunAsync:
         assert len(documents) == 1
         assert documents[0].meta["file_name"] == "Contoso Detailed Design.docx"
 
+    async def test_respects_top_k_when_more_available(self):
+        retriever = GoogleDriveRetriever(top_k=2)
+        page = _make_response(json_body=_page([_file("a", "A"), _file("b", "B")], next_token="more"))
+        get = AsyncMock(return_value=page)
+        with patch.object(httpx.AsyncClient, "get", get):
+            documents = (await retriever.run_async(query="q", access_token="tok"))["documents"]
+        assert len(documents) == 2
+        assert get.await_count == 1
+
     async def test_retries_on_throttling_then_succeeds(self):
         retriever = GoogleDriveRetriever(max_retries=2)
         get = AsyncMock(
@@ -365,6 +414,65 @@ class TestRunAsync:
         with patch.object(httpx.AsyncClient, "get", get):
             with pytest.raises(GoogleDriveRequestError):
                 await retriever.run_async(query="q", access_token="bad")
+
+
+@pytest.mark.asyncio
+class TestIncludeContentAsync:
+    async def test_exports_native_google_doc(self):
+        retriever = GoogleDriveRetriever(include_content=True)
+        get = AsyncMock(
+            side_effect=[
+                _make_response(json_body=GOOGLE_DOC_RESPONSE),
+                _make_response(text_body="Exported roadmap body."),
+            ]
+        )
+        with patch.object(httpx.AsyncClient, "get", get):
+            documents = (await retriever.run_async(query="roadmap", access_token="tok"))["documents"]
+        assert documents[0].content == "Exported roadmap body."
+        assert get.await_count == 2
+        export_call = get.await_args_list[1]
+        assert export_call.args[0] == "https://www.googleapis.com/drive/v3/files/doc1/export"
+        assert export_call.kwargs["params"] == {"mimeType": "text/plain"}
+
+    async def test_binary_file_not_exported(self):
+        retriever = GoogleDriveRetriever(include_content=True)
+        get = AsyncMock(return_value=_make_response(json_body=FILES_RESPONSE))
+        with patch.object(httpx.AsyncClient, "get", get):
+            documents = (await retriever.run_async(query="contoso", access_token="tok"))["documents"]
+        assert get.await_count == 1
+        assert documents[0].content == "Contoso detailed design document."
+
+    async def test_content_skipped_when_file_lacks_id_or_mime(self):
+        retriever = GoogleDriveRetriever(include_content=True)
+        get = AsyncMock(return_value=_make_response(json_body=_page([{"id": "x", "name": "notes"}])))
+        with patch.object(httpx.AsyncClient, "get", get):
+            documents = (await retriever.run_async(query="q", access_token="tok"))["documents"]
+        assert get.await_count == 1
+        assert documents[0].content == "notes"
+
+    async def test_export_http_error_falls_back_to_metadata(self):
+        retriever = GoogleDriveRetriever(include_content=True)
+        get = AsyncMock(
+            side_effect=[
+                _make_response(json_body=GOOGLE_DOC_RESPONSE),
+                _make_response(status_code=403, json_body={"error": "export too large"}),
+            ]
+        )
+        with patch.object(httpx.AsyncClient, "get", get):
+            documents = (await retriever.run_async(query="roadmap", access_token="tok"))["documents"]
+        assert documents[0].content == "Quarterly Roadmap"
+
+    async def test_export_network_error_falls_back_to_metadata(self):
+        retriever = GoogleDriveRetriever(include_content=True)
+        get = AsyncMock(
+            side_effect=[
+                _make_response(json_body=GOOGLE_DOC_RESPONSE),
+                httpx.ConnectError("boom"),
+            ]
+        )
+        with patch.object(httpx.AsyncClient, "get", get):
+            documents = (await retriever.run_async(query="roadmap", access_token="tok"))["documents"]
+        assert documents[0].content == "Quarterly Roadmap"
 
 
 @pytest.mark.integration
