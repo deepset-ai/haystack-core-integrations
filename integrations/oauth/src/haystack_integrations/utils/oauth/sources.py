@@ -8,7 +8,7 @@ import time
 from collections import OrderedDict
 from collections.abc import Callable
 from threading import Lock
-from typing import Any
+from typing import Any, Literal
 
 import httpx
 from haystack import default_from_dict, default_to_dict, logging
@@ -62,7 +62,7 @@ class RefreshTokenSource:
     needs no persistent storage, use `TokenExchangeSource` instead. It takes no per-request input.
     """
 
-    requires_subject_token = False
+    requires_subject_token: Literal[False] = False
 
     def __init__(
         self,
@@ -230,7 +230,7 @@ class TokenExchangeSource:
     `{"requested_token_use": "on_behalf_of"}`).
     """
 
-    requires_subject_token = True
+    requires_subject_token: Literal[True] = True
 
     def __init__(
         self,
@@ -434,7 +434,7 @@ class StaticTokenSource:
     needed and the token is managed out of band. It takes no per-request input.
     """
 
-    requires_subject_token = False
+    requires_subject_token: Literal[False] = False
 
     def __init__(self, token: Secret) -> None:
         """

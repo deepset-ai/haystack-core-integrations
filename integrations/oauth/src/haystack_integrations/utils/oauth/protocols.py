@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from typing import Any, Protocol, runtime_checkable
+from typing import Any, Literal, Protocol, runtime_checkable
 
 
 @runtime_checkable
@@ -11,11 +11,11 @@ class TokenSource(Protocol):
     A token source that resolves an access token with no per-request input (a config-only source).
 
     Implemented by sources whose credential is fixed at construction time — e.g. `RefreshTokenSource` and
-    `StaticTokenSource`. Such sources set the class attribute `requires_subject_token = False` (the default the
-    resolver assumes), and `OAuthResolver` runs them as source nodes (no run input).
+    `StaticTokenSource`. Such sources set the class attribute `requires_subject_token = False`, and `OAuthResolver`
+    runs them as source nodes (no run input).
     """
 
-    requires_subject_token: bool
+    requires_subject_token: Literal[False]
 
     def resolve(self) -> str:
         """Return a valid access token."""
@@ -45,7 +45,7 @@ class SubjectTokenSource(Protocol):
     `requires_subject_token = True`, which makes `OAuthResolver` declare a mandatory `subject_token` run input.
     """
 
-    requires_subject_token: bool
+    requires_subject_token: Literal[True]
 
     def resolve(self, subject_token: str) -> str:
         """Return a valid access token for the per-request `subject_token`."""

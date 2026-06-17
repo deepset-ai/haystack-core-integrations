@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from typing import Any, cast
+from typing import Any
 
 from haystack import component, default_from_dict, default_to_dict
 
@@ -56,8 +56,7 @@ class OAuthResolver:
             msg = "token_source must implement the TokenSource or SubjectTokenSource protocol."
             raise OAuthConfigError(msg)
         self.token_source = token_source
-        self._requires_subject_token = bool(getattr(token_source, "requires_subject_token", False))
-        if self._requires_subject_token:
+        if token_source.requires_subject_token:
             # Declare a mandatory run input only when the source needs it (no default => mandatory socket),
             # so a missing per-user credential fails at Pipeline.validate_input rather than at run time.
             component.set_input_type(self, "subject_token", str)
@@ -72,10 +71,11 @@ class OAuthResolver:
             input is declared and `kwargs` is empty.
         :returns: A dictionary with a single `access_token` key containing a bearer token string.
         """
-        if self._requires_subject_token:
-            token = cast("SubjectTokenSource", self.token_source).resolve(kwargs.get("subject_token", ""))
+        source = self.token_source
+        if source.requires_subject_token:
+            token = source.resolve(kwargs.get("subject_token", ""))
         else:
-            token = cast("TokenSource", self.token_source).resolve()
+            token = source.resolve()
         return {"access_token": token}
 
     @component.output_types(access_token=str)
@@ -86,10 +86,11 @@ class OAuthResolver:
         :param kwargs: Carries `subject_token` when the configured source requires it.
         :returns: A dictionary with a single `access_token` key containing a bearer token string.
         """
-        if self._requires_subject_token:
-            token = await cast("SubjectTokenSource", self.token_source).resolve_async(kwargs.get("subject_token", ""))
+        source = self.token_source
+        if source.requires_subject_token:
+            token = await source.resolve_async(kwargs.get("subject_token", ""))
         else:
-            token = await cast("TokenSource", self.token_source).resolve_async()
+            token = await source.resolve_async()
         return {"access_token": token}
 
     def to_dict(self) -> dict[str, Any]:

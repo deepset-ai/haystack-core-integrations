@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import os
-from typing import Any
+from typing import Any, Literal
 
 import pytest
 from haystack import Pipeline
@@ -22,7 +22,7 @@ TOKEN_URL = "https://idp.example.com/oauth2/token"
 class _FakeConfigSource:
     """Config-only TokenSource: resolves with no per-request input."""
 
-    requires_subject_token = False
+    requires_subject_token: Literal[False] = False
 
     def __init__(self, token: str = "fake-token") -> None:
         self.token = token
@@ -47,7 +47,7 @@ class _FakeConfigSource:
 class _FakeExchangeSource:
     """Request-scoped SubjectTokenSource: needs a subject_token each call."""
 
-    requires_subject_token = True
+    requires_subject_token: Literal[True] = True
 
     def __init__(self, token: str = "fake-token") -> None:
         self.token = token
