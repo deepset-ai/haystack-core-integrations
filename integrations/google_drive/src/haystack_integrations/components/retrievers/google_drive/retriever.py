@@ -66,7 +66,8 @@ class GoogleDriveRetriever:
     ```python
     from haystack import Pipeline
     from haystack.utils import Secret
-    from haystack_integrations.components.connectors.oauth import OAuthResolver, RefreshTokenSource
+    from haystack_integrations.components.connectors.oauth import OAuthResolver
+    from haystack_integrations.utils.oauth import RefreshTokenSource
     from haystack_integrations.components.retrievers.google_drive import GoogleDriveRetriever
 
     pipeline = Pipeline()
@@ -119,7 +120,8 @@ class GoogleDriveRetriever:
             Defaults to a standard set covering the returned metadata.
         :param api_base_url: The Drive API base URL. Defaults to `https://www.googleapis.com/drive/v3`.
         :param timeout: The HTTP timeout in seconds for each request to the Drive API.
-        :param max_retries: The maximum number of retries for throttled (HTTP 429) or transient server errors.
+        :param max_retries: The maximum number of retries on HTTP 429 (rate limit), 500, 502, 503,
+            or 504 responses. Set to 0 to disable retries.
         :raises GoogleDriveConfigError: If `top_k` is not positive or `max_retries` is negative.
         """
         if top_k <= 0:
@@ -151,6 +153,7 @@ class GoogleDriveRetriever:
         :param top_k: Overrides the `top_k` configured at initialization for this run.
         :returns: A dictionary with a `documents` key holding the list of retrieved `Document` objects.
         :raises GoogleDriveRequestError: If the Drive API returns an error response.
+        :raises httpx.HTTPError: If a network-level error occurs (for example a timeout or connection failure).
         """
         limit = top_k or self.top_k
         documents: list[Document] = []
@@ -182,6 +185,7 @@ class GoogleDriveRetriever:
         :param top_k: Overrides the `top_k` configured at initialization for this run.
         :returns: A dictionary with a `documents` key holding the list of retrieved `Document` objects.
         :raises GoogleDriveRequestError: If the Drive API returns an error response.
+        :raises httpx.HTTPError: If a network-level error occurs (for example a timeout or connection failure).
         """
         limit = top_k or self.top_k
         documents: list[Document] = []
