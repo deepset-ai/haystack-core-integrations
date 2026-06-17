@@ -92,9 +92,6 @@ class DocumentLanguageClassifier:
             )
             raise TypeError(msg)
 
-        output: dict[str, list[Document]] = {language: [] for language in self.languages}
-        output["unmatched"] = []
-
         new_documents = []
         for document in documents:
             detected_language = self._detect_language(document)
