@@ -103,7 +103,21 @@ jobs:
           name: coverage-comment-google_drive
           path: python-coverage-comment-action-google_drive.txt
 
+      # Mint a short-lived Drive access token for the live integration test. Gated to a
+      # single OS/Python combo, and only on schedule/push where the `GOOGLE_DRIVE_SA_KEY` secret is
+      # available. On every other run the token stays unset and `TestLive` skips itself.
+      - name: Authenticate to Google Cloud
+        id: gdrive_auth
+        if: (github.event_name == 'schedule' || github.event_name == 'push') && matrix.python-version == '3.14' && runner.os == 'Linux'
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3
+        with:
+          credentials_json: ${{ secrets.GOOGLE_DRIVE_SA_KEY }}
+          token_format: access_token
+          access_token_scopes: https://www.googleapis.com/auth/drive.readonly
+
       - name: Run integration tests
+        env:
+          GOOGLE_DRIVE_ACCESS_TOKEN: ${{ steps.gdrive_auth.outputs.access_token }}
         run: hatch run test:integration-cov-append-retry
 
       - name: Store combined coverage
