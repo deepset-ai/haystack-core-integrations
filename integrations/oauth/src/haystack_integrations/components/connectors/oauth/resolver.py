@@ -5,6 +5,7 @@
 from typing import Any, cast
 
 from haystack import component, default_from_dict, default_to_dict
+from haystack.core.serialization import import_class_by_name
 
 from haystack_integrations.utils.oauth import OAuthConfigError, SubjectTokenSource, TokenSource
 
@@ -107,5 +108,11 @@ class OAuthResolver:
 
         :param data: The dictionary representation of this component.
         :returns: The deserialized component instance.
+        :raises ImportError: If the serialized `token_source` type cannot be imported.
         """
+        init_params = data.get("init_parameters", {})
+        token_source = init_params.get("token_source")
+        if token_source is not None:
+            source_class = import_class_by_name(token_source["type"])
+            init_params["token_source"] = source_class.from_dict(token_source)  # type: ignore[attr-defined]
         return default_from_dict(cls, data)

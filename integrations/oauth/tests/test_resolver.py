@@ -39,6 +39,10 @@ class _FakeConfigSource:
     def to_dict(self) -> dict[str, Any]:
         return {"type": "tests.test_resolver._FakeConfigSource", "init_parameters": {}}
 
+    @classmethod
+    def from_dict(cls, _data: dict[str, Any]) -> "_FakeConfigSource":
+        return cls()
+
 
 class _FakeExchangeSource:
     """Request-scoped SubjectTokenSource: needs a subject_token each call."""
@@ -59,6 +63,10 @@ class _FakeExchangeSource:
 
     def to_dict(self) -> dict[str, Any]:
         return {"type": "tests.test_resolver._FakeExchangeSource", "init_parameters": {}}
+
+    @classmethod
+    def from_dict(cls, _data: dict[str, Any]) -> "_FakeExchangeSource":
+        return cls()
 
 
 class TestOAuthResolverInit:

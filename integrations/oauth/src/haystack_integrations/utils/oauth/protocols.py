@@ -29,6 +29,11 @@ class TokenSource(Protocol):
         """Serialize the source to a dictionary."""
         ...
 
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "TokenSource":
+        """Deserialize the source from a dictionary."""
+        ...
+
 
 @runtime_checkable
 class SubjectTokenSource(Protocol):
@@ -52,4 +57,9 @@ class SubjectTokenSource(Protocol):
 
     def to_dict(self) -> dict[str, Any]:
         """Serialize the source to a dictionary."""
+        ...
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "SubjectTokenSource":
+        """Deserialize the source from a dictionary."""
         ...
