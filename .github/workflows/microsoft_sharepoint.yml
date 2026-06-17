@@ -23,7 +23,7 @@ defaults:
     working-directory: integrations/microsoft_sharepoint
 
 concurrency:
-  group: microsoft_sharepoint-${{ github.head_ref || github.sha }}
+  group: microsoft-sharepoint-${{ github.head_ref || github.sha }}
   cancel-in-progress: true
 
 env:
