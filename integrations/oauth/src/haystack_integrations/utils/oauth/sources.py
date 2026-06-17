@@ -88,8 +88,7 @@ class OAuthRefreshTokenSource:
             environment variable.
         :param client_secret: The client secret for confidential clients. Omit it for public clients.
         :param scopes: The OAuth scopes to request, joined with `scope_delimiter`. Scope *values* are
-            provider-specific (consult your identity provider's documentation); only the wire format is standardized
-            (RFC 6749 §3.3).
+            provider-specific (consult your identity provider's documentation).
         :param scope_delimiter: The delimiter used to join scopes. Defaults to a space (some providers use a comma).
         :param expiry_buffer_seconds: Refresh the cached access token this many seconds before its declared expiry.
         :param timeout: The timeout, in seconds, for the request to the token endpoint.
