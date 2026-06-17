@@ -62,6 +62,9 @@ class OAuthRefreshTokenSource:
     processes. In a multi-replica deployment each replica keeps its own cache, so for providers that rotate (issue
     single-use) refresh tokens the replicas can invalidate one another's token unless rotations are persisted to a
     shared store via `on_rotate` and a single owner drives the refresh.
+
+    Choose this source for a single fixed identity backed by a refresh grant. For a long-lived, non-expiring token
+    use `OAuthStaticTokenSource`; for multi-replica or multi-user backends use `OAuthTokenExchangeSource`.
     """
 
     requires_subject_token: Literal[False] = False
@@ -226,7 +229,8 @@ class OAuthTokenExchangeSource:
     This implements RFC 8693 token exchange (and, via configuration, Microsoft's on-behalf-of flow). Unlike
     `OAuthRefreshTokenSource`, it is **multi-user without any persistent storage**: the per-request `subject_token` (the
     incoming user assertion) *is* the user identity and is exchanged fresh for a downstream token. Resolved tokens
-    are cached in memory per subject token (bounded, LRU) until shortly before expiry.
+    are cached in memory per subject token (bounded, LRU) until shortly before expiry. Because no per-instance state
+    is persisted, it is also the right choice for multi-replica deployments.
 
     Provider differences are expressed as configuration: `grant_type`, `subject_token_param` (for example
     `assertion` for Microsoft), `scopes`, and `extra_token_params` (for example
