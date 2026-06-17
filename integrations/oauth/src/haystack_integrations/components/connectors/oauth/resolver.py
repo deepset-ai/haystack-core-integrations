@@ -5,7 +5,6 @@
 from typing import Any, cast
 
 from haystack import component, default_from_dict, default_to_dict
-from haystack.core.serialization import import_class_by_name, component_from_dict
 
 from haystack_integrations.utils.oauth import OAuthConfigError, SubjectTokenSource, TokenSource
 
