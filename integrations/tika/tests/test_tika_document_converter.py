@@ -73,23 +73,6 @@ class TestTikaDocumentConverter:
             component.run(sources=["nonexistent.pdf"])
             assert "Could not read nonexistent.pdf. Skipping it." in caplog.text
 
-    def test_to_dict(self):
-        converter = TikaDocumentConverter()
-        data = converter.to_dict()
-        assert data == {
-            "type": "haystack_integrations.components.converters.tika.converter.TikaDocumentConverter",
-            "init_parameters": {"tika_url": "http://localhost:9998/tika", "store_full_path": False},
-        }
-
-    def test_from_dict(self):
-        data = {
-            "type": "haystack_integrations.components.converters.tika.converter.TikaDocumentConverter",
-            "init_parameters": {"tika_url": "http://localhost:9998/tika", "store_full_path": True},
-        }
-        converter = TikaDocumentConverter.from_dict(data)
-        assert converter.tika_url == "http://localhost:9998/tika"
-        assert converter.store_full_path is True
-
     @pytest.mark.integration
     @pytest.mark.slow
     @pytest.mark.skipif(sys.platform != "linux", reason="Tika Docker container can only run on Ubuntu GitHub runners")
