@@ -13,7 +13,7 @@ from haystack.utils.auth import Secret
 from huggingface_hub.utils import RepositoryNotFoundError
 from numpy import array
 
-from haystack_integrations.components.common.huggingface_api.utils import HFEmbeddingAPIType
+from haystack_integrations.common.huggingface_api.utils import HFEmbeddingAPIType
 from haystack_integrations.components.embedders.huggingface_api import HuggingFaceAPIDocumentEmbedder
 
 

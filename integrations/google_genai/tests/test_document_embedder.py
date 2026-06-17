@@ -40,6 +40,8 @@ class TestGoogleGenAIDocumentEmbedder:
         assert embedder._meta_fields_to_embed == []
         assert embedder._embedding_separator == "\n"
         assert embedder._config is None
+        assert embedder._timeout is None
+        assert embedder._max_retries is None
 
     def test_init_with_parameters(self, monkeypatch):
         embedder = GoogleGenAIDocumentEmbedder(
@@ -52,6 +54,8 @@ class TestGoogleGenAIDocumentEmbedder:
             meta_fields_to_embed=["test_field"],
             embedding_separator=" | ",
             config={"task_type": "CLASSIFICATION"},
+            timeout=30.0,
+            max_retries=3,
         )
         assert embedder._api_key.resolve_value() == "fake-api-key-2"
         assert embedder._model == "model"
@@ -62,6 +66,8 @@ class TestGoogleGenAIDocumentEmbedder:
         assert embedder._meta_fields_to_embed == ["test_field"]
         assert embedder._embedding_separator == " | "
         assert embedder._config == {"task_type": "CLASSIFICATION"}
+        assert embedder._timeout == 30.0
+        assert embedder._max_retries == 3
 
     def test_init_fail_wo_api_key(self, monkeypatch):
         monkeypatch.delenv("GOOGLE_API_KEY", raising=False)
@@ -90,6 +96,8 @@ class TestGoogleGenAIDocumentEmbedder:
                 "api": "gemini",
                 "vertex_ai_project": None,
                 "vertex_ai_location": None,
+                "timeout": None,
+                "max_retries": None,
             },
         }
 
@@ -105,6 +113,8 @@ class TestGoogleGenAIDocumentEmbedder:
             meta_fields_to_embed=["test_field"],
             embedding_separator=" | ",
             config={"task_type": "CLASSIFICATION"},
+            timeout=30.0,
+            max_retries=3,
         )
         data = component.to_dict()
         assert data == {
@@ -124,6 +134,8 @@ class TestGoogleGenAIDocumentEmbedder:
                 "api": "gemini",
                 "vertex_ai_project": None,
                 "vertex_ai_location": None,
+                "timeout": 30.0,
+                "max_retries": 3,
             },
         }
 
@@ -145,6 +157,8 @@ class TestGoogleGenAIDocumentEmbedder:
                 "api": "gemini",
                 "vertex_ai_project": None,
                 "vertex_ai_location": None,
+                "timeout": 30.0,
+                "max_retries": 3,
             },
         }
         monkeypatch.setenv("GOOGLE_API_KEY", "fake-api-key")
@@ -161,6 +175,8 @@ class TestGoogleGenAIDocumentEmbedder:
         assert embedder._api == "gemini"
         assert embedder._vertex_ai_project is None
         assert embedder._vertex_ai_location is None
+        assert embedder._timeout == 30.0
+        assert embedder._max_retries == 3
 
     def test_prepare_texts_to_embed_w_metadata(self):
         documents = [

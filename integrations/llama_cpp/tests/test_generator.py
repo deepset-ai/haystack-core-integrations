@@ -3,9 +3,9 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import os
-import urllib.request
 from pathlib import Path
 from unittest.mock import MagicMock
+from urllib.parse import urlparse
 
 import pytest
 from haystack import Document, Pipeline
@@ -13,6 +13,7 @@ from haystack.components.builders.answer_builder import AnswerBuilder
 from haystack.components.builders.prompt_builder import PromptBuilder
 from haystack.components.retrievers.in_memory import InMemoryBM25Retriever
 from haystack.document_stores.in_memory import InMemoryDocumentStore
+from huggingface_hub import hf_hub_download
 
 from haystack_integrations.components.generators.llama_cpp import LlamaCppGenerator
 
@@ -25,14 +26,23 @@ def model_path():
 
 
 def download_file(file_link, filename, capsys):
-    # Checks if the file already exists before downloading
-    if not os.path.isfile(filename):
-        urllib.request.urlretrieve(file_link, filename)  # noqa: S310
-        with capsys.disabled():
-            print("\nModel file downloaded successfully.")
-    else:
+    # `filename` is the local destination path. `file_link` is a HuggingFace "resolve"
+    # URL; we download via huggingface_hub so the request is authenticated with the
+    # HF_TOKEN env var (avoids anonymous rate limits and supports gated repos).
+    if os.path.isfile(filename):
         with capsys.disabled():
             print("\nModel file already exists.")
+        return
+
+    # Parse https://huggingface.co/<repo_id>/resolve/<revision>/<path> into its parts.
+    repo_id, _, rest = urlparse(file_link).path.lstrip("/").partition("/resolve/")
+    revision, _, path_in_repo = rest.partition("/")
+    dest = Path(filename)
+    downloaded = Path(hf_hub_download(repo_id=repo_id, filename=path_in_repo, revision=revision, local_dir=dest.parent))
+    if downloaded != dest:
+        downloaded.rename(dest)
+    with capsys.disabled():
+        print("\nModel file downloaded successfully.")
 
 
 class TestLlamaCppGenerator:

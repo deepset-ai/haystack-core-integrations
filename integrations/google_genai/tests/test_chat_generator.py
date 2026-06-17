@@ -502,6 +502,30 @@ class TestGoogleGenAIChatGeneratorRun:
         assert len(callback_chunks) == 1
 
     @pytest.mark.asyncio
+    async def test_run_async_streaming_chunk_indices_start_at_zero(self, monkeypatch, mock_streaming_chunk):
+        monkeypatch.setenv("GOOGLE_API_KEY", "test-api-key")
+        component = GoogleGenAIChatGenerator()
+
+        chunks = [mock_streaming_chunk(text="Hello "), mock_streaming_chunk(text="world", finish_reason="STOP")]
+
+        async def mock_stream():
+            for chunk in chunks:
+                yield chunk
+
+        component._client.aio.models.generate_content_stream = AsyncMock(return_value=mock_stream())
+
+        callback_chunks = []
+
+        async def callback(c):
+            callback_chunks.append(c)
+
+        await component.run_async([ChatMessage.from_user("Hi")], streaming_callback=callback)
+
+        # Async indices must match the sync path (0-based); the first text chunk must mark the stream start
+        assert [c.index for c in callback_chunks] == [0, 1]
+        assert callback_chunks[0].start is True
+
+    @pytest.mark.asyncio
     async def test_run_async_extracts_system_message(self, monkeypatch, mock_response):
         monkeypatch.setenv("GOOGLE_API_KEY", "test-api-key")
         component = GoogleGenAIChatGenerator()

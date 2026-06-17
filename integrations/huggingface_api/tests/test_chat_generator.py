@@ -28,7 +28,7 @@ from huggingface_hub import (
 )
 from huggingface_hub.errors import RepositoryNotFoundError
 
-from haystack_integrations.components.common.huggingface_api.utils import HFGenerationAPIType
+from haystack_integrations.common.huggingface_api.utils import HFGenerationAPIType
 from haystack_integrations.components.generators.huggingface_api.chat.chat_generator import (
     HuggingFaceAPIChatGenerator,
     _convert_chat_completion_stream_output_to_streaming_chunk,

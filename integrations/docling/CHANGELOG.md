@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/docling-v1.1.0] - 2026-06-16
+
+### 🚀 Features
+
+- (docling) move construction of default hybrid chunker to `DoclingConverter.warm_up` (#3448)
+
+
 ## [integrations/docling-v1.0.0] - 2026-05-11
 
 ### 🐛 Bug Fixes

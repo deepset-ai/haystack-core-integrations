@@ -24,6 +24,8 @@ class TestGoogleGenAITextEmbedder:
         assert embedder._api == "gemini"
         assert embedder._vertex_ai_project is None
         assert embedder._vertex_ai_location is None
+        assert embedder._timeout is None
+        assert embedder._max_retries is None
 
     def test_init_with_parameters(self):
         embedder = GoogleGenAITextEmbedder(
@@ -32,12 +34,16 @@ class TestGoogleGenAITextEmbedder:
             prefix="prefix",
             suffix="suffix",
             config={"task_type": "CLASSIFICATION"},
+            timeout=30.0,
+            max_retries=3,
         )
         assert embedder._api_key.resolve_value() == "fake-api-key"
         assert embedder._model_name == "model"
         assert embedder._prefix == "prefix"
         assert embedder._suffix == "suffix"
         assert embedder._config == {"task_type": "CLASSIFICATION"}
+        assert embedder._timeout == 30.0
+        assert embedder._max_retries == 3
 
     def test_to_dict(self, monkeypatch):
         monkeypatch.setenv("GOOGLE_API_KEY", "fake-api-key")
@@ -54,6 +60,8 @@ class TestGoogleGenAITextEmbedder:
                 "api": "gemini",
                 "vertex_ai_project": None,
                 "vertex_ai_location": None,
+                "timeout": None,
+                "max_retries": None,
             },
         }
 
@@ -65,6 +73,8 @@ class TestGoogleGenAITextEmbedder:
             prefix="prefix",
             suffix="suffix",
             config={"task_type": "CLASSIFICATION"},
+            timeout=30.0,
+            max_retries=3,
         )
         data = component.to_dict()
         assert data == {
@@ -78,6 +88,8 @@ class TestGoogleGenAITextEmbedder:
                 "api": "gemini",
                 "vertex_ai_project": None,
                 "vertex_ai_location": None,
+                "timeout": 30.0,
+                "max_retries": 3,
             },
         }
 
@@ -94,6 +106,8 @@ class TestGoogleGenAITextEmbedder:
                 "api": "gemini",
                 "vertex_ai_project": None,
                 "vertex_ai_location": None,
+                "timeout": 30.0,
+                "max_retries": 3,
             },
         }
         component = GoogleGenAITextEmbedder.from_dict(data)
@@ -102,6 +116,8 @@ class TestGoogleGenAITextEmbedder:
         assert component._prefix == ""
         assert component._suffix == ""
         assert component._config == {"task_type": "CLASSIFICATION"}
+        assert component._timeout == 30.0
+        assert component._max_retries == 3
 
     def test_prepare_input(self, monkeypatch):
         monkeypatch.setenv("GOOGLE_API_KEY", "fake-api-key")

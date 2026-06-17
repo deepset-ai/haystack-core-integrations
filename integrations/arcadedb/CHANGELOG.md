@@ -1,5 +1,23 @@
 # Changelog
 
+## [integrations/arcadedb-v1.4.1] - 2026-06-16
+
+### 🐛 Bug Fixes
+
+- Make ArcadeDB include null records in NOT IN operation (#3452)
+
+
+## [integrations/arcadedb-v1.4.0] - 2026-06-09
+
+### 🐛 Bug Fixes
+
+- `ArcadeDB` does not support in-place updates, changing to: fetch, update write back docs (#3420)
+
+### 🧹 Chores
+
+- Arcadedb - use arcadedata/arcadedb:26.5.1 (#3357)
+
+
 ## [integrations/arcadedb-v1.3.0] - 2026-05-19
 
 ### 🐛 Bug Fixes

@@ -498,3 +498,121 @@ class TestArcadeDBDocumentStore(
 
         assert values == []
         assert total == 0
+
+    def test_write_documents_none_embedding_is_zero_padded(self, document_store: ArcadeDBDocumentStore):
+        """Documents written without an embedding get a zero vector of the correct dimension."""
+        dim = document_store._embedding_dimension
+        doc = Document(id="no-emb", content="no embedding")
+        document_store.write_documents([doc])
+
+        results = document_store.filter_documents({"field": "id", "operator": "==", "value": "no-emb"})
+        assert len(results) == 1
+        assert results[0].embedding == [0.0] * dim
+
+    def test_write_documents_skip_policy_inserts_new_document(self, document_store: ArcadeDBDocumentStore):
+        """SKIP policy writes a document that does not already exist."""
+        doc = Document(id="new-skip", content="new doc")
+        written = document_store.write_documents([doc], policy=DuplicatePolicy.SKIP)
+
+        assert written == 1
+        results = document_store.filter_documents({"field": "id", "operator": "==", "value": "new-skip"})
+        assert len(results) == 1
+
+    def test_write_documents_none_policy_success(self, document_store: ArcadeDBDocumentStore):
+        """NONE policy successfully inserts a document when no duplicate exists."""
+        doc = Document(id="none-policy", content="inserted with NONE")
+        written = document_store.write_documents([doc], policy=DuplicatePolicy.NONE)
+
+        assert written == 1
+        results = document_store.filter_documents({"field": "id", "operator": "==", "value": "none-policy"})
+        assert len(results) == 1
+
+    def test_write_documents_overwrite_updates_existing(self, document_store: ArcadeDBDocumentStore):
+        """OVERWRITE updates an existing document without creating a duplicate."""
+        doc = Document(id="ow-hit", content="original")
+        document_store.write_documents([doc], policy=DuplicatePolicy.OVERWRITE)
+
+        updated = Document(id="ow-hit", content="updated")
+        written = document_store.write_documents([updated], policy=DuplicatePolicy.OVERWRITE)
+
+        assert written == 1
+        assert document_store.count_documents() == 1
+        results = document_store.filter_documents({"field": "id", "operator": "==", "value": "ow-hit"})
+        assert results[0].content == "updated"
+
+    def test_get_metadata_fields_info_mixed_types_defaults_to_keyword(self, document_store: ArcadeDBDocumentStore):
+        """When the same metadata field has different types across documents, type defaults to 'keyword'."""
+        docs = [
+            Document(id="mt-1", content="doc 1", meta={"x": 1}),
+            Document(id="mt-2", content="doc 2", meta={"x": "one"}),
+        ]
+        document_store.write_documents(docs)
+
+        info = document_store.get_metadata_fields_info()
+
+        assert info["x"] == {"type": "keyword"}
+
+    def test_get_metadata_fields_info_no_content_documents(self, document_store: ArcadeDBDocumentStore):
+        """Documents with no content do not produce a 'content' entry in metadata fields info."""
+        docs = [
+            Document(id="nc-1", meta={"tag": "a"}),
+            Document(id="nc-2", meta={"tag": "b"}),
+        ]
+        document_store.write_documents(docs)
+
+        info = document_store.get_metadata_fields_info()
+
+        assert "content" not in info
+        assert "tag" in info
+
+    def test_get_metadata_fields_info_list_valued_metadata(self, document_store: ArcadeDBDocumentStore):
+        """List-valued metadata fields are recognised and their item types are inferred."""
+        docs = [
+            Document(id="lv-1", content="doc 1", meta={"tags": ["python", "haystack"]}),
+            Document(id="lv-2", content="doc 2", meta={"tags": ["arcadedb"]}),
+        ]
+        document_store.write_documents(docs)
+
+        info = document_store.get_metadata_fields_info()
+
+        assert "tags" in info
+        assert info["tags"] == {"type": "keyword"}
+
+    def test_get_metadata_fields_info_list_valued_bool(self, document_store: ArcadeDBDocumentStore):
+        """Boolean items inside list-valued metadata fields are inferred as boolean type."""
+        docs = [Document(id="lvb-1", content="doc", meta={"flags": [True, False]})]
+        document_store.write_documents(docs)
+
+        info = document_store.get_metadata_fields_info()
+
+        assert info.get("flags") == {"type": "boolean"}
+
+    def test_get_metadata_fields_info_list_valued_float(self, document_store: ArcadeDBDocumentStore):
+        """Float items inside list-valued metadata fields are inferred as double type."""
+        docs = [Document(id="lvf-1", content="doc", meta={"scores": [1.5, 2.5]})]
+        document_store.write_documents(docs)
+
+        info = document_store.get_metadata_fields_info()
+
+        assert info.get("scores") == {"type": "double"}
+
+    def test_get_metadata_fields_info_list_valued_int(self, document_store: ArcadeDBDocumentStore):
+        """Integer items inside list-valued metadata fields are inferred as long type."""
+        docs = [Document(id="lvi-1", content="doc", meta={"counts": [1, 2, 3]})]
+        document_store.write_documents(docs)
+
+        info = document_store.get_metadata_fields_info()
+
+        assert info.get("counts") == {"type": "long"}
+
+    def test_count_unique_metadata_by_filter_list_valued_field(self, document_store: ArcadeDBDocumentStore):
+        """count_unique_metadata_by_filter handles metadata fields whose values are lists."""
+        docs = [
+            Document(id="cu-1", content="doc 1", meta={"tags": ["a", "b"]}),
+            Document(id="cu-2", content="doc 2", meta={"tags": ["b", "c"]}),
+        ]
+        document_store.write_documents(docs)
+
+        counts = document_store.count_unique_metadata_by_filter({}, ["meta.tags"])
+
+        assert counts["tags"] >= 1
