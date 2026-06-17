@@ -11,6 +11,7 @@ from typing import Any
 
 import httpx
 from haystack import Document, component, default_from_dict, default_to_dict, logging
+from haystack.utils import Secret
 
 from .errors import SharePointConfigError, SharePointRequestError
 
@@ -126,17 +127,20 @@ class MSSharePointRetriever:
         self.max_retries = max_retries
 
     @component.output_types(documents=list[Document])
-    def run(self, query: str, access_token: str, top_k: int | None = None) -> dict[str, list[Document]]:
+    def run(self, query: str, access_token: str | Secret, top_k: int | None = None) -> dict[str, list[Document]]:
         """
         Search SharePoint and OneDrive and return the matching documents.
 
         :param query: The search query string. Supports KQL operators (for example `filetype:docx`).
         :param access_token: A delegated Microsoft Graph bearer token for the user whose content is searched,
-            typically wired from an upstream `OAuthResolver`.
+            typically wired from an upstream `OAuthResolver` (which emits a plain `str`). A `Secret` is also
+            accepted and resolved internally.
         :param top_k: Overrides the `top_k` configured at initialization for this run.
         :returns: A dictionary with a `documents` key holding the list of retrieved `Document` objects.
+        :raises SharePointConfigError: If `access_token` is a `Secret` that does not resolve to a string.
         :raises SharePointRequestError: If Microsoft Graph returns an error response.
         """
+        token = self._resolve_access_token(access_token)
         limit = top_k or self.top_k
         documents: list[Document] = []
         offset = 0
@@ -144,7 +148,7 @@ class MSSharePointRetriever:
             while len(documents) < limit:
                 size = min(_MAX_PAGE_SIZE, limit - len(documents))
                 request_body = self._build_request_body(query, offset, size)
-                payload = self._post(client, access_token, request_body)
+                payload = self._post(client, token, request_body)
                 container = self._first_container(payload)
                 hits = container.get("hits") or []
                 documents.extend(self._hit_to_document(hit) for hit in hits)
@@ -155,17 +159,22 @@ class MSSharePointRetriever:
         return {"documents": documents[:limit]}
 
     @component.output_types(documents=list[Document])
-    async def run_async(self, query: str, access_token: str, top_k: int | None = None) -> dict[str, list[Document]]:
+    async def run_async(
+        self, query: str, access_token: str | Secret, top_k: int | None = None
+    ) -> dict[str, list[Document]]:
         """
         Asynchronously search SharePoint and OneDrive and return the matching documents.
 
         :param query: The search query string. Supports KQL operators (for example `filetype:docx`).
         :param access_token: A delegated Microsoft Graph bearer token for the user whose content is searched,
-            typically wired from an upstream `OAuthResolver`.
+            typically wired from an upstream `OAuthResolver` (which emits a plain `str`). A `Secret` is also
+            accepted and resolved internally.
         :param top_k: Overrides the `top_k` configured at initialization for this run.
         :returns: A dictionary with a `documents` key holding the list of retrieved `Document` objects.
+        :raises SharePointConfigError: If `access_token` is a `Secret` that does not resolve to a string.
         :raises SharePointRequestError: If Microsoft Graph returns an error response.
         """
+        token = self._resolve_access_token(access_token)
         limit = top_k or self.top_k
         documents: list[Document] = []
         offset = 0
@@ -173,7 +182,7 @@ class MSSharePointRetriever:
             while len(documents) < limit:
                 size = min(_MAX_PAGE_SIZE, limit - len(documents))
                 request_body = self._build_request_body(query, offset, size)
-                payload = await self._post_async(client, access_token, request_body)
+                payload = await self._post_async(client, token, request_body)
                 container = self._first_container(payload)
                 hits = container.get("hits") or []
                 documents.extend(self._hit_to_document(hit) for hit in hits)
@@ -182,6 +191,17 @@ class MSSharePointRetriever:
                 offset += len(hits)
 
         return {"documents": documents[:limit]}
+
+    @staticmethod
+    def _resolve_access_token(access_token: str | Secret) -> str:
+        """Return the bearer token string, resolving it if a `Secret` was passed."""
+        if not isinstance(access_token, Secret):
+            return access_token
+        resolved = access_token.resolve_value()
+        if not isinstance(resolved, str):
+            msg = "The access_token Secret did not resolve to a string value."
+            raise SharePointConfigError(msg)
+        return resolved
 
     def _build_request_body(self, query: str, offset: int, size: int) -> dict[str, Any]:
         """Build the Microsoft Search `POST /search/query` request body for one page."""

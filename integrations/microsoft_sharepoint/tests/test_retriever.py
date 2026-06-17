@@ -7,6 +7,7 @@ from unittest.mock import AsyncMock, patch
 import httpx
 import pytest
 from haystack import Document, Pipeline
+from haystack.utils import Secret
 
 from haystack_integrations.components.retrievers.microsoft_sharepoint import (
     MSSharePointRetriever,
@@ -195,6 +196,19 @@ class TestRun:
             retriever.run(query="contoso", access_token="tok", top_k=3)
         assert mock_post.call_args.kwargs["json"]["requests"][0]["size"] == 3
 
+    def test_accepts_secret_access_token(self):
+        retriever = MSSharePointRetriever()
+        with patch.object(httpx.Client, "post", return_value=_make_response(json_body=EMPTY_RESPONSE)) as mock_post:
+            retriever.run(query="contoso", access_token=Secret.from_token("secret-token"))
+        assert mock_post.call_args.kwargs["headers"]["Authorization"] == "Bearer secret-token"
+
+    def test_unresolvable_secret_access_token_raises(self):
+        retriever = MSSharePointRetriever()
+        # A non-strict env var Secret resolves to None when the variable is unset.
+        unset_secret = Secret.from_env_var("MS_SHAREPOINT_UNSET_TOKEN", strict=False)
+        with pytest.raises(SharePointConfigError):
+            retriever.run(query="contoso", access_token=unset_secret)
+
     def test_no_query_template_omits_key(self):
         retriever = MSSharePointRetriever()
         with patch.object(httpx.Client, "post", return_value=_make_response(json_body=EMPTY_RESPONSE)) as mock_post:
@@ -327,6 +341,13 @@ class TestRunAsync:
         with patch.object(httpx.AsyncClient, "post", post):
             with pytest.raises(SharePointRequestError):
                 await retriever.run_async(query="q", access_token="bad")
+
+    async def test_accepts_secret_access_token(self):
+        retriever = MSSharePointRetriever()
+        post = AsyncMock(return_value=_make_response(json_body=EMPTY_RESPONSE))
+        with patch.object(httpx.AsyncClient, "post", post):
+            await retriever.run_async(query="contoso", access_token=Secret.from_token("secret-token"))
+        assert post.call_args.kwargs["headers"]["Authorization"] == "Bearer secret-token"
 
 
 @pytest.mark.integration
