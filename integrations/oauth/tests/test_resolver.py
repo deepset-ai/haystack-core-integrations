@@ -9,11 +9,11 @@ import pytest
 from haystack import Pipeline
 from haystack.utils import Secret
 
-from haystack_integrations.components.connectors.oauth import OAuthResolver
+from haystack_integrations.components.connectors.oauth import OAuthTokenResolver
 from haystack_integrations.utils.oauth import (
     OAuthConfigError,
-    RefreshTokenSource,
-    TokenExchangeSource,
+    OAuthRefreshTokenSource,
+    OAuthTokenExchangeSource,
 )
 
 TOKEN_URL = "https://idp.example.com/oauth2/token"
@@ -69,74 +69,89 @@ class _FakeExchangeSource:
         return cls()
 
 
-class TestOAuthResolverInit:
+class TestOAuthTokenResolverInit:
     def test_rejects_non_token_source(self):
         with pytest.raises(OAuthConfigError):
-            OAuthResolver(token_source=object())
+            OAuthTokenResolver(token_source=object())
 
     def test_accepts_config_source(self):
-        resolver = OAuthResolver(token_source=_FakeConfigSource())
+        resolver = OAuthTokenResolver(token_source=_FakeConfigSource())
         assert isinstance(resolver.token_source, _FakeConfigSource)
 
     def test_accepts_exchange_source(self):
-        resolver = OAuthResolver(token_source=_FakeExchangeSource())
+        resolver = OAuthTokenResolver(token_source=_FakeExchangeSource())
         assert isinstance(resolver.token_source, _FakeExchangeSource)
 
 
-class TestOAuthResolverRun:
+class TestOAuthTokenResolverRun:
     def test_config_source_delegates_with_no_input(self):
         source = _FakeConfigSource(token="resolved")
-        resolver = OAuthResolver(token_source=source)
+        resolver = OAuthTokenResolver(token_source=source)
         assert resolver.run() == {"access_token": "resolved"}
         assert source.calls == 1
 
     def test_exchange_source_forwards_subject_token(self):
         source = _FakeExchangeSource(token="resolved")
-        resolver = OAuthResolver(token_source=source)
+        resolver = OAuthTokenResolver(token_source=source)
         resolver.run(subject_token="user-jwt")
         assert source.subject_tokens == ["user-jwt"]
 
     def test_exchange_source_without_subject_token_raises(self):
-        # Direct (non-pipeline) call with no subject_token -> the source guard fires.
-        resolver = OAuthResolver(token_source=TokenExchangeSource(token_url=TOKEN_URL, client_id="c"))
+        # The resolver validates the mandatory subject_token before delegating, so a direct (non-pipeline) call
+        # with a missing or empty subject_token raises without the source ever being invoked.
+        source = _FakeExchangeSource()
+        resolver = OAuthTokenResolver(token_source=source)
         with pytest.raises(OAuthConfigError):
             resolver.run()
+        with pytest.raises(OAuthConfigError):
+            resolver.run(subject_token="")
+        assert source.subject_tokens == []  # source.resolve was never reached
+
+    @pytest.mark.asyncio
+    async def test_exchange_source_without_subject_token_raises_async(self):
+        source = _FakeExchangeSource()
+        resolver = OAuthTokenResolver(token_source=source)
+        with pytest.raises(OAuthConfigError):
+            await resolver.run_async()
+        with pytest.raises(OAuthConfigError):
+            await resolver.run_async(subject_token="")
+        assert source.subject_tokens == []
 
     @pytest.mark.asyncio
     async def test_config_source_run_async(self):
         source = _FakeConfigSource(token="resolved-async")
-        resolver = OAuthResolver(token_source=source)
+        resolver = OAuthTokenResolver(token_source=source)
         assert await resolver.run_async() == {"access_token": "resolved-async"}
 
     @pytest.mark.asyncio
     async def test_exchange_source_run_async_forwards_subject_token(self):
         source = _FakeExchangeSource(token="resolved-async")
-        resolver = OAuthResolver(token_source=source)
+        resolver = OAuthTokenResolver(token_source=source)
         await resolver.run_async(subject_token="user-jwt")
         assert source.subject_tokens == ["user-jwt"]
 
 
-class TestOAuthResolverInPipeline:
+class TestOAuthTokenResolverInPipeline:
     def test_config_resolver_is_source_node(self):
         pipe = Pipeline()
-        pipe.add_component("oauth", OAuthResolver(token_source=_FakeConfigSource(token="t")))
+        pipe.add_component("oauth", OAuthTokenResolver(token_source=_FakeConfigSource(token="t")))
         out = pipe.run({})  # no inputs needed — config-only resolver is a source node
         assert out["oauth"]["access_token"] == "t"
 
     def test_exchange_resolver_requires_subject_token_at_wire_time(self):
         pipe = Pipeline()
-        pipe.add_component("oauth", OAuthResolver(token_source=_FakeExchangeSource(token="t")))
+        pipe.add_component("oauth", OAuthTokenResolver(token_source=_FakeExchangeSource(token="t")))
         with pytest.raises(ValueError):  # missing mandatory input, caught before any component runs
             pipe.run({})
         out = pipe.run({"oauth": {"subject_token": "user-jwt"}})
         assert out["oauth"]["access_token"] == "t"
 
 
-class TestOAuthResolverSerialization:
+class TestOAuthTokenResolverSerialization:
     def test_round_trip_config_source(self, monkeypatch):
         monkeypatch.setenv("MS_REFRESH_TOKEN", "rt")
-        resolver = OAuthResolver(
-            token_source=RefreshTokenSource(
+        resolver = OAuthTokenResolver(
+            token_source=OAuthRefreshTokenSource(
                 token_url=TOKEN_URL,
                 client_id="client-1",
                 refresh_token=Secret.from_env_var("MS_REFRESH_TOKEN"),
@@ -145,17 +160,17 @@ class TestOAuthResolverSerialization:
         )
 
         data = resolver.to_dict()
-        assert data["type"] == "haystack_integrations.components.connectors.oauth.resolver.OAuthResolver"
-        assert data["init_parameters"]["token_source"]["type"].endswith("RefreshTokenSource")
+        assert data["type"] == "haystack_integrations.components.connectors.oauth.resolver.OAuthTokenResolver"
+        assert data["init_parameters"]["token_source"]["type"].endswith("OAuthRefreshTokenSource")
 
-        restored = OAuthResolver.from_dict(resolver.to_dict())
-        assert isinstance(restored.token_source, RefreshTokenSource)
+        restored = OAuthTokenResolver.from_dict(resolver.to_dict())
+        assert isinstance(restored.token_source, OAuthRefreshTokenSource)
         assert restored.to_dict() == data
 
     def test_round_trip_exchange_source_rebuilds_mandatory_socket(self):
-        resolver = OAuthResolver(token_source=TokenExchangeSource(token_url=TOKEN_URL, client_id="c"))
-        restored = OAuthResolver.from_dict(resolver.to_dict())
-        assert isinstance(restored.token_source, TokenExchangeSource)
+        resolver = OAuthTokenResolver(token_source=OAuthTokenExchangeSource(token_url=TOKEN_URL, client_id="c"))
+        restored = OAuthTokenResolver.from_dict(resolver.to_dict())
+        assert isinstance(restored.token_source, OAuthTokenExchangeSource)
 
         # The dynamic mandatory socket must survive serialization.
         pipe = Pipeline()
@@ -165,11 +180,11 @@ class TestOAuthResolverSerialization:
 
     def test_from_dict_unknown_source_type_raises(self):
         data = {
-            "type": "haystack_integrations.components.connectors.oauth.resolver.OAuthResolver",
+            "type": "haystack_integrations.components.connectors.oauth.resolver.OAuthTokenResolver",
             "init_parameters": {"token_source": {"type": "some.unknown.Source", "init_parameters": {}}},
         }
         with pytest.raises(ImportError):
-            OAuthResolver.from_dict(data)
+            OAuthTokenResolver.from_dict(data)
 
 
 _REAL_IDP_VARS = ("OAUTH_TOKEN_URL", "OAUTH_CLIENT_ID", "OAUTH_REFRESH_TOKEN")
@@ -181,8 +196,8 @@ _REAL_IDP_VARS = ("OAUTH_TOKEN_URL", "OAUTH_CLIENT_ID", "OAUTH_REFRESH_TOKEN")
     reason=f"{', '.join(_REAL_IDP_VARS)} env vars not set",
 )
 def test_run_against_real_idp():
-    resolver = OAuthResolver(
-        token_source=RefreshTokenSource(
+    resolver = OAuthTokenResolver(
+        token_source=OAuthRefreshTokenSource(
             token_url=os.environ["OAUTH_TOKEN_URL"],
             client_id=os.environ["OAUTH_CLIENT_ID"],
             refresh_token=Secret.from_env_var("OAUTH_REFRESH_TOKEN"),

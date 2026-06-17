@@ -10,9 +10,9 @@ from haystack.utils import Secret
 
 from haystack_integrations.utils.oauth import (
     OAuthConfigError,
-    RefreshTokenSource,
-    StaticTokenSource,
-    TokenExchangeSource,
+    OAuthRefreshTokenSource,
+    OAuthStaticTokenSource,
+    OAuthTokenExchangeSource,
     TokenRefreshError,
 )
 
@@ -24,7 +24,7 @@ def _json(status=200, **payload):
     return httpx.Response(status, json=payload)
 
 
-class TestRefreshTokenSource:
+class TestOAuthRefreshTokenSource:
     def _source(self, **kwargs):
         params = {
             "token_url": TOKEN_URL,
@@ -33,7 +33,7 @@ class TestRefreshTokenSource:
             "client_secret": Secret.from_token("secret-1"),
         }
         params.update(kwargs)
-        return RefreshTokenSource(**params)
+        return OAuthRefreshTokenSource(**params)
 
     def test_resolve_success_and_request_shape(self):
         source = self._source(scopes=["a", "b"])
@@ -109,11 +109,11 @@ class TestRefreshTokenSource:
 
     def test_empty_token_url_raises(self):
         with pytest.raises(OAuthConfigError):
-            RefreshTokenSource(token_url="", client_id="c", refresh_token=Secret.from_token("rt"))
+            OAuthRefreshTokenSource(token_url="", client_id="c", refresh_token=Secret.from_token("rt"))
 
     def test_refresh_token_defaults_to_env_var(self, monkeypatch):
         monkeypatch.setenv("OAUTH_REFRESH_TOKEN", "env-rt")
-        source = RefreshTokenSource(token_url=TOKEN_URL, client_id="client-1")
+        source = OAuthRefreshTokenSource(token_url=TOKEN_URL, client_id="client-1")
         with patch("httpx.post", return_value=_json(access_token="acc-1", expires_in=3600)) as mock_post:
             source.resolve()
         assert mock_post.call_args.kwargs["data"]["refresh_token"] == "env-rt"
@@ -128,15 +128,15 @@ class TestRefreshTokenSource:
 
     def test_round_trip(self, monkeypatch):
         monkeypatch.setenv("MS_REFRESH_TOKEN", "rt")
-        source = RefreshTokenSource(
+        source = OAuthRefreshTokenSource(
             token_url=TOKEN_URL,
             client_id="client-1",
             refresh_token=Secret.from_env_var("MS_REFRESH_TOKEN"),
             scopes=["a"],
         )
         data = source.to_dict()
-        assert data["type"] == f"{SOURCES_MODULE}.RefreshTokenSource"
-        restored = RefreshTokenSource.from_dict(source.to_dict())
+        assert data["type"] == f"{SOURCES_MODULE}.OAuthRefreshTokenSource"
+        restored = OAuthRefreshTokenSource.from_dict(source.to_dict())
         assert restored.to_dict() == data
 
     @pytest.mark.asyncio
@@ -149,7 +149,7 @@ class TestRefreshTokenSource:
         assert mp.call_count == 1
 
 
-class TestTokenExchangeSource:
+class TestOAuthTokenExchangeSource:
     def _source(self, **kwargs):
         params = {
             "token_url": TOKEN_URL,
@@ -157,7 +157,7 @@ class TestTokenExchangeSource:
             "client_secret": Secret.from_token("secret-1"),
         }
         params.update(kwargs)
-        return TokenExchangeSource(**params)
+        return OAuthTokenExchangeSource(**params)
 
     def test_resolve_success_and_request_shape(self):
         source = self._source(
@@ -231,7 +231,7 @@ class TestTokenExchangeSource:
                 self._source().resolve(subject_token="jwt")
 
     def test_round_trip(self):
-        source = TokenExchangeSource(
+        source = OAuthTokenExchangeSource(
             token_url=TOKEN_URL,
             client_id="client-1",
             subject_token_param="assertion",
@@ -241,10 +241,10 @@ class TestTokenExchangeSource:
             extra_token_params={"requested_token_use": "on_behalf_of"},
         )
         data = source.to_dict()
-        assert data["type"] == f"{SOURCES_MODULE}.TokenExchangeSource"
+        assert data["type"] == f"{SOURCES_MODULE}.OAuthTokenExchangeSource"
         assert data["init_parameters"]["subject_token_type"] == "urn:ietf:params:oauth:token-type:jwt"
         assert data["init_parameters"]["requested_token_type"] == "urn:ietf:params:oauth:token-type:access_token"
-        restored = TokenExchangeSource.from_dict(source.to_dict())
+        restored = OAuthTokenExchangeSource.from_dict(source.to_dict())
         assert restored.to_dict() == data
 
     @pytest.mark.asyncio
@@ -265,33 +265,33 @@ class TestTokenExchangeSource:
         assert self._source().requires_subject_token is True
 
 
-class TestStaticTokenSource:
+class TestOAuthStaticTokenSource:
     def test_resolve_returns_token(self):
-        source = StaticTokenSource(token=Secret.from_token("pat-123"))
+        source = OAuthStaticTokenSource(token=Secret.from_token("pat-123"))
         assert source.resolve() == "pat-123"
 
     def test_empty_token_raises(self, monkeypatch):
         monkeypatch.delenv("EMPTY_TOKEN", raising=False)
-        source = StaticTokenSource(token=Secret.from_env_var("EMPTY_TOKEN", strict=False))
+        source = OAuthStaticTokenSource(token=Secret.from_env_var("EMPTY_TOKEN", strict=False))
         with pytest.raises(TokenRefreshError):
             source.resolve()
 
     def test_unresolvable_strict_token_raises_token_refresh_error(self, monkeypatch):
         monkeypatch.delenv("MISSING_TOKEN", raising=False)
         # A strict EnvVarSecret would raise ValueError on resolve; it must surface as TokenRefreshError.
-        source = StaticTokenSource(token=Secret.from_env_var("MISSING_TOKEN"))
+        source = OAuthStaticTokenSource(token=Secret.from_env_var("MISSING_TOKEN"))
         with pytest.raises(TokenRefreshError):
             source.resolve()
 
     @pytest.mark.asyncio
     async def test_resolve_async_returns_token(self):
-        source = StaticTokenSource(token=Secret.from_token("pat-123"))
+        source = OAuthStaticTokenSource(token=Secret.from_token("pat-123"))
         assert await source.resolve_async() == "pat-123"
 
     def test_round_trip(self, monkeypatch):
         monkeypatch.setenv("SLACK_TOKEN", "pat-123")
-        source = StaticTokenSource(token=Secret.from_env_var("SLACK_TOKEN"))
+        source = OAuthStaticTokenSource(token=Secret.from_env_var("SLACK_TOKEN"))
         data = source.to_dict()
-        assert data["type"] == f"{SOURCES_MODULE}.StaticTokenSource"
-        restored = StaticTokenSource.from_dict(source.to_dict())
+        assert data["type"] == f"{SOURCES_MODULE}.OAuthStaticTokenSource"
+        restored = OAuthStaticTokenSource.from_dict(source.to_dict())
         assert restored.to_dict() == data

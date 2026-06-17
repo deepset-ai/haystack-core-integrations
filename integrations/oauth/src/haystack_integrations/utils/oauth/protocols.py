@@ -10,9 +10,9 @@ class TokenSource(Protocol):
     """
     A token source that resolves an access token with no per-request input (a config-only source).
 
-    Implemented by sources whose credential is fixed at construction time — e.g. `RefreshTokenSource` and
-    `StaticTokenSource`. Such sources set the class attribute `requires_subject_token = False`, and `OAuthResolver`
-    runs them as source nodes (no run input).
+    Implemented by sources whose credential is fixed at construction time — e.g. `OAuthRefreshTokenSource` and
+    `OAuthStaticTokenSource`. Such sources set the class attribute `requires_subject_token = False`, and
+    `OAuthTokenResolver` runs them as source nodes (no run input).
     """
 
     requires_subject_token: Literal[False] = False
@@ -41,8 +41,8 @@ class SubjectTokenSource(Protocol):
     A token source that resolves an access token by exchanging a per-request subject token.
 
     The `subject_token` is a controller-injected per-request credential (for example an incoming user assertion),
-    not chosen by an end user. Implemented by `TokenExchangeSource`. Such sources set the class attribute
-    `requires_subject_token = True`, which makes `OAuthResolver` declare a mandatory `subject_token` run input.
+    not chosen by an end user. Implemented by `OAuthTokenExchangeSource`. Such sources set the class attribute
+    `requires_subject_token = True`, which makes `OAuthTokenResolver` declare a mandatory `subject_token` run input.
     """
 
     requires_subject_token: Literal[True] = True

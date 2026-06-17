@@ -49,7 +49,7 @@ def _parse_token_response(response: httpx.Response) -> tuple[str, float, dict[st
     return access_token, expires_in, payload
 
 
-class RefreshTokenSource:
+class OAuthRefreshTokenSource:
     """
     Resolves access tokens by running the RFC 6749 refresh-token grant against an OAuth token endpoint.
 
@@ -58,8 +58,10 @@ class RefreshTokenSource:
     is kept for the lifetime of the process and surfaced through the optional `on_rotate` callback so it can be
     persisted.
 
-    This source is **single-identity**: one refresh token per instance. For per-user, multi-tenant resolution that
-    needs no persistent storage, use `TokenExchangeSource` instead. It takes no per-request input.
+    This source is **single-identity**: one refresh token per instance, and its in-process cache is not shared across
+    processes. In a multi-replica deployment each replica keeps its own cache, so for providers that rotate (issue
+    single-use) refresh tokens the replicas can invalidate one another's token unless rotations are persisted to a
+    shared store via `on_rotate` and a single owner drives the refresh.
     """
 
     requires_subject_token: Literal[False] = False
@@ -85,7 +87,9 @@ class RefreshTokenSource:
         :param refresh_token: The refresh token to exchange. Defaults to the value of the `OAUTH_REFRESH_TOKEN`
             environment variable.
         :param client_secret: The client secret for confidential clients. Omit it for public clients.
-        :param scopes: The scopes to request, joined with `scope_delimiter`.
+        :param scopes: The OAuth scopes to request, joined with `scope_delimiter`. Scope *values* are
+            provider-specific (consult your identity provider's documentation); only the wire format is standardized
+            (RFC 6749 §3.3).
         :param scope_delimiter: The delimiter used to join scopes. Defaults to a space (some providers use a comma).
         :param expiry_buffer_seconds: Refresh the cached access token this many seconds before its declared expiry.
         :param timeout: The timeout, in seconds, for the request to the token endpoint.
@@ -207,7 +211,7 @@ class RefreshTokenSource:
         )
 
     @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "RefreshTokenSource":
+    def from_dict(cls, data: dict[str, Any]) -> "OAuthRefreshTokenSource":
         """Deserialize the source from a dictionary."""
         init_params = data["init_parameters"]
         deserialize_secrets_inplace(init_params, keys=["refresh_token", "client_secret"])
@@ -216,12 +220,12 @@ class RefreshTokenSource:
         return default_from_dict(cls, data)
 
 
-class TokenExchangeSource:
+class OAuthTokenExchangeSource:
     """
     Resolves access tokens by exchanging a per-request subject token at an OAuth token endpoint.
 
     This implements RFC 8693 token exchange (and, via configuration, Microsoft's on-behalf-of flow). Unlike
-    `RefreshTokenSource`, it is **multi-user without any persistent storage**: the per-request `subject_token` (the
+    `OAuthRefreshTokenSource`, it is **multi-user without any persistent storage**: the per-request `subject_token` (the
     incoming user assertion) *is* the user identity and is exchanged fresh for a downstream token. Resolved tokens
     are cached in memory per subject token (bounded, LRU) until shortly before expiry.
 
@@ -265,7 +269,9 @@ class TokenExchangeSource:
             (e.g. `urn:ietf:params:oauth:token-type:access_token`); not used by Microsoft's on-behalf-of flow.
         :param requested_token_type: The RFC 8693 identifier for the token to return, sent as the
             `requested_token_type` form parameter (omitted when not set). Optional.
-        :param scopes: The scopes to request, joined with `scope_delimiter`.
+        :param scopes: The OAuth scopes to request, joined with `scope_delimiter`. Scope *values* are
+            provider-specific (consult your identity provider's documentation); only the wire format is standardized
+            (RFC 6749 §3.3).
         :param scope_delimiter: The delimiter used to join scopes. Defaults to a space.
         :param extra_token_params: Additional form parameters included verbatim in every request (for example
             `{"requested_token_use": "on_behalf_of"}`). Applied last, so any key here overrides the corresponding
@@ -360,7 +366,7 @@ class TokenExchangeSource:
         :returns: A valid bearer access token for the given `subject_token`.
         """
         if not subject_token:
-            msg = "TokenExchangeSource requires a non-empty subject_token."
+            msg = "OAuthTokenExchangeSource requires a non-empty subject_token."
             raise OAuthConfigError(msg)
         cache_key = self._cache_key(subject_token)
         with self._lock:
@@ -381,7 +387,7 @@ class TokenExchangeSource:
     async def resolve_async(self, subject_token: str) -> str:
         """Asynchronous counterpart of `resolve`."""
         if not subject_token:
-            msg = "TokenExchangeSource requires a non-empty subject_token."
+            msg = "OAuthTokenExchangeSource requires a non-empty subject_token."
             raise OAuthConfigError(msg)
         cache_key = self._cache_key(subject_token)
         with self._lock:
@@ -420,18 +426,19 @@ class TokenExchangeSource:
         )
 
     @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "TokenExchangeSource":
+    def from_dict(cls, data: dict[str, Any]) -> "OAuthTokenExchangeSource":
         """Deserialize the source from a dictionary."""
         deserialize_secrets_inplace(data["init_parameters"], keys=["client_secret"])
         return default_from_dict(cls, data)
 
 
-class StaticTokenSource:
+class OAuthStaticTokenSource:
     """
     Returns a configured long-lived access token as-is.
 
     Suitable for providers that issue non-expiring tokens (for example Slack or Notion), where no refresh flow is
-    needed and the token is managed out of band. It takes no per-request input.
+    needed and the token is managed out of band. If the provider issues short-lived tokens that must be refreshed,
+    use `OAuthRefreshTokenSource` instead. It takes no per-request input.
     """
 
     requires_subject_token: Literal[False] = False
@@ -454,10 +461,10 @@ class StaticTokenSource:
             value = self.token.resolve_value()
         except ValueError as error:
             # A strict `EnvVarSecret` raises ValueError when its env var is unset; surface it as our error type.
-            msg = "StaticTokenSource could not resolve its token."
+            msg = "OAuthStaticTokenSource could not resolve its token."
             raise TokenRefreshError(msg) from error
         if not value:
-            msg = "StaticTokenSource has no token value."
+            msg = "OAuthStaticTokenSource has no token value."
             raise TokenRefreshError(msg)
         return value
 
@@ -470,7 +477,7 @@ class StaticTokenSource:
         return default_to_dict(self, token=self.token.to_dict())
 
     @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "StaticTokenSource":
+    def from_dict(cls, data: dict[str, Any]) -> "OAuthStaticTokenSource":
         """Deserialize the source from a dictionary."""
         deserialize_secrets_inplace(data["init_parameters"], keys=["token"])
         return default_from_dict(cls, data)

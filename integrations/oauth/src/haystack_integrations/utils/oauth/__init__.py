@@ -3,15 +3,15 @@
 # SPDX-License-Identifier: Apache-2.0
 from .errors import OAuthConfigError, OAuthError, TokenRefreshError
 from .protocols import SubjectTokenSource, TokenSource
-from .sources import RefreshTokenSource, StaticTokenSource, TokenExchangeSource
+from .sources import OAuthRefreshTokenSource, OAuthStaticTokenSource, OAuthTokenExchangeSource
 
 __all__ = [
     "OAuthConfigError",
     "OAuthError",
-    "RefreshTokenSource",
-    "StaticTokenSource",
+    "OAuthRefreshTokenSource",
+    "OAuthStaticTokenSource",
+    "OAuthTokenExchangeSource",
     "SubjectTokenSource",
-    "TokenExchangeSource",
     "TokenRefreshError",
     "TokenSource",
 ]
