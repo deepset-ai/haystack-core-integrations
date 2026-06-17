@@ -15,7 +15,7 @@ class TokenSource(Protocol):
     runs them as source nodes (no run input).
     """
 
-    requires_subject_token: Literal[False]
+    requires_subject_token: Literal[False] = False
 
     def resolve(self) -> str:
         """Return a valid access token."""
@@ -45,7 +45,7 @@ class SubjectTokenSource(Protocol):
     `requires_subject_token = True`, which makes `OAuthResolver` declare a mandatory `subject_token` run input.
     """
 
-    requires_subject_token: Literal[True]
+    requires_subject_token: Literal[True] = True
 
     def resolve(self, subject_token: str) -> str:
         """Return a valid access token for the per-request `subject_token`."""
