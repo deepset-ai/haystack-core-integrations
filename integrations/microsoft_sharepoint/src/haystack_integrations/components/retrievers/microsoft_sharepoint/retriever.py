@@ -38,9 +38,9 @@ class MSSharePointRetriever:
 
     Given a query, the retriever calls `POST /search/query` and maps each hit to a Haystack `Document`
     whose `content` is the search snippet and whose `meta` carries the resource metadata (`file_name`,
-    `web_url`, `entity_type`, author, timestamps, `mime_type`, and `file_extension`). It does not
-    download or convert the underlying files. Compose a downstream fetcher/converter on the returned
-    `web_url` when full file content is needed.
+    `web_url`, `entity_type`, `created_date_time`, `last_modified_date_time`, `created_by`, `last_modified_by`,
+    `mime_type`, and `file_extension`). It does not download or convert the underlying files. Compose a
+    downstream fetcher/converter on the returned `web_url` when full file content is needed.
 
     The retriever takes a per-user `access_token` as a run input, typically wired
     from an upstream `OAuthResolver`. The token must carry delegated Microsoft Graph permissions
