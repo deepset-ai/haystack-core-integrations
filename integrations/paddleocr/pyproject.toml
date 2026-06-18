@@ -24,9 +24,7 @@ classifiers = [
 ]
 dependencies = [
   "haystack-ai>=2.22.0",
-  "paddleocr>=3.4.0",
-  "paddlex[serving]>=3.4.0",
-  "requests>=2.25.0",
+  "paddleocr>=3.7.0",
 ]
 
 [project.urls]
