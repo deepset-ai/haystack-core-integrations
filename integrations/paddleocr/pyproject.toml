@@ -23,7 +23,7 @@ classifiers = [
   "Programming Language :: Python :: Implementation :: PyPy",
 ]
 dependencies = [
-  "haystack-ai>=2.22.0",
+  "haystack-ai @ git+https://github.com/deepset-ai/haystack.git@lifecycle",
   "paddleocr>=3.4.0",
   "paddlex[serving]>=3.4.0",
   "requests>=2.25.0",
@@ -164,3 +164,6 @@ markers = [
   "integration: integration tests",
 ]
 log_cli = true
+
+[tool.hatch.metadata]
+allow-direct-references = true

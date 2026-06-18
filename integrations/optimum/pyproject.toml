@@ -27,7 +27,7 @@ classifiers = [
   "Programming Language :: Python :: Implementation :: PyPy",
 ]
 dependencies = [
-  "haystack-ai>=2.22.0",
+  "haystack-ai @ git+https://github.com/deepset-ai/haystack.git@lifecycle",
   "optimum[onnxruntime]>=1.21.0",
   # The main export function of Optimum into ONNX has hidden dependencies.
   # It depends on either "sentence-transformers", "diffusers" or "timm", based
@@ -184,3 +184,6 @@ markers = [
   "integration: integration tests",
 ]
 log_cli = true
+
+[tool.hatch.metadata]
+allow-direct-references = true

@@ -23,7 +23,7 @@ classifiers = [
   "Programming Language :: Python :: Implementation :: CPython",
   "Programming Language :: Python :: Implementation :: PyPy",
 ]
-dependencies = ["haystack-ai>=2.30.0", "transformers[torch,sentencepiece]>=4.57.0"]
+dependencies = ["haystack-ai @ git+https://github.com/deepset-ai/haystack.git@lifecycle", "transformers[torch,sentencepiece]>=4.57.0"]
 
 [project.urls]
 Documentation = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/transformers#readme"
@@ -173,3 +173,6 @@ markers = [
 ]
 log_cli = true
 asyncio_default_fixture_loop_scope = "function"
+
+[tool.hatch.metadata]
+allow-direct-references = true

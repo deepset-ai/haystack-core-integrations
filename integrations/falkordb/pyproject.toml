@@ -25,7 +25,7 @@ classifiers = [
   "Topic :: Database",
   "Topic :: Scientific/Engineering :: Artificial Intelligence",
 ]
-dependencies = ["haystack-ai>=2.26.1", "falkordb>=1.1,<2"]
+dependencies = ["haystack-ai @ git+https://github.com/deepset-ai/haystack.git@lifecycle", "falkordb>=1.1,<2"]
 
 [project.urls]
 Documentation = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/falkordb#readme"
@@ -169,3 +169,6 @@ markers = [
 ]
 log_cli = true
 asyncio_default_fixture_loop_scope = "function"
+
+[tool.hatch.metadata]
+allow-direct-references = true

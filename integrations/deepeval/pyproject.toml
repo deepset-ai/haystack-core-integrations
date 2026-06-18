@@ -23,7 +23,7 @@ classifiers = [
   "Programming Language :: Python :: Implementation :: CPython",
   "Programming Language :: Python :: Implementation :: PyPy",
 ]
-dependencies = ["haystack-ai", "deepeval>=2.9.0"]
+dependencies = ["haystack-ai @ git+https://github.com/deepset-ai/haystack.git@lifecycle", "deepeval>=2.9.0"]
 
 [project.urls]
 Source = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/deepeval"
@@ -163,3 +163,6 @@ parallel = false
 omit = ["*/tests/*", "*/__init__.py"]
 show_missing = true
 exclude_lines = ["no cov", "if __name__ == .__main__.:", "if TYPE_CHECKING:"]
+
+[tool.hatch.metadata]
+allow-direct-references = true

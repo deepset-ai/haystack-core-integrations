@@ -22,7 +22,7 @@ classifiers = [
   "Programming Language :: Python :: Implementation :: CPython",
   "Programming Language :: Python :: Implementation :: PyPy",
 ]
-dependencies = ["haystack-ai", "chonkie[all]>=1.6.4"]
+dependencies = ["haystack-ai @ git+https://github.com/deepset-ai/haystack.git@lifecycle", "chonkie[all]>=1.6.4"]
 
 [project.urls]
 Documentation = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/chonkie#readme"
@@ -162,3 +162,6 @@ markers = [
 ]
 log_cli = true
 asyncio_default_fixture_loop_scope = "function"
+
+[tool.hatch.metadata]
+allow-direct-references = true

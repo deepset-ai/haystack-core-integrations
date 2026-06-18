@@ -23,7 +23,7 @@ classifiers = [
   "Programming Language :: Python :: Implementation :: CPython",
   "Programming Language :: Python :: Implementation :: PyPy",
 ]
-dependencies = ["haystack-ai>=2.30.0", "cohere>=5.17.0", "pydantic>=2.12.0"]
+dependencies = ["haystack-ai @ git+https://github.com/deepset-ai/haystack.git@lifecycle", "cohere>=5.17.0", "pydantic>=2.12.0"]
 
 [project.urls]
 Documentation = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/cohere#readme"
@@ -169,3 +169,6 @@ markers = [
 log_cli = true
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "class"
+
+[tool.hatch.metadata]
+allow-direct-references = true

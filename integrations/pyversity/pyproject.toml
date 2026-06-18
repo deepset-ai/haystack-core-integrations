@@ -27,7 +27,7 @@ classifiers = [
   "Programming Language :: Python :: Implementation :: PyPy",
 ]
 dependencies = [
-  "haystack-ai>=2.2.0",
+  "haystack-ai @ git+https://github.com/deepset-ai/haystack.git@lifecycle",
   "pyversity>=0.2.0",
 ]
 
@@ -167,3 +167,6 @@ markers = ["integration: integration tests"]
 log_cli = true
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "class"
+
+[tool.hatch.metadata]
+allow-direct-references = true

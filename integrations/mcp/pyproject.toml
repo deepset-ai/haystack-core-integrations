@@ -30,7 +30,7 @@ classifiers = [
 ]
 dependencies = [
     "mcp>=1.8.0",
-    "haystack-ai>=2.19.0",
+    "haystack-ai @ git+https://github.com/deepset-ai/haystack.git@lifecycle",
     "exceptiongroup",  # Backport of ExceptionGroup for Python < 3.11
     "httpx"  # HTTP client library used for SSE connections
 ]
@@ -185,3 +185,6 @@ markers = [
 log_cli = true
 asyncio_default_fixture_loop_scope = "function"
  
+
+[tool.hatch.metadata]
+allow-direct-references = true

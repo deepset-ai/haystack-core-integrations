@@ -25,7 +25,7 @@ classifiers = [
 ]
 dependencies = [
   "astrapy>=1.5.2,<2.0",
-  "haystack-ai>=2.26.1",
+  "haystack-ai @ git+https://github.com/deepset-ai/haystack.git@lifecycle",
   "pydantic",
   "typing_extensions",
 ]
@@ -163,3 +163,6 @@ exclude_lines = ["no cov", "if __name__ == .__main__.:", "if TYPE_CHECKING:"]
 minversion = "6.0"
 asyncio_mode = "auto"
 markers = ["integration: integration tests"]
+
+[tool.hatch.metadata]
+allow-direct-references = true

@@ -23,7 +23,7 @@ classifiers = [
   "Programming Language :: Python :: Implementation :: CPython",
   "Programming Language :: Python :: Implementation :: PyPy",
 ]
-dependencies = ["haystack-ai>=2.30.0", "anthropic>=0.74.0"]
+dependencies = ["haystack-ai @ git+https://github.com/deepset-ai/haystack.git@lifecycle", "anthropic>=0.74.0"]
 
 [project.urls]
 Documentation = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/anthropic#readme"
@@ -167,3 +167,6 @@ asyncio_default_fixture_loop_scope = "class"
 asyncio_mode = "auto"
 log_cli = true
 markers = ["unit: unit tests", "integration: integration tests", "asyncio: mark a test as an asyncio coroutine"]
+
+[tool.hatch.metadata]
+allow-direct-references = true

@@ -24,7 +24,7 @@ classifiers = [
   "Programming Language :: Python :: Implementation :: PyPy",
 ]
 dependencies = [
-  "haystack-ai>=2.22.0",
+  "haystack-ai @ git+https://github.com/deepset-ai/haystack.git@lifecycle",
   "sqlalchemy>=2.0.36",
   "pandas>=2.2.3; python_version < '3.11'",
   "pandas>=3.0.0; python_version >= '3.11'",
@@ -162,3 +162,6 @@ parallel = false
 omit = ["*/tests/*", "*/__init__.py"]
 show_missing = true
 exclude_lines = ["no cov", "if __name__ == .__main__.:", "if TYPE_CHECKING:"]
+
+[tool.hatch.metadata]
+allow-direct-references = true

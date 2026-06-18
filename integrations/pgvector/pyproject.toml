@@ -24,7 +24,7 @@ classifiers = [
   "Programming Language :: Python :: Implementation :: PyPy",
 ]
 dependencies = [
-  "haystack-ai>=2.28.0",
+  "haystack-ai @ git+https://github.com/deepset-ai/haystack.git@lifecycle",
   "pgvector>=0.3.0",
   "psycopg[binary]"
 ]
@@ -175,3 +175,6 @@ exclude_lines = ["no cov", "if __name__ == .__main__.:", "if TYPE_CHECKING:"]
 
 [tool.pytest.ini_options]
 markers = ["integration: integration tests"]
+
+[tool.hatch.metadata]
+allow-direct-references = true

@@ -24,7 +24,7 @@ classifiers = [
   "Programming Language :: Python :: Implementation :: PyPy",
 ]
 dependencies = [
-  "haystack-ai>=2.28.0",
+  "haystack-ai @ git+https://github.com/deepset-ai/haystack.git@lifecycle",
   "elasticsearch>=8,<9",
   "aiohttp>=3.9.0" # for async support https://elasticsearch-py.readthedocs.io/en/latest/async.html#valueerror-when-initializing-asyncelasticsearch
 ]
@@ -168,3 +168,6 @@ markers = ["unit: unit tests", "integration: integration tests"]
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "class"
 
+
+[tool.hatch.metadata]
+allow-direct-references = true

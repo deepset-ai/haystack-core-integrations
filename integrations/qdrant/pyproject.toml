@@ -28,7 +28,7 @@ classifiers = [
   "Programming Language :: Python :: Implementation :: PyPy",
 ]
 dependencies = [
-  "haystack-ai>=2.29.0",
+  "haystack-ai @ git+https://github.com/deepset-ai/haystack.git@lifecycle",
   "qdrant-client>=1.12.0"
 ]
 
@@ -179,3 +179,6 @@ markers = [
   "integration: integration tests",
 ]
 log_cli = true
+
+[tool.hatch.metadata]
+allow-direct-references = true

@@ -26,7 +26,7 @@ classifiers = [
   "Programming Language :: Python :: Implementation :: CPython",
   "Programming Language :: Python :: Implementation :: PyPy",
 ]
-dependencies = ["httpx>=0.28.0", "haystack-ai>=2.22.0"]
+dependencies = ["httpx>=0.28.0", "haystack-ai @ git+https://github.com/deepset-ai/haystack.git@lifecycle"]
 
 [project.urls]
 Documentation = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/jina#readme"
@@ -161,3 +161,6 @@ exclude_lines = ["no cov", "if __name__ == .__main__.:", "if TYPE_CHECKING:"]
 [tool.pytest.ini_options]
 minversion = "6.0"
 markers = ["integration: integration tests"]
+
+[tool.hatch.metadata]
+allow-direct-references = true

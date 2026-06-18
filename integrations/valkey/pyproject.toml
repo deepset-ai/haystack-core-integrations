@@ -27,7 +27,7 @@ classifiers = [
   "Programming Language :: Python :: Implementation :: PyPy",
 ]
 dependencies = [
-    "haystack-ai>=2.28.0",
+    "haystack-ai @ git+https://github.com/deepset-ai/haystack.git@lifecycle",
     # 2.4.0 wheels are missing the glide_shared._fast_response extension, which
     # breaks `import glide_sync`. See https://github.com/valkey-io/valkey-glide/pull/6020.
     "valkey-glide>=2.2.0,!=2.4.0",
@@ -179,3 +179,6 @@ exclude_lines = ["no cov", "if __name__ == .__main__.:", "if TYPE_CHECKING:"]
 [tool.pytest.ini_options]
 minversion = "6.0"
 markers = ["integration: integration tests"]
+
+[tool.hatch.metadata]
+allow-direct-references = true

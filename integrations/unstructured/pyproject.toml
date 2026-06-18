@@ -24,7 +24,7 @@ classifiers = [
   "Programming Language :: Python :: Implementation :: PyPy",
 ]
 dependencies = [
-  "haystack-ai>=2.22.0",
+  "haystack-ai @ git+https://github.com/deepset-ai/haystack.git@lifecycle",
   "unstructured>=0.15.0",
   "unstructured-client>=0.21.0",
 ]
@@ -163,3 +163,6 @@ exclude_lines = ["no cov", "if __name__ == .__main__.:", "if TYPE_CHECKING:"]
 [tool.pytest.ini_options]
 minversion = "6.0"
 markers = ["integration: integration tests"]
+
+[tool.hatch.metadata]
+allow-direct-references = true

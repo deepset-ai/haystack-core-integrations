@@ -25,7 +25,7 @@ classifiers = [
 ]
 
 dependencies = [
-  "haystack-ai>=2.28.0",
+  "haystack-ai @ git+https://github.com/deepset-ai/haystack.git@lifecycle",
   "opensearch-py[async]>=3.0.0"
 ]
 
@@ -172,3 +172,6 @@ exclude_lines = ["no cov", "if __name__ == .__main__.:", "if TYPE_CHECKING:"]
 minversion = "6.0"
 markers = ["unit: unit tests", "integration: integration tests"]
 asyncio_mode = "auto"
+
+[tool.hatch.metadata]
+allow-direct-references = true
