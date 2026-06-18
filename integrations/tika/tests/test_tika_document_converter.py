@@ -2,7 +2,6 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-import sys
 from pathlib import Path
 from unittest.mock import patch
 
@@ -74,8 +73,7 @@ class TestTikaDocumentConverter:
             assert "Could not read nonexistent.pdf. Skipping it." in caplog.text
 
     @pytest.mark.integration
-    @pytest.mark.slow
-    def test_run_with_txt_files(self, test_files_path):
+    def test_run_with_txt_files(self, _tika_server, test_files_path):
         component = TikaDocumentConverter()
         output = component.run(sources=[test_files_path / "txt" / "doc_1.txt", test_files_path / "txt" / "doc_2.txt"])
         documents = output["documents"]
@@ -86,8 +84,7 @@ class TestTikaDocumentConverter:
         assert "This is a test line.\n123 456 789\n987 654 321" in content_1
 
     @pytest.mark.integration
-    @pytest.mark.slow
-    def test_run_with_pdf_file(self, test_files_path):
+    def test_run_with_pdf_file(self, _tika_server, test_files_path):
         component = TikaDocumentConverter()
         output = component.run(
             sources=[test_files_path / "pdf" / "sample_pdf_1.pdf", test_files_path / "pdf" / "sample_pdf_2.pdf"]
@@ -107,8 +104,7 @@ class TestTikaDocumentConverter:
         assert documents[1].content.count("\f") == 3  # 4 pages
 
     @pytest.mark.integration
-    @pytest.mark.slow
-    def test_run_with_docx_file(self, test_files_path):
+    def test_run_with_docx_file(self, _tika_server, test_files_path):
         component = TikaDocumentConverter()
         output = component.run(sources=[test_files_path / "docx" / "sample_docx.docx"])
         documents = output["documents"]
