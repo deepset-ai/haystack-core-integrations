@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-import sys
+import urllib.request
 from pathlib import Path
 from unittest.mock import patch
 
@@ -12,6 +12,17 @@ from haystack.dataclasses import ByteStream
 from haystack_integrations.components.converters.tika import TikaDocumentConverter
 
 TIKA_PARSER_PATH = "haystack_integrations.components.converters.tika.converter.tika_parser"
+
+
+def tika_available(url: str = "http://localhost:9998/tika") -> bool:
+    try:
+        urllib.request.urlopen(url, timeout=2)  # noqa: S310
+        return True
+    except Exception:
+        return False
+
+
+tika_running = pytest.mark.skipif(not tika_available(), reason="Tika server not running at localhost:9998")
 
 
 @pytest.fixture
@@ -75,7 +86,7 @@ class TestTikaDocumentConverter:
 
     @pytest.mark.integration
     @pytest.mark.slow
-    @pytest.mark.skipif(sys.platform != "linux", reason="Tika Docker container can only run on Ubuntu GitHub runners")
+    @tika_running
     def test_run_with_txt_files(self, test_files_path):
         component = TikaDocumentConverter()
         output = component.run(sources=[test_files_path / "txt" / "doc_1.txt", test_files_path / "txt" / "doc_2.txt"])
@@ -86,7 +97,7 @@ class TestTikaDocumentConverter:
 
     @pytest.mark.integration
     @pytest.mark.slow
-    @pytest.mark.skipif(sys.platform != "linux", reason="Tika Docker container can only run on Ubuntu GitHub runners")
+    @tika_running
     def test_run_with_pdf_file(self, test_files_path):
         component = TikaDocumentConverter()
         output = component.run(
@@ -108,7 +119,7 @@ class TestTikaDocumentConverter:
 
     @pytest.mark.integration
     @pytest.mark.slow
-    @pytest.mark.skipif(sys.platform != "linux", reason="Tika Docker container can only run on Ubuntu GitHub runners")
+    @tika_running
     def test_run_with_docx_file(self, test_files_path):
         component = TikaDocumentConverter()
         output = component.run(sources=[test_files_path / "docx" / "sample_docx.docx"])
