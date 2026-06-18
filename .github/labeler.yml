@@ -183,6 +183,11 @@ integration:kreuzberg:
       - any-glob-to-any-file: "integrations/kreuzberg/**/*"
       - any-glob-to-any-file: ".github/workflows/kreuzberg.yml"
 
+integration:langdetect:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/langdetect/**/*"
+      - any-glob-to-any-file: ".github/workflows/langdetect.yml"
+
 integration:langfuse:
   - changed-files:
       - any-glob-to-any-file: "integrations/langfuse/**/*"
@@ -357,6 +362,11 @@ integration:tavily:
   - changed-files:
       - any-glob-to-any-file: "integrations/tavily/**/*"
       - any-glob-to-any-file: ".github/workflows/tavily.yml"
+
+integration:tika:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/tika/**/*"
+      - any-glob-to-any-file: ".github/workflows/tika.yml"
 
 integration:togetherai:
   - changed-files:

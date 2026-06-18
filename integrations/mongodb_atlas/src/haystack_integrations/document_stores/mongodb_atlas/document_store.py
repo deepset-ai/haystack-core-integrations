@@ -245,6 +245,8 @@ class MongoDBAtlasDocumentStore:
             collection_name=self.collection_name,
             vector_search_index=self.vector_search_index,
             full_text_search_index=self.full_text_search_index,
+            embedding_field=self.embedding_field,
+            content_field=self.content_field,
         )
 
     @classmethod
