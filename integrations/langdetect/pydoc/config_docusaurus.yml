@@ -1,0 +1,14 @@
+loaders:
+  - modules:
+      - haystack_integrations.components.classifiers.langdetect.document_language_classifier
+      - haystack_integrations.components.routers.langdetect.text_language_router
+    search_path: [../src]
+processors:
+  - type: filter
+    documented_only: true
+    skip_empty_modules: true
+renderer:
+  description: Langdetect integration for Haystack
+  id: integrations-langdetect
+  filename: langdetect.md
+  title: Langdetect
