@@ -183,6 +183,11 @@ integration:kreuzberg:
       - any-glob-to-any-file: "integrations/kreuzberg/**/*"
       - any-glob-to-any-file: ".github/workflows/kreuzberg.yml"
 
+integration:langdetect:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/langdetect/**/*"
+      - any-glob-to-any-file: ".github/workflows/langdetect.yml"
+
 integration:langfuse:
   - changed-files:
       - any-glob-to-any-file: "integrations/langfuse/**/*"
