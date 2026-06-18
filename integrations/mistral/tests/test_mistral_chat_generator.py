@@ -6,7 +6,10 @@ from unittest.mock import ANY, AsyncMock, patch
 import pytest
 from haystack import Pipeline
 from haystack.components.generators.utils import print_streaming_chunk
-from haystack.components.tools import ToolInvoker
+try:
+    from haystack.components.tools import ToolInvoker  # removed in haystack v3/lifecycle (unrelated to lifecycle)
+except ModuleNotFoundError:
+    ToolInvoker = None
 from haystack.dataclasses import (
     ChatMessage,
     ChatRole,

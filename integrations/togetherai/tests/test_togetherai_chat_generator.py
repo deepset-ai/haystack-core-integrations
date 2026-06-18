@@ -7,7 +7,10 @@ import pytest
 import pytz
 from haystack import Pipeline
 from haystack.components.generators.utils import print_streaming_chunk
-from haystack.components.tools import ToolInvoker
+try:
+    from haystack.components.tools import ToolInvoker
+except (ImportError, ModuleNotFoundError):
+    ToolInvoker = None
 from haystack.dataclasses import ChatMessage, ChatRole, StreamingChunk, ToolCall
 from haystack.tools import Tool, Toolset
 from haystack.utils.auth import Secret
