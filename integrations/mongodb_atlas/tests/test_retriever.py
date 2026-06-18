@@ -97,6 +97,8 @@ class TestRetriever:
                         "collection_name": case["collection_name"],
                         "vector_search_index": "cosine_index",
                         "full_text_search_index": "full_text_index",
+                        "embedding_field": "embedding",
+                        "content_field": "content",
                     },
                 },
                 "filters": {"field": "value"},
