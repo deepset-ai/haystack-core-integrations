@@ -71,6 +71,7 @@ on:
       - "Test / stackit"
       - "Test / supabase"
       - "Test / tavily"
+      - "Test / tika"
       - "Test / togetherai"
       - "Test / transformers"
       - "Test / unstructured"

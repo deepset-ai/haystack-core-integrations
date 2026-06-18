@@ -363,6 +363,11 @@ integration:tavily:
       - any-glob-to-any-file: "integrations/tavily/**/*"
       - any-glob-to-any-file: ".github/workflows/tavily.yml"
 
+integration:tika:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/tika/**/*"
+      - any-glob-to-any-file: ".github/workflows/tika.yml"
+
 integration:togetherai:
   - changed-files:
       - any-glob-to-any-file: "integrations/togetherai/**/*"
