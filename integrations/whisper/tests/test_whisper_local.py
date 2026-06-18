@@ -178,6 +178,38 @@ class TestLocalWhisperTranscriber:
         )
         assert results == [expected]
 
+    def test_transcribe_stream_without_file_path(self):
+        # When a ByteStream has no `file_path` in its metadata, the audio bytes are written to a temporary file.
+        comp = LocalWhisperTranscriber(model="large-v2")
+        comp._model = MagicMock()
+        comp._model.transcribe.return_value = {"text": "test transcription"}
+        bs = ByteStream(data=b"fake audio bytes")
+        results = comp.transcribe(sources=[bs])
+        assert results[0].content == "test transcription"
+        audio_file = Path(results[0].meta["audio_file"])
+        assert audio_file.exists()
+        assert audio_file.read_bytes() == b"fake audio bytes"
+
+    def test_run_warms_up_model_when_not_loaded(self):
+        # `run` loads the model on first use if `warm_up` was not called explicitly.
+        with patch("haystack_integrations.components.audio.whisper.whisper_local.whisper") as mocked_whisper:
+            mocked_whisper.load_model.return_value.transcribe.return_value = {"text": "test transcription"}
+            comp = LocalWhisperTranscriber(model="tiny")
+            assert comp._model is None
+            results = comp.run(sources=[SAMPLES_PATH / "audio" / "this is the content of the document.wav"])
+            mocked_whisper.load_model.assert_called_once()
+            assert results["documents"][0].content == "test transcription"
+
+    def test_transcribe_warms_up_model_when_not_loaded(self):
+        # `transcribe` (called directly) also loads the model on first use.
+        with patch("haystack_integrations.components.audio.whisper.whisper_local.whisper") as mocked_whisper:
+            mocked_whisper.load_model.return_value.transcribe.return_value = {"text": "test transcription"}
+            comp = LocalWhisperTranscriber(model="tiny")
+            assert comp._model is None
+            results = comp.transcribe(sources=[SAMPLES_PATH / "audio" / "this is the content of the document.wav"])
+            mocked_whisper.load_model.assert_called_once()
+            assert results[0].content == "test transcription"
+
     @pytest.mark.integration
     @pytest.mark.slow
     @pytest.mark.skipif(sys.platform in ["win32", "cygwin"], reason="ffmpeg not installed on Windows CI")

@@ -59,6 +59,12 @@ class TestRemoteWhisperTranscriber:
             "temperature": "0.5",
         }
 
+    def test_init_overwrites_non_json_response_format(self, monkeypatch):
+        monkeypatch.setenv("OPENAI_API_KEY", "test_api_key")
+        # Only `response_format="json"` is supported; any other value is overwritten.
+        transcriber = RemoteWhisperTranscriber(response_format="text")
+        assert transcriber.whisper_params["response_format"] == "json"
+
     def test_to_dict_default_parameters(self, monkeypatch):
         monkeypatch.setenv("OPENAI_API_KEY", "test_api_key")
         transcriber = RemoteWhisperTranscriber()
@@ -169,6 +175,41 @@ class TestRemoteWhisperTranscriber:
 
         with pytest.raises(ValueError, match=r"None of the .* environment variables are set"):
             RemoteWhisperTranscriber.from_dict(data)
+
+    def test_run_with_path(self, monkeypatch, test_files_path):
+        monkeypatch.setenv("OPENAI_API_KEY", "test_api_key")
+        transcriber = RemoteWhisperTranscriber()
+
+        mock_client = Mock()
+        mock_client.audio.transcriptions.create = Mock(return_value=Mock(text="this is the content of the document."))
+        transcriber.client = mock_client
+
+        audio_path = str(test_files_path / "audio" / "this is the content of the document.wav")
+        output = transcriber.run(sources=[audio_path])
+
+        docs = output["documents"]
+        assert len(docs) == 1
+        assert docs[0].content == "this is the content of the document."
+        assert docs[0].meta["file_path"] == audio_path
+        mock_client.audio.transcriptions.create.assert_called_once()
+
+    def test_run_with_bytestream(self, monkeypatch):
+        monkeypatch.setenv("OPENAI_API_KEY", "test_api_key")
+        transcriber = RemoteWhisperTranscriber()
+
+        mock_client = Mock()
+        mock_client.audio.transcriptions.create = Mock(return_value=Mock(text="answer."))
+        transcriber.client = mock_client
+
+        source = ByteStream(data=b"fake audio bytes")
+        source.meta["file_path"] = "answer.wav"
+        output = transcriber.run(sources=[source])
+
+        docs = output["documents"]
+        assert len(docs) == 1
+        assert docs[0].content == "answer."
+        assert docs[0].meta["file_path"] == "answer.wav"
+        mock_client.audio.transcriptions.create.assert_called_once()
 
     @pytest.mark.skipif(
         not os.environ.get("OPENAI_API_KEY", None),
