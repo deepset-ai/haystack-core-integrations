@@ -2,6 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+import sys
 from pathlib import Path
 from unittest.mock import patch
 
@@ -79,8 +80,10 @@ class TestTikaDocumentConverter:
         output = component.run(sources=[test_files_path / "txt" / "doc_1.txt", test_files_path / "txt" / "doc_2.txt"])
         documents = output["documents"]
         assert len(documents) == 2
-        assert "Some text for testing.\nTwo lines in here." in documents[0].content
-        assert "This is a test line.\n123 456 789\n987 654 321" in documents[1].content
+        content_0 = documents[0].content.replace("\r\n", "\n")
+        content_1 = documents[1].content.replace("\r\n", "\n")
+        assert "Some text for testing.\nTwo lines in here." in content_0
+        assert "This is a test line.\n123 456 789\n987 654 321" in content_1
 
     @pytest.mark.integration
     @pytest.mark.slow

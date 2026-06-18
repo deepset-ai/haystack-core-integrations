@@ -160,7 +160,6 @@ exclude_lines = ["no cov", "if __name__ == .__main__.:", "if TYPE_CHECKING:"]
 addopts = "--strict-markers"
 markers = [
   "integration: integration tests",
-  "slow: slow integration tests requiring a running Tika server",
 ]
 log_cli = true
 asyncio_default_fixture_loop_scope = "function"
