@@ -428,3 +428,7 @@ topic:DX:
 topic:security:
   - changed-files:
       - any-glob-to-any-file: ["SECURITY.md"]
+integration:whisper:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/whisper/**/*"
+      - any-glob-to-any-file: ".github/workflows/whisper.yml"
