@@ -24,7 +24,7 @@ classifiers = [
   "Programming Language :: Python :: Implementation :: PyPy",
 ]
 # mistralai 2.4.6 is excluded because of security issue https://github.com/mistralai/client-python/security/advisories/GHSA-wx9m-wx4f-4cmg
-dependencies = ["haystack-ai @ git+https://github.com/deepset-ai/haystack.git@lifecycle", "mistralai>=2.0.0,!=2.4.6"]
+dependencies = ["haystack-ai>=2.30.0", "mistralai>=2.0.0,!=2.4.6"]
 
 [project.urls]
 Documentation = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/mistral#readme"
@@ -166,6 +166,3 @@ markers = [
   "integration: integration tests",
 ]
 log_cli = true
-
-[tool.hatch.metadata]
-allow-direct-references = true

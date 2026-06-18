@@ -24,7 +24,7 @@ classifiers = [
   "Programming Language :: Python :: Implementation :: PyPy",
 ]
 dependencies = [
-  "haystack-ai @ git+https://github.com/deepset-ai/haystack.git@lifecycle",
+  "haystack-ai>=2.28.0",
   "pymongo[srv]>=4.13.0"
 ]
 
@@ -170,6 +170,3 @@ markers = [
   "integration: integration tests",
 ]
 asyncio_mode = "auto"
-
-[tool.hatch.metadata]
-allow-direct-references = true

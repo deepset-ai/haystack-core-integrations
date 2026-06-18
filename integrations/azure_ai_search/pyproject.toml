@@ -24,7 +24,7 @@ classifiers = [
   "Programming Language :: Python :: Implementation :: PyPy",
 ]
 dependencies = [
-  "haystack-ai @ git+https://github.com/deepset-ai/haystack.git@lifecycle",
+  "haystack-ai>=2.26.1",
   "azure-search-documents>=12.0.0",
   "azure-identity"
 ]
@@ -169,6 +169,3 @@ exclude_lines = ["no cov", "if __name__ == .__main__.:", "if TYPE_CHECKING:"]
 minversion = "6.0"
 markers = ["integration: integration tests"]
 pythonpath = ["src"]
-
-[tool.hatch.metadata]
-allow-direct-references = true

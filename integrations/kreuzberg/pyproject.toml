@@ -34,7 +34,7 @@ classifiers = [
     "Programming Language :: Python :: Implementation :: CPython",
 ]
 dependencies = [
-    "haystack-ai @ git+https://github.com/deepset-ai/haystack.git@lifecycle",
+    "haystack-ai>=2.22.0",
     "kreuzberg>=4.4.6,<=4.7.4", # 4.7.4 is the last version with MIT license
 ]
 
@@ -168,6 +168,3 @@ relative_files = true
 omit = ["*/tests/*", "*/__init__.py"]
 show_missing = true
 exclude_lines = ["no cov", "if __name__ == .__main__.:", "if TYPE_CHECKING:"]
-
-[tool.hatch.metadata]
-allow-direct-references = true

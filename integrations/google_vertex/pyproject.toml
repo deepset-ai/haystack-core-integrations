@@ -23,7 +23,7 @@ classifiers = [
   "Programming Language :: Python :: Implementation :: CPython",
   "Programming Language :: Python :: Implementation :: PyPy",
 ]
-dependencies = ["haystack-ai @ git+https://github.com/deepset-ai/haystack.git@lifecycle", "google-cloud-aiplatform>=1.61"]
+dependencies = ["haystack-ai>=2.11.0", "google-cloud-aiplatform>=1.61"]
 
 [project.urls]
 Documentation = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/google_vertex#readme"
@@ -170,6 +170,3 @@ markers = [
   "generators: generators tests",
 ]
 log_cli = true
-
-[tool.hatch.metadata]
-allow-direct-references = true

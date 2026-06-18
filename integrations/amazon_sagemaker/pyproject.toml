@@ -26,7 +26,7 @@ classifiers = [
   "Programming Language :: Python :: Implementation :: CPython",
   "Programming Language :: Python :: Implementation :: PyPy",
 ]
-dependencies = ["haystack-ai @ git+https://github.com/deepset-ai/haystack.git@lifecycle", "boto3>=1.28.57"]
+dependencies = ["haystack-ai>=2.22.0", "boto3>=1.28.57"]
 
 [project.urls]
 Documentation = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/amazon_sagemaker_haystack#readme"
@@ -162,6 +162,3 @@ markers = [
   "integration: integration tests",
 ]
 log_cli = true
-
-[tool.hatch.metadata]
-allow-direct-references = true

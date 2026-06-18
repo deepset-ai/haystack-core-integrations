@@ -27,7 +27,7 @@ classifiers = [
   "Programming Language :: Python :: Implementation :: PyPy",
 ]
 dependencies = [
-  "haystack-ai @ git+https://github.com/deepset-ai/haystack.git@lifecycle",
+  "haystack-ai>=2.28.0",
   "pgvector>=0.3.0",
   "psycopg[binary]",
   "google-cloud-alloydb-connector[psycopg]>=1.0.0",
@@ -184,6 +184,3 @@ markers = [
   "unit: unit tests (no live service required)",
   "integration: integration tests (require a live AlloyDB instance)",
 ]
-
-[tool.hatch.metadata]
-allow-direct-references = true

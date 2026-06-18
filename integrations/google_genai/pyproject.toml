@@ -26,7 +26,7 @@ classifiers = [
   "Programming Language :: Python :: Implementation :: CPython",
   "Programming Language :: Python :: Implementation :: PyPy",
 ]
-dependencies = ["haystack-ai @ git+https://github.com/deepset-ai/haystack.git@lifecycle", "google-genai[aiohttp]>=1.56.0", "jsonref>=1.0.0"]
+dependencies = ["haystack-ai>=2.30.0", "google-genai[aiohttp]>=1.56.0", "jsonref>=1.0.0"]
 
 [project.urls]
 Documentation = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/google_genai#readme"
@@ -181,6 +181,3 @@ markers = [
 ]
 log_cli = true
 asyncio_mode = "auto" 
-
-[tool.hatch.metadata]
-allow-direct-references = true
