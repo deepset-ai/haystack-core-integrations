@@ -204,6 +204,63 @@ class TestAmazonBedrockTextEmbedder:
 
             assert result == {"embedding": [0.1, 0.2, 0.3]}
 
+    def test_titan_v2_invocation_with_dimensions_and_normalize(self, mock_boto3_session):
+        embedder = AmazonBedrockTextEmbedder(
+            model="amazon.titan-embed-text-v2:0",
+            dimensions=512,
+            normalize=False,
+        )
+
+        with patch.object(embedder._client, "invoke_model") as mock_invoke_model:
+            mock_invoke_model.return_value = {
+                "body": io.StringIO('{"embedding": [0.1, 0.2, 0.3]}'),
+            }
+            embedder.run(text="some text")
+
+            mock_invoke_model.assert_called_once_with(
+                body='{"inputText": "some text", "dimensions": 512, "normalize": false}',
+                modelId="amazon.titan-embed-text-v2:0",
+                accept="*/*",
+                contentType="application/json",
+            )
+
+    def test_titan_v2_invocation_without_extra_params(self, mock_boto3_session):
+        embedder = AmazonBedrockTextEmbedder(model="amazon.titan-embed-text-v2:0")
+
+        with patch.object(embedder._client, "invoke_model") as mock_invoke_model:
+            mock_invoke_model.return_value = {
+                "body": io.StringIO('{"embedding": [0.1, 0.2, 0.3]}'),
+            }
+            embedder.run(text="some text")
+
+            mock_invoke_model.assert_called_once_with(
+                body='{"inputText": "some text"}',
+                modelId="amazon.titan-embed-text-v2:0",
+                accept="*/*",
+                contentType="application/json",
+            )
+
+    def test_titan_v1_ignores_dimensions_and_normalize(self, mock_boto3_session):
+        # Titan G1 (v1) does not support `dimensions`/`normalize`, so they must not be sent.
+        embedder = AmazonBedrockTextEmbedder(
+            model="amazon.titan-embed-text-v1",
+            dimensions=512,
+            normalize=False,
+        )
+
+        with patch.object(embedder._client, "invoke_model") as mock_invoke_model:
+            mock_invoke_model.return_value = {
+                "body": io.StringIO('{"embedding": [0.1, 0.2, 0.3]}'),
+            }
+            embedder.run(text="some text")
+
+            mock_invoke_model.assert_called_once_with(
+                body='{"inputText": "some text"}',
+                modelId="amazon.titan-embed-text-v1",
+                accept="*/*",
+                contentType="application/json",
+            )
+
     def test_run_invocation_error(self, mock_boto3_session):
         embedder = AmazonBedrockTextEmbedder(model="cohere.embed-english-v3")
 

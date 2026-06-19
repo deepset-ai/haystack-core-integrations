@@ -82,7 +82,7 @@ class AmazonBedrockTextEmbedder:
             Can be used to tune [retry behavior](https://docs.aws.amazon.com/boto3/latest/guide/retries.html)
             and other low-level settings like timeouts and connection management.
         :param kwargs: Additional parameters to pass for model inference. For example, `input_type` and `truncate` for
-            Cohere models.
+            Cohere models, or `dimensions` and `normalize` for Amazon Titan Text Embeddings V2.
         :raises ValueError: If the model is not supported.
         :raises AmazonBedrockConfigurationError: If the AWS environment is not configured correctly.
         """
@@ -151,6 +151,12 @@ class AmazonBedrockTextEmbedder:
             body = {
                 "inputText": text,
             }
+            if "v2" in self.model:
+                # `dimensions` and `normalize` are only supported by Amazon Titan Text Embeddings V2
+                if (dimensions := self.kwargs.get("dimensions")) is not None:
+                    body["dimensions"] = dimensions
+                if (normalize := self.kwargs.get("normalize")) is not None:
+                    body["normalize"] = normalize
 
         try:
             response = self._client.invoke_model(
