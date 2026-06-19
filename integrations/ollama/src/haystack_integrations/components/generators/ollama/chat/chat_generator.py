@@ -341,6 +341,7 @@ class OllamaChatGenerator:
             streaming_callback=callback_name,
             tools=serialize_tools_or_toolset(self.tools),
             response_format=self.response_format,
+            think=self.think,
         )
 
     @classmethod

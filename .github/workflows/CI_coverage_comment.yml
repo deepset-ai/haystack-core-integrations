@@ -81,6 +81,7 @@ on:
       - "Test / watsonx"
       - "Test / weave"
       - "Test / weaviate"
+      - "Test / whisper"
     types: [completed]
 
 jobs:
