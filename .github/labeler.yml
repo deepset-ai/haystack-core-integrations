@@ -263,6 +263,11 @@ integration:ollama:
       - any-glob-to-any-file: "integrations/ollama/**/*"
       - any-glob-to-any-file: ".github/workflows/ollama.yml"
 
+integration:openapi:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/openapi/**/*"
+      - any-glob-to-any-file: ".github/workflows/openapi.yml"
+
 integration:openrouter:
   - changed-files:
       - any-glob-to-any-file: "integrations/openrouter/**/*"
