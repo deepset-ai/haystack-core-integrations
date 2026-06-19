@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/arcadedb-v1.4.1] - 2026-06-16
+
+### 🐛 Bug Fixes
+
+- Make ArcadeDB include null records in NOT IN operation (#3452)
+
+
 ## [integrations/arcadedb-v1.4.0] - 2026-06-09
 
 ### 🐛 Bug Fixes

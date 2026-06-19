@@ -84,6 +84,11 @@ integration:cometapi:
       - any-glob-to-any-file: "integrations/cometapi/**/*"
       - any-glob-to-any-file: ".github/workflows/cometapi.yml"
 
+integration:datadog:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/datadog/**/*"
+      - any-glob-to-any-file: ".github/workflows/datadog.yml"
+
 integration:deepeval:
   - changed-files:
       - any-glob-to-any-file: "integrations/deepeval/**/*"
@@ -178,6 +183,11 @@ integration:kreuzberg:
       - any-glob-to-any-file: "integrations/kreuzberg/**/*"
       - any-glob-to-any-file: ".github/workflows/kreuzberg.yml"
 
+integration:langdetect:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/langdetect/**/*"
+      - any-glob-to-any-file: ".github/workflows/langdetect.yml"
+
 integration:langfuse:
   - changed-files:
       - any-glob-to-any-file: "integrations/langfuse/**/*"
@@ -243,6 +253,11 @@ integration:nvidia:
       - any-glob-to-any-file: "integrations/nvidia/**/*"
       - any-glob-to-any-file: ".github/workflows/nvidia.yml"
 
+integration:oauth:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/oauth/**/*"
+      - any-glob-to-any-file: ".github/workflows/oauth.yml"
+
 integration:ollama:
   - changed-files:
       - any-glob-to-any-file: "integrations/ollama/**/*"
@@ -303,6 +318,16 @@ integration:ragas:
       - any-glob-to-any-file: "integrations/ragas/**/*"
       - any-glob-to-any-file: ".github/workflows/ragas.yml"
 
+integration:searchapi:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/searchapi/**/*"
+      - any-glob-to-any-file: ".github/workflows/searchapi.yml"
+
+integration:sentence-transformers:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/sentence_transformers/**/*"
+      - any-glob-to-any-file: ".github/workflows/sentence_transformers.yml"
+
 integration:serperdev:
   - changed-files:
       - any-glob-to-any-file: "integrations/serperdev/**/*"
@@ -337,6 +362,11 @@ integration:tavily:
   - changed-files:
       - any-glob-to-any-file: "integrations/tavily/**/*"
       - any-glob-to-any-file: ".github/workflows/tavily.yml"
+
+integration:tika:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/tika/**/*"
+      - any-glob-to-any-file: ".github/workflows/tika.yml"
 
 integration:togetherai:
   - changed-files:
