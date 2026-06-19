@@ -30,7 +30,6 @@ env:
   PYTHONUNBUFFERED: "1"
   FORCE_COLOR: "1"
   OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-  SERPERDEV_API_KEY: ${{ secrets.SERPERDEV_API_KEY }}
   TEST_MATRIX_OS: '["ubuntu-latest", "windows-latest", "macos-latest"]'
   TEST_MATRIX_PYTHON: '["3.10", "3.14"]'
 

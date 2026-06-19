@@ -23,7 +23,7 @@ classifiers = [
   "Programming Language :: Python :: Implementation :: CPython",
   "Programming Language :: Python :: Implementation :: PyPy",
 ]
-dependencies = ["haystack-ai", "openapi-llm>=0.4.1", "openapi3", "jsonref", "requests"]
+dependencies = ["haystack-ai>=2.23.0", "openapi-llm>=0.4.1", "openapi3>=1.8.2"]
 
 [project.urls]
 Documentation = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/openapi#readme"

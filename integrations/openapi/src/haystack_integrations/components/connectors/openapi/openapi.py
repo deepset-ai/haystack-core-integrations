@@ -5,11 +5,8 @@
 from typing import Any
 
 from haystack import component, default_from_dict, default_to_dict
-from haystack.lazy_imports import LazyImport
 from haystack.utils import Secret
-
-with LazyImport("Run 'pip install openapi-llm'") as openapi_llm_imports:
-    from openapi_llm.client.openapi import OpenAPIClient
+from openapi_llm.client.openapi import OpenAPIClient
 
 
 @component
@@ -24,7 +21,6 @@ class OpenAPIConnector:
     pass input arguments to this component.
 
     Example:
-    <!-- test-ignore -->
     ```python
     from haystack.utils import Secret
     from haystack_integrations.components.connectors.openapi import OpenAPIConnector
@@ -61,7 +57,6 @@ class OpenAPIConnector:
         :param service_kwargs: Additional keyword arguments passed to OpenAPIClient.from_spec()
             For example, you can pass a custom config_factory or other configuration options.
         """
-        openapi_llm_imports.check()
         self.openapi_spec = openapi_spec
         self.credentials = credentials
         self.service_kwargs = service_kwargs or {}

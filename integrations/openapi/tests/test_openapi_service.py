@@ -7,12 +7,10 @@ import os
 from typing import Any
 from unittest.mock import MagicMock, Mock, patch
 
-import httpx
 import pytest
 from haystack import Pipeline
 from haystack.components.converters.output_adapter import OutputAdapter
 from haystack.components.generators.chat.openai import OpenAIChatGenerator
-from haystack.components.generators.utils import print_streaming_chunk
 from haystack.dataclasses import ChatMessage, ToolCall
 from haystack.dataclasses.byte_stream import ByteStream
 from openapi3 import OpenAPI
@@ -231,7 +229,6 @@ class TestOpenAPIServiceConnector:
         new_pipeline = Pipeline.loads(pipeline_yaml)
         assert new_pipeline == pipeline
 
-    @pytest.mark.skipif(not os.getenv("SERPERDEV_API_KEY"), reason="SERPERDEV_API_KEY is not set")
     @pytest.mark.skipif(not os.getenv("OPENAI_API_KEY"), reason="OPENAI_API_KEY is not set")
     @pytest.mark.integration
     def test_run_live(self):
@@ -241,6 +238,64 @@ class TestOpenAPIServiceConnector:
                 "tools": [{"type": "function", "function": openai_functions_schema}],
                 "tool_choice": {"type": "function", "function": {"name": openai_functions_schema["name"]}},
             }
+
+        # Open-Meteo is a free, keyless weather API, so this e2e test needs no service credentials.
+        open_meteo_spec = {
+            "openapi": "3.0.0",
+            "info": {"title": "Open-Meteo Historical Weather API", "version": "1.0.0"},
+            "servers": [{"url": "https://archive-api.open-meteo.com"}],
+            "paths": {
+                "/v1/archive": {
+                    "get": {
+                        "operationId": "get_archive",
+                        "description": "Get historical daily weather data for a location and date range.",
+                        "parameters": [
+                            {
+                                "name": "latitude",
+                                "in": "query",
+                                "required": True,
+                                "description": "Latitude of the location",
+                                "schema": {"type": "number"},
+                            },
+                            {
+                                "name": "longitude",
+                                "in": "query",
+                                "required": True,
+                                "description": "Longitude of the location",
+                                "schema": {"type": "number"},
+                            },
+                            {
+                                "name": "start_date",
+                                "in": "query",
+                                "required": True,
+                                "description": "Start date in YYYY-MM-DD format",
+                                "schema": {"type": "string"},
+                            },
+                            {
+                                "name": "end_date",
+                                "in": "query",
+                                "required": True,
+                                "description": "End date in YYYY-MM-DD format",
+                                "schema": {"type": "string"},
+                            },
+                            {
+                                "name": "daily",
+                                "in": "query",
+                                "required": True,
+                                "description": "Comma-separated daily weather variables, e.g. temperature_2m_max",
+                                "schema": {"type": "string"},
+                            },
+                        ],
+                        "responses": {
+                            "200": {
+                                "description": "Historical weather data",
+                                "content": {"application/json": {"schema": {"type": "object"}}},
+                            }
+                        },
+                    }
+                }
+            },
+        }
 
         pipe = Pipeline()
         pipe.add_component("spec_to_functions", OpenAPIServiceToFunctions())
@@ -256,7 +311,7 @@ class TestOpenAPIServiceConnector:
             "final_prompt_adapter",
             OutputAdapter("{{system_message + service_response}}", list[ChatMessage], unsafe=True),
         )
-        pipe.add_component("llm", OpenAIChatGenerator(model="gpt-4.1-nano", streaming_callback=print_streaming_chunk))
+        pipe.add_component("llm", OpenAIChatGenerator(model="gpt-4.1-nano"))
 
         pipe.connect("spec_to_functions.functions", "prepare_fc_adapter.functions")
         pipe.connect("spec_to_functions.openapi_specs", "openapi_spec_adapter.specs")
@@ -266,24 +321,28 @@ class TestOpenAPIServiceConnector:
         pipe.connect("openapi_container.service_response", "final_prompt_adapter.service_response")
         pipe.connect("final_prompt_adapter", "llm.messages")
 
-        serperdev_spec = httpx.get(
-            "https://gist.githubusercontent.com/vblagoje/241a000f2a77c76be6efba71d49e2856/raw/722ccc7fe6170a744afce3e3fb3a30fdd095c184/serper.json",
-            follow_redirects=True,
-        ).json()
-        system_prompt = httpx.get("https://bit.ly/serper_dev_system", follow_redirects=True).text
-
-        query = "Why did Elon Musk sue OpenAI?"
+        system_prompt = "You are a helpful assistant. Use the provided weather data to answer the user's question."
+        query = (
+            "What was the daily maximum temperature (temperature_2m_max) in Berlin "
+            "(latitude 52.52, longitude 13.41) from 2024-01-01 to 2024-01-07?"
+        )
 
         result = pipe.run(
             data={
                 "functions_llm": {
                     "messages": [ChatMessage.from_system("Only do tool/function calling"), ChatMessage.from_user(query)]
                 },
-                "openapi_container": {"service_credentials": os.getenv("SERPERDEV_API_KEY")},
-                "spec_to_functions": {"sources": [ByteStream.from_string(json.dumps(serperdev_spec))]},
+                "spec_to_functions": {"sources": [ByteStream.from_string(json.dumps(open_meteo_spec))]},
                 "final_prompt_adapter": {"system_message": [ChatMessage.from_system(system_prompt)]},
-            }
+            },
+            include_outputs_from={"openapi_container"},
         )
+
+        # the final LLM produced an answer
         assert isinstance(result["llm"]["replies"][0], ChatMessage)
-        assert "Elon" in result["llm"]["replies"][0].text
-        assert "OpenAI" in result["llm"]["replies"][0].text
+        assert result["llm"]["replies"][0].text
+
+        # the OpenAPIServiceConnector actually invoked Open-Meteo with the LLM-extracted parameters
+        weather_data = json.loads(result["openapi_container"]["service_response"][0].text)
+        assert weather_data["latitude"] == pytest.approx(52.52, abs=0.5)
+        assert weather_data["longitude"] == pytest.approx(13.41, abs=0.5)

@@ -7,15 +7,12 @@ import os
 from pathlib import Path
 from typing import Any
 
+import jsonref
 import yaml
 from haystack import component, logging
 from haystack.dataclasses.byte_stream import ByteStream
-from haystack.lazy_imports import LazyImport
 
 logger = logging.getLogger(__name__)
-
-with LazyImport("Run 'pip install jsonref'") as openapi_imports:
-    import jsonref
 
 
 @component
@@ -53,7 +50,6 @@ class OpenAPIServiceToFunctions:
         """
         Create an OpenAPIServiceToFunctions component.
         """
-        openapi_imports.check()
 
     @component.output_types(functions=list[dict[str, Any]], openapi_specs=list[dict[str, Any]])
     def run(self, sources: list[str | Path | ByteStream]) -> dict[str, Any]:

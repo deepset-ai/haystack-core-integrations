@@ -7,140 +7,139 @@ from collections import defaultdict
 from copy import copy
 from typing import Any
 
+import requests
 from haystack import component, default_from_dict, default_to_dict
 from haystack.dataclasses import ChatMessage, ChatRole
-from haystack.lazy_imports import LazyImport
+from openapi3 import OpenAPI
+from openapi3.errors import UnexpectedResponseError
+from openapi3.paths import Operation
 
-with LazyImport("Run 'pip install openapi3'") as openapi_imports:
-    import requests
-    from openapi3 import OpenAPI
-    from openapi3.errors import UnexpectedResponseError
-    from openapi3.paths import Operation
 
-    # Patch the request method to add support for the proper raw_response handling
-    # If you see that https://github.com/Dorthu/openapi3/pull/124/
-    # is merged, we can remove this patch - notify authors of this code
-    def patch_request(
-        self: "Operation",
-        base_url: str,
-        *,
-        data: Any | None = None,
-        parameters: dict[str, Any] | None = None,
-        raw_response: bool = False,
-        security: dict[str, str] | None = None,
-        session: Any | None = None,
-        verify: bool | str = True,
-    ) -> Any | None:
-        """
-        Sends an HTTP request as described by this path.
+# Patch the request method to add support for the proper raw_response handling
+# If you see that https://github.com/Dorthu/openapi3/pull/124/
+# is merged, we can remove this patch - notify authors of this code
+def patch_request(
+    self: "Operation",
+    base_url: str,
+    *,
+    data: Any | None = None,
+    parameters: dict[str, Any] | None = None,
+    raw_response: bool = False,
+    security: dict[str, str] | None = None,
+    session: Any | None = None,
+    verify: bool | str = True,
+) -> Any | None:
+    """
+    Sends an HTTP request as described by this path.
 
-        :param base_url: The URL to append this operation's path to when making
-                         the call.
-        :param data: The request body to send.
-        :param parameters: The parameters used to create the path.
-        :param raw_response: If true, return the raw response instead of validating
-                             and extrapolating it.
-        :param security: The security scheme to use, and the values it needs to
-                         process successfully.
-        :param session: A persistent request session.
-        :param verify: If we should do an SSL verification on the request or not.
-                       In case str was provided, will use that as the CA.
-        :return: The response data, either raw or processed depending on raw_response flag.
-        """
-        # Set request method (e.g. 'GET')
-        self._request = requests.Request(self.path[-1])
+    :param base_url: The URL to append this operation's path to when making
+                     the call.
+    :param data: The request body to send.
+    :param parameters: The parameters used to create the path.
+    :param raw_response: If true, return the raw response instead of validating
+                         and extrapolating it.
+    :param security: The security scheme to use, and the values it needs to
+                     process successfully.
+    :param session: A persistent request session.
+    :param verify: If we should do an SSL verification on the request or not.
+                   In case str was provided, will use that as the CA.
+    :return: The response data, either raw or processed depending on raw_response flag.
+    """
+    # Set request method (e.g. 'GET')
+    self._request = requests.Request(self.path[-1])
 
-        # Set self._request.url to base_url w/ path
-        self._request.url = base_url + self.path[-2]
+    # Set self._request.url to base_url w/ path
+    self._request.url = base_url + self.path[-2]
 
-        parameters = parameters or {}
-        security = security or {}
+    parameters = parameters or {}
+    security = security or {}
 
-        if security and self.security:
+    if security and self.security:
+        security_requirement = None
+        for scheme, value in security.items():
             security_requirement = None
-            for scheme, value in security.items():
-                security_requirement = None
-                for r in self.security:
-                    if r.name == scheme:
-                        security_requirement = r
-                        self._request_handle_secschemes(r, value)
+            for r in self.security:
+                if r.name == scheme:
+                    security_requirement = r
+                    self._request_handle_secschemes(r, value)
 
-            if security_requirement is None:
-                err_msg = """No security requirement satisfied (accepts {}) \
-                          """.format(", ".join(self.security.keys()))
-                raise ValueError(err_msg)
+        if security_requirement is None:
+            err_msg = """No security requirement satisfied (accepts {}) \
+                      """.format(", ".join(self.security.keys()))
+            raise ValueError(err_msg)
 
-        if self.requestBody:
-            if self.requestBody.required and data is None:
-                err_msg = "Request Body is required but none was provided."
-                raise ValueError(err_msg)
+    if self.requestBody:
+        if self.requestBody.required and data is None:
+            err_msg = "Request Body is required but none was provided."
+            raise ValueError(err_msg)
 
-            self._request_handle_body(data)
+        self._request_handle_body(data)
 
-        self._request_handle_parameters(parameters)
+    self._request_handle_parameters(parameters)
 
-        if session is None:
-            session = self._session
+    if session is None:
+        session = self._session
 
-        # send the prepared request
-        result = session.send(self._request.prepare(), verify=verify)
+    # send the prepared request
+    result = session.send(self._request.prepare(), verify=verify)
 
-        # spec enforces these are strings
-        status_code = str(result.status_code)
+    # spec enforces these are strings
+    status_code = str(result.status_code)
 
-        # find the response model in spec we received
-        expected_response = None
-        if status_code in self.responses:
-            expected_response = self.responses[status_code]
-        elif "default" in self.responses:
-            expected_response = self.responses["default"]
+    # find the response model in spec we received
+    expected_response = None
+    if status_code in self.responses:
+        expected_response = self.responses[status_code]
+    elif "default" in self.responses:
+        expected_response = self.responses["default"]
 
-        if expected_response is None:
-            raise UnexpectedResponseError(result, self)
+    if expected_response is None:
+        raise UnexpectedResponseError(result, self)
 
-        # if we got back a valid response code (or there was a default) and no
-        # response content was expected, return None
-        if expected_response.content is None:
-            return None
+    # if we got back a valid response code (or there was a default) and no
+    # response content was expected, return None
+    if expected_response.content is None:
+        return None
 
-        content_type = result.headers["Content-Type"]
-        if ";" in content_type:
-            # if the content type that came in included an encoding, we'll ignore
-            # it for now (requests has already parsed it for us) and only look at
-            # the MIME type when determining if an expected content type was returned.
-            content_type = content_type.split(";")[0].strip()
+    content_type = result.headers["Content-Type"]
+    if ";" in content_type:
+        # if the content type that came in included an encoding, we'll ignore
+        # it for now (requests has already parsed it for us) and only look at
+        # the MIME type when determining if an expected content type was returned.
+        content_type = content_type.split(";")[0].strip()
 
-        expected_media = expected_response.content.get(content_type, None)
+    expected_media = expected_response.content.get(content_type, None)
 
-        # If raw_response is True, return the raw text or json based on content type
-        if raw_response:
-            if "application/json" in content_type:
-                return result.json()
-            return result.text
+    # If raw_response is True, return the raw text or json based on content type
+    if raw_response:
+        if "application/json" in content_type:
+            return result.json()
+        return result.text
 
-        if expected_media is None and "/" in content_type:
-            # accept media type ranges in the spec. the most specific matching
-            # type should always be chosen, but if we do not have a match here
-            # a generic range should be accepted if one if provided
-            # https://github.com/OAI/OpenAPI-Specification/blob/master/versions/3.0.1.md#response-object
+    if expected_media is None and "/" in content_type:
+        # accept media type ranges in the spec. the most specific matching
+        # type should always be chosen, but if we do not have a match here
+        # a generic range should be accepted if one if provided
+        # https://github.com/OAI/OpenAPI-Specification/blob/master/versions/3.0.1.md#response-object
 
-            generic_type = content_type.split("/")[0] + "/*"
-            expected_media = expected_response.content.get(generic_type, None)
+        generic_type = content_type.split("/")[0] + "/*"
+        expected_media = expected_response.content.get(generic_type, None)
 
-        if expected_media is None:
-            err_msg = """Unexpected Content-Type {} returned for operation {} \
-                         (expected one of {})"""
-            err_var = result.headers["Content-Type"], self.operationId, ",".join(expected_response.content.keys())
+    if expected_media is None:
+        err_msg = """Unexpected Content-Type {} returned for operation {} \
+                     (expected one of {})"""
+        err_var = result.headers["Content-Type"], self.operationId, ",".join(expected_response.content.keys())
 
-            raise RuntimeError(err_msg.format(*err_var))
+        raise RuntimeError(err_msg.format(*err_var))
 
-        if content_type.lower() == "application/json":
-            return expected_media.schema.model(result.json())
+    if content_type.lower() == "application/json":
+        return expected_media.schema.model(result.json())
 
-        raise NotImplementedError("Only application/json content type is supported")
+    raise NotImplementedError("Only application/json content type is supported")
 
-    # Apply the patch
-    Operation.request = patch_request
+
+# Apply the patch
+Operation.request = patch_request
 
 
 @component
@@ -171,7 +170,6 @@ class OpenAPIServiceConnector:
     variable in the code.
 
     Usage example:
-    <!-- test-ignore -->
     ```python
     import json
     import httpx
@@ -211,7 +209,6 @@ class OpenAPIServiceConnector:
         :param ssl_verify: Decide if to use SSL verification to the requests or not,
         in case a string is passed, will be used as the CA.
         """
-        openapi_imports.check()
         self.ssl_verify = ssl_verify
 
     @component.output_types(service_response=dict[str, Any])
