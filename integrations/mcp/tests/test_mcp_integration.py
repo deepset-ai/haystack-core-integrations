@@ -34,12 +34,6 @@ class TestMCPToolInPipelineWithOpenAI:
     """Integration tests for MCPTool in Haystack pipelines with external dependencies."""
 
     @pytest.mark.skipif(not os.environ.get("OPENAI_API_KEY"), reason="OPENAI_API_KEY not set")
-    @pytest.mark.skipif(
-        sys.platform == "win32",
-        reason="The locally spawned SSE server subprocess is not reachable from the SSE client on the Windows "
-        "runner (httpx.ConnectError: 'All connection attempts failed'), so the connection fails before the "
-        "server accepts requests. This is a limitation of the subprocess/SSE test setup on Windows, not of MCPTool.",
-    )
     def test_mcp_tool_with_http_server(self):
         """Test using an MCPTool with a real HTTP server."""
 
@@ -80,13 +74,30 @@ if __name__ == "__main__":
 
         server_process = None
         try:
-            # Start the server in a separate process
+            # Start the server in a separate process. Use sys.executable rather than a bare "python"
+            # so we launch the exact interpreter running the tests (more reliable across platforms/venvs).
             server_process = subprocess.Popen(
-                ["python", server_script_path], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
+                [sys.executable, server_script_path], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
             )
 
-            # Give the server a moment to start
-            time.sleep(2)
+            # Wait until the server is actually accepting connections instead of sleeping a fixed amount.
+            # A fixed sleep races with server startup on slow runners and surfaces as "connection refused".
+            deadline = time.time() + 30
+            while True:
+                if server_process.poll() is not None:
+                    # Server exited before it became ready - surface its output so the failure is diagnosable.
+                    stderr = server_process.stderr.read() if server_process.stderr else ""
+                    message = f"MCP server process exited early (code {server_process.returncode}):\n{stderr}"
+                    raise RuntimeError(message)
+                try:
+                    with socket.create_connection(("127.0.0.1", port), timeout=1):
+                        break
+                except OSError as e:
+                    if time.time() > deadline:
+                        message = f"MCP server did not start listening on port {port} within 30s"
+                        raise TimeoutError(message) from e
+                    time.sleep(0.2)
+
             # Create an MCPTool that connects to the HTTP server
             server_info = SSEServerInfo(base_url=f"http://127.0.0.1:{port}")
 
