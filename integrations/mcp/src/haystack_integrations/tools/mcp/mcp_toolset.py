@@ -42,11 +42,11 @@ logger = logging.getLogger(__name__)
 
 def _serialize_outputs_to_state(config: dict[str, dict[str, Any]] | None) -> dict[str, dict[str, Any]] | None:
     """
-    Serialize a per-tool ``outputs_to_state`` mapping (tool_name -> {state_key -> {source, handler}}).
+    Serialize a per-tool `outputs_to_state` mapping (tool_name -> {state_key -> {source, handler}}).
 
     Callable handlers are converted to their string representation via Haystack's serialization helper.
 
-    :param config: The per-tool ``outputs_to_state`` mapping to serialize
+    :param config: The per-tool `outputs_to_state` mapping to serialize
     :returns: The serialized mapping, or None if empty
     """
     if not config:
@@ -59,11 +59,11 @@ def _serialize_outputs_to_state(config: dict[str, dict[str, Any]] | None) -> dic
 
 def _serialize_outputs_to_string(config: dict[str, dict[str, Any]] | None) -> dict[str, dict[str, Any]] | None:
     """
-    Serialize a per-tool ``outputs_to_string`` mapping (tool_name -> {source?, handler?}).
+    Serialize a per-tool `outputs_to_string` mapping (tool_name -> {source?, handler?}).
 
     Callable handlers are converted to their string representation via Haystack's serialization helper.
 
-    :param config: The per-tool ``outputs_to_string`` mapping to serialize
+    :param config: The per-tool `outputs_to_string` mapping to serialize
     :returns: The serialized mapping, or None if empty
     """
     if not config:
@@ -76,9 +76,9 @@ def _serialize_outputs_to_string(config: dict[str, dict[str, Any]] | None) -> di
 
 def _deserialize_outputs_to_state(config: dict[str, dict[str, Any]] | None) -> dict[str, dict[str, Any]]:
     """
-    Deserialize a per-tool ``outputs_to_state`` mapping, restoring string handlers back to callables.
+    Deserialize a per-tool `outputs_to_state` mapping, restoring string handlers back to callables.
 
-    :param config: The per-tool ``outputs_to_state`` mapping to deserialize
+    :param config: The per-tool `outputs_to_state` mapping to deserialize
     :returns: The deserialized mapping
     """
     if not config:
@@ -88,9 +88,9 @@ def _deserialize_outputs_to_state(config: dict[str, dict[str, Any]] | None) -> d
 
 def _deserialize_outputs_to_string(config: dict[str, dict[str, Any]] | None) -> dict[str, dict[str, Any]]:
     """
-    Deserialize a per-tool ``outputs_to_string`` mapping, restoring string handlers back to callables.
+    Deserialize a per-tool `outputs_to_string` mapping, restoring string handlers back to callables.
 
-    :param config: The per-tool ``outputs_to_string`` mapping to deserialize
+    :param config: The per-tool `outputs_to_string` mapping to deserialize
     :returns: The deserialized mapping
     """
     if not config:
@@ -263,7 +263,7 @@ class MCPToolset(Toolset):
         """
         Connect and load tools when eager_connect is turned off.
 
-        This method is automatically called by ``Agent.warm_up()`` and ``Pipeline.warm_up()``.
+        This method is automatically called by `Agent.warm_up()` and `Pipeline.warm_up()`.
         You can also call it directly before using the toolset to ensure all tool schemas
         are available without performing a real invocation.
         """

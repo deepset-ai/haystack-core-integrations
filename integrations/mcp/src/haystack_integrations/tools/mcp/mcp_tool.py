@@ -151,7 +151,7 @@ class AsyncExecutor:
 
         :param coro_factory: A callable receiving the stop_event and returning the coroutine to execute.
         :param timeout: Optional timeout while waiting for the stop_event to be created.
-        :returns: Tuple ``(future, stop_event)``.
+        :returns: Tuple `(future, stop_event)`.
         """
         # A promise that will be fulfilled from inside the coroutine_with_stop_event coroutine once the
         # stop_event is created *inside* the target event loop to ensure it is bound to the
