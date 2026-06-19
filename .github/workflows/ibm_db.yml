@@ -1,25 +1,29 @@
 # This workflow comes from https://github.com/ofek/hatch-mypyc
 # https://github.com/ofek/hatch-mypyc/blob/5a198c0ba8660494d02716cfc9d79ce4adfb1442/.github/workflows/test.yml
-name: Test / ibm-db2
+name: Test / ibm_db
 
 on:
   schedule:
     - cron: "0 0 * * *"
   pull_request:
     paths:
-      - "integrations/ibm/**"
-      - "!integrations/ibm/*.md"
-      - ".github/workflows/ibm.yml"
+      - "integrations/ibm_db/**"
+      - "!integrations/ibm_db/*.md"
+      - ".github/workflows/ibm_db.yml"
   push:
     branches:
       - main
     paths:
-      - "integrations/ibm/**"
-      - "!integrations/ibm/*.md"
-      - ".github/workflows/ibm.yml"
+      - "integrations/ibm_db/**"
+      - "!integrations/ibm_db/*.md"
+      - ".github/workflows/ibm_db.yml"
+
+defaults:
+  run:
+    working-directory: integrations/ibm_db
 
 concurrency:
-  group: ibm-${{ github.head_ref || github.sha }}
+  group: ibm_db-${{ github.head_ref || github.sha }}
   cancel-in-progress: true
 
 env:
@@ -27,10 +31,6 @@ env:
   FORCE_COLOR: "1"
   TEST_MATRIX_OS: '["ubuntu-latest"]'
   TEST_MATRIX_PYTHON: '["3.10", "3.14"]'
-
-defaults:
-  run:
-    working-directory: integrations/ibm
 
 jobs:
   compute-test-matrix:
@@ -61,6 +61,11 @@ jobs:
         python-version: ${{ fromJSON(needs.compute-test-matrix.outputs.python-version) }}
 
     steps:
+      - name: Support longpaths
+        if: matrix.os == 'windows-latest'
+        working-directory: .
+        run: git config --system core.longpaths true
+
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
 
       - name: Set up Python ${{ matrix.python-version }}
@@ -72,23 +77,51 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install hatch --uploaded-prior-to=P1D
-
+          
       - name: Lint
         if: matrix.python-version == '3.10' && runner.os == 'Linux'
         run: hatch run fmt-check && hatch run test:types
 
-      - name: Run unit tests
-        run: hatch run test:unit-cov-retry
+      - name: Start DB2 container
+        # DB2 takes time to initialize. --wait blocks until the healthcheck
+        # passes before proceeding to tests.
+        run: docker compose up -d --wait
+        timeout-minutes: 15
+        
+      # - name: Run unit tests
+      #   run: hatch run test:unit-cov-retry
+
+      # # On PR: posts coverage comment (directly on same-repo PRs; via artifact for fork PRs). On push to main: stores coverage baseline on data branch.
+      # - name: Store unit tests coverage
+      #   id: coverage_comment
+      #   if: matrix.python-version == '3.10' && runner.os == 'Linux' && github.event_name != 'schedule'
+      #   uses: py-cov-action/python-coverage-comment-action@63f52f4fbbffada6e8dee8ec432de7e01df9ba79 # v3.41
+      #   with:
+      #     GITHUB_TOKEN: ${{ github.token }}
+      #     COVERAGE_PATH: integrations/ibm_db
+      #     SUBPROJECT_ID: ibm_db
+      #     MINIMUM_GREEN: 90
+      #     MINIMUM_ORANGE: 60
+
+      # - name: Upload coverage comment to be posted
+      #   if: matrix.python-version == '3.10' && runner.os == 'Linux' && github.event_name == 'pull_request' && steps.coverage_comment.outputs.COMMENT_FILE_WRITTEN == 'true'
+      #   uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      #   with:
+      #     name: coverage-comment-ibm_db
+      #     path: python-coverage-comment-action-ibm_db.txt
+
+      - name: Run integration tests
+        run: hatch run test:integration-cov-append-retry
 
       # On PR: posts coverage comment (directly on same-repo PRs; via artifact for fork PRs). On push to main: stores coverage baseline on data branch.
-      - name: Store unit tests coverage
+      - name: Store integration tests coverage
         id: coverage_comment
         if: matrix.python-version == '3.10' && runner.os == 'Linux' && github.event_name != 'schedule'
         uses: py-cov-action/python-coverage-comment-action@63f52f4fbbffada6e8dee8ec432de7e01df9ba79 # v3.41
         with:
           GITHUB_TOKEN: ${{ github.token }}
-          COVERAGE_PATH: integrations/ibm
-          SUBPROJECT_ID: ibm
+          COVERAGE_PATH: integrations/ibm_db
+          SUBPROJECT_ID: ibm_db
           MINIMUM_GREEN: 90
           MINIMUM_ORANGE: 60
 
@@ -96,22 +129,47 @@ jobs:
         if: matrix.python-version == '3.10' && runner.os == 'Linux' && github.event_name == 'pull_request' && steps.coverage_comment.outputs.COMMENT_FILE_WRITTEN == 'true'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: coverage-comment-ibm
-          path: python-coverage-comment-action-ibm.txt
+          name: coverage-comment-ibm_db
+          path: python-coverage-comment-action-ibm_db.txt
 
-      - name: Run unit tests with lowest direct dependencies
+
+      - name: Store combined coverage
+        if: github.event_name == 'push'
+        uses: py-cov-action/python-coverage-comment-action@63f52f4fbbffada6e8dee8ec432de7e01df9ba79 # v3.41
+        with:
+          GITHUB_TOKEN: ${{ github.token }}
+          COVERAGE_PATH: integrations/ibm_db
+          SUBPROJECT_ID: ibm_db-combined
+          MINIMUM_GREEN: 90
+          MINIMUM_ORANGE: 60
+
+      # - name: Run unit tests with lowest direct dependencies
+      #   if: github.event_name != 'push'
+      #   run: |
+      #     hatch run uv pip compile pyproject.toml --resolution lowest-direct --output-file requirements_lowest_direct.txt
+      #     hatch -e test env run -- uv pip install -r requirements_lowest_direct.txt
+      #     hatch run test:unit
+
+      # - name: Nightly - run unit tests with Haystack main branch
+      #   if: github.event_name == 'schedule'
+      #   run: |
+      #     hatch env prune
+      #     hatch -e test env run -- uv pip install git+https://github.com/deepset-ai/haystack.git@main
+      #     hatch run test:unit
+      
+      - name: Run integration tests with lowest direct dependencies
         if: github.event_name != 'push'
         run: |
           hatch run uv pip compile pyproject.toml --resolution lowest-direct --output-file requirements_lowest_direct.txt
           hatch -e test env run -- uv pip install -r requirements_lowest_direct.txt
-          hatch run test:unit
+          hatch run test:integration
 
-      - name: Nightly - run unit tests with Haystack main branch
+      - name: Nightly - run integration tests with Haystack main branch
         if: github.event_name == 'schedule'
         run: |
           hatch env prune
           hatch -e test env run -- uv pip install git+https://github.com/deepset-ai/haystack.git@main
-          hatch run test:unit
+          hatch run test:integration 
 
   notify-slack-on-failure:
     needs: run

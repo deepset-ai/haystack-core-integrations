@@ -1,0 +1,34 @@
+services:
+  db2:
+    image: icr.io/db2_community/db2:latest
+    platform: linux/amd64
+
+    privileged: true
+
+    environment:
+      LICENSE: accept
+      DB2INST1_PASSWORD: Passw0rd123!
+      DBNAME: testdb
+      ARCHIVE_LOGS: "false"
+
+    ports:
+      - "50000:50000"
+
+    volumes:
+      - db2data:/database
+
+    shm_size: "1g"
+
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "su - db2inst1 -c 'db2 connect to testdb >/dev/null 2>&1 || (db2 \"UPDATE DB CFG FOR testdb USING LOGARCHMETH1 OFF\" && db2 restart && db2 connect to testdb)'"
+        ]
+      interval: 60s
+      timeout: 60s
+      retries: 30
+      start_period: 900s
+
+volumes:
+  db2data:

@@ -34,6 +34,7 @@ on:
       - "Test / google-genai"
       - "Test / hanlp"
       - "Test / huggingface_api"
+      - "Test / ibm_db"
       - "Test / jina"
       - "Test / kreuzberg"
       - "Test / langdetect"

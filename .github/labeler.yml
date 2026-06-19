@@ -173,10 +173,15 @@ integration:huggingface-api:
       - any-glob-to-any-file: "integrations/huggingface_api/**/*"
       - any-glob-to-any-file: ".github/workflows/huggingface_api.yml"
 
-integration:ibm-db2:
+integration:ibm-db:
   - changed-files:
       - any-glob-to-any-file: "integrations/ibm/**/*"
-      - any-glob-to-any-file: ".github/workflows/ibm.yml"
+      - any-glob-to-any-file: ".github/workflows/ibm_db.yml"
+
+integration:ibm-db:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/ibm_db/**/*"
+      - any-glob-to-any-file: ".github/workflows/ibm_db.yml"
 
 integration:jina:
   - changed-files:
