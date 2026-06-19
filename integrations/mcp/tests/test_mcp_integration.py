@@ -1,5 +1,6 @@
 import json
 import os
+import shutil
 import socket
 import subprocess
 import sys
@@ -15,7 +16,6 @@ from haystack.dataclasses import ChatMessage, ChatRole
 
 from haystack_integrations.tools.mcp import (
     MCPConnectionError,
-    MCPError,
     MCPTool,
     MCPToolset,
     SSEServerInfo,
@@ -34,6 +34,12 @@ class TestMCPToolInPipelineWithOpenAI:
     """Integration tests for MCPTool in Haystack pipelines with external dependencies."""
 
     @pytest.mark.skipif(not os.environ.get("OPENAI_API_KEY"), reason="OPENAI_API_KEY not set")
+    @pytest.mark.skipif(
+        sys.platform == "win32",
+        reason="The locally spawned SSE server subprocess is not reachable from the SSE client on the Windows "
+        "runner (httpx.ConnectError: 'All connection attempts failed'), so the connection fails before the "
+        "server accepts requests. This is a limitation of the subprocess/SSE test setup on Windows, not of MCPTool.",
+    )
     def test_mcp_tool_with_http_server(self):
         """Test using an MCPTool with a real HTTP server."""
 
@@ -138,6 +144,7 @@ if __name__ == "__main__":
 
     @pytest.mark.skipif(not os.environ.get("OPENAI_API_KEY"), reason="OPENAI_API_KEY not set")
     @pytest.mark.skipif(not os.environ.get("BRAVE_API_KEY"), reason="BRAVE_API_KEY not set")
+    @pytest.mark.skipif(shutil.which("docker") is None, reason="docker not installed or not in PATH")
     def test_mcp_brave_search(self, mcp_tool_cleanup):
         """Test using an MCPTool in a pipeline with OpenAI."""
 
@@ -150,15 +157,9 @@ if __name__ == "__main__":
                 "BRAVE_API_KEY": os.environ["BRAVE_API_KEY"],
             },
         )
-        try:
-            tool = MCPTool(name="brave_web_search", server_info=server_info)
-            # Register for cleanup
-            mcp_tool_cleanup(tool)
-
-        except MCPError as e:
-            if "Could not find docker command" in str(e):
-                pytest.skip("Docker is not installed or not in PATH")
-            raise
+        tool = MCPTool(name="brave_web_search", server_info=server_info)
+        # Register for cleanup
+        mcp_tool_cleanup(tool)
 
         # Create pipeline with an Agent that owns the tool-calling loop
         pipeline = Pipeline()
@@ -179,22 +180,15 @@ if __name__ == "__main__":
         )
 
     @pytest.mark.skipif(not os.environ.get("OPENAI_API_KEY"), reason="OPENAI_API_KEY not set")
+    @pytest.mark.skipif(shutil.which("uvx") is None, reason="uvx not installed or not in PATH")
     def test_mcp_tool_in_pipeline_with_multiple_tools(self, mcp_tool_cleanup):
         """Test using multiple MCPTools in a pipeline with OpenAI."""
 
         # Mix mcp tool with a simple echo tool
-        try:
-            time_server_info = StdioServerInfo(
-                command="uvx", args=["mcp-server-time", "--local-timezone=America/New_York"]
-            )
-            time_tool = MCPTool(name="get_current_time", server_info=time_server_info)
-            # Register for cleanup
-            mcp_tool_cleanup(time_tool)
-
-        except MCPError as e:
-            if "Could not find uvx command" in str(e):
-                pytest.skip("uvx command not found, skipping test")
-            raise
+        time_server_info = StdioServerInfo(command="uvx", args=["mcp-server-time", "--local-timezone=America/New_York"])
+        time_tool = MCPTool(name="get_current_time", server_info=time_server_info)
+        # Register for cleanup
+        mcp_tool_cleanup(time_tool)
 
         echo_server_info = InMemoryServerInfo(server=echo_mcp._mcp_server)
         echo_tool = MCPTool(name="echo", server_info=echo_server_info)

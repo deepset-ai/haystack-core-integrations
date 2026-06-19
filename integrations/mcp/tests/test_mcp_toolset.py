@@ -409,9 +409,8 @@ class TestMCPToolset:
     async def test_toolset_state_config_unknown_tool_warning(self, caplog):
         """Test that a warning is logged when state config references unknown tools.
 
-        Note: This test validates unknown tool names at the MCPToolset level.
-        For parameter validation (unknown parameter names), see test_toolset_state_config_invalid_parameter_raises_error
-        which requires Haystack >= 2.22.0.
+        Note: This test validates unknown tool names at the MCPToolset level. For parameter validation
+        (unknown parameter names), see test_toolset_state_config_invalid_parameter_raises_error.
         """
         server_info = InMemoryServerInfo(server=calculator_mcp._mcp_server)
 
@@ -432,17 +431,8 @@ class TestMCPToolset:
             assert any("unknown_tool" in record.message for record in caplog.records)
             toolset.close()
 
-    @pytest.mark.skipif(
-        not hasattr(__import__("haystack.tools", fromlist=["Tool"]).Tool, "_get_valid_inputs"),
-        reason="Requires Haystack >= 2.22.0 for inputs_from_state validation",
-    )
     async def test_toolset_state_config_invalid_parameter_raises_error(self):
-        """Test that ValueError is raised when inputs_from_state references non-existent parameter.
-
-        Requires Haystack >= 2.22.0 which validates inputs_from_state parameter names.
-        With Haystack < 2.22.0, this test is skipped and invalid parameter mappings will
-        only fail at runtime when the tool is invoked.
-        """
+        """Test that ValueError is raised when inputs_from_state references non-existent parameter."""
         server_info = InMemoryServerInfo(server=calculator_mcp._mcp_server)
 
         with pytest.raises(ValueError, match="unknown parameter"):
@@ -457,10 +447,6 @@ class TestMCPToolset:
                 },
             )
 
-    @pytest.mark.skipif(
-        not hasattr(__import__("haystack.tools", fromlist=["Tool"]).Tool, "_get_valid_inputs"),
-        reason="Requires Haystack >= 2.22.0 for inputs_from_state validation",
-    )
     async def test_toolset_lazy_invalid_parameter_raises_on_warm_up(self, mcp_tool_cleanup):
         """Test that lazy toolsets defer invalid inputs_from_state validation until warm_up()."""
         server_info = InMemoryServerInfo(server=calculator_mcp._mcp_server)

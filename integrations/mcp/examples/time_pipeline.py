@@ -37,7 +37,9 @@ def main():
             server_info=StdioServerInfo(command="uvx", args=["mcp-server-time", "--local-timezone=Europe/Berlin"]),
         )
         pipeline = Pipeline()
-        pipeline.add_component("agent", Agent(chat_generator=OpenAIChatGenerator(model="gpt-4o-mini"), tools=[time_tool]))
+        pipeline.add_component(
+            "agent", Agent(chat_generator=OpenAIChatGenerator(model="gpt-4o-mini"), tools=[time_tool])
+        )
 
         user_input = "What is the time in New York? Be brief."  # can be any city
         user_input_msg = ChatMessage.from_user(text=user_input)
