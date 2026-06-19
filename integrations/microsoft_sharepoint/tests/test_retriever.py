@@ -2,6 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 import os
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
 import httpx
@@ -13,6 +14,10 @@ from haystack_integrations.components.retrievers.microsoft_sharepoint import (
     MSSharePointRetriever,
     SharePointConfigError,
     SharePointRequestError,
+)
+from haystack_integrations.components.retrievers.microsoft_sharepoint.retriever import (
+    _is_retryable_response,
+    _wait_with_retry_after,
 )
 
 MODULE = "haystack_integrations.components.retrievers.microsoft_sharepoint.retriever"
@@ -278,10 +283,7 @@ class TestErrorHandling:
         retriever = MSSharePointRetriever(max_retries=2)
         throttled = _make_response(status_code=429, headers={"Retry-After": "0"})
         ok = _make_response(json_body=FILES_RESPONSE)
-        with (
-            patch.object(httpx.Client, "post", side_effect=[throttled, ok]) as mock_post,
-            patch(f"{MODULE}.time.sleep"),
-        ):
+        with patch.object(httpx.Client, "post", side_effect=[throttled, ok]) as mock_post:
             documents = retriever.run(query="contoso", access_token="tok")["documents"]
         assert len(documents) == 1
         assert mock_post.call_count == 2
@@ -289,12 +291,37 @@ class TestErrorHandling:
     def test_gives_up_after_max_retries(self):
         retriever = MSSharePointRetriever(max_retries=1)
         throttled = _make_response(status_code=429, headers={"Retry-After": "0"})
-        with patch.object(httpx.Client, "post", return_value=throttled) as mock_post, patch(f"{MODULE}.time.sleep"):
+        with patch.object(httpx.Client, "post", return_value=throttled) as mock_post:
             with pytest.raises(SharePointRequestError) as exc_info:
                 retriever.run(query="q", access_token="tok")
         assert exc_info.value.status_code == 429
         # Initial attempt + 1 retry.
         assert mock_post.call_count == 2
+
+
+class TestRetryStrategy:
+    def _state(self, response: httpx.Response, attempt: int = 1) -> SimpleNamespace:
+        outcome = SimpleNamespace(failed=False, result=lambda: response)
+        return SimpleNamespace(outcome=outcome, attempt_number=attempt)
+
+    @pytest.mark.parametrize("status_code, expected", [(429, True), (503, True), (200, False), (401, False)])
+    def test_is_retryable_response(self, status_code, expected):
+        assert _is_retryable_response(_make_response(status_code=status_code)) is expected
+
+    def test_wait_honors_numeric_retry_after(self):
+        response = _make_response(status_code=429, headers={"Retry-After": "7"})
+        assert _wait_with_retry_after(self._state(response)) == 7.0
+
+    def test_wait_falls_back_to_exponential_without_header(self):
+        # No Retry-After header -> exponential backoff: 2 ** (attempt - 1).
+        response = _make_response(status_code=429)
+        assert _wait_with_retry_after(self._state(response, attempt=1)) == 1.0
+        assert _wait_with_retry_after(self._state(response, attempt=3)) == 4.0
+
+    def test_wait_falls_back_when_retry_after_is_not_numeric(self):
+        # An HTTP-date Retry-After is not parsed as a float and falls back to exponential backoff.
+        response = _make_response(status_code=429, headers={"Retry-After": "Wed, 21 Oct 2015 07:28:00 GMT"})
+        assert _wait_with_retry_after(self._state(response, attempt=2)) == 2.0
 
 
 class TestPipeline:
@@ -330,7 +357,7 @@ class TestRunAsync:
                 _make_response(json_body=FILES_RESPONSE),
             ]
         )
-        with patch.object(httpx.AsyncClient, "post", post), patch(f"{MODULE}.asyncio.sleep", new=AsyncMock()):
+        with patch.object(httpx.AsyncClient, "post", post):
             documents = (await retriever.run_async(query="contoso", access_token="tok"))["documents"]
         assert len(documents) == 1
         assert post.await_count == 2

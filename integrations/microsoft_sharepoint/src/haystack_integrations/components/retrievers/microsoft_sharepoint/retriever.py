@@ -2,16 +2,15 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-import asyncio
 import html
 import os
 import re
-import time
 from typing import Any
 
 import httpx
 from haystack import Document, component, default_from_dict, default_to_dict, logging
 from haystack.utils import Secret
+from tenacity import AsyncRetrying, RetryCallState, Retrying, retry_if_result, stop_after_attempt, wait_exponential
 
 from .errors import SharePointConfigError, SharePointRequestError
 
@@ -21,14 +20,64 @@ _DEFAULT_GRAPH_URL = "https://graph.microsoft.com/v1.0"
 _DEFAULT_ENTITY_TYPES = ("driveItem", "listItem")
 # Microsoft Graph caps a single search page at 500 results; larger `top_k` values are paginated.
 _MAX_PAGE_SIZE = 500
-_HTTP_UNAUTHORIZED = 401
-_HTTP_FORBIDDEN = 403
 _RETRYABLE_STATUS = frozenset({429, 500, 502, 503, 504})
+# Fallback backoff when a throttled response carries no `Retry-After` header: 1s, 2s, 4s, ...
+_EXPONENTIAL_BACKOFF = wait_exponential()
 
 # Search summaries come back as snippets with hit-highlight markup, e.g.
 # "<c0>Contoso</c0> Detailed Design <ddd/>". These patterns turn that into plain text.
 _HIGHLIGHT_PATTERN = re.compile(r"</?c\d+>")
 _ELLIPSIS_PATTERN = re.compile(r"<ddd\s*/>")
+
+
+def _retry_response(retry_state: RetryCallState) -> httpx.Response | None:
+    """Return the `httpx.Response` recorded for a retry attempt, or `None` if the attempt raised."""
+    outcome = retry_state.outcome
+    if outcome is None or outcome.failed:
+        return None
+    return outcome.result()
+
+
+def _is_retryable_response(response: httpx.Response) -> bool:
+    """Return whether a Microsoft Graph response should trigger a retry."""
+    return response.status_code in _RETRYABLE_STATUS
+
+
+def _wait_with_retry_after(retry_state: RetryCallState) -> float:
+    """Wait strategy honoring a numeric `Retry-After` header, falling back to exponential backoff."""
+    response = _retry_response(retry_state)
+    if response is not None:
+        retry_after = response.headers.get("Retry-After")
+        if retry_after:
+            try:
+                return float(retry_after)
+            except ValueError:
+                pass
+
+    return _EXPONENTIAL_BACKOFF(retry_state)
+
+
+def _last_response(retry_state: RetryCallState) -> httpx.Response:
+    """Return the final response once retries are exhausted, so the caller can raise a typed error."""
+    response = _retry_response(retry_state)
+    if response is None:
+        msg = "Microsoft Graph retries were exhausted without a recorded response."
+        raise SharePointRequestError(msg)
+    return response
+
+
+def _log_retry(retry_state: RetryCallState) -> None:
+    """Log a warning before sleeping between Microsoft Graph retries."""
+    response = _retry_response(retry_state)
+    next_action = retry_state.next_action
+    if response is None or next_action is None:
+        return
+    logger.warning(
+        "Microsoft Graph returned status {status}; retrying in {delay}s (attempt {attempt}).",
+        status=response.status_code,
+        delay=next_action.sleep,
+        attempt=retry_state.attempt_number,
+    )
 
 
 @component
@@ -49,28 +98,22 @@ class MSSharePointRetriever:
 
     ### Usage example
     ```python
-    from haystack import Pipeline
-    from haystack.utils import Secret
-    from haystack_integrations.components.connectors.oauth import OAuthResolver, RefreshTokenSource
-    from haystack_integrations.components.retrievers.microsoft_sharepoint import MSSharePointRetriever
-
-    pipeline = Pipeline()
-    pipeline.add_component(
-        "resolver",
-        OAuthResolver(
-            token_source=RefreshTokenSource(
-                token_url="https://login.microsoftonline.com/common/oauth2/v2.0/token",
-                client_id="aaa-bbb-ccc",
-                refresh_token=Secret.from_env_var("MS_REFRESH_TOKEN"),
-            ),
-        ),
+    from haystack_integrations.components.retrievers.microsoft_sharepoint import (
+        MSSharePointRetriever,
     )
-    pipeline.add_component("retriever", MSSharePointRetriever(top_k=5))
-    pipeline.connect("resolver.access_token", "retriever.access_token")
 
-    result = pipeline.run({"retriever": {"query": "quarterly roadmap"}})
-    documents = result["retriever"]["documents"]
+    retriever = MSSharePointRetriever(top_k=5)
+
+    # `access_token` is a per-user delegated Microsoft Graph bearer token.
+    result = retriever.run(
+        query="quarterly roadmap", access_token="my-delegated-graph-token"
+    )
+    documents = result["documents"]
     ```
+
+    In a pipeline, connect an upstream component that emits a per-user `access_token` to the retriever's
+    `access_token` input. See the integration documentation for a full example that obtains the token from
+    an OAuth provider.
     """
 
     def __init__(
@@ -89,14 +132,17 @@ class MSSharePointRetriever:
 
         :param entity_types: The Microsoft Search entity types to query. Defaults to `["driveItem", "listItem"]`,
             which covers files, folders, SharePoint pages and news, and list items. Other valid values are
-            `"list"` and `"site"`.
+            `"list"` and `"site"`. See the supported values and combinations in the
+            [Microsoft docs](https://learn.microsoft.com/en-us/graph/api/resources/searchrequest).
         :param top_k: The maximum number of documents to return. Maps to the Search API `size` and is paginated
             when it exceeds a single page.
         :param fields: Optional list of resource properties to request via the Search API `fields` selection
-            (only honored for `listItem` and `driveItem` entity types).
-        :param query_template: Optional KQL query template used to scope the search, for example
+            (only honored for `listItem` and `driveItem` entity types). See
+            [Get selected properties](https://learn.microsoft.com/en-us/graph/api/resources/search-api-overview#get-selected-properties).
+        :param query_template: Optional query template used to scope the search, for example
             `'{searchTerms} path:"https://contoso.sharepoint.com/sites/Team"'`. The literal `{searchTerms}`
-            placeholder is replaced by the run-time query.
+            placeholder is replaced by the run-time query. The template uses
+            [Keyword Query Language (KQL)](https://learn.microsoft.com/en-us/sharepoint/dev/general-development/keyword-query-language-kql-syntax-reference).
         :param graph_url: The Microsoft Graph base URL. Defaults to `https://graph.microsoft.com/v1.0`.
             Override for sovereign clouds.
         :param timeout: The HTTP timeout in seconds for each request to Microsoft Graph.
@@ -131,7 +177,10 @@ class MSSharePointRetriever:
         """
         Search SharePoint and OneDrive and return the matching documents.
 
-        :param query: The search query string. Supports KQL operators (for example `filetype:docx`).
+        :param query: The search query string. Filter results by embedding Keyword Query Language (KQL)
+            operators directly in the query, for example `filetype:docx`, `author:"Jane Doe"`, or
+            `path:"https://contoso.sharepoint.com/sites/Team"`. See the
+            [KQL syntax reference](https://learn.microsoft.com/en-us/sharepoint/dev/general-development/keyword-query-language-kql-syntax-reference).
         :param access_token: A delegated Microsoft Graph bearer token for the user whose content is searched,
             typically wired from an upstream `OAuthResolver` (which emits a plain `str`). A `Secret` is also
             accepted and resolved internally.
@@ -165,7 +214,10 @@ class MSSharePointRetriever:
         """
         Asynchronously search SharePoint and OneDrive and return the matching documents.
 
-        :param query: The search query string. Supports KQL operators (for example `filetype:docx`).
+        :param query: The search query string. Filter results by embedding Keyword Query Language (KQL)
+            operators directly in the query, for example `filetype:docx`, `author:"Jane Doe"`, or
+            `path:"https://contoso.sharepoint.com/sites/Team"`. See the
+            [KQL syntax reference](https://learn.microsoft.com/en-us/sharepoint/dev/general-development/keyword-query-language-kql-syntax-reference).
         :param access_token: A delegated Microsoft Graph bearer token for the user whose content is searched,
             typically wired from an upstream `OAuthResolver` (which emits a plain `str`). A `Secret` is also
             accepted and resolved internally.
@@ -204,7 +256,12 @@ class MSSharePointRetriever:
         return resolved
 
     def _build_request_body(self, query: str, offset: int, size: int) -> dict[str, Any]:
-        """Build the Microsoft Search `POST /search/query` request body for one page."""
+        """
+        Build the Microsoft Search `POST /search/query` request body for one page.
+
+        See the searchRequest resource for the full set of supported properties:
+        https://learn.microsoft.com/en-us/graph/api/resources/searchrequest
+        """
         query_obj: dict[str, Any] = {"queryString": query}
         if self.query_template:
             query_obj["queryTemplate"] = self.query_template
@@ -233,57 +290,31 @@ class MSSharePointRetriever:
         """Send a search request, retrying on throttling/transient errors, and return the parsed JSON."""
         url = f"{self.graph_url}/search/query"
         headers = {"Authorization": f"Bearer {access_token}", "Content-Type": "application/json"}
-        attempt = 0
-        while True:
-            response = client.post(url, headers=headers, json=body)
-            if response.status_code in _RETRYABLE_STATUS and attempt < self.max_retries:
-                attempt += 1
-                delay = self._retry_delay(response, attempt)
-                logger.warning(
-                    "Microsoft Graph returned status {status}; retrying in {delay}s (attempt {attempt}/{max_retries}).",
-                    status=response.status_code,
-                    delay=delay,
-                    attempt=attempt,
-                    max_retries=self.max_retries,
-                )
-                time.sleep(delay)
-                continue
+        retrying = Retrying(
+            stop=stop_after_attempt(self.max_retries + 1),
+            wait=_wait_with_retry_after,
+            retry=retry_if_result(_is_retryable_response),
+            before_sleep=_log_retry,
+            retry_error_callback=_last_response,
+        )
+        response: httpx.Response = retrying(client.post, url, headers=headers, json=body)
 
-            return self._parse_response(response)
+        return self._parse_response(response)
 
     async def _post_async(self, client: httpx.AsyncClient, access_token: str, body: dict[str, Any]) -> dict[str, Any]:
         """Async variant of `_post`."""
         url = f"{self.graph_url}/search/query"
         headers = {"Authorization": f"Bearer {access_token}", "Content-Type": "application/json"}
-        attempt = 0
-        while True:
-            response = await client.post(url, headers=headers, json=body)
-            if response.status_code in _RETRYABLE_STATUS and attempt < self.max_retries:
-                attempt += 1
-                delay = self._retry_delay(response, attempt)
-                logger.warning(
-                    "Microsoft Graph returned status {status}; retrying in {delay}s (attempt {attempt}/{max_retries}).",
-                    status=response.status_code,
-                    delay=delay,
-                    attempt=attempt,
-                    max_retries=self.max_retries,
-                )
-                await asyncio.sleep(delay)
-                continue
+        retrying = AsyncRetrying(
+            stop=stop_after_attempt(self.max_retries + 1),
+            wait=_wait_with_retry_after,
+            retry=retry_if_result(_is_retryable_response),
+            before_sleep=_log_retry,
+            retry_error_callback=_last_response,
+        )
+        response: httpx.Response = await retrying(client.post, url, headers=headers, json=body)
 
-            return self._parse_response(response)
-
-    @staticmethod
-    def _retry_delay(response: httpx.Response, attempt: int) -> float:
-        """Compute the retry delay, honoring a numeric `Retry-After` header and falling back to backoff."""
-        retry_after = response.headers.get("Retry-After")
-        if retry_after:
-            try:
-                return float(retry_after)
-            except ValueError:
-                pass
-
-        return float(2 ** (attempt - 1))
+        return self._parse_response(response)
 
     @staticmethod
     def _parse_response(response: httpx.Response) -> dict[str, Any]:
@@ -292,12 +323,12 @@ class MSSharePointRetriever:
             return response.json()
 
         status = response.status_code
-        if status == _HTTP_UNAUTHORIZED:
+        if status == httpx.codes.UNAUTHORIZED:
             msg = (
                 "Microsoft Graph rejected the access token (401 Unauthorized). The token may be expired, invalid, "
                 "or missing the required delegated scopes (for example Files.Read.All / Sites.Read.All)."
             )
-        elif status == _HTTP_FORBIDDEN:
+        elif status == httpx.codes.FORBIDDEN:
             msg = f"Microsoft Graph denied the search request (403 Forbidden): {response.text}"
         else:
             msg = f"Microsoft Graph search request failed with status {status}: {response.text}"
