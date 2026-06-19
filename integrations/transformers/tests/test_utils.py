@@ -10,7 +10,7 @@ import torch
 from haystack.utils.device import ComponentDevice
 from transformers import AutoTokenizer, PreTrainedTokenizerFast
 
-from haystack_integrations.components.common.transformers.utils import (
+from haystack_integrations.common.transformers.utils import (
     _resolve_hf_device_map,
     _StopWordsCriteria,
 )

@@ -640,7 +640,7 @@ def test_warm_up_use_hf_token(mocked_automodel, mocked_autotokenizer, initialize
     "haystack_integrations.components.readers.transformers.extractive_reader."
     "AutoModelForQuestionAnswering.from_pretrained"
 )
-def test_device_map_auto(mocked_automodel, _mocked_autotokenizer, del_hf_env_vars):
+def test_device_map_auto(mocked_automodel, _mocked_autotokenizer, del_hf_env_vars_if_empty):
     reader = TransformersExtractiveReader("deepset/roberta-base-squad2", model_kwargs={"device_map": "auto"})
     auto_device = ComponentDevice.resolve_device(None)
 
@@ -651,7 +651,9 @@ def test_device_map_auto(mocked_automodel, _mocked_autotokenizer, del_hf_env_var
     mocked_automodel.return_value = MockedModel()
     reader.warm_up()
 
-    mocked_automodel.assert_called_once_with("deepset/roberta-base-squad2", token=None, device_map="auto")
+    mocked_automodel.assert_called_once_with(
+        "deepset/roberta-base-squad2", token=reader.token.resolve_value(), device_map="auto"
+    )
     assert reader.device == ComponentDevice.from_multiple(DeviceMap.from_hf({"": auto_device.to_hf()}))
 
 
@@ -660,7 +662,7 @@ def test_device_map_auto(mocked_automodel, _mocked_autotokenizer, del_hf_env_var
     "haystack_integrations.components.readers.transformers.extractive_reader."
     "AutoModelForQuestionAnswering.from_pretrained"
 )
-def test_device_map_str(mocked_automodel, _mocked_autotokenizer, del_hf_env_vars):
+def test_device_map_str(mocked_automodel, _mocked_autotokenizer, del_hf_env_vars_if_empty):
     reader = TransformersExtractiveReader("deepset/roberta-base-squad2", model_kwargs={"device_map": "cpu:0"})
 
     class MockedModel:
@@ -670,7 +672,9 @@ def test_device_map_str(mocked_automodel, _mocked_autotokenizer, del_hf_env_vars
     mocked_automodel.return_value = MockedModel()
     reader.warm_up()
 
-    mocked_automodel.assert_called_once_with("deepset/roberta-base-squad2", token=None, device_map="cpu:0")
+    mocked_automodel.assert_called_once_with(
+        "deepset/roberta-base-squad2", token=reader.token.resolve_value(), device_map="cpu:0"
+    )
     assert reader.device == ComponentDevice.from_multiple(DeviceMap.from_hf({"": "cpu:0"}))
 
 
@@ -679,7 +683,7 @@ def test_device_map_str(mocked_automodel, _mocked_autotokenizer, del_hf_env_vars
     "haystack_integrations.components.readers.transformers.extractive_reader."
     "AutoModelForQuestionAnswering.from_pretrained"
 )
-def test_device_map_dict(mocked_automodel, _mocked_autotokenizer, del_hf_env_vars):
+def test_device_map_dict(mocked_automodel, _mocked_autotokenizer, del_hf_env_vars_if_empty):
     reader = TransformersExtractiveReader(
         "deepset/roberta-base-squad2", model_kwargs={"device_map": {"layer_1": 1, "classifier": "cpu"}}
     )
@@ -692,7 +696,9 @@ def test_device_map_dict(mocked_automodel, _mocked_autotokenizer, del_hf_env_var
     reader.warm_up()
 
     mocked_automodel.assert_called_once_with(
-        "deepset/roberta-base-squad2", token=None, device_map={"layer_1": 1, "classifier": "cpu"}
+        "deepset/roberta-base-squad2",
+        token=reader.token.resolve_value(),
+        device_map={"layer_1": 1, "classifier": "cpu"},
     )
     assert reader.device == ComponentDevice.from_multiple(DeviceMap.from_hf({"layer_1": 1, "classifier": "cpu"}))
 
@@ -907,7 +913,7 @@ class TestDeduplication:
 
 
 @pytest.mark.integration
-def test_t5(del_hf_env_vars):
+def test_t5(del_hf_env_vars_if_empty):
     reader = TransformersExtractiveReader("sjrhuschlee/flan-t5-base-squad2")
     answers = reader.run(example_queries[0], example_documents[0], top_k=2)[
         "answers"
@@ -930,7 +936,7 @@ def test_t5(del_hf_env_vars):
 
 
 @pytest.mark.integration
-def test_roberta(del_hf_env_vars):
+def test_roberta(del_hf_env_vars_if_empty):
     reader = TransformersExtractiveReader("deepset/tinyroberta-squad2")
     answers = reader.run(example_queries[0], example_documents[0], top_k=2)[
         "answers"

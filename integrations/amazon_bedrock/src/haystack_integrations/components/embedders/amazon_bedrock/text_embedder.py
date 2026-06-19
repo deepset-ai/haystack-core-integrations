@@ -23,7 +23,9 @@ class AmazonBedrockTextEmbedder:
     Usage example:
     ```python
     import os
-    from haystack_integrations.components.embedders.amazon_bedrock import AmazonBedrockTextEmbedder
+    from haystack_integrations.components.embedders.amazon_bedrock import (
+        AmazonBedrockTextEmbedder,
+    )
 
     os.environ["AWS_ACCESS_KEY_ID"] = "..."
     os.environ["AWS_SECRET_ACCESS_KEY_ID"] = "..."
@@ -48,7 +50,7 @@ class AmazonBedrockTextEmbedder:
             "AWS_SECRET_ACCESS_KEY", strict=False
         ),
         aws_session_token: Secret | None = Secret.from_env_var("AWS_SESSION_TOKEN", strict=False),  # noqa: B008
-        aws_region_name: Secret | None = Secret.from_env_var("AWS_DEFAULT_REGION", strict=False),  # noqa: B008
+        aws_region_name: Secret | str | None = Secret.from_env_var("AWS_DEFAULT_REGION", strict=False),  # noqa: B008
         aws_profile_name: Secret | None = Secret.from_env_var("AWS_PROFILE", strict=False),  # noqa: B008
         boto3_config: dict[str, Any] | None = None,
         **kwargs: Any,
@@ -97,8 +99,8 @@ class AmazonBedrockTextEmbedder:
         self.boto3_config = boto3_config
         self.kwargs = kwargs
 
-        def resolve_secret(secret: Secret | None) -> str | None:
-            return secret.resolve_value() if secret else None
+        def resolve_secret(secret: Secret | str | None) -> str | None:
+            return secret.resolve_value() if isinstance(secret, Secret) else secret
 
         try:
             session = get_aws_session(

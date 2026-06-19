@@ -248,6 +248,8 @@ class TestDocumentStore(
                 "database_name": "haystack_integration_test",
                 "vector_search_index": "cosine_index",
                 "full_text_search_index": "full_text_index",
+                "embedding_field": "embedding",
+                "content_field": "content",
             },
         }
 

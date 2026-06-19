@@ -126,7 +126,10 @@ class TestChonkieSemanticDocumentSplitter:
             assert chunk.content == doc.content[chunk.meta["split_idx_start"] : chunk.meta["split_idx_end"]]
             assert len(chunk.meta) == 6
 
-    def test_run_empty_document(self):
+    @patch("haystack_integrations.components.preprocessors.chonkie.semantic_splitter.chonkie.SemanticChunker")
+    def test_run_empty_document(self, mock_chunker):
+        mock_chunker.return_value.chunk.return_value = []
+
         chunker = ChonkieSemanticDocumentSplitter(skip_empty_documents=True)
         result = chunker.run(documents=[Document(content="")])
         assert result["documents"] == []
@@ -135,21 +138,30 @@ class TestChonkieSemanticDocumentSplitter:
         result = chunker.run(documents=[Document(content="")])
         assert result["documents"] == []
 
-    def test_run_none_content(self):
+    @patch("haystack_integrations.components.preprocessors.chonkie.semantic_splitter.chonkie.SemanticChunker")
+    def test_run_none_content(self, _mock_chunker):
         chunker = ChonkieSemanticDocumentSplitter()
         with pytest.raises(
             ValueError, match=r"ChonkieSemanticDocumentSplitter works only with text documents but doc ID .* is None"
         ):
             chunker.run(documents=[Document(content=None)])
 
-    def test_run_page_number(self):
-        chunker = ChonkieSemanticDocumentSplitter(chunk_size=50)
+    @patch("haystack_integrations.components.preprocessors.chonkie.semantic_splitter.chonkie.SemanticChunker")
+    def test_run_page_number(self, mock_chunker):
         text = "Page 1 content.\fPage 2 content."
+        mock_chunker.return_value.chunk.return_value = [
+            chonkie.types.base.Chunk(text="Page 1 content.\f", token_count=16, start_index=0, end_index=16),
+            chonkie.types.base.Chunk(text="Page 2 content.", token_count=15, start_index=16, end_index=31),
+        ]
+
+        chunker = ChonkieSemanticDocumentSplitter(chunk_size=50)
         doc = Document(content=text, meta={"page_number": 1})
         result = chunker.run(documents=[doc])
         chunks = result["documents"]
-        assert len(chunks) >= 1
+        assert len(chunks) == 2
         assert chunks[0].meta["page_number"] == 1
+        # The second chunk should be on page 2 (since \f is in chunk 1)
+        assert chunks[1].meta["page_number"] == 2
 
     def test_run_invalid_documents_type(self):
 

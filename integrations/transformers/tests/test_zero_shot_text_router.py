@@ -31,7 +31,7 @@ class TestTransformersZeroShotTextRouter:
             },
         }
 
-    def test_from_dict(self, del_hf_env_vars):
+    def test_from_dict(self, del_hf_env_vars_if_empty):
         data = {
             "type": COMPONENT_TYPE,
             "init_parameters": {
@@ -55,10 +55,10 @@ class TestTransformersZeroShotTextRouter:
             "model": "MoritzLaurer/deberta-v3-base-zeroshot-v1.1-all-33",
             "device": ComponentDevice.resolve_device(None).to_hf(),
             "task": "zero-shot-classification",
-            "token": None,
+            "token": component.token.resolve_value(),
         }
 
-    def test_from_dict_no_default_parameters(self, del_hf_env_vars):
+    def test_from_dict_no_default_parameters(self, del_hf_env_vars_if_empty):
         data = {
             "type": COMPONENT_TYPE,
             "init_parameters": {"labels": ["query", "passage"]},
@@ -73,7 +73,7 @@ class TestTransformersZeroShotTextRouter:
             "model": "MoritzLaurer/deberta-v3-base-zeroshot-v1.1-all-33",
             "device": ComponentDevice.resolve_device(None).to_hf(),
             "task": "zero-shot-classification",
-            "token": None,
+            "token": component.token.resolve_value(),
         }
 
     @patch("haystack_integrations.components.routers.transformers.zero_shot_text_router.pipeline")
@@ -110,7 +110,7 @@ class TestTransformersZeroShotTextRouter:
         assert out == {"query": "What is the color of the sky?"}
 
     @pytest.mark.integration
-    def test_run(self, del_hf_env_vars):
+    def test_run(self, del_hf_env_vars_if_empty):
         router = TransformersZeroShotTextRouter(labels=["query", "passage"])
         out = router.run("What is the color of the sky?")
         assert router.pipeline is not None

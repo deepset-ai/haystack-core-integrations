@@ -29,7 +29,9 @@ class AmazonBedrockDocumentEmbedder:
     ```python
     import os
     from haystack.dataclasses import Document
-    from haystack_integrations.components.embedders.amazon_bedrock import AmazonBedrockDocumentEmbedder
+    from haystack_integrations.components.embedders.amazon_bedrock import (
+        AmazonBedrockDocumentEmbedder,
+    )
 
     os.environ["AWS_ACCESS_KEY_ID"] = "..."
     os.environ["AWS_SECRET_ACCESS_KEY_ID"] = "..."
@@ -43,7 +45,7 @@ class AmazonBedrockDocumentEmbedder:
     doc = Document(content="I love Paris in the winter.", meta={"name": "doc1"})
 
     result = embedder.run([doc])
-    print(result['documents'][0].embedding)
+    print(result["documents"][0].embedding)
 
     # [0.002, 0.032, 0.504, ...]
     ```
@@ -57,7 +59,7 @@ class AmazonBedrockDocumentEmbedder:
             "AWS_SECRET_ACCESS_KEY", strict=False
         ),
         aws_session_token: Secret | None = Secret.from_env_var("AWS_SESSION_TOKEN", strict=False),  # noqa: B008
-        aws_region_name: Secret | None = Secret.from_env_var("AWS_DEFAULT_REGION", strict=False),  # noqa: B008
+        aws_region_name: Secret | str | None = Secret.from_env_var("AWS_DEFAULT_REGION", strict=False),  # noqa: B008
         aws_profile_name: Secret | None = Secret.from_env_var("AWS_PROFILE", strict=False),  # noqa: B008
         batch_size: int = 32,
         progress_bar: bool = True,
@@ -120,8 +122,8 @@ class AmazonBedrockDocumentEmbedder:
         self.boto3_config = boto3_config
         self.kwargs = kwargs
 
-        def resolve_secret(secret: Secret | None) -> str | None:
-            return secret.resolve_value() if secret else None
+        def resolve_secret(secret: Secret | str | None) -> str | None:
+            return secret.resolve_value() if isinstance(secret, Secret) else secret
 
         try:
             session = get_aws_session(

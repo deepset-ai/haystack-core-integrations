@@ -130,6 +130,25 @@ class TestAmazonBedrockTextEmbedder:
         assert embedder.kwargs == {"input_type": "search_query"}
         assert embedder.boto3_config == {"read_timeout": 1000}
 
+    def test_from_dict_aws_region_name(self, mock_boto3_session):
+        """
+        Test that aws_region_name as str value is correctly parsed
+        """
+        embedder = AmazonBedrockTextEmbedder.from_dict(
+            {
+                "type": "haystack_integrations.components.embedders.amazon_bedrock.text_embedder.AmazonBedrockTextEmbedder",  # noqa: E501
+                "init_parameters": {
+                    "aws_region_name": "my-fake-region",
+                    "model": "cohere.embed-english-v3",
+                },
+            }
+        )
+        assert embedder.model == "cohere.embed-english-v3"
+        assert embedder.aws_region_name == "my-fake-region"
+
+        serialized = embedder.to_dict()
+        assert serialized["init_parameters"]["aws_region_name"] == "my-fake-region"
+
     def test_init_invalid_model(self):
         with pytest.raises(ValueError):
             AmazonBedrockTextEmbedder(model="")
