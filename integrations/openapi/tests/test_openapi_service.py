@@ -14,14 +14,61 @@ from haystack.components.generators.chat.openai import OpenAIChatGenerator
 from haystack.dataclasses import ChatMessage, ToolCall
 from haystack.dataclasses.byte_stream import ByteStream
 from openapi3 import OpenAPI
+from openapi3.errors import UnexpectedResponseError
 
 from haystack_integrations.components.connectors.openapi import OpenAPIServiceConnector
+from haystack_integrations.components.connectors.openapi.openapi_service import patch_request
 from haystack_integrations.components.converters.openapi import OpenAPIServiceToFunctions
 
 
 @pytest.fixture
 def openapi_service_mock():
     return MagicMock(spec=OpenAPI)
+
+
+def _make_response(status_code=200, content_type="application/json", json_data=None, text=""):
+    response = Mock()
+    response.status_code = status_code
+    response.headers = {"Content-Type": content_type}
+    response.json.return_value = json_data
+    response.text = text
+    return response
+
+
+def _make_operation(responses, request_body=None, security=None):
+    operation = Mock()
+    operation.path = ["/resource", "get"]
+    operation.responses = responses
+    operation.requestBody = request_body
+    operation.security = security
+    operation.operationId = "resource"
+    return operation
+
+
+def _expected_response(content):
+    expected = Mock()
+    expected.content = content
+    return expected
+
+
+def _json_media_content(model_value):
+    media = Mock()
+    media.schema.model.return_value = model_value
+    return {"application/json": media}
+
+
+def _service_without_operation():
+    service = Mock()
+    service.call_missing = "not callable"
+    service.info.title = "Test Service"
+    return service
+
+
+def _unsatisfiable_security():
+    security = MagicMock()
+    security.__iter__.return_value = iter([])
+    security.keys.return_value = ["apiKey"]
+    return security
 
 
 class TestOpenAPIServiceConnector:
@@ -229,6 +276,23 @@ class TestOpenAPIServiceConnector:
         new_pipeline = Pipeline.loads(pipeline_yaml)
         assert new_pipeline == pipeline
 
+    @pytest.mark.parametrize(
+        "service, descriptor, exception, match",
+        [
+            (Mock(), {"name": "", "arguments": {"a": 1}}, ValueError, "Invalid function calling descriptor"),
+            (Mock(), {"name": "search", "arguments": {}}, ValueError, "Invalid function calling descriptor"),
+            (
+                _service_without_operation(),
+                {"name": "missing", "arguments": {"a": 1}},
+                TypeError,
+                "not found in OpenAPI specification",
+            ),
+        ],
+    )
+    def test_invoke_method_raises_on_invalid_input(self, connector, service, descriptor, exception, match):
+        with pytest.raises(exception, match=match):
+            connector._invoke_method(service, descriptor)
+
     @pytest.mark.skipif(not os.getenv("OPENAI_API_KEY"), reason="OPENAI_API_KEY is not set")
     @pytest.mark.integration
     def test_run_live(self):
@@ -346,3 +410,60 @@ class TestOpenAPIServiceConnector:
         weather_data = json.loads(result["openapi_container"]["service_response"][0].text)
         assert weather_data["latitude"] == pytest.approx(52.52, abs=0.5)
         assert weather_data["longitude"] == pytest.approx(13.41, abs=0.5)
+
+
+class TestPatchRequest:
+    @pytest.mark.parametrize(
+        "content, response, raw_response, expected",
+        [
+            ({"application/json": Mock()}, _make_response(json_data={"ok": True}), True, {"ok": True}),
+            ({"application/json": Mock()}, _make_response(content_type="text/plain", text="hello"), True, "hello"),
+            (None, _make_response(), False, None),
+            (_json_media_content("validated-model"), _make_response(json_data={"x": 1}), False, "validated-model"),
+        ],
+    )
+    def test_patch_request_returns_response(self, content, response, raw_response, expected):
+        operation = _make_operation(responses={"200": _expected_response(content)})
+        session = Mock()
+        session.send.return_value = response
+        assert patch_request(operation, "https://example.com", raw_response=raw_response, session=session) == expected
+
+    @pytest.mark.parametrize(
+        "operation, response, call_kwargs, exception, match",
+        [
+            (
+                _make_operation(responses={"200": Mock()}, request_body=Mock(required=True)),
+                _make_response(),
+                {},
+                ValueError,
+                "Request Body is required",
+            ),
+            (_make_operation(responses={}), _make_response(status_code=404), {}, UnexpectedResponseError, None),
+            (
+                _make_operation(responses={"200": _expected_response({"application/json": Mock()})}),
+                _make_response(content_type="text/csv"),
+                {},
+                RuntimeError,
+                "Unexpected Content-Type",
+            ),
+            (
+                _make_operation(responses={"200": _expected_response({"text/html": Mock()})}),
+                _make_response(content_type="text/html"),
+                {},
+                NotImplementedError,
+                "Only application/json",
+            ),
+            (
+                _make_operation(responses={}, security=_unsatisfiable_security()),
+                _make_response(),
+                {"security": {"apiKey": "token"}},
+                ValueError,
+                "No security requirement satisfied",
+            ),
+        ],
+    )
+    def test_patch_request_raises(self, operation, response, call_kwargs, exception, match):
+        session = Mock()
+        session.send.return_value = response
+        with pytest.raises(exception, match=match):
+            patch_request(operation, "https://example.com", session=session, **call_kwargs)

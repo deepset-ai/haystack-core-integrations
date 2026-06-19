@@ -256,3 +256,40 @@ class TestOpenAPIServiceToFunctions:
             "parameters": {"type": "object", "properties": {"q": {"type": "string"}}},
         }
         assert result["functions"][1] == desired_output
+
+    @pytest.mark.parametrize(
+        "spec, match",
+        [
+            ({"paths": {}}, "Could not extract version"),
+            ({"openapi": "2.0.0", "paths": {}}, "Invalid OpenAPI spec version"),
+        ],
+    )
+    def test_openapi_to_functions_invalid_version(self, spec, match):
+        service = OpenAPIServiceToFunctions()
+        with pytest.raises(ValueError, match=match):
+            service._openapi_to_functions(spec)
+
+    def test_parse_property_attributes_nested(self):
+        service = OpenAPIServiceToFunctions()
+        schema = {
+            "type": "object",
+            "required": ["items"],
+            "properties": {
+                "items": {
+                    "type": "array",
+                    "items": {"type": "object", "properties": {"name": {"type": "string", "description": "the name"}}},
+                }
+            },
+        }
+        parsed = service._parse_property_attributes(schema)
+        assert parsed["type"] == "object"
+        assert parsed["required"] == ["items"]
+        assert parsed["properties"]["items"]["type"] == "array"
+        nested = parsed["properties"]["items"]["items"]
+        assert nested["type"] == "object"
+        assert nested["properties"]["name"] == {"type": "string", "description": "the name"}
+
+    def test_parse_openapi_spec_malformed(self):
+        service = OpenAPIServiceToFunctions()
+        with pytest.raises(RuntimeError, match="Failed to parse the OpenAPI specification"):
+            service._parse_openapi_spec("a: b: c")
