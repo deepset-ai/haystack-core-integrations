@@ -25,8 +25,10 @@ from haystack_integrations.tools.mcp.mcp_tool import (
     StreamableHttpServerInfo,
 )
 from haystack_integrations.tools.mcp.mcp_toolset import (
-    _deserialize_state_config,
-    _serialize_state_config,
+    _deserialize_outputs_to_state,
+    _deserialize_outputs_to_string,
+    _serialize_outputs_to_state,
+    _serialize_outputs_to_string,
 )
 
 # Import in-memory transport and fixtures
@@ -846,94 +848,65 @@ connections: []
 
 
 class TestStateConfigHelpers:
-    """Tests for the state configuration serialization helper functions."""
+    """Tests for the per-tool state-config wrappers.
 
-    def test_serialize_outputs_to_string_with_handler(self):
-        """Test serializing outputs_to_string config with a handler function."""
-        config = {
+    The per-tool handler (de)serialization is delegated to Haystack's own helpers and tested there;
+    these tests only cover the wrapper logic we own: mapping over tool names, the empty/None return
+    contract, and skipping empty per-tool configs.
+    """
+
+    def test_outputs_to_string_roundtrip_delegates_handler_serialization(self):
+        """The wrapper maps over tool names and delegates handler (de)serialization to Haystack."""
+        original = {
             "add": {"source": "content", "handler": format_result},
             "subtract": {"source": "diff"},
         }
 
-        serialized = _serialize_state_config(config)
+        serialized = _serialize_outputs_to_string(original)
+        assert isinstance(serialized["add"]["handler"], str)  # delegated handler serialization
 
-        assert serialized is not None
-        assert "add" in serialized
-        assert "subtract" in serialized
-        assert isinstance(serialized["add"]["handler"], str)  # Handler serialized to string
-        assert serialized["subtract"]["source"] == "diff"
-        assert "handler" not in serialized["subtract"]  # No handler for subtract
+        deserialized = _deserialize_outputs_to_string(serialized)
+        assert set(deserialized) == {"add", "subtract"}
+        assert callable(deserialized["add"]["handler"])
+        assert deserialized["subtract"]["source"] == "diff"
 
-    def test_serialize_outputs_to_state_with_handler(self):
-        """Test serializing outputs_to_state config with a handler function."""
-        config = {
+    def test_outputs_to_state_roundtrip_delegates_handler_serialization(self):
+        """Nested per-tool state configs use the state helper (a 'raw_result' state key is not a single config)."""
+        original = {
             "add": {
                 "sum_result": {"source": "content", "handler": format_result},
                 "raw_result": {},
             },
         }
 
-        serialized = _serialize_state_config(config)
-
-        assert serialized is not None
-        assert "add" in serialized
+        serialized = _serialize_outputs_to_state(original)
         assert isinstance(serialized["add"]["sum_result"]["handler"], str)
         assert serialized["add"]["raw_result"] == {}
 
-    def test_serialize_empty_config(self):
-        """Test that empty config returns None."""
-        assert _serialize_state_config({}) is None
-        assert _serialize_state_config(None) is None
-
-    def test_deserialize_outputs_to_string_with_handler(self):
-        """Test deserializing outputs_to_string config with a handler function."""
-        # First serialize to get the correct handler path
-        original = {"add": {"source": "content", "handler": format_result}}
-        serialized = _serialize_state_config(original)
-
-        # Now deserialize
-        deserialized = _deserialize_state_config(serialized)
-
-        assert "add" in deserialized
-        assert callable(deserialized["add"]["handler"])
-        assert deserialized["add"]["source"] == "content"
-
-    def test_deserialize_outputs_to_state_with_handler(self):
-        """Test deserializing outputs_to_state config with a handler function."""
-        # First serialize to get the correct handler path
-        original = {"add": {"sum_result": {"source": "content", "handler": format_result}}}
-        serialized = _serialize_state_config(original)
-
-        # Now deserialize
-        deserialized = _deserialize_state_config(serialized)
-
-        assert "add" in deserialized
+        deserialized = _deserialize_outputs_to_state(serialized)
         assert callable(deserialized["add"]["sum_result"]["handler"])
 
-    def test_deserialize_empty_config(self):
-        """Test that empty config returns empty dict."""
-        assert _deserialize_state_config({}) == {}
-        assert _deserialize_state_config(None) == {}
+    def test_empty_config_return_contract(self):
+        """Serialize returns None for empty input; deserialize returns an empty dict."""
+        for serialize in (_serialize_outputs_to_string, _serialize_outputs_to_state):
+            assert serialize({}) is None
+            assert serialize(None) is None
+        for deserialize in (_deserialize_outputs_to_string, _deserialize_outputs_to_state):
+            assert deserialize({}) == {}
+            assert deserialize(None) == {}
 
-    def test_roundtrip_serialization(self):
-        """Test that serialization and deserialization are inverse operations."""
-        original = {
-            "add": {"source": "content", "handler": format_result},
-            "subtract": {"source": "diff"},
-        }
-
-        serialized = _serialize_state_config(original)
-        deserialized = _deserialize_state_config(serialized)
-
-        assert "add" in deserialized
-        assert "subtract" in deserialized
-        assert deserialized["add"]["source"] == "content"
-        assert callable(deserialized["add"]["handler"])
-        assert deserialized["subtract"]["source"] == "diff"
-
-    @pytest.mark.parametrize("helper", [_serialize_state_config, _deserialize_state_config])
-    def test_state_config_helpers_skip_empty_tool_configs(self, helper):
-        config = {"keep": {"source": "x"}, "empty": {}, "none": None}
+    @pytest.mark.parametrize(
+        "helper",
+        [
+            _serialize_outputs_to_string,
+            _deserialize_outputs_to_string,
+            _serialize_outputs_to_state,
+            _deserialize_outputs_to_state,
+        ],
+    )
+    def test_skip_empty_tool_configs(self, helper):
+        # Inner config valid for both outputs_to_string and outputs_to_state formats
+        config = {"keep": {"k": {"source": "x"}}, "empty": {}, "none": None}
 
         result = helper(config)
 

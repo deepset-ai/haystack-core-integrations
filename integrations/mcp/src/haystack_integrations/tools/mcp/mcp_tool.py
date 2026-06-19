@@ -1107,7 +1107,7 @@ class MCPTool(Tool):
             logger.debug(f"TOOL: Invoke complete for '{self.name}', result type: {type(result)}")
 
             # Parse JSON to dict only when outputs_to_state is configured.
-            # ToolInvoker requires dict for _merge_tool_outputs(); ToolCallResult.result expects str otherwise.
+            # State output handlers require a dict; ToolCallResult.result expects str otherwise.
             if self.outputs_to_state:
                 return _extract_first_text_element(result)
 
@@ -1138,7 +1138,7 @@ class MCPTool(Tool):
             result = await asyncio.wait_for(client.call_tool(self.name, kwargs), timeout=self._invocation_timeout)
 
             # Parse JSON to dict only when outputs_to_state is configured.
-            # ToolInvoker requires dict for _merge_tool_outputs(); ToolCallResult.result expects str otherwise.
+            # State output handlers require a dict; ToolCallResult.result expects str otherwise.
             if self.outputs_to_state:
                 return _extract_first_text_element(result)
 

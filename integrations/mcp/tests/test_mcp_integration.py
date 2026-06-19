@@ -11,7 +11,6 @@ import pytest_asyncio
 from haystack import Pipeline, logging
 from haystack.components.agents import Agent
 from haystack.components.generators.chat import OpenAIChatGenerator
-from haystack.components.tools import ToolInvoker
 from haystack.dataclasses import ChatMessage, ChatRole
 
 from haystack_integrations.tools.mcp import (
@@ -138,7 +137,8 @@ if __name__ == "__main__":
             if os.path.exists(server_script_path):
                 os.remove(server_script_path)
 
-    @pytest.mark.skip("Brave is temporarily not returning results")
+    @pytest.mark.skipif(not os.environ.get("OPENAI_API_KEY"), reason="OPENAI_API_KEY not set")
+    @pytest.mark.skipif(not os.environ.get("BRAVE_API_KEY"), reason="BRAVE_API_KEY not set")
     def test_mcp_brave_search(self, mcp_tool_cleanup):
         """Test using an MCPTool in a pipeline with OpenAI."""
 
@@ -148,7 +148,7 @@ if __name__ == "__main__":
             args=["run", "-i", "--rm", "-e", "BRAVE_MCP_TRANSPORT", "-e", "BRAVE_API_KEY", "mcp/brave-search"],
             env={
                 "BRAVE_MCP_TRANSPORT": "stdio",
-                "BRAVE_API_KEY": os.environ.get("BRAVE_API_KEY", "YOUR_API_KEY_HERE"),
+                "BRAVE_API_KEY": os.environ["BRAVE_API_KEY"],
             },
         )
         try:
@@ -161,30 +161,23 @@ if __name__ == "__main__":
                 pytest.skip("Docker is not installed or not in PATH")
             raise
 
-        # Create pipeline with OpenAIChatGenerator and ToolInvoker
+        # Create pipeline with an Agent that owns the tool-calling loop
         pipeline = Pipeline()
-        pipeline.add_component("llm", OpenAIChatGenerator(model="gpt-4.1-mini", tools=[tool]))
-        pipeline.add_component("tool_invoker", ToolInvoker(tools=[tool]))
-
-        # Connect components
-        pipeline.connect("llm.replies", "tool_invoker.messages")
-
-        # Create a message that should trigger tool use
+        pipeline.add_component("agent", Agent(chat_generator=OpenAIChatGenerator(model="gpt-4.1-mini"), tools=[tool]))
         message = ChatMessage.from_user(
-            text="Use brave_web_search to search for the latest news about the stock market, use the `query` parameter"
+            text="Use the brave_web_search tool to search the web for 'capital of Japan'. "
+            "Pass the search text via the `query` parameter."
         )
+        result = pipeline.run({"agent": {"messages": [message]}})
 
-        result = pipeline.run({"llm": {"messages": [message]}})
-
-        tool_messages = result["tool_invoker"]["tool_messages"]
-        assert len(tool_messages) == 1
+        tool_messages = [msg for msg in result["agent"]["messages"] if msg.is_from(ChatRole.TOOL)]
+        assert len(tool_messages) >= 1
 
         tool_message = tool_messages[0]
-        assert tool_message.is_from(ChatRole.TOOL)
-        assert any(
-            term in tool_message.tool_call_result.result
-            for term in ["equity", "market", "stock", "price", "NASDAQ", "S&P 500"]
-        ), f"Result should contain information about the stock market\n\nResult: {tool_message.tool_call_result.result}"
+        assert "tokyo" in tool_message.tool_call_result.result.lower(), (
+            f"Brave search results for 'capital of Japan' should mention Tokyo"
+            f"\n\nResult: {tool_message.tool_call_result.result}"
+        )
 
     @pytest.mark.skipif(not os.environ.get("OPENAI_API_KEY"), reason="OPENAI_API_KEY not set")
     def test_mcp_tool_in_pipeline_with_multiple_tools(self, mcp_tool_cleanup):
@@ -209,23 +202,22 @@ if __name__ == "__main__":
         # Register for cleanup
         mcp_tool_cleanup(echo_tool)
 
-        # Create pipeline with OpenAIChatGenerator and ToolInvoker
+        # Create pipeline with an Agent that owns the tool-calling loop
         pipeline = Pipeline()
-        pipeline.add_component("llm", OpenAIChatGenerator(model="gpt-4.1-mini", tools=[echo_tool, time_tool]))
-        pipeline.add_component("tool_invoker", ToolInvoker(tools=[echo_tool, time_tool]))
-
-        pipeline.connect("llm.replies", "tool_invoker.messages")
+        pipeline.add_component(
+            "agent",
+            Agent(chat_generator=OpenAIChatGenerator(model="gpt-4.1-mini"), tools=[echo_tool, time_tool]),
+        )
 
         # Create a message that should trigger tool use
         message = ChatMessage.from_user(text="What is the current time in New York?")
 
-        result = pipeline.run({"llm": {"messages": [message]}})
+        result = pipeline.run({"agent": {"messages": [message]}})
 
-        tool_messages = result["tool_invoker"]["tool_messages"]
-        assert len(tool_messages) == 1
+        tool_messages = [msg for msg in result["agent"]["messages"] if msg.is_from(ChatRole.TOOL)]
+        assert len(tool_messages) >= 1
 
         tool_message = tool_messages[0]
-        assert tool_message.is_from(ChatRole.TOOL)
         assert "timezone" in tool_message.tool_call_result.result
         assert "datetime" in tool_message.tool_call_result.result
         assert "New_York" in tool_message.tool_call_result.result
