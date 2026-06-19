@@ -155,7 +155,11 @@ if __name__ == "__main__":
 
     @pytest.mark.skipif(not os.environ.get("OPENAI_API_KEY"), reason="OPENAI_API_KEY not set")
     @pytest.mark.skipif(not os.environ.get("BRAVE_API_KEY"), reason="BRAVE_API_KEY not set")
-    @pytest.mark.skipif(shutil.which("docker") is None, reason="docker not installed or not in PATH")
+    @pytest.mark.skipif(
+        sys.platform != "linux",
+        reason="The mcp/brave-search Docker image is a Linux container; only the Linux CI runner has a "
+        "working Docker daemon (Windows/macOS runners have the docker CLI but no reachable daemon).",
+    )
     def test_mcp_brave_search(self, mcp_tool_cleanup):
         """Test using an MCPTool in a pipeline with OpenAI."""
 
