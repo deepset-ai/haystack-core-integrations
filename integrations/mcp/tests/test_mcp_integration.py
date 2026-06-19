@@ -34,7 +34,6 @@ class TestMCPToolInPipelineWithOpenAI:
     """Integration tests for MCPTool in Haystack pipelines with external dependencies."""
 
     @pytest.mark.skipif(not os.environ.get("OPENAI_API_KEY"), reason="OPENAI_API_KEY not set")
-    @pytest.mark.skipif(sys.platform == "win32", reason="Windows fails for some reason")
     def test_mcp_tool_with_http_server(self):
         """Test using an MCPTool with a real HTTP server."""
 
