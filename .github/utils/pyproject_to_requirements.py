@@ -3,6 +3,11 @@ from pathlib import Path
 import toml
 
 def main(pyproject_path: Path, exclude_optional_dependencies: bool = False):
+    pyproject_path = pyproject_path.resolve()
+    if pyproject_path.name != "pyproject.toml":
+        raise ValueError(f"Expected a pyproject.toml file, got: {pyproject_path.name}")
+    if not pyproject_path.is_file():
+        raise FileNotFoundError(f"File not found: {pyproject_path}")
     content = toml.load(pyproject_path)
     deps = set(content["project"]["dependencies"])
 
