@@ -285,9 +285,7 @@ class TestSTACKITChatGenerator:
                 self.responses += chunk.content if chunk.content else ""
 
         callback = Callback()
-        component = STACKITChatGenerator(
-            model="google/gemma-3-27b-it", streaming_callback=callback
-        )
+        component = STACKITChatGenerator(model="google/gemma-3-27b-it", streaming_callback=callback)
         results = component.run([ChatMessage.from_user("What's the capital of France?")])
 
         assert len(results["replies"]) == 1
