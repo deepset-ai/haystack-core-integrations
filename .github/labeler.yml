@@ -175,11 +175,6 @@ integration:huggingface-api:
 
 integration:ibm-db:
   - changed-files:
-      - any-glob-to-any-file: "integrations/ibm/**/*"
-      - any-glob-to-any-file: ".github/workflows/ibm_db.yml"
-
-integration:ibm-db:
-  - changed-files:
       - any-glob-to-any-file: "integrations/ibm_db/**/*"
       - any-glob-to-any-file: ".github/workflows/ibm_db.yml"
 
