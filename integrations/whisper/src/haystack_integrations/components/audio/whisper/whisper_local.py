@@ -130,10 +130,10 @@ class LocalWhisperTranscriber:
         if whisper_params is None:
             whisper_params = self.whisper_params
 
-        documents = self.transcribe(sources, **whisper_params)
+        documents = self._transcribe(sources, **whisper_params)
         return {"documents": documents}
 
-    def transcribe(self, sources: list[str | Path | ByteStream], **kwargs: Any) -> list[Document]:
+    def _transcribe(self, sources: list[str | Path | ByteStream], **kwargs: Any) -> list[Document]:
         """
         Transcribes the audio files into a list of Documents, one for each input file.
 

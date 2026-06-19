@@ -104,6 +104,16 @@ jobs:
           name: coverage-comment-whisper
           path: python-coverage-comment-action-whisper.txt
 
+      # ffmpeg is required by `LocalWhisperTranscriber` to decode audio files. It is skipped on Windows,
+      # where the local-model integration tests do not run.
+      - name: Install ffmpeg (Linux)
+        if: runner.os == 'Linux'
+        run: sudo apt update && sudo apt install -y ffmpeg
+
+      - name: Install ffmpeg (macOS)
+        if: runner.os == 'macOS'
+        run: brew install ffmpeg
+
       - name: Run integration tests
         run: hatch run test:integration-cov-append-retry
 

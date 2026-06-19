@@ -152,7 +152,7 @@ class TestLocalWhisperTranscriber:
             "text": "test transcription",
             "other_metadata": ["other", "meta", "data"],
         }
-        results = comp.transcribe(sources=[SAMPLES_PATH / "audio" / "this is the content of the document.wav"])
+        results = comp._transcribe(sources=[SAMPLES_PATH / "audio" / "this is the content of the document.wav"])
         expected = Document(
             content="test transcription",
             meta={
@@ -172,7 +172,7 @@ class TestLocalWhisperTranscriber:
         path = SAMPLES_PATH / "audio" / "this is the content of the document.wav"
         bs = ByteStream.from_file_path(path)
         bs.meta["file_path"] = path
-        results = comp.transcribe(sources=[bs])
+        results = comp._transcribe(sources=[bs])
         expected = Document(
             content="test transcription", meta={"audio_file": path, "other_metadata": ["other", "meta", "data"]}
         )
@@ -184,7 +184,7 @@ class TestLocalWhisperTranscriber:
         comp._model = MagicMock()
         comp._model.transcribe.return_value = {"text": "test transcription"}
         bs = ByteStream(data=b"fake audio bytes")
-        results = comp.transcribe(sources=[bs])
+        results = comp._transcribe(sources=[bs])
         assert results[0].content == "test transcription"
         audio_file = Path(results[0].meta["audio_file"])
         assert audio_file.exists()
@@ -206,12 +206,11 @@ class TestLocalWhisperTranscriber:
             mocked_whisper.load_model.return_value.transcribe.return_value = {"text": "test transcription"}
             comp = LocalWhisperTranscriber(model="tiny")
             assert comp._model is None
-            results = comp.transcribe(sources=[SAMPLES_PATH / "audio" / "this is the content of the document.wav"])
+            results = comp._transcribe(sources=[SAMPLES_PATH / "audio" / "this is the content of the document.wav"])
             mocked_whisper.load_model.assert_called_once()
             assert results[0].content == "test transcription"
 
     @pytest.mark.integration
-    @pytest.mark.slow
     @pytest.mark.skipif(sys.platform in ["win32", "cygwin"], reason="ffmpeg not installed on Windows CI")
     def test_whisper_local_transcriber(self, test_files_path):
         comp = LocalWhisperTranscriber(model="tiny", whisper_params={"language": "english"})
@@ -241,7 +240,6 @@ class TestLocalWhisperTranscriber:
         assert docs[2].meta["audio_file"]
 
     @pytest.mark.integration
-    @pytest.mark.slow
     @pytest.mark.skipif(sys.platform in ["win32", "cygwin"], reason="ffmpeg not installed on Windows CI")
     def test_whisper_local_transcriber_pipeline_and_url_source(self):
         pipe = Pipeline()

@@ -68,12 +68,10 @@ dependencies = [
 
 [tool.hatch.envs.test.scripts]
 unit = 'pytest -m "not integration" {args:tests}'
-# `slow` tests run a local Whisper model and need `ffmpeg`; they are excluded from CI and meant to be run
-# locally with `hatch run test:all`. CI runs only the `RemoteWhisperTranscriber` integration tests (API-based).
-integration = 'pytest -m "integration and not slow" {args:tests}'
+integration = 'pytest -m "integration" {args:tests}'
 all = 'pytest {args:tests}'
 unit-cov-retry = 'pytest --cov=haystack_integrations --reruns 3 --reruns-delay 30 -x -m "not integration" {args:tests}'
-integration-cov-append-retry = 'pytest --cov=haystack_integrations --cov-append --reruns 3 --reruns-delay 30 -x -m "integration and not slow" {args:tests}'
+integration-cov-append-retry = 'pytest --cov=haystack_integrations --cov-append --reruns 3 --reruns-delay 30 -x -m "integration" {args:tests}'
 types = "mypy -p haystack_integrations.components.audio.whisper {args}"
 
 [tool.mypy]
@@ -168,7 +166,6 @@ exclude_lines = ["no cov", "if __name__ == .__main__.:", "if TYPE_CHECKING:"]
 addopts = "--strict-markers"
 markers = [
   "integration: integration tests",
-  "slow: slow tests that require downloading a Whisper model and ffmpeg",
 ]
 log_cli = true
 asyncio_default_fixture_loop_scope = "function"
