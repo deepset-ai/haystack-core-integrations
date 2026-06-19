@@ -326,7 +326,7 @@ class TestOptimumDocumentEmbedder:
         with pytest.raises(TypeError, match="OptimumDocumentEmbedder expects a list of Documents as input"):
             embedder.run(documents=list_integers_input)
 
-    def test_run_on_empty_list(self, mock_check_valid_model):  # noqa: ARG002
+    def test_run_on_empty_list(self, mock_check_valid_model, mock_get_pooling_mode):  # noqa: ARG002
         embedder = OptimumDocumentEmbedder(
             model="sentence-transformers/paraphrase-albert-small-v2",
         )
