@@ -163,6 +163,11 @@ integration:google-vertex:
   - changed-files:
       - any-glob-to-any-file: "integrations/google_vertex/**/*"
 
+integration:groundroute:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/groundroute/**/*"
+      - any-glob-to-any-file: ".github/workflows/groundroute.yml"
+
 integration:hanlp:
   - changed-files:
       - any-glob-to-any-file: "integrations/hanlp/**/*"
