@@ -53,10 +53,10 @@ class TwelveLabsVideoConverter:
 
     def __init__(
         self,
-        api_key: Secret = Secret.from_env_var("TWELVELABS_API_KEY"),  # noqa: B008
+        *,
+        api_key: Secret = Secret.from_env_var("TWELVELABS_API_KEY"),
         model: str = DEFAULT_MODEL,
         prompt: str = DEFAULT_PROMPT,
-        *,
         temperature: float = 0.2,
         max_tokens: int = 16384,
     ) -> None:

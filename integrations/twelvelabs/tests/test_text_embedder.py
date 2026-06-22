@@ -36,6 +36,23 @@ def test_run():
     assert result["meta"]["model"] == "marengo3.0"
 
 
+def test_run_applies_prefix_and_suffix():
+    embedder = TwelveLabsTextEmbedder(api_key=Secret.from_token("tlk_test"), prefix="Q: ", suffix=" ?")
+    with patch(PATCH_TARGET, return_value=[0.1] * 8) as mock_embed:
+        embedder.run(text="a cat")
+    mock_embed.assert_called_once_with("Q: a cat ?", "marengo3.0", "tlk_test")
+
+
+def test_prefix_suffix_round_trip(monkeypatch):
+    monkeypatch.setenv("TWELVELABS_API_KEY", "tlk_env")
+    data = TwelveLabsTextEmbedder(prefix="p", suffix="s").to_dict()
+    assert data["init_parameters"]["prefix"] == "p"
+    assert data["init_parameters"]["suffix"] == "s"
+    restored = TwelveLabsTextEmbedder.from_dict(data)
+    assert restored.prefix == "p"
+    assert restored.suffix == "s"
+
+
 def test_run_rejects_non_string():
     embedder = TwelveLabsTextEmbedder(api_key=Secret.from_token("tlk_test"))
     with pytest.raises(TypeError):
