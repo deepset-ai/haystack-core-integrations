@@ -2,16 +2,22 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 import os
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
 import httpx
 import pytest
 from haystack import Document, Pipeline
+from haystack.utils import Secret
 
 from haystack_integrations.components.retrievers.google_drive import (
     GoogleDriveConfigError,
     GoogleDriveRequestError,
     GoogleDriveRetriever,
+)
+from haystack_integrations.components.retrievers.google_drive.retriever import (
+    _is_retryable_response,
+    _wait_with_retry_after,
 )
 
 MODULE = "haystack_integrations.components.retrievers.google_drive.retriever"
@@ -208,6 +214,19 @@ class TestRun:
             retriever.run(query="contoso", access_token="tok", top_k=3)
         assert mock_get.call_args.kwargs["params"]["pageSize"] == 3
 
+    def test_accepts_secret_access_token(self):
+        retriever = GoogleDriveRetriever()
+        with patch.object(httpx.Client, "get", return_value=_make_response(json_body=EMPTY_RESPONSE)) as mock_get:
+            retriever.run(query="contoso", access_token=Secret.from_token("secret-token"))
+        assert mock_get.call_args.kwargs["headers"]["Authorization"] == "Bearer secret-token"
+
+    def test_unresolvable_secret_access_token_raises(self):
+        retriever = GoogleDriveRetriever()
+        # A non-strict env var Secret resolves to None when the variable is unset.
+        unset_secret = Secret.from_env_var("GOOGLE_DRIVE_UNSET_TOKEN", strict=False)
+        with pytest.raises(GoogleDriveConfigError):
+            retriever.run(query="contoso", access_token=unset_secret)
+
     def test_empty_results(self):
         retriever = GoogleDriveRetriever()
         with patch.object(httpx.Client, "get", return_value=_make_response(json_body=EMPTY_RESPONSE)):
@@ -319,10 +338,7 @@ class TestErrorHandling:
         retriever = GoogleDriveRetriever(max_retries=2)
         throttled = _make_response(status_code=429, headers={"Retry-After": "0"})
         ok = _make_response(json_body=FILES_RESPONSE)
-        with (
-            patch.object(httpx.Client, "get", side_effect=[throttled, ok]) as mock_get,
-            patch(f"{MODULE}.time.sleep"),
-        ):
+        with patch.object(httpx.Client, "get", side_effect=[throttled, ok]) as mock_get:
             documents = retriever.run(query="contoso", access_token="tok")["documents"]
         assert len(documents) == 1
         assert mock_get.call_count == 2
@@ -330,7 +346,7 @@ class TestErrorHandling:
     def test_gives_up_after_max_retries(self):
         retriever = GoogleDriveRetriever(max_retries=1)
         throttled = _make_response(status_code=429, headers={"Retry-After": "0"})
-        with patch.object(httpx.Client, "get", return_value=throttled) as mock_get, patch(f"{MODULE}.time.sleep"):
+        with patch.object(httpx.Client, "get", return_value=throttled) as mock_get:
             with pytest.raises(GoogleDriveRequestError) as exc_info:
                 retriever.run(query="q", access_token="tok")
         assert exc_info.value.status_code == 429
@@ -346,19 +362,29 @@ class TestErrorHandling:
         assert exc_info.value.status_code == 403
 
 
-class TestRetryDelay:
-    def test_uses_numeric_retry_after(self):
+class TestRetryStrategy:
+    def _state(self, response: httpx.Response, attempt: int = 1) -> SimpleNamespace:
+        outcome = SimpleNamespace(failed=False, result=lambda: response)
+        return SimpleNamespace(outcome=outcome, attempt_number=attempt)
+
+    @pytest.mark.parametrize("status_code, expected", [(429, True), (503, True), (200, False), (401, False)])
+    def test_is_retryable_response(self, status_code, expected):
+        assert _is_retryable_response(_make_response(status_code=status_code)) is expected
+
+    def test_wait_honors_numeric_retry_after(self):
         response = _make_response(status_code=429, headers={"Retry-After": "5"})
-        assert GoogleDriveRetriever._retry_delay(response, 1) == 5.0
+        assert _wait_with_retry_after(self._state(response)) == 5.0
 
-    def test_falls_back_when_retry_after_missing(self):
+    def test_wait_falls_back_to_exponential_without_header(self):
+        # No Retry-After header -> exponential backoff: 2 ** (attempt - 1).
         response = _make_response(status_code=429)
-        # Exponential backoff: 2 ** (attempt - 1).
-        assert GoogleDriveRetriever._retry_delay(response, 3) == 4.0
+        assert _wait_with_retry_after(self._state(response, attempt=1)) == 1.0
+        assert _wait_with_retry_after(self._state(response, attempt=3)) == 4.0
 
-    def test_falls_back_when_retry_after_not_numeric(self):
-        response = _make_response(status_code=429, headers={"Retry-After": "soon"})
-        assert GoogleDriveRetriever._retry_delay(response, 1) == 1.0
+    def test_wait_falls_back_when_retry_after_is_not_numeric(self):
+        # An HTTP-date Retry-After is not parsed as a float and falls back to exponential backoff.
+        response = _make_response(status_code=429, headers={"Retry-After": "Wed, 21 Oct 2015 07:28:00 GMT"})
+        assert _wait_with_retry_after(self._state(response, attempt=2)) == 2.0
 
 
 class TestPipeline:
@@ -403,7 +429,7 @@ class TestRunAsync:
                 _make_response(json_body=FILES_RESPONSE),
             ]
         )
-        with patch.object(httpx.AsyncClient, "get", get), patch(f"{MODULE}.asyncio.sleep", new=AsyncMock()):
+        with patch.object(httpx.AsyncClient, "get", get):
             documents = (await retriever.run_async(query="contoso", access_token="tok"))["documents"]
         assert len(documents) == 1
         assert get.await_count == 2
@@ -414,6 +440,13 @@ class TestRunAsync:
         with patch.object(httpx.AsyncClient, "get", get):
             with pytest.raises(GoogleDriveRequestError):
                 await retriever.run_async(query="q", access_token="bad")
+
+    async def test_accepts_secret_access_token(self):
+        retriever = GoogleDriveRetriever()
+        get = AsyncMock(return_value=_make_response(json_body=EMPTY_RESPONSE))
+        with patch.object(httpx.AsyncClient, "get", get):
+            await retriever.run_async(query="contoso", access_token=Secret.from_token("secret-token"))
+        assert get.call_args.kwargs["headers"]["Authorization"] == "Bearer secret-token"
 
 
 @pytest.mark.asyncio

@@ -2,13 +2,13 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-import asyncio
 import os
-import time
 from typing import Any
 
 import httpx
 from haystack import Document, component, default_from_dict, default_to_dict, logging
+from haystack.utils import Secret
+from tenacity import AsyncRetrying, RetryCallState, Retrying, retry_if_result, stop_after_attempt, wait_exponential
 
 from .errors import GoogleDriveConfigError, GoogleDriveRequestError
 
@@ -17,9 +17,9 @@ logger = logging.getLogger(__name__)
 _DEFAULT_API_BASE_URL = "https://www.googleapis.com/drive/v3"
 # The Drive `files.list` endpoint caps a single page at 1000 results; larger `top_k` values are paginated.
 _MAX_PAGE_SIZE = 1000
-_HTTP_UNAUTHORIZED = 401
-_HTTP_FORBIDDEN = 403
 _RETRYABLE_STATUS = frozenset({429, 500, 502, 503, 504})
+# Fallback backoff when a throttled response carries no `Retry-After` header: 1s, 2s, 4s, ...
+_EXPONENTIAL_BACKOFF = wait_exponential()
 
 # The file properties requested via the Drive `fields` selection.
 _DEFAULT_FILE_FIELDS = (
@@ -41,6 +41,56 @@ _EXPORT_MIME_TYPES = {
     "application/vnd.google-apps.spreadsheet": "text/csv",
     "application/vnd.google-apps.presentation": "text/plain",
 }
+
+
+def _retry_response(retry_state: RetryCallState) -> httpx.Response | None:
+    """Return the `httpx.Response` recorded for a retry attempt, or `None` if the attempt raised."""
+    outcome = retry_state.outcome
+    if outcome is None or outcome.failed:
+        return None
+    return outcome.result()
+
+
+def _is_retryable_response(response: httpx.Response) -> bool:
+    """Return whether a Google Drive API response should trigger a retry."""
+    return response.status_code in _RETRYABLE_STATUS
+
+
+def _wait_with_retry_after(retry_state: RetryCallState) -> float:
+    """Wait strategy honoring a numeric `Retry-After` header, falling back to exponential backoff."""
+    response = _retry_response(retry_state)
+    if response is not None:
+        retry_after = response.headers.get("Retry-After")
+        if retry_after:
+            try:
+                return float(retry_after)
+            except ValueError:
+                pass
+
+    return _EXPONENTIAL_BACKOFF(retry_state)
+
+
+def _last_response(retry_state: RetryCallState) -> httpx.Response:
+    """Return the final response once retries are exhausted, so the caller can raise a typed error."""
+    response = _retry_response(retry_state)
+    if response is None:
+        msg = "Google Drive API retries were exhausted without a recorded response."
+        raise GoogleDriveRequestError(msg)
+    return response
+
+
+def _log_retry(retry_state: RetryCallState) -> None:
+    """Log a warning before sleeping between Google Drive API retries."""
+    response = _retry_response(retry_state)
+    next_action = retry_state.next_action
+    if response is None or next_action is None:
+        return
+    logger.warning(
+        "Google Drive API returned status {status}; retrying in {delay}s (attempt {attempt}).",
+        status=response.status_code,
+        delay=next_action.sleep,
+        attempt=retry_state.attempt_number,
+    )
 
 
 @component
@@ -142,19 +192,22 @@ class GoogleDriveRetriever:
         self.max_retries = max_retries
 
     @component.output_types(documents=list[Document])
-    def run(self, query: str, access_token: str, top_k: int | None = None) -> dict[str, list[Document]]:
+    def run(self, query: str, access_token: str | Secret, top_k: int | None = None) -> dict[str, list[Document]]:
         """
         Search Google Drive and return the matching documents.
 
         :param query: The search query string, matched against the full text of files via
             `fullText contains`.
         :param access_token: A delegated Google OAuth bearer token for the user whose Drive is searched,
-            typically wired from an upstream `OAuthResolver`.
+            typically wired from an upstream `OAuthResolver` (which emits a plain `str`). A `Secret` is also
+            accepted and resolved internally.
         :param top_k: Overrides the `top_k` configured at initialization for this run.
         :returns: A dictionary with a `documents` key holding the list of retrieved `Document` objects.
+        :raises GoogleDriveConfigError: If `access_token` is a `Secret` that does not resolve to a string.
         :raises GoogleDriveRequestError: If the Drive API returns an error response.
         :raises httpx.HTTPError: If a network-level error occurs (for example a timeout or connection failure).
         """
+        token = self._resolve_access_token(access_token)
         limit = top_k or self.top_k
         documents: list[Document] = []
         page_token: str | None = None
@@ -162,10 +215,10 @@ class GoogleDriveRetriever:
             while len(documents) < limit:
                 size = min(_MAX_PAGE_SIZE, limit - len(documents))
                 params = self._build_params(query, page_token, size)
-                payload = self._get(client, access_token, params)
+                payload = self._get(client, token, params)
                 files = payload.get("files") or []
                 for file in files:
-                    content = self._content_for(client, access_token, file)
+                    content = self._content_for(client, token, file)
                     documents.append(self._file_to_document(file, content))
                 page_token = payload.get("nextPageToken")
                 if not files or not page_token:
@@ -174,19 +227,24 @@ class GoogleDriveRetriever:
         return {"documents": documents[:limit]}
 
     @component.output_types(documents=list[Document])
-    async def run_async(self, query: str, access_token: str, top_k: int | None = None) -> dict[str, list[Document]]:
+    async def run_async(
+        self, query: str, access_token: str | Secret, top_k: int | None = None
+    ) -> dict[str, list[Document]]:
         """
         Asynchronously search Google Drive and return the matching documents.
 
         :param query: The search query string, matched against the full text of files via
             `fullText contains`.
         :param access_token: A delegated Google OAuth bearer token for the user whose Drive is searched,
-            typically wired from an upstream `OAuthResolver`.
+            typically wired from an upstream `OAuthResolver` (which emits a plain `str`). A `Secret` is also
+            accepted and resolved internally.
         :param top_k: Overrides the `top_k` configured at initialization for this run.
         :returns: A dictionary with a `documents` key holding the list of retrieved `Document` objects.
+        :raises GoogleDriveConfigError: If `access_token` is a `Secret` that does not resolve to a string.
         :raises GoogleDriveRequestError: If the Drive API returns an error response.
         :raises httpx.HTTPError: If a network-level error occurs (for example a timeout or connection failure).
         """
+        token = self._resolve_access_token(access_token)
         limit = top_k or self.top_k
         documents: list[Document] = []
         page_token: str | None = None
@@ -194,16 +252,27 @@ class GoogleDriveRetriever:
             while len(documents) < limit:
                 size = min(_MAX_PAGE_SIZE, limit - len(documents))
                 params = self._build_params(query, page_token, size)
-                payload = await self._get_async(client, access_token, params)
+                payload = await self._get_async(client, token, params)
                 files = payload.get("files") or []
                 for file in files:
-                    content = await self._content_for_async(client, access_token, file)
+                    content = await self._content_for_async(client, token, file)
                     documents.append(self._file_to_document(file, content))
                 page_token = payload.get("nextPageToken")
                 if not files or not page_token:
                     break
 
         return {"documents": documents[:limit]}
+
+    @staticmethod
+    def _resolve_access_token(access_token: str | Secret) -> str:
+        """Return the bearer token string, resolving it if a `Secret` was passed."""
+        if not isinstance(access_token, Secret):
+            return access_token
+        resolved = access_token.resolve_value()
+        if not isinstance(resolved, str):
+            msg = "The access_token Secret did not resolve to a string value."
+            raise GoogleDriveConfigError(msg)
+        return resolved
 
     def _build_params(self, query: str, page_token: str | None, size: int) -> dict[str, Any]:
         """Build the Drive `files.list` query parameters for one page."""
@@ -320,59 +389,31 @@ class GoogleDriveRetriever:
         """Send a `files.list` request, retrying on throttling/transient errors, and return the parsed JSON."""
         url = f"{self.api_base_url}/files"
         headers = {"Authorization": f"Bearer {access_token}"}
-        attempt = 0
-        while True:
-            response = client.get(url, headers=headers, params=params)
-            if response.status_code in _RETRYABLE_STATUS and attempt < self.max_retries:
-                attempt += 1
-                delay = self._retry_delay(response, attempt)
-                logger.warning(
-                    "Google Drive API returned status {status}; retrying in {delay}s "
-                    "(attempt {attempt}/{max_retries}).",
-                    status=response.status_code,
-                    delay=delay,
-                    attempt=attempt,
-                    max_retries=self.max_retries,
-                )
-                time.sleep(delay)
-                continue
+        retrying = Retrying(
+            stop=stop_after_attempt(self.max_retries + 1),
+            wait=_wait_with_retry_after,
+            retry=retry_if_result(_is_retryable_response),
+            before_sleep=_log_retry,
+            retry_error_callback=_last_response,
+        )
+        response: httpx.Response = retrying(client.get, url, headers=headers, params=params)
 
-            return self._parse_response(response)
+        return self._parse_response(response)
 
     async def _get_async(self, client: httpx.AsyncClient, access_token: str, params: dict[str, Any]) -> dict[str, Any]:
         """Async variant of `_get`."""
         url = f"{self.api_base_url}/files"
         headers = {"Authorization": f"Bearer {access_token}"}
-        attempt = 0
-        while True:
-            response = await client.get(url, headers=headers, params=params)
-            if response.status_code in _RETRYABLE_STATUS and attempt < self.max_retries:
-                attempt += 1
-                delay = self._retry_delay(response, attempt)
-                logger.warning(
-                    "Google Drive API returned status {status}; retrying in {delay}s "
-                    "(attempt {attempt}/{max_retries}).",
-                    status=response.status_code,
-                    delay=delay,
-                    attempt=attempt,
-                    max_retries=self.max_retries,
-                )
-                await asyncio.sleep(delay)
-                continue
+        retrying = AsyncRetrying(
+            stop=stop_after_attempt(self.max_retries + 1),
+            wait=_wait_with_retry_after,
+            retry=retry_if_result(_is_retryable_response),
+            before_sleep=_log_retry,
+            retry_error_callback=_last_response,
+        )
+        response: httpx.Response = await retrying(client.get, url, headers=headers, params=params)
 
-            return self._parse_response(response)
-
-    @staticmethod
-    def _retry_delay(response: httpx.Response, attempt: int) -> float:
-        """Compute the retry delay, honoring a numeric `Retry-After` header and falling back to backoff."""
-        retry_after = response.headers.get("Retry-After")
-        if retry_after:
-            try:
-                return float(retry_after)
-            except ValueError:
-                pass
-
-        return float(2 ** (attempt - 1))
+        return self._parse_response(response)
 
     @staticmethod
     def _parse_response(response: httpx.Response) -> dict[str, Any]:
@@ -381,13 +422,13 @@ class GoogleDriveRetriever:
             return response.json()
 
         status = response.status_code
-        if status == _HTTP_UNAUTHORIZED:
+        if status == httpx.codes.UNAUTHORIZED:
             msg = (
                 "Google Drive rejected the access token (401 Unauthorized). The token may be expired, invalid, "
                 "or missing a required scope (for example https://www.googleapis.com/auth/drive.readonly). The "
                 "metadata-only drive.metadata.readonly scope cannot search file content or export documents."
             )
-        elif status == _HTTP_FORBIDDEN:
+        elif status == httpx.codes.FORBIDDEN:
             msg = f"Google Drive denied the request (403 Forbidden): {response.text}"
         else:
             msg = f"Google Drive API request failed with status {status}: {response.text}"
