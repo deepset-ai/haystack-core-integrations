@@ -359,19 +359,17 @@ class PaddleOCRVLDocumentConverter:
         client: AsyncPaddleOCRClient,
     ) -> tuple[str, dict[str, Any]]:
         extension = _EXTENSION_FOR_FILE_TYPE[file_type]
-        tmp_path: str | None = None
+        with tempfile.NamedTemporaryFile(suffix=extension, delete=False) as tmp:
+            tmp_path = tmp.name
+            _ = tmp.write(data)
         try:
-            with tempfile.NamedTemporaryFile(suffix=extension, delete=False) as tmp:
-                tmp_path = tmp.name
-                _ = tmp.write(data)
             result = await client.parse_document(
                 model=self.model,
                 file_path=tmp_path,
                 options=self._build_options(),
             )
         finally:
-            if tmp_path is not None:
-                Path(tmp_path).unlink(missing_ok=True)
+            Path(tmp_path).unlink(missing_ok=True)
 
         text = "\f".join(page.markdown_text for page in result.pages)
         raw = {
