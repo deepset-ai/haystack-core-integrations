@@ -10,14 +10,14 @@ import pytest
 from haystack import Document, Pipeline
 from haystack.utils import Secret
 
+from haystack_integrations.common.microsoft_sharepoint.utils import (
+    _is_retryable_response,
+    _wait_with_retry_after,
+)
 from haystack_integrations.components.retrievers.microsoft_sharepoint import (
     MSSharePointRetriever,
     SharePointConfigError,
     SharePointRequestError,
-)
-from haystack_integrations.components.retrievers.microsoft_sharepoint.retriever import (
-    _is_retryable_response,
-    _wait_with_retry_after,
 )
 
 MODULE = "haystack_integrations.components.retrievers.microsoft_sharepoint.retriever"
@@ -175,6 +175,26 @@ class TestRun:
         assert doc.meta["file_extension"] == "docx"
         # Document.score is unset because Microsoft Search returns a rank, not a relevance score.
         assert doc.score is None
+
+    def test_maps_sharepoint_ids(self):
+        # A listItem hit carries the IDs a downstream fetcher needs to read it by ID.
+        hit = {
+            "summary": "",
+            "resource": {
+                "@odata.type": "#microsoft.graph.listItem",
+                "name": "Task 1",
+                "webUrl": "https://contoso.sharepoint.com/sites/team/Lists/Tasks/DispForm.aspx?ID=1",
+                "parentReference": {"siteId": "site-1"},
+                "sharepointIds": {"listId": "list-1", "listItemId": "1", "listItemUniqueId": "guid-1"},
+            },
+        }
+        retriever = MSSharePointRetriever()
+        with patch.object(httpx.Client, "post", return_value=_make_response(json_body=_page([hit], more=False))):
+            doc = retriever.run(query="q", access_token="tok")["documents"][0]
+        assert doc.meta["site_id"] == "site-1"
+        assert doc.meta["list_id"] == "list-1"
+        assert doc.meta["list_item_id"] == "1"
+        assert doc.meta["list_item_unique_id"] == "guid-1"
 
     def test_builds_request_body_and_auth_header(self):
         retriever = MSSharePointRetriever(

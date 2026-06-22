@@ -7,10 +7,10 @@ from haystack_integrations.common.microsoft_sharepoint.errors import (
     SharePointRequestError,
 )
 
-from .retriever import MSSharePointRetriever
+from .fetcher import MSSharePointFetcher
 
 __all__ = [
-    "MSSharePointRetriever",
+    "MSSharePointFetcher",
     "SharePointConfigError",
     "SharePointError",
     "SharePointRequestError",
