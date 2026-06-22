@@ -34,6 +34,9 @@ class TelnyxChatGenerator(OpenAIChatGenerator):
     """
 
     SUPPORTED_MODELS: ClassVar[list[str]] = [
+        "openai/gpt-5.2",
+        "openai/gpt-5.1",
+        "openai/gpt-5",
         "meta-llama/Meta-Llama-3.1-8B-Instruct",
         "moonshotai/Kimi-K2.6",
         "zai-org/GLM-5.1-FP8",
@@ -46,7 +49,7 @@ class TelnyxChatGenerator(OpenAIChatGenerator):
         self,
         *,
         api_key: Secret = Secret.from_env_var("TELNYX_API_KEY"),
-        model: str = "meta-llama/Meta-Llama-3.1-8B-Instruct",
+        model: str = "openai/gpt-5.2",
         streaming_callback: StreamingCallbackT | None = None,
         api_base_url: str | None = "https://api.telnyx.com/v2/ai/openai",
         generation_kwargs: dict[str, Any] | None = None,

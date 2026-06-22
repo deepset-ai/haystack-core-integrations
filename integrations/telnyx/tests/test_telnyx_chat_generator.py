@@ -41,7 +41,7 @@ def mock_chat_completion():
     with patch("openai.resources.chat.completions.Completions.create") as mock_chat_completion_create:
         completion = ChatCompletion(
             id="foo",
-            model="meta-llama/Meta-Llama-3.1-8B-Instruct",
+            model="openai/gpt-5.2",
             object="chat.completion",
             choices=[
                 Choice(
@@ -69,7 +69,7 @@ class TestTelnyxChatGenerator:
         monkeypatch.setenv("TELNYX_API_KEY", "test-api-key")
         component = TelnyxChatGenerator()
         assert component.client.api_key == "test-api-key"
-        assert component.model == "meta-llama/Meta-Llama-3.1-8B-Instruct"
+        assert component.model == "openai/gpt-5.2"
         assert component.api_base_url == "https://api.telnyx.com/v2/ai/openai"
         assert component.streaming_callback is None
         assert not component.generation_kwargs
@@ -103,7 +103,7 @@ class TestTelnyxChatGenerator:
         )
         assert data["init_parameters"] == {
             "api_key": {"env_vars": ["TELNYX_API_KEY"], "strict": True, "type": "env_var"},
-            "model": "meta-llama/Meta-Llama-3.1-8B-Instruct",
+            "model": "openai/gpt-5.2",
             "streaming_callback": None,
             "api_base_url": "https://api.telnyx.com/v2/ai/openai",
             "generation_kwargs": {},
@@ -166,7 +166,7 @@ class TestTelnyxChatGenerator:
         assert response["replies"][0].text == "Hello world!"
         mock_chat_completion.assert_called_once()
         _, kwargs = mock_chat_completion.call_args
-        assert kwargs["model"] == "meta-llama/Meta-Llama-3.1-8B-Instruct"
+        assert kwargs["model"] == "openai/gpt-5.2"
 
     @pytest.mark.skipif(
         not os.environ.get("TELNYX_API_KEY", None),
