@@ -141,7 +141,7 @@ def test_contains_and_not_contains_filters_live(connection_config) -> None:
         assert [doc.content for doc in not_contains_results] == ["Haystack pipelines"]
 
 
-def test_hnsw_and_ivf_vector_index_creation_live(connection_config) -> None:
+def test_hnsw_vector_index_creation_live(connection_config) -> None:
     with _temporary_store(connection_config, prefix="HS_HNSW") as hnsw_store:
         hnsw_index_name = f"{hnsw_store.table_name}_HNSW"
         hnsw_store.write_documents(
@@ -162,6 +162,8 @@ def test_hnsw_and_ivf_vector_index_creation_live(connection_config) -> None:
         finally:
             _drop_sql_index_if_exists(hnsw_store, hnsw_index_name)
 
+
+def test_ivf_vector_index_creation_live(connection_config) -> None:
     with _temporary_store(connection_config, prefix="HS_IVF") as ivf_store:
         ivf_index_name = f"{ivf_store.table_name}_IVF"
         ivf_store.write_documents(
