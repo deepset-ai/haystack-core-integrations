@@ -52,6 +52,7 @@ on:
       - "Test / nvidia"
       - "Test / oauth"
       - "Test / ollama"
+      - "Test / openapi"
       - "Test / openrouter"
       - "Test / opensearch"
       - "Test / optimum"
