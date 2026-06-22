@@ -1,6 +1,7 @@
 # SPDX-FileCopyrightText: 2025-present deepset GmbH <info@deepset.ai>
 #
 # SPDX-License-Identifier: Apache-2.0
+import asyncio
 import os
 import tempfile as _tmpmod
 from pathlib import Path
@@ -461,6 +462,20 @@ class TestRun:
 
         for p in created_paths:
             assert not Path(p).exists(), f"Temp file {p} was not deleted"
+
+    def test_run_inside_existing_event_loop(
+        self,
+        mock_client_ctx: MagicMock,  # noqa: ARG002
+        tmp_path: Path,
+    ) -> None:
+        converter = PaddleOCRVLDocumentConverter(access_token=Secret.from_token("tok"))
+        f = create_empty_image(tmp_path, "test.png")
+
+        async def _run() -> dict[str, list]:  # type: ignore[type-arg]
+            return converter.run(sources=[str(f)])  # type: ignore[return-value]
+
+        result = asyncio.run(_run())
+        assert len(result["documents"]) == 1
 
 
 class TestInferFileType:
