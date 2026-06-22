@@ -2,6 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 import asyncio
+import concurrent.futures
 import tempfile
 from pathlib import Path
 from typing import Any, Literal
@@ -451,8 +452,6 @@ class PaddleOCRVLDocumentConverter:
 
         coro = self._parse_all([(data, ft) for data, ft, _ in valid_items], token=token)
         if loop is not None and loop.is_running():
-            import concurrent.futures
-
             with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
                 results = pool.submit(asyncio.run, coro).result()
         else:

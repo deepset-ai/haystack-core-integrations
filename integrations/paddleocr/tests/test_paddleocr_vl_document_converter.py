@@ -2,6 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 import os
+import tempfile as _tmpmod
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -9,6 +10,7 @@ import pytest
 from haystack import Document
 from haystack.dataclasses import ByteStream
 from haystack.utils import Secret
+from paddleocr import Model, PaddleOCRVLOptions  # type: ignore[import-untyped]
 from PIL import Image
 
 from haystack_integrations.components.converters.paddleocr import (
@@ -40,11 +42,14 @@ def make_parse_result(pages_text: list[str]) -> MagicMock:
     return result
 
 
-CLASS_TYPE = "haystack_integrations.components.converters.paddleocr.paddleocr_vl_document_converter.PaddleOCRVLDocumentConverter"
+CLASS_TYPE = (
+    "haystack_integrations.components.converters.paddleocr"
+    ".paddleocr_vl_document_converter.PaddleOCRVLDocumentConverter"
+)
 
 
 @pytest.fixture
-def mock_client_ctx(monkeypatch: pytest.MonkeyPatch):
+def mock_client_ctx():
     """Patch AsyncPaddleOCRClient so parse_document can be controlled per-test."""
     client_instance = MagicMock()
     client_instance.__aenter__ = AsyncMock(return_value=client_instance)
@@ -63,8 +68,6 @@ def mock_client_ctx(monkeypatch: pytest.MonkeyPatch):
 class TestInit:
     def test_default(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setenv("PADDLEOCR_ACCESS_TOKEN", "test-token")
-        from paddleocr import Model
-
         converter = PaddleOCRVLDocumentConverter()
 
         assert converter.base_url is None
@@ -139,8 +142,6 @@ class TestInit:
 class TestSerialisation:
     def test_to_dict_defaults(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setenv("PADDLEOCR_ACCESS_TOKEN", "test-token")
-        from paddleocr import Model
-
         converter = PaddleOCRVLDocumentConverter()
         d = converter.to_dict()
 
@@ -157,8 +158,6 @@ class TestSerialisation:
 
     def test_to_dict_custom(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setenv("PADDLEOCR_ACCESS_TOKEN", "tok")
-        from paddleocr import Model
-
         converter = PaddleOCRVLDocumentConverter(
             base_url="http://base.example.com",
             model=Model.PADDLE_OCR_VL_15,
@@ -173,8 +172,6 @@ class TestSerialisation:
 
     def test_from_dict_round_trip(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setenv("PADDLEOCR_ACCESS_TOKEN", "test-token")
-        from paddleocr import Model
-
         converter = PaddleOCRVLDocumentConverter(
             base_url="http://base.example.com",
             model=Model.PADDLE_OCR_VL_16,
@@ -303,8 +300,6 @@ class TestRun:
         assert result["documents"][0].content == ""
 
     def test_model_forwarded_to_parse_document(self, mock_client_ctx: MagicMock, tmp_path: Path) -> None:
-        from paddleocr import Model
-
         converter = PaddleOCRVLDocumentConverter(
             access_token=Secret.from_token("tok"),
             model=Model.PADDLE_OCR_VL_15,
@@ -316,8 +311,6 @@ class TestRun:
         assert call_kwargs.kwargs["model"] == Model.PADDLE_OCR_VL_15
 
     def test_options_non_none_fields_forwarded(self, mock_client_ctx: MagicMock, tmp_path: Path) -> None:
-        from paddleocr import PaddleOCRVLOptions
-
         converter = PaddleOCRVLDocumentConverter(
             access_token=Secret.from_token("tok"),
             temperature=0.7,
@@ -447,8 +440,6 @@ class TestRun:
         assert result == {"documents": [], "raw_paddleocr_responses": []}
 
     def test_additional_params_as_extra_options(self, mock_client_ctx: MagicMock, tmp_path: Path) -> None:
-        from paddleocr import PaddleOCRVLOptions
-
         converter = PaddleOCRVLDocumentConverter(
             access_token=Secret.from_token("tok"),
             additional_params={"logId": "custom"},
@@ -460,8 +451,6 @@ class TestRun:
 
     def test_tmp_file_deleted_after_parse(self, mock_client_ctx: MagicMock, tmp_path: Path) -> None:
         created_paths: list[str] = []
-
-        import tempfile as _tmpmod
         original_ntf = _tmpmod.NamedTemporaryFile
 
         def tracking_ntf(**kwargs: object) -> object:
