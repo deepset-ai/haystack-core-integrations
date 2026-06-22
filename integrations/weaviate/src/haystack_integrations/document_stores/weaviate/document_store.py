@@ -325,6 +325,8 @@ class WeaviateDocumentStore:
         return default_to_dict(
             self,
             url=self._url,
+            grpc_port=self._grpc_port,
+            grpc_secure=self._grpc_secure,
             collection_settings=self._collection_settings,
             auth_client_secret=self._auth_client_secret.to_dict() if self._auth_client_secret else None,
             additional_headers=self._additional_headers,
