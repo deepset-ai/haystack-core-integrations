@@ -7,6 +7,12 @@
 
 ---
 
+## Installation
+
+```bash
+pip install telnyx-haystack
+```
+
 ## Overview
 
 This integration provides Haystack components for Telnyx Inference:
@@ -15,6 +21,10 @@ This integration provides Haystack components for Telnyx Inference:
 - `TelnyxTextEmbedder` and `TelnyxDocumentEmbedder` for the OpenAI-compatible embeddings endpoint.
 
 Set `TELNYX_API_KEY` before using the components.
+
+```bash
+export TELNYX_API_KEY="your-telnyx-api-key"
+```
 
 ```python
 from haystack.dataclasses import ChatMessage
