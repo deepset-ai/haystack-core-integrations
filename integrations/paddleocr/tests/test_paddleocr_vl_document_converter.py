@@ -43,8 +43,7 @@ def make_parse_result(pages_text: list[str]) -> MagicMock:
 
 
 CLASS_TYPE = (
-    "haystack_integrations.components.converters.paddleocr"
-    ".paddleocr_vl_document_converter.PaddleOCRVLDocumentConverter"
+    "haystack_integrations.components.converters.paddleocr.paddleocr_vl_document_converter.PaddleOCRVLDocumentConverter"
 )
 
 
@@ -54,12 +53,9 @@ def mock_client_ctx():
     client_instance = MagicMock()
     client_instance.__aenter__ = AsyncMock(return_value=client_instance)
     client_instance.__aexit__ = AsyncMock(return_value=False)
-    client_instance.parse_document = AsyncMock(
-        return_value=make_parse_result(["# Sample Document\n\nThis is page 1."])
-    )
+    client_instance.parse_document = AsyncMock(return_value=make_parse_result(["# Sample Document\n\nThis is page 1."]))
     with patch(
-        "haystack_integrations.components.converters.paddleocr."
-        "paddleocr_vl_document_converter.AsyncPaddleOCRClient",
+        "haystack_integrations.components.converters.paddleocr.paddleocr_vl_document_converter.AsyncPaddleOCRClient",
         return_value=client_instance,
     ):
         yield client_instance
@@ -366,9 +362,7 @@ class TestRun:
         assert mock_client_ctx.parse_document.call_args.kwargs["file_path"].endswith(".jpg")
 
     def test_file_type_manual_override_uses_pdf_suffix(self, mock_client_ctx: MagicMock, tmp_path: Path) -> None:
-        converter = PaddleOCRVLDocumentConverter(
-            access_token=Secret.from_token("tok"), file_type="pdf"
-        )
+        converter = PaddleOCRVLDocumentConverter(access_token=Secret.from_token("tok"), file_type="pdf")
         f = create_empty_image(tmp_path, "test.png")
         converter.run(sources=[str(f)])
 
@@ -382,7 +376,9 @@ class TestRun:
         assert len(converter.run(sources=[bs])["documents"]) == 1
 
     def test_bytestream_without_file_path_uses_mime_type(
-        self, mock_client_ctx: MagicMock, tmp_path: Path  # noqa: ARG002
+        self,
+        mock_client_ctx: MagicMock,  # noqa: ARG002
+        tmp_path: Path,
     ) -> None:
         converter = PaddleOCRVLDocumentConverter(access_token=Secret.from_token("tok"))
         f = create_empty_image(tmp_path, "img.png")

@@ -14,6 +14,7 @@ from haystack.components.converters.utils import (
 )
 from haystack.dataclasses import ByteStream
 from haystack.utils import Secret, deserialize_secrets_inplace
+
 from paddleocr import AsyncPaddleOCRClient, Model, PaddleOCRVLOptions  # type: ignore[import-untyped]
 
 logger = logging.getLogger(__name__)
@@ -430,7 +431,7 @@ class PaddleOCRVLDocumentConverter:
                 continue
 
             if self.file_type is not None:
-                file_type = self.file_type
+                file_type: int | None = self.file_type
             else:
                 mime_type = bytestream.mime_type if hasattr(bytestream, "mime_type") and bytestream.mime_type else None
                 file_type = _infer_file_type_from_source(source, mime_type)
