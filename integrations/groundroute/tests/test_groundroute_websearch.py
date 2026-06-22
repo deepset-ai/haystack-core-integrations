@@ -2,6 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+import os
 from collections.abc import Generator
 from unittest.mock import AsyncMock, MagicMock, Mock, patch
 
@@ -189,3 +190,28 @@ class TestGroundRouteWebSearch:
         ws = GroundRouteWebSearch(api_key=Secret.from_token("test-api-key"))
         with pytest.raises(GroundRouteError):
             await ws.run_async(query="q")
+
+    @pytest.mark.skipif(
+        not os.environ.get("GROUNDROUTE_API_KEY"),
+        reason="Export GROUNDROUTE_API_KEY to run integration tests.",
+    )
+    @pytest.mark.integration
+    def test_run_integration(self):
+        ws = GroundRouteWebSearch(api_key=Secret.from_env_var("GROUNDROUTE_API_KEY"), top_k=3)
+        result = ws.run(query="What is Haystack by deepset?")
+        assert len(result["documents"]) > 0
+        assert len(result["links"]) > 0
+        assert isinstance(result["documents"][0], Document)
+
+    @pytest.mark.skipif(
+        not os.environ.get("GROUNDROUTE_API_KEY"),
+        reason="Export GROUNDROUTE_API_KEY to run integration tests.",
+    )
+    @pytest.mark.integration
+    @pytest.mark.asyncio
+    async def test_run_async_integration(self):
+        ws = GroundRouteWebSearch(api_key=Secret.from_env_var("GROUNDROUTE_API_KEY"), top_k=3)
+        result = await ws.run_async(query="What is Haystack by deepset?")
+        assert len(result["documents"]) > 0
+        assert len(result["links"]) > 0
+        assert isinstance(result["documents"][0], Document)
