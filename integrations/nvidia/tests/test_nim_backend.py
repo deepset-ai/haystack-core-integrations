@@ -289,6 +289,28 @@ class TestNimBackend:
                 timeout=60.0,
             )
 
+    def test_rank_local_nim_appends_ranking_path(self, monkeypatch):
+        # Local/self-hosted NIM deployments have no model-specific endpoint override,
+        # so `rank()` must append the `/ranking` path itself instead of relying on
+        # `validate_hosted_model` having already baked it into `self.api_url`.
+        with patch("requests.sessions.Session.post", side_effect=mock_rank_post_response) as mock_post:
+            monkeypatch.setenv("NVIDIA_API_KEY", "fake-api-key")
+            backend = NimBackend(model="custom-rerank-model", api_url="http://localhost:8000/v1", client="NvidiaRanker")
+            query_text = "query"
+            document_texts = ["text1", "text2"]
+            backend.rank(query_text=query_text, document_texts=document_texts)
+
+            expected_url = "http://localhost:8000/v1/ranking"
+            mock_post.assert_called_once_with(
+                expected_url,
+                json={
+                    "model": "custom-rerank-model",
+                    "query": {"text": query_text},
+                    "passages": [{"text": text} for text in document_texts],
+                },
+                timeout=60.0,
+            )
+
     def test_rank_raises_on_http_error(self, monkeypatch):
         error_response = requests.Response()
         error_response.status_code = 500
