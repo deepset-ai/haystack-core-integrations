@@ -1,11 +1,10 @@
 # SPDX-FileCopyrightText: 2025-present deepset GmbH <info@deepset.ai>
 #
 # SPDX-License-Identifier: Apache-2.0
-import asyncio
 import os
 import tempfile as _tmpmod
 from pathlib import Path
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 from haystack import Document
@@ -47,18 +46,17 @@ CLASS_TYPE = (
     "haystack_integrations.components.converters.paddleocr.paddleocr_vl_document_converter.PaddleOCRVLDocumentConverter"
 )
 
+_PATCH_CLIENT = "haystack_integrations.components.converters.paddleocr.paddleocr_vl_document_converter.PaddleOCRClient"
+
 
 @pytest.fixture
 def mock_client_ctx():
-    """Patch AsyncPaddleOCRClient so parse_document can be controlled per-test."""
+    """Patch PaddleOCRClient so parse_document can be controlled per-test."""
     client_instance = MagicMock()
-    client_instance.__aenter__ = AsyncMock(return_value=client_instance)
-    client_instance.__aexit__ = AsyncMock(return_value=False)
-    client_instance.parse_document = AsyncMock(return_value=make_parse_result(["# Sample Document\n\nThis is page 1."]))
-    with patch(
-        "haystack_integrations.components.converters.paddleocr.paddleocr_vl_document_converter.AsyncPaddleOCRClient",
-        return_value=client_instance,
-    ):
+    client_instance.__enter__ = MagicMock(return_value=client_instance)
+    client_instance.__exit__ = MagicMock(return_value=False)
+    client_instance.parse_document = MagicMock(return_value=make_parse_result(["# Sample Document\n\nThis is page 1."]))
+    with patch(_PATCH_CLIENT, return_value=client_instance):
         yield client_instance
 
 
@@ -70,8 +68,8 @@ class TestInit:
         assert converter.base_url is None
         assert converter.model == Model.PADDLE_OCR_VL_16
         assert converter.file_type is None
-        assert converter.use_doc_orientation_classify is False
-        assert converter.use_doc_unwarping is False
+        assert converter.use_doc_orientation_classify is None
+        assert converter.use_doc_unwarping is None
         assert converter.use_layout_detection is None
         assert converter.layout_threshold is None
         assert converter.additional_params is None
@@ -223,9 +221,9 @@ class TestRun:
         assert isinstance(result["documents"][0], Document)
         assert result["documents"][0].content == "# Sample Document\n\nThis is page 1."
         assert len(result["raw_paddleocr_responses"]) == 1
-        mock_client_ctx.parse_document.assert_awaited_once()
+        mock_client_ctx.parse_document.assert_called_once()
 
-    def test_multiple_sources_concurrent(self, mock_client_ctx: MagicMock, tmp_path: Path) -> None:
+    def test_multiple_sources(self, mock_client_ctx: MagicMock, tmp_path: Path) -> None:
         converter = PaddleOCRVLDocumentConverter(access_token=Secret.from_token("tok"))
         f1 = create_empty_image(tmp_path, "a.png")
         f2 = create_empty_image(tmp_path, "b.png")
@@ -234,7 +232,7 @@ class TestRun:
         result = converter.run(sources=[str(f1), str(f2), str(f3)])
 
         assert len(result["documents"]) == 3
-        assert mock_client_ctx.parse_document.await_count == 3
+        assert mock_client_ctx.parse_document.call_count == 3
 
     def test_multi_page_pdf(self, mock_client_ctx: MagicMock, tmp_path: Path) -> None:
         mock_client_ctx.parse_document.return_value = make_parse_result(["# Page 1", "# Page 2"])
@@ -252,18 +250,12 @@ class TestRun:
         f3 = create_empty_image(tmp_path, "ok2.png")
 
         ok_result = make_parse_result(["# OK"])
-        side_effects = [ok_result, Exception("API error"), ok_result]
-
         client = MagicMock()
-        client.__aenter__ = AsyncMock(return_value=client)
-        client.__aexit__ = AsyncMock(return_value=False)
-        client.parse_document = AsyncMock(side_effect=side_effects)
+        client.__enter__ = MagicMock(return_value=client)
+        client.__exit__ = MagicMock(return_value=False)
+        client.parse_document = MagicMock(side_effect=[ok_result, Exception("API error"), ok_result])
 
-        with patch(
-            "haystack_integrations.components.converters.paddleocr."
-            "paddleocr_vl_document_converter.AsyncPaddleOCRClient",
-            return_value=client,
-        ):
+        with patch(_PATCH_CLIENT, return_value=client):
             converter = PaddleOCRVLDocumentConverter(access_token=Secret.from_token("tok"))
             result = converter.run(sources=[str(f1), str(f2), str(f3)])
 
@@ -278,13 +270,13 @@ class TestRun:
         result = converter.run(sources=[str(unknown)])
 
         assert result == {"documents": [], "raw_paddleocr_responses": []}
-        mock_client_ctx.parse_document.assert_not_awaited()
+        mock_client_ctx.parse_document.assert_not_called()
 
     def test_unreadable_source_skipped(self, mock_client_ctx: MagicMock) -> None:
         converter = PaddleOCRVLDocumentConverter(access_token=Secret.from_token("tok"))
         result = converter.run(sources=["/nonexistent/file.png"])
         assert result["documents"] == []
-        mock_client_ctx.parse_document.assert_not_awaited()
+        mock_client_ctx.parse_document.assert_not_called()
 
     def test_empty_text_produces_empty_document(self, mock_client_ctx: MagicMock, tmp_path: Path) -> None:
         mock_client_ctx.parse_document.return_value = make_parse_result([""])
@@ -304,10 +296,9 @@ class TestRun:
         f = create_empty_image(tmp_path, "test.png")
         converter.run(sources=[str(f)])
 
-        call_kwargs = mock_client_ctx.parse_document.call_args
-        assert call_kwargs.kwargs["model"] == Model.PADDLE_OCR_VL_15
+        assert mock_client_ctx.parse_document.call_args.kwargs["model"] == Model.PADDLE_OCR_VL_15
 
-    def test_options_non_none_fields_forwarded(self, mock_client_ctx: MagicMock, tmp_path: Path) -> None:
+    def test_options_forwarded(self, mock_client_ctx: MagicMock, tmp_path: Path) -> None:
         converter = PaddleOCRVLDocumentConverter(
             access_token=Secret.from_token("tok"),
             temperature=0.7,
@@ -362,7 +353,7 @@ class TestRun:
 
         assert mock_client_ctx.parse_document.call_args.kwargs["file_path"].endswith(".jpg")
 
-    def test_file_type_manual_override_uses_pdf_suffix(self, mock_client_ctx: MagicMock, tmp_path: Path) -> None:
+    def test_file_type_manual_override(self, mock_client_ctx: MagicMock, tmp_path: Path) -> None:
         converter = PaddleOCRVLDocumentConverter(access_token=Secret.from_token("tok"), file_type="pdf")
         f = create_empty_image(tmp_path, "test.png")
         converter.run(sources=[str(f)])
@@ -399,15 +390,11 @@ class TestRun:
 
     def test_base_url_forwarded_to_client(self, tmp_path: Path) -> None:
         client = MagicMock()
-        client.__aenter__ = AsyncMock(return_value=client)
-        client.__aexit__ = AsyncMock(return_value=False)
-        client.parse_document = AsyncMock(return_value=make_parse_result(["text"]))
+        client.__enter__ = MagicMock(return_value=client)
+        client.__exit__ = MagicMock(return_value=False)
+        client.parse_document = MagicMock(return_value=make_parse_result(["text"]))
 
-        with patch(
-            "haystack_integrations.components.converters.paddleocr."
-            "paddleocr_vl_document_converter.AsyncPaddleOCRClient",
-            return_value=client,
-        ) as mock_cls:
+        with patch(_PATCH_CLIENT, return_value=client) as mock_cls:
             PaddleOCRVLDocumentConverter(
                 access_token=Secret.from_token("tok"),
                 base_url="http://custom.example.com",
@@ -417,15 +404,11 @@ class TestRun:
 
     def test_token_passed_to_client(self, tmp_path: Path) -> None:
         client = MagicMock()
-        client.__aenter__ = AsyncMock(return_value=client)
-        client.__aexit__ = AsyncMock(return_value=False)
-        client.parse_document = AsyncMock(return_value=make_parse_result(["text"]))
+        client.__enter__ = MagicMock(return_value=client)
+        client.__exit__ = MagicMock(return_value=False)
+        client.parse_document = MagicMock(return_value=make_parse_result(["text"]))
 
-        with patch(
-            "haystack_integrations.components.converters.paddleocr."
-            "paddleocr_vl_document_converter.AsyncPaddleOCRClient",
-            return_value=client,
-        ) as mock_cls:
+        with patch(_PATCH_CLIENT, return_value=client) as mock_cls:
             PaddleOCRVLDocumentConverter(
                 access_token=Secret.from_token("my-secret-token"),
             ).run(sources=[str(create_empty_image(tmp_path, "test.png"))])
@@ -435,6 +418,18 @@ class TestRun:
     def test_empty_sources_list(self) -> None:
         result = PaddleOCRVLDocumentConverter(access_token=Secret.from_token("tok")).run(sources=[])
         assert result == {"documents": [], "raw_paddleocr_responses": []}
+
+    def test_no_base_url_omitted_from_client_kwargs(self, tmp_path: Path) -> None:
+        f = create_empty_image(tmp_path, "test.png")
+        client = MagicMock()
+        client.__enter__ = MagicMock(return_value=client)
+        client.__exit__ = MagicMock(return_value=False)
+        client.parse_document = MagicMock(return_value=make_parse_result(["text"]))
+
+        with patch(_PATCH_CLIENT, return_value=client) as mock_cls:
+            PaddleOCRVLDocumentConverter(access_token=Secret.from_token("tok")).run(sources=[str(f)])
+
+        assert "base_url" not in mock_cls.call_args.kwargs
 
     def test_additional_params_as_extra_options(self, mock_client_ctx: MagicMock, tmp_path: Path) -> None:
         converter = PaddleOCRVLDocumentConverter(
@@ -462,20 +457,6 @@ class TestRun:
 
         for p in created_paths:
             assert not Path(p).exists(), f"Temp file {p} was not deleted"
-
-    def test_run_inside_existing_event_loop(
-        self,
-        mock_client_ctx: MagicMock,  # noqa: ARG002
-        tmp_path: Path,
-    ) -> None:
-        converter = PaddleOCRVLDocumentConverter(access_token=Secret.from_token("tok"))
-        f = create_empty_image(tmp_path, "test.png")
-
-        async def _run() -> dict[str, list]:  # type: ignore[type-arg]
-            return converter.run(sources=[str(f)])  # type: ignore[return-value]
-
-        result = asyncio.run(_run())
-        assert len(result["documents"]) == 1
 
 
 class TestInferFileType:

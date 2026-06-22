@@ -1,8 +1,6 @@
 # SPDX-FileCopyrightText: 2025-present deepset GmbH <info@deepset.ai>
 #
 # SPDX-License-Identifier: Apache-2.0
-import asyncio
-import concurrent.futures
 import tempfile
 from pathlib import Path
 from typing import Any, Literal
@@ -15,16 +13,14 @@ from haystack.components.converters.utils import (
 from haystack.dataclasses import ByteStream
 from haystack.utils import Secret, deserialize_secrets_inplace
 
-from paddleocr import AsyncPaddleOCRClient, Model, PaddleOCRVLOptions  # type: ignore[import-untyped]
+from paddleocr import Model, PaddleOCRClient, PaddleOCRVLOptions
 
 logger = logging.getLogger(__name__)
-
 
 FileTypeInput = Literal["pdf", "image"] | None
 
 _IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".bmp", ".tiff", ".tif", ".webp"}
 _PDF_EXTENSIONS = {".pdf"}
-_FILE_TYPE_TO_STR = {0: "pdf", 1: "image"}
 _EXTENSION_FOR_FILE_TYPE = {0: ".pdf", 1: ".jpg"}
 
 
@@ -68,13 +64,13 @@ def _infer_file_type_from_source(
 
 def _normalize_file_type(file_type: FileTypeInput) -> int | None:
     """
-    Normalize file type input to the numeric format expected by the SDK.
+    Normalize file type input to the numeric format used internally.
 
     :param file_type:
-        File type input. Can be "pdf", "image", or None for auto-detection.
-        Integers 0 (PDF) and 1 (image) are also accepted for deserialization.
+        "pdf", "image", or None for auto-detection.
+        Integers 0 and 1 are also accepted for deserialization round-trips.
     :returns:
-        Normalized file type: 0 for PDF, 1 for image, or None for auto-detection.
+        0 for PDF, 1 for image, or None for auto-detection.
     """
     if file_type is None:
         return None
@@ -92,27 +88,21 @@ def _normalize_file_type(file_type: FileTypeInput) -> int | None:
 @component
 class PaddleOCRVLDocumentConverter:
     """
-    Extracts text from documents using PaddleOCR's large model document parsing API.
+    Extracts text from documents using PaddleOCR's official document parsing API.
 
-    PaddleOCR-VL is used behind the scenes. For more information, please
-    refer to:
+    Uses `PaddleOCRClient` to parse documents via the PaddleOCR serving API.
+    For more information, please refer to:
     https://www.paddleocr.ai/latest/en/version3.x/algorithm/PaddleOCR-VL/PaddleOCR-VL.html
 
     **Usage Example:**
 
     ```python
-    from haystack.utils import Secret
-    from haystack_integrations.components.converters.paddleocr import (
-        PaddleOCRVLDocumentConverter,
-    )
+    from haystack_integrations.components.converters.paddleocr import PaddleOCRVLDocumentConverter
 
     converter = PaddleOCRVLDocumentConverter(
         base_url="http://xxxxx.aistudio-app.com",
-        access_token=Secret.from_env_var("PADDLEOCR_ACCESS_TOKEN"),
     )
-
     result = converter.run(sources=["sample.pdf"])
-
     documents = result["documents"]
     raw_responses = result["raw_paddleocr_responses"]
     ```
@@ -125,16 +115,16 @@ class PaddleOCRVLDocumentConverter:
         access_token: Secret = Secret.from_env_var("PADDLEOCR_ACCESS_TOKEN"),
         model: Model | str = Model.PADDLE_OCR_VL_16,
         file_type: FileTypeInput = None,
-        use_doc_orientation_classify: bool | None = False,
-        use_doc_unwarping: bool | None = False,
+        use_doc_orientation_classify: bool | None = None,
+        use_doc_unwarping: bool | None = None,
         use_layout_detection: bool | None = None,
         use_chart_recognition: bool | None = None,
         use_seal_recognition: bool | None = None,
         use_ocr_for_image_block: bool | None = None,
-        layout_threshold: float | dict[str, object] | None = None,
+        layout_threshold: float | dict | None = None,
         layout_nms: bool | None = None,
-        layout_unclip_ratio: float | list[float] | dict[str, object] | None = None,
-        layout_merge_bboxes_mode: str | dict[str, object] | None = None,
+        layout_unclip_ratio: float | list | dict | None = None,
+        layout_merge_bboxes_mode: str | dict | None = None,
         layout_shape_mode: str | None = None,
         prompt_label: str | None = None,
         format_block_content: bool | None = None,
@@ -159,32 +149,30 @@ class PaddleOCRVLDocumentConverter:
         Create a `PaddleOCRVLDocumentConverter` component.
 
         :param base_url:
-            Base URL for the PaddleOCR API. Falls back to the `PADDLEOCR_BASE_URL`
-            environment variable, then the SDK default.
+            Base URL for the PaddleOCR API. Falls back to `PADDLEOCR_BASE_URL`
+            env var, then the SDK default.
         :param access_token:
-            PaddleOCR access token. You can obtain it from the AI Studio account page.
-            Falls back to the `PADDLEOCR_ACCESS_TOKEN` environment variable.
+            PaddleOCR access token. Falls back to `PADDLEOCR_ACCESS_TOKEN` env var.
         :param model:
-            Document parsing model to use. Defaults to `Model.PADDLE_OCR_VL_16`.
+            Document parsing model. Defaults to `Model.PADDLE_OCR_VL_16`.
         :param file_type:
-            File type. Can be "pdf" for PDF files, "image" for image files, or
-            `None` for auto-detection from the file extension or MIME type.
+            "pdf", "image", or None for auto-detection.
         :param use_doc_orientation_classify:
-            Whether to enable the document orientation classification function.
+            Enable document orientation classification.
         :param use_doc_unwarping:
-            Whether to enable the text image unwarping function.
+            Enable text image unwarping.
         :param use_layout_detection:
-            Whether to enable the layout detection function.
+            Enable layout detection.
         :param use_chart_recognition:
-            Whether to enable the chart recognition function.
+            Enable chart recognition.
         :param use_seal_recognition:
-            Whether to enable the seal recognition function.
+            Enable seal recognition.
         :param use_ocr_for_image_block:
-            Whether to recognize text in image blocks.
+            Recognize text in image blocks.
         :param layout_threshold:
             Layout detection threshold.
         :param layout_nms:
-            Whether to perform NMS on layout detection results.
+            Perform NMS on layout detection results.
         :param layout_unclip_ratio:
             Layout unclip ratio.
         :param layout_merge_bboxes_mode:
@@ -192,41 +180,41 @@ class PaddleOCRVLDocumentConverter:
         :param layout_shape_mode:
             Layout shape mode.
         :param prompt_label:
-            Prompt type for the VLM.
+            Prompt type for the VLM ("ocr", "formula", "table", "chart", "seal", "spotting").
         :param format_block_content:
-            Whether to format block content.
+            Format block content.
         :param repetition_penalty:
-            Repetition penalty parameter used in VLM sampling.
+            Repetition penalty for VLM sampling.
         :param temperature:
-            Temperature parameter used in VLM sampling.
+            Temperature for VLM sampling.
         :param top_p:
-            Top-p parameter used in VLM sampling.
+            Top-p for VLM sampling.
         :param min_pixels:
-            Minimum number of pixels allowed during VLM preprocessing.
+            Minimum pixels for VLM preprocessing.
         :param max_pixels:
-            Maximum number of pixels allowed during VLM preprocessing.
+            Maximum pixels for VLM preprocessing.
         :param max_new_tokens:
-            Maximum number of tokens generated by the VLM.
+            Maximum tokens generated by the VLM.
         :param merge_layout_blocks:
-            Whether to merge layout detection boxes for cross-column content.
+            Merge layout detection boxes for cross-column content.
         :param markdown_ignore_labels:
-            Layout labels to ignore in Markdown.
+            Layout labels to ignore in Markdown output.
         :param vlm_extra_args:
-            Additional configuration parameters for the VLM.
+            Extra configuration for the VLM.
         :param prettify_markdown:
-            Whether to prettify the output Markdown text.
+            Prettify output Markdown.
         :param show_formula_number:
-            Whether to include formula numbers in the output markdown.
+            Include formula numbers in Markdown output.
         :param restructure_pages:
-            Whether to restructure results across multiple pages.
+            Restructure results across multiple pages.
         :param merge_tables:
-            Whether to merge tables across pages.
+            Merge tables across pages.
         :param relevel_titles:
-            Whether to relevel titles.
+            Relevel titles.
         :param visualize:
-            Whether to return visualization results.
+            Return visualization results.
         :param additional_params:
-            Additional parameters passed as `extra_options` to `PaddleOCRVLOptions`.
+            Extra options passed to `PaddleOCRVLOptions.extra_options`.
         """
         self.base_url = base_url
         self.access_token = access_token
@@ -352,18 +340,13 @@ class PaddleOCRVLDocumentConverter:
             extra_options=self.additional_params,
         )
 
-    async def _parse_one(
-        self,
-        data: bytes,
-        file_type: int,
-        client: AsyncPaddleOCRClient,
-    ) -> tuple[str, dict[str, Any]]:
+    def _parse(self, data: bytes, file_type: int, client: PaddleOCRClient) -> tuple[str, dict[str, Any]]:
         extension = _EXTENSION_FOR_FILE_TYPE[file_type]
         with tempfile.NamedTemporaryFile(suffix=extension, delete=False) as tmp:
             tmp_path = tmp.name
-            _ = tmp.write(data)
+            tmp.write(data)
         try:
-            result = await client.parse_document(
+            result = client.parse_document(
                 model=self.model,
                 file_path=tmp_path,
                 options=self._build_options(),
@@ -372,25 +355,12 @@ class PaddleOCRVLDocumentConverter:
             Path(tmp_path).unlink(missing_ok=True)
 
         text = "\f".join(page.markdown_text for page in result.pages)
-        raw = {
+        raw: dict[str, Any] = {
             "job_id": result.job_id,
             "pages": [page.raw for page in result.pages],
             "data_info": result.data_info,
         }
         return text, raw
-
-    async def _parse_all(
-        self,
-        items: list[tuple[bytes, int]],
-        token: str | None,
-    ) -> list[tuple[str, dict[str, Any]] | BaseException]:
-        async with AsyncPaddleOCRClient(
-            token=token,
-            base_url=self.base_url,
-            client_platform="haystack",
-        ) as client:
-            tasks = [self._parse_one(data, ft, client) for data, ft in items]
-            return await asyncio.gather(*tasks, return_exceptions=True)
 
     @component.output_types(documents=list[Document], raw_paddleocr_responses=list[dict[str, Any]])
     def run(
@@ -406,66 +376,52 @@ class PaddleOCRVLDocumentConverter:
         :param meta:
             Optional metadata to attach to the Documents. A single dict is applied
             to all documents; a list must match the number of sources.
-
         :returns:
             A dictionary with:
             - `documents`: List of created Documents.
             - `raw_paddleocr_responses`: List of raw PaddleOCR API responses.
         """
-        documents = []
-        raw_responses = []
+        documents: list[Document] = []
+        raw_responses: list[dict[str, Any]] = []
 
         meta_list = normalize_metadata(meta, sources_count=len(sources))
-
-        # Resolve token once — AsyncPaddleOCRClient raises AuthError if empty
         token = self.access_token.resolve_value() if self.access_token else None
 
-        valid_items: list[tuple[bytes, int, dict[str, Any]]] = []
-        for source, metadata in zip(sources, meta_list, strict=True):
-            try:
-                bytestream = get_bytestream_from_source(source)
-            except Exception as e:
-                logger.warning(f"Could not read {source}. Skipping it. Error: {e}")
-                continue
+        kwargs: dict[str, Any] = {"client_platform": "haystack", "token": token}
+        if self.base_url is not None:
+            kwargs["base_url"] = self.base_url
 
-            if self.file_type is not None:
-                file_type: int | None = self.file_type
-            else:
-                mime_type = bytestream.mime_type if hasattr(bytestream, "mime_type") and bytestream.mime_type else None
-                file_type = _infer_file_type_from_source(source, mime_type)
+        with PaddleOCRClient(**kwargs) as client:
+            for source, metadata in zip(sources, meta_list, strict=True):
+                try:
+                    bytestream = get_bytestream_from_source(source)
+                except Exception as e:
+                    logger.warning(f"Could not read {source}. Skipping it. Error: {e}")
+                    continue
 
-            if file_type is None:
-                logger.warning(f"Could not determine file type for {source}. Skipping it.")
-                continue
+                if self.file_type is not None:
+                    file_type: int | None = self.file_type
+                else:
+                    mime_type = bytestream.mime_type if bytestream.mime_type else None
+                    file_type = _infer_file_type_from_source(source, mime_type)
 
-            merged_metadata = {**bytestream.meta, **metadata}
-            valid_items.append((bytestream.data, file_type, merged_metadata))
+                if file_type is None:
+                    logger.warning(f"Could not determine file type for {source}. Skipping it.")
+                    continue
 
-        if not valid_items:
-            return {"documents": [], "raw_paddleocr_responses": []}
+                try:
+                    text, raw_resp = self._parse(bytestream.data, file_type, client)
+                except Exception as e:
+                    logger.warning(f"Could not convert {source} to Document, skipping. Error: {e}")
+                    continue
 
-        try:
-            loop = asyncio.get_running_loop()
-        except RuntimeError:
-            loop = None
+                if not text:
+                    logger.warning(
+                        f"{self.__class__.__name__} could not extract text from {source}. Returning an empty document."
+                    )
 
-        coro = self._parse_all([(data, ft) for data, ft, _ in valid_items], token=token)
-        if loop is not None and loop.is_running():
-            with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
-                results = pool.submit(asyncio.run, coro).result()
-        else:
-            results = asyncio.run(coro)
-
-        for (_, _, merged_metadata), result in zip(valid_items, results, strict=True):
-            if isinstance(result, BaseException):
-                logger.warning(f"Could not convert a source to Document, skipping. Error: {result}")
-                continue
-            text, raw_resp = result
-            if not text:
-                logger.warning(
-                    f"{self.__class__.__name__} could not extract text from a file. Returning an empty document."
-                )
-            documents.append(Document(content=text, meta=merged_metadata))
-            raw_responses.append(raw_resp)
+                merged_metadata = {**bytestream.meta, **metadata}
+                documents.append(Document(content=text, meta=merged_metadata))
+                raw_responses.append(raw_resp)
 
         return {"documents": documents, "raw_paddleocr_responses": raw_responses}
