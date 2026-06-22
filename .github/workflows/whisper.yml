@@ -1,34 +1,35 @@
 # This workflow comes from https://github.com/ofek/hatch-mypyc
 # https://github.com/ofek/hatch-mypyc/blob/5a198c0ba8660494d02716cfc9d79ce4adfb1442/.github/workflows/test.yml
-name: Test / $name
+name: Test / whisper
 
 on:
   schedule:
     - cron: "0 0 * * *"
   pull_request:
     paths:
-      - "integrations/$name/**"
-      - "!integrations/$name/*.md"
-      - ".github/workflows/$name.yml"
+      - "integrations/whisper/**"
+      - "!integrations/whisper/*.md"
+      - ".github/workflows/whisper.yml"
   push:
     branches:
       - main
     paths:
-      - "integrations/$name/**"
-      - "!integrations/$name/*.md"
-      - ".github/workflows/$name.yml"
+      - "integrations/whisper/**"
+      - "!integrations/whisper/*.md"
+      - ".github/workflows/whisper.yml"
 
 defaults:
   run:
-    working-directory: integrations/$name
+    working-directory: integrations/whisper
 
 concurrency:
-  group: $name-${{ github.head_ref || github.sha }}
+  group: whisper-${{ github.head_ref || github.sha }}
   cancel-in-progress: true
 
 env:
   PYTHONUNBUFFERED: "1"
   FORCE_COLOR: "1"
+  OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
   TEST_MATRIX_OS: '["ubuntu-latest", "windows-latest", "macos-latest"]'
   TEST_MATRIX_PYTHON: '["3.10", "3.14"]'
 
@@ -66,7 +67,7 @@ jobs:
         working-directory: .
         run: git config --system core.longpaths true
 
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
 
       - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
@@ -91,8 +92,8 @@ jobs:
         uses: py-cov-action/python-coverage-comment-action@63f52f4fbbffada6e8dee8ec432de7e01df9ba79 # v3.41
         with:
           GITHUB_TOKEN: ${{ github.token }}
-          COVERAGE_PATH: integrations/$name
-          SUBPROJECT_ID: $name
+          COVERAGE_PATH: integrations/whisper
+          SUBPROJECT_ID: whisper
           MINIMUM_GREEN: 90
           MINIMUM_ORANGE: 60
 
@@ -100,8 +101,18 @@ jobs:
         if: matrix.python-version == '3.10' && runner.os == 'Linux' && github.event_name == 'pull_request' && steps.coverage_comment.outputs.COMMENT_FILE_WRITTEN == 'true'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: coverage-comment-$name
-          path: python-coverage-comment-action-$name.txt
+          name: coverage-comment-whisper
+          path: python-coverage-comment-action-whisper.txt
+
+      # ffmpeg is required by `LocalWhisperTranscriber` to decode audio files. It is skipped on Windows,
+      # where the local-model integration tests do not run.
+      - name: Install ffmpeg (Linux)
+        if: runner.os == 'Linux'
+        run: sudo apt update && sudo apt install -y ffmpeg
+
+      - name: Install ffmpeg (macOS)
+        if: runner.os == 'macOS'
+        run: brew install ffmpeg
 
       - name: Run integration tests
         run: hatch run test:integration-cov-append-retry
@@ -111,8 +122,8 @@ jobs:
         uses: py-cov-action/python-coverage-comment-action@63f52f4fbbffada6e8dee8ec432de7e01df9ba79 # v3.41
         with:
           GITHUB_TOKEN: ${{ github.token }}
-          COVERAGE_PATH: integrations/$name
-          SUBPROJECT_ID: $name-combined
+          COVERAGE_PATH: integrations/whisper
+          SUBPROJECT_ID: whisper-combined
           MINIMUM_GREEN: 90
           MINIMUM_ORANGE: 60
 
