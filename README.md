@@ -2,10 +2,10 @@
 
 [Full report](https://htmlpreview.github.io/?https://github.com/deepset-ai/haystack-core-integrations/blob/python-coverage-comment-action-data-searchapi-combined/htmlcov/index.html)
 
-| Name                                                                   |    Stmts |     Miss |   Branch |   BrPart |    Cover |   Missing |
-|----------------------------------------------------------------------- | -------: | -------: | -------: | -------: | -------: | --------: |
-| src/haystack\_integrations/components/websearch/searchapi/websearch.py |       85 |        0 |       16 |        0 |     100% |           |
-| **TOTAL**                                                              |   **85** |    **0** |   **16** |    **0** | **100%** |           |
+| Name                                                                   |    Stmts |     Miss |   Branch |   BrPart |   Cover |   Missing |
+|----------------------------------------------------------------------- | -------: | -------: | -------: | -------: | ------: | --------: |
+| src/haystack\_integrations/components/websearch/searchapi/websearch.py |       85 |        0 |       16 |        1 |     99% | 195-\>206 |
+| **TOTAL**                                                              |   **85** |    **0** |   **16** |    **1** | **99%** |           |
 
 
 ## Setup coverage badge
