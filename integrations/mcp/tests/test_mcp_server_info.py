@@ -17,18 +17,18 @@ class TestMCPServerInfo:
 
     def test_http_server_info_serde(self):
         """Test serialization/deserialization of SSEServerInfo with plain string token."""
-        server_info = SSEServerInfo(base_url="http://example.com", token="test-token", timeout=45)
+        server_info = SSEServerInfo(url="http://example.com/sse", token="test-token", timeout=45)
 
         # Test to_dict - all fields are serialized including plain string tokens
         info_dict = server_info.to_dict()
         assert info_dict["type"] == "haystack_integrations.tools.mcp.mcp_tool.SSEServerInfo"
-        assert info_dict["base_url"] == "http://example.com"
+        assert info_dict["url"] == "http://example.com/sse"
         assert info_dict["token"] == "test-token"  # Plain string tokens are included
         assert info_dict["timeout"] == 45
 
         # Test from_dict - plain string token is preserved
         new_info = SSEServerInfo.from_dict(info_dict)
-        assert new_info.base_url == "http://example.com"
+        assert new_info.url == "http://example.com/sse"
         assert new_info.token == "test-token"  # Token preserved as-is
         assert new_info.timeout == 45
 
@@ -55,9 +55,10 @@ class TestMCPServerInfo:
         with pytest.raises(ValueError, match="Either url or base_url must be provided"):
             SSEServerInfo()
 
-        # Test with both url and base_url
-        with pytest.warns(DeprecationWarning, match="base_url is deprecated"):
-            SSEServerInfo(url="http://example.com/sse", base_url="http://example.com")
+        # Test with both url and base_url: emits both the "only one" and the "deprecated" warnings.
+        with pytest.warns(DeprecationWarning, match="Only one of url or base_url"):
+            with pytest.warns(DeprecationWarning, match="base_url is deprecated"):
+                SSEServerInfo(url="http://example.com/sse", base_url="http://example.com")
 
         # Test with only url
         server_info = SSEServerInfo(url="http://example.com/sse")
@@ -98,7 +99,7 @@ class TestMCPServerInfo:
 
     def test_create_client(self):
         """Test client creation from server info."""
-        http_info = SSEServerInfo(base_url="http://example.com")
+        http_info = SSEServerInfo(url="http://example.com/sse")
         stdio_info = StdioServerInfo(command="python")
         streamable_http_info = StreamableHttpServerInfo(url="http://example.com/mcp")
 
