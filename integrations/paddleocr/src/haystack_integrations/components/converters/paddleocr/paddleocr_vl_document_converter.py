@@ -13,7 +13,7 @@ from haystack.components.converters.utils import (
 from haystack.dataclasses import ByteStream
 from haystack.utils import Secret, deserialize_secrets_inplace
 
-from paddleocr import Model, PaddleOCRClient, PaddleOCRVLOptions
+from paddleocr import Model, PaddleOCRClient, PaddleOCRVLOptions  # type: ignore[import-untyped]
 
 logger = logging.getLogger(__name__)
 
