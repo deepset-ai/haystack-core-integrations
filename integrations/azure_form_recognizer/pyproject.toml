@@ -32,11 +32,14 @@ classifiers = [
     "Programming Language :: Python :: 3.14",
     "Programming Language :: Python :: Implementation :: CPython",
 ]
+# `networkx` is pulled in transitively by `haystack-ai` (it powers Haystack pipelines), so it is not declared
+# here. `pandas` is required by this component for table extraction but is NOT a runtime dependency of
+# `haystack-ai`, so it is declared explicitly; the lower bound is the first release shipping wheels for the full
+# supported Python range (3.10-3.14).
 dependencies = [
     "haystack-ai>=2.22.0",
-    "azure-ai-formrecognizer>=3.2.0b2",
-    "networkx",
-    "pandas",
+    "azure-ai-formrecognizer>=3.3.0",
+    "pandas>=2.3.3",
 ]
 
 [project.urls]

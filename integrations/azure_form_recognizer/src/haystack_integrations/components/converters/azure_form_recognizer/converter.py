@@ -13,7 +13,7 @@ from haystack import Document, component, default_from_dict, default_to_dict, lo
 from haystack.components.converters.utils import get_bytestream_from_source, normalize_metadata
 from haystack.dataclasses import ByteStream
 from haystack.lazy_imports import LazyImport
-from haystack.utils import Secret
+from haystack.utils import Secret, deserialize_secrets_inplace
 
 logger = logging.getLogger(__name__)
 
@@ -170,7 +170,7 @@ class AzureOCRDocumentConverter:
         """
         return default_to_dict(
             self,
-            api_key=self.api_key,
+            api_key=self.api_key.to_dict(),
             endpoint=self.endpoint,
             model_id=self.model_id,
             preceding_context_len=self.preceding_context_len,
@@ -191,6 +191,7 @@ class AzureOCRDocumentConverter:
         :returns:
             The deserialized component.
         """
+        deserialize_secrets_inplace(data["init_parameters"], keys=["api_key"])
         return default_from_dict(cls, data)
 
     def _convert_tables_and_text(self, result: "AnalyzeResult", meta: dict[str, Any] | None) -> list[Document]:
