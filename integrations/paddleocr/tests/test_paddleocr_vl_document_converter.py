@@ -325,7 +325,7 @@ class TestRun:
         assert options.use_doc_orientation_classify is True
         assert options.use_doc_unwarping is None
 
-    def test_meta_single_dict_applied_to_all(self, mock_client_ctx: MagicMock, tmp_path: Path) -> None:
+    def test_meta_single_dict_applied_to_all(self, mock_client_ctx: MagicMock, tmp_path: Path) -> None:  # noqa: ARG002
         converter = PaddleOCRVLDocumentConverter(access_token=Secret.from_token("tok"))
         f1 = create_empty_image(tmp_path, "a.png")
         f2 = create_empty_image(tmp_path, "b.png")
@@ -335,7 +335,7 @@ class TestRun:
         for doc in result["documents"]:
             assert doc.meta["dept"] == "eng"
 
-    def test_meta_list_applied_per_source(self, mock_client_ctx: MagicMock, tmp_path: Path) -> None:
+    def test_meta_list_applied_per_source(self, mock_client_ctx: MagicMock, tmp_path: Path) -> None:  # noqa: ARG002
         converter = PaddleOCRVLDocumentConverter(access_token=Secret.from_token("tok"))
         f1 = create_empty_image(tmp_path, "a.png")
         f2 = create_empty_image(tmp_path, "b.png")
@@ -374,7 +374,7 @@ class TestRun:
 
         assert mock_client_ctx.parse_document.call_args.kwargs["file_path"].endswith(".pdf")
 
-    def test_bytestream_with_file_path_meta(self, mock_client_ctx: MagicMock, tmp_path: Path) -> None:
+    def test_bytestream_with_file_path_meta(self, mock_client_ctx: MagicMock, tmp_path: Path) -> None:  # noqa: ARG002
         converter = PaddleOCRVLDocumentConverter(access_token=Secret.from_token("tok"))
         f = create_empty_image(tmp_path, "img.jpg")
         bs = ByteStream(data=f.read_bytes(), meta={"file_path": str(f)})
@@ -382,7 +382,7 @@ class TestRun:
         assert len(converter.run(sources=[bs])["documents"]) == 1
 
     def test_bytestream_without_file_path_uses_mime_type(
-        self, mock_client_ctx: MagicMock, tmp_path: Path
+        self, mock_client_ctx: MagicMock, tmp_path: Path  # noqa: ARG002
     ) -> None:
         converter = PaddleOCRVLDocumentConverter(access_token=Secret.from_token("tok"))
         f = create_empty_image(tmp_path, "img.png")
@@ -390,7 +390,7 @@ class TestRun:
 
         assert len(converter.run(sources=[bs])["documents"]) == 1
 
-    def test_raw_response_structure(self, mock_client_ctx: MagicMock, tmp_path: Path) -> None:
+    def test_raw_response_structure(self, mock_client_ctx: MagicMock, tmp_path: Path) -> None:  # noqa: ARG002
         converter = PaddleOCRVLDocumentConverter(access_token=Secret.from_token("tok"))
         f = create_empty_image(tmp_path, "test.png")
 
@@ -449,7 +449,7 @@ class TestRun:
         options: PaddleOCRVLOptions = mock_client_ctx.parse_document.call_args.kwargs["options"]
         assert options.extra_options == {"logId": "custom"}
 
-    def test_tmp_file_deleted_after_parse(self, mock_client_ctx: MagicMock, tmp_path: Path) -> None:
+    def test_tmp_file_deleted_after_parse(self, mock_client_ctx: MagicMock, tmp_path: Path) -> None:  # noqa: ARG002
         created_paths: list[str] = []
         original_ntf = _tmpmod.NamedTemporaryFile
 
