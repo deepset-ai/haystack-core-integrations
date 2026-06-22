@@ -38,6 +38,9 @@ jobs:
           ref: ${{ github.event.pull_request.head.ref }}
           # This must be set to correctly checkout a fork
           repository: ${{ github.event.pull_request.head.repo.full_name }}
+          # Safe because the script is copied from the trusted base before this checkout;
+          # fork files are only read as data, never executed.
+          allow-unsafe-pr-checkout: true
 
       - name: Get docstrings
         id: head-docstrings
