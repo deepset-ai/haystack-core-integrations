@@ -6,23 +6,18 @@ import copy
 import os
 from collections import defaultdict
 from pathlib import Path
-from typing import Any, Literal, Union
+from typing import Any, Literal
 
 import networkx as nx
+from azure.ai.formrecognizer import AnalyzeResult, DocumentAnalysisClient, DocumentLine, DocumentParagraph
+from azure.core.credentials import AzureKeyCredential
 from haystack import Document, component, default_from_dict, default_to_dict, logging
 from haystack.components.converters.utils import get_bytestream_from_source, normalize_metadata
 from haystack.dataclasses import ByteStream
-from haystack.lazy_imports import LazyImport
 from haystack.utils import Secret, deserialize_secrets_inplace
+from pandas import DataFrame
 
 logger = logging.getLogger(__name__)
-
-with LazyImport(message="Run 'pip install \"azure-ai-formrecognizer>=3.2.0b2\"'") as azure_import:
-    from azure.ai.formrecognizer import AnalyzeResult, DocumentAnalysisClient, DocumentLine, DocumentParagraph
-    from azure.core.credentials import AzureKeyCredential
-
-with LazyImport(message="Run 'pip install pandas'") as pandas_import:
-    from pandas import DataFrame
 
 
 @component
@@ -97,9 +92,6 @@ class AzureOCRDocumentConverter:
             If True, the full path of the file is stored in the metadata of the document.
             If False, only the file name is stored.
         """
-        azure_import.check()
-        pandas_import.check()
-
         self.document_analysis_client = DocumentAnalysisClient(
             endpoint=endpoint, credential=AzureKeyCredential(api_key.resolve_value() or "")
         )
@@ -194,7 +186,7 @@ class AzureOCRDocumentConverter:
         deserialize_secrets_inplace(data["init_parameters"], keys=["api_key"])
         return default_from_dict(cls, data)
 
-    def _convert_tables_and_text(self, result: "AnalyzeResult", meta: dict[str, Any] | None) -> list[Document]:
+    def _convert_tables_and_text(self, result: AnalyzeResult, meta: dict[str, Any] | None) -> list[Document]:
         """
         Converts the tables and text extracted by Azure's Document Intelligence service into Haystack Documents.
 
@@ -212,7 +204,7 @@ class AzureOCRDocumentConverter:
             text = self._convert_to_single_column_text(result=result, meta=meta, threshold_y=threshold_y)
         return [*tables, text]
 
-    def _convert_tables(self, result: "AnalyzeResult", meta: dict[str, Any] | None) -> list[Document]:
+    def _convert_tables(self, result: AnalyzeResult, meta: dict[str, Any] | None) -> list[Document]:
         """
         Converts the tables extracted by Azure's Document Intelligence service into Haystack Documents.
 
@@ -319,7 +311,7 @@ class AzureOCRDocumentConverter:
 
         return converted_tables
 
-    def _convert_to_natural_text(self, result: "AnalyzeResult", meta: dict[str, Any] | None) -> Document:
+    def _convert_to_natural_text(self, result: AnalyzeResult, meta: dict[str, Any] | None) -> Document:
         """
         This converts the `AnalyzeResult` object into a single document.
 
@@ -364,7 +356,7 @@ class AzureOCRDocumentConverter:
         return Document(content=all_text, meta=meta if meta else {})
 
     def _convert_to_single_column_text(
-        self, result: "AnalyzeResult", meta: dict[str, str] | None, threshold_y: float = 0.05
+        self, result: AnalyzeResult, meta: dict[str, str] | None, threshold_y: float = 0.05
     ) -> Document:
         """
         This converts the `AnalyzeResult` object into a single Haystack Document.
@@ -454,7 +446,7 @@ class AzureOCRDocumentConverter:
         all_text = "\f".join(texts)
         return Document(content=all_text, meta=meta if meta else {})
 
-    def _collect_table_spans(self, result: "AnalyzeResult") -> dict:
+    def _collect_table_spans(self, result: AnalyzeResult) -> dict:
         """
         Collect the spans of all tables by page number.
 
@@ -469,9 +461,7 @@ class AzureOCRDocumentConverter:
             table_spans_by_page[table.bounding_regions[0].page_number].append(table.spans[0])
         return table_spans_by_page
 
-    def _check_if_in_table(
-        self, tables_on_page: dict, line_or_paragraph: Union["DocumentLine", "DocumentParagraph"]
-    ) -> bool:
+    def _check_if_in_table(self, tables_on_page: dict, line_or_paragraph: DocumentLine | DocumentParagraph) -> bool:
         """
         Check if a line or paragraph is part of a table.
 
