@@ -238,6 +238,11 @@ integration:meta-llama:
       - any-glob-to-any-file: "integrations/meta_llama/**/*"
       - any-glob-to-any-file: ".github/workflows/meta_llama.yml"
 
+integration:microsoft-sharepoint:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/microsoft_sharepoint/**/*"
+      - any-glob-to-any-file: ".github/workflows/microsoft_sharepoint.yml"
+
 integration:mistral:
   - changed-files:
       - any-glob-to-any-file: "integrations/mistral/**/*"
@@ -428,3 +433,7 @@ topic:DX:
 topic:security:
   - changed-files:
       - any-glob-to-any-file: ["SECURITY.md"]
+integration:whisper:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/whisper/**/*"
+      - any-glob-to-any-file: ".github/workflows/whisper.yml"

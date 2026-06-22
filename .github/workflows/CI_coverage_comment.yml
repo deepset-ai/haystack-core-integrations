@@ -46,6 +46,7 @@ on:
       - "Test / mcp"
       - "Test / mem0"
       - "Test / meta_llama"
+      - "Test / microsoft_sharepoint"
       - "Test / mistral"
       - "Test / mongodb_atlas"
       - "Test / nvidia"
@@ -81,6 +82,7 @@ on:
       - "Test / watsonx"
       - "Test / weave"
       - "Test / weaviate"
+      - "Test / whisper"
     types: [completed]
 
 jobs:

@@ -151,7 +151,7 @@ class AsyncExecutor:
 
         :param coro_factory: A callable receiving the stop_event and returning the coroutine to execute.
         :param timeout: Optional timeout while waiting for the stop_event to be created.
-        :returns: Tuple ``(future, stop_event)``.
+        :returns: Tuple `(future, stop_event)`.
         """
         # A promise that will be fulfilled from inside the coroutine_with_stop_event coroutine once the
         # stop_event is created *inside* the target event loop to ensure it is bound to the
@@ -1107,7 +1107,7 @@ class MCPTool(Tool):
             logger.debug(f"TOOL: Invoke complete for '{self.name}', result type: {type(result)}")
 
             # Parse JSON to dict only when outputs_to_state is configured.
-            # ToolInvoker requires dict for _merge_tool_outputs(); ToolCallResult.result expects str otherwise.
+            # State output handlers require a dict; ToolCallResult.result expects str otherwise.
             if self.outputs_to_state:
                 return _extract_first_text_element(result)
 
@@ -1138,7 +1138,7 @@ class MCPTool(Tool):
             result = await asyncio.wait_for(client.call_tool(self.name, kwargs), timeout=self._invocation_timeout)
 
             # Parse JSON to dict only when outputs_to_state is configured.
-            # ToolInvoker requires dict for _merge_tool_outputs(); ToolCallResult.result expects str otherwise.
+            # State output handlers require a dict; ToolCallResult.result expects str otherwise.
             if self.outputs_to_state:
                 return _extract_first_text_element(result)
 
