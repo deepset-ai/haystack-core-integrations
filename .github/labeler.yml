@@ -368,6 +368,11 @@ integration:tavily:
       - any-glob-to-any-file: "integrations/tavily/**/*"
       - any-glob-to-any-file: ".github/workflows/tavily.yml"
 
+integration:telnyx:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/telnyx/**/*"
+      - any-glob-to-any-file: ".github/workflows/telnyx.yml"
+
 integration:tika:
   - changed-files:
       - any-glob-to-any-file: "integrations/tika/**/*"

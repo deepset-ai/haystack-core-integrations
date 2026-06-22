@@ -1,0 +1,15 @@
+loaders:
+  - modules:
+      - haystack_integrations.components.embedders.telnyx.document_embedder
+      - haystack_integrations.components.embedders.telnyx.text_embedder
+      - haystack_integrations.components.generators.telnyx.chat.chat_generator
+    search_path: [../src]
+processors:
+  - type: filter
+    documented_only: true
+    skip_empty_modules: true
+renderer:
+  description: Telnyx integration for Haystack
+  id: integrations-telnyx
+  filename: telnyx.md
+  title: Telnyx
