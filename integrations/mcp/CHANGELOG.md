@@ -1,5 +1,21 @@
 # Changelog
 
+## [integrations/mcp-v1.4.0] - 2026-06-22
+
+### 🧪 Testing
+
+- Track test coverage for all integrations (#3065)
+- Extract method to extract text from mcp result (#3154)
+- Added new integrations/mcp tests to harden and increase coverage (#3155)
+- Add MCP unit tests (#3176)
+- Fix MCP flaky tests (#3200)
+
+### 🧹 Chores
+
+- Improve consistency of integrations folder structure (#3430)
+- (mcp) Remove `ToolInvoker` from tests, docstrings and examples (#3474)
+
+
 ## [integrations/mcp-v1.3.0] - 2026-03-24
 
 ### 🚀 Features
