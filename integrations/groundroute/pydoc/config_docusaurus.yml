@@ -1,0 +1,13 @@
+loaders:
+  - modules:
+      - haystack_integrations.components.websearch.groundroute.groundroute_websearch
+    search_path: [../src]
+processors:
+  - type: filter
+    documented_only: true
+    skip_empty_modules: true
+renderer:
+  description: GroundRoute integration for Haystack
+  id: integrations-groundroute
+  filename: groundroute.md
+  title: GroundRoute
