@@ -46,9 +46,10 @@ git_describe_command = 'git describe --tags --match="integrations/twelvelabs-v[0
 
 [tool.hatch.envs.default]
 installer = "uv"
-dependencies = ["ruff"]
+dependencies = ["haystack-pydoc-tools", "ruff"]
 
 [tool.hatch.envs.default.scripts]
+docs = ["haystack-pydoc pydoc/config_docusaurus.yml"]
 fmt = "ruff check --fix {args}; ruff format {args}"
 fmt-check = "ruff check {args} && ruff format --check {args}"
 
