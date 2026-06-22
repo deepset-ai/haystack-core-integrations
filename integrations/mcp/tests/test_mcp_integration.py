@@ -1,15 +1,11 @@
 import json
 import os
 import shutil
-import socket
-import subprocess
 import sys
-import tempfile
-import time
 
 import pytest
 import pytest_asyncio
-from haystack import Pipeline, logging
+from haystack import Pipeline
 from haystack.components.agents import Agent
 from haystack.components.generators.chat import OpenAIChatGenerator
 from haystack.dataclasses import ChatMessage, ChatRole
@@ -25,133 +21,30 @@ from haystack_integrations.tools.mcp import (
 from .mcp_memory_transport import InMemoryServerInfo
 from .mcp_servers_fixtures import echo_mcp, state_calculator_mcp
 
-logger = logging.getLogger(__name__)
-
 
 # Keep integration tests separate
 @pytest.mark.integration
 class TestMCPToolInPipelineWithOpenAI:
     """Integration tests for MCPTool in Haystack pipelines with external dependencies."""
 
-    @pytest.mark.skipif(not os.environ.get("OPENAI_API_KEY"), reason="OPENAI_API_KEY not set")
-    def test_mcp_tool_with_http_server(self):
+    def test_mcp_tool_with_http_server(self, mcp_calculator_server, mcp_tool_cleanup):
         """Test using an MCPTool with a real HTTP server."""
+        port = mcp_calculator_server("sse")
+        server_info = SSEServerInfo(url=f"http://127.0.0.1:{port}/sse")
 
-        # Find an available port
-        def find_free_port():
-            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-                s.bind(("", 0))
-                return s.getsockname()[1]
+        # Create the tool and invoke it
+        tool = mcp_tool_cleanup(MCPTool(name="add", server_info=server_info))
+        result = json.loads(tool.invoke(a=5, b=3))
+        assert not result["isError"]
+        assert len(result["content"]) == 1
+        assert result["content"][0]["text"] == "8"
 
-        port = find_free_port()
-
-        # Create a temporary file for the server script
-        with tempfile.NamedTemporaryFile(suffix=".py", delete=False) as temp_file:
-            temp_file.write(
-                f"""
-import sys
-from mcp.server.fastmcp import FastMCP
-mcp = FastMCP("MCP Calculator", host="127.0.0.1", port={port})
-@mcp.tool()
-def add(a: int, b: int) -> int:
-    \"\"\"Add two numbers\"\"\"
-    return a + b
-
-# Add a subtraction tool
-@mcp.tool()
-def subtract(a: int, b: int) -> int:
-    \"\"\"Subtract b from a\"\"\"
-    return a - b
-
-if __name__ == "__main__":
-    try:
-        mcp.run(transport="sse")
-    except Exception as e:
-        sys.exit(1)
-""".encode()
-            )
-            server_script_path = temp_file.name
-
-        server_process = None
-        try:
-            # Start the server in a separate process. Use sys.executable rather than a bare "python"
-            # so we launch the exact interpreter running the tests (more reliable across platforms/venvs).
-            server_process = subprocess.Popen(
-                [sys.executable, server_script_path], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
-            )
-
-            # Wait until the server is actually accepting connections instead of sleeping a fixed amount.
-            # A fixed sleep races with server startup on slow runners and surfaces as "connection refused".
-            deadline = time.time() + 30
-            while True:
-                if server_process.poll() is not None:
-                    # Server exited before it became ready - surface its output so the failure is diagnosable.
-                    stderr = server_process.stderr.read() if server_process.stderr else ""
-                    message = f"MCP server process exited early (code {server_process.returncode}):\n{stderr}"
-                    raise RuntimeError(message)
-                try:
-                    with socket.create_connection(("127.0.0.1", port), timeout=1):
-                        break
-                except OSError as e:
-                    if time.time() > deadline:
-                        message = f"MCP server did not start listening on port {port} within 30s"
-                        raise TimeoutError(message) from e
-                    time.sleep(0.2)
-
-            # Create an MCPTool that connects to the HTTP server
-            server_info = SSEServerInfo(base_url=f"http://127.0.0.1:{port}")
-
-            # Create the tool
-            tool = MCPTool(name="add", server_info=server_info)
-
-            # Invoke the tool
-            result_json = tool.invoke(a=5, b=3)
-            result = json.loads(result_json)
-
-            # Verify the result
-            assert not result["isError"]
-            assert len(result["content"]) == 1
-            assert result["content"][0]["text"] == "8"
-
-            # Try another tool from the same server
-            subtract_tool = MCPTool(name="subtract", server_info=server_info)
-            result_json = subtract_tool.invoke(a=10, b=4)
-
-            # Parse the JSON result
-            result = json.loads(result_json)
-
-            # Verify the result
-            assert not result["isError"]
-            assert len(result["content"]) == 1
-            assert result["content"][0]["text"] == "6"
-
-        except Exception:
-            # Check server output for clues
-            if server_process and server_process.poll() is None:
-                server_process.terminate()
-            raise
-
-        finally:
-            # Explicitly close tools first to prevent SSE connection errors
-            try:
-                tool.close()
-                subtract_tool.close()
-            except Exception as e:
-                logger.debug(f"Error during tool cleanup: {e}")
-
-            # Then clean up the server process
-            if server_process:
-                if server_process.poll() is None:  # Process is still running
-                    server_process.terminate()
-                    try:
-                        server_process.wait(timeout=5)
-                    except subprocess.TimeoutExpired:
-                        server_process.kill()
-                        server_process.wait(timeout=5)
-
-            # Remove the temporary file
-            if os.path.exists(server_script_path):
-                os.remove(server_script_path)
+        # Try another tool from the same server
+        subtract_tool = mcp_tool_cleanup(MCPTool(name="subtract", server_info=server_info))
+        result = json.loads(subtract_tool.invoke(a=10, b=4))
+        assert not result["isError"]
+        assert len(result["content"]) == 1
+        assert result["content"][0]["text"] == "6"
 
     @pytest.mark.skipif(not os.environ.get("OPENAI_API_KEY"), reason="OPENAI_API_KEY not set")
     @pytest.mark.skipif(not os.environ.get("BRAVE_API_KEY"), reason="BRAVE_API_KEY not set")
