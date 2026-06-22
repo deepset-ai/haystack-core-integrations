@@ -169,9 +169,6 @@ exclude_lines = ["no cov", "if __name__ == .__main__.:", "if TYPE_CHECKING:"]
 
 [tool.pytest.ini_options]
 addopts = "--strict-markers"
-markers = [
-    "unit: unit tests",
-    "integration: integration tests",
-]
+markers = ["integration: integration tests"]
 log_cli = true
 asyncio_default_fixture_loop_scope = "function"
