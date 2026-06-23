@@ -7,6 +7,8 @@ from haystack import component, default_to_dict
 from haystack.components.embedders import OpenAITextEmbedder
 from haystack.utils.auth import Secret
 
+_MODELS_WITHOUT_CUSTOM_DIMENSIONS = {"thenlper/gte-large"}
+
 
 @component
 class TelnyxTextEmbedder(OpenAITextEmbedder):
@@ -53,7 +55,8 @@ class TelnyxTextEmbedder(OpenAITextEmbedder):
         :param suffix:
             A string to add to the end of each text.
         :param dimensions:
-            The number of dimensions the resulting output embeddings should have.
+            The number of dimensions the resulting output embeddings should have. Only supported by Telnyx embedding
+            models that expose configurable dimensions.
         :param timeout:
             Timeout for Telnyx client calls. If not set, it defaults to either the `OPENAI_TIMEOUT` environment
             variable, or 30 seconds.
@@ -63,6 +66,10 @@ class TelnyxTextEmbedder(OpenAITextEmbedder):
         :param http_client_kwargs:
             A dictionary of keyword arguments to configure a custom `httpx.Client` or `httpx.AsyncClient`.
         """
+        if dimensions is not None and model in _MODELS_WITHOUT_CUSTOM_DIMENSIONS:
+            msg = f"The Telnyx embedding model '{model}' does not support custom dimensions."
+            raise ValueError(msg)
+
         super(TelnyxTextEmbedder, self).__init__(  # noqa: UP008
             api_key=api_key,
             model=model,

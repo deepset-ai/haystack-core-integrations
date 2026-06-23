@@ -30,7 +30,7 @@ class TestTelnyxTextEmbedder:
     def test_init_with_parameters(self):
         embedder = TelnyxTextEmbedder(
             api_key=Secret.from_token("test-api-key"),
-            model="thenlper/gte-large",
+            model="custom-dimensions-model",
             api_base_url="https://custom-api-base-url.com",
             prefix="START",
             suffix="END",
@@ -38,10 +38,14 @@ class TestTelnyxTextEmbedder:
         )
         assert embedder.api_key == Secret.from_token("test-api-key")
         assert embedder.api_base_url == "https://custom-api-base-url.com"
-        assert embedder.model == "thenlper/gte-large"
+        assert embedder.model == "custom-dimensions-model"
         assert embedder.prefix == "START"
         assert embedder.suffix == "END"
         assert embedder.dimensions == 256
+
+    def test_init_rejects_unsupported_dimensions(self):
+        with pytest.raises(ValueError, match="does not support custom dimensions"):
+            TelnyxTextEmbedder(api_key=Secret.from_token("test-api-key"), dimensions=256)
 
     def test_to_dict(self, monkeypatch):
         monkeypatch.setenv("TELNYX_API_KEY", "test-api-key")
@@ -66,7 +70,7 @@ class TestTelnyxTextEmbedder:
         monkeypatch.setenv("ENV_VAR", "test-secret-key")
         embedder = TelnyxTextEmbedder(
             api_key=Secret.from_env_var("ENV_VAR", strict=False),
-            model="thenlper/gte-large",
+            model="custom-dimensions-model",
             api_base_url="https://custom-api-base-url.com",
             prefix="START",
             suffix="END",
@@ -79,7 +83,7 @@ class TestTelnyxTextEmbedder:
             "type": "haystack_integrations.components.embedders.telnyx.text_embedder.TelnyxTextEmbedder",
             "init_parameters": {
                 "api_key": {"env_vars": ["ENV_VAR"], "strict": False, "type": "env_var"},
-                "model": "thenlper/gte-large",
+                "model": "custom-dimensions-model",
                 "api_base_url": "https://custom-api-base-url.com",
                 "prefix": "START",
                 "suffix": "END",

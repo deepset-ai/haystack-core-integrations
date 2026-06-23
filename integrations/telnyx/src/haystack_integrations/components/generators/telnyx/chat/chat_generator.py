@@ -37,12 +37,11 @@ class TelnyxChatGenerator(OpenAIChatGenerator):
         "openai/gpt-5.2",
         "openai/gpt-5.1",
         "openai/gpt-5",
-        "meta-llama/Meta-Llama-3.1-8B-Instruct",
         "moonshotai/Kimi-K2.6",
         "zai-org/GLM-5.1-FP8",
         "MiniMaxAI/MiniMax-M2.7",
     ]
-    """A non-exhaustive list of model ids available through Telnyx Inference.
+    """A non-exhaustive list of chat model ids available through Telnyx Inference.
     Use the Telnyx OpenAI-compatible models endpoint for the current list available to your account."""
 
     def __init__(
