@@ -115,8 +115,8 @@ class TestOrcaRouterChatGeneratorAsync:
 
         # check that the component calls the OpenAI API with the correct parameters
         _, kwargs = mock_async_chat_completion.call_args
-        assert kwargs["extra_body"]["max_tokens"] == 10
-        assert kwargs["extra_body"]["temperature"] == 0.5
+        assert kwargs["max_tokens"] == 10
+        assert kwargs["temperature"] == 0.5
 
         # check that the component returns the correct response
         assert isinstance(response, dict)

@@ -4,9 +4,14 @@
 
 # ruff: noqa: T201
 
-"""Run OrcaRouter chat generation with tool calling and execution."""
+"""
+Run OrcaRouter chat generation with tool calling using the Agent component.
 
-from haystack.components.tools import ToolInvoker
+The `Agent` drives the tool-calling loop internally: it asks the model for a tool call, executes the
+tool, feeds the result back, and repeats until the model produces a final answer.
+"""
+
+from haystack.components.agents import Agent
 from haystack.dataclasses import ChatMessage
 from haystack.tools import Tool
 
@@ -20,57 +25,28 @@ def weather(city: str) -> str:
 
 
 def main() -> None:
-    """Demonstrate calling a tool and feeding the result back to OrcaRouter."""
-
-    tool_parameters = {
-        "type": "object",
-        "properties": {"city": {"type": "string"}},
-        "required": ["city"],
-    }
+    """Let an Agent answer a question by calling the weather tool when relevant."""
 
     weather_tool = Tool(
         name="weather",
         description="Useful for getting the weather in a specific city",
-        parameters=tool_parameters,
+        parameters={
+            "type": "object",
+            "properties": {"city": {"type": "string"}},
+            "required": ["city"],
+        },
         function=weather,
     )
 
-    tool_invoker = ToolInvoker(tools=[weather_tool])
-
-    client = OrcaRouterChatGenerator(model="openai/gpt-4o-mini")
-
-    messages = [
-        ChatMessage.from_system("You help users by calling the provided tools when they are relevant."),
-        ChatMessage.from_user("What's the weather in Tokyo today?"),
-    ]
-
-    print("Requesting a tool call from the model...")
-    tool_request = client.run(
-        messages=messages,
+    agent = Agent(
+        chat_generator=OrcaRouterChatGenerator(model="openai/gpt-4o-mini"),
         tools=[weather_tool],
-        generation_kwargs={"tool_choice": {"type": "function", "function": {"name": "weather"}}},
-    )["replies"][0]
+        system_prompt="You help users by calling the provided tools when they are relevant.",
+    )
 
-    print(f"assistant tool request: {tool_request}")
+    result = agent.run(messages=[ChatMessage.from_user("What's the weather in Tokyo today?")])
 
-    if not tool_request.tool_calls:
-        print("No tool call was produced by the model.")
-        return
-
-    tool_messages = tool_invoker.run(messages=[tool_request])["tool_messages"]
-    for tool_message in tool_messages:
-        for tool_result in tool_message.tool_call_results:
-            print(f"tool output: {tool_result.result}")
-
-    follow_up_messages = [*messages, tool_request, *tool_messages]
-
-    final_reply = client.run(
-        messages=follow_up_messages,
-        tools=[weather_tool],
-        generation_kwargs={"tool_choice": "none"},
-    )["replies"][0]
-
-    print(f"assistant final answer: {final_reply.text}")
+    print(f"assistant final answer: {result['last_message'].text}")
 
 
 if __name__ == "__main__":

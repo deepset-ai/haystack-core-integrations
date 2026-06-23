@@ -127,11 +127,12 @@ class TestOrcaRouterChatGenerator:
             "model": "openai/gpt-4o-mini",
             "streaming_callback": None,
             "api_base_url": "https://api.orcarouter.ai/v1",
+            "organization": None,
             "generation_kwargs": {},
-            "extra_headers": None,
             "timeout": None,
             "max_retries": None,
             "tools": None,
+            "tools_strict": False,
             "http_client_kwargs": None,
         }
 
@@ -145,11 +146,12 @@ class TestOrcaRouterChatGenerator:
             model="anthropic/claude-opus-4.8",
             streaming_callback=print_streaming_chunk,
             api_base_url="test-base-url",
+            organization="test-org",
             generation_kwargs={"max_tokens": 10, "some_test_param": "test-params"},
-            extra_headers={"test-header": "test-value"},
             timeout=10,
             max_retries=10,
             tools=None,
+            tools_strict=True,
             http_client_kwargs={"proxy": "http://localhost:8080"},
         )
         data = component.to_dict()
@@ -163,12 +165,13 @@ class TestOrcaRouterChatGenerator:
             "api_key": {"env_vars": ["ENV_VAR"], "strict": True, "type": "env_var"},
             "model": "anthropic/claude-opus-4.8",
             "api_base_url": "test-base-url",
+            "organization": "test-org",
             "streaming_callback": "haystack.components.generators.utils.print_streaming_chunk",
             "generation_kwargs": {"max_tokens": 10, "some_test_param": "test-params"},
-            "extra_headers": {"test-header": "test-value"},
             "timeout": 10,
             "max_retries": 10,
             "tools": None,
+            "tools_strict": True,
             "http_client_kwargs": {"proxy": "http://localhost:8080"},
         }
 
@@ -185,12 +188,13 @@ class TestOrcaRouterChatGenerator:
                 "api_key": {"env_vars": ["ORCAROUTER_API_KEY"], "strict": True, "type": "env_var"},
                 "model": "anthropic/claude-opus-4.8",
                 "api_base_url": "test-base-url",
+                "organization": "test-org",
                 "streaming_callback": "haystack.components.generators.utils.print_streaming_chunk",
                 "generation_kwargs": {"max_tokens": 10, "some_test_param": "test-params"},
-                "extra_headers": {"test-header": "test-value"},
                 "timeout": 10,
                 "max_retries": 10,
                 "tools": None,
+                "tools_strict": True,
                 "http_client_kwargs": {"proxy": "http://localhost:8080"},
             },
         }
@@ -198,11 +202,12 @@ class TestOrcaRouterChatGenerator:
         assert component.model == "anthropic/claude-opus-4.8"
         assert component.streaming_callback is print_streaming_chunk
         assert component.api_base_url == "test-base-url"
+        assert component.organization == "test-org"
         assert component.generation_kwargs == {"max_tokens": 10, "some_test_param": "test-params"}
         assert component.api_key == Secret.from_env_var("ORCAROUTER_API_KEY")
         assert component.http_client_kwargs == {"proxy": "http://localhost:8080"}
         assert component.tools is None
-        assert component.extra_headers == {"test-header": "test-value"}
+        assert component.tools_strict is True
         assert component.timeout == 10
         assert component.max_retries == 10
 
@@ -218,7 +223,6 @@ class TestOrcaRouterChatGenerator:
                 "api_base_url": "test-base-url",
                 "streaming_callback": "haystack.components.generators.utils.print_streaming_chunk",
                 "generation_kwargs": {"max_tokens": 10, "some_test_param": "test-params"},
-                "extra_headers": {"test-header": "test-value"},
                 "timeout": 10,
                 "max_retries": 10,
             },
@@ -244,10 +248,9 @@ class TestOrcaRouterChatGenerator:
         response = component.run(chat_messages)
 
         # check that the component calls the OrcaRouter API with the correct parameters
-        # for OrcaRouter, these are passed in the extra_body parameter
         _, kwargs = mock_chat_completion.call_args
-        assert kwargs["extra_body"]["max_tokens"] == 10
-        assert kwargs["extra_body"]["temperature"] == 0.5
+        assert kwargs["max_tokens"] == 10
+        assert kwargs["temperature"] == 0.5
         # check that the component returns the correct response
         assert isinstance(response, dict)
         assert "replies" in response
@@ -499,7 +502,8 @@ class TestOrcaRouterChatGenerator:
                             }
                         ],
                         "http_client_kwargs": None,
-                        "extra_headers": None,
+                        "organization": None,
+                        "tools_strict": False,
                         "timeout": None,
                         "max_retries": None,
                     },
@@ -542,93 +546,6 @@ class TestOrcaRouterChatGenerator:
         assert loaded_generator.tools[0].name == generator.tools[0].name
         assert loaded_generator.tools[0].description == generator.tools[0].description
         assert loaded_generator.tools[0].parameters == generator.tools[0].parameters
-
-    def test_prepare_api_call_with_tools(self, tools, monkeypatch):
-        monkeypatch.setenv("ORCAROUTER_API_KEY", "fake-api-key")
-        component = OrcaRouterChatGenerator(tools=tools)
-        args = component._prepare_api_call(messages=[ChatMessage.from_user("hi")])
-
-        assert args["tools"] == [
-            {
-                "type": "function",
-                "function": {
-                    "name": "weather",
-                    "description": "useful to determine the weather in a given location",
-                    "parameters": {
-                        "type": "object",
-                        "properties": {"city": {"type": "string"}},
-                        "required": ["city"],
-                    },
-                },
-            }
-        ]
-        assert "strict" not in args["tools"][0]["function"]
-        assert args["tools"][0]["function"]["parameters"].get("additionalProperties") is None
-
-    def test_prepare_api_call_with_tools_strict(self, tools, monkeypatch):
-        monkeypatch.setenv("ORCAROUTER_API_KEY", "fake-api-key")
-        component = OrcaRouterChatGenerator(tools=tools)
-        args = component._prepare_api_call(messages=[ChatMessage.from_user("hi")], tools_strict=True)
-
-        function_spec = args["tools"][0]["function"]
-        assert function_spec["strict"] is True
-        assert function_spec["parameters"]["additionalProperties"] is False
-
-    def test_prepare_api_call_includes_attribution_headers(self, monkeypatch):
-        monkeypatch.setenv("ORCAROUTER_API_KEY", "fake-api-key")
-        component = OrcaRouterChatGenerator()
-        args = component._prepare_api_call(messages=[ChatMessage.from_user("hi")])
-
-        assert args["extra_headers"]["HTTP-Referer"] == "https://github.com/deepset-ai/haystack-core-integrations"
-        assert args["extra_headers"]["X-Title"] == "Haystack"
-
-    def test_prepare_api_call_generation_kwargs_go_to_extra_body(self, monkeypatch):
-        monkeypatch.setenv("ORCAROUTER_API_KEY", "fake-api-key")
-        component = OrcaRouterChatGenerator(generation_kwargs={"max_tokens": 10})
-        args = component._prepare_api_call(
-            messages=[ChatMessage.from_user("hi")],
-            generation_kwargs={"extra_body": {"models": ["openai/gpt-4o"], "route": "fallback"}},
-        )
-
-        assert args["extra_body"]["max_tokens"] == 10
-        assert args["extra_body"]["extra_body"] == {"models": ["openai/gpt-4o"], "route": "fallback"}
-
-    def test_prepare_api_call_streaming_multiple_responses_raises(self, monkeypatch):
-        monkeypatch.setenv("ORCAROUTER_API_KEY", "fake-api-key")
-        component = OrcaRouterChatGenerator()
-        with pytest.raises(ValueError, match="Cannot stream multiple responses"):
-            component._prepare_api_call(
-                messages=[ChatMessage.from_user("hi")],
-                streaming_callback=print_streaming_chunk,
-                generation_kwargs={"n": 2},
-            )
-
-    def test_prepare_api_call_with_response_format_non_streaming(self, monkeypatch):
-        monkeypatch.setenv("ORCAROUTER_API_KEY", "fake-api-key")
-        component = OrcaRouterChatGenerator()
-        response_format = {"type": "json_object"}
-        args = component._prepare_api_call(
-            messages=[ChatMessage.from_user("hi")],
-            generation_kwargs={"response_format": response_format},
-        )
-
-        assert args["response_format"] == response_format
-        assert args["openai_endpoint"] == "parse"
-        assert "stream" not in args
-
-    def test_prepare_api_call_with_response_format_streaming(self, monkeypatch):
-        monkeypatch.setenv("ORCAROUTER_API_KEY", "fake-api-key")
-        component = OrcaRouterChatGenerator()
-        response_format = {"type": "json_object"}
-        args = component._prepare_api_call(
-            messages=[ChatMessage.from_user("hi")],
-            streaming_callback=print_streaming_chunk,
-            generation_kwargs={"response_format": response_format},
-        )
-
-        assert args["response_format"] == response_format
-        assert args["openai_endpoint"] == "create"
-        assert args["stream"] is True
 
 
 class TestChatCompletionChunkConversion:
