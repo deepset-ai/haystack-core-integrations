@@ -103,18 +103,7 @@ jobs:
           name: coverage-comment-opentelemetry
           path: python-coverage-comment-action-opentelemetry.txt
 
-      - name: Run integration tests
-        run: hatch run test:integration-cov-append-retry
-
-      - name: Store combined coverage
-        if: github.event_name == 'push'
-        uses: py-cov-action/python-coverage-comment-action@63f52f4fbbffada6e8dee8ec432de7e01df9ba79 # v3.41
-        with:
-          GITHUB_TOKEN: ${{ github.token }}
-          COVERAGE_PATH: integrations/opentelemetry
-          SUBPROJECT_ID: opentelemetry-combined
-          MINIMUM_GREEN: 90
-          MINIMUM_ORANGE: 60
+      # No integration tests yet — add integration-cov-append-retry + combined coverage step when needed
 
       - name: Run unit tests with lowest direct dependencies
         if: github.event_name != 'push'
