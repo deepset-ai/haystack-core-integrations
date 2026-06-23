@@ -112,11 +112,11 @@ class PaddleOCRVLDocumentConverter:
         self,
         *,
         base_url: str | None = None,
-        access_token: Secret = Secret.from_env_var("PADDLEOCR_ACCESS_TOKEN"),
+        access_token: Secret = Secret.from_env_var(["PADDLEOCR_ACCESS_TOKEN", "AISTUDIO_ACCESS_TOKEN"]),
         model: Model | str = Model.PADDLE_OCR_VL_16,
         file_type: FileTypeInput = None,
-        use_doc_orientation_classify: bool | None = None,
-        use_doc_unwarping: bool | None = None,
+        use_doc_orientation_classify: bool | None = False,
+        use_doc_unwarping: bool | None = False,
         use_layout_detection: bool | None = None,
         use_chart_recognition: bool | None = None,
         use_seal_recognition: bool | None = None,
@@ -305,6 +305,12 @@ class PaddleOCRVLDocumentConverter:
             Deserialized component.
         """
         deserialize_secrets_inplace(data["init_parameters"], keys=["access_token"])
+        init_params = data["init_parameters"]
+        if "model" in init_params and isinstance(init_params["model"], str):
+            try:
+                init_params["model"] = Model(init_params["model"])
+            except ValueError:
+                pass
         return default_from_dict(cls, data)
 
     def _build_options(self) -> PaddleOCRVLOptions:
@@ -396,7 +402,7 @@ class PaddleOCRVLDocumentConverter:
                 try:
                     bytestream = get_bytestream_from_source(source)
                 except Exception as e:
-                    logger.warning(f"Could not read {source}. Skipping it. Error: {e}")
+                    logger.warning("Could not read {source}. Skipping it. Error: {error}", source=source, error=e)
                     continue
 
                 if self.file_type is not None:
@@ -406,13 +412,13 @@ class PaddleOCRVLDocumentConverter:
                     file_type = _infer_file_type_from_source(source, mime_type)
 
                 if file_type is None:
-                    logger.warning(f"Could not determine file type for {source}. Skipping it.")
+                    logger.warning("Could not determine file type for {source}. Skipping it.", source=source)
                     continue
 
                 try:
                     text, raw_resp = self._parse(bytestream.data, file_type, client)
                 except Exception as e:
-                    logger.warning(f"Could not convert {source} to Document, skipping. Error: {e}")
+                    logger.warning("Could not convert {source} to Document, skipping. Error: {error}", source=source, error=e)
                     continue
 
                 if not text:

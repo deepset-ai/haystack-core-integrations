@@ -68,16 +68,29 @@ class TestInit:
         assert converter.base_url is None
         assert converter.model == Model.PADDLE_OCR_VL_16
         assert converter.file_type is None
-        assert converter.use_doc_orientation_classify is None
-        assert converter.use_doc_unwarping is None
+        assert converter.use_doc_orientation_classify is False
+        assert converter.use_doc_unwarping is False
         assert converter.use_layout_detection is None
         assert converter.layout_threshold is None
+        assert converter.layout_nms is None
+        assert converter.layout_unclip_ratio is None
+        assert converter.layout_merge_bboxes_mode is None
+        assert converter.prompt_label is None
+        assert converter.format_block_content is None
+        assert converter.repetition_penalty is None
+        assert converter.temperature is None
+        assert converter.top_p is None
+        assert converter.min_pixels is None
+        assert converter.max_pixels is None
+        assert converter.prettify_markdown is None
+        assert converter.show_formula_number is None
+        assert converter.visualize is None
         assert converter.additional_params is None
 
     def test_custom_model_string(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setenv("PADDLEOCR_ACCESS_TOKEN", "test-token")
         converter = PaddleOCRVLDocumentConverter(model="PaddleOCR-VL-1.5")
-        assert converter.model == "PaddleOCR-VL-1.5"
+        assert converter.model == Model.PADDLE_OCR_VL_15
 
     def test_invalid_file_type_string(self) -> None:
         with pytest.raises(ValueError, match="Invalid `file_type` string"):
@@ -147,7 +160,7 @@ class TestSerialisation:
         assert p["file_type"] is None
         assert p["access_token"] == {
             "type": "env_var",
-            "env_vars": ["PADDLEOCR_ACCESS_TOKEN"],
+            "env_vars": ["PADDLEOCR_ACCESS_TOKEN", "AISTUDIO_ACCESS_TOKEN"],
             "strict": True,
         }
 
@@ -175,8 +188,33 @@ class TestSerialisation:
         restored = PaddleOCRVLDocumentConverter.from_dict(converter.to_dict())
 
         assert restored.base_url == "http://base.example.com"
-        assert restored.model == Model.PADDLE_OCR_VL_16.value
+        assert restored.model == Model.PADDLE_OCR_VL_16
         assert restored.temperature == 0.3
+
+    def test_from_dict_without_model_key(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("PADDLEOCR_ACCESS_TOKEN", "test-token")
+        data = {
+            "type": CLASS_TYPE,
+            "init_parameters": {
+                "access_token": {"type": "env_var", "env_vars": ["PADDLEOCR_ACCESS_TOKEN"], "strict": True},
+            },
+        }
+        converter = PaddleOCRVLDocumentConverter.from_dict(data)
+        assert converter.model == Model.PADDLE_OCR_VL_16
+
+    def test_from_dict_with_unknown_model_string(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("PADDLEOCR_ACCESS_TOKEN", "test-token")
+        data = {
+            "type": CLASS_TYPE,
+            "init_parameters": {
+                "access_token": {"type": "env_var", "env_vars": ["PADDLEOCR_ACCESS_TOKEN"], "strict": True},
+                "model": "SomeCustomModel",
+                "base_url": None,
+                "file_type": None,
+            },
+        }
+        converter = PaddleOCRVLDocumentConverter.from_dict(data)
+        assert converter.model == "SomeCustomModel"
 
     def test_from_dict_with_model_string(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setenv("PADDLEOCR_ACCESS_TOKEN", "test-token")
@@ -194,7 +232,7 @@ class TestSerialisation:
             },
         }
         converter = PaddleOCRVLDocumentConverter.from_dict(data)
-        assert converter.model == "PaddleOCR-VL-1.5"
+        assert converter.model == Model.PADDLE_OCR_VL_15
 
 
 class TestRun:
@@ -304,6 +342,8 @@ class TestRun:
             temperature=0.7,
             use_doc_orientation_classify=True,
             use_doc_unwarping=None,
+            layout_nms=True,
+            prettify_markdown=True,
         )
         f = create_empty_image(tmp_path, "test.png")
         converter.run(sources=[str(f)])
@@ -312,6 +352,8 @@ class TestRun:
         assert options.temperature == 0.7
         assert options.use_doc_orientation_classify is True
         assert options.use_doc_unwarping is None
+        assert options.layout_nms is True
+        assert options.prettify_markdown is True
 
     def test_meta_single_dict_applied_to_all(self, mock_client_ctx: MagicMock, tmp_path: Path) -> None:  # noqa: ARG002
         converter = PaddleOCRVLDocumentConverter(access_token=Secret.from_token("tok"))
@@ -537,9 +579,7 @@ class TestIntegration:
         source_files: list[str],
         expected_docs: int,
     ) -> None:
-        converter = PaddleOCRVLDocumentConverter(
-            base_url=os.environ["PADDLEOCR_VL_BASE_URL"],
-        )
+        converter = PaddleOCRVLDocumentConverter()
         result = converter.run(sources=[test_files_path / f for f in source_files])
 
         assert len(result["documents"]) == expected_docs

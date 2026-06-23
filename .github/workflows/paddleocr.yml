@@ -29,8 +29,8 @@ concurrency:
 env:
   PYTHONUNBUFFERED: "1"
   FORCE_COLOR: "1"
-  AISTUDIO_ACCESS_TOKEN: ${{ secrets.AISTUDIO_ACCESS_TOKEN }}
-  PADDLEOCR_VL_API_URL: ${{ secrets.PADDLEOCR_VL_API_URL }}
+  PADDLEOCR_ACCESS_TOKEN: ${{ secrets.PADDLEOCR_ACCESS_TOKEN }}
+  PADDLEOCR_VL_BASE_URL: ${{ secrets.PADDLEOCR_VL_BASE_URL }}
   TEST_MATRIX_OS: '["ubuntu-latest", "windows-latest", "macos-latest"]'
   TEST_MATRIX_PYTHON: '["3.10", "3.12"]'
 
