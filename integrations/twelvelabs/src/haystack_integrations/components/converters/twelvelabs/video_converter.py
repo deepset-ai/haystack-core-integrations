@@ -6,14 +6,14 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
 
-import httpx
 from haystack import Document, component, default_from_dict, default_to_dict, logging
 from haystack.components.converters.utils import normalize_metadata
 from haystack.utils import Secret, deserialize_secrets_inplace
 
+from twelvelabs import TwelveLabs, VideoContext_AssetId, VideoContext_Url
+
 logger = logging.getLogger(__name__)
 
-API_BASE = "https://api.twelvelabs.io/v1.3"
 DEFAULT_MODEL = "pegasus1.5"
 DEFAULT_PROMPT = (
     "Describe this video in detail. Include what happens visually, what is said "
@@ -127,14 +127,14 @@ class TwelveLabsVideoConverter:
 
         for source, extra_meta in zip(sources, meta_list, strict=True):
             try:
-                text, task_id, asset_id = self._analyze_source(source, key)
-            except Exception as exc:
+                text, analysis_id, asset_id = self._analyze_source(source, key)
+            except Exception as exc:  # one bad source shouldn't fail the whole batch
                 logger.warning("TwelveLabs could not analyze {source}: {error}", source=source, error=str(exc))
                 continue
             doc_meta = {
                 "source": str(source),
                 "asset_id": asset_id,
-                "task_id": task_id,
+                "analysis_id": analysis_id,
                 "model": self.model,
                 "provider": "twelvelabs",
                 **extra_meta,
@@ -143,112 +143,59 @@ class TwelveLabsVideoConverter:
 
         return {"documents": documents}
 
-    # -- TwelveLabs REST helpers -------------------------------------------- #
-    def _analyze_source(self, source: str, key: str) -> tuple[str, str, str]:
-        with httpx.Client(headers={"x-api-key": key}, timeout=120.0) as client:
-            asset_id = self._resolve_asset(client, source)
-            task_id = self._create_task(client, asset_id)
-            text = self._await_task(client, task_id)
-        return text, task_id, asset_id
-
-    def _resolve_asset(self, client: httpx.Client, source: str) -> str:
+    # -- TwelveLabs SDK helpers --------------------------------------------- #
+    def _analyze_source(self, source: str, key: str) -> tuple[str, str | None, str | None]:
+        """Analyze one video with Pegasus, returning (text, response_id, asset_id)."""
+        client = TwelveLabs(api_key=key)
+        asset_id: str | None = None
         if urlparse(source).scheme in ("http", "https"):
-            response = client.post(
-                f"{API_BASE}/assets",
-                files={"method": (None, "url"), "url": (None, source)},
-            )
+            video: VideoContext_Url | VideoContext_AssetId = VideoContext_Url(type="url", url=source)
         else:
-            path = Path(source).expanduser().resolve()
-            if not path.exists():
-                msg = f"Video file not found: {path}"
-                raise FileNotFoundError(msg)
-            if path.stat().st_size > _MAX_DIRECT_UPLOAD_BYTES:
-                msg = f"{path.name} exceeds the 200 MB direct-upload limit; host it and pass a URL."
-                raise ValueError(msg)
-            response = client.post(
-                f"{API_BASE}/assets",
-                data={"method": "direct"},
-                files={"file": (path.name, path.read_bytes())},
-            )
-        _raise_for_status(response, "asset upload")
-        payload = response.json()
-        asset_id = payload.get("_id") or payload.get("id")
-        if not asset_id:
-            msg = f"TwelveLabs asset upload returned no id: {payload}"
+            asset_id = self._upload_asset(client, source)
+            video = VideoContext_AssetId(type="asset_id", asset_id=asset_id)
+
+        response = client.analyze(
+            model_name=self.model,
+            video=video,
+            prompt=self.prompt,
+            temperature=self.temperature,
+            max_tokens=self.max_tokens,
+            request_options={"timeout_in_seconds": int(_ANALYZE_TIMEOUT)},
+        )
+        text = (response.data or "").strip()
+        if not text:
+            msg = f"TwelveLabs analysis of {source} produced no text"
             raise RuntimeError(msg)
-        if str(payload.get("status", "")).lower() != "ready":
-            self._poll(client, f"/assets/{asset_id}", _ASSET_TIMEOUT, "asset")
+        return text, response.id, asset_id
+
+    def _upload_asset(self, client: TwelveLabs, source: str) -> str:
+        """Upload a local video file as a TwelveLabs asset and wait until it's ready."""
+        path = Path(source).expanduser().resolve()
+        if not path.exists():
+            msg = f"Video file not found: {path}"
+            raise FileNotFoundError(msg)
+        if path.stat().st_size > _MAX_DIRECT_UPLOAD_BYTES:
+            msg = f"{path.name} exceeds the 200 MB direct-upload limit; host it and pass a URL."
+            raise ValueError(msg)
+
+        asset = client.assets.create(method="direct", file=(path.name, path.read_bytes()))
+        asset_id = asset.id
+        if not asset_id:
+            msg = "TwelveLabs asset upload returned no id"
+            raise RuntimeError(msg)
+        self._await_asset_ready(client, asset_id)
         return asset_id
 
-    def _create_task(self, client: httpx.Client, asset_id: str) -> str:
-        response = client.post(
-            f"{API_BASE}/analyze/tasks",
-            json={
-                "video": {"type": "asset_id", "asset_id": asset_id},
-                "model_name": self.model,
-                "prompt": self.prompt,
-                "temperature": self.temperature,
-                "max_tokens": self.max_tokens,
-            },
-        )
-        _raise_for_status(response, "analyze task")
-        created = response.json()
-        task_id = created.get("task_id") or created.get("_id") or created.get("id")
-        if not task_id:
-            msg = f"TwelveLabs analyze task returned no id: {created}"
-            raise RuntimeError(msg)
-        return task_id
-
-    def _await_task(self, client: httpx.Client, task_id: str) -> str:
-        deadline = time.monotonic() + _ANALYZE_TIMEOUT
+    def _await_asset_ready(self, client: TwelveLabs, asset_id: str) -> None:
+        deadline = time.monotonic() + _ASSET_TIMEOUT
         while True:
-            response = client.get(f"{API_BASE}/analyze/tasks/{task_id}")
-            _raise_for_status(response, "analyze status")
-            info = response.json()
-            status = str(info.get("status", "")).lower()
-            if status == "ready":
-                text = _extract_text(info.get("result"))
-                if not text:
-                    msg = f"TwelveLabs task {task_id} produced no text"
-                    raise RuntimeError(msg)
-                return text
-            if status == "failed":
-                msg = f"TwelveLabs analyze task {task_id} failed"
-                raise RuntimeError(msg)
-            if time.monotonic() > deadline:
-                msg = f"TwelveLabs analyze task {task_id} not ready in time"
-                raise TimeoutError(msg)
-            time.sleep(_POLL_INTERVAL)
-
-    def _poll(self, client: httpx.Client, path: str, timeout: float, what: str) -> None:
-        deadline = time.monotonic() + timeout
-        while True:
-            response = client.get(f"{API_BASE}{path}")
-            _raise_for_status(response, f"{what} status")
-            status = str(response.json().get("status", "")).lower()
+            status = str(client.assets.retrieve(asset_id=asset_id).status or "").lower()
             if status == "ready":
                 return
             if status == "failed":
-                msg = f"TwelveLabs {what} processing failed"
+                msg = f"TwelveLabs asset {asset_id} processing failed"
                 raise RuntimeError(msg)
             if time.monotonic() > deadline:
-                msg = f"TwelveLabs {what} not ready in time"
+                msg = f"TwelveLabs asset {asset_id} not ready in time"
                 raise TimeoutError(msg)
             time.sleep(_POLL_INTERVAL)
-
-
-def _raise_for_status(response: httpx.Response, what: str) -> None:
-    if response.status_code >= httpx.codes.BAD_REQUEST:
-        msg = f"TwelveLabs {what} failed: HTTP {response.status_code} {response.text[:300]}"
-        raise RuntimeError(msg)
-
-
-def _extract_text(result: Any) -> str:
-    if isinstance(result, str):
-        return result.strip()
-    if isinstance(result, dict):
-        for key in ("data", "text", "analysis", "summary", "generated_text", "output"):
-            value = result.get(key)
-            if isinstance(value, str) and value.strip():
-                return value.strip()
-    return ""

@@ -57,7 +57,7 @@ class TwelveLabsDocumentEmbedder:
         :param model: The Marengo model name.
         :param prefix: A string to add to the beginning of each text before embedding.
         :param suffix: A string to add to the end of each text before embedding.
-        :param batch_size: Number of Documents to embed concurrently per request batch.
+        :param batch_size: Number of Documents per batch; within a batch `run_async` embeds concurrently.
         :param progress_bar: Whether to show a progress bar while embedding. Can be helpful
             to disable in production deployments to keep the logs clean.
         :param meta_fields_to_embed: List of meta fields that should be embedded along with the Document text.
