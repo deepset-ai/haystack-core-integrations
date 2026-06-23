@@ -32,6 +32,7 @@ on:
       - "Test / funasr"
       - "Test / github"
       - "Test / google-genai"
+      - "Test / google_drive"
       - "Test / hanlp"
       - "Test / huggingface_api"
       - "Test / jina"

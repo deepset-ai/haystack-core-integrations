@@ -1,0 +1,13 @@
+loaders:
+  - modules:
+      - haystack_integrations.components.retrievers.google_drive.retriever
+    search_path: [../src]
+processors:
+  - type: filter
+    documented_only: true
+    skip_empty_modules: true
+renderer:
+  description: Google Drive integration for Haystack
+  id: integrations-google-drive
+  filename: google_drive.md
+  title: Google Drive

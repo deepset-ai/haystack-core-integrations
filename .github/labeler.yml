@@ -159,6 +159,11 @@ integration:google-ai:
   - changed-files:
       - any-glob-to-any-file: "integrations/google_ai/**/*"
 
+integration:google-drive:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/google_drive/**/*"
+      - any-glob-to-any-file: ".github/workflows/google_drive.yml"
+
 integration:google-genai:
   - changed-files:
       - any-glob-to-any-file: "integrations/google_genai/**/*"
