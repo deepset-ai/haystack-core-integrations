@@ -56,6 +56,7 @@ on:
       - "Test / openapi"
       - "Test / openrouter"
       - "Test / opensearch"
+      - "Test / opentelemetry"
       - "Test / optimum"
       - "Test / orcarouter"
       - "Test / paddleocr"

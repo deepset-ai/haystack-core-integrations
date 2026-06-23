@@ -293,6 +293,11 @@ integration:opensearch:
       - any-glob-to-any-file: "integrations/opensearch/**/*"
       - any-glob-to-any-file: ".github/workflows/opensearch.yml"
 
+integration:opentelemetry:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/opentelemetry/**/*"
+      - any-glob-to-any-file: ".github/workflows/opentelemetry.yml"
+
 integration:optimum:
   - changed-files:
       - any-glob-to-any-file: "integrations/optimum/**/*"
