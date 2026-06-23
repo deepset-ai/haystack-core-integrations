@@ -69,7 +69,7 @@ class MSSharePointFetcher:
 
     Everything is resolved through the Microsoft Graph `shares` endpoint (plus the Pages API for pages), so only
     the `web_url` already exposed by the retriever is needed. The fetcher takes a per-user `access_token` as a run
-    input, typically wired from an upstream `OAuthResolver`. The token must carry delegated Microsoft Graph
+    input, typically wired from an upstream `OAuthTokenResolver`. The token must carry delegated Microsoft Graph
     permissions (for example `Files.Read.All` for files and `Sites.Read.All` for list items and pages).
 
     ### Usage example
@@ -128,7 +128,7 @@ class MSSharePointFetcher:
         Fetch the content of SharePoint and OneDrive items and return them as `ByteStream`s.
 
         :param access_token: A delegated Microsoft Graph bearer token for the user whose content is fetched,
-            typically wired from an upstream `OAuthResolver` (which emits a plain `str`). A `Secret` is also
+            typically wired from an upstream `OAuthTokenResolver` (which emits a plain `str`). A `Secret` is also
             accepted and resolved internally.
         :param targets: The items to fetch, as either `Document`s emitted by `MSSharePointRetriever` or raw
             SharePoint/OneDrive `web_url` strings (the two may also be mixed in one list). For a `Document`, the
@@ -162,7 +162,7 @@ class MSSharePointFetcher:
         Asynchronously fetch the content of SharePoint and OneDrive items and return them as `ByteStream`s.
 
         :param access_token: A delegated Microsoft Graph bearer token for the user whose content is fetched,
-            typically wired from an upstream `OAuthResolver` (which emits a plain `str`). A `Secret` is also
+            typically wired from an upstream `OAuthTokenResolver` (which emits a plain `str`). A `Secret` is also
             accepted and resolved internally.
         :param targets: The items to fetch, as either `Document`s emitted by `MSSharePointRetriever` or raw
             SharePoint/OneDrive `web_url` strings (the two may also be mixed in one list). For a `Document`, the
