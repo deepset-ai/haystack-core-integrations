@@ -14,7 +14,7 @@ import opentelemetry.trace
 
 
 class OpenTelemetrySpan(Span):
-    def __init__(self, span: "opentelemetry.trace.Span") -> None:
+    def __init__(self, span: opentelemetry.trace.Span) -> None:
         """Creates an instance of OpenTelemetrySpan."""
         self._span = span
 
@@ -43,7 +43,7 @@ class OpenTelemetrySpan(Span):
 
 
 class OpenTelemetryTracer(Tracer):
-    def __init__(self, tracer: "opentelemetry.trace.Tracer") -> None:
+    def __init__(self, tracer: opentelemetry.trace.Tracer) -> None:
         """Creates an instance of OpenTelemetryTracer."""
         self._tracer = tracer
 
