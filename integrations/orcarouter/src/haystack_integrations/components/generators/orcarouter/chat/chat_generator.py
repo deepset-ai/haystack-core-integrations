@@ -24,8 +24,8 @@ class OrcaRouterChatGenerator(OpenAIChatGenerator):
 
     For the list of supported models, see the [OrcaRouter model catalog](https://www.orcarouter.ai/models).
 
-    This component subclasses `OpenAIChatGenerator`, so it inherits full streaming, tool-calling, and structured-output
-    support. It uses the ChatMessage format for both input and output; see the
+    This component supports streaming, tool-calling, and structured outputs.
+    It uses the ChatMessage format for both input and output; see the
     [Haystack docs](https://docs.haystack.deepset.ai/docs/chatmessage) for details.
 
     Usage example:
