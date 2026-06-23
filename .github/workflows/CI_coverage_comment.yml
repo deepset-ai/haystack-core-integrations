@@ -57,6 +57,7 @@ on:
       - "Test / openrouter"
       - "Test / opensearch"
       - "Test / optimum"
+      - "Test / orcarouter"
       - "Test / paddleocr"
       - "Test / perplexity"
       - "Test / pgvector"
