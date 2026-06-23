@@ -427,7 +427,9 @@ class PaddleOCRVLDocumentConverter:
 
                 if not text:
                     logger.warning(
-                        f"{self.__class__.__name__} could not extract text from {source}. Returning an empty document."
+                        f"{cls} could not extract text from {source}. Returning an empty document.",
+                        cls=self.__class__.__name__,
+                        source=source,
                     )
 
                 merged_metadata = {**bytestream.meta, **metadata}
