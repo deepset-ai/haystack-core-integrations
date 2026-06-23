@@ -418,7 +418,11 @@ class PaddleOCRVLDocumentConverter:
                 try:
                     text, raw_resp = self._parse(bytestream.data, file_type, client)
                 except Exception as e:
-                    logger.warning("Could not convert {source} to Document, skipping. Error: {error}", source=source, error=e)
+                    logger.warning(
+                        "Could not convert {source} to Document, skipping. Error: {error}",
+                        source=source,
+                        error=e,
+                    )
                     continue
 
                 if not text:
