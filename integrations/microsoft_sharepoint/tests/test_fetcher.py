@@ -164,7 +164,7 @@ class TestFiles:
     def test_downloads_drive_item_document(self):
         fetcher = MSSharePointFetcher()
         with patch.object(httpx.Client, "get", return_value=_binary_response(content=b"docx-bytes")):
-            streams = fetcher.run(access_token="tok", documents=[_drive_item_document()])["streams"]
+            streams = fetcher.run(access_token="tok", targets=[_drive_item_document()])["streams"]
 
         assert len(streams) == 1
         stream = streams[0]
@@ -185,7 +185,7 @@ class TestFiles:
             "Content-Disposition": 'attachment; filename="report.pdf"',
         }
         with patch.object(httpx.Client, "get", return_value=_binary_response(headers=headers)):
-            streams = fetcher.run(access_token="tok", urls=[FILE_URL])["streams"]
+            streams = fetcher.run(access_token="tok", targets=[FILE_URL])["streams"]
 
         assert streams[0].meta["content_type"] == "application/pdf"
         assert streams[0].mime_type == "application/pdf"
@@ -195,7 +195,7 @@ class TestFiles:
     def test_builds_content_url_and_auth_header(self):
         fetcher = MSSharePointFetcher()
         with patch.object(httpx.Client, "get", return_value=_binary_response()) as mock_get:
-            fetcher.run(access_token="my-token", documents=[_drive_item_document()])
+            fetcher.run(access_token="my-token", targets=[_drive_item_document()])
 
         url = mock_get.call_args.args[0]
         assert url == f"https://graph.microsoft.com/v1.0/shares/{_encode_share_url(FILE_URL)}/driveItem/content"
@@ -206,7 +206,7 @@ class TestListItems:
     def test_renders_list_item_fields_as_json(self):
         fetcher = MSSharePointFetcher()
         with patch.object(httpx.Client, "get", return_value=_json_response(LIST_ITEM)) as mock_get:
-            streams = fetcher.run(access_token="tok", documents=[_list_item_document()])["streams"]
+            streams = fetcher.run(access_token="tok", targets=[_list_item_document()])["streams"]
 
         assert len(streams) == 1
         stream = streams[0]
@@ -224,7 +224,7 @@ class TestListItems:
         fetcher = MSSharePointFetcher()
         # A raw list-item URL with no IDs (e.g. `urls` input) falls back to the shares endpoint.
         with patch.object(httpx.Client, "get", return_value=_json_response(LIST_ITEM)) as mock_get:
-            fetcher.run(access_token="tok", documents=[_list_item_document(ids=None)])
+            fetcher.run(access_token="tok", targets=[_list_item_document(ids=None)])
         assert "/shares/" in mock_get.call_args.args[0]
         assert "/listItem?" in mock_get.call_args.args[0]
 
@@ -234,7 +234,7 @@ class TestPages:
         fetcher = MSSharePointFetcher()
         get = _route([("/items/", _json_response(PAGE_LIST_ITEM)), ("/pages/", _json_response(PAGE))])
         with patch.object(httpx.Client, "get", side_effect=get):
-            streams = fetcher.run(access_token="tok", documents=[_page_document()])["streams"]
+            streams = fetcher.run(access_token="tok", targets=[_page_document()])["streams"]
 
         assert len(streams) == 1
         stream = streams[0]
@@ -251,7 +251,7 @@ class TestPages:
         fetcher = MSSharePointFetcher()
         get = _route([("/items/", _json_response(PAGE_LIST_ITEM)), ("/pages/", _json_response(PAGE))])
         with patch.object(httpx.Client, "get", side_effect=get) as mock_get:
-            fetcher.run(access_token="tok", documents=[_page_document()])
+            fetcher.run(access_token="tok", targets=[_page_document()])
 
         page_url = mock_get.call_args_list[-1].args[0]
         assert page_url == (
@@ -266,7 +266,7 @@ class TestPages:
         doc = _page_document()
         del doc.meta["list_item_unique_id"]  # no page id from the retriever either
         with patch.object(httpx.Client, "get", return_value=_json_response(page_without_unique_id)) as mock_get:
-            streams = fetcher.run(access_token="tok", documents=[doc])["streams"]
+            streams = fetcher.run(access_token="tok", targets=[doc])["streams"]
 
         assert streams[0].meta["entity_type"] == "listItem"
         assert json.loads(streams[0].data.decode("utf-8")) == page_without_unique_id["fields"]
@@ -295,30 +295,35 @@ class TestInputHandling:
             [("/driveItem/content", _binary_response(status_code=404)), ("/listItem", _json_response(LIST_ITEM))]
         )
         with patch.object(httpx.Client, "get", side_effect=get) as mock_get:
-            streams = fetcher.run(access_token="tok", urls=[LIST_ITEM_URL])["streams"]
+            streams = fetcher.run(access_token="tok", targets=[LIST_ITEM_URL])["streams"]
 
         assert streams[0].meta["entity_type"] == "listItem"
         assert mock_get.call_count == 2
 
-    def test_combines_documents_and_urls(self):
+    def test_dispatches_mixed_documents_and_urls(self):
         fetcher = MSSharePointFetcher()
         get = _route([("/driveItem/content", _binary_response()), ("/items/", _json_response(LIST_ITEM))])
         with patch.object(httpx.Client, "get", side_effect=get):
-            # A drive-item and a list-item document (dispatched by their meta), plus a raw file URL.
+            # A drive-item document, a list-item document, and a raw file URL in a single list.
             streams = fetcher.run(
                 access_token="tok",
-                documents=[_drive_item_document(), _list_item_document()],
-                urls=[FILE_URL],
+                targets=[_drive_item_document(), _list_item_document(), FILE_URL],
             )["streams"]
         assert [s.meta["entity_type"] for s in streams] == ["driveItem", "listItem", "driveItem"]
 
-    def test_requires_documents_or_urls(self):
-        with pytest.raises(SharePointConfigError):
+    def test_targets_is_mandatory(self):
+        # The data input has no default, so a pipeline will not fire the component until it is delivered;
+        # calling run() without it is a TypeError.
+        with pytest.raises(TypeError):
             MSSharePointFetcher().run(access_token="tok")
 
-    def test_empty_inputs_return_no_streams(self):
+    def test_invalid_item_type_raises(self):
+        with pytest.raises(SharePointConfigError):
+            MSSharePointFetcher().run(access_token="tok", targets=[123])
+
+    def test_empty_input_returns_no_streams(self):
         with patch.object(httpx.Client, "get") as mock_get:
-            streams = MSSharePointFetcher().run(access_token="tok", documents=[], urls=[])["streams"]
+            streams = MSSharePointFetcher().run(access_token="tok", targets=[])["streams"]
         assert streams == []
         mock_get.assert_not_called()
 
@@ -327,27 +332,27 @@ class TestInputHandling:
             content="snippet", meta={"web_url": "https://x/sites/team", "entity_type": "#microsoft.graph.site"}
         )
         with patch.object(httpx.Client, "get") as mock_get:
-            streams = MSSharePointFetcher().run(access_token="tok", documents=[site])["streams"]
+            streams = MSSharePointFetcher().run(access_token="tok", targets=[site])["streams"]
         assert streams == []
         mock_get.assert_not_called()
 
     def test_skips_document_without_web_url(self):
         doc = Document(content="snippet", meta={"file_name": "x.docx"})
         with patch.object(httpx.Client, "get") as mock_get:
-            streams = MSSharePointFetcher().run(access_token="tok", documents=[doc])["streams"]
+            streams = MSSharePointFetcher().run(access_token="tok", targets=[doc])["streams"]
         assert streams == []
         mock_get.assert_not_called()
 
     def test_accepts_secret_access_token(self):
         fetcher = MSSharePointFetcher()
         with patch.object(httpx.Client, "get", return_value=_binary_response()) as mock_get:
-            fetcher.run(access_token=Secret.from_token("secret-token"), urls=[FILE_URL])
+            fetcher.run(access_token=Secret.from_token("secret-token"), targets=[FILE_URL])
         assert mock_get.call_args.kwargs["headers"]["Authorization"] == "Bearer secret-token"
 
     def test_unresolvable_secret_access_token_raises(self):
         unset_secret = Secret.from_env_var("MS_SHAREPOINT_UNSET_TOKEN", strict=False)
         with pytest.raises(SharePointConfigError):
-            MSSharePointFetcher().run(access_token=unset_secret, urls=[FILE_URL])
+            MSSharePointFetcher().run(access_token=unset_secret, targets=[FILE_URL])
 
 
 class TestErrorHandling:
@@ -355,14 +360,14 @@ class TestErrorHandling:
         fetcher = MSSharePointFetcher(max_retries=0)
         with patch.object(httpx.Client, "get", return_value=_binary_response(status_code=401)):
             with pytest.raises(SharePointRequestError) as exc_info:
-                fetcher.run(access_token="bad", urls=[FILE_URL])
+                fetcher.run(access_token="bad", targets=[FILE_URL])
         assert exc_info.value.status_code == 401
 
     def test_forbidden_on_list_item_raises(self):
         fetcher = MSSharePointFetcher(max_retries=0)
         with patch.object(httpx.Client, "get", return_value=_json_response({"error": "no"}, status_code=403)):
             with pytest.raises(SharePointRequestError) as exc_info:
-                fetcher.run(access_token="tok", documents=[_list_item_document()])
+                fetcher.run(access_token="tok", targets=[_list_item_document()])
         assert exc_info.value.status_code == 403
 
     def test_raise_on_failure_false_skips_failed_items(self):
@@ -370,7 +375,7 @@ class TestErrorHandling:
         responses = [_binary_response(status_code=404), _binary_response(content=b"ok")]
         docs = [_drive_item_document(url="https://host/missing.docx"), _drive_item_document(url="https://host/ok.docx")]
         with patch.object(httpx.Client, "get", side_effect=responses):
-            streams = fetcher.run(access_token="tok", documents=docs)["streams"]
+            streams = fetcher.run(access_token="tok", targets=docs)["streams"]
         assert len(streams) == 1
         assert streams[0].data == b"ok"
 
@@ -378,7 +383,7 @@ class TestErrorHandling:
         fetcher = MSSharePointFetcher(max_retries=2)
         throttled = _binary_response(status_code=429, headers={"Retry-After": "0"})
         with patch.object(httpx.Client, "get", side_effect=[throttled, _binary_response(content=b"ok")]) as mock_get:
-            streams = fetcher.run(access_token="tok", urls=[FILE_URL])["streams"]
+            streams = fetcher.run(access_token="tok", targets=[FILE_URL])["streams"]
         assert len(streams) == 1
         assert mock_get.call_count == 2
 
@@ -387,7 +392,7 @@ class TestErrorHandling:
         throttled = _binary_response(status_code=429, headers={"Retry-After": "0"})
         with patch.object(httpx.Client, "get", return_value=throttled) as mock_get:
             with pytest.raises(SharePointRequestError) as exc_info:
-                fetcher.run(access_token="tok", urls=[FILE_URL])
+                fetcher.run(access_token="tok", targets=[FILE_URL])
         assert exc_info.value.status_code == 429
         assert mock_get.call_count == 2
 
@@ -423,7 +428,7 @@ class TestPipeline:
         pipeline = Pipeline()
         pipeline.add_component("retriever", MSSharePointRetriever())
         pipeline.add_component("fetcher", MSSharePointFetcher())
-        pipeline.connect("retriever.documents", "fetcher.documents")
+        pipeline.connect("retriever.documents", "fetcher.targets")
 
         with (
             patch.object(httpx.Client, "post", return_value=search_response),
@@ -451,7 +456,7 @@ class TestRunAsync:
         fetcher = MSSharePointFetcher()
         get = AsyncMock(return_value=_binary_response(content=b"async-bytes"))
         with patch.object(httpx.AsyncClient, "get", get):
-            streams = (await fetcher.run_async(access_token="tok", documents=[_drive_item_document()]))["streams"]
+            streams = (await fetcher.run_async(access_token="tok", targets=[_drive_item_document()]))["streams"]
         assert streams[0].data == b"async-bytes"
         assert streams[0].meta["entity_type"] == "driveItem"
 
@@ -459,7 +464,7 @@ class TestRunAsync:
         fetcher = MSSharePointFetcher()
         get = AsyncMock(return_value=_json_response(LIST_ITEM))
         with patch.object(httpx.AsyncClient, "get", get):
-            streams = (await fetcher.run_async(access_token="tok", documents=[_list_item_document()]))["streams"]
+            streams = (await fetcher.run_async(access_token="tok", targets=[_list_item_document()]))["streams"]
         assert json.loads(streams[0].data.decode("utf-8")) == LIST_ITEM["fields"]
         assert streams[0].meta["entity_type"] == "listItem"
 
@@ -469,7 +474,7 @@ class TestRunAsync:
             side_effect=_route([("/items/", _json_response(PAGE_LIST_ITEM)), ("/pages/", _json_response(PAGE))])
         )
         with patch.object(httpx.AsyncClient, "get", get):
-            streams = (await fetcher.run_async(access_token="tok", documents=[_page_document()]))["streams"]
+            streams = (await fetcher.run_async(access_token="tok", targets=[_page_document()]))["streams"]
         assert "<p>Hello world</p>" in streams[0].data.decode("utf-8")
         assert streams[0].meta["entity_type"] == "sitePage"
 
@@ -479,7 +484,7 @@ class TestRunAsync:
             side_effect=[_binary_response(status_code=429, headers={"Retry-After": "0"}), _binary_response()]
         )
         with patch.object(httpx.AsyncClient, "get", get):
-            streams = (await fetcher.run_async(access_token="tok", urls=[FILE_URL]))["streams"]
+            streams = (await fetcher.run_async(access_token="tok", targets=[FILE_URL]))["streams"]
         assert len(streams) == 1
         assert get.await_count == 2
 
@@ -488,7 +493,7 @@ class TestRunAsync:
         get = AsyncMock(return_value=_binary_response(status_code=401))
         with patch.object(httpx.AsyncClient, "get", get):
             with pytest.raises(SharePointRequestError):
-                await fetcher.run_async(access_token="bad", urls=[FILE_URL])
+                await fetcher.run_async(access_token="bad", targets=[FILE_URL])
 
 
 @pytest.mark.integration
@@ -501,7 +506,7 @@ class TestLive:
         fetcher = MSSharePointFetcher()
         streams = fetcher.run(
             access_token=os.environ["MS_SHAREPOINT_ACCESS_TOKEN"],
-            urls=[os.environ["MS_SHAREPOINT_TEST_FILE_URL"]],
+            targets=[os.environ["MS_SHAREPOINT_TEST_FILE_URL"]],
         )["streams"]
         assert len(streams) == 1
         assert streams[0].data

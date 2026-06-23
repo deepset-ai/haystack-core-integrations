@@ -81,12 +81,12 @@ class MSSharePointFetcher:
     # `access_token` is a per-user delegated Microsoft Graph bearer token.
     result = fetcher.run(
         access_token="my-delegated-graph-token",
-        urls=["https://contoso.sharepoint.com/sites/contoso-team/contoso-designs.docx"],
+        targets=["https://contoso.sharepoint.com/sites/contoso-team/contoso-designs.docx"],
     )
     streams = result["streams"]
     ```
 
-    In a pipeline, connect `MSSharePointRetriever.documents` to the fetcher's `documents` input and an upstream
+    In a pipeline, connect `MSSharePointRetriever.documents` to the fetcher's `targets` input and an upstream
     component that emits a per-user `access_token` to the fetcher's `access_token` input.
     """
 
@@ -122,8 +122,7 @@ class MSSharePointFetcher:
     def run(
         self,
         access_token: str | Secret,
-        documents: list[Document] | None = None,
-        urls: list[str] | None = None,
+        targets: list[Document] | list[str],
     ) -> dict[str, list[ByteStream]]:
         """
         Fetch the content of SharePoint and OneDrive items and return them as `ByteStream`s.
@@ -131,22 +130,22 @@ class MSSharePointFetcher:
         :param access_token: A delegated Microsoft Graph bearer token for the user whose content is fetched,
             typically wired from an upstream `OAuthResolver` (which emits a plain `str`). A `Secret` is also
             accepted and resolved internally.
-        :param documents: Documents emitted by `MSSharePointRetriever`. The `web_url` in each document's meta is
-            fetched; `file_name`, `mime_type`, and `entity_type` are reused when present. Container hits with no
-            extractable content (for example `site` or `list`) are skipped.
-        :param urls: SharePoint/OneDrive `web_url`s to fetch directly. Can be combined with `documents`. Without
-            entity-type hints, each URL is probed as a file and falls back to a list item.
+        :param targets: The items to fetch, as either `Document`s emitted by `MSSharePointRetriever` or raw
+            SharePoint/OneDrive `web_url` strings (the two may also be mixed in one list). For a `Document`, the
+            `web_url` in its meta is fetched and `file_name`, `mime_type`, `entity_type`, and the SharePoint IDs
+            are reused when present; container hits with no extractable content (for example `site` or `list`) are
+            skipped. For a raw URL, the item is probed as a file and falls back to a list item.
         :returns: A dictionary with a `streams` key holding the fetched content as `ByteStream` objects. Each
             stream's `meta` carries `url`, `file_name`, `content_type`, and `entity_type`.
-        :raises SharePointConfigError: If neither `documents` nor `urls` is provided, or if `access_token` is a
+        :raises SharePointConfigError: If an item is neither a `Document` nor a `str`, or if `access_token` is a
             `Secret` that does not resolve to a string.
         :raises SharePointRequestError: If a fetch fails and `raise_on_failure` is `True`.
         """
         token = resolve_access_token(access_token)
-        targets = self._collect_targets(documents, urls)
+        resolved = self._resolve_targets(targets)
         streams: list[ByteStream] = []
         with httpx.Client(timeout=self.timeout, follow_redirects=True) as client:
-            for url, hints in targets:
+            for url, hints in resolved:
                 stream = self._process(client, token, url, hints)
                 if stream is not None:
                     streams.append(stream)
@@ -157,8 +156,7 @@ class MSSharePointFetcher:
     async def run_async(
         self,
         access_token: str | Secret,
-        documents: list[Document] | None = None,
-        urls: list[str] | None = None,
+        targets: list[Document] | list[str],
     ) -> dict[str, list[ByteStream]]:
         """
         Asynchronously fetch the content of SharePoint and OneDrive items and return them as `ByteStream`s.
@@ -166,70 +164,70 @@ class MSSharePointFetcher:
         :param access_token: A delegated Microsoft Graph bearer token for the user whose content is fetched,
             typically wired from an upstream `OAuthResolver` (which emits a plain `str`). A `Secret` is also
             accepted and resolved internally.
-        :param documents: Documents emitted by `MSSharePointRetriever`. The `web_url` in each document's meta is
-            fetched; `file_name`, `mime_type`, and `entity_type` are reused when present. Container hits with no
-            extractable content (for example `site` or `list`) are skipped.
-        :param urls: SharePoint/OneDrive `web_url`s to fetch directly. Can be combined with `documents`. Without
-            entity-type hints, each URL is probed as a file and falls back to a list item.
+        :param targets: The items to fetch, as either `Document`s emitted by `MSSharePointRetriever` or raw
+            SharePoint/OneDrive `web_url` strings (the two may also be mixed in one list). For a `Document`, the
+            `web_url` in its meta is fetched and `file_name`, `mime_type`, `entity_type`, and the SharePoint IDs
+            are reused when present; container hits with no extractable content (for example `site` or `list`) are
+            skipped. For a raw URL, the item is probed as a file and falls back to a list item.
         :returns: A dictionary with a `streams` key holding the fetched content as `ByteStream` objects. Each
             stream's `meta` carries `url`, `file_name`, `content_type`, and `entity_type`.
-        :raises SharePointConfigError: If neither `documents` nor `urls` is provided, or if `access_token` is a
+        :raises SharePointConfigError: If an item is neither a `Document` nor a `str`, or if `access_token` is a
             `Secret` that does not resolve to a string.
         :raises SharePointRequestError: If a fetch fails and `raise_on_failure` is `True`.
         """
         token = resolve_access_token(access_token)
-        targets = self._collect_targets(documents, urls)
+        resolved = self._resolve_targets(targets)
         streams: list[ByteStream] = []
         async with httpx.AsyncClient(timeout=self.timeout, follow_redirects=True) as client:
-            for url, hints in targets:
+            for url, hints in resolved:
                 stream = await self._process_async(client, token, url, hints)
                 if stream is not None:
                     streams.append(stream)
 
         return {"streams": streams}
 
-    def _collect_targets(
-        self, documents: list[Document] | None, urls: list[str] | None
-    ) -> list[tuple[str, dict[str, Any]]]:
-        """Build the list of `(url, hints)` pairs to fetch from the `documents` and `urls` inputs."""
-        if documents is None and urls is None:
-            msg = "MSSharePointFetcher.run requires either `documents` or `urls`."
-            raise SharePointConfigError(msg)
+    def _resolve_targets(self, targets: list[Document] | list[str]) -> list[tuple[str, dict[str, Any]]]:
+        """Resolve the input targets into `(url, hints)` pairs to fetch, dispatching each item by its type."""
+        resolved: list[tuple[str, dict[str, Any]]] = []
+        for item in targets:
+            if isinstance(item, Document):
+                target = self._resolve_document(item)
+                if target is not None:
+                    resolved.append(target)
+            elif isinstance(item, str):
+                resolved.append((item, {}))
+            else:
+                msg = f"targets items must be a Document or a str (web_url), got {type(item).__name__}."
+                raise SharePointConfigError(msg)
 
-        targets: list[tuple[str, dict[str, Any]]] = []
-        for document in documents or []:
-            meta = document.meta or {}
-            url = meta.get("web_url")
-            if not url:
-                logger.warning("Skipping document {id}: no `web_url` in its meta, nothing to fetch.", id=document.id)
-                continue
-            entity_type = meta.get("entity_type")
-            if entity_type and _FILE_MARKER not in entity_type and _LIST_ITEM_MARKER not in entity_type:
-                logger.warning(
-                    "Skipping {url}: entity_type {entity_type} has no extractable content.",
-                    url=url,
-                    entity_type=entity_type,
-                )
-                continue
-            targets.append(
-                (
-                    url,
-                    {
-                        "entity_type": entity_type,
-                        "file_name": meta.get("file_name"),
-                        "mime_type": meta.get("mime_type"),
-                        "site_id": meta.get("site_id"),
-                        "list_id": meta.get("list_id"),
-                        "list_item_id": meta.get("list_item_id"),
-                        "list_item_unique_id": meta.get("list_item_unique_id"),
-                    },
-                )
+        return resolved
+
+    @staticmethod
+    def _resolve_document(document: Document) -> tuple[str, dict[str, Any]] | None:
+        """Turn a retriever `Document` into a `(url, hints)` pair, or `None` if it has nothing to fetch."""
+        meta = document.meta or {}
+        url = meta.get("web_url")
+        if not url:
+            logger.warning("Skipping document {id}: no `web_url` in its meta, nothing to fetch.", id=document.id)
+            return None
+        entity_type = meta.get("entity_type")
+        if entity_type and _FILE_MARKER not in entity_type and _LIST_ITEM_MARKER not in entity_type:
+            logger.warning(
+                "Skipping {url}: entity_type {entity_type} has no extractable content.",
+                url=url,
+                entity_type=entity_type,
             )
-
-        for url in urls or []:
-            targets.append((url, {}))
-
-        return targets
+            return None
+        hints = {
+            "entity_type": entity_type,
+            "file_name": meta.get("file_name"),
+            "mime_type": meta.get("mime_type"),
+            "site_id": meta.get("site_id"),
+            "list_id": meta.get("list_id"),
+            "list_item_id": meta.get("list_item_id"),
+            "list_item_unique_id": meta.get("list_item_unique_id"),
+        }
+        return url, hints
 
     # --- synchronous fetch path ---------------------------------------------------------------------------------
 
