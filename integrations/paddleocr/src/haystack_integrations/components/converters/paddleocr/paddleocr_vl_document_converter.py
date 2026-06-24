@@ -427,7 +427,7 @@ class PaddleOCRVLDocumentConverter:
 
                 if not text:
                     logger.warning(
-                        f"{cls} could not extract text from {source}. Returning an empty document.",
+                        "{cls} could not extract text from {source}. Returning an empty document.",
                         cls=self.__class__.__name__,
                         source=source,
                     )
