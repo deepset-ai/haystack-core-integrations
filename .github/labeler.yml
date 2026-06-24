@@ -433,6 +433,11 @@ integration:vllm:
       - any-glob-to-any-file: "integrations/vllm/**/*"
       - any-glob-to-any-file: ".github/workflows/vllm.yml"
 
+integration:voyage:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/voyage/**/*"
+      - any-glob-to-any-file: ".github/workflows/voyage.yml"
+
 integration:watsonx:
   - changed-files:
       - any-glob-to-any-file: "integrations/watsonx/**/*"

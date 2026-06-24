@@ -84,6 +84,7 @@ on:
       - "Test / valkey"
       - "Test / vespa"
       - "Test / vllm"
+      - "Test / voyage"
       - "Test / watsonx"
       - "Test / weave"
       - "Test / weaviate"
