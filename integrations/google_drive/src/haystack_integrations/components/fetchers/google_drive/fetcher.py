@@ -2,6 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+import asyncio
 import re
 from typing import Any
 
@@ -95,6 +96,7 @@ class GoogleDriveFetcher:
         api_base_url: str = DEFAULT_API_BASE_URL,
         timeout: float = 30.0,
         max_retries: int = 3,
+        max_concurrent_requests: int = 5,
         raise_on_failure: bool = True,
         export_mime_types: dict[str, str] | None = None,
     ) -> None:
@@ -104,20 +106,27 @@ class GoogleDriveFetcher:
         :param api_base_url: The Drive API base URL. Defaults to `https://www.googleapis.com/drive/v3`.
         :param timeout: The HTTP timeout in seconds for each request to the Drive API.
         :param max_retries: The maximum number of retries for throttled (HTTP 429) or transient server errors.
+        :param max_concurrent_requests: The maximum number of files fetched concurrently by `run_async`. Bounds
+            the in-flight requests to Drive to avoid tripping its rate limits. Has no effect on the synchronous
+            `run`, which fetches files one at a time.
         :param raise_on_failure: If `True`, a fetch failure raises an exception. If `False`, the failure is
             logged and the file is skipped, so the other files are still returned.
         :param export_mime_types: Optional mapping of native Google mime type (for example
             `application/vnd.google-apps.document`) to the mime type to export it as. Replaces the default mapping
             (Docs/Sheets/Slides to DOCX/XLSX/PPTX). Drive caps a single export at 10 MB.
-        :raises GoogleDriveConfigError: If `max_retries` is negative.
+        :raises GoogleDriveConfigError: If `max_retries` is negative or `max_concurrent_requests` is not positive.
         """
         if max_retries < 0:
             msg = "max_retries must be zero or a positive integer."
+            raise GoogleDriveConfigError(msg)
+        if max_concurrent_requests <= 0:
+            msg = "max_concurrent_requests must be a positive integer."
             raise GoogleDriveConfigError(msg)
 
         self.api_base_url = api_base_url.rstrip("/")
         self.timeout = timeout
         self.max_retries = max_retries
+        self.max_concurrent_requests = max_concurrent_requests
         self.raise_on_failure = raise_on_failure
         self.export_mime_types = export_mime_types
         self._export_map = export_mime_types if export_mime_types is not None else _DEFAULT_EXPORT_MIME_TYPES
@@ -126,7 +135,7 @@ class GoogleDriveFetcher:
     def run(
         self,
         access_token: str | Secret,
-        targets: list[Document] | list[str],
+        targets: list[Document | str],
     ) -> dict[str, list[ByteStream]]:
         """
         Fetch the content of Google Drive files and return them as `ByteStream`s.
@@ -160,7 +169,7 @@ class GoogleDriveFetcher:
     async def run_async(
         self,
         access_token: str | Secret,
-        targets: list[Document] | list[str],
+        targets: list[Document | str],
     ) -> dict[str, list[ByteStream]]:
         """
         Asynchronously fetch the content of Google Drive files and return them as `ByteStream`s.
@@ -181,16 +190,18 @@ class GoogleDriveFetcher:
         """
         token = resolve_access_token(access_token)
         resolved = self._collect_targets(targets)
-        streams: list[ByteStream] = []
+        semaphore = asyncio.Semaphore(self.max_concurrent_requests)
+
+        async def fetch_one(client: httpx.AsyncClient, file_id: str, hints: dict[str, Any]) -> ByteStream | None:
+            async with semaphore:  # caps the number of requests in flight to Drive at once
+                return await self._process_async(client, token, file_id, hints)
+
         async with httpx.AsyncClient(timeout=self.timeout, follow_redirects=True) as client:
-            for file_id, hints in resolved:
-                stream = await self._process_async(client, token, file_id, hints)
-                if stream is not None:
-                    streams.append(stream)
+            results = await asyncio.gather(*(fetch_one(client, file_id, hints) for file_id, hints in resolved))
 
-        return {"streams": streams}
+        return {"streams": [stream for stream in results if stream is not None]}
 
-    def _collect_targets(self, targets: list[Document] | list[str]) -> list[tuple[str, dict[str, Any]]]:
+    def _collect_targets(self, targets: list[Document | str]) -> list[tuple[str, dict[str, Any]]]:
         """Resolve the input targets into `(file_id, hints)` pairs to fetch, dispatching each item by its type."""
         resolved: list[tuple[str, dict[str, Any]]] = []
         for item in targets:
@@ -240,25 +251,19 @@ class GoogleDriveFetcher:
         web_url = hints.get("web_url")
         if mime_type is None:
             metadata = self._request_json(client, token, self._files_url(file_id), _metadata_params(), file_id)
-            mime_type = metadata.get("mimeType")
-            file_name = file_name or metadata.get("name")
-            web_url = web_url or metadata.get("webViewLink")
+            mime_type, file_name, web_url = self._merge_metadata(metadata, file_name, web_url)
 
         export_mime = self._export_map.get(mime_type) if mime_type else None
         if export_mime is not None:
             response = self._get(client, token, self._export_url(file_id), _export_params(export_mime))
-            if response.is_error:
-                raise self._build_error(response, file_id)
-            return self._byte_stream(response.content, export_mime, file_id, web_url, file_name)
+            return self._stream_from_response(response, export_mime, file_id, web_url, file_name)
 
         if self._is_skippable(mime_type, file_id):
             return None
 
         response = self._get(client, token, self._files_url(file_id), _media_params())
-        if response.is_error:
-            raise self._build_error(response, file_id)
-        return self._byte_stream(
-            response.content, self._content_type(response) or mime_type, file_id, web_url, file_name
+        return self._stream_from_response(
+            response, self._content_type(response) or mime_type, file_id, web_url, file_name
         )
 
     def _get(self, client: httpx.Client, token: str, url: str, params: dict[str, Any]) -> httpx.Response:
@@ -298,25 +303,19 @@ class GoogleDriveFetcher:
             metadata = await self._request_json_async(
                 client, token, self._files_url(file_id), _metadata_params(), file_id
             )
-            mime_type = metadata.get("mimeType")
-            file_name = file_name or metadata.get("name")
-            web_url = web_url or metadata.get("webViewLink")
+            mime_type, file_name, web_url = self._merge_metadata(metadata, file_name, web_url)
 
         export_mime = self._export_map.get(mime_type) if mime_type else None
         if export_mime is not None:
             response = await self._get_async(client, token, self._export_url(file_id), _export_params(export_mime))
-            if response.is_error:
-                raise self._build_error(response, file_id)
-            return self._byte_stream(response.content, export_mime, file_id, web_url, file_name)
+            return self._stream_from_response(response, export_mime, file_id, web_url, file_name)
 
         if self._is_skippable(mime_type, file_id):
             return None
 
         response = await self._get_async(client, token, self._files_url(file_id), _media_params())
-        if response.is_error:
-            raise self._build_error(response, file_id)
-        return self._byte_stream(
-            response.content, self._content_type(response) or mime_type, file_id, web_url, file_name
+        return self._stream_from_response(
+            response, self._content_type(response) or mime_type, file_id, web_url, file_name
         )
 
     async def _get_async(
@@ -356,6 +355,29 @@ class GoogleDriveFetcher:
             )
             return True
         return False
+
+    @staticmethod
+    def _merge_metadata(
+        metadata: dict[str, Any], file_name: str | None, web_url: str | None
+    ) -> tuple[str | None, str | None, str | None]:
+        """Read the mime type, name, and link from fetched metadata, keeping any hint values already present."""
+        mime_type = metadata.get("mimeType")
+        file_name = file_name or metadata.get("name")
+        web_url = web_url or metadata.get("webViewLink")
+        return mime_type, file_name, web_url
+
+    def _stream_from_response(
+        self,
+        response: httpx.Response,
+        content_type: str | None,
+        file_id: str,
+        web_url: str | None,
+        file_name: str | None,
+    ) -> ByteStream:
+        """Raise a descriptive error on a failed response, otherwise wrap the body in a `ByteStream`."""
+        if response.is_error:
+            raise self._build_error(response, file_id)
+        return self._byte_stream(response.content, content_type, file_id, web_url, file_name)
 
     @staticmethod
     def _byte_stream(
@@ -401,6 +423,7 @@ class GoogleDriveFetcher:
             api_base_url=self.api_base_url,
             timeout=self.timeout,
             max_retries=self.max_retries,
+            max_concurrent_requests=self.max_concurrent_requests,
             raise_on_failure=self.raise_on_failure,
             export_mime_types=self.export_mime_types,
         )
@@ -416,6 +439,10 @@ class GoogleDriveFetcher:
         return default_from_dict(cls, data)
 
 
+# `supportsAllDrives` is a capability flag the Drive API requires on `files.get`/`files.export` to operate on
+# files that live in a shared drive. Unlike the retriever's `includeItemsFromAllDrives`/`corpora`, it does not
+# broaden a search. The fetcher acts on explicit file ids, so it is always set so any accessible file can be fetched.
+# See https://developers.google.com/workspace/drive/api/guides/enable-shareddrives
 def _metadata_params() -> dict[str, Any]:
     return {"fields": _METADATA_FIELDS, "supportsAllDrives": True}
 

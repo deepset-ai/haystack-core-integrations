@@ -63,6 +63,7 @@ class TestInit:
         assert fetcher.api_base_url == BASE
         assert fetcher.timeout == 30.0
         assert fetcher.max_retries == 3
+        assert fetcher.max_concurrent_requests == 5
         assert fetcher.raise_on_failure is True
         assert fetcher.export_mime_types is None
         assert fetcher._export_map[GDOC] == DOCX
@@ -73,6 +74,10 @@ class TestInit:
     def test_negative_max_retries_raises(self):
         with pytest.raises(GoogleDriveConfigError):
             GoogleDriveFetcher(max_retries=-1)
+
+    def test_non_positive_max_concurrent_requests_raises(self):
+        with pytest.raises(GoogleDriveConfigError):
+            GoogleDriveFetcher(max_concurrent_requests=0)
 
     def test_custom_export_mapping_replaces_default(self):
         fetcher = GoogleDriveFetcher(export_mime_types={GDOC: "application/pdf"})
@@ -88,6 +93,7 @@ class TestSerialization:
                 "api_base_url": BASE,
                 "timeout": 10.0,
                 "max_retries": 1,
+                "max_concurrent_requests": 5,
                 "raise_on_failure": False,
                 "export_mime_types": None,
             },
@@ -372,6 +378,14 @@ class TestRunAsync:
         with patch.object(httpx.AsyncClient, "get", get):
             with pytest.raises(GoogleDriveRequestError):
                 await fetcher.run_async(access_token="bad", targets=[_drive_doc()])
+
+    async def test_concurrent_fetch_preserves_order(self):
+        fetcher = GoogleDriveFetcher(max_concurrent_requests=2)
+        targets = [_drive_doc(file_id="FILE1"), _drive_doc(file_id="FILE2"), _drive_doc(file_id="FILE3")]
+        get = AsyncMock(return_value=_binary(content=b"bytes"))
+        with patch.object(httpx.AsyncClient, "get", get):
+            streams = (await fetcher.run_async(access_token="tok", targets=targets))["streams"]
+        assert [stream.meta["file_id"] for stream in streams] == ["FILE1", "FILE2", "FILE3"]
 
 
 @pytest.mark.integration
