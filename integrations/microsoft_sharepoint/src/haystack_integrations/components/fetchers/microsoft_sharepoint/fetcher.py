@@ -2,6 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+import asyncio
 import base64
 import html
 import json
@@ -96,6 +97,7 @@ class MSSharePointFetcher:
         graph_url: str = DEFAULT_GRAPH_URL,
         timeout: float = 30.0,
         max_retries: int = 3,
+        max_concurrent_requests: int = 5,
         raise_on_failure: bool = True,
     ) -> None:
         """
@@ -105,24 +107,31 @@ class MSSharePointFetcher:
             Override for sovereign clouds.
         :param timeout: The HTTP timeout in seconds for each request to Microsoft Graph.
         :param max_retries: The maximum number of retries for throttled (HTTP 429) or transient server errors.
+        :param max_concurrent_requests: The maximum number of items fetched concurrently by `run_async`. Bounds
+            the in-flight requests to Microsoft Graph to avoid tripping its rate limits. Has no effect on the
+            synchronous `run`, which fetches items one at a time.
         :param raise_on_failure: If `True`, a fetch failure raises an exception. If `False`, the failure is
             logged and the item is skipped, so the other items are still returned.
-        :raises SharePointConfigError: If `max_retries` is negative.
+        :raises SharePointConfigError: If `max_retries` is negative or `max_concurrent_requests` is not positive.
         """
         if max_retries < 0:
             msg = "max_retries must be zero or a positive integer."
+            raise SharePointConfigError(msg)
+        if max_concurrent_requests <= 0:
+            msg = "max_concurrent_requests must be a positive integer."
             raise SharePointConfigError(msg)
 
         self.graph_url = graph_url.rstrip("/")
         self.timeout = timeout
         self.max_retries = max_retries
+        self.max_concurrent_requests = max_concurrent_requests
         self.raise_on_failure = raise_on_failure
 
     @component.output_types(streams=list[ByteStream])
     def run(
         self,
         access_token: str | Secret,
-        targets: list[Document] | list[str],
+        targets: list[Document | str],
     ) -> dict[str, list[ByteStream]]:
         """
         Fetch the content of SharePoint and OneDrive items and return them as `ByteStream`s.
@@ -156,7 +165,7 @@ class MSSharePointFetcher:
     async def run_async(
         self,
         access_token: str | Secret,
-        targets: list[Document] | list[str],
+        targets: list[Document | str],
     ) -> dict[str, list[ByteStream]]:
         """
         Asynchronously fetch the content of SharePoint and OneDrive items and return them as `ByteStream`s.
@@ -177,16 +186,18 @@ class MSSharePointFetcher:
         """
         token = resolve_access_token(access_token)
         resolved = self._resolve_targets(targets)
-        streams: list[ByteStream] = []
+        semaphore = asyncio.Semaphore(self.max_concurrent_requests)
+
+        async def fetch_one(client: httpx.AsyncClient, url: str, hints: dict[str, Any]) -> ByteStream | None:
+            async with semaphore:  # caps the number of requests in flight to Microsoft Graph at once
+                return await self._process_async(client, token, url, hints)
+
         async with httpx.AsyncClient(timeout=self.timeout, follow_redirects=True) as client:
-            for url, hints in resolved:
-                stream = await self._process_async(client, token, url, hints)
-                if stream is not None:
-                    streams.append(stream)
+            results = await asyncio.gather(*(fetch_one(client, url, hints) for url, hints in resolved))
 
-        return {"streams": streams}
+        return {"streams": [stream for stream in results if stream is not None]}
 
-    def _resolve_targets(self, targets: list[Document] | list[str]) -> list[tuple[str, dict[str, Any]]]:
+    def _resolve_targets(self, targets: list[Document | str]) -> list[tuple[str, dict[str, Any]]]:
         """Resolve the input targets into `(url, hints)` pairs to fetch, dispatching each item by its type."""
         resolved: list[tuple[str, dict[str, Any]]] = []
         for item in targets:
@@ -253,16 +264,14 @@ class MSSharePointFetcher:
 
     def _fetch_file(self, client: httpx.Client, token: str, url: str, hints: dict[str, Any]) -> ByteStream:
         response = self._get(client, token, self._content_url(url))
-        if response.is_error:
-            raise self._build_error(response, url)
+        self._raise_on_error(response, url)
         return self._file_stream(response, url, hints)
 
     def _fetch_unknown(self, client: httpx.Client, token: str, url: str, hints: dict[str, Any]) -> ByteStream | None:
         response = self._get(client, token, self._content_url(url))
         if response.status_code == httpx.codes.NOT_FOUND:
             return self._fetch_list_item(client, token, url, hints)
-        if response.is_error:
-            raise self._build_error(response, url)
+        self._raise_on_error(response, url)
         return self._file_stream(response, url, hints)
 
     def _fetch_list_item(self, client: httpx.Client, token: str, url: str, hints: dict[str, Any]) -> ByteStream:
@@ -282,8 +291,7 @@ class MSSharePointFetcher:
 
     def _get_json(self, client: httpx.Client, token: str, url: str, source_url: str) -> dict[str, Any]:
         response = self._get(client, token, url)
-        if response.is_error:
-            raise self._build_error(response, source_url)
+        self._raise_on_error(response, source_url)
         return response.json()
 
     # --- asynchronous fetch path --------------------------------------------------------------------------------
@@ -313,8 +321,7 @@ class MSSharePointFetcher:
         self, client: httpx.AsyncClient, token: str, url: str, hints: dict[str, Any]
     ) -> ByteStream:
         response = await self._get_async(client, token, self._content_url(url))
-        if response.is_error:
-            raise self._build_error(response, url)
+        self._raise_on_error(response, url)
         return self._file_stream(response, url, hints)
 
     async def _fetch_unknown_async(
@@ -323,8 +330,7 @@ class MSSharePointFetcher:
         response = await self._get_async(client, token, self._content_url(url))
         if response.status_code == httpx.codes.NOT_FOUND:
             return await self._fetch_list_item_async(client, token, url, hints)
-        if response.is_error:
-            raise self._build_error(response, url)
+        self._raise_on_error(response, url)
         return self._file_stream(response, url, hints)
 
     async def _fetch_list_item_async(
@@ -345,8 +351,7 @@ class MSSharePointFetcher:
 
     async def _get_json_async(self, client: httpx.AsyncClient, token: str, url: str, source_url: str) -> dict[str, Any]:
         response = await self._get_async(client, token, url)
-        if response.is_error:
-            raise self._build_error(response, source_url)
+        self._raise_on_error(response, source_url)
         return response.json()
 
     # --- URL builders -------------------------------------------------------------------------------------------
@@ -429,6 +434,11 @@ class MSSharePointFetcher:
 
         return "\n".join(parts).encode("utf-8")
 
+    def _raise_on_error(self, response: httpx.Response, url: str) -> None:
+        """Raise a descriptive `SharePointRequestError` if the response is an error, otherwise do nothing."""
+        if response.is_error:
+            raise self._build_error(response, url)
+
     @staticmethod
     def _build_error(response: httpx.Response, url: str) -> SharePointRequestError:
         """Build a descriptive `SharePointRequestError` for an error response."""
@@ -479,6 +489,7 @@ class MSSharePointFetcher:
             graph_url=self.graph_url,
             timeout=self.timeout,
             max_retries=self.max_retries,
+            max_concurrent_requests=self.max_concurrent_requests,
             raise_on_failure=self.raise_on_failure,
         )
 

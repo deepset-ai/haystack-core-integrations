@@ -113,6 +113,7 @@ class TestInit:
         assert fetcher.graph_url == "https://graph.microsoft.com/v1.0"
         assert fetcher.timeout == 30.0
         assert fetcher.max_retries == 3
+        assert fetcher.max_concurrent_requests == 5
         assert fetcher.raise_on_failure is True
 
     def test_graph_url_trailing_slash_is_stripped(self):
@@ -123,6 +124,10 @@ class TestInit:
     def test_negative_max_retries_raises(self):
         with pytest.raises(SharePointConfigError):
             MSSharePointFetcher(max_retries=-1)
+
+    def test_non_positive_max_concurrent_requests_raises(self):
+        with pytest.raises(SharePointConfigError):
+            MSSharePointFetcher(max_concurrent_requests=0)
 
 
 class TestSerialization:
@@ -136,6 +141,7 @@ class TestSerialization:
                 "graph_url": "https://graph.microsoft.us/v1.0",
                 "timeout": 10.0,
                 "max_retries": 1,
+                "max_concurrent_requests": 5,
                 "raise_on_failure": False,
             },
         }
@@ -494,6 +500,22 @@ class TestRunAsync:
         with patch.object(httpx.AsyncClient, "get", get):
             with pytest.raises(SharePointRequestError):
                 await fetcher.run_async(access_token="bad", targets=[FILE_URL])
+
+    async def test_concurrent_fetch_preserves_order(self):
+        fetcher = MSSharePointFetcher(max_concurrent_requests=2)
+        targets = [
+            _drive_item_document(url="https://host/a.docx"),
+            _drive_item_document(url="https://host/b.docx"),
+            _drive_item_document(url="https://host/c.docx"),
+        ]
+        get = AsyncMock(return_value=_binary_response(content=b"bytes"))
+        with patch.object(httpx.AsyncClient, "get", get):
+            streams = (await fetcher.run_async(access_token="tok", targets=targets))["streams"]
+        assert [stream.meta["url"] for stream in streams] == [
+            "https://host/a.docx",
+            "https://host/b.docx",
+            "https://host/c.docx",
+        ]
 
 
 @pytest.mark.integration
