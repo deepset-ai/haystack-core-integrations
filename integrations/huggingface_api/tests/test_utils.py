@@ -7,7 +7,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 from huggingface_hub.errors import RepositoryNotFoundError
 
-from haystack_integrations.components.common.huggingface_api.utils import (
+from haystack_integrations.common.huggingface_api.utils import (
     HFEmbeddingAPIType,
     HFGenerationAPIType,
     HFModelType,
@@ -30,19 +30,19 @@ class TestAPITypes:
 
 
 class TestCheckValidModel:
-    @patch("haystack_integrations.components.common.huggingface_api.utils.HfApi")
+    @patch("haystack_integrations.common.huggingface_api.utils.HfApi")
     def test_valid_model(self, mock_hf_api):
         mock_hf_api.return_value.model_info.return_value = MagicMock(pipeline_tag="feature-extraction")
         _check_valid_model("BAAI/bge-small-en-v1.5", HFModelType.EMBEDDING, token=None)
         mock_hf_api.return_value.model_info.assert_called_once_with("BAAI/bge-small-en-v1.5", token=None)
 
-    @patch("haystack_integrations.components.common.huggingface_api.utils.HfApi")
+    @patch("haystack_integrations.common.huggingface_api.utils.HfApi")
     def test_wrong_model_type(self, mock_hf_api):
         mock_hf_api.return_value.model_info.return_value = MagicMock(pipeline_tag="text-generation")
         with pytest.raises(ValueError, match="not a embedding model"):
             _check_valid_model("microsoft/phi-2", HFModelType.EMBEDDING, token=None)
 
-    @patch("haystack_integrations.components.common.huggingface_api.utils.HfApi")
+    @patch("haystack_integrations.common.huggingface_api.utils.HfApi")
     def test_model_not_found(self, mock_hf_api):
         mock_hf_api.return_value.model_info.side_effect = RepositoryNotFoundError("not found", response=MagicMock())
         with pytest.raises(ValueError, match="not found on HuggingFace Hub"):

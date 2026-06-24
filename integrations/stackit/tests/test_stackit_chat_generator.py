@@ -44,7 +44,7 @@ def mock_chat_completion():
     with patch("openai.resources.chat.completions.Completions.create") as mock_chat_completion_create:
         completion = ChatCompletion(
             id="foo",
-            model="neuralmagic/Meta-Llama-3.1-8B-Instruct-FP8",
+            model="google/gemma-3-27b-it",
             object="chat.completion",
             choices=[
                 Choice(
@@ -72,9 +72,9 @@ class TestSTACKITChatGenerator:
 
     def test_init_default(self, monkeypatch):
         monkeypatch.setenv("STACKIT_API_KEY", "test-api-key")
-        component = STACKITChatGenerator(model="neuralmagic/Meta-Llama-3.1-8B-Instruct-FP8")
+        component = STACKITChatGenerator(model="google/gemma-3-27b-it")
         assert component.client.api_key == "test-api-key"
-        assert component.model == "neuralmagic/Meta-Llama-3.1-8B-Instruct-FP8"
+        assert component.model == "google/gemma-3-27b-it"
         assert component.api_base_url == "https://api.openai-compat.model-serving.eu01.onstackit.cloud/v1"
         assert component.streaming_callback is None
         assert not component.generation_kwargs
@@ -82,24 +82,24 @@ class TestSTACKITChatGenerator:
     def test_init_fail_wo_api_key(self, monkeypatch):
         monkeypatch.delenv("STACKIT_API_KEY", raising=False)
         with pytest.raises(ValueError, match=r"None of the .* environment variables are set"):
-            STACKITChatGenerator(model="neuralmagic/Meta-Llama-3.1-8B-Instruct-FP8")
+            STACKITChatGenerator(model="google/gemma-3-27b-it")
 
     def test_init_with_parameters(self):
         component = STACKITChatGenerator(
             api_key=Secret.from_token("test-api-key"),
-            model="neuralmagic/Meta-Llama-3.1-8B-Instruct-FP8",
+            model="google/gemma-3-27b-it",
             streaming_callback=print_streaming_chunk,
             api_base_url="test-base-url",
             generation_kwargs={"max_tokens": 10, "some_test_param": "test-params"},
         )
         assert component.client.api_key == "test-api-key"
-        assert component.model == "neuralmagic/Meta-Llama-3.1-8B-Instruct-FP8"
+        assert component.model == "google/gemma-3-27b-it"
         assert component.streaming_callback is print_streaming_chunk
         assert component.generation_kwargs == {"max_tokens": 10, "some_test_param": "test-params"}
 
     def test_to_dict_default(self, monkeypatch):
         monkeypatch.setenv("STACKIT_API_KEY", "test-api-key")
-        component = STACKITChatGenerator(model="neuralmagic/Meta-Llama-3.1-8B-Instruct-FP8")
+        component = STACKITChatGenerator(model="google/gemma-3-27b-it")
         data = component.to_dict()
 
         assert (
@@ -109,7 +109,7 @@ class TestSTACKITChatGenerator:
 
         expected_params = {
             "api_key": {"env_vars": ["STACKIT_API_KEY"], "strict": True, "type": "env_var"},
-            "model": "neuralmagic/Meta-Llama-3.1-8B-Instruct-FP8",
+            "model": "google/gemma-3-27b-it",
             "streaming_callback": None,
             "api_base_url": "https://api.openai-compat.model-serving.eu01.onstackit.cloud/v1",
             "generation_kwargs": {},
@@ -125,7 +125,7 @@ class TestSTACKITChatGenerator:
         monkeypatch.setenv("ENV_VAR", "test-api-key")
         component = STACKITChatGenerator(
             api_key=Secret.from_env_var("ENV_VAR"),
-            model="neuralmagic/Meta-Llama-3.1-8B-Instruct-FP8",
+            model="google/gemma-3-27b-it",
             streaming_callback=print_streaming_chunk,
             api_base_url="test-base-url",
             generation_kwargs={
@@ -146,7 +146,7 @@ class TestSTACKITChatGenerator:
 
         expected_params = {
             "api_key": {"env_vars": ["ENV_VAR"], "strict": True, "type": "env_var"},
-            "model": "neuralmagic/Meta-Llama-3.1-8B-Instruct-FP8",
+            "model": "google/gemma-3-27b-it",
             "api_base_url": "test-base-url",
             "streaming_callback": "haystack.components.generators.utils.print_streaming_chunk",
             "generation_kwargs": {
@@ -185,14 +185,14 @@ class TestSTACKITChatGenerator:
             "type": "haystack_integrations.components.generators.stackit.chat.chat_generator.STACKITChatGenerator",
             "init_parameters": {
                 "api_key": {"env_vars": ["STACKIT_API_KEY"], "strict": True, "type": "env_var"},
-                "model": "neuralmagic/Meta-Llama-3.1-8B-Instruct-FP8",
+                "model": "google/gemma-3-27b-it",
                 "api_base_url": "test-base-url",
                 "streaming_callback": "haystack.components.generators.utils.print_streaming_chunk",
                 "generation_kwargs": {"max_tokens": 10, "some_test_param": "test-params"},
             },
         }
         component = STACKITChatGenerator.from_dict(data)
-        assert component.model == "neuralmagic/Meta-Llama-3.1-8B-Instruct-FP8"
+        assert component.model == "google/gemma-3-27b-it"
         assert component.streaming_callback is print_streaming_chunk
         assert component.api_base_url == "test-base-url"
         assert component.generation_kwargs == {"max_tokens": 10, "some_test_param": "test-params"}
@@ -204,7 +204,7 @@ class TestSTACKITChatGenerator:
             "type": "haystack_integrations.components.generators.stackit.chat.chat_generator.STACKITChatGenerator",
             "init_parameters": {
                 "api_key": {"env_vars": ["STACKIT_API_KEY"], "strict": True, "type": "env_var"},
-                "model": "neuralmagic/Meta-Llama-3.1-8B-Instruct-FP8",
+                "model": "google/gemma-3-27b-it",
                 "api_base_url": "test-base-url",
                 "streaming_callback": "haystack.components.generators.utils.print_streaming_chunk",
                 "generation_kwargs": {"max_tokens": 10, "some_test_param": "test-params"},
@@ -215,7 +215,7 @@ class TestSTACKITChatGenerator:
 
     def test_run(self, chat_messages, mock_chat_completion, monkeypatch):  # noqa: ARG002
         monkeypatch.setenv("STACKIT_API_KEY", "fake-api-key")
-        component = STACKITChatGenerator(model="neuralmagic/Meta-Llama-3.1-8B-Instruct-FP8")
+        component = STACKITChatGenerator(model="google/gemma-3-27b-it")
         response = component.run(chat_messages)
 
         # check that the component returns the correct ChatMessage response
@@ -228,7 +228,7 @@ class TestSTACKITChatGenerator:
     def test_run_with_params(self, chat_messages, mock_chat_completion, monkeypatch):
         monkeypatch.setenv("STACKIT_API_KEY", "fake-api-key")
         component = STACKITChatGenerator(
-            model="neuralmagic/Meta-Llama-3.1-8B-Instruct-FP8", generation_kwargs={"max_tokens": 10, "temperature": 0.5}
+            model="google/gemma-3-27b-it", generation_kwargs={"max_tokens": 10, "temperature": 0.5}
         )
         response = component.run(chat_messages)
 
@@ -251,12 +251,12 @@ class TestSTACKITChatGenerator:
     @pytest.mark.integration
     def test_live_run(self) -> None:
         chat_messages = [ChatMessage.from_user("What's the capital of France")]
-        component = STACKITChatGenerator(model="neuralmagic/Meta-Llama-3.1-8B-Instruct-FP8")
+        component = STACKITChatGenerator(model="google/gemma-3-27b-it")
         results = component.run(chat_messages)
         assert len(results["replies"]) == 1
         message: ChatMessage = results["replies"][0]
         assert "paris" in message.text.lower()
-        assert "neuralmagic/Meta-Llama-3.1-8B-Instruct-FP8" in message.meta["model"]
+        assert "google/gemma-3-27b-it" in message.meta["model"]
         assert message.meta["finish_reason"] == "stop"
 
     @pytest.mark.skipif(
@@ -285,16 +285,14 @@ class TestSTACKITChatGenerator:
                 self.responses += chunk.content if chunk.content else ""
 
         callback = Callback()
-        component = STACKITChatGenerator(
-            model="neuralmagic/Meta-Llama-3.1-8B-Instruct-FP8", streaming_callback=callback
-        )
+        component = STACKITChatGenerator(model="google/gemma-3-27b-it", streaming_callback=callback)
         results = component.run([ChatMessage.from_user("What's the capital of France?")])
 
         assert len(results["replies"]) == 1
         message: ChatMessage = results["replies"][0]
         assert "paris" in message.text.lower()
 
-        assert "neuralmagic/Meta-Llama-3.1-8B-Instruct-FP8" in message.meta["model"]
+        assert "google/gemma-3-27b-it" in message.meta["model"]
         assert message.meta["finish_reason"] == "stop"
 
         assert callback.counter > 1
@@ -326,7 +324,7 @@ class TestSTACKITChatGenerator:
 
         chat_messages = [ChatMessage.from_user("What's the capital of France?")]
         comp = STACKITChatGenerator(
-            model="neuralmagic/Meta-Llama-3.1-8B-Instruct-FP8", generation_kwargs={"response_format": response_schema}
+            model="google/gemma-3-27b-it", generation_kwargs={"response_format": response_schema}
         )
         results = comp.run(chat_messages)
         assert len(results["replies"]) == 1
@@ -347,7 +345,7 @@ class TestSTACKITChatGenerator:
             ChatMessage.from_user("The marketing summit takes place on October12th at the Hilton Hotel downtown.")
         ]
         component = STACKITChatGenerator(
-            model="neuralmagic/Meta-Llama-3.1-8B-Instruct-FP8",
+            model="google/gemma-3-27b-it",
             generation_kwargs={"response_format": calendar_event_model},
         )
         results = component.run(chat_messages)

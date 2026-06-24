@@ -29,6 +29,11 @@ integration:anthropic:
       - any-glob-to-any-file: "integrations/anthropic/**/*"
       - any-glob-to-any-file: ".github/workflows/anthropic.yml"
 
+integration:arangodb:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/arangodb/**/*"
+      - any-glob-to-any-file: ".github/workflows/arangodb.yml"
+
 integration:arcadedb:
   - changed-files:
       - any-glob-to-any-file: "integrations/arcadedb/**/*"
@@ -54,6 +59,11 @@ integration:azure-doc-intelligence:
       - any-glob-to-any-file: "integrations/azure_doc_intelligence/**/*"
       - any-glob-to-any-file: ".github/workflows/azure_doc_intelligence.yml"
 
+integration:azure-form-recognizer:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/azure_form_recognizer/**/*"
+      - any-glob-to-any-file: ".github/workflows/azure_form_recognizer.yml"
+
 integration:chonkie:
   - changed-files:
       - any-glob-to-any-file: "integrations/chonkie/**/*"
@@ -78,6 +88,11 @@ integration:cometapi:
   - changed-files:
       - any-glob-to-any-file: "integrations/cometapi/**/*"
       - any-glob-to-any-file: ".github/workflows/cometapi.yml"
+
+integration:datadog:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/datadog/**/*"
+      - any-glob-to-any-file: ".github/workflows/datadog.yml"
 
 integration:deepeval:
   - changed-files:
@@ -144,6 +159,11 @@ integration:google-ai:
   - changed-files:
       - any-glob-to-any-file: "integrations/google_ai/**/*"
 
+integration:google-drive:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/google_drive/**/*"
+      - any-glob-to-any-file: ".github/workflows/google_drive.yml"
+
 integration:google-genai:
   - changed-files:
       - any-glob-to-any-file: "integrations/google_genai/**/*"
@@ -172,6 +192,11 @@ integration:kreuzberg:
   - changed-files:
       - any-glob-to-any-file: "integrations/kreuzberg/**/*"
       - any-glob-to-any-file: ".github/workflows/kreuzberg.yml"
+
+integration:langdetect:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/langdetect/**/*"
+      - any-glob-to-any-file: ".github/workflows/langdetect.yml"
 
 integration:langfuse:
   - changed-files:
@@ -223,6 +248,11 @@ integration:meta-llama:
       - any-glob-to-any-file: "integrations/meta_llama/**/*"
       - any-glob-to-any-file: ".github/workflows/meta_llama.yml"
 
+integration:microsoft-sharepoint:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/microsoft_sharepoint/**/*"
+      - any-glob-to-any-file: ".github/workflows/microsoft_sharepoint.yml"
+
 integration:mistral:
   - changed-files:
       - any-glob-to-any-file: "integrations/mistral/**/*"
@@ -238,10 +268,20 @@ integration:nvidia:
       - any-glob-to-any-file: "integrations/nvidia/**/*"
       - any-glob-to-any-file: ".github/workflows/nvidia.yml"
 
+integration:oauth:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/oauth/**/*"
+      - any-glob-to-any-file: ".github/workflows/oauth.yml"
+
 integration:ollama:
   - changed-files:
       - any-glob-to-any-file: "integrations/ollama/**/*"
       - any-glob-to-any-file: ".github/workflows/ollama.yml"
+
+integration:openapi:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/openapi/**/*"
+      - any-glob-to-any-file: ".github/workflows/openapi.yml"
 
 integration:openrouter:
   - changed-files:
@@ -253,10 +293,20 @@ integration:opensearch:
       - any-glob-to-any-file: "integrations/opensearch/**/*"
       - any-glob-to-any-file: ".github/workflows/opensearch.yml"
 
+integration:opentelemetry:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/opentelemetry/**/*"
+      - any-glob-to-any-file: ".github/workflows/opentelemetry.yml"
+
 integration:optimum:
   - changed-files:
       - any-glob-to-any-file: "integrations/optimum/**/*"
       - any-glob-to-any-file: ".github/workflows/optimum.yml"
+
+integration:orcarouter:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/orcarouter/**/*"
+      - any-glob-to-any-file: ".github/workflows/orcarouter.yml"
 
 integration:paddleocr:
   - changed-files:
@@ -298,10 +348,30 @@ integration:ragas:
       - any-glob-to-any-file: "integrations/ragas/**/*"
       - any-glob-to-any-file: ".github/workflows/ragas.yml"
 
+integration:searchapi:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/searchapi/**/*"
+      - any-glob-to-any-file: ".github/workflows/searchapi.yml"
+
+integration:sentence-transformers:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/sentence_transformers/**/*"
+      - any-glob-to-any-file: ".github/workflows/sentence_transformers.yml"
+
+integration:serperdev:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/serperdev/**/*"
+      - any-glob-to-any-file: ".github/workflows/serperdev.yml"
+
 integration:snowflake:
   - changed-files:
       - any-glob-to-any-file: "integrations/snowflake/**/*"
       - any-glob-to-any-file: ".github/workflows/snowflake.yml"
+
+integration:spacy:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/spacy/**/*"
+      - any-glob-to-any-file: ".github/workflows/spacy.yml"
 
 integration:sqlalchemy:
   - changed-files:
@@ -323,10 +393,20 @@ integration:tavily:
       - any-glob-to-any-file: "integrations/tavily/**/*"
       - any-glob-to-any-file: ".github/workflows/tavily.yml"
 
+integration:tika:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/tika/**/*"
+      - any-glob-to-any-file: ".github/workflows/tika.yml"
+
 integration:togetherai:
   - changed-files:
       - any-glob-to-any-file: "integrations/togetherai/**/*"
       - any-glob-to-any-file: ".github/workflows/togetherai.yml"
+
+integration:transformers:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/transformers/**/*"
+      - any-glob-to-any-file: ".github/workflows/transformers.yml"
 
 integration:unstructured-fileconverter:
   - changed-files:
@@ -378,3 +458,7 @@ topic:DX:
 topic:security:
   - changed-files:
       - any-glob-to-any-file: ["SECURITY.md"]
+integration:whisper:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/whisper/**/*"
+      - any-glob-to-any-file: ".github/workflows/whisper.yml"

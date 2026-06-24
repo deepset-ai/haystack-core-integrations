@@ -165,6 +165,25 @@ class TestAmazonBedrockDocumentEmbedder:
         assert embedder.embedding_separator == "\n"
         assert embedder.boto3_config == boto3_config
 
+    def test_from_dict_aws_region_name(self, mock_boto3_session):
+        """
+        Test that aws_region_name as str value is correctly parsed
+        """
+        embedder = AmazonBedrockDocumentEmbedder.from_dict(
+            {
+                "type": TYPE,
+                "init_parameters": {
+                    "aws_region_name": "my-fake-region",
+                    "model": "cohere.embed-english-v3",
+                },
+            }
+        )
+        assert embedder.model == "cohere.embed-english-v3"
+        assert embedder.aws_region_name == "my-fake-region"
+
+        serialized = embedder.to_dict()
+        assert serialized["init_parameters"]["aws_region_name"] == "my-fake-region"
+
     def test_init_invalid_model(self):
         with pytest.raises(ValueError):
             AmazonBedrockDocumentEmbedder(model="")
@@ -304,6 +323,82 @@ class TestAmazonBedrockDocumentEmbedder:
         for i, doc in enumerate(result):
             assert doc.content == docs[i].content
             assert doc.embedding == [0.1, 0.2, 0.3]
+
+    def test_embed_titan_v2_with_dimensions_and_normalize(self, mock_boto3_session):
+        embedder = AmazonBedrockDocumentEmbedder(
+            model="amazon.titan-embed-text-v2:0",
+            dimensions=512,
+            normalize=False,
+        )
+
+        mock_response = {"body": io.StringIO('{"embedding": [0.1, 0.2, 0.3]}')}
+
+        def mock_invoke_model(*args, **kwargs):
+            mock_response["body"].seek(0)
+            return mock_response
+
+        with patch.object(embedder, "_client") as mock_client:
+            mock_client.invoke_model.side_effect = mock_invoke_model
+            embedder._embed_titan(documents=[Document(content="some text")])
+
+        assert (
+            mock_client.invoke_model.call_args_list[0][1]["body"]
+            == '{"inputText": "some text", "dimensions": 512, "normalize": false}'
+        )
+
+    def test_embed_titan_v2_without_extra_params(self, mock_boto3_session):
+        embedder = AmazonBedrockDocumentEmbedder(model="amazon.titan-embed-text-v2:0")
+
+        mock_response = {"body": io.StringIO('{"embedding": [0.1, 0.2, 0.3]}')}
+
+        def mock_invoke_model(*args, **kwargs):
+            mock_response["body"].seek(0)
+            return mock_response
+
+        with patch.object(embedder, "_client") as mock_client:
+            mock_client.invoke_model.side_effect = mock_invoke_model
+            embedder._embed_titan(documents=[Document(content="some text")])
+
+        assert mock_client.invoke_model.call_args_list[0][1]["body"] == '{"inputText": "some text"}'
+
+    def test_embed_titan_v1_ignores_dimensions_and_normalize(self, mock_boto3_session):
+        # Titan G1 (v1) does not support `dimensions`/`normalize`, so they must not be sent.
+        embedder = AmazonBedrockDocumentEmbedder(
+            model="amazon.titan-embed-text-v1",
+            dimensions=512,
+            normalize=False,
+        )
+
+        mock_response = {"body": io.StringIO('{"embedding": [0.1, 0.2, 0.3]}')}
+
+        def mock_invoke_model(*args, **kwargs):
+            mock_response["body"].seek(0)
+            return mock_response
+
+        with patch.object(embedder, "_client") as mock_client:
+            mock_client.invoke_model.side_effect = mock_invoke_model
+            embedder._embed_titan(documents=[Document(content="some text")])
+
+        assert mock_client.invoke_model.call_args_list[0][1]["body"] == '{"inputText": "some text"}'
+
+    def test_embed_titan_non_text_v2_ignores_dimensions_and_normalize(self, mock_boto3_session):
+        embedder = AmazonBedrockDocumentEmbedder(
+            model="amazon.titan-embed-image-v2:0",
+            dimensions=512,
+            normalize=False,
+        )
+
+        mock_response = {"body": io.StringIO('{"embedding": [0.1, 0.2, 0.3]}')}
+
+        def mock_invoke_model(*args, **kwargs):
+            mock_response["body"].seek(0)
+            return mock_response
+
+        with patch.object(embedder, "_client") as mock_client:
+            mock_client.invoke_model.side_effect = mock_invoke_model
+            embedder._embed_titan(documents=[Document(content="some text")])
+
+        assert mock_client.invoke_model.call_args_list[0][1]["body"] == '{"inputText": "some text"}'
 
     def test_run_cohere_does_not_modify_original_documents(self, mock_boto3_session):
         embedder = AmazonBedrockDocumentEmbedder(model="cohere.embed-english-v3")

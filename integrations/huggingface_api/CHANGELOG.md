@@ -1,5 +1,16 @@
 # Changelog
 
+## [integrations/huggingface_api-v0.2.0] - 2026-06-05
+
+### 🚀 Features
+
+- Move HuggingFaceTEIRanker from Haystack (#3407)
+
+### 📚 Documentation
+
+- Document raised exceptions in HF API components (#3406)
+
+
 ## [integrations/huggingface_api-v0.1.0] - 2026-06-05
 
 ### 🚀 Features

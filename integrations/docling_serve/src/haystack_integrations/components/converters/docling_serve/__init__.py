@@ -2,6 +2,18 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from haystack_integrations.components.converters.docling_serve.converter import DoclingServeConverter, ExportType
+from haystack_integrations.components.converters.docling_serve.converter import (
+    ConversionMode,
+    DoclingServeConversionError,
+    DoclingServeConverter,
+    DoclingServeTimeoutError,
+    ExportType,
+)
 
-__all__ = ["DoclingServeConverter", "ExportType"]
+__all__ = [
+    "ConversionMode",
+    "DoclingServeConversionError",
+    "DoclingServeConverter",
+    "DoclingServeTimeoutError",
+    "ExportType",
+]
