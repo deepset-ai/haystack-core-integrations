@@ -27,8 +27,8 @@ dependencies = [
     "funasr>=1.0.0",
     "torch",
     "torchaudio",
-    # numba is a transtive depedency of funasr. We pin it to avoid installing versions without 3.14 support.
-    "numba>=0.62",
+    # numba is a transitive dependency of funasr. We pin it to avoid installing versions without 3.14 support.
+    "numba>=0.63",
 ]
 
 [project.urls]
