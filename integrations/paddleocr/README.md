@@ -12,4 +12,4 @@
 
 Refer to the general [Contribution Guidelines](https://github.com/deepset-ai/haystack-core-integrations/blob/main/CONTRIBUTING.md).
 
-To run integration tests locally, you need to export the `PADDLEOCR_VL_BASE_URL` and `PADDLEOCR_ACCESS_TOKEN` environment variables.
+To run integration tests locally, you need to export the `PADDLEOCR_BASE_URL` and `PADDLEOCR_ACCESS_TOKEN` environment variables.

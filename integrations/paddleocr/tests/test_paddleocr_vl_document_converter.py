@@ -71,10 +71,14 @@ class TestInit:
         assert converter.use_doc_orientation_classify is False
         assert converter.use_doc_unwarping is False
         assert converter.use_layout_detection is None
+        assert converter.use_chart_recognition is None
+        assert converter.use_seal_recognition is None
+        assert converter.use_ocr_for_image_block is None
         assert converter.layout_threshold is None
         assert converter.layout_nms is None
         assert converter.layout_unclip_ratio is None
         assert converter.layout_merge_bboxes_mode is None
+        assert converter.layout_shape_mode is None
         assert converter.prompt_label is None
         assert converter.format_block_content is None
         assert converter.repetition_penalty is None
@@ -82,8 +86,15 @@ class TestInit:
         assert converter.top_p is None
         assert converter.min_pixels is None
         assert converter.max_pixels is None
+        assert converter.max_new_tokens is None
+        assert converter.merge_layout_blocks is None
+        assert converter.markdown_ignore_labels is None
+        assert converter.vlm_extra_args is None
         assert converter.prettify_markdown is None
         assert converter.show_formula_number is None
+        assert converter.restructure_pages is None
+        assert converter.merge_tables is None
+        assert converter.relevel_titles is None
         assert converter.visualize is None
         assert converter.additional_params is None
 
@@ -555,8 +566,8 @@ class TestInferFileType:
 
 
 @pytest.mark.skipif(
-    not os.environ.get("PADDLEOCR_VL_BASE_URL") or not os.environ.get("PADDLEOCR_ACCESS_TOKEN"),
-    reason="Export PADDLEOCR_VL_BASE_URL and PADDLEOCR_ACCESS_TOKEN to run integration tests.",
+    not os.environ.get("PADDLEOCR_BASE_URL") or not os.environ.get("PADDLEOCR_ACCESS_TOKEN"),
+    reason="Export PADDLEOCR_BASE_URL and PADDLEOCR_ACCESS_TOKEN to run integration tests.",
 )
 @pytest.mark.integration
 class TestIntegration:
