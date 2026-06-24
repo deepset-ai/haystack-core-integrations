@@ -159,6 +159,11 @@ integration:google-ai:
   - changed-files:
       - any-glob-to-any-file: "integrations/google_ai/**/*"
 
+integration:google-drive:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/google_drive/**/*"
+      - any-glob-to-any-file: ".github/workflows/google_drive.yml"
+
 integration:google-genai:
   - changed-files:
       - any-glob-to-any-file: "integrations/google_genai/**/*"
@@ -273,6 +278,11 @@ integration:ollama:
       - any-glob-to-any-file: "integrations/ollama/**/*"
       - any-glob-to-any-file: ".github/workflows/ollama.yml"
 
+integration:openapi:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/openapi/**/*"
+      - any-glob-to-any-file: ".github/workflows/openapi.yml"
+
 integration:openrouter:
   - changed-files:
       - any-glob-to-any-file: "integrations/openrouter/**/*"
@@ -283,10 +293,20 @@ integration:opensearch:
       - any-glob-to-any-file: "integrations/opensearch/**/*"
       - any-glob-to-any-file: ".github/workflows/opensearch.yml"
 
+integration:opentelemetry:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/opentelemetry/**/*"
+      - any-glob-to-any-file: ".github/workflows/opentelemetry.yml"
+
 integration:optimum:
   - changed-files:
       - any-glob-to-any-file: "integrations/optimum/**/*"
       - any-glob-to-any-file: ".github/workflows/optimum.yml"
+
+integration:orcarouter:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/orcarouter/**/*"
+      - any-glob-to-any-file: ".github/workflows/orcarouter.yml"
 
 integration:paddleocr:
   - changed-files:

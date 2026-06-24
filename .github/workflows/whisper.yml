@@ -89,7 +89,7 @@ jobs:
       - name: Store unit tests coverage
         id: coverage_comment
         if: matrix.python-version == '3.10' && runner.os == 'Linux' && github.event_name != 'schedule'
-        uses: py-cov-action/python-coverage-comment-action@63f52f4fbbffada6e8dee8ec432de7e01df9ba79 # v3.41
+        uses: py-cov-action/python-coverage-comment-action@5d8df5979747514c914e1c5a12335a7cf9a2745f # v4.1
         with:
           GITHUB_TOKEN: ${{ github.token }}
           COVERAGE_PATH: integrations/whisper
@@ -119,7 +119,7 @@ jobs:
 
       - name: Store combined coverage
         if: github.event_name == 'push'
-        uses: py-cov-action/python-coverage-comment-action@63f52f4fbbffada6e8dee8ec432de7e01df9ba79 # v3.41
+        uses: py-cov-action/python-coverage-comment-action@5d8df5979747514c914e1c5a12335a7cf9a2745f # v4.1
         with:
           GITHUB_TOKEN: ${{ github.token }}
           COVERAGE_PATH: integrations/whisper
@@ -130,7 +130,11 @@ jobs:
       - name: Run unit tests with lowest direct dependencies
         if: github.event_name != 'push'
         run: |
-          hatch run uv pip compile pyproject.toml --resolution lowest-direct --output-file requirements_lowest_direct.txt
+          # `numba` (a dependency of `openai-whisper`) is not compatible with `numpy>=2.5`. Since `openai-whisper`
+          # is only a test dependency, it does not influence requirements_lowest_direct.txt, which may install
+          # `numpy>=2.5` and break `numba`. For that reason, we constrain `numpy` using `constraints.txt`.
+          echo "numpy<2.5" > constraints.txt
+          hatch run uv pip compile pyproject.toml --resolution lowest-direct --constraint constraints.txt --output-file requirements_lowest_direct.txt
           hatch -e test env run -- uv pip install -r requirements_lowest_direct.txt
           hatch run test:unit
 
