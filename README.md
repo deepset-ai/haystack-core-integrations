@@ -4,8 +4,8 @@
 
 | Name                                                                                             |    Stmts |     Miss |   Branch |   BrPart |    Cover |   Missing |
 |------------------------------------------------------------------------------------------------- | -------: | -------: | -------: | -------: | -------: | --------: |
-| src/haystack\_integrations/components/converters/paddleocr/paddleocr\_vl\_document\_converter.py |      215 |        0 |       98 |        0 |     100% |           |
-| **TOTAL**                                                                                        |  **215** |    **0** |   **98** |    **0** | **100%** |           |
+| src/haystack\_integrations/components/converters/paddleocr/paddleocr\_vl\_document\_converter.py |      145 |        0 |       42 |        0 |     100% |           |
+| **TOTAL**                                                                                        |  **145** |    **0** |   **42** |    **0** | **100%** |           |
 
 
 ## Setup coverage badge
