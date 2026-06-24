@@ -130,7 +130,11 @@ jobs:
       - name: Run unit tests with lowest direct dependencies
         if: github.event_name != 'push'
         run: |
-          hatch run uv pip compile pyproject.toml --resolution lowest-direct --output-file requirements_lowest_direct.txt
+          # `numba` (a dependency of `openai-whisper`) is not compatible with `numpy>=2.5`. Since `openai-whisper`
+          # is only a test dependency, it does not influence requirements_lowest_direct.txt, which may install
+          # `numpy>=2.5` and break `numba`. For that reason, we constrain `numpy` using `constraints.txt`.
+          echo "numpy<2.5" > constraints.txt
+          hatch run uv pip compile pyproject.toml --resolution lowest-direct --constraint constraints.txt --output-file requirements_lowest_direct.txt
           hatch -e test env run -- uv pip install -r requirements_lowest_direct.txt
           hatch run test:unit
 
