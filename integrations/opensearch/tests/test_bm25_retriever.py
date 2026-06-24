@@ -80,18 +80,6 @@ def test_to_dict(_mock_opensearch_client):
 
 
 @patch("haystack_integrations.document_stores.opensearch.document_store.OpenSearch")
-def test_to_dict_and_from_dict_preserves_all_terms_must_match(_mock_opensearch_client):
-    document_store = OpenSearchDocumentStore(hosts="some fake host")
-    retriever = OpenSearchBM25Retriever(document_store=document_store, all_terms_must_match=True)
-
-    serialized = retriever.to_dict()
-    assert serialized["init_parameters"]["all_terms_must_match"] is True
-
-    restored = OpenSearchBM25Retriever.from_dict(serialized)
-    assert restored._all_terms_must_match is True
-
-
-@patch("haystack_integrations.document_stores.opensearch.document_store.OpenSearch")
 def test_from_dict(_mock_opensearch_client):
     data = {
         "type": "haystack_integrations.components.retrievers.opensearch.bm25_retriever.OpenSearchBM25Retriever",
@@ -104,6 +92,7 @@ def test_from_dict(_mock_opensearch_client):
             "fuzziness": "AUTO",
             "top_k": 10,
             "scale_score": True,
+            "all_terms_must_match": True,
             "filter_policy": "replace",
             "custom_query": {"some": "custom query"},
             "raise_on_failure": False,
@@ -115,6 +104,7 @@ def test_from_dict(_mock_opensearch_client):
     assert retriever._fuzziness == "AUTO"
     assert retriever._top_k == 10
     assert retriever._scale_score
+    assert retriever._all_terms_must_match is True
     assert retriever._filter_policy == FilterPolicy.REPLACE
     assert retriever._custom_query == {"some": "custom query"}
     assert retriever._raise_on_failure is False
@@ -137,6 +127,7 @@ def test_from_dict(_mock_opensearch_client):
     }
     retriever = OpenSearchBM25Retriever.from_dict(data)
     assert retriever._filter_policy == FilterPolicy.REPLACE
+    assert retriever._all_terms_must_match is False
 
 
 @patch("haystack_integrations.document_stores.opensearch.document_store.OpenSearch")
