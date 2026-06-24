@@ -381,6 +381,25 @@ class TestAmazonBedrockDocumentEmbedder:
 
         assert mock_client.invoke_model.call_args_list[0][1]["body"] == '{"inputText": "some text"}'
 
+    def test_embed_titan_non_text_v2_ignores_dimensions_and_normalize(self, mock_boto3_session):
+        embedder = AmazonBedrockDocumentEmbedder(
+            model="amazon.titan-embed-image-v2:0",
+            dimensions=512,
+            normalize=False,
+        )
+
+        mock_response = {"body": io.StringIO('{"embedding": [0.1, 0.2, 0.3]}')}
+
+        def mock_invoke_model(*args, **kwargs):
+            mock_response["body"].seek(0)
+            return mock_response
+
+        with patch.object(embedder, "_client") as mock_client:
+            mock_client.invoke_model.side_effect = mock_invoke_model
+            embedder._embed_titan(documents=[Document(content="some text")])
+
+        assert mock_client.invoke_model.call_args_list[0][1]["body"] == '{"inputText": "some text"}'
+
     def test_run_cohere_does_not_modify_original_documents(self, mock_boto3_session):
         embedder = AmazonBedrockDocumentEmbedder(model="cohere.embed-english-v3")
 

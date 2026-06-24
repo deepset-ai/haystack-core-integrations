@@ -151,7 +151,7 @@ class AmazonBedrockTextEmbedder:
             body = {
                 "inputText": text,
             }
-            if "v2" in self.model:
+            if self.model.startswith("amazon.titan-embed-text-v2"):
                 # `dimensions` and `normalize` are only supported by Amazon Titan Text Embeddings V2
                 if (dimensions := self.kwargs.get("dimensions")) is not None:
                     body["dimensions"] = dimensions
