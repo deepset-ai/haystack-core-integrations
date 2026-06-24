@@ -393,7 +393,7 @@ class TestRun:
 
         converter.run(sources=[str(f)])
 
-        assert mock_client_ctx.parse_document.call_args.kwargs["file_path"].endswith(".jpg")
+        assert mock_client_ctx.parse_document.call_args.kwargs["file_path"].endswith(".png")
 
     def test_file_type_manual_override(self, mock_client_ctx: MagicMock, tmp_path: Path) -> None:
         converter = PaddleOCRVLDocumentConverter(access_token=Secret.from_token("tok"), file_type="pdf")

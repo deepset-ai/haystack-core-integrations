@@ -346,8 +346,10 @@ class PaddleOCRVLDocumentConverter:
             extra_options=self.additional_params,
         )
 
-    def _parse(self, data: bytes, file_type: int, client: PaddleOCRClient) -> tuple[str, dict[str, Any]]:
-        extension = _EXTENSION_FOR_FILE_TYPE[file_type]
+    def _parse(
+        self, data: bytes, file_type: int, client: PaddleOCRClient, source_extension: str | None = None
+    ) -> tuple[str, dict[str, Any]]:
+        extension = source_extension if source_extension else _EXTENSION_FOR_FILE_TYPE[file_type]
         with tempfile.NamedTemporaryFile(suffix=extension, delete=False) as tmp:
             tmp_path = tmp.name
             tmp.write(data)
@@ -415,8 +417,15 @@ class PaddleOCRVLDocumentConverter:
                     logger.warning("Could not determine file type for {source}. Skipping it.", source=source)
                     continue
 
+                source_ext: str | None = None
+                if self.file_type is None:
+                    if isinstance(source, (str, Path)):
+                        source_ext = Path(source).suffix.lower() or None
+                    elif isinstance(source, ByteStream) and source.meta.get("file_path"):
+                        source_ext = Path(str(source.meta["file_path"])).suffix.lower() or None
+
                 try:
-                    text, raw_resp = self._parse(bytestream.data, file_type, client)
+                    text, raw_resp = self._parse(bytestream.data, file_type, client, source_extension=source_ext)
                 except Exception as e:
                     logger.warning(
                         "Could not convert {source} to Document, skipping. Error: {error}",
