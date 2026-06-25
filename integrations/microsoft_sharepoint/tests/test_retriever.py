@@ -405,8 +405,7 @@ class TestRunAsync:
 class TestLive:
     def test_run_against_microsoft_graph(self):
         retriever = MSSharePointRetriever(top_k=3)
-        query = os.environ.get("MS_SHAREPOINT_TEST_QUERY", "test")
-        documents = retriever.run(query=query, access_token=os.environ["MS_SHAREPOINT_ACCESS_TOKEN"])["documents"]
+        documents = retriever.run(query="haystack", access_token=os.environ["MS_SHAREPOINT_ACCESS_TOKEN"])["documents"]
         assert isinstance(documents, list)
         for doc in documents:
             assert isinstance(doc, Document)
