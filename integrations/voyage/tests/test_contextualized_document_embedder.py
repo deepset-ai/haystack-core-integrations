@@ -125,6 +125,7 @@ class TestVoyageContextualizedDocumentEmbedder:
             input_type="document",
             output_dimension=None,
             output_dtype=None,
+            chunk_size=32000,
         )
         embeddings = [doc.embedding for doc in result["documents"]]
         assert embeddings == [[0.1], [0.2], [0.3]]
