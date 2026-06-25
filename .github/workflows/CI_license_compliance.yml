@@ -12,7 +12,7 @@ on:
 
 env:
   PYTHON_VERSION: "3.10"
-  EXCLUDE_PACKAGES: "(?i)^(azure-identity|azure-search-documents|fastembed|llama-cpp-python|tqdm|psycopg|mistralai|pgvector).*"
+  EXCLUDE_PACKAGES: "(?i)^(azure-identity|azure-search-documents|fastembed|llama-cpp-python|tqdm|psycopg|mistralai|pgvector|twelvelabs).*"
 
   # Exclusions must be explicitly motivated
   #
@@ -22,6 +22,7 @@ env:
   # - llama-cpp-python is MIT but exposes no license classifier on PyPI (only a bare "MIT" string), so the checker errors
   # - mistralai is Apache 2.0 but the license is not available on PyPI
   # - pgvector is MIT but the license is not available on PyPI
+  # - twelvelabs (the official TwelveLabs SDK) publishes no license metadata on PyPI, so the checker errors
 
   # - tqdm is MLP but there are no better alternatives
   # - psycopg is LGPL-3.0 but FOSSA is fine with it
