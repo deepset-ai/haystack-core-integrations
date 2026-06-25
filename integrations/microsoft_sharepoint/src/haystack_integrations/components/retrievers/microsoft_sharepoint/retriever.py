@@ -10,74 +10,25 @@ from typing import Any
 import httpx
 from haystack import Document, component, default_from_dict, default_to_dict, logging
 from haystack.utils import Secret
-from tenacity import AsyncRetrying, RetryCallState, Retrying, retry_if_result, stop_after_attempt, wait_exponential
 
-from .errors import SharePointConfigError, SharePointRequestError
+from haystack_integrations.common.microsoft_sharepoint.errors import SharePointConfigError, SharePointRequestError
+from haystack_integrations.common.microsoft_sharepoint.utils import (
+    DEFAULT_GRAPH_URL,
+    build_async_retrying,
+    build_retrying,
+    resolve_access_token,
+)
 
 logger = logging.getLogger(__name__)
 
-_DEFAULT_GRAPH_URL = "https://graph.microsoft.com/v1.0"
 _DEFAULT_ENTITY_TYPES = ("driveItem", "listItem")
 # Microsoft Graph caps a single search page at 500 results; larger `top_k` values are paginated.
 _MAX_PAGE_SIZE = 500
-_RETRYABLE_STATUS = frozenset({429, 500, 502, 503, 504})
-# Fallback backoff when a throttled response carries no `Retry-After` header: 1s, 2s, 4s, ...
-_EXPONENTIAL_BACKOFF = wait_exponential()
 
 # Search summaries come back as snippets with hit-highlight markup, e.g.
 # "<c0>Contoso</c0> Detailed Design <ddd/>". These patterns turn that into plain text.
 _HIGHLIGHT_PATTERN = re.compile(r"</?c\d+>")
 _ELLIPSIS_PATTERN = re.compile(r"<ddd\s*/>")
-
-
-def _retry_response(retry_state: RetryCallState) -> httpx.Response | None:
-    """Return the `httpx.Response` recorded for a retry attempt, or `None` if the attempt raised."""
-    outcome = retry_state.outcome
-    if outcome is None or outcome.failed:
-        return None
-    return outcome.result()
-
-
-def _is_retryable_response(response: httpx.Response) -> bool:
-    """Return whether a Microsoft Graph response should trigger a retry."""
-    return response.status_code in _RETRYABLE_STATUS
-
-
-def _wait_with_retry_after(retry_state: RetryCallState) -> float:
-    """Wait strategy honoring a numeric `Retry-After` header, falling back to exponential backoff."""
-    response = _retry_response(retry_state)
-    if response is not None:
-        retry_after = response.headers.get("Retry-After")
-        if retry_after:
-            try:
-                return float(retry_after)
-            except ValueError:
-                pass
-
-    return _EXPONENTIAL_BACKOFF(retry_state)
-
-
-def _last_response(retry_state: RetryCallState) -> httpx.Response:
-    """Return the final response once retries are exhausted, so the caller can raise a typed error."""
-    response = _retry_response(retry_state)
-    if response is None:
-        msg = "Microsoft Graph retries were exhausted without a recorded response."
-        raise SharePointRequestError(msg)
-    return response
-
-
-def _log_retry(retry_state: RetryCallState) -> None:
-    """Log a warning before sleeping between Microsoft Graph retries."""
-    response = _retry_response(retry_state)
-    next_action = retry_state.next_action
-    if response is None or next_action is None:
-        return
-    logger.warning(
-        "Microsoft Graph returned status {status}; retrying in {delay}s (attempt {attempt}).",
-        status=response.status_code,
-        delay=next_action.sleep,
-        attempt=retry_state.attempt_number,
-    )
 
 
 @component
@@ -88,8 +39,10 @@ class MSSharePointRetriever:
     Given a query, the retriever calls `POST /search/query` and maps each hit to a Haystack `Document`
     whose `content` is the search snippet and whose `meta` carries the resource metadata (`file_name`,
     `web_url`, `entity_type`, `created_date_time`, `last_modified_date_time`, `created_by`, `last_modified_by`,
-    `mime_type`, and `file_extension`). It does not download or convert the underlying files. Compose a
-    downstream fetcher/converter on the returned `web_url` when full file content is needed.
+    `mime_type`, and `file_extension`), plus the SharePoint identifiers a downstream fetcher needs to read
+    list items and pages by ID (`site_id`, `list_id`, `list_item_id`, `list_item_unique_id`). It does not
+    download or convert the underlying files. Compose a downstream fetcher/converter (such as
+    `MSSharePointFetcher`) when full content is needed.
 
     The retriever takes a per-user `access_token` as a run input, typically wired
     from an upstream `OAuthResolver`. The token must carry delegated Microsoft Graph permissions
@@ -123,7 +76,7 @@ class MSSharePointRetriever:
         top_k: int = 10,
         fields: list[str] | None = None,
         query_template: str | None = None,
-        graph_url: str = _DEFAULT_GRAPH_URL,
+        graph_url: str = DEFAULT_GRAPH_URL,
         timeout: float = 30.0,
         max_retries: int = 3,
     ) -> None:
@@ -189,7 +142,7 @@ class MSSharePointRetriever:
         :raises SharePointConfigError: If `access_token` is a `Secret` that does not resolve to a string.
         :raises SharePointRequestError: If Microsoft Graph returns an error response.
         """
-        token = self._resolve_access_token(access_token)
+        token = resolve_access_token(access_token)
         limit = top_k or self.top_k
         documents: list[Document] = []
         offset = 0
@@ -226,7 +179,7 @@ class MSSharePointRetriever:
         :raises SharePointConfigError: If `access_token` is a `Secret` that does not resolve to a string.
         :raises SharePointRequestError: If Microsoft Graph returns an error response.
         """
-        token = self._resolve_access_token(access_token)
+        token = resolve_access_token(access_token)
         limit = top_k or self.top_k
         documents: list[Document] = []
         offset = 0
@@ -243,17 +196,6 @@ class MSSharePointRetriever:
                 offset += len(hits)
 
         return {"documents": documents[:limit]}
-
-    @staticmethod
-    def _resolve_access_token(access_token: str | Secret) -> str:
-        """Return the bearer token string, resolving it if a `Secret` was passed."""
-        if not isinstance(access_token, Secret):
-            return access_token
-        resolved = access_token.resolve_value()
-        if not isinstance(resolved, str):
-            msg = "The access_token Secret did not resolve to a string value."
-            raise SharePointConfigError(msg)
-        return resolved
 
     def _build_request_body(self, query: str, offset: int, size: int) -> dict[str, Any]:
         """
@@ -290,13 +232,7 @@ class MSSharePointRetriever:
         """Send a search request, retrying on throttling/transient errors, and return the parsed JSON."""
         url = f"{self.graph_url}/search/query"
         headers = {"Authorization": f"Bearer {access_token}", "Content-Type": "application/json"}
-        retrying = Retrying(
-            stop=stop_after_attempt(self.max_retries + 1),
-            wait=_wait_with_retry_after,
-            retry=retry_if_result(_is_retryable_response),
-            before_sleep=_log_retry,
-            retry_error_callback=_last_response,
-        )
+        retrying = build_retrying(self.max_retries)
         response: httpx.Response = retrying(client.post, url, headers=headers, json=body)
 
         return self._parse_response(response)
@@ -305,13 +241,7 @@ class MSSharePointRetriever:
         """Async variant of `_post`."""
         url = f"{self.graph_url}/search/query"
         headers = {"Authorization": f"Bearer {access_token}", "Content-Type": "application/json"}
-        retrying = AsyncRetrying(
-            stop=stop_after_attempt(self.max_retries + 1),
-            wait=_wait_with_retry_after,
-            retry=retry_if_result(_is_retryable_response),
-            before_sleep=_log_retry,
-            retry_error_callback=_last_response,
-        )
+        retrying = build_async_retrying(self.max_retries)
         response: httpx.Response = await retrying(client.post, url, headers=headers, json=body)
 
         return self._parse_response(response)
@@ -364,6 +294,10 @@ class MSSharePointRetriever:
         # Microsoft Graph has no dedicated file-extension field, so derive it from the name.
         extension = os.path.splitext(name or "")[1].lstrip(".").lower()
 
+        parent_reference = resource.get("parentReference") or {}
+        # `sharepointIds` may sit on the resource itself or under its parentReference, depending on the entity type.
+        sharepoint_ids = resource.get("sharepointIds") or parent_reference.get("sharepointIds") or {}
+
         meta = {
             "file_name": name,
             "web_url": resource.get("webUrl"),
@@ -374,6 +308,11 @@ class MSSharePointRetriever:
             "last_modified_by": MSSharePointRetriever._display_name(resource.get("lastModifiedBy")),
             "mime_type": file_facet.get("mimeType"),
             "file_extension": extension or None,
+            # SharePoint identifiers a downstream fetcher needs to read list items and pages by ID
+            "site_id": parent_reference.get("siteId") or sharepoint_ids.get("siteId"),
+            "list_id": sharepoint_ids.get("listId"),
+            "list_item_id": sharepoint_ids.get("listItemId"),
+            "list_item_unique_id": sharepoint_ids.get("listItemUniqueId"),
         }
         return Document(content=content, meta={key: value for key, value in meta.items() if value is not None})
 
