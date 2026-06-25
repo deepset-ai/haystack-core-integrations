@@ -216,6 +216,7 @@ class VoyageContextualizedDocumentEmbedder:
                 input_type=self.input_type,
                 output_dimension=self.output_dimension,
                 output_dtype=self.output_dtype,
+                chunk_size=32000,
             )
             for group, res in zip(batch, result.results, strict=True):
                 for idx, embedding in zip(group, res.embeddings, strict=True):
@@ -259,6 +260,7 @@ class VoyageContextualizedDocumentEmbedder:
                 input_type=self.input_type,
                 output_dimension=self.output_dimension,
                 output_dtype=self.output_dtype,
+                chunk_size=32000,
             )
             for group, res in zip(batch, result.results, strict=True):
                 for idx, embedding in zip(group, res.embeddings, strict=True):
