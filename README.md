@@ -4,9 +4,11 @@
 
 | Name                                                                                |    Stmts |     Miss |   Branch |   BrPart |   Cover |   Missing |
 |------------------------------------------------------------------------------------ | -------: | -------: | -------: | -------: | ------: | --------: |
-| src/haystack\_integrations/components/retrievers/microsoft\_sharepoint/errors.py    |        6 |        0 |        0 |        0 |    100% |           |
-| src/haystack\_integrations/components/retrievers/microsoft\_sharepoint/retriever.py |      178 |        7 |       46 |        7 |     94% |37, 49-\>57, 64-65, 74, 243, 284, 332 |
-| **TOTAL**                                                                           |  **184** |    **7** |   **46** |    **7** | **94%** |           |
+| src/haystack\_integrations/common/microsoft\_sharepoint/errors.py                   |        6 |        0 |        0 |        0 |    100% |           |
+| src/haystack\_integrations/common/microsoft\_sharepoint/utils.py                    |       50 |        4 |       14 |        4 |     88% |42, 54-\>62, 69-70, 79 |
+| src/haystack\_integrations/components/fetchers/microsoft\_sharepoint/fetcher.py     |      257 |        3 |       70 |        5 |     98% |307-308, 332, 342-\>345, 420-\>423, 432-\>430 |
+| src/haystack\_integrations/components/retrievers/microsoft\_sharepoint/retriever.py |      139 |        3 |       32 |        3 |     96% |196, 226, 262 |
+| **TOTAL**                                                                           |  **452** |   **10** |  **116** |   **12** | **96%** |           |
 
 
 ## Setup coverage badge
