@@ -125,6 +125,37 @@ class TestAzureOCRDocumentConverter:
         }
 
     @patch("haystack.utils.auth.EnvVarSecret.resolve_value")
+    def test_init_single_column_layout_defaults_threshold_y_when_none(self, mock_resolve_value):
+        mock_resolve_value.return_value = "test_api_key"
+        component = AzureOCRDocumentConverter(endpoint="test_endpoint", page_layout="single_column", threshold_y=None)
+        assert component.threshold_y == 0.05
+
+    @patch("haystack.utils.auth.EnvVarSecret.resolve_value")
+    def test_from_dict(self, mock_resolve_value):
+        mock_resolve_value.return_value = "test_api_key"
+        data = {
+            "type": "haystack_integrations.components.converters.azure_form_recognizer.converter.AzureOCRDocumentConverter",
+            "init_parameters": {
+                "api_key": {"env_vars": ["AZURE_AI_API_KEY"], "strict": True, "type": "env_var"},
+                "endpoint": "test_endpoint",
+                "following_context_len": 3,
+                "merge_multiple_column_headers": True,
+                "model_id": "prebuilt-read",
+                "page_layout": "natural",
+                "preceding_context_len": 3,
+                "threshold_y": 0.05,
+                "store_full_path": False,
+            },
+        }
+        component = AzureOCRDocumentConverter.from_dict(data)
+        assert component.endpoint == "test_endpoint"
+        assert component.model_id == "prebuilt-read"
+        assert component.api_key == Secret.from_env_var("AZURE_AI_API_KEY")
+        assert component.page_layout == "natural"
+        assert component.threshold_y == 0.05
+        assert component.store_full_path is False
+
+    @patch("haystack.utils.auth.EnvVarSecret.resolve_value")
     def test_azure_converter_with_pdf(self, mock_resolve_value, test_files_path, mock_poller) -> None:
         mock_resolve_value.return_value = "test_api_key"
 
@@ -135,6 +166,29 @@ class TestAzureOCRDocumentConverter:
         assert len(out["documents"]) == 1
         assert out["documents"][0].content == get_sample_pdf_2_text(page_layout="natural")
         assert out["documents"][0].content.count("\f") == 1
+
+    @patch("haystack.utils.auth.EnvVarSecret.resolve_value")
+    def test_natural_text_with_paragraphs_without_bounding_regions(self, mock_resolve_value, test_files_path) -> None:
+        mock_resolve_value.return_value = "test_api_key"
+
+        with open(test_files_path / "json" / "azure_sample_pdf_2.json", encoding="utf-8") as azure_file:
+            result = AnalyzeResult.from_dict(json.load(azure_file))
+        for paragraph in result.paragraphs:
+            paragraph.bounding_regions = None
+
+        class MockPollerWithoutBoundingRegions:
+            def result(self) -> AnalyzeResult:
+                return result
+
+        with patch("azure.ai.formrecognizer.DocumentAnalysisClient.begin_analyze_document") as azure_mock:
+            azure_mock.return_value = MockPollerWithoutBoundingRegions()
+            ocr_node = AzureOCRDocumentConverter(endpoint="")
+            out = ocr_node.run(sources=[test_files_path / "pdf" / "sample_pdf_2.pdf"])
+
+        assert len(out["documents"]) == 1
+        # All paragraphs are placed on the first page when bounding regions are missing
+        assert "\f" not in out["documents"][0].content
+        assert out["documents"][0].content.startswith("A Simple PDF File")
 
     @pytest.mark.parametrize("page_layout", ["natural", "single_column"])
     @patch("haystack.utils.auth.EnvVarSecret.resolve_value")
@@ -243,6 +297,49 @@ D,$54.35,$6345.,
         docs = out["documents"]
         assert docs[1].meta["test"] == "value_1"
 
+    @patch("haystack.utils.auth.EnvVarSecret.resolve_value")
+    def test_run_with_store_full_path_false(self, mock_resolve_value, test_files_path, mock_poller):
+        mock_resolve_value.return_value = "test_api_key"
+
+        with patch("azure.ai.formrecognizer.DocumentAnalysisClient.begin_analyze_document") as azure_mock:
+            azure_mock.return_value = mock_poller("azure_sample_pdf_1.json")
+            component = AzureOCRDocumentConverter(
+                endpoint=os.environ.get("CORE_AZURE_CS_ENDPOINT", ""),
+                api_key=Secret.from_env_var("CORE_AZURE_CS_API_KEY"),
+                store_full_path=False,
+            )
+            output = component.run(sources=[test_files_path / "pdf" / "sample_pdf_1.pdf"])
+
+        documents = output["documents"]
+        assert len(documents) == 2
+        for doc in documents:
+            assert doc.meta["file_path"] == "sample_pdf_1.pdf"
+
+    @patch("haystack.utils.auth.EnvVarSecret.resolve_value")
+    def test_meta_from_byte_stream(self, mock_resolve_value, test_files_path, mock_poller) -> None:
+        mock_resolve_value.return_value = "test_api_key"
+
+        with patch("azure.ai.formrecognizer.DocumentAnalysisClient.begin_analyze_document") as azure_mock:
+            azure_mock.return_value = mock_poller("azure_sample_pdf_1.json")
+            ocr_node = AzureOCRDocumentConverter(endpoint="")
+            bytes_ = (test_files_path / "pdf" / "sample_pdf_1.pdf").read_bytes()
+            byte_stream = ByteStream(data=bytes_, meta={"test_from": "byte_stream"})
+            out = ocr_node.run(sources=[byte_stream], meta=[{"test": "value_1"}])
+
+        docs = out["documents"]
+        assert docs[1].meta["test"] == "value_1"
+        assert docs[1].meta["test_from"] == "byte_stream"
+
+    @patch("haystack.utils.auth.EnvVarSecret.resolve_value")
+    def test_run_skips_unreadable_source(self, mock_resolve_value) -> None:
+        mock_resolve_value.return_value = "test_api_key"
+
+        ocr_node = AzureOCRDocumentConverter(endpoint="")
+        out = ocr_node.run(sources=["non_existent_file.pdf"])
+
+        assert out["documents"] == []
+        assert out["raw_azure_response"] == []
+
     @pytest.mark.integration
     @pytest.mark.skipif(not os.environ.get("CORE_AZURE_CS_ENDPOINT", None), reason="Azure endpoint not available")
     @pytest.mark.skipif(not os.environ.get("CORE_AZURE_CS_API_KEY", None), reason="Azure credentials not available")
@@ -285,36 +382,3 @@ D,$54.35,$6345.,
         assert "Sample Docx File" in documents[0].content
         assert "Now we are in Page 2" in documents[0].content
         assert "Page 3 was empty this is page 4" in documents[0].content
-
-    @patch("haystack.utils.auth.EnvVarSecret.resolve_value")
-    def test_run_with_store_full_path_false(self, mock_resolve_value, test_files_path, mock_poller):
-        mock_resolve_value.return_value = "test_api_key"
-
-        with patch("azure.ai.formrecognizer.DocumentAnalysisClient.begin_analyze_document") as azure_mock:
-            azure_mock.return_value = mock_poller("azure_sample_pdf_1.json")
-            component = AzureOCRDocumentConverter(
-                endpoint=os.environ.get("CORE_AZURE_CS_ENDPOINT", ""),
-                api_key=Secret.from_env_var("CORE_AZURE_CS_API_KEY"),
-                store_full_path=False,
-            )
-            output = component.run(sources=[test_files_path / "pdf" / "sample_pdf_1.pdf"])
-
-        documents = output["documents"]
-        assert len(documents) == 2
-        for doc in documents:
-            assert doc.meta["file_path"] == "sample_pdf_1.pdf"
-
-    @patch("haystack.utils.auth.EnvVarSecret.resolve_value")
-    def test_meta_from_byte_stream(self, mock_resolve_value, test_files_path, mock_poller) -> None:
-        mock_resolve_value.return_value = "test_api_key"
-
-        with patch("azure.ai.formrecognizer.DocumentAnalysisClient.begin_analyze_document") as azure_mock:
-            azure_mock.return_value = mock_poller("azure_sample_pdf_1.json")
-            ocr_node = AzureOCRDocumentConverter(endpoint="")
-            bytes_ = (test_files_path / "pdf" / "sample_pdf_1.pdf").read_bytes()
-            byte_stream = ByteStream(data=bytes_, meta={"test_from": "byte_stream"})
-            out = ocr_node.run(sources=[byte_stream], meta=[{"test": "value_1"}])
-
-        docs = out["documents"]
-        assert docs[1].meta["test"] == "value_1"
-        assert docs[1].meta["test_from"] == "byte_stream"
