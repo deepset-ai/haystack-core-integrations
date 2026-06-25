@@ -4,9 +4,11 @@
 
 | Name                                                                        |    Stmts |     Miss |   Branch |   BrPart |   Cover |   Missing |
 |---------------------------------------------------------------------------- | -------: | -------: | -------: | -------: | ------: | --------: |
-| src/haystack\_integrations/components/retrievers/google\_drive/errors.py    |        6 |        0 |        0 |        0 |    100% |           |
-| src/haystack\_integrations/components/retrievers/google\_drive/retriever.py |      216 |        4 |       64 |        4 |     97% |50, 62-\>70, 77-78, 87 |
-| **TOTAL**                                                                   |  **222** |    **4** |   **64** |    **4** | **97%** |           |
+| src/haystack\_integrations/common/google\_drive/errors.py                   |        6 |        0 |        0 |        0 |    100% |           |
+| src/haystack\_integrations/common/google\_drive/utils.py                    |       50 |        4 |       14 |        4 |     88% |42, 54-\>62, 69-70, 79 |
+| src/haystack\_integrations/components/fetchers/google\_drive/fetcher.py     |      200 |       10 |       54 |        4 |     94% |280, 293-294, 303-306, 314, 331-334 |
+| src/haystack\_integrations/components/retrievers/google\_drive/retriever.py |      175 |        0 |       50 |        0 |    100% |           |
+| **TOTAL**                                                                   |  **431** |   **14** |  **118** |    **8** | **96%** |           |
 
 
 ## Setup coverage badge
