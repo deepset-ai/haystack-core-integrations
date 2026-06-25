@@ -7,11 +7,11 @@ from haystack_integrations.common.google_drive.errors import (
     GoogleDriveRequestError,
 )
 
-from .retriever import GoogleDriveRetriever
+from .fetcher import GoogleDriveFetcher
 
 __all__ = [
     "GoogleDriveConfigError",
     "GoogleDriveError",
+    "GoogleDriveFetcher",
     "GoogleDriveRequestError",
-    "GoogleDriveRetriever",
 ]
