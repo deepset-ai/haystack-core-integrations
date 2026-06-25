@@ -59,7 +59,7 @@ class GoogleDriveRetriever:
     file content is needed.
 
     The retriever takes a per-user `access_token` as a run input, typically wired from an upstream
-    `OAuthResolver`. The token must carry a delegated Google OAuth scope that allows search
+    `OAuthTokenResolver`. The token must carry a delegated Google OAuth scope that allows search
     (for example `https://www.googleapis.com/auth/drive.readonly`). The metadata-only
     `drive.metadata.readonly` scope cannot search file content or export documents.
 
@@ -67,15 +67,15 @@ class GoogleDriveRetriever:
     ```python
     from haystack import Pipeline
     from haystack.utils import Secret
-    from haystack_integrations.components.connectors.oauth import OAuthResolver
-    from haystack_integrations.utils.oauth import RefreshTokenSource
+    from haystack_integrations.components.connectors.oauth import OAuthTokenResolver
+    from haystack_integrations.utils.oauth import OAuthRefreshTokenSource
     from haystack_integrations.components.retrievers.google_drive import GoogleDriveRetriever
 
     pipeline = Pipeline()
     pipeline.add_component(
         "resolver",
-        OAuthResolver(
-            token_source=RefreshTokenSource(
+        OAuthTokenResolver(
+            token_source=OAuthRefreshTokenSource(
                 token_url="https://oauth2.googleapis.com/token",
                 client_id="aaa-bbb-ccc",
                 refresh_token=Secret.from_env_var("GOOGLE_REFRESH_TOKEN"),
@@ -150,7 +150,7 @@ class GoogleDriveRetriever:
         :param query: The search query string, matched against the full text of files via
             `fullText contains`.
         :param access_token: A delegated Google OAuth bearer token for the user whose Drive is searched,
-            typically wired from an upstream `OAuthResolver` (which emits a plain `str`). A `Secret` is also
+            typically wired from an upstream `OAuthTokenResolver` (which emits a plain `str`). A `Secret` is also
             accepted and resolved internally.
         :param top_k: Overrides the `top_k` configured at initialization for this run.
         :returns: A dictionary with a `documents` key holding the list of retrieved `Document` objects.
@@ -187,7 +187,7 @@ class GoogleDriveRetriever:
         :param query: The search query string, matched against the full text of files via
             `fullText contains`.
         :param access_token: A delegated Google OAuth bearer token for the user whose Drive is searched,
-            typically wired from an upstream `OAuthResolver` (which emits a plain `str`). A `Secret` is also
+            typically wired from an upstream `OAuthTokenResolver` (which emits a plain `str`). A `Secret` is also
             accepted and resolved internally.
         :param top_k: Overrides the `top_k` configured at initialization for this run.
         :returns: A dictionary with a `documents` key holding the list of retrieved `Document` objects.
