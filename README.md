@@ -4,11 +4,11 @@
 
 | Name                                                                             |    Stmts |     Miss |   Branch |   BrPart |   Cover |   Missing |
 |--------------------------------------------------------------------------------- | -------: | -------: | -------: | -------: | ------: | --------: |
-| src/haystack\_integrations/components/converters/twelvelabs/video\_converter.py  |       86 |       39 |       18 |        0 |     47% |81, 149-169, 173-187, 190-201 |
+| src/haystack\_integrations/components/converters/twelvelabs/video\_converter.py  |       86 |       10 |       18 |        2 |     85% |81, 184-185, 195-201 |
 | src/haystack\_integrations/components/embedders/twelvelabs/\_embed.py            |       19 |       14 |        4 |        0 |     22% |10-17, 22-24, 29-31 |
 | src/haystack\_integrations/components/embedders/twelvelabs/document\_embedder.py |       63 |        1 |       10 |        0 |     99% |        77 |
 | src/haystack\_integrations/components/embedders/twelvelabs/text\_embedder.py     |       36 |        1 |        4 |        0 |     98% |        61 |
-| **TOTAL**                                                                        |  **204** |   **55** |   **36** |    **0** | **69%** |           |
+| **TOTAL**                                                                        |  **204** |   **26** |   **36** |    **2** | **85%** |           |
 
 
 ## Setup coverage badge
