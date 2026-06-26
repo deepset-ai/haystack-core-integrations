@@ -235,7 +235,7 @@ class TestLocalWhisperTranscriber:
         path = test_files_path / "audio" / "the context for this answer is here.wav"
         assert path.absolute() == docs[1].meta["audio_file"]
 
-        # `answer.wav` is a single isolated word, which models transcribe inconsistently 
+        # `answer.wav` is a single isolated word, which models transcribe inconsistently
         # Therefore, we only assert that something was transcribed to a temporary file.
         assert docs[2].content.strip()
         # meta.audio_file should contain the temp path where we dumped the audio bytes
