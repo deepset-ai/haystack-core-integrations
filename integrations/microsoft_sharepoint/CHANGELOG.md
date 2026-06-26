@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/microsoft_sharepoint-v1.1.0] - 2026-06-25
+
+### 🚀 Features
+
+- *(microsoft_sharepoint)* Add MSSharePointFetcher (#3485)
+
+
 ## [integrations/microsoft_sharepoint-v1.0.0] - 2026-06-22
 
 ### 🚀 Features

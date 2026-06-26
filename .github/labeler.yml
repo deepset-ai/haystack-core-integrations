@@ -408,6 +408,11 @@ integration:transformers:
       - any-glob-to-any-file: "integrations/transformers/**/*"
       - any-glob-to-any-file: ".github/workflows/transformers.yml"
 
+integration:twelvelabs:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/twelvelabs/**/*"
+      - any-glob-to-any-file: ".github/workflows/twelvelabs.yml"
+
 integration:unstructured-fileconverter:
   - changed-files:
       - any-glob-to-any-file: "integrations/unstructured/**/*"

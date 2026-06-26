@@ -10,14 +10,14 @@ import pytest
 from haystack import Document, Pipeline
 from haystack.utils import Secret
 
+from haystack_integrations.common.google_drive.utils import (
+    _is_retryable_response,
+    _wait_with_retry_after,
+)
 from haystack_integrations.components.retrievers.google_drive import (
     GoogleDriveConfigError,
     GoogleDriveRequestError,
     GoogleDriveRetriever,
-)
-from haystack_integrations.components.retrievers.google_drive.retriever import (
-    _is_retryable_response,
-    _wait_with_retry_after,
 )
 
 MODULE = "haystack_integrations.components.retrievers.google_drive.retriever"

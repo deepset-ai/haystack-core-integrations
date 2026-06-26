@@ -386,7 +386,9 @@ def _validate_and_format_cache_point(cache_point: dict[str, str] | None) -> dict
     return {"cachePoint": cache_point}
 
 
-def _format_messages(messages: list[ChatMessage]) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+def _format_messages(
+    messages: list[ChatMessage], system_cachepoint_config: dict[str, dict[str, str]] | None = None
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     """
     Format a list of Haystack ChatMessages to the format expected by Bedrock API.
 
@@ -394,6 +396,7 @@ def _format_messages(messages: list[ChatMessage]) -> tuple[list[dict[str, Any]],
     and tool results.
 
     :param messages: List of ChatMessage objects to format for Bedrock API.
+    :param system_cachepoint_config: Optional cache point configuration for system messages.
     :returns: Tuple containing (system_prompts, non_system_messages) in Bedrock format,
               where system_prompts is a list of system message dictionaries and
               non_system_messages is a list of properly formatted message dictionaries.
@@ -409,6 +412,8 @@ def _format_messages(messages: list[ChatMessage]) -> tuple[list[dict[str, Any]],
             system_prompts.append({"text": msg.text})
             if cache_point:
                 system_prompts.append(cache_point)
+            elif system_cachepoint_config:
+                system_prompts.append(system_cachepoint_config)
             continue
 
         if msg.tool_calls:

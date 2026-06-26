@@ -79,6 +79,7 @@ on:
       - "Test / tika"
       - "Test / togetherai"
       - "Test / transformers"
+      - "Test / twelvelabs"
       - "Test / unstructured"
       - "Test / valkey"
       - "Test / vespa"
