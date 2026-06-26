@@ -213,7 +213,12 @@ class TestLocalWhisperTranscriber:
     @pytest.mark.integration
     @pytest.mark.skipif(sys.platform in ["win32", "cygwin"], reason="ffmpeg not installed on Windows CI")
     def test_whisper_local_transcriber(self, test_files_path):
-        comp = LocalWhisperTranscriber(model="tiny", whisper_params={"language": "english"})
+        # We use the "base" model (and force English) rather than "tiny" because "tiny" is unstable on short
+        # clips: depending on the platform / torch / openai-whisper version it can collapse into garbage or
+        # hallucinate non-English text even for clean English audio, which made this test flaky in nightly CI.
+        # Transcription is non-deterministic across environments, so the assertions below check for expected
+        # keywords instead of exact strings.
+        comp = LocalWhisperTranscriber(model="base", whisper_params={"language": "english"})
         output = comp.run(
             sources=[
                 test_files_path / "audio" / "this is the content of the document.wav",
@@ -235,7 +240,10 @@ class TestLocalWhisperTranscriber:
         path = test_files_path / "audio" / "the context for this answer is here.wav"
         assert path.absolute() == docs[1].meta["audio_file"]
 
-        assert docs[2].content.strip().lower() == "answer."
+        # `answer.wav` is a single isolated word, which ASR models transcribe inconsistently (e.g. "add server",
+        # "trans stay turned"). We only assert that something was transcribed; the point of this third source is
+        # to exercise the ByteStream branch, where the audio bytes are dumped to a temporary file.
+        assert docs[2].content.strip()
         # meta.audio_file should contain the temp path where we dumped the audio bytes
         assert docs[2].meta["audio_file"]
 
@@ -244,7 +252,7 @@ class TestLocalWhisperTranscriber:
     def test_whisper_local_transcriber_pipeline_and_url_source(self):
         pipe = Pipeline()
         pipe.add_component("fetcher", LinkContentFetcher())
-        pipe.add_component("transcriber", LocalWhisperTranscriber(model="tiny"))
+        pipe.add_component("transcriber", LocalWhisperTranscriber(model="base"))
 
         pipe.connect("fetcher", "transcriber")
         result = pipe.run(
