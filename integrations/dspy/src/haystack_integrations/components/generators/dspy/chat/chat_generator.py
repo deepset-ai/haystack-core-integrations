@@ -223,6 +223,7 @@ class DSPySignatureChatGenerator:
             "generation_kwargs": self.generation_kwargs,
             "module_kwargs": self.module_kwargs,
             "input_mapping": self.input_mapping,
+            "pipeline_inputs": self.pipeline_inputs,
         }
         return default_to_dict(self, **kwargs)
 

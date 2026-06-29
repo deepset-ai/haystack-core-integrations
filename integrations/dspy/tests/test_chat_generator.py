@@ -202,6 +202,7 @@ class TestDSPySignatureChatGenerator:
                 "generation_kwargs": {},
                 "module_kwargs": {},
                 "input_mapping": None,
+                "pipeline_inputs": None,
             },
         }
 
@@ -227,6 +228,7 @@ class TestDSPySignatureChatGenerator:
                 "generation_kwargs": {"max_tokens": 10, "some_test_param": "test-params"},
                 "module_kwargs": {},
                 "input_mapping": {"context": "context", "question": "question"},
+                "pipeline_inputs": None,
             },
         }
 
@@ -315,6 +317,16 @@ class TestDSPySignatureChatGenerator:
         }
         with pytest.raises(ValueError, match="Unknown signature type 'unknown'"):
             DSPySignatureChatGenerator.from_dict(data)
+
+    def test_to_dict_from_dict_roundtrip_restores_pipeline_inputs(self, mock_dspy_module):
+        original = DSPySignatureChatGenerator(
+            signature="question, my_context -> answer",
+            pipeline_inputs=["my_context"],
+        )
+        restored = DSPySignatureChatGenerator.from_dict(original.to_dict())
+
+        assert restored.pipeline_inputs == ["my_context"]
+        assert "my_context" in restored.__haystack_input__
 
     def test_run(self, chat_messages, mock_dspy_module):
         component = DSPySignatureChatGenerator(
@@ -452,8 +464,8 @@ class TestDSPySignatureChatGenerator:
                 return {"text": "\n".join(d.content for d in documents)}
 
         generator = DSPySignatureChatGenerator(
-            signature="question, context -> answer",
-            pipeline_inputs=["context"],
+            signature="question, my_context -> answer",
+            pipeline_inputs=["my_context"],
         )
 
         pipeline = Pipeline()
@@ -461,7 +473,7 @@ class TestDSPySignatureChatGenerator:
         pipeline.add_component("docs_to_text", DocsToString())
         pipeline.add_component("llm", generator)
         pipeline.connect("retriever.documents", "docs_to_text.documents")
-        pipeline.connect("docs_to_text.text", "llm.context")
+        pipeline.connect("docs_to_text.text", "llm.my_context")
 
         question = "What is the capital of Japan?"  # context should be Japan-related
         pipeline.run(
@@ -473,8 +485,8 @@ class TestDSPySignatureChatGenerator:
 
         call_kwargs = mock_dspy_module.call_args.kwargs
         assert call_kwargs["question"] == question
-        assert "Tokyo is the capital of Japan." in call_kwargs["context"]
-        assert "Paris" not in call_kwargs["context"]
+        assert "Tokyo is the capital of Japan." in call_kwargs["my_context"]
+        assert "Paris" not in call_kwargs["my_context"]
 
     def test_run_with_wrong_model(self, mock_dspy_module):
         mock_dspy_module.side_effect = Exception("Invalid model name")
