@@ -1,0 +1,13 @@
+loaders:
+  - modules:
+      - haystack_integrations.components.converters.azure_form_recognizer.converter
+    search_path: [../src]
+processors:
+  - type: filter
+    documented_only: true
+    skip_empty_modules: true
+renderer:
+  description: Azure Form Recognizer integration for Haystack
+  id: integrations-azure_form_recognizer
+  filename: azure_form_recognizer.md
+  title: Azure Form Recognizer

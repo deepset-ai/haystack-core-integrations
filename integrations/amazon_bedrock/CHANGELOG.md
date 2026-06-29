@@ -1,5 +1,19 @@
 # Changelog
 
+## [integrations/amazon_bedrock-v6.14.0] - 2026-06-25
+
+### 🚀 Features
+
+- Add system_cachepoint_config to AmazonBedrockChatGenerator (#3497)
+
+
+## [integrations/amazon_bedrock-v6.13.0] - 2026-06-24
+
+### 🐛 Bug Fixes
+
+- *(amazon-bedrock)* Forward dimensions/normalize for Titan V2 embedders (#3477)
+
+
 ## [integrations/amazon_bedrock-v6.12.0] - 2026-06-12
 
 ### 🚀 Features

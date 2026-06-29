@@ -12,7 +12,18 @@ from exceptiongroup import ExceptionGroup
 from haystack import logging
 from haystack.core.serialization import generate_qualified_class_name, import_class_by_name
 from haystack.tools import Tool, Toolset
-from haystack.utils.callable_serialization import deserialize_callable, serialize_callable
+from haystack.tools.tool import (
+    _deserialize_outputs_to_state as _hs_deserialize_outputs_to_state,
+)
+from haystack.tools.tool import (
+    _deserialize_outputs_to_string as _hs_deserialize_outputs_to_string,
+)
+from haystack.tools.tool import (
+    _serialize_outputs_to_state as _hs_serialize_outputs_to_state,
+)
+from haystack.tools.tool import (
+    _serialize_outputs_to_string as _hs_serialize_outputs_to_string,
+)
 
 from .mcp_tool import (
     AsyncExecutor,
@@ -29,86 +40,62 @@ from .mcp_tool import (
 logger = logging.getLogger(__name__)
 
 
-def _serialize_state_config(config: dict[str, dict[str, Any]] | None) -> dict[str, dict[str, Any]] | None:
+def _serialize_outputs_to_state(config: dict[str, dict[str, Any]] | None) -> dict[str, dict[str, Any]] | None:
     """
-    Serialize a state configuration dictionary, converting any callable handlers to their string representation.
+    Serialize a per-tool `outputs_to_state` mapping (tool_name -> {state_key -> {source, handler}}).
 
-    Works for both outputs_to_state (tool_name -> {state_key -> {source, handler}})
-    and outputs_to_string (tool_name -> {source, handler}).
+    Callable handlers are converted to their string representation via Haystack's serialization helper.
 
-    Note: The keys "source" and "handler" are reserved and used internally to distinguish between
-    outputs_to_string format and outputs_to_state format. Do not use these as state keys in
-    outputs_to_state configurations.
-
-    :param config: The state configuration dictionary to serialize
-    :returns: The serialized configuration dictionary, or None if empty
+    :param config: The per-tool `outputs_to_state` mapping to serialize
+    :returns: The serialized mapping, or None if empty
     """
     if not config:
         return None
-
-    serialized = {}
-    for tool_name, tool_config in config.items():
-        if not tool_config:
-            continue
-
-        # Check if this is outputs_to_string format (flat with optional source/handler)
-        # or outputs_to_state format (nested with state keys)
-        if "source" in tool_config or "handler" in tool_config:
-            # outputs_to_string format: {source?, handler?}
-            serialized_tool_config = tool_config.copy()
-            if "handler" in tool_config and callable(tool_config["handler"]):
-                serialized_tool_config["handler"] = serialize_callable(tool_config["handler"])
-            serialized[tool_name] = serialized_tool_config
-        else:
-            # outputs_to_state format: {state_key -> {source?, handler?}}
-            serialized_tool_config = {}
-            for state_key, state_config in tool_config.items():
-                serialized_state_config = state_config.copy()
-                if "handler" in state_config and callable(state_config["handler"]):
-                    serialized_state_config["handler"] = serialize_callable(state_config["handler"])
-                serialized_tool_config[state_key] = serialized_state_config
-            serialized[tool_name] = serialized_tool_config
-
-    return serialized if serialized else None
+    serialized = {
+        name: _hs_serialize_outputs_to_state(tool_config) for name, tool_config in config.items() if tool_config
+    }
+    return serialized or None
 
 
-def _deserialize_state_config(config: dict[str, dict[str, Any]] | None) -> dict[str, dict[str, Any]]:
+def _serialize_outputs_to_string(config: dict[str, dict[str, Any]] | None) -> dict[str, dict[str, Any]] | None:
     """
-    Deserialize a state configuration dictionary, converting any serialized handlers back to callables.
+    Serialize a per-tool `outputs_to_string` mapping (tool_name -> {source?, handler?}).
 
-    Works for both outputs_to_state (tool_name -> {state_key -> {source, handler}})
-    and outputs_to_string (tool_name -> {source, handler}).
+    Callable handlers are converted to their string representation via Haystack's serialization helper.
 
-    :param config: The state configuration dictionary to deserialize
-    :returns: The deserialized configuration dictionary
+    :param config: The per-tool `outputs_to_string` mapping to serialize
+    :returns: The serialized mapping, or None if empty
+    """
+    if not config:
+        return None
+    serialized = {
+        name: _hs_serialize_outputs_to_string(tool_config) for name, tool_config in config.items() if tool_config
+    }
+    return serialized or None
+
+
+def _deserialize_outputs_to_state(config: dict[str, dict[str, Any]] | None) -> dict[str, dict[str, Any]]:
+    """
+    Deserialize a per-tool `outputs_to_state` mapping, restoring string handlers back to callables.
+
+    :param config: The per-tool `outputs_to_state` mapping to deserialize
+    :returns: The deserialized mapping
     """
     if not config:
         return {}
+    return {name: _hs_deserialize_outputs_to_state(tool_config) for name, tool_config in config.items() if tool_config}
 
-    deserialized = {}
-    for tool_name, tool_config in config.items():
-        if not tool_config:
-            continue
 
-        # Check if this is outputs_to_string format (flat with optional source/handler)
-        # or outputs_to_state format (nested with state keys)
-        if "source" in tool_config or "handler" in tool_config:
-            # outputs_to_string format: {source?, handler?}
-            deserialized_tool_config = tool_config.copy()
-            if "handler" in tool_config and isinstance(tool_config["handler"], str):
-                deserialized_tool_config["handler"] = deserialize_callable(tool_config["handler"])
-            deserialized[tool_name] = deserialized_tool_config
-        else:
-            # outputs_to_state format: {state_key -> {source?, handler?}}
-            deserialized_tool_config = {}
-            for state_key, state_config in tool_config.items():
-                deserialized_state_config = state_config.copy()
-                if "handler" in state_config and isinstance(state_config["handler"], str):
-                    deserialized_state_config["handler"] = deserialize_callable(state_config["handler"])
-                deserialized_tool_config[state_key] = deserialized_state_config
-            deserialized[tool_name] = deserialized_tool_config
+def _deserialize_outputs_to_string(config: dict[str, dict[str, Any]] | None) -> dict[str, dict[str, Any]]:
+    """
+    Deserialize a per-tool `outputs_to_string` mapping, restoring string handlers back to callables.
 
-    return deserialized
+    :param config: The per-tool `outputs_to_string` mapping to deserialize
+    :returns: The deserialized mapping
+    """
+    if not config:
+        return {}
+    return {name: _hs_deserialize_outputs_to_string(tool_config) for name, tool_config in config.items() if tool_config}
 
 
 class MCPToolset(Toolset):
@@ -126,11 +113,9 @@ class MCPToolset(Toolset):
     # 1. pip install uvx mcp-server-time  # Install required MCP server and tools
     # 2. export OPENAI_API_KEY="your-api-key"  # Set up your OpenAI API key
 
-    import os
     from haystack import Pipeline
-    from haystack.components.converters import OutputAdapter
+    from haystack.components.agents import Agent
     from haystack.components.generators.chat import OpenAIChatGenerator
-    from haystack.components.tools import ToolInvoker
     from haystack.dataclasses import ChatMessage
     from haystack_integrations.tools.mcp import MCPToolset, StdioServerInfo
 
@@ -144,30 +129,18 @@ class MCPToolset(Toolset):
         tool_names=["get_current_time"]  # Only include the get_current_time tool
     )
 
-    # Create a pipeline with the toolset
+    # Create a pipeline with an Agent that owns the tool-calling loop.
+    # The Agent passes the toolset to the chat generator, executes any requested
+    # tool calls, and continues until a final answer is produced.
     pipeline = Pipeline()
-    pipeline.add_component("llm", OpenAIChatGenerator(model="gpt-4o-mini", tools=mcp_toolset))
-    pipeline.add_component("tool_invoker", ToolInvoker(tools=mcp_toolset))
-    pipeline.add_component(
-        "adapter",
-        OutputAdapter(
-            template="{{ initial_msg + initial_tool_messages + tool_messages }}",
-            output_type=list[ChatMessage],
-            unsafe=True,
-        ),
-    )
-    pipeline.add_component("response_llm", OpenAIChatGenerator(model="gpt-4o-mini"))
-    pipeline.connect("llm.replies", "tool_invoker.messages")
-    pipeline.connect("llm.replies", "adapter.initial_tool_messages")
-    pipeline.connect("tool_invoker.tool_messages", "adapter.tool_messages")
-    pipeline.connect("adapter.output", "response_llm.messages")
+    pipeline.add_component("agent", Agent(chat_generator=OpenAIChatGenerator(model="gpt-4o-mini"), tools=mcp_toolset))
 
     # Run the pipeline with a user question
     user_input = "What is the time in New York? Be brief."
     user_input_msg = ChatMessage.from_user(text=user_input)
 
-    result = pipeline.run({"llm": {"messages": [user_input_msg]}, "adapter": {"initial_msg": [user_input_msg]}})
-    print(result["response_llm"]["replies"][0].text)
+    result = pipeline.run({"agent": {"messages": [user_input_msg]}})
+    print(result["agent"]["messages"][-1].text)
     ```
 
     You can also use the toolset via Streamable HTTP to talk to remote servers:
@@ -209,7 +182,6 @@ class MCPToolset(Toolset):
     Example using SSE (deprecated):
     ```python
     from haystack_integrations.tools.mcp import MCPToolset, SSEServerInfo
-    from haystack.components.tools import ToolInvoker
 
     # Create the toolset with an SSE connection
     sse_toolset = MCPToolset(
@@ -291,7 +263,7 @@ class MCPToolset(Toolset):
         """
         Connect and load tools when eager_connect is turned off.
 
-        This method is automatically called by ``ToolInvoker.warm_up()`` and ``Pipeline.warm_up()``.
+        This method is automatically called by `Agent.warm_up()` and `Pipeline.warm_up()`.
         You can also call it directly before using the toolset to ensure all tool schemas
         are available without performing a real invocation.
         """
@@ -341,12 +313,12 @@ class MCPToolset(Toolset):
                         mcp_client.call_tool(tool_name, kwargs), timeout=tool_timeout
                     )
                     # Parse JSON to dict only when outputs_to_state is configured.
-                    # ToolInvoker requires dict for _merge_tool_outputs(); ToolCallResult.result expects str otherwise.
+                    # State output handlers require a dict; ToolCallResult.result expects str otherwise.
                     if outputs_to_state:
                         parsed = json.loads(result)
 
                         # Per MCP spec, content[] may contain TextContent, ImageContent, AudioContent, etc.
-                        # Parse only first TextContent block (ToolInvoker requires dict, not list).
+                        # Parse only first TextContent block (state output handlers require a dict, not a list).
                         content = parsed.get("content", [])
                         for block in content:
                             if isinstance(block, dict) and block.get("type") == "text":
@@ -494,8 +466,8 @@ class MCPToolset(Toolset):
                 "invocation_timeout": self.invocation_timeout,
                 "eager_connect": self.eager_connect,
                 "inputs_from_state": self.inputs_from_state if self.inputs_from_state else None,
-                "outputs_to_state": _serialize_state_config(self.outputs_to_state),
-                "outputs_to_string": _serialize_state_config(self.outputs_to_string),
+                "outputs_to_state": _serialize_outputs_to_state(self.outputs_to_state),
+                "outputs_to_string": _serialize_outputs_to_string(self.outputs_to_string),
             },
         }
 
@@ -516,8 +488,8 @@ class MCPToolset(Toolset):
 
         # Deserialize state configuration parameters
         inputs_from_state = inner_data.get("inputs_from_state")
-        outputs_to_state = _deserialize_state_config(inner_data.get("outputs_to_state"))
-        outputs_to_string = _deserialize_state_config(inner_data.get("outputs_to_string"))
+        outputs_to_state = _deserialize_outputs_to_state(inner_data.get("outputs_to_state"))
+        outputs_to_string = _deserialize_outputs_to_string(inner_data.get("outputs_to_string"))
 
         # Create a new MCPToolset instance
         return cls(

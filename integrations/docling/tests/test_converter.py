@@ -9,6 +9,7 @@ from unittest.mock import MagicMock
 import pytest
 from docling.chunking import HybridChunker
 from docling.document_converter import DocumentConverter
+from docling_core.transforms.chunker.tokenizer.base import BaseTokenizer
 from docling_core.types.io import DocumentStream
 from haystack.dataclasses import ByteStream
 
@@ -233,7 +234,10 @@ def test_component_from_dict_custom_params() -> None:
 
 
 def test_component_to_dict_chunker_warns_and_is_dropped() -> None:
-    converter = DoclingConverter(export_type=ExportType.DOC_CHUNKS, chunker=HybridChunker(merge_peers=False))
+    # Pass an explicit tokenizer so HybridChunker doesn't invoke its default factory
+    # (get_default_tokenizer), which would download a tokenizer from HuggingFace.
+    chunker = HybridChunker(merge_peers=False, tokenizer=MagicMock(spec=BaseTokenizer))
+    converter = DoclingConverter(export_type=ExportType.DOC_CHUNKS, chunker=chunker)
 
     assert converter.to_dict() == {
         "type": "haystack_integrations.components.converters.docling.converter.DoclingConverter",

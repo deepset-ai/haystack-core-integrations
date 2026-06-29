@@ -848,10 +848,23 @@ class TestOllamaChatGeneratorInitSerializeDeserialize:
                     "type": "object",
                     "properties": {"name": {"type": "string"}, "age": {"type": "number"}},
                 },
+                "think": False,
             },
         }
 
         assert data == expected_dict
+
+    def test_to_dict_and_from_dict_preserves_think(self):
+        """`think` enables a model's reasoning output and must survive a
+        to_dict/from_dict round-trip; otherwise a reloaded generator silently
+        falls back to think=False (reasoning disabled)."""
+        component = OllamaChatGenerator(model="gpt-oss", think="high")
+
+        data = component.to_dict()
+        assert data["init_parameters"]["think"] == "high"
+
+        restored = OllamaChatGenerator.from_dict(data)
+        assert restored.think == "high"
 
     def test_from_dict(self):
         tool = Tool(

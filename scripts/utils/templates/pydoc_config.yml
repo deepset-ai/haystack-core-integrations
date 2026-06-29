@@ -8,6 +8,6 @@ processors:
     skip_empty_modules: true
 renderer:
   description: $title integration for Haystack
-  id: integrations-$name
-  filename: $name_hyphenated.md
+  id: integrations-$name_hyphenated
+  filename: $name.md
   title: $title
