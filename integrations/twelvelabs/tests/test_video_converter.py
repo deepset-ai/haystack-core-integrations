@@ -2,6 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 import os
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -12,7 +13,8 @@ from haystack_integrations.components.converters.twelvelabs import TwelveLabsVid
 _MODULE = "haystack_integrations.components.converters.twelvelabs.video_converter"
 ANALYZE = f"{_MODULE}.TwelveLabsVideoConverter._analyze_source"
 CLIENT = f"{_MODULE}.TwelveLabs"
-_SAMPLE_VIDEO_URL = "https://test-videos.co.uk/vids/bigbuckbunny/mp4/h264/360/Big_Buck_Bunny_360_10s_1MB.mp4"
+# A small (~100 KB) 5s 360p clip. It meets TwelveLabs' minimum requirements (>= 4s duration, >= 360p).
+_SAMPLE_VIDEO_PATH = str(Path(__file__).parent / "assets" / "sample_video.mp4")
 
 
 def test_to_dict_and_from_dict(monkeypatch):
@@ -116,7 +118,7 @@ def test_upload_asset_rejects_missing_and_oversized_files(tmp_path, monkeypatch)
 @pytest.mark.integration
 def test_run_integration():
     converter = TwelveLabsVideoConverter()
-    result = converter.run(sources=[_SAMPLE_VIDEO_URL])
+    result = converter.run(sources=[_SAMPLE_VIDEO_PATH])
     docs = result["documents"]
     assert len(docs) == 1
     assert isinstance(docs[0].content, str)
