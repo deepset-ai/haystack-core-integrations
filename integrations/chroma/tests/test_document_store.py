@@ -147,6 +147,26 @@ class TestDocumentStoreUnit:
         restored = ChromaDocumentStore.from_dict(ds.to_dict())
         assert restored._metadata == metadata
 
+    def test_ensure_initialized_does_not_mutate_metadata(self):
+        """Initialization derives the collection metadata (injecting ``hnsw:space``) into a
+        local copy, so ``self._metadata`` must stay exactly as the user passed it. Otherwise
+        ``to_dict()`` would become lifecycle-dependent and a user-supplied dict would be mutated
+        in place."""
+        # metadata=None must stay None after initialization
+        store = ChromaDocumentStore(collection_name="test_no_metadata", distance_function="cosine")
+        store._ensure_initialized()
+        assert store._metadata is None
+        assert store.to_dict()["init_parameters"]["metadata"] is None
+
+        # a user-supplied dict without "hnsw:space" must not be mutated
+        user_metadata = {"hnsw:search_ef": 200}
+        store = ChromaDocumentStore(
+            collection_name="test_user_metadata", distance_function="cosine", metadata=user_metadata
+        )
+        store._ensure_initialized()
+        assert store._metadata == {"hnsw:search_ef": 200}
+        assert "hnsw:space" not in user_metadata
+
     def test_same_collection_name_reinitialization(self):
         ChromaDocumentStore("test_1")
         ChromaDocumentStore("test_1")
