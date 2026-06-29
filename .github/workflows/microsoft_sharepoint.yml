@@ -146,7 +146,7 @@ jobs:
 
       # TEMPORARILY DISABLED (2026-06)
       - name: Run integration tests
-        if: false
+        if: false && env.HAS_MS_GRAPH_SECRETS == 'true'
         env:
           MS_SHAREPOINT_TEST_FILE_URL: ${{ secrets.MS_SHAREPOINT_TEST_FILE_URL }}
         run: hatch run test:integration-cov-append-retry
