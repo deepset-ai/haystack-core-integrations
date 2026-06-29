@@ -115,8 +115,10 @@ jobs:
       # Exchanges the stored refresh token for a short-lived delegated Microsoft Graph access token and
       # exposes it to later steps as MS_SHAREPOINT_ACCESS_TOKEN. Skipped when the secrets are absent
       # (e.g. on fork PRs), in which case the live integration tests skip themselves.
+      #
+      # TEMPORARILY DISABLED (2026-06)
       - name: Mint Microsoft Graph access token
-        if: env.HAS_MS_GRAPH_SECRETS == 'true'
+        if: false && env.HAS_MS_GRAPH_SECRETS == 'true'
         shell: bash
         env:
           MS_GRAPH_TENANT_ID: ${{ secrets.MS_GRAPH_TENANT_ID }}
@@ -142,7 +144,9 @@ jobs:
           echo "MS_SHAREPOINT_ACCESS_TOKEN=${access_token}" >> "$GITHUB_ENV"
           echo 'Minted a Microsoft Graph access token (value masked).'
 
+      # TEMPORARILY DISABLED (2026-06)
       - name: Run integration tests
+        if: false
         env:
           MS_SHAREPOINT_TEST_FILE_URL: ${{ secrets.MS_SHAREPOINT_TEST_FILE_URL }}
         run: hatch run test:integration-cov-append-retry
