@@ -165,6 +165,25 @@ class TestAmazonBedrockDocumentImageEmbedder:
         assert embedder.progress_bar
         assert embedder.boto3_config == boto3_config
 
+    def test_from_dict_aws_region_name(self, mock_boto3_session):
+        """
+        Test that aws_region_name as str value is correctly parsed
+        """
+        embedder = AmazonBedrockDocumentImageEmbedder.from_dict(
+            {
+                "type": TYPE,
+                "init_parameters": {
+                    "aws_region_name": "my-fake-region",
+                    "model": "cohere.embed-english-v3",
+                },
+            }
+        )
+        assert embedder.model == "cohere.embed-english-v3"
+        assert embedder.aws_region_name == "my-fake-region"
+
+        serialized = embedder.to_dict()
+        assert serialized["init_parameters"]["aws_region_name"] == "my-fake-region"
+
     def test_init_invalid_model(self):
         with pytest.raises(ValueError):
             AmazonBedrockDocumentImageEmbedder(model="")
@@ -266,6 +285,79 @@ class TestAmazonBedrockDocumentImageEmbedder:
     def test_embed_cohere_multiple_embedding_types(self, mock_boto3_session):
         with pytest.raises(ValueError):
             AmazonBedrockDocumentImageEmbedder(model="cohere.embed-english-v3", embedding_types=["float", "int8"])
+
+    def test_run_cohere_end_to_end(self, mock_boto3_session, image_paths):
+        embedder = AmazonBedrockDocumentImageEmbedder(model="cohere.embed-english-v3")
+
+        def mock_invoke_model(*args, **kwargs):
+            return {"body": io.StringIO('{"embeddings": [[0.1, 0.2, 0.3]]}')}
+
+        with patch.object(embedder, "_client") as mock_client:
+            mock_client.invoke_model.side_effect = mock_invoke_model
+            docs = [Document(content="cat", meta={"file_path": str(image_paths[0])})]
+            result = embedder.run(documents=docs)
+
+        assert len(result["documents"]) == 1
+        assert result["documents"][0].embedding == [0.1, 0.2, 0.3]
+        assert result["documents"][0].meta["embedding_source"] == {
+            "type": "image",
+            "file_path_meta_field": "file_path",
+        }
+
+    def test_run_titan_end_to_end(self, mock_boto3_session, image_paths):
+        embedder = AmazonBedrockDocumentImageEmbedder(model="amazon.titan-embed-image-v1")
+
+        def mock_invoke_model(*args, **kwargs):
+            return {"body": io.StringIO('{"embedding": [0.4, 0.5]}')}
+
+        with patch.object(embedder, "_client") as mock_client:
+            mock_client.invoke_model.side_effect = mock_invoke_model
+            docs = [Document(content="apple", meta={"file_path": str(image_paths[0])})]
+            result = embedder.run(documents=docs)
+
+        assert result["documents"][0].embedding == [0.4, 0.5]
+
+    def test_run_with_pdf_cohere(self, mock_boto3_session, image_paths):
+        embedder = AmazonBedrockDocumentImageEmbedder(model="cohere.embed-english-v3")
+
+        def mock_invoke_model(*args, **kwargs):
+            return {"body": io.StringIO('{"embeddings": [[0.9]]}')}
+
+        with patch.object(embedder, "_client") as mock_client:
+            mock_client.invoke_model.side_effect = mock_invoke_model
+            pdf_doc = Document(content="pdf", meta={"file_path": str(image_paths[2]), "page_number": 1})
+            result = embedder.run(documents=[pdf_doc])
+
+        assert result["documents"][0].embedding == [0.9]
+        body_sent = mock_client.invoke_model.call_args.kwargs["body"]
+        assert "data:application/pdf;base64," in body_sent
+
+    def test_embed_titan_with_embedding_config(self, mock_boto3_session, image_paths):
+        embedder = AmazonBedrockDocumentImageEmbedder(
+            model="amazon.titan-embed-image-v1",
+            embeddingConfig={"outputEmbeddingLength": 256},
+        )
+
+        def mock_invoke_model(*args, **kwargs):
+            return {"body": io.StringIO('{"embedding": [0.1]}')}
+
+        with patch.object(embedder, "_client") as mock_client:
+            mock_client.invoke_model.side_effect = mock_invoke_model
+            embedder._embed_titan(images=["fake_base64"])
+
+        body_sent = mock_client.invoke_model.call_args.kwargs["body"]
+        assert '"embeddingConfig": {"outputEmbeddingLength": 256}' in body_sent
+
+    def test_embed_titan_invocation_error(self, mock_boto3_session):
+        embedder = AmazonBedrockDocumentImageEmbedder(model="amazon.titan-embed-image-v1")
+
+        with patch.object(embedder, "_client") as mock_client:
+            mock_client.invoke_model.side_effect = ClientError(
+                error_response={"Error": {"Code": "x", "Message": "y"}},
+                operation_name="invoke_model",
+            )
+            with pytest.raises(AmazonBedrockInferenceError):
+                embedder._embed_titan(images=["fake_base64"])
 
     @pytest.mark.integration
     @pytest.mark.skipif(

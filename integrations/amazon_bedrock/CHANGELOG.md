@@ -1,5 +1,79 @@
 # Changelog
 
+## [integrations/amazon_bedrock-v6.14.0] - 2026-06-25
+
+### 🚀 Features
+
+- Add system_cachepoint_config to AmazonBedrockChatGenerator (#3497)
+
+
+## [integrations/amazon_bedrock-v6.13.0] - 2026-06-24
+
+### 🐛 Bug Fixes
+
+- *(amazon-bedrock)* Forward dimensions/normalize for Titan V2 embedders (#3477)
+
+
+## [integrations/amazon_bedrock-v6.12.0] - 2026-06-12
+
+### 🚀 Features
+
+- Support str in addition to Secret for aws_region_name (#3423)
+
+
+## [integrations/amazon_bedrock-v6.11.0] - 2026-06-05
+
+### 🚀 Features
+
+- Amazon Bedrock - accept str as ChatGenerator input; deprecate generator; migrate generator example to chat generator (#3398)
+
+
+## [integrations/amazon_bedrock-v6.10.2] - 2026-05-19
+
+### 🐛 Bug Fixes
+
+- Type error during streaming of AmazonBedrockChatGenerator (#3332)
+
+
+## [integrations/amazon_bedrock-v6.10.1] - 2026-05-19
+
+### 🐛 Bug Fixes
+
+- S3Downloader - improve concurrent behavior (#3327)
+
+
+## [integrations/amazon_bedrock-v6.10.0] - 2026-05-12
+
+### 🚀 Features
+
+- Support adaptive_thinking_effort flat param for Claude (#3297)
+
+
+## [integrations/amazon_bedrock-v6.9.0] - 2026-05-11
+
+### 🐛 Bug Fixes
+
+- Normalize token usage conversion in AmazonBedrockGenerator (#3247)
+
+
+## [integrations/amazon_bedrock-v6.8.2] - 2026-05-06
+
+### 🐛 Bug Fixes
+
+- *(amazon-bedrock)* Use dataclasses.replace instead of mutating StreamingChunk (#3273)
+
+
+## [integrations/amazon_bedrock-v6.8.1] - 2026-04-22
+
+### 🐛 Bug Fixes
+
+- *(amazon-bedrock)* Prevent double-wrapping of tools_cachepoint_config in _format_tools (#3199)
+
+### 🧪 Testing
+
+- Bedrock - increase unit tests coverage (#3165)
+
+
 ## [integrations/amazon_bedrock-v6.8.0] - 2026-04-09
 
 ### 🚀 Features

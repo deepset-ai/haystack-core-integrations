@@ -238,6 +238,7 @@ class TestAmazonBedrockChatGenerator:
                     "guardrailVersion": "test",
                 },
                 "tools_cachepoint_config": None,
+                "system_cachepoint_config": None,
             },
         }
 
@@ -290,6 +291,25 @@ class TestAmazonBedrockChatGenerator:
         assert generator.model == "global.anthropic.claude-sonnet-4-6"
         assert generator.streaming_callback == print_streaming_chunk
         assert generator.boto3_config == boto3_config
+
+    def test_from_dict_aws_region_name(self, mock_boto3_session: Any):
+        """
+        Test that aws_region_name as str value is correctly parsed
+        """
+        generator = AmazonBedrockChatGenerator.from_dict(
+            {
+                "type": CLASS_TYPE,
+                "init_parameters": {
+                    "aws_region_name": "my-fake-region",
+                    "model": "global.anthropic.claude-sonnet-4-6",
+                },
+            }
+        )
+        assert generator.model == "global.anthropic.claude-sonnet-4-6"
+        assert generator.aws_region_name == "my-fake-region"
+
+        serialized = generator.to_dict()
+        assert serialized["init_parameters"]["aws_region_name"] == "my-fake-region"
 
     def test_default_constructor(self, mock_boto3_session, mock_aioboto3_session, set_env_variables):
         """
@@ -409,6 +429,7 @@ class TestAmazonBedrockChatGenerator:
                         ],
                         "guardrail_config": None,
                         "tools_cachepoint_config": None,
+                        "system_cachepoint_config": None,
                     },
                 }
             },
@@ -447,8 +468,22 @@ class TestAmazonBedrockChatGenerator:
             "guardrailVersion": "test",
         }
 
-    def test_prepare_request_params_response_format(self, mock_boto3_session, set_env_variables):
+    def test_constructor_with_system_cachepoint_config(self, mock_boto3_session):
+        generator = AmazonBedrockChatGenerator(
+            model="global.anthropic.claude-sonnet-4-6",
+            system_cachepoint_config={"type": "default"},
+        )
+        assert generator.system_cachepoint_config == {"cachePoint": {"type": "default"}}
 
+    def test_to_dict_with_system_cachepoint_config(self, mock_boto3_session):
+        generator = AmazonBedrockChatGenerator(
+            model="global.anthropic.claude-sonnet-4-6",
+            system_cachepoint_config={"type": "default"},
+        )
+        serialized = generator.to_dict()
+        assert serialized["init_parameters"]["system_cachepoint_config"] == {"cachePoint": {"type": "default"}}
+
+    def test_prepare_request_params_response_format(self, mock_boto3_session, set_env_variables):
         generator = AmazonBedrockChatGenerator(model="global.anthropic.claude-sonnet-4-6")
         schema = {
             "type": "object",
@@ -628,8 +663,18 @@ class TestAmazonBedrockChatGenerator:
                     "thinking_budget_tokens": None,
                     "parallel_tool_use": None,
                     "tool_choice_type": None,
+                    "adaptive_thinking_effort": None,
                 },
                 {},
+            ),
+            (
+                {
+                    "adaptive_thinking_effort": "max",
+                },
+                {
+                    "thinking": {"type": "adaptive"},
+                    "output_config": {"effort": "max"},
+                },
             ),
         ],
     )
@@ -700,6 +745,27 @@ class TestAmazonBedrockChatGenerator:
                 {"disable_parallel_tool_use": True, "parallel_tool_use": True}
             )
 
+    def test_resolve_flattened_kwargs_cachepoint_ttl(self):
+        result = AmazonBedrockChatGenerator._resolve_flattened_generation_kwargs(
+            {
+                "tools_cachepoint_config_ttl": "5m",
+                "system_cachepoint_config_ttl": "10m",
+            }
+        )
+        assert result["tools_cachepoint_config"] == {"type": "default", "ttl": "5m"}
+        assert result["system_cachepoint_config"] == {"type": "default", "ttl": "10m"}
+        assert "tools_cachepoint_config_ttl" not in result
+        assert "system_cachepoint_config_ttl" not in result
+
+    def test_resolve_flattened_kwargs_cachepoint_ttl_preserves_existing_type(self):
+        result = AmazonBedrockChatGenerator._resolve_flattened_generation_kwargs(
+            {
+                "system_cachepoint_config": {"type": "custom"},
+                "system_cachepoint_config_ttl": "5m",
+            }
+        )
+        assert result["system_cachepoint_config"] == {"type": "custom", "ttl": "5m"}
+
     def test_run_completion(self, mock_boto3_session, set_env_variables):
         generator = AmazonBedrockChatGenerator(model="global.anthropic.claude-sonnet-4-6")
         generator.client = MagicMock()
@@ -714,7 +780,6 @@ class TestAmazonBedrockChatGenerator:
         assert result["replies"][0].text == "Paris"
 
     def test_run_client_error(self, mock_boto3_session, set_env_variables):
-
         generator = AmazonBedrockChatGenerator(model="global.anthropic.claude-sonnet-4-6")
         generator.client = MagicMock()
         generator.client.converse.side_effect = ClientError(
@@ -768,6 +833,49 @@ class TestAmazonBedrockChatGenerator:
         result = await generator.run_async([ChatMessage.from_user("What's the capital of France?")])
         assert len(result["replies"]) == 1
         assert result["replies"][0].text == "Paris"
+
+    def test_run_with_string_input(self, mock_boto3_session, set_env_variables):
+        generator = AmazonBedrockChatGenerator(model="global.anthropic.claude-sonnet-4-6")
+        generator.client = MagicMock()
+        generator.client.converse.return_value = {
+            "output": {"message": {"role": "assistant", "content": [{"text": "Paris"}]}},
+            "stopReason": "end_turn",
+            "usage": {"inputTokens": 10, "outputTokens": 5},
+            "metrics": {"latencyMs": 100},
+        }
+        result = generator.run("What's the capital of France?")
+        _, kwargs = generator.client.converse.call_args
+        assert kwargs["messages"] == [{"content": [{"text": "What's the capital of France?"}], "role": "user"}]
+        assert isinstance(result["replies"], list)
+        assert len(result["replies"]) == 1
+        assert isinstance(result["replies"][0], ChatMessage)
+
+    @pytest.mark.asyncio
+    async def test_run_async_with_string_input(self, mock_boto3_session, set_env_variables):
+        generator = AmazonBedrockChatGenerator(model="global.anthropic.claude-sonnet-4-6")
+        mock_response = {
+            "output": {"message": {"role": "assistant", "content": [{"text": "Paris"}]}},
+            "stopReason": "end_turn",
+            "usage": {"inputTokens": 10, "outputTokens": 5},
+            "metrics": {"latencyMs": 100},
+        }
+        mock_async_client = AsyncMock()
+        mock_async_client.converse.return_value = mock_response
+
+        mock_session = MagicMock()
+        mock_cm = MagicMock()
+        mock_cm.__aenter__ = AsyncMock(return_value=mock_async_client)
+        mock_cm.__aexit__ = AsyncMock(return_value=False)
+        mock_session.create_client.return_value = mock_cm
+
+        generator.async_session = mock_session
+
+        result = await generator.run_async("What's the capital of France?")
+        _, kwargs = mock_async_client.converse.call_args
+        assert kwargs["messages"] == [{"content": [{"text": "What's the capital of France?"}], "role": "user"}]
+        assert isinstance(result["replies"], list)
+        assert len(result["replies"]) == 1
+        assert isinstance(result["replies"][0], ChatMessage)
 
 
 # In the CI, those tests are skipped if AWS Authentication fails

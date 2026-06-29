@@ -235,6 +235,7 @@ class ValkeyDocumentStore(DocumentStore):
                     credentials=self._build_credentials(self._username, self._password),
                     request_timeout=self._request_timeout,
                     reconnect_strategy=reconnect_strategy,
+                    client_name="haystack_vector_store_client",
                 )
                 self._client = SyncGlideClient.create(client_config)
             return self._client
@@ -272,6 +273,7 @@ class ValkeyDocumentStore(DocumentStore):
                     credentials=self._build_credentials(self._username, self._password),
                     request_timeout=self._request_timeout,
                     reconnect_strategy=reconnect_strategy,
+                    client_name="haystack_vector_store_client",
                 )
                 self._async_client = await GlideClient.create(client_config)
             return self._async_client
@@ -734,7 +736,9 @@ class ValkeyDocumentStore(DocumentStore):
         """
         client = self._get_connection()
 
-        keys: list[str | bytes] = [f"{self._index_name}:{doc_id}" for doc_id in document_ids]
+        keys: list[str | bytes | bytearray | memoryview[int]] = [
+            f"{self._index_name}:{doc_id}" for doc_id in document_ids
+        ]
         try:
             result = client.delete(keys)
             if result < len(document_ids):
@@ -770,7 +774,9 @@ class ValkeyDocumentStore(DocumentStore):
         """
         client = await self._get_connection_async()
 
-        keys: list[str | bytes] = [f"{self._index_name}:{doc_id}" for doc_id in document_ids]
+        keys: list[str | bytes | bytearray | memoryview[int]] = [
+            f"{self._index_name}:{doc_id}" for doc_id in document_ids
+        ]
         try:
             result = await client.delete(keys)
             if result < len(document_ids):

@@ -28,7 +28,8 @@ from haystack_integrations.components.rankers.nvidia import NvidiaRanker
 def test_base_url_invalid_not_hosted(base_url: str, component) -> None:
     with pytest.warns(UserWarning) as msg:
         component(api_url=base_url, model="x")
-    assert "you may have inference and listing issues" in str(msg[0].message)
+    user_warnings = [w for w in msg if issubclass(w.category, UserWarning)]
+    assert any("you may have inference and listing issues" in str(w.message) for w in user_warnings)
 
 
 @pytest.mark.parametrize(

@@ -4,6 +4,7 @@
 
 """Convert Haystack filter dictionaries to ArcadeDB SQL WHERE clauses."""
 
+import re
 from typing import Any
 
 
@@ -64,6 +65,13 @@ def _parse_condition(condition: dict[str, Any]) -> str:
 
 
 def _comparison_to_sql(field: str, operator: str, value: Any) -> str:
+    if not re.match(r'^[a-zA-Z_][a-zA-Z0-9_.\[\]"]*$', field):
+        msg = (
+            f"Invalid field name: {field}. Field names must start with a letter or underscore and can contain "
+            f"letters, digits, underscores, dots, brackets, and quotes."
+        )
+        raise ValueError(msg)
+
     if operator == "==":
         if value is None:
             return f"{field} IS NULL"
@@ -97,7 +105,8 @@ def _comparison_to_sql(field: str, operator: str, value: Any) -> str:
             msg = "Operator 'not in' requires value to be a list"
             raise ValueError(msg)
         values = ", ".join(_sql_value(v) for v in value)
-        return f"{field} NOT IN [{values}]"
+        # ArcadeDB's NOT IN excludes records where the property is null/missing
+        return f"({field} NOT IN [{values}] OR {field} IS NULL)"
 
     msg = f"Unsupported filter operator: {operator}"
     raise ValueError(msg)
@@ -106,7 +115,7 @@ def _comparison_to_sql(field: str, operator: str, value: Any) -> str:
 def _sql_value(value: Any) -> str:
     """Format a Python value as an ArcadeDB SQL literal."""
     if isinstance(value, str):
-        escaped = value.replace("'", "\\'")
+        escaped = value.replace("\\", "\\\\").replace("'", "\\'")
         return f"'{escaped}'"
     if isinstance(value, bool):
         return "true" if value else "false"

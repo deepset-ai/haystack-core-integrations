@@ -1,9 +1,13 @@
+from dataclasses import replace
+from unittest.mock import AsyncMock, Mock
+
 import pytest
 from haystack.dataclasses import Document, SparseEmbedding
 from haystack.document_stores.types import FilterPolicy
 from haystack.testing.document_store import (
     FilterableDocsFixtureMixin,
 )
+from qdrant_client.http import models as rest
 
 from haystack_integrations.components.retrievers.qdrant import (
     QdrantSparseEmbeddingRetriever,
@@ -12,6 +16,10 @@ from haystack_integrations.document_stores.qdrant import QdrantDocumentStore
 
 
 class TestQdrantSparseEmbeddingRetriever:
+    def test_init_raises_when_document_store_is_not_qdrant(self):
+        with pytest.raises(ValueError, match="must be an instance of QdrantDocumentStore"):
+            QdrantSparseEmbeddingRetriever(document_store="not a document store")
+
     def test_init_default(self):
         document_store = QdrantDocumentStore(location=":memory:", index="test")
         retriever = QdrantSparseEmbeddingRetriever(document_store=document_store)
@@ -146,6 +154,50 @@ class TestQdrantSparseEmbeddingRetriever:
         assert retriever._group_by is None
         assert retriever._group_size is None
 
+    def test_run(self):
+        mock_store = Mock(spec=QdrantDocumentStore)
+        sparse = SparseEmbedding(indices=[0, 5], values=[0.1, 0.7])
+        mock_store._query_by_sparse.return_value = [Document(content="doc", sparse_embedding=sparse)]
+
+        retriever = QdrantSparseEmbeddingRetriever(document_store=mock_store)
+        res = retriever.run(query_sparse_embedding=sparse, top_k=4)
+
+        call_kwargs = mock_store._query_by_sparse.call_args.kwargs
+        assert call_kwargs["query_sparse_embedding"] == sparse
+        assert call_kwargs["top_k"] == 4
+        assert res["documents"][0].content == "doc"
+
+    @pytest.mark.asyncio
+    async def test_run_async(self):
+        mock_store = Mock(spec=QdrantDocumentStore)
+        sparse = SparseEmbedding(indices=[0, 5], values=[0.1, 0.7])
+        mock_store._query_by_sparse_async = AsyncMock(return_value=[Document(content="doc", sparse_embedding=sparse)])
+
+        retriever = QdrantSparseEmbeddingRetriever(document_store=mock_store)
+        res = await retriever.run_async(query_sparse_embedding=sparse)
+
+        mock_store._query_by_sparse_async.assert_awaited_once()
+        assert res["documents"][0].content == "doc"
+
+    def test_run_raises_when_merge_with_native_filter(self):
+        document_store = QdrantDocumentStore(location=":memory:", index="test")
+        retriever = QdrantSparseEmbeddingRetriever(
+            document_store=document_store,
+            filters=rest.Filter(must=[]),
+            filter_policy=FilterPolicy.MERGE,
+        )
+        sparse = SparseEmbedding(indices=[0], values=[0.1])
+        with pytest.raises(ValueError, match="Native Qdrant filters"):
+            retriever.run(query_sparse_embedding=sparse)
+
+    @pytest.mark.asyncio
+    async def test_run_async_raises_when_merge_with_native_filter(self):
+        document_store = QdrantDocumentStore(location=":memory:", index="test")
+        retriever = QdrantSparseEmbeddingRetriever(document_store=document_store, filter_policy=FilterPolicy.MERGE)
+        sparse = SparseEmbedding(indices=[0], values=[0.1])
+        with pytest.raises(ValueError, match="Native Qdrant filters"):
+            await retriever.run_async(query_sparse_embedding=sparse, filters=rest.Filter(must=[]))
+
 
 @pytest.mark.integration
 class TestQdrantSparseEmbeddingRetrieverIntegration(FilterableDocsFixtureMixin):
@@ -153,8 +205,7 @@ class TestQdrantSparseEmbeddingRetrieverIntegration(FilterableDocsFixtureMixin):
         document_store = QdrantDocumentStore(location=":memory:", index="Boi", use_sparse_embeddings=True)
 
         # Add fake sparse embedding to documents
-        for doc in filterable_docs:
-            doc.sparse_embedding = generate_sparse_embedding()
+        filterable_docs = [replace(doc, sparse_embedding=generate_sparse_embedding()) for doc in filterable_docs]
 
         document_store.write_documents(filterable_docs)
         retriever = QdrantSparseEmbeddingRetriever(document_store=document_store)
@@ -173,9 +224,14 @@ class TestQdrantSparseEmbeddingRetrieverIntegration(FilterableDocsFixtureMixin):
         document_store = QdrantDocumentStore(location=":memory:", index="Boi", use_sparse_embeddings=True)
 
         # Add fake sparse embedding to documents
-        for index, doc in enumerate(filterable_docs):
-            doc.sparse_embedding = generate_sparse_embedding()
-            doc.meta = {"group_field": index // 2}  # So at least two docs have same group each time
+        filterable_docs = [
+            replace(
+                doc,
+                sparse_embedding=generate_sparse_embedding(),
+                meta={"group_field": index // 2},  # So at least two docs have same group each time
+            )
+            for index, doc in enumerate(filterable_docs)
+        ]
         document_store.write_documents(filterable_docs)
         retriever = QdrantSparseEmbeddingRetriever(document_store=document_store)
         sparse_embedding = SparseEmbedding(indices=[0, 1, 2, 3], values=[0.1, 0.8, 0.05, 0.33])
@@ -197,8 +253,7 @@ class TestQdrantSparseEmbeddingRetrieverIntegration(FilterableDocsFixtureMixin):
         document_store = QdrantDocumentStore(location=":memory:", index="Boi", use_sparse_embeddings=True)
 
         # Add fake sparse embedding to documents
-        for doc in filterable_docs:
-            doc.sparse_embedding = generate_sparse_embedding()
+        filterable_docs = [replace(doc, sparse_embedding=generate_sparse_embedding()) for doc in filterable_docs]
 
         await document_store.write_documents_async(filterable_docs)
         retriever = QdrantSparseEmbeddingRetriever(document_store=document_store)
@@ -218,9 +273,14 @@ class TestQdrantSparseEmbeddingRetrieverIntegration(FilterableDocsFixtureMixin):
         document_store = QdrantDocumentStore(location=":memory:", index="Boi", use_sparse_embeddings=True)
 
         # Add fake sparse embedding to documents
-        for index, doc in enumerate(filterable_docs):
-            doc.sparse_embedding = generate_sparse_embedding()
-            doc.meta = {"group_field": index // 2}  # So at least two docs have same group each time
+        filterable_docs = [
+            replace(
+                doc,
+                sparse_embedding=generate_sparse_embedding(),
+                meta={"group_field": index // 2},  # So at least two docs have same group each time
+            )
+            for index, doc in enumerate(filterable_docs)
+        ]
         await document_store.write_documents_async(filterable_docs)
         retriever = QdrantSparseEmbeddingRetriever(document_store=document_store)
         sparse_embedding = SparseEmbedding(indices=[0, 1, 2, 3], values=[0.1, 0.8, 0.05, 0.33])

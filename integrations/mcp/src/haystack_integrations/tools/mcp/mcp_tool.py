@@ -63,6 +63,27 @@ def _resolve_headers(headers: dict[str, str | Secret] | None) -> dict[str, str] 
     return resolved_headers
 
 
+def _extract_first_text_element(tool_call_result: str) -> str | dict[str, Any]:
+    """
+    Return the first text content block from an MCP tool call result.
+
+    MCP tool call results may include mixed content types such as text, image, or
+    audio blocks. This helper extracts the first text block because the tool
+    invoker expects a single parsed payload rather than the full content list.
+    """
+    parsed: dict = json.loads(tool_call_result)
+    content: list = parsed.get("content", [])
+    for block in content:
+        if isinstance(block, dict) and block.get("type") == "text":
+            text = block.get("text", "")
+            try:
+                return json.loads(text)
+            except (json.JSONDecodeError, TypeError):
+                return text
+    # No TextContent found, return full parsed response as fallback
+    return parsed
+
+
 class AsyncExecutor:
     """Thread-safe event loop executor for running async code from sync contexts."""
 
@@ -130,7 +151,7 @@ class AsyncExecutor:
 
         :param coro_factory: A callable receiving the stop_event and returning the coroutine to execute.
         :param timeout: Optional timeout while waiting for the stop_event to be created.
-        :returns: Tuple ``(future, stop_event)``.
+        :returns: Tuple `(future, stop_event)`.
         """
         # A promise that will be fulfilled from inside the coroutine_with_stop_event coroutine once the
         # stop_event is created *inside* the target event loop to ensure it is bound to the
@@ -1086,23 +1107,9 @@ class MCPTool(Tool):
             logger.debug(f"TOOL: Invoke complete for '{self.name}', result type: {type(result)}")
 
             # Parse JSON to dict only when outputs_to_state is configured.
-            # ToolInvoker requires dict for _merge_tool_outputs(); ToolCallResult.result expects str otherwise.
+            # State output handlers require a dict; ToolCallResult.result expects str otherwise.
             if self.outputs_to_state:
-                parsed = json.loads(result)
-
-                # Per MCP spec, content[] may contain TextContent, ImageContent, AudioContent, etc.
-                # Parse only first TextContent block (ToolInvoker requires dict, not list).
-                content = parsed.get("content", [])
-                for block in content:
-                    if isinstance(block, dict) and block.get("type") == "text":
-                        text = block.get("text", "")
-                        try:
-                            return json.loads(text)
-                        except (json.JSONDecodeError, TypeError):
-                            return text
-
-                # No TextContent found, return full parsed response as fallback
-                return parsed
+                return _extract_first_text_element(result)
 
             return result
         except (MCPError, TimeoutError) as e:
@@ -1131,23 +1138,9 @@ class MCPTool(Tool):
             result = await asyncio.wait_for(client.call_tool(self.name, kwargs), timeout=self._invocation_timeout)
 
             # Parse JSON to dict only when outputs_to_state is configured.
-            # ToolInvoker requires dict for _merge_tool_outputs(); ToolCallResult.result expects str otherwise.
+            # State output handlers require a dict; ToolCallResult.result expects str otherwise.
             if self.outputs_to_state:
-                parsed = json.loads(result)
-
-                # Per MCP spec, content[] may contain TextContent, ImageContent, AudioContent, etc.
-                # Parse only first TextContent block (ToolInvoker requires dict, not list).
-                content = parsed.get("content", [])
-                for block in content:
-                    if isinstance(block, dict) and block.get("type") == "text":
-                        text = block.get("text", "")
-                        try:
-                            return json.loads(text)
-                        except (json.JSONDecodeError, TypeError):
-                            return text
-
-                # No TextContent found, return full parsed response as fallback
-                return parsed
+                return _extract_first_text_element(result)
 
             return result
         except asyncio.TimeoutError as e:

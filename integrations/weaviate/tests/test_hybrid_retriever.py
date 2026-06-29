@@ -63,6 +63,8 @@ def test_to_dict(_mock_weaviate):
                 "type": "haystack_integrations.document_stores.weaviate.document_store.WeaviateDocumentStore",
                 "init_parameters": {
                     "url": None,
+                    "grpc_port": 50051,
+                    "grpc_secure": False,
                     "collection_settings": {
                         "class": "Default",
                         "invertedIndexConfig": {"indexNullState": True},
@@ -119,6 +121,8 @@ def test_from_dict(_mock_weaviate):
                     "type": "haystack_integrations.document_stores.weaviate.document_store.WeaviateDocumentStore",
                     "init_parameters": {
                         "url": None,
+                        "grpc_port": 50051,
+                        "grpc_secure": False,
                         "collection_settings": {
                             "class": "Default",
                             "invertedIndexConfig": {"indexNullState": True},
@@ -162,6 +166,8 @@ def test_from_dict_with_parameters(_mock_weaviate):
                     "type": "haystack_integrations.document_stores.weaviate.document_store.WeaviateDocumentStore",
                     "init_parameters": {
                         "url": None,
+                        "grpc_port": 50051,
+                        "grpc_secure": False,
                         "collection_settings": {
                             "class": "Default",
                             "invertedIndexConfig": {"indexNullState": True},
@@ -300,6 +306,8 @@ def test_from_dict_no_filter_policy(_mock_weaviate):
                     "type": "haystack_integrations.document_stores.weaviate.document_store.WeaviateDocumentStore",
                     "init_parameters": {
                         "url": None,
+                        "grpc_port": 50051,
+                        "grpc_secure": False,
                         "collection_settings": {
                             "class": "Default",
                             "invertedIndexConfig": {"indexNullState": True},
@@ -333,7 +341,7 @@ def test_run_with_alpha_zero_runtime():
     mock_document_store._hybrid_retrieval.return_value = [Mock(content="Doc", score=1.0)]
 
     retriever = WeaviateHybridRetriever(document_store=mock_document_store)
-    _ = retriever.run(
+    retriever.run(
         query="q",
         query_embedding=[0.1, 0.2],
         alpha=0.0,
@@ -354,7 +362,7 @@ def test_run_with_alpha_zero_init_and_none_runtime():
     mock_document_store._hybrid_retrieval.return_value = [Mock(content="Doc", score=1.0)]
 
     retriever = WeaviateHybridRetriever(document_store=mock_document_store, alpha=0.0)
-    _ = retriever.run(
+    retriever.run(
         query="q",
         query_embedding=[0.1, 0.2],
         alpha=None,
@@ -375,7 +383,7 @@ def test_run_with_max_vector_distance_zero_runtime():
     mock_document_store._hybrid_retrieval.return_value = [Mock(content="Doc", score=1.0)]
 
     retriever = WeaviateHybridRetriever(document_store=mock_document_store)
-    _ = retriever.run(
+    retriever.run(
         query="q",
         query_embedding=[0.1, 0.2],
         max_vector_distance=0.0,
@@ -396,7 +404,7 @@ def test_run_with_max_vector_distance_zero_init_and_none_runtime():
     mock_document_store._hybrid_retrieval.return_value = [Mock(content="Doc", score=1.0)]
 
     retriever = WeaviateHybridRetriever(document_store=mock_document_store, max_vector_distance=0.0)
-    _ = retriever.run(
+    retriever.run(
         query="q",
         query_embedding=[0.1, 0.2],
         max_vector_distance=None,

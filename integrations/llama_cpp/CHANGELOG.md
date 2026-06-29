@@ -1,5 +1,34 @@
 # Changelog
 
+## [integrations/llama_cpp-v2.3.0] - 2026-06-04
+
+### 🚀 Features
+
+- Llama.cpp - accept str as ChatGenerator input; deprecate generator; migrate generator example to chat generator (#3400)
+
+### 📚 Documentation
+
+- Generate missing API reference for Chat Generator (#2842)
+- *(llama_cpp)* Remove explicit warm_up calls (#2852)
+- Simplify pydoc configs (#2855)
+
+### 🧪 Testing
+
+- Test compatible integrations with python 3.14; update pyproject (#3001)
+- Track test coverage for all integrations (#3065)
+
+### ⚙️ CI
+
+- Refactor some workflows (#3074)
+- Llama.cpp - simplify test setup (#3113)
+
+### 🧹 Chores
+
+- Remove unused allow-direct-references (#2866)
+- Add ANN ruff ruleset to llama_cpp, llama_stack, mcp, meta_llama, mistral, mongodb_atlas, nvidia, ollama, openrouter, opensearch (#2991)
+- Enforce ruff docstring rules (D102/D103/D205/D209/D213/D417/D419) in integrations 21-30 (#3010)
+
+
 ## [integrations/llama_cpp-v2.2.0] - 2026-02-16
 
 ### 🚀 Features

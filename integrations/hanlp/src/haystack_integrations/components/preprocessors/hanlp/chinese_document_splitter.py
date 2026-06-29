@@ -4,6 +4,7 @@
 
 from collections.abc import Callable
 from copy import deepcopy
+from dataclasses import replace
 from typing import Any, Literal
 
 from haystack import Document, component, logging
@@ -440,10 +441,7 @@ class ChineseDocumentSplitter:
             previous_doc_start_idx = splits_start_idxs[i - 1]
             self._add_split_overlap_information(doc, doc_start_idx, previous_doc, previous_doc_start_idx)
 
-        for d in documents:
-            if d.content is not None:
-                d.content = d.content.replace(" ", "")
-        return documents
+        return [replace(d, content=d.content.replace(" ", "")) if d.content is not None else d for d in documents]
 
     @staticmethod
     def _add_split_overlap_information(

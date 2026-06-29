@@ -1,4 +1,5 @@
 import base64
+import dataclasses
 import json
 import os
 import re
@@ -93,7 +94,7 @@ def _format_tools(
         )
 
     if tools_cachepoint_config:
-        tool_specs.append({"cachePoint": tools_cachepoint_config})
+        tool_specs.append(tools_cachepoint_config)
 
     return {"tools": tool_specs}
 
@@ -385,7 +386,9 @@ def _validate_and_format_cache_point(cache_point: dict[str, str] | None) -> dict
     return {"cachePoint": cache_point}
 
 
-def _format_messages(messages: list[ChatMessage]) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+def _format_messages(
+    messages: list[ChatMessage], system_cachepoint_config: dict[str, dict[str, str]] | None = None
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     """
     Format a list of Haystack ChatMessages to the format expected by Bedrock API.
 
@@ -393,6 +396,7 @@ def _format_messages(messages: list[ChatMessage]) -> tuple[list[dict[str, Any]],
     and tool results.
 
     :param messages: List of ChatMessage objects to format for Bedrock API.
+    :param system_cachepoint_config: Optional cache point configuration for system messages.
     :returns: Tuple containing (system_prompts, non_system_messages) in Bedrock format,
               where system_prompts is a list of system message dictionaries and
               non_system_messages is a list of properly formatted message dictionaries.
@@ -408,6 +412,8 @@ def _format_messages(messages: list[ChatMessage]) -> tuple[list[dict[str, Any]],
             system_prompts.append({"text": msg.text})
             if cache_point:
                 system_prompts.append(cache_point)
+            elif system_cachepoint_config:
+                system_prompts.append(system_cachepoint_config)
             continue
 
         if msg.tool_calls:
@@ -568,13 +574,16 @@ def _convert_event_to_streaming_chunk(
         # This only occurs when accumulating the arguments for a toolUse
         # The content_block for this tool should already exist at this point
         elif "toolUse" in delta:
+            tool_use_input = delta["toolUse"].get("input", "")
+            # boto3 might return int for input
+            arguments = str(tool_use_input) if tool_use_input is not None else None
             streaming_chunk = StreamingChunk(
                 content="",
                 index=block_idx,
                 tool_calls=[
                     ToolCallDelta(
                         index=block_idx,
-                        arguments=delta["toolUse"].get("input", ""),
+                        arguments=arguments,
                     )
                 ],
                 meta=base_meta,
@@ -627,7 +636,7 @@ def _convert_event_to_streaming_chunk(
         if len(chunk_meta) > len(base_meta):
             streaming_chunk = StreamingChunk(content="", meta=chunk_meta)
 
-    streaming_chunk.component_info = component_info
+    streaming_chunk = dataclasses.replace(streaming_chunk, component_info=component_info)
 
     return streaming_chunk
 

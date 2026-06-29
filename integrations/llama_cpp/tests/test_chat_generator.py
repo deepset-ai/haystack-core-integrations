@@ -4,10 +4,10 @@
 
 import json
 import os
-import urllib.request
 from pathlib import Path
 from typing import Annotated
 from unittest.mock import MagicMock
+from urllib.parse import urlparse
 
 import pytest
 from haystack import Document, Pipeline
@@ -25,6 +25,7 @@ from haystack.dataclasses import (
 )
 from haystack.document_stores.in_memory import InMemoryDocumentStore
 from haystack.tools import Tool, Toolset, create_tool_from_function
+from huggingface_hub import hf_hub_download
 
 from haystack_integrations.components.generators.llama_cpp.chat.chat_generator import (
     LlamaCppChatGenerator,
@@ -58,14 +59,23 @@ def temperature_tool():
 
 
 def download_file(file_link, filename, capsys):
-    # Checks if the file already exists before downloading
-    if not os.path.isfile(filename):
-        urllib.request.urlretrieve(file_link, filename)  # noqa: S310
-        with capsys.disabled():
-            print("\nModel file downloaded successfully.")
-    else:
+    # `filename` is the local destination path. `file_link` is a HuggingFace "resolve"
+    # URL; we download via huggingface_hub so the request is authenticated with the
+    # HF_TOKEN env var (avoids anonymous rate limits and supports gated repos).
+    if os.path.isfile(filename):
         with capsys.disabled():
             print("\nModel file already exists.")
+        return
+
+    # Parse https://huggingface.co/<repo_id>/resolve/<revision>/<path> into its parts.
+    repo_id, _, rest = urlparse(file_link).path.lstrip("/").partition("/resolve/")
+    revision, _, path_in_repo = rest.partition("/")
+    dest = Path(filename)
+    downloaded = Path(hf_hub_download(repo_id=repo_id, filename=path_in_repo, revision=revision, local_dir=dest.parent))
+    if downloaded != dest:
+        downloaded.rename(dest)
+    with capsys.disabled():
+        print("\nModel file downloaded successfully.")
 
 
 def test_convert_message_to_llamacpp_format():
@@ -903,6 +913,26 @@ class TestLlamaCppChatGenerator:
         )
         assert generator.model_kwargs["n_batch"] == 1024
 
+    def test_run_with_string_input(self, generator_mock):
+        """
+        Test that a string input is converted to a user ChatMessage and returns a list of replies.
+        """
+        generator, mock_model = generator_mock
+        mock_output = {
+            "id": "unique-id-123",
+            "model": "Test Model Path",
+            "created": 1715226164,
+            "choices": [{"index": 0, "message": {"content": "Paris", "role": "assistant"}, "finish_reason": "stop"}],
+            "usage": {"prompt_tokens": 14, "completion_tokens": 57, "total_tokens": 71},
+        }
+        mock_model.create_chat_completion.return_value = mock_output
+        result = generator.run("What's the capital of France?")
+        call_args = mock_model.create_chat_completion.call_args[1]
+        assert call_args["messages"] == [{"role": "user", "content": "What's the capital of France?"}]
+        assert isinstance(result["replies"], list)
+        assert len(result["replies"]) == 1
+        assert isinstance(result["replies"][0], ChatMessage)
+
     def test_run_with_empty_message(self, generator_mock):
         """
         Test that an empty message returns an empty list of replies.
@@ -1223,6 +1253,25 @@ class TestLlamaCppChatGeneratorAsync:
         call_kwargs = mock_model.create_chat_completion.call_args[1]
         assert call_kwargs["max_tokens"] == 128
         assert call_kwargs["temperature"] == 0.5
+
+    async def test_run_async_with_string_input(self, generator_mock):
+        """Test that a string input is converted to a user ChatMessage and returns a list of replies."""
+        generator, mock_model = generator_mock
+        mock_output = {
+            "id": "unique-id-123",
+            "model": "Test Model Path",
+            "created": 1715226164,
+            "choices": [{"index": 0, "message": {"content": "Paris", "role": "assistant"}, "finish_reason": "stop"}],
+            "usage": {"prompt_tokens": 14, "completion_tokens": 57, "total_tokens": 71},
+        }
+        mock_model.create_chat_completion.return_value = mock_output
+
+        result = await generator.run_async("What's the capital of France?")
+        call_args = mock_model.create_chat_completion.call_args[1]
+        assert call_args["messages"] == [{"role": "user", "content": "What's the capital of France?"}]
+        assert isinstance(result["replies"], list)
+        assert len(result["replies"]) == 1
+        assert isinstance(result["replies"][0], ChatMessage)
 
     @pytest.fixture
     def generator(self, model_path, capsys):

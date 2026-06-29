@@ -68,12 +68,13 @@ def test_to_dict(_mock_opensearch_client):
                 "type": "haystack_integrations.document_stores.opensearch.document_store.OpenSearchDocumentStore",
             },
             "filters": {},
-            "fuzziness": "AUTO",
+            "fuzziness": 0,
             "top_k": 10,
             "scale_score": False,
             "filter_policy": "replace",
             "custom_query": {"some": "custom query"},
             "raise_on_failure": True,
+            "all_terms_must_match": False,
         },
     }
 
@@ -91,6 +92,7 @@ def test_from_dict(_mock_opensearch_client):
             "fuzziness": "AUTO",
             "top_k": 10,
             "scale_score": True,
+            "all_terms_must_match": True,
             "filter_policy": "replace",
             "custom_query": {"some": "custom query"},
             "raise_on_failure": False,
@@ -102,6 +104,7 @@ def test_from_dict(_mock_opensearch_client):
     assert retriever._fuzziness == "AUTO"
     assert retriever._top_k == 10
     assert retriever._scale_score
+    assert retriever._all_terms_must_match is True
     assert retriever._filter_policy == FilterPolicy.REPLACE
     assert retriever._custom_query == {"some": "custom query"}
     assert retriever._raise_on_failure is False
@@ -124,6 +127,7 @@ def test_from_dict(_mock_opensearch_client):
     }
     retriever = OpenSearchBM25Retriever.from_dict(data)
     assert retriever._filter_policy == FilterPolicy.REPLACE
+    assert retriever._all_terms_must_match is False
 
 
 @patch("haystack_integrations.document_stores.opensearch.document_store.OpenSearch")
@@ -163,7 +167,7 @@ def test_run():
     mock_store._bm25_retrieval.assert_called_once_with(
         query="some query",
         filters={},
-        fuzziness="AUTO",
+        fuzziness=0,
         top_k=10,
         scale_score=False,
         all_terms_must_match=False,
@@ -183,7 +187,7 @@ async def test_run_async():
     mock_store._bm25_retrieval_async.assert_called_once_with(
         query="some query",
         filters={},
-        fuzziness="AUTO",
+        fuzziness=0,
         top_k=10,
         scale_score=False,
         all_terms_must_match=False,
@@ -326,6 +330,22 @@ def test_run_ignore_errors(caplog):
     assert "Some error" in caplog.text
 
 
+@pytest.mark.asyncio
+async def test_run_async_ignore_errors(caplog):
+    mock_store = Mock(spec=OpenSearchDocumentStore)
+    mock_store._bm25_retrieval_async.side_effect = Exception("Some error")
+    retriever = OpenSearchBM25Retriever(document_store=mock_store, raise_on_failure=False)
+    res = await retriever.run_async(query="some query")
+    assert len(res) == 1
+    assert res["documents"] == []
+    assert "Some error" in caplog.text
+
+
+def test_init_raises_on_invalid_document_store():
+    with pytest.raises(ValueError, match="document_store must be an instance of OpenSearchDocumentStore"):
+        OpenSearchBM25Retriever(document_store="not a document store")
+
+
 def test_run_with_runtime_document_store():
     # initial document store
     initial_store = Mock(spec=OpenSearchDocumentStore)
@@ -343,7 +363,7 @@ def test_run_with_runtime_document_store():
     runtime_store._bm25_retrieval.assert_called_once_with(
         query="some query",
         filters={},
-        fuzziness="AUTO",
+        fuzziness=0,
         top_k=10,
         scale_score=False,
         all_terms_must_match=False,
@@ -374,7 +394,7 @@ async def test_run_async_with_runtime_document_store():
     runtime_store._bm25_retrieval_async.assert_called_once_with(
         query="some query",
         filters={},
-        fuzziness="AUTO",
+        fuzziness=0,
         top_k=10,
         scale_score=False,
         all_terms_must_match=False,

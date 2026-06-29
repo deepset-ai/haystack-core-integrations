@@ -1,15 +1,10 @@
 import json
 import os
-import socket
-import subprocess
-import sys
-import tempfile
-import time
 from unittest.mock import patch
 
+import httpx
 import pytest
 import pytest_asyncio
-from haystack import logging
 from haystack.components.agents import Agent
 from haystack.components.generators.chat import OpenAIChatGenerator
 from haystack.core.pipeline import Pipeline
@@ -24,15 +19,15 @@ from haystack_integrations.tools.mcp.mcp_tool import (
     StreamableHttpServerInfo,
 )
 from haystack_integrations.tools.mcp.mcp_toolset import (
-    _deserialize_state_config,
-    _serialize_state_config,
+    _deserialize_outputs_to_state,
+    _deserialize_outputs_to_string,
+    _serialize_outputs_to_state,
+    _serialize_outputs_to_string,
 )
 
 # Import in-memory transport and fixtures
 from .mcp_memory_transport import InMemoryServerInfo
-from .mcp_servers_fixtures import calculator_mcp, echo_mcp
-
-logger = logging.getLogger(__name__)
+from .mcp_servers_fixtures import calculator_mcp, echo_mcp, image_mcp, state_calculator_mcp
 
 
 @pytest_asyncio.fixture
@@ -152,6 +147,16 @@ class TestMCPToolset:
         assert echo_tool.name == "echo"
         assert "Echo the input text." in echo_tool.description
 
+    async def test_toolset_invoke_returns_raw_json_string_without_outputs_to_state(self, echo_toolset):
+        """Test that toolset-created tools keep the raw MCP JSON when no state output parsing is configured."""
+        echo_tool = echo_toolset.tools[0]
+
+        result = echo_tool.invoke(text="Hello MCP!")
+        parsed = json.loads(result)
+
+        assert parsed["content"][0]["text"] == "Hello MCP!"
+        assert parsed["isError"] is False
+
     async def test_toolset_with_filtered_tools(self, calculator_toolset_with_tool_filter):
         """Test if the MCPToolset correctly filters tools based on tool_names parameter."""
         toolset = calculator_toolset_with_tool_filter
@@ -171,6 +176,24 @@ class TestMCPToolset:
         tool = toolset.tools[0]
         assert tool.name == "add"
         assert "Add two integers." in tool.description
+
+    async def test_toolset_warm_up_replaces_placeholder_and_is_idempotent(self, mcp_tool_cleanup):
+        """Test lazy toolsets swap the placeholder tool for real tools exactly once."""
+        server_info = InMemoryServerInfo(server=calculator_mcp._mcp_server)
+        toolset = MCPToolset(server_info=server_info, eager_connect=False)
+        mcp_tool_cleanup(toolset)
+
+        assert len(toolset.tools) == 1
+        assert toolset.tools[0].name.startswith("mcp_not_connected_placeholder_")
+
+        toolset.warm_up()
+        warmed_tool_names = [tool.name for tool in toolset.tools]
+
+        assert set(warmed_tool_names) == {"add", "subtract", "divide_by_zero"}
+        assert not any(name.startswith("mcp_not_connected_placeholder_") for name in warmed_tool_names)
+
+        toolset.warm_up()
+        assert [tool.name for tool in toolset.tools] == warmed_tool_names
 
     async def test_toolset_serde(self, calculator_toolset):
         """Test serialization and deserialization of MCPToolset."""
@@ -292,6 +315,59 @@ class TestMCPToolset:
         assert add_tool.outputs_to_string is not None
         assert subtract_tool.outputs_to_string is None
 
+    async def test_toolset_invoke_returns_parsed_dict_when_outputs_to_state_configured(self, mcp_tool_cleanup):
+        """Test that toolset-created tools parse MCP text content into dicts for state updates."""
+        server_info = InMemoryServerInfo(server=state_calculator_mcp._mcp_server)
+        toolset = MCPToolset(
+            server_info=server_info,
+            tool_names=["state_add"],
+            eager_connect=True,
+            outputs_to_state={"state_add": {"result": {"source": "result"}}},
+        )
+        mcp_tool_cleanup(toolset)
+
+        add_tool = toolset.tools[0]
+        result = add_tool.invoke(a=20, b=22)
+
+        assert result == {"result": 42}
+
+    async def test_toolset_returns_full_response_for_non_text_content_with_outputs_to_state(self, mcp_tool_cleanup):
+        """Test that toolset-created tools preserve full MCP payloads when there is no text content to parse."""
+        server_info = InMemoryServerInfo(server=image_mcp._mcp_server)
+        toolset = MCPToolset(
+            server_info=server_info,
+            tool_names=["image_tool"],
+            eager_connect=True,
+            outputs_to_state={"image_tool": {"image_payload": {}}},
+        )
+        mcp_tool_cleanup(toolset)
+
+        image_tool = toolset.tools[0]
+        result = image_tool.invoke()
+
+        assert isinstance(result, dict)
+        assert len(result["content"]) == 1
+        assert result["content"][0]["type"] == "image"
+        assert result["content"][0]["data"] == "ZmFrZQ=="
+        assert result["content"][0]["mimeType"] == "image/png"
+        assert result["isError"] is False
+
+    async def test_toolset_returns_raw_text_when_outputs_to_state_content_is_not_json(self, mcp_tool_cleanup):
+        """Test that toolset-created tools preserve plain text when JSON decoding is not possible."""
+        server_info = InMemoryServerInfo(server=echo_mcp._mcp_server)
+        toolset = MCPToolset(
+            server_info=server_info,
+            tool_names=["echo"],
+            eager_connect=True,
+            outputs_to_state={"echo": {"echo_payload": {}}},
+        )
+        mcp_tool_cleanup(toolset)
+
+        echo_tool = toolset.tools[0]
+        result = echo_tool.invoke(text="Hello MCP!")
+
+        assert result == "Hello MCP!"
+
     async def test_toolset_state_config_serde(self, calculator_toolset_with_state_config, mcp_tool_cleanup):
         """Test serialization and deserialization of MCPToolset with state configuration."""
         toolset = calculator_toolset_with_state_config
@@ -325,9 +401,8 @@ class TestMCPToolset:
     async def test_toolset_state_config_unknown_tool_warning(self, caplog):
         """Test that a warning is logged when state config references unknown tools.
 
-        Note: This test validates unknown tool names at the MCPToolset level.
-        For parameter validation (unknown parameter names), see test_toolset_state_config_invalid_parameter_raises_error
-        which requires Haystack >= 2.22.0.
+        Note: This test validates unknown tool names at the MCPToolset level. For parameter validation
+        (unknown parameter names), see test_toolset_state_config_invalid_parameter_raises_error.
         """
         server_info = InMemoryServerInfo(server=calculator_mcp._mcp_server)
 
@@ -348,17 +423,8 @@ class TestMCPToolset:
             assert any("unknown_tool" in record.message for record in caplog.records)
             toolset.close()
 
-    @pytest.mark.skipif(
-        not hasattr(__import__("haystack.tools", fromlist=["Tool"]).Tool, "_get_valid_inputs"),
-        reason="Requires Haystack >= 2.22.0 for inputs_from_state validation",
-    )
     async def test_toolset_state_config_invalid_parameter_raises_error(self):
-        """Test that ValueError is raised when inputs_from_state references non-existent parameter.
-
-        Requires Haystack >= 2.22.0 which validates inputs_from_state parameter names.
-        With Haystack < 2.22.0, this test is skipped and invalid parameter mappings will
-        only fail at runtime when the tool is invoked.
-        """
+        """Test that ValueError is raised when inputs_from_state references non-existent parameter."""
         server_info = InMemoryServerInfo(server=calculator_mcp._mcp_server)
 
         with pytest.raises(ValueError, match="unknown parameter"):
@@ -373,6 +439,25 @@ class TestMCPToolset:
                 },
             )
 
+    async def test_toolset_lazy_invalid_parameter_raises_on_warm_up(self, mcp_tool_cleanup):
+        """Test that lazy toolsets defer invalid inputs_from_state validation until warm_up()."""
+        server_info = InMemoryServerInfo(server=calculator_mcp._mcp_server)
+        toolset = MCPToolset(
+            server_info=server_info,
+            tool_names=["add"],
+            eager_connect=False,
+            inputs_from_state={
+                "add": {"state_key": "non_existent_param"},
+            },
+        )
+        mcp_tool_cleanup(toolset)
+
+        assert len(toolset.tools) == 1
+        assert toolset.tools[0].name.startswith("mcp_not_connected_placeholder_")
+
+        with pytest.raises(ValueError, match="unknown parameter"):
+            toolset.warm_up()
+
     async def test_toolset_no_state_config(self, calculator_toolset):
         """Test that tools have no state config when none is provided."""
         toolset = calculator_toolset
@@ -382,7 +467,56 @@ class TestMCPToolset:
             assert tool.outputs_to_state is None
             assert tool.outputs_to_string is None
 
-    @pytest.mark.skipif("OPENAI_API_KEY" not in os.environ, reason="OPENAI_API_KEY not set")
+    async def test_toolset_streamable_http_connect_error_reports_host_and_port(self):
+        server_info = StreamableHttpServerInfo(url="http://host.example:12345/mcp")
+
+        with (
+            patch(
+                "haystack_integrations.tools.mcp.mcp_toolset._MCPClientSessionManager",
+                side_effect=httpx.ConnectError("refused"),
+            ),
+            pytest.raises(MCPConnectionError) as exc_info,
+        ):
+            MCPToolset(server_info=server_info, eager_connect=True)
+
+        msg = str(exc_info.value)
+        assert "streamable HTTP" in msg
+        assert "host.example" in msg
+        assert "12345" in msg
+
+    async def test_toolset_sse_connect_error_tags_sse_transport(self):
+        server_info = SSEServerInfo(url="https://host.example/sse")
+
+        with (
+            patch(
+                "haystack_integrations.tools.mcp.mcp_toolset._MCPClientSessionManager",
+                side_effect=RuntimeError("generic failure"),
+            ),
+            pytest.raises(MCPConnectionError, match="SSE"),
+        ):
+            MCPToolset(server_info=server_info, eager_connect=True)
+
+    async def test_toolset_stdio_connect_error_shows_command(self):
+        server_info = StdioServerInfo(command="missing", args=["--foo"])
+
+        with (
+            patch(
+                "haystack_integrations.tools.mcp.mcp_toolset._MCPClientSessionManager",
+                side_effect=RuntimeError("no such file"),
+            ),
+            pytest.raises(MCPConnectionError, match="missing --foo"),
+        ):
+            MCPToolset(server_info=server_info, eager_connect=True)
+
+    async def test_toolset_close_swallows_worker_stop_exceptions(self, mcp_tool_cleanup):
+        server_info = InMemoryServerInfo(server=calculator_mcp._mcp_server)
+        toolset = MCPToolset(server_info=server_info, eager_connect=True)
+        mcp_tool_cleanup(toolset)
+
+        with patch.object(toolset._worker, "stop", side_effect=RuntimeError("stop failed")):
+            toolset.close()
+
+    @pytest.mark.skipif(not os.environ.get("OPENAI_API_KEY"), reason="OPENAI_API_KEY not set")
     @pytest.mark.integration
     async def test_pipeline_warmup_with_mcp_toolset(self):
         """Test lazy connection with Pipeline.warm_up() - replicates time_pipeline.py."""
@@ -410,208 +544,50 @@ class TestMCPToolset:
 class TestMCPToolsetIntegration:
     """Integration tests for MCPToolset."""
 
-    @pytest.mark.skipif(sys.platform == "win32", reason="Windows fails for some reason")
-    def test_toolset_with_sse_connection(self):
+    def test_toolset_with_sse_connection(self, mcp_calculator_server, mcp_tool_cleanup):
         """Test MCPToolset with an SSE connection to a simple server."""
+        port = mcp_calculator_server("sse")
+        server_info = SSEServerInfo(url=f"http://127.0.0.1:{port}/sse")
+        toolset = mcp_tool_cleanup(MCPToolset(server_info=server_info, eager_connect=True))
 
-        # Find an available port
-        def find_free_port():
-            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-                s.bind(("", 0))
-                return s.getsockname()[1]
+        # Verify we got both tools
+        assert len(toolset) == 2
+        tool_names = [tool.name for tool in toolset.tools]
+        assert "add" in tool_names
+        assert "subtract" in tool_names
 
-        port = find_free_port()
+        # Test the add tool
+        add_tool = next(tool for tool in toolset.tools if tool.name == "add")
+        result = json.loads(add_tool.invoke(a=5, b=3))
+        assert result["content"][0]["text"] == "8"
 
-        # Create a temporary file for the server script
-        with tempfile.NamedTemporaryFile(suffix=".py", delete=False) as temp_file:
-            temp_file.write(
-                f"""
-from mcp.server.fastmcp import FastMCP
-mcp = FastMCP("MCP Calculator", host="127.0.0.1", port={port})
+        # Test the subtract tool
+        subtract_tool = next(tool for tool in toolset.tools if tool.name == "subtract")
+        result = json.loads(subtract_tool.invoke(a=10, b=4))
+        assert result["content"][0]["text"] == "6"
 
-@mcp.tool()
-def add(a: int, b: int) -> int:
-    \"\"\"Add two numbers\"\"\"
-    return a + b
-
-@mcp.tool()
-def subtract(a: int, b: int) -> int:
-    \"\"\"Subtract b from a\"\"\"
-    return a - b
-
-if __name__ == "__main__":
-    try:
-        mcp.run(transport="sse")
-    except Exception as e:
-        sys.exit(1)
-""".encode()
-            )
-            server_script_path = temp_file.name
-
-        server_process = None
-        try:
-            # Start the server in a separate process
-            server_process = subprocess.Popen(
-                ["python", server_script_path], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
-            )
-
-            # Give the server a moment to start
-            time.sleep(2)
-
-            # Create the toolset
-            server_info = SSEServerInfo(base_url=f"http://127.0.0.1:{port}")
-            toolset = MCPToolset(server_info=server_info, eager_connect=True)
-            # Verify we got both tools
-            assert len(toolset) == 2
-
-            tool_names = [tool.name for tool in toolset.tools]
-            assert "add" in tool_names
-            assert "subtract" in tool_names
-
-            # Test the add tool
-            add_tool = next(tool for tool in toolset.tools if tool.name == "add")
-            result_json = add_tool.invoke(a=5, b=3)
-
-            # Parse the JSON result
-            result = json.loads(result_json)
-            assert result["content"][0]["text"] == "8"
-
-            # Test the subtract tool
-            subtract_tool = next(tool for tool in toolset.tools if tool.name == "subtract")
-            result_json = subtract_tool.invoke(a=10, b=4)
-
-            # Parse the JSON result
-            result = json.loads(result_json)
-            assert result["content"][0]["text"] == "6"
-
-        except Exception:
-            # Check server output for clues
-            if server_process and server_process.poll() is None:
-                server_process.terminate()
-            raise
-
-        finally:
-            # Explicitly close tools first to prevent SSE connection errors
-            try:
-                toolset.close()
-            except Exception as e:
-                logger.debug(f"Error during tool cleanup: {e}")
-
-            # Clean up
-            if server_process:
-                if server_process.poll() is None:  # Process is still running
-                    server_process.terminate()
-                    try:
-                        server_process.wait(timeout=5)
-                    except subprocess.TimeoutExpired:
-                        server_process.kill()
-                        server_process.wait(timeout=5)
-
-            # Remove the temporary file
-            if os.path.exists(server_script_path):
-                os.remove(server_script_path)
-
-    @pytest.mark.skipif(sys.platform == "win32", reason="Windows fails for some reason")
-    def test_toolset_with_streamable_http_connection(self):
+    def test_toolset_with_streamable_http_connection(self, mcp_calculator_server, mcp_tool_cleanup):
         """Test MCPToolset with a streamable-http connection to a simple server."""
+        port = mcp_calculator_server("streamable-http")
+        # Note the /mcp endpoint for streamable-http
+        server_info = StreamableHttpServerInfo(url=f"http://127.0.0.1:{port}/mcp")
+        toolset = mcp_tool_cleanup(MCPToolset(server_info=server_info, eager_connect=True))
 
-        # Find an available port
-        def find_free_port():
-            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-                s.bind(("", 0))
-                return s.getsockname()[1]
+        # Verify we got both tools
+        assert len(toolset) == 2
+        tool_names = [tool.name for tool in toolset.tools]
+        assert "add" in tool_names
+        assert "subtract" in tool_names
 
-        port = find_free_port()
+        # Test the add tool
+        add_tool = next(tool for tool in toolset.tools if tool.name == "add")
+        result = json.loads(add_tool.invoke(a=5, b=3))
+        assert result["content"][0]["text"] == "8"
 
-        # Create a temporary file for the server script
-        with tempfile.NamedTemporaryFile(suffix=".py", delete=False) as temp_file:
-            temp_file.write(
-                f"""
-from mcp.server.fastmcp import FastMCP
-mcp = FastMCP("MCP Calculator", host="127.0.0.1", port={port})
-
-@mcp.tool()
-def add(a: int, b: int) -> int:
-    \"\"\"Add two numbers\"\"\"
-    return a + b
-
-@mcp.tool()
-def subtract(a: int, b: int) -> int:
-    \"\"\"Subtract b from a\"\"\"
-    return a - b
-
-if __name__ == "__main__":
-    try:
-        mcp.run(transport="streamable-http")
-    except Exception as e:
-        sys.exit(1)
-""".encode()
-            )
-            server_script_path = temp_file.name
-
-        server_process = None
-        try:
-            # Start the server in a separate process
-            server_process = subprocess.Popen(
-                ["python", server_script_path], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
-            )
-
-            # Give the server a moment to start
-            time.sleep(2)
-
-            # Create the toolset - note the /mcp endpoint for streamable-http
-            server_info = StreamableHttpServerInfo(url=f"http://127.0.0.1:{port}/mcp")
-            toolset = MCPToolset(server_info=server_info, eager_connect=True)
-
-            # Verify we got both tools
-            assert len(toolset) == 2
-
-            tool_names = [tool.name for tool in toolset.tools]
-            assert "add" in tool_names
-            assert "subtract" in tool_names
-
-            # Test the add tool
-            add_tool = next(tool for tool in toolset.tools if tool.name == "add")
-            result_json = add_tool.invoke(a=5, b=3)
-
-            # Parse the JSON result
-            result = json.loads(result_json)
-            assert result["content"][0]["text"] == "8"
-
-            # Test the subtract tool
-            subtract_tool = next(tool for tool in toolset.tools if tool.name == "subtract")
-            result_json = subtract_tool.invoke(a=10, b=4)
-
-            # Parse the JSON result
-            result = json.loads(result_json)
-            assert result["content"][0]["text"] == "6"
-
-        except Exception:
-            # Check server output for clues
-            if server_process and server_process.poll() is None:
-                server_process.terminate()
-            raise
-
-        finally:
-            # Explicitly close tools first to prevent connection errors
-            try:
-                toolset.close()
-            except Exception as e:
-                logger.debug(f"Error during tool cleanup: {e}")
-
-            # Clean up
-            if server_process:
-                if server_process.poll() is None:  # Process is still running
-                    server_process.terminate()
-                    try:
-                        server_process.wait(timeout=5)
-                    except subprocess.TimeoutExpired:
-                        server_process.kill()
-                        server_process.wait(timeout=5)
-
-            # Remove the temporary file
-            if os.path.exists(server_script_path):
-                os.remove(server_script_path)
+        # Test the subtract tool
+        subtract_tool = next(tool for tool in toolset.tools if tool.name == "subtract")
+        result = json.loads(subtract_tool.invoke(a=10, b=4))
+        assert result["content"][0]["text"] == "6"
 
     def test_pipeline_deserialization_succeeds_with_lazy_connection(self, monkeypatch):
         """
@@ -692,87 +668,68 @@ connections: []
 
 
 class TestStateConfigHelpers:
-    """Tests for the state configuration serialization helper functions."""
+    """Tests for the per-tool state-config wrappers.
 
-    def test_serialize_outputs_to_string_with_handler(self):
-        """Test serializing outputs_to_string config with a handler function."""
-        config = {
+    The per-tool handler (de)serialization is delegated to Haystack's own helpers and tested there;
+    these tests only cover the wrapper logic we own: mapping over tool names, the empty/None return
+    contract, and skipping empty per-tool configs.
+    """
+
+    def test_outputs_to_string_roundtrip_delegates_handler_serialization(self):
+        """The wrapper maps over tool names and delegates handler (de)serialization to Haystack."""
+        original = {
             "add": {"source": "content", "handler": format_result},
             "subtract": {"source": "diff"},
         }
 
-        serialized = _serialize_state_config(config)
+        serialized = _serialize_outputs_to_string(original)
+        assert isinstance(serialized["add"]["handler"], str)  # delegated handler serialization
 
-        assert serialized is not None
-        assert "add" in serialized
-        assert "subtract" in serialized
-        assert isinstance(serialized["add"]["handler"], str)  # Handler serialized to string
-        assert serialized["subtract"]["source"] == "diff"
-        assert "handler" not in serialized["subtract"]  # No handler for subtract
+        deserialized = _deserialize_outputs_to_string(serialized)
+        assert set(deserialized) == {"add", "subtract"}
+        assert callable(deserialized["add"]["handler"])
+        assert deserialized["subtract"]["source"] == "diff"
 
-    def test_serialize_outputs_to_state_with_handler(self):
-        """Test serializing outputs_to_state config with a handler function."""
-        config = {
+    def test_outputs_to_state_roundtrip_delegates_handler_serialization(self):
+        """Nested per-tool state configs use the state helper (a 'raw_result' state key is not a single config)."""
+        original = {
             "add": {
                 "sum_result": {"source": "content", "handler": format_result},
                 "raw_result": {},
             },
         }
 
-        serialized = _serialize_state_config(config)
-
-        assert serialized is not None
-        assert "add" in serialized
+        serialized = _serialize_outputs_to_state(original)
         assert isinstance(serialized["add"]["sum_result"]["handler"], str)
         assert serialized["add"]["raw_result"] == {}
 
-    def test_serialize_empty_config(self):
-        """Test that empty config returns None."""
-        assert _serialize_state_config({}) is None
-        assert _serialize_state_config(None) is None
-
-    def test_deserialize_outputs_to_string_with_handler(self):
-        """Test deserializing outputs_to_string config with a handler function."""
-        # First serialize to get the correct handler path
-        original = {"add": {"source": "content", "handler": format_result}}
-        serialized = _serialize_state_config(original)
-
-        # Now deserialize
-        deserialized = _deserialize_state_config(serialized)
-
-        assert "add" in deserialized
-        assert callable(deserialized["add"]["handler"])
-        assert deserialized["add"]["source"] == "content"
-
-    def test_deserialize_outputs_to_state_with_handler(self):
-        """Test deserializing outputs_to_state config with a handler function."""
-        # First serialize to get the correct handler path
-        original = {"add": {"sum_result": {"source": "content", "handler": format_result}}}
-        serialized = _serialize_state_config(original)
-
-        # Now deserialize
-        deserialized = _deserialize_state_config(serialized)
-
-        assert "add" in deserialized
+        deserialized = _deserialize_outputs_to_state(serialized)
         assert callable(deserialized["add"]["sum_result"]["handler"])
 
-    def test_deserialize_empty_config(self):
-        """Test that empty config returns empty dict."""
-        assert _deserialize_state_config({}) == {}
-        assert _deserialize_state_config(None) == {}
+    def test_empty_config_return_contract(self):
+        """Serialize returns None for empty input; deserialize returns an empty dict."""
+        for serialize in (_serialize_outputs_to_string, _serialize_outputs_to_state):
+            assert serialize({}) is None
+            assert serialize(None) is None
+        for deserialize in (_deserialize_outputs_to_string, _deserialize_outputs_to_state):
+            assert deserialize({}) == {}
+            assert deserialize(None) == {}
 
-    def test_roundtrip_serialization(self):
-        """Test that serialization and deserialization are inverse operations."""
-        original = {
-            "add": {"source": "content", "handler": format_result},
-            "subtract": {"source": "diff"},
-        }
+    @pytest.mark.parametrize(
+        "helper",
+        [
+            _serialize_outputs_to_string,
+            _deserialize_outputs_to_string,
+            _serialize_outputs_to_state,
+            _deserialize_outputs_to_state,
+        ],
+    )
+    def test_skip_empty_tool_configs(self, helper):
+        # Inner config valid for both outputs_to_string and outputs_to_state formats
+        config = {"keep": {"k": {"source": "x"}}, "empty": {}, "none": None}
 
-        serialized = _serialize_state_config(original)
-        deserialized = _deserialize_state_config(serialized)
+        result = helper(config)
 
-        assert "add" in deserialized
-        assert "subtract" in deserialized
-        assert deserialized["add"]["source"] == "content"
-        assert callable(deserialized["add"]["handler"])
-        assert deserialized["subtract"]["source"] == "diff"
+        assert "keep" in result
+        assert "empty" not in result
+        assert "none" not in result

@@ -75,6 +75,12 @@ class NvidiaGenerator:
             Timeout for request calls, if not set it is inferred from the `NVIDIA_TIMEOUT` environment variable
             or set to 60 by default.
         """
+        warnings.warn(
+            "The `NvidiaGenerator` component is deprecated and will be removed in a future version. "
+            "Use `NvidiaChatGenerator` instead, which now also supports string inputs.",
+            FutureWarning,
+            stacklevel=2,
+        )
         self._model = model
         self.api_url = url_validation(api_url)
         self._api_key = api_key
@@ -132,7 +138,7 @@ class NvidiaGenerator:
 
         if not self.is_hosted and not self._model:
             if self.backend.model:
-                self.model = self.backend.model
+                self._model = self.backend.model
             else:
                 self.default_model()
 

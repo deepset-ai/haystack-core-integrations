@@ -8,7 +8,7 @@ from google.genai import types
 from haystack import component, default_from_dict, default_to_dict, logging
 from haystack.utils import Secret, deserialize_secrets_inplace
 
-from haystack_integrations.components.common.google_genai.utils import _get_client
+from haystack_integrations.common.google_genai.utils import _get_client
 
 logger = logging.getLogger(__name__)
 
@@ -82,6 +82,8 @@ class GoogleGenAITextEmbedder:
         prefix: str = "",
         suffix: str = "",
         config: dict[str, Any] | None = None,
+        timeout: float | None = None,
+        max_retries: int | None = None,
     ) -> None:
         """
         Creates an GoogleGenAITextEmbedder component.
@@ -99,13 +101,22 @@ class GoogleGenAITextEmbedder:
             The name of the model to use for calculating embeddings.
             The default model is `gemini-embedding-001`.
         :param prefix:
-            A string to add at the beginning of each text to embed.
+            A string to add at the beginning of each text. It can be used to specify a task type for
+            `gemini-embedding-2`. For available task types, see
+            [Gemini documentation](https://ai.google.dev/gemini-api/docs/embeddings#task-types).
         :param suffix:
             A string to add at the end of each text to embed.
         :param config:
-            A dictionary of keyword arguments to configure embedding content configuration `types.EmbedContentConfig`.
-            If not specified, it defaults to `{"task_type": "SEMANTIC_SIMILARITY"}`.
-            For more information, see the [Google AI Task types](https://ai.google.dev/gemini-api/docs/embeddings#task-types).
+            A dictionary of keyword arguments to configure embedding content configuration.
+            See [Google API documentation](https://googleapis.github.io/python-genai/genai.html#genai.types.EmbedContentConfig)
+            for the available options.
+            Specifying task types in `config` does not take effect for `gemini-embedding-2`.
+            See [Gemini documentation](https://ai.google.dev/gemini-api/docs/embeddings#task-types) for more
+            information.
+        :param timeout:
+            The timeout in seconds for the underlying Google GenAI client network requests.
+        :param max_retries:
+            The maximum number of retries for the underlying Google GenAI client network requests.
         """
 
         self._api_key = api_key
@@ -115,12 +126,16 @@ class GoogleGenAITextEmbedder:
         self._model_name = model
         self._prefix = prefix
         self._suffix = suffix
-        self._config = config if config is not None else {"task_type": "SEMANTIC_SIMILARITY"}
+        self._config = config
+        self._timeout = timeout
+        self._max_retries = max_retries
         self._client = _get_client(
             api_key=api_key,
             api=api,
             vertex_ai_project=vertex_ai_project,
             vertex_ai_location=vertex_ai_location,
+            timeout=timeout,
+            max_retries=max_retries,
         )
 
     def to_dict(self) -> dict[str, Any]:
@@ -140,6 +155,8 @@ class GoogleGenAITextEmbedder:
             prefix=self._prefix,
             suffix=self._suffix,
             config=self._config,
+            timeout=self._timeout,
+            max_retries=self._max_retries,
         )
 
     @classmethod

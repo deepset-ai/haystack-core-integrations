@@ -25,6 +25,8 @@ from .adapters import (
     CohereCommandRAdapter,
     MetaLlamaAdapter,
     MistralAdapter,
+    _merge_usage,
+    _usage_from_response_metadata,
 )
 
 logger = logging.getLogger(__name__)
@@ -42,12 +44,11 @@ class AmazonBedrockGenerator:
     ### Usage example
 
     ```python
-    from haystack_integrations.components.generators.amazon_bedrock import AmazonBedrockGenerator
-
-    generator = AmazonBedrockGenerator(
-            model="anthropic.claude-v2",
-            max_length=99
+    from haystack_integrations.components.generators.amazon_bedrock import (
+        AmazonBedrockGenerator,
     )
+
+    generator = AmazonBedrockGenerator(model="anthropic.claude-v2", max_length=99)
 
     print(generator.run("Who is the best American actor?"))
     ```
@@ -104,7 +105,7 @@ class AmazonBedrockGenerator:
             "AWS_SECRET_ACCESS_KEY", strict=False
         ),
         aws_session_token: Secret | None = Secret.from_env_var("AWS_SESSION_TOKEN", strict=False),  # noqa: B008
-        aws_region_name: Secret | None = Secret.from_env_var("AWS_DEFAULT_REGION", strict=False),  # noqa: B008
+        aws_region_name: Secret | str | None = Secret.from_env_var("AWS_DEFAULT_REGION", strict=False),  # noqa: B008
         aws_profile_name: Secret | None = Secret.from_env_var("AWS_PROFILE", strict=False),  # noqa: B008
         max_length: int | None = None,
         truncate: bool | None = None,
@@ -140,6 +141,12 @@ class AmazonBedrockGenerator:
         :raises AmazonBedrockConfigurationError: If the AWS environment is not configured correctly or the model is
             not supported.
         """
+        warnings.warn(
+            "The `AmazonBedrockGenerator` component is deprecated and will be removed in a future version. "
+            "Use `AmazonBedrockChatGenerator` instead, which now also supports string inputs.",
+            FutureWarning,
+            stacklevel=2,
+        )
         if not model:
             msg = "'model' cannot be None or empty string"
             raise ValueError(msg)
@@ -162,8 +169,8 @@ class AmazonBedrockGenerator:
         self.kwargs = kwargs
         self.model_family = model_family
 
-        def resolve_secret(secret: Secret | None) -> str | None:
-            return secret.resolve_value() if secret else None
+        def resolve_secret(secret: Secret | str | None) -> str | None:
+            return secret.resolve_value() if isinstance(secret, Secret) else secret
 
         try:
             session = get_aws_session(
@@ -215,6 +222,7 @@ class AmazonBedrockGenerator:
         generation_kwargs["stream"] = streaming_callback is not None
 
         body = self.model_adapter.prepare_body(prompt=prompt, **generation_kwargs)
+        stream_metadata: dict[str, Any] = {}
         try:
             if streaming_callback:
                 response = self.client.invoke_model_with_response_stream(
@@ -224,7 +232,7 @@ class AmazonBedrockGenerator:
                     contentType="application/json",
                 )
                 response_stream = response["body"]
-                replies = self.model_adapter.get_stream_responses(
+                replies, stream_metadata = self.model_adapter.get_stream_responses_and_metadata(
                     stream=response_stream, streaming_callback=streaming_callback
                 )
             else:
@@ -238,6 +246,8 @@ class AmazonBedrockGenerator:
                 replies = self.model_adapter.get_responses(response_body=response_body)
 
             metadata = response.get("ResponseMetadata", {})
+            _merge_usage(metadata, _usage_from_response_metadata(metadata))
+            _merge_usage(metadata, stream_metadata.get("usage", {}))
 
         except ClientError as exception:
             msg = f"Could not perform inference for Amazon Bedrock model {self.model} due to:\n{exception}"

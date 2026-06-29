@@ -1,5 +1,33 @@
 # Changelog
 
+## [integrations/mistral-v1.4.0] - 2026-06-05
+
+### 🚀 Features
+
+- Mistral - accept str as ChatGenerator input (#3397)
+
+### 🌀 Miscellaneous
+
+- Exclude mistralai 2.4.6 from dependencies (#3305)
+
+## [integrations/mistral-v1.3.0] - 2026-05-14
+
+### 🚀 Features
+
+- Add reasoning token support to Mistral integration (#3265)
+
+### 🧪 Testing
+
+- MistalChatGenerator - relax test_live_run_with_tools test (#2965)
+- Test compatible integrations with python 3.14; update pyproject (#3001)
+- Track test coverage for all integrations (#3065)
+
+### 🧹 Chores
+
+- Add ANN ruff ruleset to llama_cpp, llama_stack, mcp, meta_llama, mistral, mongodb_atlas, nvidia, ollama, openrouter, opensearch (#2991)
+- Enforce ruff docstring rules (D102/D103/D205/D209/D213/D417/D419) in integrations 21-30 (#3010)
+
+
 ## [integrations/mistral-v1.2.0] - 2026-03-13
 
 ### 🧹 Chores

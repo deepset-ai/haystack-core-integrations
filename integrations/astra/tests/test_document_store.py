@@ -8,7 +8,7 @@ from unittest import mock
 
 import pytest
 from haystack import Document
-from haystack.document_stores.errors import MissingDocumentError
+from haystack.document_stores.errors import DocumentStoreError, DuplicateDocumentError, MissingDocumentError
 from haystack.document_stores.types import DuplicatePolicy
 from haystack.testing.document_store import (
     CountDocumentsByFilterTest,
@@ -18,14 +18,25 @@ from haystack.testing.document_store import (
     GetMetadataFieldsInfoTest,
     GetMetadataFieldUniqueValuesTest,
 )
+from haystack.utils import Secret
 
 from haystack_integrations.document_stores.astra import AstraDocumentStore
+from haystack_integrations.document_stores.astra.errors import AstraDocumentStoreFilterError
 
 
 @pytest.fixture
 def mock_auth(monkeypatch):
     monkeypatch.setenv("ASTRA_DB_API_ENDPOINT", "http://example.com")
     monkeypatch.setenv("ASTRA_DB_APPLICATION_TOKEN", "test_token")
+
+
+@pytest.fixture
+def mocked_store(mock_auth):  # noqa: ARG001
+    """Returns (store, mock_index) with AstraClient fully mocked out."""
+    with mock.patch("haystack_integrations.document_stores.astra.document_store.AstraClient") as mock_client:
+        mock_index = mock_client.return_value
+        store = AstraDocumentStore()
+        yield store, mock_index
 
 
 @mock.patch("haystack_integrations.document_stores.astra.astra_client.AstraDBClient")
@@ -50,13 +61,9 @@ def test_to_dict(mock_auth):  # noqa
         }
 
 
-@pytest.mark.usefixtures("mock_auth")
-@mock.patch("haystack_integrations.document_stores.astra.document_store.AstraClient")
-def test_count_documents_by_filter(mock_astra_client):
-    mock_index = mock_astra_client.return_value
+def test_count_documents_by_filter(mocked_store):
+    store, mock_index = mocked_store
     mock_index.count_documents.return_value = 2
-
-    store = AstraDocumentStore()
 
     count = store.count_documents_by_filter({"field": "meta.status", "operator": "==", "value": "draft"})
 
@@ -66,13 +73,9 @@ def test_count_documents_by_filter(mock_astra_client):
     )
 
 
-@pytest.mark.usefixtures("mock_auth")
-@mock.patch("haystack_integrations.document_stores.astra.document_store.AstraClient")
-def test_count_unique_metadata_by_filter(mock_astra_client):
-    mock_index = mock_astra_client.return_value
+def test_count_unique_metadata_by_filter(mocked_store):
+    store, mock_index = mocked_store
     mock_index.distinct.side_effect = [["news", "docs", ["docs", "faq"], None], [1, 2, 2]]
-
-    store = AstraDocumentStore()
 
     counts = store.count_unique_metadata_by_filter(
         {"field": "meta.status", "operator": "==", "value": "published"}, ["category", "priority"]
@@ -85,16 +88,12 @@ def test_count_unique_metadata_by_filter(mock_astra_client):
     ]
 
 
-@pytest.mark.usefixtures("mock_auth")
-@mock.patch("haystack_integrations.document_stores.astra.document_store.AstraClient")
-def test_get_metadata_fields_info(mock_astra_client):
-    mock_index = mock_astra_client.return_value
+def test_get_metadata_fields_info(mocked_store):
+    store, mock_index = mocked_store
     mock_index.find_documents.return_value = [
         {"content": "Doc 1", "meta": {"category": "news", "priority": 1, "active": True}},
         {"content": "Doc 2", "meta": {"category": "docs", "priority": 2.5, "tags": ["a", "b"]}},
     ]
-
-    store = AstraDocumentStore()
 
     fields_info = store.get_metadata_fields_info()
 
@@ -108,33 +107,114 @@ def test_get_metadata_fields_info(mock_astra_client):
     mock_index.find_documents.assert_called_once_with({}, projection={"content": 1, "meta": 1})
 
 
-@pytest.mark.usefixtures("mock_auth")
-@mock.patch("haystack_integrations.document_stores.astra.document_store.AstraClient")
-def test_get_metadata_field_min_max(mock_astra_client):
-    mock_index = mock_astra_client.return_value
+def test_get_metadata_field_min_max(mocked_store):
+    store, mock_index = mocked_store
     mock_index.distinct.return_value = [10, 3, 7]
 
-    store = AstraDocumentStore()
-
-    result = store.get_metadata_field_min_max("priority")
-
-    assert result == {"min": 3, "max": 10}
+    assert store.get_metadata_field_min_max("priority") == {"min": 3, "max": 10}
     mock_index.distinct.assert_called_once_with("meta.priority")
 
 
-@pytest.mark.usefixtures("mock_auth")
-@mock.patch("haystack_integrations.document_stores.astra.document_store.AstraClient")
-def test_get_metadata_field_unique_values(mock_astra_client):
-    mock_index = mock_astra_client.return_value
+def test_get_metadata_field_unique_values(mocked_store):
+    store, mock_index = mocked_store
     mock_index.distinct.return_value = ["Beta", "alpha", ["gamma", "alphabet"], None]
-
-    store = AstraDocumentStore()
 
     values, total_count = store.get_metadata_field_unique_values("category", search_term="alp", from_=0, size=5)
 
     assert values == ["alpha", "alphabet"]
     assert total_count == 2
     mock_index.distinct.assert_called_once_with("meta.category")
+
+
+@pytest.mark.parametrize(
+    "api_endpoint,token,match",
+    [
+        (
+            Secret.from_env_var("ASTRA_DB_API_ENDPOINT", strict=False),
+            Secret.from_token("tok"),
+            "API endpoint",
+        ),
+        (
+            Secret.from_token("http://example.com"),
+            Secret.from_env_var("ASTRA_DB_APPLICATION_TOKEN", strict=False),
+            "authentication token",
+        ),
+    ],
+)
+def test_init_raises_when_secret_resolves_to_none(monkeypatch, api_endpoint, token, match):
+    monkeypatch.delenv("ASTRA_DB_API_ENDPOINT", raising=False)
+    monkeypatch.delenv("ASTRA_DB_APPLICATION_TOKEN", raising=False)
+    with pytest.raises(ValueError, match=match):
+        AstraDocumentStore(api_endpoint=api_endpoint, token=token)
+
+
+@pytest.mark.parametrize(
+    "doc,expected_exc,match",
+    [
+        ({"id": "1", "_id": "1", "content": "x"}, Exception, "Duplicate id definitions"),
+        ({"_id": 42, "content": "x"}, Exception, "is not a string"),
+        ("not-a-doc", ValueError, "Unsupported type"),
+    ],
+)
+def test_write_documents_input_validation_errors(mocked_store, doc, expected_exc, match):
+    store, _ = mocked_store
+    with pytest.raises(expected_exc, match=match):
+        store.write_documents([doc])
+
+
+def test_write_documents_fail_policy_raises_on_duplicate(mocked_store):
+    store, mock_index = mocked_store
+    mock_index.find_documents.return_value = [{"_id": "1"}]
+    with pytest.raises(DuplicateDocumentError, match="already exists"):
+        store.write_documents([Document(id="1", content="a")], policy=DuplicatePolicy.FAIL)
+
+
+def test_write_documents_sparse_embedding_is_dropped_with_warning(mocked_store, caplog):
+    store, mock_index = mocked_store
+    mock_index.find_documents.return_value = []
+    mock_index.insert.return_value = ["1"]
+    store.write_documents([{"_id": "1", "content": "x", "sparse_embedding": {"indices": [0], "values": [1.0]}}])
+    inserted = mock_index.insert.call_args.args[0][0]
+    assert "sparse_embedding" not in inserted
+    assert "sparse embeddings in Astra" in caplog.text
+
+
+def test_delete_all_documents_wraps_exception(mocked_store):
+    store, mock_index = mocked_store
+    mock_index.delete_all_documents.side_effect = RuntimeError("boom")
+    with pytest.raises(DocumentStoreError, match="Failed to delete all documents"):
+        store.delete_all_documents()
+
+
+@pytest.mark.parametrize(
+    "filters,meta,match",
+    [
+        ("bad", {}, "Filters must be a dictionary"),
+        ({}, "bad", "Meta must be a dictionary"),
+    ],
+)
+def test_update_by_filter_validation_errors(mocked_store, filters, meta, match):
+    store, _ = mocked_store
+    with pytest.raises(AstraDocumentStoreFilterError, match=match):
+        store.update_by_filter(filters=filters, meta=meta)
+
+
+def test_update_by_filter_applies_meta_with_dot_notation(mocked_store):
+    store, mock_index = mocked_store
+    mock_index.update.return_value = 4
+    count = store.update_by_filter(
+        filters={"field": "meta.category", "operator": "==", "value": "news"},
+        meta={"reviewed": True, "priority": 1},
+    )
+    assert count == 4
+    kwargs = mock_index.update.call_args.kwargs
+    assert kwargs["filters"] == {"meta.category": {"$eq": "news"}}
+    assert kwargs["update"] == {"$set": {"meta.reviewed": True, "meta.priority": 1}}
+
+
+def test_infer_metadata_field_type_mixed_types_warn_and_default_to_keyword(caplog):
+    assert AstraDocumentStore._infer_metadata_field_type([1, "a"]) == "keyword"
+    assert "mixed metadata types" in caplog.text
 
 
 @pytest.mark.integration
@@ -306,106 +386,16 @@ class TestDocumentStore(
         TestDocumentStore.assert_documents_are_equal([result[0]], [docs[0]])
         TestDocumentStore.assert_documents_are_equal([result[1]], [docs[1]])
 
-    @pytest.mark.skip(reason="Unsupported filter operator not.")
-    def test_not_operator(self, document_store, filterable_docs):
-        pass
-
-    @pytest.mark.skip(reason="Unsupported filter operator $neq.")
-    def test_comparison_not_equal_with_none(self, document_store, filterable_docs):
-        pass
-
-    @pytest.mark.skip(reason="Unsupported filter operator $neq.")
-    def test_comparison_not_equal(self, document_store, filterable_docs):
-        pass
-
-    @pytest.mark.skip(reason="Unsupported filter operator $nin.")
-    def test_comparison_not_in(self, document_store, filterable_docs):
-        pass
-
-    @pytest.mark.skip(reason="Unsupported filter operator $nin.")
-    def test_comparison_not_in_with_with_non_list(self, document_store, filterable_docs):
-        pass
-
-    @pytest.mark.skip(reason="Unsupported filter operator $nin.")
-    def test_comparison_not_in_with_with_non_list_iterable(self, document_store, filterable_docs):
-        pass
-
-    @pytest.mark.skip(reason="Unsupported filter operator $gt.")
-    def test_comparison_greater_than_with_iso_date(self, document_store, filterable_docs):
-        pass
-
-    @pytest.mark.skip(reason="Unsupported filter operator $gt.")
-    def test_comparison_greater_than_with_string(self, document_store, filterable_docs):
-        pass
-
-    @pytest.mark.skip(reason="Unsupported filter operator $gt.")
-    def test_comparison_greater_than_with_list(self, document_store, filterable_docs):
-        pass
-
-    @pytest.mark.skip(reason="Unsupported filter operator $gt.")
-    def test_comparison_greater_than_with_none(self, document_store, filterable_docs):
-        pass
-
-    @pytest.mark.skip(reason="Unsupported filter operator $gt.")
-    def test_comparison_greater_than(self, document_store, filterable_docs):
-        pass
-
-    @pytest.mark.skip(reason="Unsupported filter operator $gte.")
-    def test_comparison_greater_than_equal(self, document_store, filterable_docs):
-        pass
-
-    @pytest.mark.skip(reason="Unsupported filter operator $gte.")
-    def test_comparison_greater_than_equal_with_none(self, document_store, filterable_docs):
-        pass
-
-    @pytest.mark.skip(reason="Unsupported filter operator $gte.")
-    def test_comparison_greater_than_equal_with_list(self, document_store, filterable_docs):
-        pass
-
-    @pytest.mark.skip(reason="Unsupported filter operator $gte.")
-    def test_comparison_greater_than_equal_with_string(self, document_store, filterable_docs):
-        pass
-
-    @pytest.mark.skip(reason="Unsupported filter operator $gte.")
-    def test_comparison_greater_than_equal_with_iso_date(self, document_store, filterable_docs):
-        pass
-
-    @pytest.mark.skip(reason="Unsupported filter operator $lte.")
-    def test_comparison_less_than_equal(self, document_store, filterable_docs):
-        pass
-
-    @pytest.mark.skip(reason="Unsupported filter operator $lte.")
-    def test_comparison_less_than_equal_with_string(self, document_store, filterable_docs):
-        pass
-
-    @pytest.mark.skip(reason="Unsupported filter operator $lte.")
-    def test_comparison_less_than_equal_with_list(self, document_store, filterable_docs):
-        pass
-
-    @pytest.mark.skip(reason="Unsupported filter operator $lte.")
-    def test_comparison_less_than_equal_with_iso_date(self, document_store, filterable_docs):
-        pass
-
-    @pytest.mark.skip(reason="Unsupported filter operator $lte.")
-    def test_comparison_less_than_equal_with_none(self, document_store, filterable_docs):
-        pass
-
-    @pytest.mark.skip(reason="Unsupported filter operator $lt.")
-    def test_comparison_less_than_with_none(self, document_store, filterable_docs):
-        pass
-
-    @pytest.mark.skip(reason="Unsupported filter operator $lt.")
-    def test_comparison_less_than_with_list(self, document_store, filterable_docs):
-        pass
-
-    @pytest.mark.skip(reason="Unsupported filter operator $lt.")
-    def test_comparison_less_than_with_string(self, document_store, filterable_docs):
-        pass
-
-    @pytest.mark.skip(reason="Unsupported filter operator $lt.")
-    def test_comparison_less_than_with_iso_date(self, document_store, filterable_docs):
-        pass
-
-    @pytest.mark.skip(reason="Unsupported filter operator $lt.")
-    def test_comparison_less_than(self, document_store, filterable_docs):
-        pass
+    def test_not_operator_over_not_equal_none(self, document_store, filterable_docs):
+        # `!= None` produces a compound `{$exists: true, $ne: null}` clause; wrapping
+        # it in NOT exercises the disjunction-based negation in `_negate`.
+        document_store.write_documents(filterable_docs)
+        result = document_store.filter_documents(
+            filters={
+                "operator": "NOT",
+                "conditions": [{"field": "meta.number", "operator": "!=", "value": None}],
+            }
+        )
+        TestDocumentStore.assert_documents_are_equal(
+            result, [d for d in filterable_docs if d.meta.get("number") is None]
+        )

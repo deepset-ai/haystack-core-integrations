@@ -1,6 +1,7 @@
 # SPDX-FileCopyrightText: 2023-present deepset GmbH <info@deepset.ai>
 #
 # SPDX-License-Identifier: Apache-2.0
+
 import copy
 
 # ruff: noqa: FBT002, FBT001    boolean-type-hint-positional-argument and boolean-default-value-positional-argument
@@ -87,6 +88,7 @@ class ElasticsearchDocumentStore:
         api_key_id: Secret | str | None = Secret.from_env_var("ELASTIC_API_KEY_ID", strict=False),
         embedding_similarity_function: Literal["cosine", "dot_product", "l2_norm", "max_inner_product"] = "cosine",
         sparse_vector_field: str | None = None,
+        ingest_pipeline: str | None = None,
         **kwargs: Any,
     ) -> None:
         """
@@ -121,6 +123,27 @@ class ElasticsearchDocumentStore:
         :param sparse_vector_field: If set, the name of the Elasticsearch field where sparse embeddings
             will be stored using the `sparse_vector` field type. When not set, any `sparse_embedding`
             data on Documents is silently dropped during writes.
+        :param ingest_pipeline: If set, the id of an Elasticsearch ingest pipeline to run on each bulk
+            index or create. This is the recommended way to generate embeddings at index time using
+            Elasticsearch's inference processors (e.g. ELSER or a dense model) without running a
+            Haystack embedder component. Leading and trailing whitespace is stripped.
+
+            Requirements when using inference processors:
+
+            - Configure the processor with ``input_output`` so the embedding is written directly
+              to the right field: ``output_field`` must match ``"embedding"`` (for dense retrieval)
+              or the value of ``sparse_vector_field`` (for ELSER / sparse retrieval). The ES default
+              target ``ml.inference.<tag>`` will not be found by Haystack's retrievers.
+            - Do **not** also run a Haystack ``DocumentEmbedder`` upstream. If documents arrive with
+              a pre-computed ``embedding``, the pipeline will overwrite it with its own model's
+              vectors, causing a silent mismatch between stored and query embeddings at retrieval time.
+            - If you supply ``custom_mapping``, include the output field with the correct type
+              (``dense_vector`` or ``sparse_vector``).
+
+            Sparse embedding note: Elasticsearch does not store ``sparse_vector`` data generated
+            by inference pipelines in ``_source``; it goes only into the inverted index. Haystack
+            works around this by requesting the field via the ES ``fields`` API on every search so
+            that ``Document.sparse_embedding`` is populated correctly on returned documents.
         :param **kwargs: Optional arguments that `Elasticsearch` takes.
         """
         self._hosts = hosts
@@ -131,6 +154,14 @@ class ElasticsearchDocumentStore:
         self._api_key_id = api_key_id
         self._embedding_similarity_function = embedding_similarity_function
         self._sparse_vector_field = sparse_vector_field
+        if ingest_pipeline is not None:
+            stripped_pipeline = ingest_pipeline.strip()
+            if not stripped_pipeline:
+                msg = "ingest_pipeline must be a non-empty string when set."
+                raise ValueError(msg)
+            self._ingest_pipeline: str | None = stripped_pipeline
+        else:
+            self._ingest_pipeline = None
         self._custom_mapping = custom_mapping
         self._kwargs = kwargs
         self._initialized = False
@@ -294,6 +325,7 @@ class ElasticsearchDocumentStore:
             api_key_id=self._api_key_id.to_dict() if isinstance(self._api_key_id, Secret) else None,
             embedding_similarity_function=self._embedding_similarity_function,
             sparse_vector_field=self._sparse_vector_field,
+            ingest_pipeline=self._ingest_pipeline,
             **self._kwargs,
         )
 
@@ -341,6 +373,16 @@ class ElasticsearchDocumentStore:
         if top_k is None and "knn" in kwargs and "k" in kwargs["knn"]:
             top_k = kwargs["knn"]["k"]
 
+        # When an ingest pipeline is configured, sparse_vector data is not stored in _source
+        # (ES indexes it but omits it from the stored document). Request it via the fields API
+        # so that _deserialize_document can populate Document.sparse_embedding correctly.
+        # Merge rather than replace: a caller may already pass fields=["title", ...] for a custom
+        # projection — dropping their list would silently hide sparse embeddings on those docs.
+        if self._ingest_pipeline and self._sparse_vector_field:
+            existing = list(kwargs.get("fields") or [])
+            if self._sparse_vector_field not in existing:
+                kwargs["fields"] = [*existing, self._sparse_vector_field]
+
         documents: list[Document] = []
         from_ = 0
         # Handle pagination
@@ -367,6 +409,16 @@ class ElasticsearchDocumentStore:
         top_k = kwargs.get("size")
         if top_k is None and "knn" in kwargs and "k" in kwargs["knn"]:
             top_k = kwargs["knn"]["k"]
+
+        # When an ingest pipeline is configured, sparse_vector data is not stored in _source
+        # (ES indexes it but omits it from the stored document). Request it via the fields API
+        # so that _deserialize_document can populate Document.sparse_embedding correctly.
+        # Merge rather than replace: a caller may already pass fields=["title", ...] for a custom
+        # projection — dropping their list would silently hide sparse embeddings on those docs.
+        if self._ingest_pipeline and self._sparse_vector_field:
+            existing = list(kwargs.get("fields") or [])
+            if self._sparse_vector_field not in existing:
+                kwargs["fields"] = [*existing, self._sparse_vector_field]
 
         documents: list[Document] = []
         from_ = 0
@@ -436,13 +488,33 @@ class ElasticsearchDocumentStore:
             data["metadata"]["highlighted"] = hit["highlight"]
         data["score"] = hit["_score"]
 
-        if self._sparse_vector_field and self._sparse_vector_field in data:
-            es_sparse = data.pop(self._sparse_vector_field)
-            sorted_items = sorted(es_sparse.items(), key=lambda x: int(x[0]))
-            data["sparse_embedding"] = {
-                "indices": [int(k) for k, _ in sorted_items],
-                "values": [v for _, v in sorted_items],
-            }
+        if self._sparse_vector_field:
+            sparse_field = self._sparse_vector_field
+            # Prefer the fields API response over _source: sparse_vector data written by an
+            # ingest pipeline (e.g. ELSER) is indexed but not stored in _source. The fields
+            # API returns it when requested by _search_documents / _search_documents_async.
+            # For documents indexed directly by Haystack the data is in _source as usual.
+            fields_hit = hit.get("fields", {})
+            if sparse_field in fields_hit:
+                values = fields_hit[sparse_field]  # fields API wraps values in a list
+                es_sparse = values[0] if values else None
+                data.pop(sparse_field, None)
+            else:
+                es_sparse = data.pop(sparse_field, None)
+
+            if es_sparse:
+                try:
+                    # Haystack SparseEmbedding requires integer indices. Documents indexed via
+                    # Haystack use numeric string keys ("0", "1", ...). Documents indexed by an
+                    # ES inference pipeline (e.g. ELSER) use token-string keys ("berlin", ...) which
+                    # cannot be mapped to integer indices, so sparse_embedding is left unset.
+                    sorted_items = sorted(es_sparse.items(), key=lambda x: int(x[0]))
+                    data["sparse_embedding"] = {
+                        "indices": [int(k) for k, _ in sorted_items],
+                        "values": [v for _, v in sorted_items],
+                    }
+                except ValueError:
+                    pass
 
         return Document.from_dict(data)
 
@@ -532,6 +604,54 @@ class ElasticsearchDocumentStore:
 
         return body
 
+    def _create_sparse_retrieval_inference_body(
+        self,
+        query: str,
+        inference_id: str,
+        *,
+        filters: dict[str, Any] | None = None,
+        top_k: int = 10,
+    ) -> dict[str, Any]:
+        """
+        Builds the Elasticsearch search body for sparse vector retrieval using inference.
+
+        :param query: Query text to use for inference-based sparse retrieval.
+        :param inference_id: Identifier of the inference model to use.
+        :param filters: Optional filters to narrow down the search space.
+        :param top_k: Maximum number of documents to return.
+        :returns: Search body for Elasticsearch.
+        :raises ValueError: If sparse retrieval is not configured or the query is empty.
+        """
+        if not self._sparse_vector_field:
+            msg = "sparse_vector_field must be set for sparse vector retrieval"
+            raise ValueError(msg)
+
+        if not query:
+            msg = "query must be a non-empty string for inference-based sparse retrieval"
+            raise ValueError(msg)
+
+        body: dict[str, Any] = {
+            "size": top_k,
+            "query": {
+                "bool": {
+                    "must": [
+                        {
+                            "sparse_vector": {
+                                "field": self._sparse_vector_field,
+                                "query": query,
+                                "inference_id": inference_id,
+                            }
+                        }
+                    ]
+                }
+            },
+        }
+
+        if filters:
+            body["query"]["bool"]["filter"] = _normalize_filters(filters)
+
+        return body
+
     def write_documents(
         self,
         documents: list[Document],
@@ -567,6 +687,15 @@ class ElasticsearchDocumentStore:
         elasticsearch_actions = []
         for doc in documents:
             doc_dict = doc.to_dict()
+            # ES rejects null for strongly-typed fields (dense_vector, sparse_vector) when the
+            # index mapping carries explicit configuration such as `dims`. This applies to all
+            # writes, not just ingest pipeline writes: any index with a custom_mapping that
+            # declares explicit field types will reject null values. A missing field is always
+            # valid — ES treats it as "no value stored". We only strip the known Haystack
+            # document fields here; metadata values are left untouched intentionally.
+            for field in ("embedding", "blob", "score"):
+                if doc_dict.get(field) is None:
+                    doc_dict.pop(field, None)
             self._handle_sparse_embedding(doc_dict, doc.id)
             elasticsearch_actions.append(
                 {
@@ -576,29 +705,33 @@ class ElasticsearchDocumentStore:
                 }
             )
 
-        documents_written, errors = helpers.bulk(
-            client=self.client,
-            actions=elasticsearch_actions,
-            refresh=refresh,
-            index=self._index,
-            raise_on_error=False,
-            stats_only=False,
-        )
+        bulk_kwargs: dict[str, Any] = {
+            "client": self.client,
+            "actions": elasticsearch_actions,
+            "refresh": refresh,
+            "index": self._index,
+            "raise_on_error": False,
+            "stats_only": False,
+        }
+        if self._ingest_pipeline is not None:
+            bulk_kwargs["pipeline"] = self._ingest_pipeline
+
+        documents_written, errors = helpers.bulk(**bulk_kwargs)
 
         if errors:
             # with stats_only=False, errors is guaranteed to be a list of dicts
             assert isinstance(errors, list)
             duplicate_errors_ids = []
             other_errors = []
-            for e in errors:
-                error_type = e["create"]["error"]["type"]
+            for error in errors:
+                error_type = error["create"]["error"]["type"]
                 if policy == DuplicatePolicy.FAIL and error_type == "version_conflict_engine_exception":
-                    duplicate_errors_ids.append(e["create"]["_id"])
+                    duplicate_errors_ids.append(error["create"]["_id"])
                 elif policy == DuplicatePolicy.SKIP and error_type == "version_conflict_engine_exception":
                     # when the policy is skip, duplication errors are OK and we should not raise an exception
                     continue
                 else:
-                    other_errors.append(e)
+                    other_errors.append(error)
 
             if len(duplicate_errors_ids) > 0:
                 msg = f"IDs '{', '.join(duplicate_errors_ids)}' already exist in the document store."
@@ -645,38 +778,60 @@ class ElasticsearchDocumentStore:
         actions = []
         for doc in documents:
             doc_dict = doc.to_dict()
+            # ES rejects null for strongly-typed fields (dense_vector, sparse_vector) when the
+            # index mapping carries explicit configuration such as `dims`. This applies to all
+            # writes, not just ingest pipeline writes: any index with a custom_mapping that
+            # declares explicit field types will reject null values. A missing field is always
+            # valid — ES treats it as "no value stored". We only strip the known Haystack
+            # document fields here; metadata values are left untouched intentionally.
+            for field in ("embedding", "blob", "score"):
+                if doc_dict.get(field) is None:
+                    doc_dict.pop(field, None)
             self._handle_sparse_embedding(doc_dict, doc.id)
 
             action = {
-                "_op_type": "create" if policy == DuplicatePolicy.FAIL else "index",
+                "_op_type": "index" if policy == DuplicatePolicy.OVERWRITE else "create",
                 "_id": doc.id,
                 "_source": doc_dict,
             }
             actions.append(action)
 
-        try:
-            success, failed = await helpers.async_bulk(
-                client=self.async_client,
-                actions=actions,
-                index=self._index,
-                refresh=refresh,
-                raise_on_error=False,
-                stats_only=False,
-            )
-            if failed:
-                # with stats_only=False, failed is guaranteed to be a list of dicts
-                assert isinstance(failed, list)
-                if policy == DuplicatePolicy.FAIL:
-                    for error in failed:
-                        if "create" in error and error["create"]["status"] == DOC_ALREADY_EXISTS:
-                            msg = f"ID '{error['create']['_id']}' already exists in the document store"
-                            raise DuplicateDocumentError(msg)
-                msg = f"Failed to write documents to Elasticsearch. Errors:\n{failed}"
+        async_bulk_kwargs: dict[str, Any] = {
+            "client": self.async_client,
+            "actions": actions,
+            "index": self._index,
+            "refresh": refresh,
+            "raise_on_error": False,
+            "stats_only": False,
+        }
+        if self._ingest_pipeline is not None:
+            async_bulk_kwargs["pipeline"] = self._ingest_pipeline
+
+        documents_written, errors = await helpers.async_bulk(**async_bulk_kwargs)
+
+        if errors:
+            # with stats_only=False, errors is guaranteed to be a list of dicts
+            assert isinstance(errors, list)
+            duplicate_errors_ids = []
+            other_errors = []
+            for error in errors:
+                error_type = error["create"]["error"]["type"]
+                if policy == DuplicatePolicy.FAIL and error_type == "version_conflict_engine_exception":
+                    duplicate_errors_ids.append(error["create"]["_id"])
+                elif policy == DuplicatePolicy.SKIP and error_type == "version_conflict_engine_exception":
+                    continue
+                else:
+                    other_errors.append(error)
+
+            if len(duplicate_errors_ids) > 0:
+                msg = f"IDs '{', '.join(duplicate_errors_ids)}' already exist in the document store."
+                raise DuplicateDocumentError(msg)
+
+            if len(other_errors) > 0:
+                msg = f"Failed to write documents to Elasticsearch. Errors:\n{other_errors}"
                 raise DocumentStoreError(msg)
-            return success
-        except Exception as e:
-            msg = f"Failed to write documents to Elasticsearch: {e!s}"
-            raise DocumentStoreError(msg) from e
+
+        return documents_written
 
     def delete_documents(self, document_ids: list[str], refresh: Literal["wait_for", True, False] = "wait_for") -> None:
         """
@@ -720,16 +875,13 @@ class ElasticsearchDocumentStore:
         """
         self._ensure_initialized()
 
-        try:
-            await helpers.async_bulk(
-                client=self.async_client,
-                actions=({"_op_type": "delete", "_id": id_} for id_ in document_ids),
-                index=self._index,
-                refresh=refresh,
-            )
-        except Exception as e:
-            msg = f"Failed to delete documents from Elasticsearch: {e!s}"
-            raise DocumentStoreError(msg) from e
+        await helpers.async_bulk(
+            client=self.async_client,
+            actions=({"_op_type": "delete", "_id": id_} for id_ in document_ids),
+            index=self._index,
+            refresh=refresh,
+            raise_on_error=False,
+        )
 
     def delete_all_documents(self, recreate_index: bool = False, refresh: bool = True) -> None:
         """
@@ -1195,6 +1347,203 @@ class ElasticsearchDocumentStore:
             top_k=top_k,
         )
         return await self._search_documents_async(**search_body)
+
+    def _sparse_vector_retrieval_inference(
+        self,
+        query: str,
+        inference_id: str,
+        *,
+        filters: dict[str, Any] | None = None,
+        top_k: int = 10,
+    ) -> list[Document]:
+        """
+        Retrieves documents using sparse vector inference search.
+
+        :param query: Query text to use for inference-based sparse retrieval.
+        :param inference_id: Identifier of the inference model to use.
+        :param filters: Optional filters to narrow down the search space.
+        :param top_k: Maximum number of documents to return.
+        :returns: List of Documents most similar to the inference query.
+        """
+        body = self._create_sparse_retrieval_inference_body(
+            query=query,
+            inference_id=inference_id,
+            filters=filters,
+            top_k=top_k,
+        )
+        return self._search_documents(**body)
+
+    async def _sparse_vector_retrieval_inference_async(
+        self,
+        query: str,
+        inference_id: str,
+        *,
+        filters: dict[str, Any] | None = None,
+        top_k: int = 10,
+    ) -> list[Document]:
+        """
+        Asynchronously retrieves documents using sparse vector inference search.
+
+        :param query: Query text to use for inference-based sparse retrieval.
+        :param inference_id: Identifier of the inference model to use.
+        :param filters: Optional filters to narrow down the search space.
+        :param top_k: Maximum number of documents to return.
+        :returns: List of Documents most similar to the inference query.
+        """
+        self._ensure_initialized()
+        search_body = self._create_sparse_retrieval_inference_body(
+            query=query,
+            inference_id=inference_id,
+            filters=filters,
+            top_k=top_k,
+        )
+        return await self._search_documents_async(**search_body)
+
+    def _create_hybrid_retrieval_inference_body(
+        self,
+        query: str,
+        inference_id: str,
+        *,
+        filters: dict[str, Any] | None = None,
+        fuzziness: str = "AUTO",
+        top_k: int = 10,
+        rank_window_size: int = 100,
+        rank_constant: int = 60,
+    ) -> dict[str, Any]:
+        """
+        Builds the Elasticsearch search body for server-side hybrid retrieval using the RRF retriever API.
+
+        Combines BM25 (multi_match) and sparse vector (ELSER inference) as two standard sub-retrievers
+        inside a single `retriever.rrf` request — no client-side merging.
+
+        :param query: Query text.
+        :param inference_id: Elasticsearch inference model ID (e.g. ".elser_model_2").
+        :param filters: Optional filters applied to both sub-retrievers.
+        :param fuzziness: Fuzziness for the BM25 multi_match query.
+        :param top_k: Number of documents to return.
+        :param rank_window_size: Number of candidates each sub-retriever collects before RRF merging.
+        :param rank_constant: RRF rank constant (higher values reduce the impact of rank differences).
+        :returns: Search body for Elasticsearch.
+        :raises ValueError: If `sparse_vector_field` is not configured or `query` is empty.
+        """
+        if not self._sparse_vector_field:
+            msg = "sparse_vector_field must be set for hybrid retrieval"
+            raise ValueError(msg)
+        if not query:
+            msg = "query must be a non-empty string"
+            raise ValueError(msg)
+
+        bm25_clause: dict[str, Any] = {
+            "standard": {
+                "query": {
+                    "multi_match": {
+                        "query": query,
+                        "fuzziness": fuzziness,
+                        "type": "most_fields",
+                        "operator": "OR",
+                    }
+                }
+            }
+        }
+        sparse_clause: dict[str, Any] = {
+            "standard": {
+                "query": {
+                    "sparse_vector": {
+                        "field": self._sparse_vector_field,
+                        "inference_id": inference_id,
+                        "query": query,
+                    }
+                }
+            }
+        }
+
+        if filters:
+            normalized = _normalize_filters(filters)
+            bm25_clause["standard"]["filter"] = normalized
+            sparse_clause["standard"]["filter"] = normalized
+
+        return {
+            "retriever": {
+                "rrf": {
+                    "retrievers": [bm25_clause, sparse_clause],
+                    "rank_window_size": rank_window_size,
+                    "rank_constant": rank_constant,
+                }
+            },
+            "size": top_k,
+        }
+
+    def _hybrid_retrieval_inference(
+        self,
+        query: str,
+        inference_id: str,
+        *,
+        filters: dict[str, Any] | None = None,
+        fuzziness: str = "AUTO",
+        top_k: int = 10,
+        rank_window_size: int = 100,
+        rank_constant: int = 60,
+    ) -> list[Document]:
+        """
+        Retrieves documents using a fully server-side hybrid search (BM25 + ELSER RRF).
+
+        Issues a single Elasticsearch request using the `retriever.rrf` API (available since ES 8.9,
+        Retriever API since ES 8.14). No client-side score merging is performed.
+
+        :param query: Query text.
+        :param inference_id: Elasticsearch inference model ID (e.g. ".elser_model_2").
+        :param filters: Optional filters applied to both sub-retrievers.
+        :param fuzziness: Fuzziness for the BM25 multi_match query.
+        :param top_k: Maximum number of documents to return.
+        :param rank_window_size: Number of candidates each sub-retriever collects before RRF merging.
+        :param rank_constant: RRF rank constant.
+        :returns: List of Documents ranked by RRF score.
+        """
+        body = self._create_hybrid_retrieval_inference_body(
+            query=query,
+            inference_id=inference_id,
+            filters=filters,
+            fuzziness=fuzziness,
+            top_k=top_k,
+            rank_window_size=rank_window_size,
+            rank_constant=rank_constant,
+        )
+        return self._search_documents(**body)
+
+    async def _hybrid_retrieval_inference_async(
+        self,
+        query: str,
+        inference_id: str,
+        *,
+        filters: dict[str, Any] | None = None,
+        fuzziness: str = "AUTO",
+        top_k: int = 10,
+        rank_window_size: int = 100,
+        rank_constant: int = 60,
+    ) -> list[Document]:
+        """
+        Asynchronously retrieves documents using a fully server-side hybrid search (BM25 + ELSER RRF).
+
+        :param query: Query text.
+        :param inference_id: Elasticsearch inference model ID (e.g. ".elser_model_2").
+        :param filters: Optional filters applied to both sub-retrievers.
+        :param fuzziness: Fuzziness for the BM25 multi_match query.
+        :param top_k: Maximum number of documents to return.
+        :param rank_window_size: Number of candidates each sub-retriever collects before RRF merging.
+        :param rank_constant: RRF rank constant.
+        :returns: List of Documents ranked by RRF score.
+        """
+        self._ensure_initialized()
+        body = self._create_hybrid_retrieval_inference_body(
+            query=query,
+            inference_id=inference_id,
+            filters=filters,
+            fuzziness=fuzziness,
+            top_k=top_k,
+            rank_window_size=rank_window_size,
+            rank_constant=rank_constant,
+        )
+        return await self._search_documents_async(**body)
 
     def count_documents_by_filter(self, filters: dict[str, Any]) -> int:
         """

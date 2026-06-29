@@ -1,5 +1,30 @@
 # Changelog
 
+## [integrations/docling-v1.1.0] - 2026-06-16
+
+### 🚀 Features
+
+- (docling) move construction of default hybrid chunker to `DoclingConverter.warm_up` (#3448)
+
+
+## [integrations/docling-v1.0.0] - 2026-05-11
+
+### 🐛 Bug Fixes
+
+- *(docling)* [**breaking**] Change default export type to MARKDOWN and add page_number to chunk metadata (#3276)
+
+
+## [integrations/docling-v0.4.0] - 2026-05-04
+
+### 🚀 Features
+
+- Add serialization/deserialization to DoclingConverter  (#3267)
+
+### 🧪 Testing
+
+- Docling - add a few unit tests (#3212)
+
+
 ## [integrations/docling-v0.3.0] - 2026-04-10
 
 ### 🚀 Features

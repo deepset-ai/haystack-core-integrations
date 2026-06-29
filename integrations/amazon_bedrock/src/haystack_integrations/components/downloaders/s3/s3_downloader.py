@@ -3,6 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import os
+import uuid
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
@@ -36,7 +37,7 @@ class S3Downloader:
             "AWS_SECRET_ACCESS_KEY", strict=False
         ),
         aws_session_token: Secret | None = Secret.from_env_var("AWS_SESSION_TOKEN", strict=False),  # noqa: B008
-        aws_region_name: Secret | None = Secret.from_env_var("AWS_DEFAULT_REGION", strict=False),  # noqa: B008
+        aws_region_name: Secret | str | None = Secret.from_env_var("AWS_DEFAULT_REGION", strict=False),  # noqa: B008
         aws_profile_name: Secret | None = Secret.from_env_var("AWS_PROFILE", strict=False),  # noqa: B008
         boto3_config: dict[str, Any] | None = None,
         file_root_path: str | None = None,
@@ -114,8 +115,8 @@ class S3Downloader:
 
         self._storage: S3Storage | None = None
 
-        def resolve_secret(secret: Secret | None) -> str | None:
-            return secret.resolve_value() if secret else None
+        def resolve_secret(secret: Secret | str | None) -> str | None:
+            return secret.resolve_value() if isinstance(secret, Secret) else secret
 
         self._session = get_aws_session(
             aws_access_key_id=resolve_secret(aws_access_key_id),
@@ -200,14 +201,19 @@ class S3Downloader:
 
         file_path = self.file_root_path / Path(file_name)
 
-        if file_path.is_file():
-            # set access and modification time to now without redownloading the file
-            file_path.touch()
-
-        else:
+        # if the file exists, avoid downloading it and just update the timestamp
+        try:
+            os.utime(file_path, None)
+        except FileNotFoundError:
             s3_key = self.s3_key_generation_function(document) if self.s3_key_generation_function else file_name
-            # we know that _storage is not None after warm_up() is called, but mypy does not know that
-            self._storage.download(key=s3_key, local_file_path=file_path)  # type: ignore[union-attr]
+            # download to a temp path to prevent other downloaders running concurrently to see a partially-written file
+            tmp_path = file_path.with_name(f"{file_path.name}.tmp-{uuid.uuid4().hex}")
+            try:
+                # we know that _storage is not None after warm_up() is called, but mypy does not know that
+                self._storage.download(key=s3_key, local_file_path=tmp_path)  # type: ignore[union-attr]
+                os.replace(tmp_path, file_path)
+            finally:
+                tmp_path.unlink(missing_ok=True)
 
         document.meta["file_path"] = str(file_path)
         return document

@@ -4,7 +4,7 @@
 from dataclasses import replace
 from typing import Any
 
-import requests
+import httpx
 from haystack import Document, component, default_from_dict, default_to_dict
 from haystack.utils import Secret, deserialize_secrets_inplace
 
@@ -66,14 +66,11 @@ class JinaRanker:
             msg = f"top_k must be > 0, but got {top_k}"
             raise ValueError(msg)
 
-        self._session = requests.Session()
-        self._session.headers.update(
-            {
-                "Authorization": f"Bearer {resolved_api_key}",
-                "Accept-Encoding": "identity",
-                "Content-type": "application/json",
-            }
-        )
+        self._headers = {
+            "Authorization": f"Bearer {resolved_api_key}",
+            "Accept-Encoding": "identity",
+            "Content-type": "application/json",
+        }
 
     def to_dict(self) -> dict[str, Any]:
         """
@@ -110,6 +107,57 @@ class JinaRanker:
         """
         return {"model": self.model}
 
+    def _prepare_request_data(
+        self,
+        query: str,
+        documents: list[Document],
+        top_k: int | None = None,
+        score_threshold: float | None = None,
+    ) -> tuple[dict[str, Any], int | None, float | None]:
+        if top_k is not None and top_k <= 0:
+            msg = f"top_k must be > 0, but got {top_k}"
+            raise ValueError(msg)
+
+        top_k = top_k or self.top_k
+        score_threshold = score_threshold or self.score_threshold
+
+        data = {
+            "query": query,
+            "documents": [doc.content or "" for doc in documents],
+            "model": self.model,
+            "top_n": top_k,
+        }
+        return data, top_k, score_threshold
+
+    @staticmethod
+    def _parse_response(
+        resp: dict[str, Any],
+        documents: list[Document],
+        top_k: int | None,
+        score_threshold: float | None,
+    ) -> dict[str, Any]:
+        if "results" not in resp:
+            raise RuntimeError(resp["detail"])
+
+        results = resp["results"]
+
+        ranked_docs: list[Document] = []
+        for result in results:
+            index = result["index"]
+            relevance_score = result["relevance_score"]
+            doc = documents[index]
+            if top_k is None or len(ranked_docs) < top_k:
+                scored_doc = replace(doc, score=relevance_score)
+                if score_threshold is not None:
+                    if relevance_score >= score_threshold:
+                        ranked_docs.append(scored_doc)
+                else:
+                    ranked_docs.append(scored_doc)
+            else:
+                break
+
+        return {"documents": ranked_docs, "meta": {"model": resp["model"], "usage": resp["usage"]}}
+
     @component.output_types(documents=list[Document])
     def run(
         self,
@@ -139,43 +187,50 @@ class JinaRanker:
         if not documents:
             return {"documents": []}
 
-        if top_k is not None and top_k <= 0:
-            msg = f"top_k must be > 0, but got {top_k}"
-            raise ValueError(msg)
+        data, top_k, score_threshold = self._prepare_request_data(query, documents, top_k, score_threshold)
 
-        top_k = top_k or self.top_k
-        score_threshold = score_threshold or self.score_threshold
+        with httpx.Client() as client:
+            response = client.post(self.base_url, json=data, headers=self._headers)
+        resp = response.json()
 
-        data = {
-            "query": query,
-            "documents": [doc.content or "" for doc in documents],
-            "model": self.model,
-            "top_n": top_k,
-        }
+        return self._parse_response(resp, documents, top_k, score_threshold)
 
-        resp = self._session.post(
-            self.base_url,
-            json=data,
-        ).json()
+    @component.output_types(documents=list[Document])
+    async def run_async(
+        self,
+        query: str,
+        documents: list[Document],
+        top_k: int | None = None,
+        score_threshold: float | None = None,
+    ) -> dict[str, list[Document]]:
+        """
+        Asynchronously returns a list of Documents ranked by their similarity to the given query.
 
-        if "results" not in resp:
-            raise RuntimeError(resp["detail"])
+        This is the asynchronous version of the `run` method. It has the same parameters and return values
+        but can be used with `await` in async code.
 
-        results = resp["results"]
+        :param query:
+            Query string.
+        :param documents:
+            List of Documents.
+        :param top_k:
+            The maximum number of Documents you want the Ranker to return.
+        :param score_threshold:
+            If provided only returns documents with a score above this threshold.
+        :returns:
+            A dictionary with the following keys:
+            - `documents`: List of Documents most similar to the given query in descending order of similarity.
 
-        ranked_docs: list[Document] = []
-        for result in results:
-            index = result["index"]
-            relevance_score = result["relevance_score"]
-            doc = documents[index]
-            if top_k is None or len(ranked_docs) < top_k:
-                scored_doc = replace(doc, score=relevance_score)
-                if score_threshold is not None:
-                    if relevance_score >= score_threshold:
-                        ranked_docs.append(scored_doc)
-                else:
-                    ranked_docs.append(scored_doc)
-            else:
-                break
+        :raises ValueError:
+            If `top_k` is not > 0.
+        """
+        if not documents:
+            return {"documents": []}
 
-        return {"documents": ranked_docs, "meta": {"model": resp["model"], "usage": resp["usage"]}}
+        data, top_k, score_threshold = self._prepare_request_data(query, documents, top_k, score_threshold)
+
+        async with httpx.AsyncClient() as client:
+            response = await client.post(self.base_url, json=data, headers=self._headers)
+        resp = response.json()
+
+        return self._parse_response(resp, documents, top_k, score_threshold)

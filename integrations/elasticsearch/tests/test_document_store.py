@@ -37,6 +37,16 @@ def test_init_with_special_fields_raises_error():
         ElasticsearchDocumentStore(sparse_vector_field="content")
 
 
+def test_init_ingest_pipeline_empty_raises():
+    with pytest.raises(ValueError, match="ingest_pipeline must be a non-empty string"):
+        ElasticsearchDocumentStore(ingest_pipeline="   ")
+
+
+def test_init_ingest_pipeline_strips_whitespace():
+    store = ElasticsearchDocumentStore(ingest_pipeline="  my-pipeline  ")
+    assert store._ingest_pipeline == "my-pipeline"
+
+
 def test_init_with_custom_mapping_injects_sparse_vector():
     custom_mapping = {"properties": {"some_field": {"type": "text"}}}
     store = ElasticsearchDocumentStore(custom_mapping=custom_mapping, sparse_vector_field="my_sparse_vec")
@@ -114,6 +124,7 @@ def test_to_dict():
             "index": "default",
             "embedding_similarity_function": "cosine",
             "sparse_vector_field": None,
+            "ingest_pipeline": None,
         },
     }
 
@@ -129,6 +140,7 @@ def test_from_dict():
             "api_key_id": None,
             "embedding_similarity_function": "cosine",
             "sparse_vector_field": None,
+            "ingest_pipeline": None,
         },
     }
     document_store = ElasticsearchDocumentStore.from_dict(data)
@@ -139,6 +151,7 @@ def test_from_dict():
     assert document_store._sparse_vector_field is None
     assert document_store._api_key_id is None
     assert document_store._embedding_similarity_function == "cosine"
+    assert document_store._ingest_pipeline is None
 
 
 def test_to_dict_with_api_keys_env_vars():
@@ -182,6 +195,7 @@ def test_from_dict_with_api_keys_env_vars():
             "api_key_id": {"type": "env_var", "env_vars": ["ELASTIC_API_KEY_ID"], "strict": False},
             "embedding_similarity_function": "cosine",
             "sparse_vector_field": None,
+            "ingest_pipeline": None,
         },
     }
 
@@ -201,6 +215,7 @@ def test_from_dict_with_api_keys_str():
             "api_key_id": "my_api_key_id",
             "embedding_similarity_function": "cosine",
             "sparse_vector_field": None,
+            "ingest_pipeline": None,
         },
     }
 
@@ -226,6 +241,121 @@ def test_from_dict_without_sparse_vector_field():
     assert document_store._sparse_vector_field is None
 
 
+def test_from_dict_without_ingest_pipeline():
+    data = {
+        "type": "haystack_integrations.document_stores.elasticsearch.document_store.ElasticsearchDocumentStore",
+        "init_parameters": {
+            "hosts": "some hosts",
+            "custom_mapping": None,
+            "index": "default",
+            "api_key": "my_api_key",
+            "api_key_id": "my_api_key_id",
+            "embedding_similarity_function": "cosine",
+            "sparse_vector_field": None,
+        },
+    }
+
+    document_store = ElasticsearchDocumentStore.from_dict(data)
+    assert document_store._ingest_pipeline is None
+
+
+@patch("haystack_integrations.document_stores.elasticsearch.document_store.helpers.bulk")
+@patch("haystack_integrations.document_stores.elasticsearch.document_store.AsyncElasticsearch")
+@patch("haystack_integrations.document_stores.elasticsearch.document_store.Elasticsearch")
+def test_write_documents_bulk_passes_pipeline_when_configured(mock_es, _mock_async_es, mock_bulk):
+    mock_client = Mock()
+    mock_client.info.return_value = {"version": {"number": "8.0.0"}}
+    mock_client.indices.exists.return_value = True
+    mock_es.return_value = mock_client
+    mock_bulk.return_value = (1, [])
+
+    store = ElasticsearchDocumentStore(
+        hosts="http://localhost:9200",
+        index="idx_test_pipeline",
+        ingest_pipeline="my-ingest",
+    )
+    _ = store.client
+    store.write_documents([Document(id="1", content="a")])
+
+    mock_bulk.assert_called_once()
+    assert mock_bulk.call_args.kwargs["pipeline"] == "my-ingest"
+
+    call_actions = mock_bulk.call_args.kwargs["actions"]
+    assert len(call_actions) == 1
+    source = call_actions[0]["_source"]
+    assert "embedding" not in source
+    assert "blob" not in source
+    assert "score" not in source
+
+
+@patch("haystack_integrations.document_stores.elasticsearch.document_store.helpers.bulk")
+@patch("haystack_integrations.document_stores.elasticsearch.document_store.AsyncElasticsearch")
+@patch("haystack_integrations.document_stores.elasticsearch.document_store.Elasticsearch")
+def test_write_documents_bulk_omits_pipeline_when_not_configured(mock_es, _mock_async_es, mock_bulk):
+    mock_client = Mock()
+    mock_client.info.return_value = {"version": {"number": "8.0.0"}}
+    mock_client.indices.exists.return_value = True
+    mock_es.return_value = mock_client
+    mock_bulk.return_value = (1, [])
+
+    store = ElasticsearchDocumentStore(hosts="http://localhost:9200", index="idx_no_pipeline")
+    _ = store.client
+    store.write_documents([Document(id="1", content="a")])
+
+    mock_bulk.assert_called_once()
+    assert "pipeline" not in mock_bulk.call_args.kwargs
+
+
+@pytest.mark.asyncio
+@patch("haystack_integrations.document_stores.elasticsearch.document_store.helpers.async_bulk")
+@patch("haystack_integrations.document_stores.elasticsearch.document_store.AsyncElasticsearch")
+@patch("haystack_integrations.document_stores.elasticsearch.document_store.Elasticsearch")
+async def test_write_documents_async_bulk_passes_pipeline_when_configured(mock_es, mock_async_es_cls, mock_async_bulk):
+    mock_client = Mock()
+    mock_client.info.return_value = {"version": {"number": "8.0.0"}}
+    mock_client.indices.exists.return_value = True
+    mock_es.return_value = mock_client
+
+    mock_async_es_cls.return_value = AsyncMock()
+
+    mock_async_bulk.return_value = (1, [])
+
+    store = ElasticsearchDocumentStore(
+        hosts="http://localhost:9200",
+        index="idx_async_pipeline",
+        ingest_pipeline="pipe-async",
+    )
+    _ = store.client
+    await store.write_documents_async([Document(id="1", content="a")])
+
+    mock_async_bulk.assert_called_once()
+    assert mock_async_bulk.call_args.kwargs["pipeline"] == "pipe-async"
+
+
+@pytest.mark.asyncio
+@patch("haystack_integrations.document_stores.elasticsearch.document_store.helpers.async_bulk")
+@patch("haystack_integrations.document_stores.elasticsearch.document_store.AsyncElasticsearch")
+@patch("haystack_integrations.document_stores.elasticsearch.document_store.Elasticsearch")
+async def test_write_documents_async_bulk_omits_pipeline_when_not_configured(
+    mock_es, mock_async_es_cls, mock_async_bulk
+):
+    mock_client = Mock()
+    mock_client.info.return_value = {"version": {"number": "8.0.0"}}
+    mock_client.indices.exists.return_value = True
+    mock_es.return_value = mock_client
+
+    mock_async_es_cls.return_value = AsyncMock()
+
+    mock_async_bulk.return_value = (1, [])
+
+    store = ElasticsearchDocumentStore(hosts="http://localhost:9200", index="idx_async_no_pipeline")
+    _ = store.client
+    await store.write_documents_async([Document(id="1", content="a")])
+
+    mock_async_bulk.assert_called_once()
+    assert "pipeline" not in mock_async_bulk.call_args.kwargs
+
+
 def test_api_key_validation_only_api_key():
     api_key = Secret.from_token("test_api_key")
     document_store = ElasticsearchDocumentStore(hosts="https://localhost:9200", api_key=api_key)
@@ -234,6 +364,7 @@ def test_api_key_validation_only_api_key():
 
 
 @patch("haystack_integrations.document_stores.elasticsearch.document_store.Elasticsearch")
+@patch.dict("os.environ", {"ELASTIC_API_KEY": "", "ELASTIC_API_KEY_ID": ""})
 def test_api_key_validation_only_api_key_id_raises_error(_mock_elasticsearch_client):
     api_key_id = Secret.from_token("test_api_key_id")
     with pytest.raises(ValueError, match="api_key_id is provided but api_key is missing"):
@@ -339,6 +470,75 @@ def test_sparse_embedding_to_es_vector_empty_inputs():
         ElasticsearchDocumentStore._sparse_embedding_to_es_vector(indices=[], values=[])
 
 
+def test_deserialize_document_with_numeric_string_keys():
+    # Documents written by Haystack use numeric string keys ("0", "1", ...)
+    store = ElasticsearchDocumentStore(hosts="testhost", sparse_vector_field="sparse_vec")
+    hit = {
+        "_source": {"id": "doc-1", "content": "Berlin", "sparse_vec": {"0": 0.9, "2": 0.5, "1": 0.7}},
+        "_score": 1.0,
+    }
+    doc = store._deserialize_document(hit)
+    assert doc.sparse_embedding is not None
+    assert doc.sparse_embedding.indices == [0, 1, 2]
+    assert doc.sparse_embedding.values == [0.9, 0.7, 0.5]
+
+
+def test_deserialize_document_with_elser_string_token_keys():
+    # Documents indexed by an ES inference pipeline (ELSER) use token-string keys ("berlin", ...)
+    # which cannot map to integer indices — sparse_embedding is left as None
+    store = ElasticsearchDocumentStore(hosts="testhost", sparse_vector_field="sparse_vec")
+    hit = {
+        "_source": {"id": "doc-1", "content": "Berlin", "sparse_vec": {"berlin": 3.5, "capital": 2.1}},
+        "_score": 1.0,
+    }
+    doc = store._deserialize_document(hit)
+    assert doc.content == "Berlin"
+    assert doc.score == 1.0
+    assert doc.sparse_embedding is None
+
+
+def test_deserialize_document_fields_api_with_numeric_keys():
+    # When ES returns sparse data via the fields API (list-wrapped), numeric keys are deserialized correctly.
+    # This covers the ingest-pipeline case where sparse_vec is absent from _source.
+    store = ElasticsearchDocumentStore(hosts="testhost", sparse_vector_field="sparse_vec")
+    hit = {
+        "_source": {"id": "doc-1", "content": "Berlin"},
+        "_score": 1.0,
+        "fields": {"sparse_vec": [{"0": 0.9, "2": 0.5, "1": 0.7}]},
+    }
+    doc = store._deserialize_document(hit)
+    assert doc.sparse_embedding is not None
+    assert doc.sparse_embedding.indices == [0, 1, 2]
+    assert doc.sparse_embedding.values == [0.9, 0.7, 0.5]
+
+
+def test_deserialize_document_fields_api_takes_precedence_over_source():
+    # fields API data wins over _source when both are present.
+    store = ElasticsearchDocumentStore(hosts="testhost", sparse_vector_field="sparse_vec")
+    hit = {
+        "_source": {"id": "doc-1", "content": "Berlin", "sparse_vec": {"0": 0.1}},
+        "_score": 1.0,
+        "fields": {"sparse_vec": [{"0": 0.9, "1": 0.7}]},
+    }
+    doc = store._deserialize_document(hit)
+    assert doc.sparse_embedding is not None
+    assert doc.sparse_embedding.indices == [0, 1]
+    assert doc.sparse_embedding.values == [0.9, 0.7]
+
+
+def test_deserialize_document_fields_api_empty_list_does_not_crash():
+    # ES can return the field key with an empty list if the field is mapped but has no value.
+    store = ElasticsearchDocumentStore(hosts="testhost", sparse_vector_field="sparse_vec")
+    hit = {
+        "_source": {"id": "doc-1", "content": "Berlin"},
+        "_score": 1.0,
+        "fields": {"sparse_vec": []},
+    }
+    doc = store._deserialize_document(hit)
+    assert doc.content == "Berlin"
+    assert doc.sparse_embedding is None
+
+
 def test_sparse_vector_retrieval_builds_query_without_filters():
     store = ElasticsearchDocumentStore(hosts="some hosts", sparse_vector_field="sparse_vec")
 
@@ -355,6 +555,41 @@ def test_sparse_vector_retrieval_builds_query_without_filters():
         {"sparse_vector": {"field": "sparse_vec", "query_vector": {"0": 0.5, "2": 0.7}}}
     ]
     assert "filter" not in search_kwargs["query"]["bool"]
+
+
+def test_sparse_vector_retrieval_inference_builds_query_without_filters():
+    store = ElasticsearchDocumentStore(hosts="some hosts", sparse_vector_field="sparse_vec")
+
+    with patch.object(store, "_search_documents", return_value=[]) as mock_search:
+        store._sparse_vector_retrieval_inference(query="Find Berlin", inference_id="ELSER", top_k=3)
+
+    mock_search.assert_called_once()
+    search_kwargs = mock_search.call_args.kwargs
+    assert search_kwargs["size"] == 3
+    assert search_kwargs["query"]["bool"]["must"] == [
+        {"sparse_vector": {"field": "sparse_vec", "query": "Find Berlin", "inference_id": "ELSER"}}
+    ]
+    assert "filter" not in search_kwargs["query"]["bool"]
+
+
+def test_sparse_vector_retrieval_inference_builds_query_with_filters():
+    store = ElasticsearchDocumentStore(hosts="some hosts", sparse_vector_field="sparse_vec")
+
+    with patch.object(store, "_search_documents", return_value=[]) as mock_search:
+        store._sparse_vector_retrieval_inference(
+            query="Find Berlin",
+            inference_id="ELSER",
+            filters={"field": "type", "operator": "==", "value": "match"},
+            top_k=3,
+        )
+
+    mock_search.assert_called_once()
+    search_kwargs = mock_search.call_args.kwargs
+    assert search_kwargs["size"] == 3
+    assert search_kwargs["query"]["bool"]["must"] == [
+        {"sparse_vector": {"field": "sparse_vec", "query": "Find Berlin", "inference_id": "ELSER"}}
+    ]
+    assert search_kwargs["query"]["bool"]["filter"] == {"bool": {"must": {"term": {"type": "match"}}}}
 
 
 def test_sparse_vector_retrieval_builds_query_with_filters():
@@ -394,6 +629,56 @@ async def test_sparse_vector_retrieval_async_builds_query_without_filters():
                 "must": [
                     {"sparse_vector": {"field": "sparse_vec", "query_vector": {"1": 0.4, "3": 0.9}}},
                 ]
+            }
+        },
+    )
+
+
+@pytest.mark.asyncio
+async def test_sparse_vector_retrieval_inference_async_builds_query_without_filters():
+    store = ElasticsearchDocumentStore(hosts="some hosts", sparse_vector_field="sparse_vec")
+    store._initialized = True
+    store._search_documents_async = AsyncMock(return_value=[])  # type: ignore[method-assign]
+
+    await store._sparse_vector_retrieval_inference_async(
+        query="Find Berlin",
+        inference_id="ELSER",
+        top_k=2,
+    )
+
+    store._search_documents_async.assert_awaited_once_with(  # type: ignore[attr-defined]
+        size=2,
+        query={
+            "bool": {
+                "must": [
+                    {"sparse_vector": {"field": "sparse_vec", "query": "Find Berlin", "inference_id": "ELSER"}},
+                ]
+            }
+        },
+    )
+
+
+@pytest.mark.asyncio
+async def test_sparse_vector_retrieval_inference_async_builds_query_with_filters():
+    store = ElasticsearchDocumentStore(hosts="some hosts", sparse_vector_field="sparse_vec")
+    store._initialized = True
+    store._search_documents_async = AsyncMock(return_value=[])  # type: ignore[method-assign]
+
+    await store._sparse_vector_retrieval_inference_async(
+        query="Find Berlin",
+        inference_id="ELSER",
+        filters={"field": "type", "operator": "==", "value": "match"},
+        top_k=3,
+    )
+
+    store._search_documents_async.assert_awaited_once_with(  # type: ignore[attr-defined]
+        size=3,
+        query={
+            "bool": {
+                "must": [
+                    {"sparse_vector": {"field": "sparse_vec", "query": "Find Berlin", "inference_id": "ELSER"}},
+                ],
+                "filter": {"bool": {"must": {"term": {"type": "match"}}}},
             }
         },
     )
@@ -982,3 +1267,114 @@ class TestDocumentStore(
         invalid_query = "SELECT * FROM non_existent_index"
         with pytest.raises(DocumentStoreError, match="Failed to execute SQL query"):
             document_store._query_sql(invalid_query)
+
+
+def test_hybrid_retrieval_inference_builds_body_without_filters():
+    store = ElasticsearchDocumentStore(hosts="some hosts", sparse_vector_field="sparse_vec")
+
+    with patch.object(store, "_search_documents", return_value=[]) as mock_search:
+        store._hybrid_retrieval_inference(query="Find Berlin", inference_id="ELSER", top_k=3)
+
+    mock_search.assert_called_once()
+    body = mock_search.call_args.kwargs
+    assert body["size"] == 3
+    rrf = body["retriever"]["rrf"]
+    assert rrf["rank_window_size"] == 100
+    assert rrf["rank_constant"] == 60
+    bm25, sparse = rrf["retrievers"]
+    assert bm25["standard"]["query"]["multi_match"]["query"] == "Find Berlin"
+    assert bm25["standard"]["query"]["multi_match"]["fuzziness"] == "AUTO"
+    assert "filter" not in bm25["standard"]
+    assert sparse["standard"]["query"]["sparse_vector"]["field"] == "sparse_vec"
+    assert sparse["standard"]["query"]["sparse_vector"]["inference_id"] == "ELSER"
+    assert sparse["standard"]["query"]["sparse_vector"]["query"] == "Find Berlin"
+    assert "filter" not in sparse["standard"]
+
+
+def test_hybrid_retrieval_inference_builds_body_with_filters():
+    store = ElasticsearchDocumentStore(hosts="some hosts", sparse_vector_field="sparse_vec")
+
+    with patch.object(store, "_search_documents", return_value=[]) as mock_search:
+        store._hybrid_retrieval_inference(
+            query="Find Berlin",
+            inference_id="ELSER",
+            filters={"field": "type", "operator": "==", "value": "match"},
+            top_k=3,
+        )
+
+    mock_search.assert_called_once()
+    body = mock_search.call_args.kwargs
+    rrf = body["retriever"]["rrf"]
+    bm25, sparse = rrf["retrievers"]
+    expected_filter = {"bool": {"must": {"term": {"type": "match"}}}}
+    assert bm25["standard"]["filter"] == expected_filter
+    assert sparse["standard"]["filter"] == expected_filter
+
+
+def test_hybrid_retrieval_inference_builds_body_custom_rank_params():
+    store = ElasticsearchDocumentStore(hosts="some hosts", sparse_vector_field="sparse_vec")
+
+    with patch.object(store, "_search_documents", return_value=[]) as mock_search:
+        store._hybrid_retrieval_inference(
+            query="Find Berlin",
+            inference_id="ELSER",
+            rank_window_size=50,
+            rank_constant=20,
+        )
+
+    rrf = mock_search.call_args.kwargs["retriever"]["rrf"]
+    assert rrf["rank_window_size"] == 50
+    assert rrf["rank_constant"] == 20
+
+
+def test_hybrid_retrieval_inference_raises_without_sparse_field():
+    store = ElasticsearchDocumentStore(hosts="some hosts")
+    with pytest.raises(ValueError, match="sparse_vector_field must be set"):
+        store._hybrid_retrieval_inference(query="test", inference_id="ELSER")
+
+
+def test_hybrid_retrieval_inference_raises_on_empty_query():
+    store = ElasticsearchDocumentStore(hosts="some hosts", sparse_vector_field="sparse_vec")
+    with pytest.raises(ValueError, match="query must be a non-empty string"):
+        store._hybrid_retrieval_inference(query="", inference_id="ELSER")
+
+
+@pytest.mark.asyncio
+async def test_hybrid_retrieval_inference_async_builds_body_without_filters():
+    store = ElasticsearchDocumentStore(hosts="some hosts", sparse_vector_field="sparse_vec")
+    store._initialized = True
+    store._search_documents_async = AsyncMock(return_value=[])  # type: ignore[method-assign]
+
+    await store._hybrid_retrieval_inference_async(query="Find Berlin", inference_id="ELSER", top_k=3)
+
+    store._search_documents_async.assert_awaited_once()
+    body = store._search_documents_async.call_args.kwargs
+    assert body["size"] == 3
+    rrf = body["retriever"]["rrf"]
+    bm25, sparse = rrf["retrievers"]
+    assert bm25["standard"]["query"]["multi_match"]["query"] == "Find Berlin"
+    assert sparse["standard"]["query"]["sparse_vector"]["inference_id"] == "ELSER"
+    assert "filter" not in bm25["standard"]
+    assert "filter" not in sparse["standard"]
+
+
+@pytest.mark.asyncio
+async def test_hybrid_retrieval_inference_async_builds_body_with_filters():
+    store = ElasticsearchDocumentStore(hosts="some hosts", sparse_vector_field="sparse_vec")
+    store._initialized = True
+    store._search_documents_async = AsyncMock(return_value=[])  # type: ignore[method-assign]
+
+    await store._hybrid_retrieval_inference_async(
+        query="Find Berlin",
+        inference_id="ELSER",
+        filters={"field": "type", "operator": "==", "value": "match"},
+        top_k=3,
+    )
+
+    store._search_documents_async.assert_awaited_once()
+    body = store._search_documents_async.call_args.kwargs
+    rrf = body["retriever"]["rrf"]
+    bm25, sparse = rrf["retrievers"]
+    expected_filter = {"bool": {"must": {"term": {"type": "match"}}}}
+    assert bm25["standard"]["filter"] == expected_filter
+    assert sparse["standard"]["filter"] == expected_filter

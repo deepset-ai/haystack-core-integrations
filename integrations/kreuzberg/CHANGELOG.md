@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/kreuzberg-v1.0.0] - 2026-04-21
+
+### 🧹 Chores
+
+- Exclude newer kreuzberg dependency versions due to license change (#3189)
+
+
 ## [integrations/kreuzberg-v0.1.1] - 2026-04-07
 
 ### 🐛 Bug Fixes

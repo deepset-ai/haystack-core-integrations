@@ -5,6 +5,86 @@ from typing import Any
 from botocore.eventstream import EventStream
 from haystack.dataclasses import StreamingChunk, SyncStreamingCallbackT
 
+_USAGE_HEADER_MAP = {
+    "input_tokens": "x-amzn-bedrock-input-token-count",
+    "output_tokens": "x-amzn-bedrock-output-token-count",
+    "cache_read_input_tokens": "x-amzn-bedrock-cache-read-input-token-count",
+    "cache_write_input_tokens": "x-amzn-bedrock-cache-write-input-token-count",
+}
+
+_USAGE_FIELD_MAP = {
+    "input_tokens": "input_tokens",
+    "output_tokens": "output_tokens",
+    "cache_read_input_tokens": "cache_read_input_tokens",
+    "cache_write_input_tokens": "cache_creation_input_tokens",
+}
+
+
+def _set_usage_value(usage: dict[str, int], key: str, value: Any) -> None:
+    """
+    Sets a usage value coerced to int, ignoring values that are None or not int-convertible.
+
+    :param usage: The usage dictionary to update in place.
+    :param key: The destination key.
+    :param value: The raw value to coerce and store.
+    """
+    if value is None:
+        return
+    try:
+        usage[key] = int(value)
+    except (TypeError, ValueError):
+        return
+
+
+def _apply_usage(usage: dict[str, int], source: dict[str, Any], field_map: dict[str, str]) -> None:
+    """
+    Copies usage values from a source dictionary into the usage dictionary using the given field map.
+
+    :param usage: The usage dictionary to update in place.
+    :param source: The source dictionary holding raw usage values.
+    :param field_map: A mapping from destination key to source key.
+    """
+    for dst, src in field_map.items():
+        _set_usage_value(usage, dst, source.get(src))
+
+
+def _usage_from_response_metadata(metadata: dict[str, Any]) -> dict[str, int]:
+    """
+    Extracts normalized token usage from Bedrock InvokeModel ResponseMetadata HTTP headers.
+
+    :param metadata: The Bedrock response metadata dictionary.
+    :returns: A normalized usage dictionary, or an empty dictionary when no usage headers are present.
+    """
+    headers = metadata.get("HTTPHeaders") or metadata.get("http_headers") or {}
+    if not isinstance(headers, dict):
+        return {}
+
+    normalized_headers = {str(key).lower(): value for key, value in headers.items()}
+    usage: dict[str, int] = {}
+    _apply_usage(usage, normalized_headers, _USAGE_HEADER_MAP)
+    return usage
+
+
+def _merge_usage(metadata: dict[str, Any], usage: dict[str, int]) -> None:
+    """
+    Merges a usage dictionary into the metadata under the ``usage`` key.
+
+    Recomputes ``total_tokens`` after merging when both ``input_tokens`` and ``output_tokens``
+    are present, so partial usage from multiple sources is summed correctly.
+
+    :param metadata: The metadata dictionary to update in place.
+    :param usage: The normalized usage dictionary to merge in.
+    """
+    if not usage:
+        return
+
+    existing_usage = metadata.get("usage")
+    base = existing_usage if isinstance(existing_usage, dict) else {}
+    merged_usage = {**base, **usage}
+    if "input_tokens" in merged_usage and "output_tokens" in merged_usage:
+        merged_usage["total_tokens"] = merged_usage["input_tokens"] + merged_usage["output_tokens"]
+    metadata["usage"] = merged_usage
+
 
 class BedrockModelAdapter(ABC):
     """
@@ -54,6 +134,20 @@ class BedrockModelAdapter(ABC):
         :param streaming_callback: The handler for the streaming response.
         :returns: A list of string responses.
         """
+        responses, _ = self.get_stream_responses_and_metadata(stream, streaming_callback)
+        return responses
+
+    def get_stream_responses_and_metadata(
+        self, stream: EventStream, streaming_callback: SyncStreamingCallbackT
+    ) -> tuple[list[str], dict[str, Any]]:
+        """
+        Extracts both the responses and normalized metadata from the Amazon Bedrock streaming response.
+
+        :param stream: The streaming response from the Amazon Bedrock request.
+        :param streaming_callback: The handler for the streaming response.
+        :returns: A tuple of ``(responses, metadata)`` where ``responses`` is a list of string
+            responses and ``metadata`` is a dictionary that may contain a normalized ``usage`` block.
+        """
         streaming_chunks: list[StreamingChunk] = []
         for event in stream:
             chunk = event.get("chunk")
@@ -64,7 +158,37 @@ class BedrockModelAdapter(ABC):
                 streaming_callback(streaming_chunk)
 
         responses = ["".join(streaming_chunk.content for streaming_chunk in streaming_chunks).lstrip()]
-        return responses
+        metadata = self._extract_streaming_metadata(streaming_chunks)
+        return responses, metadata
+
+    def _extract_streaming_metadata(self, streaming_chunks: list[StreamingChunk]) -> dict[str, Any]:
+        """
+        Extracts normalized metadata from Bedrock streaming chunks.
+
+        The default implementation handles Anthropic Claude Messages API stream events, which
+        expose input usage in ``message_start.message.usage`` and output usage in
+        ``message_delta.usage``.
+
+        :param streaming_chunks: The streaming chunks emitted during the response.
+        :returns: A metadata dictionary with a ``usage`` block, or an empty dictionary when no
+            usage information is present.
+        """
+        usage: dict[str, int] = {}
+
+        for streaming_chunk in streaming_chunks:
+            meta = streaming_chunk.meta
+            if not isinstance(meta, dict):
+                continue
+            message = meta.get("message")
+            chunk_usage = meta.get("usage")
+            if message is None and chunk_usage is None:
+                continue
+            if isinstance(message, dict) and isinstance(message.get("usage"), dict):
+                _apply_usage(usage, message["usage"], _USAGE_FIELD_MAP)
+            if isinstance(chunk_usage, dict):
+                _apply_usage(usage, chunk_usage, _USAGE_FIELD_MAP)
+
+        return {"usage": usage} if usage else {}
 
     def _get_params(self, inference_kwargs: dict[str, Any], default_params: dict[str, Any]) -> dict[str, Any]:
         """

@@ -1,0 +1,14 @@
+loaders:
+  - modules:
+      - haystack_integrations.components.retrievers.oracle.embedding_retriever
+      - haystack_integrations.document_stores.oracle.document_store
+    search_path: [../src]
+processors:
+  - type: filter
+    documented_only: true
+    skip_empty_modules: true
+renderer:
+  description: Oracle AI Vector Search integration for Haystack
+  id: integrations-oracle
+  filename: oracle.md
+  title: Oracle AI Vector Search

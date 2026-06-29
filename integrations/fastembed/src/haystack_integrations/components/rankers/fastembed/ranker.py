@@ -48,6 +48,7 @@ class FastembedRanker:
         local_files_only: bool = False,
         meta_fields_to_embed: list[str] | None = None,
         meta_data_separator: str = "\n",
+        score_threshold: float | None = None,
     ) -> None:
         """
         Creates an instance of the 'FastembedRanker'.
@@ -68,6 +69,8 @@ class FastembedRanker:
             with the document content for reranking.
         :param meta_data_separator: Separator used to concatenate the meta fields
             to the Document content.
+        :param score_threshold: If provided, only documents with a score above the threshold are returned.
+            Applied after `top_k`, so the output may contain fewer than `top_k` documents.
         """
         if top_k <= 0:
             msg = f"top_k must be > 0, but got {top_k}"
@@ -82,6 +85,7 @@ class FastembedRanker:
         self.local_files_only = local_files_only
         self.meta_fields_to_embed = meta_fields_to_embed or []
         self.meta_data_separator = meta_data_separator
+        self.score_threshold = score_threshold
         self._model: TextCrossEncoder | None = None
 
     def to_dict(self) -> dict[str, Any]:
@@ -102,6 +106,7 @@ class FastembedRanker:
             local_files_only=self.local_files_only,
             meta_fields_to_embed=self.meta_fields_to_embed,
             meta_data_separator=self.meta_data_separator,
+            score_threshold=self.score_threshold,
         )
 
     @classmethod
@@ -200,5 +205,9 @@ class FastembedRanker:
         sorted_doc_scores = sorted(doc_scores, key=lambda x: x[1], reverse=True)
 
         top_k_documents = [replace(doc, score=score) for doc, score in sorted_doc_scores[:top_k]]
+
+        score_threshold = self.score_threshold
+        if score_threshold is not None:
+            top_k_documents = [doc for doc in top_k_documents if doc.score is not None and doc.score >= score_threshold]
 
         return {"documents": top_k_documents}

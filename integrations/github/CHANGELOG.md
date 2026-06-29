@@ -1,5 +1,27 @@
 # Changelog
 
+## [integrations/github-v2.1.0] - 2026-05-13
+
+### 📚 Documentation
+
+- Simplify pydoc configs (#2855)
+
+### 🧪 Testing
+
+- GitHub - make tests compatible with new Agent parameters (#2865)
+- Test compatible integrations with python 3.14; update pyproject (#3001)
+- Track test coverage for all integrations (#3065)
+- Add unit tests for github + fix small handler bug (#3280)
+
+### 🧹 Chores
+
+- Add ANN type annotations to faiss, fastembed, firecrawl, github, google_ai (#2988)
+- Enforce ruff docstring rules (D102/D103/D205/D209/D213/D417/D419) in integrations 11-20 (#3009)
+
+### 🌀 Miscellaneous
+
+- Test: Fix github tests due to changes on Haystack main (#2778)
+
 ## [integrations/github-v2.0.0] - 2026-01-12
 
 ### 📚 Documentation

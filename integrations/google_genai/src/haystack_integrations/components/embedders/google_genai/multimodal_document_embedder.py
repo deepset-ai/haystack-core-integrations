@@ -9,19 +9,19 @@ from pathlib import Path
 from typing import Any, Literal
 
 from google.genai.types import Content, EmbedContentConfig, Part
-from haystack import Document, component, logging
+from haystack import Document, component, default_from_dict, default_to_dict, logging
 from haystack.components.converters.image.image_utils import (
     _batch_convert_pdf_pages_to_images,
     _encode_image_to_base64,
     _PDFPageInfo,
 )
 from haystack.dataclasses import ByteStream
-from haystack.utils.auth import Secret
+from haystack.utils import Secret, deserialize_secrets_inplace
 from tqdm import tqdm
 from tqdm.asyncio import tqdm as async_tqdm
 from typing_extensions import NotRequired, TypedDict
 
-from haystack_integrations.components.common.google_genai.utils import _get_client
+from haystack_integrations.common.google_genai.utils import _get_client
 
 logger = logging.getLogger(__name__)
 
@@ -177,10 +177,12 @@ class GoogleGenAIMultimodalDocumentEmbedder:
         file_path_meta_field: str = "file_path",
         root_path: str | None = None,
         image_size: tuple[int, int] | None = None,
-        model: str = "gemini-embedding-2-preview",
+        model: str = "gemini-embedding-2",
         batch_size: int = 6,
         progress_bar: bool = True,
         config: dict[str, Any] | None = None,
+        timeout: float | None = None,
+        max_retries: int | None = None,
     ) -> None:
         """
         Creates an GoogleGenAIMultimodalDocumentEmbedder component.
@@ -213,11 +215,14 @@ class GoogleGenAIMultimodalDocumentEmbedder:
         :param progress_bar:
             If `True`, shows a progress bar when running.
         :param config:
-            A dictionary of keyword arguments to configure embedding content configuration `types.EmbedContentConfig`.
+            A dictionary of keyword arguments to configure embedding content configuration.
             You can for example set the output dimensionality of the embedding: `{"output_dimensionality": 768}`.
-            It also allows customizing the task type. If the task type is not specified, it defaults to
-            `{"task_type": "RETRIEVAL_DOCUMENT"}`.
-            For more information, see the [Google AI documentation](https://ai.google.dev/gemini-api/docs/embeddings#task-types).
+            See [Google API documentation](https://googleapis.github.io/python-genai/genai.html#genai.types.EmbedContentConfig)
+            for the available options.
+        :param timeout:
+            The timeout in seconds for the underlying Google GenAI client network requests.
+        :param max_retries:
+            The maximum number of retries for the underlying Google GenAI client network requests.
         """
         self._api_key = api_key
         self._api = api
@@ -229,17 +234,55 @@ class GoogleGenAIMultimodalDocumentEmbedder:
         self._image_size = image_size
         self._batch_size = batch_size
         self._progress_bar = progress_bar
-
-        config = config or {}
-        config.setdefault("task_type", "RETRIEVAL_DOCUMENT")
         self._config = config
+        self._timeout = timeout
+        self._max_retries = max_retries
 
         self._client = _get_client(
             api_key=api_key,
             api=api,
             vertex_ai_project=vertex_ai_project,
             vertex_ai_location=vertex_ai_location,
+            timeout=timeout,
+            max_retries=max_retries,
         )
+
+    def to_dict(self) -> dict[str, Any]:
+        """
+        Serializes the component to a dictionary.
+
+        :returns:
+            Dictionary with serialized data.
+        """
+        return default_to_dict(
+            self,
+            model=self._model,
+            file_path_meta_field=self._file_path_meta_field,
+            root_path=self._root_path if self._root_path != "" else None,
+            image_size=self._image_size,
+            batch_size=self._batch_size,
+            progress_bar=self._progress_bar,
+            api_key=self._api_key.to_dict(),
+            api=self._api,
+            vertex_ai_project=self._vertex_ai_project,
+            vertex_ai_location=self._vertex_ai_location,
+            config=self._config,
+            timeout=self._timeout,
+            max_retries=self._max_retries,
+        )
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "GoogleGenAIMultimodalDocumentEmbedder":
+        """
+        Deserializes the component from a dictionary.
+
+        :param data:
+            Dictionary to deserialize from.
+        :returns:
+            Deserialized component.
+        """
+        deserialize_secrets_inplace(data["init_parameters"], keys=["api_key"])
+        return default_from_dict(cls, data)
 
     def _extract_parts_to_embed(self, documents: list[Document]) -> list[Part]:
         """

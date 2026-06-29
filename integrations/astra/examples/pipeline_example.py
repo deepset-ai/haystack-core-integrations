@@ -1,11 +1,12 @@
 import os
 
 from haystack import Document, Pipeline, logging
+from haystack.components.builders import ChatPromptBuilder
 from haystack.components.builders.answer_builder import AnswerBuilder
-from haystack.components.builders.prompt_builder import PromptBuilder
 from haystack.components.embedders import SentenceTransformersDocumentEmbedder, SentenceTransformersTextEmbedder
-from haystack.components.generators import OpenAIGenerator
+from haystack.components.generators.chat import OpenAIChatGenerator
 from haystack.components.writers import DocumentWriter
+from haystack.dataclasses import ChatMessage
 from haystack.document_stores.types import DuplicatePolicy
 
 from haystack_integrations.components.retrievers.astra import AstraEmbeddingRetriever
@@ -15,8 +16,9 @@ logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
 
 # Create a RAG query pipeline
-prompt_template = """
-Given these documents, answer the question.
+prompt_template = [
+    ChatMessage.from_user(
+        """Given these documents, answer the question.
 
 Documents:
 {% for doc in documents %}
@@ -25,8 +27,9 @@ Documents:
 
 Question: {{question}}
 
-Answer:
-"""
+Answer:"""
+    )
+]
 
 collection_name = os.getenv("COLLECTION_NAME", "haystack_vector_search")
 
@@ -70,14 +73,13 @@ rag_pipeline.add_component(
     name="embedder",
 )
 rag_pipeline.add_component(instance=AstraEmbeddingRetriever(document_store=document_store), name="retriever")
-rag_pipeline.add_component(instance=PromptBuilder(template=prompt_template), name="prompt_builder")
-rag_pipeline.add_component(instance=OpenAIGenerator(), name="llm")
+rag_pipeline.add_component(instance=ChatPromptBuilder(template=prompt_template), name="prompt_builder")
+rag_pipeline.add_component(instance=OpenAIChatGenerator(), name="llm")
 rag_pipeline.add_component(instance=AnswerBuilder(), name="answer_builder")
 rag_pipeline.connect("embedder", "retriever")
 rag_pipeline.connect("retriever", "prompt_builder.documents")
-rag_pipeline.connect("prompt_builder", "llm")
+rag_pipeline.connect("prompt_builder.prompt", "llm.messages")
 rag_pipeline.connect("llm.replies", "answer_builder.replies")
-rag_pipeline.connect("llm.meta", "answer_builder.meta")
 rag_pipeline.connect("retriever", "answer_builder.documents")
 
 
@@ -96,4 +98,4 @@ result = rag_pipeline.run(
     }
 )
 
-logger.info(result)
+logger.info(result["answer_builder"]["answers"][0].data)

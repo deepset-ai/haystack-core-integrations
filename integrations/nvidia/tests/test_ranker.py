@@ -330,6 +330,20 @@ class TestNvidiaRanker:
         client.warm_up()
         assert client.backend.timeout == 45.0
 
+    def test_run_on_empty_list(self, monkeypatch):
+        monkeypatch.setenv("NVIDIA_API_KEY", "fake-api-key")
+        client = NvidiaRanker()
+        client.warm_up()
+        assert client.run(query="q", documents=[]) == {"documents": []}
+
+    def test_run_without_prior_warm_up(self, requests_mock, monkeypatch):
+        monkeypatch.setenv("NVIDIA_API_KEY", "fake-api-key")
+        requests_mock.post(re.compile(r".*ranking"), json={"rankings": [{"index": 0, "logit": 1.0}]})
+        client = NvidiaRanker()
+        result = client.run(query="q", documents=[Document(content="doc")])
+        assert client._initialized is True
+        assert len(result["documents"]) == 1
+
     def test_prepare_texts_to_embed_w_metadata(self):
         documents = [
             Document(content=f"document number {i}:\ncontent", meta={"meta_field": f"meta_value {i}"}) for i in range(5)

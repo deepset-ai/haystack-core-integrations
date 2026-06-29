@@ -1,0 +1,14 @@
+loaders:
+  - modules:
+      - haystack_integrations.components.retrievers.microsoft_sharepoint.retriever
+      - haystack_integrations.components.fetchers.microsoft_sharepoint.fetcher
+    search_path: [../src]
+processors:
+  - type: filter
+    documented_only: true
+    skip_empty_modules: true
+renderer:
+  description: Microsoft SharePoint integration for Haystack
+  id: integrations-microsoft-sharepoint
+  filename: microsoft_sharepoint.md
+  title: Microsoft SharePoint

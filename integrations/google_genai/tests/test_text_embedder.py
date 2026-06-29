@@ -5,7 +5,7 @@
 import os
 
 import pytest
-from google.genai.types import ContentEmbedding, EmbedContentConfig, EmbedContentResponse
+from google.genai.types import ContentEmbedding, EmbedContentResponse
 from haystack.utils.auth import Secret
 
 from haystack_integrations.components.embedders.google_genai import GoogleGenAITextEmbedder
@@ -20,10 +20,12 @@ class TestGoogleGenAITextEmbedder:
         assert embedder._model_name == "gemini-embedding-001"
         assert embedder._prefix == ""
         assert embedder._suffix == ""
-        assert embedder._config == {"task_type": "SEMANTIC_SIMILARITY"}
+        assert embedder._config is None
         assert embedder._api == "gemini"
         assert embedder._vertex_ai_project is None
         assert embedder._vertex_ai_location is None
+        assert embedder._timeout is None
+        assert embedder._max_retries is None
 
     def test_init_with_parameters(self):
         embedder = GoogleGenAITextEmbedder(
@@ -32,12 +34,16 @@ class TestGoogleGenAITextEmbedder:
             prefix="prefix",
             suffix="suffix",
             config={"task_type": "CLASSIFICATION"},
+            timeout=30.0,
+            max_retries=3,
         )
         assert embedder._api_key.resolve_value() == "fake-api-key"
         assert embedder._model_name == "model"
         assert embedder._prefix == "prefix"
         assert embedder._suffix == "suffix"
         assert embedder._config == {"task_type": "CLASSIFICATION"}
+        assert embedder._timeout == 30.0
+        assert embedder._max_retries == 3
 
     def test_to_dict(self, monkeypatch):
         monkeypatch.setenv("GOOGLE_API_KEY", "fake-api-key")
@@ -50,10 +56,12 @@ class TestGoogleGenAITextEmbedder:
                 "model": "gemini-embedding-001",
                 "prefix": "",
                 "suffix": "",
-                "config": {"task_type": "SEMANTIC_SIMILARITY"},
+                "config": None,
                 "api": "gemini",
                 "vertex_ai_project": None,
                 "vertex_ai_location": None,
+                "timeout": None,
+                "max_retries": None,
             },
         }
 
@@ -65,6 +73,8 @@ class TestGoogleGenAITextEmbedder:
             prefix="prefix",
             suffix="suffix",
             config={"task_type": "CLASSIFICATION"},
+            timeout=30.0,
+            max_retries=3,
         )
         data = component.to_dict()
         assert data == {
@@ -78,6 +88,8 @@ class TestGoogleGenAITextEmbedder:
                 "api": "gemini",
                 "vertex_ai_project": None,
                 "vertex_ai_location": None,
+                "timeout": 30.0,
+                "max_retries": 3,
             },
         }
 
@@ -94,6 +106,8 @@ class TestGoogleGenAITextEmbedder:
                 "api": "gemini",
                 "vertex_ai_project": None,
                 "vertex_ai_location": None,
+                "timeout": 30.0,
+                "max_retries": 3,
             },
         }
         component = GoogleGenAITextEmbedder.from_dict(data)
@@ -102,6 +116,8 @@ class TestGoogleGenAITextEmbedder:
         assert component._prefix == ""
         assert component._suffix == ""
         assert component._config == {"task_type": "CLASSIFICATION"}
+        assert component._timeout == 30.0
+        assert component._max_retries == 3
 
     def test_prepare_input(self, monkeypatch):
         monkeypatch.setenv("GOOGLE_API_KEY", "fake-api-key")
@@ -112,14 +128,6 @@ class TestGoogleGenAITextEmbedder:
         assert prepared_input == {
             "model": "gemini-embedding-001",
             "contents": "The food was delicious",
-            "config": EmbedContentConfig(
-                http_options=None,
-                task_type="SEMANTIC_SIMILARITY",
-                title=None,
-                output_dimensionality=None,
-                mime_type=None,
-                auto_truncate=None,
-            ),
         }
 
     def test_prepare_output(self, monkeypatch):
@@ -149,9 +157,8 @@ class TestGoogleGenAITextEmbedder:
         reason="Export an env var called GOOGLE_API_KEY containing the Google API key to run this test.",
     )
     @pytest.mark.integration
-    def test_run(self):
-        model = "gemini-embedding-001"
-
+    @pytest.mark.parametrize("model", ["gemini-embedding-001", "gemini-embedding-2"])
+    def test_run(self, model):
         embedder = GoogleGenAITextEmbedder(model=model)
         result = embedder.run(text="The food was delicious")
 
@@ -166,9 +173,8 @@ class TestGoogleGenAITextEmbedder:
         reason="Export an env var called GOOGLE_API_KEY containing the Google API key to run this test.",
     )
     @pytest.mark.integration
-    async def test_run_async(self):
-        model = "gemini-embedding-001"
-
+    @pytest.mark.parametrize("model", ["gemini-embedding-001", "gemini-embedding-2"])
+    async def test_run_async(self, model):
         embedder = GoogleGenAITextEmbedder(model=model)
         result = await embedder.run_async(text="The food was delicious")
 

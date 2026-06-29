@@ -183,6 +183,20 @@ class TestNvidiaTextEmbedder:
         with pytest.raises(ValueError, match="empty string"):
             embedder.run(text="")
 
+    def test_run_validates_input_without_prior_warm_up(self):
+        api_key = Secret.from_token("fake-api-key")
+        embedder = NvidiaTextEmbedder("nvidia/nv-embedqa-e5-v5", api_key=api_key)
+
+        with pytest.raises(TypeError, match="NvidiaTextEmbedder expects a string as an input"):
+            embedder.run(text=[1, 2, 3])
+
+    def test_run_rejects_empty_string_without_prior_warm_up(self):
+        api_key = Secret.from_token("fake-api-key")
+        embedder = NvidiaTextEmbedder("nvidia/nv-embedqa-e5-v5", api_key=api_key)
+
+        with pytest.raises(ValueError, match="empty string"):
+            embedder.run(text="")
+
     def test_setting_timeout(self, monkeypatch):
         monkeypatch.setenv("NVIDIA_API_KEY", "fake-api-key")
         embedder = NvidiaTextEmbedder(timeout=10.0)

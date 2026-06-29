@@ -8,9 +8,9 @@ import httpx
 from haystack import component, default_from_dict, default_to_dict, logging, tracing
 from haystack.utils import Secret, deserialize_secrets_inplace
 from haystack.utils.base_serialization import deserialize_class_instance, serialize_class_instance
-from langfuse import Langfuse
 
 from haystack_integrations.tracing.langfuse import LangfuseTracer, SpanHandler
+from langfuse import Langfuse
 
 logger = logging.getLogger(__name__)
 
@@ -228,7 +228,6 @@ class LangfuseConnector:
         """
         init_params = data["init_parameters"]
         deserialize_secrets_inplace(init_params, keys=["secret_key", "public_key"])
-        init_params["span_handler"] = (
-            deserialize_class_instance(init_params["span_handler"]) if init_params["span_handler"] else None
-        )
+        if init_params.get("span_handler") is not None:
+            init_params["span_handler"] = deserialize_class_instance(init_params["span_handler"])
         return default_from_dict(cls, data)

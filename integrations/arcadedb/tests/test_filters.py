@@ -4,6 +4,8 @@
 
 """Unit tests for filter conversion (no ArcadeDB instance required)."""
 
+import datetime
+
 import pytest
 
 from haystack_integrations.document_stores.arcadedb.filters import _convert_filters
@@ -39,7 +41,7 @@ class TestFilterConversion:
 
     def test_not_in_operator(self):
         result = _convert_filters({"field": "meta.tag", "operator": "not in", "value": ["x"]})
-        assert result == "meta.tag NOT IN ['x']"
+        assert result == "(meta.tag NOT IN ['x'] OR meta.tag IS NULL)"
 
     def test_and(self):
         result = _convert_filters(
@@ -101,3 +103,79 @@ class TestFilterConversion:
     def test_missing_field_raises(self):
         with pytest.raises(ValueError):
             _convert_filters({"operator": "==", "value": 1})
+
+    @pytest.mark.parametrize(
+        "filter_dict,expected",
+        [
+            ({"operator": "AND", "conditions": []}, ""),
+            ({"operator": "OR", "conditions": []}, ""),
+            ({"operator": "NOT", "conditions": []}, ""),
+            (
+                {"operator": "AND", "conditions": [{"field": "a", "operator": "==", "value": 1}]},
+                "a = 1",
+            ),
+            ({"field": "meta.score", "operator": "<=", "value": 5}, "meta.score <= 5"),
+            ({"field": "meta.score", "operator": ">=", "value": None}, "1 = 0"),
+            (
+                {"field": "meta.date", "operator": ">", "value": "2024-01-01T00:00:00"},
+                "meta.date > '2024-01-01T00:00:00'",
+            ),
+            ({"field": "meta.tag", "operator": "in", "value": [None]}, "meta.tag IN [NULL]"),
+            ({"field": "meta.flag", "operator": "==", "value": False}, "meta.flag = false"),
+            ({"field": "meta.price", "operator": "==", "value": 1.5}, "meta.price = 1.5"),
+            ({"operator": "AND", "conditions": [{"operator": "AND", "conditions": []}]}, ""),
+            (
+                {"field": "x", "operator": "==", "value": datetime.date(2024, 1, 2)},
+                "x = '2024-01-02'",
+            ),
+        ],
+    )
+    def test_conversion_edge_cases(self, filter_dict, expected):
+        assert _convert_filters(filter_dict) == expected
+
+    @pytest.mark.parametrize(
+        "filter_dict",
+        [
+            {"operator": "AND"},
+            {"operator": "OR"},
+            {"field": "a", "operator": "=="},
+            {"field": "a", "operator": ">", "value": [1, 2]},
+            {"field": "a", "operator": "<", "value": "plain_string"},
+            {"field": "a", "operator": "in", "value": "not_a_list"},
+            {"field": "a", "operator": "not in", "value": 42},
+            {"field": "a", "operator": "??", "value": 1},
+        ],
+    )
+    def test_invalid_filter_raises(self, filter_dict):
+        with pytest.raises(ValueError):
+            _convert_filters(filter_dict)
+
+    @pytest.mark.parametrize(
+        "field",
+        [
+            "x; DROP TABLE Documents",
+            "x OR 1=1",
+            "x--",
+            "x; SELECT *",
+            "'injected'",
+            "1field",
+            "field name",
+        ],
+    )
+    def test_sql_injection_field_names_raise(self, field):
+        with pytest.raises(ValueError, match="Invalid field name"):
+            _convert_filters({"field": field, "operator": "==", "value": "v"})
+
+    def test_value_with_backslash(self):
+        # A single backslash must be doubled: \ → \\
+        result = _convert_filters({"field": "meta.x", "operator": "==", "value": "\\"})
+        assert result == "meta.x = '\\\\'"
+
+    def test_value_with_backslash_then_quote(self):
+        # \' in value → \\ (escaped backslash) + \' (escaped quote) in SQL
+        result = _convert_filters({"field": "meta.x", "operator": "==", "value": "a\\'b"})
+        assert result == "meta.x = 'a\\\\\\'b'"
+
+    def test_value_with_single_quote(self):
+        result = _convert_filters({"field": "meta.x", "operator": "==", "value": "it's"})
+        assert result == "meta.x = 'it\\'s'"

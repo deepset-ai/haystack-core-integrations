@@ -5,7 +5,12 @@
 import pytest
 
 from haystack_integrations.utils.nvidia import Client, is_hosted
-from haystack_integrations.utils.nvidia.models import CHAT_MODEL_TABLE, EMBEDDING_MODEL_TABLE, RANKING_MODEL_TABLE
+from haystack_integrations.utils.nvidia.models import (
+    CHAT_MODEL_TABLE,
+    EMBEDDING_MODEL_TABLE,
+    RANKING_MODEL_TABLE,
+    Model,
+)
 from haystack_integrations.utils.nvidia.utils import (
     determine_model,
     lookup_model,
@@ -110,3 +115,39 @@ def test_validate_hosted_model_with_client() -> None:
     model = validate_hosted_model("meta/codellama-70b", Client.NVIDIA_GENERATOR)
     assert model is not None
     assert model.client == Client.NVIDIA_GENERATOR
+
+
+# Model
+def test_model_hash_uses_id() -> None:
+    assert hash(Model(id="foo")) == hash("foo")
+
+
+def test_model_validate_with_enum_client() -> None:
+    model = Model(id="foo", model_type="chat", client=Client.NVIDIA_GENERATOR)
+    assert model.validate() == hash("foo")
+
+
+def test_model_validate_with_string_client() -> None:
+    model = Model(id="foo", model_type="chat", client="NvidiaGenerator")
+    assert model.validate() == hash("foo")
+
+
+def test_model_validate_raises_on_incompatible_type() -> None:
+    model = Model(id="foo", model_type="embedding", client=Client.NVIDIA_GENERATOR)
+    with pytest.raises(ValueError, match="not supported by client"):
+        model.validate()
+
+
+def test_model_validate_without_client() -> None:
+    model = Model(id="foo", model_type="chat")
+    assert model.validate() == hash("foo")
+
+
+# Client
+def test_client_from_str_invalid() -> None:
+    with pytest.raises(ValueError, match="Unknown client"):
+        Client.from_str("NotARealClient")
+
+
+def test_client_str_returns_value() -> None:
+    assert str(Client.NVIDIA_GENERATOR) == "NvidiaGenerator"

@@ -39,7 +39,9 @@ class TestGoogleGenAIDocumentEmbedder:
         assert embedder._progress_bar is True
         assert embedder._meta_fields_to_embed == []
         assert embedder._embedding_separator == "\n"
-        assert embedder._config == {"task_type": "SEMANTIC_SIMILARITY"}
+        assert embedder._config is None
+        assert embedder._timeout is None
+        assert embedder._max_retries is None
 
     def test_init_with_parameters(self, monkeypatch):
         embedder = GoogleGenAIDocumentEmbedder(
@@ -52,6 +54,8 @@ class TestGoogleGenAIDocumentEmbedder:
             meta_fields_to_embed=["test_field"],
             embedding_separator=" | ",
             config={"task_type": "CLASSIFICATION"},
+            timeout=30.0,
+            max_retries=3,
         )
         assert embedder._api_key.resolve_value() == "fake-api-key-2"
         assert embedder._model == "model"
@@ -62,6 +66,8 @@ class TestGoogleGenAIDocumentEmbedder:
         assert embedder._meta_fields_to_embed == ["test_field"]
         assert embedder._embedding_separator == " | "
         assert embedder._config == {"task_type": "CLASSIFICATION"}
+        assert embedder._timeout == 30.0
+        assert embedder._max_retries == 3
 
     def test_init_fail_wo_api_key(self, monkeypatch):
         monkeypatch.delenv("GOOGLE_API_KEY", raising=False)
@@ -86,10 +92,12 @@ class TestGoogleGenAIDocumentEmbedder:
                 "meta_fields_to_embed": [],
                 "embedding_separator": "\n",
                 "api_key": {"type": "env_var", "env_vars": ["GOOGLE_API_KEY", "GEMINI_API_KEY"], "strict": False},
-                "config": {"task_type": "SEMANTIC_SIMILARITY"},
+                "config": None,
                 "api": "gemini",
                 "vertex_ai_project": None,
                 "vertex_ai_location": None,
+                "timeout": None,
+                "max_retries": None,
             },
         }
 
@@ -105,6 +113,8 @@ class TestGoogleGenAIDocumentEmbedder:
             meta_fields_to_embed=["test_field"],
             embedding_separator=" | ",
             config={"task_type": "CLASSIFICATION"},
+            timeout=30.0,
+            max_retries=3,
         )
         data = component.to_dict()
         assert data == {
@@ -124,6 +134,8 @@ class TestGoogleGenAIDocumentEmbedder:
                 "api": "gemini",
                 "vertex_ai_project": None,
                 "vertex_ai_location": None,
+                "timeout": 30.0,
+                "max_retries": 3,
             },
         }
 
@@ -145,6 +157,8 @@ class TestGoogleGenAIDocumentEmbedder:
                 "api": "gemini",
                 "vertex_ai_project": None,
                 "vertex_ai_location": None,
+                "timeout": 30.0,
+                "max_retries": 3,
             },
         }
         monkeypatch.setenv("GOOGLE_API_KEY", "fake-api-key")
@@ -161,6 +175,8 @@ class TestGoogleGenAIDocumentEmbedder:
         assert embedder._api == "gemini"
         assert embedder._vertex_ai_project is None
         assert embedder._vertex_ai_location is None
+        assert embedder._timeout == 30.0
+        assert embedder._max_retries == 3
 
     def test_prepare_texts_to_embed_w_metadata(self):
         documents = [
@@ -277,8 +293,11 @@ class TestGoogleGenAIDocumentEmbedder:
 
         calls = embedder._client.models.embed_content.call_args_list
         assert len(calls) == 2
-        assert calls[0].kwargs["contents"] == ["first document text", "second document text"]
-        assert calls[1].kwargs["contents"] == ["third document text"]
+        assert [c.parts[0].text for c in calls[0].kwargs["contents"]] == [
+            "first document text",
+            "second document text",
+        ]
+        assert [c.parts[0].text for c in calls[1].kwargs["contents"]] == ["third document text"]
 
     @pytest.mark.asyncio
     async def test_embed_batch_async_passes_full_texts(self, monkeypatch):
@@ -300,24 +319,32 @@ class TestGoogleGenAIDocumentEmbedder:
 
         calls = embedder._client.aio.models.embed_content.call_args_list
         assert len(calls) == 2
-        assert calls[0].kwargs["contents"] == ["first document text", "second document text"]
-        assert calls[1].kwargs["contents"] == ["third document text"]
+        assert [c.parts[0].text for c in calls[0].kwargs["contents"]] == [
+            "first document text",
+            "second document text",
+        ]
+        assert [c.parts[0].text for c in calls[1].kwargs["contents"]] == ["third document text"]
 
     @pytest.mark.skipif(
         not os.environ.get("GOOGLE_API_KEY", None),
         reason="Export an env var called GOOGLE_API_KEY containing the Google API key to run this test.",
     )
     @pytest.mark.integration
-    def test_run(self):
-        model = "gemini-embedding-001"
-
+    @pytest.mark.parametrize(
+        "model,doc_config,query_config",
+        [
+            ("gemini-embedding-001", {"task_type": "RETRIEVAL_DOCUMENT"}, {"task_type": "RETRIEVAL_QUERY"}),
+            ("gemini-embedding-2", None, None),
+        ],
+    )
+    def test_run(self, model, doc_config, query_config):
         docs = [
             Document(content="The capybara is the largest rodent in the world and lives near rivers in South America."),
             Document(content="Dogs are domesticated mammals known for their loyalty and bond with humans."),
             Document(content="The tiger is the largest big cat, recognized by its orange coat with black stripes."),
         ]
 
-        embedder = GoogleGenAIDocumentEmbedder(model=model, config={"task_type": "RETRIEVAL_DOCUMENT"})
+        embedder = GoogleGenAIDocumentEmbedder(model=model, config=doc_config)
 
         result = embedder.run(documents=docs)
         documents_with_embeddings = result["documents"]
@@ -331,7 +358,7 @@ class TestGoogleGenAIDocumentEmbedder:
 
         assert result["meta"]["model"] == model
 
-        text_embedder = GoogleGenAITextEmbedder(model=model, config={"task_type": "RETRIEVAL_QUERY"})
+        text_embedder = GoogleGenAITextEmbedder(model=model, config=query_config)
         query_embedding = text_embedder.run("capybara")["embedding"]
         query_vec = np.array(query_embedding)
 
@@ -349,13 +376,12 @@ class TestGoogleGenAIDocumentEmbedder:
         reason="Export an env var called GOOGLE_API_KEY containing the Google API key to run this test.",
     )
     @pytest.mark.integration
-    async def test_run_async(self):
+    @pytest.mark.parametrize("model", ["gemini-embedding-001", "gemini-embedding-2"])
+    async def test_run_async(self, model):
         docs = [
             Document(content="I love cheese", meta={"topic": "Cuisine"}),
             Document(content="A transformer is a deep learning architecture", meta={"topic": "ML"}),
         ]
-
-        model = "gemini-embedding-001"
 
         embedder = GoogleGenAIDocumentEmbedder(model=model, meta_fields_to_embed=["topic"], embedding_separator=" | ")
 

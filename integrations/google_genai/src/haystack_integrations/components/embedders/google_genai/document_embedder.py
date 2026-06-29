@@ -10,7 +10,7 @@ from haystack import Document, component, default_from_dict, default_to_dict, lo
 from haystack.utils import Secret, deserialize_secrets_inplace
 from tqdm import tqdm
 
-from haystack_integrations.components.common.google_genai.utils import _get_client
+from haystack_integrations.common.google_genai.utils import _get_client
 
 logger = logging.getLogger(__name__)
 
@@ -85,6 +85,8 @@ class GoogleGenAIDocumentEmbedder:
         meta_fields_to_embed: list[str] | None = None,
         embedding_separator: str = "\n",
         config: dict[str, Any] | None = None,
+        timeout: float | None = None,
+        max_retries: int | None = None,
     ) -> None:
         """
         Creates an GoogleGenAIDocumentEmbedder component.
@@ -102,7 +104,9 @@ class GoogleGenAIDocumentEmbedder:
             The name of the model to use for calculating embeddings.
             The default model is `gemini-embedding-001`.
         :param prefix:
-            A string to add at the beginning of each text.
+            A string to add at the beginning of each text. It can be used to specify a task type for
+            `gemini-embedding-2`. For available task types, see
+            [Gemini documentation](https://ai.google.dev/gemini-api/docs/embeddings#task-types).
         :param suffix:
             A string to add at the end of each text.
         :param batch_size:
@@ -114,9 +118,17 @@ class GoogleGenAIDocumentEmbedder:
         :param embedding_separator:
             Separator used to concatenate the metadata fields to the document text.
         :param config:
-            A dictionary of keyword arguments to configure embedding content configuration `types.EmbedContentConfig`.
-            If not specified, it defaults to `{"task_type": "SEMANTIC_SIMILARITY"}`.
-            For more information, see the [Google AI Task types](https://ai.google.dev/gemini-api/docs/embeddings#task-types).
+            A dictionary of keyword arguments to configure embedding content configuration.
+            See [Google API documentation](https://googleapis.github.io/python-genai/genai.html#genai.types.EmbedContentConfig)
+            for the available options.
+            Specifying task types in `config` does not take effect for `gemini-embedding-2`.
+            See [Gemini documentation](https://ai.google.dev/gemini-api/docs/embeddings#task-types) for more
+            information.
+        :param timeout:
+            The timeout in seconds for the underlying Google GenAI client network requests.
+        :param max_retries:
+            The maximum number of retries for the underlying Google GenAI client network requests.
+
         """
         self._api_key = api_key
         self._api = api
@@ -129,13 +141,17 @@ class GoogleGenAIDocumentEmbedder:
         self._progress_bar = progress_bar
         self._meta_fields_to_embed = meta_fields_to_embed or []
         self._embedding_separator = embedding_separator
-        self._config = config if config is not None else {"task_type": "SEMANTIC_SIMILARITY"}
+        self._config = config
+        self._timeout = timeout
+        self._max_retries = max_retries
 
         self._client = _get_client(
             api_key=api_key,
             api=api,
             vertex_ai_project=vertex_ai_project,
             vertex_ai_location=vertex_ai_location,
+            timeout=timeout,
+            max_retries=max_retries,
         )
 
     def to_dict(self) -> dict[str, Any]:
@@ -159,6 +175,8 @@ class GoogleGenAIDocumentEmbedder:
             vertex_ai_project=self._vertex_ai_project,
             vertex_ai_location=self._vertex_ai_location,
             config=self._config,
+            timeout=self._timeout,
+            max_retries=self._max_retries,
         )
 
     @classmethod
@@ -207,7 +225,8 @@ class GoogleGenAIDocumentEmbedder:
             range(0, len(texts_to_embed), batch_size), disable=not self._progress_bar, desc="Calculating embeddings"
         ):
             batch = texts_to_embed[i : i + batch_size]
-            args: dict[str, Any] = {"model": self._model, "contents": batch}
+            contents = [types.Content(parts=[types.Part.from_text(text=t)]) for t in batch]
+            args: dict[str, Any] = {"model": self._model, "contents": contents}
             if resolved_config:
                 args["config"] = resolved_config
 
@@ -239,7 +258,8 @@ class GoogleGenAIDocumentEmbedder:
             range(0, len(texts_to_embed), batch_size), disable=not self._progress_bar, desc="Calculating embeddings"
         ):
             batch = texts_to_embed[i : i + batch_size]
-            args: dict[str, Any] = {"model": self._model, "contents": batch}
+            contents = [types.Content(parts=[types.Part.from_text(text=t)]) for t in batch]
+            args: dict[str, Any] = {"model": self._model, "contents": contents}
             if self._config:
                 args["config"] = types.EmbedContentConfig(**self._config) if self._config else None
 
