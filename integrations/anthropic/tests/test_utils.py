@@ -409,13 +409,13 @@ class TestUtils:
 
         generator = AnthropicChatGenerator(Secret.from_token("test-api-key"))
         message = generator._process_response(raw_chunks)
-        assert message["replies"][0].meta["usage"] == {
-            "cache_creation_input_tokens": None,
-            "cache_read_input_tokens": None,
-            "input_tokens": 393,
-            "output_tokens": 77,
-            "server_tool_use": None,
-        }
+        usage = message["replies"][0].meta["usage"]
+        assert isinstance(usage, dict)
+        assert usage["cache_creation_input_tokens"] is None
+        assert usage["cache_read_input_tokens"] is None
+        assert usage["input_tokens"] == 393
+        assert usage["output_tokens"] == 77
+        assert usage["server_tool_use"] is None
 
     def test_convert_streaming_chunks_to_chat_message_with_multiple_tool_calls(self):
         """

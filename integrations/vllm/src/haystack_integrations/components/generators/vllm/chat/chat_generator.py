@@ -8,7 +8,11 @@ from haystack.components.generators.chat.openai import (
     _check_finish_reason,
     _convert_chat_completion_chunk_to_streaming_chunk,
 )
-from haystack.components.generators.utils import _convert_streaming_chunks_to_chat_message, _serialize_object
+from haystack.components.generators.utils import (
+    _convert_streaming_chunks_to_chat_message,
+    _normalize_messages,
+    _serialize_object,
+)
 from haystack.core.component import component
 from haystack.dataclasses import ChatMessage, ToolCall
 from haystack.dataclasses.chat_message import ReasoningContent
@@ -429,7 +433,7 @@ class VLLMChatGenerator:
     @component.output_types(replies=list[ChatMessage])
     def run(
         self,
-        messages: list[ChatMessage],
+        messages: list[ChatMessage] | str,
         streaming_callback: StreamingCallbackT | None = None,
         generation_kwargs: dict[str, Any] | None = None,
         *,
@@ -440,6 +444,7 @@ class VLLMChatGenerator:
 
         :param messages:
             A list of ChatMessage instances representing the input messages.
+            If a string is provided, it is converted to a list containing a ChatMessage with user role.
         :param streaming_callback:
             A callback function that is called when a new token is received from the stream.
         :param generation_kwargs:
@@ -455,6 +460,7 @@ class VLLMChatGenerator:
             A dictionary with the following key:
             - `replies`: A list containing the generated responses as ChatMessage instances.
         """
+        messages = _normalize_messages(messages)
         if not self._is_warmed_up:
             self.warm_up()
 
@@ -484,7 +490,7 @@ class VLLMChatGenerator:
     @component.output_types(replies=list[ChatMessage])
     async def run_async(
         self,
-        messages: list[ChatMessage],
+        messages: list[ChatMessage] | str,
         streaming_callback: StreamingCallbackT | None = None,
         generation_kwargs: dict[str, Any] | None = None,
         *,
@@ -495,6 +501,7 @@ class VLLMChatGenerator:
 
         :param messages:
             A list of ChatMessage instances representing the input messages.
+            If a string is provided, it is converted to a list containing a ChatMessage with user role.
         :param streaming_callback:
             A callback function that is called when a new token is received from the stream.
             Must be a coroutine.
@@ -511,6 +518,7 @@ class VLLMChatGenerator:
             A dictionary with the following key:
             - `replies`: A list containing the generated responses as ChatMessage instances.
         """
+        messages = _normalize_messages(messages)
         if not self._is_warmed_up:
             self.warm_up()
 

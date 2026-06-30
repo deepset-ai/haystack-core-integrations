@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/docling_serve-v1.1.0] - 2026-06-09
+
+### 🚀 Features
+
+- Add async job mode to Docling Serve converter (#3371)
+
+
 ## [integrations/docling_serve-v1.0.0] - 2026-05-08
 
 ### 🚀 Features

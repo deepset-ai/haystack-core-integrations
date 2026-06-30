@@ -1,5 +1,23 @@
 # Changelog
 
+## [integrations/anthropic-v5.11.0] - 2026-06-16
+
+### 🐛 Bug Fixes
+
+- Change default model in `AnthropicGenerator` to Sonnet 4.5 (#3447)
+
+
+## [integrations/anthropic-v5.10.0] - 2026-06-04
+
+### 🚀 Features
+
+- Anthropic - accept str as ChatGenerator input; deprecate generator (#3399)
+
+### 🧪 Testing
+
+- Fix unit test in anthropic tests (#3382)
+
+
 ## [integrations/anthropic-v5.9.0] - 2026-05-12
 
 ### 🚀 Features

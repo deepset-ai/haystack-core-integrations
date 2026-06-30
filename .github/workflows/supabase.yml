@@ -76,7 +76,7 @@ jobs:
           --health-retries 5
 
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
 
       - name: Create pgvector extension
         run: >
@@ -86,7 +86,7 @@ jobs:
           psql -h localhost -U postgres -d postgres -c "CREATE EXTENSION IF NOT EXISTS vector;"
 
       - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
         with:
           python-version: ${{ matrix.python-version }}
 
@@ -105,7 +105,7 @@ jobs:
       - name: Store unit tests coverage
         id: coverage_comment
         if: matrix.python-version == '3.10' && runner.os == 'Linux' && github.event_name != 'schedule'
-        uses: py-cov-action/python-coverage-comment-action@63f52f4fbbffada6e8dee8ec432de7e01df9ba79 # v3.41
+        uses: py-cov-action/python-coverage-comment-action@5d8df5979747514c914e1c5a12335a7cf9a2745f # v4.1
         with:
           GITHUB_TOKEN: ${{ github.token }}
           COVERAGE_PATH: integrations/supabase
@@ -120,15 +120,35 @@ jobs:
           name: coverage-comment-supabase
           path: python-coverage-comment-action-supabase.txt
 
-      - name: Run integration tests
+      - name: Run pgvector integration tests
         if: runner.os == 'Linux'
         env:
           SUPABASE_DB_URL: "postgresql://postgres:postgres@localhost:5432/postgres"
-        run: hatch run test:integration-cov-append-retry
+        run: hatch run test:integration-cov-append-retry --ignore=tests/test_groonga_integration.py
+
+      - name: Start PGroonga + PostgREST stack
+        if: runner.os == 'Linux'
+        run: docker compose -f docker-compose-groonga.yml up -d --build
+
+      - name: Wait for PGroonga stack to be ready
+        if: runner.os == 'Linux'
+        run: |
+          for i in $(seq 1 30); do
+            if curl -sf http://localhost:8000/rest/v1/ -H "apikey: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImV4cCI6MTk4MzgxMjk5Nn0.EGIM96RAZx35lJzdJsyH-qQwv8Hj04zWl196z2-SBc0"; then
+              echo "PGroonga stack is ready"
+              break
+            fi
+            echo "Waiting for PGroonga stack... ($i/30)"
+            sleep 5
+          done
+
+      - name: Run PGroonga integration tests
+        if: runner.os == 'Linux'
+        run: hatch run test:integration-cov-append-retry tests/test_groonga_integration.py
 
       - name: Store combined coverage
         if: github.event_name == 'push'
-        uses: py-cov-action/python-coverage-comment-action@63f52f4fbbffada6e8dee8ec432de7e01df9ba79 # v3.41
+        uses: py-cov-action/python-coverage-comment-action@5d8df5979747514c914e1c5a12335a7cf9a2745f # v4.1
         with:
           GITHUB_TOKEN: ${{ github.token }}
           COVERAGE_PATH: integrations/supabase

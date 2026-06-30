@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/valkey-v0.2.2] - 2026-06-10
+
+### 🐛 Bug Fixes
+
+- *(valkey)* Add client_name to Valkey connection configuration (#3418)
+
+
 ## [integrations/valkey-v0.2.1] - 2026-05-26
 
 ### 🐛 Bug Fixes

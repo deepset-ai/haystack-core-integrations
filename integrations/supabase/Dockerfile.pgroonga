@@ -1,0 +1,10 @@
+FROM postgres:17-bookworm
+
+RUN apt-get update && \
+    apt-get install -y wget gnupg2 && \
+    wget -q -O /tmp/groonga-apt-source.deb \
+        https://packages.groonga.org/debian/groonga-apt-source-latest-bookworm.deb && \
+    dpkg -i /tmp/groonga-apt-source.deb && \
+    apt-get update && \
+    apt-get install -y postgresql-17-pgdg-pgroonga && \
+    rm -rf /var/lib/apt/lists/* /tmp/groonga-apt-source.deb

@@ -1,0 +1,13 @@
+loaders:
+  - modules:
+      - haystack_integrations.components.audio.funasr.transcriber
+    search_path: [../src]
+processors:
+  - type: filter
+    documented_only: true
+    skip_empty_modules: true
+renderer:
+  description: FunASR speech-to-text integration for Haystack
+  id: integrations-funasr
+  filename: funasr.md
+  title: FunASR

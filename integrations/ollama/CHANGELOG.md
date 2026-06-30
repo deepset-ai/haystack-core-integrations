@@ -1,10 +1,24 @@
 # Changelog
 
-## [unreleased]
+## [integrations/ollama-v6.7.0] - 2026-06-19
+
+### 🐛 Bug Fixes
+
+- Serialize OllamaChatGenerator think parameter (#3455)
+
+### 🧪 Testing
+
+- Add system prompts to ollama tests (#3415)
+
+
+## [integrations/ollama-v6.6.0] - 2026-06-03
 
 ### 🚀 Features
 
 - *(ollama)* Add dimensions parameter to OllamaDocumentEmbedder and OllamaTextEmbedder (#3322)
+- Ollama - accept str as ChatGenerator input; deprecate generator; rm generator example (#3388)
+
+### 🌀 Miscellaneous
 
 
 ## [integrations/ollama-v6.4.0] - 2026-05-21

@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/nvidia-v1.2.0] - 2026-06-05
+
+### 🧹 Chores
+
+- NVIDIA - deprecate generator (#3391)
+
+
 ## [integrations/nvidia-v1.1.1] - 2026-04-14
 
 ### 🐛 Bug Fixes

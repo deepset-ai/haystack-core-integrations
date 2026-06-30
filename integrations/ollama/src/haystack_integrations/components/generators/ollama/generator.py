@@ -1,3 +1,4 @@
+import warnings
 from collections.abc import Callable
 from typing import Any
 
@@ -139,6 +140,13 @@ class OllamaGenerator:
             - any negative number which will keep the model loaded in memory (e.g. -1 or "-1m")
             - '0' which will unload the model immediately after generating a response.
         """
+        warnings.warn(
+            "The `OllamaGenerator` component is deprecated and will be removed in a future version. "
+            "Use `OllamaChatGenerator` instead, which now also supports string inputs.",
+            FutureWarning,
+            stacklevel=2,
+        )
+
         self.timeout = timeout
         self.raw = raw
         self.template = template

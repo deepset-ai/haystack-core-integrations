@@ -26,7 +26,7 @@ classifiers = [
   "Programming Language :: Python :: Implementation :: CPython",
   "Programming Language :: Python :: Implementation :: PyPy",
 ]
-dependencies = ["haystack-ai>=2.24.1", "google-genai[aiohttp]>=1.56.0", "jsonref>=1.0.0"]
+dependencies = ["haystack-ai>=2.30.0", "google-genai[aiohttp]>=1.56.0", "jsonref>=1.0.0"]
 
 [project.urls]
 Documentation = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/google_genai#readme"
@@ -73,7 +73,7 @@ integration-cov-append-retry = 'pytest --cov=haystack_integrations --cov-append 
 
 types = """mypy -p haystack_integrations.components.generators.google_genai \
 -p haystack_integrations.components.embedders.google_genai \
--p haystack_integrations.components.common.google_genai {args}"""
+-p haystack_integrations.common.google_genai {args}"""
 
 [tool.mypy]
 install_types = true

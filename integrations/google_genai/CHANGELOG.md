@@ -1,5 +1,30 @@
 # Changelog
 
+## [integrations/google_genai-v4.4.1] - 2026-06-08
+
+### 🐛 Bug Fixes
+
+- Async streaming chunk indices in GoogleGenAIChatGenerator start at 0, not 1 (#3410)
+
+
+## [integrations/google_genai-v4.4.0] - 2026-06-08
+
+### 🚀 Features
+
+- *(google_genai)* Add timeout and max_retries to embedder components (#3412)
+
+
+## [integrations/google_genai-v4.3.0] - 2026-06-05
+
+### 🚀 Features
+
+- Google GenAI - accept str as ChatGenerator input (#3394)
+
+### 🧪 Testing
+
+- Remove old integration tests using deprecated model (#3381)
+
+
 ## [integrations/google_genai-v4.2.0] - 2026-04-29
 
 ### 🚜 Refactor

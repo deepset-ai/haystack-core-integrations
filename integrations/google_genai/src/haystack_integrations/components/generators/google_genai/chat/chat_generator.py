@@ -7,6 +7,7 @@ from typing import Any, ClassVar, Literal
 
 from google.genai import types
 from haystack import logging
+from haystack.components.generators.utils import _normalize_messages
 from haystack.core.component import component
 from haystack.core.serialization import default_from_dict, default_to_dict
 from haystack.dataclasses import AsyncStreamingCallbackT, ComponentInfo, StreamingCallbackT, select_streaming_callback
@@ -21,7 +22,7 @@ from haystack.tools import (
 from haystack.utils import Secret, deserialize_callable, deserialize_secrets_inplace, serialize_callable
 from pydantic import BaseModel
 
-from haystack_integrations.components.common.google_genai.utils import _get_client
+from haystack_integrations.common.google_genai.utils import _get_client
 from haystack_integrations.components.generators.google_genai.chat.utils import (
     _aggregate_streaming_chunks_with_reasoning,
     _convert_google_chunk_to_streaming_chunk,
@@ -360,8 +361,6 @@ class GoogleGenAIChatGenerator:
             i = 0
             chunk = None
             async for chunk in response_stream:
-                i += 1
-
                 streaming_chunk = _convert_google_chunk_to_streaming_chunk(
                     chunk=chunk, index=i, component_info=component_info, model=self._model
                 )
@@ -369,6 +368,7 @@ class GoogleGenAIChatGenerator:
 
                 # Stream the chunk
                 await streaming_callback(streaming_chunk)
+                i += 1
 
             # Use custom aggregation that supports reasoning content
             message = _aggregate_streaming_chunks_with_reasoning(chunks)
@@ -381,7 +381,7 @@ class GoogleGenAIChatGenerator:
     @component.output_types(replies=list[ChatMessage])
     def run(
         self,
-        messages: list[ChatMessage],
+        messages: list[ChatMessage] | str,
         generation_kwargs: dict[str, Any] | None = None,
         safety_settings: list[dict[str, Any]] | None = None,
         streaming_callback: StreamingCallbackT | None = None,
@@ -391,6 +391,7 @@ class GoogleGenAIChatGenerator:
         Run the Google Gen AI chat generator on the given input data.
 
         :param messages: A list of ChatMessage instances representing the input messages.
+            If a string is provided, it is converted to a list containing a ChatMessage with user role.
         :param generation_kwargs: Configuration for generation. If provided, it will override
         the default config. Supports `thinking_budget` for Gemini 2.5 series thinking configuration.
         :param safety_settings: Safety settings for content filtering. If provided, it will override the
@@ -406,6 +407,7 @@ class GoogleGenAIChatGenerator:
         :raises ValueError: If a ChatMessage does not contain at least one of TextContent, ToolCall, or
         ToolCallResult or if the role in ChatMessage is different from User, System, Assistant.
         """
+        messages = _normalize_messages(messages)
         # Use provided configs or fall back to instance defaults
         generation_kwargs = generation_kwargs or self._generation_kwargs
         safety_settings = safety_settings or self._safety_settings
@@ -491,7 +493,7 @@ class GoogleGenAIChatGenerator:
     @component.output_types(replies=list[ChatMessage])
     async def run_async(
         self,
-        messages: list[ChatMessage],
+        messages: list[ChatMessage] | str,
         generation_kwargs: dict[str, Any] | None = None,
         safety_settings: list[dict[str, Any]] | None = None,
         streaming_callback: StreamingCallbackT | None = None,
@@ -501,6 +503,7 @@ class GoogleGenAIChatGenerator:
         Async version of the run method. Run the Google Gen AI chat generator on the given input data.
 
         :param messages: A list of ChatMessage instances representing the input messages.
+            If a string is provided, it is converted to a list containing a ChatMessage with user role.
         :param generation_kwargs: Configuration for generation. If provided, it will override
         the default config. Supports `thinking_budget` for Gemini 2.5 series thinking configuration.
         See https://ai.google.dev/gemini-api/docs/thinking for possible values.
@@ -517,6 +520,7 @@ class GoogleGenAIChatGenerator:
         :raises ValueError: If a ChatMessage does not contain at least one of TextContent, ToolCall, or
         ToolCallResult or if the role in ChatMessage is different from User, System, Assistant.
         """
+        messages = _normalize_messages(messages)
         # Use provided configs or fall back to instance defaults
         generation_kwargs = generation_kwargs or self._generation_kwargs
         safety_settings = safety_settings or self._safety_settings

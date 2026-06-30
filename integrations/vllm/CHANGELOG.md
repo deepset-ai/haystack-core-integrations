@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/vllm-v1.2.0] - 2026-06-05
+
+### 🚀 Features
+
+- VLLM - accept str as ChatGenerator input (#3392)
+
+
 ## [integrations/vllm-v1.1.0] - 2026-04-17
 
 ### 🚀 Features

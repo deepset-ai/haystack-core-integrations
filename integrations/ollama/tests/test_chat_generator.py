@@ -848,10 +848,23 @@ class TestOllamaChatGeneratorInitSerializeDeserialize:
                     "type": "object",
                     "properties": {"name": {"type": "string"}, "age": {"type": "number"}},
                 },
+                "think": False,
             },
         }
 
         assert data == expected_dict
+
+    def test_to_dict_and_from_dict_preserves_think(self):
+        """`think` enables a model's reasoning output and must survive a
+        to_dict/from_dict round-trip; otherwise a reloaded generator silently
+        falls back to think=False (reasoning disabled)."""
+        component = OllamaChatGenerator(model="gpt-oss", think="high")
+
+        data = component.to_dict()
+        assert data["init_parameters"]["think"] == "high"
+
+        restored = OllamaChatGenerator.from_dict(data)
+        assert restored.think == "high"
 
     def test_from_dict(self):
         tool = Tool(
@@ -1006,6 +1019,57 @@ class TestOllamaChatGeneratorRun:
         assert len(result["replies"]) == 1
         assert result["replies"][0].text == "Fine. How can I help you today?"
         assert result["replies"][0].role == "assistant"
+
+    @patch("haystack_integrations.components.generators.ollama.chat.chat_generator.Client")
+    def test_run_with_string_input(self, mock_client):
+        generator = OllamaChatGenerator()
+
+        mock_response = ChatResponse(
+            model="qwen3:0.6b",
+            created_at="2023-12-12T14:13:43.416799Z",
+            message={"role": "assistant", "content": "Paris"},
+            done=True,
+            prompt_eval_count=1,
+            eval_count=1,
+        )
+
+        mock_client_instance = mock_client.return_value
+        mock_client_instance.chat.return_value = mock_response
+
+        result = generator.run("What's the capital of France?")
+
+        _, kwargs = mock_client_instance.chat.call_args
+        assert kwargs["messages"] == [{"role": "user", "content": "What's the capital of France?"}]
+
+        assert isinstance(result["replies"], list)
+        assert len(result["replies"]) == 1
+        assert isinstance(result["replies"][0], ChatMessage)
+
+    @pytest.mark.asyncio
+    @patch("haystack_integrations.components.generators.ollama.chat.chat_generator.AsyncClient")
+    async def test_run_async_with_string_input(self, mock_async_client):
+        generator = OllamaChatGenerator()
+
+        mock_response = ChatResponse(
+            model="qwen3:0.6b",
+            created_at="2023-12-12T14:13:43.416799Z",
+            message={"role": "assistant", "content": "Paris"},
+            done=True,
+            prompt_eval_count=1,
+            eval_count=1,
+        )
+
+        mock_async_client_instance = mock_async_client.return_value
+        mock_async_client_instance.chat = AsyncMock(return_value=mock_response)
+
+        result = await generator.run_async("What's the capital of France?")
+
+        _, kwargs = mock_async_client_instance.chat.call_args
+        assert kwargs["messages"] == [{"role": "user", "content": "What's the capital of France?"}]
+
+        assert isinstance(result["replies"], list)
+        assert len(result["replies"]) == 1
+        assert isinstance(result["replies"][0], ChatMessage)
 
     @patch("haystack_integrations.components.generators.ollama.chat.chat_generator.Client")
     def test_run_retries_after_failure(self, mock_client):
@@ -1458,7 +1522,10 @@ class TestOllamaChatGeneratorLiveInference:
         component = OllamaChatGenerator(model="qwen3:0.6b", tools=tools, streaming_callback=streaming_callback)
         tool_invoker = ToolInvoker(tools=tools)
 
-        messages = [ChatMessage.from_user("What is the weather in Paris and London?")]
+        messages = [
+            ChatMessage.from_system("Use the tools to answer the question."),
+            ChatMessage.from_user("What is the weather in Paris and London?"),
+        ]
         response = component.run(messages)
 
         assert len(response["replies"]) == 1
@@ -1487,9 +1554,12 @@ class TestOllamaChatGeneratorLiveInference:
             "required": ["capital", "population"],
         }
         chat_generator = OllamaChatGenerator(model="qwen3:0.6b", tools=tools, response_format=response_format)
-        message = ChatMessage.from_user("What's the weather in Paris?")
+        messages = [
+            ChatMessage.from_system("Use the tools to answer the question."),
+            ChatMessage.from_user("What's the weather in Paris?"),
+        ]
 
-        result = chat_generator.run([message])
+        result = chat_generator.run(messages)
 
         assert isinstance(result, dict)
         assert isinstance(result["replies"], list)
@@ -1518,8 +1588,11 @@ class TestOllamaChatGeneratorLiveInference:
         mixed_tools = [tools[0], population_toolset]
         component = OllamaChatGenerator(model="qwen3:0.6b", tools=mixed_tools, streaming_callback=streaming_callback)
 
-        message = ChatMessage.from_user("What is the weather and population in Paris?")
-        response = component.run([message])
+        messages = [
+            ChatMessage.from_system("Use the tools to answer the question."),
+            ChatMessage.from_user("What is the weather and population in Paris?"),
+        ]
+        response = component.run(messages)
 
         assert len(response["replies"]) == 1
         message = response["replies"][0]
@@ -1568,7 +1641,10 @@ class TestOllamaChatGeneratorAsync:
     async def test_run_async_with_tools(self, tools):
         """Test async with tool calls."""
         chat_generator = OllamaChatGenerator(model="qwen3:0.6b", tools=tools)
-        messages = [ChatMessage.from_user("What's the weather in Paris?")]
+        messages = [
+            ChatMessage.from_system("Use the tools to answer the question."),
+            ChatMessage.from_user("What's the weather in Paris?"),
+        ]
 
         response = await chat_generator.run_async(messages)
 
@@ -1601,7 +1677,10 @@ class TestOllamaChatGeneratorAsync:
             chunks_received = True
 
         chat_generator = OllamaChatGenerator(model="qwen3:0.6b", tools=tools, streaming_callback=callback)
-        messages = [ChatMessage.from_user("What's the weather in Berlin?")]
+        messages = [
+            ChatMessage.from_system("Use the tools to answer the question."),
+            ChatMessage.from_user("What's the weather in Berlin?"),
+        ]
 
         response = await chat_generator.run_async(messages)
 

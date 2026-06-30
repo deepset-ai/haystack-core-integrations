@@ -12,15 +12,17 @@ on:
 
 env:
   PYTHON_VERSION: "3.10"
-  EXCLUDE_PACKAGES: "(?i)^(azure-identity|azure-search-documents|fastembed|tqdm|psycopg|mistralai|pgvector).*"
+  EXCLUDE_PACKAGES: "(?i)^(azure-identity|azure-search-documents|fastembed|llama-cpp-python|tqdm|psycopg|mistralai|pgvector|twelvelabs).*"
 
   # Exclusions must be explicitly motivated
   #
   # - azure-identity is MIT but the license is not available on PyPI
   # - azure-search-documents is MIT but the license is not available on PyPI
   # - fastembed is Apache 2.0 but the license on PyPI is unclear ("Other/Proprietary License (Apache License)")
+  # - llama-cpp-python is MIT but exposes no license classifier on PyPI (only a bare "MIT" string), so the checker errors
   # - mistralai is Apache 2.0 but the license is not available on PyPI
   # - pgvector is MIT but the license is not available on PyPI
+  # - twelvelabs (the official TwelveLabs SDK) publishes no license metadata on PyPI, so the checker errors
 
   # - tqdm is MLP but there are no better alternatives
   # - psycopg is LGPL-3.0 but FOSSA is fine with it
@@ -33,10 +35,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout the code
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
 
       - name: Setup Python
-        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
         with:
           python-version: "${{ env.PYTHON_VERSION }}"
 

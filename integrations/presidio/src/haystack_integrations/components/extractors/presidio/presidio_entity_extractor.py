@@ -9,7 +9,7 @@ from haystack import Document, component, logging
 from presidio_analyzer import AnalyzerEngine
 from presidio_analyzer.nlp_engine import NlpEngineProvider
 
-from haystack_integrations.components.common.presidio.utils import SPACY_DEFAULT_MODELS as _SPACY_DEFAULT_MODELS
+from haystack_integrations.common.presidio.utils import SPACY_DEFAULT_MODELS as _SPACY_DEFAULT_MODELS
 
 logger = logging.getLogger(__name__)
 
