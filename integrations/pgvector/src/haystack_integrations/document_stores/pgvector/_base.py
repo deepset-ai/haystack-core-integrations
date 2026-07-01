@@ -2,55 +2,97 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from typing import Any, Literal
+from abc import ABC, abstractmethod
+from typing import Any, Literal, overload
 
-from haystack import default_from_dict, default_to_dict, logging
+from haystack import logging
 from haystack.dataclasses.document import Document
 from haystack.document_stores.errors import DocumentStoreError, DuplicateDocumentError
 from haystack.document_stores.types import DuplicatePolicy
-from haystack.utils.auth import Secret, deserialize_secrets_inplace
-from psycopg import AsyncConnection, Connection, Error, IntegrityError
-from psycopg.rows import dict_row
+from psycopg import AsyncConnection, Connection, Cursor, Error, IntegrityError
+from psycopg.cursor_async import AsyncCursor
+from psycopg.rows import DictRow
 from psycopg.sql import SQL, Composed, Identifier
 from psycopg.sql import Literal as SQLLiteral
 from psycopg.types.json import Jsonb
 
-from pgvector.psycopg import register_vector, register_vector_async
-
-from ._base import (
-    CREATE_TABLE_STATEMENT,
-    HALF_VECTOR_FUNCTION_TO_POSTGRESQL_OPS,
-    HNSW_INDEX_CREATION_VALID_KWARGS,
-    INSERT_STATEMENT,
-    KEYWORD_QUERY,
-    UPDATE_STATEMENT,
-    VALID_VECTOR_FUNCTIONS,
-    VECTOR_FUNCTION_TO_POSTGRESQL_OPS,
-    PostgreSQLDocumentStore,
-)
 from .converters import _from_haystack_to_pg_documents, _from_pg_to_haystack_documents
 from .filters import _convert_filters_to_where_clause_and_params, _validate_filters
 
-__all__ = [
-    "HNSW_INDEX_CREATION_VALID_KWARGS",
-    "VALID_VECTOR_FUNCTIONS",
-    "VECTOR_FUNCTION_TO_POSTGRESQL_OPS",
-    "PgvectorDocumentStore",
-]
-
 logger = logging.getLogger(__name__)
 
+CREATE_TABLE_STATEMENT = """
+CREATE TABLE {schema_name}.{table_name} (
+id VARCHAR(128) PRIMARY KEY,
+embedding {embedding_col_type}({embedding_dimension}),
+content TEXT,
+blob_data BYTEA,
+blob_meta JSONB,
+blob_mime_type VARCHAR(255),
+meta JSONB)
+"""
 
-class PgvectorDocumentStore(PostgreSQLDocumentStore):
+INSERT_STATEMENT = """
+INSERT INTO {schema_name}.{table_name}
+(id, embedding, content, blob_data, blob_meta, blob_mime_type, meta)
+VALUES (%(id)s, %(embedding)s, %(content)s, %(blob_data)s, %(blob_meta)s, %(blob_mime_type)s, %(meta)s)
+"""
+
+UPDATE_STATEMENT = """
+ON CONFLICT (id) DO UPDATE SET
+embedding = EXCLUDED.embedding,
+content = EXCLUDED.content,
+blob_data = EXCLUDED.blob_data,
+blob_meta = EXCLUDED.blob_meta,
+blob_mime_type = EXCLUDED.blob_mime_type,
+meta = EXCLUDED.meta
+"""
+
+KEYWORD_QUERY = """
+SELECT {table_name}.*, ts_rank_cd(to_tsvector({language}, content), query) AS score
+FROM {schema_name}.{table_name}, plainto_tsquery({language}, %s) query
+WHERE to_tsvector({language}, content) @@ query
+"""
+
+VALID_VECTOR_FUNCTIONS = ["cosine_similarity", "inner_product", "l2_distance"]
+
+VECTOR_FUNCTION_TO_POSTGRESQL_OPS = {
+    "cosine_similarity": "vector_cosine_ops",
+    "inner_product": "vector_ip_ops",
+    "l2_distance": "vector_l2_ops",
+}
+
+HALF_VECTOR_FUNCTION_TO_POSTGRESQL_OPS = {
+    "cosine_similarity": "halfvec_cosine_ops",
+    "inner_product": "halfvec_ip_ops",
+    "l2_distance": "halfvec_l2_ops",
+}
+
+HNSW_INDEX_CREATION_VALID_KWARGS = ["m", "ef_construction"]
+
+
+class PostgreSQLDocumentStore(ABC):
     """
-    A Document Store using PostgreSQL with the [pgvector extension](https://github.com/pgvector/pgvector) installed.
+    Abstract base class for PostgreSQL-backed Haystack document stores using the pgvector extension.
+
+    This class provides all SQL schema management, data methods (read, write, delete, retrieve),
+    and query-building logic. Subclasses only need to implement the connection layer by overriding
+    :meth:`_ensure_db_setup` and :meth:`_ensure_db_setup_async`.
+
+    After a successful call to either method the following attributes must be set:
+
+    - ``_connection`` — a live, autocommit-enabled :class:`psycopg.Connection`
+    - ``_cursor`` — a plain cursor on that connection
+    - ``_dict_cursor`` — a ``dict_row`` cursor on that connection
+    - ``_async_connection``, ``_async_cursor``, ``_async_dict_cursor`` — async equivalents
+
+    See :class:`~haystack_integrations.document_stores.pgvector.PgvectorDocumentStore` for the
+    reference psycopg implementation.
     """
 
     def __init__(
         self,
         *,
-        connection_string: Secret = Secret.from_env_var("PG_CONN_STR"),
-        create_extension: bool = True,
         schema_name: str = "public",
         table_name: str = "haystack_documents",
         language: str = "english",
@@ -65,205 +107,186 @@ class PgvectorDocumentStore(PostgreSQLDocumentStore):
         hnsw_ef_search: int | None = None,
         keyword_index_name: str = "haystack_keyword_index",
     ) -> None:
+        self.table_name = table_name
+        self.schema_name = schema_name
+        self.embedding_dimension = embedding_dimension
+        if vector_type not in ["vector", "halfvec"]:
+            msg = "vector_type must be one of ['vector', 'halfvec']"
+            raise ValueError(msg)
+        self.vector_type = vector_type
+        if vector_function not in VALID_VECTOR_FUNCTIONS:
+            msg = f"vector_function must be one of {VALID_VECTOR_FUNCTIONS}, but got {vector_function}"
+            raise ValueError(msg)
+        self.vector_function = vector_function
+        self.recreate_table = recreate_table
+        self.search_strategy = search_strategy
+        self.hnsw_recreate_index_if_exists = hnsw_recreate_index_if_exists
+        self.hnsw_index_creation_kwargs = hnsw_index_creation_kwargs or {}
+        self.hnsw_index_name = hnsw_index_name
+        self.hnsw_ef_search = hnsw_ef_search
+        self.keyword_index_name = keyword_index_name
+        self.language = language
+
+        self._connection: Connection | None = None
+        self._async_connection: AsyncConnection | None = None
+        self._cursor: Cursor | None = None
+        self._async_cursor: AsyncCursor | None = None
+        self._dict_cursor: Cursor[DictRow] | None = None
+        self._async_dict_cursor: AsyncCursor[DictRow] | None = None
+        self._table_initialized = False
+
+    @staticmethod
+    def _connection_is_valid(connection: Connection) -> bool:
         """
-        Creates a new PgvectorDocumentStore instance.
-
-        It is meant to be connected to a PostgreSQL database with the pgvector extension installed.
-        A specific table to store Haystack documents will be created if it doesn't exist yet.
-
-        :param connection_string: The connection string to use to connect to the PostgreSQL database, defined as an
-            environment variable. Supported formats:
-            - URI, e.g. `PG_CONN_STR="postgresql://USER:PASSWORD@HOST:PORT/DB_NAME"` (use percent-encoding for special
-                characters)
-            - keyword/value format, e.g. `PG_CONN_STR="host=HOST port=PORT dbname=DBNAME user=USER password=PASSWORD"`
-            See [PostgreSQL Documentation](https://www.postgresql.org/docs/current/libpq-connect.html#LIBPQ-CONNSTRING)
-            for more details.
-        :param create_extension: Whether to create the pgvector extension if it doesn't exist.
-            Set this to `True` (default) to automatically create the extension if it is missing.
-            Creating the extension may require superuser privileges.
-            If set to `False`, ensure the extension is already installed; otherwise, an error will be raised.
-        :param schema_name: The name of the schema the table is created in. The schema must already exist.
-        :param table_name: The name of the table to use to store Haystack documents.
-        :param language: The language to be used to parse query and document content in keyword retrieval.
-            To see the list of available languages, you can run the following SQL query in your PostgreSQL database:
-            `SELECT cfgname FROM pg_ts_config;`.
-            More information can be found in this [StackOverflow answer](https://stackoverflow.com/a/39752553).
-        :param embedding_dimension: The dimension of the embedding.
-        :param vector_type: The type of vector used for embedding storage.
-            "vector" is the default.
-            "halfvec" stores embeddings in half-precision, which is particularly useful for high-dimensional embeddings
-            (dimension greater than 2,000 and up to 4,000). Requires pgvector versions 0.7.0 or later. For more
-            information, see the [pgvector documentation](https://github.com/pgvector/pgvector?tab=readme-ov-file).
-        :param vector_function: The similarity function to use when searching for similar embeddings.
-            `"cosine_similarity"` and `"inner_product"` are similarity functions and
-            higher scores indicate greater similarity between the documents.
-            `"l2_distance"` returns the straight-line distance between vectors,
-            and the most similar documents are the ones with the smallest score.
-            **Important**: when using the `"hnsw"` search strategy, an index will be created that depends on the
-            `vector_function` passed here. Make sure subsequent queries will keep using the same
-            vector similarity function in order to take advantage of the index.
-        :param recreate_table: Whether to recreate the table if it already exists.
-        :param search_strategy: The search strategy to use when searching for similar embeddings.
-            `"exact_nearest_neighbor"` provides perfect recall but can be slow for large numbers of documents.
-            `"hnsw"` is an approximate nearest neighbor search strategy,
-            which trades off some accuracy for speed; it is recommended for large numbers of documents.
-            **Important**: when using the `"hnsw"` search strategy, an index will be created that depends on the
-            `vector_function` passed here. Make sure subsequent queries will keep using the same
-            vector similarity function in order to take advantage of the index.
-        :param hnsw_recreate_index_if_exists: Whether to recreate the HNSW index if it already exists.
-            Only used if search_strategy is set to `"hnsw"`.
-        :param hnsw_index_creation_kwargs: Additional keyword arguments to pass to the HNSW index creation.
-            Only used if search_strategy is set to `"hnsw"`. You can find the list of valid arguments in the
-            [pgvector documentation](https://github.com/pgvector/pgvector?tab=readme-ov-file#hnsw)
-        :param hnsw_index_name: Index name for the HNSW index.
-        :param hnsw_ef_search: The `ef_search` parameter to use at query time. Only used if search_strategy is set to
-            `"hnsw"`. You can find more information about this parameter in the
-            [pgvector documentation](https://github.com/pgvector/pgvector?tab=readme-ov-file#hnsw).
-        :param keyword_index_name: Index name for the Keyword index.
+        Internal method to check if the connection is still valid.
         """
-        super().__init__(
-            schema_name=schema_name,
-            table_name=table_name,
-            language=language,
-            embedding_dimension=embedding_dimension,
-            vector_type=vector_type,
-            vector_function=vector_function,
-            recreate_table=recreate_table,
-            search_strategy=search_strategy,
-            hnsw_recreate_index_if_exists=hnsw_recreate_index_if_exists,
-            hnsw_index_creation_kwargs=hnsw_index_creation_kwargs,
-            hnsw_index_name=hnsw_index_name,
-            hnsw_ef_search=hnsw_ef_search,
-            keyword_index_name=keyword_index_name,
-        )
-        self.connection_string = connection_string
-        self.create_extension = create_extension
+        # implementation inspired to psycopg pool
+        # https://github.com/psycopg/psycopg/blob/d38cf7798b0c602ff43dac9f20bbab96237a9c38/psycopg_pool/psycopg_pool/pool.py#L528
+        try:
+            connection.execute("")
+        except Error:
+            return False
+        return True
 
-    def to_dict(self) -> dict[str, Any]:
+    @staticmethod
+    async def _connection_is_valid_async(connection: AsyncConnection) -> bool:
         """
-        Serializes the component to a dictionary.
-
-        :returns:
-            Dictionary with serialized data.
+        Internal method to check if the async connection is still valid.
         """
-        return default_to_dict(
-            self,
-            connection_string=self.connection_string.to_dict(),
-            create_extension=self.create_extension,
-            schema_name=self.schema_name,
-            table_name=self.table_name,
-            embedding_dimension=self.embedding_dimension,
-            vector_type=self.vector_type,
-            vector_function=self.vector_function,
-            recreate_table=self.recreate_table,
-            search_strategy=self.search_strategy,
-            hnsw_recreate_index_if_exists=self.hnsw_recreate_index_if_exists,
-            hnsw_index_creation_kwargs=self.hnsw_index_creation_kwargs,
-            hnsw_index_name=self.hnsw_index_name,
-            hnsw_ef_search=self.hnsw_ef_search,
-            keyword_index_name=self.keyword_index_name,
-            language=self.language,
-        )
+        try:
+            await connection.execute("")
+        except Error:
+            return False
+        return True
 
-    @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "PgvectorDocumentStore":
+    @overload
+    def _execute_sql(
+        self, cursor: Cursor, sql_query: SQL | Composed, params: tuple | None = None, error_msg: str = ""
+    ) -> Cursor: ...
+
+    @overload
+    def _execute_sql(
+        self, cursor: Cursor[DictRow], sql_query: SQL | Composed, params: tuple | None = None, error_msg: str = ""
+    ) -> Cursor[DictRow]: ...
+
+    def _execute_sql(
+        self,
+        cursor: Cursor | Cursor[DictRow],
+        sql_query: SQL | Composed,
+        params: tuple | None = None,
+        error_msg: str = "",
+    ) -> Cursor | Cursor[DictRow]:
         """
-        Deserializes the component from a dictionary.
+        Internal method to execute SQL statements and handle exceptions.
 
-        :param data:
-            Dictionary to deserialize from.
-        :returns:
-            Deserialized component.
+        :param sql_query: The SQL query to execute.
+        :param params: The parameters to pass to the SQL query.
+        :param error_msg: The error message to use if an exception is raised.
+        :param cursor: The cursor to use to execute the SQL query.
         """
-        deserialize_secrets_inplace(data["init_parameters"], ["connection_string"])
-        return default_from_dict(cls, data)
+        params = params or ()
 
+        if cursor is None or self._connection is None:
+            message = (
+                "The cursor or the connection is not initialized. "
+                "Make sure to call _ensure_db_setup() before calling this method."
+            )
+            raise ValueError(message)
+
+        sql_query_str = sql_query.as_string(cursor)
+        logger.debug("SQL query: {query}\nParameters: {parameters}", query=sql_query_str, parameters=params)
+
+        try:
+            result = cursor.execute(sql_query, params)
+        except Error as e:
+            self._connection.rollback()
+            detailed_error_msg = (
+                f"{error_msg}. Error: {e!r}. \nYou can find the SQL query and the parameters in the debug logs."
+            )
+            raise DocumentStoreError(detailed_error_msg) from e
+
+        return result
+
+    @overload
+    async def _execute_sql_async(
+        self, cursor: AsyncCursor, sql_query: SQL | Composed, params: tuple | None = None, error_msg: str = ""
+    ) -> AsyncCursor: ...
+
+    @overload
+    async def _execute_sql_async(
+        self, cursor: AsyncCursor[DictRow], sql_query: SQL | Composed, params: tuple | None = None, error_msg: str = ""
+    ) -> AsyncCursor[DictRow]: ...
+
+    async def _execute_sql_async(
+        self,
+        cursor: AsyncCursor | AsyncCursor[DictRow],
+        sql_query: SQL | Composed,
+        params: tuple | None = None,
+        error_msg: str = "",
+    ) -> AsyncCursor | AsyncCursor[DictRow]:
+        """
+        Internal method to asynchronously execute SQL statements and handle exceptions.
+
+        :param sql_query: The SQL query to execute.
+        :param params: The parameters to pass to the SQL query.
+        :param error_msg: The error message to use if an exception is raised.
+        :param cursor: The cursor to use to execute the SQL query.
+        """
+        params = params or ()
+
+        if cursor is None or self._async_connection is None:
+            message = (
+                "The cursor or the connection is not initialized. "
+                "Make sure to call _ensure_db_setup_async() before calling this method."
+            )
+            raise ValueError(message)
+
+        sql_query_str = sql_query.as_string(cursor)
+        logger.debug("SQL query: {query}\nParameters: {parameters}", query=sql_query_str, parameters=params)
+
+        try:
+            result = await cursor.execute(sql_query, params)
+        except Error as e:
+            await self._async_connection.rollback()
+            detailed_error_msg = (
+                f"{error_msg}. Error: {e!r}. \nYou can find the SQL query and the parameters in the debug logs."
+            )
+            raise DocumentStoreError(detailed_error_msg) from e
+
+        return result
+
+    @abstractmethod
     def _ensure_db_setup(self) -> None:
         """
         Ensures that the connection to the PostgreSQL database exists and is valid.
 
-        If not, connection and cursors are created.
-        If the table is not initialized, it will be set up.
+        Implementations must:
+
+        1. Check if ``_connection``, ``_cursor``, and ``_dict_cursor`` are valid; return early if so.
+        2. Create a new :class:`psycopg.Connection` (with autocommit enabled) and assign it to
+           ``self._connection``.
+        3. Create ``self._cursor`` and ``self._dict_cursor`` (``dict_row`` factory) from that connection.
+        4. Call ``self._initialize_table()`` when ``self._table_initialized`` is ``False``.
         """
-        if self._connection and self._cursor and self._dict_cursor and self._connection_is_valid(self._connection):
-            return
 
-        # close the connection if it already exists
-        if self._connection:
-            try:
-                self._connection.close()
-            except Error as e:
-                logger.debug("Failed to close connection: {e}", e=str(e))
-
-        conn_str = self.connection_string.resolve_value() or ""
-        try:
-            connection = Connection.connect(conn_str)
-        except Error as e:
-            msg = (
-                "Failed to connect to PostgreSQL database.  Ensure the connection string follows the "
-                "PostgreSQL connection specification: "
-                "https://www.postgresql.org/docs/current/libpq-connect.html#LIBPQ-CONNSTRING."
-            )
-            raise DocumentStoreError(msg) from e
-        connection.autocommit = True
-        if self.create_extension:
-            connection.execute("CREATE EXTENSION IF NOT EXISTS vector")
-        register_vector(connection)  # Note: this must be called before creating the cursors.
-
-        self._connection = connection
-        self._cursor = self._connection.cursor()
-        self._dict_cursor = self._connection.cursor(row_factory=dict_row)
-
-        if not self._table_initialized:
-            self._initialize_table()
-
+    @abstractmethod
     async def _ensure_db_setup_async(self) -> None:
         """
-        Async internal method.
+        Async version of :meth:`_ensure_db_setup`.
 
-        Ensures that the connection to the PostgreSQL database exists and is valid.
-        If not, connection and cursors are created.
-        If the table is not initialized, it will be set up.
+        Implementations must:
+
+        1. Check validity of ``_async_connection``, ``_async_cursor``, ``_async_dict_cursor``; return early if valid.
+        2. Create a new :class:`psycopg.AsyncConnection` (with autocommit enabled) and assign it to
+           ``self._async_connection``.
+        3. Create ``self._async_cursor`` and ``self._async_dict_cursor`` (``dict_row`` factory).
+        4. Call ``await self._initialize_table_async()`` when ``self._table_initialized`` is ``False``.
         """
-        if (
-            self._async_connection
-            and self._async_cursor
-            and self._async_dict_cursor
-            and await self._connection_is_valid_async(self._async_connection)
-        ):
-            return
-
-        # close the connection if it already exists
-        if self._async_connection:
-            await self._async_connection.close()
-
-        conn_str = self.connection_string.resolve_value() or ""
-        try:
-            async_connection = await AsyncConnection.connect(conn_str)
-        except Error as e:
-            msg = (
-                "Failed to connect to PostgreSQL database.  Ensure the connection string follows the "
-                "PostgreSQL connection specification: "
-                "https://www.postgresql.org/docs/current/libpq-connect.html#LIBPQ-CONNSTRING."
-            )
-            raise DocumentStoreError(msg) from e
-        await async_connection.set_autocommit(True)
-        if self.create_extension:
-            await async_connection.execute("CREATE EXTENSION IF NOT EXISTS vector")
-        await register_vector_async(async_connection)  # Note: this must be called before creating the cursors.
-
-        self._async_connection = async_connection
-        self._async_cursor = self._async_connection.cursor()
-        self._async_dict_cursor = self._async_connection.cursor(row_factory=dict_row)
-
-        if not self._table_initialized:
-            await self._initialize_table_async()
 
     def _build_table_creation_queries(self) -> tuple[SQL, Composed, SQL, Composed]:
         """
         Internal method to build the SQL queries for table creation.
         """
-
         sql_table_exists = SQL("SELECT 1 FROM pg_tables WHERE schemaname = %s AND tablename = %s")
         sql_create_table = SQL(CREATE_TABLE_STATEMENT).format(
             schema_name=Identifier(self.schema_name),
@@ -385,7 +408,7 @@ class PgvectorDocumentStore(PostgreSQLDocumentStore):
         Deletes the table used to store Haystack documents.
 
         The name of the schema (`schema_name`) and the name of the table (`table_name`)
-        are defined when initializing the `PgvectorDocumentStore`.
+        are defined when initializing the document store.
         """
         self._ensure_db_setup()
         delete_sql = SQL("DROP TABLE IF EXISTS {schema_name}.{table_name}").format(
@@ -398,7 +421,7 @@ class PgvectorDocumentStore(PostgreSQLDocumentStore):
         self._execute_sql(
             cursor=self._cursor,
             sql_query=delete_sql,
-            error_msg=f"Could not delete table {self.schema_name}.{self.table_name} in PgvectorDocumentStore",
+            error_msg=f"Could not delete table {self.schema_name}.{self.table_name}",
         )
 
     async def delete_table_async(self) -> None:
@@ -416,12 +439,11 @@ class PgvectorDocumentStore(PostgreSQLDocumentStore):
         await self._execute_sql_async(
             cursor=self._async_cursor,
             sql_query=delete_sql,
-            error_msg=f"Could not delete table {self.schema_name}.{self.table_name} in PgvectorDocumentStore",
+            error_msg=f"Could not delete table {self.schema_name}.{self.table_name}",
         )
 
     def _build_hnsw_queries(self) -> tuple[Composed | None, SQL, Composed, Composed]:
         """Common method to build all HNSW-related SQL queries"""
-
         sql_set_hnsw_ef_search = (
             SQL("SET hnsw.ef_search = {hnsw_ef_search}").format(hnsw_ef_search=SQLLiteral(self.hnsw_ef_search))
             if self.hnsw_ef_search
@@ -473,7 +495,6 @@ class PgvectorDocumentStore(PostgreSQLDocumentStore):
 
         It also sets the `hnsw.ef_search` parameter for queries if it is specified.
         """
-
         sql_set_hnsw_ef_search, sql_hnsw_index_exists, sql_drop_hnsw_index, sql_create_hnsw_index = (
             self._build_hnsw_queries()
         )
@@ -510,7 +531,6 @@ class PgvectorDocumentStore(PostgreSQLDocumentStore):
         """
         Internal async method to handle the HNSW index creation.
         """
-
         sql_set_hnsw_ef_search, sql_hnsw_index_exists, sql_drop_hnsw_index, sql_create_hnsw_index = (
             self._build_hnsw_queries()
         )
@@ -563,7 +583,7 @@ class PgvectorDocumentStore(PostgreSQLDocumentStore):
         self._ensure_db_setup()
         assert self._cursor is not None
         result = self._execute_sql(
-            cursor=self._cursor, sql_query=sql_count, error_msg="Could not count documents in PgvectorDocumentStore"
+            cursor=self._cursor, sql_query=sql_count, error_msg="Could not count documents"
         ).fetchone()
         if result is not None:
             return result[0]
@@ -586,7 +606,7 @@ class PgvectorDocumentStore(PostgreSQLDocumentStore):
             await self._execute_sql_async(
                 cursor=self._async_cursor,
                 sql_query=sql_count,
-                error_msg="Could not count documents in PgvectorDocumentStore",
+                error_msg="Could not count documents",
             )
         ).fetchone()
 
@@ -624,7 +644,7 @@ class PgvectorDocumentStore(PostgreSQLDocumentStore):
             cursor=self._dict_cursor,
             sql_query=sql_filter,
             params=params,
-            error_msg="Could not filter documents from PgvectorDocumentStore.",
+            error_msg="Could not filter documents.",
         )
 
         records = result.fetchall()
@@ -662,7 +682,7 @@ class PgvectorDocumentStore(PostgreSQLDocumentStore):
             cursor=self._async_dict_cursor,
             sql_query=sql_filter,
             params=params,
-            error_msg="Could not filter documents from PgvectorDocumentStore.",
+            error_msg="Could not filter documents.",
         )
 
         records = await result.fetchall()
@@ -725,7 +745,7 @@ class PgvectorDocumentStore(PostgreSQLDocumentStore):
         except Error as e:
             self._connection.rollback()
             error_msg = (
-                f"Could not write documents to PgvectorDocumentStore. Error: {e!r}. \n"
+                f"Could not write documents. Error: {e!r}. \n"
                 "You can find the SQL query and the parameters in the debug logs."
             )
             raise DocumentStoreError(error_msg) from e
@@ -782,7 +802,7 @@ class PgvectorDocumentStore(PostgreSQLDocumentStore):
         except Error as e:
             await self._async_connection.rollback()
             error_msg = (
-                f"Could not write documents to PgvectorDocumentStore. Error: {e!r}. \n"
+                f"Could not write documents. Error: {e!r}. \n"
                 "You can find the SQL query and the parameters in the debug logs."
             )
             raise DocumentStoreError(error_msg) from e
@@ -812,9 +832,7 @@ class PgvectorDocumentStore(PostgreSQLDocumentStore):
 
         self._ensure_db_setup()
         assert self._cursor is not None
-        self._execute_sql(
-            cursor=self._cursor, sql_query=delete_sql, error_msg="Could not delete documents from PgvectorDocumentStore"
-        )
+        self._execute_sql(cursor=self._cursor, sql_query=delete_sql, error_msg="Could not delete documents")
 
     async def delete_documents_async(self, document_ids: list[str]) -> None:
         """
@@ -838,7 +856,7 @@ class PgvectorDocumentStore(PostgreSQLDocumentStore):
         await self._execute_sql_async(
             cursor=self._async_cursor,
             sql_query=delete_sql,
-            error_msg="Could not delete documents from PgvectorDocumentStore",
+            error_msg="Could not delete documents",
         )
 
     def delete_all_documents(self) -> None:
@@ -852,9 +870,7 @@ class PgvectorDocumentStore(PostgreSQLDocumentStore):
 
         self._ensure_db_setup()
         assert self._cursor is not None
-        self._execute_sql(
-            cursor=self._cursor, sql_query=query, error_msg="Could not delete all documents from PgvectorDocumentStore"
-        )
+        self._execute_sql(cursor=self._cursor, sql_query=query, error_msg="Could not delete all documents")
 
     async def delete_all_documents_async(self) -> None:
         """
@@ -870,7 +886,7 @@ class PgvectorDocumentStore(PostgreSQLDocumentStore):
         await self._execute_sql_async(
             cursor=self._async_cursor,
             sql_query=query,
-            error_msg="Could not delete all documents from PgvectorDocumentStore",
+            error_msg="Could not delete all documents",
         )
 
     def delete_by_filter(self, filters: dict[str, Any]) -> int:
@@ -901,7 +917,7 @@ class PgvectorDocumentStore(PostgreSQLDocumentStore):
                 cursor=self._cursor,
                 sql_query=delete_sql,
                 params=params,
-                error_msg="Could not delete documents by filter from PgvectorDocumentStore",
+                error_msg="Could not delete documents by filter",
             )
             deleted_count = self._cursor.rowcount
             logger.info(
@@ -912,7 +928,7 @@ class PgvectorDocumentStore(PostgreSQLDocumentStore):
             )
             return deleted_count
         except Error as e:
-            msg = f"Failed to delete documents by filter from PgvectorDocumentStore: {e!s}"
+            msg = f"Failed to delete documents by filter: {e!s}"
             raise DocumentStoreError(msg) from e
 
     async def delete_by_filter_async(self, filters: dict[str, Any]) -> int:
@@ -943,7 +959,7 @@ class PgvectorDocumentStore(PostgreSQLDocumentStore):
                 cursor=self._async_cursor,
                 sql_query=delete_sql,
                 params=params,
-                error_msg="Could not delete documents by filter from PgvectorDocumentStore",
+                error_msg="Could not delete documents by filter",
             )
             deleted_count = self._async_cursor.rowcount
             logger.info(
@@ -954,7 +970,7 @@ class PgvectorDocumentStore(PostgreSQLDocumentStore):
             )
             return deleted_count
         except Error as e:
-            msg = f"Failed to delete documents by filter from PgvectorDocumentStore: {e!s}"
+            msg = f"Failed to delete documents by filter: {e!s}"
             raise DocumentStoreError(msg) from e
 
     def update_by_filter(self, filters: dict[str, Any], meta: dict[str, Any]) -> int:
@@ -993,7 +1009,7 @@ class PgvectorDocumentStore(PostgreSQLDocumentStore):
                 cursor=self._cursor,
                 sql_query=update_sql,
                 params=params,
-                error_msg="Could not update documents by filter from PgvectorDocumentStore",
+                error_msg="Could not update documents by filter",
             )
             updated_count = self._cursor.rowcount
             logger.info(
@@ -1004,7 +1020,7 @@ class PgvectorDocumentStore(PostgreSQLDocumentStore):
             )
             return updated_count
         except Error as e:
-            msg = f"Failed to update documents by filter in PgvectorDocumentStore: {e!s}"
+            msg = f"Failed to update documents by filter: {e!s}"
             raise DocumentStoreError(msg) from e
 
     async def update_by_filter_async(self, filters: dict[str, Any], meta: dict[str, Any]) -> int:
@@ -1043,7 +1059,7 @@ class PgvectorDocumentStore(PostgreSQLDocumentStore):
                 cursor=self._async_cursor,
                 sql_query=update_sql,
                 params=params,
-                error_msg="Could not update documents by filter from PgvectorDocumentStore",
+                error_msg="Could not update documents by filter",
             )
             updated_count = self._async_cursor.rowcount
             logger.info(
@@ -1054,7 +1070,7 @@ class PgvectorDocumentStore(PostgreSQLDocumentStore):
             )
             return updated_count
         except Error as e:
-            msg = f"Failed to update documents by filter in PgvectorDocumentStore: {e!s}"
+            msg = f"Failed to update documents by filter: {e!s}"
             raise DocumentStoreError(msg) from e
 
     def _build_keyword_retrieval_query(
@@ -1111,7 +1127,7 @@ class PgvectorDocumentStore(PostgreSQLDocumentStore):
             cursor=self._dict_cursor,
             sql_query=sql_query,
             params=(query, *where_params),
-            error_msg="Could not retrieve documents from PgvectorDocumentStore.",
+            error_msg="Could not retrieve documents.",
         )
 
         records = result.fetchall()
@@ -1140,7 +1156,7 @@ class PgvectorDocumentStore(PostgreSQLDocumentStore):
             cursor=self._async_dict_cursor,
             sql_query=sql_query,
             params=(query, *where_params),
-            error_msg="Could not retrieve documents from PgvectorDocumentStore.",
+            error_msg="Could not retrieve documents.",
         )
 
         records = await result.fetchall()
@@ -1157,7 +1173,6 @@ class PgvectorDocumentStore(PostgreSQLDocumentStore):
         """
         Performs checks and builds the SQL query and the where parameters for embedding retrieval.
         """
-
         if not query_embedding:
             msg = "query_embedding must be a non-empty list of floats"
             raise ValueError(msg)
@@ -1181,13 +1196,10 @@ class PgvectorDocumentStore(PostgreSQLDocumentStore):
         # cosine_similarity and inner_product are modified from the result of the operator
         if vector_function == "cosine_similarity":
             score_definition = f"1 - (embedding <=> {query_embedding_for_postgres}) AS score"
-            order_by_definition = f"embedding <=> {query_embedding_for_postgres}"
         elif vector_function == "inner_product":
             score_definition = f"(embedding <#> {query_embedding_for_postgres}) * -1 AS score"
-            order_by_definition = f"embedding <#> {query_embedding_for_postgres}"
         elif vector_function == "l2_distance":
             score_definition = f"embedding <-> {query_embedding_for_postgres} AS score"
-            order_by_definition = f"embedding <-> {query_embedding_for_postgres}"
 
         sql_select = SQL("SELECT *, {score} FROM {schema_name}.{table_name}").format(
             schema_name=Identifier(self.schema_name),
@@ -1200,9 +1212,13 @@ class PgvectorDocumentStore(PostgreSQLDocumentStore):
         if filters:
             sql_where_clause, params = _convert_filters_to_where_clause_and_params(filters)
 
-        sql_sort = SQL(" ORDER BY {order_by} ASC LIMIT {top_k}").format(
+        # we always want to return the most similar documents first
+        # so when using l2_distance, the sort order must be ASC
+        sort_order = "ASC" if vector_function == "l2_distance" else "DESC"
+
+        sql_sort = SQL(" ORDER BY score {sort_order} LIMIT {top_k}").format(
             top_k=SQLLiteral(top_k),
-            order_by=SQL(order_by_definition),
+            sort_order=SQL(sort_order),
         )
 
         sql_query = sql_select + sql_where_clause + sql_sort
@@ -1226,7 +1242,6 @@ class PgvectorDocumentStore(PostgreSQLDocumentStore):
 
         :returns: List of Documents that are most similar to `query_embedding`
         """
-
         sql_query, params = self._check_and_build_embedding_retrieval_query(
             query_embedding=query_embedding, vector_function=vector_function, top_k=top_k, filters=filters
         )
@@ -1236,7 +1251,7 @@ class PgvectorDocumentStore(PostgreSQLDocumentStore):
             cursor=self._dict_cursor,
             sql_query=sql_query,
             params=params,
-            error_msg="Could not retrieve documents from PgvectorDocumentStore.",
+            error_msg="Could not retrieve documents.",
         )
 
         records = result.fetchall()
@@ -1256,7 +1271,6 @@ class PgvectorDocumentStore(PostgreSQLDocumentStore):
 
         Uses a vector similarity metric for comparison.
         """
-
         sql_query, params = self._check_and_build_embedding_retrieval_query(
             query_embedding=query_embedding, vector_function=vector_function, top_k=top_k, filters=filters
         )
@@ -1267,7 +1281,7 @@ class PgvectorDocumentStore(PostgreSQLDocumentStore):
             cursor=self._async_dict_cursor,
             sql_query=sql_query,
             params=params,
-            error_msg="Could not retrieve documents from PgvectorDocumentStore.",
+            error_msg="Could not retrieve documents.",
         )
 
         records = await result.fetchall()
@@ -1301,7 +1315,7 @@ class PgvectorDocumentStore(PostgreSQLDocumentStore):
             cursor=self._cursor,
             sql_query=sql_count,
             params=params,
-            error_msg="Could not count documents by filter in PgvectorDocumentStore",
+            error_msg="Could not count documents by filter",
         ).fetchone()
 
         if result is not None:
@@ -1325,7 +1339,7 @@ class PgvectorDocumentStore(PostgreSQLDocumentStore):
                 cursor=self._async_cursor,
                 sql_query=sql_count,
                 params=params,
-                error_msg="Could not count documents by filter in PgvectorDocumentStore",
+                error_msg="Could not count documents by filter",
             )
         ).fetchone()
 
@@ -1422,7 +1436,7 @@ class PgvectorDocumentStore(PostgreSQLDocumentStore):
             msg = "metadata_fields must be a non-empty list"
             raise ValueError(msg)
 
-        normalized_fields = [PgvectorDocumentStore._normalize_metadata_field_name(field) for field in metadata_fields]
+        normalized_fields = [PostgreSQLDocumentStore._normalize_metadata_field_name(field) for field in metadata_fields]
         sql_query, params = self._build_count_unique_metadata_query(normalized_fields, filters)
 
         self._ensure_db_setup()
@@ -1431,10 +1445,10 @@ class PgvectorDocumentStore(PostgreSQLDocumentStore):
             cursor=self._dict_cursor,
             sql_query=sql_query,
             params=params,
-            error_msg="Could not count unique metadata values in PgvectorDocumentStore",
+            error_msg="Could not count unique metadata values",
         ).fetchone()
 
-        return PgvectorDocumentStore._process_count_unique_metadata_result(result, normalized_fields)
+        return PostgreSQLDocumentStore._process_count_unique_metadata_result(result, normalized_fields)
 
     async def count_unique_metadata_by_filter_async(
         self, filters: dict[str, Any], metadata_fields: list[str]
@@ -1456,7 +1470,7 @@ class PgvectorDocumentStore(PostgreSQLDocumentStore):
             msg = "metadata_fields must be a non-empty list"
             raise ValueError(msg)
 
-        normalized_fields = [PgvectorDocumentStore._normalize_metadata_field_name(field) for field in metadata_fields]
+        normalized_fields = [PostgreSQLDocumentStore._normalize_metadata_field_name(field) for field in metadata_fields]
         sql_query, params = self._build_count_unique_metadata_query(normalized_fields, filters)
 
         await self._ensure_db_setup_async()
@@ -1466,11 +1480,11 @@ class PgvectorDocumentStore(PostgreSQLDocumentStore):
                 cursor=self._async_dict_cursor,
                 sql_query=sql_query,
                 params=params,
-                error_msg="Could not count unique metadata values in PgvectorDocumentStore",
+                error_msg="Could not count unique metadata values",
             )
         ).fetchone()
 
-        return PgvectorDocumentStore._process_count_unique_metadata_result(result, normalized_fields)
+        return PostgreSQLDocumentStore._process_count_unique_metadata_result(result, normalized_fields)
 
     @staticmethod
     def _infer_metadata_field_type(value: Any) -> str:
@@ -1510,7 +1524,7 @@ class PgvectorDocumentStore(PostgreSQLDocumentStore):
                 if field_name not in fields_info:
                     # Infer type from first non-null value encountered
                     if field_value is not None:
-                        inferred_type = PgvectorDocumentStore._infer_metadata_field_type(field_value)
+                        inferred_type = PostgreSQLDocumentStore._infer_metadata_field_type(field_value)
                         fields_info[field_name] = {"type": inferred_type}
                     else:
                         # Default to text for null values
@@ -1551,11 +1565,11 @@ class PgvectorDocumentStore(PostgreSQLDocumentStore):
         result = self._execute_sql(
             cursor=self._dict_cursor,
             sql_query=sql_query,
-            error_msg="Could not retrieve metadata fields info from PgvectorDocumentStore",
+            error_msg="Could not retrieve metadata fields info",
         )
 
         records = result.fetchall()
-        return PgvectorDocumentStore._analyze_metadata_fields_from_records(records)
+        return PostgreSQLDocumentStore._analyze_metadata_fields_from_records(records)
 
     async def get_metadata_fields_info_async(self) -> dict[str, dict[str, str]]:
         """
@@ -1574,11 +1588,11 @@ class PgvectorDocumentStore(PostgreSQLDocumentStore):
         result = await self._execute_sql_async(
             cursor=self._async_dict_cursor,
             sql_query=sql_query,
-            error_msg="Could not retrieve metadata fields info from PgvectorDocumentStore",
+            error_msg="Could not retrieve metadata fields info",
         )
 
         records = await result.fetchall()
-        return PgvectorDocumentStore._analyze_metadata_fields_from_records(records)
+        return PostgreSQLDocumentStore._analyze_metadata_fields_from_records(records)
 
     def _build_min_max_query(self, normalized_field: str, field_type: str) -> Composed:
         """
@@ -1594,12 +1608,12 @@ class PgvectorDocumentStore(PostgreSQLDocumentStore):
             # For integer fields, cast directly to integer
             sql_query = SQL(
                 """
-                SELECT 
+                SELECT
                     MIN((meta->>{} )::integer) AS min_value,
                     MAX((meta->>{} )::integer) AS max_value
                 FROM {}.{}
                 WHERE meta->>{} IS NOT NULL
-                """  # noqa: W291
+                """
             ).format(
                 field_literal,
                 field_literal,
@@ -1611,12 +1625,12 @@ class PgvectorDocumentStore(PostgreSQLDocumentStore):
             # For real (float) fields, cast directly to real
             sql_query = SQL(
                 """
-                SELECT 
+                SELECT
                     MIN((meta->>{} )::real) AS min_value,
                     MAX((meta->>{} )::real) AS max_value
                 FROM {}.{}
                 WHERE meta->>{} IS NOT NULL
-                """  # noqa: W291
+                """
             ).format(
                 field_literal,
                 field_literal,
@@ -1630,12 +1644,12 @@ class PgvectorDocumentStore(PostgreSQLDocumentStore):
             # This ensures uppercase and lowercase letters are treated differently
             sql_query = SQL(
                 """
-                SELECT 
+                SELECT
                     MIN(meta->>{} COLLATE "C") AS min_value,
                     MAX(meta->>{} COLLATE "C") AS max_value
                 FROM {}.{}
                 WHERE meta->>{} IS NOT NULL
-                """  # noqa: W291
+                """
             ).format(
                 field_literal,
                 field_literal,
@@ -1676,7 +1690,7 @@ class PgvectorDocumentStore(PostgreSQLDocumentStore):
             For text fields, returns lexicographic min/max based on database collation.
             Returns `{"min": None, "max": None}` when the field has no values or the store is empty.
         """
-        normalized_field = PgvectorDocumentStore._normalize_metadata_field_name(metadata_field)
+        normalized_field = PostgreSQLDocumentStore._normalize_metadata_field_name(metadata_field)
 
         # Get field type information from metadata fields info
         fields_info = self.get_metadata_fields_info()
@@ -1691,10 +1705,10 @@ class PgvectorDocumentStore(PostgreSQLDocumentStore):
         result = self._execute_sql(
             cursor=self._dict_cursor,
             sql_query=sql_query,
-            error_msg=f"Could not get min/max for metadata field '{metadata_field}' in PgvectorDocumentStore",
+            error_msg=f"Could not get min/max for metadata field '{metadata_field}'",
         ).fetchone()
 
-        max_value, min_value = PgvectorDocumentStore._process_min_max_result(metadata_field, result)
+        max_value, min_value = PostgreSQLDocumentStore._process_min_max_result(metadata_field, result)
 
         return {"min": min_value, "max": max_value}
 
@@ -1708,7 +1722,7 @@ class PgvectorDocumentStore(PostgreSQLDocumentStore):
             For text fields, returns lexicographic min/max based on database collation.
             Returns ``{"min": None, "max": None}`` when the field has no values or the store is empty.
         """
-        normalized_field = PgvectorDocumentStore._normalize_metadata_field_name(metadata_field)
+        normalized_field = PostgreSQLDocumentStore._normalize_metadata_field_name(metadata_field)
 
         # Get field type information from metadata fields info
         fields_info = await self.get_metadata_fields_info_async()
@@ -1724,11 +1738,11 @@ class PgvectorDocumentStore(PostgreSQLDocumentStore):
             await self._execute_sql_async(
                 cursor=self._async_dict_cursor,
                 sql_query=sql_query,
-                error_msg=f"Could not get min/max for metadata field '{metadata_field}' in PgvectorDocumentStore",
+                error_msg=f"Could not get min/max for metadata field '{metadata_field}'",
             )
         ).fetchone()
 
-        max_value, min_value = PgvectorDocumentStore._process_min_max_result(metadata_field, result)
+        max_value, min_value = PostgreSQLDocumentStore._process_min_max_result(metadata_field, result)
 
         return {"min": min_value, "max": max_value}
 
@@ -1803,7 +1817,7 @@ class PgvectorDocumentStore(PostgreSQLDocumentStore):
             - A list of unique values (as strings)
             - The total count of unique values
         """
-        normalized_field = PgvectorDocumentStore._normalize_metadata_field_name(metadata_field)
+        normalized_field = PostgreSQLDocumentStore._normalize_metadata_field_name(metadata_field)
         sql_count, sql_query, params = self._build_unique_values_queries(normalized_field, search_term, from_, size)
 
         self._ensure_db_setup()
@@ -1813,18 +1827,18 @@ class PgvectorDocumentStore(PostgreSQLDocumentStore):
             cursor=self._dict_cursor,
             sql_query=sql_count,
             params=params,
-            error_msg=f"Could not count unique values for metadata field '{metadata_field}' in PgvectorDocumentStore",
+            error_msg=f"Could not count unique values for metadata field '{metadata_field}'",
         ).fetchone()
 
         result = self._execute_sql(
             cursor=self._dict_cursor,
             sql_query=sql_query,
             params=params,
-            error_msg=f"Could not get unique values for metadata field '{metadata_field}' in PgvectorDocumentStore",
+            error_msg=f"Could not get unique values for metadata field '{metadata_field}'",
         )
 
         records = result.fetchall()
-        return PgvectorDocumentStore._process_unique_values_result(count_result, records)
+        return PostgreSQLDocumentStore._process_unique_values_result(count_result, records)
 
     async def get_metadata_field_unique_values_async(
         self, metadata_field: str, search_term: str | None, from_: int, size: int
@@ -1841,7 +1855,7 @@ class PgvectorDocumentStore(PostgreSQLDocumentStore):
             - A list of unique values (as strings)
             - The total count of unique values
         """
-        normalized_field = PgvectorDocumentStore._normalize_metadata_field_name(metadata_field)
+        normalized_field = PostgreSQLDocumentStore._normalize_metadata_field_name(metadata_field)
         sql_count, sql_query, params = self._build_unique_values_queries(normalized_field, search_term, from_, size)
 
         await self._ensure_db_setup_async()
@@ -1852,8 +1866,7 @@ class PgvectorDocumentStore(PostgreSQLDocumentStore):
                 cursor=self._async_dict_cursor,
                 sql_query=sql_count,
                 params=params,
-                error_msg=f"Could not count unique values for metadata field '{metadata_field}' in "
-                f"PgvectorDocumentStore",
+                error_msg=f"Could not count unique values for metadata field '{metadata_field}'",
             )
         ).fetchone()
 
@@ -1861,8 +1874,8 @@ class PgvectorDocumentStore(PostgreSQLDocumentStore):
             cursor=self._async_dict_cursor,
             sql_query=sql_query,
             params=params,
-            error_msg=f"Could not get unique values for metadata field '{metadata_field}' in PgvectorDocumentStore",
+            error_msg=f"Could not get unique values for metadata field '{metadata_field}'",
         )
 
         records = await result.fetchall()
-        return PgvectorDocumentStore._process_unique_values_result(count_result, records)
+        return PostgreSQLDocumentStore._process_unique_values_result(count_result, records)
