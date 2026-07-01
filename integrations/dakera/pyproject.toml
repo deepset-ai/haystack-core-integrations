@@ -41,8 +41,10 @@ local_scheme = "no-local-version"
 fallback_version = "0.0.1"
 
 [tool.hatch.envs.default]
-dependencies = ["pytest", "pytest-asyncio", "respx"]
+installer = "uv"
+dependencies = ["pytest", "pytest-asyncio", "respx", "haystack-pydoc-tools"]
 
 [tool.hatch.envs.default.scripts]
+docs = ["haystack-pydoc pydoc/config_docusaurus.yml"]
 test = "pytest tests/"
 lint = ["ruff check . --fix", "ruff format ."]
