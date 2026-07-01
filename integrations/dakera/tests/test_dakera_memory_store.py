@@ -13,7 +13,7 @@ from haystack_integrations.components.retrievers.dakera import DakeraMemoryRetri
 from haystack_integrations.components.writers.dakera import DakeraMemoryWriter
 
 
-BASE_URL = "http://localhost:3000"
+BASE_URL = "http://localhost:3300"
 
 
 @pytest.fixture

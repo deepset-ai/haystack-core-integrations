@@ -15,7 +15,7 @@ pip install dakera-haystack
 ## Prerequisites
 
 ```bash
-docker run -d -p 3000:3000 -e DAKERA_API_KEY=demo dakera/dakera:latest
+docker run -d -p 3300:3300 -e DAKERA_API_KEY=demo ghcr.io/dakera-ai/dakera:latest
 ```
 
 ## Usage
@@ -24,7 +24,7 @@ docker run -d -p 3000:3000 -e DAKERA_API_KEY=demo dakera/dakera:latest
 from haystack import Pipeline
 from haystack_integrations.components.memory.dakera import DakeraMemoryStore, DakeraMemoryRetriever, DakeraMemoryWriter
 
-store = DakeraMemoryStore(base_url="http://localhost:3000", api_key="demo")
+store = DakeraMemoryStore(base_url="http://localhost:3300", api_key="demo")
 
 # Write pipeline
 write_pipeline = Pipeline()
@@ -54,7 +54,7 @@ print(result["retriever"]["memories"])
 
 | Parameter | Default | Description |
 |-----------|---------|-------------|
-| `base_url` | `http://localhost:3000` | Dakera server URL (or `DAKERA_API_URL` env var) |
+| `base_url` | `http://localhost:3300` | Dakera server URL (or `DAKERA_API_URL` env var) |
 | `api_key` | `""` | API key (or `DAKERA_API_KEY` env var / Haystack `Secret`) |
 | `session_id` | `"default"` | Groups memories by conversation or user |
 | `top_k` | `5` | Number of memories to retrieve per query |

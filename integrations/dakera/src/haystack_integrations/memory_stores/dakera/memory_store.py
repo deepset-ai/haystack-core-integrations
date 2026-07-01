@@ -23,10 +23,10 @@ class DakeraMemoryStore:
     frequently-accessed memories naturally surface higher than stale ones.
 
     Self-host via Docker:
-        docker run -p 3000:3000 -e DAKERA_API_KEY=your-key dakera/dakera:latest
+        docker run -p 3300:3300 -e DAKERA_API_KEY=your-key ghcr.io/dakera-ai/dakera:latest
 
     Args:
-        base_url: Dakera server base URL. Defaults to DAKERA_API_URL env var or http://localhost:3000.
+        base_url: Dakera server base URL. Defaults to DAKERA_API_URL env var or http://localhost:3300.
         api_key: Dakera API key as a Secret. Defaults to DAKERA_API_KEY env var.
         default_agent_id: Default agent/namespace for memory isolation. Defaults to "haystack".
         timeout: HTTP request timeout in seconds. Defaults to 10.
@@ -37,7 +37,7 @@ class DakeraMemoryStore:
             from haystack_integrations.memory_stores.dakera import DakeraMemoryStore
 
             store = DakeraMemoryStore(
-                base_url="http://localhost:3000",
+                base_url="http://localhost:3300",
                 api_key=Secret.from_env_var("DAKERA_API_KEY"),
             )
             store.store_memories(
@@ -54,7 +54,7 @@ class DakeraMemoryStore:
         default_agent_id: str = "haystack",
         timeout: float = 10.0,
     ) -> None:
-        self.base_url = (base_url or os.getenv("DAKERA_API_URL", "http://localhost:3000")).rstrip("/")
+        self.base_url = (base_url or os.getenv("DAKERA_API_URL", "http://localhost:3300")).rstrip("/")
         self.api_key = api_key or Secret.from_env_var("DAKERA_API_KEY", strict=False)
         self.default_agent_id = default_agent_id
         self.timeout = timeout
