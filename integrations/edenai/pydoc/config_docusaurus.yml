@@ -1,0 +1,15 @@
+loaders:
+  - modules:
+      - haystack_integrations.components.generators.edenai.chat.chat_generator
+      - haystack_integrations.components.embedders.edenai.text_embedder
+      - haystack_integrations.components.embedders.edenai.document_embedder
+    search_path: [../src]
+processors:
+  - type: filter
+    documented_only: true
+    skip_empty_modules: true
+renderer:
+  description: Eden AI integration for Haystack
+  id: integrations-edenai
+  filename: edenai.md
+  title: Eden AI
