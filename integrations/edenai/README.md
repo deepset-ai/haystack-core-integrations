@@ -118,6 +118,30 @@ generator = EdenAIChatGenerator(
 )
 ```
 
+### Embeddings
+
+Eden AI also exposes embeddings through the same OpenAI-compatible API. Use `EdenAITextEmbedder`
+to embed a query string and `EdenAIDocumentEmbedder` to embed `Document`s for indexing.
+
+```python
+from haystack import Document
+from haystack_integrations.components.embedders.edenai import (
+    EdenAIDocumentEmbedder,
+    EdenAITextEmbedder,
+)
+
+# Embed documents (e.g. before writing them to a document store)
+doc_embedder = EdenAIDocumentEmbedder(model="mistral/mistral-embed")
+docs = doc_embedder.run([Document(content="I love pizza!")])["documents"]
+
+# Embed a query at search time
+text_embedder = EdenAITextEmbedder(model="mistral/mistral-embed")
+query_embedding = text_embedder.run("What food do I love?")["embedding"]
+```
+
+This lets you build a fully sovereign RAG stack — retrieval *and* generation — on EU-hosted models
+through a single Eden AI key.
+
 ### In a RAG pipeline
 
 See [`examples/edenai_rag_pipeline.py`](examples/edenai_rag_pipeline.py) for a complete, runnable

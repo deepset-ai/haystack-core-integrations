@@ -71,7 +71,8 @@ all = 'pytest {args:tests}'
 unit-cov-retry = 'pytest --cov=haystack_integrations --reruns 3 --reruns-delay 30 -x -m "not integration" {args:tests}'
 integration-cov-append-retry = 'pytest --cov=haystack_integrations --cov-append --reruns 3 --reruns-delay 30 -x -m "integration" {args:tests}'
 
-types = "mypy -p haystack_integrations.components.generators.edenai {args}"
+types = """mypy -p haystack_integrations.components.generators.edenai \
+-p haystack_integrations.components.embedders.edenai {args}"""
 
 [tool.mypy]
 install_types = true
@@ -123,7 +124,10 @@ ignore = [
   "ANN401",  # Allow Any - used legitimately for dynamic types and SDK boundaries
   # Allow non-abstract empty methods in abstract base classes
   "B027",
-  # Allow boolean positional values in function calls, like `dict.get(... True)`
+  # Allow boolean positional args/defaults and calls: we mirror OpenAI base-class signatures
+  # (e.g. `progress_bar: bool = True`)
+  "FBT001",
+  "FBT002",
   "FBT003",
   # Ignore checks for possible passwords
   "S105",
