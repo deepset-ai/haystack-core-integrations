@@ -88,6 +88,20 @@ class TestHuggingFaceTEIRanker:
         result = ranker.run(query="test query", documents=[])
         assert result == {"documents": []}
 
+    def test_init_fail_with_zero_top_k(self):
+        with pytest.raises(ValueError, match="top_k must be > 0, but got 0"):
+            HuggingFaceTEIRanker(url="http://localhost:8080", top_k=0)
+
+    def test_init_fail_with_negative_top_k(self):
+        with pytest.raises(ValueError, match=r"top_k must be > 0, but got -5"):
+            HuggingFaceTEIRanker(url="http://localhost:8080", top_k=-5)
+
+    def test_run_fail_with_invalid_top_k_override(self):
+        ranker = HuggingFaceTEIRanker(url="http://localhost:8080")
+        docs = [Document(content="doc")]
+        with pytest.raises(ValueError, match="top_k must be > 0, but got 0"):
+            ranker.run(query="q", documents=docs, top_k=0)
+
     @patch("haystack_integrations.components.rankers.huggingface_api.ranker.request_with_retry")
     def test_run_with_mock(self, mock_request, del_hf_env_vars_if_empty):
         """Test run method with mocked API response"""

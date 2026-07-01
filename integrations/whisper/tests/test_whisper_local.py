@@ -1,0 +1,268 @@
+# SPDX-FileCopyrightText: 2022-present deepset GmbH <info@deepset.ai>
+#
+# SPDX-License-Identifier: Apache-2.0
+
+import sys
+from pathlib import Path
+from unittest.mock import MagicMock, patch
+
+import pytest
+import torch
+from haystack import Pipeline
+from haystack.components.fetchers import LinkContentFetcher
+from haystack.dataclasses import ByteStream, Document
+from haystack.utils.device import ComponentDevice, Device
+
+from haystack_integrations.components.audio.whisper import LocalWhisperTranscriber
+
+SAMPLES_PATH = Path(__file__).parent / "test_files"
+
+
+class TestLocalWhisperTranscriber:
+    def test_init(self):
+        transcriber = LocalWhisperTranscriber(
+            model="large-v2"
+        )  # Doesn't matter if it's huge, the model is not loaded in init.
+        assert transcriber.model == "large-v2"
+        assert transcriber.device == ComponentDevice.resolve_device(None)
+        assert transcriber._model is None
+
+    def test_init_wrong_model(self):
+        with pytest.raises(ValueError, match="Model name 'whisper-1' not recognized"):
+            LocalWhisperTranscriber(model="whisper-1")
+
+    def test_to_dict(self):
+        transcriber = LocalWhisperTranscriber()
+        data = transcriber.to_dict()
+        assert data == {
+            "type": "haystack_integrations.components.audio.whisper.whisper_local.LocalWhisperTranscriber",
+            "init_parameters": {
+                "model": "large",
+                "device": ComponentDevice.resolve_device(None).to_dict(),
+                "whisper_params": {},
+            },
+        }
+
+    def test_to_dict_with_custom_init_parameters(self):
+        transcriber = LocalWhisperTranscriber(
+            model="tiny",
+            device=ComponentDevice.from_str("cuda:0"),
+            whisper_params={"return_segments": True, "temperature": [0.1, 0.6, 0.8]},
+        )
+        data = transcriber.to_dict()
+        assert data == {
+            "type": "haystack_integrations.components.audio.whisper.whisper_local.LocalWhisperTranscriber",
+            "init_parameters": {
+                "model": "tiny",
+                "device": ComponentDevice.from_str("cuda:0").to_dict(),
+                "whisper_params": {"return_segments": True, "temperature": [0.1, 0.6, 0.8]},
+            },
+        }
+
+    def test_from_dict(self):
+        data = {
+            "type": "haystack_integrations.components.audio.whisper.whisper_local.LocalWhisperTranscriber",
+            "init_parameters": {
+                "model": "tiny",
+                "device": ComponentDevice.from_single(Device.cpu()).to_dict(),
+                "whisper_params": {},
+            },
+        }
+        transcriber = LocalWhisperTranscriber.from_dict(data)
+        assert transcriber.model == "tiny"
+        assert transcriber.device == ComponentDevice.from_single(Device.cpu())
+        assert transcriber.whisper_params == {}
+        assert transcriber._model is None
+
+    def test_from_dict_no_default_parameters(self):
+        data = {
+            "type": "haystack_integrations.components.audio.whisper.whisper_local.LocalWhisperTranscriber",
+            "init_parameters": {},
+        }
+        transcriber = LocalWhisperTranscriber.from_dict(data)
+        assert transcriber.model == "large"
+        assert transcriber.device == ComponentDevice.resolve_device(None)
+        assert transcriber.whisper_params == {}
+
+    def test_from_dict_none_device(self):
+        data = {
+            "type": "haystack_integrations.components.audio.whisper.whisper_local.LocalWhisperTranscriber",
+            "init_parameters": {"model": "tiny", "device": None, "whisper_params": {}},
+        }
+        transcriber = LocalWhisperTranscriber.from_dict(data)
+        assert transcriber.model == "tiny"
+        assert transcriber.device == ComponentDevice.resolve_device(None)
+        assert transcriber.whisper_params == {}
+        assert transcriber._model is None
+
+    def test_warmup(self):
+        with patch("haystack_integrations.components.audio.whisper.whisper_local.whisper") as mocked_whisper:
+            transcriber = LocalWhisperTranscriber(model="large-v2", device=ComponentDevice.from_str("cpu"))
+            mocked_whisper.load_model.assert_not_called()
+            transcriber.warm_up()
+            mocked_whisper.load_model.assert_called_once_with("large-v2", device=torch.device(type="cpu"))
+
+    def test_warmup_doesnt_reload(self):
+        with patch("haystack_integrations.components.audio.whisper.whisper_local.whisper") as mocked_whisper:
+            transcriber = LocalWhisperTranscriber(model="large-v2")
+            transcriber.warm_up()
+            transcriber.warm_up()
+            mocked_whisper.load_model.assert_called_once()
+
+    def test_run_with_path(self):
+        comp = LocalWhisperTranscriber(model="large-v2")
+        comp._model = MagicMock()
+        comp._model.transcribe.return_value = {
+            "text": "test transcription",
+            "other_metadata": ["other", "meta", "data"],
+        }
+        results = comp.run(sources=[SAMPLES_PATH / "audio" / "this is the content of the document.wav"])
+        expected = Document(
+            content="test transcription",
+            meta={
+                "audio_file": SAMPLES_PATH / "audio" / "this is the content of the document.wav",
+                "other_metadata": ["other", "meta", "data"],
+            },
+        )
+        assert results["documents"] == [expected]
+
+    def test_run_with_str(self):
+        comp = LocalWhisperTranscriber(model="large-v2")
+        comp._model = MagicMock()
+        comp._model.transcribe.return_value = {
+            "text": "test transcription",
+            "other_metadata": ["other", "meta", "data"],
+        }
+        results = comp.run(
+            sources=[str((SAMPLES_PATH / "audio" / "this is the content of the document.wav").absolute())]
+        )
+        expected = Document(
+            content="test transcription",
+            meta={
+                "audio_file": (SAMPLES_PATH / "audio" / "this is the content of the document.wav").absolute(),
+                "other_metadata": ["other", "meta", "data"],
+            },
+        )
+        assert results["documents"] == [expected]
+
+    def test_transcribe(self):
+        comp = LocalWhisperTranscriber(model="large-v2")
+        comp._model = MagicMock()
+        comp._model.transcribe.return_value = {
+            "text": "test transcription",
+            "other_metadata": ["other", "meta", "data"],
+        }
+        results = comp._transcribe(sources=[SAMPLES_PATH / "audio" / "this is the content of the document.wav"])
+        expected = Document(
+            content="test transcription",
+            meta={
+                "audio_file": SAMPLES_PATH / "audio" / "this is the content of the document.wav",
+                "other_metadata": ["other", "meta", "data"],
+            },
+        )
+        assert results == [expected]
+
+    def test_transcribe_stream(self):
+        comp = LocalWhisperTranscriber(model="large-v2")
+        comp._model = MagicMock()
+        comp._model.transcribe.return_value = {
+            "text": "test transcription",
+            "other_metadata": ["other", "meta", "data"],
+        }
+        path = SAMPLES_PATH / "audio" / "this is the content of the document.wav"
+        bs = ByteStream.from_file_path(path)
+        bs.meta["file_path"] = path
+        results = comp._transcribe(sources=[bs])
+        expected = Document(
+            content="test transcription", meta={"audio_file": path, "other_metadata": ["other", "meta", "data"]}
+        )
+        assert results == [expected]
+
+    def test_transcribe_stream_without_file_path(self):
+        # When a ByteStream has no `file_path` in its metadata, the audio bytes are written to a temporary file.
+        comp = LocalWhisperTranscriber(model="large-v2")
+        comp._model = MagicMock()
+        comp._model.transcribe.return_value = {"text": "test transcription"}
+        bs = ByteStream(data=b"fake audio bytes")
+        results = comp._transcribe(sources=[bs])
+        assert results[0].content == "test transcription"
+        audio_file = Path(results[0].meta["audio_file"])
+        assert audio_file.exists()
+        assert audio_file.read_bytes() == b"fake audio bytes"
+
+    def test_run_warms_up_model_when_not_loaded(self):
+        # `run` loads the model on first use if `warm_up` was not called explicitly.
+        with patch("haystack_integrations.components.audio.whisper.whisper_local.whisper") as mocked_whisper:
+            mocked_whisper.load_model.return_value.transcribe.return_value = {"text": "test transcription"}
+            comp = LocalWhisperTranscriber(model="tiny")
+            assert comp._model is None
+            results = comp.run(sources=[SAMPLES_PATH / "audio" / "this is the content of the document.wav"])
+            mocked_whisper.load_model.assert_called_once()
+            assert results["documents"][0].content == "test transcription"
+
+    def test_transcribe_warms_up_model_when_not_loaded(self):
+        # `transcribe` (called directly) also loads the model on first use.
+        with patch("haystack_integrations.components.audio.whisper.whisper_local.whisper") as mocked_whisper:
+            mocked_whisper.load_model.return_value.transcribe.return_value = {"text": "test transcription"}
+            comp = LocalWhisperTranscriber(model="tiny")
+            assert comp._model is None
+            results = comp._transcribe(sources=[SAMPLES_PATH / "audio" / "this is the content of the document.wav"])
+            mocked_whisper.load_model.assert_called_once()
+            assert results[0].content == "test transcription"
+
+    @pytest.mark.integration
+    @pytest.mark.skipif(sys.platform in ["win32", "cygwin"], reason="ffmpeg not installed on Windows CI")
+    def test_whisper_local_transcriber(self, test_files_path):
+        # Force CPU. By default the component resolves to the best available device, which is MPS on Apple
+        # Silicon. Whisper inference on MPS is unreliable on the GitHub-hosted macOS runners and produced
+        # multilingual garbage for clean English audio (the model size made no difference), which made this
+        # test flaky. CPU inference is deterministic across all platforms, matching what the Linux CI does.
+        comp = LocalWhisperTranscriber(
+            model="tiny", device=ComponentDevice.from_str("cpu"), whisper_params={"language": "english"}
+        )
+        output = comp.run(
+            sources=[
+                test_files_path / "audio" / "this is the content of the document.wav",
+                str((test_files_path / "audio" / "the context for this answer is here.wav").absolute()),
+                ByteStream.from_file_path(test_files_path / "audio" / "answer.wav", "rb"),
+            ]
+        )
+        docs = output["documents"]
+        assert len(docs) == 3
+
+        assert all(word in docs[0].content.strip().lower() for word in ("content", "the", "document")), (
+            f"Expected words not found in: {docs[0].content.strip().lower()}"
+        )
+        assert test_files_path / "audio" / "this is the content of the document.wav" == docs[0].meta["audio_file"]
+
+        assert all(word in docs[1].content.strip().lower() for word in ("context", "answer")), (
+            f"Expected words not found in: {docs[1].content.strip().lower()}"
+        )
+        path = test_files_path / "audio" / "the context for this answer is here.wav"
+        assert path.absolute() == docs[1].meta["audio_file"]
+
+        # `answer.wav` is a single isolated word, which models transcribe inconsistently
+        # Therefore, we only assert that something was transcribed to a temporary file.
+        assert docs[2].content.strip()
+        # meta.audio_file should contain the temp path where we dumped the audio bytes
+        assert docs[2].meta["audio_file"]
+
+    @pytest.mark.integration
+    @pytest.mark.skipif(sys.platform in ["win32", "cygwin"], reason="ffmpeg not installed on Windows CI")
+    def test_whisper_local_transcriber_pipeline_and_url_source(self):
+        pipe = Pipeline()
+        pipe.add_component("fetcher", LinkContentFetcher())
+        # Force CPU: Whisper inference on MPS (the default device on Apple Silicon CI runners) is unreliable.
+        pipe.add_component("transcriber", LocalWhisperTranscriber(model="tiny", device=ComponentDevice.from_str("cpu")))
+
+        pipe.connect("fetcher", "transcriber")
+        result = pipe.run(
+            data={
+                "fetcher": {
+                    "urls": [
+                        "https://github.com/deepset-ai/haystack/raw/refs/heads/main/test/test_files/audio/MLK_Something_happening.mp3"
+                    ]
+                }
+            }
+        )
+        assert "masses of people" in result["transcriber"]["documents"][0].content

@@ -198,6 +198,7 @@ class AmazonBedrockChatGenerator:
         *,
         guardrail_config: dict[str, str] | None = None,
         tools_cachepoint_config: dict[str, str] | None = None,
+        system_cachepoint_config: dict[str, str] | None = None,
     ) -> None:
         """
         Initializes the `AmazonBedrockChatGenerator` with the provided parameters.
@@ -273,6 +274,10 @@ class AmazonBedrockChatGenerator:
             The dictionary must match the
             [CachePointBlock schema](https://docs.aws.amazon.com/bedrock/latest/APIReference/API_runtime_CachePointBlock.html).
             Example: `{"type": "default", "ttl": "5m"}`
+        :param system_cachepoint_config: Optional configuration to use prompt caching for system messages.
+            The dictionary must match the
+            [CachePointBlock schema](https://docs.aws.amazon.com/bedrock/latest/APIReference/API_runtime_CachePointBlock.html).
+            Example: `{"type": "default", "ttl": "5m"}`
 
 
         :raises ValueError: If the model name is empty or None.
@@ -299,6 +304,9 @@ class AmazonBedrockChatGenerator:
 
         self.tools_cachepoint_config = (
             _validate_and_format_cache_point(tools_cachepoint_config) if tools_cachepoint_config else None
+        )
+        self.system_cachepoint_config = (
+            _validate_and_format_cache_point(system_cachepoint_config) if system_cachepoint_config else None
         )
 
         def resolve_secret(secret: Secret | str | None) -> str | None:
@@ -382,6 +390,7 @@ class AmazonBedrockChatGenerator:
             tools=serialize_tools_or_toolset(self.tools),
             guardrail_config=self.guardrail_config,
             tools_cachepoint_config=self.tools_cachepoint_config,
+            system_cachepoint_config=self.system_cachepoint_config,
         )
 
     @classmethod
@@ -464,7 +473,9 @@ class AmazonBedrockChatGenerator:
             }
 
         # Format messages to Bedrock format
-        system_prompts, messages_list = _format_messages(messages)
+        system_prompts, messages_list = _format_messages(
+            messages, system_cachepoint_config=self.system_cachepoint_config
+        )
 
         # Build API parameters
         params = {
@@ -527,6 +538,18 @@ class AmazonBedrockChatGenerator:
             thinking.setdefault("type", "adaptive")
             output_config = generation_kwargs.setdefault("output_config", {})
             output_config["effort"] = adaptive_thinking_effort
+
+        tools_cachepoint_config_ttl = generation_kwargs.pop("tools_cachepoint_config_ttl", None)
+        if tools_cachepoint_config_ttl is not None:
+            tools_cachepoint_config = generation_kwargs.setdefault("tools_cachepoint_config", {})
+            tools_cachepoint_config["ttl"] = tools_cachepoint_config_ttl
+            tools_cachepoint_config.setdefault("type", "default")
+
+        system_cachepoint_config_ttl = generation_kwargs.pop("system_cachepoint_config_ttl", None)
+        if system_cachepoint_config_ttl is not None:
+            system_cachepoint_config = generation_kwargs.setdefault("system_cachepoint_config", {})
+            system_cachepoint_config["ttl"] = system_cachepoint_config_ttl
+            system_cachepoint_config.setdefault("type", "default")
 
         return generation_kwargs
 

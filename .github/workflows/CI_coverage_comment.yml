@@ -32,6 +32,7 @@ on:
       - "Test / funasr"
       - "Test / github"
       - "Test / google-genai"
+      - "Test / google_drive"
       - "Test / hanlp"
       - "Test / huggingface_api"
       - "Test / ibm_db"
@@ -47,14 +48,18 @@ on:
       - "Test / mcp"
       - "Test / mem0"
       - "Test / meta_llama"
+      - "Test / microsoft_sharepoint"
       - "Test / mistral"
       - "Test / mongodb_atlas"
       - "Test / nvidia"
       - "Test / oauth"
       - "Test / ollama"
+      - "Test / openapi"
       - "Test / openrouter"
       - "Test / opensearch"
+      - "Test / opentelemetry"
       - "Test / optimum"
+      - "Test / orcarouter"
       - "Test / paddleocr"
       - "Test / perplexity"
       - "Test / pgvector"
@@ -75,6 +80,7 @@ on:
       - "Test / tika"
       - "Test / togetherai"
       - "Test / transformers"
+      - "Test / twelvelabs"
       - "Test / unstructured"
       - "Test / valkey"
       - "Test / vespa"
@@ -82,6 +88,7 @@ on:
       - "Test / watsonx"
       - "Test / weave"
       - "Test / weaviate"
+      - "Test / whisper"
     types: [completed]
 
 jobs:
@@ -97,7 +104,7 @@ jobs:
           # Workflow names follow "Test / <name>" convention; normalize hyphens to underscores to match directory names
           echo "name=$(echo '${{ github.event.workflow_run.name }}' | sed 's/Test \/ //' | tr '-' '_')" >> "$GITHUB_OUTPUT"
 
-      - uses: py-cov-action/python-coverage-comment-action@63f52f4fbbffada6e8dee8ec432de7e01df9ba79 # v3.41
+      - uses: py-cov-action/python-coverage-comment-action@5d8df5979747514c914e1c5a12335a7cf9a2745f # v4.1
         with:
           GITHUB_TOKEN: ${{ github.token }}
           GITHUB_PR_RUN_ID: ${{ github.event.workflow_run.id }}
