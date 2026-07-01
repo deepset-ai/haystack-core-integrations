@@ -2,12 +2,20 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+import re
 from datetime import datetime
 from typing import Any, ClassVar
 
 from haystack.errors import FilterError
 
 _RANGE_OPS = {">", ">=", "<", "<="}
+_SAFE_FIELD_PATH = re.compile(r"^[A-Za-z0-9_.]+$")
+
+
+def _validate_field_path(field_path: str) -> None:
+    if not _SAFE_FIELD_PATH.match(field_path):
+        msg = f"Invalid metadata field name: {field_path!r}"
+        raise ValueError(msg)
 
 
 class FilterTranslator:
@@ -123,14 +131,9 @@ class FilterTranslator:
             return "id"
         if field == "content":
             return "text"
-        if field.startswith("meta."):
-            key = field[len("meta.") :]
-            json_path = f"JSON_VALUE(metadata, '$.{key}')"
-            if isinstance(value, (int, float)) and not isinstance(value, bool):
-                return f"TO_NUMBER({json_path})"
-            return json_path
-        # Fallback: treat as top-level JSON key
-        json_path = f"JSON_VALUE(metadata, '$.{field}')"
+        key = field[len("meta.") :] if field.startswith("meta.") else field
+        _validate_field_path(key)
+        json_path = f"JSON_VALUE(metadata, '$.{key}')"
         if isinstance(value, (int, float)) and not isinstance(value, bool):
             return f"TO_NUMBER({json_path})"
         return json_path
