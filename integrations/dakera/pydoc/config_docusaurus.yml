@@ -1,0 +1,15 @@
+loaders:
+  - modules:
+      - haystack_integrations.memory_stores.dakera.memory_store
+      - haystack_integrations.components.retrievers.dakera.retriever
+      - haystack_integrations.components.writers.dakera.writer
+    search_path: [../src]
+processors:
+  - type: filter
+    documented_only: true
+    skip_empty_modules: true
+renderer:
+  description: Dakera integration for Haystack — self-hosted persistent vector memory
+  id: integrations-dakera
+  filename: dakera.md
+  title: Dakera
