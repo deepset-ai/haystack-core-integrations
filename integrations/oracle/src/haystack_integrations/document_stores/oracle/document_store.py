@@ -8,23 +8,30 @@ import json
 import logging
 import re
 import threading
-from dataclasses import dataclass
-from typing import Any, Literal
+import uuid
+from dataclasses import dataclass, replace
+from typing import Any, Literal, cast
 
 import oracledb
 from haystack import default_from_dict, default_to_dict
 from haystack.dataclasses import Document
 from haystack.document_stores.errors import DocumentStoreError, DuplicateDocumentError
 from haystack.document_stores.types import DuplicatePolicy
+from haystack.errors import FilterError
 from haystack.utils import Secret, deserialize_secrets_inplace
 
-from .filters import FilterTranslator
+from .filters import FilterTranslator, to_hybrid_filter
 
 logger = logging.getLogger(__name__)
 
 _SAFE_TABLE_NAME = re.compile(r"^[A-Za-z_][A-Za-z0-9_$#]{0,127}$")
 _SAFE_FIELD_PATH = re.compile(r"^[A-Za-z0-9_.]+$")
+_SAFE_HYBRID_PARAM = re.compile(r"^[A-Za-z0-9_.$#:/,+ -]+$")
+_VALID_DISTANCE_METRICS = {"COSINE", "EUCLIDEAN", "DOT"}
+_VALID_VECTOR_INDEX_TYPES = {"HNSW", "IVF"}
+_VALID_HYBRID_SEARCH_MODES = {"keyword", "hybrid", "semantic"}
 MAX_INDEX_NAME_LEN = 128
+VectorIndexType = Literal["HNSW", "IVF"]
 
 
 def _validate_field_path(field_path: str) -> None:
@@ -48,6 +55,255 @@ def _try_parse_number(value: Any) -> Any:
         return i if f == i else f
     except (ValueError, TypeError):
         return value
+
+
+def _validate_identifier(identifier: str, field_name: str) -> str:
+    if not _SAFE_TABLE_NAME.match(identifier):
+        msg = (
+            f"Invalid {field_name} {identifier!r}. Must be a valid Oracle identifier "
+            "(letters, digits, _, $, # — max 128 chars, cannot start with a digit)."
+        )
+        raise ValueError(msg)
+    return identifier
+
+
+def _is_missing_object_error(error: oracledb.DatabaseError) -> bool:
+    original_error = error.args[0] if error.args else error
+    error_code = getattr(original_error, "code", None)
+    message = str(error)
+    return error_code in {942, 1418} or "DRG-10502" in message or "index does not exist" in message.lower()
+
+
+def _is_dbms_search_unavailable_error(error: oracledb.DatabaseError) -> bool:
+    message = str(error).upper()
+    return "PLS-00201" in message and "DBMS_SEARCH" in message
+
+
+def _output_type_string_handler(cursor: Any, metadata: Any) -> Any:
+    if metadata.type_code is oracledb.DB_TYPE_CLOB:
+        return cursor.var(oracledb.DB_TYPE_LONG, arraysize=cursor.arraysize)
+    if metadata.type_code is oracledb.DB_TYPE_NCLOB:
+        return cursor.var(oracledb.DB_TYPE_LONG_NVARCHAR, arraysize=cursor.arraysize)
+    return None
+
+
+def _validate_distance_metric(distance_metric: str) -> str:
+    metric = distance_metric.upper()
+    if metric not in _VALID_DISTANCE_METRICS:
+        msg = f"distance_metric must be one of {_VALID_DISTANCE_METRICS}, got {distance_metric!r}"
+        raise ValueError(msg)
+    return metric
+
+
+def _validate_index_type(index_type: str) -> VectorIndexType:
+    normalized = index_type.upper()
+    if normalized not in _VALID_VECTOR_INDEX_TYPES:
+        msg = f"vector_index_type must be one of {_VALID_VECTOR_INDEX_TYPES}, got {index_type!r}"
+        raise ValueError(msg)
+    return cast(VectorIndexType, normalized)
+
+
+def _validate_int_param(config: dict[str, Any], name: str, minimum: int, maximum: int | None = None) -> None:
+    if name not in config:
+        return
+    value = config[name]
+    if isinstance(value, bool) or not isinstance(value, int) or value < minimum:
+        msg = f"{name} must be an integer >= {minimum}"
+        raise ValueError(msg)
+    if maximum is not None and value > maximum:
+        msg = f"{name} must be an integer <= {maximum}"
+        raise ValueError(msg)
+
+
+def _default_index_name(table_name: str, suffix: str) -> str:
+    return f"{table_name}_{suffix}"[:MAX_INDEX_NAME_LEN]
+
+
+def _normalise_hnsw_params(
+    table_name: str,
+    *,
+    distance_metric: str,
+    hnsw_neighbors: int,
+    hnsw_ef_construction: int,
+    hnsw_accuracy: int,
+    hnsw_parallel: int,
+    params: dict[str, Any] | None,
+) -> dict[str, Any]:
+    config = {
+        "idx_name": _default_index_name(table_name, "vidx"),
+        "idx_type": "HNSW",
+        "neighbors": hnsw_neighbors,
+        "efConstruction": hnsw_ef_construction,
+        "accuracy": hnsw_accuracy,
+        "parallel": hnsw_parallel,
+        "distance_metric": distance_metric,
+    }
+    if params:
+        user_params = dict(params)
+        if "efconstruction" in user_params and "efConstruction" not in user_params:
+            user_params["efConstruction"] = user_params.pop("efconstruction")
+        allowed = {"idx_name", "idx_type", "neighbors", "efConstruction", "accuracy", "parallel"}
+        invalid = set(user_params) - allowed
+        if invalid:
+            msg = f"Unsupported HNSW vector index parameter(s): {sorted(invalid)}"
+            raise ValueError(msg)
+        config.update(user_params)
+    if str(config["idx_type"]).upper() != "HNSW":
+        msg = "HNSW index parameters must use idx_type='HNSW'."
+        raise ValueError(msg)
+    config["idx_name"] = _validate_identifier(str(config["idx_name"]), "idx_name")
+    _validate_int_param(config, "neighbors", 2, 2048)
+    _validate_int_param(config, "efConstruction", 1, 65535)
+    _validate_int_param(config, "accuracy", 1, 100)
+    _validate_int_param(config, "parallel", 1)
+    return config
+
+
+def _normalise_ivf_params(table_name: str, *, distance_metric: str, params: dict[str, Any] | None) -> dict[str, Any]:
+    config = {
+        "idx_name": _default_index_name(table_name, "ivf_vidx"),
+        "idx_type": "IVF",
+        "neighbor_partitions": 32,
+        "accuracy": 95,
+        "parallel": 4,
+        "distance_metric": distance_metric,
+    }
+    if params:
+        allowed = {
+            "idx_name",
+            "idx_type",
+            "neighbor_partitions",
+            "samples_per_partition",
+            "min_vectors_per_partition",
+            "accuracy",
+            "parallel",
+        }
+        invalid = set(params) - allowed
+        if invalid:
+            msg = f"Unsupported IVF vector index parameter(s): {sorted(invalid)}"
+            raise ValueError(msg)
+        config.update(params)
+    if str(config["idx_type"]).upper() != "IVF":
+        msg = "IVF index parameters must use idx_type='IVF'."
+        raise ValueError(msg)
+    config["idx_name"] = _validate_identifier(str(config["idx_name"]), "idx_name")
+    _validate_int_param(config, "neighbor_partitions", 1, 10_000_000)
+    _validate_int_param(config, "samples_per_partition", 1)
+    _validate_int_param(config, "min_vectors_per_partition", 0)
+    _validate_int_param(config, "accuracy", 1, 100)
+    _validate_int_param(config, "parallel", 1)
+    return config
+
+
+def _get_vector_index_ddl(
+    table_name: str,
+    *,
+    index_type: str,
+    distance_metric: str,
+    hnsw_neighbors: int,
+    hnsw_ef_construction: int,
+    hnsw_accuracy: int,
+    hnsw_parallel: int,
+    params: dict[str, Any] | None = None,
+) -> str:
+    normalized_type = _validate_index_type(index_type)
+    metric = _validate_distance_metric(distance_metric)
+    if normalized_type == "HNSW":
+        config = _normalise_hnsw_params(
+            table_name,
+            distance_metric=metric,
+            hnsw_neighbors=hnsw_neighbors,
+            hnsw_ef_construction=hnsw_ef_construction,
+            hnsw_accuracy=hnsw_accuracy,
+            hnsw_parallel=hnsw_parallel,
+            params=params,
+        )
+        return f"""
+            CREATE VECTOR INDEX IF NOT EXISTS {config["idx_name"]}
+            ON {table_name}(embedding)
+            ORGANIZATION INMEMORY NEIGHBOR GRAPH
+            WITH TARGET ACCURACY {config["accuracy"]}
+            DISTANCE {config["distance_metric"]}
+            PARAMETERS (type HNSW, neighbors {config["neighbors"]},
+                        efConstruction {config["efConstruction"]})
+            PARALLEL {config["parallel"]}
+        """
+
+    config = _normalise_ivf_params(table_name, distance_metric=metric, params=params)
+    parameters = f"type IVF, neighbor partitions {config['neighbor_partitions']}"
+    if "samples_per_partition" in config:
+        parameters += f", samples_per_partition {config['samples_per_partition']}"
+    if "min_vectors_per_partition" in config:
+        parameters += f", min_vectors_per_partition {config['min_vectors_per_partition']}"
+    return f"""
+        CREATE VECTOR INDEX IF NOT EXISTS {config["idx_name"]}
+        ON {table_name}(embedding)
+        ORGANIZATION NEIGHBOR PARTITIONS
+        WITH TARGET ACCURACY {config["accuracy"]}
+        DISTANCE {config["distance_metric"]}
+        PARAMETERS ({parameters})
+        PARALLEL {config["parallel"]}
+    """
+
+
+def _serialize_hybrid_parameter(value: Any, field_name: str) -> str:
+    text = str(value)
+    if not _SAFE_HYBRID_PARAM.match(text):
+        msg = f"Invalid hybrid index {field_name} value: {value!r}"
+        raise ValueError(msg)
+    return text
+
+
+def _hybrid_identifier_list(values: Any, field_name: str) -> str:
+    if not isinstance(values, list) or not values:
+        msg = f"{field_name} must be a non-empty list of Oracle identifiers."
+        raise ValueError(msg)
+    return ",".join(_validate_identifier(str(value), field_name) for value in values)
+
+
+def _get_hybrid_index_ddl(
+    table_name: str,
+    idx_name: str,
+    vectorizer_preference: "OracleVectorizerPreference",
+    params: dict[str, Any] | None = None,
+) -> str:
+    params = params or {}
+    index_parameters = dict(params.get("parameters") or {})
+    if any(key.lower() in {"model", "embedder_spec", "vectorizer", "vector_idxtype"} for key in index_parameters):
+        msg = (
+            "Vectorization parameters must be configured through OracleVectorizerPreference, "
+            "not under params['parameters']."
+        )
+        raise ValueError(msg)
+
+    parameter_parts = [f"vectorizer {_validate_identifier(vectorizer_preference.preference_name, 'preference_name')}"]
+    for key, value in index_parameters.items():
+        parameter_parts.append(
+            f"{_serialize_hybrid_parameter(key, 'parameter name')} {_serialize_hybrid_parameter(value, 'parameter')}"
+        )
+
+    filter_by = ""
+    if params.get("filter_by"):
+        filter_by = " FILTER BY " + _hybrid_identifier_list(params["filter_by"], "filter_by")
+
+    order_by = ""
+    if params.get("order_by"):
+        direction = "ASC" if params.get("order_by_asc", True) else "DESC"
+        order_by = " ORDER BY " + _hybrid_identifier_list(params["order_by"], "order_by") + f" {direction}"
+
+    parallel = ""
+    if params.get("parallel") is not None:
+        parallel_value = params["parallel"]
+        if isinstance(parallel_value, bool) or not isinstance(parallel_value, int) or parallel_value <= 0:
+            msg = "parallel must be a positive integer."
+            raise ValueError(msg)
+        parallel = f" PARALLEL {parallel_value}"
+
+    escaped_params = " ".join(parameter_parts).replace("'", "''")
+    return (
+        f"CREATE HYBRID VECTOR INDEX {idx_name} ON {table_name}(text) "
+        f"PARAMETERS ('{escaped_params}'){filter_by}{order_by}{parallel}"
+    )
 
 
 @dataclass
@@ -99,6 +355,112 @@ class OracleConnectionConfig:
         return cls(**data)
 
 
+class OracleVectorizerPreference:
+    """
+    Manages DBMS_VECTOR_CHAIN vectorizer preferences used by Oracle hybrid vector indexes.
+    """
+
+    _CREATE_DDL = """
+        BEGIN
+            DBMS_VECTOR_CHAIN.CREATE_PREFERENCE(
+                :preference_name,
+                DBMS_VECTOR_CHAIN.VECTORIZER,
+                JSON(:preference_params)
+            );
+        END;
+    """
+    _DROP_DDL = "BEGIN DBMS_VECTOR_CHAIN.DROP_PREFERENCE(:preference_name); END;"
+
+    def __init__(self, document_store: "OracleDocumentStore", preference_name: str) -> None:
+        self.document_store = document_store
+        self.preference_name = _validate_identifier(preference_name, "preference_name")
+
+    @staticmethod
+    def _preference_params(text_embedder: Any, params: dict[str, Any] | None = None) -> dict[str, Any]:
+        embedding_params = getattr(text_embedder, "embedding_params", None)
+        if embedding_params is None:
+            embedding_params = getattr(text_embedder, "_embedding_params", None)
+        if not isinstance(embedding_params, dict):
+            msg = "text_embedder must expose embedding_params as a dictionary."
+            raise ValueError(msg)
+
+        preference_params = dict(params or {})
+        if "model" in preference_params or "embedder_spec" in preference_params:
+            return preference_params
+        if embedding_params.get("provider") == "database":
+            preference_params["model"] = embedding_params.get("model")
+        else:
+            preference_params["embedder_spec"] = embedding_params
+        return preference_params
+
+    @classmethod
+    def create(
+        cls,
+        document_store: "OracleDocumentStore",
+        text_embedder: Any,
+        preference_name: str | None = None,
+        params: dict[str, Any] | None = None,
+    ) -> "OracleVectorizerPreference":
+        """
+        Creates a vectorizer preference.
+        """
+        preference = cls(document_store, preference_name or f"pref{uuid.uuid4().hex[:15]}")
+        with document_store._get_connection() as conn, conn.cursor() as cur:
+            cur.execute(
+                cls._CREATE_DDL,
+                preference_name=preference.preference_name,
+                preference_params=json.dumps(cls._preference_params(text_embedder, params)),
+            )
+            conn.commit()
+        return preference
+
+    @classmethod
+    async def create_async(
+        cls,
+        document_store: "OracleDocumentStore",
+        text_embedder: Any,
+        preference_name: str | None = None,
+        params: dict[str, Any] | None = None,
+    ) -> "OracleVectorizerPreference":
+        """
+        Creates a vectorizer preference asynchronously.
+        """
+        if await document_store._has_async_pool():
+            preference = cls(document_store, preference_name or f"pref{uuid.uuid4().hex[:15]}")
+            pool = await document_store._get_async_pool()
+            async with pool.acquire() as conn:
+                with conn.cursor() as cur:
+                    await cur.execute(
+                        cls._CREATE_DDL,
+                        preference_name=preference.preference_name,
+                        preference_params=json.dumps(cls._preference_params(text_embedder, params)),
+                    )
+                    await conn.commit()
+            return preference
+        return await asyncio.to_thread(cls.create, document_store, text_embedder, preference_name, params)
+
+    def drop(self) -> None:
+        """
+        Drops this vectorizer preference.
+        """
+        with self.document_store._get_connection() as conn, conn.cursor() as cur:
+            cur.execute(self._DROP_DDL, preference_name=self.preference_name)
+            conn.commit()
+
+    async def drop_async(self) -> None:
+        """
+        Drops this vectorizer preference asynchronously.
+        """
+        if await self.document_store._has_async_pool():
+            pool = await self.document_store._get_async_pool()
+            async with pool.acquire() as conn:
+                with conn.cursor() as cur:
+                    await cur.execute(self._DROP_DDL, preference_name=self.preference_name)
+                    await conn.commit()
+            return
+        await asyncio.to_thread(self.drop)
+
+
 class OracleDocumentStore:
     """
     Haystack DocumentStore backed by Oracle AI Vector Search.
@@ -132,6 +494,8 @@ class OracleDocumentStore:
         distance_metric: Literal["COSINE", "EUCLIDEAN", "DOT"] = "COSINE",
         create_table_if_not_exists: bool = True,
         create_index: bool = False,
+        vector_index_type: Literal["HNSW", "IVF"] = "HNSW",
+        vector_index_params: dict[str, Any] | None = None,
         hnsw_neighbors: int = 32,
         hnsw_ef_construction: int = 200,
         hnsw_accuracy: int = 95,
@@ -151,6 +515,12 @@ class OracleDocumentStore:
             pre-existing table.
         :param create_index: When ``True``, creates an HNSW vector index on initialisation. Equivalent to
             calling :meth:`create_hnsw_index` manually. Defaults to ``False``.
+        :param vector_index_type: Oracle vector index type to create when ``create_index=True``.
+            Defaults to ``"HNSW"`` to preserve existing behavior. ``"IVF"`` is also supported.
+        :param vector_index_params: Optional vector index parameters. For HNSW, supported keys are
+            ``idx_name``, ``idx_type``, ``neighbors``, ``efConstruction``, ``accuracy``, and ``parallel``.
+            For IVF, supported keys are ``idx_name``, ``idx_type``, ``neighbor_partitions``,
+            ``samples_per_partition``, ``min_vectors_per_partition``, ``accuracy``, and ``parallel``.
         :param hnsw_neighbors: Number of neighbours in the HNSW graph. Higher values improve recall at the
             cost of index size and build time. Defaults to ``32``.
         :param hnsw_ef_construction: Size of the dynamic candidate list during HNSW index construction.
@@ -161,12 +531,7 @@ class OracleDocumentStore:
         :raises ValueError: If ``table_name`` is not a valid Oracle identifier or ``embedding_dim`` is not
             a positive integer.
         """
-        if not _SAFE_TABLE_NAME.match(table_name):
-            msg = (
-                f"Invalid table_name {table_name!r}. Must be a valid Oracle identifier "
-                "(letters, digits, _, $, # — max 128 chars, cannot start with a digit)."
-            )
-            raise ValueError(msg)
+        _validate_identifier(table_name, "table_name")
         if embedding_dim <= 0:
             msg = f"embedding_dim must be a positive integer, got {embedding_dim}"
             raise ValueError(msg)
@@ -174,21 +539,43 @@ class OracleDocumentStore:
         self.connection_config = connection_config
         self.table_name = table_name
         self.embedding_dim = embedding_dim
-        self.distance_metric = distance_metric
+        self.distance_metric = _validate_distance_metric(distance_metric)
         self.create_table_if_not_exists = create_table_if_not_exists
         self.create_index = create_index
+        self.vector_index_type = _validate_index_type(vector_index_type)
+        self.vector_index_params = dict(vector_index_params) if vector_index_params else None
         self.hnsw_neighbors = hnsw_neighbors
         self.hnsw_ef_construction = hnsw_ef_construction
         self.hnsw_accuracy = hnsw_accuracy
         self.hnsw_parallel = hnsw_parallel
 
         self._pool: oracledb.ConnectionPool | None = None
+        self._async_pool: Any | None = None
         self._pool_lock = threading.Lock()
 
         if create_table_if_not_exists:
             self._ensure_table()
         if create_index:
-            self.create_hnsw_index()
+            self.create_vector_index(index_type=self.vector_index_type, params=self.vector_index_params)
+
+    def _connect_kwargs(self, *, pool_options: bool = True) -> dict[str, Any]:
+        cfg = self.connection_config
+        password = cfg.password.resolve_value()
+
+        connect_kwargs: dict[str, Any] = {
+            "user": cfg.user.resolve_value(),
+            "password": password,
+            "dsn": cfg.dsn.resolve_value(),
+        }
+        if pool_options:
+            connect_kwargs["min"] = cfg.min_connections
+            connect_kwargs["max"] = cfg.max_connections
+            connect_kwargs["increment"] = 1
+        if cfg.wallet_location:
+            connect_kwargs["config_dir"] = cfg.wallet_location
+            connect_kwargs["wallet_location"] = cfg.wallet_location
+            connect_kwargs["wallet_password"] = cfg.wallet_password.resolve_value() if cfg.wallet_password else password
+        return connect_kwargs
 
     def _get_pool(self) -> oracledb.ConnectionPool:
         if self._pool is not None:
@@ -197,36 +584,56 @@ class OracleDocumentStore:
             if self._pool is not None:
                 return self._pool
 
-            cfg = self.connection_config
-            password = cfg.password.resolve_value()
-
-            connect_kwargs: dict[str, Any] = {
-                "user": cfg.user.resolve_value(),
-                "password": password,
-                "dsn": cfg.dsn.resolve_value(),
-                "min": cfg.min_connections,
-                "max": cfg.max_connections,
-                "increment": 1,
-            }
-            if cfg.wallet_location:
-                connect_kwargs["config_dir"] = cfg.wallet_location
-                connect_kwargs["wallet_location"] = cfg.wallet_location
-                connect_kwargs["wallet_password"] = (
-                    cfg.wallet_password.resolve_value() if cfg.wallet_password else password
-                )
-
-            self._pool = oracledb.create_pool(**connect_kwargs)
+            self._pool = oracledb.create_pool(**self._connect_kwargs())
         return self._pool
 
     def _get_connection(self) -> oracledb.Connection:
         return self._get_pool().acquire()
 
-    def __del__(self) -> None:
+    async def _has_async_pool(self) -> bool:
+        return getattr(oracledb, "create_pool_async", None) is not None
+
+    async def _get_async_pool(self) -> Any:
+        if self._async_pool is not None:
+            return self._async_pool
+        create_pool_async = getattr(oracledb, "create_pool_async", None)
+        if create_pool_async is None:
+            msg = "python-oracledb does not provide create_pool_async; install a version with async pool support."
+            raise RuntimeError(msg)
+        self._async_pool = create_pool_async(**self._connect_kwargs())
+        return self._async_pool
+
+    def close(self) -> None:
+        """
+        Close synchronous Oracle resources owned by this document store.
+
+        This releases the connection pool without deleting the backing table or indexes.
+        """
         if self._pool is not None:
+            pool = self._pool
+            self._pool = None
             try:
-                self._pool.close()
+                pool.close()
             except Exception:
-                logger.warning("Failed to close Oracle connection pool during cleanup.", exc_info=True)
+                logger.warning("Failed to close Oracle connection pool.", exc_info=True)
+
+    async def close_async(self) -> None:
+        """
+        Close asynchronous and synchronous Oracle resources owned by this document store.
+
+        This releases connection pools without deleting the backing table or indexes.
+        """
+        if self._async_pool is not None:
+            pool = self._async_pool
+            self._async_pool = None
+            try:
+                await pool.close()
+            except Exception:
+                logger.warning("Failed to close Oracle async connection pool.", exc_info=True)
+        self.close()
+
+    def __del__(self) -> None:
+        self.close()
 
     def _ensure_table(self) -> None:
         sql = f"""
@@ -244,17 +651,28 @@ class OracleDocumentStore:
         self._ensure_keyword_index()
 
     def _ensure_keyword_index(self) -> None:
-        index_name = f"{self.table_name}_search_idx"
-        if len(index_name) > MAX_INDEX_NAME_LEN:
-            index_name = index_name[:MAX_INDEX_NAME_LEN]
+        index_name = self._keyword_index_name()
         try:
             with self._get_connection() as conn, conn.cursor() as cur:
                 cur.execute(
-                    f"BEGIN DBMS_SEARCH.CREATE_INDEX('{index_name}'); "
-                    f"DBMS_SEARCH.ADD_SOURCE('{index_name}', '{self.table_name}'); END;"
+                    """
+                    BEGIN
+                        DBMS_SEARCH.CREATE_INDEX(:index_name);
+                        DBMS_SEARCH.ADD_SOURCE(:index_name, :table_name);
+                    END;
+                    """,
+                    index_name=index_name,
+                    table_name=self.table_name,
                 )
                 conn.commit()
         except oracledb.DatabaseError as e:
+            if _is_dbms_search_unavailable_error(e):
+                logger.warning(
+                    "DBMS_SEARCH is unavailable; skipping keyword index creation for %s. "
+                    "Oracle keyword retrieval requires DBMS_SEARCH.",
+                    index_name,
+                )
+                return
             logger.debug("Could not create keyword index (may already exist): %s", e)
 
     def create_keyword_index(self) -> None:
@@ -268,25 +686,68 @@ class OracleDocumentStore:
         """
         self._ensure_keyword_index()
 
+    def create_vector_index(
+        self,
+        *,
+        index_type: Literal["HNSW", "IVF"] | None = None,
+        params: dict[str, Any] | None = None,
+    ) -> None:
+        """
+        Create a vector index on the embedding column.
+
+        Defaults to the document store's configured index type. Existing callers that use
+        :meth:`create_hnsw_index` keep the previous HNSW behavior.
+        """
+        sql = _get_vector_index_ddl(
+            self.table_name,
+            index_type=index_type or self.vector_index_type,
+            distance_metric=self.distance_metric,
+            hnsw_neighbors=self.hnsw_neighbors,
+            hnsw_ef_construction=self.hnsw_ef_construction,
+            hnsw_accuracy=self.hnsw_accuracy,
+            hnsw_parallel=self.hnsw_parallel,
+            params=params if params is not None else self.vector_index_params,
+        )
+        with self._get_connection() as conn, conn.cursor() as cur:
+            cur.execute(sql)
+            conn.commit()
+
     def create_hnsw_index(self) -> None:
         """
         Create an HNSW vector index on the embedding column.
 
         Safe to call multiple times — uses IF NOT EXISTS.
         """
-        sql = f"""
-            CREATE VECTOR INDEX IF NOT EXISTS {self.table_name}_vidx
-            ON {self.table_name}(embedding)
-            ORGANIZATION INMEMORY NEIGHBOR GRAPH
-            WITH TARGET ACCURACY {self.hnsw_accuracy}
-            DISTANCE {self.distance_metric}
-            PARAMETERS (type HNSW, neighbors {self.hnsw_neighbors},
-                        efConstruction {self.hnsw_ef_construction})
-            PARALLEL {self.hnsw_parallel}
+        self.create_vector_index(index_type="HNSW")
+
+    async def create_vector_index_async(
+        self,
+        *,
+        index_type: Literal["HNSW", "IVF"] | None = None,
+        params: dict[str, Any] | None = None,
+    ) -> None:
         """
-        with self._get_connection() as conn, conn.cursor() as cur:
-            cur.execute(sql)
-            conn.commit()
+        Asynchronously creates a vector index on the embedding column.
+        """
+        if not await self._has_async_pool():
+            await asyncio.to_thread(self.create_vector_index, index_type=index_type, params=params)
+            return
+
+        sql = _get_vector_index_ddl(
+            self.table_name,
+            index_type=index_type or self.vector_index_type,
+            distance_metric=self.distance_metric,
+            hnsw_neighbors=self.hnsw_neighbors,
+            hnsw_ef_construction=self.hnsw_ef_construction,
+            hnsw_accuracy=self.hnsw_accuracy,
+            hnsw_parallel=self.hnsw_parallel,
+            params=params if params is not None else self.vector_index_params,
+        )
+        pool = await self._get_async_pool()
+        async with pool.acquire() as conn:
+            with conn.cursor() as cur:
+                await cur.execute(sql)
+                await conn.commit()
 
     async def create_hnsw_index_async(self) -> None:
         """
@@ -294,7 +755,96 @@ class OracleDocumentStore:
 
         Safe to call multiple times — uses ``IF NOT EXISTS``.
         """
-        await asyncio.to_thread(self.create_hnsw_index)
+        await self.create_vector_index_async(index_type="HNSW")
+
+    def create_hybrid_vector_index(
+        self,
+        idx_name: str,
+        *,
+        text_embedder: Any | None = None,
+        vectorizer_preference: OracleVectorizerPreference | None = None,
+        params: dict[str, Any] | None = None,
+    ) -> OracleVectorizerPreference:
+        """
+        Create a DBMS_HYBRID_VECTOR hybrid index over the document text column.
+
+        Either provide an existing ``vectorizer_preference`` or a text embedder from which a new
+        preference can be created. The returned preference can be dropped by the caller if it was
+        created only for this index.
+        """
+        created_preference = vectorizer_preference is None
+        if created_preference:
+            if text_embedder is None:
+                msg = "text_embedder is required when vectorizer_preference is not provided."
+                raise ValueError(msg)
+            vectorizer_preference = OracleVectorizerPreference.create(self, text_embedder)
+        if vectorizer_preference is None:
+            msg = "vectorizer_preference could not be created."
+            raise RuntimeError(msg)
+        quoted_idx_name = _validate_identifier(idx_name, "idx_name")
+        ddl = _get_hybrid_index_ddl(self.table_name, quoted_idx_name, vectorizer_preference, params)
+        try:
+            with self._get_connection() as conn, conn.cursor() as cur:
+                cur.execute(ddl)
+                conn.commit()
+        except Exception:
+            if created_preference:
+                try:
+                    vectorizer_preference.drop()
+                except Exception:
+                    logger.exception(
+                        "Failed to drop auto-created vectorizer preference %s after hybrid index creation failed.",
+                        vectorizer_preference.preference_name,
+                    )
+            raise
+        return vectorizer_preference
+
+    async def create_hybrid_vector_index_async(
+        self,
+        idx_name: str,
+        *,
+        text_embedder: Any | None = None,
+        vectorizer_preference: OracleVectorizerPreference | None = None,
+        params: dict[str, Any] | None = None,
+    ) -> OracleVectorizerPreference:
+        """
+        Asynchronously create a DBMS_HYBRID_VECTOR hybrid index over the document text column.
+        """
+        created_preference = vectorizer_preference is None
+        if created_preference:
+            if text_embedder is None:
+                msg = "text_embedder is required when vectorizer_preference is not provided."
+                raise ValueError(msg)
+            vectorizer_preference = await OracleVectorizerPreference.create_async(self, text_embedder)
+        if vectorizer_preference is None:
+            msg = "vectorizer_preference could not be created."
+            raise RuntimeError(msg)
+        try:
+            if not await self._has_async_pool():
+                return await asyncio.to_thread(
+                    self.create_hybrid_vector_index,
+                    idx_name,
+                    vectorizer_preference=vectorizer_preference,
+                    params=params,
+                )
+            quoted_idx_name = _validate_identifier(idx_name, "idx_name")
+            ddl = _get_hybrid_index_ddl(self.table_name, quoted_idx_name, vectorizer_preference, params)
+            pool = await self._get_async_pool()
+            async with pool.acquire() as conn:
+                with conn.cursor() as cur:
+                    await cur.execute(ddl)
+                    await conn.commit()
+        except Exception:
+            if created_preference:
+                try:
+                    await vectorizer_preference.drop_async()
+                except Exception:
+                    logger.exception(
+                        "Failed to drop auto-created vectorizer preference %s after hybrid index creation failed.",
+                        vectorizer_preference.preference_name,
+                    )
+            raise
+        return vectorizer_preference
 
     def write_documents(
         self,
@@ -384,20 +934,33 @@ class OracleDocumentStore:
 
     def _upsert_documents(self, documents: list[Document]) -> int:
         sql = f"""
-            MERGE INTO {self.table_name} t
-            USING (SELECT :doc_id AS id FROM dual) s ON (t.id = s.id)
-            WHEN MATCHED THEN
-                UPDATE SET t.text = :doc_text, t.metadata = :doc_meta, t.embedding = :doc_emb
-            WHEN NOT MATCHED THEN
-                INSERT (id, text, metadata, embedding)
-                VALUES (s.id, :doc_text, :doc_meta, :doc_emb)
+            BEGIN
+                UPDATE {self.table_name}
+                SET text = :doc_text,
+                    metadata = :doc_meta,
+                    embedding = :doc_emb
+                WHERE id = :doc_id;
+
+                IF SQL%ROWCOUNT = 0 THEN
+                    BEGIN
+                        INSERT INTO {self.table_name} (id, text, metadata, embedding)
+                        VALUES (:doc_id, :doc_text, :doc_meta, :doc_emb);
+                    EXCEPTION
+                        WHEN DUP_VAL_ON_INDEX THEN
+                            UPDATE {self.table_name}
+                            SET text = :doc_text,
+                                metadata = :doc_meta,
+                                embedding = :doc_emb
+                            WHERE id = :doc_id;
+                    END;
+                END IF;
+            END;
         """
         rows = [OracleDocumentStore._to_named_row(d) for d in documents]
         with self._get_connection() as conn, conn.cursor() as cur:
             cur.executemany(sql, rows)
-            written = cur.rowcount
             conn.commit()
-        return written
+        return len(rows)
 
     async def write_documents_async(
         self,
@@ -437,6 +1000,7 @@ class OracleDocumentStore:
         where, params = OracleDocumentStore._build_where(filters)
         sql = f"SELECT id, text, JSON_SERIALIZE(metadata) AS metadata FROM {self.table_name} {where}"
         with self._get_connection() as conn, conn.cursor() as cur:
+            cur.outputtypehandler = _output_type_string_handler
             cur.execute(sql, params)
             rows = cur.fetchall()
         return [OracleDocumentStore._row_to_document(r) for r in rows]
@@ -498,17 +1062,42 @@ class OracleDocumentStore:
         """
         return await asyncio.to_thread(self.count_documents)
 
+    def _keyword_index_name(self) -> str:
+        index_name = f"{self.table_name}_search_idx"
+        return index_name[:MAX_INDEX_NAME_LEN]
+
+    def _drop_keyword_index(self, cur: Any) -> None:
+        index_name = self._keyword_index_name()
+        sql = "BEGIN DBMS_SEARCH.DROP_INDEX(:index_name); END;"
+        try:
+            cur.execute(sql, index_name=index_name)
+        except oracledb.DatabaseError as e:
+            if _is_missing_object_error(e):
+                logger.debug("Keyword index %s was already absent during table cleanup.", index_name)
+                return
+            if _is_dbms_search_unavailable_error(e):
+                logger.debug("DBMS_SEARCH is unavailable; skipping keyword index cleanup for %s.", index_name)
+                return
+            logger.debug("Failed to drop keyword index. SQL: %s", sql)
+            msg = (
+                f"Failed to drop keyword index '{index_name}'. Error: {e!r}. "
+                "You can find the SQL query in the debug logs."
+            )
+            raise DocumentStoreError(msg) from e
+
     def delete_table(self) -> None:
         """
         Permanently drops the document store table and its associated DBMS_SEARCH keyword index.
 
         Uses ``DROP TABLE ... PURGE`` which bypasses the Oracle recycle bin — the operation is
-        irreversible. The keyword index is dropped after the table; if either operation fails a
+        irreversible. The DBMS_SEARCH keyword index is dropped before the table because it is created
+        through the DBMS_SEARCH PL/SQL API. If either operation fails a
         :class:`DocumentStoreError` is raised.
 
         :raises DocumentStoreError: If the table or keyword index cannot be dropped.
         """
         with self._get_connection() as conn, conn.cursor() as cur:
+            self._drop_keyword_index(cur)
             sql = f"DROP TABLE {self.table_name} PURGE"
             try:
                 cur.execute(sql)
@@ -519,24 +1108,11 @@ class OracleDocumentStore:
                     "You can find the SQL query in the debug logs."
                 )
                 raise DocumentStoreError(msg) from e
-            index_name = f"{self.table_name}_search_idx"
-            if len(index_name) > MAX_INDEX_NAME_LEN:
-                index_name = index_name[:MAX_INDEX_NAME_LEN]
-            sql = f"BEGIN DBMS_SEARCH.DROP_INDEX('{index_name}'); END;"
-            try:
-                cur.execute(sql)
-            except oracledb.DatabaseError as e:
-                logger.debug("Failed to drop keyword index. SQL: %s", sql)
-                msg = (
-                    f"Failed to drop keyword index '{index_name}'. Error: {e!r}. "
-                    "You can find the SQL query in the debug logs."
-                )
-                raise DocumentStoreError(msg) from e
             conn.commit()
 
     async def delete_table_async(self) -> None:
         """
-        Asynchronously permanently drops the document store table and its DBMS_SEARCH keyword index.
+        Asynchronously permanently drops the document store table and its indexes.
 
         Uses ``DROP TABLE ... PURGE`` which bypasses the Oracle recycle bin — the operation is
         irreversible.
@@ -717,15 +1293,15 @@ class OracleDocumentStore:
         """
         sql = f"SELECT JSON_DATAGUIDE(metadata) FROM {self.table_name}"
         with self._get_connection() as conn, conn.cursor() as cur:
+            cur.outputtypehandler = _output_type_string_handler
             cur.execute(sql)
             row = cur.fetchone()
             if not row or not row[0]:
                 return {}
-            raw_guide = row[0].read() if hasattr(row[0], "read") else row[0]
-            if not raw_guide:
+            if not row[0]:
                 return {}
             fields: dict[str, dict[str, str]] = {}
-            dataguide = json.loads(raw_guide)
+            dataguide = json.loads(row[0])
             for path_info in dataguide:
                 path = path_info.get("o:path", "")
                 if path.startswith("$."):
@@ -858,6 +1434,175 @@ class OracleDocumentStore:
         """
         return await asyncio.to_thread(self.get_metadata_field_unique_values, metadata_field, search_term, from_, size)
 
+    @staticmethod
+    def _validate_hybrid_params(params: dict[str, Any]) -> dict[str, Any]:
+        forbidden_top_level = {"search_text", "return"}
+        forbidden_vector = {"search_text", "search_vector"}
+        forbidden_text = {"search_text", "search_vector", "contains", "json_textcontains"}
+        if forbidden_top_level & set(params):
+            msg = "search_text and return are derived internally and cannot be set in params."
+            raise ValueError(msg)
+        if forbidden_vector & set(params.get("vector") or {}):
+            msg = "params['vector'] cannot contain search_text or search_vector."
+            raise ValueError(msg)
+        if forbidden_text & set(params.get("text") or {}):
+            msg = "params['text'] cannot contain search_text, search_vector, contains, or json_textcontains."
+            raise ValueError(msg)
+        return dict(params)
+
+    def _hybrid_search_params(
+        self,
+        query: str,
+        *,
+        index_name: str,
+        search_mode: Literal["keyword", "hybrid", "semantic"],
+        filters: dict[str, Any] | None,
+        top_k: int,
+        params: dict[str, Any] | None,
+    ) -> dict[str, Any]:
+        if search_mode not in _VALID_HYBRID_SEARCH_MODES:
+            msg = f"search_mode must be one of {_VALID_HYBRID_SEARCH_MODES}, got {search_mode!r}"
+            raise ValueError(msg)
+
+        search_params = self._validate_hybrid_params(params or {})
+        search_params["hybrid_index_name"] = index_name
+
+        if search_mode in {"hybrid", "semantic"}:
+            search_params["vector"] = dict(search_params.get("vector") or {})
+            search_params["vector"]["search_text"] = query
+        if search_mode in {"hybrid", "keyword"}:
+            search_params["text"] = dict(search_params.get("text") or {})
+            search_params["text"]["search_text"] = query
+
+        if filters:
+            if "filter_by" in search_params:
+                msg = "Cannot combine Haystack filters with params['filter_by']."
+                raise FilterError(msg)
+            search_params["filter_by"] = to_hybrid_filter(filters)
+
+        search_params["return"] = {
+            "topN": top_k,
+            "values": ["rowid", "score", "vector_score", "text_score"],
+            "format": "JSON",
+        }
+        return search_params
+
+    @staticmethod
+    def _with_hybrid_scores(search_row: dict[str, Any], document: Document, *, return_scores: bool) -> Document:
+        score = search_row.get("score")
+        if not return_scores:
+            return replace(document, score=score)
+        return replace(
+            document,
+            score=score,
+            meta={
+                **document.meta,
+                "score": score,
+                "text_score": search_row.get("text_score"),
+                "vector_score": search_row.get("vector_score"),
+            },
+        )
+
+    def _hybrid_retrieval(
+        self,
+        query: str,
+        *,
+        index_name: str,
+        search_mode: Literal["keyword", "hybrid", "semantic"] = "hybrid",
+        filters: dict[str, Any] | None = None,
+        top_k: int = 10,
+        params: dict[str, Any] | None = None,
+        return_scores: bool = False,
+    ) -> list[Document]:
+        search_params = self._hybrid_search_params(
+            query,
+            index_name=index_name,
+            search_mode=search_mode,
+            filters=filters,
+            top_k=top_k,
+            params=params,
+        )
+
+        documents: list[Document] = []
+        with self._get_connection() as conn, conn.cursor() as cur:
+            cur.outputtypehandler = _output_type_string_handler
+            cur.setinputsizes(search_params=oracledb.DB_TYPE_JSON)
+            cur.execute("SELECT DBMS_HYBRID_VECTOR.SEARCH(JSON(:search_params))", search_params=search_params)
+            search_rows = json.loads(cur.fetchone()[0])
+            for search_row in search_rows:
+                cur.execute(
+                    f"SELECT id, text, JSON_SERIALIZE(metadata) AS metadata FROM {self.table_name} WHERE ROWID = :rid",
+                    rid=search_row["rowid"],
+                )
+                document_row = cur.fetchone()
+                if document_row is None:
+                    continue
+                document = OracleDocumentStore._row_to_document(document_row)
+                document = OracleDocumentStore._with_hybrid_scores(search_row, document, return_scores=return_scores)
+                documents.append(document)
+
+        return documents
+
+    async def _hybrid_retrieval_async(
+        self,
+        query: str,
+        *,
+        index_name: str,
+        search_mode: Literal["keyword", "hybrid", "semantic"] = "hybrid",
+        filters: dict[str, Any] | None = None,
+        top_k: int = 10,
+        params: dict[str, Any] | None = None,
+        return_scores: bool = False,
+    ) -> list[Document]:
+        if not await self._has_async_pool():
+            return await asyncio.to_thread(
+                self._hybrid_retrieval,
+                query,
+                index_name=index_name,
+                search_mode=search_mode,
+                filters=filters,
+                top_k=top_k,
+                params=params,
+                return_scores=return_scores,
+            )
+
+        search_params = self._hybrid_search_params(
+            query,
+            index_name=index_name,
+            search_mode=search_mode,
+            filters=filters,
+            top_k=top_k,
+            params=params,
+        )
+
+        documents: list[Document] = []
+        pool = await self._get_async_pool()
+        async with pool.acquire() as conn:
+            with conn.cursor() as cur:
+                cur.outputtypehandler = _output_type_string_handler
+                cur.setinputsizes(search_params=oracledb.DB_TYPE_JSON)
+                await cur.execute(
+                    "SELECT DBMS_HYBRID_VECTOR.SEARCH(JSON(:search_params))",
+                    search_params=search_params,
+                )
+                search_rows = json.loads((await cur.fetchone())[0])
+                for search_row in search_rows:
+                    await cur.execute(
+                        "SELECT id, text, JSON_SERIALIZE(metadata) AS metadata "
+                        f"FROM {self.table_name} WHERE ROWID = :rid",
+                        rid=search_row["rowid"],
+                    )
+                    document_row = await cur.fetchone()
+                    if document_row is None:
+                        continue
+                    document = OracleDocumentStore._row_to_document(document_row)
+                    document = OracleDocumentStore._with_hybrid_scores(
+                        search_row, document, return_scores=return_scores
+                    )
+                    documents.append(document)
+
+        return documents
+
     def _embedding_retrieval(
         self,
         query_embedding: list[float],
@@ -880,6 +1625,7 @@ class OracleDocumentStore:
         params["query_vec"] = _array.array("f", query_embedding)
         params["top_k"] = top_k
         with self._get_connection() as conn, conn.cursor() as cur:
+            cur.outputtypehandler = _output_type_string_handler
             try:
                 cur.execute(sql, params)
             except oracledb.DatabaseError as e:
@@ -899,19 +1645,46 @@ class OracleDocumentStore:
         filters: dict[str, Any] | None = None,
         top_k: int = 10,
     ) -> list[Document]:
-        return await asyncio.to_thread(
-            self._embedding_retrieval,
-            query_embedding,
-            filters=filters,
-            top_k=top_k,
-        )
+        if not await self._has_async_pool():
+            return await asyncio.to_thread(
+                self._embedding_retrieval,
+                query_embedding,
+                filters=filters,
+                top_k=top_k,
+            )
+
+        order = "ASC"
+        where, params = OracleDocumentStore._build_where(filters)
+        sql = f"""
+            SELECT id, text, JSON_SERIALIZE(metadata) AS metadata,
+                   vector_distance(embedding, :query_vec, {self.distance_metric}) AS score
+            FROM {self.table_name}
+            {where}
+            ORDER BY score {order}
+            FETCH APPROX FIRST :top_k ROWS ONLY
+        """
+        params["query_vec"] = _array.array("f", query_embedding)
+        params["top_k"] = top_k
+        pool = await self._get_async_pool()
+        async with pool.acquire() as conn:
+            with conn.cursor() as cur:
+                cur.outputtypehandler = _output_type_string_handler
+                try:
+                    await cur.execute(sql, params)
+                except oracledb.DatabaseError as e:
+                    logger.debug("Async embedding retrieval failed. SQL: %s\nParams: %s", sql, params)
+                    msg = (
+                        f"Async embedding retrieval failed. Error: {e!r}. "
+                        "You can find the SQL query and the parameters in the debug logs."
+                    )
+                    raise DocumentStoreError(msg) from e
+                rows = await cur.fetchall()
+        return [OracleDocumentStore._row_to_document(r, with_score=True) for r in rows]
 
     def _keyword_retrieval(
         self, query: str, *, filters: dict[str, Any] | None = None, top_k: int = 10
     ) -> list[Document]:
-        index_name = f"{self.table_name}_search_idx"
-        if len(index_name) > MAX_INDEX_NAME_LEN:
-            index_name = index_name[:MAX_INDEX_NAME_LEN]
+        index_name = self._keyword_index_name()
         where, params = OracleDocumentStore._build_where(filters)
         where_cond = where.replace("WHERE", "WHERE t.") if where else ""
         sql = f"""
@@ -931,6 +1704,7 @@ class OracleDocumentStore:
         params["query"] = query
         params["top_k"] = top_k
         with self._get_connection() as conn, conn.cursor() as cur:
+            cur.outputtypehandler = _output_type_string_handler
             try:
                 cur.execute(sql, params)
             except oracledb.DatabaseError as e:
@@ -955,12 +1729,6 @@ class OracleDocumentStore:
         else:
             raw_id, text, metadata_raw, score = *row, None
 
-        # oracledb returns CLOB/JSON as LOB objects — read them to strings
-        if hasattr(text, "read"):
-            text = text.read()
-        if hasattr(metadata_raw, "read"):
-            metadata_raw = metadata_raw.read()
-
         if isinstance(metadata_raw, str):
             meta = json.loads(metadata_raw)
         elif isinstance(metadata_raw, dict):
@@ -984,19 +1752,23 @@ class OracleDocumentStore:
         :returns:
             Dictionary with serialized data.
         """
-        return default_to_dict(
-            self,
-            connection_config=self.connection_config.to_dict(),
-            table_name=self.table_name,
-            embedding_dim=self.embedding_dim,
-            distance_metric=self.distance_metric,
-            create_table_if_not_exists=self.create_table_if_not_exists,
-            create_index=self.create_index,
-            hnsw_neighbors=self.hnsw_neighbors,
-            hnsw_ef_construction=self.hnsw_ef_construction,
-            hnsw_accuracy=self.hnsw_accuracy,
-            hnsw_parallel=self.hnsw_parallel,
-        )
+        init_parameters: dict[str, Any] = {
+            "connection_config": self.connection_config.to_dict(),
+            "table_name": self.table_name,
+            "embedding_dim": self.embedding_dim,
+            "distance_metric": self.distance_metric,
+            "create_table_if_not_exists": self.create_table_if_not_exists,
+            "create_index": self.create_index,
+            "hnsw_neighbors": self.hnsw_neighbors,
+            "hnsw_ef_construction": self.hnsw_ef_construction,
+            "hnsw_accuracy": self.hnsw_accuracy,
+            "hnsw_parallel": self.hnsw_parallel,
+        }
+        if self.vector_index_type != "HNSW":
+            init_parameters["vector_index_type"] = self.vector_index_type
+        if self.vector_index_params is not None:
+            init_parameters["vector_index_params"] = self.vector_index_params
+        return default_to_dict(self, **init_parameters)
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "OracleDocumentStore":

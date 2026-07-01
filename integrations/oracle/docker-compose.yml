@@ -7,7 +7,7 @@ services:
       - ORACLE_PASSWORD=haystack
       - APP_USER=haystack
       - APP_USER_PASSWORD=haystack
-      - ORACLE_INIT_PARAMS=vector_memory_size=512M
+      - ORACLE_INIT_PARAMS=vector_memory_size=2G
     volumes:
       - ./init:/container-entrypoint-initdb.d
     healthcheck:

@@ -2,6 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+import logging
 import uuid
 
 import oracledb as _oracledb
@@ -27,13 +28,9 @@ from haystack.testing.document_store_async import (
     FilterableDocsFixtureMixin,
     UpdateByFilterAsyncTest,
 )
-from haystack.utils import Secret
 
-from haystack_integrations.document_stores.oracle import OracleConnectionConfig, OracleDocumentStore
-
-_USER = "haystack"
-_PASSWORD = "haystack"
-_DSN = "localhost:1521/freepdb1"
+from haystack_integrations.document_stores.oracle import OracleDocumentStore
+from haystack_integrations.document_stores.oracle.document_store import _output_type_string_handler
 
 
 def _doc(doc_id: str, content: str = "hello", meta: dict | None = None, embedding: list[float] | None = None):
@@ -45,6 +42,23 @@ def _uid(suffix: str = "") -> str:
     """Return a 32-char uppercase hex ID, optionally tagged."""
     base = uuid.uuid4().hex.upper()[:28]
     return f"{base}{suffix.upper():>4}"[:32]
+
+
+def test_connection_config_reads_oracle_wallet_env(monkeypatch, connection_config):
+    monkeypatch.setenv("ORACLE_USER", "wallet_user")
+    monkeypatch.setenv("ORACLE_PASSWORD", "wallet_password")
+    monkeypatch.setenv("ORACLE_DSN", "wallet_dsn")
+    monkeypatch.setenv("ORACLE_WALLET_LOCATION", "/opt/oracle/wallet")
+    monkeypatch.setenv("ORACLE_WALLET_PASSWORD", "wallet_secret")
+
+    config = connection_config()
+
+    assert config.user.resolve_value() == "wallet_user"
+    assert config.password.resolve_value() == "wallet_password"
+    assert config.dsn.resolve_value() == "wallet_dsn"
+    assert config.wallet_location == "/opt/oracle/wallet"
+    assert config.wallet_password is not None
+    assert config.wallet_password.resolve_value() == "wallet_secret"
 
 
 @pytest.mark.integration
@@ -66,24 +80,23 @@ class TestOracleDocumentStore(
         return Document(id=doc_id, content=content, meta={"k": "v"}, embedding=embedding)
 
     @pytest.fixture
-    def document_store(self):
+    def document_store(self, connection_config):
         """768-dim store — overrides the mixin's NotImplementedError stub."""
         table = f"hs_sync_{uuid.uuid4().hex[:8]}"
         s = OracleDocumentStore(
-            connection_config=OracleConnectionConfig(
-                user=Secret.from_token(_USER),
-                password=Secret.from_token(_PASSWORD),
-                dsn=Secret.from_token(_DSN),
-            ),
+            connection_config=connection_config(),
             table_name=table,
             embedding_dim=768,
             distance_metric="COSINE",
             create_table_if_not_exists=True,
         )
-        yield s
-        with s._get_connection() as conn, conn.cursor() as cur:
-            cur.execute(f"DROP TABLE {table} PURGE")
-            conn.commit()
+        try:
+            yield s
+        finally:
+            try:
+                s.delete_table()
+            finally:
+                s.close()
 
     # Mixin override
     def assert_documents_are_equal(self, received: list[Document], expected: list[Document]) -> None:
@@ -136,13 +149,18 @@ class TestOracleDocumentStore(
         assert "WHEN NOT MATCHED" in sql
         assert "WHEN MATCHED" not in sql
 
-    def test_write_documents_overwrite_policy_uses_full_merge(self, patched_store, mock_pool):
+    def test_write_documents_overwrite_policy_uses_update_insert_fallback(self, patched_store, mock_pool):
         _, _, cursor = mock_pool
-        patched_store.write_documents([self._mock_doc()], policy=DuplicatePolicy.OVERWRITE)
+        count = patched_store.write_documents(
+            [self._mock_doc(), self._mock_doc(doc_id="CCDD" * 8)], policy=DuplicatePolicy.OVERWRITE
+        )
         sql = cursor.executemany.call_args[0][0]
-        assert "MERGE INTO" in sql
-        assert "WHEN MATCHED" in sql
-        assert "WHEN NOT MATCHED" in sql
+        assert count == 2
+        assert "MERGE INTO" not in sql
+        assert "UPDATE test_docs" in sql
+        assert "IF SQL%ROWCOUNT = 0 THEN" in sql
+        assert "INSERT INTO test_docs" in sql
+        assert "WHEN DUP_VAL_ON_INDEX THEN" in sql
 
     def test_write_documents_returns_count(self, patched_store, mock_pool):  # noqa: ARG002
         count = patched_store.write_documents(
@@ -163,6 +181,7 @@ class TestOracleDocumentStore(
         ]
         docs = patched_store.filter_documents()
         assert len(docs) == 2
+        assert cursor.outputtypehandler is _output_type_string_handler
         sql = cursor.execute.call_args[0][0]
         assert "WHERE" not in sql
 
@@ -220,6 +239,29 @@ class TestOracleDocumentStore(
         assert restored.embedding_dim == patched_store.embedding_dim
         assert restored.distance_metric == patched_store.distance_metric
 
+    def test_output_type_handler_converts_lobs_to_strings(self):
+        class FakeCursor:
+            arraysize = 50
+
+            def __init__(self):
+                self.call = None
+
+            def var(self, type_code, *, arraysize):
+                self.call = (type_code, arraysize)
+                return "converted"
+
+        class FakeMetadata:
+            def __init__(self, type_code):
+                self.type_code = type_code
+
+        cursor = FakeCursor()
+
+        assert _output_type_string_handler(cursor, FakeMetadata(_oracledb.DB_TYPE_CLOB)) == "converted"
+        assert cursor.call == (_oracledb.DB_TYPE_LONG, 50)
+
+        assert _output_type_string_handler(cursor, FakeMetadata(_oracledb.DB_TYPE_NCLOB)) == "converted"
+        assert cursor.call == (_oracledb.DB_TYPE_LONG_NVARCHAR, 50)
+
     def test_create_hnsw_index_sql(self, patched_store, mock_pool):
         _, _, cursor = mock_pool
         patched_store.create_hnsw_index()
@@ -228,6 +270,90 @@ class TestOracleDocumentStore(
         assert "HNSW" in sql
         assert str(patched_store.hnsw_neighbors) in sql
         assert str(patched_store.hnsw_ef_construction) in sql
+
+    def test_create_keyword_index_uses_deterministic_bound_index_name(self, patched_store, mock_pool):
+        _, conn, cursor = mock_pool
+
+        patched_store.create_keyword_index()
+
+        sql = cursor.execute.call_args.args[0]
+        assert "DBMS_SEARCH.CREATE_INDEX(:index_name)" in sql
+        assert "DBMS_SEARCH.ADD_SOURCE(:index_name, :table_name)" in sql
+        assert cursor.execute.call_args.kwargs == {
+            "index_name": "test_docs_search_idx",
+            "table_name": "test_docs",
+        }
+        conn.commit.assert_called_once()
+
+    def test_create_keyword_index_warns_when_dbms_search_is_unavailable(self, patched_store, mock_pool, caplog):
+        _, conn, cursor = mock_pool
+        cursor.execute.side_effect = _oracledb.DatabaseError(
+            "ORA-06550: line 1, column 7:\nPLS-00201: identifier 'DBMS_SEARCH.CREATE_INDEX' must be declared"
+        )
+
+        with caplog.at_level(logging.WARNING):
+            patched_store.create_keyword_index()
+
+        assert "DBMS_SEARCH is unavailable" in caplog.text
+        conn.commit.assert_not_called()
+
+    def test_delete_table_drops_search_index_before_table(self, patched_store, mock_pool):
+        _, conn, cursor = mock_pool
+
+        patched_store.delete_table()
+
+        calls = cursor.execute.call_args_list
+        assert calls[0].args[0] == "BEGIN DBMS_SEARCH.DROP_INDEX(:index_name); END;"
+        assert calls[0].kwargs == {"index_name": "test_docs_search_idx"}
+        executed_sql = [call.args[0] for call in calls]
+        assert executed_sql[-1] == "DROP TABLE test_docs PURGE"
+        conn.commit.assert_called_once()
+
+    def test_delete_table_skips_keyword_cleanup_when_dbms_search_is_unavailable(self, patched_store, mock_pool):
+        _, conn, cursor = mock_pool
+        cursor.execute.side_effect = [
+            _oracledb.DatabaseError(
+                "ORA-06550: line 1, column 7:\nPLS-00201: identifier 'DBMS_SEARCH.DROP_INDEX' must be declared"
+            ),
+            None,
+        ]
+
+        patched_store.delete_table()
+
+        calls = cursor.execute.call_args_list
+        assert calls[0].args[0] == "BEGIN DBMS_SEARCH.DROP_INDEX(:index_name); END;"
+        assert calls[1].args[0] == "DROP TABLE test_docs PURGE"
+        conn.commit.assert_called_once()
+
+    def test_close_closes_sync_pool(self, patched_store, mock_pool):
+        pool, _, _ = mock_pool
+
+        patched_store.count_documents()
+        patched_store.close()
+
+        pool.close.assert_called_once()
+        assert patched_store._pool is None
+
+    @pytest.mark.asyncio
+    async def test_close_async_closes_async_and_sync_pools(self, patched_store, mock_pool):
+        class FakeAsyncPool:
+            def __init__(self):
+                self.closed = False
+
+            async def close(self):
+                self.closed = True
+
+        pool, _, _ = mock_pool
+        async_pool = FakeAsyncPool()
+        patched_store._async_pool = async_pool
+
+        patched_store.count_documents()
+        await patched_store.close_async()
+
+        assert async_pool.closed is True
+        assert patched_store._async_pool is None
+        pool.close.assert_called_once()
+        assert patched_store._pool is None
 
     def test_write_documents_empty_list_returns_zero(self, document_store):
         assert document_store.write_documents([]) == 0
