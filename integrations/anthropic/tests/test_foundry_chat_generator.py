@@ -100,6 +100,7 @@ class TestAnthropicFoundryChatGenerator:
                 "generation_kwargs": {},
                 "ignore_tools_thinking_messages": True,
                 "tools": None,
+                "anthropic_server_tools": None,
                 "timeout": None,
                 "max_retries": None,
                 "azure_ad_token_provider": None,
@@ -132,6 +133,7 @@ class TestAnthropicFoundryChatGenerator:
                 "generation_kwargs": {"max_tokens": 10, "some_test_param": "test-params"},
                 "ignore_tools_thinking_messages": False,
                 "tools": None,
+                "anthropic_server_tools": None,
                 "timeout": 10.0,
                 "max_retries": 1,
                 "azure_ad_token_provider": None,
@@ -154,6 +156,7 @@ class TestAnthropicFoundryChatGenerator:
                 "generation_kwargs": {"max_tokens": 10, "some_test_param": "test-params"},
                 "ignore_tools_thinking_messages": True,
                 "tools": None,
+                "anthropic_server_tools": None,
                 "timeout": None,
                 "max_retries": None,
                 "azure_ad_token_provider": None,
@@ -169,6 +172,7 @@ class TestAnthropicFoundryChatGenerator:
         assert component.timeout is None
         assert component.max_retries is None
         assert component.azure_ad_token_provider is None
+        assert component.anthropic_server_tools is None
 
     def test_to_dict_from_dict_roundtrip(self, monkeypatch):
         monkeypatch.setenv("ANTHROPIC_FOUNDRY_API_KEY", "test-key")
