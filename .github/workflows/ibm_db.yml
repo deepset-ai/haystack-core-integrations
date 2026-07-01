@@ -84,37 +84,15 @@ jobs:
 
       - name: Start DB2 container
         # DB2 takes time to initialize. --wait blocks until the healthcheck
-        # passes before proceeding to tests.
+        # passes (up to ~15 min per the timeout) before proceeding.
         run: docker compose up -d --wait
         timeout-minutes: 15
-        
-      # - name: Run unit tests
-      #   run: hatch run test:unit-cov-retry
 
-      # # On PR: posts coverage comment (directly on same-repo PRs; via artifact for fork PRs). On push to main: stores coverage baseline on data branch.
-      # - name: Store unit tests coverage
-      #   id: coverage_comment
-      #   if: matrix.python-version == '3.10' && runner.os == 'Linux' && github.event_name != 'schedule'
-      #   uses: py-cov-action/python-coverage-comment-action@63f52f4fbbffada6e8dee8ec432de7e01df9ba79 # v3.41
-      #   with:
-      #     GITHUB_TOKEN: ${{ github.token }}
-      #     COVERAGE_PATH: integrations/ibm_db
-      #     SUBPROJECT_ID: ibm_db
-      #     MINIMUM_GREEN: 90
-      #     MINIMUM_ORANGE: 60
-
-      # - name: Upload coverage comment to be posted
-      #   if: matrix.python-version == '3.10' && runner.os == 'Linux' && github.event_name == 'pull_request' && steps.coverage_comment.outputs.COMMENT_FILE_WRITTEN == 'true'
-      #   uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-      #   with:
-      #     name: coverage-comment-ibm_db
-      #     path: python-coverage-comment-action-ibm_db.txt
-
-      - name: Run integration tests
-        run: hatch run test:integration-cov-append-retry
+      - name: Run unit tests
+        run: hatch run test:unit-cov-retry
 
       # On PR: posts coverage comment (directly on same-repo PRs; via artifact for fork PRs). On push to main: stores coverage baseline on data branch.
-      - name: Store integration tests coverage
+      - name: Store unit tests coverage
         id: coverage_comment
         if: matrix.python-version == '3.10' && runner.os == 'Linux' && github.event_name != 'schedule'
         uses: py-cov-action/python-coverage-comment-action@63f52f4fbbffada6e8dee8ec432de7e01df9ba79 # v3.41
@@ -132,6 +110,8 @@ jobs:
           name: coverage-comment-ibm_db
           path: python-coverage-comment-action-ibm_db.txt
 
+      - name: Run integration tests
+        run: hatch run test:integration-cov-append-retry
 
       - name: Store combined coverage
         if: github.event_name == 'push'
@@ -143,33 +123,19 @@ jobs:
           MINIMUM_GREEN: 90
           MINIMUM_ORANGE: 60
 
-      # - name: Run unit tests with lowest direct dependencies
-      #   if: github.event_name != 'push'
-      #   run: |
-      #     hatch run uv pip compile pyproject.toml --resolution lowest-direct --output-file requirements_lowest_direct.txt
-      #     hatch -e test env run -- uv pip install -r requirements_lowest_direct.txt
-      #     hatch run test:unit
-
-      # - name: Nightly - run unit tests with Haystack main branch
-      #   if: github.event_name == 'schedule'
-      #   run: |
-      #     hatch env prune
-      #     hatch -e test env run -- uv pip install git+https://github.com/deepset-ai/haystack.git@main
-      #     hatch run test:unit
-      
-      - name: Run integration tests with lowest direct dependencies
+      - name: Run unit tests with lowest direct dependencies
         if: github.event_name != 'push'
         run: |
           hatch run uv pip compile pyproject.toml --resolution lowest-direct --output-file requirements_lowest_direct.txt
           hatch -e test env run -- uv pip install -r requirements_lowest_direct.txt
-          hatch run test:integration
+          hatch run test:unit
 
-      - name: Nightly - run integration tests with Haystack main branch
+      - name: Nightly - run unit tests with Haystack main branch
         if: github.event_name == 'schedule'
         run: |
           hatch env prune
           hatch -e test env run -- uv pip install git+https://github.com/deepset-ai/haystack.git@main
-          hatch run test:integration 
+          hatch run test:unit
 
   notify-slack-on-failure:
     needs: run

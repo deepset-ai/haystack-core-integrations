@@ -23,7 +23,7 @@ classifiers = [
   "Programming Language :: Python :: Implementation :: CPython",
   "Programming Language :: Python :: Implementation :: PyPy",
 ]
-dependencies = ["haystack-ai", "ibm-db>=3.2.3"]
+dependencies = ["haystack-ai>=2.28.0", "ibm-db>=3.2.8"]
 
 [project.urls]
 Documentation = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/ibm_db#readme"
@@ -58,6 +58,7 @@ dependencies = [
     "pytest-rerunfailures",
     "mypy",
     "pip",
+    "cryptography",
 ]
 
 [tool.hatch.envs.test.scripts]

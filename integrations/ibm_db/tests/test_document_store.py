@@ -2,20 +2,32 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""Integration tests for IBM DB2 Document Store using live DB2 instance."""
+"""Integration tests for IBM DB2 Document Store using Haystack mixin tests."""
 
-import asyncio
-import sys
-import tempfile
+import math
 from datetime import datetime, timedelta, timezone
-from pathlib import Path
 
 import pytest
 from haystack.dataclasses import Document
 from haystack.document_stores.errors import DuplicateDocumentError
-from haystack.document_stores.types import DuplicatePolicy
+from haystack.testing.document_store import (
+    CountDocumentsByFilterTest,
+    CountDocumentsTest,
+    CountUniqueMetadataByFilterTest,
+    DeleteAllTest,
+    DeleteByFilterTest,
+    DeleteDocumentsTest,
+    FilterableDocsFixtureMixin,
+    FilterDocumentsTest,
+    GetMetadataFieldMinMaxTest,
+    GetMetadataFieldsInfoTest,
+    GetMetadataFieldUniqueValuesTest,
+    UpdateByFilterTest,
+    WriteDocumentsTest,
+)
 
-from haystack_integrations.document_stores.ibm_db import Db2ConnectionConfig, Db2DocumentStore
+from haystack_integrations.document_stores.ibm_db import Db2DocumentStore
+from haystack_integrations.document_stores.ibm_db.document_store import _row_to_document
 
 try:
     from cryptography import x509
@@ -27,66 +39,6 @@ try:
     CRYPTOGRAPHY_AVAILABLE = True
 except ImportError:
     CRYPTOGRAPHY_AVAILABLE = False
-
-# DB2 connection configuration for docker-compose DB2 instance
-DB2_CONFIG = Db2ConnectionConfig(
-    database="testdb",
-    hostname="localhost",
-    port=50000,
-    username="db2inst1",
-    password="Passw0rd123!",
-    protocol="TCPIP",
-)
-
-# Use Python-version-specific table name to avoid conflicts when
-# multiple Python versions run tests concurrently against the same DB2 instance
-TEST_TABLE_NAME = f"test_haystack_docs_{sys.version_info.major}_{sys.version_info.minor}"
-
-
-@pytest.fixture
-def document_store():
-    """Create a fresh document store for each test."""
-    store = Db2DocumentStore(
-        connection_config=DB2_CONFIG,
-        table_name=TEST_TABLE_NAME,
-        embedding_dim=384,
-        distance_metric="COSINE",
-        recreate_table=True,
-    )
-    yield store
-    # Cleanup after test
-    try:
-        conn = store._get_connection()
-        with conn.cursor() as cur:
-            cur.execute(f"DROP TABLE {store.table_name}")
-            conn.commit()
-    except Exception:
-        pass
-
-
-@pytest.fixture
-def sample_documents():
-    """Create sample documents for testing."""
-    return [
-        Document(
-            id="doc1",
-            content="This is the first document about Python programming.",
-            meta={"category": "programming", "language": "python", "level": "beginner", "rating": 5},
-            embedding=[0.1] * 384,
-        ),
-        Document(
-            id="doc2",
-            content="This is the second document about Java development.",
-            meta={"category": "programming", "language": "java", "level": "intermediate", "rating": 4},
-            embedding=[0.2] * 384,
-        ),
-        Document(
-            id="doc3",
-            content="This is the third document about data science.",
-            meta={"category": "data-science", "language": "python", "level": "advanced", "rating": 5},
-            embedding=[0.3] * 384,
-        ),
-    ]
 
 
 def _generate_self_signed_cert_pem() -> bytes:
@@ -133,597 +85,76 @@ def _generate_self_signed_cert_pem() -> bytes:
 
 
 @pytest.mark.integration
-class TestDb2DocumentStoreSSL:
-    """Test SSL connection handling."""
+class TestDocumentStore(
+    CountDocumentsTest,
+    WriteDocumentsTest,
+    DeleteDocumentsTest,
+    FilterDocumentsTest,
+    FilterableDocsFixtureMixin,
+    UpdateByFilterTest,
+    DeleteAllTest,
+    DeleteByFilterTest,
+    CountDocumentsByFilterTest,
+    CountUniqueMetadataByFilterTest,
+    GetMetadataFieldsInfoTest,
+    GetMetadataFieldMinMaxTest,
+    GetMetadataFieldUniqueValuesTest,
+):
+    """
+    Test Db2DocumentStore using Haystack's standard mixin tests.
 
-    @pytest.mark.skipif(not CRYPTOGRAPHY_AVAILABLE, reason="cryptography library not available")
-    @pytest.mark.skip(reason="SSL not enabled in docker-compose DB2 instance")
-    def test_ssl_connection(self):
+    This class inherits from Haystack's mixin test classes which provide
+    standardized tests for document store implementations.
+    """
+
+    @staticmethod
+    def assert_documents_are_equal(received: list[Document], expected: list[Document]):
         """
-        Test that SSL connection works with DB2.
+        Assert that two lists of Documents are equal, ignoring order.
 
-        Note: This test is skipped by default because the docker-compose DB2 instance
-        does not have SSL enabled. To run this test:
-        1. Set up a DB2 instance with SSL enabled on the specified port
-        2. Remove the @pytest.mark.skip decorator
-
-        The test automatically generates a self-signed certificate for testing purposes.
-        Note: IBM DB2 requires the certificate to be in a file.
+        DB2 returns documents ordered by ID, but the expected list from Python
+        is in insertion order. We sort both lists by ID before comparing.
         """
-        # Generate self-signed certificate PEM content
-        cert_pem = _generate_self_signed_cert_pem()
-
-        # IBM DB2 requires certificate file path, so write to temporary file
-        with tempfile.NamedTemporaryFile(mode="wb", suffix=".pem", delete=False) as cert_file:
-            cert_file.write(cert_pem)
-            cert_path = cert_file.name
-
-        try:
-            config = Db2ConnectionConfig(
-                database="testdb",
-                hostname="localhost",
-                port=50000,
-                username="db2inst1",
-                password="Passw0rd123!",
-                protocol="TCPIP",
-                use_ssl=True,
-                ssl_certificate=cert_path,
-            )
-
-            store = Db2DocumentStore(
-                connection_config=config,
-                table_name=f"ssl_test_{sys.version_info.major}_{sys.version_info.minor}",
-                embedding_dim=384,
-                distance_metric="COSINE",
-                recreate_table=True,
-            )
-
-            # Verify SSL connection works by executing a query
-            assert store.count_documents() == 0
-
-            # Cleanup table
-            try:
-                conn = store._get_connection()
-                with conn.cursor() as cur:
-                    cur.execute(f"DROP TABLE {store.table_name}")
-                    conn.commit()
-            except Exception:
-                pass
-        finally:
-            # Cleanup certificate file
-            Path(cert_path).unlink(missing_ok=True)
-
-
-@pytest.mark.integration
-class TestDb2DocumentStoreBasicOperations:
-    """Test basic CRUD operations."""
-
-    def test_count_documents_empty(self, document_store):
-        """Test counting documents in empty store."""
-        count = document_store.count_documents()
-        assert count == 0
-
-    def test_write_documents_basic(self, document_store, sample_documents):
-        """Test writing documents to the store."""
-        written = document_store.write_documents(sample_documents)
-        assert written == 3
-        assert document_store.count_documents() == 3
-
-    def test_write_documents_empty_list(self, document_store):
-        """Test writing empty list of documents."""
-        written = document_store.write_documents([])
-        assert written == 0
-        assert document_store.count_documents() == 0
-
-    def test_filter_documents_all(self, document_store, sample_documents):
-        """Test retrieving all documents without filters."""
-        document_store.write_documents(sample_documents)
-        docs = document_store.filter_documents()
-        assert len(docs) == 3
-        assert {doc.id for doc in docs} == {"doc1", "doc2", "doc3"}
-
-    def test_filter_documents_by_id(self, document_store, sample_documents):
-        """Test filtering documents by ID."""
-        document_store.write_documents(sample_documents)
-
-        # Filter for specific document
-        filters = {"operator": "==", "field": "id", "value": "doc1"}
-        docs = document_store.filter_documents(filters)
-        assert len(docs) == 1
-        assert docs[0].id == "doc1"
-        assert docs[0].content == "This is the first document about Python programming."
-
-    def test_delete_documents(self, document_store, sample_documents):
-        """Test deleting documents by IDs."""
-        document_store.write_documents(sample_documents)
-        assert document_store.count_documents() == 3
-
-        document_store.delete_documents(["doc1", "doc3"])
-        assert document_store.count_documents() == 1
-
-        remaining = document_store.filter_documents()
-        assert len(remaining) == 1
-        assert remaining[0].id == "doc2"
-
-    def test_delete_documents_empty_list(self, document_store, sample_documents):
-        """Test deleting with empty list."""
-        document_store.write_documents(sample_documents)
-        document_store.delete_documents([])
-        assert document_store.count_documents() == 3
-
-    def test_delete_nonexistent_documents(self, document_store, sample_documents):
-        """Test deleting non-existent documents."""
-        document_store.write_documents(sample_documents)
-        document_store.delete_documents(["nonexistent1", "nonexistent2"])
-        assert document_store.count_documents() == 3
-
-
-@pytest.mark.integration
-class TestDb2DocumentStoreDuplicatePolicies:
-    """Test duplicate handling policies."""
-
-    def test_duplicate_policy_none(self, document_store, sample_documents):
-        """Test NONE policy - allows duplicates (should fail at DB level)."""
-        document_store.write_documents(sample_documents)
-        initial_count = document_store.count_documents()
-
-        # Try to insert duplicate - should fail due to primary key constraint
-        # Note: executemany behavior may vary, so we check if exception is raised OR count unchanged
-        try:
-            document_store.write_documents([sample_documents[0]], policy=DuplicatePolicy.NONE)
-            # If no exception, verify count didn't increase (duplicate was rejected)
-            assert document_store.count_documents() == initial_count
-        except Exception:
-            # Exception is expected for duplicate primary key
-            pass
-
-    def test_duplicate_policy_fail(self, document_store, sample_documents):
-        """Test FAIL policy - raises DuplicateDocumentError."""
-        document_store.write_documents(sample_documents)
-        initial_count = document_store.count_documents()
-
-        # Try to insert duplicate - should raise DuplicateDocumentError
-        try:
-            document_store.write_documents([sample_documents[0]], policy=DuplicatePolicy.FAIL)
-            # If no exception, verify count didn't increase (duplicate was rejected)
-            assert document_store.count_documents() == initial_count
-        except DuplicateDocumentError:
-            # This is the expected behavior
-            pass
-        except Exception as e:
-            # Other exceptions should be wrapped in DuplicateDocumentError
-            pytest.fail(f"Expected DuplicateDocumentError but got {type(e).__name__}: {e}")
-
-    def test_duplicate_policy_skip(self, document_store, sample_documents):
-        """Test SKIP policy - skips duplicates."""
-        document_store.write_documents(sample_documents)
-
-        # Try to insert duplicates - should skip them
-        duplicate_doc = Document(
-            id="doc1",
-            content="Updated content",
-            meta={"updated": True},
-            embedding=[0.9] * 384,
-        )
-        written = document_store.write_documents([duplicate_doc], policy=DuplicatePolicy.SKIP)
-        assert written == 0  # No documents written
-
-        # Original document should remain unchanged
-        docs = document_store.filter_documents({"operator": "==", "field": "id", "value": "doc1"})
-        assert len(docs) == 1
-        assert docs[0].content == "This is the first document about Python programming."
-        assert docs[0].meta.get("updated") is None
-
-    def test_duplicate_policy_overwrite(self, document_store, sample_documents):
-        """Test OVERWRITE policy - updates existing documents."""
-        document_store.write_documents(sample_documents)
-
-        # Update existing document
-        updated_doc = Document(
-            id="doc1",
-            content="Updated content for doc1",
-            meta={"category": "programming", "updated": True, "rating": 10},
-            embedding=[0.9] * 384,
-        )
-        written = document_store.write_documents([updated_doc], policy=DuplicatePolicy.OVERWRITE)
-        assert written == 1
-
-        # Verify document was updated
-        docs = document_store.filter_documents({"operator": "==", "field": "id", "value": "doc1"})
-        assert len(docs) == 1
-        assert docs[0].content == "Updated content for doc1"
-        assert docs[0].meta["updated"] is True
-        assert docs[0].meta["rating"] == 10
-
-
-@pytest.mark.integration
-class TestDb2DocumentStorePureSQLFiltering:
-    """Test pure SQL filtering approach."""
-
-    def test_filter_by_metadata_string(self, document_store, sample_documents):
-        """Test filtering by metadata string field using pure SQL."""
-        document_store.write_documents(sample_documents)
-
-        # Filter by language metadata
-        filters = {"operator": "==", "field": "meta.language", "value": "python"}
-        docs = document_store.filter_documents(filters)
-        assert len(docs) == 2
-        assert {doc.id for doc in docs} == {"doc1", "doc3"}
-
-    def test_filter_by_metadata_integer(self, document_store, sample_documents):
-        """Test filtering by metadata integer field using pure SQL."""
-        document_store.write_documents(sample_documents)
-
-        # Filter by rating metadata
-        filters = {
-            "operator": "==",
-            "field": "meta.rating",
-            "value": "5",  # Note: stored as string in JSON
-        }
-        docs = document_store.filter_documents(filters)
-        assert len(docs) == 2
-        assert {doc.id for doc in docs} == {"doc1", "doc3"}
-
-    def test_filter_by_metadata_comparison(self, document_store, sample_documents):
-        """Test comparison operators on metadata fields."""
-        document_store.write_documents(sample_documents)
-
-        # Filter by rating > 4
-        filters = {"operator": ">", "field": "meta.rating", "value": "4"}
-        docs = document_store.filter_documents(filters)
-        assert len(docs) == 2
-        assert {doc.id for doc in docs} == {"doc1", "doc3"}
-
-    def test_filter_with_and_operator(self, document_store, sample_documents):
-        """Test AND logical operator with metadata fields."""
-        document_store.write_documents(sample_documents)
-
-        # Filter: language == "python" AND rating == 5
-        filters = {
-            "operator": "AND",
-            "conditions": [
-                {"operator": "==", "field": "meta.language", "value": "python"},
-                {"operator": "==", "field": "meta.rating", "value": "5"},
-            ],
-        }
-        docs = document_store.filter_documents(filters)
-        assert len(docs) == 2
-        assert {doc.id for doc in docs} == {"doc1", "doc3"}
-
-    def test_filter_with_or_operator(self, document_store, sample_documents):
-        """Test OR logical operator with metadata fields."""
-        document_store.write_documents(sample_documents)
-
-        # Filter: language == "java" OR category == "data-science"
-        filters = {
-            "operator": "OR",
-            "conditions": [
-                {"operator": "==", "field": "meta.language", "value": "java"},
-                {"operator": "==", "field": "meta.category", "value": "data-science"},
-            ],
-        }
-        docs = document_store.filter_documents(filters)
-        assert len(docs) == 2
-        assert {doc.id for doc in docs} == {"doc2", "doc3"}
-
-    def test_filter_with_not_operator(self, document_store, sample_documents):
-        """Test NOT logical operator with metadata fields."""
-        document_store.write_documents(sample_documents)
-
-        # Filter: NOT (language == "java")
-        filters = {"operator": "NOT", "conditions": [{"operator": "==", "field": "meta.language", "value": "java"}]}
-        docs = document_store.filter_documents(filters)
-        assert len(docs) == 2
-        assert {doc.id for doc in docs} == {"doc1", "doc3"}
-
-    def test_filter_with_in_operator(self, document_store, sample_documents):
-        """Test IN operator with metadata fields."""
-        document_store.write_documents(sample_documents)
-
-        # Filter: level IN ["beginner", "advanced"]
-        filters = {"operator": "in", "field": "meta.level", "value": ["beginner", "advanced"]}
-        docs = document_store.filter_documents(filters)
-        assert len(docs) == 2
-        assert {doc.id for doc in docs} == {"doc1", "doc3"}
-
-    def test_filter_with_not_in_operator(self, document_store, sample_documents):
-        """Test NOT IN operator with metadata fields."""
-        document_store.write_documents(sample_documents)
-
-        # Filter: level NOT IN ["intermediate"]
-        filters = {"operator": "not in", "field": "meta.level", "value": ["intermediate"]}
-        docs = document_store.filter_documents(filters)
-        assert len(docs) == 2
-        assert {doc.id for doc in docs} == {"doc1", "doc3"}
-
-    def test_filter_complex_nested_conditions(self, document_store, sample_documents):
-        """Test complex nested logical conditions."""
-        document_store.write_documents(sample_documents)
-
-        # Filter: (language == "python" AND rating == 5) OR category == "data-science"
-        filters = {
-            "operator": "OR",
-            "conditions": [
-                {
-                    "operator": "AND",
-                    "conditions": [
-                        {"operator": "==", "field": "meta.language", "value": "python"},
-                        {"operator": "==", "field": "meta.rating", "value": "5"},
-                    ],
-                },
-                {"operator": "==", "field": "meta.category", "value": "data-science"},
-            ],
-        }
-        docs = document_store.filter_documents(filters)
-        assert len(docs) == 2
-        assert {doc.id for doc in docs} == {"doc1", "doc3"}
-
-    def test_filter_mixed_direct_and_metadata_fields(self, document_store, sample_documents):
-        """Test filtering with both direct columns and metadata fields."""
-        document_store.write_documents(sample_documents)
-
-        # Filter: id == "doc1" AND language == "python"
-        filters = {
-            "operator": "AND",
-            "conditions": [
-                {"operator": "==", "field": "id", "value": "doc1"},
-                {"operator": "==", "field": "meta.language", "value": "python"},
-            ],
-        }
-        docs = document_store.filter_documents(filters)
-        assert len(docs) == 1
-        assert docs[0].id == "doc1"
-
-    def test_filter_no_results(self, document_store, sample_documents):
-        """Test filter that returns no results."""
-        document_store.write_documents(sample_documents)
-
-        filters = {"operator": "==", "field": "meta.language", "value": "nonexistent"}
-        docs = document_store.filter_documents(filters)
-        assert len(docs) == 0
-
-    @pytest.mark.asyncio
-    async def test_filter_documents_async_with_metadata(self, document_store, sample_documents):
-        """Test async filtering with metadata fields."""
-        document_store.write_documents(sample_documents)
-
-        filters = {"operator": "==", "field": "meta.language", "value": "python"}
-        docs = await document_store.filter_documents_async(filters)
-        assert len(docs) == 2
-        assert {doc.id for doc in docs} == {"doc1", "doc3"}
-
-    def test_filter_without_meta_prefix(self, document_store, sample_documents):
-        """Test filtering metadata fields without 'meta.' prefix."""
-        document_store.write_documents(sample_documents)
-
-        # Filter by language without "meta." prefix
-        filters = {
-            "operator": "==",
-            "field": "language",  # No "meta." prefix
-            "value": "python",
-        }
-        docs = document_store.filter_documents(filters)
-        assert len(docs) == 2
-        assert {doc.id for doc in docs} == {"doc1", "doc3"}
-
-        # Total count should remain the same
-        assert document_store.count_documents() == 3
-
-    def test_duplicate_policy_overwrite_mixed(self, document_store, sample_documents):
-        """Test OVERWRITE policy with mix of new and existing documents."""
-        document_store.write_documents([sample_documents[0]])
-
-        # Mix of existing and new documents
-        mixed_docs = [
-            Document(id="doc1", content="Updated doc1", meta={"updated": True}, embedding=[0.9] * 384),
-            Document(id="doc4", content="New doc4", meta={"new": True}, embedding=[0.4] * 384),
-        ]
-        written = document_store.write_documents(mixed_docs, policy=DuplicatePolicy.OVERWRITE)
-        assert written == 2
-        assert document_store.count_documents() == 2
-
-
-@pytest.mark.integration
-class TestDb2DocumentStoreFiltering:
-    """Test filtering operations with various operators."""
-
-    def test_filter_equality(self, document_store, sample_documents):
-        """Test equality filter."""
-        document_store.write_documents(sample_documents)
-
-        filters = {"operator": "==", "field": "meta.language", "value": "python"}
-        docs = document_store.filter_documents(filters)
-        assert len(docs) == 2
-        assert {doc.id for doc in docs} == {"doc1", "doc3"}
-
-    def test_filter_inequality(self, document_store, sample_documents):
-        """Test inequality filter."""
-        document_store.write_documents(sample_documents)
-
-        filters = {"operator": "!=", "field": "meta.language", "value": "python"}
-        docs = document_store.filter_documents(filters)
-        assert len(docs) == 1
-        assert docs[0].id == "doc2"
-
-    def test_filter_greater_than(self, document_store, sample_documents):
-        """Test greater than filter."""
-        document_store.write_documents(sample_documents)
-
-        filters = {"operator": ">", "field": "meta.rating", "value": 4}
-        docs = document_store.filter_documents(filters)
-        assert len(docs) == 2
-        assert {doc.id for doc in docs} == {"doc1", "doc3"}
-
-    def test_filter_greater_than_or_equal(self, document_store, sample_documents):
-        """Test greater than or equal filter."""
-        document_store.write_documents(sample_documents)
-
-        filters = {"operator": ">=", "field": "meta.rating", "value": 5}
-        docs = document_store.filter_documents(filters)
-        assert len(docs) == 2
-        assert {doc.id for doc in docs} == {"doc1", "doc3"}
-
-    def test_filter_less_than(self, document_store, sample_documents):
-        """Test less than filter."""
-        document_store.write_documents(sample_documents)
-
-        filters = {"operator": "<", "field": "meta.rating", "value": 5}
-        docs = document_store.filter_documents(filters)
-        assert len(docs) == 1
-        assert docs[0].id == "doc2"
-
-    def test_filter_less_than_or_equal(self, document_store, sample_documents):
-        """Test less than or equal filter."""
-        document_store.write_documents(sample_documents)
-
-        filters = {"operator": "<=", "field": "meta.rating", "value": 4}
-        docs = document_store.filter_documents(filters)
-        assert len(docs) == 1
-        assert docs[0].id == "doc2"
-
-    def test_filter_in(self, document_store, sample_documents):
-        """Test IN operator."""
-        document_store.write_documents(sample_documents)
-
-        filters = {"operator": "in", "field": "meta.language", "value": ["python", "java"]}
-        docs = document_store.filter_documents(filters)
-        assert len(docs) == 3
-
-    def test_filter_not_in(self, document_store, sample_documents):
-        """Test NOT IN operator."""
-        document_store.write_documents(sample_documents)
-
-        filters = {"operator": "not in", "field": "meta.language", "value": ["java"]}
-        docs = document_store.filter_documents(filters)
-        assert len(docs) == 2
-        assert {doc.id for doc in docs} == {"doc1", "doc3"}
-
-    def test_filter_and(self, document_store, sample_documents):
-        """Test AND logical operator."""
-        document_store.write_documents(sample_documents)
-
-        filters = {
-            "operator": "AND",
-            "conditions": [
-                {"operator": "==", "field": "meta.language", "value": "python"},
-                {"operator": "==", "field": "meta.level", "value": "beginner"},
-            ],
-        }
-        docs = document_store.filter_documents(filters)
-        assert len(docs) == 1
-        assert docs[0].id == "doc1"
-
-    def test_filter_or(self, document_store, sample_documents):
-        """Test OR logical operator."""
-        document_store.write_documents(sample_documents)
-
-        filters = {
-            "operator": "OR",
-            "conditions": [
-                {"operator": "==", "field": "meta.language", "value": "java"},
-                {"operator": "==", "field": "meta.level", "value": "advanced"},
-            ],
-        }
-        docs = document_store.filter_documents(filters)
-        assert len(docs) == 2
-        assert {doc.id for doc in docs} == {"doc2", "doc3"}
-
-    def test_filter_not(self, document_store, sample_documents):
-        """Test NOT logical operator."""
-        document_store.write_documents(sample_documents)
-
-        filters = {
-            "operator": "NOT",
-            "conditions": [
-                {"operator": "==", "field": "meta.language", "value": "python"},
-            ],
-        }
-        docs = document_store.filter_documents(filters)
-        assert len(docs) == 1
-        assert docs[0].id == "doc2"
-
-    def test_filter_complex_nested(self, document_store, sample_documents):
-        """Test complex nested filters."""
-        document_store.write_documents(sample_documents)
-
-        filters = {
-            "operator": "AND",
-            "conditions": [
-                {
-                    "operator": "OR",
-                    "conditions": [
-                        {"operator": "==", "field": "meta.language", "value": "python"},
-                        {"operator": "==", "field": "meta.language", "value": "java"},
-                    ],
-                },
-                {"operator": ">=", "field": "meta.rating", "value": 4},
-            ],
-        }
-        docs = document_store.filter_documents(filters)
-        assert len(docs) == 3
-
-
-@pytest.mark.integration
-class TestDb2DocumentStoreAsync:
-    """Test async operations."""
-
-    @pytest.mark.asyncio
-    async def test_count_documents_async(self, document_store, sample_documents):
-        """Test async document counting."""
-        document_store.write_documents(sample_documents)
-        count = await document_store.count_documents_async()
-        assert count == 3
-
-    @pytest.mark.asyncio
-    async def test_write_documents_async(self, document_store, sample_documents):
-        """Test async document writing."""
-        written = await document_store.write_documents_async(sample_documents)
-        assert written == 3
-        assert document_store.count_documents() == 3
-
-    @pytest.mark.asyncio
-    async def test_filter_documents_async(self, document_store, sample_documents):
-        """Test async document filtering."""
-        document_store.write_documents(sample_documents)
-
-        filters = {"operator": "==", "field": "meta.language", "value": "python"}
-        docs = await document_store.filter_documents_async(filters)
-        assert len(docs) == 2
-        assert {doc.id for doc in docs} == {"doc1", "doc3"}
-
-    @pytest.mark.asyncio
-    async def test_delete_documents_async(self, document_store, sample_documents):
-        """Test async document deletion."""
-        document_store.write_documents(sample_documents)
-        await document_store.delete_documents_async(["doc1", "doc3"])
-
-        count = await document_store.count_documents_async()
-        assert count == 1
-
-    @pytest.mark.asyncio
-    async def test_concurrent_operations(self, document_store, sample_documents):
-        """Test concurrent async operations."""
-        # Write documents first
-        document_store.write_documents(sample_documents)
-
-        # Run multiple operations concurrently
-        results = await asyncio.gather(
-            document_store.count_documents_async(),
-            document_store.filter_documents_async({"operator": "==", "field": "meta.language", "value": "python"}),
-            document_store.filter_documents_async({"operator": "==", "field": "meta.language", "value": "java"}),
+        # Sort both lists by document ID for consistent comparison
+        received_sorted = sorted(received, key=lambda d: d.id)
+        expected_sorted = sorted(expected, key=lambda d: d.id)
+
+        # Check lengths first
+        assert len(received_sorted) == len(expected_sorted), (
+            f"Different number of documents: {len(received_sorted)} vs {len(expected_sorted)}"
         )
 
-        count, python_docs, java_docs = results
-        assert count == 3
-        assert len(python_docs) == 2
-        assert len(java_docs) == 1
+        # Compare each document
+        for i, (rec, exp) in enumerate(zip(received_sorted, expected_sorted, strict=True)):
+            assert rec.id == exp.id, f"Document {i}: IDs don't match: {rec.id} vs {exp.id}"
+            assert rec.content == exp.content, f"Document {i} ({rec.id}): Content doesn't match"
+            assert rec.meta == exp.meta, f"Document {i} ({rec.id}): Meta doesn't match: {rec.meta} vs {exp.meta}"
 
+            # Handle embedding comparison with floating point tolerance
+            if rec.embedding is None and exp.embedding is None:
+                continue
+            elif rec.embedding is None or exp.embedding is None:
+                msg = f"Document {i} ({rec.id}): One embedding is None, the other is not"
+                raise AssertionError(msg)
+            else:
+                assert len(rec.embedding) == len(exp.embedding), (
+                    f"Document {i} ({rec.id}): Embedding lengths don't match"
+                )
+                # Compare embeddings with tolerance for floating point precision
+                for j, (r_val, e_val) in enumerate(zip(rec.embedding, exp.embedding, strict=True)):
+                    if not math.isclose(r_val, e_val, rel_tol=1e-6, abs_tol=1e-9):
+                        msg = f"Document {i} ({rec.id}): Embedding value {j} doesn't match: {r_val} vs {e_val}"
+                        raise AssertionError(msg)
 
-@pytest.mark.integration
-class TestDb2DocumentStoreSerialization:
-    """Test serialization and deserialization."""
+    def test_write_documents(self, document_store: Db2DocumentStore):
+        """Test basic write with duplicate handling - default policy is NONE."""
+        doc = Document(content="test doc")
+        assert document_store.write_documents([doc]) == 1
+        # Default policy is NONE — a second write of the same doc raises DuplicateDocumentError
+        with pytest.raises(DuplicateDocumentError):
+            document_store.write_documents([doc])
 
-    def test_to_dict(self, document_store):
+    def test_to_dict(self, document_store: Db2DocumentStore):
         """Test serializing document store to dictionary."""
         data = document_store.to_dict()
 
@@ -733,18 +164,10 @@ class TestDb2DocumentStoreSerialization:
 
         init_params = data["init_parameters"]
         assert "connection_config" in init_params
-        # Table name includes Python version to avoid conflicts in concurrent tests
-        assert init_params["table_name"] == TEST_TABLE_NAME
-        assert init_params["embedding_dim"] == 384
+        assert init_params["embedding_dim"] == 768
         assert init_params["distance_metric"] == "COSINE"
 
-        conn_config = init_params["connection_config"]
-        # DB2 may return database name in uppercase
-        assert conn_config["database"].upper() == "TESTDB"
-        assert conn_config["hostname"] == "localhost"
-        assert conn_config["port"] == 50000
-
-    def test_from_dict(self, document_store):
+    def test_from_dict(self, document_store: Db2DocumentStore):
         """Test deserializing document store from dictionary."""
         data = document_store.to_dict()
 
@@ -757,30 +180,25 @@ class TestDb2DocumentStoreSerialization:
         assert new_store.connection_config.database == document_store.connection_config.database
         assert new_store.connection_config.hostname == document_store.connection_config.hostname
 
-    def test_roundtrip_serialization(self, document_store, sample_documents):
-        """Test full roundtrip serialization with data."""
-        # Write some documents
-        document_store.write_documents(sample_documents)
+    def test_connection_reuse(self, document_store: Db2DocumentStore):
+        """Test that connection is reused across operations."""
+        docs = [Document(id="1", content="test", embedding=[0.1] * 768)]
 
-        # Serialize
-        data = document_store.to_dict()
+        # Perform multiple operations
+        document_store.write_documents(docs)
+        count1 = document_store.count_documents()
+        retrieved = document_store.filter_documents()
+        count2 = document_store.count_documents()
 
-        # Deserialize
-        new_store = Db2DocumentStore.from_dict(data)
+        assert count1 == count2 == 1
+        assert len(retrieved) == 1
 
-        # Verify data is accessible
-        count = new_store.count_documents()
-        assert count == 3
+        # Connection should be the same instance
+        conn1 = document_store._get_connection()
+        conn2 = document_store._get_connection()
+        assert conn1 is conn2
 
-        docs = new_store.filter_documents()
-        assert len(docs) == 3
-
-
-@pytest.mark.integration
-class TestDb2DocumentStoreEdgeCases:
-    """Test edge cases and error handling."""
-
-    def test_document_without_embedding(self, document_store):
+    def test_document_without_embedding(self, document_store: Db2DocumentStore):
         """Test storing document without embedding."""
         doc = Document(id="no_emb", content="Document without embedding", meta={"test": True})
         document_store.write_documents([doc])
@@ -789,35 +207,16 @@ class TestDb2DocumentStoreEdgeCases:
         assert len(retrieved) == 1
         assert retrieved[0].embedding is None
 
-    def test_document_without_content(self, document_store):
+    def test_document_without_content(self, document_store: Db2DocumentStore):
         """Test storing document without content."""
-        doc = Document(id="no_content", content=None, meta={"test": True}, embedding=[0.1] * 384)
+        doc = Document(id="no_content", content=None, meta={"test": True}, embedding=[0.1] * 768)
         document_store.write_documents([doc])
 
         retrieved = document_store.filter_documents({"operator": "==", "field": "id", "value": "no_content"})
         assert len(retrieved) == 1
         assert retrieved[0].content is None
 
-    def test_document_without_meta(self, document_store):
-        """Test storing document without metadata."""
-        doc = Document(id="no_meta", content="Document without metadata", embedding=[0.1] * 384)
-        document_store.write_documents([doc])
-
-        retrieved = document_store.filter_documents({"operator": "==", "field": "id", "value": "no_meta"})
-        assert len(retrieved) == 1
-        assert retrieved[0].meta == {}
-
-    def test_large_document_content(self, document_store):
-        """Test storing document with large content."""
-        large_content = "A" * 100000  # 100KB of text
-        doc = Document(id="large_doc", content=large_content, embedding=[0.1] * 384)
-        document_store.write_documents([doc])
-
-        retrieved = document_store.filter_documents({"operator": "==", "field": "id", "value": "large_doc"})
-        assert len(retrieved) == 1
-        assert len(retrieved[0].content) == 100000
-
-    def test_complex_metadata(self, document_store):
+    def test_complex_metadata(self, document_store: Db2DocumentStore):
         """Test storing document with complex nested metadata."""
         doc = Document(
             id="complex_meta",
@@ -827,7 +226,7 @@ class TestDb2DocumentStoreEdgeCases:
                 "list": [1, 2, 3, "four"],
                 "mixed": {"numbers": [1, 2, 3], "strings": ["a", "b", "c"]},
             },
-            embedding=[0.1] * 384,
+            embedding=[0.1] * 768,
         )
         document_store.write_documents([doc])
 
@@ -836,92 +235,76 @@ class TestDb2DocumentStoreEdgeCases:
         assert retrieved[0].meta["nested"]["level1"]["level2"]["level3"] == "deep"
         assert retrieved[0].meta["list"] == [1, 2, 3, "four"]
 
-    def test_invalid_filter_operator(self, document_store, sample_documents):
-        """Test invalid filter operator."""
-        document_store.write_documents(sample_documents)
 
-        with pytest.raises(ValueError, match="Unsupported filter operator"):
-            document_store.filter_documents({"operator": "INVALID", "field": "meta.language", "value": "python"})
+class TestDb2DocumentStoreUnit:
+    """Unit tests for Db2DocumentStore that don't require a database."""
 
-    def test_filter_missing_operator(self, document_store, sample_documents):
-        """Test filter without operator."""
-        document_store.write_documents(sample_documents)
+    def test_to_row_with_none_metadata(self, document_store):
+        """Test _to_row with None metadata."""
+        doc = Document(id="1", content="test", meta=None, embedding=[0.1] * 768)
+        row = document_store._to_row(doc)
 
-        with pytest.raises(ValueError, match="must include an 'operator' key"):
-            document_store.filter_documents({"field": "meta.language", "value": "python"})
+        assert row[0] == "1"  # id
+        assert row[1] == "test"  # content
+        assert row[2] == "{}"  # meta should be empty JSON object
+        assert row[3] is not None  # embedding
 
-    def test_filter_missing_field(self, document_store, sample_documents):
-        """Test comparison filter without field."""
-        document_store.write_documents(sample_documents)
+    def test_to_row_with_none_embedding(self, document_store):
+        """Test _to_row with None embedding."""
+        doc = Document(id="1", content="test", meta={"key": "value"}, embedding=None)
+        row = document_store._to_row(doc)
 
-        with pytest.raises(ValueError, match="must include a 'field' key"):
-            document_store.filter_documents({"operator": "==", "value": "python"})
+        assert row[0] == "1"  # id
+        assert row[1] == "test"  # content
+        assert '"key"' in row[2]  # meta JSON
+        assert row[3] is None  # embedding should be None
 
+    def test_build_where_clause_empty_filters(self, document_store):
+        """Test _build_where_clause with empty filters."""
+        where_clause, params = document_store._build_where_clause({})
+        assert where_clause == ""
+        assert params == []
 
-@pytest.mark.integration
-class TestDb2DocumentStoreConnection:
-    """Test connection handling."""
+    def test_write_documents_invalid_type(self, document_store):
+        """Test write_documents with invalid type."""
+        with pytest.raises(ValueError, match="Expected a list of Document objects"):
+            document_store.write_documents("not a list")
 
-    def test_connection_reuse(self, document_store, sample_documents):
-        """Test that connection is reused across operations."""
-        # Perform multiple operations
-        document_store.write_documents(sample_documents)
-        count1 = document_store.count_documents()
-        docs = document_store.filter_documents()
-        count2 = document_store.count_documents()
+    def test_write_documents_invalid_document_type(self, document_store):
+        """Test write_documents with invalid document type in list."""
+        with pytest.raises(ValueError, match="Expected Document objects"):
+            document_store.write_documents([{"id": "1", "content": "test"}])
 
-        assert count1 == count2 == 3
-        assert len(docs) == 3
+    def test_write_documents_unsupported_policy(self, document_store):
+        """Test write_documents with unsupported duplicate policy."""
+        doc = Document(id="1", content="test", embedding=[0.1] * 768)
 
-        # Connection should be the same instance
-        conn1 = document_store._get_connection()
-        conn2 = document_store._get_connection()
-        assert conn1 is conn2
-
-    def test_multiple_document_stores_same_table(self):
-        """Test multiple document store instances accessing same table."""
-        # Use a different table name for this test to avoid conflicts with main fixture
-        shared_table = f"shared_table_{sys.version_info.major}_{sys.version_info.minor}"
-
-        # Create first store and write data
-        store1 = Db2DocumentStore(
-            connection_config=DB2_CONFIG,
-            table_name="shared_table",
-            embedding_dim=384,
-            recreate_table=True,
-        )
-
-        doc1 = Document(id="shared1", content="First document", embedding=[0.1] * 384)
-        store1.write_documents([doc1])
-
-        # Create second store accessing same table
-        store2 = Db2DocumentStore(
-            connection_config=DB2_CONFIG,
-            table_name="shared_table",
-            embedding_dim=384,
-            recreate_table=False,
-        )
-
-        # Both should see the same data
-        assert store1.count_documents() == 1
-        assert store2.count_documents() == 1
-
-        # Write from second store
-        doc2 = Document(id="shared2", content="Second document", embedding=[0.2] * 384)
-        store2.write_documents([doc2])
-
-        # Both should see updated data
-        assert store1.count_documents() == 2
-        assert store2.count_documents() == 2
-
-        # Cleanup
-        try:
-            conn = store1._get_connection()
-            with conn.cursor() as cur:
-                cur.execute(f"DROP TABLE {shared_table}")
-                conn.commit()
-        except Exception:
+        # Create a mock unsupported policy
+        class UnsupportedPolicy:
             pass
 
+        with pytest.raises(ValueError, match="Unsupported duplicate policy"):
+            document_store.write_documents([doc], policy=UnsupportedPolicy())
 
-# Made with Bob
+    def test_row_to_document_with_none_values(self):
+        """Test _row_to_document with None values."""
+        # Test with None content and meta
+        row = ("doc_id", None, None, None)
+        doc = _row_to_document(row)
+
+        assert doc.id == "doc_id"
+        assert doc.content is None
+        assert doc.meta == {}
+        assert doc.embedding is None
+
+    def test_row_to_document_with_valid_embedding(self):
+        """Test _row_to_document with valid embedding."""
+        # Test with valid embedding (as tuple/list)
+        embedding_data = [0.1, 0.2, 0.3]
+        row = ("doc_id", "content", '{"key": "value"}', embedding_data)
+        doc = _row_to_document(row)
+
+        assert doc.id == "doc_id"
+        assert doc.content == "content"
+        assert doc.meta == {"key": "value"}
+        assert doc.embedding == [0.1, 0.2, 0.3]

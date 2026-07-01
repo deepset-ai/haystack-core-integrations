@@ -13,6 +13,7 @@ services:
 
     ports:
       - "50000:50000"
+      - "50001:50001"
 
     volumes:
       - db2data:/database
