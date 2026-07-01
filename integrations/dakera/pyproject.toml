@@ -1,0 +1,48 @@
+[build-system]
+requires = ["hatchling", "hatch-vcs"]
+build-backend = "hatchling.build"
+
+[project]
+name = "dakera-haystack"
+dynamic = ["version"]
+description = "Haystack integration for Dakera — self-hosted persistent vector memory"
+readme = "README.md"
+requires-python = ">=3.10"
+license = "Apache-2.0"
+keywords = ["haystack", "dakera", "memory", "agents", "llm", "self-hosted"]
+authors = [{ name = "Dakera AI", email = "hello@dakera.ai" }]
+classifiers = [
+  "License :: OSI Approved :: Apache Software License",
+  "Development Status :: 4 - Beta",
+  "Programming Language :: Python",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Programming Language :: Python :: Implementation :: CPython",
+]
+dependencies = ["haystack-ai>=2.19.0", "httpx>=0.27.0"]
+
+[project.urls]
+Documentation = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/dakera#readme"
+Issues = "https://github.com/deepset-ai/haystack-core-integrations/issues"
+Source = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/dakera"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/haystack_integrations"]
+
+[tool.hatch.version]
+source = "vcs"
+tag-pattern = 'integrations\/dakera-v(?P<version>.*)'
+
+[tool.hatch.version.raw-options]
+version_scheme = "no-guess-dev"
+local_scheme = "no-local-version"
+fallback_version = "0.0.1"
+
+[tool.hatch.envs.default]
+dependencies = ["pytest", "pytest-asyncio", "respx"]
+
+[tool.hatch.envs.default.scripts]
+test = "pytest tests/"
+lint = ["ruff check . --fix", "ruff format ."]
