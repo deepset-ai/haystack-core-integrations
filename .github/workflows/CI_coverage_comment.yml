@@ -35,6 +35,7 @@ on:
       - "Test / google_drive"
       - "Test / hanlp"
       - "Test / huggingface_api"
+      - "Test / iflytek"
       - "Test / jina"
       - "Test / kreuzberg"
       - "Test / langdetect"
