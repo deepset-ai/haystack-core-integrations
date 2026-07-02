@@ -23,7 +23,7 @@ classifiers = [
   "Programming Language :: Python :: Implementation :: PyPy",
 ]
 # fastapi temporarily pinned due to https://github.com/vllm-project/vllm/issues/45596
-dependencies = ["haystack-ai>=2.30.0", "openai", "more_itertools>=9.0.0", "tqdm>=4.48.0", "fastapi<0.137"]
+dependencies = ["haystack-ai @ git+https://github.com/deepset-ai/haystack.git@v3", "openai", "more_itertools>=9.0.0", "tqdm>=4.48.0", "fastapi<0.137"]
 
 [project.urls]
 Documentation = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/vllm#readme"
@@ -32,6 +32,9 @@ Source = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/int
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/haystack_integrations"]
+
+[tool.hatch.metadata]
+allow-direct-references = true
 
 [tool.hatch.version]
 source = "vcs"
@@ -64,7 +67,7 @@ dependencies = [
 unit = 'pytest -m "not integration" {args:tests}'
 integration = 'pytest -m "integration" {args:tests}'
 all = 'pytest {args:tests}'
-unit-cov-retry = 'pytest --cov=haystack_integrations --reruns 3 --reruns-delay 30 -x -m "not integration" {args:tests}'
+unit-cov-retry = 'pytest --cov=haystack_integrations -m "not integration" {args:tests}'
 integration-cov-append-retry = 'pytest --cov=haystack_integrations --cov-append --reruns 3 --reruns-delay 30 -x -m "integration" {args:tests}'
 types = "mypy -p haystack_integrations.components.generators.vllm -p haystack_integrations.components.embedders.vllm -p haystack_integrations.components.rankers.vllm -p haystack_integrations.common.vllm {args}"
 

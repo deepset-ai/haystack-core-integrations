@@ -23,7 +23,7 @@ classifiers = [
   "Programming Language :: Python :: Implementation :: PyPy",
 ]
 dependencies = [
-  "haystack-ai>=2.22.0",
+  "haystack-ai @ git+https://github.com/deepset-ai/haystack.git@v3",
   "paddleocr>=3.7.0",
 ]
 
@@ -34,6 +34,9 @@ Source = "https://github.com/haystack-core-integrations/tree/main/integrations/p
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/haystack_integrations"]
+
+[tool.hatch.metadata]
+allow-direct-references = true
 
 [tool.hatch.version]
 source = "vcs"
@@ -67,7 +70,7 @@ dependencies = [
 unit = 'pytest -m "not integration" {args:tests}'
 integration = 'pytest -m "integration" {args:tests}'
 all = 'pytest {args:tests}'
-unit-cov-retry = 'pytest --cov=haystack_integrations --reruns 3 --reruns-delay 30 -x -m "not integration" {args:tests}'
+unit-cov-retry = 'pytest --cov=haystack_integrations -m "not integration" {args:tests}'
 integration-cov-append-retry = 'pytest --cov=haystack_integrations --cov-append --reruns 3 --reruns-delay 30 -x -m "integration" {args:tests}'
 types = "mypy -p haystack_integrations.components.converters.paddleocr {args}"
 
