@@ -1,5 +1,12 @@
 # Changelog
 
+## [unreleased]
+
+### 🧹 Chores
+
+- Add none option to adaptive_thinking_effort (#3527)
+
+
 ## [integrations/anthropic-v5.12.0] - 2026-07-02
 
 ### 🚀 Features
