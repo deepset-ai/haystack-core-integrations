@@ -712,7 +712,7 @@ async def test_sparse_vector_retrieval_async_builds_query_with_filters():
 @patch("haystack_integrations.document_stores.elasticsearch.document_store.AsyncElasticsearch")
 @patch("haystack_integrations.document_stores.elasticsearch.document_store.Elasticsearch")
 def test_close_calls_client_close(_mock_es, _mock_async_es):
-    """close() must call close() on both sync and async clients."""
+    """close() must call close() on the sync client; async client is closed via aclose()."""
     mock_sync = Mock()
     mock_sync.info.return_value = {}
     mock_sync.indices.exists.return_value = True
@@ -727,7 +727,7 @@ def test_close_calls_client_close(_mock_es, _mock_async_es):
     store.close()
 
     mock_sync.close.assert_called_once()
-    mock_async.close.assert_called_once()
+    mock_async.close.assert_not_called()
 
 
 @patch("haystack_integrations.document_stores.elasticsearch.document_store.AsyncElasticsearch")

@@ -308,15 +308,13 @@ class ElasticsearchDocumentStore:
 
     def close(self) -> None:
         """
-        Close the synchronous and asynchronous Elasticsearch clients and release their HTTP connection pools.
+        Close the synchronous Elasticsearch client and release its HTTP connection pool.
 
         Call this when the document store is no longer needed to avoid resource leaks. Has no effect if the
-        clients have not been initialized yet.
+        client has not been initialized yet. In async contexts, use :meth:`aclose` instead.
         """
         if self._client is not None:
             self._client.close()
-        if self._async_client is not None:
-            self._async_client.close()
 
     async def aclose(self) -> None:
         """
