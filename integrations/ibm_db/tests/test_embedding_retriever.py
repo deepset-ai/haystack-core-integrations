@@ -5,7 +5,7 @@
 """Integration tests for Db2EmbeddingRetriever using live DB2 instance."""
 
 import sys
-from unittest.mock import AsyncMock, Mock, patch
+from unittest.mock import AsyncMock, Mock
 
 import pytest
 from haystack.dataclasses import Document
@@ -164,4 +164,3 @@ class TestDb2EmbeddingRetrieverRun:
         result = await retriever.run_async(query_embedding=[0.1, 0.2, 0.3, 0.4])
         assert result == {"documents": expected}
         mock_store._embedding_retrieval_async.assert_awaited_once()
-
