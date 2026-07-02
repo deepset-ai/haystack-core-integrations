@@ -8,7 +8,7 @@ class GoogleDriveError(Exception):
 
 
 class GoogleDriveConfigError(GoogleDriveError):
-    """Raised when the Google Drive retriever is misconfigured."""
+    """Raised when a Google Drive component is misconfigured."""
 
 
 class GoogleDriveRequestError(GoogleDriveError):

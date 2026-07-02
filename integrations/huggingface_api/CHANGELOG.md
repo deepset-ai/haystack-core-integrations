@@ -1,5 +1,20 @@
 # Changelog
 
+## [integrations/huggingface_api-v0.3.0] - 2026-06-26
+
+### 🐛 Bug Fixes
+
+- Validate top_k in HuggingFaceTEIRanker (#3503)
+
+### 🧪 Testing
+
+- Improve del_hf_env_vars fixture (#3428)
+
+### 🧹 Chores
+
+- Improve consistency of integrations folder structure (#3430)
+
+
 ## [integrations/huggingface_api-v0.2.0] - 2026-06-05
 
 ### 🚀 Features

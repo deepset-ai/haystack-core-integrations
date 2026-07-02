@@ -238,6 +238,7 @@ class TestAmazonBedrockChatGenerator:
                     "guardrailVersion": "test",
                 },
                 "tools_cachepoint_config": None,
+                "system_cachepoint_config": None,
             },
         }
 
@@ -428,6 +429,7 @@ class TestAmazonBedrockChatGenerator:
                         ],
                         "guardrail_config": None,
                         "tools_cachepoint_config": None,
+                        "system_cachepoint_config": None,
                     },
                 }
             },
@@ -465,6 +467,21 @@ class TestAmazonBedrockChatGenerator:
             "guardrailIdentifier": "test",
             "guardrailVersion": "test",
         }
+
+    def test_constructor_with_system_cachepoint_config(self, mock_boto3_session):
+        generator = AmazonBedrockChatGenerator(
+            model="global.anthropic.claude-sonnet-4-6",
+            system_cachepoint_config={"type": "default"},
+        )
+        assert generator.system_cachepoint_config == {"cachePoint": {"type": "default"}}
+
+    def test_to_dict_with_system_cachepoint_config(self, mock_boto3_session):
+        generator = AmazonBedrockChatGenerator(
+            model="global.anthropic.claude-sonnet-4-6",
+            system_cachepoint_config={"type": "default"},
+        )
+        serialized = generator.to_dict()
+        assert serialized["init_parameters"]["system_cachepoint_config"] == {"cachePoint": {"type": "default"}}
 
     def test_prepare_request_params_response_format(self, mock_boto3_session, set_env_variables):
         generator = AmazonBedrockChatGenerator(model="global.anthropic.claude-sonnet-4-6")
@@ -659,6 +676,22 @@ class TestAmazonBedrockChatGenerator:
                     "output_config": {"effort": "max"},
                 },
             ),
+            (
+                {
+                    "adaptive_thinking_effort": "disabled",
+                },
+                {
+                    "thinking": {"type": "disabled"},
+                },
+            ),
+            (
+                {
+                    "adaptive_thinking_effort": "none",
+                },
+                {
+                    "thinking": {"type": "disabled"},
+                },
+            ),
         ],
     )
     def test_prepare_request_params_with_flattened_generation_kwargs(
@@ -727,6 +760,27 @@ class TestAmazonBedrockChatGenerator:
             AmazonBedrockChatGenerator._resolve_flattened_generation_kwargs(
                 {"disable_parallel_tool_use": True, "parallel_tool_use": True}
             )
+
+    def test_resolve_flattened_kwargs_cachepoint_ttl(self):
+        result = AmazonBedrockChatGenerator._resolve_flattened_generation_kwargs(
+            {
+                "tools_cachepoint_config_ttl": "5m",
+                "system_cachepoint_config_ttl": "10m",
+            }
+        )
+        assert result["tools_cachepoint_config"] == {"type": "default", "ttl": "5m"}
+        assert result["system_cachepoint_config"] == {"type": "default", "ttl": "10m"}
+        assert "tools_cachepoint_config_ttl" not in result
+        assert "system_cachepoint_config_ttl" not in result
+
+    def test_resolve_flattened_kwargs_cachepoint_ttl_preserves_existing_type(self):
+        result = AmazonBedrockChatGenerator._resolve_flattened_generation_kwargs(
+            {
+                "system_cachepoint_config": {"type": "custom"},
+                "system_cachepoint_config_ttl": "5m",
+            }
+        )
+        assert result["system_cachepoint_config"] == {"type": "custom", "ttl": "5m"}
 
     def test_run_completion(self, mock_boto3_session, set_env_variables):
         generator = AmazonBedrockChatGenerator(model="global.anthropic.claude-sonnet-4-6")

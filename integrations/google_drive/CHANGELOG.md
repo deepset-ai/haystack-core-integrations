@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/google_drive-v1.1.0] - 2026-06-25
+
+### 🚀 Features
+
+- *(google_drive)* Add Google Drive fetcher (#3488)
+
+
 ## [integrations/google_drive-v1.0.0] - 2026-06-23
 
 ### 🚀 Features
