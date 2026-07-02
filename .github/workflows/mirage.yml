@@ -54,6 +54,8 @@ jobs:
     permissions:
       contents: write
       pull-requests: write
+    env:
+      HAS_GOOGLE_DRIVE_SECRET: ${{ secrets.GOOGLE_DRIVE_SA_KEY != '' }}
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -106,7 +108,22 @@ jobs:
           name: coverage-comment-mirage
           path: python-coverage-comment-action-mirage.txt
 
+      # Mint a short-lived Drive access token for the live integration test. Runs only on the single
+      # OS/Python combo below and only when the `GOOGLE_DRIVE_SA_KEY` secret is present, so fork PRs
+      # (no secret access) and runs without the secret configured skip cleanly rather than failing.
+      # On any skipped run the token stays unset and `TestLiveGoogleDrive` skips itself.
+      - name: Authenticate to Google Cloud
+        id: gdrive_auth
+        if: env.HAS_GOOGLE_DRIVE_SECRET == 'true' && matrix.python-version == '3.14' && runner.os == 'Linux'
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3
+        with:
+          credentials_json: ${{ secrets.GOOGLE_DRIVE_SA_KEY }}
+          token_format: access_token
+          access_token_scopes: https://www.googleapis.com/auth/drive.readonly
+
       - name: Run integration tests
+        env:
+          GOOGLE_DRIVE_ACCESS_TOKEN: ${{ steps.gdrive_auth.outputs.access_token }}
         run: hatch run test:integration-cov-append-retry
 
       - name: Store combined coverage
