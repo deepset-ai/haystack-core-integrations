@@ -37,9 +37,7 @@ env:
   TEST_MATRIX_PYTHON: '["3.10", "3.14"]'
 
   AWS_REGION: "us-east-1"
-  AWS_BEDROCK_GUARDRAIL_ID: ${{ secrets.AWS_BEDROCK_GUARDRAIL_ID }}
   AWS_BEDROCK_GUARDRAIL_VERSION: "1"
-  S3_DOWNLOADER_BUCKET: ${{ secrets.S3_DOWNLOADER_BUCKET }}
 
 jobs:
   compute-test-matrix:
@@ -125,6 +123,9 @@ jobs:
 
       - name: Run integration tests
         if: success() && steps.aws-auth.outcome == 'success'
+        env:
+          AWS_BEDROCK_GUARDRAIL_ID: ${{ secrets.AWS_BEDROCK_GUARDRAIL_ID }}
+          S3_DOWNLOADER_BUCKET: ${{ secrets.S3_DOWNLOADER_BUCKET }}
         run: hatch run test:integration-cov-append-retry
 
       - name: Store combined coverage

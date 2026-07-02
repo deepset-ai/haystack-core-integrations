@@ -29,7 +29,6 @@ concurrency:
 env:
   PYTHONUNBUFFERED: "1"
   FORCE_COLOR: "1"
-  HF_TOKEN: ${{ secrets.HF_TOKEN }}
   TEST_MATRIX_OS: '["ubuntu-latest", "windows-latest", "macos-latest"]'
   TEST_MATRIX_PYTHON: '["3.10", "3.13"]'
 
@@ -106,6 +105,8 @@ jobs:
 
       - name: Run integration tests
         run: hatch run test:integration-cov-append-retry
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
 
       - name: Store combined coverage
         if: github.event_name == 'push'

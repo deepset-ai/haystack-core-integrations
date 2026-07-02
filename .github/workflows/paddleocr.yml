@@ -29,8 +29,6 @@ concurrency:
 env:
   PYTHONUNBUFFERED: "1"
   FORCE_COLOR: "1"
-  PADDLEOCR_ACCESS_TOKEN: ${{ secrets.PADDLEOCR_ACCESS_TOKEN }}
-  PADDLEOCR_BASE_URL: ${{ secrets.PADDLEOCR_BASE_URL }}
   TEST_MATRIX_OS: '["ubuntu-latest", "windows-latest", "macos-latest"]'
   TEST_MATRIX_PYTHON: '["3.10", "3.12"]'
 
@@ -107,6 +105,9 @@ jobs:
           path: python-coverage-comment-action-paddleocr.txt
 
       - name: Run integration tests
+        env:
+          PADDLEOCR_ACCESS_TOKEN: ${{ secrets.PADDLEOCR_ACCESS_TOKEN }}
+          PADDLEOCR_BASE_URL: ${{ secrets.PADDLEOCR_BASE_URL }}
         run: hatch run test:integration-cov-append-retry
 
       - name: Store combined coverage

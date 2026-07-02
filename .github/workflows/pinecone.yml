@@ -29,7 +29,6 @@ concurrency:
 env:
   PYTHONUNBUFFERED: "1"
   FORCE_COLOR: "1"
-  PINECONE_API_KEY: ${{ secrets.PINECONE_API_KEY }}
 
 jobs:
   compute-test-matrix:
@@ -107,6 +106,7 @@ jobs:
       - name: Run integration tests
         env:
           INDEX_NAME: ${{ matrix.INDEX_NAME }}
+          PINECONE_API_KEY: ${{ secrets.PINECONE_API_KEY }}
         run: hatch run test:integration-cov-append-retry
 
       - name: Store combined coverage
