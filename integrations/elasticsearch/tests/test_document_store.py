@@ -709,6 +709,51 @@ async def test_sparse_vector_retrieval_async_builds_query_with_filters():
     )
 
 
+@patch("haystack_integrations.document_stores.elasticsearch.document_store.AsyncElasticsearch")
+@patch("haystack_integrations.document_stores.elasticsearch.document_store.Elasticsearch")
+def test_close_calls_client_close(_mock_es, _mock_async_es):
+    """close() must call close() on the sync client; async client is closed via aclose()."""
+    mock_sync = Mock()
+    mock_sync.info.return_value = {}
+    mock_sync.indices.exists.return_value = True
+    _mock_es.return_value = mock_sync
+
+    mock_async = Mock()
+    _mock_async_es.return_value = mock_async
+
+    store = ElasticsearchDocumentStore(hosts="http://testhost:9200")
+    _ = store.client  # trigger initialization
+
+    store.close()
+
+    mock_sync.close.assert_called_once()
+    mock_async.close.assert_not_called()
+
+
+@patch("haystack_integrations.document_stores.elasticsearch.document_store.AsyncElasticsearch")
+@patch("haystack_integrations.document_stores.elasticsearch.document_store.Elasticsearch")
+def test_close_before_init_is_safe(_mock_es, _mock_async_es):
+    """close() before any initialization must not raise."""
+    store = ElasticsearchDocumentStore(hosts="http://testhost:9200")
+    store.close()  # clients are None — must not raise
+
+
+@patch("haystack_integrations.document_stores.elasticsearch.document_store.AsyncElasticsearch")
+@patch("haystack_integrations.document_stores.elasticsearch.document_store.Elasticsearch")
+def test_context_manager_calls_close(_mock_es, _mock_async_es):
+    """Using the store as a sync context manager must call close() on exit."""
+    mock_sync = Mock()
+    mock_sync.info.return_value = {}
+    mock_sync.indices.exists.return_value = True
+    _mock_es.return_value = mock_sync
+    _mock_async_es.return_value = Mock()
+
+    with ElasticsearchDocumentStore(hosts="http://testhost:9200") as store:
+        _ = store.client  # trigger initialization
+
+    mock_sync.close.assert_called_once()
+
+
 @pytest.mark.integration
 class TestDocumentStore(
     DocumentStoreBaseExtendedTests,
