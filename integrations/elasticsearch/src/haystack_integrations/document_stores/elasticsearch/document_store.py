@@ -306,6 +306,42 @@ class ElasticsearchDocumentStore:
         assert self._async_client is not None
         return self._async_client
 
+    def close(self) -> None:
+        """
+        Close the synchronous and asynchronous Elasticsearch clients and release their HTTP connection pools.
+
+        Call this when the document store is no longer needed to avoid resource leaks. Has no effect if the
+        clients have not been initialized yet.
+        """
+        if self._client is not None:
+            self._client.close()
+        if self._async_client is not None:
+            self._async_client.close()
+
+    async def aclose(self) -> None:
+        """
+        Asynchronously close the Elasticsearch clients and release their HTTP connection pools.
+
+        Prefer this over :meth:`close` in async contexts to avoid blocking the event loop.
+        Has no effect if the clients have not been initialized yet.
+        """
+        if self._client is not None:
+            self._client.close()
+        if self._async_client is not None:
+            await self._async_client.close()
+
+    def __enter__(self) -> "ElasticsearchDocumentStore":
+        return self
+
+    def __exit__(self, *args: object) -> None:
+        self.close()
+
+    async def __aenter__(self) -> "ElasticsearchDocumentStore":
+        return self
+
+    async def __aexit__(self, *args: object) -> None:
+        await self.aclose()
+
     def to_dict(self) -> dict[str, Any]:
         """
         Serializes the component to a dictionary.
