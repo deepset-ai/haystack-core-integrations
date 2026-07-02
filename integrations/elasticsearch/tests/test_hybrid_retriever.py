@@ -8,7 +8,7 @@ from unittest.mock import Mock, patch
 
 import pytest
 from haystack import Document, Pipeline
-from haystack.components.embedders import SentenceTransformersTextEmbedder
+from haystack.components.embedders import OpenAITextEmbedder
 from haystack.components.joiners.document_joiner import JoinMode
 from haystack.core.component import component
 from haystack.document_stores.types import FilterPolicy
@@ -25,93 +25,74 @@ class MockedTextEmbedder:
 
 
 class TestElasticsearchHybridRetriever:
-    serialised = {  # noqa: RUF012
-        "type": "haystack_integrations.components.retrievers.elasticsearch.elasticsearch_hybrid_retriever.ElasticsearchHybridRetriever",  # noqa: E501
-        "init_parameters": {
-            "document_store": {
-                "type": "haystack_integrations.document_stores.elasticsearch.document_store.ElasticsearchDocumentStore",
-                "init_parameters": {
-                    "hosts": None,
-                    "custom_mapping": None,
-                    "index": "default",
-                    "api_key": {"type": "env_var", "env_vars": ["ELASTIC_API_KEY"], "strict": False},
-                    "api_key_id": {"type": "env_var", "env_vars": ["ELASTIC_API_KEY_ID"], "strict": False},
-                    "embedding_similarity_function": "cosine",
-                    "sparse_vector_field": None,
-                    "ingest_pipeline": None,
+    @pytest.fixture(autouse=True)
+    def openai_api_key(self, monkeypatch):
+        # the serde tests build a real OpenAITextEmbedder; haystack-ai 2.x resolves the key at init
+        monkeypatch.setenv("OPENAI_API_KEY", "fake-key")
+
+    @pytest.fixture
+    def serialised(self):
+        return {
+            "type": "haystack_integrations.components.retrievers.elasticsearch.elasticsearch_hybrid_retriever.ElasticsearchHybridRetriever",  # noqa: E501
+            "init_parameters": {
+                "document_store": {
+                    "type": (
+                        "haystack_integrations.document_stores.elasticsearch.document_store.ElasticsearchDocumentStore"
+                    ),
+                    "init_parameters": {
+                        "hosts": None,
+                        "custom_mapping": None,
+                        "index": "default",
+                        "api_key": {"type": "env_var", "env_vars": ["ELASTIC_API_KEY"], "strict": False},
+                        "api_key_id": {"type": "env_var", "env_vars": ["ELASTIC_API_KEY_ID"], "strict": False},
+                        "embedding_similarity_function": "cosine",
+                        "sparse_vector_field": None,
+                        "ingest_pipeline": None,
+                    },
                 },
+                # serialize the embedder with the installed haystack-ai version so the expected fields match it
+                "embedder": OpenAITextEmbedder().to_dict(),
+                "filters_bm25": None,
+                "fuzziness": "AUTO",
+                "top_k_bm25": 10,
+                "scale_score": False,
+                "filter_policy_bm25": "replace",
+                "filters_embedding": None,
+                "top_k_embedding": 10,
+                "num_candidates": None,
+                "filter_policy_embedding": "replace",
+                "join_mode": "reciprocal_rank_fusion",
+                "weights": None,
+                "top_k": None,
+                "sort_by_score": True,
             },
-            "embedder": {
-                "type": "haystack.components.embedders.sentence_transformers_text_embedder.SentenceTransformersTextEmbedder",  # noqa: E501
-                "init_parameters": {
-                    "model": "sentence-transformers/all-mpnet-base-v2",
-                    "token": {"type": "env_var", "env_vars": ["HF_API_TOKEN", "HF_TOKEN"], "strict": False},
-                    "prefix": "",
-                    "suffix": "",
-                    "local_files_only": False,
-                    "batch_size": 32,
-                    "progress_bar": True,
-                    "normalize_embeddings": False,
-                    "trust_remote_code": False,
-                    "truncate_dim": None,
-                    "model_kwargs": None,
-                    "tokenizer_kwargs": None,
-                    "config_kwargs": None,
-                    "precision": "float32",
-                    "encode_kwargs": None,
-                    "backend": "torch",
-                },
-            },
-            "filters_bm25": None,
-            "fuzziness": "AUTO",
-            "top_k_bm25": 10,
-            "scale_score": False,
-            "filter_policy_bm25": "replace",
-            "filters_embedding": None,
-            "top_k_embedding": 10,
-            "num_candidates": None,
-            "filter_policy_embedding": "replace",
-            "join_mode": "reciprocal_rank_fusion",
-            "weights": None,
-            "top_k": None,
-            "sort_by_score": True,
-        },
-    }
+        }
 
     @pytest.fixture
     def mock_embedder(self):
         return MockedTextEmbedder()
 
     @patch("haystack_integrations.document_stores.elasticsearch.document_store.Elasticsearch")
-    def test_to_dict(self, _mock_elasticsearch_client) -> None:
+    def test_to_dict(self, _mock_elasticsearch_client, serialised) -> None:
         doc_store = ElasticsearchDocumentStore()
-        embedder = SentenceTransformersTextEmbedder()  # we use actual embedder here for the de/serialization
+        embedder = OpenAITextEmbedder()  # we use actual embedder here for the de/serialization
         hybrid_retriever = ElasticsearchHybridRetriever(document_store=doc_store, embedder=embedder)
         result = hybrid_retriever.to_dict()
 
-        result["init_parameters"]["embedder"]["init_parameters"].pop("device", None)
-
-        expected = deepcopy(self.serialised)
-        # revision was added in Haystack 2.20.0; include it in expected if present in result
-        if "revision" in result["init_parameters"]["embedder"]["init_parameters"]:
-            expected["init_parameters"]["embedder"]["init_parameters"]["revision"] = None
-
-        assert result == expected
+        assert result == serialised
 
     @patch("haystack_integrations.document_stores.elasticsearch.document_store.Elasticsearch")
-    def test_from_dict(self, _mock_elasticsearch_client):
-        data = deepcopy(self.serialised)
+    def test_from_dict(self, _mock_elasticsearch_client, serialised):
+        data = deepcopy(serialised)
         deserialized = ElasticsearchHybridRetriever.from_dict(data)
         assert isinstance(deserialized, ElasticsearchHybridRetriever)
         result = deserialized.to_dict()
-        result["init_parameters"]["embedder"]["init_parameters"].pop("device", None)
-        result["init_parameters"]["embedder"]["init_parameters"].pop("revision", None)
-        assert result == self.serialised
+        assert result == serialised
 
     @patch("haystack_integrations.document_stores.elasticsearch.document_store.Elasticsearch")
     def test_to_dict_with_extra_args(self, _mock_elasticsearch_client):
         doc_store = ElasticsearchDocumentStore()
-        embedder = SentenceTransformersTextEmbedder()
+        embedder = OpenAITextEmbedder()
         hybrid_retriever = ElasticsearchHybridRetriever(
             document_store=doc_store,
             embedder=embedder,
@@ -132,7 +113,7 @@ class TestElasticsearchHybridRetriever:
     @patch("haystack_integrations.document_stores.elasticsearch.document_store.Elasticsearch")
     def test_from_dict_with_extra_args(self, _mock_elasticsearch_client):
         doc_store = ElasticsearchDocumentStore()
-        embedder = SentenceTransformersTextEmbedder()
+        embedder = OpenAITextEmbedder()
         hybrid_retriever = ElasticsearchHybridRetriever(
             document_store=doc_store,
             embedder=embedder,
@@ -154,7 +135,7 @@ class TestElasticsearchHybridRetriever:
     @patch("haystack_integrations.document_stores.elasticsearch.document_store.Elasticsearch")
     def test_to_dict_with_enum_filter_policies(self, _mock_elasticsearch_client):
         doc_store = ElasticsearchDocumentStore()
-        embedder = SentenceTransformersTextEmbedder()
+        embedder = OpenAITextEmbedder()
         hybrid_retriever = ElasticsearchHybridRetriever(
             document_store=doc_store,
             embedder=embedder,
@@ -169,7 +150,7 @@ class TestElasticsearchHybridRetriever:
     @patch("haystack_integrations.document_stores.elasticsearch.document_store.Elasticsearch")
     def test_to_dict_with_enum_join_mode(self, _mock_elasticsearch_client):
         doc_store = ElasticsearchDocumentStore()
-        embedder = SentenceTransformersTextEmbedder()
+        embedder = OpenAITextEmbedder()
         hybrid_retriever = ElasticsearchHybridRetriever(
             document_store=doc_store,
             embedder=embedder,
