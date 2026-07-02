@@ -83,9 +83,13 @@ def mock_async_chat_completion():
 
 
 class TestTogetherAIChatGeneratorAsync:
-    def test_init_default_async(self, monkeypatch):
+    @pytest.mark.asyncio
+    async def test_init_default_async(self, monkeypatch):
         monkeypatch.setenv("TOGETHER_API_KEY", "test-api-key")
         component = TogetherAIChatGenerator()
+        if hasattr(component, "warm_up_async"):
+            # haystack-ai >= 3.0 creates the async client during async warm-up
+            await component.warm_up_async()
 
         assert isinstance(component.async_client, AsyncOpenAI)
         assert component.async_client.api_key == "test-api-key"

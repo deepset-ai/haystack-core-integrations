@@ -63,6 +63,7 @@ class TestPerplexityChatGenerator:
 
         component = PerplexityChatGenerator()
 
+        component.warm_up()  # with haystack-ai >= 3.0 the client is created during warm-up
         assert component.client.api_key == "test-api-key"
         assert component.model == "openai/gpt-5.4"
         assert component.api_base_url == "https://api.perplexity.ai/v1"
@@ -84,6 +85,7 @@ class TestPerplexityChatGenerator:
             http_client_kwargs={"proxy": "http://localhost:8080"},
         )
 
+        component.warm_up()  # with haystack-ai >= 3.0 the client is created during warm-up
         assert component.client.api_key == "test-api-key"
         assert component.model == "anthropic/claude-sonnet-4-6"
         assert component.streaming_callback is print_streaming_chunk
@@ -193,11 +195,16 @@ class TestPerplexityChatGenerator:
         assert "messages" not in call_kwargs
         assert call_kwargs["stream"] is False
 
-    def test_default_headers_include_perplexity_attribution(self):
+    @pytest.mark.asyncio
+    async def test_default_headers_include_perplexity_attribution(self):
         component = PerplexityChatGenerator(
             api_key=Secret.from_token("test-api-key"),
             extra_headers={"test-header": "test-value"},
         )
+
+        # with haystack-ai >= 3.0 the clients are created during warm-up
+        component.warm_up()
+        await component.warm_up_async()
 
         assert component.client.default_headers["X-Pplx-Integration"].startswith("haystack/")
         assert component.client.default_headers["test-header"] == "test-value"

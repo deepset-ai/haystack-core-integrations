@@ -133,6 +133,7 @@ class TestMistralChatGenerator:
     def test_init_default(self, monkeypatch):
         monkeypatch.setenv("MISTRAL_API_KEY", "test-api-key")
         component = MistralChatGenerator()
+        component.warm_up()  # with haystack-ai >= 3.0 the client is created during warm-up
         assert component.client.api_key == "test-api-key"
         assert component.model == "mistral-small-latest"
         assert component.api_base_url == "https://api.mistral.ai/v1"
@@ -142,7 +143,9 @@ class TestMistralChatGenerator:
     def test_init_fail_wo_api_key(self, monkeypatch):
         monkeypatch.delenv("MISTRAL_API_KEY", raising=False)
         with pytest.raises(ValueError, match=r"None of the .* environment variables are set"):
-            MistralChatGenerator()
+            # haystack-ai 2.x raises at init; haystack-ai >= 3.0 raises when the client is created in warm_up
+            component = MistralChatGenerator()
+            component.warm_up()
 
     def test_init_with_parameters(self):
         component = MistralChatGenerator(
@@ -152,6 +155,7 @@ class TestMistralChatGenerator:
             api_base_url="test-base-url",
             generation_kwargs={"max_tokens": 10, "some_test_param": "test-params"},
         )
+        component.warm_up()  # with haystack-ai >= 3.0 the client is created during warm-up
         assert component.client.api_key == "test-api-key"
         assert component.model == "mistral-small"
         assert component.streaming_callback is print_streaming_chunk
@@ -269,7 +273,9 @@ class TestMistralChatGenerator:
             },
         }
         with pytest.raises(ValueError, match=r"None of the .* environment variables are set"):
-            MistralChatGenerator.from_dict(data)
+            # haystack-ai 2.x raises at init; haystack-ai >= 3.0 raises when the client is created in warm_up
+            component = MistralChatGenerator.from_dict(data)
+            component.warm_up()
 
     def test_init_with_mixed_tools(self, monkeypatch):
         monkeypatch.setenv("MISTRAL_API_KEY", "test-api-key")

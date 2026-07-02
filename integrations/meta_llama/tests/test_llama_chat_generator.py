@@ -113,6 +113,7 @@ class TestLlamaChatGenerator:
     def test_init_default(self, monkeypatch):
         monkeypatch.setenv("LLAMA_API_KEY", "test-api-key")
         component = MetaLlamaChatGenerator()
+        component.warm_up()  # with haystack-ai >= 3.0 the client is created during warm-up
         assert component.client.api_key == "test-api-key"
         assert component.model == "Llama-4-Scout-17B-16E-Instruct-FP8"
         assert component.api_base_url == "https://api.llama.com/compat/v1/"
@@ -124,7 +125,9 @@ class TestLlamaChatGenerator:
     def test_init_fail_wo_api_key(self, monkeypatch):
         monkeypatch.delenv("LLAMA_API_KEY", raising=False)
         with pytest.raises(ValueError, match=r"None of the .* environment variables are set"):
-            MetaLlamaChatGenerator()
+            # haystack-ai 2.x raises at init; haystack-ai >= 3.0 raises when the client is created in warm_up
+            component = MetaLlamaChatGenerator()
+            component.warm_up()
 
     def test_init_with_parameters(self):
         component = MetaLlamaChatGenerator(
@@ -136,6 +139,7 @@ class TestLlamaChatGenerator:
             timeout=15.0,
             max_retries=3,
         )
+        component.warm_up()  # with haystack-ai >= 3.0 the client is created during warm-up
         assert component.client.api_key == "test-api-key"
         assert component.model == "Llama-4-Scout-17B-16E-Instruct-FP8"
         assert component.streaming_callback is print_streaming_chunk
@@ -289,7 +293,9 @@ class TestLlamaChatGenerator:
             },
         }
         with pytest.raises(ValueError, match=r"None of the .* environment variables are set"):
-            MetaLlamaChatGenerator.from_dict(data)
+            # haystack-ai 2.x raises at init; haystack-ai >= 3.0 raises when the client is created in warm_up
+            component = MetaLlamaChatGenerator.from_dict(data)
+            component.warm_up()
 
     def test_run(self, chat_messages, mock_chat_completion, monkeypatch):  # noqa: ARG002
         monkeypatch.setenv("LLAMA_API_KEY", "fake-api-key")

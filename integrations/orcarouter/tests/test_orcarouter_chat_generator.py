@@ -88,6 +88,7 @@ class TestOrcaRouterChatGenerator:
     def test_init_default(self, monkeypatch):
         monkeypatch.setenv("ORCAROUTER_API_KEY", "test-api-key")
         component = OrcaRouterChatGenerator()
+        component.warm_up()  # with haystack-ai >= 3.0 the client is created during warm-up
         assert component.client.api_key == "test-api-key"
         assert component.model == "openai/gpt-4o-mini"
         assert component.api_base_url == "https://api.orcarouter.ai/v1"
@@ -97,7 +98,9 @@ class TestOrcaRouterChatGenerator:
     def test_init_fail_wo_api_key(self, monkeypatch):
         monkeypatch.delenv("ORCAROUTER_API_KEY", raising=False)
         with pytest.raises(ValueError, match=r"None of the .* environment variables are set"):
-            OrcaRouterChatGenerator()
+            # haystack-ai 2.x raises at init; haystack-ai >= 3.0 raises when the client is created in warm_up
+            component = OrcaRouterChatGenerator()
+            component.warm_up()
 
     def test_init_with_parameters(self):
         component = OrcaRouterChatGenerator(
@@ -107,6 +110,7 @@ class TestOrcaRouterChatGenerator:
             api_base_url="test-base-url",
             generation_kwargs={"max_tokens": 10, "some_test_param": "test-params"},
         )
+        component.warm_up()  # with haystack-ai >= 3.0 the client is created during warm-up
         assert component.client.api_key == "test-api-key"
         assert component.model == "anthropic/claude-opus-4.8"
         assert component.streaming_callback is print_streaming_chunk
@@ -228,7 +232,9 @@ class TestOrcaRouterChatGenerator:
             },
         }
         with pytest.raises(ValueError, match=r"None of the .* environment variables are set"):
-            OrcaRouterChatGenerator.from_dict(data)
+            # haystack-ai 2.x raises at init; haystack-ai >= 3.0 raises when the client is created in warm_up
+            component = OrcaRouterChatGenerator.from_dict(data)
+            component.warm_up()
 
     def test_run(self, chat_messages, mock_chat_completion, monkeypatch):  # noqa: ARG002
         monkeypatch.setenv("ORCAROUTER_API_KEY", "fake-api-key")

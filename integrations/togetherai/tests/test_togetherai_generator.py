@@ -53,6 +53,7 @@ class TestTogetherAIGenerator:
     def test_init_default(self, monkeypatch):
         monkeypatch.setenv("TOGETHER_API_KEY", "test-api-key")
         component = TogetherAIGenerator()
+        component.warm_up()  # with haystack-ai >= 3.0 the client is created during warm-up
         assert component.client.api_key == "test-api-key"
         assert component.model == "meta-llama/Llama-3.3-70B-Instruct-Turbo"
         assert component.streaming_callback is None
@@ -63,7 +64,9 @@ class TestTogetherAIGenerator:
     def test_init_fail_wo_api_key(self, monkeypatch):
         monkeypatch.delenv("TOGETHER_API_KEY", raising=False)
         with pytest.raises(ValueError, match=r"None of the .* environment variables are set"):
-            TogetherAIGenerator()
+            # haystack-ai 2.x raises at init; haystack-ai >= 3.0 raises when the client is created in warm_up
+            component = TogetherAIGenerator()
+            component.warm_up()
 
     def test_init_with_parameters(self, monkeypatch):
         monkeypatch.setenv("OPENAI_TIMEOUT", "100")
@@ -77,6 +80,7 @@ class TestTogetherAIGenerator:
             timeout=40.0,
             max_retries=1,
         )
+        component.warm_up()  # with haystack-ai >= 3.0 the client is created during warm-up
         assert component.client.api_key == "test-api-key"
         assert component.model == "meta-llama/Llama-3.3-70B-Instruct-Turbo"
         assert component.streaming_callback is print_streaming_chunk
@@ -173,7 +177,9 @@ class TestTogetherAIGenerator:
             },
         }
         with pytest.raises(ValueError, match=r"None of the .* environment variables are set"):
-            TogetherAIGenerator.from_dict(data)
+            # haystack-ai 2.x raises at init; haystack-ai >= 3.0 raises when the client is created in warm_up
+            component = TogetherAIGenerator.from_dict(data)
+            component.warm_up()
 
     def test_run(self, mock_chat_completion):
         component = TogetherAIGenerator(api_key=Secret.from_token("test-api-key"))

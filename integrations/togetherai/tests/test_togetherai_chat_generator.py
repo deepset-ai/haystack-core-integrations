@@ -125,6 +125,7 @@ class TestTogetherAIChatGenerator:
     def test_init_default(self, monkeypatch):
         monkeypatch.setenv("ENV_VAR", "test-api-key")
         component = TogetherAIChatGenerator(api_key=Secret.from_env_var("ENV_VAR"))
+        component.warm_up()  # with haystack-ai >= 3.0 the client is created during warm-up
         assert component.client.api_key == "test-api-key"
         assert component.model == "meta-llama/Llama-3.3-70B-Instruct-Turbo"
         assert component.api_base_url == "https://api.together.xyz/v1"
@@ -134,7 +135,9 @@ class TestTogetherAIChatGenerator:
     def test_init_fail_wo_api_key(self, monkeypatch):
         monkeypatch.delenv("TOGETHER_API_KEY", raising=False)
         with pytest.raises(ValueError, match=r"None of the .* environment variables are set"):
-            TogetherAIChatGenerator()
+            # haystack-ai 2.x raises at init; haystack-ai >= 3.0 raises when the client is created in warm_up
+            component = TogetherAIChatGenerator()
+            component.warm_up()
 
     def test_init_with_parameters(self):
         component = TogetherAIChatGenerator(
@@ -144,6 +147,7 @@ class TestTogetherAIChatGenerator:
             api_base_url="test-base-url",
             generation_kwargs={"max_tokens": 10, "some_test_param": "test-params"},
         )
+        component.warm_up()  # with haystack-ai >= 3.0 the client is created during warm-up
         assert component.client.api_key == "test-api-key"
         assert component.model == "openai/gpt-oss-20b"
         assert component.streaming_callback is print_streaming_chunk
@@ -280,7 +284,9 @@ class TestTogetherAIChatGenerator:
             },
         }
         with pytest.raises(ValueError, match=r"None of the .* environment variables are set"):
-            TogetherAIChatGenerator.from_dict(data)
+            # haystack-ai 2.x raises at init; haystack-ai >= 3.0 raises when the client is created in warm_up
+            component = TogetherAIChatGenerator.from_dict(data)
+            component.warm_up()
 
     def test_run(self, chat_messages, mock_chat_completion, monkeypatch):  # noqa: ARG002
         monkeypatch.setenv("TOGETHER_API_KEY", "fake-api-key")

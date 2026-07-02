@@ -136,9 +136,35 @@ class PerplexityChatGenerator(OpenAIResponsesChatGenerator):
             http_client_kwargs=http_client_kwargs,
         )
 
+        # haystack-ai 2.x creates the clients eagerly in __init__; haystack-ai >= 3.0 defers to warm_up()
         default_headers = _perplexity_headers(extra_headers)
-        self.client = _with_default_headers(self.client, default_headers)
-        self.async_client = _with_default_headers(self.async_client, default_headers)
+        if self.client is not None:
+            self.client = _with_default_headers(self.client, default_headers)
+        if self.async_client is not None:
+            self.async_client = _with_default_headers(self.async_client, default_headers)
+
+    def warm_up(self) -> None:
+        """
+        Warm up the component and inject the Perplexity default headers into the synchronous client.
+        """
+        client_created_now = self.client is None
+        super(PerplexityChatGenerator, self).warm_up()  # noqa: UP008
+        if client_created_now and self.client is not None:
+            self.client = _with_default_headers(self.client, _perplexity_headers(self.extra_headers))
+
+    async def warm_up_async(self) -> None:
+        """
+        Warm up the component and inject the Perplexity default headers into the asynchronous client.
+        """
+        parent_warm_up_async = getattr(super(PerplexityChatGenerator, self), "warm_up_async", None)  # noqa: UP008
+        if parent_warm_up_async is None:
+            # haystack-ai 2.x has no warm_up_async and creates the async client eagerly in __init__
+            self.warm_up()
+            return
+        client_created_now = self.async_client is None
+        await parent_warm_up_async()
+        if client_created_now and self.async_client is not None:
+            self.async_client = _with_default_headers(self.async_client, _perplexity_headers(self.extra_headers))
 
     def to_dict(self) -> dict[str, Any]:
         """

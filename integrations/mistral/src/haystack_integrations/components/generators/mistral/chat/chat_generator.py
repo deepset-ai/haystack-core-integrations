@@ -357,8 +357,9 @@ class MistralChatGenerator(OpenAIChatGenerator):
             - `replies`: A list containing the generated responses as ChatMessage instances.
         """
         messages = _normalize_messages(messages)
-        if not self._is_warmed_up:
-            self.warm_up()
+        # warming up is idempotent on all supported haystack-ai versions; with haystack-ai >= 3.0 it also
+        # initializes the client
+        self.warm_up()
 
         if len(messages) == 0:
             return {"replies": []}
@@ -384,6 +385,7 @@ class MistralChatGenerator(OpenAIChatGenerator):
             tools_strict=tools_strict,
         )
         openai_endpoint = api_args.pop("openai_endpoint")
+        assert self.client is not None  # mypy: with haystack-ai >= 3.0 the client is built by warm_up above
 
         if streaming_callback is not None:
             chat_completion = getattr(self.client.chat.completions, openai_endpoint)(**api_args)
@@ -427,7 +429,10 @@ class MistralChatGenerator(OpenAIChatGenerator):
             - `replies`: A list containing the generated responses as ChatMessage instances.
         """
         messages = _normalize_messages(messages)
-        if not self._is_warmed_up:
+        if hasattr(self, "warm_up_async"):
+            # haystack-ai >= 3.0 initializes the async client on the running event loop
+            await self.warm_up_async()
+        else:
             self.warm_up()
 
         if len(messages) == 0:
@@ -454,6 +459,7 @@ class MistralChatGenerator(OpenAIChatGenerator):
             tools_strict=tools_strict,
         )
         openai_endpoint = api_args.pop("openai_endpoint")
+        assert self.async_client is not None  # mypy: with haystack-ai >= 3.0 the client is built by warm_up above
 
         if streaming_callback is not None:
             chat_completion = await getattr(self.async_client.chat.completions, openai_endpoint)(**api_args)

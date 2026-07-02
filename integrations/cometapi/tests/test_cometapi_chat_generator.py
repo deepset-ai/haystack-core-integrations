@@ -88,6 +88,7 @@ class TestCometAPIChatGenerator:
     def test_init_default(self, monkeypatch):
         monkeypatch.setenv("COMET_API_KEY", "test-api-key")
         component = CometAPIChatGenerator()
+        component.warm_up()  # with haystack-ai >= 3.0 the client is created during warm-up
         assert component.client.api_key == "test-api-key"
         assert component.model == "gpt-5-mini"
         assert component.api_base_url == "https://api.cometapi.com/v1"
@@ -97,7 +98,9 @@ class TestCometAPIChatGenerator:
     def test_init_fail_wo_api_key(self, monkeypatch):
         monkeypatch.delenv("COMET_API_KEY", raising=False)
         with pytest.raises(ValueError, match=r"None of the .* environment variables are set"):
-            CometAPIChatGenerator()
+            # haystack-ai 2.x raises at init; haystack-ai >= 3.0 raises when the client is created in warm_up
+            component = CometAPIChatGenerator()
+            component.warm_up()
 
     def test_init_with_parameters(self):
         component = CometAPIChatGenerator(
@@ -106,6 +109,7 @@ class TestCometAPIChatGenerator:
             streaming_callback=print_streaming_chunk,
             generation_kwargs={"max_tokens": 10, "some_test_param": "test-params"},
         )
+        component.warm_up()  # with haystack-ai >= 3.0 the client is created during warm-up
         assert component.client.api_key == "test-api-key"
         assert component.model == "gpt-5-mini"
         assert component.streaming_callback is print_streaming_chunk
@@ -210,7 +214,9 @@ class TestCometAPIChatGenerator:
             },
         }
         with pytest.raises(ValueError, match=r"None of the .* environment variables are set"):
-            CometAPIChatGenerator.from_dict(data)
+            # haystack-ai 2.x raises at init; haystack-ai >= 3.0 raises when the client is created in warm_up
+            component = CometAPIChatGenerator.from_dict(data)
+            component.warm_up()
 
     def test_run(self, chat_messages, mock_chat_completion, monkeypatch):
         monkeypatch.setenv("COMET_API_KEY", "fake-api-key")
