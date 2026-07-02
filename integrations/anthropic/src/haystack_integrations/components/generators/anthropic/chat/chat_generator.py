@@ -331,7 +331,6 @@ class AnthropicChatGenerator:
                 output_config = generation_kwargs.setdefault("output_config", {})
                 output_config["effort"] = adaptive_thinking_effort
 
-
         return generation_kwargs
 
     def _process_response(
