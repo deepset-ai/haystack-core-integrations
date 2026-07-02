@@ -1,5 +1,19 @@
 # Changelog
 
+## [unreleased]
+
+### 🧹 Chores
+
+- Add none option to adaptive_thinking_effort (#3527)
+
+
+## [integrations/anthropic-v5.12.0] - 2026-07-02
+
+### 🚀 Features
+
+- Support disabled thinking for Claude Sonnet 5 with flattened generation kwargs (#3526)
+
+
 ## [integrations/anthropic-v5.11.0] - 2026-06-16
 
 ### 🐛 Bug Fixes
