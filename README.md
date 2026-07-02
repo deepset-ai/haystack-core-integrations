@@ -4,12 +4,12 @@
 
 | Name                                                                                        |    Stmts |     Miss |   Branch |   BrPart |   Cover |   Missing |
 |-------------------------------------------------------------------------------------------- | -------: | -------: | -------: | -------: | ------: | --------: |
-| src/haystack\_integrations/components/generators/anthropic/chat/chat\_generator.py          |      165 |        7 |       60 |       10 |     92% |205, 270, 303-304, 358-\>361, 378-\>383, 380, 431-\>434, 435, 441-\>421, 451-\>456, 453 |
+| src/haystack\_integrations/components/generators/anthropic/chat/chat\_generator.py          |      167 |        7 |       62 |       10 |     93% |205, 270, 303-304, 361-\>364, 381-\>386, 383, 434-\>437, 438, 444-\>424, 454-\>459, 456 |
 | src/haystack\_integrations/components/generators/anthropic/chat/foundry\_chat\_generator.py |       81 |        6 |       22 |        9 |     85% |187, 192, 197, 202, 205, 233-\>235, 261-\>263, 306-\>308, 309 |
 | src/haystack\_integrations/components/generators/anthropic/chat/utils.py                    |      232 |       21 |      148 |       21 |     88% |120-\>129, 127-128, 201-\>194, 205-209, 210-\>203, 220-221, 225, 233, 253-\>252, 284-\>290, 285-\>287, 287-\>290, 313-314, 320-321, 383, 395-\>402, 447-455, 460-\>462, 463, 465, 482-483 |
 | src/haystack\_integrations/components/generators/anthropic/chat/vertex\_chat\_generator.py  |       43 |        0 |        6 |        1 |     98% | 188-\>191 |
 | src/haystack\_integrations/components/generators/anthropic/generator.py                     |       97 |        2 |       42 |        7 |     94% |117, 150-\>152, 176, 208-\>210, 219-\>221, 225-\>227, 232-\>201, 245-\>267 |
-| **TOTAL**                                                                                   |  **618** |   **36** |  **278** |   **48** | **90%** |           |
+| **TOTAL**                                                                                   |  **620** |   **36** |  **280** |   **48** | **90%** |           |
 
 
 ## Setup coverage badge
