@@ -270,20 +270,8 @@ class TestHuggingFaceAPIChatGenerator:
         assert init_params["token"] == {"env_vars": ["HF_API_TOKEN", "HF_TOKEN"], "strict": False, "type": "env_var"}
         assert init_params["generation_kwargs"] == {"temperature": 0.6, "stop": ["stop", "words"], "max_tokens": 512}
         assert init_params["streaming_callback"] is None
-        assert init_params["tools"] == [
-            {
-                "type": "haystack.tools.tool.Tool",
-                "data": {
-                    "description": "description",
-                    "function": "builtins.print",
-                    "inputs_from_state": None,
-                    "name": "name",
-                    "outputs_to_state": None,
-                    "outputs_to_string": None,
-                    "parameters": {"x": {"type": "string"}},
-                },
-            }
-        ]
+        # serialize the tool with the installed haystack-ai version so the expected fields match it
+        assert init_params["tools"] == [tool.to_dict()]
 
     def test_from_dict(self, mock_check_valid_model):
         tool = Tool(name="name", description="description", parameters={"x": {"type": "string"}}, function=print)
@@ -337,20 +325,8 @@ class TestHuggingFaceAPIChatGenerator:
                         "token": {"type": "env_var", "env_vars": ["ENV_VAR"], "strict": False},
                         "generation_kwargs": {"temperature": 0.6, "stop": ["stop", "words"], "max_tokens": 512},
                         "streaming_callback": None,
-                        "tools": [
-                            {
-                                "type": "haystack.tools.tool.Tool",
-                                "data": {
-                                    "inputs_from_state": None,
-                                    "name": "name",
-                                    "outputs_to_state": None,
-                                    "outputs_to_string": None,
-                                    "description": "description",
-                                    "parameters": {"x": {"type": "string"}},
-                                    "function": "builtins.print",
-                                },
-                            }
-                        ],
+                        # serialize the tool with the installed haystack-ai version so the expected fields match it
+                        "tools": [tool.to_dict()],
                     },
                 }
             },
@@ -1189,30 +1165,8 @@ class TestHuggingFaceAPIChatGenerator:
         )
         data = generator.to_dict()
 
-        expected_tools_data = {
-            "type": "haystack.tools.toolset.Toolset",
-            "data": {
-                "tools": [
-                    {
-                        "type": "haystack.tools.tool.Tool",
-                        "data": {
-                            "name": "weather",
-                            "description": "useful to determine the weather in a given location",
-                            "parameters": {
-                                "type": "object",
-                                "properties": {"city": {"type": "string"}},
-                                "required": ["city"],
-                            },
-                            "function": "tests.test_chat_generator.get_weather",
-                            "outputs_to_string": None,
-                            "inputs_from_state": None,
-                            "outputs_to_state": None,
-                        },
-                    }
-                ]
-            },
-        }
-        assert data["init_parameters"]["tools"] == expected_tools_data
+        # serialize the toolset with the installed haystack-ai version so the expected fields match it
+        assert data["init_parameters"]["tools"] == toolset.to_dict()
 
     def test_convert_tools_to_hfapi_tools(self):
         assert _convert_tools_to_hfapi_tools(None) is None

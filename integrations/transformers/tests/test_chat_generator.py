@@ -206,20 +206,8 @@ class TestTransformersChatGenerator:
         assert init_params["streaming_callback"] is None
         assert init_params["chat_template"] == "irrelevant"
         assert init_params["enable_thinking"] is True
-        assert init_params["tools"] == [
-            {
-                "type": "haystack.tools.tool.Tool",
-                "data": {
-                    "inputs_from_state": None,
-                    "name": "weather",
-                    "outputs_to_state": None,
-                    "outputs_to_string": None,
-                    "description": "useful to determine the weather in a given location",
-                    "parameters": {"type": "object", "properties": {"city": {"type": "string"}}, "required": ["city"]},
-                    "function": "tests.test_chat_generator.get_weather",
-                },
-            }
-        ]
+        # serialize the tools with the installed haystack-ai version so the expected fields match it
+        assert init_params["tools"] == [tool.to_dict() for tool in tools]
 
     def test_from_dict(self, model_info_mock, tools):
         generator = TransformersChatGenerator(
@@ -802,30 +790,8 @@ class TestTransformersChatGeneratorAsync:
         generator.pipeline = mock_pipeline_with_tokenizer
         data = generator.to_dict()
 
-        expected_tools_data = {
-            "type": "haystack.tools.toolset.Toolset",
-            "data": {
-                "tools": [
-                    {
-                        "type": "haystack.tools.tool.Tool",
-                        "data": {
-                            "name": "weather",
-                            "description": "useful to determine the weather in a given location",
-                            "parameters": {
-                                "type": "object",
-                                "properties": {"city": {"type": "string"}},
-                                "required": ["city"],
-                            },
-                            "function": "tests.test_chat_generator.get_weather",
-                            "outputs_to_string": None,
-                            "inputs_from_state": None,
-                            "outputs_to_state": None,
-                        },
-                    }
-                ]
-            },
-        }
-        assert data["init_parameters"]["tools"] == expected_tools_data
+        # serialize the toolset with the installed haystack-ai version so the expected fields match it
+        assert data["init_parameters"]["tools"] == toolset.to_dict()
 
     @pytest.mark.asyncio
     async def test_run_async_with_streaming_callback(self, model_info_mock, mock_pipeline_with_tokenizer):

@@ -218,24 +218,8 @@ class TestWatsonxChatGenerator:
                 "timeout": None,
                 "max_retries": None,
                 "streaming_callback": "haystack.components.generators.utils.print_streaming_chunk",
-                "tools": [
-                    {
-                        "data": {
-                            "description": "useful to determine the weather in a given location",
-                            "function": "tests.test_chat_generator.weather",
-                            "inputs_from_state": None,
-                            "name": "weather",
-                            "outputs_to_state": None,
-                            "outputs_to_string": None,
-                            "parameters": {
-                                "properties": {"city": {"type": "string"}},
-                                "required": ["city"],
-                                "type": "object",
-                            },
-                        },
-                        "type": "haystack.tools.tool.Tool",
-                    },
-                ],
+                # serialize the tools with the installed haystack-ai version so the expected fields match it
+                "tools": [tool.to_dict() for tool in tools],
             },
         }
         assert data == expected
