@@ -205,7 +205,10 @@ class PerplexityDocumentEmbedder(OpenAIDocumentEmbedder):
                 "encoding_format": self.encoding_format,
             }
 
-            assert self.client is not None  # mypy: with haystack-ai >= 3.0 the client is built by warm_up in run
+            # with haystack-ai >= 3.0 the client is Optional and built by warm_up in run
+            if self.client is None:
+                msg = "The client is not initialized. Call warm_up() before running the component."
+                raise RuntimeError(msg)
             try:
                 response = self.client.embeddings.create(**args)
             except APIError as exc:
@@ -250,7 +253,10 @@ class PerplexityDocumentEmbedder(OpenAIDocumentEmbedder):
                 "encoding_format": self.encoding_format,
             }
 
-            assert self.async_client is not None  # mypy: with haystack-ai >= 3.0 the client is built by warm_up in run
+            # with haystack-ai >= 3.0 the client is Optional and built by warm_up in run
+            if self.async_client is None:
+                msg = "The async client is not initialized. Call warm_up_async() before running the component."
+                raise RuntimeError(msg)
             try:
                 response = await self.async_client.embeddings.create(**args)
             except APIError as exc:
