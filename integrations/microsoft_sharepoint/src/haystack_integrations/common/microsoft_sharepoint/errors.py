@@ -8,11 +8,11 @@ class SharePointError(Exception):
 
 
 class SharePointConfigError(SharePointError):
-    """Raised when the SharePoint retriever is misconfigured."""
+    """Raised when a Microsoft SharePoint component is misconfigured."""
 
 
 class SharePointRequestError(SharePointError):
-    """Raised when a Microsoft Graph search request fails."""
+    """Raised when a Microsoft Graph request fails."""
 
     def __init__(self, message: str, status_code: int | None = None) -> None:
         super().__init__(message)

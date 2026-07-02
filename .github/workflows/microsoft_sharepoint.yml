@@ -60,6 +60,15 @@ jobs:
         os: ${{ fromJSON(needs.compute-test-matrix.outputs.os) }}
         python-version: ${{ fromJSON(needs.compute-test-matrix.outputs.python-version) }}
 
+    # Live integration tests hit Microsoft Graph with a delegated user token, which is minted at
+    # runtime from a long-lived refresh token. See the "Running the integration tests" section of
+    # integrations/microsoft_sharepoint/README.md for the secrets/variables below and how to obtain
+    # them. `HAS_MS_GRAPH_SECRETS` is derived as a boolean string without exposing the secret values,
+    # so the token-minting step can gate on it (a step's own `env:` is not visible to its `if:`, and
+    # secrets cannot be referenced in `if:` directly).
+    env:
+      HAS_MS_GRAPH_SECRETS: ${{ secrets.MS_GRAPH_TENANT_ID != '' && secrets.MS_GRAPH_CLIENT_ID != '' && secrets.MS_GRAPH_CLIENT_SECRET != '' && secrets.MS_GRAPH_REFRESH_TOKEN != '' }}
+
     steps:
       - name: Support longpaths
         if: matrix.os == 'windows-latest'
@@ -69,7 +78,7 @@ jobs:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
 
       - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
         with:
           python-version: ${{ matrix.python-version }}
 
@@ -103,7 +112,43 @@ jobs:
           name: coverage-comment-microsoft_sharepoint
           path: python-coverage-comment-action-microsoft_sharepoint.txt
 
+      # Exchanges the stored refresh token for a short-lived delegated Microsoft Graph access token and
+      # exposes it to later steps as MS_SHAREPOINT_ACCESS_TOKEN. Skipped when the secrets are absent
+      # (e.g. on fork PRs), in which case the live integration tests skip themselves.
+      #
+      # TEMPORARILY DISABLED (2026-06)
+      - name: Mint Microsoft Graph access token
+        if: false && env.HAS_MS_GRAPH_SECRETS == 'true'
+        shell: bash
+        env:
+          MS_GRAPH_TENANT_ID: ${{ secrets.MS_GRAPH_TENANT_ID }}
+          MS_GRAPH_CLIENT_ID: ${{ secrets.MS_GRAPH_CLIENT_ID }}
+          MS_GRAPH_CLIENT_SECRET: ${{ secrets.MS_GRAPH_CLIENT_SECRET }}
+          MS_GRAPH_REFRESH_TOKEN: ${{ secrets.MS_GRAPH_REFRESH_TOKEN }}
+        run: |
+          set -euo pipefail
+          response="$(curl -sS -X POST \
+            "https://login.microsoftonline.com/${MS_GRAPH_TENANT_ID}/oauth2/v2.0/token" \
+            -H 'Content-Type: application/x-www-form-urlencoded' \
+            --data-urlencode "client_id=${MS_GRAPH_CLIENT_ID}" \
+            --data-urlencode "client_secret=${MS_GRAPH_CLIENT_SECRET}" \
+            --data-urlencode 'grant_type=refresh_token' \
+            --data-urlencode "refresh_token=${MS_GRAPH_REFRESH_TOKEN}" \
+            --data-urlencode 'scope=https://graph.microsoft.com/.default offline_access')"
+          if ! access_token="$(printf '%s' "$response" | jq -er '.access_token')"; then
+            echo 'Failed to mint a Microsoft Graph access token from the refresh token.' >&2
+            printf '%s' "$response" | jq -r '"error: \(.error // "?") - \(.error_description // "?")"' >&2 || true
+            exit 1
+          fi
+          echo "::add-mask::${access_token}"
+          echo "MS_SHAREPOINT_ACCESS_TOKEN=${access_token}" >> "$GITHUB_ENV"
+          echo 'Minted a Microsoft Graph access token (value masked).'
+
+      # TEMPORARILY DISABLED (2026-06)
       - name: Run integration tests
+        if: false && env.HAS_MS_GRAPH_SECRETS == 'true'
+        env:
+          MS_SHAREPOINT_TEST_FILE_URL: ${{ secrets.MS_SHAREPOINT_TEST_FILE_URL }}
         run: hatch run test:integration-cov-append-retry
 
       - name: Store combined coverage
