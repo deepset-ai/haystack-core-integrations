@@ -748,6 +748,73 @@ class TestLangfuseTracer:
         assert "search_tool (x2)" in updated_name, f"Expected 'search_tool (x2)' in {updated_name}"
         assert "weather_tool" in updated_name, f"Expected 'weather_tool' in {updated_name}"
 
+    def test_handle_tool_invoker_input_output_with_content_tracing(self):
+        """
+        Test that ToolInvoker spans replace the noisy full-message input with just tool call
+        arguments, and populate output with tool results, when content tracing is enabled.
+        """
+        mock_span = Mock()
+        mock_span.raw_span.return_value = mock_span
+
+        tool_call = ToolCall(tool_name="search_tool", arguments={"query": "RAG pipelines"})
+
+        span_data = {
+            "haystack.component.name": "tool_invoker",
+            "haystack.component.type": "ToolInvoker",
+            "haystack.component.input": {
+                "messages": [
+                    ChatMessage.from_user("what is RAG?"),
+                    ChatMessage.from_assistant(text="Calling search", tool_calls=[tool_call]),
+                ]
+            },
+            "haystack.component.output": {
+                "messages": [ChatMessage.from_tool("RAG stands for Retrieval-Augmented Generation", tool_call)]
+            },
+        }
+        mock_span.get_data.return_value = span_data
+
+        handler = DefaultSpanHandler()
+        with patch("haystack_integrations.tracing.langfuse.tracer.proxy_tracer.is_content_tracing_enabled", True):
+            handler.handle(mock_span, component_type="ToolInvoker")
+
+        update_calls = {k: v for call in mock_span.update.call_args_list for k, v in call[1].items()}
+
+        # input should be just the tool call arguments, not the full message list
+        assert update_calls["input"] == [{"tool_name": "search_tool", "arguments": {"query": "RAG pipelines"}}]
+        # output should be the tool results
+        assert update_calls["output"] == [
+            {"tool_name": "search_tool", "result": "RAG stands for Retrieval-Augmented Generation", "error": False}
+        ]
+
+    def test_handle_tool_invoker_no_content_tracing(self):
+        """
+        Test that ToolInvoker input/output is NOT updated when content tracing is disabled.
+        The span name update (tool names) should still happen.
+        """
+        mock_span = Mock()
+        mock_span.raw_span.return_value = mock_span
+
+        tool_call = ToolCall(tool_name="weather_tool", arguments={"location": "Tokyo"})
+
+        span_data = {
+            "haystack.component.name": "tool_invoker",
+            "haystack.component.type": "ToolInvoker",
+            "haystack.component.input": {"messages": [ChatMessage.from_assistant(text="", tool_calls=[tool_call])]},
+            "haystack.component.output": {"messages": [ChatMessage.from_tool("Sunny, 28°C", tool_call)]},
+        }
+        mock_span.get_data.return_value = span_data
+
+        handler = DefaultSpanHandler()
+        with patch("haystack_integrations.tracing.langfuse.tracer.proxy_tracer.is_content_tracing_enabled", False):
+            handler.handle(mock_span, component_type="ToolInvoker")
+
+        update_kwargs_keys = {k for call in mock_span.update.call_args_list for k in call[1]}
+        # name should still be updated
+        assert "name" in update_kwargs_keys
+        # input and output must NOT be set when content tracing is off
+        assert "input" not in update_kwargs_keys
+        assert "output" not in update_kwargs_keys
+
     def test_trace_generation_invalid_start_time(self):
         with patch("haystack_integrations.tracing.langfuse.tracer.langfuse.get_client"):
             tracer = LangfuseTracer(tracer=MockLangfuseClient(), name="Haystack", public=False)
