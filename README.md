@@ -4,12 +4,12 @@
 
 | Name                                                                                        |    Stmts |     Miss |   Branch |   BrPart |   Cover |   Missing |
 |-------------------------------------------------------------------------------------------- | -------: | -------: | -------: | -------: | ------: | --------: |
-| src/haystack\_integrations/components/generators/anthropic/chat/chat\_generator.py          |      165 |       31 |       60 |        8 |     76% |205, 270, 303-304, 354-\>353, 358-\>361, 369, 378-\>383, 380, 416-456 |
+| src/haystack\_integrations/components/generators/anthropic/chat/chat\_generator.py          |      167 |       31 |       62 |        8 |     76% |205, 270, 303-304, 357-\>356, 361-\>364, 372, 381-\>386, 383, 419-459 |
 | src/haystack\_integrations/components/generators/anthropic/chat/foundry\_chat\_generator.py |       81 |        6 |       22 |        9 |     85% |187, 192, 197, 202, 205, 233-\>235, 261-\>263, 306-\>308, 309 |
 | src/haystack\_integrations/components/generators/anthropic/chat/utils.py                    |      232 |       28 |      148 |       21 |     84% |120-\>129, 127-128, 201-216, 220-221, 225, 233, 253-\>252, 284-\>290, 285-\>287, 287-\>290, 313-314, 320-321, 328-\>331, 383, 395-\>402, 447-455, 460-\>462, 463, 465, 468-\>477, 482-483 |
 | src/haystack\_integrations/components/generators/anthropic/chat/vertex\_chat\_generator.py  |       43 |        0 |        6 |        1 |     98% | 188-\>191 |
 | src/haystack\_integrations/components/generators/anthropic/generator.py                     |       97 |       35 |       42 |        4 |     52% |117, 150-\>152, 176, 199-236, 245-\>267 |
-| **TOTAL**                                                                                   |  **618** |  **100** |  **278** |   **43** | **78%** |           |
+| **TOTAL**                                                                                   |  **620** |  **100** |  **280** |   **43** | **78%** |           |
 
 
 ## Setup coverage badge
