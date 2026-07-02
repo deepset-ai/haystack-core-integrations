@@ -757,19 +757,18 @@ class TestLangfuseTracer:
         mock_span.raw_span.return_value = mock_span
 
         tool_call = ToolCall(tool_name="search_tool", arguments={"query": "RAG pipelines"})
-        from haystack.dataclasses import ChatMessage as CM
 
         span_data = {
             "haystack.component.name": "tool_invoker",
             "haystack.component.type": "ToolInvoker",
             "haystack.component.input": {
                 "messages": [
-                    CM.from_user("what is RAG?"),
-                    CM.from_assistant(text="Calling search", tool_calls=[tool_call]),
+                    ChatMessage.from_user("what is RAG?"),
+                    ChatMessage.from_assistant(text="Calling search", tool_calls=[tool_call]),
                 ]
             },
             "haystack.component.output": {
-                "messages": [CM.from_tool("RAG stands for Retrieval-Augmented Generation", tool_call)]
+                "messages": [ChatMessage.from_tool("RAG stands for Retrieval-Augmented Generation", tool_call)]
             },
         }
         mock_span.get_data.return_value = span_data
@@ -796,16 +795,15 @@ class TestLangfuseTracer:
         mock_span.raw_span.return_value = mock_span
 
         tool_call = ToolCall(tool_name="weather_tool", arguments={"location": "Tokyo"})
-        from haystack.dataclasses import ChatMessage as CM
 
         span_data = {
             "haystack.component.name": "tool_invoker",
             "haystack.component.type": "ToolInvoker",
             "haystack.component.input": {
-                "messages": [CM.from_assistant(text="", tool_calls=[tool_call])]
+                "messages": [ChatMessage.from_assistant(text="", tool_calls=[tool_call])]
             },
             "haystack.component.output": {
-                "messages": [CM.from_tool("Sunny, 28°C", tool_call)]
+                "messages": [ChatMessage.from_tool("Sunny, 28°C", tool_call)]
             },
         }
         mock_span.get_data.return_value = span_data
