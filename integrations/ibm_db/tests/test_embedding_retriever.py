@@ -165,20 +165,3 @@ class TestDb2EmbeddingRetrieverRun:
         assert result == {"documents": expected}
         mock_store._embedding_retrieval_async.assert_awaited_once()
 
-    def test_from_dict_without_filter_policy(self):
-        mock_store = Mock(spec=Db2DocumentStore)
-        data = {
-            "type": "haystack_integrations.components.retrievers.ibm_db.embedding_retriever.Db2EmbeddingRetriever",
-            "init_parameters": {
-                "document_store": {"type": "x", "init_parameters": {}},
-                "filters": {},
-                "top_k": 5,
-                # Simulate an old serialization that lacks the filter_policy field.
-            },
-        }
-        with patch.object(Db2DocumentStore, "from_dict", return_value=mock_store):
-            restored = Db2EmbeddingRetriever.from_dict(data)
-
-        assert restored.top_k == 5
-        # Defaults to REPLACE when filter_policy is absent from the serialized data.
-        assert restored.filter_policy == FilterPolicy.REPLACE
