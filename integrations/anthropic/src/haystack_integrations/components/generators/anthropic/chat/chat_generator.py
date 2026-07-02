@@ -324,7 +324,7 @@ class AnthropicChatGenerator:
         adaptive_thinking_effort = generation_kwargs.pop("adaptive_thinking_effort", None)
         if adaptive_thinking_effort is not None:
             thinking = generation_kwargs.setdefault("thinking", {})
-            if adaptive_thinking_effort == "disabled":
+            if adaptive_thinking_effort in ("disabled", "none"):
                 thinking.setdefault("type", "disabled")
             else:
                 thinking.setdefault("type", "adaptive")

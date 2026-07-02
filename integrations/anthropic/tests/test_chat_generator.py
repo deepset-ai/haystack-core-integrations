@@ -431,6 +431,14 @@ class TestAnthropicChatGenerator:
                     "thinking": {"type": "disabled"},
                 },
             ),
+            (
+                {
+                    "adaptive_thinking_effort": "none",
+                },
+                {
+                    "thinking": {"type": "disabled"},
+                },
+            ),
         ],
     )
     def test_run_with_flattened_generation_kwargs(
