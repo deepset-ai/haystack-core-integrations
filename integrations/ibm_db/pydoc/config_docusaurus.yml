@@ -1,5 +1,6 @@
 loaders:
   - modules:
+      - haystack_integrations.components.retrievers.ibm_db.embedding_retriever
       - haystack_integrations.document_stores.ibm_db.document_store
     search_path: [../src]
 processors:
