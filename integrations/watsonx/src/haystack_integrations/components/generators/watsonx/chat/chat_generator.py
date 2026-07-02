@@ -2,6 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+import inspect
 import json
 from dataclasses import replace
 from datetime import datetime, timezone
@@ -10,7 +11,6 @@ from typing import Any, ClassVar, Literal, get_args
 from haystack import component, default_from_dict, default_to_dict, logging
 from haystack.components.generators.utils import _convert_streaming_chunks_to_chat_message, _normalize_messages
 from haystack.dataclasses import (
-    AsyncStreamingCallbackT,
     ChatMessage,
     ChatRole,
     ComponentInfo,
@@ -510,7 +510,7 @@ class WatsonxChatGenerator:
         self,
         *,
         api_args: dict[str, Any],
-        callback: AsyncStreamingCallbackT,
+        callback: StreamingCallbackT,
     ) -> dict[str, list[ChatMessage]]:
         """Handle asynchronous streaming response."""
         chunks: list[StreamingChunk] = []
@@ -525,7 +525,10 @@ class WatsonxChatGenerator:
 
             streaming_chunk = self._convert_chunk_to_streaming_chunk(chunk, component_info)
             chunks.append(streaming_chunk)
-            await callback(streaming_chunk)
+            # sync callbacks are allowed in async contexts with Haystack >= 3.0, so only await async ones
+            callback_result = callback(streaming_chunk)
+            if inspect.isawaitable(callback_result):
+                await callback_result
 
         chat_message = _convert_streaming_chunks_to_chat_message(chunks)
         message_tool_calls = [
