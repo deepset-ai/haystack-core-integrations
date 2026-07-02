@@ -7,7 +7,11 @@ import pytest
 import pytz
 from haystack import Pipeline
 from haystack.components.generators.utils import print_streaming_chunk
-from haystack.components.tools import ToolInvoker
+
+try:
+    from haystack.components.tools import ToolInvoker
+except ImportError:  # ToolInvoker was removed in Haystack 3.0
+    ToolInvoker = None
 from haystack.dataclasses import ChatMessage, ChatRole, StreamingChunk, ToolCall
 from haystack.tools import Tool, Toolset
 from haystack.utils.auth import Secret
@@ -522,6 +526,7 @@ class TestTogetherAIChatGenerator:
         reason="Export an env var called TOGETHER_API_KEY containing the Together AI API key to run this test.",
     )
     @pytest.mark.integration
+    @pytest.mark.skipif(ToolInvoker is None, reason="ToolInvoker is not available in the installed haystack-ai version")
     def test_pipeline_with_togetherai_chat_generator(self, tools):
         """
         Test that the TogetherAIChatGenerator component can be used in a pipeline

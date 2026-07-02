@@ -9,7 +9,11 @@ import pytest
 import pytz
 from haystack import Pipeline
 from haystack.components.generators.utils import print_streaming_chunk
-from haystack.components.tools import ToolInvoker
+
+try:
+    from haystack.components.tools import ToolInvoker
+except ImportError:  # ToolInvoker was removed in Haystack 3.0
+    ToolInvoker = None
 from haystack.dataclasses import ChatMessage, ChatRole, StreamingChunk
 from haystack.tools import Tool, Toolset
 from haystack.utils.auth import Secret
@@ -532,6 +536,7 @@ class TestLlamaChatGenerator:
         reason="Llama OpenAI-compat endpoint returns 403 for the CI key; see https://github.com/deepset-ai/haystack-core-integrations/issues/3438"
     )
     @pytest.mark.integration
+    @pytest.mark.skipif(ToolInvoker is None, reason="ToolInvoker is not available in the installed haystack-ai version")
     def test_pipeline_with_llama_chat_generator(self, tools):
         """
         Test that the MetaLlamaChatGenerator component can be used in a pipeline
