@@ -246,7 +246,8 @@ class Db2DocumentStore:
                     # If it still fails, raise the error
                     raise
 
-    def _validate_embedding(self, embedding: list[float] | None, allow_none: bool = True) -> None:
+    @staticmethod
+    def _validate_embedding(embedding: list[float] | None, allow_none: bool = True) -> None:
         """
         Validate embedding format and content.
 
@@ -273,7 +274,8 @@ class Db2DocumentStore:
             msg = "All embedding values must be numeric (int or float)"
             raise TypeError(msg)
 
-    def _to_row(self, doc: Document) -> tuple:
+    @staticmethod
+    def _to_row(doc: Document) -> tuple:
         """Convert a Document to (id, content, meta_json, embedding_str)."""
         meta_json = json.dumps(doc.meta) if doc.meta else "{}"
         embedding_str = f"{doc.embedding}" if doc.embedding else None
