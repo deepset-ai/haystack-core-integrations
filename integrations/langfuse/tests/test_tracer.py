@@ -799,12 +799,8 @@ class TestLangfuseTracer:
         span_data = {
             "haystack.component.name": "tool_invoker",
             "haystack.component.type": "ToolInvoker",
-            "haystack.component.input": {
-                "messages": [ChatMessage.from_assistant(text="", tool_calls=[tool_call])]
-            },
-            "haystack.component.output": {
-                "messages": [ChatMessage.from_tool("Sunny, 28°C", tool_call)]
-            },
+            "haystack.component.input": {"messages": [ChatMessage.from_assistant(text="", tool_calls=[tool_call])]},
+            "haystack.component.output": {"messages": [ChatMessage.from_tool("Sunny, 28°C", tool_call)]},
         }
         mock_span.get_data.return_value = span_data
 
