@@ -7,9 +7,9 @@
 | src/haystack\_integrations/common/vllm/utils.py                               |       16 |        0 |        6 |        0 |    100% |           |
 | src/haystack\_integrations/components/embedders/vllm/document\_embedder.py    |      122 |        9 |       30 |        3 |     91% |221-226, 258, 281, 284 |
 | src/haystack\_integrations/components/embedders/vllm/text\_embedder.py        |       56 |        2 |       12 |        2 |     94% |  159, 176 |
-| src/haystack\_integrations/components/generators/vllm/chat/chat\_generator.py |      158 |        6 |       46 |        6 |     94% |60, 308-\>310, 328, 337, 355-\>358, 400-\>403, 427-429 |
+| src/haystack\_integrations/components/generators/vllm/chat/chat\_generator.py |      161 |        6 |       48 |        7 |     94% |60, 308-\>310, 328, 337, 355-\>358, 400-\>403, 428-\>396, 430-432 |
 | src/haystack\_integrations/components/rankers/vllm/ranker.py                  |       92 |        3 |       28 |        3 |     95% |214, 245, 250 |
-| **TOTAL**                                                                     |  **444** |   **20** |  **122** |   **14** | **94%** |           |
+| **TOTAL**                                                                     |  **447** |   **20** |  **124** |   **15** | **94%** |           |
 
 
 ## Setup coverage badge
