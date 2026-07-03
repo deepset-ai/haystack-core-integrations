@@ -353,12 +353,12 @@ class Db2DocumentStore:
         :raises TypeError: If embeddings have invalid types
         :raises DuplicateDocumentError: If a document with the same id already exists and policy is FAIL or NONE
         """
-        if not documents:
-            return 0
-
         if not isinstance(documents, list):
             msg = f"Expected a list of Document objects, got {type(documents)}"
             raise ValueError(msg)
+
+        if not documents:
+            return 0
 
         for doc in documents:
             if not isinstance(doc, Document):
@@ -930,8 +930,6 @@ class Db2DocumentStore:
         """
         return await asyncio.to_thread(self.count_unique_metadata_by_filter, filters, metadata_fields)
 
-        return await asyncio.to_thread(self.get_metadata_fields_info)
-
     @staticmethod
     def _infer_field_type(value: Any) -> str:
         """
@@ -1031,7 +1029,7 @@ class Db2DocumentStore:
                 # In this case, we'll return empty results or filter them out
                 error_msg = str(e)
                 # Check both the error message and the __cause__ attribute
-                cause_msg = str(e.__cause__) if hasattr(e, "____cause__") and e.__cause__ else ""
+                cause_msg = str(e.__cause__) if hasattr(e, "__cause__") and e.__cause__ else ""
                 if (
                     "SQL0801N" in error_msg
                     or "Division by zero" in error_msg

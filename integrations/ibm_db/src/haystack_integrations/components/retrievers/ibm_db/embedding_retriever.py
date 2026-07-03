@@ -17,7 +17,9 @@ class Db2EmbeddingRetriever:
     """
     Retrieves documents from a Db2DocumentStore using vector similarity.
 
-    Use inside a Haystack pipeline after a text embedder::
+    Use inside a Haystack pipeline after a text embedder:
+
+    .. code-block:: python
 
         pipeline.add_component("embedder", SentenceTransformersTextEmbedder())
         pipeline.add_component("retriever", Db2EmbeddingRetriever(
@@ -34,6 +36,15 @@ class Db2EmbeddingRetriever:
         top_k: int = 10,
         filter_policy: FilterPolicy = FilterPolicy.REPLACE,
     ) -> None:
+        """
+        Initialize the Db2EmbeddingRetriever.
+
+        :param document_store: An instance of `Db2DocumentStore`.
+        :param filters: Filters applied to the retrieved Documents.
+        :param top_k: Maximum number of Documents to return.
+        :param filter_policy: Policy to determine how filters are applied.
+        :raises TypeError: If `document_store` is not an instance of `Db2DocumentStore`.
+        """
         if not isinstance(document_store, Db2DocumentStore):
             msg = "document_store must be an instance of Db2DocumentStore"
             raise TypeError(msg)
@@ -52,13 +63,10 @@ class Db2EmbeddingRetriever:
         """
         Retrieve documents by vector similarity.
 
-        Args:
-            query_embedding: Dense float vector from an embedder component.
-            filters: Runtime filters, merged with constructor filters according to filter_policy.
-            top_k: Override the constructor top_k for this call.
-
-        Returns:
-            ``{"documents": [Document, ...]}``
+        :param query_embedding: Dense float vector from an embedder component.
+        :param filters: Runtime filters, merged with constructor filters according to filter_policy.
+        :param top_k: Override the constructor top_k for this call.
+        :returns: A dictionary with key ``documents`` containing a list of matching :class:`Document` objects.
         """
         filters = apply_filter_policy(self.filter_policy, self.filters, filters)
         docs = self.document_store._embedding_retrieval(
@@ -75,7 +83,18 @@ class Db2EmbeddingRetriever:
         filters: dict[str, Any] | None = None,
         top_k: int | None = None,
     ) -> dict[str, list[Document]]:
-        """Async variant of :meth:`run`."""
+        """
+        Async variant of :meth:`run`.
+
+        :param query_embedding: A dense float vector representing the query, typically produced by a text embedder
+            component.
+        :param filters: Optional filters to narrow the search space. Merged with the constructor-level filters
+            according to the configured ``filter_policy``.
+        :param top_k: Maximum number of documents to return. Overrides the ``top_k`` set in the constructor for
+            this call only.
+        :returns: A dictionary with key ``documents`` containing a list of matching :class:`Document` objects,
+            ranked by vector similarity.
+        """
         filters = apply_filter_policy(self.filter_policy, self.filters, filters)
         docs = await self.document_store._embedding_retrieval_async(
             query_embedding,
