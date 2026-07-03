@@ -4,13 +4,13 @@
 
 | Name                                                                                   |    Stmts |     Miss |   Branch |   BrPart |   Cover |   Missing |
 |--------------------------------------------------------------------------------------- | -------: | -------: | -------: | -------: | ------: | --------: |
-| src/haystack\_integrations/components/embedders/optimum/\_backend.py                   |      153 |        8 |       38 |        6 |     93% |34-35, 104-109, 115-116, 204-\>exit, 207-\>exit, 240-\>243, 275 |
+| src/haystack\_integrations/components/embedders/optimum/\_backend.py                   |      164 |       13 |       40 |        7 |     90% |35-36, 54-56, 59-60, 127-132, 138-139, 227-\>exit, 230-\>exit, 263-\>266, 298 |
 | src/haystack\_integrations/components/embedders/optimum/optimization.py                |       38 |        4 |       10 |        2 |     88% |48-49, 83-84 |
 | src/haystack\_integrations/components/embedders/optimum/optimum\_document\_embedder.py |       52 |        1 |       12 |        1 |     97% |       150 |
 | src/haystack\_integrations/components/embedders/optimum/optimum\_text\_embedder.py     |       37 |        1 |        6 |        1 |     95% |       130 |
 | src/haystack\_integrations/components/embedders/optimum/pooling.py                     |       18 |        0 |        2 |        0 |    100% |           |
 | src/haystack\_integrations/components/embedders/optimum/quantization.py                |       38 |        4 |       10 |        2 |     88% |48-49, 83-84 |
-| **TOTAL**                                                                              |  **336** |   **18** |   **78** |   **12** | **93%** |           |
+| **TOTAL**                                                                              |  **347** |   **23** |   **80** |   **13** | **92%** |           |
 
 
 ## Setup coverage badge
