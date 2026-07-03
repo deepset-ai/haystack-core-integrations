@@ -3,6 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import dataclasses
+import re
 from typing import Any, Literal, cast
 
 from arango import ArangoClient
@@ -28,6 +29,21 @@ _SIMILARITY_AQL: dict[str, tuple[str, str, str]] = {
 }
 
 _VECTOR_INDEX_NAME = "haystack_vector_index"
+
+# ArangoDB "traditional" collection naming rules: start with a letter, followed by letters,
+# digits, underscores, or dashes; at most 256 characters. The collection name is interpolated
+# directly into AQL queries (it cannot be a bind parameter), so it is validated against this
+# allowlist to prevent AQL injection.
+_SAFE_COLLECTION_NAME = re.compile(r"^[A-Za-z][A-Za-z0-9_-]{0,255}$")
+
+
+def _validate_collection_name(collection_name: str) -> None:
+    if not _SAFE_COLLECTION_NAME.match(collection_name):
+        msg = (
+            f"Invalid collection_name {collection_name!r}. Must start with a letter and contain only "
+            "letters, digits, underscores, or dashes (max 256 characters)."
+        )
+        raise ValueError(msg)
 
 
 def _doc_to_arango(doc: Document) -> dict[str, Any]:
@@ -88,12 +104,15 @@ class ArangoDocumentStore:
         :param username: ArangoDB username as a `Secret`. Defaults to `ARANGO_USERNAME` env var,
             falling back to `root` if the variable is not set.
         :param password: ArangoDB password as a `Secret`. Defaults to `ARANGO_PASSWORD` env var.
-        :param collection_name: Name of the collection to store documents in.
+        :param collection_name: Name of the collection to store documents in. Must start with a letter
+            and contain only letters, digits, underscores, or dashes (max 256 characters).
         :param embedding_dimension: Dimensionality of document embeddings.
         :param recreate_collection: If `True`, drop and recreate the collection on startup.
         :param similarity_function: Vector similarity function to use for embedding retrieval.
             One of `"cosine"` (default), `"dot_product"`, or `"l2"`.
+        :raises ValueError: If `collection_name` is not a valid ArangoDB collection identifier.
         """
+        _validate_collection_name(collection_name)
         self.host = host
         self.database = database
         self.username = username

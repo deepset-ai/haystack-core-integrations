@@ -26,7 +26,6 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  JINA_API_KEY: ${{ secrets.JINA_API_KEY }}
   PYTHONUNBUFFERED: "1"
   FORCE_COLOR: "1"
   TEST_MATRIX_OS: '["ubuntu-latest", "windows-latest", "macos-latest"]'
@@ -105,6 +104,8 @@ jobs:
           path: python-coverage-comment-action-jina.txt
 
       - name: Run integration tests
+        env:
+          JINA_API_KEY: ${{ secrets.JINA_API_KEY }}
         run: hatch run test:integration-cov-append-retry
 
       - name: Store combined coverage

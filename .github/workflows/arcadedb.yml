@@ -26,8 +26,6 @@ env:
   PYTHONUNBUFFERED: "1"
   FORCE_COLOR: "1"
   ARCADEDB_USERNAME: "root"
-  # Only set in main repo (secrets not passed to fork workflows); integration tests skip when unset
-  ARCADEDB_PASSWORD: ${{ secrets.ARCADEDB_PASSWORD }}
   TEST_MATRIX_OS: '["ubuntu-latest"]'
   TEST_MATRIX_PYTHON: '["3.10", "3.14"]'
 
@@ -111,6 +109,9 @@ jobs:
           path: python-coverage-comment-action-arcadedb.txt
 
       - name: Run integration tests
+        env:
+          # Only set in main repo (secrets not passed to fork workflows); integration tests skip when unset
+          ARCADEDB_PASSWORD: ${{ secrets.ARCADEDB_PASSWORD }}
         run: hatch run test:integration-cov-append-retry
 
       - name: Store combined coverage

@@ -25,8 +25,6 @@ concurrency:
 env:
   PYTHONUNBUFFERED: "1"
   FORCE_COLOR: "1"
-  LARA_ACCESS_KEY_ID: ${{ secrets.LARA_ACCESS_KEY_ID }}
-  LARA_ACCESS_KEY_SECRET: ${{ secrets.LARA_ACCESS_KEY_SECRET }}
   TEST_MATRIX_OS: '["ubuntu-latest", "windows-latest", "macos-latest"]'
   TEST_MATRIX_PYTHON: '["3.10", "3.14"]'
 
@@ -103,6 +101,9 @@ jobs:
           path: python-coverage-comment-action-lara.txt
 
       - name: Run integration tests
+        env:
+          LARA_ACCESS_KEY_ID: ${{ secrets.LARA_ACCESS_KEY_ID }}
+          LARA_ACCESS_KEY_SECRET: ${{ secrets.LARA_ACCESS_KEY_SECRET }}
         run: hatch run test:integration-cov-append-retry
 
       - name: Store combined coverage
