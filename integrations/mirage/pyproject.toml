@@ -90,7 +90,7 @@ module = ["mirage.*"]
 ignore_missing_imports = true
 
 [tool.ruff]
-target-version = "py310"
+target-version = "py311"
 line-length = 120
 
 [tool.ruff.lint]

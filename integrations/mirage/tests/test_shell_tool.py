@@ -56,6 +56,14 @@ class TestGuard:
         with pytest.raises(MirageCommandNotAllowedError):
             tool._invoke("cat /data/secret/keys.txt")
 
+    @pytest.mark.parametrize("command", ["> /data/x", ">> /data/x", "  ", "# just a comment"])
+    def test_allowlist_rejects_command_with_no_resolvable_name(self, command):
+        # With an allowlist set, a command that resolves to no command name (e.g. a bare redirect)
+        # has nothing to match against the allowlist, so the guard must fail closed rather than pass.
+        tool = MirageShellTool(_ws(), allowed_commands=["ls", "cat"])
+        with pytest.raises(MirageCommandNotAllowedError):
+            tool._guard(command)
+
 
 class TestAllowlistNestedCommands:
     """The allowlist must catch commands Mirage would run inside substitutions/subshells, not just

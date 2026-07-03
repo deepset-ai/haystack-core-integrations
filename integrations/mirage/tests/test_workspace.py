@@ -2,11 +2,14 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+import threading
+
 import pytest
 from haystack import default_from_dict, default_to_dict
 from haystack.utils import Secret
 
 from haystack_integrations.tools.mirage import MirageConfigError, MirageMount, MirageWorkspace
+from haystack_integrations.tools.mirage import workspace as workspace_module
 from haystack_integrations.tools.mirage.workspace import _resolve_config, _to_text
 
 
@@ -180,6 +183,45 @@ class TestExecution:
         await ws.run_async('echo "async hi" > /data/b.txt')
         out = await ws.run_async("cat /data/b.txt")
         assert "async hi" in out
+        ws.close()
+
+
+class TestConcurrentBuild:
+    def test_ensure_live_builds_once_under_concurrency(self, monkeypatch):
+        # Many threads hitting a cold workspace at once must build exactly one live workspace; a second
+        # build would leak the losing thread's backend resources (the bug the build lock prevents).
+        real_cls = workspace_module._MirageWorkspace
+        build_count = 0
+        count_lock = threading.Lock()
+
+        def counting_ctor(*args, **kwargs):
+            nonlocal build_count
+            with count_lock:
+                build_count += 1
+            return real_cls(*args, **kwargs)
+
+        monkeypatch.setattr(workspace_module, "_MirageWorkspace", counting_ctor)
+
+        ws = MirageWorkspace(mounts=[MirageMount(path="/data", resource="ram")])
+        n_threads = 8
+        barrier = threading.Barrier(n_threads)
+        results: list = []
+        results_lock = threading.Lock()
+
+        def build() -> None:
+            barrier.wait()  # release all threads together to maximize contention
+            live = ws._ensure_live()
+            with results_lock:
+                results.append(live)
+
+        threads = [threading.Thread(target=build) for _ in range(n_threads)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+
+        assert build_count == 1
+        assert all(r is results[0] for r in results)
         ws.close()
 
 

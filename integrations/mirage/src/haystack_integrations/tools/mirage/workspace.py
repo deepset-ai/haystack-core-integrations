@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 import asyncio
+import threading
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -202,6 +203,8 @@ class MirageWorkspace:
         self.mounts = mounts
         self.cache_limit = cache_limit
         self._live: _MirageWorkspace | None = None
+        # Serializes the lazy build so concurrent callers don't each build the live workspace
+        self._build_lock = threading.Lock()
 
     # --- lifecycle ---------------------------------------------------------------------------
 
@@ -210,38 +213,46 @@ class MirageWorkspace:
         self._ensure_live()
 
     def _ensure_live(self) -> _MirageWorkspace:
-        """Build (once) and return the live `mirage.Workspace`."""
+        """Build (once) and return the live `mirage.Workspace`. Thread-safe."""
+        # Double-checked locking: the fast path avoids the lock once built; the slow path builds under
+        # the lock so concurrent callers can't each construct their own live workspace.
         if self._live is not None:
             return self._live
 
-        resources: dict[str, Any] = {}
-        for mount in self.mounts:
-            try:
-                resource = build_resource(mount.resource, _resolve_config(mount.config))
-            except KeyError as e:
-                msg = f"Unknown Mirage resource '{mount.resource}' for mount '{mount.path}'."
-                raise MirageConfigError(msg) from e
-            except Exception as e:
-                msg = f"Failed to build Mirage resource '{mount.resource}' for mount '{mount.path}': {e}"
-                raise MirageConfigError(msg) from e
-            mode = MountMode.READ if mount.read_only else MountMode.WRITE
-            resources[mount.path] = (resource, mode)
+        with self._build_lock:
+            if self._live is not None:
+                return self._live
 
-        self._live = _MirageWorkspace(resources, cache_limit=self.cache_limit)
-        return self._live
+            resources: dict[str, Any] = {}
+            for mount in self.mounts:
+                try:
+                    resource = build_resource(mount.resource, _resolve_config(mount.config))
+                except KeyError as e:
+                    msg = f"Unknown Mirage resource '{mount.resource}' for mount '{mount.path}'."
+                    raise MirageConfigError(msg) from e
+                except Exception as e:
+                    msg = f"Failed to build Mirage resource '{mount.resource}' for mount '{mount.path}': {e}"
+                    raise MirageConfigError(msg) from e
+                mode = MountMode.READ if mount.read_only else MountMode.WRITE
+                resources[mount.path] = (resource, mode)
+
+            self._live = _MirageWorkspace(resources, cache_limit=self.cache_limit)
+            return self._live
 
     def close(self) -> None:
-        """Close the live workspace and release its resources, if it was built."""
-        if self._live is not None:
-            try:
-                close_result = self._live.close()
-                # Mirage's Workspace.close() is a coroutine; run it on the background loop.
-                if asyncio.iscoroutine(close_result):
-                    AsyncExecutor.get_instance().run(close_result, timeout=10)
-            except Exception as e:
-                logger.debug("Error while closing Mirage workspace: {error}", error=str(e))
-            finally:
-                self._live = None
+        """Close the live workspace and release its resources, if it was built. Thread-safe."""
+        # Share the build lock so we can't close a workspace another thread is mid-build
+        with self._build_lock:
+            if self._live is not None:
+                try:
+                    close_result = self._live.close()
+                    # Mirage's Workspace.close() is a coroutine; run it on the background loop.
+                    if asyncio.iscoroutine(close_result):
+                        AsyncExecutor.get_instance().run(close_result, timeout=10)
+                except Exception as e:
+                    logger.debug("Error while closing Mirage workspace: {error}", error=str(e))
+                finally:
+                    self._live = None
 
     # --- execution ---------------------------------------------------------------------------
 

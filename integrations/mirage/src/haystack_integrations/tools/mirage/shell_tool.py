@@ -171,6 +171,10 @@ class MirageShellTool(Tool):
 
         allowed = set(self._allowed_commands)
         names = _command_names_in(command)
+        # If an allowlist is set but no command name can be resolved (e.g. a bare redirect like `> /data/x`),
+        # there is nothing to match against the allowlist, so reject rather than let it through.
+        if not names:
+            self._reject_command("<no resolvable command>", allowed)
         for base in names:
             if base not in allowed:
                 self._reject_command(base, allowed)
