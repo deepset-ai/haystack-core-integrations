@@ -4,7 +4,6 @@
 
 """IBM DB2 Document Store for Haystack."""
 
-import asyncio
 import json
 import logging
 import threading
@@ -291,14 +290,6 @@ class IBMDb2DocumentStore:
                 msg = f"Failed to count documents: {e}"
                 raise RuntimeError(msg) from e
 
-    async def count_documents_async(self) -> int:
-        """
-        Count all documents asynchronously.
-
-        :return: Number of documents
-        """
-        return await asyncio.to_thread(self.count_documents)
-
     def count_documents_by_filter(self, filters: dict[str, Any] | None = None) -> int:
         """
         Count documents that match the provided filters.
@@ -321,15 +312,6 @@ class IBMDb2DocumentStore:
             except Exception as e:
                 msg = f"Failed to count documents by filter: {e}"
                 raise RuntimeError(msg) from e
-
-    async def count_documents_by_filter_async(self, filters: dict[str, Any] | None = None) -> int:
-        """
-        Count documents that match the provided filters asynchronously.
-
-        :param filters: Filters to apply. See Haystack documentation for filter syntax.
-        :return: Number of documents matching the filters
-        """
-        return await asyncio.to_thread(self.count_documents_by_filter, filters)
 
     def write_documents(
         self,
@@ -377,20 +359,6 @@ class IBMDb2DocumentStore:
         else:
             msg = f"Unsupported duplicate policy: {policy}"
             raise ValueError(msg)
-
-    async def write_documents_async(
-        self,
-        documents: list[Document],
-        policy: DuplicatePolicy = DuplicatePolicy.NONE,
-    ) -> int:
-        """
-        Write documents asynchronously.
-
-        :param documents: List of documents to write
-        :param policy: Policy for handling duplicate documents
-        :return: Number of documents written
-        """
-        return await asyncio.to_thread(self.write_documents, documents, policy)
 
     def _insert_documents(self, conn: ibm_db_dbi.Connection, documents: list[Document]) -> int:
         """Insert documents and fail on duplicates via database integrity errors."""
@@ -496,15 +464,6 @@ class IBMDb2DocumentStore:
                 raise RuntimeError(msg) from e
         return [_row_to_document(row) for row in rows]
 
-    async def filter_documents_async(self, filters: dict[str, Any] | None = None) -> list[Document]:
-        """
-        Filter documents asynchronously using pure SQL approach.
-
-        :param filters: Filter dictionary (optional)
-        :return: List of matching documents
-        """
-        return await asyncio.to_thread(self.filter_documents, filters)
-
     def _build_where_clause(self, filters: dict[str, Any]) -> tuple[str, list[Any]]:
         """
         Build WHERE clause from filter dictionary using FilterTranslator.
@@ -542,14 +501,6 @@ class IBMDb2DocumentStore:
                 msg = f"Failed to delete documents: {e}"
                 raise RuntimeError(msg) from e
 
-    async def delete_documents_async(self, document_ids: list[str]) -> None:
-        """
-        Delete documents asynchronously.
-
-        :param document_ids: List of document IDs to delete
-        """
-        await asyncio.to_thread(self.delete_documents, document_ids)
-
     def delete_by_filter(self, filters: dict[str, Any] | None = None) -> int:
         """
         Delete documents that match the provided filters.
@@ -574,15 +525,6 @@ class IBMDb2DocumentStore:
                 conn.rollback()
                 msg = f"Failed to delete documents by filter: {e}"
                 raise RuntimeError(msg) from e
-
-    async def delete_by_filter_async(self, filters: dict[str, Any] | None = None) -> int:
-        """
-        Delete documents that match the provided filters asynchronously.
-
-        :param filters: Filters to apply. See Haystack documentation for filter syntax.
-        :return: Number of documents deleted
-        """
-        return await asyncio.to_thread(self.delete_by_filter, filters)
 
     def delete_all_documents(self, recreate_index: bool = False) -> int:
         """
@@ -614,15 +556,6 @@ class IBMDb2DocumentStore:
                 conn.rollback()
                 msg = f"Failed to delete all documents: {e}"
                 raise RuntimeError(msg) from e
-
-    async def delete_all_documents_async(self, recreate_index: bool = False) -> int:
-        """
-        Delete all documents from the document store asynchronously.
-
-        :param recreate_index: If True, recreate the table after deletion
-        :return: Number of documents deleted
-        """
-        return await asyncio.to_thread(self.delete_all_documents, recreate_index)
 
     def update_by_filter(self, filters: dict[str, Any] | None = None, meta: dict[str, Any] | None = None) -> int:
         """
@@ -671,18 +604,6 @@ class IBMDb2DocumentStore:
                 conn.rollback()
                 msg = f"Failed to update documents by filter: {e}"
                 raise RuntimeError(msg) from e
-
-    async def update_by_filter_async(
-        self, filters: dict[str, Any] | None = None, meta: dict[str, Any] | None = None
-    ) -> int:
-        """
-        Update documents that match the provided filters asynchronously.
-
-        :param filters: Filters to apply. See Haystack documentation for filter syntax.
-        :param meta: Dictionary of metadata fields to update
-        :return: Number of documents updated
-        """
-        return await asyncio.to_thread(self.update_by_filter, filters, meta)
 
     def get_metadata_field_unique_values(self, field: str) -> list[Any]:
         """
@@ -735,15 +656,6 @@ class IBMDb2DocumentStore:
 
         return values
 
-    async def get_metadata_field_unique_values_async(self, field: str) -> list[Any]:
-        """
-        Get all unique values for a given metadata field asynchronously.
-
-        :param field: The metadata field name
-        :return: List of unique values for the field
-        """
-        return await asyncio.to_thread(self.get_metadata_field_unique_values, field)
-
     def get_metadata_field_min_max(self, field: str) -> dict[str, Any]:
         """
         Get the minimum and maximum values for a numeric metadata field.
@@ -791,15 +703,6 @@ class IBMDb2DocumentStore:
 
         return {"min": None, "max": None}
 
-    async def get_metadata_field_min_max_async(self, field: str) -> dict[str, Any]:
-        """
-        Get the minimum and maximum values for a numeric metadata field asynchronously.
-
-        :param field: The metadata field name
-        :return: Dictionary with 'min' and 'max' keys
-        """
-        return await asyncio.to_thread(self.get_metadata_field_min_max, field)
-
     def get_metadata_fields_info(self) -> dict[str, dict[str, Any]]:
         """
         Get information about all metadata fields including their types.
@@ -842,14 +745,6 @@ class IBMDb2DocumentStore:
                 continue
 
         return fields_info
-
-    async def get_metadata_fields_info_async(self) -> dict[str, dict[str, Any]]:
-        """
-        Get information about all metadata fields including their types asynchronously.
-
-        :return: Dictionary mapping field names to their type information
-        """
-        return await asyncio.to_thread(self.get_metadata_fields_info)
 
     def count_unique_metadata_by_filter(
         self, filters: dict[str, Any] | None = None, metadata_fields: list[str] | None = None
@@ -910,18 +805,6 @@ class IBMDb2DocumentStore:
             result[field] = len(unique_values)
 
         return result
-
-    async def count_unique_metadata_by_filter_async(
-        self, filters: dict[str, Any] | None = None, metadata_fields: list[str] | None = None
-    ) -> dict[str, int]:
-        """
-        Count unique values for specified metadata fields asynchronously.
-
-        :param filters: Optional filters to apply before counting
-        :param metadata_fields: List of metadata field names to count unique values for
-        :return: Dictionary mapping field names to their unique value counts
-        """
-        return await asyncio.to_thread(self.count_unique_metadata_by_filter, filters, metadata_fields)
 
     @staticmethod
     def _infer_field_type(value: Any) -> str:
@@ -1053,21 +936,6 @@ class IBMDb2DocumentStore:
             documents.append(doc)
 
         return documents
-
-    async def _embedding_retrieval_async(
-        self,
-        query_embedding: list[float],
-        *,
-        filters: dict[str, Any] | None = None,
-        top_k: int = 10,
-    ) -> list[Document]:
-        """Async variant of _embedding_retrieval."""
-        return await asyncio.to_thread(
-            self._embedding_retrieval,
-            query_embedding,
-            filters=filters,
-            top_k=top_k,
-        )
 
 
 __all__ = ["IBMDb2DocumentStore"]

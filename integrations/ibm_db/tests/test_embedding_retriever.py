@@ -5,7 +5,7 @@
 """Integration tests for IBMDb2EmbeddingRetriever using live DB2 instance."""
 
 import sys
-from unittest.mock import AsyncMock, Mock, patch
+from unittest.mock import Mock, patch
 
 import pytest
 from haystack.dataclasses import Document
@@ -135,7 +135,7 @@ class TestIBMDb2EmbeddingRetrieverUnit:
 
 
 class TestIBMDb2EmbeddingRetrieverRun:
-    """Unit tests for run/run_async using a mocked document store (no database)."""
+    """Unit tests for run using a mocked document store (no database)."""
 
     def test_run_delegates_to_embedding_retrieval(self):
         expected = [Document(id="1", content="a"), Document(id="2", content="b")]
@@ -163,14 +163,3 @@ class TestIBMDb2EmbeddingRetrieverRun:
         assert kwargs["top_k"] == 2
         # REPLACE policy => runtime filters win
         assert kwargs["filters"] == apply_filter_policy(FilterPolicy.REPLACE, {}, runtime_filters)
-
-    @pytest.mark.asyncio
-    async def test_run_async_delegates(self):
-        expected = [Document(id="1", content="a")]
-        mock_store = Mock(spec=IBMDb2DocumentStore)
-        mock_store._embedding_retrieval_async = AsyncMock(return_value=expected)
-
-        retriever = IBMDb2EmbeddingRetriever(document_store=mock_store, top_k=3)
-        result = await retriever.run_async(query_embedding=[0.1, 0.2, 0.3, 0.4])
-        assert result == {"documents": expected}
-        mock_store._embedding_retrieval_async.assert_awaited_once()

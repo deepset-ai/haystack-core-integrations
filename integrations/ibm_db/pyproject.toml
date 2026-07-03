@@ -53,7 +53,6 @@ fmt-check = "ruff check {args} && ruff format --check {args}"
 [tool.hatch.envs.test]
 dependencies = [
     "pytest",
-    "pytest-asyncio",
     "pytest-cov",
     "pytest-rerunfailures",
     "mypy",
@@ -167,4 +166,3 @@ markers = [
   "integration: integration tests",
 ]
 log_cli = true
-asyncio_default_fixture_loop_scope = "function"
