@@ -364,7 +364,7 @@ class DefaultSpanHandler(SpanHandler):
                 # Replace the noisy full message history with just the tool call arguments
                 span.raw_span().update(input=tool_calls_input)
 
-                output_messages = span.get_data().get(_COMPONENT_OUTPUT_KEY, {}).get("messages", [])
+                output_messages = span.get_data().get(_COMPONENT_OUTPUT_KEY, {}).get("tool_messages", [])
                 tool_results: list[dict[str, Any]] = []
                 for message in output_messages:
                     if isinstance(message, ChatMessage) and message.tool_call_results:

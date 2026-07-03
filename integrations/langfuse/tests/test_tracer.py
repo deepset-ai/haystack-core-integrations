@@ -768,7 +768,7 @@ class TestLangfuseTracer:
                 ]
             },
             "haystack.component.output": {
-                "messages": [ChatMessage.from_tool("RAG stands for Retrieval-Augmented Generation", tool_call)]
+                "tool_messages": [ChatMessage.from_tool("RAG stands for Retrieval-Augmented Generation", tool_call)]
             },
         }
         mock_span.get_data.return_value = span_data
@@ -800,7 +800,7 @@ class TestLangfuseTracer:
             "haystack.component.name": "tool_invoker",
             "haystack.component.type": "ToolInvoker",
             "haystack.component.input": {"messages": [ChatMessage.from_assistant(text="", tool_calls=[tool_call])]},
-            "haystack.component.output": {"messages": [ChatMessage.from_tool("Sunny, 28°C", tool_call)]},
+            "haystack.component.output": {"tool_messages": [ChatMessage.from_tool("Sunny, 28°C", tool_call)]},
         }
         mock_span.get_data.return_value = span_data
 
