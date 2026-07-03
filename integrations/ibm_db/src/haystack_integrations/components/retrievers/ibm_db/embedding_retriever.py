@@ -9,20 +9,20 @@ from haystack.dataclasses import Document
 from haystack.document_stores.types import FilterPolicy
 from haystack.document_stores.types.filter_policy import apply_filter_policy
 
-from haystack_integrations.document_stores.ibm_db import Db2DocumentStore
+from haystack_integrations.document_stores.ibm_db import IBMDb2DocumentStore
 
 
 @component
-class Db2EmbeddingRetriever:
+class IBMDb2EmbeddingRetriever:
     """
-    Retrieves documents from a Db2DocumentStore using vector similarity.
+    Retrieves documents from a IBMDb2DocumentStore using vector similarity.
 
     Use inside a Haystack pipeline after a text embedder:
 
     .. code-block:: python
 
         pipeline.add_component("embedder", SentenceTransformersTextEmbedder())
-        pipeline.add_component("retriever", Db2EmbeddingRetriever(
+        pipeline.add_component("retriever", IBMDb2EmbeddingRetriever(
             document_store=store, top_k=5
         ))
         pipeline.connect("embedder.embedding", "retriever.query_embedding")
@@ -31,22 +31,22 @@ class Db2EmbeddingRetriever:
     def __init__(
         self,
         *,
-        document_store: Db2DocumentStore,
+        document_store: IBMDb2DocumentStore,
         filters: dict[str, Any] | None = None,
         top_k: int = 10,
         filter_policy: FilterPolicy = FilterPolicy.REPLACE,
     ) -> None:
         """
-        Initialize the Db2EmbeddingRetriever.
+        Initialize the IBMDb2EmbeddingRetriever.
 
-        :param document_store: An instance of `Db2DocumentStore`.
+        :param document_store: An instance of `IBMDb2DocumentStore`.
         :param filters: Filters applied to the retrieved Documents.
         :param top_k: Maximum number of Documents to return.
         :param filter_policy: Policy to determine how filters are applied.
-        :raises TypeError: If `document_store` is not an instance of `Db2DocumentStore`.
+        :raises TypeError: If `document_store` is not an instance of `IBMDb2DocumentStore`.
         """
-        if not isinstance(document_store, Db2DocumentStore):
-            msg = "document_store must be an instance of Db2DocumentStore"
+        if not isinstance(document_store, IBMDb2DocumentStore):
+            msg = "document_store must be an instance of IBMDb2DocumentStore"
             raise TypeError(msg)
         self.document_store = document_store
         self.filters = filters or {}
@@ -119,7 +119,7 @@ class Db2EmbeddingRetriever:
         )
 
     @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "Db2EmbeddingRetriever":
+    def from_dict(cls, data: dict[str, Any]) -> "IBMDb2EmbeddingRetriever":
         """
         Deserializes the component from a dictionary.
 
@@ -130,7 +130,7 @@ class Db2EmbeddingRetriever:
         """
         params = data.get("init_parameters", {})
         if "document_store" in params:
-            params["document_store"] = Db2DocumentStore.from_dict(params["document_store"])
+            params["document_store"] = IBMDb2DocumentStore.from_dict(params["document_store"])
         # Pipelines serialized with old versions of the component might not
         # have the filter_policy field.
         if filter_policy := params.get("filter_policy"):

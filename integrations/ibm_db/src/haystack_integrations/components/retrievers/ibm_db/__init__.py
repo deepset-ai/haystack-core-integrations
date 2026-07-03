@@ -2,8 +2,8 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from haystack_integrations.components.retrievers.ibm_db.embedding_retriever import Db2EmbeddingRetriever
+from haystack_integrations.components.retrievers.ibm_db.embedding_retriever import IBMDb2EmbeddingRetriever
 
-__all__ = ["Db2EmbeddingRetriever"]
+__all__ = ["IBMDb2EmbeddingRetriever"]
 
 # Made with Bob

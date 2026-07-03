@@ -5,29 +5,34 @@
 import sys
 
 import pytest
+from haystack.utils import Secret
 
-from haystack_integrations.document_stores.ibm_db import Db2ConnectionConfig, Db2DocumentStore
+from haystack_integrations.document_stores.ibm_db import IBMDb2DocumentStore
 
-# DB2 connection configuration for docker-compose DB2 instance
-DB2_CONFIG = Db2ConnectionConfig(
-    database="testdb",
-    hostname="localhost",
-    port=50000,
-    username="db2inst1",
-    password="Passw0rd123!",
-    protocol="TCPIP",
-)
+# DB2 connection parameters for the docker-compose DB2 instance.
+# Credentials are Secrets built from plain-token values for the local docker instance.
+_USERNAME = "db2inst1"
+_PASSWORD = "Passw0rd123!"
+
+DB2_CONNECTION = {
+    "database": "testdb",
+    "hostname": "localhost",
+    "port": 50000,
+    "protocol": "TCPIP",
+    "username": Secret.from_token(_USERNAME),
+    "password": Secret.from_token(_PASSWORD),
+}
 
 
 @pytest.fixture
 def connection_config():
     """
-    Provide DB2 connection configuration for tests.
+    Provide DB2 connection parameters for tests.
 
-    This fixture allows tests to access the connection config without
+    This fixture allows tests to access the connection parameters without
     duplicating the configuration details.
     """
-    return DB2_CONFIG
+    return DB2_CONNECTION
 
 
 @pytest.fixture
@@ -42,8 +47,8 @@ def document_store(request):
     table_name = f"haystack_{request.node.name}_{sys.version_info.major}_{sys.version_info.minor}"
 
     # Use standard embedding dimension (768) for compatibility with mixin tests
-    store = Db2DocumentStore(
-        connection_config=DB2_CONFIG,
+    store = IBMDb2DocumentStore(
+        **DB2_CONNECTION,
         table_name=table_name,
         embedding_dim=768,
         distance_metric="COSINE",

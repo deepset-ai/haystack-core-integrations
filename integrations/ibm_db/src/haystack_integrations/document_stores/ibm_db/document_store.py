@@ -8,47 +8,18 @@ import asyncio
 import json
 import logging
 import threading
-from dataclasses import asdict, dataclass
 from typing import Any, Literal
 
 import ibm_db_dbi  # type: ignore[import-untyped]
-from haystack import default_to_dict
+from haystack import default_from_dict, default_to_dict
 from haystack.dataclasses import Document
 from haystack.document_stores.errors import DuplicateDocumentError
 from haystack.document_stores.types import DuplicatePolicy
+from haystack.utils import Secret, deserialize_secrets_inplace
 
 from .filters import FilterTranslator
 
 logger = logging.getLogger(__name__)
-
-
-@dataclass
-class Db2ConnectionConfig:
-    """
-    Configuration for IBM DB2 database connection.
-
-    :param database: Database name
-    :param hostname: Database server hostname
-    :param port: Database server port (default: 50000)
-    :param username: Database username
-    :param password: Database password
-    :param protocol: Connection protocol (default: "TCPIP")
-    :param schema: Database schema (optional)
-    :param use_ssl: Enable SSL/TLS connection (default: False)
-    :param ssl_certificate: Path to SSL certificate file (optional, required if use_ssl is True)
-    :param connection_options: Additional connection options as dict (optional)
-    """
-
-    database: str
-    hostname: str
-    port: int = 50000
-    username: str = ""
-    password: str = ""
-    protocol: str = "TCPIP"
-    schema: str | None = None
-    use_ssl: bool = False
-    ssl_certificate: str | None = None
-    connection_options: dict[str, Any] | None = None
 
 
 def _parse_embedding(embedding: Any) -> list[float] | None:
@@ -108,7 +79,7 @@ def _row_to_document(row: tuple) -> Document:
     )
 
 
-class Db2DocumentStore:
+class IBMDb2DocumentStore:
     """
     IBM DB2 Document Store for Haystack using vector search capabilities.
 
@@ -119,7 +90,16 @@ class Db2DocumentStore:
     def __init__(
         self,
         *,
-        connection_config: Db2ConnectionConfig,
+        database: str,
+        hostname: str,
+        username: Secret,
+        password: Secret,
+        port: int = 50000,
+        protocol: str = "TCPIP",
+        schema: str | None = None,
+        use_ssl: bool = False,
+        ssl_certificate: str | None = None,
+        connection_options: dict[str, Any] | None = None,
         table_name: str = "haystack_documents",
         embedding_dim: int = 768,
         distance_metric: Literal["EUCLIDEAN", "COSINE", "MANHATTAN"] = "COSINE",
@@ -128,13 +108,31 @@ class Db2DocumentStore:
         """
         Initialize the IBM DB2 Document Store.
 
-        :param connection_config: Database connection configuration
+        :param database: Database name
+        :param hostname: Database server hostname
+        :param username: Database username as a `Secret`, e.g. `Secret.from_env_var("DB2_USERNAME")`.
+        :param password: Database password as a `Secret`, e.g. `Secret.from_env_var("DB2_PASSWORD")`.
+        :param port: Database server port (default: 50000)
+        :param protocol: Connection protocol (default: "TCPIP")
+        :param schema: Database schema (optional)
+        :param use_ssl: Enable SSL/TLS connection (default: False)
+        :param ssl_certificate: Path to SSL certificate file (optional, required if use_ssl is True)
+        :param connection_options: Additional connection options as dict (optional)
         :param table_name: Name of the table to store documents (default: "haystack_documents")
         :param embedding_dim: Dimension of embedding vectors (default: 768)
         :param distance_metric: Distance metric for similarity search (default: "COSINE")
         :param recreate_table: If True, drop and recreate the table (default: False)
         """
-        self.connection_config = connection_config
+        self.database = database
+        self.hostname = hostname
+        self.username = username
+        self.password = password
+        self.port = port
+        self.protocol = protocol
+        self.schema = schema
+        self.use_ssl = use_ssl
+        self.ssl_certificate = ssl_certificate
+        self.connection_options = connection_options
         self.table_name = table_name
         self.embedding_dim = embedding_dim
         self.distance_metric = distance_metric
@@ -158,41 +156,36 @@ class Db2DocumentStore:
             with self._connection_lock:
                 if self._connection is None:
                     # Build connection string
-                    dsn = (
-                        f"DATABASE={self.connection_config.database};"
-                        f"HOSTNAME={self.connection_config.hostname};"
-                        f"PORT={self.connection_config.port};"
-                        f"PROTOCOL={self.connection_config.protocol}"
-                    )
+                    dsn = f"DATABASE={self.database};HOSTNAME={self.hostname};PORT={self.port};PROTOCOL={self.protocol}"
 
                     # Add SSL configuration if enabled
-                    if self.connection_config.use_ssl:
+                    if self.use_ssl:
                         dsn += ";SECURITY=SSL"
-                        if self.connection_config.ssl_certificate:
-                            dsn += f";SSLServerCertificate={self.connection_config.ssl_certificate}"
+                        if self.ssl_certificate:
+                            dsn += f";SSLServerCertificate={self.ssl_certificate}"
 
                     # Set connection options (autocommit OFF by default)
                     conn_options = {ibm_db_dbi.SQL_ATTR_AUTOCOMMIT: ibm_db_dbi.SQL_AUTOCOMMIT_OFF}
-                    if self.connection_config.connection_options:
-                        conn_options.update(self.connection_config.connection_options)
+                    if self.connection_options:
+                        conn_options.update(self.connection_options)
 
                     # Create persistent connection
                     conn = ibm_db_dbi.pconnect(
                         dsn=dsn,
-                        user=self.connection_config.username,
-                        password=self.connection_config.password,
+                        user=self.username.resolve_value() or "",
+                        password=self.password.resolve_value() or "",
                         conn_options=conn_options,
                     )
 
                     # Set schema if specified
-                    if self.connection_config.schema:
+                    if self.schema:
                         with conn.cursor() as cur:
                             try:
-                                cur.execute(f"SET SCHEMA {self.connection_config.schema}")
+                                cur.execute(f"SET SCHEMA {self.schema}")
                                 conn.commit()
                             except Exception as e:
                                 conn.rollback()
-                                msg = f"Failed to set schema {self.connection_config.schema}: {e}"
+                                msg = f"Failed to set schema {self.schema}: {e}"
                                 raise RuntimeError(msg) from e
 
                     self._connection = conn
@@ -956,28 +949,31 @@ class Db2DocumentStore:
         """
         return default_to_dict(
             self,
-            connection_config=asdict(self.connection_config),
+            database=self.database,
+            hostname=self.hostname,
+            port=self.port,
+            username=self.username.to_dict(),
+            password=self.password.to_dict(),
+            protocol=self.protocol,
+            schema=self.schema,
+            use_ssl=self.use_ssl,
+            ssl_certificate=self.ssl_certificate,
+            connection_options=self.connection_options,
             table_name=self.table_name,
             embedding_dim=self.embedding_dim,
             distance_metric=self.distance_metric,
         )
 
     @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "Db2DocumentStore":
+    def from_dict(cls, data: dict[str, Any]) -> "IBMDb2DocumentStore":
         """
         Deserialize the document store from a dictionary.
 
         :param data: Dictionary representation
-        :return: Db2DocumentStore instance
+        :return: IBMDb2DocumentStore instance
         """
-        init_params = data.get("init_parameters", {})
-
-        # Reconstruct connection config
-        connection_config_dict = init_params.pop("connection_config", {})
-        connection_config = Db2ConnectionConfig(**connection_config_dict)
-
-        # Pass connection_config separately and let default_from_dict handle other params
-        return cls(connection_config=connection_config, **init_params)
+        deserialize_secrets_inplace(data["init_parameters"], keys=["username", "password"])
+        return default_from_dict(cls, data)
 
     def _embedding_retrieval(
         self,
@@ -1074,4 +1070,4 @@ class Db2DocumentStore:
         )
 
 
-__all__ = ["Db2ConnectionConfig", "Db2DocumentStore"]
+__all__ = ["IBMDb2DocumentStore"]
