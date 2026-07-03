@@ -6,6 +6,7 @@
 
 import math
 from datetime import datetime, timedelta, timezone
+from unittest.mock import patch
 
 import pytest
 from haystack.dataclasses import Document
@@ -26,8 +27,8 @@ from haystack.testing.document_store import (
     WriteDocumentsTest,
 )
 
-from haystack_integrations.document_stores.ibm_db import Db2DocumentStore
-from haystack_integrations.document_stores.ibm_db.document_store import _row_to_document
+from haystack_integrations.document_stores.ibm_db import Db2ConnectionConfig, Db2DocumentStore
+from haystack_integrations.document_stores.ibm_db.document_store import _parse_embedding, _row_to_document
 
 try:
     from cryptography import x509
@@ -308,3 +309,82 @@ class TestDb2DocumentStoreUnit:
         assert doc.content == "content"
         assert doc.meta == {"key": "value"}
         assert doc.embedding == [0.1, 0.2, 0.3]
+
+
+class TestDb2DocumentStoreUtils:
+    """Unit tests for the pure utility/helper methods that don't require a database."""
+
+    @pytest.fixture
+    def store(self):
+        """A Db2DocumentStore built without connecting to a database."""
+        config = Db2ConnectionConfig(database="db", hostname="host", username="u", password="p")
+        with patch.object(Db2DocumentStore, "_ensure_table_exists", return_value=None):
+            return Db2DocumentStore(
+                connection_config=config,
+                table_name="unit_docs",
+                embedding_dim=4,
+                distance_metric="COSINE",
+            )
+
+    # --- _parse_embedding ---
+
+    def test_parse_embedding_none_returns_none(self):
+        assert _parse_embedding(None) is None
+
+    def test_parse_embedding_list_of_ints_converted_to_floats(self):
+        assert _parse_embedding([1, 2, 3]) == [1.0, 2.0, 3.0]
+
+    def test_parse_embedding_json_string_list(self):
+        assert _parse_embedding("[1.0, 2.0, 3.0]") == [1.0, 2.0, 3.0]
+
+    def test_parse_embedding_tuple_via_iterable_fallback(self):
+        assert _parse_embedding((0.5, 1.5)) == [0.5, 1.5]
+
+    def test_parse_embedding_non_numeric_string_returns_none(self):
+        # json.loads fails, iterable fallback over characters raises ValueError -> None
+        assert _parse_embedding("not-a-vector") is None
+
+    def test_parse_embedding_json_string_non_list_returns_none(self):
+        # Valid JSON but not a list -> iterable fallback over its characters raises -> None
+        assert _parse_embedding('{"a": 1}') is None
+
+    def test_parse_embedding_non_iterable_returns_none(self):
+        assert _parse_embedding(object()) is None
+
+    # --- _validate_embedding ---
+
+    def test_validate_embedding_none_allowed(self, store):
+        # Should not raise
+        store._validate_embedding(None, allow_none=True)
+
+    def test_validate_embedding_none_not_allowed_raises_value_error(self, store):
+        with pytest.raises(ValueError, match="cannot be None"):
+            store._validate_embedding(None, allow_none=False)
+
+    def test_validate_embedding_non_list_raises_type_error(self, store):
+        with pytest.raises(TypeError, match="must be a list"):
+            store._validate_embedding("not a list")
+
+    def test_validate_embedding_empty_list_raises_value_error(self, store):
+        with pytest.raises(ValueError, match="cannot be empty"):
+            store._validate_embedding([])
+
+    def test_validate_embedding_non_numeric_values_raise_type_error(self, store):
+        with pytest.raises(TypeError, match="must be numeric"):
+            store._validate_embedding([0.1, "x", 0.3])
+
+    # --- _infer_field_type ---
+
+    @pytest.mark.parametrize(
+        ("value", "expected"),
+        [
+            (True, "boolean"),
+            (10, "integer"),
+            (1.5, "real"),
+            ("text", "text"),
+            ([1, 2], "text"),
+            (None, "text"),
+        ],
+    )
+    def test_infer_field_type(self, value, expected):
+        assert Db2DocumentStore._infer_field_type(value) == expected
