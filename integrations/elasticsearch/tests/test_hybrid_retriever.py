@@ -50,8 +50,21 @@ class TestElasticsearchHybridRetriever:
                         "ingest_pipeline": None,
                     },
                 },
-                # serialize the embedder with the installed haystack-ai version so the expected fields match it
-                "embedder": OpenAITextEmbedder().to_dict(),
+                "embedder": {
+                    "type": "haystack.components.embedders.openai_text_embedder.OpenAITextEmbedder",
+                    "init_parameters": {
+                        "api_key": {"type": "env_var", "env_vars": ["OPENAI_API_KEY"], "strict": True},
+                        "model": "text-embedding-ada-002",
+                        "dimensions": None,
+                        "api_base_url": None,
+                        "organization": None,
+                        "prefix": "",
+                        "suffix": "",
+                        "timeout": None,
+                        "max_retries": None,
+                        "http_client_kwargs": None,
+                    },
+                },
                 "filters_bm25": None,
                 "fuzziness": "AUTO",
                 "top_k_bm25": 10,

@@ -5,7 +5,6 @@
 import copy
 import json
 from dataclasses import dataclass
-from enum import Enum
 from pathlib import Path
 from typing import Any, overload
 
@@ -39,23 +38,15 @@ except ImportError:
     )
 
 
-# HFModelType and check_valid_model were removed from haystack.utils.hf in Haystack 3.0,
-# so they are vendored here.
-class HFModelType(Enum):
-    EMBEDDING = 1
-    GENERATION = 2
-
-
-def check_valid_model(model_id: str, model_type: HFModelType, token: Secret | None) -> None:
+# check_valid_model was removed from haystack.utils.hf in Haystack 3.0, so an embedding-only
+# version of it is vendored here.
+def check_valid_model(model_id: str, token: Secret | None) -> None:
     """
-    Check if the provided model ID corresponds to a valid model on HuggingFace Hub.
-
-    Also check if the model is an embedding or generation model.
+    Check if the provided model ID corresponds to a valid embedding model on HuggingFace Hub.
 
     :param model_id: A string representing the HuggingFace model ID.
-    :param model_type: the model type, HFModelType.EMBEDDING or HFModelType.GENERATION
     :param token: The optional authentication token.
-    :raises ValueError: If the model is not found or is not a embedding model.
+    :raises ValueError: If the model is not found or is not an embedding model.
     """
     api = HfApi()
     try:
@@ -64,18 +55,9 @@ def check_valid_model(model_id: str, model_type: HFModelType, token: Secret | No
         msg = f"Model {model_id} not found on HuggingFace Hub. Please provide a valid HuggingFace model_id."
         raise ValueError(msg) from e
 
-    if model_type == HFModelType.EMBEDDING:
-        allowed_model = model_info.pipeline_tag in ["sentence-similarity", "feature-extraction"]
-        error_msg = f"Model {model_id} is not an embedding model. Please provide an embedding model."
-    elif model_type == HFModelType.GENERATION:
-        allowed_model = model_info.pipeline_tag in ["text-generation", "text2text-generation", "image-text-to-text"]
-        error_msg = f"Model {model_id} is not a text generation model. Please provide a text generation model."
-    else:
-        allowed_model = False
-        error_msg = f"Unknown model type for {model_id}"
-
-    if not allowed_model:
-        raise ValueError(error_msg)
+    if model_info.pipeline_tag not in ["sentence-similarity", "feature-extraction"]:
+        msg = f"Model {model_id} is not an embedding model. Please provide an embedding model."
+        raise ValueError(msg)
 
 
 @dataclass
@@ -133,7 +115,7 @@ class _EmbedderParams:
 
 class _EmbedderBackend:
     def __init__(self, params: _EmbedderParams) -> None:
-        check_valid_model(params.model, HFModelType.EMBEDDING, params.token)
+        check_valid_model(params.model, params.token)
         resolved_token = params.token.resolve_value() if params.token else None
 
         if isinstance(params.pooling_mode, str):
