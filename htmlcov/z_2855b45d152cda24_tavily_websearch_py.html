@@ -66,8 +66,8 @@
             <a id="indexLink" class="nav" href="index.html">&Hat; index</a> &nbsp; &nbsp;
             <a id="nextFileLink" class="nav" href="index.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
-            <a class="nav" href="https://coverage.readthedocs.io/en/7.14.2">coverage.py v7.14.2</a>,
-            created at 2026-06-25 07:47 +0000
+            <a class="nav" href="https://coverage.readthedocs.io/en/7.14.3">coverage.py v7.14.3</a>,
+            created at 2026-07-03 05:56 +0000
         </p>
         <aside class="hidden">
             <button type="button" class="button_next_chunk" data-shortcut="j"></button>
@@ -155,9 +155,9 @@
     <p class="pln"><span class="n"><a id="t71" href="#t71">71</a></span><span class="t"><span class="str">        Called automatically on first use. Can be called explicitly to avoid cold-start latency.</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t72" href="#t72">72</a></span><span class="t"><span class="str">        """</span>&nbsp;</span><span class="r"></span></p>
     <p class="par run show_par"><span class="n"><a id="t73" href="#t73">73</a></span><span class="t">        <span class="key">if</span> <span class="nam">self</span><span class="op">.</span><span class="nam">_tavily_client</span> <span class="key">is</span> <span class="key">None</span><span class="op">:</span>&nbsp;</span><span class="r"><span class="annotate short">73&#x202F;&#x219B;&#x202F;75</span><span class="annotate long">line 73 didn't jump to line 75 because the condition on line 73 was always true</span></span></p>
-    <p class="run"><span class="n"><a id="t74" href="#t74">74</a></span><span class="t">            <span class="nam">self</span><span class="op">.</span><span class="nam">_tavily_client</span> <span class="op">=</span> <span class="nam">TavilyClient</span><span class="op">(</span><span class="nam">api_key</span><span class="op">=</span><span class="nam">self</span><span class="op">.</span><span class="nam">api_key</span><span class="op">.</span><span class="nam">resolve_value</span><span class="op">(</span><span class="op">)</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t74" href="#t74">74</a></span><span class="t">            <span class="nam">self</span><span class="op">.</span><span class="nam">_tavily_client</span> <span class="op">=</span> <span class="nam">TavilyClient</span><span class="op">(</span><span class="nam">api_key</span><span class="op">=</span><span class="nam">self</span><span class="op">.</span><span class="nam">api_key</span><span class="op">.</span><span class="nam">resolve_value</span><span class="op">(</span><span class="op">)</span><span class="op">,</span> <span class="nam">client_name</span><span class="op">=</span><span class="str">"haystack"</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="par run show_par"><span class="n"><a id="t75" href="#t75">75</a></span><span class="t">        <span class="key">if</span> <span class="nam">self</span><span class="op">.</span><span class="nam">_async_tavily_client</span> <span class="key">is</span> <span class="key">None</span><span class="op">:</span>&nbsp;</span><span class="r"><span class="annotate short">75&#x202F;&#x219B;&#x202F;exit</span><span class="annotate long">line 75 didn't return from function 'warm_up' because the condition on line 75 was always true</span></span></p>
-    <p class="run"><span class="n"><a id="t76" href="#t76">76</a></span><span class="t">            <span class="nam">self</span><span class="op">.</span><span class="nam">_async_tavily_client</span> <span class="op">=</span> <span class="nam">AsyncTavilyClient</span><span class="op">(</span><span class="nam">api_key</span><span class="op">=</span><span class="nam">self</span><span class="op">.</span><span class="nam">api_key</span><span class="op">.</span><span class="nam">resolve_value</span><span class="op">(</span><span class="op">)</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t76" href="#t76">76</a></span><span class="t">            <span class="nam">self</span><span class="op">.</span><span class="nam">_async_tavily_client</span> <span class="op">=</span> <span class="nam">AsyncTavilyClient</span><span class="op">(</span><span class="nam">api_key</span><span class="op">=</span><span class="nam">self</span><span class="op">.</span><span class="nam">api_key</span><span class="op">.</span><span class="nam">resolve_value</span><span class="op">(</span><span class="op">)</span><span class="op">,</span> <span class="nam">client_name</span><span class="op">=</span><span class="str">"haystack"</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t77" href="#t77">77</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t78" href="#t78">78</a></span><span class="t">    <span class="op">@</span><span class="nam">component</span><span class="op">.</span><span class="nam">output_types</span><span class="op">(</span><span class="nam">documents</span><span class="op">=</span><span class="nam">list</span><span class="op">[</span><span class="nam">Document</span><span class="op">]</span><span class="op">,</span> <span class="nam">links</span><span class="op">=</span><span class="nam">list</span><span class="op">[</span><span class="nam">str</span><span class="op">]</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t79" href="#t79">79</a></span><span class="t">    <span class="key">def</span> <span class="nam">run</span><span class="op">(</span>&nbsp;</span><span class="r"></span></p>
@@ -249,8 +249,8 @@
             <a class="nav" href="index.html">&Hat; index</a> &nbsp; &nbsp;
             <a class="nav" href="index.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
-            <a class="nav" href="https://coverage.readthedocs.io/en/7.14.2">coverage.py v7.14.2</a>,
-            created at 2026-06-25 07:47 +0000
+            <a class="nav" href="https://coverage.readthedocs.io/en/7.14.3">coverage.py v7.14.3</a>,
+            created at 2026-07-03 05:56 +0000
         </p>
     </div>
 </footer>
