@@ -4,14 +4,14 @@
 
 | Name                                                                                               |    Stmts |     Miss |   Branch |   BrPart |   Cover |   Missing |
 |--------------------------------------------------------------------------------------------------- | -------: | -------: | -------: | -------: | ------: | --------: |
-| src/haystack\_integrations/common/transformers/utils.py                                            |       89 |       10 |       22 |        5 |     85% |95, 98-99, 126-130, 135, 186-189, 223-\>exit |
+| src/haystack\_integrations/common/transformers/utils.py                                            |       92 |       10 |       24 |        6 |     84% |96, 99-100, 127-131, 136, 187-190, 224-\>exit, 234-\>236 |
 | src/haystack\_integrations/components/classifiers/transformers/zero\_shot\_document\_classifier.py |       58 |        3 |       18 |        1 |     92% |138-140, 146-\>exit |
 | src/haystack\_integrations/components/extractors/transformers/named\_entity\_extractor.py          |       82 |        7 |       10 |        3 |     89% |118, 135-137, 154, 186-187 |
 | src/haystack\_integrations/components/generators/transformers/chat/chat\_generator.py              |      213 |       16 |       60 |        7 |     91% |64-66, 209-\>214, 265-\>exit, 272-274, 284-\>288, 333, 336-\>339, 451-456, 536-539, 575-581 |
 | src/haystack\_integrations/components/readers/transformers/extractive\_reader.py                   |      229 |        7 |       68 |        7 |     95% |131, 180-\>exit, 218-223, 343-\>348, 415, 472, 494-\>461, 630-631 |
 | src/haystack\_integrations/components/routers/transformers/text\_router.py                         |       51 |        3 |       16 |        2 |     90% |116-118, 124-\>128, 129-\>exit |
 | src/haystack\_integrations/components/routers/transformers/zero\_shot\_text\_router.py             |       46 |        3 |       10 |        1 |     89% |138-140, 146-\>exit |
-| **TOTAL**                                                                                          |  **768** |   **49** |  **204** |   **26** | **91%** |           |
+| **TOTAL**                                                                                          |  **771** |   **49** |  **206** |   **27** | **91%** |           |
 
 
 ## Setup coverage badge
