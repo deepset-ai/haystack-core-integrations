@@ -104,8 +104,6 @@ class IBMDb2EmbeddingRetriever:
         params = data.get("init_parameters", {})
         if "document_store" in params:
             params["document_store"] = IBMDb2DocumentStore.from_dict(params["document_store"])
-        # Pipelines serialized with old versions of the component might not
-        # have the filter_policy field.
         if filter_policy := params.get("filter_policy"):
             params["filter_policy"] = FilterPolicy.from_str(filter_policy)
         return default_from_dict(cls, data)
