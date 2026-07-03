@@ -237,6 +237,67 @@ class TestDocumentStore(
         assert retrieved[0].meta["list"] == [1, 2, 3, "four"]
 
 
+class TestDb2DocumentStoreUtilMethods:
+    """Unit tests for pure utility methods: _parse_embedding, _validate_embedding, _infer_field_type."""
+
+    # _parse_embedding
+    def test_parse_embedding_none_returns_none(self):
+        assert _parse_embedding(None) is None
+
+    def test_parse_embedding_list_of_ints_converted_to_floats(self):
+        assert _parse_embedding([1, 2, 3]) == [1.0, 2.0, 3.0]
+
+    def test_parse_embedding_json_string_list(self):
+        assert _parse_embedding("[1.0, 2.0, 3.0]") == [1.0, 2.0, 3.0]
+
+    def test_parse_embedding_tuple_converted(self):
+        assert _parse_embedding((0.5, 1.5)) == [0.5, 1.5]
+
+    def test_parse_embedding_non_numeric_string_returns_none(self):
+        assert _parse_embedding("not-a-vector") is None
+
+    def test_parse_embedding_json_non_list_returns_none(self):
+        assert _parse_embedding('{"a": 1}') is None
+
+    def test_parse_embedding_non_iterable_returns_none(self):
+        assert _parse_embedding(object()) is None
+
+    # _validate_embedding
+    def test_validate_embedding_none_allowed(self):
+        Db2DocumentStore._validate_embedding(None, allow_none=True)
+
+    def test_validate_embedding_none_not_allowed_raises(self):
+        with pytest.raises(ValueError, match="cannot be None"):
+            Db2DocumentStore._validate_embedding(None, allow_none=False)
+
+    def test_validate_embedding_non_list_raises_type_error(self):
+        with pytest.raises(TypeError, match="must be a list"):
+            Db2DocumentStore._validate_embedding("not a list")
+
+    def test_validate_embedding_empty_list_raises_value_error(self):
+        with pytest.raises(ValueError, match="cannot be empty"):
+            Db2DocumentStore._validate_embedding([])
+
+    def test_validate_embedding_non_numeric_raises_type_error(self):
+        with pytest.raises(TypeError, match="must be numeric"):
+            Db2DocumentStore._validate_embedding([0.1, "x", 0.3])
+
+    # _infer_field_type
+    @pytest.mark.parametrize(
+        ("value", "expected"),
+        [
+            (True, "boolean"),
+            (10, "integer"),
+            (1.5, "real"),
+            ("text", "text"),
+            ([1, 2], "text"),
+            (None, "text"),
+        ],
+    )
+    def test_infer_field_type(self, value, expected):
+        assert Db2DocumentStore._infer_field_type(value) == expected
+
+
 class TestDb2DocumentStoreUnit:
     """Unit tests for Db2DocumentStore that don't require a database."""
 

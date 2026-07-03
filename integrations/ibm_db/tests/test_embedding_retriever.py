@@ -5,7 +5,7 @@
 """Integration tests for Db2EmbeddingRetriever using live DB2 instance."""
 
 import sys
-from unittest.mock import AsyncMock, Mock
+from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 from haystack.dataclasses import Document
@@ -93,10 +93,11 @@ class TestDb2EmbeddingRetrieverUnit:
         retriever_merge = Db2EmbeddingRetriever(document_store=mock_store, filter_policy=FilterPolicy.MERGE)
         assert retriever_merge.filter_policy == FilterPolicy.MERGE
 
-    def test_to_dict(self, document_store):
+    def test_to_dict(self):
         """Test serialization to dictionary."""
+        mock_store = Mock(spec=Db2DocumentStore)
         retriever = Db2EmbeddingRetriever(
-            document_store=document_store,
+            document_store=mock_store,
             top_k=7,
             filters={"operator": "==", "field": "meta.x", "value": "y"},
         )
@@ -107,21 +108,25 @@ class TestDb2EmbeddingRetrieverUnit:
         assert d["init_parameters"]["filter_policy"] == "replace"
         assert "document_store" in d["init_parameters"]
 
-    def test_from_dict(self, document_store):
+    def test_from_dict(self):
         """Test deserialization from dictionary."""
-        retriever = Db2EmbeddingRetriever(
-            document_store=document_store,
-            top_k=7,
-            filters={"operator": "==", "field": "meta.x", "value": "y"},
-        )
-        d = retriever.to_dict()
+        mock_store = Mock(spec=Db2DocumentStore)
+        data = {
+            "type": "haystack_integrations.components.retrievers.ibm_db.embedding_retriever.Db2EmbeddingRetriever",
+            "init_parameters": {
+                "document_store": {"type": "x", "init_parameters": {}},
+                "filters": {"operator": "==", "field": "meta.x", "value": "y"},
+                "top_k": 7,
+                "filter_policy": "replace",
+            },
+        }
+        with patch.object(Db2DocumentStore, "from_dict", return_value=mock_store):
+            restored = Db2EmbeddingRetriever.from_dict(data)
 
-        restored = Db2EmbeddingRetriever.from_dict(d)
         assert restored.top_k == 7
         assert restored.filters == {"operator": "==", "field": "meta.x", "value": "y"}
         assert restored.filter_policy == FilterPolicy.REPLACE
-        assert restored.document_store.table_name == document_store.table_name
-        assert restored.document_store.embedding_dim == 4
+        assert restored.document_store is mock_store
 
 
 class TestDb2EmbeddingRetrieverRun:
