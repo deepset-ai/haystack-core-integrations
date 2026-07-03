@@ -206,20 +206,10 @@ class TestTransformersChatGenerator:
         assert init_params["streaming_callback"] is None
         assert init_params["chat_template"] == "irrelevant"
         assert init_params["enable_thinking"] is True
-        assert init_params["tools"] == [
-            {
-                "type": "haystack.tools.tool.Tool",
-                "data": {
-                    "inputs_from_state": None,
-                    "name": "weather",
-                    "outputs_to_state": None,
-                    "outputs_to_string": None,
-                    "description": "useful to determine the weather in a given location",
-                    "parameters": {"type": "object", "properties": {"city": {"type": "string"}}, "required": ["city"]},
-                    "function": "tests.test_chat_generator.get_weather",
-                },
-            }
-        ]
+
+        # deserializing the serialized component must reproduce the original tools
+        loaded = TransformersChatGenerator.from_dict(result)
+        assert loaded.tools == tools
 
     def test_from_dict(self, model_info_mock, tools):
         generator = TransformersChatGenerator(
@@ -802,30 +792,10 @@ class TestTransformersChatGeneratorAsync:
         generator.pipeline = mock_pipeline_with_tokenizer
         data = generator.to_dict()
 
-        expected_tools_data = {
-            "type": "haystack.tools.toolset.Toolset",
-            "data": {
-                "tools": [
-                    {
-                        "type": "haystack.tools.tool.Tool",
-                        "data": {
-                            "name": "weather",
-                            "description": "useful to determine the weather in a given location",
-                            "parameters": {
-                                "type": "object",
-                                "properties": {"city": {"type": "string"}},
-                                "required": ["city"],
-                            },
-                            "function": "tests.test_chat_generator.get_weather",
-                            "outputs_to_string": None,
-                            "inputs_from_state": None,
-                            "outputs_to_state": None,
-                        },
-                    }
-                ]
-            },
-        }
-        assert data["init_parameters"]["tools"] == expected_tools_data
+        # deserializing the serialized component must reproduce the original toolset
+        loaded = TransformersChatGenerator.from_dict(data)
+        assert isinstance(loaded.tools, Toolset)
+        assert list(loaded.tools) == list(toolset)
 
     @pytest.mark.asyncio
     async def test_run_async_with_streaming_callback(self, model_info_mock, mock_pipeline_with_tokenizer):
