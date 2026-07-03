@@ -357,8 +357,6 @@ class MistralChatGenerator(OpenAIChatGenerator):
             - `replies`: A list containing the generated responses as ChatMessage instances.
         """
         messages = _normalize_messages(messages)
-        # warming up is idempotent on all supported haystack-ai versions; with haystack-ai >= 3.0 it also
-        # initializes the client
         self.warm_up()
 
         if len(messages) == 0:
@@ -385,13 +383,13 @@ class MistralChatGenerator(OpenAIChatGenerator):
             tools_strict=tools_strict,
         )
         openai_endpoint = api_args.pop("openai_endpoint")
-        assert self.client is not None  # mypy: with haystack-ai >= 3.0 the client is built by warm_up above
 
+        # with haystack-ai >= 3.0 the client is Optional and built by warm_up above
         if streaming_callback is not None:
-            chat_completion = getattr(self.client.chat.completions, openai_endpoint)(**api_args)
+            chat_completion = getattr(self.client.chat.completions, openai_endpoint)(**api_args)  # type: ignore[union-attr]
             completions = self._handle_stream_response(chat_completion, streaming_callback)
         else:
-            raw_response = getattr(self.client.chat.completions.with_raw_response, openai_endpoint)(**api_args)
+            raw_response = getattr(self.client.chat.completions.with_raw_response, openai_endpoint)(**api_args)  # type: ignore[union-attr]
             completions = _convert_mistral_response_to_chat_messages(raw_response.text)
 
         for message in completions:
@@ -459,15 +457,16 @@ class MistralChatGenerator(OpenAIChatGenerator):
             tools_strict=tools_strict,
         )
         openai_endpoint = api_args.pop("openai_endpoint")
-        assert self.async_client is not None  # mypy: with haystack-ai >= 3.0 the client is built by warm_up above
 
+        # with haystack-ai >= 3.0 the client is Optional and built by warm_up above
         if streaming_callback is not None:
-            chat_completion = await getattr(self.async_client.chat.completions, openai_endpoint)(**api_args)
+            chat_completion = await getattr(self.async_client.chat.completions, openai_endpoint)(**api_args)  # type: ignore[union-attr]
             completions = await self._handle_async_stream_response(chat_completion, streaming_callback)
         else:
-            raw_response = await getattr(self.async_client.chat.completions.with_raw_response, openai_endpoint)(
-                **api_args
-            )
+            raw_response = await getattr(
+                self.async_client.chat.completions.with_raw_response,  # type: ignore[union-attr]
+                openai_endpoint,
+            )(**api_args)
             completions = _convert_mistral_response_to_chat_messages(raw_response.text)
 
         for message in completions:

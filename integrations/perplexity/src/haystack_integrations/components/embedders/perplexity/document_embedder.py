@@ -205,12 +205,9 @@ class PerplexityDocumentEmbedder(OpenAIDocumentEmbedder):
                 "encoding_format": self.encoding_format,
             }
 
-            # with haystack-ai >= 3.0 the client is Optional and built by warm_up in run
-            if self.client is None:
-                msg = "The client is not initialized. Call warm_up() before running the component."
-                raise RuntimeError(msg)
             try:
-                response = self.client.embeddings.create(**args)
+                # with haystack-ai >= 3.0 the client is Optional and built by the warm_up call in run
+                response = self.client.embeddings.create(**args)  # type: ignore[union-attr]
             except APIError as exc:
                 ids = ", ".join(b[0] for b in batch)
                 msg = "Failed embedding of documents {ids} caused by {exc}"
@@ -253,12 +250,9 @@ class PerplexityDocumentEmbedder(OpenAIDocumentEmbedder):
                 "encoding_format": self.encoding_format,
             }
 
-            # with haystack-ai >= 3.0 the client is Optional and built by warm_up in run
-            if self.async_client is None:
-                msg = "The async client is not initialized. Call warm_up_async() before running the component."
-                raise RuntimeError(msg)
             try:
-                response = await self.async_client.embeddings.create(**args)
+                # with haystack-ai >= 3.0 the client is Optional and built by the warm_up_async call in run_async
+                response = await self.async_client.embeddings.create(**args)  # type: ignore[union-attr]
             except APIError as exc:
                 ids = ", ".join(b[0] for b in batch)
                 msg = "Failed embedding of documents {ids} caused by {exc}"

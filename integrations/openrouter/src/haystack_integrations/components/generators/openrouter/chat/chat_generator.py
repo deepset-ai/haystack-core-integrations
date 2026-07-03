@@ -354,8 +354,6 @@ class OpenRouterChatGenerator(OpenAIChatGenerator):
             - `replies`: A list containing the generated responses as ChatMessage instances.
         """
         messages = _normalize_messages(messages)
-        # warming up is idempotent on all supported haystack-ai versions; with haystack-ai >= 3.0 it also
-        # initializes the client
         self.warm_up()
 
         if len(messages) == 0:
@@ -383,8 +381,8 @@ class OpenRouterChatGenerator(OpenAIChatGenerator):
             tools_strict=tools_strict,
         )
         openai_endpoint = api_args.pop("openai_endpoint")
-        assert self.client is not None  # mypy: with haystack-ai >= 3.0 the client is built by warm_up above
-        chat_completion = getattr(self.client.chat.completions, openai_endpoint)(**api_args)
+        # with haystack-ai >= 3.0 the client is Optional and built by warm_up above
+        chat_completion = getattr(self.client.chat.completions, openai_endpoint)(**api_args)  # type: ignore[union-attr]
 
         if streaming_callback is not None:
             # streaming uses the inherited handler so reasoning extraction is intentionally skipped
@@ -462,8 +460,8 @@ class OpenRouterChatGenerator(OpenAIChatGenerator):
             tools_strict=tools_strict,
         )
         openai_endpoint = api_args.pop("openai_endpoint")
-        assert self.async_client is not None  # mypy: with haystack-ai >= 3.0 the client is built by warm_up above
-        chat_completion = await getattr(self.async_client.chat.completions, openai_endpoint)(**api_args)
+        # with haystack-ai >= 3.0 the client is Optional and built by warm_up above
+        chat_completion = await getattr(self.async_client.chat.completions, openai_endpoint)(**api_args)  # type: ignore[union-attr]
 
         if streaming_callback is not None:
             # streaming uses the inherited handler so reasoning extraction is intentionally skipped
