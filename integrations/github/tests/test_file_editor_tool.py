@@ -213,6 +213,8 @@ class TestGitHubFileEditorTool:
         assert pipeline_dict == expected_dict
 
         deserialized_pipeline = Pipeline.from_dict(pipeline_dict)
+        assert deserialized_pipeline == pipeline
+
         deserialized_components = [instance for _, instance in deserialized_pipeline.graph.nodes(data="instance")]
         deserialized_agent = deserialized_components[0]
         assert isinstance(deserialized_agent, Agent)
