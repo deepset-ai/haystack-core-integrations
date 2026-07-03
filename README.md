@@ -4,8 +4,8 @@
 
 | Name                                                                              |    Stmts |     Miss |   Branch |   BrPart |    Cover |   Missing |
 |---------------------------------------------------------------------------------- | -------: | -------: | -------: | -------: | -------: | --------: |
-| src/haystack\_integrations/components/generators/cometapi/chat/chat\_generator.py |        9 |        0 |        0 |        0 |     100% |           |
-| **TOTAL**                                                                         |    **9** |    **0** |    **0** |    **0** | **100%** |           |
+| src/haystack\_integrations/components/generators/cometapi/chat/chat\_generator.py |       14 |        0 |        0 |        0 |     100% |           |
+| **TOTAL**                                                                         |   **14** |    **0** |    **0** |    **0** | **100%** |           |
 
 
 ## Setup coverage badge
