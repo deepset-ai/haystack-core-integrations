@@ -535,9 +535,12 @@ class AmazonBedrockChatGenerator:
         adaptive_thinking_effort = generation_kwargs.pop("adaptive_thinking_effort", None)
         if adaptive_thinking_effort is not None:
             thinking = generation_kwargs.setdefault("thinking", {})
-            thinking.setdefault("type", "adaptive")
-            output_config = generation_kwargs.setdefault("output_config", {})
-            output_config["effort"] = adaptive_thinking_effort
+            if adaptive_thinking_effort in ("disabled", "none"):
+                thinking.setdefault("type", "disabled")
+            else:
+                thinking.setdefault("type", "adaptive")
+                output_config = generation_kwargs.setdefault("output_config", {})
+                output_config["effort"] = adaptive_thinking_effort
 
         tools_cachepoint_config_ttl = generation_kwargs.pop("tools_cachepoint_config_ttl", None)
         if tools_cachepoint_config_ttl is not None:

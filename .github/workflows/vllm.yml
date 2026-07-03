@@ -36,8 +36,7 @@ env:
   VLLM_CPU_KVCACHE_SPACE: "4"
   # we only test on Ubuntu to keep vLLM server running simple
   TEST_MATRIX_OS: '["ubuntu-latest"]'
-  # vLLM is not compatible with Python 3.14. https://github.com/vllm-project/vllm/issues/34096
-  TEST_MATRIX_PYTHON: '["3.10", "3.13"]'
+  TEST_MATRIX_PYTHON: '["3.10", "3.14"]'
 
 jobs:
   compute-test-matrix:

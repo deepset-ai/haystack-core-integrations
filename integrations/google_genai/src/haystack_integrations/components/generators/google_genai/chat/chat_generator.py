@@ -2,6 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+import inspect
 from collections.abc import AsyncIterator, Iterator
 from typing import Any, ClassVar, Literal
 
@@ -10,7 +11,7 @@ from haystack import logging
 from haystack.components.generators.utils import _normalize_messages
 from haystack.core.component import component
 from haystack.core.serialization import default_from_dict, default_to_dict
-from haystack.dataclasses import AsyncStreamingCallbackT, ComponentInfo, StreamingCallbackT, select_streaming_callback
+from haystack.dataclasses import ComponentInfo, StreamingCallbackT, select_streaming_callback
 from haystack.dataclasses.chat_message import ChatMessage, ChatRole
 from haystack.tools import (
     ToolsType,
@@ -344,7 +345,7 @@ class GoogleGenAIChatGenerator:
             raise RuntimeError(msg) from e
 
     async def _handle_streaming_response_async(
-        self, response_stream: AsyncIterator[types.GenerateContentResponse], streaming_callback: AsyncStreamingCallbackT
+        self, response_stream: AsyncIterator[types.GenerateContentResponse], streaming_callback: StreamingCallbackT
     ) -> dict[str, list[ChatMessage]]:
         """
         Handle async streaming response from Google Gen AI generate_content_stream.
@@ -367,7 +368,10 @@ class GoogleGenAIChatGenerator:
                 chunks.append(streaming_chunk)
 
                 # Stream the chunk
-                await streaming_callback(streaming_chunk)
+                # sync callbacks are allowed in async contexts with Haystack >= 3.0, so only await async ones
+                callback_result = streaming_callback(streaming_chunk)
+                if inspect.isawaitable(callback_result):
+                    await callback_result
                 i += 1
 
             # Use custom aggregation that supports reasoning content
