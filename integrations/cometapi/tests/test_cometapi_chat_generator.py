@@ -129,7 +129,6 @@ class TestCometAPIChatGenerator:
             "api_key": {"env_vars": ["COMET_API_KEY"], "strict": True, "type": "env_var"},
             "model": "gpt-5-mini",
             "streaming_callback": None,
-            "api_base_url": "https://api.cometapi.com/v1",
             "generation_kwargs": {},
             "timeout": None,
             "max_retries": None,
@@ -162,7 +161,6 @@ class TestCometAPIChatGenerator:
         expected_params = {
             "api_key": {"env_vars": ["ENV_VAR"], "strict": True, "type": "env_var"},
             "model": "gpt-5-mini",
-            "api_base_url": "https://api.cometapi.com/v1",
             "streaming_callback": "haystack.components.generators.utils.print_streaming_chunk",
             "generation_kwargs": {"max_tokens": 10, "some_test_param": "test-params"},
             "timeout": 10,
@@ -450,6 +448,11 @@ class TestCometAPIChatGenerator:
 
         # Get pipeline dictionary and verify its structure
         pipeline_dict = pipeline.to_dict()
+
+        # the Tool serialization format is owned by haystack-ai and varies across its versions; the
+        # dumps/loads round-trip below covers the tools, so exclude them from the pinned-dict comparison
+        tools_entries = pipeline_dict["components"]["generator"]["init_parameters"].pop("tools")
+        assert len(tools_entries) == 1
         expected_dict = {
             "metadata": {},
             "max_runs_per_component": 100,
@@ -461,23 +464,10 @@ class TestCometAPIChatGenerator:
                     "init_parameters": {
                         "model": "gpt-5-mini",
                         "streaming_callback": "haystack.components.generators.utils.print_streaming_chunk",
-                        "api_base_url": "https://api.cometapi.com/v1",
-                        "organization": None,
                         "generation_kwargs": {"temperature": 0.7},
                         "api_key": {"type": "env_var", "env_vars": ["COMET_API_KEY"], "strict": True},
                         "timeout": None,
                         "max_retries": None,
-                        "tools": [
-                            {
-                                "type": "haystack.tools.tool.Tool",
-                                "data": {
-                                    "name": "weather",
-                                    "description": "useful to determine the weather in a given location",
-                                    "parameters": {"city": {"type": "string"}},
-                                    "function": "test_cometapi_chat_generator.weather",
-                                },
-                            }
-                        ],
                         "tools_strict": False,
                         "http_client_kwargs": None,
                     },
@@ -490,25 +480,15 @@ class TestCometAPIChatGenerator:
         if not hasattr(pipeline, "_connection_type_validation"):
             expected_dict.pop("connection_type_validation")
 
-        # add outputs_to_string, inputs_from_state and outputs_to_state tool parameters for compatibility with
-        # haystack-ai>=2.12.0
-        if hasattr(tool, "outputs_to_string"):
-            expected_dict["components"]["generator"]["init_parameters"]["tools"][0]["data"]["outputs_to_string"] = (
-                tool.outputs_to_string
-            )
-        if hasattr(tool, "inputs_from_state"):
-            expected_dict["components"]["generator"]["init_parameters"]["tools"][0]["data"]["inputs_from_state"] = (
-                tool.inputs_from_state
-            )
-        if hasattr(tool, "outputs_to_state"):
-            expected_dict["components"]["generator"]["init_parameters"]["tools"][0]["data"]["outputs_to_state"] = (
-                tool.outputs_to_state
-            )
-
         assert pipeline_dict == expected_dict
 
+        # Test YAML serialization/deserialization
+        pipeline_yaml = pipeline.dumps()
+        new_pipeline = Pipeline.loads(pipeline_yaml)
+        assert new_pipeline == pipeline
+
         # Verify the loaded pipeline's generator has the same configuration
-        loaded_generator = pipeline.get_component("generator")
+        loaded_generator = new_pipeline.get_component("generator")
         assert loaded_generator.model == generator.model
         assert loaded_generator.generation_kwargs == generator.generation_kwargs
         assert loaded_generator.streaming_callback == generator.streaming_callback

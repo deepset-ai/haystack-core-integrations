@@ -71,9 +71,9 @@ class TavilyWebSearch:
         Called automatically on first use. Can be called explicitly to avoid cold-start latency.
         """
         if self._tavily_client is None:
-            self._tavily_client = TavilyClient(api_key=self.api_key.resolve_value())
+            self._tavily_client = TavilyClient(api_key=self.api_key.resolve_value(), client_name="haystack")
         if self._async_tavily_client is None:
-            self._async_tavily_client = AsyncTavilyClient(api_key=self.api_key.resolve_value())
+            self._async_tavily_client = AsyncTavilyClient(api_key=self.api_key.resolve_value(), client_name="haystack")
 
     @component.output_types(documents=list[Document], links=list[str])
     def run(

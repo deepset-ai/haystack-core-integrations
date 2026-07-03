@@ -205,6 +205,11 @@ class TestAnthropicChatGenerator:
         )
         data = component.to_dict()
 
+        # the Tool serialization format is owned by haystack-ai and varies across its versions; the
+        # from_dict round-trip below covers the tools, so exclude them from the pinned-dict comparison
+        tools_entries = data["init_parameters"].pop("tools")
+        assert len(tools_entries) == 1
+
         expected_dict = {
             "type": "haystack_integrations.components.generators.anthropic.chat.chat_generator.AnthropicChatGenerator",
             "init_parameters": {
@@ -213,36 +218,16 @@ class TestAnthropicChatGenerator:
                 "streaming_callback": "haystack.components.generators.utils.print_streaming_chunk",
                 "ignore_tools_thinking_messages": True,
                 "generation_kwargs": {"max_tokens": 10, "some_test_param": "test-params"},
-                "tools": [
-                    {
-                        "data": {
-                            "description": "description",
-                            "function": "builtins.print",
-                            "name": "name",
-                            "parameters": {
-                                "x": {
-                                    "type": "string",
-                                },
-                            },
-                        },
-                        "type": "haystack.tools.tool.Tool",
-                    }
-                ],
                 "timeout": 10.0,
                 "max_retries": 1,
             },
         }
 
-        # add outputs_to_string, inputs_from_state and outputs_to_state tool parameters for compatibility with
-        # haystack-ai>=2.12.0
-        if hasattr(tool, "outputs_to_string"):
-            expected_dict["init_parameters"]["tools"][0]["data"]["outputs_to_string"] = tool.outputs_to_string
-        if hasattr(tool, "inputs_from_state"):
-            expected_dict["init_parameters"]["tools"][0]["data"]["inputs_from_state"] = tool.inputs_from_state
-        if hasattr(tool, "outputs_to_state"):
-            expected_dict["init_parameters"]["tools"][0]["data"]["outputs_to_state"] = tool.outputs_to_state
-
         assert data == expected_dict
+
+        # deserializing the serialized component must reproduce the original tool
+        loaded = AnthropicChatGenerator.from_dict(component.to_dict())
+        assert loaded.tools == [tool]
 
     def test_from_dict(self, monkeypatch):
         """
@@ -478,6 +463,11 @@ class TestAnthropicChatGenerator:
         pipeline.add_component("generator", generator)
 
         pipeline_dict = pipeline.to_dict()
+
+        # the Tool serialization format is owned by haystack-ai and varies across its versions; the
+        # dumps/loads round-trip below covers the tools, so exclude them from the pinned-dict comparison
+        tools_entries = pipeline_dict["components"]["generator"]["init_parameters"].pop("tools")
+        assert len(tools_entries) == 1
         type_ = "haystack_integrations.components.generators.anthropic.chat.chat_generator.AnthropicChatGenerator"
 
         expected_dict = {
@@ -493,17 +483,6 @@ class TestAnthropicChatGenerator:
                         "generation_kwargs": {"temperature": 0.6},
                         "ignore_tools_thinking_messages": True,
                         "streaming_callback": None,
-                        "tools": [
-                            {
-                                "type": "haystack.tools.tool.Tool",
-                                "data": {
-                                    "name": "name",
-                                    "description": "description",
-                                    "parameters": {"x": {"type": "string"}},
-                                    "function": "builtins.print",
-                                },
-                            }
-                        ],
                         "timeout": None,
                         "max_retries": None,
                     },
@@ -514,21 +493,6 @@ class TestAnthropicChatGenerator:
 
         if not hasattr(pipeline, "_connection_type_validation"):
             expected_dict.pop("connection_type_validation")
-
-        # add outputs_to_string, inputs_from_state and outputs_to_state tool parameters for compatibility with
-        # haystack-ai>=2.12.0
-        if hasattr(tool, "outputs_to_string"):
-            expected_dict["components"]["generator"]["init_parameters"]["tools"][0]["data"]["outputs_to_string"] = (
-                tool.outputs_to_string
-            )
-        if hasattr(tool, "inputs_from_state"):
-            expected_dict["components"]["generator"]["init_parameters"]["tools"][0]["data"]["inputs_from_state"] = (
-                tool.inputs_from_state
-            )
-        if hasattr(tool, "outputs_to_state"):
-            expected_dict["components"]["generator"]["init_parameters"]["tools"][0]["data"]["outputs_to_state"] = (
-                tool.outputs_to_state
-            )
 
         assert pipeline_dict == expected_dict
 

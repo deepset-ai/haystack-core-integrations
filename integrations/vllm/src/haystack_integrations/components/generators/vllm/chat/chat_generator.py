@@ -1,5 +1,6 @@
 import asyncio
 import dataclasses
+import inspect
 import json
 from typing import Any
 
@@ -17,7 +18,6 @@ from haystack.core.component import component
 from haystack.dataclasses import ChatMessage, ToolCall
 from haystack.dataclasses.chat_message import ReasoningContent
 from haystack.dataclasses.streaming_chunk import (
-    AsyncStreamingCallbackT,
     ComponentInfo,
     StreamingCallbackT,
     StreamingChunk,
@@ -385,7 +385,7 @@ class VLLMChatGenerator:
         return [_convert_streaming_chunks_to_chat_message(chunks=chunks)]
 
     async def _handle_async_stream_response(
-        self, chat_completion: AsyncStream[ChatCompletionChunk], callback: AsyncStreamingCallbackT
+        self, chat_completion: AsyncStream[ChatCompletionChunk], callback: StreamingCallbackT
     ) -> list[ChatMessage]:
         """Handle an asynchronous streaming response, extracting reasoning content from vLLM's reasoning chunks."""
         component_info = ComponentInfo.from_component(self)
@@ -423,7 +423,10 @@ class VLLMChatGenerator:
                         content_started = True
 
                 chunks.append(streaming_chunk)
-                await callback(streaming_chunk)
+                # sync callbacks are allowed in async contexts with Haystack >= 3.0, so only await async ones
+                callback_result = callback(streaming_chunk)
+                if inspect.isawaitable(callback_result):
+                    await callback_result
         except asyncio.CancelledError:
             await asyncio.shield(chat_completion.close())
             raise
