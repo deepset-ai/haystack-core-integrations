@@ -6,7 +6,11 @@ from unittest.mock import ANY, AsyncMock, patch
 import pytest
 from haystack import Pipeline
 from haystack.components.generators.utils import print_streaming_chunk
-from haystack.components.tools import ToolInvoker
+
+try:
+    from haystack.components.tools import ToolInvoker
+except ImportError:  # ToolInvoker was removed in Haystack 3.0
+    ToolInvoker = None
 from haystack.dataclasses import (
     ChatMessage,
     ChatRole,
@@ -732,6 +736,7 @@ class TestMistralChatGenerator:
         reason="Export an env var called MISTRAL_API_KEY containing the OpenAI API key to run this test.",
     )
     @pytest.mark.integration
+    @pytest.mark.skipif(ToolInvoker is None, reason="ToolInvoker is not available in the installed haystack-ai version")
     def test_pipeline_with_mistral_chat_generator(self, tools):
         """
         Test that the MistralChatGenerator component can be used in a pipeline

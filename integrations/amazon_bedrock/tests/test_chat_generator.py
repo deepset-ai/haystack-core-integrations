@@ -8,7 +8,11 @@ from botocore.exceptions import ClientError
 from haystack import Pipeline
 from haystack.components.agents import Agent
 from haystack.components.generators.utils import print_streaming_chunk
-from haystack.components.tools import ToolInvoker
+
+try:
+    from haystack.components.tools import ToolInvoker
+except ImportError:  # ToolInvoker was removed in Haystack 3.0
+    ToolInvoker = None
 from haystack.dataclasses import (
     ChatMessage,
     ChatRole,
@@ -1447,6 +1451,7 @@ class TestAmazonBedrockChatGeneratorInference:
         assert "cache_details" in usage
 
     @pytest.mark.parametrize("model_name", MODELS_TO_TEST_WITH_TOOLS[:1])  # just one model is enough
+    @pytest.mark.skipif(ToolInvoker is None, reason="ToolInvoker is not available in the installed haystack-ai version")
     def test_pipeline_with_amazon_bedrock_chat_generator(self, model_name, tools):
         """
         Test that the AmazonBedrockChatGenerator component can be used in a pipeline
