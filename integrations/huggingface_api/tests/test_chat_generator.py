@@ -270,8 +270,10 @@ class TestHuggingFaceAPIChatGenerator:
         assert init_params["token"] == {"env_vars": ["HF_API_TOKEN", "HF_TOKEN"], "strict": False, "type": "env_var"}
         assert init_params["generation_kwargs"] == {"temperature": 0.6, "stop": ["stop", "words"], "max_tokens": 512}
         assert init_params["streaming_callback"] is None
-        # serialize the tool with the installed haystack-ai version so the expected fields match it
-        assert init_params["tools"] == [tool.to_dict()]
+
+        # deserializing the serialized component must reproduce the original tool
+        loaded = HuggingFaceAPIChatGenerator.from_dict(result)
+        assert loaded.tools == [tool]
 
     def test_from_dict(self, mock_check_valid_model):
         tool = Tool(name="name", description="description", parameters={"x": {"type": "string"}}, function=print)
@@ -311,6 +313,11 @@ class TestHuggingFaceAPIChatGenerator:
         pipeline.add_component("generator", generator)
 
         pipeline_dict = pipeline.to_dict()
+
+        # the Tool serialization format is owned by haystack-ai and varies across its versions; the
+        # dumps/loads round-trip below covers the tools, so exclude them from the pinned-dict comparison
+        tools_entries = pipeline_dict["components"]["generator"]["init_parameters"].pop("tools")
+        assert len(tools_entries) == 1
         assert pipeline_dict == {
             "metadata": {},
             "max_runs_per_component": 100,
@@ -325,8 +332,6 @@ class TestHuggingFaceAPIChatGenerator:
                         "token": {"type": "env_var", "env_vars": ["ENV_VAR"], "strict": False},
                         "generation_kwargs": {"temperature": 0.6, "stop": ["stop", "words"], "max_tokens": 512},
                         "streaming_callback": None,
-                        # serialize the tool with the installed haystack-ai version so the expected fields match it
-                        "tools": [tool.to_dict()],
                     },
                 }
             },
@@ -1165,8 +1170,10 @@ class TestHuggingFaceAPIChatGenerator:
         )
         data = generator.to_dict()
 
-        # serialize the toolset with the installed haystack-ai version so the expected fields match it
-        assert data["init_parameters"]["tools"] == toolset.to_dict()
+        # deserializing the serialized component must reproduce the original toolset
+        loaded = HuggingFaceAPIChatGenerator.from_dict(data)
+        assert isinstance(loaded.tools, Toolset)
+        assert list(loaded.tools) == list(toolset)
 
     def test_convert_tools_to_hfapi_tools(self):
         assert _convert_tools_to_hfapi_tools(None) is None

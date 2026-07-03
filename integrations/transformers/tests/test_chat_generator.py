@@ -206,8 +206,10 @@ class TestTransformersChatGenerator:
         assert init_params["streaming_callback"] is None
         assert init_params["chat_template"] == "irrelevant"
         assert init_params["enable_thinking"] is True
-        # serialize the tools with the installed haystack-ai version so the expected fields match it
-        assert init_params["tools"] == [tool.to_dict() for tool in tools]
+
+        # deserializing the serialized component must reproduce the original tools
+        loaded = TransformersChatGenerator.from_dict(result)
+        assert loaded.tools == tools
 
     def test_from_dict(self, model_info_mock, tools):
         generator = TransformersChatGenerator(
@@ -790,8 +792,10 @@ class TestTransformersChatGeneratorAsync:
         generator.pipeline = mock_pipeline_with_tokenizer
         data = generator.to_dict()
 
-        # serialize the toolset with the installed haystack-ai version so the expected fields match it
-        assert data["init_parameters"]["tools"] == toolset.to_dict()
+        # deserializing the serialized component must reproduce the original toolset
+        loaded = TransformersChatGenerator.from_dict(data)
+        assert isinstance(loaded.tools, Toolset)
+        assert list(loaded.tools) == list(toolset)
 
     @pytest.mark.asyncio
     async def test_run_async_with_streaming_callback(self, model_info_mock, mock_pipeline_with_tokenizer):
