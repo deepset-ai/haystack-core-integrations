@@ -769,22 +769,35 @@ class TestAmazonBedrockChatGenerator:
         result = AmazonBedrockChatGenerator._resolve_flattened_generation_kwargs(
             {
                 "tools_cachepoint_config_ttl": "5m",
-                "system_cachepoint_config_ttl": "10m",
             }
         )
         assert result["tools_cachepoint_config"] == {"type": "default", "ttl": "5m"}
-        assert result["system_cachepoint_config"] == {"type": "default", "ttl": "10m"}
         assert "tools_cachepoint_config_ttl" not in result
-        assert "system_cachepoint_config_ttl" not in result
 
-    def test_resolve_flattened_kwargs_cachepoint_ttl_preserves_existing_type(self):
-        result = AmazonBedrockChatGenerator._resolve_flattened_generation_kwargs(
+    def test_from_dict_resolves_system_cachepoint_config_ttl(self, mock_boto3_session):
+        generator = AmazonBedrockChatGenerator.from_dict(
             {
-                "system_cachepoint_config": {"type": "custom"},
-                "system_cachepoint_config_ttl": "5m",
+                "type": CLASS_TYPE,
+                "init_parameters": {
+                    "model": "global.anthropic.claude-sonnet-4-6",
+                    "system_cachepoint_config_ttl": "1h",
+                },
             }
         )
-        assert result["system_cachepoint_config"] == {"type": "custom", "ttl": "5m"}
+        assert generator.system_cachepoint_config == {"cachePoint": {"type": "default", "ttl": "1h"}}
+
+    def test_from_dict_resolves_system_cachepoint_config_ttl_preserves_existing_type(self, mock_boto3_session):
+        generator = AmazonBedrockChatGenerator.from_dict(
+            {
+                "type": CLASS_TYPE,
+                "init_parameters": {
+                    "model": "global.anthropic.claude-sonnet-4-6",
+                    "system_cachepoint_config": {"type": "default"},
+                    "system_cachepoint_config_ttl": "5m",
+                },
+            }
+        )
+        assert generator.system_cachepoint_config == {"cachePoint": {"type": "default", "ttl": "5m"}}
 
     def test_run_completion(self, mock_boto3_session, set_env_variables):
         generator = AmazonBedrockChatGenerator(model="global.anthropic.claude-sonnet-4-6")

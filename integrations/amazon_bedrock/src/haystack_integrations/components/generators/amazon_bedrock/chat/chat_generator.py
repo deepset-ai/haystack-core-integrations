@@ -409,6 +409,12 @@ class AmazonBedrockChatGenerator:
         if stop_words:
             logger.warning(msg)
 
+        system_cachepoint_config_ttl = init_params.pop("system_cachepoint_config_ttl", None)
+        if system_cachepoint_config_ttl is not None:
+            system_cachepoint_config = init_params.setdefault("system_cachepoint_config", {})
+            system_cachepoint_config["ttl"] = system_cachepoint_config_ttl
+            system_cachepoint_config.setdefault("type", "default")
+
         serialized_callback_handler = init_params.get("streaming_callback")
         if serialized_callback_handler:
             data["init_parameters"]["streaming_callback"] = deserialize_callable(serialized_callback_handler)
@@ -547,12 +553,6 @@ class AmazonBedrockChatGenerator:
             tools_cachepoint_config = generation_kwargs.setdefault("tools_cachepoint_config", {})
             tools_cachepoint_config["ttl"] = tools_cachepoint_config_ttl
             tools_cachepoint_config.setdefault("type", "default")
-
-        system_cachepoint_config_ttl = generation_kwargs.pop("system_cachepoint_config_ttl", None)
-        if system_cachepoint_config_ttl is not None:
-            system_cachepoint_config = generation_kwargs.setdefault("system_cachepoint_config", {})
-            system_cachepoint_config["ttl"] = system_cachepoint_config_ttl
-            system_cachepoint_config.setdefault("type", "default")
 
         return generation_kwargs
 
