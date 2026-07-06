@@ -131,7 +131,7 @@ class FilterTranslator:
         if sql_operator == "=":
             # NULL-safe equality: a missing/null field is a definite non-match (not SQL
             # UNKNOWN), so negations (NOT) include missing-field documents, matching
-            # Haystack's Python semantics where ``None == value`` is ``False``.
+            # Haystack's Python semantics where `None == value` is `False`.
             return f"({field_expr} IS NOT NULL AND {field_expr} = ?)"
 
         return f"{field_expr} {sql_operator} ?"
@@ -164,9 +164,9 @@ def _normalize_value(value: Any) -> Any:
     """
     Normalize a Python value for binding against a JSON_VALUE comparison.
 
-    Booleans are stored in JSON as ``true``/``false`` and read back by ``JSON_VALUE`` as the
-    lowercase strings ``'true'``/``'false'``. ibm_db would otherwise bind a Python bool as the
-    integer ``1``/``0``, so the comparison would never match. Convert it explicitly.
+    Booleans are stored in JSON as `true`/`false` and read back by `JSON_VALUE` as the
+    lowercase strings `'true'`/`'false'`. ibm_db would otherwise bind a Python bool as the
+    integer `1`/`0`, so the comparison would never match. Convert it explicitly.
     """
     if isinstance(value, bool):
         return "true" if value else "false"

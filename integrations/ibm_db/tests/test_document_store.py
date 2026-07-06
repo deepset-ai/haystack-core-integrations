@@ -149,10 +149,15 @@ class TestDocumentStore(
                         raise AssertionError(msg)
 
     def test_write_documents(self, document_store: IBMDb2DocumentStore):
-        """Test basic write with duplicate handling - default policy is NONE."""
+        """Test write_documents() default behaviour required by the mixin."""
         doc = Document(content="test doc")
         assert document_store.write_documents([doc]) == 1
-        # Default policy is NONE — a second write of the same doc raises DuplicateDocumentError
+
+    def test_write_documents_default_policy_none(self, document_store: IBMDb2DocumentStore):
+        """Test that the default NONE policy rejects duplicate documents."""
+        doc = Document(content="test doc")
+        document_store.write_documents([doc])
+
         with pytest.raises(DuplicateDocumentError):
             document_store.write_documents([doc])
 

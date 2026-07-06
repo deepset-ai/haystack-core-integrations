@@ -19,13 +19,13 @@ class IBMDb2EmbeddingRetriever:
 
     Use inside a Haystack pipeline after a text embedder:
 
-    .. code-block:: python
-
-        pipeline.add_component("embedder", SentenceTransformersTextEmbedder())
-        pipeline.add_component("retriever", IBMDb2EmbeddingRetriever(
-            document_store=store, top_k=5
-        ))
-        pipeline.connect("embedder.embedding", "retriever.query_embedding")
+    ```python
+    pipeline.add_component("embedder", SentenceTransformersTextEmbedder())
+    pipeline.add_component("retriever", IBMDb2EmbeddingRetriever(
+        document_store=store, top_k=5
+    ))
+    pipeline.connect("embedder.embedding", "retriever.query_embedding")
+    ```
     """
 
     def __init__(
@@ -66,7 +66,7 @@ class IBMDb2EmbeddingRetriever:
         :param query_embedding: Dense float vector from an embedder component.
         :param filters: Runtime filters, merged with constructor filters according to filter_policy.
         :param top_k: Override the constructor top_k for this call.
-        :returns: A dictionary with key ``documents`` containing a list of matching :class:`Document` objects.
+        :returns: A dictionary with key `documents` containing a list of matching :class:`Document` objects.
         """
         filters = apply_filter_policy(self.filter_policy, self.filters, filters)
         docs = self.document_store._embedding_retrieval(
