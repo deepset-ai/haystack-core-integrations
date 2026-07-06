@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/elasticsearch-v6.1.1] - 2026-07-02
+
+### 🐛 Bug Fixes
+
+- *(elasticsearch)* Remove duplicate delete/create in delete_all_documents(recreate_index=True) (#3522)
+
+
 ## [integrations/elasticsearch-v6.1.0] - 2026-05-04
 
 ### 🚀 Features

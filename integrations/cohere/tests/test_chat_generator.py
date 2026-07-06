@@ -5,7 +5,11 @@ import pytest
 from cohere.core import ApiError
 from haystack import Pipeline
 from haystack.components.generators.utils import print_streaming_chunk
-from haystack.components.tools import ToolInvoker
+
+try:
+    from haystack.components.tools import ToolInvoker
+except ImportError:  # ToolInvoker was removed in Haystack 3.0
+    ToolInvoker = None
 from haystack.dataclasses import ChatMessage, ChatRole, ImageContent, ToolCall
 from haystack.dataclasses.streaming_chunk import StreamingChunk
 from haystack.tools import Tool, Toolset
@@ -742,6 +746,7 @@ class TestCohereChatGeneratorInference:
         assert len(final_message.text) > 0
         assert "paris" in final_message.text.lower()
 
+    @pytest.mark.skipif(ToolInvoker is None, reason="ToolInvoker is not available in the installed haystack-ai version")
     def test_pipeline_with_cohere_chat_generator(self):
         """
         Test that the CohereChatGenerator component can be used in a pipeline
