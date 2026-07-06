@@ -4,7 +4,7 @@
 
 | Name                                                                              |    Stmts |     Miss |   Branch |   BrPart |   Cover |   Missing |
 |---------------------------------------------------------------------------------- | -------: | -------: | -------: | -------: | ------: | --------: |
-| src/haystack\_integrations/components/retrievers/pgvector/embedding\_retriever.py |       44 |        4 |        6 |        3 |     86% |89-90, 93-94, 134-\>136 |
+| src/haystack\_integrations/components/retrievers/pgvector/embedding\_retriever.py |       44 |        4 |        6 |        3 |     86% |90-91, 94-95, 135-\>137 |
 | src/haystack\_integrations/components/retrievers/pgvector/keyword\_retriever.py   |       37 |        2 |        4 |        1 |     93% |     69-70 |
 | src/haystack\_integrations/document\_stores/pgvector/converters.py                |       42 |        2 |       18 |        3 |     92% |31-\>41, 34, 67 |
 | src/haystack\_integrations/document\_stores/pgvector/document\_store.py           |      716 |       39 |      182 |       26 |     93% |253-\>exit, 258-\>exit, 302-\>exit, 307-\>exit, 364-365, 378-\>380, 421-\>423, 612-613, 617-618, 635-636, 654, 668-673, 691, 707-712, 740, 765, 871-\>876, 895-901, 928-\>933, 952-958, 996, 1062-\>1066, 1084-1086, 1104-\>1108, 1126-1128, 1153-\>1158, 1176-1178, 1203-\>1208, 1226-1228, 1358-\>1362, 1453-\>1456, 1479, 1504 |
