@@ -131,7 +131,7 @@ class AnthropicChatGenerator:
         streaming_callback: StreamingCallbackT | None = None,
         generation_kwargs: dict[str, Any] | None = None,
         ignore_tools_thinking_messages: bool = True,
-        tools: ToolsType | None = None,
+        tools: ToolsType | list[dict] | None = None,
         *,
         timeout: float | None = None,
         max_retries: int | None = None,
@@ -167,7 +167,12 @@ class AnthropicChatGenerator:
             use is detected. See the Anthropic [tools](https://docs.anthropic.com/en/docs/tool-use#chain-of-thought-tool-use)
             for more details.
         :param tools: A list of Tool and/or Toolset objects, or a single Toolset, that the model can use.
-            Each tool should have a unique name.
+            Each tool should have a unique name. This parameter can also accept a list of dictionaries to use
+            Anthropic's native, server-side tools such as `web_search`, `code_execution`, or `bash`. In that case,
+            pass the tool definitions exactly as Anthropic expects them, for example
+            `[{"type": "web_search_20250305", "name": "web_search"}]`. See the Anthropic
+            [tool use documentation](https://docs.anthropic.com/en/docs/tool-use) for the supported native tools
+            and their parameters. Native tools and Haystack `Tool`/`Toolset` objects cannot be passed together.
         :param timeout:
             Timeout for Anthropic client calls. If not set, it defaults to the default set by the Anthropic client.
         :param max_retries:
@@ -175,7 +180,8 @@ class AnthropicChatGenerator:
             the Anthropic client.
 
         """
-        _check_duplicate_tool_names(flatten_tools_or_toolsets(tools))
+        if not (isinstance(tools, list) and tools and isinstance(tools[0], dict)):
+            _check_duplicate_tool_names(flatten_tools_or_toolsets(tools))  # type: ignore[arg-type]
 
         self.api_key = api_key
         self.model = model
@@ -212,6 +218,10 @@ class AnthropicChatGenerator:
             The serialized component as a dictionary.
         """
         callback_name = serialize_callable(self.streaming_callback) if self.streaming_callback else None
+        # Anthropic's native, server-side tools (e.g. web_search) are plain dicts, not Haystack Tool/Toolset
+        # objects, so they don't go through the Haystack tool serialization machinery.
+        is_native_tools = isinstance(self.tools, list) and self.tools and isinstance(self.tools[0], dict)
+        serialized_tools = self.tools if is_native_tools else serialize_tools_or_toolset(self.tools)  # type: ignore[arg-type]
         return default_to_dict(
             self,
             model=self.model,
@@ -219,7 +229,7 @@ class AnthropicChatGenerator:
             generation_kwargs=self.generation_kwargs,
             api_key=self.api_key.to_dict(),
             ignore_tools_thinking_messages=self.ignore_tools_thinking_messages,
-            tools=serialize_tools_or_toolset(self.tools),
+            tools=serialized_tools,
             timeout=self.timeout,
             max_retries=self.max_retries,
         )
@@ -234,7 +244,17 @@ class AnthropicChatGenerator:
             The deserialized component instance.
         """
         deserialize_secrets_inplace(data["init_parameters"], keys=["api_key"])
-        deserialize_tools_or_toolset_inplace(data["init_parameters"], key="tools")
+        # Only Haystack Tool/Toolset dicts need deserializing back into objects; Anthropic's native tools
+        # (e.g. web_search) are kept as plain dicts and passed through as-is.
+        tools = data["init_parameters"].get("tools")
+        is_haystack_toolset = isinstance(tools, dict) and tools.get("type") == "haystack.tools.toolset.Toolset"
+        is_haystack_tool_list = (
+            isinstance(tools, list)
+            and isinstance(tools[0], dict)
+            and tools[0].get("type") == "haystack.tools.tool.Tool"
+        )
+        if tools and (is_haystack_toolset or is_haystack_tool_list):
+            deserialize_tools_or_toolset_inplace(data["init_parameters"], key="tools")
         init_params = data.get("init_parameters", {})
         serialized_callback_handler = init_params.get("streaming_callback")
         if serialized_callback_handler:
@@ -246,15 +266,16 @@ class AnthropicChatGenerator:
         self,
         messages: list[ChatMessage],
         generation_kwargs: dict[str, Any] | None = None,
-        tools: ToolsType | None = None,
-    ) -> tuple[list[TextBlockParam], list[MessageParam], dict[str, Any], list[ToolParam]]:
+        tools: ToolsType | list[dict] | None = None,
+    ) -> tuple[list[TextBlockParam], list[MessageParam], dict[str, Any], list[ToolParam] | list[dict]]:
         """
         Prepare the parameters for the Anthropic API request.
 
         :param messages: A list of ChatMessage instances representing the input messages.
         :param generation_kwargs: Optional arguments to pass to the Anthropic generation endpoint.
         :param tools: A list of Tool and/or Toolset objects, or a single Toolset, that the model can use.
-        Each tool should have a unique name.
+        Each tool should have a unique name. Can also be a list of dictionaries defining Anthropic's native
+        tools (e.g. `web_search`), in which case they are passed to the API unchanged.
         :returns: A tuple containing:
             - system_messages: List of system messages in Anthropic format
             - non_system_messages: List of non-system messages in Anthropic format
@@ -281,15 +302,21 @@ class AnthropicChatGenerator:
 
         # tools management
         tools = tools or self.tools
-        flattened_tools = flatten_tools_or_toolsets(tools)
-        _check_duplicate_tool_names(flattened_tools)
+        anthropic_tools: list[ToolParam] | list[dict]
+        if isinstance(tools, list) and tools and isinstance(tools[0], dict):
+            # Anthropic's native, server-side tools (e.g. web_search) are already in the shape the API
+            # expects, so they bypass Haystack's Tool/Toolset flattening entirely.
+            anthropic_tools = tools
+        else:
+            flattened_tools = flatten_tools_or_toolsets(tools)  # type: ignore[arg-type]
+            _check_duplicate_tool_names(flattened_tools)
 
-        anthropic_tools: list[ToolParam] = []
-        if flattened_tools:
+            haystack_tools: list[ToolParam] = []
             for tool in flattened_tools:
-                anthropic_tools.append(
+                haystack_tools.append(
                     ToolParam(name=tool.name, description=tool.description, input_schema=tool.parameters)
                 )
+            anthropic_tools = haystack_tools
 
         return system_messages, non_system_messages, generation_kwargs, anthropic_tools
 
@@ -481,7 +508,7 @@ class AnthropicChatGenerator:
         messages: list[ChatMessage] | str,
         streaming_callback: StreamingCallbackT | None = None,
         generation_kwargs: dict[str, Any] | None = None,
-        tools: ToolsType | None = None,
+        tools: ToolsType | list[dict] | None = None,
     ) -> dict[str, list[ChatMessage]]:
         """
         Invokes the Anthropic API with the given messages and generation kwargs.
@@ -492,7 +519,7 @@ class AnthropicChatGenerator:
         :param generation_kwargs: Optional arguments to pass to the Anthropic generation endpoint.
         :param tools: A list of Tool and/or Toolset objects, or a single Toolset, that the model can use.
         Each tool should have a unique name. If set, it will override the `tools` parameter set during component
-        initialization.
+        initialization. Can also be a list of dictionaries defining Anthropic's native tools (e.g. `web_search`).
         :returns: A dictionary with the following keys:
             - `replies`: The responses from the model
         """
@@ -525,7 +552,7 @@ class AnthropicChatGenerator:
         messages: list[ChatMessage] | str,
         streaming_callback: StreamingCallbackT | None = None,
         generation_kwargs: dict[str, Any] | None = None,
-        tools: ToolsType | None = None,
+        tools: ToolsType | list[dict] | None = None,
     ) -> dict[str, list[ChatMessage]]:
         """
         Async version of the run method. Invokes the Anthropic API with the given messages and generation kwargs.
@@ -536,7 +563,7 @@ class AnthropicChatGenerator:
         :param generation_kwargs: Optional arguments to pass to the Anthropic generation endpoint.
         :param tools: A list of Tool and/or Toolset objects, or a single Toolset, that the model can use.
         Each tool should have a unique name. If set, it will override the `tools` parameter set during component
-        initialization.
+        initialization. Can also be a list of dictionaries defining Anthropic's native tools (e.g. `web_search`).
         :returns: A dictionary with the following keys:
             - `replies`: The responses from the model
         """
