@@ -4,7 +4,7 @@
 
 | Name                                                                            |    Stmts |     Miss |   Branch |   BrPart |   Cover |   Missing |
 |-------------------------------------------------------------------------------- | -------: | -------: | -------: | -------: | ------: | --------: |
-| src/haystack\_integrations/components/retrievers/valkey/embedding\_retriever.py |       36 |        0 |        4 |        1 |     98% | 119-\>121 |
+| src/haystack\_integrations/components/retrievers/valkey/embedding\_retriever.py |       36 |        0 |        4 |        1 |     98% | 120-\>122 |
 | src/haystack\_integrations/document\_stores/valkey/document\_store.py           |      637 |       90 |      154 |       12 |     87% |261-268, 280-282, 286-\>292, 299-301, 345-\>340, 381-386, 451-455, 485-489, 589-593, 647-649, 693-694, 711-713, 750-752, 788-790, 808, 828-832, 852, 871-\>873, 874-878, 893, 911-915, 934, 957-961, 1010-1012, 1069-1071, 1104-1106, 1139-1141, 1215-1217, 1277-1278, 1288-1292, 1350, 1451-\>1449, 1483 |
 | src/haystack\_integrations/document\_stores/valkey/filters.py                   |      167 |        0 |       96 |        0 |    100% |           |
 | **TOTAL**                                                                       |  **840** |   **90** |  **254** |   **13** | **91%** |           |
