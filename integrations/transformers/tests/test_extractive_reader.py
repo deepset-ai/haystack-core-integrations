@@ -914,7 +914,7 @@ class TestDeduplication:
 
 @pytest.mark.integration
 def test_t5(del_hf_env_vars_if_empty):
-    reader = TransformersExtractiveReader("sjrhuschlee/flan-t5-base-squad2", device="cpu")
+    reader = TransformersExtractiveReader("sjrhuschlee/flan-t5-base-squad2", device=ComponentDevice.from_str("cpu"))
     answers = reader.run(example_queries[0], example_documents[0], top_k=2)[
         "answers"
     ]  # remove indices when batching support is reintroduced

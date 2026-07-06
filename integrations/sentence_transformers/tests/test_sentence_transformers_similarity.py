@@ -2,7 +2,6 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from posixpath import devnull
 from unittest.mock import MagicMock, patch
 
 import numpy as np
@@ -441,7 +440,7 @@ class TestSentenceTransformersSimilarityRanker:
     @pytest.mark.integration
     def test_run(self, del_hf_env_vars_if_empty):
         ranker = SentenceTransformersSimilarityRanker(
-            model="cross-encoder-testing/reranker-bert-tiny-gooaq-bce", device="cpu"
+            model="cross-encoder-testing/reranker-bert-tiny-gooaq-bce", device=ComponentDevice.from_str("cpu")
         )
 
         query = "City in Bosnia and Herzegovina"
