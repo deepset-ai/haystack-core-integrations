@@ -683,6 +683,53 @@ class TestAnthropicChatGenerator:
         with pytest.raises(ValueError, match="duplicate"):
             AnthropicChatGenerator(tools=[tool1, toolset1])
 
+    def test_init_with_native_tools(self, monkeypatch):
+        """Test that Anthropic's native, server-side tools can be passed as plain dicts."""
+        monkeypatch.setenv("ANTHROPIC_API_KEY", "test-api-key")
+
+        native_tools = [{"type": "web_search_20250305", "name": "web_search"}]
+        generator = AnthropicChatGenerator(tools=native_tools)
+
+        assert generator.tools == native_tools
+
+    def test_serde_with_native_tools(self, monkeypatch):
+        """Test serialization/deserialization with Anthropic's native tools."""
+        monkeypatch.setenv("ANTHROPIC_API_KEY", "test-api-key")
+
+        native_tools = [{"type": "web_search_20250305", "name": "web_search", "max_uses": 5}]
+        generator = AnthropicChatGenerator(tools=native_tools)
+        data = generator.to_dict()
+
+        # Native tools are kept as plain dicts, not run through Haystack's Tool/Toolset serialization.
+        assert data["init_parameters"]["tools"] == native_tools
+
+        restored = AnthropicChatGenerator.from_dict(data)
+        assert restored.tools == native_tools
+
+    def test_run_with_native_tools(self, chat_messages, mock_anthropic_completion, monkeypatch):
+        """Test that the run method passes Anthropic's native tools through unchanged."""
+        monkeypatch.setenv("ANTHROPIC_API_KEY", "test-api-key")
+
+        native_tools = [{"type": "web_search_20250305", "name": "web_search", "max_uses": 5}]
+        component = AnthropicChatGenerator(tools=native_tools)
+        response = component.run(chat_messages)
+
+        assert isinstance(response, dict)
+        assert "replies" in response
+
+        _, kwargs = mock_anthropic_completion.call_args
+        assert kwargs["tools"] == native_tools
+
+    def test_native_tools_skip_duplicate_name_check(self, monkeypatch):
+        """Native tool dicts don't have Haystack Tool names, so they must bypass that validation."""
+        monkeypatch.setenv("ANTHROPIC_API_KEY", "test-api-key")
+
+        # Would raise if this were routed through Haystack's Tool/Toolset flattening, since plain dicts
+        # don't expose a `.name` attribute for the duplicate-name check to inspect.
+        native_tools = [{"type": "web_search_20250305", "name": "web_search"}]
+        generator = AnthropicChatGenerator(tools=native_tools)
+        assert generator.tools == native_tools
+
     @pytest.mark.skipif(
         not os.environ.get("ANTHROPIC_API_KEY", None),
         reason="Export an env var called ANTHROPIC_API_KEY containing the Anthropic API key to run this test.",
