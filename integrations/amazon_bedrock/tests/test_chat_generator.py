@@ -765,14 +765,30 @@ class TestAmazonBedrockChatGenerator:
                 {"disable_parallel_tool_use": True, "parallel_tool_use": True}
             )
 
-    def test_resolve_flattened_kwargs_cachepoint_ttl(self):
-        result = AmazonBedrockChatGenerator._resolve_flattened_generation_kwargs(
+    def test_from_dict_resolves_tools_cachepoint_config_ttl(self, mock_boto3_session):
+        generator = AmazonBedrockChatGenerator.from_dict(
             {
-                "tools_cachepoint_config_ttl": "5m",
+                "type": CLASS_TYPE,
+                "init_parameters": {
+                    "model": "global.anthropic.claude-sonnet-4-6",
+                    "tools_cachepoint_config_ttl": "1h",
+                },
             }
         )
-        assert result["tools_cachepoint_config"] == {"type": "default", "ttl": "5m"}
-        assert "tools_cachepoint_config_ttl" not in result
+        assert generator.tools_cachepoint_config == {"cachePoint": {"type": "default", "ttl": "1h"}}
+
+    def test_from_dict_resolves_tools_cachepoint_config_ttl_preserves_existing_type(self, mock_boto3_session):
+        generator = AmazonBedrockChatGenerator.from_dict(
+            {
+                "type": CLASS_TYPE,
+                "init_parameters": {
+                    "model": "global.anthropic.claude-sonnet-4-6",
+                    "tools_cachepoint_config": {"type": "default"},
+                    "tools_cachepoint_config_ttl": "5m",
+                },
+            }
+        )
+        assert generator.tools_cachepoint_config == {"cachePoint": {"type": "default", "ttl": "5m"}}
 
     def test_from_dict_resolves_system_cachepoint_config_ttl(self, mock_boto3_session):
         generator = AmazonBedrockChatGenerator.from_dict(

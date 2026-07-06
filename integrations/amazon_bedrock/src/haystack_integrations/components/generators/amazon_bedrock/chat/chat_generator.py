@@ -415,6 +415,12 @@ class AmazonBedrockChatGenerator:
             system_cachepoint_config["ttl"] = system_cachepoint_config_ttl
             system_cachepoint_config.setdefault("type", "default")
 
+        tools_cachepoint_config_ttl = init_params.pop("tools_cachepoint_config_ttl", None)
+        if tools_cachepoint_config_ttl is not None:
+            tools_cachepoint_config = init_params.setdefault("tools_cachepoint_config", {})
+            tools_cachepoint_config["ttl"] = tools_cachepoint_config_ttl
+            tools_cachepoint_config.setdefault("type", "default")
+
         serialized_callback_handler = init_params.get("streaming_callback")
         if serialized_callback_handler:
             data["init_parameters"]["streaming_callback"] = deserialize_callable(serialized_callback_handler)
@@ -547,12 +553,6 @@ class AmazonBedrockChatGenerator:
                 thinking.setdefault("type", "adaptive")
                 output_config = generation_kwargs.setdefault("output_config", {})
                 output_config["effort"] = adaptive_thinking_effort
-
-        tools_cachepoint_config_ttl = generation_kwargs.pop("tools_cachepoint_config_ttl", None)
-        if tools_cachepoint_config_ttl is not None:
-            tools_cachepoint_config = generation_kwargs.setdefault("tools_cachepoint_config", {})
-            tools_cachepoint_config["ttl"] = tools_cachepoint_config_ttl
-            tools_cachepoint_config.setdefault("type", "default")
 
         return generation_kwargs
 
