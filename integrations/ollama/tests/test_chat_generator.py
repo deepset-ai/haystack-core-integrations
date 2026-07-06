@@ -4,7 +4,11 @@ from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 from haystack.components.generators.utils import print_streaming_chunk
-from haystack.components.tools import ToolInvoker
+
+try:
+    from haystack.components.tools import ToolInvoker
+except ImportError:  # ToolInvoker was removed in Haystack 3.0
+    ToolInvoker = None
 from haystack.dataclasses import (
     ChatMessage,
     ChatRole,
@@ -1481,6 +1485,7 @@ class TestOllamaChatGeneratorLiveInference:
         if streaming_callback:
             streaming_callback.assert_called()
 
+    @pytest.mark.skipif(ToolInvoker is None, reason="ToolInvoker is not available in the installed haystack-ai version")
     def test_live_run_with_thinking_and_tools(self):
         @tool
         def add(a: int, b: int) -> int:
@@ -1518,6 +1523,7 @@ class TestOllamaChatGeneratorLiveInference:
         assert new_response.tool_calls[0].arguments == {"a": 5, "b": 10}
 
     @pytest.mark.parametrize("streaming_callback", [None, print_streaming_chunk])
+    @pytest.mark.skipif(ToolInvoker is None, reason="ToolInvoker is not available in the installed haystack-ai version")
     def test_live_run_with_repeated_tool_calls(self, tools, streaming_callback):
         component = OllamaChatGenerator(model="qwen3:0.6b", tools=tools, streaming_callback=streaming_callback)
         tool_invoker = ToolInvoker(tools=tools)

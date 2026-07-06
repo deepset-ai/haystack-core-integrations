@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: 2023-present deepset GmbH <info@deepset.ai>
 #
 # SPDX-License-Identifier: Apache-2.0
-import unittest
+import unittest.mock
 
 from haystack import Pipeline
 from haystack.components.agents import Agent
@@ -143,16 +143,6 @@ class TestGitHubFileEditorTool:
 
         pipeline_dict = pipeline.to_dict()
 
-        # Remove parameters introduced after haystack-ai==2.12.0 (the minimum supported version)
-        # to maintain compatibility
-        try:
-            pipeline_dict["components"]["agent"]["init_parameters"]["chat_generator"]["init_parameters"].pop(
-                "http_client_kwargs", None
-            )
-            pipeline_dict["components"]["agent"]["init_parameters"].pop("tool_invoker_kwargs", None)
-        except KeyError:
-            pass
-
         expected_dict = {
             "metadata": {},
             "max_runs_per_component": 100,
@@ -205,16 +195,26 @@ class TestGitHubFileEditorTool:
             "connection_type_validation": True,
         }
 
-        # Compatibility with newer versions of Haystack that include these parameters
-        for key in ["confirmation_strategies", "required_variables", "user_prompt"]:
-            if key in pipeline_dict["components"]["agent"]["init_parameters"]:
-                expected_dict["components"]["agent"]["init_parameters"][key] = pipeline_dict["components"]["agent"][
-                    "init_parameters"
-                ][key]
+        # The Agent and the OpenAIChatGenerator belong to haystack-ai, and their init parameters vary across the
+        # haystack-ai versions this integration supports. Accept whatever the installed version adds beyond the
+        # expected baseline: this test only pins the serialization of GitHubFileEditorTool.
+        actual_agent_params = pipeline_dict["components"]["agent"]["init_parameters"]
+        expected_agent_params = expected_dict["components"]["agent"]["init_parameters"]
+        for actual_params, expected_params in [
+            (actual_agent_params, expected_agent_params),
+            (
+                actual_agent_params["chat_generator"]["init_parameters"],
+                expected_agent_params["chat_generator"]["init_parameters"],
+            ),
+        ]:
+            for key in actual_params.keys() - expected_params.keys():
+                expected_params[key] = actual_params[key]
 
         assert pipeline_dict == expected_dict
 
         deserialized_pipeline = Pipeline.from_dict(pipeline_dict)
+        assert deserialized_pipeline == pipeline
+
         deserialized_components = [instance for _, instance in deserialized_pipeline.graph.nodes(data="instance")]
         deserialized_agent = deserialized_components[0]
         assert isinstance(deserialized_agent, Agent)
