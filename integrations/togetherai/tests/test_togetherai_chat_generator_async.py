@@ -84,7 +84,7 @@ def mock_async_chat_completion():
 
 class TestTogetherAIChatGeneratorAsync:
     @pytest.mark.asyncio
-    async def test_init_default_async(self, monkeypatch):
+    async def test_warm_up_async(self, monkeypatch):
         monkeypatch.setenv("TOGETHER_API_KEY", "test-api-key")
         component = TogetherAIChatGenerator()
         if hasattr(component, "warm_up_async"):
@@ -94,7 +94,6 @@ class TestTogetherAIChatGeneratorAsync:
         assert isinstance(component.async_client, AsyncOpenAI)
         assert component.async_client.api_key == "test-api-key"
         assert component.async_client.base_url == "https://api.together.xyz/v1/"
-        assert not component.generation_kwargs
 
     @pytest.mark.asyncio
     async def test_run_async(self, chat_messages, mock_async_chat_completion, monkeypatch):  # noqa: ARG002

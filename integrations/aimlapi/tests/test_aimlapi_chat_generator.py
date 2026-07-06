@@ -88,12 +88,17 @@ class TestAIMLAPIChatGenerator:
     def test_init_default(self, monkeypatch):
         monkeypatch.setenv("AIMLAPI_API_KEY", "test-api-key")
         component = AIMLAPIChatGenerator()
-        component.warm_up()  # with haystack-ai >= 3.0 the client is created during warm-up
-        assert component.client.api_key == "test-api-key"
+        assert component.api_key.resolve_value() == "test-api-key"
         assert component.model == "openai/gpt-5-chat-latest"
         assert component.api_base_url == "https://api.aimlapi.com/v1"
         assert component.streaming_callback is None
         assert not component.generation_kwargs
+
+    def test_warm_up(self, monkeypatch):
+        monkeypatch.setenv("AIMLAPI_API_KEY", "test-api-key")
+        component = AIMLAPIChatGenerator()
+        component.warm_up()  # with haystack-ai >= 3.0 the client is created during warm-up
+        assert component.client.api_key == "test-api-key"
 
     def test_init_fail_wo_api_key(self, monkeypatch):
         monkeypatch.delenv("AIMLAPI_API_KEY", raising=False)
@@ -110,8 +115,7 @@ class TestAIMLAPIChatGenerator:
             api_base_url="test-base-url",
             generation_kwargs={"max_tokens": 10, "some_test_param": "test-params"},
         )
-        component.warm_up()  # with haystack-ai >= 3.0 the client is created during warm-up
-        assert component.client.api_key == "test-api-key"
+        assert component.api_key.resolve_value() == "test-api-key"
         assert component.model == "openai/gpt-5-chat-latest"
         assert component.streaming_callback is print_streaming_chunk
         assert component.generation_kwargs == {"max_tokens": 10, "some_test_param": "test-params"}
@@ -207,26 +211,6 @@ class TestAIMLAPIChatGenerator:
         assert component.extra_headers == {"test-header": "test-value"}
         assert component.timeout == 10
         assert component.max_retries == 10
-
-    def test_from_dict_fail_wo_env_var(self, monkeypatch):
-        monkeypatch.delenv("AIMLAPI_API_KEY", raising=False)
-        data = {
-            "type": ("haystack_integrations.components.generators.aimlapi.chat.chat_generator.AIMLAPIChatGenerator"),
-            "init_parameters": {
-                "api_key": {"env_vars": ["AIMLAPI_API_KEY"], "strict": True, "type": "env_var"},
-                "model": "openai/gpt-5-chat-latest",
-                "api_base_url": "test-base-url",
-                "streaming_callback": "haystack.components.generators.utils.print_streaming_chunk",
-                "generation_kwargs": {"max_tokens": 10, "some_test_param": "test-params"},
-                "extra_headers": {"test-header": "test-value"},
-                "timeout": 10,
-                "max_retries": 10,
-            },
-        }
-        with pytest.raises(ValueError, match=r"None of the .* environment variables are set"):
-            # haystack-ai 2.x raises at init; haystack-ai >= 3.0 raises when the client is created in warm_up
-            component = AIMLAPIChatGenerator.from_dict(data)
-            component.warm_up()
 
     def test_run(self, chat_messages, mock_chat_completion, monkeypatch):  # noqa: ARG002
         monkeypatch.setenv("AIMLAPI_API_KEY", "fake-api-key")

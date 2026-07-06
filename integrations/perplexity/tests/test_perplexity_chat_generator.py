@@ -63,8 +63,7 @@ class TestPerplexityChatGenerator:
 
         component = PerplexityChatGenerator()
 
-        component.warm_up()  # with haystack-ai >= 3.0 the client is created during warm-up
-        assert component.client.api_key == "test-api-key"
+        assert component.api_key.resolve_value() == "test-api-key"
         assert component.model == "openai/gpt-5.4"
         assert component.api_base_url == "https://api.perplexity.ai/v1"
         assert component.streaming_callback is None
@@ -85,8 +84,7 @@ class TestPerplexityChatGenerator:
             http_client_kwargs={"proxy": "http://localhost:8080"},
         )
 
-        component.warm_up()  # with haystack-ai >= 3.0 the client is created during warm-up
-        assert component.client.api_key == "test-api-key"
+        assert component.api_key.resolve_value() == "test-api-key"
         assert component.model == "anthropic/claude-sonnet-4-6"
         assert component.streaming_callback is print_streaming_chunk
         assert component.generation_kwargs == {
@@ -99,6 +97,12 @@ class TestPerplexityChatGenerator:
         assert component.timeout == 10
         assert component.max_retries == 2
         assert component.http_client_kwargs == {"proxy": "http://localhost:8080"}
+
+    def test_warm_up(self, monkeypatch):
+        monkeypatch.setenv("PERPLEXITY_API_KEY", "test-api-key")
+        component = PerplexityChatGenerator()
+        component.warm_up()  # with haystack-ai >= 3.0 the client is created during warm-up
+        assert component.client.api_key == "test-api-key"
 
     def test_to_dict_default_round_trip(self, monkeypatch):
         monkeypatch.setenv("PERPLEXITY_API_KEY", "test-api-key")

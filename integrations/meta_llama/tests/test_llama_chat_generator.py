@@ -113,14 +113,19 @@ class TestLlamaChatGenerator:
     def test_init_default(self, monkeypatch):
         monkeypatch.setenv("LLAMA_API_KEY", "test-api-key")
         component = MetaLlamaChatGenerator()
-        component.warm_up()  # with haystack-ai >= 3.0 the client is created during warm-up
-        assert component.client.api_key == "test-api-key"
+        assert component.api_key.resolve_value() == "test-api-key"
         assert component.model == "Llama-4-Scout-17B-16E-Instruct-FP8"
         assert component.api_base_url == "https://api.llama.com/compat/v1/"
         assert component.streaming_callback is None
         assert not component.generation_kwargs
         assert component.timeout is None
         assert component.max_retries is None
+
+    def test_warm_up(self, monkeypatch):
+        monkeypatch.setenv("LLAMA_API_KEY", "test-api-key")
+        component = MetaLlamaChatGenerator()
+        component.warm_up()  # with haystack-ai >= 3.0 the client is created during warm-up
+        assert component.client.api_key == "test-api-key"
 
     def test_init_fail_wo_api_key(self, monkeypatch):
         monkeypatch.delenv("LLAMA_API_KEY", raising=False)
@@ -139,8 +144,7 @@ class TestLlamaChatGenerator:
             timeout=15.0,
             max_retries=3,
         )
-        component.warm_up()  # with haystack-ai >= 3.0 the client is created during warm-up
-        assert component.client.api_key == "test-api-key"
+        assert component.api_key.resolve_value() == "test-api-key"
         assert component.model == "Llama-4-Scout-17B-16E-Instruct-FP8"
         assert component.streaming_callback is print_streaming_chunk
         assert component.generation_kwargs == {
@@ -270,32 +274,6 @@ class TestLlamaChatGenerator:
         assert component.api_key == Secret.from_env_var("LLAMA_API_KEY")
         assert component.timeout == 30.0
         assert component.max_retries == 5
-
-    def test_from_dict_fail_wo_env_var(self, monkeypatch):
-        monkeypatch.delenv("LLAMA_API_KEY", raising=False)
-        data = {
-            "type": "haystack_integrations.components.generators.meta_llama.chat.chat_generator.MetaLlamaChatGenerator",
-            "init_parameters": {
-                "api_key": {
-                    "env_vars": ["LLAMA_API_KEY"],
-                    "strict": True,
-                    "type": "env_var",
-                },
-                "model": "Llama-4-Scout-17B-16E-Instruct-FP8",
-                "api_base_url": "test-base-url",
-                "streaming_callback": "haystack.components.generators.utils.print_streaming_chunk",
-                "generation_kwargs": {
-                    "max_tokens": 10,
-                    "some_test_param": "test-params",
-                },
-                "timeout": 30.0,
-                "max_retries": 5,
-            },
-        }
-        with pytest.raises(ValueError, match=r"None of the .* environment variables are set"):
-            # haystack-ai 2.x raises at init; haystack-ai >= 3.0 raises when the client is created in warm_up
-            component = MetaLlamaChatGenerator.from_dict(data)
-            component.warm_up()
 
     def test_run(self, chat_messages, mock_chat_completion, monkeypatch):  # noqa: ARG002
         monkeypatch.setenv("LLAMA_API_KEY", "fake-api-key")

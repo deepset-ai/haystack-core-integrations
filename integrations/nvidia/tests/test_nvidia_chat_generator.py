@@ -119,11 +119,16 @@ class TestNvidiaChatGenerator:
     def test_init_default(self, monkeypatch):
         monkeypatch.setenv("NVIDIA_API_KEY", "test-api-key")
         component = NvidiaChatGenerator()
-        component.warm_up()  # with haystack-ai >= 3.0 the client is created during warm-up
-        assert component.client.api_key == "test-api-key"
+        assert component.api_key.resolve_value() == "test-api-key"
         assert component.model == "meta/llama-3.1-8b-instruct"
         assert component.streaming_callback is None
         assert not component.generation_kwargs
+
+    def test_warm_up(self, monkeypatch):
+        monkeypatch.setenv("NVIDIA_API_KEY", "test-api-key")
+        component = NvidiaChatGenerator()
+        component.warm_up()  # with haystack-ai >= 3.0 the client is created during warm-up
+        assert component.client.api_key == "test-api-key"
 
     def test_init_fail_wo_api_key(self, monkeypatch):
         monkeypatch.delenv("NVIDIA_API_KEY", raising=False)
@@ -140,8 +145,7 @@ class TestNvidiaChatGenerator:
             api_base_url="test-base-url",
             generation_kwargs={"max_tokens": 10, "some_test_param": "test-params"},
         )
-        component.warm_up()  # with haystack-ai >= 3.0 the client is created during warm-up
-        assert component.client.api_key == "test-api-key"
+        assert component.api_key.resolve_value() == "test-api-key"
         assert component.model == "meta/llama-3.1-8b-instruct"
         assert component.streaming_callback is print_streaming_chunk
         assert component.generation_kwargs == {"max_tokens": 10, "some_test_param": "test-params"}
@@ -468,7 +472,7 @@ class TestNvidiaChatGenerator:
 
 class TestNvidiaChatGeneratorAsync:
     @pytest.mark.asyncio
-    async def test_init_default_async(self, monkeypatch):
+    async def test_warm_up_async(self, monkeypatch):
         monkeypatch.setenv("NVIDIA_API_KEY", "test-api-key")
         component = NvidiaChatGenerator()
         if hasattr(component, "warm_up_async"):
@@ -477,7 +481,6 @@ class TestNvidiaChatGeneratorAsync:
 
         assert isinstance(component.async_client, AsyncOpenAI)
         assert component.async_client.api_key == "test-api-key"
-        assert not component.generation_kwargs
 
     @pytest.mark.asyncio
     async def test_run_async(self, chat_messages, mock_async_chat_completion, monkeypatch):  # noqa: ARG002

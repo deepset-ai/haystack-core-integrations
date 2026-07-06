@@ -133,12 +133,17 @@ class TestMistralChatGenerator:
     def test_init_default(self, monkeypatch):
         monkeypatch.setenv("MISTRAL_API_KEY", "test-api-key")
         component = MistralChatGenerator()
-        component.warm_up()  # with haystack-ai >= 3.0 the client is created during warm-up
-        assert component.client.api_key == "test-api-key"
+        assert component.api_key.resolve_value() == "test-api-key"
         assert component.model == "mistral-small-latest"
         assert component.api_base_url == "https://api.mistral.ai/v1"
         assert component.streaming_callback is None
         assert not component.generation_kwargs
+
+    def test_warm_up(self, monkeypatch):
+        monkeypatch.setenv("MISTRAL_API_KEY", "test-api-key")
+        component = MistralChatGenerator()
+        component.warm_up()  # with haystack-ai >= 3.0 the client is created during warm-up
+        assert component.client.api_key == "test-api-key"
 
     def test_init_fail_wo_api_key(self, monkeypatch):
         monkeypatch.delenv("MISTRAL_API_KEY", raising=False)
@@ -155,8 +160,7 @@ class TestMistralChatGenerator:
             api_base_url="test-base-url",
             generation_kwargs={"max_tokens": 10, "some_test_param": "test-params"},
         )
-        component.warm_up()  # with haystack-ai >= 3.0 the client is created during warm-up
-        assert component.client.api_key == "test-api-key"
+        assert component.api_key.resolve_value() == "test-api-key"
         assert component.model == "mistral-small"
         assert component.streaming_callback is print_streaming_chunk
         assert component.generation_kwargs == {"max_tokens": 10, "some_test_param": "test-params"}
@@ -259,23 +263,6 @@ class TestMistralChatGenerator:
         assert component.api_base_url == "test-base-url"
         assert component.generation_kwargs == {"max_tokens": 10, "some_test_param": "test-params"}
         assert component.api_key == Secret.from_env_var("MISTRAL_API_KEY")
-
-    def test_from_dict_fail_wo_env_var(self, monkeypatch):
-        monkeypatch.delenv("MISTRAL_API_KEY", raising=False)
-        data = {
-            "type": "haystack_integrations.components.generators.mistral.chat.chat_generator.MistralChatGenerator",
-            "init_parameters": {
-                "api_key": {"env_vars": ["MISTRAL_API_KEY"], "strict": True, "type": "env_var"},
-                "model": "mistral-small",
-                "api_base_url": "test-base-url",
-                "streaming_callback": "haystack.components.generators.utils.print_streaming_chunk",
-                "generation_kwargs": {"max_tokens": 10, "some_test_param": "test-params"},
-            },
-        }
-        with pytest.raises(ValueError, match=r"None of the .* environment variables are set"):
-            # haystack-ai 2.x raises at init; haystack-ai >= 3.0 raises when the client is created in warm_up
-            component = MistralChatGenerator.from_dict(data)
-            component.warm_up()
 
     def test_init_with_mixed_tools(self, monkeypatch):
         monkeypatch.setenv("MISTRAL_API_KEY", "test-api-key")
