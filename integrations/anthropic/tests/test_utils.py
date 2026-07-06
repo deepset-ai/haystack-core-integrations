@@ -1,5 +1,6 @@
 import base64
 import json
+from dataclasses import replace
 
 import pytest
 from anthropic.types import (
@@ -701,9 +702,8 @@ class TestUtils:
         base64_image = (
             "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg=="
         )
-        image_content = ImageContent(base64_image=base64_image, mime_type="image/png")
-        # Manually set mime_type to None to test the validation
-        image_content.mime_type = None
+        # validation=False skips the mime_type guessing in __post_init__, keeping it None
+        image_content = ImageContent(base64_image=base64_image, mime_type=None, validation=False)
 
         with pytest.raises(ValueError, match="Unsupported image format: None"):
             _convert_image_content_to_anthropic_format(image_content)
@@ -975,7 +975,7 @@ class TestUtils:
         base64_data = "JVBERi0xLjEKMSAwIG9iago8PC9UeXBlL0NhdGFsb2c+PgplbmRvYmoKdHJhaWxlcgo8PC9Sb290IDEgMCBSPj4KJSVFT0Y="
         file_content = FileContent(base64_data=base64_data, mime_type="application/pdf")
         message = ChatMessage.from_assistant()
-        message._content = [file_content]
+        message = replace(message, _content=[file_content])
         with pytest.raises(ValueError, match="File content is only supported for user messages"):
             _convert_messages_to_anthropic_format([message])
 
