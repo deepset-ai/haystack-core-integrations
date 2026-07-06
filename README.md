@@ -4,7 +4,7 @@
 
 | Name                                                                           |    Stmts |     Miss |   Branch |   BrPart |   Cover |   Missing |
 |------------------------------------------------------------------------------- | -------: | -------: | -------: | -------: | ------: | --------: |
-| src/haystack\_integrations/components/retrievers/faiss/embedding\_retriever.py |       32 |        1 |        2 |        0 |     97% |       155 |
+| src/haystack\_integrations/components/retrievers/faiss/embedding\_retriever.py |       32 |        1 |        2 |        0 |     97% |       156 |
 | src/haystack\_integrations/document\_stores/faiss/document\_store.py           |      298 |       19 |      150 |       17 |     92% |116, 118, 124, 147, 150-\>157, 164, 171, 213-215, 219-220, 245, 264, 268, 364-\>370, 366-368, 385, 448, 488-\>482, 507-\>505 |
 | **TOTAL**                                                                      |  **330** |   **20** |  **152** |   **17** | **92%** |           |
 
