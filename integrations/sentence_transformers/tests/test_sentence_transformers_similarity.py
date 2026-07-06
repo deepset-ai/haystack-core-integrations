@@ -466,7 +466,7 @@ class TestSentenceTransformersSimilarityRanker:
     @pytest.mark.integration
     def test_run_top_k(self, del_hf_env_vars_if_empty):
         ranker = SentenceTransformersSimilarityRanker(
-            model="cross-encoder-testing/reranker-bert-tiny-gooaq-bce", top_k=2
+            model="cross-encoder-testing/reranker-bert-tiny-gooaq-bce", top_k=2, device=ComponentDevice.from_str("cpu")
         )
 
         query = "City in Bosnia and Herzegovina"
@@ -489,7 +489,7 @@ class TestSentenceTransformersSimilarityRanker:
     @pytest.mark.integration
     def test_run_single_document(self, del_hf_env_vars_if_empty):
         ranker = SentenceTransformersSimilarityRanker(
-            model="cross-encoder-testing/reranker-bert-tiny-gooaq-bce", device=None
+            model="cross-encoder-testing/reranker-bert-tiny-gooaq-bce", device=ComponentDevice.from_str("cpu")
         )
         docs_before = [Document(content="Berlin")]
         output = ranker.run(query="City in Germany", documents=docs_before)
