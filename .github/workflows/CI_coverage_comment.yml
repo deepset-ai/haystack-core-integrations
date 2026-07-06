@@ -46,7 +46,6 @@ on:
       - "Test / markitdown"
       - "Test / mcp"
       - "Test / mem0"
-      - "Test / meta_llama"
       - "Test / microsoft_sharepoint"
       - "Test / mirage"
       - "Test / mistral"
