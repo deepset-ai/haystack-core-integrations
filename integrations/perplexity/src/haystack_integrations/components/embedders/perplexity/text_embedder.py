@@ -114,47 +114,11 @@ class PerplexityTextEmbedder(OpenAITextEmbedder):
             max_retries=max_retries,
             http_client_kwargs=_http_client_kwargs_with_attribution(http_client_kwargs),
         )
-        self.http_client_kwargs = http_client_kwargs
+        # self.http_client_kwargs keeps the attribution header so that haystack-ai >= 3.0 builds the clients
+        # with it at warm-up; the user-provided value is preserved for serialization
+        self._http_client_kwargs = http_client_kwargs
         self.timeout = timeout
         self.max_retries = max_retries
-
-    def warm_up(self) -> None:
-        """
-        Warm up the component.
-
-        With haystack-ai >= 3.0 the client is created here from `http_client_kwargs`, so the Perplexity attribution
-        header is re-added during client creation; `self.http_client_kwargs` keeps the user-provided value for
-        serialization.
-        """
-        parent_warm_up = getattr(super(PerplexityTextEmbedder, self), "warm_up", None)  # noqa: UP008
-        if parent_warm_up is None:
-            # haystack-ai 2.x has no warm_up and creates the client eagerly in __init__
-            return
-        original_http_client_kwargs = self.http_client_kwargs
-        self.http_client_kwargs = _http_client_kwargs_with_attribution(original_http_client_kwargs)
-        try:
-            parent_warm_up()
-        finally:
-            self.http_client_kwargs = original_http_client_kwargs
-
-    async def warm_up_async(self) -> None:
-        """
-        Warm up the component asynchronously.
-
-        With haystack-ai >= 3.0 the async client is created here from `http_client_kwargs`, so the Perplexity
-        attribution header is re-added during client creation; `self.http_client_kwargs` keeps the user-provided
-        value for serialization.
-        """
-        parent_warm_up_async = getattr(super(PerplexityTextEmbedder, self), "warm_up_async", None)  # noqa: UP008
-        if parent_warm_up_async is None:
-            # haystack-ai 2.x has no warm_up_async and creates the async client eagerly in __init__
-            return
-        original_http_client_kwargs = self.http_client_kwargs
-        self.http_client_kwargs = _http_client_kwargs_with_attribution(original_http_client_kwargs)
-        try:
-            await parent_warm_up_async()
-        finally:
-            self.http_client_kwargs = original_http_client_kwargs
 
     def _prepare_input(self, text: str) -> dict[str, Any]:
         kwargs = OpenAITextEmbedder._prepare_input(self, text=text)
@@ -185,7 +149,7 @@ class PerplexityTextEmbedder(OpenAITextEmbedder):
             encoding_format=self.encoding_format,
             timeout=self.timeout,
             max_retries=self.max_retries,
-            http_client_kwargs=self.http_client_kwargs,
+            http_client_kwargs=self._http_client_kwargs,
         )
 
     @classmethod
