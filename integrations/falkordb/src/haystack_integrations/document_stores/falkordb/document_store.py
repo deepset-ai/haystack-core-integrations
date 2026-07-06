@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 import logging
+import re
 from dataclasses import replace
 from datetime import datetime
 from typing import Any, Literal
@@ -20,6 +21,8 @@ from redis.exceptions import ResponseError
 import falkordb  # type: ignore[import-untyped,import-not-found]
 
 logger = logging.getLogger(__name__)
+
+_CYPHER_IDENTIFIER_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 
 # Haystack filter operators → Cypher comparison operators.
 _COMPARISON_OPS: dict[str, str] = {
@@ -857,6 +860,9 @@ def _build_clause(node: dict[str, Any], params: dict[str, Any], counter: list[in
     # Because meta fields are stored flat (no prefix), all fields map to d.<field>.
     # We strip 'meta.' from the field name if Haystack adds it.
     actual_field = field[5:] if field.startswith("meta.") else field
+    if not _CYPHER_IDENTIFIER_RE.fullmatch(actual_field):
+        msg = f"Invalid filter field name: {actual_field!r}"
+        raise FilterError(msg)
     cypher_field = f"d.{actual_field}"
 
     param_name = f"p{counter[0]}"
