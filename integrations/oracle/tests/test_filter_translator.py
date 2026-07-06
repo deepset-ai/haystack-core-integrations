@@ -3,6 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import pytest
+from haystack.errors import FilterError
 
 from haystack_integrations.document_stores.oracle.filters import FilterTranslator
 
@@ -139,18 +140,18 @@ def test_param_counter_increments_correctly():
 
 
 def test_sql_injection_via_field_name_raises():
-    with pytest.raises(ValueError, match="Invalid metadata field name"):
+    with pytest.raises(FilterError, match="Invalid metadata field name"):
         _translate({"field": "meta.x') = 'x' OR 1=1 OR ('a", "operator": "==", "value": "y"})
 
 
 def test_sql_injection_via_fallback_field_raises():
     # Injection via the non-meta fallback path
-    with pytest.raises(ValueError, match="Invalid metadata field name"):
+    with pytest.raises(FilterError, match="Invalid metadata field name"):
         _translate({"field": "x') OR 1=1--", "operator": "==", "value": "y"})
 
 
 def test_sql_injection_in_not_in_raises():
-    with pytest.raises(ValueError, match="Invalid metadata field name"):
+    with pytest.raises(FilterError, match="Invalid metadata field name"):
         _translate({"field": "meta.x') OR 1=1--", "operator": "in", "value": ["a", "b"]})
 
 
