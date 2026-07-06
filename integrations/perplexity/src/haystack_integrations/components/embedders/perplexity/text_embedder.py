@@ -117,8 +117,6 @@ class PerplexityTextEmbedder(OpenAITextEmbedder):
         # self.http_client_kwargs keeps the attribution header so that haystack-ai >= 3.0 builds the clients
         # with it at warm-up; the user-provided value is preserved for serialization
         self._http_client_kwargs = http_client_kwargs
-        self.timeout = timeout
-        self.max_retries = max_retries
 
     def _prepare_input(self, text: str) -> dict[str, Any]:
         kwargs = OpenAITextEmbedder._prepare_input(self, text=text)

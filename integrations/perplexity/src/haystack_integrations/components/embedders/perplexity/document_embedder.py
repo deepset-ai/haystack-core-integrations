@@ -145,8 +145,6 @@ class PerplexityDocumentEmbedder(OpenAIDocumentEmbedder):
         # self.http_client_kwargs keeps the attribution header so that haystack-ai >= 3.0 builds the clients
         # with it at warm-up; the user-provided value is preserved for serialization
         self._http_client_kwargs = http_client_kwargs
-        self.timeout = timeout
-        self.max_retries = max_retries
 
     def _decode_response_embeddings(self, response: CreateEmbeddingResponse) -> list[list[float]]:
         return [_decode_embedding(str(el.embedding), self.encoding_format) for el in response.data]
