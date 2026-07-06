@@ -60,6 +60,10 @@ jobs:
           changed_integrations = []
 
           for integration in candidates:
+              # Skip integrations that were deleted entirely
+              if not Path(f"integrations/{integration}").is_dir():
+                  continue
+
               # If pydoc config changed, always include
               if f"integrations/{integration}/pydoc/config_docusaurus.yml" in changed_files:
                   changed_integrations.append(integration)
