@@ -538,7 +538,7 @@ class AnthropicChatGenerator:
             model=self.model,
             messages=non_system_messages,
             system=system_messages,
-            tools=anthropic_tools,
+            tools=anthropic_tools,  # type: ignore[arg-type]
             stream=streaming_callback is not None,
             max_tokens=generation_kwargs.pop("max_tokens", 1024),
             **generation_kwargs,
@@ -582,7 +582,7 @@ class AnthropicChatGenerator:
             model=self.model,
             messages=non_system_messages,
             system=system_messages,
-            tools=anthropic_tools,
+            tools=anthropic_tools,  # type: ignore[arg-type]
             stream=streaming_callback is not None,
             max_tokens=generation_kwargs.pop("max_tokens", 1024),
             **generation_kwargs,
