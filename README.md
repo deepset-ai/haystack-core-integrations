@@ -10,7 +10,7 @@
 | src/haystack\_integrations/components/generators/transformers/chat/chat\_generator.py              |      213 |       16 |       60 |        7 |     91% |64-66, 209-\>214, 265-\>exit, 272-274, 284-\>288, 333, 336-\>339, 451-456, 536-539, 575-581 |
 | src/haystack\_integrations/components/readers/transformers/extractive\_reader.py                   |      229 |        7 |       68 |        7 |     95% |131, 180-\>exit, 218-223, 343-\>348, 415, 472, 494-\>461, 630-631 |
 | src/haystack\_integrations/components/routers/transformers/text\_router.py                         |       51 |        3 |       16 |        2 |     90% |116-118, 124-\>128, 129-\>exit |
-| src/haystack\_integrations/components/routers/transformers/zero\_shot\_text\_router.py             |       46 |        3 |       10 |        1 |     89% |138-140, 146-\>exit |
+| src/haystack\_integrations/components/routers/transformers/zero\_shot\_text\_router.py             |       46 |        3 |       10 |        1 |     89% |140-142, 148-\>exit |
 | **TOTAL**                                                                                          |  **771** |   **49** |  **206** |   **27** | **91%** |           |
 
 
