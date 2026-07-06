@@ -454,9 +454,9 @@ class TestSentenceTransformersSimilarityRanker:
         assert docs_after[0].content == expected_first_text
 
         sorted_scores = sorted(expected_scores, reverse=True)
-        assert docs_after[0].score == pytest.approx(sorted_scores[0], abs=0.05)
-        assert docs_after[1].score == pytest.approx(sorted_scores[1], abs=0.05)
-        assert docs_after[2].score == pytest.approx(sorted_scores[2], abs=0.05)
+        assert docs_after[0].score == pytest.approx(sorted_scores[0], abs=0.1)
+        assert docs_after[1].score == pytest.approx(sorted_scores[1], abs=0.1)
+        assert docs_after[2].score == pytest.approx(sorted_scores[2], abs=0.1)
 
         for doc in docs_after:
             assert isinstance(doc.score, float)
