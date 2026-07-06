@@ -7,8 +7,8 @@
 | src/haystack\_integrations/components/converters/mistral/ocr\_document\_converter.py |       98 |        2 |       22 |        0 |     98% |   428-429 |
 | src/haystack\_integrations/components/embedders/mistral/document\_embedder.py        |       14 |        0 |        0 |        0 |    100% |           |
 | src/haystack\_integrations/components/embedders/mistral/text\_embedder.py            |       14 |        0 |        0 |        0 |    100% |           |
-| src/haystack\_integrations/components/generators/mistral/chat/chat\_generator.py     |      130 |        5 |       62 |        9 |     93% |46-\>45, 48-\>40, 307, 360-\>363, 372-\>379, 389-390, 430-\>433, 442-\>449, 459-460 |
-| **TOTAL**                                                                            |  **256** |    **7** |   **84** |    **9** | **95%** |           |
+| src/haystack\_integrations/components/generators/mistral/chat/chat\_generator.py     |      130 |        6 |       60 |        8 |     93% |46-\>45, 48-\>40, 307, 371-\>378, 389-390, 432, 445-\>452, 463-464 |
+| **TOTAL**                                                                            |  **256** |    **8** |   **82** |    **8** | **95%** |           |
 
 
 ## Setup coverage badge
