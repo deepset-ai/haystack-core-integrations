@@ -89,7 +89,7 @@ class AnthropicVertexChatGenerator(AnthropicChatGenerator):
         streaming_callback: Callable[[StreamingChunk], None] | None = None,
         generation_kwargs: dict[str, Any] | None = None,
         ignore_tools_thinking_messages: bool = True,
-        tools: ToolsType | None = None,
+        tools: ToolsType | list[dict] | None = None,
         *,
         timeout: float | None = None,
         max_retries: int | None = None,
@@ -121,14 +121,16 @@ class AnthropicVertexChatGenerator(AnthropicChatGenerator):
             use is detected. See the Anthropic [tools](https://docs.anthropic.com/en/docs/tool-use#chain-of-thought-tool-use)
             for more details.
         :param tools: A list of Tool and/or Toolset objects, or a single Toolset, that the model can use.
-            Each tool should have a unique name.
+            Each tool should have a unique name. Anthropic's native, server-side tools (e.g. web_search) can also
+            be passed as plain dicts, in which case they bypass Haystack's tool validation and are forwarded as-is.
         :param timeout:
             Timeout for Anthropic client calls. If not set, it defaults to the default set by the Anthropic client.
         :param max_retries:
             Maximum number of retries to attempt for failed requests. If not set, it defaults to the default set by
             the Anthropic client.
         """
-        _check_duplicate_tool_names(flatten_tools_or_toolsets(tools))
+        if not (isinstance(tools, list) and tools and isinstance(tools[0], dict)):
+            _check_duplicate_tool_names(flatten_tools_or_toolsets(tools))  # type: ignore[arg-type]
         self.region = region or os.environ.get("REGION")
         self.project_id = project_id or os.environ.get("PROJECT_ID")
         self.model = model
@@ -160,6 +162,11 @@ class AnthropicVertexChatGenerator(AnthropicChatGenerator):
         """
         callback_name = serialize_callable(self.streaming_callback) if self.streaming_callback else None
 
+        # Anthropic's native, server-side tools (e.g. web_search) are plain dicts, not Haystack Tool/Toolset
+        # objects, so they don't go through the Haystack tool serialization machinery.
+        is_native_tools = isinstance(self.tools, list) and self.tools and isinstance(self.tools[0], dict)
+        serialized_tools = self.tools if is_native_tools else serialize_tools_or_toolset(self.tools)  # type: ignore[arg-type]
+
         return default_to_dict(
             self,
             region=self.region,
@@ -168,7 +175,7 @@ class AnthropicVertexChatGenerator(AnthropicChatGenerator):
             streaming_callback=callback_name,
             generation_kwargs=self.generation_kwargs,
             ignore_tools_thinking_messages=self.ignore_tools_thinking_messages,
-            tools=serialize_tools_or_toolset(self.tools),
+            tools=serialized_tools,
             timeout=self.timeout,
             max_retries=self.max_retries,
         )
@@ -182,7 +189,17 @@ class AnthropicVertexChatGenerator(AnthropicChatGenerator):
         :returns:
             The deserialized component instance.
         """
-        deserialize_tools_or_toolset_inplace(data["init_parameters"], key="tools")
+        # Only Haystack Tool/Toolset dicts need deserializing back into objects; Anthropic's native tools
+        # (e.g. web_search) are kept as plain dicts and passed through as-is.
+        tools = data["init_parameters"].get("tools")
+        is_haystack_toolset = isinstance(tools, dict) and tools.get("type") == "haystack.tools.toolset.Toolset"
+        is_haystack_tool_list = (
+            isinstance(tools, list)
+            and isinstance(tools[0], dict)
+            and tools[0].get("type") == "haystack.tools.tool.Tool"
+        )
+        if tools and (is_haystack_toolset or is_haystack_tool_list):
+            deserialize_tools_or_toolset_inplace(data["init_parameters"], key="tools")
         init_params = data.get("init_parameters", {})
         serialized_callback_handler = init_params.get("streaming_callback")
         if serialized_callback_handler:
