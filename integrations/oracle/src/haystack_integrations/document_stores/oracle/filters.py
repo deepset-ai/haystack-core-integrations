@@ -15,7 +15,7 @@ _SAFE_FIELD_PATH = re.compile(r"^[A-Za-z0-9_.]+$")
 def _validate_field_path(field_path: str) -> None:
     if not _SAFE_FIELD_PATH.match(field_path):
         msg = f"Invalid metadata field name: {field_path!r}"
-        raise ValueError(msg)
+        raise FilterError(msg)
 
 
 class FilterTranslator:
