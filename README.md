@@ -4,12 +4,12 @@
 
 | Name                                                                                |    Stmts |     Miss |   Branch |   BrPart |   Cover |   Missing |
 |------------------------------------------------------------------------------------ | -------: | -------: | -------: | -------: | ------: | --------: |
-| src/haystack\_integrations/components/embedders/perplexity/document\_embedder.py    |       93 |        0 |       18 |        0 |    100% |           |
+| src/haystack\_integrations/components/embedders/perplexity/document\_embedder.py    |       91 |        0 |       18 |        0 |    100% |           |
 | src/haystack\_integrations/components/embedders/perplexity/embedding\_encoding.py   |       17 |        0 |        6 |        0 |    100% |           |
-| src/haystack\_integrations/components/embedders/perplexity/text\_embedder.py        |       43 |        0 |        0 |        0 |    100% |           |
-| src/haystack\_integrations/components/generators/perplexity/chat/chat\_generator.py |       49 |        3 |        6 |        2 |     91% |40-41, 169 |
+| src/haystack\_integrations/components/embedders/perplexity/text\_embedder.py        |       41 |        0 |        0 |        0 |    100% |           |
+| src/haystack\_integrations/components/generators/perplexity/chat/chat\_generator.py |       46 |        1 |        4 |        1 |     96% |       166 |
 | src/haystack\_integrations/components/websearch/perplexity/perplexity\_websearch.py |       69 |        3 |       18 |        4 |     92% |22-23, 106-\>108, 108-\>exit, 157, 188-\>178 |
-| **TOTAL**                                                                           |  **271** |    **6** |   **48** |    **6** | **96%** |           |
+| **TOTAL**                                                                           |  **264** |    **4** |   **46** |    **5** | **97%** |           |
 
 
 ## Setup coverage badge
