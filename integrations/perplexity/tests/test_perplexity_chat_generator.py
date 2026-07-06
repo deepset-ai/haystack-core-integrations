@@ -6,6 +6,7 @@ import os
 from datetime import datetime, timezone
 from unittest.mock import patch
 
+import httpx
 import pytest
 from haystack.components.generators.utils import print_streaming_chunk
 from haystack.dataclasses import ChatMessage
@@ -35,6 +36,27 @@ def _make_response() -> Response:
     if hasattr(Response, "model_construct"):
         return Response.model_construct(**response_data)
     return Response.construct(**response_data)
+
+
+def _make_transport(captured: list[httpx.Request]) -> httpx.MockTransport:
+    def handler(request: httpx.Request) -> httpx.Response:
+        captured.append(request)
+        return httpx.Response(
+            200,
+            json={
+                "id": "resp_test",
+                "created_at": datetime.now(tz=timezone.utc).timestamp(),
+                "model": "openai/gpt-5.4",
+                "object": "response",
+                "output": [],
+                "parallel_tool_calls": True,
+                "tool_choice": "auto",
+                "tools": [],
+            },
+            headers={"Content-Type": "application/json"},
+        )
+
+    return httpx.MockTransport(handler)
 
 
 @pytest.fixture
@@ -96,7 +118,10 @@ class TestPerplexityChatGenerator:
         assert component.extra_headers == {"test-header": "test-value"}
         assert component.timeout == 10
         assert component.max_retries == 2
-        assert component.http_client_kwargs == {"proxy": "http://localhost:8080"}
+
+        assert component._http_client_kwargs == {"proxy": "http://localhost:8080"}
+        assert component.http_client_kwargs["headers"]["test-header"] == "test-value"
+        assert component.http_client_kwargs["headers"]["X-Pplx-Integration"].startswith("haystack/")
 
     def test_warm_up(self, monkeypatch):
         monkeypatch.setenv("PERPLEXITY_API_KEY", "test-api-key")
@@ -183,7 +208,7 @@ class TestPerplexityChatGenerator:
         assert deserialized.extra_headers == {"test-header": "test-value"}
         assert deserialized.timeout == 10
         assert deserialized.max_retries == 2
-        assert deserialized.http_client_kwargs == {"proxy": "http://localhost:8080"}
+        assert deserialized._http_client_kwargs == {"proxy": "http://localhost:8080"}
 
     def test_run_uses_responses_create(self, chat_messages):
         component = PerplexityChatGenerator(api_key=Secret.from_token("test-api-key"))
@@ -199,21 +224,48 @@ class TestPerplexityChatGenerator:
         assert "messages" not in call_kwargs
         assert call_kwargs["stream"] is False
 
-    @pytest.mark.asyncio
-    async def test_default_headers_include_perplexity_attribution(self):
+    def test_http_client_kwargs_with_headers_merges_extra_and_attribution(self):
+        kwargs = chat_generator_module._http_client_kwargs_with_headers(
+            {"headers": {"existing-header": "existing-value"}},
+            {"test-header": "test-value"},
+        )
+
+        assert kwargs["headers"]["existing-header"] == "existing-value"
+        assert kwargs["headers"]["test-header"] == "test-value"
+        assert kwargs["headers"]["X-Pplx-Integration"].startswith("haystack/")
+
+    def test_run_sends_attribution_header(self, chat_messages):
+        captured: list[httpx.Request] = []
         component = PerplexityChatGenerator(
             api_key=Secret.from_token("test-api-key"),
             extra_headers={"test-header": "test-value"},
+            http_client_kwargs={"transport": _make_transport(captured)},
         )
 
-        # with haystack-ai >= 3.0 the clients are created during warm-up
-        component.warm_up()
-        await component.warm_up_async()
+        component.run(chat_messages)
 
-        assert component.client.default_headers["X-Pplx-Integration"].startswith("haystack/")
-        assert component.client.default_headers["test-header"] == "test-value"
-        assert component.async_client.default_headers["X-Pplx-Integration"].startswith("haystack/")
-        assert component.async_client.default_headers["test-header"] == "test-value"
+        assert len(captured) == 1
+        request = captured[0]
+        assert request.headers["Authorization"] == "Bearer test-api-key"
+        assert request.headers["X-Pplx-Integration"].startswith("haystack/")
+        assert request.headers["test-header"] == "test-value"
+
+    @pytest.mark.asyncio
+    async def test_run_async_sends_attribution_header(self, chat_messages):
+        captured: list[httpx.Request] = []
+        component = PerplexityChatGenerator(
+            api_key=Secret.from_token("test-api-key"),
+            extra_headers={"test-header": "test-value"},
+            http_client_kwargs={"transport": _make_transport(captured)},
+        )
+
+        await component.run_async(chat_messages)
+
+        assert len(captured) == 1
+        request = captured[0]
+        assert request.headers["Authorization"] == "Bearer test-api-key"
+        assert request.headers["X-Pplx-Integration"].startswith("haystack/")
+        assert request.headers["test-header"] == "test-value"
 
 
 @pytest.mark.skipif(
