@@ -68,8 +68,11 @@ jobs:
           fi
 
           for file in $FILES; do
-            python .github/utils/pyproject_to_requirements.py "$file" >> "${{ env.REQUIREMENTS_FILE }}"
-            echo "" >> "${{ env.REQUIREMENTS_FILE }}"
+            # Skip files that no longer exist (e.g. a deleted integration)
+            if [ -f "$file" ]; then
+              python .github/utils/pyproject_to_requirements.py "$file" >> "${{ env.REQUIREMENTS_FILE }}"
+              echo "" >> "${{ env.REQUIREMENTS_FILE }}"
+            fi
           done
 
       - name: Check Licenses
