@@ -31,7 +31,9 @@ class ValkeyEmbeddingRetriever:
     from haystack.document_stores.types import DuplicatePolicy
     from haystack import Document
     from haystack import Pipeline
-    from haystack.components.embedders import SentenceTransformersTextEmbedder, SentenceTransformersDocumentEmbedder
+    # Requires: pip install sentence-transformers-haystack
+    from haystack_integrations.components.embedders.sentence_transformers import SentenceTransformersTextEmbedder
+    from haystack_integrations.components.embedders.sentence_transformers import SentenceTransformersDocumentEmbedder
     from haystack_integrations.components.retrievers.valkey import ValkeyEmbeddingRetriever
     from haystack_integrations.document_stores.valkey import ValkeyDocumentStore
 
@@ -42,7 +44,6 @@ class ValkeyEmbeddingRetriever:
                  Document(content="In certain places, you can witness the phenomenon of bioluminescent waves.")]
 
     document_embedder = SentenceTransformersDocumentEmbedder()
-    document_embedder.warm_up()
     documents_with_embeddings = document_embedder.run(documents)
 
     document_store.write_documents(documents_with_embeddings.get("documents"), policy=DuplicatePolicy.OVERWRITE)

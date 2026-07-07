@@ -49,6 +49,7 @@ on:
       - "Test / mem0"
       - "Test / meta_llama"
       - "Test / microsoft_sharepoint"
+      - "Test / mirage"
       - "Test / mistral"
       - "Test / mongodb_atlas"
       - "Test / nvidia"

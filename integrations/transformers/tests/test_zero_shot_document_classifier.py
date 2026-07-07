@@ -167,7 +167,9 @@ class TestTransformersZeroShotDocumentClassifier:
     @pytest.mark.integration
     def test_run(self, del_hf_env_vars_if_empty):
         component = TransformersZeroShotDocumentClassifier(
-            model="cross-encoder/nli-deberta-v3-xsmall", labels=["positive", "negative"]
+            model="cross-encoder/nli-deberta-v3-xsmall",
+            labels=["positive", "negative"],
+            device=ComponentDevice.from_str("cpu"),
         )
         positive_document = Document(content="That's good. I like it. " * 1000)
         negative_document = Document(content="That's bad. I don't like it.")

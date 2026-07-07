@@ -354,8 +354,7 @@ class OpenRouterChatGenerator(OpenAIChatGenerator):
             - `replies`: A list containing the generated responses as ChatMessage instances.
         """
         messages = _normalize_messages(messages)
-        if not self._is_warmed_up:
-            self.warm_up()
+        self.warm_up()
 
         if len(messages) == 0:
             return {"replies": []}
@@ -382,7 +381,8 @@ class OpenRouterChatGenerator(OpenAIChatGenerator):
             tools_strict=tools_strict,
         )
         openai_endpoint = api_args.pop("openai_endpoint")
-        chat_completion = getattr(self.client.chat.completions, openai_endpoint)(**api_args)
+        # with haystack-ai >= 3.0 the client is Optional and built by warm_up above
+        chat_completion = getattr(self.client.chat.completions, openai_endpoint)(**api_args)  # type: ignore[union-attr]
 
         if streaming_callback is not None:
             # streaming uses the inherited handler so reasoning extraction is intentionally skipped
@@ -429,7 +429,10 @@ class OpenRouterChatGenerator(OpenAIChatGenerator):
             - `replies`: A list containing the generated responses as ChatMessage instances.
         """
         messages = _normalize_messages(messages)
-        if not self._is_warmed_up:
+        if hasattr(self, "warm_up_async"):
+            # haystack-ai >= 3.0 initializes the async client on the running event loop
+            await self.warm_up_async()
+        else:
             self.warm_up()
 
         if len(messages) == 0:
@@ -457,7 +460,8 @@ class OpenRouterChatGenerator(OpenAIChatGenerator):
             tools_strict=tools_strict,
         )
         openai_endpoint = api_args.pop("openai_endpoint")
-        chat_completion = await getattr(self.async_client.chat.completions, openai_endpoint)(**api_args)
+        # with haystack-ai >= 3.0 the client is Optional and built by warm_up above
+        chat_completion = await getattr(self.async_client.chat.completions, openai_endpoint)(**api_args)  # type: ignore[union-attr]
 
         if streaming_callback is not None:
             # streaming uses the inherited handler so reasoning extraction is intentionally skipped

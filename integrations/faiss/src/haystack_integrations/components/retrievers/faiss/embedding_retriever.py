@@ -20,7 +20,9 @@ class FAISSEmbeddingRetriever:
     Example usage:
     ```python
     from haystack import Document, Pipeline
-    from haystack.components.embedders import SentenceTransformersTextEmbedder, SentenceTransformersDocumentEmbedder
+    # Requires: pip install sentence-transformers-haystack
+    from haystack_integrations.components.embedders.sentence_transformers import SentenceTransformersTextEmbedder
+    from haystack_integrations.components.embedders.sentence_transformers import SentenceTransformersDocumentEmbedder
     from haystack.document_stores.types import DuplicatePolicy
 
     from haystack_integrations.document_stores.faiss import FAISSDocumentStore
@@ -35,7 +37,6 @@ class FAISSEmbeddingRetriever:
     ]
 
     document_embedder = SentenceTransformersDocumentEmbedder()
-    document_embedder.warm_up()
     documents_with_embeddings = document_embedder.run(documents)["documents"]
 
     document_store.write_documents(documents_with_embeddings, policy=DuplicatePolicy.OVERWRITE)

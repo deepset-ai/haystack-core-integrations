@@ -3,11 +3,14 @@
 # SPDX-License-Identifier: Apache-2.0
 
 from haystack import Document, Pipeline
-from haystack.components.embedders import SentenceTransformersDocumentEmbedder, SentenceTransformersTextEmbedder
 from haystack.components.retrievers import InMemoryEmbeddingRetriever
 from haystack.document_stores.in_memory import InMemoryDocumentStore
 from pyversity import Strategy
 
+from haystack_integrations.components.embedders.sentence_transformers import (
+    SentenceTransformersDocumentEmbedder,
+    SentenceTransformersTextEmbedder,
+)
 from haystack_integrations.components.rankers.pyversity import PyversityRanker
 
 # Index documents

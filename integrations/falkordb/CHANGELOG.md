@@ -1,5 +1,11 @@
 # Changelog
 
+## [integrations/falkordb-v1.2.0] - 2026-07-06
+
+### 🌀 Miscellaneous
+
+- Adding allowlist regex validator before interpolation + tests (#3512)
+
 ## [integrations/falkordb-v1.1.0] - 2026-05-15
 
 ### 🚀 Features
