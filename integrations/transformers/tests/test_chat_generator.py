@@ -504,7 +504,11 @@ class TestTransformersChatGenerator:
         """Test live run with default behavior (no thinking)."""
         messages = [ChatMessage.from_user("Please create a summary about the following topic: Climate change")]
 
-        llm = TransformersChatGenerator(model="Qwen/Qwen3-0.6B", generation_kwargs={"max_new_tokens": 50})
+        llm = TransformersChatGenerator(
+            model="Qwen/Qwen3-0.6B",
+            generation_kwargs={"max_new_tokens": 50},
+            device=ComponentDevice.from_str("cpu"),
+        )
 
         result = llm.run(messages)
 
@@ -519,7 +523,10 @@ class TestTransformersChatGenerator:
         messages = [ChatMessage.from_user("What is 2+2?")]
 
         llm = TransformersChatGenerator(
-            model="Qwen/Qwen3-0.6B", generation_kwargs={"max_new_tokens": 450}, enable_thinking=True
+            model="Qwen/Qwen3-0.6B",
+            generation_kwargs={"max_new_tokens": 450},
+            enable_thinking=True,
+            device=ComponentDevice.from_str("cpu"),
         )
 
         result = llm.run(messages)
@@ -846,7 +853,10 @@ class TestTransformersChatGeneratorAsync:
             streaming_chunks.append(chunk)
 
         llm = TransformersChatGenerator(
-            model="Qwen/Qwen3-0.6B", generation_kwargs={"max_new_tokens": 50}, streaming_callback=streaming_callback
+            model="Qwen/Qwen3-0.6B",
+            generation_kwargs={"max_new_tokens": 50},
+            streaming_callback=streaming_callback,
+            device=ComponentDevice.from_str("cpu"),
         )
 
         response = await llm.run_async(

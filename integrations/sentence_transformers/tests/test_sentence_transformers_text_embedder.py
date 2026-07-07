@@ -397,7 +397,9 @@ class TestSentenceTransformersTextEmbedder:
         checkpoint = "sentence-transformers-testing/stsb-bert-tiny-safetensors"
         text = "a nice text to embed"
 
-        embedder_trunc = SentenceTransformersTextEmbedder(model=checkpoint, truncate_dim=64)
+        embedder_trunc = SentenceTransformersTextEmbedder(
+            model=checkpoint, truncate_dim=64, device=ComponentDevice.from_str("cpu")
+        )
         result_trunc = embedder_trunc.run(text=text)
         embedding_trunc = result_trunc["embedding"]
 
@@ -413,7 +415,9 @@ class TestSentenceTransformersTextEmbedder:
         checkpoint = "sentence-transformers-testing/stsb-bert-tiny-safetensors"
         text = "a nice text to embed"
 
-        embedder_def = SentenceTransformersTextEmbedder(model=checkpoint, precision="int8")
+        embedder_def = SentenceTransformersTextEmbedder(
+            model=checkpoint, precision="int8", device=ComponentDevice.from_str("cpu")
+        )
         result_def = embedder_def.run(text=text)
         embedding_def = result_def["embedding"]
 

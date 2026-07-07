@@ -142,9 +142,9 @@ class PerplexityDocumentEmbedder(OpenAIDocumentEmbedder):
             max_retries=max_retries,
             http_client_kwargs=_http_client_kwargs_with_attribution(http_client_kwargs),
         )
-        self.http_client_kwargs = http_client_kwargs
-        self.timeout = timeout
-        self.max_retries = max_retries
+        # self.http_client_kwargs keeps the attribution header so that haystack-ai >= 3.0 builds the clients
+        # with it at warm-up; the user-provided value is preserved for serialization
+        self._http_client_kwargs = http_client_kwargs
 
     def _decode_response_embeddings(self, response: CreateEmbeddingResponse) -> list[list[float]]:
         return [_decode_embedding(str(el.embedding), self.encoding_format) for el in response.data]
@@ -168,7 +168,8 @@ class PerplexityDocumentEmbedder(OpenAIDocumentEmbedder):
             }
 
             try:
-                response = self.client.embeddings.create(**args)
+                # with haystack-ai >= 3.0 the client is Optional and built by the warm_up call in run
+                response = self.client.embeddings.create(**args)  # type: ignore[union-attr]
             except APIError as exc:
                 ids = ", ".join(b[0] for b in batch)
                 msg = "Failed embedding of documents {ids} caused by {exc}"
@@ -212,7 +213,8 @@ class PerplexityDocumentEmbedder(OpenAIDocumentEmbedder):
             }
 
             try:
-                response = await self.async_client.embeddings.create(**args)
+                # with haystack-ai >= 3.0 the client is Optional and built by the warm_up_async call in run_async
+                response = await self.async_client.embeddings.create(**args)  # type: ignore[union-attr]
             except APIError as exc:
                 ids = ", ".join(b[0] for b in batch)
                 msg = "Failed embedding of documents {ids} caused by {exc}"
@@ -255,7 +257,7 @@ class PerplexityDocumentEmbedder(OpenAIDocumentEmbedder):
             encoding_format=self.encoding_format,
             timeout=self.timeout,
             max_retries=self.max_retries,
-            http_client_kwargs=self.http_client_kwargs,
+            http_client_kwargs=self._http_client_kwargs,
         )
 
     @classmethod

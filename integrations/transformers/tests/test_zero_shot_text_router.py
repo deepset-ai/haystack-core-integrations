@@ -111,7 +111,7 @@ class TestTransformersZeroShotTextRouter:
 
     @pytest.mark.integration
     def test_run(self, del_hf_env_vars_if_empty):
-        router = TransformersZeroShotTextRouter(labels=["query", "passage"])
+        router = TransformersZeroShotTextRouter(labels=["query", "passage"], device=ComponentDevice.from_str("cpu"))
         out = router.run("What is the color of the sky?")
         assert router.pipeline is not None
         assert out == {"query": "What is the color of the sky?"}
