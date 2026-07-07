@@ -1,5 +1,16 @@
 # Changelog
 
+## [integrations/sentence_transformers-v0.1.1] - 2026-07-07
+
+### 🐛 Bug Fixes
+
+- Support quantization ranges for int8/uint8 sentence-transformers… (#3543)
+
+### 🧪 Testing
+
+- Force Transformers and Sentence Transformers integration tests to run on CPU (#3550)
+
+
 ## [integrations/sentence_transformers-v0.1.0] - 2026-06-16
 
 ### 🚀 Features
