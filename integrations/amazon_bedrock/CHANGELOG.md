@@ -1,5 +1,16 @@
 # Changelog
 
+## [integrations/amazon_bedrock-v6.15.1] - 2026-07-07
+
+### 🐛 Bug Fixes
+
+- Deserialization of flattened system_cachepoint_config in AmazonBedrockChatGenerator (#3548)
+
+### 🧪 Testing
+
+- Guard ToolInvoker imports so chat-generator tests run under Haystack 3.0 (#3535)
+
+
 ## [integrations/amazon_bedrock-v6.15.0] - 2026-07-02
 
 ### 🚀 Features
