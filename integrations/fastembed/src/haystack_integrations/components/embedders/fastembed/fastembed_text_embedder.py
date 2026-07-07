@@ -39,6 +39,7 @@ class FastembedTextEmbedder:
         progress_bar: bool = True,
         parallel: int | None = None,
         local_files_only: bool = False,
+        model_kwargs: dict[str, Any] | None = None,
     ) -> None:
         """
         Create a FastembedTextEmbedder component.
@@ -56,6 +57,8 @@ class FastembedTextEmbedder:
                 If 0, use all available cores.
                 If None, don't use data-parallel processing, use default onnxruntime threading instead.
         :param local_files_only: If `True`, only use the model files in the `cache_dir`.
+        :param model_kwargs: Dictionary containing additional keyword arguments to pass to the Fastembed model,
+                such as `providers` (e.g. `["CUDAExecutionProvider"]` to run on GPU), `cuda`, or `device_ids`.
         """
 
         self.model_name = model
@@ -66,6 +69,7 @@ class FastembedTextEmbedder:
         self.progress_bar = progress_bar
         self.parallel = parallel
         self.local_files_only = local_files_only
+        self.model_kwargs = model_kwargs
         self.embedding_backend: _FastembedEmbeddingBackend | None = None
 
     def to_dict(self) -> dict[str, Any]:
@@ -85,6 +89,7 @@ class FastembedTextEmbedder:
             progress_bar=self.progress_bar,
             parallel=self.parallel,
             local_files_only=self.local_files_only,
+            model_kwargs=self.model_kwargs,
         )
 
     def warm_up(self) -> None:
@@ -97,6 +102,7 @@ class FastembedTextEmbedder:
                 cache_dir=self.cache_dir,
                 threads=self.threads,
                 local_files_only=self.local_files_only,
+                model_kwargs=self.model_kwargs,
             )
 
     @component.output_types(embedding=list[float])
