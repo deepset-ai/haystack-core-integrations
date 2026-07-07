@@ -301,6 +301,22 @@ class QdrantDocumentStore:
                 self.payload_fields_to_index,
             )
 
+    def close(self) -> None:
+        """
+        Close the synchronous Qdrant client connection.
+        """
+        if self._client:
+            self._client.close()
+            self._client = None
+
+    async def close_async(self) -> None:
+        """
+        Close the asynchronous Qdrant client connection.
+        """
+        if self._async_client:
+            await self._async_client.close()
+            self._async_client = None
+
     def count_documents(self) -> int:
         """
         Returns the number of documents present in the Document Store.
