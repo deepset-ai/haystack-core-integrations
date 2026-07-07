@@ -243,11 +243,6 @@ integration:mem0:
       - any-glob-to-any-file: "integrations/mem0/**/*"
       - any-glob-to-any-file: ".github/workflows/mem0.yml"
 
-integration:meta-llama:
-  - changed-files:
-      - any-glob-to-any-file: "integrations/meta_llama/**/*"
-      - any-glob-to-any-file: ".github/workflows/meta_llama.yml"
-
 integration:microsoft-sharepoint:
   - changed-files:
       - any-glob-to-any-file: "integrations/microsoft_sharepoint/**/*"
