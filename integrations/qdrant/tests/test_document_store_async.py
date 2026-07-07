@@ -162,6 +162,27 @@ class TestQdrantDocumentStoreAsyncUnit:
         ):
             assert await getattr(document_store, method_name)(*args) == expected
 
+    async def test_close_async(self):
+        document_store = QdrantDocumentStore(":memory:", recreate_index=True)
+
+        # Initialise the async client
+        await document_store._initialize_async_client()
+        assert document_store._async_client is not None
+
+        await document_store.close_async()
+        assert document_store._async_client is None
+
+        # The client should be re-initialized lazily and still be usable
+        assert await document_store.count_documents_async() == 0
+
+    async def test_close_async_before_initialization_is_safe(self):
+        document_store = QdrantDocumentStore(":memory:", recreate_index=True)
+        assert document_store._async_client is None
+
+        # Should not raise even though the client was never initialized
+        await document_store.close_async()
+        assert document_store._async_client is None
+
 
 @pytest.mark.integration
 @pytest.mark.asyncio

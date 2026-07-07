@@ -370,6 +370,27 @@ class TestQdrantDocumentStoreUnit:
         ):
             assert getattr(document_store, method_name)(*args) == expected
 
+    def test_close(self):
+        document_store = QdrantDocumentStore(":memory:", recreate_index=True)
+
+        # Initialise the client
+        document_store._initialize_client()
+        assert document_store._client is not None
+
+        document_store.close()
+        assert document_store._client is None
+
+        # The client should be re-initialized lazily and still be usable
+        assert document_store.count_documents() == 0
+
+    def test_close_before_initialization_is_safe(self):
+        document_store = QdrantDocumentStore(":memory:", recreate_index=True)
+        assert document_store._client is None
+
+        # Should not raise even though the client was never initialized
+        document_store.close()
+        assert document_store._client is None
+
 
 @pytest.mark.integration
 class TestQdrantDocumentStore(
