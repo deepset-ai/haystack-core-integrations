@@ -7,7 +7,8 @@ from typing import Any
 import httpx
 from haystack import component, default_from_dict, default_to_dict, logging, tracing
 from haystack.core.serialization import component_to_dict
-from haystack.utils import Secret, deserialize_component_inplace, deserialize_secrets_inplace
+from haystack.utils import Secret, deserialize_secrets_inplace
+from haystack.utils.deserialization import deserialize_component_inplace
 
 from haystack_integrations.tracing.langfuse import LangfuseTracer, SpanHandler
 from langfuse import Langfuse
