@@ -7,10 +7,7 @@ from __future__ import annotations
 import json
 import struct
 from dataclasses import replace
-from typing import TYPE_CHECKING, Any, Literal
-
-if TYPE_CHECKING:
-    import mariadb
+from typing import Any, Literal
 
 from haystack import default_from_dict, default_to_dict, logging
 from haystack.dataclasses import ByteStream, Document
@@ -137,8 +134,8 @@ class MariaDBDocumentStore(DocumentStore):
         :param vector_function: Similarity function — `"cosine_similarity"` or `"l2_distance"`.
         :param recreate_table: Drop and recreate the table on init. **Deletes all data.**
         """
-        self._connection: mariadb.Connection | None = None
-        self._cursor: mariadb.Cursor | None = None
+        self._connection: Any = None
+        self._cursor: Any = None
         self._table_initialized = False
 
         if vector_function not in VALID_VECTOR_FUNCTIONS:
