@@ -14,7 +14,7 @@ from haystack import Document, component, logging
 from haystack.components.converters.utils import normalize_metadata
 from haystack.core.serialization import component_to_dict, default_from_dict, default_to_dict
 from haystack.dataclasses import ByteStream
-from haystack.utils import deserialize_chatgenerator_inplace
+from haystack.utils import deserialize_component_inplace
 
 from docling.chunking import BaseChunk, BaseChunker, HybridChunker
 from docling.datamodel.document import DoclingDocument
@@ -196,7 +196,7 @@ class DoclingConverter:
         init_params = data.get("init_parameters", {})
 
         if init_params.get("meta_extractor") is not None:
-            deserialize_chatgenerator_inplace(init_params, key="meta_extractor")
+            deserialize_component_inplace(init_params, key="meta_extractor")
 
         return default_from_dict(cls, data)
 
