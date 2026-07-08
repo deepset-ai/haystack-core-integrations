@@ -228,6 +228,12 @@ class LangfuseConnector:
         """
         init_params = data["init_parameters"]
         deserialize_secrets_inplace(init_params, keys=["secret_key", "public_key"])
-        if init_params.get("span_handler") is not None:
+        span_handler_data = init_params.get("span_handler")
+        if span_handler_data is not None:
+            if "data" in span_handler_data:
+                # Pipelines serialized before this fix wrap the span handler as
+                # {"type": ..., "data": {"type": ..., "init_parameters": ...}}; unwrap it here so older
+                # serialized pipelines keep working.
+                init_params["span_handler"] = span_handler_data["data"]
             deserialize_chatgenerator_inplace(init_params, key="span_handler")
         return default_from_dict(cls, data)
