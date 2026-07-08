@@ -2,12 +2,15 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+from __future__ import annotations
+
 import json
 import struct
 from dataclasses import replace
-from typing import Any, Literal, Optional
+from typing import TYPE_CHECKING, Any, Literal, Optional
 
-import mariadb
+if TYPE_CHECKING:
+    import mariadb
 
 from haystack import default_from_dict, default_to_dict, logging
 from haystack.dataclasses import ByteStream, Document
@@ -175,6 +178,8 @@ class MariaDBDocumentStore(DocumentStore):
 
     def _ensure_connection(self) -> None:
         """Lazily establish the DB connection and initialize the table."""
+        import mariadb  # noqa: PLC0415
+
         if self._connection is not None and self._cursor is not None:
             try:
                 self._connection.ping()
@@ -204,6 +209,8 @@ class MariaDBDocumentStore(DocumentStore):
             self._initialize_table()
 
     def _initialize_table(self) -> None:
+        import mariadb  # noqa: PLC0415
+
         if self.recreate_table:
             self._drop_table()
 
@@ -219,6 +226,8 @@ class MariaDBDocumentStore(DocumentStore):
             raise DocumentStoreError(msg) from e
 
     def _drop_table(self) -> None:
+        import mariadb  # noqa: PLC0415
+
         try:
             self._cursor.execute(f"DROP TABLE IF EXISTS `{self.table_name}`")
             self._table_initialized = False
@@ -299,6 +308,8 @@ class MariaDBDocumentStore(DocumentStore):
         else:
             sql = INSERT_STATEMENT.format(table_name=self.table_name)
 
+        import mariadb  # noqa: PLC0415
+
         written = 0
         for doc in documents:
             row = _document_to_row(doc)
@@ -317,6 +328,8 @@ class MariaDBDocumentStore(DocumentStore):
 
         :param document_ids: IDs to delete.
         """
+        import mariadb  # noqa: PLC0415
+
         if not document_ids:
             return
         self._ensure_connection()
