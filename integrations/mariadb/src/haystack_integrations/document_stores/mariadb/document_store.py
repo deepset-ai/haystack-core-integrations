@@ -7,7 +7,7 @@ from __future__ import annotations
 import json
 import struct
 from dataclasses import replace
-from typing import TYPE_CHECKING, Any, Literal, Optional
+from typing import TYPE_CHECKING, Any, Literal
 
 if TYPE_CHECKING:
     import mariadb
@@ -137,8 +137,8 @@ class MariaDBDocumentStore(DocumentStore):
         :param vector_function: Similarity function — `"cosine_similarity"` or `"l2_distance"`.
         :param recreate_table: Drop and recreate the table on init. **Deletes all data.**
         """
-        self._connection: Optional[mariadb.Connection] = None
-        self._cursor: Optional[mariadb.Cursor] = None
+        self._connection: mariadb.Connection | None = None
+        self._cursor: mariadb.Cursor | None = None
         self._table_initialized = False
 
         if vector_function not in VALID_VECTOR_FUNCTIONS:
@@ -171,21 +171,21 @@ class MariaDBDocumentStore(DocumentStore):
         )
 
     @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "MariaDBDocumentStore":
+    def from_dict(cls, data: dict[str, Any]) -> MariaDBDocumentStore:
         """Deserialize the component from a dictionary."""
         deserialize_secrets_inplace(data["init_parameters"], ["user", "password"])
         return default_from_dict(cls, data)
 
     def _ensure_connection(self) -> None:
         """Lazily establish the DB connection and initialize the table."""
-        import mariadb  # noqa: PLC0415
-
         if self._connection is not None and self._cursor is not None:
             try:
                 self._connection.ping()
                 return
-            except mariadb.Error:
+            except Exception:
                 self._close_connection()
+
+        import mariadb  # noqa: PLC0415
 
         try:
             self._connection = mariadb.connect(
@@ -239,13 +239,13 @@ class MariaDBDocumentStore(DocumentStore):
         if self._cursor is not None:
             try:
                 self._cursor.close()
-            except Exception:  # noqa: BLE001
+            except Exception:  # noqa: S110
                 pass
             self._cursor = None
         if self._connection is not None:
             try:
                 self._connection.close()
-            except Exception:  # noqa: BLE001
+            except Exception:  # noqa: S110
                 pass
             self._connection = None
         self._table_initialized = False
@@ -260,7 +260,7 @@ class MariaDBDocumentStore(DocumentStore):
     def count_documents(self) -> int:
         """Return the number of documents in the store."""
         self._ensure_connection()
-        self._cursor.execute(f"SELECT COUNT(*) AS cnt FROM `{self.table_name}`")
+        self._cursor.execute(f"SELECT COUNT(*) AS cnt FROM `{self.table_name}`")  # noqa: S608
         row = self._cursor.fetchone()
         return row["cnt"] if row else 0
 
@@ -274,7 +274,7 @@ class MariaDBDocumentStore(DocumentStore):
         _validate_filters(filters)
         self._ensure_connection()
 
-        sql = f"SELECT * FROM `{self.table_name}`"
+        sql = f"SELECT * FROM `{self.table_name}`"  # noqa: S608
         params: list[Any] = []
 
         if filters:
@@ -318,7 +318,8 @@ class MariaDBDocumentStore(DocumentStore):
                 written += 1
             except mariadb.IntegrityError as e:
                 if policy == DuplicatePolicy.FAIL:
-                    raise DuplicateDocumentError(f"Document with id '{doc.id}' already exists") from e
+                    msg = f"Document with id '{doc.id}' already exists"
+                    raise DuplicateDocumentError(msg) from e
 
         return written
 
@@ -336,7 +337,7 @@ class MariaDBDocumentStore(DocumentStore):
         placeholders = ", ".join(["?"] * len(document_ids))
         try:
             self._cursor.execute(
-                f"DELETE FROM `{self.table_name}` WHERE id IN ({placeholders})",
+                f"DELETE FROM `{self.table_name}` WHERE id IN ({placeholders})",  # noqa: S608
                 tuple(document_ids),
             )
         except mariadb.Error as e:
@@ -428,8 +429,7 @@ class MariaDBDocumentStore(DocumentStore):
 
         docs = _rows_to_documents(records)
         docs = [
-            replace(doc, score=float(record.get("score") or 0.0))
-            for doc, record in zip(docs, records, strict=True)
+            replace(doc, score=float(record.get("score") or 0.0)) for doc, record in zip(docs, records, strict=True)
         ]
         return docs
 

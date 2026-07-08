@@ -27,6 +27,7 @@ def _make_store(**kwargs) -> MariaDBDocumentStore:
 # MariaDBEmbeddingRetriever unit tests
 # ---------------------------------------------------------------------------
 
+
 class TestEmbeddingRetrieverInit:
     def test_requires_mariadb_store(self):
         with pytest.raises(ValueError, match="MariaDBDocumentStore"):
@@ -136,6 +137,7 @@ class TestEmbeddingRetrieverRun:
 # ---------------------------------------------------------------------------
 # MariaDBKeywordRetriever unit tests
 # ---------------------------------------------------------------------------
+
 
 class TestKeywordRetrieverInit:
     def test_requires_mariadb_store(self):
@@ -257,8 +259,6 @@ class TestIntegrationRetrievers:
             Document(content="far origin", embedding=[10.0, 10.0, 10.0, 10.0]),
         ]
         integration_store.write_documents(docs)
-        retriever = MariaDBEmbeddingRetriever(
-            document_store=integration_store, top_k=1, vector_function="l2_distance"
-        )
+        retriever = MariaDBEmbeddingRetriever(document_store=integration_store, top_k=1, vector_function="l2_distance")
         result = retriever.run(query_embedding=[0.0, 0.0, 0.0, 0.0])
         assert result["documents"][0].content == "near origin"

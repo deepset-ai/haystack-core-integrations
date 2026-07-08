@@ -22,6 +22,7 @@ from haystack_integrations.document_stores.mariadb.document_store import (
 # Helper: build a store with a mocked DB connection
 # ---------------------------------------------------------------------------
 
+
 def _mock_store(**kwargs) -> MariaDBDocumentStore:
     store = MariaDBDocumentStore(
         host="localhost",
@@ -43,6 +44,7 @@ def _mock_store(**kwargs) -> MariaDBDocumentStore:
 # ---------------------------------------------------------------------------
 # Serialization
 # ---------------------------------------------------------------------------
+
 
 class TestSerialization:
     def test_to_dict(self, monkeypatch):
@@ -74,6 +76,7 @@ class TestSerialization:
 # Embedding helpers
 # ---------------------------------------------------------------------------
 
+
 class TestEmbeddingHelpers:
     def test_round_trip_embedding(self):
         original = [0.1, 0.2, 0.3, -0.5]
@@ -92,6 +95,7 @@ class TestEmbeddingHelpers:
 # ---------------------------------------------------------------------------
 # Document conversion helpers
 # ---------------------------------------------------------------------------
+
 
 class TestDocumentHelpers:
     def test_document_to_row_simple(self):
@@ -117,9 +121,17 @@ class TestDocumentHelpers:
         assert row[5] == "application/octet-stream"
 
     def test_rows_to_documents_simple(self):
-        records = [{"id": "x1", "content": "text", "embedding": None,
-                    "blob_data": None, "blob_meta": None, "blob_mime_type": None,
-                    "meta": '{"a": 1}'}]
+        records = [
+            {
+                "id": "x1",
+                "content": "text",
+                "embedding": None,
+                "blob_data": None,
+                "blob_meta": None,
+                "blob_mime_type": None,
+                "meta": '{"a": 1}',
+            }
+        ]
         docs = _rows_to_documents(records)
         assert len(docs) == 1
         assert docs[0].id == "x1"
@@ -128,25 +140,50 @@ class TestDocumentHelpers:
     def test_rows_to_documents_bytes_embedding(self):
         emb = [0.1, 0.9]
         raw = _embedding_to_bytes(emb)
-        records = [{"id": "e1", "content": "hi", "embedding": raw,
-                    "blob_data": None, "blob_meta": None, "blob_mime_type": None,
-                    "meta": "{}"}]
+        records = [
+            {
+                "id": "e1",
+                "content": "hi",
+                "embedding": raw,
+                "blob_data": None,
+                "blob_meta": None,
+                "blob_mime_type": None,
+                "meta": "{}",
+            }
+        ]
         docs = _rows_to_documents(records)
         assert docs[0].embedding is not None
         assert len(docs[0].embedding) == 2
 
     def test_rows_to_documents_strips_score(self):
-        records = [{"id": "s1", "content": "text", "embedding": None,
-                    "blob_data": None, "blob_meta": None, "blob_mime_type": None,
-                    "meta": "{}", "score": 0.99}]
+        records = [
+            {
+                "id": "s1",
+                "content": "text",
+                "embedding": None,
+                "blob_data": None,
+                "blob_meta": None,
+                "blob_mime_type": None,
+                "meta": "{}",
+                "score": 0.99,
+            }
+        ]
         docs = _rows_to_documents(records)
         # Document.score should not be set from the row (no score field in Document)
         assert docs[0].id == "s1"
 
     def test_rows_to_documents_with_blob(self):
-        records = [{"id": "b1", "content": None, "embedding": None,
-                    "blob_data": b"data", "blob_meta": '{"k": "v"}',
-                    "blob_mime_type": "image/png", "meta": "{}"}]
+        records = [
+            {
+                "id": "b1",
+                "content": None,
+                "embedding": None,
+                "blob_data": b"data",
+                "blob_meta": '{"k": "v"}',
+                "blob_mime_type": "image/png",
+                "meta": "{}",
+            }
+        ]
         docs = _rows_to_documents(records)
         assert docs[0].blob is not None
         assert docs[0].blob.data == b"data"
@@ -156,6 +193,7 @@ class TestDocumentHelpers:
 # ---------------------------------------------------------------------------
 # count_documents
 # ---------------------------------------------------------------------------
+
 
 class TestCountDocuments:
     def test_count_documents(self):
@@ -172,6 +210,7 @@ class TestCountDocuments:
 # ---------------------------------------------------------------------------
 # write_documents
 # ---------------------------------------------------------------------------
+
 
 class TestWriteDocuments:
     def test_write_empty_returns_zero(self):
@@ -201,6 +240,7 @@ class TestWriteDocuments:
 
     def test_write_fail_raises_on_duplicate(self):
         import mariadb  # noqa: PLC0415
+
         store = _mock_store()
         store._cursor.execute.side_effect = mariadb.IntegrityError("Duplicate entry")
         doc = Document(id="dup", content="test")
@@ -216,6 +256,7 @@ class TestWriteDocuments:
 # ---------------------------------------------------------------------------
 # delete_documents
 # ---------------------------------------------------------------------------
+
 
 class TestDeleteDocuments:
     def test_delete_empty_noop(self):
@@ -234,6 +275,7 @@ class TestDeleteDocuments:
 # ---------------------------------------------------------------------------
 # filter_documents
 # ---------------------------------------------------------------------------
+
 
 class TestFilterDocuments:
     def test_filter_no_filters(self):
@@ -305,9 +347,7 @@ class TestIntegrationDocumentStore:
             Document(content="B", meta={"category": "dog"}),
         ]
         integration_store.write_documents(docs)
-        results = integration_store.filter_documents(
-            {"field": "meta.category", "operator": "==", "value": "cat"}
-        )
+        results = integration_store.filter_documents({"field": "meta.category", "operator": "==", "value": "cat"})
         assert all(d.meta.get("category") == "cat" for d in results)
 
     def test_delete_documents(self, integration_store):
@@ -315,9 +355,7 @@ class TestIntegrationDocumentStore:
         integration_store.write_documents([doc])
         assert integration_store.count_documents() >= 1
         integration_store.delete_documents(["to-delete"])
-        results = integration_store.filter_documents(
-            {"field": "id", "operator": "==", "value": "to-delete"}
-        )
+        results = integration_store.filter_documents({"field": "id", "operator": "==", "value": "to-delete"})
         assert results == []
 
     def test_duplicate_fail(self, integration_store):
@@ -331,9 +369,7 @@ class TestIntegrationDocumentStore:
         integration_store.write_documents([doc])
         doc2 = Document(id="ow-test", content="updated")
         integration_store.write_documents([doc2], policy=DuplicatePolicy.OVERWRITE)
-        results = integration_store.filter_documents(
-            {"field": "id", "operator": "==", "value": "ow-test"}
-        )
+        results = integration_store.filter_documents({"field": "id", "operator": "==", "value": "ow-test"})
         assert results[0].content == "updated"
 
     def test_embedding_retrieval(self, integration_store):
@@ -342,9 +378,7 @@ class TestIntegrationDocumentStore:
             Document(content="green tea", embedding=[0.0, 1.0, 0.0, 0.0]),
         ]
         integration_store.write_documents(docs)
-        results = integration_store._embedding_retrieval(
-            query_embedding=[1.0, 0.0, 0.0, 0.0], top_k=1
-        )
+        results = integration_store._embedding_retrieval(query_embedding=[1.0, 0.0, 0.0, 0.0], top_k=1)
         assert len(results) == 1
         assert results[0].content == "red apple"
 
@@ -362,8 +396,6 @@ class TestIntegrationDocumentStore:
         blob = ByteStream(data=b"binary content", meta={"type": "test"}, mime_type="text/plain")
         doc = Document(id="blob-doc", blob=blob)
         integration_store.write_documents([doc])
-        results = integration_store.filter_documents(
-            {"field": "id", "operator": "==", "value": "blob-doc"}
-        )
+        results = integration_store.filter_documents({"field": "id", "operator": "==", "value": "blob-doc"})
         assert results[0].blob is not None
         assert results[0].blob.data == b"binary content"

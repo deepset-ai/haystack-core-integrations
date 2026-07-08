@@ -172,10 +172,7 @@ def _check_comparable(value: Any, op: str) -> None:
         try:
             datetime.fromisoformat(value)
         except (ValueError, TypeError) as exc:
-            msg = (
-                f"Cannot compare strings with '{op}'. "
-                "Strings are only comparable if they are ISO formatted dates."
-            )
+            msg = f"Cannot compare strings with '{op}'. Strings are only comparable if they are ISO formatted dates."
             raise FilterError(msg) from exc
     if isinstance(value, list):
         msg = f"Filter value cannot be a list when using '{op}'"
