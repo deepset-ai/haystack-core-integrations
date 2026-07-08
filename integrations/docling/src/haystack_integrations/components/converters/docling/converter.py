@@ -12,9 +12,9 @@ from typing import Any
 from docling_core.types.io import DocumentStream
 from haystack import Document, component, logging
 from haystack.components.converters.utils import normalize_metadata
-from haystack.core.serialization import default_from_dict, default_to_dict
+from haystack.core.serialization import component_to_dict, default_from_dict, default_to_dict
 from haystack.dataclasses import ByteStream
-from haystack.utils.base_serialization import deserialize_class_instance, serialize_class_instance
+from haystack.utils import deserialize_chatgenerator_inplace
 
 from docling.chunking import BaseChunk, BaseChunker, HybridChunker
 from docling.datamodel.document import DoclingDocument
@@ -69,12 +69,12 @@ class BaseMetaExtractor(ABC):
 
     def to_dict(self) -> dict[str, Any]:
         """Serialize to a dictionary."""
-        return {}
+        return default_to_dict(self)
 
     @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "BaseMetaExtractor":  # noqa: ARG003
+    def from_dict(cls, data: dict[str, Any]) -> "BaseMetaExtractor":
         """Deserialize from a dictionary."""
-        return cls()
+        return default_from_dict(cls, data)
 
 
 class MetaExtractor(BaseMetaExtractor):
@@ -169,7 +169,7 @@ class DoclingConverter:
 
         meta_extractor_data = None
         if self.meta_extractor is not None:
-            meta_extractor_data = serialize_class_instance(self.meta_extractor)
+            meta_extractor_data = component_to_dict(self.meta_extractor, "meta_extractor")
 
         return default_to_dict(
             self,
@@ -195,9 +195,8 @@ class DoclingConverter:
         """
         init_params = data.get("init_parameters", {})
 
-        meta_extractor_data = init_params.get("meta_extractor")
-        if meta_extractor_data is not None:
-            init_params["meta_extractor"] = deserialize_class_instance(meta_extractor_data)
+        if init_params.get("meta_extractor") is not None:
+            deserialize_chatgenerator_inplace(init_params, key="meta_extractor")
 
         return default_from_dict(cls, data)
 

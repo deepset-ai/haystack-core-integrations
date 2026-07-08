@@ -179,7 +179,7 @@ def test_component_to_dict_custom_params() -> None:
             "chunker": None,
             "meta_extractor": {
                 "type": "haystack_integrations.components.converters.docling.converter.MetaExtractor",
-                "data": {},
+                "init_parameters": {},
             },
         },
     }
@@ -219,7 +219,7 @@ def test_component_from_dict_custom_params() -> None:
             "chunker": None,
             "meta_extractor": {
                 "type": "haystack_integrations.components.converters.docling.converter.MetaExtractor",
-                "data": {},
+                "init_parameters": {},
             },
         },
     }
