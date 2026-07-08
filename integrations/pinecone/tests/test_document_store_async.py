@@ -137,9 +137,9 @@ class TestDocumentStoreAsync(
 
         for idx, doc in enumerate(docs["documents"]):
             if idx == 2:
-                doc.embedding = [0.1] * 768
+                docs["documents"][idx] = replace(doc, embedding=[0.1] * 768)
                 continue
-            doc.embedding = np.random.rand(768).tolist()
+            docs["documents"][idx] = replace(doc, embedding=np.random.rand(768).tolist())
         await document_store_async.write_documents_async(docs["documents"])
 
         # query
