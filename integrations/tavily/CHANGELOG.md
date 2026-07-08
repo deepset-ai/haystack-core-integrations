@@ -1,5 +1,11 @@
 # Changelog
 
+## [unreleased]
+
+### 🚀 Features
+
+- Add TavilyFetcher component using the Tavily Extract API (#3559)
+
 ## [integrations/tavily-v0.2.0] - 2026-07-03
 
 ### 🚀 Features
@@ -10,7 +16,6 @@
 
 - Track test coverage for all integrations (#3065)
 - Tavily - add 2 unit tests (#3222)
-
 
 ## [integrations/tavily-v0.1.0] - 2026-03-27
 
