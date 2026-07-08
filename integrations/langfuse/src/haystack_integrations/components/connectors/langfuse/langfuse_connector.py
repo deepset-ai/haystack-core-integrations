@@ -6,8 +6,8 @@ from typing import Any
 
 import httpx
 from haystack import component, default_from_dict, default_to_dict, logging, tracing
-from haystack.utils import Secret, deserialize_secrets_inplace
-from haystack.utils.base_serialization import deserialize_class_instance, serialize_class_instance
+from haystack.core.serialization import component_to_dict
+from haystack.utils import Secret, deserialize_chatgenerator_inplace, deserialize_secrets_inplace
 
 from haystack_integrations.tracing.langfuse import LangfuseTracer, SpanHandler
 from langfuse import Langfuse
@@ -198,7 +198,7 @@ class LangfuseConnector:
 
         :returns: The serialized component as a dictionary.
         """
-        span_handler = serialize_class_instance(self.span_handler) if self.span_handler else None
+        span_handler = component_to_dict(self.span_handler, "span_handler") if self.span_handler else None
         if self.langfuse_client_kwargs:
             # pop httpx_client and mask from self._langfuse_client_kwargs to prevent serialization issues
             langfuse_client_kwargs = {
@@ -229,5 +229,5 @@ class LangfuseConnector:
         init_params = data["init_parameters"]
         deserialize_secrets_inplace(init_params, keys=["secret_key", "public_key"])
         if init_params.get("span_handler") is not None:
-            init_params["span_handler"] = deserialize_class_instance(init_params["span_handler"])
+            deserialize_chatgenerator_inplace(init_params, key="span_handler")
         return default_from_dict(cls, data)

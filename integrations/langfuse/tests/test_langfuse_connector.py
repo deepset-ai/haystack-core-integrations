@@ -104,10 +104,7 @@ class TestLangfuseConnector:
                 },
                 "span_handler": {
                     "type": "tests.test_langfuse_connector.CustomSpanHandler",
-                    "data": {
-                        "type": "tests.test_langfuse_connector.CustomSpanHandler",
-                        "init_parameters": {},
-                    },
+                    "init_parameters": {},
                 },
                 "host": "https://example.com",
                 "langfuse_client_kwargs": {"timeout": 30.0},
@@ -199,10 +196,7 @@ class TestLangfuseConnector:
                 },
                 "span_handler": {
                     "type": "tests.test_langfuse_connector.CustomSpanHandler",
-                    "data": {
-                        "type": "tests.test_langfuse_connector.CustomSpanHandler",
-                        "init_parameters": {},
-                    },
+                    "init_parameters": {},
                 },
                 "host": "https://example.com",
                 "langfuse_client_kwargs": {"timeout": 30.0},
