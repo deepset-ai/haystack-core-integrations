@@ -46,7 +46,10 @@ git_describe_command = 'git describe --tags --match="integrations/mariadb-v[0-9]
 
 [tool.hatch.envs.default]
 installer = "uv"
-dependencies = ["haystack-pydoc-tools", "ruff"]
+# skip-install prevents hatch from installing the project (and thus the mariadb C extension)
+# in the docs environment. The pydoc search_path points to src/ so modules are found directly.
+skip-install = true
+dependencies = ["haystack-pydoc-tools", "ruff", "haystack-ai>=2.28.0"]
 
 [tool.hatch.envs.default.scripts]
 docs = ["haystack-pydoc pydoc/config_docusaurus.yml"]

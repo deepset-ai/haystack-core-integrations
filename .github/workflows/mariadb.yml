@@ -71,10 +71,10 @@ jobs:
         ports:
           - 3306:3306
         options: >-
-          --health-cmd="healthcheck.sh --su-mysql --connect --innodb-initialized"
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -u root -ppassword --silent"
           --health-interval=10s
           --health-timeout=5s
-          --health-retries=15
+          --health-retries=20
 
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
