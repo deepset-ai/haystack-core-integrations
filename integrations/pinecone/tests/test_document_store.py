@@ -4,6 +4,7 @@
 
 import os
 import time
+from dataclasses import replace
 from unittest.mock import patch
 
 import numpy as np
@@ -475,9 +476,9 @@ class TestDocumentStore(
 
         for idx, doc in enumerate(docs["documents"]):
             if idx == 2:
-                doc.embedding = [0.1] * 768
+                docs["documents"][idx] = replace(doc, embedding=[0.1] * 768)
                 continue
-            doc.embedding = np.random.rand(768).tolist()
+            docs["documents"][idx] = replace(doc, embedding=np.random.rand(768).tolist())
         document_store.write_documents(docs["documents"])
 
         # query
