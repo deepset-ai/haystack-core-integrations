@@ -57,6 +57,7 @@ fmt = "ruff check --fix {args}; ruff format {args}"
 fmt-check = "ruff check {args} && ruff format --check {args}"
 
 [tool.hatch.envs.test]
+skip-install = false
 dependencies = [
     "pytest",
     "pytest-asyncio",

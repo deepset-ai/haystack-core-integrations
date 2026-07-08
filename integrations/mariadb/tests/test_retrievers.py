@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import os
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 from haystack.dataclasses import Document
@@ -222,7 +222,7 @@ def integration_store():
     yield store
     try:
         store._cursor.execute("DROP TABLE IF EXISTS `test_retrievers_docs`")
-    except Exception:
+    except Exception:  # noqa: BLE001
         pass
     store.close()
 

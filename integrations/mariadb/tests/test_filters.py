@@ -68,7 +68,7 @@ class TestFilterConversion:
 
     def test_less_than(self):
         filters = {"field": "meta.count", "operator": "<", "value": 100}
-        clause, params = _convert_filters_to_where_clause_and_params(filters)
+        clause, _ = _convert_filters_to_where_clause_and_params(filters)
         assert "< ?" in clause
 
     def test_in_operator(self):
@@ -91,7 +91,7 @@ class TestFilterConversion:
 
     def test_not_like_operator(self):
         filters = {"field": "meta.title", "operator": "not like", "value": "%java%"}
-        clause, params = _convert_filters_to_where_clause_and_params(filters)
+        clause, _ = _convert_filters_to_where_clause_and_params(filters)
         assert "NOT LIKE ?" in clause
 
     def test_top_level_field(self):
@@ -170,5 +170,5 @@ class TestFilterConversion:
 
     def test_gt_with_iso_date_passes(self):
         filters = {"field": "meta.created", "operator": ">", "value": "2024-01-01T00:00:00"}
-        clause, params = _convert_filters_to_where_clause_and_params(filters)
+        clause, _ = _convert_filters_to_where_clause_and_params(filters)
         assert "> ?" in clause

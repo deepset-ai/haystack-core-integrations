@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import os
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 from haystack.dataclasses import ByteStream, Document
@@ -146,7 +146,6 @@ class TestDocumentHelpers:
         assert docs[0].id == "s1"
 
     def test_rows_to_documents_with_blob(self):
-        import json
         records = [{"id": "b1", "content": None, "embedding": None,
                     "blob_data": b"data", "blob_meta": '{"k": "v"}',
                     "blob_mime_type": "image/png", "meta": "{}"}]
@@ -203,7 +202,7 @@ class TestWriteDocuments:
         assert "INSERT IGNORE" in call_args[0]
 
     def test_write_fail_raises_on_duplicate(self):
-        import mariadb
+        import mariadb  # noqa: PLC0415
         store = _mock_store()
         store._cursor.execute.side_effect = mariadb.IntegrityError("Duplicate entry")
         doc = Document(id="dup", content="test")
@@ -282,7 +281,7 @@ def integration_store():
     store.delete_documents(store.filter_documents() and [d.id for d in store.filter_documents()])
     try:
         store._cursor.execute("DROP TABLE IF EXISTS `test_haystack_docs`")
-    except Exception:
+    except Exception:  # noqa: BLE001
         pass
     store.close()
 
