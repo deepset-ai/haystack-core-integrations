@@ -33,6 +33,7 @@ class TestSentenceTransformersDocumentEmbedder:
         assert embedder.local_files_only is False
         assert embedder.truncate_dim is None
         assert embedder.precision == "float32"
+        assert embedder.quantization_ranges is None
 
     def test_init_with_parameters(self):
         embedder = SentenceTransformersDocumentEmbedder(
@@ -51,6 +52,7 @@ class TestSentenceTransformersDocumentEmbedder:
             local_files_only=True,
             truncate_dim=256,
             precision="int8",
+            quantization_ranges=[[-1.0, -1.0], [1.0, 1.0]],
         )
         assert embedder.model == "model"
         assert embedder.device == ComponentDevice.from_str("cuda:0")
@@ -67,6 +69,12 @@ class TestSentenceTransformersDocumentEmbedder:
         assert embedder.local_files_only
         assert embedder.truncate_dim == 256
         assert embedder.precision == "int8"
+        assert embedder.quantization_ranges == [[-1.0, -1.0], [1.0, 1.0]]
+
+    def test_init_quantized_precision_without_ranges_warns(self, caplog):
+        with caplog.at_level("WARNING"):
+            SentenceTransformersDocumentEmbedder(model="model", precision="int8")
+        assert "quantization_ranges" in caplog.text
 
     def test_to_dict(self):
         component = SentenceTransformersDocumentEmbedder(model="model", device=ComponentDevice.from_str("cpu"))
@@ -94,6 +102,7 @@ class TestSentenceTransformersDocumentEmbedder:
                 "config_kwargs": None,
                 "precision": "float32",
                 "backend": "torch",
+                "quantization_ranges": None,
             },
         }
 
@@ -143,6 +152,7 @@ class TestSentenceTransformersDocumentEmbedder:
                 "precision": "int8",
                 "encode_kwargs": {"task": "clustering"},
                 "backend": "torch",
+                "quantization_ranges": None,
             },
         }
 
@@ -346,6 +356,7 @@ class TestSentenceTransformersDocumentEmbedder:
             show_progress_bar=True,
             normalize_embeddings=False,
             precision="float32",
+            quantization_ranges=None,
         )
 
     def test_embed_metadata_preserves_falsy_values(self):
@@ -366,6 +377,7 @@ class TestSentenceTransformersDocumentEmbedder:
             show_progress_bar=True,
             normalize_embeddings=False,
             precision="float32",
+            quantization_ranges=None,
         )
 
     def test_embed_encode_kwargs(self):
@@ -380,6 +392,7 @@ class TestSentenceTransformersDocumentEmbedder:
             show_progress_bar=True,
             normalize_embeddings=False,
             precision="float32",
+            quantization_ranges=None,
             task="retrieval.passage",
         )
 
@@ -407,6 +420,7 @@ class TestSentenceTransformersDocumentEmbedder:
             show_progress_bar=True,
             normalize_embeddings=False,
             precision="float32",
+            quantization_ranges=None,
         )
 
     @patch(
