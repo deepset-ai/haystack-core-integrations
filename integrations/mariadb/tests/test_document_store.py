@@ -18,7 +18,6 @@ from haystack_integrations.document_stores.mariadb.document_store import (
     _rows_to_documents,
 )
 
-
 # ---------------------------------------------------------------------------
 # Helper: build a store with a mocked DB connection
 # ---------------------------------------------------------------------------
@@ -81,7 +80,7 @@ class TestEmbeddingHelpers:
         raw = _embedding_to_bytes(original)
         recovered = _bytes_to_embedding(raw)
         assert len(recovered) == len(original)
-        for a, b in zip(recovered, original):
+        for a, b in zip(recovered, original, strict=True):
             assert abs(a - b) < 1e-6
 
     def test_embedding_bytes_length(self):
@@ -118,7 +117,6 @@ class TestDocumentHelpers:
         assert row[5] == "application/octet-stream"
 
     def test_rows_to_documents_simple(self):
-        import json
         records = [{"id": "x1", "content": "text", "embedding": None,
                     "blob_data": None, "blob_meta": None, "blob_mime_type": None,
                     "meta": '{"a": 1}'}]
@@ -281,7 +279,7 @@ def integration_store():
     store.delete_documents(store.filter_documents() and [d.id for d in store.filter_documents()])
     try:
         store._cursor.execute("DROP TABLE IF EXISTS `test_haystack_docs`")
-    except Exception:  # noqa: BLE001
+    except Exception:  # noqa: S110
         pass
     store.close()
 

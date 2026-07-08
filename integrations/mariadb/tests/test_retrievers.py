@@ -222,7 +222,7 @@ def integration_store():
     yield store
     try:
         store._cursor.execute("DROP TABLE IF EXISTS `test_retrievers_docs`")
-    except Exception:  # noqa: BLE001
+    except Exception:  # noqa: S110
         pass
     store.close()
 

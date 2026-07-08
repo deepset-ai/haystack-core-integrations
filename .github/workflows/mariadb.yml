@@ -79,6 +79,9 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
 
+      - name: Install MariaDB Connector/C
+        run: sudo apt-get install -y libmariadb-dev
+
       - name: Install Hatch
         run: |
           python -m pip install --upgrade pip

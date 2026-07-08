@@ -391,7 +391,7 @@ class MariaDBDocumentStore(DocumentStore):
             replace(doc, score=float(1.0 - record["score"]) if "COSINE" in vec_func else float(-record["score"]))
             if record.get("score") is not None
             else doc
-            for doc, record in zip(docs, records)
+            for doc, record in zip(docs, records, strict=True)
         ]
         return docs
 
@@ -418,7 +418,7 @@ class MariaDBDocumentStore(DocumentStore):
 
         if filters:
             where_clause, filter_params = _convert_filters_to_where_clause_and_params(filters)
-            params = [query] + filter_params
+            params = [query, *filter_params]
 
         params.append(top_k)
 
@@ -429,7 +429,7 @@ class MariaDBDocumentStore(DocumentStore):
         docs = _rows_to_documents(records)
         docs = [
             replace(doc, score=float(record.get("score") or 0.0))
-            for doc, record in zip(docs, records)
+            for doc, record in zip(docs, records, strict=True)
         ]
         return docs
 
