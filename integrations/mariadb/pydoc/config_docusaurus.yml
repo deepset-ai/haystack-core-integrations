@@ -1,0 +1,15 @@
+loaders:
+  - modules:
+      - haystack_integrations.components.retrievers.mariadb.embedding_retriever
+      - haystack_integrations.components.retrievers.mariadb.keyword_retriever
+      - haystack_integrations.document_stores.mariadb.document_store
+    search_path: [../src]
+processors:
+  - type: filter
+    documented_only: true
+    skip_empty_modules: true
+renderer:
+  description: MariaDB integration for Haystack
+  id: integrations-mariadb
+  filename: mariadb.md
+  title: MariaDB
