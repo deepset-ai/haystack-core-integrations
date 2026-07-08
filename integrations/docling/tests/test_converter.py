@@ -233,6 +233,29 @@ def test_component_from_dict_custom_params() -> None:
     assert isinstance(restored.meta_extractor, MetaExtractor)
 
 
+def test_component_from_dict_with_legacy_meta_extractor_format() -> None:
+    # Pipelines serialized before this fix wrap meta_extractor as {"type": ..., "data": {...}}
+    data = {
+        "type": "haystack_integrations.components.converters.docling.converter.DoclingConverter",
+        "init_parameters": {
+            "converter": None,
+            "convert_kwargs": {},
+            "export_type": "markdown",
+            "md_export_kwargs": {"image_placeholder": ""},
+            "chunker": None,
+            "meta_extractor": {
+                "type": "haystack_integrations.components.converters.docling.converter.MetaExtractor",
+                "data": {
+                    "type": "haystack_integrations.components.converters.docling.converter.MetaExtractor",
+                    "init_parameters": {},
+                },
+            },
+        },
+    }
+    restored = DoclingConverter.from_dict(data)
+    assert isinstance(restored.meta_extractor, MetaExtractor)
+
+
 def test_component_to_dict_chunker_warns_and_is_dropped() -> None:
     # Pass an explicit tokenizer so HybridChunker doesn't invoke its default factory
     # (get_default_tokenizer), which would download a tokenizer from HuggingFace.

@@ -195,7 +195,13 @@ class DoclingConverter:
         """
         init_params = data.get("init_parameters", {})
 
-        if init_params.get("meta_extractor") is not None:
+        meta_extractor_data = init_params.get("meta_extractor")
+        if meta_extractor_data is not None:
+            if "data" in meta_extractor_data:
+                # Pipelines serialized before this fix wrap the meta extractor as
+                # {"type": ..., "data": {"type": ..., "init_parameters": ...}}; unwrap it here so older
+                # serialized pipelines keep working.
+                init_params["meta_extractor"] = meta_extractor_data["data"]
             deserialize_chatgenerator_inplace(init_params, key="meta_extractor")
 
         return default_from_dict(cls, data)
