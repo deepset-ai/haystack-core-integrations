@@ -179,7 +179,8 @@ class TestPerplexityTextEmbedder:
         assert component.encoding_format == "base64_binary"
         assert component.timeout is None
         assert component.max_retries is None
-        assert component.http_client_kwargs is None
+        # the user-provided value; component.http_client_kwargs carries the attribution header
+        assert component._http_client_kwargs is None
 
     def test_run_sends_attribution_header(self):
         captured: list[httpx.Request] = []

@@ -19,8 +19,14 @@ class ArcadeDBEmbeddingRetriever:
 
     ```python
     from haystack import Document
-    from haystack.components.embedders import SentenceTransformersTextEmbedder
-    from haystack_integrations.components.retrievers.arcadedb import ArcadeDBEmbeddingRetriever
+
+    # Requires: pip install sentence-transformers-haystack
+    from haystack_integrations.components.embedders.sentence_transformers import (
+        SentenceTransformersTextEmbedder,
+    )
+    from haystack_integrations.components.retrievers.arcadedb import (
+        ArcadeDBEmbeddingRetriever,
+    )
     from haystack_integrations.document_stores.arcadedb import ArcadeDBDocumentStore
 
     store = ArcadeDBDocumentStore(database="mydb")

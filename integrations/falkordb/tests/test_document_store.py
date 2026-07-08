@@ -107,6 +107,13 @@ class TestFalkorDBDocumentStoreUnit:
                 "coalesce(d.year = $p0, false)",
                 {"p0": 2024},
             ),
+            # underscore-prefixed identifiers are valid Cypher and must be accepted
+            ({"field": "_id", "operator": "==", "value": "x"}, "coalesce(d._id = $p0, false)", {"p0": "x"}),
+            (
+                {"field": "meta._private", "operator": "==", "value": "y"},
+                "coalesce(d._private = $p0, false)",
+                {"p0": "y"},
+            ),
             (
                 {
                     "operator": "OR",
@@ -137,6 +144,21 @@ class TestFalkorDBDocumentStoreUnit:
             ({"field": "x", "operator": "in", "value": "scalar"}, "requires a list value"),
             ({"field": "x", "operator": "not in", "value": "scalar"}, "requires a list value"),
             ({"field": "x", "operator": "regex", "value": "."}, "Unsupported filter operator"),
+            # Cypher injection via field identifier (CVE: unsanitized interpolation)
+            (
+                {"field": "tenant = $p0, false) OR true RETURN d //", "operator": "==", "value": "alice"},
+                "Invalid filter field name",
+            ),
+            ({"field": "x; DROP DATABASE", "operator": "==", "value": 1}, "Invalid filter field name"),
+            ({"field": "x.y", "operator": "==", "value": 1}, "Invalid filter field name"),
+            ({"field": "meta.x.y", "operator": "==", "value": 1}, "Invalid filter field name"),
+            # empty identifier after meta. stripping
+            ({"field": "meta.", "operator": "==", "value": 1}, "Invalid filter field name"),
+            # digit-leading identifier
+            ({"field": "2fast", "operator": "==", "value": 1}, "Invalid filter field name"),
+            # hyphen in field name (common meta key, but not a valid Cypher identifier)
+            ({"field": "created-by", "operator": "==", "value": "alice"}, "Invalid filter field name"),
+            ({"field": "meta.created-by", "operator": "==", "value": "alice"}, "Invalid filter field name"),
         ],
     )
     def test_convert_filters_errors(self, filter_node, match):

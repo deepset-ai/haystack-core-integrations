@@ -40,6 +40,8 @@ def test_to_dict(_mock_weaviate):
                 "type": "haystack_integrations.document_stores.weaviate.document_store.WeaviateDocumentStore",
                 "init_parameters": {
                     "url": None,
+                    "grpc_port": 50051,
+                    "grpc_secure": False,
                     "collection_settings": {
                         "class": "Default",
                         "invertedIndexConfig": {"indexNullState": True},
@@ -74,6 +76,8 @@ def test_from_dict(_mock_weaviate):
                     "type": "haystack_integrations.document_stores.weaviate.document_store.WeaviateDocumentStore",
                     "init_parameters": {
                         "url": None,
+                        "grpc_port": 50051,
+                        "grpc_secure": False,
                         "collection_settings": {
                             "class": "Default",
                             "invertedIndexConfig": {"indexNullState": True},
@@ -111,6 +115,8 @@ def test_from_dict_no_filter_policy(_mock_weaviate):
                     "type": "haystack_integrations.document_stores.weaviate.document_store.WeaviateDocumentStore",
                     "init_parameters": {
                         "url": None,
+                        "grpc_port": 50051,
+                        "grpc_secure": False,
                         "collection_settings": {
                             "class": "Default",
                             "invertedIndexConfig": {"indexNullState": True},

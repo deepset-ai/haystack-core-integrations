@@ -73,7 +73,7 @@ class AmazonBedrockDocumentImageEmbedder:
             "AWS_SECRET_ACCESS_KEY", strict=False
         ),
         aws_session_token: Secret | None = Secret.from_env_var("AWS_SESSION_TOKEN", strict=False),  # noqa: B008
-        aws_region_name: Secret | None = Secret.from_env_var("AWS_DEFAULT_REGION", strict=False),  # noqa: B008
+        aws_region_name: Secret | str | None = Secret.from_env_var("AWS_DEFAULT_REGION", strict=False),  # noqa: B008
         aws_profile_name: Secret | None = Secret.from_env_var("AWS_PROFILE", strict=False),  # noqa: B008
         file_path_meta_field: str = "file_path",
         root_path: str | None = None,
@@ -146,8 +146,8 @@ class AmazonBedrockDocumentImageEmbedder:
                 raise ValueError(msg)
             self.embedding_types = embedding_types
 
-        def resolve_secret(secret: Secret | None) -> str | None:
-            return secret.resolve_value() if secret else None
+        def resolve_secret(secret: Secret | str | None) -> str | None:
+            return secret.resolve_value() if isinstance(secret, Secret) else secret
 
         try:
             session = get_aws_session(

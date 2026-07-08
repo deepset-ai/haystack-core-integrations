@@ -8,7 +8,11 @@ from botocore.exceptions import ClientError
 from haystack import Pipeline
 from haystack.components.agents import Agent
 from haystack.components.generators.utils import print_streaming_chunk
-from haystack.components.tools import ToolInvoker
+
+try:
+    from haystack.components.tools import ToolInvoker
+except ImportError:  # ToolInvoker was removed in Haystack 3.0
+    ToolInvoker = None
 from haystack.dataclasses import (
     ChatMessage,
     ChatRole,
@@ -238,6 +242,7 @@ class TestAmazonBedrockChatGenerator:
                     "guardrailVersion": "test",
                 },
                 "tools_cachepoint_config": None,
+                "system_cachepoint_config": None,
             },
         }
 
@@ -290,6 +295,25 @@ class TestAmazonBedrockChatGenerator:
         assert generator.model == "global.anthropic.claude-sonnet-4-6"
         assert generator.streaming_callback == print_streaming_chunk
         assert generator.boto3_config == boto3_config
+
+    def test_from_dict_aws_region_name(self, mock_boto3_session: Any):
+        """
+        Test that aws_region_name as str value is correctly parsed
+        """
+        generator = AmazonBedrockChatGenerator.from_dict(
+            {
+                "type": CLASS_TYPE,
+                "init_parameters": {
+                    "aws_region_name": "my-fake-region",
+                    "model": "global.anthropic.claude-sonnet-4-6",
+                },
+            }
+        )
+        assert generator.model == "global.anthropic.claude-sonnet-4-6"
+        assert generator.aws_region_name == "my-fake-region"
+
+        serialized = generator.to_dict()
+        assert serialized["init_parameters"]["aws_region_name"] == "my-fake-region"
 
     def test_default_constructor(self, mock_boto3_session, mock_aioboto3_session, set_env_variables):
         """
@@ -409,6 +433,7 @@ class TestAmazonBedrockChatGenerator:
                         ],
                         "guardrail_config": None,
                         "tools_cachepoint_config": None,
+                        "system_cachepoint_config": None,
                     },
                 }
             },
@@ -447,8 +472,22 @@ class TestAmazonBedrockChatGenerator:
             "guardrailVersion": "test",
         }
 
-    def test_prepare_request_params_response_format(self, mock_boto3_session, set_env_variables):
+    def test_constructor_with_system_cachepoint_config(self, mock_boto3_session):
+        generator = AmazonBedrockChatGenerator(
+            model="global.anthropic.claude-sonnet-4-6",
+            system_cachepoint_config={"type": "default"},
+        )
+        assert generator.system_cachepoint_config == {"cachePoint": {"type": "default"}}
 
+    def test_to_dict_with_system_cachepoint_config(self, mock_boto3_session):
+        generator = AmazonBedrockChatGenerator(
+            model="global.anthropic.claude-sonnet-4-6",
+            system_cachepoint_config={"type": "default"},
+        )
+        serialized = generator.to_dict()
+        assert serialized["init_parameters"]["system_cachepoint_config"] == {"cachePoint": {"type": "default"}}
+
+    def test_prepare_request_params_response_format(self, mock_boto3_session, set_env_variables):
         generator = AmazonBedrockChatGenerator(model="global.anthropic.claude-sonnet-4-6")
         schema = {
             "type": "object",
@@ -641,6 +680,22 @@ class TestAmazonBedrockChatGenerator:
                     "output_config": {"effort": "max"},
                 },
             ),
+            (
+                {
+                    "adaptive_thinking_effort": "disabled",
+                },
+                {
+                    "thinking": {"type": "disabled"},
+                },
+            ),
+            (
+                {
+                    "adaptive_thinking_effort": "none",
+                },
+                {
+                    "thinking": {"type": "disabled"},
+                },
+            ),
         ],
     )
     def test_prepare_request_params_with_flattened_generation_kwargs(
@@ -710,6 +765,56 @@ class TestAmazonBedrockChatGenerator:
                 {"disable_parallel_tool_use": True, "parallel_tool_use": True}
             )
 
+    def test_from_dict_resolves_tools_cachepoint_config_ttl(self, mock_boto3_session):
+        generator = AmazonBedrockChatGenerator.from_dict(
+            {
+                "type": CLASS_TYPE,
+                "init_parameters": {
+                    "model": "global.anthropic.claude-sonnet-4-6",
+                    "tools_cachepoint_config_ttl": "1h",
+                },
+            }
+        )
+        assert generator.tools_cachepoint_config == {"cachePoint": {"type": "default", "ttl": "1h"}}
+
+    def test_from_dict_resolves_tools_cachepoint_config_ttl_preserves_existing_type(self, mock_boto3_session):
+        generator = AmazonBedrockChatGenerator.from_dict(
+            {
+                "type": CLASS_TYPE,
+                "init_parameters": {
+                    "model": "global.anthropic.claude-sonnet-4-6",
+                    "tools_cachepoint_config": {"type": "default"},
+                    "tools_cachepoint_config_ttl": "5m",
+                },
+            }
+        )
+        assert generator.tools_cachepoint_config == {"cachePoint": {"type": "default", "ttl": "5m"}}
+
+    def test_from_dict_resolves_system_cachepoint_config_ttl(self, mock_boto3_session):
+        generator = AmazonBedrockChatGenerator.from_dict(
+            {
+                "type": CLASS_TYPE,
+                "init_parameters": {
+                    "model": "global.anthropic.claude-sonnet-4-6",
+                    "system_cachepoint_config_ttl": "1h",
+                },
+            }
+        )
+        assert generator.system_cachepoint_config == {"cachePoint": {"type": "default", "ttl": "1h"}}
+
+    def test_from_dict_resolves_system_cachepoint_config_ttl_preserves_existing_type(self, mock_boto3_session):
+        generator = AmazonBedrockChatGenerator.from_dict(
+            {
+                "type": CLASS_TYPE,
+                "init_parameters": {
+                    "model": "global.anthropic.claude-sonnet-4-6",
+                    "system_cachepoint_config": {"type": "default"},
+                    "system_cachepoint_config_ttl": "5m",
+                },
+            }
+        )
+        assert generator.system_cachepoint_config == {"cachePoint": {"type": "default", "ttl": "5m"}}
+
     def test_run_completion(self, mock_boto3_session, set_env_variables):
         generator = AmazonBedrockChatGenerator(model="global.anthropic.claude-sonnet-4-6")
         generator.client = MagicMock()
@@ -724,7 +829,6 @@ class TestAmazonBedrockChatGenerator:
         assert result["replies"][0].text == "Paris"
 
     def test_run_client_error(self, mock_boto3_session, set_env_variables):
-
         generator = AmazonBedrockChatGenerator(model="global.anthropic.claude-sonnet-4-6")
         generator.client = MagicMock()
         generator.client.converse.side_effect = ClientError(
@@ -1376,6 +1480,7 @@ class TestAmazonBedrockChatGeneratorInference:
         assert "cache_details" in usage
 
     @pytest.mark.parametrize("model_name", MODELS_TO_TEST_WITH_TOOLS[:1])  # just one model is enough
+    @pytest.mark.skipif(ToolInvoker is None, reason="ToolInvoker is not available in the installed haystack-ai version")
     def test_pipeline_with_amazon_bedrock_chat_generator(self, model_name, tools):
         """
         Test that the AmazonBedrockChatGenerator component can be used in a pipeline

@@ -1,0 +1,13 @@
+loaders:
+  - modules:
+      - haystack_integrations.components.websearch.searchapi.websearch
+    search_path: [../src]
+processors:
+  - type: filter
+    documented_only: true
+    skip_empty_modules: true
+renderer:
+  description: SearchApi integration for Haystack
+  id: integrations-searchapi
+  filename: searchapi.md
+  title: SearchApi

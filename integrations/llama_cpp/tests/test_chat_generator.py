@@ -4,10 +4,10 @@
 
 import json
 import os
-import urllib.request
 from pathlib import Path
 from typing import Annotated
 from unittest.mock import MagicMock
+from urllib.parse import urlparse
 
 import pytest
 from haystack import Document, Pipeline
@@ -25,6 +25,7 @@ from haystack.dataclasses import (
 )
 from haystack.document_stores.in_memory import InMemoryDocumentStore
 from haystack.tools import Tool, Toolset, create_tool_from_function
+from huggingface_hub import hf_hub_download
 
 from haystack_integrations.components.generators.llama_cpp.chat.chat_generator import (
     LlamaCppChatGenerator,
@@ -58,14 +59,23 @@ def temperature_tool():
 
 
 def download_file(file_link, filename, capsys):
-    # Checks if the file already exists before downloading
-    if not os.path.isfile(filename):
-        urllib.request.urlretrieve(file_link, filename)  # noqa: S310
-        with capsys.disabled():
-            print("\nModel file downloaded successfully.")
-    else:
+    # `filename` is the local destination path. `file_link` is a HuggingFace "resolve"
+    # URL; we download via huggingface_hub so the request is authenticated with the
+    # HF_TOKEN env var (avoids anonymous rate limits and supports gated repos).
+    if os.path.isfile(filename):
         with capsys.disabled():
             print("\nModel file already exists.")
+        return
+
+    # Parse https://huggingface.co/<repo_id>/resolve/<revision>/<path> into its parts.
+    repo_id, _, rest = urlparse(file_link).path.lstrip("/").partition("/resolve/")
+    revision, _, path_in_repo = rest.partition("/")
+    dest = Path(filename)
+    downloaded = Path(hf_hub_download(repo_id=repo_id, filename=path_in_repo, revision=revision, local_dir=dest.parent))
+    if downloaded != dest:
+        downloaded.rename(dest)
+    with capsys.disabled():
+        print("\nModel file downloaded successfully.")
 
 
 def test_convert_message_to_llamacpp_format():
@@ -150,9 +160,8 @@ def test_convert_message_to_llamacpp_format_with_unsupported_mime_type():
 def test_convert_message_to_llamacpp_format_with_none_mime_type():
     """Test that a ChatMessage with None mime type raises ValueError."""
     base64_image = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg=="
-    image_content = ImageContent(base64_image=base64_image, mime_type="image/png")
-    # Manually set mime_type to None to test the validation
-    image_content.mime_type = None
+    # validation=False skips the mime_type guessing in __post_init__, keeping it None
+    image_content = ImageContent(base64_image=base64_image, mime_type=None, validation=False)
     message = ChatMessage.from_user(content_parts=["What's in this image?", image_content])
 
     with pytest.raises(ValueError, match="Unsupported image format: None"):

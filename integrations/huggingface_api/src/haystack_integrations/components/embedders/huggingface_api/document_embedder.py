@@ -14,7 +14,7 @@ from haystack.utils.url_validation import is_valid_http_url
 from huggingface_hub import AsyncInferenceClient, InferenceClient
 from tqdm import tqdm
 
-from haystack_integrations.components.common.huggingface_api.utils import (
+from haystack_integrations.common.huggingface_api.utils import (
     HFEmbeddingAPIType,
     HFModelType,
     _check_valid_model,

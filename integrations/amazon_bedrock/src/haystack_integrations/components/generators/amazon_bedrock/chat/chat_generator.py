@@ -55,16 +55,24 @@ class AmazonBedrockChatGenerator:
     **Usage example**
 
     ```python
-    from haystack_integrations.components.generators.amazon_bedrock import AmazonBedrockChatGenerator
+    from haystack_integrations.components.generators.amazon_bedrock import (
+        AmazonBedrockChatGenerator,
+    )
     from haystack.dataclasses import ChatMessage
     from haystack.components.generators.utils import print_streaming_chunk
 
-    messages = [ChatMessage.from_system("\\nYou are a helpful, respectful and honest assistant, answer in German only"),
-                ChatMessage.from_user("What's Natural Language Processing?")]
+    messages = [
+        ChatMessage.from_system(
+            "\\nYou are a helpful, respectful and honest assistant, answer in German only"
+        ),
+        ChatMessage.from_user("What's Natural Language Processing?"),
+    ]
 
 
-    client = AmazonBedrockChatGenerator(model="global.anthropic.claude-sonnet-4-6",
-                                        streaming_callback=print_streaming_chunk)
+    client = AmazonBedrockChatGenerator(
+        model="global.anthropic.claude-sonnet-4-6",
+        streaming_callback=print_streaming_chunk,
+    )
     client.run(messages, generation_kwargs={"max_tokens": 512})
     ```
 
@@ -152,7 +160,9 @@ class AmazonBedrockChatGenerator:
     To cache messages, you can use the `cachePoint` key in `ChatMessage.meta` attribute.
 
     ```python
-    ChatMessage.from_user("Long message...", meta={"cachePoint": {"type": "default"}})
+    ChatMessage.from_user(
+        "Long message...", meta={"cachePoint": {"type": "default"}}
+    )
     ```
 
     For more information, see the [Amazon Bedrock documentation](https://docs.aws.amazon.com/bedrock/latest/userguide/prompt-caching.html).
@@ -179,7 +189,7 @@ class AmazonBedrockChatGenerator:
             ["AWS_SECRET_ACCESS_KEY"], strict=False
         ),
         aws_session_token: Secret | None = Secret.from_env_var(["AWS_SESSION_TOKEN"], strict=False),  # noqa: B008
-        aws_region_name: Secret | None = Secret.from_env_var(["AWS_DEFAULT_REGION"], strict=False),  # noqa: B008
+        aws_region_name: Secret | str | None = Secret.from_env_var(["AWS_DEFAULT_REGION"], strict=False),  # noqa: B008
         aws_profile_name: Secret | None = Secret.from_env_var(["AWS_PROFILE"], strict=False),  # noqa: B008
         generation_kwargs: dict[str, Any] | None = None,
         streaming_callback: StreamingCallbackT | None = None,
@@ -188,6 +198,7 @@ class AmazonBedrockChatGenerator:
         *,
         guardrail_config: dict[str, str] | None = None,
         tools_cachepoint_config: dict[str, str] | None = None,
+        system_cachepoint_config: dict[str, str] | None = None,
     ) -> None:
         """
         Initializes the `AmazonBedrockChatGenerator` with the provided parameters.
@@ -219,12 +230,15 @@ class AmazonBedrockChatGenerator:
 
                 Example::
 
-                    generation_kwargs={
+                    generation_kwargs = {
                         "response_format": {
                             "name": "person",
                             "schema": {
                                 "type": "object",
-                                "properties": {"name": {"type": "string"}, "age": {"type": "integer"}},
+                                "properties": {
+                                    "name": {"type": "string"},
+                                    "age": {"type": "integer"},
+                                },
                                 "required": ["name", "age"],
                                 "additionalProperties": False,
                             },
@@ -260,6 +274,10 @@ class AmazonBedrockChatGenerator:
             The dictionary must match the
             [CachePointBlock schema](https://docs.aws.amazon.com/bedrock/latest/APIReference/API_runtime_CachePointBlock.html).
             Example: `{"type": "default", "ttl": "5m"}`
+        :param system_cachepoint_config: Optional configuration to use prompt caching for system messages.
+            The dictionary must match the
+            [CachePointBlock schema](https://docs.aws.amazon.com/bedrock/latest/APIReference/API_runtime_CachePointBlock.html).
+            Example: `{"type": "default", "ttl": "5m"}`
 
 
         :raises ValueError: If the model name is empty or None.
@@ -287,9 +305,12 @@ class AmazonBedrockChatGenerator:
         self.tools_cachepoint_config = (
             _validate_and_format_cache_point(tools_cachepoint_config) if tools_cachepoint_config else None
         )
+        self.system_cachepoint_config = (
+            _validate_and_format_cache_point(system_cachepoint_config) if system_cachepoint_config else None
+        )
 
-        def resolve_secret(secret: Secret | None) -> str | None:
-            return secret.resolve_value() if secret else None
+        def resolve_secret(secret: Secret | str | None) -> str | None:
+            return secret.resolve_value() if isinstance(secret, Secret) else secret
 
         config = Config(
             user_agent_extra="x-client-framework:haystack",
@@ -369,6 +390,7 @@ class AmazonBedrockChatGenerator:
             tools=serialize_tools_or_toolset(self.tools),
             guardrail_config=self.guardrail_config,
             tools_cachepoint_config=self.tools_cachepoint_config,
+            system_cachepoint_config=self.system_cachepoint_config,
         )
 
     @classmethod
@@ -387,6 +409,18 @@ class AmazonBedrockChatGenerator:
         if stop_words:
             logger.warning(msg)
 
+        system_cachepoint_config_ttl = init_params.pop("system_cachepoint_config_ttl", None)
+        if system_cachepoint_config_ttl is not None:
+            system_cachepoint_config = init_params.setdefault("system_cachepoint_config", {})
+            system_cachepoint_config["ttl"] = system_cachepoint_config_ttl
+            system_cachepoint_config.setdefault("type", "default")
+
+        tools_cachepoint_config_ttl = init_params.pop("tools_cachepoint_config_ttl", None)
+        if tools_cachepoint_config_ttl is not None:
+            tools_cachepoint_config = init_params.setdefault("tools_cachepoint_config", {})
+            tools_cachepoint_config["ttl"] = tools_cachepoint_config_ttl
+            tools_cachepoint_config.setdefault("type", "default")
+
         serialized_callback_handler = init_params.get("streaming_callback")
         if serialized_callback_handler:
             data["init_parameters"]["streaming_callback"] = deserialize_callable(serialized_callback_handler)
@@ -401,7 +435,6 @@ class AmazonBedrockChatGenerator:
         tools: ToolsType | None = None,
         requires_async: bool = False,
     ) -> tuple[dict[str, Any], StreamingCallbackT | None]:
-
         generation_kwargs = generation_kwargs or {}
 
         # Merge generation_kwargs with defaults
@@ -452,7 +485,9 @@ class AmazonBedrockChatGenerator:
             }
 
         # Format messages to Bedrock format
-        system_prompts, messages_list = _format_messages(messages)
+        system_prompts, messages_list = _format_messages(
+            messages, system_cachepoint_config=self.system_cachepoint_config
+        )
 
         # Build API parameters
         params = {
@@ -512,9 +547,12 @@ class AmazonBedrockChatGenerator:
         adaptive_thinking_effort = generation_kwargs.pop("adaptive_thinking_effort", None)
         if adaptive_thinking_effort is not None:
             thinking = generation_kwargs.setdefault("thinking", {})
-            thinking.setdefault("type", "adaptive")
-            output_config = generation_kwargs.setdefault("output_config", {})
-            output_config["effort"] = adaptive_thinking_effort
+            if adaptive_thinking_effort in ("disabled", "none"):
+                thinking.setdefault("type", "disabled")
+            else:
+                thinking.setdefault("type", "adaptive")
+                output_config = generation_kwargs.setdefault("output_config", {})
+                output_config["effort"] = adaptive_thinking_effort
 
         return generation_kwargs
 
@@ -636,7 +674,11 @@ class AmazonBedrockChatGenerator:
                     self.aws_secret_access_key.resolve_value() if self.aws_secret_access_key else None
                 ),
                 aws_session_token=(self.aws_session_token.resolve_value() if self.aws_session_token else None),
-                region_name=(self.aws_region_name.resolve_value() if self.aws_region_name else None),
+                region_name=(
+                    self.aws_region_name.resolve_value()
+                    if isinstance(self.aws_region_name, Secret)
+                    else self.aws_region_name
+                ),
                 config=config,
             ) as async_client:
                 if callback:

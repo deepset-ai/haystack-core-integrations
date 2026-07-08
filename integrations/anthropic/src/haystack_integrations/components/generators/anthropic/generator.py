@@ -62,7 +62,7 @@ class AnthropicGenerator:
     def __init__(
         self,
         api_key: Secret = Secret.from_env_var("ANTHROPIC_API_KEY"),  # noqa: B008
-        model: str = "claude-sonnet-4-20250514",
+        model: str = "claude-sonnet-4-5",
         streaming_callback: Callable[[StreamingChunk], None] | None = None,
         system_prompt: str | None = None,
         generation_kwargs: dict[str, Any] | None = None,

@@ -133,6 +133,7 @@ class OpenSearchBM25Retriever:
             filter_policy=self._filter_policy.value,
             custom_query=self._custom_query,
             raise_on_failure=self._raise_on_failure,
+            all_terms_must_match=self._all_terms_must_match,
         )
 
     @classmethod

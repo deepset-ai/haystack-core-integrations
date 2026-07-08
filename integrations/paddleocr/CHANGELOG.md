@@ -1,5 +1,26 @@
 # Changelog
 
+## [integrations/paddleocr-v2.0.0] - 2026-06-24
+
+### 🚀 Features
+
+- [**breaking**] Migrate to official PaddleOCRClient, drop paddlex dependency (#3463)
+
+### 📚 Documentation
+
+- Simplify pydoc configs (#2855)
+
+### 🧪 Testing
+
+- Track test coverage for all integrations (#3065)
+- Paddle OCR - add unit tests (#3208)
+
+### 🧹 Chores
+
+- Add ANN ruff ruleset to optimum, paddleocr, pgvector, pinecone, pyversity, qdrant, ragas, snowflake (#2992)
+- Enforce ruff docstring rules in integrations 31-40 (openrouter, opensearch, optimum, paddleocr, pgvector, pinecone, pyversity, qdrant, ragas, snowflake) (#3011)
+
+
 ## [integrations/paddleocr-v1.1.0] - 2026-01-29
 
 ### 🚀 Features

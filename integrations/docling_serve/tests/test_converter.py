@@ -325,6 +325,21 @@ class TestDoclingServeConverterRun:
         assert result["documents"] == []
         assert "file conversion failed" in caplog.text
 
+    def test_run_skips_missing_local_file(self, tmp_path, caplog):
+        missing = tmp_path / "missing.pdf"
+        good = tmp_path / "good.pdf"
+        good.write_bytes(b"%PDF-test")
+        converter = DoclingServeConverter(api_key=None)
+        mock_resp = _mock_httpx_response("# Good content")
+
+        with patch("httpx.Client.post", return_value=mock_resp):
+            with caplog.at_level(logging.WARNING):
+                result = converter.run(sources=[missing, good])
+
+        assert len(result["documents"]) == 1
+        assert result["documents"][0].content == "# Good content"
+        assert "Could not read local source" in caplog.text
+
     def test_run_text_export(self):
         converter = DoclingServeConverter(export_type=ExportType.TEXT, api_key=None)
         mock_resp = _mock_httpx_response("plain text content", ExportType.TEXT)
@@ -603,6 +618,26 @@ class TestDoclingServeConverterRunAsync:
 
         assert result["documents"] == []
         assert "Could not connect" in caplog.text
+
+    @pytest.mark.asyncio
+    async def test_run_async_skips_missing_local_file(self, tmp_path, caplog):
+        missing = tmp_path / "missing.pdf"
+        good = tmp_path / "good.pdf"
+        good.write_bytes(b"%PDF-test")
+        converter = DoclingServeConverter(api_key=None)
+        mock_resp = httpx.Response(
+            200,
+            json={"document": {"md_content": "# Good content"}, "status": "success"},
+            request=httpx.Request("POST", "http://test"),
+        )
+
+        with patch("httpx.AsyncClient.post", new_callable=AsyncMock, return_value=mock_resp):
+            with caplog.at_level(logging.WARNING):
+                result = await converter.run_async(sources=[missing, good])
+
+        assert len(result["documents"]) == 1
+        assert result["documents"][0].content == "# Good content"
+        assert "Could not read local source" in caplog.text
 
     @pytest.mark.asyncio
     async def test_run_async_multiple_sources(self):

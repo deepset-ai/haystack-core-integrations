@@ -10,7 +10,7 @@ from haystack.utils.auth import Secret
 from haystack.utils.device import ComponentDevice
 from haystack.utils.hf import deserialize_hf_model_kwargs, serialize_hf_model_kwargs
 
-from haystack_integrations.components.common.transformers.utils import _resolve_hf_pipeline_kwargs
+from haystack_integrations.common.transformers.utils import _resolve_hf_pipeline_kwargs
 from transformers import AutoModelForTokenClassification, AutoTokenizer, pipeline
 from transformers import Pipeline as HfPipeline
 

@@ -1,0 +1,14 @@
+loaders:
+  - modules:
+      - haystack_integrations.components.audio.whisper.whisper_local
+      - haystack_integrations.components.audio.whisper.whisper_remote
+    search_path: [../src]
+processors:
+  - type: filter
+    documented_only: true
+    skip_empty_modules: true
+renderer:
+  description: Whisper integration for Haystack
+  id: integrations-whisper
+  filename: whisper.md
+  title: Whisper

@@ -62,6 +62,7 @@ dependencies = [
     "pytest-rerunfailures",
     "mypy",
     "pip",
+    "huggingface_hub",
     "transformers[sentencepiece]<5",
 ]
 

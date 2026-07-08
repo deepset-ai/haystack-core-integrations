@@ -331,10 +331,6 @@ class TestMCPTool:
         assert new_tool._inputs_from_state == {"state_a": "a"}
         assert new_tool._outputs_to_state == {"result": {"source": "output"}}
 
-    @pytest.mark.skipif(
-        not hasattr(__import__("haystack.tools", fromlist=["Tool"]).Tool, "_get_valid_inputs"),
-        reason="Requires Haystack >= 2.22.0 for inputs_from_state validation",
-    )
     def test_mcp_tool_lazy_invalid_parameter_raises_on_warm_up(self, mcp_tool_cleanup):
         """Test that lazy MCPTool defers invalid inputs_from_state validation until warm_up()."""
         server_info = InMemoryServerInfo(server=calculator_mcp._mcp_server)

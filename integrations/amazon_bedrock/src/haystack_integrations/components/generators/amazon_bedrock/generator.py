@@ -44,12 +44,11 @@ class AmazonBedrockGenerator:
     ### Usage example
 
     ```python
-    from haystack_integrations.components.generators.amazon_bedrock import AmazonBedrockGenerator
-
-    generator = AmazonBedrockGenerator(
-            model="anthropic.claude-v2",
-            max_length=99
+    from haystack_integrations.components.generators.amazon_bedrock import (
+        AmazonBedrockGenerator,
     )
+
+    generator = AmazonBedrockGenerator(model="anthropic.claude-v2", max_length=99)
 
     print(generator.run("Who is the best American actor?"))
     ```
@@ -106,7 +105,7 @@ class AmazonBedrockGenerator:
             "AWS_SECRET_ACCESS_KEY", strict=False
         ),
         aws_session_token: Secret | None = Secret.from_env_var("AWS_SESSION_TOKEN", strict=False),  # noqa: B008
-        aws_region_name: Secret | None = Secret.from_env_var("AWS_DEFAULT_REGION", strict=False),  # noqa: B008
+        aws_region_name: Secret | str | None = Secret.from_env_var("AWS_DEFAULT_REGION", strict=False),  # noqa: B008
         aws_profile_name: Secret | None = Secret.from_env_var("AWS_PROFILE", strict=False),  # noqa: B008
         max_length: int | None = None,
         truncate: bool | None = None,
@@ -170,8 +169,8 @@ class AmazonBedrockGenerator:
         self.kwargs = kwargs
         self.model_family = model_family
 
-        def resolve_secret(secret: Secret | None) -> str | None:
-            return secret.resolve_value() if secret else None
+        def resolve_secret(secret: Secret | str | None) -> str | None:
+            return secret.resolve_value() if isinstance(secret, Secret) else secret
 
         try:
             session = get_aws_session(

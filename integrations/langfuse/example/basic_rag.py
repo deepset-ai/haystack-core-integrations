@@ -6,12 +6,15 @@ os.environ["HAYSTACK_CONTENT_TRACING_ENABLED"] = "true"
 from datasets import load_dataset
 from haystack import Document, Pipeline
 from haystack.components.builders import PromptBuilder
-from haystack.components.embedders import SentenceTransformersDocumentEmbedder, SentenceTransformersTextEmbedder
 from haystack.components.generators import OpenAIGenerator
 from haystack.components.retrievers import InMemoryEmbeddingRetriever
 from haystack.document_stores.in_memory import InMemoryDocumentStore
 
 from haystack_integrations.components.connectors.langfuse import LangfuseConnector
+from haystack_integrations.components.embedders.sentence_transformers import (
+    SentenceTransformersDocumentEmbedder,
+    SentenceTransformersTextEmbedder,
+)
 
 
 def get_pipeline(document_store: InMemoryDocumentStore):
@@ -54,7 +57,6 @@ if __name__ == "__main__":
     document_store = InMemoryDocumentStore()
     dataset = load_dataset("bilgeyucel/seven-wonders", split="train")
     embedder = SentenceTransformersDocumentEmbedder("sentence-transformers/all-MiniLM-L6-v2")
-    embedder.warm_up()
     docs_with_embeddings = embedder.run([Document(**ds) for ds in dataset]).get("documents") or []  # type: ignore
     document_store.write_documents(docs_with_embeddings)
 

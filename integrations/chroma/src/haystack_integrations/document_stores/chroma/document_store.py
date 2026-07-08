@@ -140,9 +140,10 @@ class ChromaDocumentStore:
 
             self._client = client  # store client for potential future use
 
-            self._metadata = self._metadata or {}
-            if "hnsw:space" not in self._metadata:
-                self._metadata["hnsw:space"] = self._distance_function
+            # Build the collection metadata locally so `self._metadata` stays exactly as the user passed it.
+            # This keeps `to_dict()` deterministic and avoids mutating a user-supplied dict in place.
+            collection_metadata = dict(self._metadata) if self._metadata else {}
+            collection_metadata.setdefault("hnsw:space", self._distance_function)
 
             existing_collection_names = [c.name for c in client.list_collections()]
             if self._collection_name in existing_collection_names:
@@ -151,14 +152,14 @@ class ChromaDocumentStore:
                     embedding_function=self._embedding_func,
                 )
 
-                if self._metadata != self._collection.metadata:
+                if collection_metadata != self._collection.metadata:
                     logger.warning(
                         "Collection already exists. The `distance_function` and `metadata` parameters will be ignored."
                     )
             else:
                 self._collection = client.create_collection(
                     name=self._collection_name,
-                    metadata=self._metadata,
+                    metadata=collection_metadata,
                     embedding_function=self._embedding_func,
                 )
 
@@ -188,9 +189,10 @@ class ChromaDocumentStore:
 
             self._async_client = client  # store client for potential future use
 
-            self._metadata = self._metadata or {}
-            if "hnsw:space" not in self._metadata:
-                self._metadata["hnsw:space"] = self._distance_function
+            # Build the collection metadata locally so `self._metadata` stays exactly as the user passed it.
+            # This keeps `to_dict()` deterministic and avoids mutating a user-supplied dict in place.
+            collection_metadata = dict(self._metadata) if self._metadata else {}
+            collection_metadata.setdefault("hnsw:space", self._distance_function)
 
             collection = await client.list_collections()
             existing_collection_names = [c.name for c in collection]
@@ -200,14 +202,14 @@ class ChromaDocumentStore:
                     embedding_function=self._embedding_func,
                 )
 
-                if self._metadata != self._async_collection.metadata:
+                if collection_metadata != self._async_collection.metadata:
                     logger.warning(
                         "Collection already exists. The `distance_function` and `metadata` parameters will be ignored."
                     )
             else:
                 self._async_collection = await client.create_collection(
                     name=self._collection_name,
-                    metadata=self._metadata,
+                    metadata=collection_metadata,
                     embedding_function=self._embedding_func,
                 )
 
@@ -1373,6 +1375,7 @@ class ChromaDocumentStore:
             host=self._host,
             port=self._port,
             distance_function=self._distance_function,
+            metadata=self._metadata,
             client_settings=self._client_settings,
             **self._embedding_function_params,
         )

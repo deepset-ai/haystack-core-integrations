@@ -37,7 +37,7 @@ class S3Downloader:
             "AWS_SECRET_ACCESS_KEY", strict=False
         ),
         aws_session_token: Secret | None = Secret.from_env_var("AWS_SESSION_TOKEN", strict=False),  # noqa: B008
-        aws_region_name: Secret | None = Secret.from_env_var("AWS_DEFAULT_REGION", strict=False),  # noqa: B008
+        aws_region_name: Secret | str | None = Secret.from_env_var("AWS_DEFAULT_REGION", strict=False),  # noqa: B008
         aws_profile_name: Secret | None = Secret.from_env_var("AWS_PROFILE", strict=False),  # noqa: B008
         boto3_config: dict[str, Any] | None = None,
         file_root_path: str | None = None,
@@ -115,8 +115,8 @@ class S3Downloader:
 
         self._storage: S3Storage | None = None
 
-        def resolve_secret(secret: Secret | None) -> str | None:
-            return secret.resolve_value() if secret else None
+        def resolve_secret(secret: Secret | str | None) -> str | None:
+            return secret.resolve_value() if isinstance(secret, Secret) else secret
 
         self._session = get_aws_session(
             aws_access_key_id=resolve_secret(aws_access_key_id),

@@ -206,20 +206,10 @@ class TestTransformersChatGenerator:
         assert init_params["streaming_callback"] is None
         assert init_params["chat_template"] == "irrelevant"
         assert init_params["enable_thinking"] is True
-        assert init_params["tools"] == [
-            {
-                "type": "haystack.tools.tool.Tool",
-                "data": {
-                    "inputs_from_state": None,
-                    "name": "weather",
-                    "outputs_to_state": None,
-                    "outputs_to_string": None,
-                    "description": "useful to determine the weather in a given location",
-                    "parameters": {"type": "object", "properties": {"city": {"type": "string"}}, "required": ["city"]},
-                    "function": "tests.test_chat_generator.get_weather",
-                },
-            }
-        ]
+
+        # deserializing the serialized component must reproduce the original tools
+        loaded = TransformersChatGenerator.from_dict(result)
+        assert loaded.tools == tools
 
     def test_from_dict(self, model_info_mock, tools):
         generator = TransformersChatGenerator(
@@ -256,7 +246,7 @@ class TestTransformersChatGenerator:
         }
 
     @patch("haystack_integrations.components.generators.transformers.chat.chat_generator.pipeline")
-    def test_warm_up(self, pipeline_mock, del_hf_env_vars):
+    def test_warm_up(self, pipeline_mock, del_hf_env_vars_if_empty):
         generator = TransformersChatGenerator(
             model="mistralai/Mistral-7B-Instruct-v0.2", task="text-generation", device=ComponentDevice.from_str("cpu")
         )
@@ -266,11 +256,14 @@ class TestTransformersChatGenerator:
         generator.warm_up()
 
         pipeline_mock.assert_called_once_with(
-            model="mistralai/Mistral-7B-Instruct-v0.2", task="text-generation", token=None, device="cpu"
+            model="mistralai/Mistral-7B-Instruct-v0.2",
+            task="text-generation",
+            token=generator.token.resolve_value(),
+            device="cpu",
         )
 
     @patch("haystack_integrations.components.generators.transformers.chat.chat_generator.pipeline")
-    def test_warm_up_with_tools(self, pipeline_mock, del_hf_env_vars):
+    def test_warm_up_with_tools(self, pipeline_mock, del_hf_env_vars_if_empty):
         """Test that warm_up() calls warm_up on tools and is idempotent."""
 
         # Create a mock tool that tracks if warm_up() was called
@@ -324,7 +317,7 @@ class TestTransformersChatGenerator:
         pipeline_mock.assert_called_once()
 
     @patch("haystack_integrations.components.generators.transformers.chat.chat_generator.pipeline")
-    def test_warm_up_with_no_tools(self, pipeline_mock, del_hf_env_vars):
+    def test_warm_up_with_no_tools(self, pipeline_mock, del_hf_env_vars_if_empty):
         """Test that warm_up() works when no tools are provided."""
 
         generator = TransformersChatGenerator(
@@ -349,7 +342,7 @@ class TestTransformersChatGenerator:
         pipeline_mock.assert_called_once()
 
     @patch("haystack_integrations.components.generators.transformers.chat.chat_generator.pipeline")
-    def test_warm_up_with_multiple_tools(self, pipeline_mock, del_hf_env_vars):
+    def test_warm_up_with_multiple_tools(self, pipeline_mock, del_hf_env_vars_if_empty):
         """Test that warm_up() works with multiple tools."""
 
         # Track warm_up calls
@@ -507,11 +500,15 @@ class TestTransformersChatGenerator:
 
     @pytest.mark.integration
     @pytest.mark.flaky(reruns=3, reruns_delay=10)
-    def test_live_run(self, del_hf_env_vars):
+    def test_live_run(self, del_hf_env_vars_if_empty):
         """Test live run with default behavior (no thinking)."""
         messages = [ChatMessage.from_user("Please create a summary about the following topic: Climate change")]
 
-        llm = TransformersChatGenerator(model="Qwen/Qwen3-0.6B", generation_kwargs={"max_new_tokens": 50})
+        llm = TransformersChatGenerator(
+            model="Qwen/Qwen3-0.6B",
+            generation_kwargs={"max_new_tokens": 50},
+            device=ComponentDevice.from_str("cpu"),
+        )
 
         result = llm.run(messages)
 
@@ -521,12 +518,15 @@ class TestTransformersChatGenerator:
 
     @pytest.mark.integration
     @pytest.mark.flaky(reruns=3, reruns_delay=10)
-    def test_live_run_thinking(self, del_hf_env_vars):
+    def test_live_run_thinking(self, del_hf_env_vars_if_empty):
         """Test live run with enable_thinking=True."""
         messages = [ChatMessage.from_user("What is 2+2?")]
 
         llm = TransformersChatGenerator(
-            model="Qwen/Qwen3-0.6B", generation_kwargs={"max_new_tokens": 450}, enable_thinking=True
+            model="Qwen/Qwen3-0.6B",
+            generation_kwargs={"max_new_tokens": 450},
+            enable_thinking=True,
+            device=ComponentDevice.from_str("cpu"),
         )
 
         result = llm.run(messages)
@@ -799,30 +799,10 @@ class TestTransformersChatGeneratorAsync:
         generator.pipeline = mock_pipeline_with_tokenizer
         data = generator.to_dict()
 
-        expected_tools_data = {
-            "type": "haystack.tools.toolset.Toolset",
-            "data": {
-                "tools": [
-                    {
-                        "type": "haystack.tools.tool.Tool",
-                        "data": {
-                            "name": "weather",
-                            "description": "useful to determine the weather in a given location",
-                            "parameters": {
-                                "type": "object",
-                                "properties": {"city": {"type": "string"}},
-                                "required": ["city"],
-                            },
-                            "function": "tests.test_chat_generator.get_weather",
-                            "outputs_to_string": None,
-                            "inputs_from_state": None,
-                            "outputs_to_state": None,
-                        },
-                    }
-                ]
-            },
-        }
-        assert data["init_parameters"]["tools"] == expected_tools_data
+        # deserializing the serialized component must reproduce the original toolset
+        loaded = TransformersChatGenerator.from_dict(data)
+        assert isinstance(loaded.tools, Toolset)
+        assert list(loaded.tools) == list(toolset)
 
     @pytest.mark.asyncio
     async def test_run_async_with_streaming_callback(self, model_info_mock, mock_pipeline_with_tokenizer):
@@ -865,7 +845,7 @@ class TestTransformersChatGeneratorAsync:
     @pytest.mark.integration
     @pytest.mark.flaky(reruns=3, reruns_delay=10)
     @pytest.mark.asyncio
-    async def test_live_run_async_with_streaming(self, del_hf_env_vars):
+    async def test_live_run_async_with_streaming(self, del_hf_env_vars_if_empty):
         """Test async streaming with a live model."""
         streaming_chunks = []
 
@@ -873,7 +853,10 @@ class TestTransformersChatGeneratorAsync:
             streaming_chunks.append(chunk)
 
         llm = TransformersChatGenerator(
-            model="Qwen/Qwen3-0.6B", generation_kwargs={"max_new_tokens": 50}, streaming_callback=streaming_callback
+            model="Qwen/Qwen3-0.6B",
+            generation_kwargs={"max_new_tokens": 50},
+            streaming_callback=streaming_callback,
+            device=ComponentDevice.from_str("cpu"),
         )
 
         response = await llm.run_async(

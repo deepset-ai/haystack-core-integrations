@@ -93,6 +93,9 @@ class HuggingFaceTEIRanker:
         self.max_retries = max_retries
         self.retry_status_codes = retry_status_codes
         self.raw_scores = raw_scores
+        if top_k <= 0:
+            msg = f"top_k must be > 0, but got {top_k}"
+            raise ValueError(msg)
 
     def to_dict(self) -> dict[str, Any]:
         """
@@ -201,6 +204,9 @@ class HuggingFaceTEIRanker:
         # Return empty if no documents provided
         if not documents:
             return {"documents": []}
+        if top_k is not None and top_k <= 0:
+            msg = f"top_k must be > 0, but got {top_k}"
+            raise ValueError(msg)
 
         # Prepare the payload
         deduplicated_documents = _deduplicate_documents(documents)
@@ -265,6 +271,9 @@ class HuggingFaceTEIRanker:
         # Return empty if no documents provided
         if not documents:
             return {"documents": []}
+        if top_k is not None and top_k <= 0:
+            msg = f"top_k must be > 0, but got {top_k}"
+            raise ValueError(msg)
 
         # Prepare the payload
         deduplicated_documents = _deduplicate_documents(documents)

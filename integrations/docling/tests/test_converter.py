@@ -9,6 +9,7 @@ from unittest.mock import MagicMock
 import pytest
 from docling.chunking import HybridChunker
 from docling.document_converter import DocumentConverter
+from docling_core.transforms.chunker.tokenizer.base import BaseTokenizer
 from docling_core.types.io import DocumentStream
 from haystack.dataclasses import ByteStream
 
@@ -178,7 +179,7 @@ def test_component_to_dict_custom_params() -> None:
             "chunker": None,
             "meta_extractor": {
                 "type": "haystack_integrations.components.converters.docling.converter.MetaExtractor",
-                "data": {},
+                "init_parameters": {},
             },
         },
     }
@@ -218,7 +219,7 @@ def test_component_from_dict_custom_params() -> None:
             "chunker": None,
             "meta_extractor": {
                 "type": "haystack_integrations.components.converters.docling.converter.MetaExtractor",
-                "data": {},
+                "init_parameters": {},
             },
         },
     }
@@ -232,8 +233,34 @@ def test_component_from_dict_custom_params() -> None:
     assert isinstance(restored.meta_extractor, MetaExtractor)
 
 
+def test_component_from_dict_with_legacy_meta_extractor_format() -> None:
+    # Pipelines serialized before this fix wrap meta_extractor as {"type": ..., "data": {...}}
+    data = {
+        "type": "haystack_integrations.components.converters.docling.converter.DoclingConverter",
+        "init_parameters": {
+            "converter": None,
+            "convert_kwargs": {},
+            "export_type": "markdown",
+            "md_export_kwargs": {"image_placeholder": ""},
+            "chunker": None,
+            "meta_extractor": {
+                "type": "haystack_integrations.components.converters.docling.converter.MetaExtractor",
+                "data": {
+                    "type": "haystack_integrations.components.converters.docling.converter.MetaExtractor",
+                    "init_parameters": {},
+                },
+            },
+        },
+    }
+    restored = DoclingConverter.from_dict(data)
+    assert isinstance(restored.meta_extractor, MetaExtractor)
+
+
 def test_component_to_dict_chunker_warns_and_is_dropped() -> None:
-    converter = DoclingConverter(export_type=ExportType.DOC_CHUNKS, chunker=HybridChunker(merge_peers=False))
+    # Pass an explicit tokenizer so HybridChunker doesn't invoke its default factory
+    # (get_default_tokenizer), which would download a tokenizer from HuggingFace.
+    chunker = HybridChunker(merge_peers=False, tokenizer=MagicMock(spec=BaseTokenizer))
+    converter = DoclingConverter(export_type=ExportType.DOC_CHUNKS, chunker=chunker)
 
     assert converter.to_dict() == {
         "type": "haystack_integrations.components.converters.docling.converter.DoclingConverter",

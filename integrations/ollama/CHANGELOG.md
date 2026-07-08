@@ -1,5 +1,16 @@
 # Changelog
 
+## [integrations/ollama-v6.7.0] - 2026-06-19
+
+### 🐛 Bug Fixes
+
+- Serialize OllamaChatGenerator think parameter (#3455)
+
+### 🧪 Testing
+
+- Add system prompts to ollama tests (#3415)
+
+
 ## [integrations/ollama-v6.6.0] - 2026-06-03
 
 ### 🚀 Features

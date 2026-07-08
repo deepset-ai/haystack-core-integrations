@@ -1,5 +1,35 @@
 # Changelog
 
+## [integrations/mongodb_atlas-v4.2.0] - 2026-06-18
+
+### 🚀 Features
+
+- *(mongodb-atlas)* Use async DocumentStore mixin tests (#3249)
+
+### 🐛 Bug Fixes
+
+- Serialize MongoDBAtlasDocumentStore embedding_field and content_field (#3446)
+
+### 📚 Documentation
+
+- Simplify pydoc configs (#2855)
+
+### 🧪 Testing
+
+- Replacing each `DocumentStore` specific tests and used the generalised ones from `haystack.testing.document_store` (#2812)
+- Test compatible integrations with python 3.14; update pyproject (#3001)
+- `MongodbDocumentStore` use Mixin tests (#3022)
+- Track test coverage for all integrations (#3065)
+- Better categorize some Document Stores tests (#3085)
+- Mongodb - refactor test suite (#3171)
+- Fix mongodb async connection teardown (#3253)
+
+### 🧹 Chores
+
+- Add ANN ruff ruleset to llama_cpp, llama_stack, mcp, meta_llama, mistral, mongodb_atlas, nvidia, ollama, openrouter, opensearch (#2991)
+- Enforce ruff docstring rules (D102/D103/D205/D209/D213/D417/D419) in integrations 21-30 (#3010)
+
+
 ## [integrations/mongodb_atlas-v4.1.0] - 2026-02-12
 
 ### 🚀 Features

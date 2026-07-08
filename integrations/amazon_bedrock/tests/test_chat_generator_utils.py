@@ -314,6 +314,37 @@ class TestAmazonBedrockChatGeneratorUtils:
             },
         ]
 
+    def test_format_messages_with_system_cachepoint_config(self):
+        system_cachepoint_config = {"cachePoint": {"type": "default"}}
+        messages = [
+            ChatMessage.from_system("You are a helpful assistant."),
+            ChatMessage.from_user("Hello"),
+        ]
+        formatted_system_prompts, formatted_messages = _format_messages(
+            messages, system_cachepoint_config=system_cachepoint_config
+        )
+        assert formatted_system_prompts == [
+            {"text": "You are a helpful assistant."},
+            {"cachePoint": {"type": "default"}},
+        ]
+        assert formatted_messages == [
+            {"role": "user", "content": [{"text": "Hello"}]},
+        ]
+
+    def test_format_messages_system_cachepoint_config_does_not_double_append_when_per_message_cache_point_set(self):
+        system_cachepoint_config = {"cachePoint": {"type": "default"}}
+        # per-message cache point (raw, before _validate_and_format_cache_point wrapping)
+        messages = [
+            ChatMessage.from_system("You are a helpful assistant.", meta={"cachePoint": {"type": "default"}}),
+            ChatMessage.from_user("Hello"),
+        ]
+        formatted_system_prompts, _ = _format_messages(messages, system_cachepoint_config=system_cachepoint_config)
+        # per-message cache point takes priority; system_cachepoint_config is not also appended
+        assert formatted_system_prompts == [
+            {"text": "You are a helpful assistant."},
+            {"cachePoint": {"type": "default"}},
+        ]
+
     def test_format_messages_tool_result_with_image(self):
         base64_image = (
             "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg=="

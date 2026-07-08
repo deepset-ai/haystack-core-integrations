@@ -31,7 +31,7 @@ from huggingface_hub import model_info
 from packaging.version import Version
 
 import transformers
-from haystack_integrations.components.common.transformers.utils import (
+from haystack_integrations.common.transformers.utils import (
     _AsyncHFTokenStreamingHandler,
     _HFTokenStreamingHandler,
     _StopWordsCriteria,

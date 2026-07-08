@@ -102,6 +102,26 @@ def test_amazon_bedrock_ranker_serialization(mock_aws_session):
     assert deserialized.top_k == 2
 
 
+def test_from_dict_aws_region_name(mock_aws_session):
+    """
+    Test that aws_region_name as str value is correctly parsed
+    """
+    ranker = AmazonBedrockRanker.from_dict(
+        {
+            "type": "haystack_integrations.components.rankers.amazon_bedrock.ranker.AmazonBedrockRanker",
+            "init_parameters": {
+                "aws_region_name": "my-fake-region",
+                "model": "cohere.rerank-v3-5:0",
+            },
+        }
+    )
+    assert ranker.model_name == "cohere.rerank-v3-5:0"
+    assert ranker.aws_region_name == "my-fake-region"
+
+    serialized = ranker.to_dict()
+    assert serialized["init_parameters"]["aws_region_name"] == "my-fake-region"
+
+
 def test_amazon_bedrock_ranker_empty_documents(mock_aws_session):
     ranker = AmazonBedrockRanker(
         model="cohere.rerank-v3-5:0",

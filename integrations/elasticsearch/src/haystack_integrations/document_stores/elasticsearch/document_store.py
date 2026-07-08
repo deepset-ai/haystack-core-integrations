@@ -912,12 +912,6 @@ class ElasticsearchDocumentStore:
             self._client.indices.delete(index=self._index)  # type: ignore
             self._client.indices.create(index=self._index, settings=settings, mappings=mappings)  # type: ignore
 
-            # delete index
-            self._client.indices.delete(index=self._index)  # type: ignore
-
-            # recreate with mappings
-            self._client.indices.create(index=self._index, mappings=mappings)  # type: ignore
-
         else:
             result = self._client.delete_by_query(**self._prepare_delete_all_request(is_async=False, refresh=refresh))  # type: ignore
             logger.info(

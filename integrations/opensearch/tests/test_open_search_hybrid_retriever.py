@@ -8,7 +8,7 @@ from unittest.mock import Mock
 
 import pytest
 from haystack import Document, Pipeline
-from haystack.components.embedders import SentenceTransformersTextEmbedder
+from haystack.components.embedders import OpenAITextEmbedder
 from haystack.core.component import component
 
 from haystack_integrations.components.retrievers.opensearch import OpenSearchHybridRetriever
@@ -23,127 +23,117 @@ class MockedTextEmbedder:
 
 
 class TestOpenSearchHybridRetriever:
-    serialised = {  # noqa: RUF012
-        "type": "haystack_integrations.components.retrievers.opensearch.open_search_hybrid_retriever.OpenSearchHybridRetriever",  # noqa: E501
-        "init_parameters": {
-            "document_store": {
-                "type": "haystack_integrations.document_stores.opensearch.document_store.OpenSearchDocumentStore",
-                "init_parameters": {
-                    "hosts": None,
-                    "index": "default",
-                    "max_chunk_bytes": 104857600,
-                    "embedding_dim": 768,
-                    "method": None,
-                    "mappings": {
-                        "properties": {
-                            "embedding": {"type": "knn_vector", "index": True, "dimension": 768},
-                            "content": {"type": "text"},
+    @pytest.fixture(autouse=True)
+    def openai_api_key(self, monkeypatch):
+        # the serde tests build a real OpenAITextEmbedder; haystack-ai 2.x resolves the key at init
+        monkeypatch.setenv("OPENAI_API_KEY", "fake-key")
+
+    @pytest.fixture
+    def serialised(self):
+        return {
+            "type": "haystack_integrations.components.retrievers.opensearch.open_search_hybrid_retriever.OpenSearchHybridRetriever",  # noqa: E501
+            "init_parameters": {
+                "document_store": {
+                    "type": "haystack_integrations.document_stores.opensearch.document_store.OpenSearchDocumentStore",
+                    "init_parameters": {
+                        "hosts": None,
+                        "index": "default",
+                        "max_chunk_bytes": 104857600,
+                        "embedding_dim": 768,
+                        "method": None,
+                        "mappings": {
+                            "properties": {
+                                "embedding": {"type": "knn_vector", "index": True, "dimension": 768},
+                                "content": {"type": "text"},
+                            },
+                            "dynamic_templates": [
+                                {"strings": {"match_mapping_type": "string", "mapping": {"type": "keyword"}}}
+                            ],
                         },
-                        "dynamic_templates": [
-                            {"strings": {"match_mapping_type": "string", "mapping": {"type": "keyword"}}}
+                        "settings": {"index.knn": True},
+                        "create_index": True,
+                        "return_embedding": False,
+                        "http_auth": [
+                            {"type": "env_var", "env_vars": ["OPENSEARCH_USERNAME"], "strict": False},
+                            {"type": "env_var", "env_vars": ["OPENSEARCH_PASSWORD"], "strict": False},
                         ],
+                        "use_ssl": None,
+                        "verify_certs": None,
+                        "timeout": None,
+                        "nested_fields": None,
                     },
-                    "settings": {"index.knn": True},
-                    "create_index": True,
-                    "return_embedding": False,
-                    "http_auth": [
-                        {"type": "env_var", "env_vars": ["OPENSEARCH_USERNAME"], "strict": False},
-                        {"type": "env_var", "env_vars": ["OPENSEARCH_PASSWORD"], "strict": False},
-                    ],
-                    "use_ssl": None,
-                    "verify_certs": None,
-                    "timeout": None,
-                    "nested_fields": None,
                 },
-            },
-            "embedder": {
-                "type": "haystack.components.embedders.sentence_transformers_text_embedder.SentenceTransformersTextEmbedder",  # noqa: E501
-                "init_parameters": {
-                    "model": "sentence-transformers/all-mpnet-base-v2",
-                    "token": {"type": "env_var", "env_vars": ["HF_API_TOKEN", "HF_TOKEN"], "strict": False},
-                    "prefix": "",
-                    "suffix": "",
-                    "local_files_only": False,
-                    "batch_size": 32,
-                    "progress_bar": True,
-                    "normalize_embeddings": False,
-                    "trust_remote_code": False,
-                    "truncate_dim": None,
-                    "model_kwargs": None,
-                    "tokenizer_kwargs": None,
-                    "config_kwargs": None,
-                    "precision": "float32",
-                    "encode_kwargs": None,
-                    "backend": "torch",
+                "embedder": {
+                    "type": "haystack.components.embedders.openai_text_embedder.OpenAITextEmbedder",
+                    "init_parameters": {
+                        "api_key": {"type": "env_var", "env_vars": ["OPENAI_API_KEY"], "strict": True},
+                        "model": "text-embedding-ada-002",
+                        "dimensions": None,
+                        "api_base_url": None,
+                        "organization": None,
+                        "prefix": "",
+                        "suffix": "",
+                        "timeout": None,
+                        "max_retries": None,
+                        "http_client_kwargs": None,
+                    },
                 },
+                "filters_bm25": None,
+                "fuzziness": 0,
+                "top_k_bm25": 10,
+                "scale_score": False,
+                "all_terms_must_match": False,
+                "filter_policy_bm25": "replace",
+                "custom_query_bm25": None,
+                "filters_embedding": None,
+                "top_k_embedding": 10,
+                "filter_policy_embedding": "replace",
+                "custom_query_embedding": None,
+                "join_mode": "reciprocal_rank_fusion",
+                "weights": None,
+                "top_k": None,
+                "sort_by_score": True,
+                "search_kwargs_embedding": None,
             },
-            "filters_bm25": None,
-            "fuzziness": 0,
-            "top_k_bm25": 10,
-            "scale_score": False,
-            "all_terms_must_match": False,
-            "filter_policy_bm25": "replace",
-            "custom_query_bm25": None,
-            "filters_embedding": None,
-            "top_k_embedding": 10,
-            "filter_policy_embedding": "replace",
-            "custom_query_embedding": None,
-            "join_mode": "reciprocal_rank_fusion",
-            "weights": None,
-            "top_k": None,
-            "sort_by_score": True,
-            "search_kwargs_embedding": None,
-        },
-    }
+        }
 
     @pytest.fixture
     def mock_embedder(self):
         return MockedTextEmbedder()
 
-    def test_to_dict(self) -> None:
+    def test_to_dict(self, serialised) -> None:
         doc_store = OpenSearchDocumentStore()
-        embedder = SentenceTransformersTextEmbedder()  # we use actual embedder here for the de/serialization
+        embedder = OpenAITextEmbedder()  # we use actual embedder here for the de/serialization
         hybrid_retriever = OpenSearchHybridRetriever(document_store=doc_store, embedder=embedder)
         result = hybrid_retriever.to_dict()
-        result["init_parameters"]["embedder"]["init_parameters"].pop("device")  # remove device info for comparison
-        data = deepcopy(self.serialised)
-        # We add revision to the expected dict if it exists in the result for comparison
-        # This was added in PR https://github.com/deepset-ai/haystack/pull/10003 and released in Haystack 2.20.0
-        if "revision" in result["init_parameters"]["embedder"]["init_parameters"]:
-            data["init_parameters"]["embedder"]["init_parameters"]["revision"] = None
-        assert result == data
+        assert result == serialised
 
-    def test_from_dict(self):
-        data = deepcopy(self.serialised)
+    def test_from_dict(self, serialised):
+        data = deepcopy(serialised)
         super_component = OpenSearchHybridRetriever.from_dict(data)
         assert isinstance(super_component, OpenSearchHybridRetriever)
         assert super_component.to_dict()
 
-    def test_to_dict_with_extra_args(self):
+    def test_to_dict_with_extra_args(self, serialised):
         doc_store = OpenSearchDocumentStore()
-        embedder = SentenceTransformersTextEmbedder()  # an actual embedder here for the de/serialization
+        embedder = OpenAITextEmbedder()  # an actual embedder here for the de/serialization
         hybrid_retriever = OpenSearchHybridRetriever(
             document_store=doc_store, embedder=embedder, embedding_retriever={"raise_on_failure": True}
         )
         result = hybrid_retriever.to_dict()
-        expected = deepcopy(self.serialised)
+        expected = deepcopy(serialised)
         expected["init_parameters"]["embedding_retriever"] = {"raise_on_failure": True}
-        # We add revision to the expected dict if it exists in the result for comparison
-        # This was added in PR https://github.com/deepset-ai/haystack/pull/10003 and released in Haystack 2.20.0
-        if "revision" in result["init_parameters"]["embedder"]["init_parameters"]:
-            expected["init_parameters"]["embedder"]["init_parameters"]["revision"] = None
-        result["init_parameters"]["embedder"]["init_parameters"].pop("device")  # remove device info for comparison
         assert result == expected
 
-    def test_from_dict_with_extra_args(self):
-        data = deepcopy(self.serialised)
+    def test_from_dict_with_extra_args(self, serialised):
+        data = deepcopy(serialised)
         data["init_parameters"]["embedding_retriever"] = {"raise_on_failure": True}
         hybrid = OpenSearchHybridRetriever.from_dict(data)
         assert isinstance(hybrid, OpenSearchHybridRetriever)
         assert hybrid.to_dict()
 
-    def test_from_dict_without_optional_keys(self):
-        data = deepcopy(self.serialised)
+    def test_from_dict_without_optional_keys(self, serialised):
+        data = deepcopy(serialised)
         del data["init_parameters"]["filter_policy_bm25"]
         del data["init_parameters"]["filter_policy_embedding"]
         del data["init_parameters"]["join_mode"]

@@ -1,0 +1,15 @@
+loaders:
+  - modules:
+      - haystack_integrations.components.converters.twelvelabs.video_converter
+      - haystack_integrations.components.embedders.twelvelabs.document_embedder
+      - haystack_integrations.components.embedders.twelvelabs.text_embedder
+    search_path: [../src]
+processors:
+  - type: filter
+    documented_only: true
+    skip_empty_modules: true
+renderer:
+  description: TwelveLabs integration for Haystack
+  id: integrations-twelvelabs
+  filename: twelvelabs.md
+  title: TwelveLabs

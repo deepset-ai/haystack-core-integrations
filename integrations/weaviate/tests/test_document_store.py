@@ -355,6 +355,8 @@ class TestWeaviateDocumentStore(
             "type": "haystack_integrations.document_stores.weaviate.document_store.WeaviateDocumentStore",
             "init_parameters": {
                 "url": "http://localhost:8080",
+                "grpc_port": 50051,
+                "grpc_secure": False,
                 "collection_settings": {
                     "class": "Default",
                     "invertedIndexConfig": {"indexNullState": True},
@@ -396,6 +398,25 @@ class TestWeaviateDocumentStore(
                 },
             },
         }
+
+    @patch("haystack_integrations.document_stores.weaviate.document_store.weaviate")
+    def test_to_dict_and_from_dict_preserves_grpc_settings(self, _mock_weaviate):
+        """`grpc_port`/`grpc_secure` configure the gRPC connection and must
+        survive a to_dict/from_dict round-trip; otherwise a reloaded store
+        silently falls back to the default gRPC port/security."""
+        document_store = WeaviateDocumentStore(
+            url="http://localhost:8080",
+            grpc_port=50052,
+            grpc_secure=True,
+        )
+
+        serialized = document_store.to_dict()
+        assert serialized["init_parameters"]["grpc_port"] == 50052
+        assert serialized["init_parameters"]["grpc_secure"] is True
+
+        restored = WeaviateDocumentStore.from_dict(serialized)
+        assert restored._grpc_port == 50052
+        assert restored._grpc_secure is True
 
     @patch("haystack_integrations.document_stores.weaviate.document_store.weaviate")
     def test_from_dict(self, _mock_weaviate, monkeypatch):

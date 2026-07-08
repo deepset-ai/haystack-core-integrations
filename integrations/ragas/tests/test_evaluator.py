@@ -3,7 +3,12 @@ import os
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-from haystack import AsyncPipeline, Document, Pipeline
+from haystack import Document, Pipeline
+
+try:
+    from haystack import AsyncPipeline
+except ImportError:  # Haystack 3.0 removed AsyncPipeline; Pipeline supports run_async natively
+    AsyncPipeline = Pipeline
 from haystack.components.builders import AnswerBuilder, ChatPromptBuilder
 from haystack.components.embedders import OpenAIDocumentEmbedder, OpenAITextEmbedder
 from haystack.components.generators.chat import OpenAIChatGenerator

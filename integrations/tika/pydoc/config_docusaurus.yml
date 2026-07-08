@@ -1,0 +1,13 @@
+loaders:
+  - modules:
+      - haystack_integrations.components.converters.tika.converter
+    search_path: [../src]
+processors:
+  - type: filter
+    documented_only: true
+    skip_empty_modules: true
+renderer:
+  description: Tika integration for Haystack
+  id: integrations-tika
+  filename: tika.md
+  title: Tika

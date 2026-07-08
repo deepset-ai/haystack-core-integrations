@@ -2,6 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+import inspect
 import json
 from typing import Any
 
@@ -9,7 +10,6 @@ from haystack import component, default_from_dict, default_to_dict, logging
 from haystack.components.generators.utils import _convert_streaming_chunks_to_chat_message, _normalize_messages
 from haystack.dataclasses import ChatMessage, ToolCall
 from haystack.dataclasses.streaming_chunk import (
-    AsyncStreamingCallbackT,
     ComponentInfo,
     FinishReason,
     StreamingCallbackT,
@@ -218,13 +218,16 @@ class LiteLLMChatGenerator:
             callback(stream_chunk)
         return [_convert_streaming_chunks_to_chat_message(chunks=chunks)]
 
-    async def _ahandle_streaming(self, stream_response: Any, callback: AsyncStreamingCallbackT) -> list[ChatMessage]:
+    async def _ahandle_streaming(self, stream_response: Any, callback: StreamingCallbackT) -> list[ChatMessage]:
         component_info = ComponentInfo.from_component(self)
         chunks: list[StreamingChunk] = []
         async for chunk in stream_response:
             stream_chunk = _convert_litellm_chunk_to_streaming_chunk(chunk, chunks, component_info)
             chunks.append(stream_chunk)
-            await callback(stream_chunk)
+            # sync callbacks are allowed in async contexts with Haystack >= 3.0, so only await async ones
+            callback_result = callback(stream_chunk)
+            if inspect.isawaitable(callback_result):
+                await callback_result
         return [_convert_streaming_chunks_to_chat_message(chunks=chunks)]
 
     def to_dict(self) -> dict[str, Any]:

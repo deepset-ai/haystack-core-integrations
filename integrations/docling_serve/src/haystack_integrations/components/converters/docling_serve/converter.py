@@ -518,6 +518,12 @@ class DoclingServeConverter:
                         documents.append(Document(content=content, meta=merged_meta))
                     else:
                         logger.warning("No content returned for source {source}.", source=source)
+                except (OSError, TypeError) as e:
+                    logger.warning(
+                        "Could not read local source {source}. Skipping it. Error: {error}",
+                        source=source,
+                        error=e,
+                    )
                 except httpx.HTTPStatusError as e:
                     logger.warning(
                         "DoclingServe returned HTTP {status} for {source}: {body}",
@@ -592,6 +598,12 @@ class DoclingServeConverter:
                         documents.append(Document(content=content, meta=merged_meta))
                     else:
                         logger.warning("No content returned for source {source}.", source=source)
+                except (OSError, TypeError) as e:
+                    logger.warning(
+                        "Could not read local source {source}. Skipping it. Error: {error}",
+                        source=source,
+                        error=e,
+                    )
                 except httpx.HTTPStatusError as e:
                     logger.warning(
                         "DoclingServe returned HTTP {status} for {source}: {body}",

@@ -12,9 +12,9 @@ from typing import Any
 from docling_core.types.io import DocumentStream
 from haystack import Document, component, logging
 from haystack.components.converters.utils import normalize_metadata
-from haystack.core.serialization import default_from_dict, default_to_dict
+from haystack.core.serialization import component_to_dict, default_from_dict, default_to_dict
 from haystack.dataclasses import ByteStream
-from haystack.utils.base_serialization import deserialize_class_instance, serialize_class_instance
+from haystack.utils import deserialize_chatgenerator_inplace
 
 from docling.chunking import BaseChunk, BaseChunker, HybridChunker
 from docling.datamodel.document import DoclingDocument
@@ -69,12 +69,12 @@ class BaseMetaExtractor(ABC):
 
     def to_dict(self) -> dict[str, Any]:
         """Serialize to a dictionary."""
-        return {}
+        return default_to_dict(self)
 
     @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "BaseMetaExtractor":  # noqa: ARG003
+    def from_dict(cls, data: dict[str, Any]) -> "BaseMetaExtractor":
         """Deserialize from a dictionary."""
-        return cls()
+        return default_from_dict(cls, data)
 
 
 class MetaExtractor(BaseMetaExtractor):
@@ -135,11 +135,24 @@ class DoclingConverter:
         self.chunker = chunker
         self.meta_extractor = meta_extractor
 
-        # Resolved instances used internally at runtime.
+        # Resolved instances used internally at runtime. The default HybridChunker is built in warm_up() instead of
+        # here because its construction downloads a Hugging Face tokenizer.
         self._converter_instance = converter or DocumentConverter()
-        if self.export_type == ExportType.DOC_CHUNKS:
-            self._chunker_instance = chunker or HybridChunker()
+        self._chunker_instance = chunker
         self._meta_extractor_instance = meta_extractor or MetaExtractor()
+        self._is_warmed_up = False
+
+    def warm_up(self) -> None:
+        """
+        Build the default `HybridChunker` for `ExportType.DOC_CHUNKS` if no `chunker` was passed at init time.
+
+        Deferred to warm-up time because constructing the default chunker downloads a Hugging Face tokenizer.
+        """
+        if self._is_warmed_up:
+            return
+        if self.export_type == ExportType.DOC_CHUNKS and self._chunker_instance is None:
+            self._chunker_instance = HybridChunker()
+        self._is_warmed_up = True
 
     def to_dict(self) -> dict[str, Any]:
         """Serialize this component to a dictionary."""
@@ -156,7 +169,7 @@ class DoclingConverter:
 
         meta_extractor_data = None
         if self.meta_extractor is not None:
-            meta_extractor_data = serialize_class_instance(self.meta_extractor)
+            meta_extractor_data = component_to_dict(self.meta_extractor, "meta_extractor")
 
         return default_to_dict(
             self,
@@ -184,7 +197,12 @@ class DoclingConverter:
 
         meta_extractor_data = init_params.get("meta_extractor")
         if meta_extractor_data is not None:
-            init_params["meta_extractor"] = deserialize_class_instance(meta_extractor_data)
+            if "data" in meta_extractor_data:
+                # Pipelines serialized before this fix wrap the meta extractor as
+                # {"type": ..., "data": {"type": ..., "init_parameters": ...}}; unwrap it here so older
+                # serialized pipelines keep working.
+                init_params["meta_extractor"] = meta_extractor_data["data"]
+            deserialize_chatgenerator_inplace(init_params, key="meta_extractor")
 
         return default_from_dict(cls, data)
 
@@ -225,6 +243,9 @@ class DoclingConverter:
             msg = "Either 'sources' or the deprecated 'paths' parameter must be provided."
             raise ValueError(msg)
 
+        if not self._is_warmed_up:
+            self.warm_up()
+
         meta_list = normalize_metadata(meta=meta, sources_count=len(sources))
 
         documents: list[Document] = []
@@ -240,8 +261,8 @@ class DoclingConverter:
 
             if self.export_type == ExportType.DOC_CHUNKS:
                 split_idx_start = 0
-                for split_id, chunk in enumerate(self._chunker_instance.chunk(dl_doc=dl_doc)):
-                    content = self._chunker_instance.contextualize(chunk=chunk)
+                for split_id, chunk in enumerate(self._chunker_instance.chunk(dl_doc=dl_doc)):  # type: ignore[union-attr]
+                    content = self._chunker_instance.contextualize(chunk=chunk)  # type: ignore[union-attr]
                     meta = {
                         **self._meta_extractor_instance.extract_chunk_meta(chunk=chunk),
                         "split_id": split_id,

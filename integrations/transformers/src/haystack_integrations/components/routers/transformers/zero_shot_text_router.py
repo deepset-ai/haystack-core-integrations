@@ -8,7 +8,7 @@ from haystack import component, default_from_dict, default_to_dict
 from haystack.utils import ComponentDevice, Secret
 from haystack.utils.hf import deserialize_hf_model_kwargs, serialize_hf_model_kwargs
 
-from haystack_integrations.components.common.transformers.utils import _resolve_hf_pipeline_kwargs
+from haystack_integrations.common.transformers.utils import _resolve_hf_pipeline_kwargs
 from transformers import Pipeline as HfPipeline
 from transformers import pipeline
 
@@ -24,7 +24,9 @@ class TransformersZeroShotTextRouter:
 
     ```python
     from haystack import Document
-    from haystack.components.embedders import SentenceTransformersTextEmbedder, SentenceTransformersDocumentEmbedder
+    # Requires: pip install sentence-transformers-haystack
+    from haystack_integrations.components.embedders.sentence_transformers import SentenceTransformersTextEmbedder
+    from haystack_integrations.components.embedders.sentence_transformers import SentenceTransformersDocumentEmbedder
     from haystack.components.retrievers import InMemoryEmbeddingRetriever
     from haystack.core.pipeline import Pipeline
     from haystack.document_stores.in_memory import InMemoryDocumentStore

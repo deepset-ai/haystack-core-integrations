@@ -8,7 +8,7 @@ from google.genai import types
 from haystack import component, default_from_dict, default_to_dict, logging
 from haystack.utils import Secret, deserialize_secrets_inplace
 
-from haystack_integrations.components.common.google_genai.utils import _get_client
+from haystack_integrations.common.google_genai.utils import _get_client
 
 logger = logging.getLogger(__name__)
 

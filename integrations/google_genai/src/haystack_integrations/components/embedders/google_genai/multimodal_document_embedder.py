@@ -21,7 +21,7 @@ from tqdm import tqdm
 from tqdm.asyncio import tqdm as async_tqdm
 from typing_extensions import NotRequired, TypedDict
 
-from haystack_integrations.components.common.google_genai.utils import _get_client
+from haystack_integrations.common.google_genai.utils import _get_client
 
 logger = logging.getLogger(__name__)
 

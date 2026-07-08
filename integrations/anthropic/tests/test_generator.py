@@ -14,7 +14,7 @@ class TestAnthropicGenerator:
         monkeypatch.setenv("ANTHROPIC_API_KEY", "test-api-key")
         component = AnthropicGenerator()
         assert component.client.api_key == "test-api-key"
-        assert component.model == "claude-sonnet-4-20250514"
+        assert component.model == "claude-sonnet-4-5"
         assert component.streaming_callback is None
         assert not component.generation_kwargs
 
@@ -43,7 +43,7 @@ class TestAnthropicGenerator:
             "type": "haystack_integrations.components.generators.anthropic.generator.AnthropicGenerator",
             "init_parameters": {
                 "api_key": {"env_vars": ["ANTHROPIC_API_KEY"], "strict": True, "type": "env_var"},
-                "model": "claude-sonnet-4-20250514",
+                "model": "claude-sonnet-4-5",
                 "streaming_callback": None,
                 "system_prompt": None,
                 "generation_kwargs": {},
@@ -67,7 +67,7 @@ class TestAnthropicGenerator:
             "type": "haystack_integrations.components.generators.anthropic.generator.AnthropicGenerator",
             "init_parameters": {
                 "api_key": {"env_vars": ["ENV_VAR"], "strict": True, "type": "env_var"},
-                "model": "claude-sonnet-4-20250514",
+                "model": "claude-sonnet-4-5",
                 "system_prompt": "test-prompt",
                 "streaming_callback": "haystack.components.generators.utils.print_streaming_chunk",
                 "generation_kwargs": {"max_tokens": 10, "some_test_param": "test-params"},
@@ -242,7 +242,7 @@ class TestAnthropicGenerator:
     @pytest.mark.integration
     def test_extended_thinking_mode(self):
         client = AnthropicGenerator(
-            model="claude-sonnet-4-20250514",
+            model="claude-sonnet-4-5",
             generation_kwargs={"thinking": {"type": "enabled", "budget_tokens": 1024}, "max_tokens": 1536},
         )
         response = client.run("What is the capital of France?")
@@ -290,7 +290,7 @@ class TestAnthropicGenerator:
                 thinking_end_tag_found = "</thinking>" in chunk.content
 
         client = AnthropicGenerator(
-            model="claude-sonnet-4-20250514",
+            model="claude-sonnet-4-5",
             generation_kwargs={"thinking": {"type": "enabled", "budget_tokens": 1024}, "max_tokens": 1536},
             streaming_callback=streaming_callback,
         )
@@ -336,7 +336,7 @@ class TestAnthropicGenerator:
                 thinking_end_tag_found = "</thinking>" in chunk.content
 
         client = AnthropicGenerator(
-            model="claude-sonnet-4-20250514",
+            model="claude-sonnet-4-5",
             generation_kwargs={
                 "thinking": {"type": "enabled", "budget_tokens": 1024},
                 "max_tokens": 1536,

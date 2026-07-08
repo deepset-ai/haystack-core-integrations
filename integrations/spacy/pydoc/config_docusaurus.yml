@@ -1,0 +1,13 @@
+loaders:
+  - modules:
+      - haystack_integrations.components.extractors.spacy.named_entity_extractor
+    search_path: [../src]
+processors:
+  - type: filter
+    documented_only: true
+    skip_empty_modules: true
+renderer:
+  description: Spacy integration for Haystack
+  id: integrations-spacy
+  filename: spacy.md
+  title: Spacy

@@ -4,10 +4,11 @@
 
 from typing import Any
 
-from firecrawl import AsyncFirecrawl, Firecrawl  # type: ignore[import-untyped]
-from firecrawl.types import SearchData  # type: ignore[import-untyped]
 from haystack import Document, component, logging
 from haystack.utils import Secret
+
+from firecrawl import AsyncFirecrawl, Firecrawl  # type: ignore[import-untyped]
+from firecrawl.types import SearchData  # type: ignore[import-untyped]
 
 logger = logging.getLogger(__name__)
 

@@ -1,3 +1,4 @@
+import inspect
 from datetime import datetime, timezone
 from typing import Any, ClassVar
 
@@ -5,7 +6,6 @@ from haystack import component, default_from_dict, default_to_dict, logging
 from haystack.components.generators.utils import _convert_streaming_chunks_to_chat_message, _normalize_messages
 from haystack.dataclasses.chat_message import ChatMessage
 from haystack.dataclasses.streaming_chunk import (
-    AsyncStreamingCallbackT,
     ComponentInfo,
     StreamingCallbackT,
     StreamingChunk,
@@ -324,9 +324,12 @@ class AnthropicChatGenerator:
         adaptive_thinking_effort = generation_kwargs.pop("adaptive_thinking_effort", None)
         if adaptive_thinking_effort is not None:
             thinking = generation_kwargs.setdefault("thinking", {})
-            thinking.setdefault("type", "adaptive")
-            output_config = generation_kwargs.setdefault("output_config", {})
-            output_config["effort"] = adaptive_thinking_effort
+            if adaptive_thinking_effort in ("disabled", "none"):
+                thinking.setdefault("type", "disabled")
+            else:
+                thinking.setdefault("type", "adaptive")
+                output_config = generation_kwargs.setdefault("output_config", {})
+                output_config["effort"] = adaptive_thinking_effort
 
         return generation_kwargs
 
@@ -400,7 +403,7 @@ class AnthropicChatGenerator:
     async def _process_response_async(
         self,
         response: Any,
-        streaming_callback: AsyncStreamingCallbackT | None = None,
+        streaming_callback: StreamingCallbackT | None = None,
     ) -> dict[str, list[ChatMessage]]:
         """
         Process the response from the Anthropic API asynchronously.
@@ -439,7 +442,10 @@ class AnthropicChatGenerator:
                     )
                     chunks.append(streaming_chunk)
                     if streaming_callback:
-                        await streaming_callback(streaming_chunk)
+                        # sync callbacks are allowed in async contexts with Haystack >= 3.0, so only await async ones
+                        callback_result = streaming_callback(streaming_chunk)
+                        if inspect.isawaitable(callback_result):
+                            await callback_result
 
             completion = _convert_streaming_chunks_to_chat_message(chunks)
             reasoning = _process_reasoning_contents(chunks)

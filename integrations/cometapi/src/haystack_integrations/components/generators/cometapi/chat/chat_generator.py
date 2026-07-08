@@ -1,5 +1,6 @@
 from typing import Any
 
+from haystack import component, default_to_dict
 from haystack.components.generators.chat import OpenAIChatGenerator
 from haystack.dataclasses import (
     StreamingCallbackT,
@@ -7,10 +8,12 @@ from haystack.dataclasses import (
 from haystack.tools import (
     Tool,
     Toolset,
+    serialize_tools_or_toolset,
 )
-from haystack.utils import Secret
+from haystack.utils import Secret, serialize_callable
 
 
+@component
 class CometAPIChatGenerator(OpenAIChatGenerator):
     """
     A chat generator that uses the CometAPI for generating chat responses.
@@ -48,7 +51,8 @@ class CometAPIChatGenerator(OpenAIChatGenerator):
         """
         api_base_url = "https://api.cometapi.com/v1"
 
-        super().__init__(
+        # the @component decorator recreates the class, so the zero-argument form of super() cannot be used
+        super(CometAPIChatGenerator, self).__init__(  # noqa: UP008
             api_key=api_key,
             model=model,
             api_base_url=api_base_url,
@@ -59,4 +63,30 @@ class CometAPIChatGenerator(OpenAIChatGenerator):
             tools=tools,
             tools_strict=tools_strict,
             http_client_kwargs=http_client_kwargs,
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        """
+        Serialize this component to a dictionary.
+
+        :returns:
+            The serialized component as a dictionary.
+        """
+        callback_name = serialize_callable(self.streaming_callback) if self.streaming_callback else None
+
+        # if we didn't implement the to_dict method here then the to_dict method of the superclass would be used
+        # which would serialize some fields that we don't want to serialize (e.g. the ones we don't have in
+        # the __init__)
+        # it would be hard to maintain the compatibility as superclass changes
+        return default_to_dict(
+            self,
+            api_key=self.api_key.to_dict(),
+            model=self.model,
+            streaming_callback=callback_name,
+            generation_kwargs=self.generation_kwargs,
+            timeout=self.timeout,
+            max_retries=self.max_retries,
+            tools=serialize_tools_or_toolset(self.tools),
+            tools_strict=self.tools_strict,
+            http_client_kwargs=self.http_client_kwargs,
         )

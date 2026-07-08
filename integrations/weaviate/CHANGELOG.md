@@ -1,5 +1,16 @@
 # Changelog
 
+## [integrations/weaviate-v7.6.0] - 2026-06-22
+
+### 🐛 Bug Fixes
+
+- Serialize WeaviateDocumentStore grpc_port and grpc_secure (#3453)
+
+### 🧹 Chores
+
+- Weaviate - lower-bound pin for python-dateutil (#3270)
+
+
 ## [integrations/weaviate-v7.5.0] - 2026-04-27
 
 ### 🐛 Bug Fixes

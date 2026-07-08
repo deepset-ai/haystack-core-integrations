@@ -11,9 +11,8 @@
 import os
 
 from haystack import Pipeline
-from haystack.components.converters import OutputAdapter
+from haystack.components.agents import Agent
 from haystack.components.generators.chat import OpenAIChatGenerator
-from haystack.components.tools import ToolInvoker
 from haystack.dataclasses import ChatMessage
 
 from haystack_integrations.tools.mcp import MCPToolset, StdioServerInfo
@@ -35,28 +34,16 @@ def main():
             print("For now, demonstrating direct tool usage:")
 
         pipeline = Pipeline()
-        pipeline.add_component("llm", OpenAIChatGenerator(model="gpt-4.1-mini", tools=mcp_toolset))
-        pipeline.add_component("tool_invoker", ToolInvoker(tools=mcp_toolset))
         pipeline.add_component(
-            "adapter",
-            OutputAdapter(
-                template="{{ initial_msg + initial_tool_messages + tool_messages }}",
-                output_type=list[ChatMessage],
-                unsafe=True,
-            ),
+            "agent", Agent(chat_generator=OpenAIChatGenerator(model="gpt-4.1-mini"), tools=mcp_toolset)
         )
-        pipeline.add_component("response_llm", OpenAIChatGenerator(model="gpt-4.1-mini"))
-        pipeline.connect("llm.replies", "tool_invoker.messages")
-        pipeline.connect("llm.replies", "adapter.initial_tool_messages")
-        pipeline.connect("tool_invoker.tool_messages", "adapter.tool_messages")
-        pipeline.connect("adapter.output", "response_llm.messages")
 
         user_input = "What is the time in New York? Be brief."  # can be any city
         user_input_msg = ChatMessage.from_user(text=user_input)
 
-        result = pipeline.run({"llm": {"messages": [user_input_msg]}, "adapter": {"initial_msg": [user_input_msg]}})
+        result = pipeline.run({"agent": {"messages": [user_input_msg]}})
 
-        print(result["response_llm"]["replies"][0].text)
+        print(result["agent"]["messages"][-1].text)
 
     finally:
         if mcp_toolset:

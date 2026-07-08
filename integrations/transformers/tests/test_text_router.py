@@ -54,7 +54,7 @@ class TestTransformersTextRouter:
         }
 
     @patch("haystack_integrations.components.routers.transformers.text_router.AutoConfig.from_pretrained")
-    def test_from_dict(self, mock_auto_config_from_pretrained, del_hf_env_vars):
+    def test_from_dict(self, mock_auto_config_from_pretrained, del_hf_env_vars_if_empty):
         mock_auto_config_from_pretrained.return_value = MagicMock(label2id={"en": 0, "de": 1})
         data = {
             "type": COMPONENT_TYPE,
@@ -79,11 +79,11 @@ class TestTransformersTextRouter:
             "model": "papluca/xlm-roberta-base-language-detection",
             "device": ComponentDevice.resolve_device(None).to_hf(),
             "task": "text-classification",
-            "token": None,
+            "token": component.token.resolve_value(),
         }
 
     @patch("haystack_integrations.components.routers.transformers.text_router.AutoConfig.from_pretrained")
-    def test_from_dict_no_default_parameters(self, mock_auto_config_from_pretrained, del_hf_env_vars):
+    def test_from_dict_no_default_parameters(self, mock_auto_config_from_pretrained, del_hf_env_vars_if_empty):
         mock_auto_config_from_pretrained.return_value = MagicMock(label2id={"en": 0, "de": 1})
         data = {
             "type": COMPONENT_TYPE,
@@ -99,11 +99,11 @@ class TestTransformersTextRouter:
             "model": "papluca/xlm-roberta-base-language-detection",
             "device": ComponentDevice.resolve_device(None).to_hf(),
             "task": "text-classification",
-            "token": None,
+            "token": component.token.resolve_value(),
         }
 
     @patch("haystack_integrations.components.routers.transformers.text_router.AutoConfig.from_pretrained")
-    def test_from_dict_with_cpu_device(self, mock_auto_config_from_pretrained, del_hf_env_vars):
+    def test_from_dict_with_cpu_device(self, mock_auto_config_from_pretrained, del_hf_env_vars_if_empty):
         mock_auto_config_from_pretrained.return_value = MagicMock(label2id={"en": 0, "de": 1})
         data = {
             "type": COMPONENT_TYPE,
@@ -128,7 +128,7 @@ class TestTransformersTextRouter:
             "model": "papluca/xlm-roberta-base-language-detection",
             "device": ComponentDevice.from_str("cpu").to_hf(),
             "task": "text-classification",
-            "token": None,
+            "token": component.token.resolve_value(),
         }
 
     @patch("haystack_integrations.components.routers.transformers.text_router.AutoConfig.from_pretrained")
@@ -172,8 +172,10 @@ class TestTransformersTextRouter:
         assert out == {"en": "What is the color of the sky?"}
 
     @pytest.mark.integration
-    def test_run(self, del_hf_env_vars):
-        router = TransformersTextRouter(model="papluca/xlm-roberta-base-language-detection")
+    def test_run(self, del_hf_env_vars_if_empty):
+        router = TransformersTextRouter(
+            model="papluca/xlm-roberta-base-language-detection", device=ComponentDevice.from_str("cpu")
+        )
         out = router.run("What is the color of the sky?")
         assert set(router.labels) == {
             "ar",
@@ -201,7 +203,11 @@ class TestTransformersTextRouter:
         assert out == {"en": "What is the color of the sky?"}
 
     @pytest.mark.integration
-    def test_wrong_labels(self, del_hf_env_vars):
-        router = TransformersTextRouter(model="papluca/xlm-roberta-base-language-detection", labels=["en", "de"])
+    def test_wrong_labels(self, del_hf_env_vars_if_empty):
+        router = TransformersTextRouter(
+            model="papluca/xlm-roberta-base-language-detection",
+            labels=["en", "de"],
+            device=ComponentDevice.from_str("cpu"),
+        )
         with pytest.raises(ValueError):
             router.warm_up()

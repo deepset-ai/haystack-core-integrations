@@ -31,7 +31,7 @@ class STACKITChatGenerator(OpenAIChatGenerator):
     from haystack_integrations.components.generators.stackit import STACKITChatGenerator
     from haystack.dataclasses import ChatMessage
 
-    generator = STACKITChatGenerator(model="neuralmagic/Meta-Llama-3.1-70B-Instruct-FP8")
+    generator = STACKITChatGenerator(model="cortecs/Llama-3.3-70B-Instruct-FP8-Dynamic")
 
     result = generator.run([ChatMessage.from_user("Tell me a joke.")])
     print(result)
@@ -40,12 +40,11 @@ class STACKITChatGenerator(OpenAIChatGenerator):
 
     SUPPORTED_MODELS: ClassVar[list[str]] = [
         "Qwen/Qwen3-VL-235B-A22B-Instruct-FP8",
+        "Qwen/Qwen3.6-27B",
         "cortecs/Llama-3.3-70B-Instruct-FP8-Dynamic",
         "openai/gpt-oss-120b",
         "google/gemma-3-27b-it",
         "openai/gpt-oss-20b",
-        "neuralmagic/Mistral-Nemo-Instruct-2407-FP8",
-        "neuralmagic/Meta-Llama-3.1-8B-Instruct-FP8",
     ]
     """A non-exhaustive list of chat models supported by this component.
     See https://docs.stackit.cloud/products/data-and-ai/ai-model-serving/basics/available-shared-models

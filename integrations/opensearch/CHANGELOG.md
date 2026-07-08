@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/opensearch-v8.1.2] - 2026-06-24
+
+### 🐛 Bug Fixes
+
+- Serialize OpenSearchBM25Retriever all_terms_must_match (#3454)
+
+
 ## [integrations/opensearch-v8.1.1] - 2026-05-20
 
 ### 🐛 Bug Fixes

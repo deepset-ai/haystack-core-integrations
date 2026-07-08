@@ -165,6 +165,25 @@ class TestAmazonBedrockDocumentImageEmbedder:
         assert embedder.progress_bar
         assert embedder.boto3_config == boto3_config
 
+    def test_from_dict_aws_region_name(self, mock_boto3_session):
+        """
+        Test that aws_region_name as str value is correctly parsed
+        """
+        embedder = AmazonBedrockDocumentImageEmbedder.from_dict(
+            {
+                "type": TYPE,
+                "init_parameters": {
+                    "aws_region_name": "my-fake-region",
+                    "model": "cohere.embed-english-v3",
+                },
+            }
+        )
+        assert embedder.model == "cohere.embed-english-v3"
+        assert embedder.aws_region_name == "my-fake-region"
+
+        serialized = embedder.to_dict()
+        assert serialized["init_parameters"]["aws_region_name"] == "my-fake-region"
+
     def test_init_invalid_model(self):
         with pytest.raises(ValueError):
             AmazonBedrockDocumentImageEmbedder(model="")

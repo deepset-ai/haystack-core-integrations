@@ -1,3 +1,4 @@
+import inspect
 import json
 from collections.abc import AsyncIterator, Iterator
 from typing import Any, ClassVar, Literal, get_args
@@ -6,7 +7,6 @@ from haystack import component, default_from_dict, default_to_dict, logging
 from haystack.components.generators.utils import _convert_streaming_chunks_to_chat_message, _normalize_messages
 from haystack.dataclasses import ChatMessage, ComponentInfo, ImageContent, TextContent, ToolCall
 from haystack.dataclasses.streaming_chunk import (
-    AsyncStreamingCallbackT,
     FinishReason,
     StreamingCallbackT,
     StreamingChunk,
@@ -351,7 +351,7 @@ def _parse_streaming_response(
 async def _parse_async_streaming_response(
     response: AsyncIterator[StreamedChatResponseV2],
     model: str,
-    streaming_callback: AsyncStreamingCallbackT,
+    streaming_callback: StreamingCallbackT,
     component_info: ComponentInfo,
 ) -> ChatMessage:
     """
@@ -375,7 +375,10 @@ async def _parse_async_streaming_response(
 
         original_chunks.append(chunk)
         chunks.append(streaming_chunk)
-        await streaming_callback(streaming_chunk)
+        # sync callbacks are allowed in async contexts with Haystack >= 3.0, so only await async ones
+        callback_result = streaming_callback(streaming_chunk)
+        if inspect.isawaitable(callback_result):
+            await callback_result
 
     return _convert_streaming_chunks_to_chat_message(chunks=chunks)
 
