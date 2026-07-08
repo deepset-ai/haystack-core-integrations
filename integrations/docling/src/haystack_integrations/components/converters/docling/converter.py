@@ -14,7 +14,7 @@ from haystack import Document, component, logging
 from haystack.components.converters.utils import normalize_metadata
 from haystack.core.serialization import component_to_dict, default_from_dict, default_to_dict
 from haystack.dataclasses import ByteStream
-from haystack.utils import deserialize_component_inplace
+from haystack.utils.deserialization import deserialize_component_inplace
 
 from docling.chunking import BaseChunk, BaseChunker, HybridChunker
 from docling.datamodel.document import DoclingDocument
