@@ -1,0 +1,14 @@
+loaders:
+  - modules:
+      - haystack_integrations.components.retrievers.ibm_db.embedding_retriever
+      - haystack_integrations.document_stores.ibm_db.document_store
+    search_path: [../src]
+processors:
+  - type: filter
+    documented_only: true
+    skip_empty_modules: true
+renderer:
+  description: Ibm Db integration for Haystack
+  id: integrations-ibm-db
+  filename: ibm_db.md
+  title: Ibm Db

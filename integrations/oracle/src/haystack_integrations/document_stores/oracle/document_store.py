@@ -18,19 +18,12 @@ from haystack.document_stores.errors import DocumentStoreError, DuplicateDocumen
 from haystack.document_stores.types import DuplicatePolicy
 from haystack.utils import Secret, deserialize_secrets_inplace
 
-from .filters import FilterTranslator
+from .filters import FilterTranslator, _validate_field_path
 
 logger = logging.getLogger(__name__)
 
 _SAFE_TABLE_NAME = re.compile(r"^[A-Za-z_][A-Za-z0-9_$#]{0,127}$")
-_SAFE_FIELD_PATH = re.compile(r"^[A-Za-z0-9_.]+$")
 MAX_INDEX_NAME_LEN = 128
-
-
-def _validate_field_path(field_path: str) -> None:
-    if not _SAFE_FIELD_PATH.match(field_path):
-        msg = f"Invalid metadata field name: {field_path!r}"
-        raise ValueError(msg)
 
 
 def _try_parse_number(value: Any) -> Any:

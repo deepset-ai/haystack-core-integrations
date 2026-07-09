@@ -8,7 +8,11 @@ from botocore.exceptions import ClientError
 from haystack import Pipeline
 from haystack.components.agents import Agent
 from haystack.components.generators.utils import print_streaming_chunk
-from haystack.components.tools import ToolInvoker
+
+try:
+    from haystack.components.tools import ToolInvoker
+except ImportError:  # ToolInvoker was removed in Haystack 3.0
+    ToolInvoker = None
 from haystack.dataclasses import (
     ChatMessage,
     ChatRole,
@@ -373,6 +377,12 @@ class TestAmazonBedrockChatGenerator:
         pipeline.add_component("generator", generator)
 
         pipeline_dict = pipeline.to_dict()
+
+        # the Tool serialization format is owned by haystack-ai and varies across its versions; the
+        # dumps/loads round-trip below covers the tools, so exclude them from the pinned-dict comparison
+        tools_entries = pipeline_dict["components"]["generator"]["init_parameters"].pop("tools")
+        assert len(tools_entries) == 1
+
         expected_dict = {
             "metadata": {},
             "max_runs_per_component": 100,
@@ -413,20 +423,6 @@ class TestAmazonBedrockChatGenerator:
                         },
                         "streaming_callback": "haystack.components.generators.utils.print_streaming_chunk",
                         "boto3_config": None,
-                        "tools": [
-                            {
-                                "type": "haystack.tools.tool.Tool",
-                                "data": {
-                                    "name": "weather",
-                                    "description": "useful to determine the weather in a given location",
-                                    "parameters": {"city": {"type": "string"}},
-                                    "function": "tests.test_chat_generator.weather",
-                                    "outputs_to_string": None,
-                                    "inputs_from_state": None,
-                                    "outputs_to_state": None,
-                                },
-                            }
-                        ],
                         "guardrail_config": None,
                         "tools_cachepoint_config": None,
                         "system_cachepoint_config": None,
@@ -440,6 +436,10 @@ class TestAmazonBedrockChatGenerator:
             expected_dict.pop("connection_type_validation")
 
         assert pipeline_dict == expected_dict
+
+        # deserializing the serialized pipeline must reproduce the original tool
+        new_pipeline = Pipeline.loads(pipeline.dumps())
+        assert new_pipeline.get_component("generator").tools == [tool]
 
     def test_prepare_request_params_tool_config(self, top_song_tool_config, mock_boto3_session, set_env_variables):
         generator = AmazonBedrockChatGenerator(model="global.anthropic.claude-sonnet-4-6")
@@ -676,6 +676,22 @@ class TestAmazonBedrockChatGenerator:
                     "output_config": {"effort": "max"},
                 },
             ),
+            (
+                {
+                    "adaptive_thinking_effort": "disabled",
+                },
+                {
+                    "thinking": {"type": "disabled"},
+                },
+            ),
+            (
+                {
+                    "adaptive_thinking_effort": "none",
+                },
+                {
+                    "thinking": {"type": "disabled"},
+                },
+            ),
         ],
     )
     def test_prepare_request_params_with_flattened_generation_kwargs(
@@ -745,26 +761,55 @@ class TestAmazonBedrockChatGenerator:
                 {"disable_parallel_tool_use": True, "parallel_tool_use": True}
             )
 
-    def test_resolve_flattened_kwargs_cachepoint_ttl(self):
-        result = AmazonBedrockChatGenerator._resolve_flattened_generation_kwargs(
+    def test_from_dict_resolves_tools_cachepoint_config_ttl(self, mock_boto3_session):
+        generator = AmazonBedrockChatGenerator.from_dict(
             {
-                "tools_cachepoint_config_ttl": "5m",
-                "system_cachepoint_config_ttl": "10m",
+                "type": CLASS_TYPE,
+                "init_parameters": {
+                    "model": "global.anthropic.claude-sonnet-4-6",
+                    "tools_cachepoint_config_ttl": "1h",
+                },
             }
         )
-        assert result["tools_cachepoint_config"] == {"type": "default", "ttl": "5m"}
-        assert result["system_cachepoint_config"] == {"type": "default", "ttl": "10m"}
-        assert "tools_cachepoint_config_ttl" not in result
-        assert "system_cachepoint_config_ttl" not in result
+        assert generator.tools_cachepoint_config == {"cachePoint": {"type": "default", "ttl": "1h"}}
 
-    def test_resolve_flattened_kwargs_cachepoint_ttl_preserves_existing_type(self):
-        result = AmazonBedrockChatGenerator._resolve_flattened_generation_kwargs(
+    def test_from_dict_resolves_tools_cachepoint_config_ttl_preserves_existing_type(self, mock_boto3_session):
+        generator = AmazonBedrockChatGenerator.from_dict(
             {
-                "system_cachepoint_config": {"type": "custom"},
-                "system_cachepoint_config_ttl": "5m",
+                "type": CLASS_TYPE,
+                "init_parameters": {
+                    "model": "global.anthropic.claude-sonnet-4-6",
+                    "tools_cachepoint_config": {"type": "default"},
+                    "tools_cachepoint_config_ttl": "5m",
+                },
             }
         )
-        assert result["system_cachepoint_config"] == {"type": "custom", "ttl": "5m"}
+        assert generator.tools_cachepoint_config == {"cachePoint": {"type": "default", "ttl": "5m"}}
+
+    def test_from_dict_resolves_system_cachepoint_config_ttl(self, mock_boto3_session):
+        generator = AmazonBedrockChatGenerator.from_dict(
+            {
+                "type": CLASS_TYPE,
+                "init_parameters": {
+                    "model": "global.anthropic.claude-sonnet-4-6",
+                    "system_cachepoint_config_ttl": "1h",
+                },
+            }
+        )
+        assert generator.system_cachepoint_config == {"cachePoint": {"type": "default", "ttl": "1h"}}
+
+    def test_from_dict_resolves_system_cachepoint_config_ttl_preserves_existing_type(self, mock_boto3_session):
+        generator = AmazonBedrockChatGenerator.from_dict(
+            {
+                "type": CLASS_TYPE,
+                "init_parameters": {
+                    "model": "global.anthropic.claude-sonnet-4-6",
+                    "system_cachepoint_config": {"type": "default"},
+                    "system_cachepoint_config_ttl": "5m",
+                },
+            }
+        )
+        assert generator.system_cachepoint_config == {"cachePoint": {"type": "default", "ttl": "5m"}}
 
     def test_run_completion(self, mock_boto3_session, set_env_variables):
         generator = AmazonBedrockChatGenerator(model="global.anthropic.claude-sonnet-4-6")
@@ -1431,6 +1476,7 @@ class TestAmazonBedrockChatGeneratorInference:
         assert "cache_details" in usage
 
     @pytest.mark.parametrize("model_name", MODELS_TO_TEST_WITH_TOOLS[:1])  # just one model is enough
+    @pytest.mark.skipif(ToolInvoker is None, reason="ToolInvoker is not available in the installed haystack-ai version")
     def test_pipeline_with_amazon_bedrock_chat_generator(self, model_name, tools):
         """
         Test that the AmazonBedrockChatGenerator component can be used in a pipeline

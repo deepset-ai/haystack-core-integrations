@@ -7,6 +7,7 @@ from typing import Any, Literal
 
 import pytest
 from haystack import Pipeline
+from haystack.core.errors import DeserializationError
 from haystack.utils import Secret
 
 from haystack_integrations.components.connectors.oauth import OAuthTokenResolver
@@ -183,7 +184,9 @@ class TestOAuthTokenResolverSerialization:
             "type": "haystack_integrations.components.connectors.oauth.resolver.OAuthTokenResolver",
             "init_parameters": {"token_source": {"type": "some.unknown.Source", "init_parameters": {}}},
         }
-        with pytest.raises(ImportError):
+        # haystack-ai 2.x fails to import the unknown module; haystack-ai >= 3.0 refuses it upfront
+        # because it is not on the trusted-module allowlist
+        with pytest.raises((ImportError, DeserializationError)):
             OAuthTokenResolver.from_dict(data)
 
 
