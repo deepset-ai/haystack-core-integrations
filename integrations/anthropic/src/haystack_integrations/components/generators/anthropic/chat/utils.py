@@ -536,8 +536,7 @@ def _is_native_tools_list(tools: Any) -> bool:
 
 def _should_deserialize_tools_or_toolset(tools: Any) -> bool:
     """
-    Check whether a serialized `tools` value should be deserialized back into Haystack `Tool`/`Toolset`
-    objects.
+    Check whether a serialized `tools` value should be deserialized back into Haystack `Tool`/`Toolset` objects.
 
     Anthropic's native tools are kept as plain dicts and passed through as-is, so only a serialized
     Haystack `Toolset` (a dict with a matching `type`) or a non-empty list of serialized Haystack `Tool`
