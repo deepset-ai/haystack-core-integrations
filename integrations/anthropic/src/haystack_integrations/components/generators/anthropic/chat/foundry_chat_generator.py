@@ -27,6 +27,7 @@ from haystack.utils import (
 from anthropic import AnthropicFoundry, AsyncAnthropicFoundry
 
 from .chat_generator import AnthropicChatGenerator
+from .utils import _is_native_tools_list, _should_deserialize_tools_or_toolset
 
 logger = logging.getLogger(__name__)
 
@@ -152,7 +153,7 @@ class AnthropicFoundryChatGenerator(AnthropicChatGenerator):
             msg = "Please provide an API key or an azure_ad_token_provider."
             raise ValueError(msg)
 
-        if not (isinstance(tools, list) and tools and isinstance(tools[0], dict)):
+        if not _is_native_tools_list(tools):
             _check_duplicate_tool_names(flatten_tools_or_toolsets(tools))  # type: ignore[arg-type]
 
         self.api_key: Secret | None = api_key  # type: ignore[assignment]
@@ -280,7 +281,7 @@ class AnthropicFoundryChatGenerator(AnthropicChatGenerator):
 
         # Anthropic's native, server-side tools (e.g. web_search) are plain dicts, not Haystack Tool/Toolset
         # objects, so they don't go through the Haystack tool serialization machinery.
-        is_native_tools = isinstance(self.tools, list) and self.tools and isinstance(self.tools[0], dict)
+        is_native_tools = _is_native_tools_list(self.tools)
         serialized_tools = self.tools if is_native_tools else serialize_tools_or_toolset(self.tools)  # type: ignore[arg-type]
 
         return default_to_dict(
@@ -310,13 +311,7 @@ class AnthropicFoundryChatGenerator(AnthropicChatGenerator):
         # Only Haystack Tool/Toolset dicts need deserializing back into objects; Anthropic's native tools
         # (e.g. web_search) are kept as plain dicts and passed through as-is.
         tools = data["init_parameters"].get("tools")
-        is_haystack_toolset = isinstance(tools, dict) and tools.get("type") == "haystack.tools.toolset.Toolset"
-        is_haystack_tool_list = (
-            isinstance(tools, list)
-            and isinstance(tools[0], dict)
-            and tools[0].get("type") == "haystack.tools.tool.Tool"
-        )
-        if tools and (is_haystack_toolset or is_haystack_tool_list):
+        if _should_deserialize_tools_or_toolset(tools):
             deserialize_tools_or_toolset_inplace(data["init_parameters"], key="tools")
         deserialize_secrets_inplace(data["init_parameters"], keys=["api_key"])
 

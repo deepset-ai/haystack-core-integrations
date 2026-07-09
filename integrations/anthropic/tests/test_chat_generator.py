@@ -706,6 +706,24 @@ class TestAnthropicChatGenerator:
         restored = AnthropicChatGenerator.from_dict(data)
         assert restored.tools == native_tools
 
+    def test_serde_with_empty_tools_list(self, monkeypatch):
+        """
+        Test that a generator initialized with tools=[] round-trips through to_dict/from_dict.
+
+        Regression test: `to_dict()` serializes an empty tools list as `[]`, and feeding that
+        back into `from_dict()` used to raise `IndexError: list index out of range`, since the
+        Haystack-tool-list check indexed into `tools[0]` without first confirming the list was
+        non-empty.
+        """
+        monkeypatch.setenv("ANTHROPIC_API_KEY", "test-api-key")
+
+        generator = AnthropicChatGenerator(tools=[])
+        data = generator.to_dict()
+        assert data["init_parameters"]["tools"] == []
+
+        restored = AnthropicChatGenerator.from_dict(data)
+        assert restored.tools == []
+
     def test_run_with_native_tools(self, chat_messages, mock_anthropic_completion, monkeypatch):
         """Test that the run method passes Anthropic's native tools through unchanged."""
         monkeypatch.setenv("ANTHROPIC_API_KEY", "test-api-key")

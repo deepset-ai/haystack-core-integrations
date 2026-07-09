@@ -517,3 +517,41 @@ def _finalize_reasoning_group(
         formatted_reasoning_contents.append(
             {"reasoning_content": {"redacted_thinking": content_block_redacted_thinking}}
         )
+
+
+def _is_native_tools_list(tools: Any) -> bool:
+    """
+    Check whether `tools` is a list of Anthropic native, server-side tool definitions.
+
+    Native tools (e.g. `web_search`, `code_execution`, `bash`) are passed as plain dicts rather than
+    Haystack `Tool`/`Toolset` objects, since Anthropic runs them itself instead of calling back into
+    user code. An empty list is not treated as a native tools list, since it carries no information
+    about which shape was originally intended.
+
+    :param tools: The value of the `tools` init parameter or attribute to check.
+    :returns: `True` if `tools` is a non-empty list whose first element is a dict.
+    """
+    return isinstance(tools, list) and bool(tools) and isinstance(tools[0], dict)
+
+
+def _should_deserialize_tools_or_toolset(tools: Any) -> bool:
+    """
+    Check whether a serialized `tools` value should be deserialized back into Haystack `Tool`/`Toolset`
+    objects.
+
+    Anthropic's native tools are kept as plain dicts and passed through as-is, so only a serialized
+    Haystack `Toolset` (a dict with a matching `type`) or a non-empty list of serialized Haystack `Tool`
+    dicts should be deserialized. Guards against indexing into an empty list, which is not itself a
+    Haystack tool list and should be passed through unchanged.
+
+    :param tools: The serialized value of the `tools` init parameter, as found in a `to_dict()` output.
+    :returns: `True` if `tools` needs to be deserialized via `deserialize_tools_or_toolset_inplace`.
+    """
+    is_haystack_toolset = isinstance(tools, dict) and tools.get("type") == "haystack.tools.toolset.Toolset"
+    is_haystack_tool_list = (
+        isinstance(tools, list)
+        and bool(tools)
+        and isinstance(tools[0], dict)
+        and tools[0].get("type") == "haystack.tools.tool.Tool"
+    )
+    return is_haystack_toolset or is_haystack_tool_list

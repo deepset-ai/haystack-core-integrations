@@ -34,7 +34,9 @@ from .utils import (
     _convert_anthropic_chunk_to_streaming_chunk,
     _convert_chat_completion_to_chat_message,
     _convert_messages_to_anthropic_format,
+    _is_native_tools_list,
     _process_reasoning_contents,
+    _should_deserialize_tools_or_toolset,
 )
 
 logger = logging.getLogger(__name__)
@@ -180,7 +182,7 @@ class AnthropicChatGenerator:
             the Anthropic client.
 
         """
-        if not (isinstance(tools, list) and tools and isinstance(tools[0], dict)):
+        if not _is_native_tools_list(tools):
             _check_duplicate_tool_names(flatten_tools_or_toolsets(tools))  # type: ignore[arg-type]
 
         self.api_key = api_key
@@ -220,7 +222,7 @@ class AnthropicChatGenerator:
         callback_name = serialize_callable(self.streaming_callback) if self.streaming_callback else None
         # Anthropic's native, server-side tools (e.g. web_search) are plain dicts, not Haystack Tool/Toolset
         # objects, so they don't go through the Haystack tool serialization machinery.
-        is_native_tools = isinstance(self.tools, list) and self.tools and isinstance(self.tools[0], dict)
+        is_native_tools = _is_native_tools_list(self.tools)
         serialized_tools = self.tools if is_native_tools else serialize_tools_or_toolset(self.tools)  # type: ignore[arg-type]
         return default_to_dict(
             self,
@@ -247,13 +249,7 @@ class AnthropicChatGenerator:
         # Only Haystack Tool/Toolset dicts need deserializing back into objects; Anthropic's native tools
         # (e.g. web_search) are kept as plain dicts and passed through as-is.
         tools = data["init_parameters"].get("tools")
-        is_haystack_toolset = isinstance(tools, dict) and tools.get("type") == "haystack.tools.toolset.Toolset"
-        is_haystack_tool_list = (
-            isinstance(tools, list)
-            and isinstance(tools[0], dict)
-            and tools[0].get("type") == "haystack.tools.tool.Tool"
-        )
-        if tools and (is_haystack_toolset or is_haystack_tool_list):
+        if _should_deserialize_tools_or_toolset(tools):
             deserialize_tools_or_toolset_inplace(data["init_parameters"], key="tools")
         init_params = data.get("init_parameters", {})
         serialized_callback_handler = init_params.get("streaming_callback")
@@ -303,7 +299,7 @@ class AnthropicChatGenerator:
         # tools management
         tools = tools or self.tools
         anthropic_tools: list[ToolParam] | list[dict]
-        if isinstance(tools, list) and tools and isinstance(tools[0], dict):
+        if _is_native_tools_list(tools):
             # Anthropic's native, server-side tools (e.g. web_search) are already in the shape the API
             # expects, so they bypass Haystack's Tool/Toolset flattening entirely.
             anthropic_tools = tools
