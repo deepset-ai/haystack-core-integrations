@@ -43,6 +43,7 @@ class TavilyFetcher:
     def __init__(
         self,
         api_key: Secret = Secret.from_env_var("TAVILY_API_KEY"),
+        *,
         extract_depth: Literal["basic", "advanced"] = "basic",
         include_images: bool = False,
         extract_params: dict[str, Any] | None = None,
@@ -78,9 +79,9 @@ class TavilyFetcher:
         Called automatically on first use. Can be called explicitly to avoid cold-start latency.
         """
         if self._tavily_client is None:
-            self._tavily_client = TavilyClient(api_key=self.api_key.resolve_value())
+            self._tavily_client = TavilyClient(api_key=self.api_key.resolve_value(), client_name="haystack")
         if self._async_tavily_client is None:
-            self._async_tavily_client = AsyncTavilyClient(api_key=self.api_key.resolve_value())
+            self._async_tavily_client = AsyncTavilyClient(api_key=self.api_key.resolve_value(), client_name="haystack")
 
     @component.output_types(documents=list[Document], meta=dict[str, Any])
     def run(
@@ -104,12 +105,9 @@ class TavilyFetcher:
         """
         if self._tavily_client is None:
             self.warm_up()
-        if self._tavily_client is None:
-            msg = "TavilyFetcher client failed to initialize."
-            raise RuntimeError(msg)
 
         params = (extract_params if extract_params is not None else self.extract_params or {}).copy()
-        response = self._tavily_client.extract(
+        response = self._tavily_client.extract(  # type: ignore[union-attr]
             urls=urls,
             extract_depth=self.extract_depth,
             include_images=self.include_images,
@@ -139,12 +137,9 @@ class TavilyFetcher:
         """
         if self._async_tavily_client is None:
             self.warm_up()
-        if self._async_tavily_client is None:
-            msg = "TavilyFetcher async client failed to initialize."
-            raise RuntimeError(msg)
 
         params = (extract_params if extract_params is not None else self.extract_params or {}).copy()
-        response = await self._async_tavily_client.extract(
+        response = await self._async_tavily_client.extract(  # type: ignore[union-attr]
             urls=urls,
             extract_depth=self.extract_depth,
             include_images=self.include_images,

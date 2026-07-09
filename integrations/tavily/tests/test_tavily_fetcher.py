@@ -224,13 +224,7 @@ class TestTavilyFetcher:
             mock_cls.return_value.extract.return_value = extract_response
             fetcher = TavilyFetcher(api_key=Secret.from_token("test-key"))
             fetcher.run(urls=["https://example.com"])
-            mock_cls.assert_called_once_with(api_key="test-key")
-
-    def test_run_raises_runtime_error_when_warm_up_fails(self, monkeypatch):
-        fetcher = TavilyFetcher(api_key=Secret.from_token("test-key"))
-        monkeypatch.setattr(fetcher, "warm_up", lambda: None)
-        with pytest.raises(RuntimeError, match="TavilyFetcher client failed to initialize"):
-            fetcher.run(urls=["https://example.com"])
+            mock_cls.assert_called_once_with(api_key="test-key", client_name="haystack")
 
     @pytest.mark.asyncio
     async def test_run_async(self, mock_async_client):
@@ -252,14 +246,7 @@ class TestTavilyFetcher:
             mock_cls.return_value.extract = AsyncMock(return_value=extract_response)
             fetcher = TavilyFetcher(api_key=Secret.from_token("test-key"))
             await fetcher.run_async(urls=["https://example.com"])
-            mock_cls.assert_called_once_with(api_key="test-key")
-
-    @pytest.mark.asyncio
-    async def test_run_async_raises_runtime_error_when_warm_up_fails(self, monkeypatch):
-        fetcher = TavilyFetcher(api_key=Secret.from_token("test-key"))
-        monkeypatch.setattr(fetcher, "warm_up", lambda: None)
-        with pytest.raises(RuntimeError, match="TavilyFetcher async client failed to initialize"):
-            await fetcher.run_async(urls=["https://example.com"])
+            mock_cls.assert_called_once_with(api_key="test-key", client_name="haystack")
 
     @pytest.mark.asyncio
     async def test_run_async_raises_on_error(self, mock_async_client):
