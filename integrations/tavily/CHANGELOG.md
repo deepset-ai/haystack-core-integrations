@@ -1,5 +1,8 @@
 # Changelog
 
+## [unreleased]
+
+
 ## [integrations/tavily-v0.2.0] - 2026-07-03
 
 ### 🚀 Features

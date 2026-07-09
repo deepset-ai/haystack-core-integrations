@@ -377,6 +377,12 @@ class TestAmazonBedrockChatGenerator:
         pipeline.add_component("generator", generator)
 
         pipeline_dict = pipeline.to_dict()
+
+        # the Tool serialization format is owned by haystack-ai and varies across its versions; the
+        # dumps/loads round-trip below covers the tools, so exclude them from the pinned-dict comparison
+        tools_entries = pipeline_dict["components"]["generator"]["init_parameters"].pop("tools")
+        assert len(tools_entries) == 1
+
         expected_dict = {
             "metadata": {},
             "max_runs_per_component": 100,
@@ -417,20 +423,6 @@ class TestAmazonBedrockChatGenerator:
                         },
                         "streaming_callback": "haystack.components.generators.utils.print_streaming_chunk",
                         "boto3_config": None,
-                        "tools": [
-                            {
-                                "type": "haystack.tools.tool.Tool",
-                                "data": {
-                                    "name": "weather",
-                                    "description": "useful to determine the weather in a given location",
-                                    "parameters": {"city": {"type": "string"}},
-                                    "function": "tests.test_chat_generator.weather",
-                                    "outputs_to_string": None,
-                                    "inputs_from_state": None,
-                                    "outputs_to_state": None,
-                                },
-                            }
-                        ],
                         "guardrail_config": None,
                         "tools_cachepoint_config": None,
                         "system_cachepoint_config": None,
@@ -444,6 +436,10 @@ class TestAmazonBedrockChatGenerator:
             expected_dict.pop("connection_type_validation")
 
         assert pipeline_dict == expected_dict
+
+        # deserializing the serialized pipeline must reproduce the original tool
+        new_pipeline = Pipeline.loads(pipeline.dumps())
+        assert new_pipeline.get_component("generator").tools == [tool]
 
     def test_prepare_request_params_tool_config(self, top_song_tool_config, mock_boto3_session, set_env_variables):
         generator = AmazonBedrockChatGenerator(model="global.anthropic.claude-sonnet-4-6")

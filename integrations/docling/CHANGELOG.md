@@ -1,5 +1,16 @@
 # Changelog
 
+## [integrations/docling-v1.2.0] - 2026-07-08
+
+### 🐛 Bug Fixes
+
+- Docling stop relying on `haystack.utils.base_serialization` helpers (#3562)
+
+### 🧪 Testing
+
+- (docling) update unit test to not download model (#3460)
+
+
 ## [integrations/docling-v1.1.0] - 2026-06-16
 
 ### 🚀 Features

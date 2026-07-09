@@ -3,22 +3,13 @@ requires = ["hatchling", "hatch-vcs"]
 build-backend = "hatchling.build"
 
 [project]
-name = "docling-haystack"
+name = "ibm-db-haystack"
 dynamic = ["version"]
-description = "Haystack integration for docling"
+description = "Haystack integration for ibm_db"
 readme = "README.md"
 requires-python = ">=3.10"
 license = "Apache-2.0"
-keywords = [
-    "Docling",
-    "Documents",
-    "Unstructured Data",
-    "Document Intelligence",
-    "Haystack",
-    "OCR",
-    "PDF",
-    "Document Converter",
-]
+keywords = []
 authors = [{ name = "deepset GmbH", email = "info@deepset.ai" }]
 classifiers = [
   "License :: OSI Approved :: Apache Software License",
@@ -32,27 +23,23 @@ classifiers = [
   "Programming Language :: Python :: Implementation :: CPython",
   "Programming Language :: Python :: Implementation :: PyPy",
 ]
-dependencies = [
-  "haystack-ai>=2.12.0,<3.0.0",
-  "docling>=2.32.0,<3.0.0",
-  "lxml>=6.0.2",
-]
+dependencies = ["haystack-ai>=2.28.0", "ibm-db>=3.2.8"]
 
 [project.urls]
-Documentation = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/docling#readme"
+Documentation = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/ibm_db#readme"
 Issues = "https://github.com/deepset-ai/haystack-core-integrations/issues"
-Source = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/docling"
+Source = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/ibm_db"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/haystack_integrations", "src/docling_haystack"]
+packages = ["src/haystack_integrations"]
 
 [tool.hatch.version]
 source = "vcs"
-tag-pattern = 'integrations\/docling-v(?P<version>.*)'
+tag-pattern = 'integrations\/ibm_db-v(?P<version>.*)'
 
 [tool.hatch.version.raw-options]
 root = "../.."
-git_describe_command = 'git describe --tags --match="integrations/docling-v[0-9]*"'
+git_describe_command = 'git describe --tags --match="integrations/ibm_db-v[0-9]*"'
 
 [tool.hatch.envs.default]
 installer = "uv"
@@ -66,21 +53,20 @@ fmt-check = "ruff check {args} && ruff format --check {args}"
 [tool.hatch.envs.test]
 dependencies = [
     "pytest",
-    "pytest-asyncio",
     "pytest-cov",
     "pytest-rerunfailures",
     "mypy",
     "pip",
+    "cryptography",
 ]
 
 [tool.hatch.envs.test.scripts]
 unit = 'pytest -m "not integration" {args:tests}'
 integration = 'pytest -m "integration" {args:tests}'
 all = 'pytest {args:tests}'
-cov-retry = 'pytest --cov=haystack_integrations --reruns 3 --reruns-delay 30 -x {args:tests}'
 unit-cov-retry = 'pytest --cov=haystack_integrations --reruns 3 --reruns-delay 30 -x -m "not integration" {args:tests}'
-integration-cov-append-retry = "bash -c 'pytest --cov=haystack_integrations --cov-append --reruns 3 --reruns-delay 30 -x -m integration {args:tests}; ret=$?; [ $ret -eq 5 ] && exit 0 || exit $ret'"
-types = "mypy -p haystack_integrations.components.converters.docling {args}"
+integration-cov-append-retry = 'pytest --cov=haystack_integrations --cov-append --reruns 3 --reruns-delay 30 -x -m "integration" {args:tests}'
+types = "mypy -p haystack_integrations.document_stores.ibm_db -p haystack_integrations.components.retrievers.ibm_db {args}"
 
 [tool.mypy]
 install_types = true
@@ -135,6 +121,10 @@ ignore = [
     "S105",
     "S106",
     "S107",
+    # Ignore SQL injection warnings - table_name is controlled by the class
+    "S608",
+    # Ignore try-except-pass - used for cleanup and optional operations
+    "S110",
     # Ignore complexity
     "C901",
     "PLR0911",
@@ -143,6 +133,10 @@ ignore = [
     "PLR0915",
     # Allow `Any` type - used legitimately for dynamic types and SDK boundaries
     "ANN401",
+    # Allow missing return type for __init__
+    "ANN204",
+    # Allow blank exception assertions in tests
+    "B017",
 ]
 
 [tool.ruff.lint.isort]
@@ -153,7 +147,7 @@ ban-relative-imports = "parents"
 
 [tool.ruff.lint.per-file-ignores]
 # Tests can use magic values, assertions, relative imports, and don't need type annotations
-"tests/**/*" = ["PLR2004", "S101", "TID252", "D", "ANN", "PLC0415"]
+"tests/**/*" = ["PLR2004", "S101", "TID252", "D", "ANN"]
 
 [tool.coverage.run]
 source = ["haystack_integrations"]
@@ -172,4 +166,3 @@ markers = [
   "integration: integration tests",
 ]
 log_cli = true
-asyncio_default_fixture_loop_scope = "function"
