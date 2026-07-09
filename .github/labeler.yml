@@ -183,6 +183,11 @@ integration:huggingface-api:
       - any-glob-to-any-file: "integrations/huggingface_api/**/*"
       - any-glob-to-any-file: ".github/workflows/huggingface_api.yml"
 
+integration:ibm-db:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/ibm_db/**/*"
+      - any-glob-to-any-file: ".github/workflows/ibm_db.yml"
+
 integration:jina:
   - changed-files:
       - any-glob-to-any-file: "integrations/jina/**/*"
@@ -242,11 +247,6 @@ integration:mem0:
   - changed-files:
       - any-glob-to-any-file: "integrations/mem0/**/*"
       - any-glob-to-any-file: ".github/workflows/mem0.yml"
-
-integration:meta-llama:
-  - changed-files:
-      - any-glob-to-any-file: "integrations/meta_llama/**/*"
-      - any-glob-to-any-file: ".github/workflows/meta_llama.yml"
 
 integration:microsoft-sharepoint:
   - changed-files:
