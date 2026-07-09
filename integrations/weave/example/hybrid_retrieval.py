@@ -1,11 +1,14 @@
 from haystack import Document, Pipeline
-from haystack.components.embedders import SentenceTransformersDocumentEmbedder, SentenceTransformersTextEmbedder
 from haystack.components.joiners import DocumentJoiner
-from haystack.components.rankers import TransformersSimilarityRanker
 from haystack.components.retrievers.in_memory import InMemoryBM25Retriever, InMemoryEmbeddingRetriever
 from haystack.document_stores.in_memory import InMemoryDocumentStore
 
 from haystack_integrations.components.connectors.weave import WeaveConnector
+from haystack_integrations.components.embedders.sentence_transformers import (
+    SentenceTransformersDocumentEmbedder,
+    SentenceTransformersTextEmbedder,
+)
+from haystack_integrations.components.rankers.sentence_transformers import SentenceTransformersSimilarityRanker
 
 
 def index():
@@ -33,7 +36,7 @@ def hybrid_pipeline(document_store):
     embedding_retriever = InMemoryEmbeddingRetriever(document_store)
     bm25_retriever = InMemoryBM25Retriever(document_store)
     document_joiner = DocumentJoiner()
-    ranker = TransformersSimilarityRanker(model="BAAI/bge-reranker-base")
+    ranker = SentenceTransformersSimilarityRanker(model="BAAI/bge-reranker-base")
 
     hybrid_retrieval = Pipeline()
     hybrid_retrieval.add_component("text_embedder", text_embedder)

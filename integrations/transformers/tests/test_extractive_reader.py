@@ -914,10 +914,8 @@ class TestDeduplication:
 
 @pytest.mark.integration
 def test_t5(del_hf_env_vars_if_empty):
-    reader = TransformersExtractiveReader("sjrhuschlee/flan-t5-base-squad2")
-    answers = reader.run(example_queries[0], example_documents[0], top_k=2)[
-        "answers"
-    ]  # remove indices when batching support is reintroduced
+    reader = TransformersExtractiveReader("sjrhuschlee/flan-t5-base-squad2", device=ComponentDevice.from_str("cpu"))
+    answers = reader.run(example_queries[0], example_documents[0], top_k=2)["answers"]
     assert answers[0].data == "Olaf Scholz"
     assert answers[0].score == pytest.approx(0.8085031509399414, abs=1e-5)
     assert answers[1].data == "Angela Merkel"
@@ -925,22 +923,12 @@ def test_t5(del_hf_env_vars_if_empty):
     assert answers[2].data is None
     assert answers[2].score == pytest.approx(0.0378925803599941, abs=1e-5)
     assert len(answers) == 3
-    # Uncomment assertions below when batching is reintroduced
-    # assert answers[0][2].score == pytest.approx(0.051331606147570596)
-    # assert answers[1][0].data == "Jerry"
-    # assert answers[1][0].score == pytest.approx(0.7413333654403687)
-    # assert answers[1][1].data == "Olaf Scholz"
-    # assert answers[1][1].score == pytest.approx(0.7266613841056824)
-    # assert answers[1][2].data is None
-    # assert answers[1][2].score == pytest.approx(0.0707035798685709)
 
 
 @pytest.mark.integration
 def test_roberta(del_hf_env_vars_if_empty):
-    reader = TransformersExtractiveReader("deepset/tinyroberta-squad2")
-    answers = reader.run(example_queries[0], example_documents[0], top_k=2)[
-        "answers"
-    ]  # remove indices when batching is reintroduced
+    reader = TransformersExtractiveReader("deepset/tinyroberta-squad2", device=ComponentDevice.from_str("cpu"))
+    answers = reader.run(example_queries[0], example_documents[0], top_k=2)["answers"]
     assert answers[0].data == "Olaf Scholz"
     assert answers[0].score == pytest.approx(0.8614975214004517)
     assert answers[1].data == "Angela Merkel"
@@ -948,16 +936,3 @@ def test_roberta(del_hf_env_vars_if_empty):
     assert answers[2].data is None
     assert answers[2].score == pytest.approx(0.019673851661650588, abs=1e-5)
     assert len(answers) == 3
-    # uncomment assertions below when there is batching in v2
-    # assert answers[0][0].data == "Olaf Scholz"
-    # assert answers[0][0].score == pytest.approx(0.8614975214004517)
-    # assert answers[0][1].data == "Angela Merkel"
-    # assert answers[0][1].score == pytest.approx(0.857952892780304)
-    # assert answers[0][2].data is None
-    # assert answers[0][2].score == pytest.approx(0.0196738764278237)
-    # assert answers[1][0].data == "Jerry"
-    # assert answers[1][0].score == pytest.approx(0.7048940658569336)
-    # assert answers[1][1].data == "Olaf Scholz"
-    # assert answers[1][1].score == pytest.approx(0.6604189872741699)
-    # assert answers[1][2].data is None
-    # assert answers[1][2].score == pytest.approx(0.1002123719777046)

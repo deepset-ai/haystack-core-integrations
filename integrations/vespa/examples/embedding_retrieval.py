@@ -13,10 +13,13 @@
 import logging
 
 from haystack import Pipeline
-from haystack.components.embedders import SentenceTransformersDocumentEmbedder, SentenceTransformersTextEmbedder
 from haystack.components.writers import DocumentWriter
 from haystack.dataclasses import Document
 
+from haystack_integrations.components.embedders.sentence_transformers import (
+    SentenceTransformersDocumentEmbedder,
+    SentenceTransformersTextEmbedder,
+)
 from haystack_integrations.components.retrievers.vespa import VespaEmbeddingRetriever
 from haystack_integrations.document_stores.vespa import VespaDocumentStore
 

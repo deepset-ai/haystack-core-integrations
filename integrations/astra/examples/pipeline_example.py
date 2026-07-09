@@ -3,12 +3,15 @@ import os
 from haystack import Document, Pipeline, logging
 from haystack.components.builders import ChatPromptBuilder
 from haystack.components.builders.answer_builder import AnswerBuilder
-from haystack.components.embedders import SentenceTransformersDocumentEmbedder, SentenceTransformersTextEmbedder
 from haystack.components.generators.chat import OpenAIChatGenerator
 from haystack.components.writers import DocumentWriter
 from haystack.dataclasses import ChatMessage
 from haystack.document_stores.types import DuplicatePolicy
 
+from haystack_integrations.components.embedders.sentence_transformers import (
+    SentenceTransformersDocumentEmbedder,
+    SentenceTransformersTextEmbedder,
+)
 from haystack_integrations.components.retrievers.astra import AstraEmbeddingRetriever
 from haystack_integrations.document_stores.astra import AstraDocumentStore
 

@@ -754,6 +754,36 @@ def test_context_manager_calls_close(_mock_es, _mock_async_es):
     mock_sync.close.assert_called_once()
 
 
+@patch("haystack_integrations.document_stores.elasticsearch.document_store.AsyncElasticsearch")
+@patch("haystack_integrations.document_stores.elasticsearch.document_store.Elasticsearch")
+def test_delete_all_documents_recreate_preserves_settings(_mock_es, _mock_async_es):
+    """delete_all_documents(recreate_index=True) must delete+create exactly once and include settings."""
+    index_name = "default"
+    mappings = {"properties": {"content": {"type": "text"}}}
+    settings = {"index": {"number_of_replicas": "2", "refresh_interval": "30s"}}
+
+    mock_client = Mock()
+    mock_client.info.return_value = {}
+    mock_client.indices.exists.return_value = True
+    mock_client.indices.get.return_value = {
+        index_name: {"mappings": mappings, "settings": {"index": dict(settings["index"])}}
+    }
+    _mock_es.return_value = mock_client
+    _mock_async_es.return_value = Mock()
+
+    store = ElasticsearchDocumentStore(hosts="http://testhost:9200")
+    store.delete_all_documents(recreate_index=True)
+
+    # delete and create must each be called exactly once
+    assert mock_client.indices.delete.call_count == 1
+    assert mock_client.indices.create.call_count == 1
+
+    # the single create call must include both settings and mappings
+    create_kwargs = mock_client.indices.create.call_args[1]
+    assert "settings" in create_kwargs, "settings must be preserved on recreate"
+    assert "mappings" in create_kwargs, "mappings must be preserved on recreate"
+
+
 @pytest.mark.integration
 class TestDocumentStore(
     DocumentStoreBaseExtendedTests,

@@ -53,17 +53,25 @@ class TestTogetherAIGenerator:
     def test_init_default(self, monkeypatch):
         monkeypatch.setenv("TOGETHER_API_KEY", "test-api-key")
         component = TogetherAIGenerator()
-        assert component.client.api_key == "test-api-key"
+        assert component.api_key.resolve_value() == "test-api-key"
         assert component.model == "meta-llama/Llama-3.3-70B-Instruct-Turbo"
         assert component.streaming_callback is None
         assert not component.generation_kwargs
+
+    def test_warm_up(self, monkeypatch):
+        monkeypatch.setenv("TOGETHER_API_KEY", "test-api-key")
+        component = TogetherAIGenerator()
+        component.warm_up()  # with haystack-ai >= 3.0 the client is created during warm-up
+        assert component.client.api_key == "test-api-key"
         assert component.client.timeout == 30
         assert component.client.max_retries == 5
 
     def test_init_fail_wo_api_key(self, monkeypatch):
         monkeypatch.delenv("TOGETHER_API_KEY", raising=False)
         with pytest.raises(ValueError, match=r"None of the .* environment variables are set"):
-            TogetherAIGenerator()
+            # haystack-ai 2.x raises at init; haystack-ai >= 3.0 raises when the client is created in warm_up
+            component = TogetherAIGenerator()
+            component.warm_up()
 
     def test_init_with_parameters(self, monkeypatch):
         monkeypatch.setenv("OPENAI_TIMEOUT", "100")
@@ -77,12 +85,12 @@ class TestTogetherAIGenerator:
             timeout=40.0,
             max_retries=1,
         )
-        assert component.client.api_key == "test-api-key"
+        assert component.api_key.resolve_value() == "test-api-key"
         assert component.model == "meta-llama/Llama-3.3-70B-Instruct-Turbo"
         assert component.streaming_callback is print_streaming_chunk
         assert component.generation_kwargs == {"max_tokens": 10, "some_test_param": "test-params"}
-        assert component.client.timeout == 40.0
-        assert component.client.max_retries == 1
+        assert component.timeout == 40.0
+        assert component.max_retries == 1
         assert component.api_base_url == "test-base-url"
 
     def test_to_dict_default(self, monkeypatch):
@@ -156,24 +164,6 @@ class TestTogetherAIGenerator:
         assert component.system_prompt is None
         assert component.timeout is None
         assert component.max_retries is None
-
-    def test_from_dict_fail_wo_env_var(self, monkeypatch):
-        monkeypatch.delenv("TOGETHER_API_KEY", raising=False)
-        data = {
-            "type": "haystack_integrations.components.generators.togetherai.generator.TogetherAIGenerator",
-            "init_parameters": {
-                "api_key": {"env_vars": ["TOGETHER_API_KEY"], "strict": True, "type": "env_var"},
-                "model": "gpt-4o-mini",
-                "api_base_url": "test-base-url",
-                "system_prompt": None,
-                "timeout": None,
-                "max_retries": None,
-                "streaming_callback": "haystack.components.generators.utils.print_streaming_chunk",
-                "generation_kwargs": {"max_tokens": 10, "some_test_param": "test-params"},
-            },
-        }
-        with pytest.raises(ValueError, match=r"None of the .* environment variables are set"):
-            TogetherAIGenerator.from_dict(data)
 
     def test_run(self, mock_chat_completion):
         component = TogetherAIGenerator(api_key=Secret.from_token("test-api-key"))
