@@ -201,6 +201,7 @@ class GoogleGenAIChatGenerator:
         safety_settings: list[dict[str, Any]] | None = None,
         streaming_callback: StreamingCallbackT | None = None,
         tools: ToolsType | None = None,
+        google_server_tools: list[dict[str, Any]] | None = None,
         timeout: float | None = None,
         max_retries: int | None = None,
     ) -> None:
@@ -236,6 +237,10 @@ class GoogleGenAIChatGenerator:
         :param streaming_callback: A callback function that is called when a new token is received from the stream.
         :param tools: A list of Tool and/or Toolset objects, or a single Toolset for which the model can prepare calls.
             Each tool should have a unique name.
+        :param google_server_tools: A list of Google server-side (built-in) tools passed directly to the API.
+            Use this for native Google tools such as `{"google_search": {}}` or `{"code_execution": {}}`.
+            Each entry must be a dict that matches the `google.genai.types.Tool` schema.
+            These are merged with any Haystack tools at request time.
         :param timeout:
             Timeout for Google GenAI client calls. If not set, it defaults to the default set by the Google GenAI
             client.
@@ -263,6 +268,7 @@ class GoogleGenAIChatGenerator:
         self._safety_settings = safety_settings or []
         self._streaming_callback = streaming_callback
         self._tools = tools
+        self._google_server_tools = google_server_tools
         self._timeout = timeout
         self._max_retries = max_retries
 
@@ -291,6 +297,7 @@ class GoogleGenAIChatGenerator:
             safety_settings=self._safety_settings,
             streaming_callback=callback_name,
             tools=serialized_tools,
+            google_server_tools=self._google_server_tools,
             timeout=self._timeout,
             max_retries=self._max_retries,
         )
@@ -448,9 +455,12 @@ class GoogleGenAIChatGenerator:
             if safety_settings:
                 config_params["safety_settings"] = safety_settings
 
-            # Add tools if provided
-            if tools:
-                config_params["tools"] = _convert_tools_to_google_genai_format(tools)
+            # Merge Haystack tools and Google server-side built-in tools
+            all_tools = _convert_tools_to_google_genai_format(tools) if tools else []
+            if self._google_server_tools:
+                all_tools = all_tools + [types.Tool.model_validate(t) for t in self._google_server_tools]
+            if all_tools:
+                config_params["tools"] = all_tools
 
             config = types.GenerateContentConfig(**config_params) if config_params else None
 
@@ -559,9 +569,12 @@ class GoogleGenAIChatGenerator:
             if safety_settings:
                 config_params["safety_settings"] = safety_settings
 
-            # Add tools if provided
-            if tools:
-                config_params["tools"] = _convert_tools_to_google_genai_format(tools)
+            # Merge Haystack tools and Google server-side built-in tools
+            all_tools = _convert_tools_to_google_genai_format(tools) if tools else []
+            if self._google_server_tools:
+                all_tools = all_tools + [types.Tool.model_validate(t) for t in self._google_server_tools]
+            if all_tools:
+                config_params["tools"] = all_tools
 
             config = types.GenerateContentConfig(**config_params) if config_params else None
 
