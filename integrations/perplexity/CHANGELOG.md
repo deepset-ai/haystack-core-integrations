@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/perplexity-v0.2.0] - 2026-07-06
+
+### 🐛 Bug Fixes
+
+- Support Haystack 3.0's lazy OpenAI client initialization in OpenAI-inheriting generators (#3536)
+
+
 ## [integrations/perplexity-v0.1.1] - 2026-05-27
 
 ### 🐛 Bug Fixes
