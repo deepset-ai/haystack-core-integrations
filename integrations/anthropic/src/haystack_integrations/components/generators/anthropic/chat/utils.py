@@ -1,4 +1,4 @@
-from typing import Any, Literal, TypeAlias, cast, get_args
+from typing import Any, Literal, TypeAlias, TypeGuard, cast, get_args
 
 from haystack.dataclasses.chat_message import (
     ChatMessage,
@@ -519,7 +519,7 @@ def _finalize_reasoning_group(
         )
 
 
-def _is_native_tools_list(tools: Any) -> bool:
+def _is_native_tools_list(tools: Any) -> TypeGuard[list[dict[str, Any]]]:
     """
     Check whether `tools` is a list of Anthropic native, server-side tool definitions.
 
