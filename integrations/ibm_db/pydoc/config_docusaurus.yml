@@ -8,7 +8,7 @@ processors:
     documented_only: true
     skip_empty_modules: true
 renderer:
-  description: Ibm Db integration for Haystack
+  description: IBM Db2 integration for Haystack
   id: integrations-ibm-db
   filename: ibm_db.md
-  title: Ibm Db
+  title: IBM Db2
