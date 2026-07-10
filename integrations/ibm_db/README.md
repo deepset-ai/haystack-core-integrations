@@ -9,7 +9,7 @@
 
 Refer to the general [Contribution Guidelines](https://github.com/deepset-ai/haystack-core-integrations/blob/main/CONTRIBUTING.md).
 
-To run integration tests locally, you need to have an IBM DB2 instance running.
+To run integration tests locally, you need to have an IBM Db2 instance running.
 You can start one using Docker:
 
 ```console
