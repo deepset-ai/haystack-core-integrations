@@ -67,7 +67,7 @@
             <a id="nextFileLink" class="nav" href="z_16b74d9e0b9824f4_filters_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.14.3">coverage.py v7.14.3</a>,
-            created at 2026-07-09 13:58 +0000
+            created at 2026-07-10 07:55 +0000
         </p>
         <aside class="hidden">
             <button type="button" class="button_next_chunk" data-shortcut="j"></button>
@@ -86,7 +86,7 @@
     <p class="pln"><span class="n"><a id="t2" href="#t2">2</a></span><span class="t"><span class="com">#</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t3" href="#t3">3</a></span><span class="t"><span class="com"># SPDX-License-Identifier: Apache-2.0</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t4" href="#t4">4</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
-    <p class="pln"><span class="n"><a id="t5" href="#t5">5</a></span><span class="t"><span class="str">"""IBM DB2 Document Store for Haystack."""</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t5" href="#t5">5</a></span><span class="t"><span class="str">"""IBM Db2 Document Store for Haystack."""</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t6" href="#t6">6</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t7" href="#t7">7</a></span><span class="t"><span class="key">import</span> <span class="nam">json</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t8" href="#t8">8</a></span><span class="t"><span class="key">import</span> <span class="nam">logging</span>&nbsp;</span><span class="r"></span></p>
@@ -107,9 +107,9 @@
     <p class="pln"><span class="n"><a id="t23" href="#t23">23</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t24" href="#t24">24</a></span><span class="t"><span class="key">def</span> <span class="nam">_parse_embedding</span><span class="op">(</span><span class="nam">embedding</span><span class="op">:</span> <span class="nam">Any</span><span class="op">)</span> <span class="op">-></span> <span class="nam">list</span><span class="op">[</span><span class="nam">float</span><span class="op">]</span> <span class="op">|</span> <span class="key">None</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t25" href="#t25">25</a></span><span class="t">    <span class="str">"""</span>&nbsp;</span><span class="r"></span></p>
-    <p class="pln"><span class="n"><a id="t26" href="#t26">26</a></span><span class="t"><span class="str">    Parse embedding from DB2 VECTOR type to Python list.</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t26" href="#t26">26</a></span><span class="t"><span class="str">    Parse embedding from Db2 VECTOR type to Python list.</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t27" href="#t27">27</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
-    <p class="pln"><span class="n"><a id="t28" href="#t28">28</a></span><span class="t"><span class="str">    DB2's VECTOR type may be returned as a string representation like '[1.0, 2.0, 3.0]'</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t28" href="#t28">28</a></span><span class="t"><span class="str">    Db2's VECTOR type may be returned as a string representation like '[1.0, 2.0, 3.0]'</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t29" href="#t29">29</a></span><span class="t"><span class="str">    or as an iterable. This function handles both cases.</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t30" href="#t30">30</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t31" href="#t31">31</a></span><span class="t"><span class="str">    :param embedding: Embedding value from database (string, list, or None)</span>&nbsp;</span><span class="r"></span></p>
@@ -164,9 +164,9 @@
     <p class="pln"><span class="n"><a id="t80" href="#t80">80</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t81" href="#t81">81</a></span><span class="t"><span class="key">class</span> <span class="nam">IBMDb2DocumentStore</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t82" href="#t82">82</a></span><span class="t">    <span class="str">"""</span>&nbsp;</span><span class="r"></span></p>
-    <p class="pln"><span class="n"><a id="t83" href="#t83">83</a></span><span class="t"><span class="str">    IBM DB2 Document Store for Haystack using vector search capabilities.</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t83" href="#t83">83</a></span><span class="t"><span class="str">    IBM Db2 Document Store for Haystack using vector search capabilities.</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t84" href="#t84">84</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
-    <p class="pln"><span class="n"><a id="t85" href="#t85">85</a></span><span class="t"><span class="str">    This document store uses IBM DB2's native vector search functionality</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t85" href="#t85">85</a></span><span class="t"><span class="str">    This document store uses IBM Db2's native vector search functionality</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t86" href="#t86">86</a></span><span class="t"><span class="str">    to store and retrieve documents with embeddings.</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t87" href="#t87">87</a></span><span class="t"><span class="str">    """</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t88" href="#t88">88</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
@@ -189,7 +189,7 @@
     <p class="run run2"><span class="n"><a id="t105" href="#t105">105</a></span><span class="t">        <span class="nam">recreate_table</span><span class="op">:</span> <span class="nam">bool</span> <span class="op">=</span> <span class="key">False</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
     <p class="run run2"><span class="n"><a id="t106" href="#t106">106</a></span><span class="t">    <span class="op">)</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t107" href="#t107">107</a></span><span class="t">        <span class="str">"""</span>&nbsp;</span><span class="r"></span></p>
-    <p class="pln"><span class="n"><a id="t108" href="#t108">108</a></span><span class="t"><span class="str">        Initialize the IBM DB2 Document Store.</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t108" href="#t108">108</a></span><span class="t"><span class="str">        Initialize the IBM Db2 Document Store.</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t109" href="#t109">109</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t110" href="#t110">110</a></span><span class="t"><span class="str">        :param database: Database name</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t111" href="#t111">111</a></span><span class="t"><span class="str">        :param hostname: Database server hostname</span>&nbsp;</span><span class="r"></span></p>
@@ -233,7 +233,7 @@
     <p class="pln"><span class="n"><a id="t149" href="#t149">149</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t150" href="#t150">150</a></span><span class="t"><span class="str">        Thread-safe lazy initialization with SSL support.</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t151" href="#t151">151</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
-    <p class="pln"><span class="n"><a id="t152" href="#t152">152</a></span><span class="t"><span class="str">        :return: IBM DB2 connection object</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t152" href="#t152">152</a></span><span class="t"><span class="str">        :return: IBM Db2 connection object</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t153" href="#t153">153</a></span><span class="t"><span class="str">        """</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t154" href="#t154">154</a></span><span class="t">        <span class="key">if</span> <span class="nam">self</span><span class="op">.</span><span class="nam">_connection</span> <span class="key">is</span> <span class="key">None</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t155" href="#t155">155</a></span><span class="t">            <span class="key">with</span> <span class="nam">self</span><span class="op">.</span><span class="nam">_connection_lock</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
@@ -661,7 +661,7 @@
     <p class="pln"><span class="n"><a id="t577" href="#t577">577</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t578" href="#t578">578</a></span><span class="t">        <span class="key">with</span> <span class="nam">conn</span><span class="op">.</span><span class="nam">cursor</span><span class="op">(</span><span class="op">)</span> <span class="key">as</span> <span class="nam">cur</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t579" href="#t579">579</a></span><span class="t">            <span class="key">try</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
-    <p class="pln"><span class="n"><a id="t580" href="#t580">580</a></span><span class="t">                <span class="com"># DB2 doesn't have a simple JSON merge operator like PostgreSQL's ||</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t580" href="#t580">580</a></span><span class="t">                <span class="com"># Db2 doesn't have a simple JSON merge operator like PostgreSQL's ||</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t581" href="#t581">581</a></span><span class="t">                <span class="com"># We need to read, merge, and update</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t582" href="#t582">582</a></span><span class="t">                <span class="com"># First, get the documents that match the filter</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t583" href="#t583">583</a></span><span class="t">                <span class="nam">select_sql</span> <span class="op">=</span> <span class="fst">f"</span><span class="fst">SELECT id, SYSTOOLS.BSON2JSON(meta) AS meta FROM </span><span class="op">{</span><span class="nam">self</span><span class="op">.</span><span class="nam">table_name</span><span class="op">}</span><span class="fst"> </span><span class="op">{</span><span class="nam">where_clause</span><span class="op">}</span><span class="fst">"</span>&nbsp;</span><span class="r"></span></p>
@@ -702,7 +702,7 @@
     <p class="run"><span class="n"><a id="t618" href="#t618">618</a></span><span class="t">        <span class="nam">conn</span> <span class="op">=</span> <span class="nam">self</span><span class="op">.</span><span class="nam">_get_connection</span><span class="op">(</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t619" href="#t619">619</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t620" href="#t620">620</a></span><span class="t">        <span class="com"># Extract values from the JSON metadata field</span>&nbsp;</span><span class="r"></span></p>
-    <p class="pln"><span class="n"><a id="t621" href="#t621">621</a></span><span class="t">        <span class="com"># DB2 has issues with DISTINCT/GROUP BY on JSON_VALUE results (SQL0134N error)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t621" href="#t621">621</a></span><span class="t">        <span class="com"># Db2 has issues with DISTINCT/GROUP BY on JSON_VALUE results (SQL0134N error)</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t622" href="#t622">622</a></span><span class="t">        <span class="com"># So we fetch all values and deduplicate in Python</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t623" href="#t623">623</a></span><span class="t">        <span class="com"># Use RETURNING VARCHAR to explicitly specify the return type</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t624" href="#t624">624</a></span><span class="t">        <span class="key">with</span> <span class="nam">conn</span><span class="op">.</span><span class="nam">cursor</span><span class="op">(</span><span class="op">)</span> <span class="key">as</span> <span class="nam">cur</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
@@ -852,7 +852,7 @@
     <p class="run"><span class="n"><a id="t768" href="#t768">768</a></span><span class="t">            <span class="nam">field_name</span> <span class="op">=</span> <span class="nam">field</span><span class="op">.</span><span class="nam">removeprefix</span><span class="op">(</span><span class="str">"meta."</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t769" href="#t769">769</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t770" href="#t770">770</a></span><span class="t">            <span class="com"># Count distinct values for this field</span>&nbsp;</span><span class="r"></span></p>
-    <p class="pln"><span class="n"><a id="t771" href="#t771">771</a></span><span class="t">            <span class="com"># We need to fetch all values and deduplicate in Python due to DB2's JSON handling</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t771" href="#t771">771</a></span><span class="t">            <span class="com"># We need to fetch all values and deduplicate in Python due to Db2's JSON handling</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t772" href="#t772">772</a></span><span class="t">            <span class="key">with</span> <span class="nam">conn</span><span class="op">.</span><span class="nam">cursor</span><span class="op">(</span><span class="op">)</span> <span class="key">as</span> <span class="nam">cur</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t773" href="#t773">773</a></span><span class="t">                <span class="key">try</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t774" href="#t774">774</a></span><span class="t">                    <span class="nam">sql</span> <span class="op">=</span> <span class="op">(</span>&nbsp;</span><span class="r"></span></p>
@@ -1032,7 +1032,7 @@
             <a class="nav" href="z_16b74d9e0b9824f4_filters_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.14.3">coverage.py v7.14.3</a>,
-            created at 2026-07-09 13:58 +0000
+            created at 2026-07-10 07:55 +0000
         </p>
     </div>
 </footer>
