@@ -603,6 +603,28 @@ class TestAnthropicChatGenerator:
         assert len(final_message.text) > 0
         assert "paris" in final_message.text.lower()
 
+    @pytest.mark.skipif(
+        not os.environ.get("ANTHROPIC_API_KEY", None),
+        reason="Export an env var called ANTHROPIC_API_KEY containing the Anthropic API key to run this test.",
+    )
+    @pytest.mark.integration
+    def test_live_run_with_native_web_search_tool(self):
+        """
+        Integration test that the AnthropicChatGenerator component can use Anthropic's native,
+        server-side web_search tool end-to-end against the real Anthropic API.
+        """
+        component = AnthropicChatGenerator(tools=[{"type": "web_search_20250305", "name": "web_search", "max_uses": 1}])
+        results = component.run(
+            messages=[
+                ChatMessage.from_user("Search the web and tell me the capital of Germany.")
+            ]
+        )
+
+        assert len(results["replies"]) == 1
+        message = results["replies"][0]
+        assert len(message.text) > 0
+        assert "berlin" in message.text.lower()
+
     def test_init_with_mixed_tools_and_toolsets(self, monkeypatch):
         """Test initialization with a mixed list of Tools and Toolsets."""
         monkeypatch.setenv("ANTHROPIC_API_KEY", "test-api-key")
