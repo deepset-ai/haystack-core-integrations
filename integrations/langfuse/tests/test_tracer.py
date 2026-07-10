@@ -756,7 +756,7 @@ class TestLangfuseTracer:
         mock_span = Mock()
         mock_span.raw_span.return_value = mock_span
 
-        tool_call = ToolCall(tool_name="search_tool", arguments={"query": "RAG pipelines"})
+        tool_call = ToolCall(id="call_123", tool_name="search_tool", arguments={"query": "RAG pipelines"})
 
         span_data = {
             "haystack.component.name": "tool_invoker",
@@ -781,9 +781,15 @@ class TestLangfuseTracer:
 
         # input should be just the tool call arguments, not the full message list
         assert update_calls["input"] == [{"tool_name": "search_tool", "arguments": {"query": "RAG pipelines"}}]
-        # output should be the tool results
+        # output carries id/name/arguments so Langfuse detects the tool call and populates its filter
         assert update_calls["output"] == [
-            {"tool_name": "search_tool", "result": "RAG stands for Retrieval-Augmented Generation", "error": False}
+            {
+                "id": "call_123",
+                "name": "search_tool",
+                "arguments": {"query": "RAG pipelines"},
+                "result": "RAG stands for Retrieval-Augmented Generation",
+                "error": False,
+            }
         ]
 
     def test_handle_tool_invoker_no_content_tracing(self):

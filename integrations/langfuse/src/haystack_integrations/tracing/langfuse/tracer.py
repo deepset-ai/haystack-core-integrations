@@ -369,9 +369,14 @@ class DefaultSpanHandler(SpanHandler):
                 for message in output_messages:
                     if isinstance(message, ChatMessage) and message.tool_call_results:
                         for tcr in message.tool_call_results:
+                            origin = tcr.origin
+                            # Keys `name`, `arguments` and `id` let Langfuse detect these as tool
+                            # calls at ingestion and populate the Tool Call Name filter in the UI.
                             tool_results.append(
                                 {
-                                    "tool_name": tcr.origin.tool_name if tcr.origin else None,
+                                    "id": origin.id if origin else None,
+                                    "name": origin.tool_name if origin else None,
+                                    "arguments": origin.arguments if origin else None,
                                     "result": tcr.result,
                                     "error": tcr.error,
                                 }
