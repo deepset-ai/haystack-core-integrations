@@ -188,6 +188,23 @@ class TestAnthropicFoundryChatGenerator:
         assert restored.timeout == original.timeout
         assert restored.max_retries == original.max_retries
 
+    def test_serde_with_empty_tools_list(self, monkeypatch):
+        """
+        Test that a generator initialized with tools=[] round-trips through to_dict/from_dict.
+
+        Regression test: `to_dict()` serializes an empty tools list as `[]`, and feeding that
+        back into `from_dict()` used to raise `IndexError: list index out of range`, since the
+        Haystack-tool-list check indexed into `tools[0]` without first confirming the list was
+        non-empty.
+        """
+        monkeypatch.setenv("ANTHROPIC_FOUNDRY_API_KEY", "test-key")
+        component = AnthropicFoundryChatGenerator(resource="my-resource", tools=[])
+        data = component.to_dict()
+        assert data["init_parameters"]["tools"] == []
+
+        restored = AnthropicFoundryChatGenerator.from_dict(data)
+        assert restored.tools == []
+
     def test_run_triggers_warm_up(self, chat_messages, mock_chat_completion, monkeypatch):
         monkeypatch.setenv("ANTHROPIC_FOUNDRY_API_KEY", "test-key")
         component = AnthropicFoundryChatGenerator(resource="my-resource")

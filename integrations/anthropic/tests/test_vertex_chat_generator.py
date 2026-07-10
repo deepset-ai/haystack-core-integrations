@@ -126,6 +126,22 @@ class TestAnthropicVertexChatGenerator:
         assert component.timeout is None
         assert component.max_retries is None
 
+    def test_serde_with_empty_tools_list(self):
+        """
+        Test that a generator initialized with tools=[] round-trips through to_dict/from_dict.
+
+        Regression test: `to_dict()` serializes an empty tools list as `[]`, and feeding that
+        back into `from_dict()` used to raise `IndexError: list index out of range`, since the
+        Haystack-tool-list check indexed into `tools[0]` without first confirming the list was
+        non-empty.
+        """
+        component = AnthropicVertexChatGenerator(region="us-central1", project_id="test-project-id", tools=[])
+        data = component.to_dict()
+        assert data["init_parameters"]["tools"] == []
+
+        restored = AnthropicVertexChatGenerator.from_dict(data)
+        assert restored.tools == []
+
     def test_run(self, chat_messages, mock_chat_completion):
         component = AnthropicVertexChatGenerator(region="us-central1", project_id="test-project-id")
         response = component.run(chat_messages)
