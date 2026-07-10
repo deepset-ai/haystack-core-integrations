@@ -238,9 +238,28 @@ class GoogleGenAIChatGenerator:
         :param tools: A list of Tool and/or Toolset objects, or a single Toolset for which the model can prepare calls.
             Each tool should have a unique name.
         :param google_server_tools: A list of Google server-side (built-in) tools passed directly to the API.
-            Use this for native Google tools such as `{"google_search": {}}` or `{"code_execution": {}}`.
-            Each entry must be a dict that matches the `google.genai.types.Tool` schema.
-            These are merged with any Haystack tools at request time.
+            Each entry must be a dict matching the ``google.genai.types.Tool`` schema. The dict keys correspond
+            to the built-in tool type and the values are their configuration dicts (often empty ``{}``).
+            These are merged with any Haystack ``tools`` at request time.
+
+            Supported built-in tools:
+
+            - ``{"google_search": {}}`` — enables real-time Google Search grounding
+            - ``{"code_execution": {}}`` — enables Python code execution in a sandbox
+            - ``{"url_context": {}}`` — enables fetching and using URL content in context
+
+            Example::
+
+                from haystack.dataclasses import ChatMessage
+                from haystack_integrations.components.generators.google_genai import GoogleGenAIChatGenerator
+
+                chat_generator = GoogleGenAIChatGenerator(
+                    google_server_tools=[{"google_search": {}}, {"code_execution": {}}]
+                )
+                response = chat_generator.run([ChatMessage.from_user("What happened in AI today?")])
+
+            For the full list of built-in tools and their parameters, see:
+            https://ai.google.dev/gemini-api/docs/tools#built-in-tools
         :param timeout:
             Timeout for Google GenAI client calls. If not set, it defaults to the default set by the Google GenAI
             client.
