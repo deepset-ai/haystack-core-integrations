@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "ibm-db-haystack"
 dynamic = ["version"]
-description = "Haystack integration for ibm_db"
+description = "Haystack integration for IBM Db2"
 readme = "README.md"
 requires-python = ">=3.10"
 license = "Apache-2.0"

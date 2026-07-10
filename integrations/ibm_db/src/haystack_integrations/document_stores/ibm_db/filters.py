@@ -12,7 +12,7 @@ _RANGE_OPS = {">", ">=", "<", "<="}
 
 class FilterTranslator:
     """
-    Translates Haystack 2.x filter dicts into IBM DB2 SQL WHERE fragments.
+    Translates Haystack 2.x filter dicts into IBM Db2 SQL WHERE fragments.
 
     Example input:
         {"operator": "AND", "conditions": [
