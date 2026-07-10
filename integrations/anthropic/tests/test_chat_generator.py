@@ -614,11 +614,7 @@ class TestAnthropicChatGenerator:
         server-side web_search tool end-to-end against the real Anthropic API.
         """
         component = AnthropicChatGenerator(tools=[{"type": "web_search_20250305", "name": "web_search", "max_uses": 1}])
-        results = component.run(
-            messages=[
-                ChatMessage.from_user("Search the web and tell me the capital of Germany.")
-            ]
-        )
+        results = component.run(messages=[ChatMessage.from_user("Search the web and tell me the capital of Germany.")])
 
         assert len(results["replies"]) == 1
         message = results["replies"][0]
