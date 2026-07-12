@@ -353,6 +353,11 @@ integration:ragas:
       - any-glob-to-any-file: "integrations/ragas/**/*"
       - any-glob-to-any-file: ".github/workflows/ragas.yml"
 
+integration:requesty:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/requesty/**/*"
+      - any-glob-to-any-file: ".github/workflows/requesty.yml"
+
 integration:searchapi:
   - changed-files:
       - any-glob-to-any-file: "integrations/searchapi/**/*"

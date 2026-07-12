@@ -1,0 +1,13 @@
+loaders:
+  - modules:
+      - haystack_integrations.components.generators.requesty.chat.chat_generator
+    search_path: [../src]
+processors:
+  - type: filter
+    documented_only: true
+    skip_empty_modules: true
+renderer:
+  description: Requesty integration for Haystack
+  id: integrations-requesty
+  filename: requesty.md
+  title: Requesty
