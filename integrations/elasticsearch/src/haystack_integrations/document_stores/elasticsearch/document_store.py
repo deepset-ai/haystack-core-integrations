@@ -2,6 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+import asyncio
 import copy
 
 # ruff: noqa: FBT002, FBT001    boolean-type-hint-positional-argument and boolean-default-value-positional-argument
@@ -324,7 +325,8 @@ class ElasticsearchDocumentStore:
         Has no effect if the clients have not been initialized yet.
         """
         if self._client is not None:
-            self._client.close()
+            # The sync client's close() does blocking socket I/O, so run it off the event loop.
+            await asyncio.to_thread(self._client.close)
         if self._async_client is not None:
             await self._async_client.close()
 

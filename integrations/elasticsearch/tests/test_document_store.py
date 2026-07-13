@@ -754,6 +754,34 @@ def test_context_manager_calls_close(_mock_es, _mock_async_es):
     mock_sync.close.assert_called_once()
 
 
+@pytest.mark.asyncio
+@patch("haystack_integrations.document_stores.elasticsearch.document_store.AsyncElasticsearch")
+@patch("haystack_integrations.document_stores.elasticsearch.document_store.Elasticsearch")
+async def test_aclose_closes_both_clients_without_blocking(_mock_es, _mock_async_es):
+    """aclose() must close both clients, running the sync client's blocking close() off the event loop."""
+    mock_sync = Mock()
+    mock_sync.info.return_value = {}
+    mock_sync.indices.exists.return_value = True
+    _mock_es.return_value = mock_sync
+
+    mock_async = AsyncMock()
+    _mock_async_es.return_value = mock_async
+
+    store = ElasticsearchDocumentStore(hosts="http://testhost:9200")
+    _ = store.client  # trigger initialization (creates both sync and async clients)
+
+    with patch(
+        "haystack_integrations.document_stores.elasticsearch.document_store.asyncio.to_thread",
+        new_callable=AsyncMock,
+    ) as mock_to_thread:
+        await store.aclose()
+
+    # the sync client's blocking close() must be dispatched off the event loop
+    mock_to_thread.assert_awaited_once_with(mock_sync.close)
+    # the async client is awaited directly
+    mock_async.close.assert_awaited_once()
+
+
 @patch("haystack_integrations.document_stores.elasticsearch.document_store.AsyncElasticsearch")
 @patch("haystack_integrations.document_stores.elasticsearch.document_store.Elasticsearch")
 def test_delete_all_documents_recreate_preserves_settings(_mock_es, _mock_async_es):
