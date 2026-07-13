@@ -64,6 +64,7 @@ on:
       - "Test / perplexity"
       - "Test / pgvector"
       - "Test / pinecone"
+      - "Test / plivo"
       - "Test / presidio"
       - "Test / pyversity"
       - "Test / qdrant"
