@@ -19,7 +19,7 @@ class TavilyFetcher:
 
     This component wraps the Tavily Extract API, which retrieves and parses web page content from
     one or more specified URLs. Unlike web search, it fetches content directly from the given URLs
-    rather than discovering them via a query.
+    rather than discovering them via a query. PDF URLs are also supported for extraction.
 
     Tavily is an AI-powered search and extraction API optimized for LLM applications. You need a Tavily
     API key from [tavily.com](https://tavily.com).

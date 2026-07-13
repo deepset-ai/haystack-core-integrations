@@ -269,6 +269,22 @@ class TestTavilyFetcher:
         assert isinstance(result["documents"][0], Document)
         assert result["documents"][0].content
         assert result["meta"]["response_time"] is not None
+        assert result["meta"]["usage"] is not None
+
+    @pytest.mark.skipif(
+        not os.environ.get("TAVILY_API_KEY"),
+        reason="Export TAVILY_API_KEY to run integration tests.",
+    )
+    @pytest.mark.integration
+    def test_run_integration_pdf(self):
+        # Attention Is All You Need — stable public arXiv PDF
+        fetcher = TavilyFetcher(api_key=Secret.from_env_var("TAVILY_API_KEY"))
+        result = fetcher.run(urls=["https://arxiv.org/pdf/1706.03762"])
+        assert len(result["documents"]) > 0
+        assert isinstance(result["documents"][0], Document)
+        assert result["documents"][0].content
+        assert result["meta"]["response_time"] is not None
+        assert result["meta"]["usage"] is not None
 
     @pytest.mark.skipif(
         not os.environ.get("TAVILY_API_KEY"),
@@ -281,3 +297,4 @@ class TestTavilyFetcher:
         result = await fetcher.run_async(urls=["https://haystack.deepset.ai"])
         assert len(result["documents"]) > 0
         assert result["meta"]["response_time"] is not None
+        assert result["meta"]["usage"] is not None
