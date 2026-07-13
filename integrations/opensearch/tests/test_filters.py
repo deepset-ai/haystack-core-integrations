@@ -500,6 +500,59 @@ def test_normalize_ranges():
     ]
 
 
+def test_or_of_ranges_on_same_field_are_not_merged():
+    # `price < 10 OR price > 100` must stay two separate range clauses under `should`.
+    # Merging them into a single {"lt": 10, "gt": 100} range means price < 10 AND
+    # price > 100, which matches no document.
+    filters = {
+        "operator": "OR",
+        "conditions": [
+            {"field": "meta.price", "operator": "<", "value": 10},
+            {"field": "meta.price", "operator": ">", "value": 100},
+        ],
+    }
+    assert normalize_filters(filters) == {
+        "bool": {
+            "should": [
+                {"range": {"price": {"lt": 10}}},
+                {"range": {"price": {"gt": 100}}},
+            ]
+        }
+    }
+
+
+def test_or_of_ranges_on_same_nested_field_are_not_merged():
+    # Same range-merge bug inside a nested-field logical group: an OR of two ranges on
+    # the same nested sub-field must stay two separate range clauses, not collapse into
+    # a single impossible range.
+    filters = {
+        "operator": "OR",
+        "conditions": [
+            {"field": "meta.refs.score", "operator": "<", "value": 10},
+            {"field": "meta.refs.score", "operator": ">", "value": 100},
+        ],
+    }
+    assert normalize_filters(filters, nested_fields={"refs"}) == {
+        "bool": {
+            "should": [
+                {
+                    "nested": {
+                        "path": "refs",
+                        "query": {
+                            "bool": {
+                                "should": [
+                                    {"range": {"refs.score": {"lt": 10}}},
+                                    {"range": {"refs.score": {"gt": 100}}},
+                                ]
+                            }
+                        },
+                    }
+                }
+            ]
+        }
+    }
+
+
 @pytest.mark.parametrize("filters, nested_fields, expected", nested_filters_data)
 def test_normalize_filters_with_nested_fields(filters, nested_fields, expected):
     result = normalize_filters(filters, nested_fields=nested_fields)
