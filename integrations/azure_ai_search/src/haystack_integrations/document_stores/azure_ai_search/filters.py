@@ -67,9 +67,14 @@ def _parse_comparison_condition(condition: dict[str, Any]) -> str:
     return COMPARISON_OPERATORS[operator](field, value)
 
 
+def _escape_odata_literal(value: str) -> str:
+    # In OData, a single quote inside a string literal is escaped by doubling it.
+    return value.replace("'", "''")
+
+
 def _eq(field: str, value: Any) -> str:
     if isinstance(value, str) and value != "null":
-        return f"{field} eq '{value}'"
+        return f"{field} eq '{_escape_odata_literal(value)}'"
     if isinstance(value, bool):
         return f"{field} eq {str(value).lower()}"
     return f"{field} eq {value}"
@@ -77,7 +82,7 @@ def _eq(field: str, value: Any) -> str:
 
 def _ne(field: str, value: Any) -> str:
     if isinstance(value, str) and value != "null":
-        return f"not ({field} eq '{value}')"
+        return f"not ({field} eq '{_escape_odata_literal(value)}')"
     if isinstance(value, bool):
         return f"not ({field} eq {str(value).lower()})"
     return f"not ({field} eq {value})"
@@ -87,7 +92,7 @@ def _in(field: str, value: Any) -> str:
     if not isinstance(value, list) or any(not isinstance(v, str) for v in value):
         msg = "Azure AI Search only supports a list of strings for 'in' comparators"
         raise AzureAISearchDocumentStoreFilterError(msg)
-    values = ",".join(map(str, value))
+    values = ",".join(_escape_odata_literal(v) for v in value)
     return f"search.in({field},'{values}',',')"
 
 
