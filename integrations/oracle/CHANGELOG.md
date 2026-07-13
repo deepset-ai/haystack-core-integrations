@@ -1,5 +1,15 @@
 # Changelog
 
+## [unreleased]
+
+### 🧹 Chores
+
+- Improve consistency of integrations folder structure (#3430)
+
+### 🌀 Miscellaneous
+
+- Validating meta fields to prevent SQL injection (#3511)
+
 ## [integrations/oracle-v0.2.0] - 2026-04-23
 
 ### 🚀 Features
