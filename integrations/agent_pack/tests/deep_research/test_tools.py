@@ -3,7 +3,7 @@ from haystack.components.generators.chat import MockChatGenerator
 from haystack.dataclasses import ChatMessage
 from haystack.tools import ComponentTool, PipelineTool
 
-from haystack_integrations.components.agents.agent_pack.deep_research.tools import (
+from haystack_integrations.agent_pack.deep_research.tools import (
     ContentGate,
     TavilyWebSearchTool,
     _format_search_results,
@@ -69,7 +69,7 @@ def test_tavily_web_search_tool_serde():
     tool = TavilyWebSearchTool(top_k=7)
     data = tool.to_dict()
     assert data == {
-        "type": "haystack_integrations.components.agents.agent_pack.deep_research.tools.TavilyWebSearchTool",
+        "type": "haystack_integrations.agent_pack.deep_research.tools.TavilyWebSearchTool",
         "data": {"top_k": 7},
     }
 

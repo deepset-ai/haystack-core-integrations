@@ -4,7 +4,7 @@ from haystack.components.builders import ChatPromptBuilder
 from haystack.components.generators.chat import MockChatGenerator, OpenAIChatGenerator
 from haystack.dataclasses import ChatMessage, ToolCall
 
-from haystack_integrations.components.agents.agent_pack.deep_research.hooks import ScopeHook, WriteHook
+from haystack_integrations.agent_pack.deep_research.hooks import ScopeHook, WriteHook
 
 SCOPE_SCHEMA = {"brief": {"type": str}}
 WRITE_SCHEMA = {"notes": {"type": list}, "brief": {"type": str}, "report": {"type": str}}

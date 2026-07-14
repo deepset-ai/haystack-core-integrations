@@ -19,9 +19,9 @@ from haystack.components.generators.chat.types import ChatGenerator
 from haystack.dataclasses import ChatMessage
 from haystack.tools import ComponentTool
 
-from haystack_integrations.components.agents.agent_pack.deep_research import prompts
-from haystack_integrations.components.agents.agent_pack.deep_research.hooks import ScopeHook, WriteHook
-from haystack_integrations.components.agents.agent_pack.deep_research.tools import (
+from haystack_integrations.agent_pack.deep_research import prompts
+from haystack_integrations.agent_pack.deep_research.hooks import ScopeHook, WriteHook
+from haystack_integrations.agent_pack.deep_research.tools import (
     TavilyWebSearchTool,
     make_read_url_tool,
     think_tool,

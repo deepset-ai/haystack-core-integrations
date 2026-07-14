@@ -19,7 +19,7 @@ Set `OPENAI_API_KEY` and `TAVILY_API_KEY` in the environment.
 
 ```python
 from haystack.dataclasses import ChatMessage
-from agent_pack_haystack import create_deep_research_agent
+from haystack_integrations.agent_pack import create_deep_research_agent
 
 agent = create_deep_research_agent()
 result = agent.run(messages=[ChatMessage.from_user("your research question")])

@@ -1,6 +1,6 @@
 loaders:
   - modules:
-      - haystack_integrations.components.agents.agent_pack.deep_research.agent
+      - haystack_integrations.agent_pack.deep_research.agent
     search_path: [../src]
 processors:
   - type: filter

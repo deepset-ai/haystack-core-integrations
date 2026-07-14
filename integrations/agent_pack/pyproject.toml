@@ -33,7 +33,7 @@ Issues = "https://github.com/deepset-ai/haystack-core-integrations/issues"
 Source = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/agent_pack"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/haystack_integrations", "src/agent_pack_haystack"]
+packages = ["src/haystack_integrations"]
 
 # Allow the direct git reference in `dependencies` (haystack-ai @ git+...).
 [tool.hatch.metadata]
@@ -76,9 +76,9 @@ unit = 'pytest -m "not integration" {args:tests}'
 integration = 'pytest -m "integration" {args:tests}'
 all = 'pytest {args:tests}'
 # we specify the package to cover to avoid including additional integrations in the coverage report
-unit-cov-retry = 'pytest --cov=haystack_integrations.components.agents.agent_pack --reruns 3 --reruns-delay 30 -x -m "not integration" {args:tests}'
-integration-cov-append-retry = 'pytest --cov=haystack_integrations.components.agents.agent_pack --cov-append --reruns 3 --reruns-delay 30 -x -m "integration" {args:tests}'
-types = "mypy -p haystack_integrations.components.agents.agent_pack {args}"
+unit-cov-retry = 'pytest --cov=haystack_integrations.agent_pack --reruns 3 --reruns-delay 30 -x -m "not integration" {args:tests}'
+integration-cov-append-retry = 'pytest --cov=haystack_integrations.agent_pack --cov-append --reruns 3 --reruns-delay 30 -x -m "integration" {args:tests}'
+types = "mypy -p haystack_integrations.agent_pack {args}"
 
 [tool.mypy]
 install_types = true

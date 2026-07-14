@@ -25,7 +25,7 @@ from haystack.core.serialization import generate_qualified_class_name
 from haystack.lazy_imports import LazyImport
 from haystack.tools import ComponentTool, PipelineTool, tool
 
-from haystack_integrations.components.agents.agent_pack.deep_research import prompts
+from haystack_integrations.agent_pack.deep_research import prompts
 
 with LazyImport(message="Run 'pip install tavily-haystack'") as tavily_import:
     from haystack_integrations.components.websearch.tavily import TavilyWebSearch

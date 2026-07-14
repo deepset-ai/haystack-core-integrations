@@ -6,13 +6,13 @@ from haystack.components.generators.chat import MockChatGenerator, OpenAIRespons
 from haystack.core.serialization import allow_deserialization_module
 from haystack.dataclasses import ChatMessage, ToolCall
 
-from haystack_integrations.components.agents.agent_pack.deep_research.agent import (
+from haystack_integrations.agent_pack.deep_research.agent import (
     _collect_note,
     _default_llm,
     _make_researcher_agent,
     create_deep_research_agent,
 )
-from haystack_integrations.components.agents.agent_pack.deep_research.hooks import ScopeHook, WriteHook
+from haystack_integrations.agent_pack.deep_research.hooks import ScopeHook, WriteHook
 
 
 def _delegate_then_stop(subtopic):
@@ -102,7 +102,7 @@ def test_deep_research_run(monkeypatch):
 
 
 def test_create_deep_research_agent_serialization_roundtrip():
-    allow_deserialization_module("haystack_integrations.components.agents.agent_pack.*")
+    allow_deserialization_module("haystack_integrations.agent_pack.*")
     agent = create_deep_research_agent(
         scope_llm=MockChatGenerator(),
         orchestrator_llm=MockChatGenerator(),
