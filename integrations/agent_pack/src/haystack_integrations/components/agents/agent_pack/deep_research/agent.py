@@ -22,8 +22,8 @@ from haystack.tools import ComponentTool
 from haystack_integrations.components.agents.agent_pack.deep_research import prompts
 from haystack_integrations.components.agents.agent_pack.deep_research.hooks import ScopeHook, WriteHook
 from haystack_integrations.components.agents.agent_pack.deep_research.tools import (
+    TavilyWebSearchTool,
     make_read_url_tool,
-    make_web_search_tool,
     think_tool,
 )
 
@@ -72,7 +72,7 @@ def _make_researcher_agent(
         chat_generator=researcher_llm,
         system_prompt=prompts.RESEARCHER_TEMPLATE,
         tools=[
-            make_web_search_tool(max_search_results=max_search_results),
+            TavilyWebSearchTool(top_k=max_search_results),
             make_read_url_tool(summarizer_llm=summarizer_llm, max_content_length=max_content_length),
             think_tool,
         ],

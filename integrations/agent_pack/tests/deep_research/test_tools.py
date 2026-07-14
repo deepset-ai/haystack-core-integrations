@@ -5,10 +5,10 @@ from haystack.tools import ComponentTool, PipelineTool
 
 from haystack_integrations.components.agents.agent_pack.deep_research.tools import (
     ContentGate,
+    TavilyWebSearchTool,
     _format_search_results,
     _read_url_result,
     make_read_url_tool,
-    make_web_search_tool,
     think_tool,
 )
 
@@ -58,11 +58,25 @@ def test_read_url_result_reports_no_readable_text():
     assert _read_url_result({}) == "Page not read: the page returned no readable text."
 
 
-def test_make_web_search_tool_configures_component_tool():
-    tool = make_web_search_tool(max_search_results=7)
+def test_tavily_web_search_tool_configures_component_tool():
+    tool = TavilyWebSearchTool(top_k=7)
     assert isinstance(tool, ComponentTool)
     assert tool.name == "web_search"
     assert tool._component.top_k == 7
+
+
+def test_tavily_web_search_tool_serde():
+    tool = TavilyWebSearchTool(top_k=7)
+    data = tool.to_dict()
+    assert data == {
+        "type": "haystack_integrations.components.agents.agent_pack.deep_research.tools.TavilyWebSearchTool",
+        "data": {"top_k": 7},
+    }
+
+    restored = TavilyWebSearchTool.from_dict(data)
+    assert isinstance(restored, TavilyWebSearchTool)
+    assert restored.name == "web_search"
+    assert restored._component.top_k == 7
 
 
 def test_make_read_url_tool_builds_pipeline_tool():

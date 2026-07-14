@@ -12,7 +12,7 @@ The tools the agents use.
 - `think_tool`: the reflection no-op — a plain `@tool`.
 """
 
-from typing import Annotated
+from typing import Annotated, Any
 
 from haystack import Document, Pipeline, component, logging
 from haystack.components.builders import ChatPromptBuilder
@@ -21,6 +21,7 @@ from haystack.components.fetchers import LinkContentFetcher
 from haystack.components.generators.chat.types import ChatGenerator
 from haystack.components.joiners import DocumentJoiner
 from haystack.components.routers import FileTypeRouter
+from haystack.core.serialization import generate_qualified_class_name
 from haystack.lazy_imports import LazyImport
 from haystack.tools import ComponentTool, PipelineTool, tool
 
@@ -46,6 +47,45 @@ def _format_search_results(documents: list[Document]) -> str:
         "web_search -> {count} results: {urls}", count=len(documents), urls=[d.meta.get("url") for d in documents]
     )
     return "\n".join(blocks)
+
+
+class TavilyWebSearchTool(ComponentTool):
+    """
+    `web_search` tool: a ComponentTool over TavilyWebSearch (async-capable).
+
+    :param top_k: Results returned per `web_search` call.
+    """
+
+    def __init__(self, top_k: int = 10) -> None:
+        tavily_import.check()
+        self._top_k = top_k
+        super().__init__(
+            component=TavilyWebSearch(top_k=top_k),
+            name="web_search",
+            description=(
+                "Search the web. Returns the top results, each with title, exact URL and a content "
+                "snippet. Cite the exact URLs verbatim."
+            ),
+            outputs_to_string={"source": "documents", "handler": _format_search_results},
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        """
+        Serialize the tool to a dictionary.
+
+        :returns: Dictionary with serialized data.
+        """
+        return {"type": generate_qualified_class_name(type(self)), "data": {"top_k": self._top_k}}
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "TavilyWebSearchTool":
+        """
+        Deserialize the tool from a dictionary.
+
+        :param data: Dictionary to deserialize from.
+        :returns: Deserialized tool.
+        """
+        return cls(top_k=data["data"]["top_k"])
 
 
 @component
@@ -82,24 +122,6 @@ def _read_url_result(result: dict) -> str:
         return f"Page not read: unsupported content type {content_type}; only HTML and PDF are read."
 
     return "Page not read: the page returned no readable text."
-
-
-def make_web_search_tool(*, max_search_results: int) -> ComponentTool:
-    """
-    `web_search` = ComponentTool over TavilyWebSearch (async-capable).
-
-    :param max_search_results: Results returned per `web_search` call.
-    """
-    tavily_import.check()
-    return ComponentTool(
-        component=TavilyWebSearch(top_k=max_search_results),
-        name="web_search",
-        description=(
-            "Search the web. Returns the top results, each with title, exact URL and a content "
-            "snippet. Cite the exact URLs verbatim."
-        ),
-        outputs_to_string={"source": "documents", "handler": _format_search_results},
-    )
 
 
 def make_read_url_tool(*, summarizer_llm: ChatGenerator, max_content_length: int) -> PipelineTool:
