@@ -2,9 +2,11 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 import os
+from unittest.mock import Mock, patch
 
 import pytest
 from haystack.utils import Secret
+from openai import BadRequestError
 
 from haystack_integrations.components.embedders.stackit.text_embedder import STACKITTextEmbedder
 
@@ -24,19 +26,22 @@ class TestSTACKITTextEmbedder:
         assert embedder.api_key == Secret.from_env_var(["STACKIT_API_KEY"])
         assert embedder.api_base_url == "https://api.openai-compat.model-serving.eu01.onstackit.cloud/v1"
         assert embedder.model == "intfloat/e5-mistral-7b-instruct"
+        assert embedder.dimensions is None
         assert embedder.prefix == ""
         assert embedder.suffix == ""
 
     def test_init_with_parameters(self):
         embedder = STACKITTextEmbedder(
             api_key=Secret.from_token("test-api-key"),
-            model="intfloat/e5-mistral-7b-instruct",
+            model="Qwen/Qwen3-VL-Embedding-8B",
+            dimensions=1024,
             prefix="START",
             suffix="END",
         )
         assert embedder.api_key == Secret.from_token("test-api-key")
         assert embedder.api_base_url == "https://api.openai-compat.model-serving.eu01.onstackit.cloud/v1"
-        assert embedder.model == "intfloat/e5-mistral-7b-instruct"
+        assert embedder.model == "Qwen/Qwen3-VL-Embedding-8B"
+        assert embedder.dimensions == 1024
         assert embedder.prefix == "START"
         assert embedder.suffix == "END"
 
@@ -50,6 +55,7 @@ class TestSTACKITTextEmbedder:
             "init_parameters": {
                 "api_key": {"env_vars": ["STACKIT_API_KEY"], "strict": True, "type": "env_var"},
                 "model": "intfloat/e5-mistral-7b-instruct",
+                "dimensions": None,
                 "api_base_url": "https://api.openai-compat.model-serving.eu01.onstackit.cloud/v1",
                 "prefix": "",
                 "suffix": "",
@@ -63,7 +69,8 @@ class TestSTACKITTextEmbedder:
         monkeypatch.setenv("ENV_VAR", "test-secret-key")
         embedder = STACKITTextEmbedder(
             api_key=Secret.from_env_var("ENV_VAR", strict=False),
-            model="intfloat/e5-mistral-7b-instruct",
+            model="Qwen/Qwen3-VL-Embedding-8B",
+            dimensions=1024,
             api_base_url="https://custom-api-base-url.com",
             prefix="START",
             suffix="END",
@@ -76,7 +83,8 @@ class TestSTACKITTextEmbedder:
             "type": "haystack_integrations.components.embedders.stackit.text_embedder.STACKITTextEmbedder",
             "init_parameters": {
                 "api_key": {"env_vars": ["ENV_VAR"], "strict": False, "type": "env_var"},
-                "model": "intfloat/e5-mistral-7b-instruct",
+                "model": "Qwen/Qwen3-VL-Embedding-8B",
+                "dimensions": 1024,
                 "api_base_url": "https://custom-api-base-url.com",
                 "prefix": "START",
                 "suffix": "END",
@@ -93,6 +101,7 @@ class TestSTACKITTextEmbedder:
             "init_parameters": {
                 "api_key": {"env_vars": ["STACKIT_API_KEY"], "strict": True, "type": "env_var"},
                 "model": "intfloat/e5-mistral-7b-instruct",
+                "dimensions": None,
                 "api_base_url": "https://api.openai-compat.model-serving.eu01.onstackit.cloud/v1",
                 "prefix": "",
                 "suffix": "",
@@ -105,6 +114,7 @@ class TestSTACKITTextEmbedder:
         assert embedder.api_key == Secret.from_env_var(["STACKIT_API_KEY"])
         assert embedder.api_base_url == "https://api.openai-compat.model-serving.eu01.onstackit.cloud/v1"
         assert embedder.model == "intfloat/e5-mistral-7b-instruct"
+        assert embedder.dimensions is None
         assert embedder.prefix == ""
         assert embedder.suffix == ""
         assert embedder.timeout is None
@@ -121,6 +131,46 @@ class TestSTACKITTextEmbedder:
         text = "The food was delicious"
         result = embedder.run(text)
         assert all(isinstance(x, float) for x in result["embedding"])
+
+    @pytest.mark.skipif(
+        not os.environ.get("STACKIT_API_KEY", None),
+        reason="Export an env var called STACKIT_API_KEY containing the STACKIT API key to run this test.",
+    )
+    @pytest.mark.integration
+    def test_run_with_dimensions(self):
+        embedder = STACKITTextEmbedder(model="Qwen/Qwen3-VL-Embedding-8B", dimensions=256)
+        result = embedder.run("The food was delicious")
+
+        assert len(result["embedding"]) == 256
+
+    @pytest.mark.skipif(
+        not os.environ.get("STACKIT_API_KEY", None),
+        reason="Export an env var called STACKIT_API_KEY containing the STACKIT API key to run this test.",
+    )
+    @pytest.mark.integration
+    def test_run_with_dimensions_unsupported_by_model(self):
+        embedder = STACKITTextEmbedder(model="intfloat/e5-mistral-7b-instruct", dimensions=256)
+
+        with pytest.raises(BadRequestError) as exc_info:
+            embedder.run("The food was delicious")
+        assert exc_info.value.status_code == 400
+
+    def test_run_forwards_dimensions_to_client(self):
+        embedder = STACKITTextEmbedder(
+            model="Qwen/Qwen3-VL-Embedding-8B",
+            dimensions=1024,
+            api_key=Secret.from_token("test-api-key"),
+        )
+
+        mock_response = Mock()
+        mock_response.data = [Mock(embedding=[0.1, 0.2, 0.3])]
+        mock_response.model = "Qwen/Qwen3-VL-Embedding-8B"
+        mock_response.usage = {"prompt_tokens": 4, "total_tokens": 4}
+
+        with patch.object(embedder.client.embeddings, "create", return_value=mock_response) as mock_create:
+            embedder.run("I love cheese")
+
+        assert mock_create.call_args.kwargs["dimensions"] == 1024
 
     def test_run_wrong_input_format(self):
         embedder = STACKITTextEmbedder(
