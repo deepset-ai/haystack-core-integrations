@@ -20,7 +20,7 @@ PYTHON_TYPES_TO_PG_TYPES = {
     bool: "boolean",
 }
 
-NO_VALUE = "no_value"
+NO_VALUE = object()  # unique sentinel; can never equal a user-supplied filter value
 
 
 def _validate_filters(filters: dict[str, Any] | None = None) -> None:
