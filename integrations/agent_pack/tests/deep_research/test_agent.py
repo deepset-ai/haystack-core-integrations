@@ -82,7 +82,9 @@ def test_create_deep_research_agent():
     assert default_agent.chat_generator.model == "gpt-5.4"
 
 
-def test_deep_research_run():
+def test_deep_research_run(monkeypatch):
+    # agent.run() warms up the TavilyWebSearch tool component, which resolves TAVILY_API_KEY
+    monkeypatch.setenv("TAVILY_API_KEY", "test-key")
     agent = create_deep_research_agent(
         scope_llm=MockChatGenerator("Brief: investigate the causes of X."),
         orchestrator_llm=MockChatGenerator(responses=_delegate_then_stop("What causes X?")),

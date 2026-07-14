@@ -19,9 +19,13 @@ from haystack.components.generators.chat.types import ChatGenerator
 from haystack.dataclasses import ChatMessage
 from haystack.tools import ComponentTool
 
-from . import prompts
-from .hooks import ScopeHook, WriteHook
-from .tools import make_read_url_tool, make_web_search_tool, think_tool
+from haystack_integrations.components.agents.agent_pack.deep_research import prompts
+from haystack_integrations.components.agents.agent_pack.deep_research.hooks import ScopeHook, WriteHook
+from haystack_integrations.components.agents.agent_pack.deep_research.tools import (
+    make_read_url_tool,
+    make_web_search_tool,
+    think_tool,
+)
 
 logger = logging.getLogger(__name__)
 

@@ -5,11 +5,11 @@ build-backend = "hatchling.build"
 [project]
 name = "agent-pack-haystack"
 dynamic = ["version"]
-description = "Haystack integration for agent_pack"
+description = "Pre-configured Haystack Agents"
 readme = "README.md"
 requires-python = ">=3.10"
 license = "Apache-2.0"
-keywords = []
+keywords = ["haystack", "agents"]
 authors = [{ name = "deepset GmbH", email = "info@deepset.ai" }]
 classifiers = [
   "License :: OSI Approved :: Apache Software License",
@@ -64,8 +64,7 @@ dependencies = [
     "pytest-rerunfailures",
     "mypy",
     "pip",
-    # Optional runtime deps of the deep_research agent, required to exercise it in tests.
-    # End users install these themselves (see README).
+    # deep_research agent
     "tavily-haystack",
     "trafilatura",
     "pypdf",
