@@ -15,10 +15,9 @@ logger = logging.getLogger(__name__)
 
 
 class ScopeHook:
-    """Turn the user query into a research brief, once. Runs as a `before_llm` hook."""
+    """Turn the user query into a research brief, once. Runs as a `before_run` hook."""
 
-    # using a `before_run` hook point would be better and would not require the if guard in `run`
-    allowed_hook_points = ("before_llm",)
+    allowed_hook_points = "before_run"
 
     def __init__(self, generator: ChatGenerator, prompt_builder: ChatPromptBuilder) -> None:
         self.generator = generator
@@ -43,9 +42,7 @@ class ScopeHook:
         return default_from_dict(cls, data)
 
     def run(self, state: State) -> None:
-        """Rewrite the query into a research brief and seed it as the sole user message, once."""
-        if state.get("brief"):
-            return
+        """Rewrite the query into a research brief and seed it as the sole user message."""
         prompt = self.prompt_builder.run(query=state.data["messages"][-1].text)["prompt"]
         brief = self.generator.run(messages=prompt)["replies"][0].text
         logger.info("brief:\n{brief}", brief=brief)
@@ -54,11 +51,9 @@ class ScopeHook:
 
 
 class WriteHook:
-    """Write the final report from the brief and notes, once. Runs as an `on_exit` hook."""
+    """Write the final report from the brief and notes, once. Runs as an `after_run` hook."""
 
-    # using an `after_run` hook point would be better and would avoid producing empty reports if the orchestrator
-    # exhausts its step budget
-    allowed_hook_points = ("on_exit",)
+    allowed_hook_points = "after_run"
 
     def __init__(self, generator: ChatGenerator, prompt_builder: ChatPromptBuilder) -> None:
         self.generator = generator
@@ -83,9 +78,7 @@ class WriteHook:
         return default_from_dict(cls, data)
 
     def run(self, state: State) -> None:
-        """Write the final report from the brief and collected notes, once."""
-        if state.get("report"):
-            return
+        """Write the final report from the brief and collected notes."""
         subtopics = [
             tc.arguments["messages"][0]["content"]
             for m in state.data.get("messages", [])

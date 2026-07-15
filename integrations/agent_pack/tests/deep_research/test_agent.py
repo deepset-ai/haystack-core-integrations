@@ -74,8 +74,8 @@ def test_create_deep_research_agent():
     assert agent.tool_concurrency_limit == 2
     assert set(agent.state_schema) >= {"notes", "brief", "report"}
     assert "at most 3 focused sub-questions" in agent.system_prompt
-    assert [type(h) for h in agent.hooks["before_llm"]] == [ScopeHook]
-    assert [type(h) for h in agent.hooks["on_exit"]] == [WriteHook]
+    assert [type(h) for h in agent.hooks["before_run"]] == [ScopeHook]
+    assert [type(h) for h in agent.hooks["after_run"]] == [WriteHook]
 
     default_agent = create_deep_research_agent()
     assert isinstance(default_agent.chat_generator, OpenAIResponsesChatGenerator)
@@ -115,8 +115,8 @@ def test_create_deep_research_agent_serialization_roundtrip():
 
     assert isinstance(restored, Agent)
     assert [t.name for t in restored.tools] == ["research_subtopic", "think_tool"]
-    assert [type(h) for h in restored.hooks["before_llm"]] == [ScopeHook]
-    assert [type(h) for h in restored.hooks["on_exit"]] == [WriteHook]
+    assert [type(h) for h in restored.hooks["before_run"]] == [ScopeHook]
+    assert [type(h) for h in restored.hooks["after_run"]] == [WriteHook]
     assert set(restored.state_schema) >= {"notes", "brief", "report"}
 
 

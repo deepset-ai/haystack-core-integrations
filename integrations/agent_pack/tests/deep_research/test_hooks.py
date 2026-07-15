@@ -36,19 +36,6 @@ def test_scope_hook_sets_brief_and_replaces_messages():
     assert state.get("messages")[-1].text == "a focused brief"
 
 
-def test_scope_hook_is_a_noop_when_brief_exists():
-    generator = MockChatGenerator("should not run")
-    hook = ScopeHook(generator=generator, prompt_builder=ChatPromptBuilder(template="{{ query }}"))
-    state = State(schema=SCOPE_SCHEMA)
-    state.set("brief", "existing")
-    state.set("messages", [ChatMessage.from_user("q")])
-
-    hook.run(state)
-
-    assert state.get("brief") == "existing"
-    assert generator._call_count == 0
-
-
 def test_write_hook_writes_report_from_brief_and_notes():
     hook = WriteHook(
         generator=MockChatGenerator(response_fn=_echo_prompt),
@@ -81,18 +68,6 @@ def test_write_hook_drops_empty_notes():
     hook.run(state)
 
     assert state.get("report") == "1"
-
-
-def test_write_hook_is_a_noop_when_report_exists():
-    generator = MockChatGenerator("should not run")
-    hook = WriteHook(generator=generator, prompt_builder=ChatPromptBuilder(template="{{ notes }}"))
-    state = State(schema=WRITE_SCHEMA)
-    state.set("report", "existing report")
-
-    hook.run(state)
-
-    assert state.get("report") == "existing report"
-    assert generator._call_count == 0
 
 
 @pytest.mark.parametrize("hook_cls", [ScopeHook, WriteHook])

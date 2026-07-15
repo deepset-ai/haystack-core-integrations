@@ -187,5 +187,5 @@ def create_deep_research_agent(
         max_agent_steps=max_orchestrator_steps,
         tool_concurrency_limit=max_concurrent_researchers,
         state_schema={"notes": {"type": list}, "brief": {"type": str}, "report": {"type": str}},
-        hooks={"before_llm": [scope], "on_exit": [write]},
+        hooks={"before_run": [scope], "after_run": [write]},
     )
