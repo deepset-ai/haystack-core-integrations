@@ -26,6 +26,10 @@ classifiers = [
 dependencies = [
   "haystack-ai>=2.24.0",
   "cognee>=1.0.9",
+  # litellm (pulled in transitively by cognee) ships a Rust extension from 1.83.8+ with no cp314
+  # wheels and caps requires-python at <3.14, so on Python 3.14 constrain to the last pure-Python
+  # release. Other Python versions stay unpinned.
+  "litellm<1.83.8; python_version >= '3.14'",
 ]
 
 [project.urls]

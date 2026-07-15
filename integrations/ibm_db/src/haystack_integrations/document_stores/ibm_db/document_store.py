@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""IBM DB2 Document Store for Haystack."""
+"""IBM Db2 Document Store for Haystack."""
 
 import json
 import logging
@@ -23,9 +23,9 @@ logger = logging.getLogger(__name__)
 
 def _parse_embedding(embedding: Any) -> list[float] | None:
     """
-    Parse embedding from DB2 VECTOR type to Python list.
+    Parse embedding from Db2 VECTOR type to Python list.
 
-    DB2's VECTOR type may be returned as a string representation like '[1.0, 2.0, 3.0]'
+    Db2's VECTOR type may be returned as a string representation like '[1.0, 2.0, 3.0]'
     or as an iterable. This function handles both cases.
 
     :param embedding: Embedding value from database (string, list, or None)
@@ -80,9 +80,9 @@ def _row_to_document(row: tuple) -> Document:
 
 class IBMDb2DocumentStore:
     """
-    IBM DB2 Document Store for Haystack using vector search capabilities.
+    IBM Db2 Document Store for Haystack using vector search capabilities.
 
-    This document store uses IBM DB2's native vector search functionality
+    This document store uses IBM Db2's native vector search functionality
     to store and retrieve documents with embeddings.
     """
 
@@ -105,7 +105,7 @@ class IBMDb2DocumentStore:
         recreate_table: bool = False,
     ):
         """
-        Initialize the IBM DB2 Document Store.
+        Initialize the IBM Db2 Document Store.
 
         :param database: Database name
         :param hostname: Database server hostname
@@ -149,7 +149,7 @@ class IBMDb2DocumentStore:
 
         Thread-safe lazy initialization with SSL support.
 
-        :return: IBM DB2 connection object
+        :return: IBM Db2 connection object
         """
         if self._connection is None:
             with self._connection_lock:
@@ -577,7 +577,7 @@ class IBMDb2DocumentStore:
 
         with conn.cursor() as cur:
             try:
-                # DB2 doesn't have a simple JSON merge operator like PostgreSQL's ||
+                # Db2 doesn't have a simple JSON merge operator like PostgreSQL's ||
                 # We need to read, merge, and update
                 # First, get the documents that match the filter
                 select_sql = f"SELECT id, SYSTOOLS.BSON2JSON(meta) AS meta FROM {self.table_name} {where_clause}"
@@ -618,7 +618,7 @@ class IBMDb2DocumentStore:
         conn = self._get_connection()
 
         # Extract values from the JSON metadata field
-        # DB2 has issues with DISTINCT/GROUP BY on JSON_VALUE results (SQL0134N error)
+        # Db2 has issues with DISTINCT/GROUP BY on JSON_VALUE results (SQL0134N error)
         # So we fetch all values and deduplicate in Python
         # Use RETURNING VARCHAR to explicitly specify the return type
         with conn.cursor() as cur:
@@ -768,7 +768,7 @@ class IBMDb2DocumentStore:
             field_name = field.removeprefix("meta.")
 
             # Count distinct values for this field
-            # We need to fetch all values and deduplicate in Python due to DB2's JSON handling
+            # We need to fetch all values and deduplicate in Python due to Db2's JSON handling
             with conn.cursor() as cur:
                 try:
                     sql = (

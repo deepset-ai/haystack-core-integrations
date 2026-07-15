@@ -79,6 +79,13 @@ jobs:
           python -m pip install --upgrade pip
           pip install hatch --uploaded-prior-to=P1D
 
+      - name: Install FFmpeg
+        run: |
+          # Recent vLLM imports torchcodec at startup, which needs FFmpeg's shared libraries
+          # (libavutil.so.*); without them `vllm serve` crashes on import and never binds its port.
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg
+
       - name: Install vLLM (CPU)
         run: |
           # vLLM on PyPI is GPU-only and requires CUDA, so it won't run on CPU-only systems.
