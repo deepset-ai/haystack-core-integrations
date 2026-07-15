@@ -1,4 +1,5 @@
 import os
+import re
 
 import pytest
 from haystack import Document, Pipeline
@@ -222,26 +223,56 @@ class TestAdvancedRagAgentRun:
     @pytest.mark.skipif(not os.environ.get("OPENAI_API_KEY"), reason="OPENAI_API_KEY required")
     def test_live_run(self):
         document_store = InMemoryDocumentStore()
-        document_store.write_documents(
-            [
-                Document(
-                    content="CRISPR corrected a hereditary blindness mutation.",
-                    meta={"category": "science", "year": 2021},
-                ),
-                Document(
-                    content="A quantum computer demonstrated error-corrected qubits.",
-                    meta={"category": "science", "year": 2023},
-                ),
-                Document(content="The Berlin Wall fell.", meta={"category": "history", "year": 1989}),
-            ]
-        )
+        expected = [
+            Document(
+                content="CRISPR gene editing corrected a hereditary blindness mutation in a clinical trial.",
+                meta={"category": "science", "year": 2021, "rating": 4.6},
+            ),
+            Document(
+                content="A quantum computer demonstrated error-corrected logical qubits.",
+                meta={"category": "science", "year": 2023, "rating": 4.8},
+            ),
+        ]
+        decoys = [
+            Document(
+                content="The LIGO observatory detected gravitational waves for the first time.",
+                meta={"category": "science", "year": 2016, "rating": 4.9},
+            ),
+            Document(
+                content="The Berlin Wall fell, a decisive moment in the end of the Cold War.",
+                meta={"category": "history", "year": 1989, "rating": 4.7},
+            ),
+            Document(
+                content="Argentina won the FIFA World Cup final against France on penalties.",
+                meta={"category": "sports", "year": 2022, "rating": 4.9},
+            ),
+        ]
+        document_store.write_documents(expected + decoys)
         agent = create_advanced_rag_agent(
-            document_store=document_store, retriever=InMemoryBM25Retriever(document_store=document_store, top_k=3)
+            document_store=document_store, retriever=InMemoryBM25Retriever(document_store=document_store, top_k=5)
         )
 
-        result = agent.run(messages=[ChatMessage.from_user("What do the science documents from after 2020 say?")])
+        result = agent.run(
+            messages=[ChatMessage.from_user("What scientific breakthroughs after 2020 do the documents describe?")]
+        )
 
-        assert result["last_message"].text.strip()
-        documents = result["documents"]
-        assert documents and all(d.meta["category"] == "science" for d in documents)
-        assert result["tool_call_counts"]["list_metadata_fields"] >= 1
+        # The metadata tools are used before any retrieval.
+        tool_call_order = [tc.tool_name for m in result["messages"] for tc in m.tool_calls]
+        first_retrieval = next(
+            i for i, name in enumerate(tool_call_order) if name in ("search_documents", "fetch_documents_by_filter")
+        )
+        assert "list_metadata_fields" in tool_call_order[:first_retrieval]
+
+        # Both expected documents are found (recall over the ground-truth set).
+        retrieved_ids = {d.id for d in result["documents"]}
+        assert {d.id for d in expected} <= retrieved_ids
+
+        # Every [doc <short-id>] citation in the answer resolves to a retrieved document.
+        answer = result["last_message"].text
+        assert answer.strip()
+        cited_refs = re.findall(r"\[doc ([0-9a-f]{4,16})\]", answer)
+        assert cited_refs, "the answer contains no document citations"
+        assert all(any(doc_id.startswith(ref) for doc_id in retrieved_ids) for ref in cited_refs)
+
+        # The answer draws on the expected documents' content.
+        assert "quantum" in answer.lower() or "crispr" in answer.lower()

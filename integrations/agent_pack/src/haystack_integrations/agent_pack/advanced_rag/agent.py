@@ -2,12 +2,6 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-# The advanced RAG agent: metadata-aware, filtered retrieval.
-#
-# Instead of guessing which metadata fields exist, the agent first inspects the document store
-# (fields, values, ranges), then constructs a Haystack filter and retrieves with it:
-# inspect metadata -> build filter -> retrieve -> answer from the retrieved documents.
-
 from typing import Any
 
 from haystack import Document, Pipeline
@@ -68,6 +62,11 @@ def create_advanced_rag_agent(
 ) -> Agent:
     """
     Create the advanced RAG agent.
+
+    The agent answers questions from documents it retrieves out of the document store. Instead of guessing which
+    metadata fields exist, it can inspect the store (fields, values, ranges) and construct a Haystack filter to
+    narrow its retrieval when metadata helps — plain, unfiltered retrieval remains available when it doesn't. The
+    answer cites the retrieved documents.
 
     Provide exactly one of `retriever` or `retrieval_pipeline` for the `search_documents` tool; `document_store`
     additionally feeds the three metadata inspection tools and must implement the metadata introspection methods

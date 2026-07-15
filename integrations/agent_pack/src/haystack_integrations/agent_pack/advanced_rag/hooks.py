@@ -2,8 +2,6 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-# The backup-answer safety net, as a serializable Agent hook.
-
 from haystack import logging
 from haystack.components.agents.state import State
 from haystack.components.generators.chat.types import ChatGenerator

@@ -2,8 +2,6 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-# The tools the advanced RAG agent uses.
-
 import contextlib
 import inspect
 import json
