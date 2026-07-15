@@ -22,7 +22,9 @@ classifiers = [
   "Programming Language :: Python :: 3.14",
   "Programming Language :: Python :: Implementation :: CPython",
 ]
-dependencies = ["haystack-ai>=2.30.0", "litellm>=1.84.0,<2.0"]
+# litellm capped below 1.92.0: that release ships cp310-cp313-only compiled wheels
+# (source build fails on Python 3.14) and imports fastapi (proxy extra) on any tool call
+dependencies = ["haystack-ai>=2.30.0", "litellm>=1.84.0,<1.92.0"]
 
 [project.urls]
 Documentation = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/litellm#readme"
