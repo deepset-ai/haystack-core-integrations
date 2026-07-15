@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/litellm-v1.1.2] - 2026-07-15
+
+### 🧹 Chores
+
+- Cap litellm below 1.92.0
+
+
 ## [integrations/litellm-v1.1.1] - 2026-07-15
 
 ### 🧹 Chores
