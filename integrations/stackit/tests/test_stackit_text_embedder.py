@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 import os
-from unittest.mock import Mock, patch
+from unittest.mock import Mock
 
 import pytest
 from haystack.utils import Secret
@@ -167,10 +167,16 @@ class TestSTACKITTextEmbedder:
         mock_response.model = "Qwen/Qwen3-VL-Embedding-8B"
         mock_response.usage = {"prompt_tokens": 4, "total_tokens": 4}
 
-        with patch.object(embedder.client.embeddings, "create", return_value=mock_response) as mock_create:
-            embedder.run("I love cheese")
+        # Assign a mock client instead of patching the real one's attributes: depending on the
+        # Haystack version, the OpenAI client is created eagerly in __init__ or lazily in warm_up(),
+        # and warm_up() leaves an already-set client untouched.
+        mock_client = Mock()
+        mock_client.embeddings.create.return_value = mock_response
+        embedder.client = mock_client
 
-        assert mock_create.call_args.kwargs["dimensions"] == 1024
+        embedder.run("I love cheese")
+
+        assert mock_client.embeddings.create.call_args.kwargs["dimensions"] == 1024
 
     def test_run_wrong_input_format(self):
         embedder = STACKITTextEmbedder(

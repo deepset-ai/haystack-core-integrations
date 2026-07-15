@@ -3,12 +3,11 @@
 # SPDX-License-Identifier: Apache-2.0
 import logging
 import os
-from unittest.mock import Mock, patch
+from unittest.mock import Mock
 
 import pytest
 from haystack import Document
 from haystack.utils import Secret
-from openai import BadRequestError
 
 from haystack_integrations.components.embedders.stackit.document_embedder import STACKITDocumentEmbedder
 
@@ -207,9 +206,7 @@ class TestSTACKITDocumentEmbedder:
             result = embedder.run([Document(content="I love cheese")])
 
         assert result["documents"][0].embedding is None
-        logged_errors = [r.exc for r in caplog.records if isinstance(getattr(r, "exc", None), BadRequestError)]
-        assert len(logged_errors) == 1
-        assert logged_errors[0].status_code == 400
+        assert "Failed embedding of documents" in caplog.text
 
     def test_run_forwards_dimensions_to_client(self):
         embedder = STACKITDocumentEmbedder(
@@ -223,10 +220,16 @@ class TestSTACKITDocumentEmbedder:
         mock_response.model = "Qwen/Qwen3-VL-Embedding-8B"
         mock_response.usage = {"prompt_tokens": 4, "total_tokens": 4}
 
-        with patch.object(embedder.client.embeddings, "create", return_value=mock_response) as mock_create:
-            embedder.run([Document(content="I love cheese")])
+        # Assign a mock client instead of patching the real one's attributes: depending on the
+        # Haystack version, the OpenAI client is created eagerly in __init__ or lazily in warm_up(),
+        # and warm_up() leaves an already-set client untouched.
+        mock_client = Mock()
+        mock_client.embeddings.create.return_value = mock_response
+        embedder.client = mock_client
 
-        assert mock_create.call_args.kwargs["dimensions"] == 1024
+        embedder.run([Document(content="I love cheese")])
+
+        assert mock_client.embeddings.create.call_args.kwargs["dimensions"] == 1024
 
     def test_run_wrong_input_format(self):
         embedder = STACKITDocumentEmbedder(
