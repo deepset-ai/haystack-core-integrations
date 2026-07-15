@@ -23,7 +23,7 @@ classifiers = [
   "Programming Language :: Python :: Implementation :: CPython",
 ]
 # litellm 1.82.7 and 1.82.8 were malicious releases and are excluded.
-dependencies = ["haystack-ai>=2.30.0", "litellm>=1.60.0,<2.0,!=1.82.7,!=1.82.8"]
+dependencies = ["haystack-ai>=2.30.0", "litellm>=1.84.0,<2.0"]
 
 [project.urls]
 Documentation = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/litellm#readme"
