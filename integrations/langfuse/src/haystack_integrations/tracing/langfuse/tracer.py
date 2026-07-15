@@ -345,10 +345,13 @@ class DefaultSpanHandler(SpanHandler):
         # special case for ToolInvoker (to update the span name to be: `original_component_name - [tool_names]`)
         if component_type == "ToolInvoker":
             tool_names: list[str] = []
+            tool_calls_input: list[dict[str, Any]] = []
             messages = span.get_data().get(_COMPONENT_INPUT_KEY, {}).get("messages", [])
             for message in messages:
                 if isinstance(message, ChatMessage) and message.tool_calls:
-                    tool_names.extend(call.tool_name for call in message.tool_calls)
+                    for call in message.tool_calls:
+                        tool_names.append(call.tool_name)
+                        tool_calls_input.append({"tool_name": call.tool_name, "arguments": call.arguments})
 
             if tool_names:
                 # Fallback to "ToolInvoker" if we can't retrieve component name
@@ -356,6 +359,30 @@ class DefaultSpanHandler(SpanHandler):
                 tool_counts = Counter(tool_names)  # how many times each tool was called
                 formatted_names = [f"{name} (x{count})" if count > 1 else name for name, count in tool_counts.items()]
                 span.raw_span().update(name=f"{tool_invoker_name} - {sorted(formatted_names)}")
+
+            if tool_calls_input and proxy_tracer.is_content_tracing_enabled:
+                # Replace the noisy full message history with just the tool call arguments
+                span.raw_span().update(input=tool_calls_input)
+
+                output_messages = span.get_data().get(_COMPONENT_OUTPUT_KEY, {}).get("tool_messages", [])
+                tool_results: list[dict[str, Any]] = []
+                for message in output_messages:
+                    if isinstance(message, ChatMessage) and message.tool_call_results:
+                        for tcr in message.tool_call_results:
+                            origin = tcr.origin
+                            # Keys `name`, `arguments` and `id` let Langfuse detect these as tool
+                            # calls at ingestion and populate the Tool Call Name filter in the UI.
+                            tool_results.append(
+                                {
+                                    "id": origin.id if origin else None,
+                                    "name": origin.tool_name if origin else None,
+                                    "arguments": origin.arguments if origin else None,
+                                    "result": tcr.result,
+                                    "error": tcr.error,
+                                }
+                            )
+                if tool_results:
+                    span.raw_span().update(output=tool_results)
 
         if component_type and component_type.endswith("ChatGenerator"):
             replies = span.get_data().get(_COMPONENT_OUTPUT_KEY, {}).get("replies")
