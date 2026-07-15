@@ -1,5 +1,13 @@
 # Changelog
 
+## [integrations/litellm-v1.1.1] - 2026-07-15
+
+### 🧹 Chores
+
+- Support sync streaming callbacks in async contexts for Haystack 2.x/3.x compatibility (#3534)
+- Update litellm dependency version in pyproject.toml (#3599)
+
+
 ## [integrations/litellm-v1.1.0] - 2026-06-04
 
 ### 🚀 Features
