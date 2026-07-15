@@ -12,6 +12,7 @@ from haystack.document_stores.in_memory import InMemoryDocumentStore
 from haystack.hooks import hook
 from haystack.tools import Toolset, tool
 
+from haystack_integrations.agent_pack.advanced_rag import agent as agent_module
 from haystack_integrations.agent_pack.advanced_rag.agent import _default_llm, create_advanced_rag_agent
 from haystack_integrations.agent_pack.advanced_rag.hooks import BackupAnswerHook
 from haystack_integrations.agent_pack.advanced_rag.tools import DocumentStoreToolset
@@ -67,11 +68,10 @@ class TestFactoryValidation:
             create_advanced_rag_agent(document_store=store, retrieval_pipeline=Pipeline(), llm=MockChatGenerator())
 
     def test_missing_arrow_gives_an_actionable_error(self, store, monkeypatch):
-        from haystack_integrations.agent_pack.advanced_rag import agent as agent_module
-
         class _FailedArrowImport:
             def check(self):
-                raise ImportError('Run "pip install arrow>=1.3.0"')
+                msg = 'Run "pip install arrow>=1.3.0"'
+                raise ImportError(msg)
 
         monkeypatch.setattr(agent_module, "arrow_import", _FailedArrowImport())
         # The default system prompt needs `arrow` for its `{% now %}` tag.
