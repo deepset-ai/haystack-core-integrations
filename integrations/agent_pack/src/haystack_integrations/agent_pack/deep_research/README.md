@@ -42,7 +42,7 @@ bracket its loop. The three logical phases are **Scope → Research → Write**:
       │
       ▼
 ┌──────────────┐
-│  1. SCOPE    │   before_llm hook: rewrite the question into a focused research brief
+│  1. SCOPE    │   before_run hook: rewrite the question into a focused research brief
 └──────┬───────┘
        │ brief
        ▼
@@ -53,7 +53,7 @@ bracket its loop. The three logical phases are **Scope → Research → Write**:
        │ brief + notes
        ▼
 ┌──────────────┐
-│  3. WRITE    │   on_exit hook: brief + notes → cited markdown report
+│  3. WRITE    │   after_run hook: brief + notes → cited markdown report
 └──────┬───────┘
        │
        ▼
@@ -63,10 +63,10 @@ bracket its loop. The three logical phases are **Scope → Research → Write**:
 **Scope** and **Write** are plain LLM calls (a `ChatPromptBuilder` + an `OpenAIResponsesChatGenerator`),
 wrapped as serializable hook classes (`ScopeHook`, `WriteHook`):
 
-- **Scope** runs as a `before_llm` hook: before the orchestrator's first step it turns the user
+- **Scope** runs as a `before_run` hook: before the orchestrator's loop starts it turns the user
   query into a brief, stored on the agent's `State`.
-- **Write** runs as an `on_exit` hook: when the orchestrator finishes, it turns the brief plus collected `notes` into 
-  the final report.
+- **Write** runs as an `after_run` hook: when the orchestrator's loop finishes, it turns the brief plus collected
+  `notes` into the final report.
 
 `brief`, `notes` and `report` are declared in the agent's `state_schema`, so they come back as
 outputs of a single `agent.run(...)` call.
@@ -113,7 +113,7 @@ small and the final report stays coherent.
 
 | Tool | What it is | What it does |
 |---|---|---|
-| `web_search` | `ComponentTool` over the Tavily integration (`TavilyWebSearch`) | Runs a web search; returns the top results as `title + exact URL + snippet`. |
+| `web_search` | `TavilyWebSearchTool` from the Tavily integration | Runs a web search; returns the top results as `title + exact URL + snippet`. |
 | `read_url` | `PipelineTool` over a fetch→route→convert-to-text→summarize pipeline | Fetches a page (`LinkContentFetcher`), routes by MIME type (`FileTypeRouter`) to `HTMLToDocument` (Trafilatura) or `PyPDFToDocument` so **PDFs are parsed too**, and **summarizes the page toward a question the agent passes** — so only the relevant text enters the agent's context, not the full page. Used only when a search snippet is too shallow. |
 | `think_tool` | a no-op reflection tool | "What did I learn? what's missing? stop or continue?" between searches. |
 

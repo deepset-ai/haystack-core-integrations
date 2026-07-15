@@ -1,35 +1,14 @@
 from haystack import Document
 from haystack.components.generators.chat import MockChatGenerator
 from haystack.dataclasses import ChatMessage
-from haystack.tools import ComponentTool, PipelineTool
+from haystack.tools import PipelineTool
 
 from haystack_integrations.agent_pack.deep_research.tools import (
     ContentGate,
-    TavilyWebSearchTool,
-    _format_search_results,
     _read_url_result,
     make_read_url_tool,
     think_tool,
 )
-
-
-def test_format_search_results_without_documents():
-    assert _format_search_results([]) == "No results."
-
-
-def test_format_search_results_includes_title_url_and_snippet():
-    docs = [
-        Document(content="  first snippet  ", meta={"title": "First", "url": "https://a.example/1"}),
-        Document(content="second snippet", meta={"title": "Second", "url": "https://b.example/2"}),
-    ]
-    out = _format_search_results(docs)
-    assert "- First\n  URL: https://a.example/1\n  first snippet" in out
-    assert "- Second\n  URL: https://b.example/2\n  second snippet" in out
-
-
-def test_format_search_results_uses_untitled_fallback():
-    out = _format_search_results([Document(content="x", meta={"url": "https://a.example"})])
-    assert "- Untitled" in out
 
 
 def test_content_gate_forwards_documents_with_text():
@@ -56,27 +35,6 @@ def test_read_url_result_reports_unsupported_content_type():
 
 def test_read_url_result_reports_no_readable_text():
     assert _read_url_result({}) == "Page not read: the page returned no readable text."
-
-
-def test_tavily_web_search_tool_configures_component_tool():
-    tool = TavilyWebSearchTool(top_k=7)
-    assert isinstance(tool, ComponentTool)
-    assert tool.name == "web_search"
-    assert tool._component.top_k == 7
-
-
-def test_tavily_web_search_tool_serde():
-    tool = TavilyWebSearchTool(top_k=7)
-    data = tool.to_dict()
-    assert data == {
-        "type": "haystack_integrations.agent_pack.deep_research.tools.TavilyWebSearchTool",
-        "data": {"top_k": 7},
-    }
-
-    restored = TavilyWebSearchTool.from_dict(data)
-    assert isinstance(restored, TavilyWebSearchTool)
-    assert restored.name == "web_search"
-    assert restored._component.top_k == 7
 
 
 def test_make_read_url_tool_builds_pipeline_tool():

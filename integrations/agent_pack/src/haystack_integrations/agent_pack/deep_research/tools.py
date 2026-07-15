@@ -3,16 +3,17 @@
 # SPDX-License-Identifier: Apache-2.0
 
 """
-The tools the agents use.
+The tools defined here for the agents.
 
-- `web_search`: a `ComponentTool` wrapping the Tavily Haystack integration.
 - `read_url`: a `PipelineTool` wrapping a small summarization pipeline. The fetched
   page is routed by MIME type (`FileTypeRouter`) to `HTMLToDocument` or
   `PyPDFToDocument` so PDFs are parsed too, then summarized toward the question.
 - `think_tool`: the reflection no-op — a plain `@tool`.
+
+`web_search` is the `TavilyWebSearchTool` provided by the Tavily integration; it is wired in `agent.py`.
 """
 
-from typing import Annotated, Any
+from typing import Annotated
 
 from haystack import Document, Pipeline, component, logging
 from haystack.components.builders import ChatPromptBuilder
@@ -21,71 +22,11 @@ from haystack.components.fetchers import LinkContentFetcher
 from haystack.components.generators.chat.types import ChatGenerator
 from haystack.components.joiners import DocumentJoiner
 from haystack.components.routers import FileTypeRouter
-from haystack.core.serialization import generate_qualified_class_name
-from haystack.lazy_imports import LazyImport
-from haystack.tools import ComponentTool, PipelineTool, tool
+from haystack.tools import PipelineTool, tool
 
 from haystack_integrations.agent_pack.deep_research import prompts
 
-with LazyImport(message="Run 'pip install tavily-haystack'") as tavily_import:
-    from haystack_integrations.components.websearch.tavily import TavilyWebSearch
-
 logger = logging.getLogger(__name__)
-
-
-def _format_search_results(documents: list[Document]) -> str:
-    """Format `web_search` results as the tool-result string: title + exact URL + snippet."""
-    if not documents:
-        return "No results."
-    blocks = []
-    for d in documents:
-        url = d.meta.get("url", "")
-        title = d.meta.get("title", "Untitled")
-        snippet = (d.content or "").strip()
-        blocks.append(f"- {title}\n  URL: {url}\n  {snippet}")
-    logger.info(
-        "web_search -> {count} results: {urls}", count=len(documents), urls=[d.meta.get("url") for d in documents]
-    )
-    return "\n".join(blocks)
-
-
-class TavilyWebSearchTool(ComponentTool):
-    """
-    `web_search` tool: a ComponentTool over TavilyWebSearch (async-capable).
-
-    :param top_k: Results returned per `web_search` call.
-    """
-
-    def __init__(self, top_k: int = 10) -> None:
-        tavily_import.check()
-        self._top_k = top_k
-        super().__init__(
-            component=TavilyWebSearch(top_k=top_k),
-            name="web_search",
-            description=(
-                "Search the web. Returns the top results, each with title, exact URL and a content "
-                "snippet. Cite the exact URLs verbatim."
-            ),
-            outputs_to_string={"source": "documents", "handler": _format_search_results},
-        )
-
-    def to_dict(self) -> dict[str, Any]:
-        """
-        Serialize the tool to a dictionary.
-
-        :returns: Dictionary with serialized data.
-        """
-        return {"type": generate_qualified_class_name(type(self)), "data": {"top_k": self._top_k}}
-
-    @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "TavilyWebSearchTool":
-        """
-        Deserialize the tool from a dictionary.
-
-        :param data: Dictionary to deserialize from.
-        :returns: Deserialized tool.
-        """
-        return cls(top_k=data["data"]["top_k"])
 
 
 @component

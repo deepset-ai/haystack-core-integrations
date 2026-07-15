@@ -65,7 +65,7 @@ dependencies = [
     "mypy",
     "pip",
     # deep_research agent
-    "tavily-haystack",
+    "tavily-haystack>=0.4.0",
     "trafilatura",
     "pypdf",
     "arrow",

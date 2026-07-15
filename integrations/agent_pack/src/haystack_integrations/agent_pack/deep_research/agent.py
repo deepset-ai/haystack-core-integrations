@@ -17,15 +17,15 @@ from haystack.components.builders import ChatPromptBuilder
 from haystack.components.generators.chat import OpenAIResponsesChatGenerator
 from haystack.components.generators.chat.types import ChatGenerator
 from haystack.dataclasses import ChatMessage
+from haystack.lazy_imports import LazyImport
 from haystack.tools import ComponentTool
 
 from haystack_integrations.agent_pack.deep_research import prompts
 from haystack_integrations.agent_pack.deep_research.hooks import ScopeHook, WriteHook
-from haystack_integrations.agent_pack.deep_research.tools import (
-    TavilyWebSearchTool,
-    make_read_url_tool,
-    think_tool,
-)
+from haystack_integrations.agent_pack.deep_research.tools import make_read_url_tool, think_tool
+
+with LazyImport(message="Run 'pip install tavily-haystack'") as tavily_import:
+    from haystack_integrations.tools.tavily import TavilyWebSearchTool
 
 logger = logging.getLogger(__name__)
 
@@ -68,6 +68,7 @@ def _make_researcher_agent(
     :param max_search_results: Results returned per `web_search` call.
     :param max_content_length: Raw page chars fed to the summarizer (pre-summarization cap).
     """
+    tavily_import.check()
     return Agent(
         chat_generator=researcher_llm,
         system_prompt=prompts.RESEARCHER_TEMPLATE,
