@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 class ScopeHook:
     """Turn the user query into a research brief, once. Runs as a `before_run` hook."""
 
-    allowed_hook_points = "before_run"
+    allowed_hook_points = ("before_run",)
 
     def __init__(self, generator: ChatGenerator, prompt_builder: ChatPromptBuilder) -> None:
         self.generator = generator
@@ -53,7 +53,7 @@ class ScopeHook:
 class WriteHook:
     """Write the final report from the brief and notes, once. Runs as an `after_run` hook."""
 
-    allowed_hook_points = "after_run"
+    allowed_hook_points = ("after_run",)
 
     def __init__(self, generator: ChatGenerator, prompt_builder: ChatPromptBuilder) -> None:
         self.generator = generator
