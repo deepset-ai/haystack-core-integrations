@@ -33,8 +33,8 @@ Runs the agent on a set of questions with known ground truth and reports, per ca
 
 Run from the integration directory (`integrations/agent_pack`) with `OPENAI_API_KEY` set:
 
-    hatch run python examples/advanced_rag_eval.py small
-    hatch run python examples/advanced_rag_eval.py large   # needs `datasets`, downloads reviews from HF
+    hatch run test:python examples/advanced_rag_eval.py small
+    hatch run test:python examples/advanced_rag_eval.py large   # needs `datasets`, downloads reviews from HF
 
 To validate against a real database instead of `InMemoryDocumentStore`, pass `--store opensearch`
 (needs `opensearch-haystack`). Set `OPENSEARCH_URL` if not http://localhost:9200, and
@@ -42,11 +42,11 @@ To validate against a real database instead of `InMemoryDocumentStore`, pass `--
 then). Start one locally with e.g.
 `docker run -p 9200:9200 -e discovery.type=single-node -e DISABLE_SECURITY_PLUGIN=true opensearchproject/opensearch:2`:
 
-    hatch run python examples/advanced_rag_eval.py small --store opensearch
-    hatch run python examples/advanced_rag_eval.py large --store opensearch
+    hatch run test:python examples/advanced_rag_eval.py small --store opensearch
+    hatch run test:python examples/advanced_rag_eval.py large --store opensearch
 
-The extra dependencies (`datasets`, `opensearch-haystack`) can be installed into the hatch
-environment with `uv pip install datasets opensearch-haystack` from inside `hatch shell`.
+The extra dependencies (`datasets`, `opensearch-haystack`) can be installed into the hatch test
+environment with `uv pip install datasets opensearch-haystack` from inside `hatch -e test shell`.
 An already-populated OpenSearch index is reused, so repeat runs skip re-indexing.
 """
 

@@ -11,6 +11,7 @@ from haystack.components.generators.chat.types import ChatGenerator
 from haystack.components.retrievers.types import TextRetriever
 from haystack.document_stores.types import DocumentStore
 from haystack.hooks import Hook, HookPoint
+from haystack.lazy_imports import LazyImport
 from haystack.tools import Tool, Toolset, ToolsType
 
 from haystack_integrations.agent_pack.advanced_rag import prompts
@@ -20,6 +21,12 @@ from haystack_integrations.agent_pack.advanced_rag.tools import (
     make_retrieval_pipeline_tool,
     make_retriever_tool,
 )
+
+# The default system prompt renders today's date via the Jinja `{% now %}` tag, which needs `arrow`. Without this
+# check, a missing `arrow` surfaces as a cryptic `TemplateSyntaxError: Encountered unknown tag 'now'` because
+# `ChatPromptBuilder` silently skips the extension when `arrow` is not installed.
+with LazyImport(message='Run "pip install arrow>=1.3.0"') as arrow_import:
+    import arrow  # noqa: F401
 
 _DEFAULT_TIMEOUT = 180.0
 _DEFAULT_MAX_RETRIES = 5
@@ -111,6 +118,10 @@ def create_advanced_rag_agent(
         order) — the answer cites them by the first 8 characters of their id, e.g. `[doc a1b2c3d4]`. The standard Agent
         outputs `messages`, `step_count`, `token_usage` and `tool_call_counts` are also returned.
     """
+    if system_prompt is None:
+        # Only the default system prompt requires the `{% now %}` Jinja tag (and thus `arrow`).
+        arrow_import.check()
+
     if (retriever is None) == (retrieval_pipeline is None):
         msg = "Provide exactly one of `retriever` or `retrieval_pipeline`."
         raise ValueError(msg)

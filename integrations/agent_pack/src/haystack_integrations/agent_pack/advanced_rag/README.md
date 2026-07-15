@@ -7,8 +7,11 @@ retrieval. Built on Haystack v3.
 ## Setup
 
 ```bash
-pip install agent-pack-haystack
+pip install agent-pack-haystack arrow
 ```
+
+`arrow` is an optional runtime dependency of the advanced RAG agent (it renders today's date into
+the system prompt, so the agent can build filters for relative dates like "the last 5 years").
 
 Set `OPENAI_API_KEY` in the environment.
 

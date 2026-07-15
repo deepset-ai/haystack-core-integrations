@@ -66,6 +66,28 @@ class TestFactoryValidation:
         with pytest.raises(ValueError, match="retrieval_pipeline_input_mapping"):
             create_advanced_rag_agent(document_store=store, retrieval_pipeline=Pipeline(), llm=MockChatGenerator())
 
+    def test_missing_arrow_gives_an_actionable_error(self, store, monkeypatch):
+        from haystack_integrations.agent_pack.advanced_rag import agent as agent_module
+
+        class _FailedArrowImport:
+            def check(self):
+                raise ImportError('Run "pip install arrow>=1.3.0"')
+
+        monkeypatch.setattr(agent_module, "arrow_import", _FailedArrowImport())
+        # The default system prompt needs `arrow` for its `{% now %}` tag.
+        with pytest.raises(ImportError, match="pip install arrow"):
+            create_advanced_rag_agent(
+                document_store=store, retriever=InMemoryBM25Retriever(document_store=store), llm=MockChatGenerator()
+            )
+        # A custom system prompt does not.
+        agent = create_advanced_rag_agent(
+            document_store=store,
+            retriever=InMemoryBM25Retriever(document_store=store),
+            llm=MockChatGenerator(),
+            system_prompt="my prompt",
+        )
+        assert agent.system_prompt == "my prompt"
+
     def test_rejects_pipeline_arguments_on_the_retriever_path(self, store):
         with pytest.raises(ValueError, match="only valid with"):
             create_advanced_rag_agent(
