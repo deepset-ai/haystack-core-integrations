@@ -2,6 +2,15 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+# The two agents and the composition that wires them into one deep research Agent.
+#
+# - researcher: a reusable sub-agent that researches ONE sub-question in its own isolated context and returns a
+#   compressed, cited summary.
+# - deep research agent:
+#     - before starting the Agent loop, turns the user query into a research brief using the Scope Hook.
+#     - delegates sub-questions to the researcher and accumulates the returned summaries in shared `State`.
+#     - after the Agent loop, turns the brief plus collected notes into the final report using the Write Hook.
+
 from haystack import logging
 from haystack.components.agents import Agent
 from haystack.components.builders import ChatPromptBuilder
