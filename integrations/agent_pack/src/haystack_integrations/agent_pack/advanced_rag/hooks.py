@@ -24,23 +24,23 @@ class BackupAnswerHook:
 
     allowed_hook_points = ("after_run",)
 
-    def __init__(self, generator: ChatGenerator) -> None:
+    def __init__(self, chat_generator: ChatGenerator) -> None:
         """
         Create the hook.
 
-        :param generator: LLM that writes the backup answer from the gathered evidence.
+        :param chat_generator: LLM that writes the backup answer from the gathered evidence.
         """
-        self.generator = generator
+        self.chat_generator = chat_generator
 
     def warm_up(self) -> None:
         """Prepare the hook's generator for use; called from the Agent's `warm_up`."""
-        if hasattr(self.generator, "warm_up"):
-            self.generator.warm_up()
+        if hasattr(self.chat_generator, "warm_up"):
+            self.chat_generator.warm_up()
 
     def close(self) -> None:
         """Release the hook's generator resources; called from the Agent's `close`."""
-        if hasattr(self.generator, "close"):
-            self.generator.close()
+        if hasattr(self.chat_generator, "close"):
+            self.chat_generator.close()
 
     def to_dict(self) -> dict:
         """
@@ -48,7 +48,7 @@ class BackupAnswerHook:
 
         :returns: Dictionary with serialized data.
         """
-        return default_to_dict(self, generator=self.generator)
+        return default_to_dict(self, chat_generator=self.chat_generator)
 
     @classmethod
     def from_dict(cls, data: dict) -> "BackupAnswerHook":
@@ -85,5 +85,5 @@ class BackupAnswerHook:
         logger.info("run ended without a final answer (likely max_agent_steps); writing a backup answer")
         transcript = [m for m in messages if not m.is_from(ChatRole.SYSTEM)]
         prompt = [ChatMessage.from_system(prompts.BACKUP_ANSWER_PROMPT), *transcript]
-        reply = self.generator.run(messages=prompt)["replies"][0]
+        reply = self.chat_generator.run(messages=prompt)["replies"][0]
         state.set("messages", [reply])  # merge_lists handler: appended as the final message

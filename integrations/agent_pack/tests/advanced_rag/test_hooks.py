@@ -19,7 +19,7 @@ class TestBackupAnswerHook:
         assert not BackupAnswerHook._needs_backup([])
 
     def test_appends_an_answer_on_step_exhaustion(self):
-        hook = BackupAnswerHook(generator=MockChatGenerator("backup answer from the gathered evidence"))
+        hook = BackupAnswerHook(chat_generator=MockChatGenerator("backup answer from the gathered evidence"))
         state = State(schema={})
         state.set(
             "messages",
@@ -44,7 +44,7 @@ class TestBackupAnswerHook:
             seen.extend(messages)
             return "answer"
 
-        hook = BackupAnswerHook(generator=MockChatGenerator(response_fn=capture))
+        hook = BackupAnswerHook(chat_generator=MockChatGenerator(response_fn=capture))
         state = State(schema={})
         state.set(
             "messages",
@@ -64,7 +64,7 @@ class TestBackupAnswerHook:
 
     def test_is_a_noop_when_the_run_answered(self):
         generator = MockChatGenerator("should not run")
-        hook = BackupAnswerHook(generator=generator)
+        hook = BackupAnswerHook(chat_generator=generator)
         state = State(schema={})
         state.set("messages", [ChatMessage.from_user("q"), ChatMessage.from_assistant("proper answer")])
 
@@ -85,7 +85,7 @@ class TestBackupAnswerHook:
                 self.closed += 1
 
         generator = _LifecycleGenerator()
-        hook = BackupAnswerHook(generator=generator)
+        hook = BackupAnswerHook(chat_generator=generator)
         hook.warm_up()
         hook.close()
         assert generator.warmed_up == 1
@@ -95,7 +95,7 @@ class TestBackupAnswerHook:
         class _BareGenerator:
             pass
 
-        hook = BackupAnswerHook(generator=_BareGenerator())
+        hook = BackupAnswerHook(chat_generator=_BareGenerator())
         hook.warm_up()  # must not raise
         hook.close()  # must not raise
 
@@ -129,7 +129,7 @@ class TestBackupAnswerHook:
             ],
         )
 
-        BackupAnswerHook(generator=_default_llm("gpt-5.4")).run(state)
+        BackupAnswerHook(chat_generator=_default_llm("gpt-5.4")).run(state)
 
         answer = state.get("messages")[-1]
         assert answer.is_from(ChatRole.ASSISTANT)
@@ -157,17 +157,17 @@ class TestBackupAnswerHook:
             ],
         )
 
-        BackupAnswerHook(generator=_default_llm("gpt-5.4")).run(state)
+        BackupAnswerHook(chat_generator=_default_llm("gpt-5.4")).run(state)
 
         answer = state.get("messages")[-1]
         assert answer.is_from(ChatRole.ASSISTANT)
         assert "no matching information was found" in (answer.text or "").lower()
 
     def test_serialization_roundtrip(self):
-        hook = BackupAnswerHook(generator=OpenAIResponsesChatGenerator(model="gpt-5.4"))
+        hook = BackupAnswerHook(chat_generator=OpenAIResponsesChatGenerator(model="gpt-5.4"))
         data = hook.to_dict()
         assert data["type"].endswith("BackupAnswerHook")
 
         restored = BackupAnswerHook.from_dict(data)
         assert isinstance(restored, BackupAnswerHook)
-        assert restored.generator.model == "gpt-5.4"
+        assert restored.chat_generator.model == "gpt-5.4"

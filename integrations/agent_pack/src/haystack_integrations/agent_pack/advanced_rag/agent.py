@@ -57,6 +57,7 @@ def create_advanced_rag_agent(
     retrieval_pipeline_input_mapping: dict[str, list[str]] | None = None,
     retrieval_pipeline_output_mapping: dict[str, str] | None = None,
     llm: ChatGenerator | None = None,
+    backup_answer_llm: ChatGenerator | None = None,
     system_prompt: str | None = None,
     max_agent_steps: int = 20,
     max_fetched_docs: int = 10,
@@ -93,6 +94,9 @@ def create_advanced_rag_agent(
         to tool outputs, e.g. `{"retriever.documents": "documents"}`.
     :param llm: LLM that drives the agent loop. Defaults to `OpenAIResponsesChatGenerator("gpt-5.4")` with low
         reasoning effort.
+    :param backup_answer_llm: LLM the built-in `BackupAnswerHook` uses to write a best-effort answer when the run
+        is cut off by `max_agent_steps`. Defaults to a new instance with the same settings as the default `llm` —
+        deliberately a separate instance, never `llm` itself, so the agent loop's generator is not shared with a hook.
     :param system_prompt: Overrides the pre-made system prompt
         (`haystack_integrations.agent_pack.advanced_rag.prompts.SYSTEM_TEMPLATE`).
     :param max_agent_steps: Maximum steps for the agent loop. If the loop is cut off by this limit before writing an
@@ -141,6 +145,7 @@ def create_advanced_rag_agent(
         retrieval_tool = _make_retriever_tool(retriever=retriever)
 
     llm = llm or _default_llm("gpt-5.4")
+    backup_answer_llm = backup_answer_llm or _default_llm("gpt-5.4")
 
     tools: list[Tool | Toolset] = [
         DocumentStoreToolset(document_store, max_fetched_docs=max_fetched_docs),
@@ -149,7 +154,7 @@ def create_advanced_rag_agent(
     if extra_tools is not None:
         tools.extend([extra_tools] if isinstance(extra_tools, Toolset) else list(extra_tools))
 
-    merged_hooks: dict[HookPoint, list[Hook]] = {"after_run": [BackupAnswerHook(generator=llm)]}
+    merged_hooks: dict[HookPoint, list[Hook]] = {"after_run": [BackupAnswerHook(chat_generator=backup_answer_llm)]}
     for hook_point, point_hooks in (hooks or {}).items():
         merged_hooks.setdefault(hook_point, []).extend(point_hooks)
 

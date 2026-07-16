@@ -155,6 +155,25 @@ class TestCreateAdvancedRagAgent:
         assert agent.raise_on_tool_invocation_failure is True
         assert agent.tool_concurrency_limit == 2
 
+    def test_backup_answer_llm_is_never_the_agent_llm(self, store):
+        llm = MockChatGenerator()
+        agent = create_advanced_rag_agent(
+            document_store=store, retriever=InMemoryBM25Retriever(document_store=store), llm=llm
+        )
+        backup_hook = agent.hooks["after_run"][0]
+        # Without `backup_answer_llm` the hook gets its own default generator, not the agent's `llm`.
+        assert isinstance(backup_hook.chat_generator, OpenAIResponsesChatGenerator)
+        assert backup_hook.chat_generator is not llm
+
+        backup_llm = MockChatGenerator()
+        agent = create_advanced_rag_agent(
+            document_store=store,
+            retriever=InMemoryBM25Retriever(document_store=store),
+            llm=llm,
+            backup_answer_llm=backup_llm,
+        )
+        assert agent.hooks["after_run"][0].chat_generator is backup_llm
+
     def test_built_in_documents_state_entry_wins_over_custom(self, store):
         agent = create_advanced_rag_agent(
             document_store=store,
@@ -221,11 +240,12 @@ class TestAdvancedRagAgentRun:
             tool_calls=[ToolCall(tool_name="search_documents", arguments={"query": "wall"})]
         )
         # One step only: the LLM requests a tool call, the step budget is spent, no answer is written.
-        # The next (cycled) response is consumed by the BackupAnswerHook instead.
+        # The BackupAnswerHook then produces the answer with its own generator.
         agent = create_advanced_rag_agent(
             document_store=store,
             retriever=InMemoryBM25Retriever(document_store=store),
-            llm=MockChatGenerator(responses=[search_call, ChatMessage.from_assistant("the backup answer")]),
+            llm=MockChatGenerator(responses=[search_call]),
+            backup_answer_llm=MockChatGenerator(responses=[ChatMessage.from_assistant("the backup answer")]),
             max_agent_steps=1,
         )
 
