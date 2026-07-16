@@ -462,26 +462,32 @@ def _order_documents_for_reading(documents: list[Document]) -> list[Document]:
 
 def _format_fetch_result(result: dict[str, Any]) -> str:
     """
-    Format a fetch-by-filter result: the documents plus a note when more matched than were shown.
+    Format a fetch-by-filter result: the documents plus paging guidance when more matched than were shown.
 
-    :param result: The result from `FetchDocumentsByFilterTool._fetch_documents`, containing `documents` and
-        `total_matched`.
-    :returns: The formatted documents, or a message nudging the agent to adjust the filter.
+    :param result: The result from `FetchDocumentsByFilterTool._fetch_documents`, containing `documents`,
+        `total_matched` and `offset`.
+    :returns: The formatted documents, or a message nudging the agent to adjust the filter or page onwards.
     """
     documents: list[Document] = result["documents"]
     total_matched: int = result["total_matched"]
+    offset: int = result["offset"]
     if not documents:
+        if total_matched > 0:
+            return f"No documents at offset {offset}: only {total_matched} documents match the filter."
         return "No documents matched the filter. Verify the field names and values with the metadata tools."
     formatted = _format_retrieved_documents(documents)
-    extra = total_matched - len(documents)
-    if extra > 0:
-        formatted += f"\n… and {extra} more documents matched; narrow the filter."
+    remaining = total_matched - offset - len(documents)
+    if remaining > 0:
+        formatted += (
+            f"\n… and {remaining} more documents matched; call again with offset={offset + len(documents)} "
+            f"to continue, or narrow the filter."
+        )
     return formatted
 
 
 def _fetch_documents_tool_params(max_docs: int) -> dict[str, Any]:
     """
-    Build the input schema for the fetch-by-filter tool: a (required) filter plus an optional doc cap.
+    Build the input schema for the fetch-by-filter tool: a (required) filter, an optional doc cap and a page offset.
 
     :param max_docs: The configured ceiling for `max_docs`, embedded in the schema.
     :returns: The JSON schema.
@@ -496,6 +502,14 @@ def _fetch_documents_tool_params(max_docs: int) -> dict[str, Any]:
                 "maximum": max_docs,
                 "description": f"How many documents to return at most. Defaults to the maximum, {max_docs}.",
             },
+            "offset": {
+                "type": "integer",
+                "minimum": 0,
+                "description": (
+                    "How many matching documents to skip before returning results (reading order is stable). "
+                    "Use it to page through match sets larger than max_docs. Defaults to 0."
+                ),
+            },
         },
         "required": ["filters"],
     }
@@ -509,7 +523,8 @@ class FetchDocumentsByFilterTool(Tool):
     (e.g. a known title or source file) without going through a relevance search. The fetched documents are put into
     reading order first: grouped by their parent file (`file_name`/`file_path`/`source_id`) and sorted by their
     position within it (`split_id`/`split_idx_start`/`page_number`), using whichever of those metadata fields the
-    documents carry.
+    documents carry. Match sets larger than `max_docs` are paged: each call returns one page plus the total match
+    count, and the tool's `offset` input continues where the previous page ended.
     """
 
     def __init__(self, document_store: DocumentStore, max_docs: int = 10, max_fetch_factor: int = 10) -> None:
@@ -531,27 +546,30 @@ class FetchDocumentsByFilterTool(Tool):
             name="fetch_documents_by_filter",
             description=prompts.FILTER_RETRIEVER_TOOL_DESCRIPTION,
             parameters=_fetch_documents_tool_params(max_docs),
-            # We purposefully return a dict with `documents` and `total_matched`
+            # We purposefully return a dict with `documents`, `total_matched` and `offset`
             function=self._fetch_documents,
-            # This converts the dict into a single string and expects both keys to be present
+            # This converts the dict into a single string and expects all three keys to be present
             outputs_to_string={"handler": _format_fetch_result},
             # This accumulates the documents into the agent's state
             outputs_to_state={"documents": {"source": "documents", "handler": _accumulate_documents}},
         )
 
-    def _fetch_documents(self, filters: dict[str, Any], max_docs: int | None = None) -> dict[str, Any]:
+    def _fetch_documents(self, filters: dict[str, Any], max_docs: int | None = None, offset: int = 0) -> dict[str, Any]:
         """
         Fetch the documents matching a metadata filter, in reading order.
 
         :param filters: The metadata filter, in Haystack filter syntax.
         :param max_docs: How many documents to return at most; clamped to the configured ceiling (`self.max_docs`),
             which is also the default.
-        :returns: The ordered documents (capped) plus how many documents matched the filter overall. Formatted for
-            the LLM by `_format_fetch_result`.
+        :param offset: How many matching documents to skip before returning results, for paging through match sets
+            larger than `max_docs` (reading order is stable across calls).
+        :returns: One page of the ordered documents, the page's offset, plus how many documents matched the filter
+            overall. Formatted for the LLM by `_format_fetch_result`.
         :raises ValueError: If the filter matches far more documents than can be shown (see below). The `Agent`
             surfaces this to the LLM as an error tool message, so it can recover by narrowing the filter.
         """
         effective_max = max(1, min(max_docs, self.max_docs)) if max_docs is not None else self.max_docs
+        offset = max(0, offset)
         # Guard the expensive fetch: `filter_documents` has no limit parameter, so on a broad filter a real database
         # could ship thousands of documents only for us to show `max_docs` of them. When the store supports the cheap
         # `count_documents_by_filter` aggregation (opt-in, like the metadata methods), refuse over-broad filters
@@ -561,7 +579,7 @@ class FetchDocumentsByFilterTool(Tool):
         if counter is not None:
             count = counter(filters=filters)
             if count == 0:
-                return {"documents": [], "total_matched": 0}
+                return {"documents": [], "total_matched": 0, "offset": offset}
             if count > fetch_limit:
                 msg = (
                     f"Filter matches {count} documents, but at most {effective_max} can be shown per fetch — retrieving"
@@ -571,7 +589,11 @@ class FetchDocumentsByFilterTool(Tool):
                 )
                 raise ValueError(msg)
         documents = _order_documents_for_reading(self.document_store.filter_documents(filters=filters))
-        return {"documents": documents[:effective_max], "total_matched": len(documents)}
+        return {
+            "documents": documents[offset : offset + effective_max],
+            "total_matched": len(documents),
+            "offset": offset,
+        }
 
     def to_dict(self) -> dict[str, Any]:
         """Serialize the tool to a dictionary."""

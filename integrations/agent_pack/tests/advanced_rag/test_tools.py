@@ -156,9 +156,13 @@ class TestDocumentFormatting:
         assert '"category": "science"' in out
         assert "CRISPR gene editing breakthrough" in out
 
-    def test_fetch_result_notes_extra_matches(self):
-        out = _format_fetch_result({"documents": [DOCS[0]], "total_matched": 5})
-        assert "… and 4 more documents matched; narrow the filter." in out
+    def test_fetch_result_notes_extra_matches_with_paging_guidance(self):
+        out = _format_fetch_result({"documents": [DOCS[0]], "total_matched": 5, "offset": 0})
+        assert "… and 4 more documents matched; call again with offset=1 to continue, or narrow the filter." in out
+
+    def test_fetch_result_reports_an_offset_beyond_the_match_set(self):
+        out = _format_fetch_result({"documents": [], "total_matched": 5, "offset": 10})
+        assert out == "No documents at offset 10: only 5 documents match the filter."
 
 
 class TestReadingOrder:
@@ -206,11 +210,26 @@ class TestFetchDocumentsByFilterTool:
         result = FetchDocumentsByFilterTool(store).invoke(
             filters={"field": "meta.category", "operator": "==", "value": "nonexistent"}
         )
-        assert result == {"documents": [], "total_matched": 0}
+        assert result == {"documents": [], "total_matched": 0, "offset": 0}
         # The fetch tool requires a filter, so its empty-result message must not suggest removing it.
         assert _format_fetch_result(result) == (
             "No documents matched the filter. Verify the field names and values with the metadata tools."
         )
+
+    def test_pages_through_matches_with_offset(self):
+        document_store = InMemoryDocumentStore()
+        document_store.write_documents(SPLIT_DOCS)
+        tool = FetchDocumentsByFilterTool(document_store, max_docs=3)
+        report = {"field": "meta.category", "operator": "==", "value": "report"}
+
+        first = tool.invoke(filters=report)
+        second = tool.invoke(filters=report, offset=3)
+
+        # The two pages line up into the full match set: reading order is stable across calls.
+        assert [d.content for d in first["documents"] + second["documents"]] in READING_ORDERS
+        assert first["total_matched"] == second["total_matched"] == 4
+        assert "call again with offset=3 to continue" in _format_fetch_result(first)
+        assert "more documents matched" not in _format_fetch_result(second)
 
     def test_respects_and_clamps_max_docs(self, store):
         tool = FetchDocumentsByFilterTool(store, max_docs=2)

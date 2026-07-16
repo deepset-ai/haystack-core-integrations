@@ -41,8 +41,9 @@ RETRIEVAL_TOOL_DESCRIPTION = (
 
 
 FILTER_RETRIEVER_TOOL_DESCRIPTION = (
-    "Fetch documents directly by metadata filter, WITHOUT relevance ranking — every document "
-    "matching the filter is returned. Use this when you can identify the exact documents you need "
+    "Fetch documents directly by metadata filter, WITHOUT relevance ranking. Returns the matching "
+    "documents in reading order (up to max_docs per call) plus the total match count; page through "
+    "larger match sets with offset. Use this when you can identify the exact documents you need "
     "by their metadata (e.g. a specific title, source or file name); use search_documents when "
     "you need a relevance search."
 )
@@ -73,8 +74,8 @@ Process:
    When you can identify the exact documents you need by their metadata alone (e.g. a specific
    title, source or file name), fetch them directly with `fetch_documents_by_filter` instead of
    searching. The same applies when you need the COMPLETE set of documents matching a filter:
-   make one `fetch_documents_by_filter` call with that filter — do not repeat searches with
-   reworded queries or loosened filters.
+   fetch with that filter and, if the result reports more matches than shown, continue with the
+   `offset` parameter — do not repeat searches with reworded queries or loosened filters.
 4. If a search returns no documents, relax or drop the filter and retry — at most a couple of
    attempts. Do not re-inspect metadata you have already seen.
 
