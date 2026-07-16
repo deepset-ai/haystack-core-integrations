@@ -152,8 +152,6 @@ ban-relative-imports = "parents"
 [tool.ruff.lint.per-file-ignores]
 # Tests can use magic values, assertions, relative imports, and don't need type annotations
 "tests/**/*" = ["PLR2004", "S101", "TID252", "D", "ANN"]
-# Examples are runnable scripts: they may print, and eval ground-truth literals are fine
-"examples/**/*" = ["T201", "PLR2004"]
 
 [tool.coverage.run]
 source = ["haystack_integrations"]
