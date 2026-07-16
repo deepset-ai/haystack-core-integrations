@@ -266,16 +266,18 @@ class TestLookupNumberTool:
         client, rest = _client_with_mock()
         rest.lookup.get.return_value = MagicMock(
             phone_number="+14151234567",
-            country=MagicMock(name="United States"),
-            carrier=MagicMock(name="Verizon", type="mobile", ported="false"),
+            country={"name": "United States"},
+            carrier={"name": "Verizon", "type": "mobile", "ported": "false"},
         )
         tool = LookupNumberTool(client=client)
 
         result = tool.invoke(number="+14151234567")
 
         rest.lookup.get.assert_called_once_with("+14151234567")
-        assert "mobile" in result
         assert "+14151234567" in result
+        assert "United States" in result
+        assert "Verizon" in result
+        assert "mobile" in result
 
     def test_wraps_sdk_error(self):
         client, rest = _client_with_mock()

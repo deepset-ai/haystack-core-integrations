@@ -10,6 +10,13 @@ from haystack.tools import Tool
 from haystack_integrations.tools.plivo.client import PlivoClient
 
 
+def _read_field(obj: Any, key: str) -> Any:
+    """Read a field whether the lookup value is a dict or an object."""
+    if isinstance(obj, dict):
+        return obj.get(key)
+    return getattr(obj, key, None)
+
+
 class LookupNumberTool(Tool):
     """
     A :class:`~haystack.tools.Tool` that looks up carrier information for a phone number.
@@ -42,14 +49,14 @@ class LookupNumberTool(Tool):
             except Exception as e:
                 msg = f"Failed to look up number {number}: {e}"
                 raise RuntimeError(msg) from e
-            country = getattr(response, "country", None)
-            carrier = getattr(response, "carrier", None)
+            country = _read_field(response, "country")
+            carrier = _read_field(response, "carrier")
             return (
-                f"number: {getattr(response, 'phone_number', number)}, "
-                f"country: {getattr(country, 'name', None)}, "
-                f"carrier: {getattr(carrier, 'name', None)}, "
-                f"type: {getattr(carrier, 'type', None)}, "
-                f"ported: {getattr(carrier, 'ported', None)}"
+                f"number: {_read_field(response, 'phone_number') or number}, "
+                f"country: {_read_field(country, 'name')}, "
+                f"carrier: {_read_field(carrier, 'name')}, "
+                f"type: {_read_field(carrier, 'type')}, "
+                f"ported: {_read_field(carrier, 'ported')}"
             )
 
         super().__init__(
