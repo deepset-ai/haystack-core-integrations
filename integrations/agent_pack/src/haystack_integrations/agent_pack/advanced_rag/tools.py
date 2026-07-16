@@ -7,7 +7,7 @@ import inspect
 import json
 from typing import Any
 
-from haystack import Document, Pipeline, logging
+from haystack import Document, Pipeline
 from haystack.components.rankers import MetaFieldGroupingRanker
 from haystack.components.retrievers.types import TextRetriever
 from haystack.core.serialization import generate_qualified_class_name
@@ -16,9 +16,6 @@ from haystack.tools import ComponentTool, PipelineTool, Tool, Toolset
 from haystack.utils.deserialization import deserialize_component_inplace
 
 from haystack_integrations.agent_pack.advanced_rag import prompts
-
-logger = logging.getLogger(__name__)
-
 
 # Shared input schema for the retrieval tool. The property names MUST match the retriever's input sockets (component
 # path) / the input_mapping keys (pipeline path). The filter grammar is placed in the `filters` description so the LLM
@@ -73,7 +70,6 @@ def _format_retrieved_documents(documents: list[Document]) -> str:
     for doc in documents:
         content = (doc.content or "").strip()
         blocks.append(f"[doc {doc.id[:doc_ref_len]}]\n  meta: {json.dumps(doc.meta, default=str)}\n  {content}")
-    logger.info("retrieval -> {count} documents", count=len(documents))
     return "\n".join(blocks)
 
 
@@ -89,8 +85,8 @@ def _make_retriever_tool(
     :param retriever: A standalone retriever component (not added to a `Pipeline`) following the `TextRetriever`
         protocol, i.e. its `run` method accepts `query` and `filters` and it returns a `documents` output.
     :param name: The tool name the LLM sees.
-    :param description: The tool description the LLM sees.
-        Defaults to `haystack_integrations.agent_pack.advanced_rag.prompts.RETRIEVAL_TOOL_DESCRIPTION`.
+    :param description: The tool description the LLM sees. Defaults to a pre-made description of relevance
+        search with optional metadata filtering.
     :returns: The retrieval tool.
     """
     input_sockets = getattr(retriever, "__haystack_input__", None)
@@ -146,8 +142,8 @@ def _make_retrieval_pipeline_tool(
         when the pipeline itself exposes a `documents` output socket (each unmapped pipeline output becomes a tool
         output named after its socket).
     :param name: The tool name the LLM sees.
-    :param description: The tool description the LLM sees.
-        Defaults to `haystack_integrations.agent_pack.advanced_rag.prompts.RETRIEVAL_TOOL_DESCRIPTION`.
+    :param description: The tool description the LLM sees. Defaults to a pre-made description of relevance
+        search with optional metadata filtering.
     :returns: The retrieval tool.
     """
     if set(input_mapping) != {"query", "filters"}:
@@ -537,7 +533,7 @@ def _fetch_documents_tool_params(max_docs: int) -> dict[str, Any]:
                 "type": "integer",
                 "minimum": 0,
                 "description": (
-                    "How many matching documents to skip before returning results (reading order is stable). "
+                    "How many matching documents to skip before returning results. "
                     "Use it to page through match sets larger than max_docs. Defaults to 0."
                 ),
             },
@@ -566,7 +562,7 @@ class FetchDocumentsByFilterTool(Tool):
         :param max_docs: Ceiling on the number of documents shown to the agent per fetch. Unlike scored retrieval, a
             filter fetch is not bounded by a retriever's `top_k`, so this caps the tool result instead. The LLM can
             request fewer via the tool's optional `max_docs` input, but never more.
-        :param max_fetch_factor: How many times the effective document cap a filter may match before the fetch is
+        :param max_fetch_factor: How many times the `max_docs` ceiling a filter may match before the fetch is
             refused outright (when the store supports `count_documents_by_filter`) — the refusal is surfaced to the
             LLM as an error it can recover from by narrowing the filter.
         """
@@ -593,7 +589,8 @@ class FetchDocumentsByFilterTool(Tool):
         :param max_docs: How many documents to return at most; clamped to the configured ceiling (`self.max_docs`),
             which is also the default.
         :param offset: How many matching documents to skip before returning results, for paging through match sets
-            larger than `max_docs` (reading order is stable across calls).
+            larger than `max_docs`. Pages line up across calls when the documents carry the reading-order metadata
+            fields or the store returns matches in a consistent order.
         :returns: One page of the ordered documents, the page's offset, plus how many documents matched the filter
             overall. Formatted for the LLM by `_format_fetch_result`.
         :raises ValueError: If the filter matches far more documents than can be shown (see below). The `Agent`
@@ -601,19 +598,21 @@ class FetchDocumentsByFilterTool(Tool):
         """
         effective_max = max(1, min(max_docs, self.max_docs)) if max_docs is not None else self.max_docs
         offset = max(0, offset)
-        # Guard the expensive fetch: `filter_documents` has no limit parameter, so on a broad filter a real database
-        # could ship thousands of documents only for us to show `max_docs` of them. When the store supports the cheap
-        # `count_documents_by_filter` aggregation (opt-in, like the metadata methods), refuse over-broad filters
-        # without fetching anything.
-        fetch_limit = self.max_fetch_factor * effective_max
+        # The threshold is based on the configured `self.max_docs` ceiling, not the per-call `effective_max`: it
+        # bounds the cost of fetching the whole match set, which is the same however few documents the LLM asked
+        # to see — requesting a smaller page must not make the fetch more likely to be refused.
+        fetch_limit = self.max_fetch_factor * self.max_docs
         counter = getattr(self.document_store, "count_documents_by_filter", None)
         if counter is not None:
             count = counter(filters=filters)
             if count == 0:
                 return {"documents": [], "total_matched": 0, "offset": offset}
+            # `filter_documents` has no limit parameter, so on a broad filter a db could return thousands of docs only
+            # for us to show `max_docs` of them. When the store supports `count_documents_by_filter`, refuse over-broad
+            # filters without fetching anything.
             if count > fetch_limit:
                 msg = (
-                    f"Filter matches {count} documents, but at most {effective_max} can be shown per fetch — retrieving"
+                    f"Filter matches {count} documents, but at most {self.max_docs} can be shown per fetch — retrieving"
                     f" that many would be slow and the result would be mostly truncated anyway, so nothing was fetched."
                     f" This tool is meant for grabbing a small, specific set of documents. Add more conditions to "
                     f"narrow the filter, or use a relevance-based search to get only the most relevant documents."

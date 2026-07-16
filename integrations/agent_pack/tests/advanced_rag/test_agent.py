@@ -227,6 +227,7 @@ class TestAdvancedRagAgentRun:
             document_store=store,
             retriever=InMemoryBM25Retriever(document_store=store, top_k=3),
             llm=MockChatGenerator(responses=responses),
+            backup_answer_llm=MockChatGenerator(),
         )
 
         result = agent.run(messages=[ChatMessage.from_user("What do the science documents say?")])
