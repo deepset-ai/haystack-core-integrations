@@ -76,84 +76,26 @@ class TestGetMetadataFieldValuesTool:
         out = GetMetadataFieldValuesTool(store).invoke(field="nope")
         assert out == "Field 'nope' has no values in the document store."
 
-    def test_caps_the_listing_and_suggests_search_term(self):
+    def test_caps_the_listing(self):
         document_store = InMemoryDocumentStore()
         document_store.write_documents([Document(content=f"d{i}", meta={"tag": f"tag-{i:03d}"}) for i in range(105)])
         out = GetMetadataFieldValuesTool(document_store).invoke(field="tag")
         assert "105 unique values" in out
         assert "… and 5 more" in out
-        assert "use search_term to narrow them" in out
-
-    def test_search_term_filters_values_client_side(self):
-        # The store's own search_term is deliberately NOT used (semantics vary wildly per store);
-        # the tool substring-matches the values itself, case-insensitively.
-        document_store = InMemoryDocumentStore()
-        document_store.write_documents(
-            [
-                Document(content="lipstick review", meta={"category": "All_Beauty"}),
-                Document(content="album review", meta={"category": "Digital_Music"}),
-                Document(content="vitamin review", meta={"category": "Health_and_Personal_Care"}),
-            ]
-        )
-        out = GetMetadataFieldValuesTool(document_store).invoke(field="category", search_term="beaut")
-        assert out == "Field 'category' has 1 values containing 'beaut': All_Beauty"
-
-    def test_search_term_works_on_stores_without_native_support(self):
-        class _MinimalStore(InMemoryDocumentStore):
-            def get_metadata_field_unique_values(self, metadata_field):  # noqa: ARG002
-                return ["All_Beauty", "Digital_Music"]
-
-        out = GetMetadataFieldValuesTool(_MinimalStore()).invoke(field="category", search_term="music")
-        assert out == "Field 'category' has 1 values containing 'music': Digital_Music"
-
-    def test_search_term_reports_no_matches(self, store):
-        out = GetMetadataFieldValuesTool(store).invoke(field="category", search_term="nonexistent")
-        assert out == "Field 'category' has no values containing 'nonexistent'."
 
     @pytest.mark.parametrize(
         "case",
         [
             ([], 0, False, "Field 'tag' has no values in the document store."),
             (["a", "b"], 2, False, "Field 'tag' has 2 unique values: a, b"),
-            (
-                ["a", "b"],
-                5,
-                False,
-                "Field 'tag' has 5 unique values: a, b … and 3 more; use search_term to narrow them",
-            ),
-            (["a"], 1, True, "Field 'tag' has 1 unique values: a … more values exist; use search_term to narrow them"),
+            (["a", "b"], 5, False, "Field 'tag' has 5 unique values: a, b … and 3 more"),
+            (["a"], 1, True, "Field 'tag' has 1 unique values: a … more values exist"),
         ],
     )
     def test_format_field_values(self, store, case):
         values, count, has_more_values, expected = case
         out = GetMetadataFieldValuesTool(store)._format_field_values(
             "tag", values, count, has_more_values=has_more_values
-        )
-        assert out == expected
-
-    @pytest.mark.parametrize(
-        "case",
-        [
-            (["All_Beauty"], False, "Field 'tag' has 1 values containing 'beaut': All_Beauty"),
-            ([], False, "Field 'tag' has no values containing 'beaut'."),
-            (
-                [],
-                True,
-                "Field 'tag' has no values containing 'beaut' (only the first 1000 stored values were searched; "
-                "more exist).",
-            ),
-            (
-                ["All_Beauty"],
-                True,
-                "Field 'tag' has 1 values containing 'beaut' (only the first 1000 stored values were searched; "
-                "more exist): All_Beauty",
-            ),
-        ],
-    )
-    def test_format_searched_field_values(self, store, case):
-        matching, search_incomplete, expected = case
-        out = GetMetadataFieldValuesTool(store)._format_searched_field_values(
-            "tag", matching, "beaut", searched=1000, search_incomplete=search_incomplete
         )
         assert out == expected
 
@@ -165,15 +107,9 @@ class TestGetMetadataFieldValuesTool:
                 captured["size"] = size
                 return (["a", "b"], {"after_key": "b"})  # a cursor dict: more pages exist
 
-        tool = GetMetadataFieldValuesTool(_CursorStore())
-        out = tool.invoke(field="tag")
+        out = GetMetadataFieldValuesTool(_CursorStore()).invoke(field="tag")
         assert captured["size"] == GetMetadataFieldValuesTool._MAX_LISTED_VALUES
         assert "more values exist" in out
-        assert "use search_term to narrow them" in out
-        # When searching, a larger page is fetched to search over, and partial coverage is reported.
-        out = tool.invoke(field="tag", search_term="a")
-        assert captured["size"] == GetMetadataFieldValuesTool._SEARCH_FETCH_SIZE
-        assert "only the first 2 stored values were searched; more exist" in out
 
 
 class TestGetMetadataFieldRangeTool:

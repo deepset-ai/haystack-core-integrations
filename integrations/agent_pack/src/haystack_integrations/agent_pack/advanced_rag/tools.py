@@ -280,8 +280,6 @@ class GetMetadataFieldValuesTool(Tool):
     # Cap on the number of values listed per call, protecting the agent's context window from high-cardinality fields
     # (the total count is always reported).
     _MAX_LISTED_VALUES = 100
-    # How many values are fetched from the store to search over when the LLM passes a `search_term`.
-    _SEARCH_FETCH_SIZE = 1000
 
     def __init__(self, document_store: DocumentStore) -> None:
         """
@@ -306,49 +304,32 @@ class GetMetadataFieldValuesTool(Tool):
                         "type": "string",
                         "description": "The metadata field name, as returned by list_metadata_fields.",
                     },
-                    "search_term": {
-                        "type": "string",
-                        "description": (
-                            "Optional case-insensitive substring to narrow the returned values (e.g. "
-                            "'beaut' matches 'All_Beauty'). Use it when a field has more values than "
-                            "fit in one response."
-                        ),
-                    },
                 },
                 "required": ["field"],
             },
             function=self._get_metadata_field_values,
         )
 
-    def _get_metadata_field_values(self, field: str, search_term: str | None = None) -> str:
+    def _get_metadata_field_values(self, field: str) -> str:
         """
-        List the distinct values of a metadata field, optionally narrowed by a substring search.
-
-        The search is applied CLIENT-SIDE, on purpose: the stores' own `search_term` parameter is split roughly
-        half/half between two incompatible semantics. OpenSearch, Elasticsearch, Weaviate, Chroma, pgvector and
-        InMemory match it against document CONTENT and aggregate the surviving documents' values;
-        ArcadeDB, Astra, Azure AI Search, MongoDB Atlas, Valkey and FalkorDB match the VALUES themselves
-        (FalkorDB case-sensitively); Oracle matches both. Filtering the fetched values ourselves gives every store
-        the same, unsurprising "substring of the value" semantics.
+        List the distinct values of a metadata field.
 
         :param field: The metadata field name, with or without the 'meta.' prefix.
-        :param search_term: Optional case-insensitive substring the returned values must contain.
         :returns: The unique values of the field (listing capped for high-cardinality fields).
         """
         field = _strip_meta_prefix(field)
         method = self.document_store.get_metadata_field_unique_values  # type: ignore[attr-defined]
         signature_params = inspect.signature(method).parameters
 
-        # Fetch enough values to list (or, when searching, to search over): without an explicit size, several stores
-        # return as few as 10 values by default, while others would fetch thousands only for us to drop them. Most
-        # paginating stores call the parameter `size` (Chroma, Weaviate, OpenSearch, Elasticsearch, ...); Qdrant
-        # uses `limit`; some take neither and return everything (FAISS, AlloyDB, IBM DB).
-        fetch_size = self._SEARCH_FETCH_SIZE if search_term is not None else self._MAX_LISTED_VALUES
+        # Fetch up to the listing cap: without an explicit size, several stores return as few as 10 values by
+        # default, while others would fetch thousands only for us to drop them. Most paginating stores call the
+        # parameter `size` (Chroma, Weaviate, OpenSearch, Elasticsearch, ...); Qdrant uses `limit`; some take
+        # neither and return everything (FAISS, AlloyDB, IBM DB).
         kwargs: dict[str, Any] = {}
         if "size" in signature_params:
-            kwargs["size"] = fetch_size
+            kwargs["size"] = self._MAX_LISTED_VALUES
         elif "limit" in signature_params:
-            kwargs["limit"] = fetch_size
+            kwargs["limit"] = self._MAX_LISTED_VALUES
 
         result = method(field, **kwargs)
         # Return shapes: a bare list of values (FAISS, AlloyDB, IBM DB), a (values, total_count) tuple
@@ -359,13 +340,7 @@ class GetMetadataFieldValuesTool(Tool):
         count = result[1] if isinstance(result, tuple) and isinstance(result[1], int) else len(values)
         has_more_values = (isinstance(result, tuple) and isinstance(result[1], dict)) or count > len(values)
 
-        if search_term is None:
-            return self._format_field_values(field, values, count, has_more_values=has_more_values)
-
-        matching = [v for v in values if search_term.lower() in str(v).lower()]
-        return self._format_searched_field_values(
-            field, matching, search_term, searched=len(values), search_incomplete=has_more_values
-        )
+        return self._format_field_values(field, values, count, has_more_values=has_more_values)
 
     def _format_field_values(self, field: str, values: list[Any], count: int, *, has_more_values: bool) -> str:
         """
@@ -375,8 +350,7 @@ class GetMetadataFieldValuesTool(Tool):
         :param values: The unique values returned by the store.
         :param count: The total number of unique values (may exceed `len(values)`).
         :param has_more_values: Whether the store holds values beyond those returned.
-        :returns: The listing (capped at `_MAX_LISTED_VALUES`), with a hint to narrow via search_term
-            when values were left out, or a note when the field has no values.
+        :returns: The listing (capped at `_MAX_LISTED_VALUES`), or a note when the field has no values.
         """
         if not values:
             return f"Field '{field}' has no values in the document store."
@@ -385,35 +359,7 @@ class GetMetadataFieldValuesTool(Tool):
         suffix = f" … and {count - len(shown)} more" if count > len(shown) else ""
         if has_more_values and count <= len(shown):
             suffix += " … more values exist"
-        if count > len(shown) or has_more_values:
-            suffix += "; use search_term to narrow them"
         return f"Field '{field}' has {count} unique values: {listing}{suffix}"
-
-    def _format_searched_field_values(
-        self, field: str, matching: list[Any], search_term: str, *, searched: int, search_incomplete: bool
-    ) -> str:
-        """
-        Format the substring-matched values of a field as the tool-result string.
-
-        :param field: The metadata field name (without the 'meta.' prefix).
-        :param matching: The values containing the search term.
-        :param search_term: The substring that was searched for.
-        :param searched: How many stored values were searched.
-        :param search_incomplete: Whether the store holds values beyond the ones searched.
-        :returns: The matching values (listing capped at `_MAX_LISTED_VALUES`), with a note when the
-            search covered only part of the stored values.
-        """
-        incomplete_note = (
-            f" (only the first {searched} stored values were searched; more exist)" if search_incomplete else ""
-        )
-        if not matching:
-            return f"Field '{field}' has no values containing '{search_term}'{incomplete_note}."
-        shown = matching[: self._MAX_LISTED_VALUES]
-        listing = ", ".join(str(v) for v in shown)
-        suffix = f" … and {len(matching) - len(shown)} more" if len(matching) > len(shown) else ""
-        return (
-            f"Field '{field}' has {len(matching)} values containing '{search_term}'{incomplete_note}: {listing}{suffix}"
-        )
 
     def to_dict(self) -> dict[str, Any]:
         """Serialize the tool to a dictionary."""

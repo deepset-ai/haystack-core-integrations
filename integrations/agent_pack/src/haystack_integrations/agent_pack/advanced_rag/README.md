@@ -141,7 +141,7 @@ gathered so far, so `last_message` always carries a text answer.
 | Tool | What it is | What it does |
 |---|---|---|
 | `list_metadata_fields` | `ListMetadataFieldsTool` | Lists all metadata fields and their types. The system prompt instructs the agent to call this first. |
-| `get_metadata_field_values` | `GetMetadataFieldValuesTool` | Returns the distinct values of a field, so filters use values that actually exist. The listing is capped; an optional `search_term` narrows the values by case-insensitive substring (applied client-side, so the semantics are identical on every store). |
+| `get_metadata_field_values` | `GetMetadataFieldValuesTool` | Returns the distinct values of a field, so filters use values that actually exist (listing capped for high-cardinality fields, the total count is always reported). |
 | `get_metadata_field_range` | `GetMetadataFieldRangeTool` | Returns min/max of a numeric or orderable field (e.g. years, ratings, ISO dates). |
 | `fetch_documents_by_filter` | `FetchDocumentsByFilterTool` | Fetches documents directly by metadata filter, without relevance scoring — for grabbing specific documents (e.g. a known title or file). Results are put into reading order (grouped by parent file, sorted by split/page) and capped at `max_docs` per fetch; over-broad filters are refused *before* fetching, as an error the LLM recovers from by narrowing. |
 | `search_documents` | `ComponentTool` over your retriever, or `PipelineTool` over your retrieval pipeline | Retrieves documents for a query by relevance, optionally narrowed by a metadata filter. Bounded by the `top_k` of your retrieval components; an empty result nudges the agent to relax the filter. |
