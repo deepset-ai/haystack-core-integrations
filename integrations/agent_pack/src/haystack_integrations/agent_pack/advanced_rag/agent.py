@@ -53,8 +53,7 @@ def _default_llm(model: str) -> OpenAIResponsesChatGenerator:
 def create_advanced_rag_agent(
     *,
     document_store: DocumentStore,
-    retriever: TextRetriever | None = None,
-    retrieval_pipeline: Pipeline | None = None,
+    retriever: TextRetriever | Pipeline | None = None,
     retrieval_pipeline_input_mapping: dict[str, list[str]] | None = None,
     retrieval_pipeline_output_mapping: dict[str, str] | None = None,
     llm: ChatGenerator | None = None,
@@ -75,24 +74,23 @@ def create_advanced_rag_agent(
     narrow its retrieval when metadata helps — plain, unfiltered retrieval remains available when it doesn't. The
     answer cites the retrieved documents.
 
-    Provide exactly one of `retriever` or `retrieval_pipeline` for the `search_documents` tool; `document_store`
-    additionally feeds the three metadata inspection tools and must implement the metadata introspection methods
-    (`get_metadata_fields_info`, `get_metadata_field_unique_values`, `get_metadata_field_min_max`).
+    The required `retriever` becomes the `search_documents` tool; `document_store` additionally feeds the three
+    metadata inspection tools and must implement the metadata introspection methods (`get_metadata_fields_info`,
+    `get_metadata_field_unique_values`, `get_metadata_field_min_max`).
 
     :param document_store: The document store the metadata inspection tools and the `fetch_documents_by_filter` tool
         run against.
-    :param retriever: A standalone retriever component following the `TextRetriever` protocol, i.e. its `run` method
-        accepts `query` and `filters` (e.g. `InMemoryBM25Retriever`, or an embedding retriever wrapped in
-        `TextEmbeddingRetriever`). It should retrieve by relevance scoring (keyword or embedding-based) — direct,
-        unscored fetching is already covered by the built-in `fetch_documents_by_filter` tool. Mutually exclusive with
-        `retrieval_pipeline`.
-    :param retrieval_pipeline: A custom scoring-based retrieval pipeline (e.g. embedder -> retriever, or hybrid
-        retrieval) to use instead of a single retriever. Mutually exclusive with `retriever`.
-    :param retrieval_pipeline_input_mapping: Required with `retrieval_pipeline`: maps the tool inputs to pipeline input
-        sockets; must have exactly the keys "query" and "filters",
+    :param retriever: What retrieves for the `search_documents` tool (required). Either a standalone retriever
+        component following the `TextRetriever` protocol, i.e. its `run` method accepts `query` and `filters`
+        (e.g. `InMemoryBM25Retriever`, or an embedding retriever wrapped in `TextEmbeddingRetriever`), or a custom
+        retrieval `Pipeline` (e.g. embedder -> retriever, or hybrid retrieval) — a pipeline additionally requires
+        `retrieval_pipeline_input_mapping`. It should retrieve by relevance scoring (keyword or embedding-based) —
+        direct, unscored fetching is already covered by the built-in `fetch_documents_by_filter` tool.
+    :param retrieval_pipeline_input_mapping: Required when `retriever` is a `Pipeline`: maps the tool inputs to
+        pipeline input sockets; must have exactly the keys "query" and "filters",
         e.g. `{"query": ["embedder.text"], "filters": ["retriever.filters"]}`.
-    :param retrieval_pipeline_output_mapping: Optional with `retrieval_pipeline`: maps pipeline output sockets to tool
-        outputs, e.g. `{"retriever.documents": "documents"}`.
+    :param retrieval_pipeline_output_mapping: Optional when `retriever` is a `Pipeline`: maps pipeline output sockets
+        to tool outputs, e.g. `{"retriever.documents": "documents"}`.
     :param llm: LLM that drives the agent loop. Defaults to `OpenAIResponsesChatGenerator("gpt-5.4")` with low
         reasoning effort.
     :param system_prompt: Overrides the pre-made system prompt
@@ -122,25 +120,25 @@ def create_advanced_rag_agent(
         # Only the default system prompt requires the `{% now %}` Jinja tag (and thus `arrow`).
         arrow_import.check()
 
-    if (retriever is None) == (retrieval_pipeline is None):
-        msg = "Provide exactly one of `retriever` or `retrieval_pipeline`."
+    if retriever is None:
+        msg = "`retriever` is required: pass a retriever component or a retrieval `Pipeline`."
         raise ValueError(msg)
 
     retrieval_tool: Tool
-    if retriever is not None:
-        if retrieval_pipeline_input_mapping is not None or retrieval_pipeline_output_mapping is not None:
-            msg = "The `retrieval_pipeline_*` arguments are only valid with `retrieval_pipeline`."
-            raise ValueError(msg)
-        retrieval_tool = make_retriever_tool(retriever=retriever)
-    elif retrieval_pipeline is not None:
+    if isinstance(retriever, Pipeline):
         if retrieval_pipeline_input_mapping is None:
-            msg = "`retrieval_pipeline_input_mapping` is required with `retrieval_pipeline`."
+            msg = "`retrieval_pipeline_input_mapping` is required when `retriever` is a `Pipeline`."
             raise ValueError(msg)
         retrieval_tool = make_retrieval_pipeline_tool(
-            pipeline=retrieval_pipeline,
+            pipeline=retriever,
             input_mapping=retrieval_pipeline_input_mapping,
             output_mapping=retrieval_pipeline_output_mapping,
         )
+    else:
+        if retrieval_pipeline_input_mapping is not None or retrieval_pipeline_output_mapping is not None:
+            msg = "The `retrieval_pipeline_*` arguments are only valid when `retriever` is a `Pipeline`."
+            raise ValueError(msg)
+        retrieval_tool = make_retriever_tool(retriever=retriever)
 
     llm = llm or _default_llm("gpt-5.4")
 

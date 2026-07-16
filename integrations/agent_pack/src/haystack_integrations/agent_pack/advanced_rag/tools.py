@@ -135,7 +135,7 @@ def make_retriever_tool(
             f"{type(retriever).__name__} does not accept the required inputs {sorted(missing)}. "
             f"The retriever must take `query` and `filters`. Wrap embedding retrievers that take a "
             f"`query_embedding` in haystack's `TextEmbeddingRetriever(retriever=..., text_embedder=...)`, "
-            f"or use `make_retrieval_pipeline_tool` for a custom retrieval pipeline."
+            f"or pass a retrieval `Pipeline` as the `retriever` instead."
         )
         raise ValueError(msg)
     return ComponentTool(

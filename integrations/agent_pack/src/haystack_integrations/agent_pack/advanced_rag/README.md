@@ -65,9 +65,9 @@ Direct, unscored fetching by metadata is already covered by the built-in
 
 ### Using a retrieval pipeline instead of a single retriever
 
-For anything beyond a single retriever, pass a retrieval `Pipeline` plus an input mapping that
-tells the tool which sockets receive the query and the filters — e.g. hybrid retrieval with
-reciprocal rank fusion:
+For anything beyond a single retriever, pass a retrieval `Pipeline` as the `retriever`, plus an
+input mapping that tells the tool which sockets receive the query and the filters — e.g. hybrid
+retrieval with reciprocal rank fusion:
 
 ```python
 from haystack import Pipeline
@@ -86,7 +86,7 @@ pipeline.connect("embedding_retriever.documents", "joiner.documents")
 
 agent = create_advanced_rag_agent(
     document_store=document_store,
-    retrieval_pipeline=pipeline,
+    retriever=pipeline,
     retrieval_pipeline_input_mapping={
         "query": ["bm25_retriever.query", "text_embedder.text"],
         "filters": ["bm25_retriever.filters", "embedding_retriever.filters"],

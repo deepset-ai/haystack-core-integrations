@@ -52,20 +52,13 @@ def test_default_llm_applies_pack_settings():
 
 
 class TestFactoryValidation:
-    def test_requires_exactly_one_retrieval_source(self, store):
-        with pytest.raises(ValueError, match="exactly one"):
+    def test_requires_a_retriever(self, store):
+        with pytest.raises(ValueError, match="`retriever` is required"):
             create_advanced_rag_agent(document_store=store, llm=MockChatGenerator())
-        with pytest.raises(ValueError, match="exactly one"):
-            create_advanced_rag_agent(
-                document_store=store,
-                retriever=InMemoryBM25Retriever(document_store=store),
-                retrieval_pipeline=Pipeline(),
-                llm=MockChatGenerator(),
-            )
 
-    def test_pipeline_path_requires_input_mapping(self, store):
+    def test_pipeline_retriever_requires_input_mapping(self, store):
         with pytest.raises(ValueError, match="retrieval_pipeline_input_mapping"):
-            create_advanced_rag_agent(document_store=store, retrieval_pipeline=Pipeline(), llm=MockChatGenerator())
+            create_advanced_rag_agent(document_store=store, retriever=Pipeline(), llm=MockChatGenerator())
 
     def test_missing_arrow_gives_an_actionable_error(self, store, monkeypatch):
         class _FailedArrowImport:
@@ -89,7 +82,7 @@ class TestFactoryValidation:
         assert agent.system_prompt == "my prompt"
 
     def test_rejects_pipeline_arguments_on_the_retriever_path(self, store):
-        with pytest.raises(ValueError, match="only valid with"):
+        with pytest.raises(ValueError, match="only valid when"):
             create_advanced_rag_agent(
                 document_store=store,
                 retriever=InMemoryBM25Retriever(document_store=store),
@@ -117,12 +110,12 @@ class TestCreateAdvancedRagAgent:
         assert [type(h) for h in agent.hooks["after_run"]] == [BackupAnswerHook]
         assert "list_metadata_fields" in agent.system_prompt
 
-    def test_supports_a_retrieval_pipeline(self, store):
+    def test_supports_a_retrieval_pipeline_as_retriever(self, store):
         pipeline = Pipeline()
         pipeline.add_component("retriever", InMemoryBM25Retriever(document_store=store))
         agent = create_advanced_rag_agent(
             document_store=store,
-            retrieval_pipeline=pipeline,
+            retriever=pipeline,
             retrieval_pipeline_input_mapping={"query": ["retriever.query"], "filters": ["retriever.filters"]},
             retrieval_pipeline_output_mapping={"retriever.documents": "documents"},
             llm=MockChatGenerator(),
