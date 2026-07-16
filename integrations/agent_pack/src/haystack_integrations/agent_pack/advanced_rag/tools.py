@@ -54,20 +54,6 @@ def _accumulate_documents(current: list[Document] | None, new: list[Document]) -
     return merged
 
 
-def _accumulate_pipeline_documents(current: list[Document] | None, result: dict) -> list[Document]:
-    """
-    State handler for the pipeline tool: find the documents in the pipeline result and accumulate them.
-
-    :param current: The documents accumulated so far.
-    :param result: The pipeline result, as mapped by `output_mapping`.
-    :returns: The merged, deduplicated list.
-    """
-    for value in result.values():
-        if isinstance(value, list) and value and isinstance(value[0], Document):
-            return _accumulate_documents(current, value)
-    return current or []
-
-
 def _format_retrieved_documents(documents: list[Document]) -> str:
     """
     Format retrieved documents as the tool-result string: short doc reference + metadata + content.
@@ -91,27 +77,6 @@ def _format_retrieved_documents(documents: list[Document]) -> str:
     return "\n".join(blocks)
 
 
-def _format_pipeline_result(result: dict) -> str:
-    """
-    Format a retrieval pipeline result: find the documents in the output and format them.
-
-    Tolerant of whatever the user's `output_mapping` produces. It uses the first output value that is a list of
-    `Document` objects.
-
-    :param result: The pipeline result, as mapped by `output_mapping`.
-    :returns: The formatted documents, or `str(result)` if no document list is found in the outputs.
-    """
-    saw_empty_list = False
-    for value in result.values():
-        if isinstance(value, list) and value and isinstance(value[0], Document):
-            return _format_retrieved_documents(value)
-        saw_empty_list = saw_empty_list or (isinstance(value, list) and not value)
-    if saw_empty_list:
-        return _format_retrieved_documents([])
-    return str(result)
-
-
-# TODO Shouldn't we check that the retriever has a documents output socket?
 def make_retriever_tool(
     *, retriever: TextRetriever, name: str = "search_documents", description: str | None = None
 ) -> ComponentTool:
@@ -122,21 +87,29 @@ def make_retriever_tool(
     filter grammar, and accumulates every retrieved document into the agent's `documents` state key.
 
     :param retriever: A standalone retriever component (not added to a `Pipeline`) following the `TextRetriever`
-        protocol, i.e. its `run` method accepts `query` and `filters`.
+        protocol, i.e. its `run` method accepts `query` and `filters` and it returns a `documents` output.
     :param name: The tool name the LLM sees.
     :param description: The tool description the LLM sees.
         Defaults to `haystack_integrations.agent_pack.advanced_rag.prompts.RETRIEVAL_TOOL_DESCRIPTION`.
     :returns: The retrieval tool.
     """
-    sockets = getattr(retriever, "__haystack_input__", None)
-    socket_names = set(sockets._sockets_dict.keys()) if sockets is not None else set()
-    missing = {"query", "filters"} - socket_names
+    input_sockets = getattr(retriever, "__haystack_input__", None)
+    input_names = set(input_sockets._sockets_dict.keys()) if input_sockets is not None else set()
+    missing = {"query", "filters"} - input_names
     if missing:
         msg = (
             f"{type(retriever).__name__} does not accept the required inputs {sorted(missing)}. "
             f"The retriever must take `query` and `filters`. Wrap embedding retrievers that take a "
             f"`query_embedding` in haystack's `TextEmbeddingRetriever(retriever=..., text_embedder=...)`, "
             f"or pass a retrieval `Pipeline` as the `retriever` instead."
+        )
+        raise ValueError(msg)
+    output_sockets = getattr(retriever, "__haystack_output__", None)
+    output_names = set(output_sockets._sockets_dict.keys()) if output_sockets is not None else set()
+    if "documents" not in output_names:
+        msg = (
+            f"{type(retriever).__name__} does not return a `documents` output, which the tool needs to "
+            f"collect the retrieved documents."
         )
         raise ValueError(msg)
     return ComponentTool(
@@ -149,7 +122,6 @@ def make_retriever_tool(
     )
 
 
-# TODO Shouldn't we check that the pipeline has a documents output socket?
 def make_retrieval_pipeline_tool(
     *,
     pipeline: Pipeline,
@@ -162,15 +134,17 @@ def make_retrieval_pipeline_tool(
     `search_documents` = PipelineTool over a custom retrieval pipeline.
 
     The tool exposes `query` plus an optional `filters` parameter whose description teaches the LLM the Haystack
-    filter grammar, and accumulates every retrieved document into the agent's `documents` state key.
+    filter grammar, and accumulates every retrieved document into the agent's `documents` state key. The wrapped
+    pipeline must therefore end up with a `documents` tool output — either through a pipeline output socket named
+    `documents`, or through `output_mapping`.
 
     :param pipeline: The retrieval pipeline to wrap (e.g. embedder -> retriever, or hybrid retrieval).
     :param input_mapping: Maps the tool inputs to pipeline input sockets. Must have exactly the keys "query" and
         "filters", e.g. `{"query": ["embedder.text"], "filters": ["retriever.filters"]}`.
     :param output_mapping: Optional map of pipeline output sockets to tool outputs,
-        e.g. `{"retriever.documents": "documents"}`. Defaults to all pipeline outputs. It can stay unset because the
-        tool-result formatter (`outputs_to_string`) scans the outputs for the first value that is a list of documents;
-        set it when the pipeline exposes more than one document list, or to hide outputs the formatter shouldn't see.
+        e.g. `{"retriever.documents": "documents"}`. Must map one output to "documents" when provided. Can stay unset
+        when the pipeline itself exposes a `documents` output socket (each unmapped pipeline output becomes a tool
+        output named after its socket).
     :param name: The tool name the LLM sees.
     :param description: The tool description the LLM sees.
         Defaults to `haystack_integrations.agent_pack.advanced_rag.prompts.RETRIEVAL_TOOL_DESCRIPTION`.
@@ -182,6 +156,22 @@ def make_retrieval_pipeline_tool(
             'e.g. {"query": ["embedder.text"], "filters": ["retriever.filters"]}.'
         )
         raise ValueError(msg)
+    if output_mapping is not None:
+        if "documents" not in output_mapping.values():
+            msg = (
+                '`output_mapping` must map one of the pipeline outputs to "documents", '
+                'e.g. {"retriever.documents": "documents"} — the tool needs it to collect the retrieved documents.'
+            )
+            raise ValueError(msg)
+    else:
+        leaf_socket_names = {socket for sockets in pipeline.outputs().values() for socket in sockets}
+        if "documents" not in leaf_socket_names:
+            msg = (
+                "The pipeline does not expose a `documents` output socket. Provide an `output_mapping` that maps "
+                'one of the pipeline outputs to "documents", e.g. {"retriever.documents": "documents"} — the tool '
+                "needs it to collect the retrieved documents."
+            )
+            raise ValueError(msg)
     return PipelineTool(
         pipeline=pipeline,
         name=name,
@@ -189,8 +179,8 @@ def make_retrieval_pipeline_tool(
         input_mapping=input_mapping,
         output_mapping=output_mapping,
         parameters=_RETRIEVAL_TOOL_PARAMS,
-        outputs_to_string={"handler": _format_pipeline_result},
-        outputs_to_state={"documents": {"handler": _accumulate_pipeline_documents}},
+        outputs_to_string={"source": "documents", "handler": _format_retrieved_documents},
+        outputs_to_state={"documents": {"source": "documents", "handler": _accumulate_documents}},
     )
 
 

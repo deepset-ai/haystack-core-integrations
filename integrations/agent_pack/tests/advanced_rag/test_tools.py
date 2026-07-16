@@ -1,7 +1,7 @@
 from typing import ClassVar
 
 import pytest
-from haystack import Document, Pipeline
+from haystack import Document, Pipeline, component
 from haystack.components.retrievers.in_memory import InMemoryBM25Retriever, InMemoryEmbeddingRetriever
 from haystack.document_stores.in_memory import InMemoryDocumentStore
 from haystack.tools import ComponentTool, PipelineTool
@@ -13,9 +13,7 @@ from haystack_integrations.agent_pack.advanced_rag.tools import (
     GetMetadataFieldValuesTool,
     ListMetadataFieldsTool,
     _accumulate_documents,
-    _accumulate_pipeline_documents,
     _format_fetch_result,
-    _format_pipeline_result,
     _format_retrieved_documents,
     _order_documents_for_reading,
     make_retrieval_pipeline_tool,
@@ -158,14 +156,6 @@ class TestDocumentFormatting:
         assert '"category": "science"' in out
         assert "CRISPR gene editing breakthrough" in out
 
-    def test_pipeline_result_finds_the_document_list(self):
-        result = {"other": 1, "documents": [DOCS[0]]}
-        assert f"[doc {DOCS[0].id[:8]}]" in _format_pipeline_result(result)
-
-    def test_pipeline_result_handles_empty_list_and_no_documents(self):
-        assert "No documents matched" in _format_pipeline_result({"documents": []})
-        assert _format_pipeline_result({"other": "value"}) == "{'other': 'value'}"
-
     def test_fetch_result_notes_extra_matches(self):
         out = _format_fetch_result({"documents": [DOCS[0]], "total_matched": 5})
         assert "… and 4 more documents matched; narrow the filter." in out
@@ -192,10 +182,6 @@ class TestDocumentAccumulation:
         acc = _accumulate_documents(None, DOCS[:2])
         acc = _accumulate_documents(acc, DOCS[1:])
         assert [d.id for d in acc] == [d.id for d in DOCS]
-
-    def test_pipeline_handler_extracts_the_document_list(self):
-        assert _accumulate_pipeline_documents(None, {"documents": DOCS[:1]}) == DOCS[:1]
-        assert _accumulate_pipeline_documents(DOCS[:1], {"other": "value"}) == DOCS[:1]
 
 
 class TestFetchDocumentsByFilterTool:
@@ -257,6 +243,16 @@ class TestMakeRetrieverTool:
         with pytest.raises(ValueError, match="TextEmbeddingRetriever"):
             make_retriever_tool(retriever=InMemoryEmbeddingRetriever(document_store=store))
 
+    def test_rejects_retrievers_without_a_documents_output(self):
+        @component
+        class _NoDocumentsRetriever:
+            @component.output_types(results=list)
+            def run(self, query: str, filters: dict | None = None) -> dict:  # noqa: ARG002
+                return {"results": []}
+
+        with pytest.raises(ValueError, match="does not return a `documents` output"):
+            make_retriever_tool(retriever=_NoDocumentsRetriever())
+
 
 class TestMakeRetrievalPipelineTool:
     def test_builds_pipeline_tool(self, store):
@@ -274,6 +270,40 @@ class TestMakeRetrievalPipelineTool:
     def test_requires_query_and_filters_mapping(self):
         with pytest.raises(ValueError, match='exactly the keys "query" and "filters"'):
             make_retrieval_pipeline_tool(pipeline=Pipeline(), input_mapping={"query": ["retriever.query"]})
+
+    def test_works_without_output_mapping_when_pipeline_exposes_documents(self, store):
+        pipeline = Pipeline()
+        pipeline.add_component("retriever", InMemoryBM25Retriever(document_store=store))
+        tool = make_retrieval_pipeline_tool(
+            pipeline=pipeline, input_mapping={"query": ["retriever.query"], "filters": ["retriever.filters"]}
+        )
+        assert isinstance(tool, PipelineTool)
+
+    def test_requires_a_documents_output_in_the_mapping(self, store):
+        pipeline = Pipeline()
+        pipeline.add_component("retriever", InMemoryBM25Retriever(document_store=store))
+        with pytest.raises(ValueError, match='map one of the pipeline outputs to "documents"'):
+            make_retrieval_pipeline_tool(
+                pipeline=pipeline,
+                input_mapping={"query": ["retriever.query"], "filters": ["retriever.filters"]},
+                output_mapping={"retriever.documents": "results"},
+            )
+
+    def test_requires_a_documents_output_socket_without_mapping(self, store):
+        @component
+        class _Renamer:
+            @component.output_types(results=list)
+            def run(self, documents: list) -> dict:
+                return {"results": documents}
+
+        pipeline = Pipeline()
+        pipeline.add_component("retriever", InMemoryBM25Retriever(document_store=store))
+        pipeline.add_component("renamer", _Renamer())
+        pipeline.connect("retriever.documents", "renamer.documents")
+        with pytest.raises(ValueError, match="does not expose a `documents` output socket"):
+            make_retrieval_pipeline_tool(
+                pipeline=pipeline, input_mapping={"query": ["retriever.query"], "filters": ["retriever.filters"]}
+            )
 
 
 class TestDocumentStoreToolset:
