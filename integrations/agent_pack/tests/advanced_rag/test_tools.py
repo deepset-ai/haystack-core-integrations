@@ -103,9 +103,10 @@ class TestGetMetadataFieldValuesTool:
             # (values, total) tuple: the int is the store-computed total, trusted even beyond the page
             # (InMemory, Chroma, Weaviate, pgvector, Pinecone, Astra, ...).
             ((["a", "b"], 40), 100, (["a", "b"], 40)),
-            # (values, cursor) tuple mid-pagination (OpenSearch/Elasticsearch `after_key`, FalkorDB offset
-            # dict): more pages exist, the total is unknown.
-            ((["a", "b"], {"after_key": "b"}), 100, (["a", "b"], None)),
+            # (values, cursor) tuple mid-pagination: more pages exist, the total is unknown. OpenSearch and
+            # Elasticsearch return the composite aggregation's `after_key`, a dict keyed by the field name;
+            # FalkorDB returns an offset dict.
+            ((["a", "b"], {"tag": "b"}), 100, (["a", "b"], None)),
             ((["a", "b"], {"offset": 2}), 100, (["a", "b"], None)),
             # (values, cursor) tuple on the last page: a None cursor means the page is the complete set.
             ((["a", "b"], None), 100, (["a", "b"], 2)),
@@ -128,7 +129,7 @@ class TestGetMetadataFieldValuesTool:
         class _CursorStore(InMemoryDocumentStore):
             def get_metadata_field_unique_values(self, metadata_field, search_term=None, size=10000, after=None):  # noqa: ARG002
                 captured["size"] = size
-                return (["a", "b"], {"after_key": "b"})  # a cursor dict: more pages exist
+                return (["a", "b"], {metadata_field: "b"})  # a field-keyed `after_key` cursor: more pages exist
 
         out = GetMetadataFieldValuesTool(_CursorStore()).invoke(field="tag")
         assert captured["size"] == GetMetadataFieldValuesTool._MAX_LISTED_VALUES
