@@ -15,9 +15,9 @@ from haystack_integrations.agent_pack.advanced_rag.tools import (
     _accumulate_documents,
     _format_fetch_result,
     _format_retrieved_documents,
+    _make_retrieval_pipeline_tool,
+    _make_retriever_tool,
     _order_documents_for_reading,
-    make_retrieval_pipeline_tool,
-    make_retriever_tool,
 )
 
 DOCS = [
@@ -174,6 +174,14 @@ class TestReadingOrder:
         docs = [Document(content="one"), Document(content="two")]
         assert _order_documents_for_reading(docs) == docs
 
+    def test_keeps_order_on_mixed_sort_value_types(self):
+        # int and str split_ids in the same group are not comparable; the TypeError is suppressed.
+        docs = [
+            Document(content="s1", meta={"file_name": "a.pdf", "split_id": "one"}),
+            Document(content="s0", meta={"file_name": "a.pdf", "split_id": 0}),
+        ]
+        assert _order_documents_for_reading(docs) == docs
+
 
 class TestDocumentAccumulation:
     """The `outputs_to_state` handlers that collect retrieved documents into the agent's State."""
@@ -199,7 +207,10 @@ class TestFetchDocumentsByFilterTool:
             filters={"field": "meta.category", "operator": "==", "value": "nonexistent"}
         )
         assert result == {"documents": [], "total_matched": 0}
-        assert "No documents matched" in _format_fetch_result(result)
+        # The fetch tool requires a filter, so its empty-result message must not suggest removing it.
+        assert _format_fetch_result(result) == (
+            "No documents matched the filter. Verify the field names and values with the metadata tools."
+        )
 
     def test_respects_and_clamps_max_docs(self, store):
         tool = FetchDocumentsByFilterTool(store, max_docs=2)
@@ -231,7 +242,7 @@ class TestFetchDocumentsByFilterTool:
 
 class TestMakeRetrieverTool:
     def test_configures_component_tool(self, store):
-        tool = make_retriever_tool(retriever=InMemoryBM25Retriever(document_store=store, top_k=3))
+        tool = _make_retriever_tool(retriever=InMemoryBM25Retriever(document_store=store, top_k=3))
         assert isinstance(tool, ComponentTool)
         assert tool.name == "search_documents"
         assert set(tool.parameters["properties"]) == {"query", "filters"}
@@ -241,7 +252,7 @@ class TestMakeRetrieverTool:
 
     def test_rejects_embedding_retrievers(self, store):
         with pytest.raises(ValueError, match="TextEmbeddingRetriever"):
-            make_retriever_tool(retriever=InMemoryEmbeddingRetriever(document_store=store))
+            _make_retriever_tool(retriever=InMemoryEmbeddingRetriever(document_store=store))
 
     def test_rejects_retrievers_without_a_documents_output(self):
         @component
@@ -251,14 +262,14 @@ class TestMakeRetrieverTool:
                 return {"results": []}
 
         with pytest.raises(ValueError, match="does not return a `documents` output"):
-            make_retriever_tool(retriever=_NoDocumentsRetriever())
+            _make_retriever_tool(retriever=_NoDocumentsRetriever())
 
 
 class TestMakeRetrievalPipelineTool:
     def test_builds_pipeline_tool(self, store):
         pipeline = Pipeline()
         pipeline.add_component("retriever", InMemoryBM25Retriever(document_store=store))
-        tool = make_retrieval_pipeline_tool(
+        tool = _make_retrieval_pipeline_tool(
             pipeline=pipeline,
             input_mapping={"query": ["retriever.query"], "filters": ["retriever.filters"]},
             output_mapping={"retriever.documents": "documents"},
@@ -269,12 +280,12 @@ class TestMakeRetrievalPipelineTool:
 
     def test_requires_query_and_filters_mapping(self):
         with pytest.raises(ValueError, match='exactly the keys "query" and "filters"'):
-            make_retrieval_pipeline_tool(pipeline=Pipeline(), input_mapping={"query": ["retriever.query"]})
+            _make_retrieval_pipeline_tool(pipeline=Pipeline(), input_mapping={"query": ["retriever.query"]})
 
     def test_works_without_output_mapping_when_pipeline_exposes_documents(self, store):
         pipeline = Pipeline()
         pipeline.add_component("retriever", InMemoryBM25Retriever(document_store=store))
-        tool = make_retrieval_pipeline_tool(
+        tool = _make_retrieval_pipeline_tool(
             pipeline=pipeline, input_mapping={"query": ["retriever.query"], "filters": ["retriever.filters"]}
         )
         assert isinstance(tool, PipelineTool)
@@ -283,7 +294,7 @@ class TestMakeRetrievalPipelineTool:
         pipeline = Pipeline()
         pipeline.add_component("retriever", InMemoryBM25Retriever(document_store=store))
         with pytest.raises(ValueError, match='map one of the pipeline outputs to "documents"'):
-            make_retrieval_pipeline_tool(
+            _make_retrieval_pipeline_tool(
                 pipeline=pipeline,
                 input_mapping={"query": ["retriever.query"], "filters": ["retriever.filters"]},
                 output_mapping={"retriever.documents": "results"},
@@ -301,7 +312,7 @@ class TestMakeRetrievalPipelineTool:
         pipeline.add_component("renamer", _Renamer())
         pipeline.connect("retriever.documents", "renamer.documents")
         with pytest.raises(ValueError, match="does not expose a `documents` output socket"):
-            make_retrieval_pipeline_tool(
+            _make_retrieval_pipeline_tool(
                 pipeline=pipeline, input_mapping={"query": ["retriever.query"], "filters": ["retriever.filters"]}
             )
 

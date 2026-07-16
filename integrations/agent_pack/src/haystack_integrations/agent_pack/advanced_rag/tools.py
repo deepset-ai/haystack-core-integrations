@@ -77,7 +77,7 @@ def _format_retrieved_documents(documents: list[Document]) -> str:
     return "\n".join(blocks)
 
 
-def make_retriever_tool(
+def _make_retriever_tool(
     *, retriever: TextRetriever, name: str = "search_documents", description: str | None = None
 ) -> ComponentTool:
     """
@@ -122,7 +122,7 @@ def make_retriever_tool(
     )
 
 
-def make_retrieval_pipeline_tool(
+def _make_retrieval_pipeline_tool(
     *,
     pipeline: Pipeline,
     input_mapping: dict[str, list[str]],
@@ -446,12 +446,15 @@ def _order_documents_for_reading(documents: list[Document]) -> list[Document]:
     """
     group_by = next((f for f in _GROUP_FIELDS if any(f in d.meta for d in documents)), None)
     sort_by = next((f for f in _SORT_FIELDS if any(f in d.meta for d in documents)), None)
+    # Both ordering paths sort documents by the raw values of `sort_by`, which raises a TypeError when the field
+    # holds mixed, non-comparable types (e.g. int in one document, str in another) — the ranker sorts internally
+    # via `list.sort` with the same kind of key. Suppress it and keep the original order then.
     if group_by:
-        ranker = MetaFieldGroupingRanker(group_by=group_by, sort_docs_by=sort_by)
-        return ranker.run(documents=documents)["documents"]
-    if sort_by:
-        # Sort by the field value, placing documents with a missing value last. Suppress the
-        # TypeError raised on mixed, non-comparable values — keep the original order then.
+        with contextlib.suppress(TypeError):
+            ranker = MetaFieldGroupingRanker(group_by=group_by, sort_docs_by=sort_by)
+            return ranker.run(documents=documents)["documents"]
+    elif sort_by:
+        # Sort by the field value, placing documents with a missing value last.
         with contextlib.suppress(TypeError):
             return sorted(documents, key=lambda d: (sort_by not in d.meta, d.meta.get(sort_by)))
     return documents
@@ -467,6 +470,8 @@ def _format_fetch_result(result: dict[str, Any]) -> str:
     """
     documents: list[Document] = result["documents"]
     total_matched: int = result["total_matched"]
+    if not documents:
+        return "No documents matched the filter. Verify the field names and values with the metadata tools."
     formatted = _format_retrieved_documents(documents)
     extra = total_matched - len(documents)
     if extra > 0:
@@ -484,7 +489,7 @@ def _fetch_documents_tool_params(max_docs: int) -> dict[str, Any]:
     return {
         "type": "object",
         "properties": {
-            "filters": {"type": "object", "description": prompts.FILTER_GRAMMAR, "additionalProperties": True},
+            "filters": {"type": "object", "description": prompts.FETCH_FILTER_GRAMMAR, "additionalProperties": True},
             "max_docs": {
                 "type": "integer",
                 "minimum": 1,

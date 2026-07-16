@@ -2,9 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-FILTER_GRAMMAR = """Optional metadata filter to narrow the search, using Haystack filter syntax.
-
-A filter is either a single condition:
+_FILTER_SYNTAX = """A filter is either a single condition:
 {"field": "meta.category", "operator": "==", "value": "science"}
 
 or a logical group of conditions:
@@ -21,8 +19,18 @@ Rules:
 - Always prefix field names with "meta." (field "year" becomes "meta.year").
 - Use ONLY field names returned by list_metadata_fields and exact values as returned by
   get_metadata_field_values; for numeric or date ranges stay within the bounds from
-  get_metadata_field_range.
+  get_metadata_field_range."""
+
+
+FILTER_GRAMMAR = f"""Optional metadata filter to narrow the search, using Haystack filter syntax.
+
+{_FILTER_SYNTAX}
 - Omit this parameter entirely when no metadata filter is needed."""
+
+
+FETCH_FILTER_GRAMMAR = f"""The metadata filter selecting the documents to fetch, using Haystack filter syntax.
+
+{_FILTER_SYNTAX}"""
 
 
 RETRIEVAL_TOOL_DESCRIPTION = (

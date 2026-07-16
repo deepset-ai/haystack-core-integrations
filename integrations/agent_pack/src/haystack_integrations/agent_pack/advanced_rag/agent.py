@@ -18,8 +18,8 @@ from haystack_integrations.agent_pack.advanced_rag import prompts
 from haystack_integrations.agent_pack.advanced_rag.hooks import BackupAnswerHook
 from haystack_integrations.agent_pack.advanced_rag.tools import (
     DocumentStoreToolset,
-    make_retrieval_pipeline_tool,
-    make_retriever_tool,
+    _make_retrieval_pipeline_tool,
+    _make_retriever_tool,
 )
 
 # The default system prompt renders today's date via the Jinja `{% now %}` tag, which needs `arrow`. Without this
@@ -129,7 +129,7 @@ def create_advanced_rag_agent(
         if retrieval_pipeline_input_mapping is None:
             msg = "`retrieval_pipeline_input_mapping` is required when `retriever` is a `Pipeline`."
             raise ValueError(msg)
-        retrieval_tool = make_retrieval_pipeline_tool(
+        retrieval_tool = _make_retrieval_pipeline_tool(
             pipeline=retriever,
             input_mapping=retrieval_pipeline_input_mapping,
             output_mapping=retrieval_pipeline_output_mapping,
@@ -138,7 +138,7 @@ def create_advanced_rag_agent(
         if retrieval_pipeline_input_mapping is not None or retrieval_pipeline_output_mapping is not None:
             msg = "The `retrieval_pipeline_*` arguments are only valid when `retriever` is a `Pipeline`."
             raise ValueError(msg)
-        retrieval_tool = make_retriever_tool(retriever=retriever)
+        retrieval_tool = _make_retriever_tool(retriever=retriever)
 
     llm = llm or _default_llm("gpt-5.4")
 
