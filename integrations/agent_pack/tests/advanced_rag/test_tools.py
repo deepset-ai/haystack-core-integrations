@@ -68,9 +68,11 @@ class TestGetMetadataFieldValuesTool:
         out = GetMetadataFieldValuesTool(store).invoke(field="category")
         assert out == "Field 'category' has 2 unique values: history, science"
 
-    def test_strips_meta_prefix(self, store):
+    def test_accepts_meta_prefixed_field_names(self, store):
+        # Prefix normalization is the document store's job; InMemoryDocumentStore handles both forms.
         tool = GetMetadataFieldValuesTool(store)
-        assert tool.invoke(field="meta.category") == tool.invoke(field="category")
+        assert tool.invoke(field="meta.category").endswith(": history, science")
+        assert tool.invoke(field="category").endswith(": history, science")
 
     def test_reports_missing_field(self, store):
         out = GetMetadataFieldValuesTool(store).invoke(field="nope")
@@ -115,7 +117,7 @@ class TestGetMetadataFieldValuesTool:
 class TestGetMetadataFieldRangeTool:
     def test_returns_min_and_max(self, store):
         out = GetMetadataFieldRangeTool(store).invoke(field="meta.year")
-        assert out == "Field 'year': min=1989, max=2021"
+        assert out == "Field 'meta.year': min=1989, max=2021"
 
     def test_reports_missing_field(self, store):
         out = GetMetadataFieldRangeTool(store).invoke(field="nope")

@@ -111,6 +111,7 @@ def _format_pipeline_result(result: dict) -> str:
     return str(result)
 
 
+# TODO Shouldn't we check that the retriever has a documents output socket?
 def make_retriever_tool(
     *, retriever: TextRetriever, name: str = "search_documents", description: str | None = None
 ) -> ComponentTool:
@@ -148,6 +149,7 @@ def make_retriever_tool(
     )
 
 
+# TODO Shouldn't we check that the pipeline has a documents output socket?
 def make_retrieval_pipeline_tool(
     *,
     pipeline: Pipeline,
@@ -206,16 +208,6 @@ def _require_store_method(document_store: DocumentStore, method: str) -> None:
             f"Use a document store that supports metadata introspection."
         )
         raise ValueError(msg)
-
-
-def _strip_meta_prefix(field: str) -> str:
-    """
-    Normalize a field name: filters use 'meta.year' but the store methods expect 'year'.
-
-    :param field: The field name, with or without the 'meta.' prefix.
-    :returns: The field name without the 'meta.' prefix.
-    """
-    return field.removeprefix("meta.")
 
 
 class ListMetadataFieldsTool(Tool):
@@ -314,10 +306,9 @@ class GetMetadataFieldValuesTool(Tool):
         """
         List the distinct values of a metadata field.
 
-        :param field: The metadata field name, with or without the 'meta.' prefix.
+        :param field: The metadata field name, with or without the 'meta.' prefix (normalized by the document store).
         :returns: The unique values of the field (listing capped for high-cardinality fields).
         """
-        field = _strip_meta_prefix(field)
         method = self.document_store.get_metadata_field_unique_values  # type: ignore[attr-defined]
         signature_params = inspect.signature(method).parameters
 
@@ -416,10 +407,9 @@ class GetMetadataFieldRangeTool(Tool):
         """
         Get the minimum and maximum values of a metadata field.
 
-        :param field: The metadata field name, with or without the 'meta.' prefix.
+        :param field: The metadata field name, with or without the 'meta.' prefix (normalized by the document store).
         :returns: The min and max of the field, or a note that the field has no orderable values.
         """
-        field = _strip_meta_prefix(field)
         result = self.document_store.get_metadata_field_min_max(field)  # type: ignore[attr-defined]
         if result.get("min") is None and result.get("max") is None:
             return f"Field '{field}' has no numeric or orderable values in the document store."
