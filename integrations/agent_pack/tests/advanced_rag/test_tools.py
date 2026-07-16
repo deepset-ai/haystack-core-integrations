@@ -86,18 +86,41 @@ class TestGetMetadataFieldValuesTool:
     @pytest.mark.parametrize(
         "case",
         [
-            ([], 0, False, "Field 'tag' has no values in the document store."),
-            (["a", "b"], 2, False, "Field 'tag' has 2 unique values: a, b"),
-            (["a", "b"], 5, False, "Field 'tag' has 5 unique values: a, b … and 3 more"),
-            (["a"], 1, True, "Field 'tag' has 1 unique values: a … more values exist"),
+            ([], 0, "Field 'tag' has no values in the document store."),
+            (["a", "b"], 2, "Field 'tag' has 2 unique values: a, b"),
+            (["a", "b"], 5, "Field 'tag' has 5 unique values: a, b … and 3 more"),
+            (["a"], None, "Field 'tag' has at least 1 unique values: a … more values may exist"),
         ],
     )
     def test_format_field_values(self, store, case):
-        values, count, has_more_values, expected = case
-        out = GetMetadataFieldValuesTool(store)._format_field_values(
-            "tag", values, count, has_more_values=has_more_values
-        )
+        values, total, expected = case
+        out = GetMetadataFieldValuesTool(store)._format_field_values("tag", values, total)
         assert out == expected
+
+    @pytest.mark.parametrize(
+        "case",
+        [
+            # (values, total) tuple: the int is the store-computed total, trusted even beyond the page
+            # (InMemory, Chroma, Weaviate, pgvector, Pinecone, Astra, ...).
+            ((["a", "b"], 40), 100, (["a", "b"], 40)),
+            # (values, cursor) tuple mid-pagination (OpenSearch/Elasticsearch `after_key`, FalkorDB offset
+            # dict): more pages exist, the total is unknown.
+            ((["a", "b"], {"after_key": "b"}), 100, (["a", "b"], None)),
+            ((["a", "b"], {"offset": 2}), 100, (["a", "b"], None)),
+            # (values, cursor) tuple on the last page: a None cursor means the page is the complete set.
+            ((["a", "b"], None), 100, (["a", "b"], 2)),
+            # Bare list shorter than the requested page (Qdrant with few values): complete.
+            (["a", "b"], 100, (["a", "b"], 2)),
+            # Bare full page (Qdrant at its `limit`): possibly truncated, the total is unknown.
+            (["a", "b"], 2, (["a", "b"], None)),
+            # Bare list from stores without a size/limit parameter (FAISS, AlloyDB, IBM DB): complete.
+            (["a", "b"], None, (["a", "b"], 2)),
+        ],
+    )
+    def test_normalize_unique_values_result(self, case):
+        result, requested_size, expected = case
+        normalized = GetMetadataFieldValuesTool._normalize_unique_values_result(result, requested_size=requested_size)
+        assert normalized == expected
 
     def test_forwards_size_and_reports_cursor_pagination(self):
         captured = {}
@@ -109,7 +132,40 @@ class TestGetMetadataFieldValuesTool:
 
         out = GetMetadataFieldValuesTool(_CursorStore()).invoke(field="tag")
         assert captured["size"] == GetMetadataFieldValuesTool._MAX_LISTED_VALUES
-        assert "more values exist" in out
+        assert out == "Field 'tag' has at least 2 unique values: a, b … more values may exist"
+
+    def test_forwards_limit_and_treats_a_full_page_as_possibly_truncated(self):
+        captured = {}
+
+        class _TruncatingLimitStore(InMemoryDocumentStore):
+            def get_metadata_field_unique_values(self, metadata_field, filters=None, limit=100, offset=0):  # noqa: ARG002
+                captured["limit"] = limit
+                return [f"v{i}" for i in range(limit)]  # Qdrant-style: silently cut off at `limit`
+
+        out = GetMetadataFieldValuesTool(_TruncatingLimitStore()).invoke(field="tag")
+        assert captured["limit"] == GetMetadataFieldValuesTool._MAX_LISTED_VALUES
+        assert "has at least 100 unique values" in out
+        assert "more values may exist" in out
+
+    def test_bare_list_without_pagination_params_is_reported_as_complete(self):
+        class _BareListStore(InMemoryDocumentStore):
+            def get_metadata_field_unique_values(self, field_name):  # noqa: ARG002
+                return ["x", "y"]  # FAISS-style: no size/limit parameter, the complete set
+
+        out = GetMetadataFieldValuesTool(_BareListStore()).invoke(field="tag")
+        assert out == "Field 'tag' has 2 unique values: x, y"
+
+    def test_supplies_required_parameters_without_defaults(self):
+        captured = {}
+
+        class _NoDefaultsStore(InMemoryDocumentStore):
+            def get_metadata_field_unique_values(self, metadata_field, search_term, from_, size):  # noqa: ARG002
+                captured.update(search_term=search_term, from_=from_, size=size)
+                return (["a"], 1)  # pgvector-style: all parameters are required
+
+        out = GetMetadataFieldValuesTool(_NoDefaultsStore()).invoke(field="tag")
+        assert captured == {"search_term": None, "from_": 0, "size": GetMetadataFieldValuesTool._MAX_LISTED_VALUES}
+        assert out == "Field 'tag' has 1 unique values: a"
 
 
 class TestGetMetadataFieldRangeTool:

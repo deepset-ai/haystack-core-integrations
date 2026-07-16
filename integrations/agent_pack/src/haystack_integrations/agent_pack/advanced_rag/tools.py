@@ -302,45 +302,76 @@ class GetMetadataFieldValuesTool(Tool):
         method = self.document_store.get_metadata_field_unique_values  # type: ignore[attr-defined]
         signature_params = inspect.signature(method).parameters
 
+        kwargs: dict[str, Any] = {}
+        # pgvector declares `search_term` and `from_` without defaults, so pass their neutral values when present.
+        if "search_term" in signature_params:
+            kwargs["search_term"] = None
+        if "from_" in signature_params:
+            kwargs["from_"] = 0
         # Fetch up to the listing cap: without an explicit size, several stores return as few as 10 values by
         # default, while others would fetch thousands only for us to drop them. Most paginating stores call the
-        # parameter `size` (Chroma, Weaviate, OpenSearch, Elasticsearch, ...); Qdrant uses `limit`; some take
+        # parameter `size` (Chroma, Weaviate, OpenSearch, Elasticsearch, ...); Qdrant calls it `limit`; some take
         # neither and return everything (FAISS, AlloyDB, IBM DB).
-        kwargs: dict[str, Any] = {}
+        requested_size: int | None = None
         if "size" in signature_params:
-            kwargs["size"] = self._MAX_LISTED_VALUES
+            kwargs["size"] = requested_size = self._MAX_LISTED_VALUES
         elif "limit" in signature_params:
-            kwargs["limit"] = self._MAX_LISTED_VALUES
+            kwargs["limit"] = requested_size = self._MAX_LISTED_VALUES
 
         result = method(field, **kwargs)
-        # Return shapes: a bare list of values (FAISS, AlloyDB, IBM DB), a (values, total_count) tuple
-        # (InMemory, Chroma, Weaviate, Pinecone, Astra, ...), or a (values, cursor) tuple from
-        # cursor-paginating stores (OpenSearch, Elasticsearch, FalkorDB) — a non-None cursor dict in
-        # place of the count means more pages exist.
-        values = list(result[0]) if isinstance(result, tuple) else list(result)
-        count = result[1] if isinstance(result, tuple) and isinstance(result[1], int) else len(values)
-        has_more_values = (isinstance(result, tuple) and isinstance(result[1], dict)) or count > len(values)
+        values, total = self._normalize_unique_values_result(result, requested_size=requested_size)
+        return self._format_field_values(field, values, total)
 
-        return self._format_field_values(field, values, count, has_more_values=has_more_values)
+    @staticmethod
+    def _normalize_unique_values_result(result: Any, *, requested_size: int | None) -> tuple[list[Any], int | None]:
+        """
+        Normalize the return shapes of `get_metadata_field_unique_values` across document stores.
 
-    def _format_field_values(self, field: str, values: list[Any], count: int, *, has_more_values: bool) -> str:
+        The method is not standardized; three dialects exist:
+
+        - A `(values, total)` tuple (InMemory, Chroma, Weaviate, pgvector, Pinecone, Astra, ...): the int is the
+          total number of unique values, computed by the store independently of the requested page size.
+        - A `(values, cursor)` tuple from cursor-paginating stores (OpenSearch, Elasticsearch, FalkorDB): a dict
+          pointing at the next page sits in place of the count. A non-None cursor means more values exist and the
+          total is unknown; None means the returned values are the complete set.
+        - A bare list of values without any count. FAISS, AlloyDB and IBM DB return the complete value set, but
+          Qdrant silently truncates to its `limit` parameter — so a full page (`len(values) == requested_size`)
+          may be cut off and the total counts as unknown then.
+
+        :param result: The raw return value of the store method.
+        :param requested_size: The page size passed to the store's `size`/`limit` parameter, or None when the
+            store takes neither and returns everything.
+        :returns: The values, plus the total number of unique values — None when the store did not report a
+            total and more values may exist beyond the returned ones.
+        """
+        if isinstance(result, tuple):
+            values, second = list(result[0]), result[1]
+            if isinstance(second, int):
+                return values, second
+            return values, len(values) if second is None else None
+        values = list(result)
+        if requested_size is not None and len(values) >= requested_size:
+            return values, None
+        return values, len(values)
+
+    def _format_field_values(self, field: str, values: list[Any], total: int | None) -> str:
         """
         Format the unique values of a field as the tool-result string.
 
         :param field: The metadata field name (without the 'meta.' prefix).
         :param values: The unique values returned by the store.
-        :param count: The total number of unique values (may exceed `len(values)`).
-        :param has_more_values: Whether the store holds values beyond those returned.
+        :param total: The total number of unique values (may exceed `len(values)`), or None when the store did
+            not report a total and more values may exist.
         :returns: The listing (capped at `_MAX_LISTED_VALUES`), or a note when the field has no values.
         """
         if not values:
             return f"Field '{field}' has no values in the document store."
         shown = values[: self._MAX_LISTED_VALUES]
         listing = ", ".join(str(v) for v in shown)
-        suffix = f" … and {count - len(shown)} more" if count > len(shown) else ""
-        if has_more_values and count <= len(shown):
-            suffix += " … more values exist"
-        return f"Field '{field}' has {count} unique values: {listing}{suffix}"
+        if total is None:
+            return f"Field '{field}' has at least {len(shown)} unique values: {listing} … more values may exist"
+        suffix = f" … and {total - len(shown)} more" if total > len(shown) else ""
+        return f"Field '{field}' has {total} unique values: {listing}{suffix}"
 
     def to_dict(self) -> dict[str, Any]:
         """Serialize the tool to a dictionary."""
