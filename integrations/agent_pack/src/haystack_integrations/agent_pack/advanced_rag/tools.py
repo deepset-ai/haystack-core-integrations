@@ -256,7 +256,7 @@ class GetMetadataFieldValuesTool(Tool):
     """Tool that returns the distinct values of a metadata field from a document store."""
 
     # Cap on the number of values listed per call, protecting the agent's context window from high-cardinality fields
-    # (the total count is always reported).
+    # (the total count is reported alongside when the store provides one).
     _MAX_LISTED_VALUES = 100
 
     def __init__(self, document_store: DocumentStore) -> None:
@@ -453,26 +453,49 @@ class GetMetadataFieldRangeTool(Tool):
 
 
 # Fields used to put filter-fetched documents into a sensible reading order: group the splits of the same parent file
-# together, then sort them by their position in the file. The first field of each tuple that is present in the fetched
-# documents' meta wins. Haystack's document splitters auto-add `split_id` (ordinal) and `split_idx_start` (character
-# offset), some add `page_number` and `source_id`; converters add the file name/path.
+# together, then sort them by their position in the file. From each tuple, the first field present in all fetched
+# documents wins; when no field covers every document, the first present in any of them (see `_pick_order_field`).
+# Haystack's document splitters auto-add `split_id` (ordinal) and `split_idx_start` (character offset), some add
+# `page_number` and `source_id`; converters add the file name/path.
 _GROUP_FIELDS = ("file_name", "file_path", "source_id")
 _SORT_FIELDS = ("split_id", "split_idx_start", "page_number")
+
+
+def _pick_order_field(candidates: tuple[str, ...], documents: list[Document]) -> str | None:
+    """
+    Pick the first candidate present in all documents, falling back to the first present in any of them.
+
+    Preferring full coverage keeps one document with an odd extra field (e.g. a stray `file_name`) from outranking a
+    field every document carries; the any-fallback still orders mixed corpora as well as their partial metadata allows
+    (documents missing the field are placed last).
+
+    :param candidates: The candidate field names, in priority order.
+    :param documents: The fetched documents.
+    :returns: The field to use, or None when no candidate is present in any document.
+    """
+    fallback = None
+    for field in candidates:
+        docs_with_field = sum(1 for doc in documents if field in doc.meta)
+        if docs_with_field == len(documents) and docs_with_field > 0:
+            return field
+        if docs_with_field > 0 and fallback is None:
+            fallback = field
+    return fallback
 
 
 def _order_documents_for_reading(documents: list[Document]) -> list[Document]:
     """
     Put filter-fetched documents into reading order.
 
-    Filter-fetched documents carry no relevance order, so they are grouped by their parent file (first present field
-    of `_GROUP_FIELDS`, via `MetaFieldGroupingRanker`) and sorted by their position within it (first present field of
-    `_SORT_FIELDS`).
+    Filter-fetched documents carry no relevance order, so they are grouped by their parent file (a `_GROUP_FIELDS`
+    field, via `MetaFieldGroupingRanker`) and sorted by their position within it (a `_SORT_FIELDS` field), each
+    selected by `_pick_order_field`.
 
     :param documents: The fetched documents.
     :returns: The documents, grouped and sorted when the meta fields allow it.
     """
-    group_by = next((f for f in _GROUP_FIELDS if any(f in d.meta for d in documents)), None)
-    sort_by = next((f for f in _SORT_FIELDS if any(f in d.meta for d in documents)), None)
+    group_by = _pick_order_field(_GROUP_FIELDS, documents)
+    sort_by = _pick_order_field(_SORT_FIELDS, documents)
     # Both ordering paths sort documents by the raw values of `sort_by`, which raises a TypeError when the field
     # holds mixed, non-comparable types (e.g. int in one document, str in another) — the ranker sorts internally
     # via `list.sort` with the same kind of key. Suppress it and keep the original order then.

@@ -231,6 +231,17 @@ class TestReadingOrder:
         docs = [Document(content="p3", meta={"page_number": 3}), Document(content="p1", meta={"page_number": 1})]
         assert [d.content for d in _order_documents_for_reading(docs)] == ["p1", "p3"]
 
+    def test_prefers_fields_present_in_all_documents(self):
+        # `file_name` appears on one document only; `source_id` covers all of them and wins despite
+        # its lower priority, so the stray field cannot distort the grouping.
+        docs = [
+            Document(content="b1", meta={"file_name": "b.pdf", "source_id": "b", "split_id": 1}),
+            Document(content="a1", meta={"source_id": "a", "split_id": 1}),
+            Document(content="b0", meta={"source_id": "b", "split_id": 0}),
+            Document(content="a0", meta={"source_id": "a", "split_id": 0}),
+        ]
+        assert [d.content for d in _order_documents_for_reading(docs)] == ["b0", "b1", "a0", "a1"]
+
     def test_keeps_order_without_known_fields(self):
         docs = [Document(content="one"), Document(content="two")]
         assert _order_documents_for_reading(docs) == docs

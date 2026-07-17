@@ -95,10 +95,8 @@ def create_advanced_rag_agent(
     :param llm: LLM that drives the agent loop. Defaults to `OpenAIResponsesChatGenerator("gpt-5.4")` with low
         reasoning effort.
     :param backup_answer_llm: LLM the built-in `BackupAnswerHook` uses to write a best-effort answer when the run
-        is cut off by `max_agent_steps`. Defaults to a new instance with the same settings as the default `llm` —
-        deliberately a separate instance, never `llm` itself, so the agent loop's generator is not shared with a hook.
-        The default is an OpenAI generator and requires `OPENAI_API_KEY` as soon as the agent warms up, even when a
-        custom `llm` is passed — when not using OpenAI, pass a `backup_answer_llm` too.
+        is cut off by `max_agent_steps`. Defaults to a separate `OpenAIResponsesChatGenerator("gpt-5.4")` with low
+        reasoning effort.
     :param system_prompt: Overrides the pre-made system prompt.
     :param max_agent_steps: Maximum steps for the agent loop. If the loop is cut off by this limit before writing an
         answer, an `after_run` hook (`BackupAnswerHook`) makes one extra LLM call to produce a best-effort answer from
