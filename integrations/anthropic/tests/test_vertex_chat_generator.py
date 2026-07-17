@@ -64,6 +64,7 @@ class TestAnthropicVertexChatGenerator:
                 "generation_kwargs": {},
                 "ignore_tools_thinking_messages": True,
                 "tools": None,
+                "anthropic_server_tools": None,
                 "timeout": None,
                 "max_retries": None,
             },
@@ -76,6 +77,7 @@ class TestAnthropicVertexChatGenerator:
             streaming_callback=print_streaming_chunk,
             generation_kwargs={"max_tokens": 10, "some_test_param": "test-params"},
             ignore_tools_thinking_messages=False,
+            anthropic_server_tools=[{"type": "web_search_20250305", "name": "web_search"}],
             timeout=10.0,
             max_retries=1,
         )
@@ -93,6 +95,7 @@ class TestAnthropicVertexChatGenerator:
                 "generation_kwargs": {"max_tokens": 10, "some_test_param": "test-params"},
                 "ignore_tools_thinking_messages": False,
                 "tools": None,
+                "anthropic_server_tools": [{"type": "web_search_20250305", "name": "web_search"}],
                 "timeout": 10.0,
                 "max_retries": 1,
             },
@@ -112,6 +115,7 @@ class TestAnthropicVertexChatGenerator:
                 "generation_kwargs": {"max_tokens": 10, "some_test_param": "test-params"},
                 "ignore_tools_thinking_messages": True,
                 "tools": None,
+                "anthropic_server_tools": None,
                 "timeout": None,
                 "max_retries": None,
             },
@@ -125,6 +129,7 @@ class TestAnthropicVertexChatGenerator:
         assert component.ignore_tools_thinking_messages is True
         assert component.timeout is None
         assert component.max_retries is None
+        assert component.anthropic_server_tools is None
 
     def test_run(self, chat_messages, mock_chat_completion):
         component = AnthropicVertexChatGenerator(region="us-central1", project_id="test-project-id")
