@@ -77,6 +77,7 @@ class TestAnthropicVertexChatGenerator:
             streaming_callback=print_streaming_chunk,
             generation_kwargs={"max_tokens": 10, "some_test_param": "test-params"},
             ignore_tools_thinking_messages=False,
+            anthropic_server_tools=[{"type": "web_search_20250305", "name": "web_search"}],
             timeout=10.0,
             max_retries=1,
         )
@@ -94,21 +95,11 @@ class TestAnthropicVertexChatGenerator:
                 "generation_kwargs": {"max_tokens": 10, "some_test_param": "test-params"},
                 "ignore_tools_thinking_messages": False,
                 "tools": None,
-                "anthropic_server_tools": None,
+                "anthropic_server_tools": [{"type": "web_search_20250305", "name": "web_search"}],
                 "timeout": 10.0,
                 "max_retries": 1,
             },
         }
-
-    def test_to_dict_with_server_tools(self):
-        server_tool = {"type": "web_search_20250305", "name": "web_search"}
-        component = AnthropicVertexChatGenerator(
-            region="us-central1",
-            project_id="test-project-id",
-            anthropic_server_tools=[server_tool],
-        )
-        data = component.to_dict()
-        assert data["init_parameters"]["anthropic_server_tools"] == [server_tool]
 
     def test_from_dict(self):
         data = {

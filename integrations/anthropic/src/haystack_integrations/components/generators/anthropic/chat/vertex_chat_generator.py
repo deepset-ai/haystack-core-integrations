@@ -123,8 +123,11 @@ class AnthropicVertexChatGenerator(AnthropicChatGenerator):
             for more details.
         :param tools: A list of Tool and/or Toolset objects, or a single Toolset, that the model can use.
             Each tool should have a unique name.
-        :param anthropic_server_tools: A list of Anthropic server-side (built-in) tools passed directly to the API.
-            Use this for native Anthropic tools such as web search, computer use, or other provider-managed tools.
+        :param anthropic_server_tools: A list of Anthropic server-side tools passed directly to the API.
+            On Vertex AI only the basic web search tool (`{"type": "web_search_20250305"}`) is available:
+            web search with dynamic filtering, web fetch and code execution are not supported. Refer to the
+            [Anthropic documentation](https://docs.anthropic.com/en/docs/agents-and-tools/tool-use/web-search-tool)
+            for the exact dict format each native tool expects.
         :param timeout:
             Timeout for Anthropic client calls. If not set, it defaults to the default set by the Anthropic client.
         :param max_retries:
