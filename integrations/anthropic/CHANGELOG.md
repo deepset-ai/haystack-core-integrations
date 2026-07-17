@@ -1,6 +1,10 @@
 # Changelog
 
-## [unreleased]
+## [integrations/anthropic-v5.15.0] - 2026-07-17
+
+### 🚀 Features
+
+- *(anthropic)* Add anthropic_server_tools to AnthropicChatGenerator (#3386)
 
 ### 🐛 Bug Fixes
 
