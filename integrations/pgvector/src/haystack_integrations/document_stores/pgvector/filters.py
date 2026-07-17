@@ -48,7 +48,7 @@ def _convert_filters_to_where_clause_and_params(
         query, values = _parse_logical_condition(filters)
 
     where_clause = SQL(f" {operator} ") + query
-    params = tuple(value for value in values if value != NO_VALUE)
+    params = tuple(value for value in values if value is not NO_VALUE)
 
     return where_clause, params
 
