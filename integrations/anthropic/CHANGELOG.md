@@ -2,9 +2,20 @@
 
 ## [unreleased]
 
+### 🐛 Bug Fixes
+
+- Replace in-place dataclass mutations in anthropic, llama_cpp, olama, pinecone tests (#3551)
+
+### 🧪 Testing
+
+- Make Tool/Agent serialization assertions version-agnostic for Haystack 2.x/3.x (#3533)
+
 ### 🧹 Chores
 
 - Add none option to adaptive_thinking_effort (#3527)
+- Support sync streaming callbacks in async contexts for Haystack 2.x/3.x compatibility (#3534)
+
+### 🌀 Miscellaneous
 
 
 ## [integrations/anthropic-v5.12.0] - 2026-07-02
