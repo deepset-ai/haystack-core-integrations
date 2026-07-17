@@ -3,6 +3,7 @@
 # install/lock time, so no manual date updates are needed.
 exclude-newer = "24 hours"
 
-# haystack-ai is a first-party dependency
+# first-party dependencies
 [exclude-newer-package]
 haystack-ai = false
+tavily-haystack = false

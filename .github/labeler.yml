@@ -1,4 +1,9 @@
 # Integrations
+integration:agent-pack:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/agent_pack/**/*"
+      - any-glob-to-any-file: ".github/workflows/agent_pack.yml"
+
 integration:alloydb:
   - changed-files:
       - any-glob-to-any-file: "integrations/alloydb/**/*"
