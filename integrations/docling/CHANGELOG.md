@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/docling-v1.3.0] - 2026-07-16
+
+### 🧹 Chores
+
+- Docling - drop the haystack-ai <3.0.0 cap to allow Haystack 3.0 (#3603)
+
+
 ## [integrations/docling-v1.2.0] - 2026-07-08
 
 ### 🐛 Bug Fixes

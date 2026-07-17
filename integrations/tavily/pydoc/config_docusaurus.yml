@@ -2,6 +2,7 @@ loaders:
   - modules:
       - haystack_integrations.components.websearch.tavily.tavily_websearch
       - haystack_integrations.components.fetchers.tavily.tavily_fetcher
+      - haystack_integrations.tools.tavily.websearch_tool
     search_path: [../src]
 processors:
   - type: filter

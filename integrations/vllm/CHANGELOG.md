@@ -1,5 +1,13 @@
 # Changelog
 
+## [integrations/vllm-v1.3.0] - 2026-07-07
+
+### 🧹 Chores
+
+- Support sync streaming callbacks in async contexts for Haystack 2.x/3.x compatibility (#3534)
+- *(vllm)* Unpin fastapi (#3557)
+
+
 ## [integrations/vllm-v1.2.1] - 2026-07-02
 
 ### 🚀 Features

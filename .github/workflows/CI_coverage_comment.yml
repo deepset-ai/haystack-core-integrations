@@ -3,6 +3,7 @@ name: Core / Add comment about test coverage to PRs
 on:
   workflow_run:
     workflows:
+      - "Test / agent_pack"
       - "Test / aimlapi"
       - "Test / amazon-bedrock"
       - "Test / amazon-sagemaker"
