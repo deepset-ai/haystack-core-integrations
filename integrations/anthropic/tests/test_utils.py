@@ -113,7 +113,7 @@ class TestUtils:
         assert "usage" in chat_message.meta
         assert chat_message.meta["usage"]["prompt_tokens"] == 507
         assert chat_message.meta["usage"]["completion_tokens"] == 219
-        # a client-side tool_use must not be mistaken for a server tool
+        # only server tools should save raw content
         assert "raw_content_for_server_tools" not in chat_message.meta
 
     def test_convert_anthropic_completion_chunks_with_multiple_tool_calls_and_reasoning_to_streaming_chunks(self):

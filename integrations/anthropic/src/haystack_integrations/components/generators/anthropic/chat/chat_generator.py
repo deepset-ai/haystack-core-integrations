@@ -407,7 +407,7 @@ class AnthropicChatGenerator:
                     completion.meta["usage"] = {}
                 completion.meta["usage"]["input_tokens"] = input_tokens
 
-            # kept so server-tool blocks can be replayed on later turns
+            # keep the raw content so server-tool blocks can be replayed on later turns
             if self.anthropic_server_tools:
                 raw_content = _accumulate_raw_content_blocks(chunks)
                 if _has_server_tool_blocks(raw_content):
@@ -495,7 +495,7 @@ class AnthropicChatGenerator:
                     completion.meta["usage"] = {}
                 completion.meta["usage"]["input_tokens"] = input_tokens
 
-            # kept so server-tool blocks can be replayed on later turns
+            # keep the raw content so server-tool blocks can be replayed on later turns
             if self.anthropic_server_tools:
                 raw_content = _accumulate_raw_content_blocks(chunks)
                 if _has_server_tool_blocks(raw_content):
