@@ -18,7 +18,10 @@ from haystack_integrations.components.converters.docling import (
     ExportType,
     MetaExtractor,
 )
-from haystack_integrations.components.converters.docling.converter import _bytestream_to_document_stream
+from haystack_integrations.components.converters.docling.converter import (
+    _bytestream_to_document_stream,
+    _stringify_binary_hash,
+)
 
 
 def test_run_doc_chunks_minimal() -> None:
@@ -557,6 +560,40 @@ class TestMetaExtractor:
         assert result == {"dl_meta": {"origin": {"filename": "foo.pdf", "mimetype": "application/pdf"}}}
         dl_doc.origin.model_dump.assert_called_once_with(exclude_none=True)
 
+    def test_extract_dl_doc_meta_stringifies_oversized_binary_hash(self) -> None:
+        # Values above 2**63 - 1 are valid uint64 hashes but break OpenSearch `long` fields.
+        oversized_hash = 9768961288489567249
+        dl_doc = MagicMock()
+        dl_doc.origin.model_dump.return_value = {
+            "filename": "foo.pdf",
+            "mimetype": "application/pdf",
+            "binary_hash": oversized_hash,
+        }
+
+        result = MetaExtractor().extract_dl_doc_meta(dl_doc=dl_doc)
+
+        assert result == {
+            "dl_meta": {
+                "origin": {
+                    "filename": "foo.pdf",
+                    "mimetype": "application/pdf",
+                    "binary_hash": str(oversized_hash),
+                }
+            }
+        }
+        assert isinstance(result["dl_meta"]["origin"]["binary_hash"], str)
+
+    def test_extract_chunk_meta_stringifies_nested_binary_hash(self) -> None:
+        oversized_hash = 9768961288489567249
+        chunk = MagicMock()
+        chunk.export_json_dict.return_value = {"origin": {"binary_hash": oversized_hash, "filename": "bar.pdf"}}
+        chunk.meta.doc_items = []
+
+        result = MetaExtractor().extract_chunk_meta(chunk=chunk)
+
+        assert result == {"dl_meta": {"origin": {"binary_hash": str(oversized_hash), "filename": "bar.pdf"}}}
+        assert isinstance(result["dl_meta"]["origin"]["binary_hash"], str)
+
     def test_extract_dl_doc_meta_without_origin(self) -> None:
         dl_doc = MagicMock()
         dl_doc.origin = None
@@ -564,6 +601,22 @@ class TestMetaExtractor:
         result = MetaExtractor().extract_dl_doc_meta(dl_doc=dl_doc)
 
         assert result == {}
+
+
+def test_stringify_binary_hash_recursively() -> None:
+    payload = {
+        "origin": {"binary_hash": 9768961288489567249, "filename": "a.pdf"},
+        "items": [{"binary_hash": 1}, {"other": 2}],
+        "binary_hash": None,
+    }
+
+    result = _stringify_binary_hash(payload)
+
+    assert result == {
+        "origin": {"binary_hash": "9768961288489567249", "filename": "a.pdf"},
+        "items": [{"binary_hash": "1"}, {"other": 2}],
+        "binary_hash": None,
+    }
 
 
 def test_run_without_sources_or_paths_raises_value_error() -> None:
