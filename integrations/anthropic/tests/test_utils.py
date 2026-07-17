@@ -644,12 +644,16 @@ class TestUtils:
         blocks = _accumulate_raw_content_blocks(chunks)
         assert [b["type"] for b in blocks] == ["server_tool_use"]
 
-    def test_convert_anthropic_completion_chunks_with_server_tool_use_to_streaming_chunks(self):
+    @pytest.mark.parametrize("is_async", [False, True])
+    async def test_convert_anthropic_completion_chunks_with_server_tool_use_to_streaming_chunks(self, is_async):
         """
         Server tools are executed by Anthropic, so their streamed arguments must not become tool calls that
         Haystack would then try to invoke locally.
         """
-        generator = AnthropicChatGenerator(api_key=Secret.from_token("test-api-key"))
+        generator = AnthropicChatGenerator(
+            api_key=Secret.from_token("test-api-key"),
+            anthropic_server_tools=[{"type": "web_search_20250305", "name": "web_search"}],
+        )
         component_info = ComponentInfo(name="test", type="test")
 
         raw_chunks = [
@@ -705,9 +709,20 @@ class TestUtils:
         )
         assert args_chunk.tool_calls is None
 
-        message = generator._process_response(raw_chunks)["replies"][0]
+        if is_async:
+
+            async def _astream():
+                for c in raw_chunks:
+                    yield c
+
+            message = (await generator._process_response_async(_astream()))["replies"][0]
+        else:
+            message = generator._process_response(raw_chunks)["replies"][0]
+
         assert message.tool_calls == []
         assert message.text == "Haystack 2.x is the latest."
+        # the server tool's streamed query is kept for replay, not surfaced as a tool call
+        assert message.meta["raw_content_for_server_tools"][0]["input"] == {"query": "Haystack"}
 
     def test_convert_streaming_chunks_to_chat_message_with_multiple_tool_calls(self):
         """
