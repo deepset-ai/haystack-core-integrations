@@ -301,9 +301,37 @@ class TestMakeCallTool:
         result = tool.invoke(to="+14151234567", answer_url="https://example.com/answer")
 
         rest.calls.create.assert_called_once_with(
-            from_="+14150000000", to_="+14151234567", answer_url="https://example.com/answer"
+            from_="+14150000000",
+            to_="+14151234567",
+            answer_url="https://example.com/answer",
+            answer_method="POST",
         )
         assert "req-1" in result
+
+    def test_get_answer_method(self):
+        client, rest = _client_with_mock(sender="+14150000000")
+        rest.calls.create.return_value = MagicMock(message="call fired", request_uuid=["req-2"])
+        tool = MakeCallTool(client=client)
+
+        tool.invoke(
+            to="+14151234567",
+            answer_url="https://s3.amazonaws.com/static.plivo.com/answer.xml",
+            answer_method="get",
+        )
+
+        rest.calls.create.assert_called_once_with(
+            from_="+14150000000",
+            to_="+14151234567",
+            answer_url="https://s3.amazonaws.com/static.plivo.com/answer.xml",
+            answer_method="GET",
+        )
+
+    def test_rejects_bad_answer_method(self):
+        client, rest = _client_with_mock(sender="+14150000000")
+        tool = MakeCallTool(client=client)
+        with pytest.raises(ToolInvocationError, match="GET or POST"):
+            tool.invoke(to="+14151234567", answer_url="https://example.com/answer", answer_method="DELETE")
+        rest.calls.create.assert_not_called()
 
     def test_missing_sender_raises(self):
         client, _ = _client_with_mock()

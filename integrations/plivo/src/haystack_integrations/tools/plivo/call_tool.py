@@ -37,11 +37,15 @@ class MakeCallTool(Tool):
         :param client: The :class:`PlivoClient` used to place the call.
         """
 
-        def make_call(to: str, answer_url: str) -> str:
+        def make_call(to: str, answer_url: str, answer_method: str = "POST") -> str:
             rest = client._require_client()
             from_ = client._require_sender()
+            method = answer_method.upper()
+            if method not in ("GET", "POST"):
+                msg = f"answer_method must be GET or POST, got {answer_method!r}"
+                raise ValueError(msg)
             try:
-                response = rest.calls.create(from_=from_, to_=to, answer_url=answer_url)
+                response = rest.calls.create(from_=from_, to_=to, answer_url=answer_url, answer_method=method)
             except Exception as e:
                 msg = f"Failed to place call to {to}: {e}"
                 raise RuntimeError(msg) from e
@@ -68,6 +72,14 @@ class MakeCallTool(Tool):
                         "type": "string",
                         "description": (
                             "Publicly reachable URL that returns Plivo call-flow XML when the call is answered."
+                        ),
+                    },
+                    "answer_method": {
+                        "type": "string",
+                        "enum": ["GET", "POST"],
+                        "description": (
+                            "HTTP method Plivo uses to fetch the answer URL. Use GET for a static file "
+                            "such as the Plivo demo answer XML, otherwise POST. Defaults to POST."
                         ),
                     },
                 },
