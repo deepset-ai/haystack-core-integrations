@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/chroma-v4.3.2] - 2026-07-17
+
+### 🐛 Bug Fixes
+
+- *(chroma)* Raise a clear error for id filters with a non-'==' operator (#3587)
+
+
 ## [integrations/chroma-v4.3.1] - 2026-06-29
 
 ### 🐛 Bug Fixes

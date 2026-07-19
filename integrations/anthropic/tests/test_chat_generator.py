@@ -33,6 +33,7 @@ from haystack_integrations.components.generators.anthropic.chat.chat_generator i
 )
 from haystack_integrations.components.generators.anthropic.chat.utils import (
     _convert_messages_to_anthropic_format,
+    _has_server_tool_blocks,
 )
 
 
@@ -128,6 +129,14 @@ class TestAnthropicChatGenerator:
         with pytest.raises(ValueError):
             AnthropicChatGenerator(tools=duplicate_tools)
 
+        # a server tool reusing a tool name would otherwise only fail as an opaque API error
+        component = AnthropicChatGenerator(
+            tools=tools,
+            anthropic_server_tools=[{"type": "web_search_20250305", "name": tools[0].name}],
+        )
+        with pytest.raises(ValueError, match="Duplicate tool names"):
+            component._prepare_request_params([ChatMessage.from_user("hi")])
+
     def test_init_with_parameters(self, monkeypatch):
         """
         Test that the AnthropicChatGenerator component initializes with parameters.
@@ -182,6 +191,7 @@ class TestAnthropicChatGenerator:
                 "ignore_tools_thinking_messages": True,
                 "generation_kwargs": {},
                 "tools": None,
+                "anthropic_server_tools": None,
                 "timeout": None,
                 "max_retries": None,
             },
@@ -200,6 +210,7 @@ class TestAnthropicChatGenerator:
             streaming_callback=print_streaming_chunk,
             generation_kwargs={"max_tokens": 10, "some_test_param": "test-params"},
             tools=[tool],
+            anthropic_server_tools=[{"type": "web_search_20250305", "name": "web_search"}],
             timeout=10.0,
             max_retries=1,
         )
@@ -218,6 +229,7 @@ class TestAnthropicChatGenerator:
                 "streaming_callback": "haystack.components.generators.utils.print_streaming_chunk",
                 "ignore_tools_thinking_messages": True,
                 "generation_kwargs": {"max_tokens": 10, "some_test_param": "test-params"},
+                "anthropic_server_tools": [{"type": "web_search_20250305", "name": "web_search"}],
                 "timeout": 10.0,
                 "max_retries": 1,
             },
@@ -444,10 +456,43 @@ class TestAnthropicChatGenerator:
         assert actual_kwargs.get("thinking") == expected_kwargs.get("thinking")
         assert actual_kwargs.get("output_config") == expected_kwargs.get("output_config")
 
-    def test_check_duplicate_tool_names(self, tools):
-        """Test that the AnthropicChatGenerator component fails to initialize with duplicate tool names."""
-        with pytest.raises(ValueError):
-            AnthropicChatGenerator(tools=tools + tools)
+    def test_init_with_anthropic_server_tools(self, monkeypatch):
+        monkeypatch.setenv("ANTHROPIC_API_KEY", "test-api-key")
+        server_tools = [{"type": "web_search_20250305"}]
+        component = AnthropicChatGenerator(anthropic_server_tools=server_tools)
+        assert component.anthropic_server_tools == server_tools
+
+    def test_from_dict_with_anthropic_server_tools(self, monkeypatch):
+        monkeypatch.setenv("ANTHROPIC_API_KEY", "test-api-key")
+        data = {
+            "type": "haystack_integrations.components.generators.anthropic.chat.chat_generator.AnthropicChatGenerator",
+            "init_parameters": {
+                "api_key": {"env_vars": ["ANTHROPIC_API_KEY"], "type": "env_var", "strict": True},
+                "model": "claude-sonnet-4-5",
+                "anthropic_server_tools": [{"type": "web_search_20250305"}],
+            },
+        }
+        component = AnthropicChatGenerator.from_dict(data)
+        assert component.anthropic_server_tools == [{"type": "web_search_20250305"}]
+
+    def test_run_with_anthropic_server_tools(self, chat_messages, mock_anthropic_completion):
+        server_tools = [{"type": "web_search_20250305"}]
+        component = AnthropicChatGenerator(
+            api_key=Secret.from_token("test-api-key"), anthropic_server_tools=server_tools
+        )
+        component.run(messages=chat_messages)
+        _, kwargs = mock_anthropic_completion.call_args
+        assert kwargs["tools"] == server_tools
+
+    def test_run_with_tools_and_anthropic_server_tools(self, chat_messages, mock_anthropic_completion, tools):
+        server_tools = [{"type": "web_search_20250305"}]
+        component = AnthropicChatGenerator(
+            api_key=Secret.from_token("test-api-key"), tools=tools, anthropic_server_tools=server_tools
+        )
+        component.run(messages=chat_messages)
+        _, kwargs = mock_anthropic_completion.call_args
+        assert len(kwargs["tools"]) == 2
+        assert kwargs["tools"][-1] == {"type": "web_search_20250305"}
 
     def test_serde_in_pipeline(self):
         tool = Tool(name="name", description="description", parameters={"x": {"type": "string"}}, function=print)
@@ -483,6 +528,7 @@ class TestAnthropicChatGenerator:
                         "generation_kwargs": {"temperature": 0.6},
                         "ignore_tools_thinking_messages": True,
                         "streaming_callback": None,
+                        "anthropic_server_tools": None,
                         "timeout": None,
                         "max_retries": None,
                     },
@@ -1399,6 +1445,94 @@ class TestAnthropicChatGenerator:
         result = agent.run(messages=[user_message])
 
         assert "apple" in result["last_message"].text.lower()
+
+    @pytest.mark.skipif(
+        not os.environ.get("ANTHROPIC_API_KEY", None),
+        reason="Export an env var called ANTHROPIC_API_KEY containing the Anthropic API key to run this test.",
+    )
+    @pytest.mark.integration
+    @pytest.mark.parametrize("streaming", [False, True])
+    def test_live_run_with_anthropic_server_tools(self, streaming):
+        """The web search runs on Anthropic's side: it must never surface as a tool call to invoke."""
+        component = AnthropicChatGenerator(
+            anthropic_server_tools=[{"type": "web_search_20250305", "name": "web_search", "max_uses": 1}],
+            streaming_callback=print_streaming_chunk if streaming else None,
+        )
+        results = component.run([ChatMessage.from_user("What is the Haystack framework by deepset? Search the web.")])
+
+        message = results["replies"][0]
+        assert "haystack" in message.text.lower()
+        assert message.tool_calls == []
+        assert message.meta["usage"]["server_tool_use"]["web_search_requests"] >= 1
+
+        # raw blocks are kept so they can be replayed on the next turn
+        raw_content = message.meta["raw_content_for_server_tools"]
+        assert _has_server_tool_blocks(raw_content)
+        search_results = next(b for b in raw_content if b["type"] == "web_search_tool_result")
+        assert search_results["content"][0]["encrypted_content"]
+
+        assert message.meta["citations"]
+        assert message.meta["citations"][0]["url"]
+
+        # the replayed turn carries the encrypted fields back unchanged
+        _, non_system = _convert_messages_to_anthropic_format([message])
+        assert non_system[0]["content"] == raw_content
+
+    @pytest.mark.skipif(
+        not os.environ.get("ANTHROPIC_API_KEY", None),
+        reason="Export an env var called ANTHROPIC_API_KEY containing the Anthropic API key to run this test.",
+    )
+    @pytest.mark.integration
+    @pytest.mark.parametrize("streaming", [False, True])
+    def test_live_run_agent_with_local_and_anthropic_server_tools(self, streaming):
+        """An Agent must invoke only the client-side tool, while the server tool runs remotely."""
+        invoked = []
+
+        def unit_converter(km: float) -> str:
+            invoked.append(km)
+            return f"{km} km is {km * 0.621371:.2f} miles"
+
+        agent = Agent(
+            chat_generator=AnthropicChatGenerator(
+                anthropic_server_tools=[{"type": "web_search_20250305", "name": "web_search", "max_uses": 2}],
+                streaming_callback=print_streaming_chunk if streaming else None,
+            ),
+            tools=[
+                Tool(
+                    name="unit_converter",
+                    description="Convert a distance in kilometers to miles.",
+                    parameters={
+                        "type": "object",
+                        "properties": {"km": {"type": "number", "description": "distance in kilometers"}},
+                        "required": ["km"],
+                    },
+                    function=unit_converter,
+                )
+            ],
+            system_prompt="Research facts with web search. Always use unit_converter for km->miles.",
+        )
+        agent.warm_up()
+
+        result = agent.run(
+            messages=[
+                ChatMessage.from_user(
+                    "Search the web for the distance from Berlin to Rome in kilometers, "
+                    "then use the unit_converter tool to convert it to miles."
+                )
+            ]
+        )
+
+        # the client-side tool ran locally...
+        assert invoked
+        # ...and no server tool ever leaked into tool_calls (an empty name would raise in ToolInvoker)
+        called = [tc.tool_name for m in result["messages"] for tc in (m.tool_calls or [])]
+        assert called == ["unit_converter"]
+
+        searched = any(
+            (m.meta.get("usage") or {}).get("server_tool_use", {}).get("web_search_requests")
+            for m in result["messages"]
+        )
+        assert searched
 
 
 class TestAnthropicChatGeneratorAsync:

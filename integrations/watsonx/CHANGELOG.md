@@ -1,5 +1,18 @@
 # Changelog
 
+## [unreleased]
+
+### 🧪 Testing
+
+- Fix failing test watsonx integration (#3414)
+- Trust test modules under Haystack 3.0's deserialization allowlist (#3537)
+- Make Tool/Agent serialization assertions version-agnostic for Haystack 2.x/3.x (#3533)
+
+### 🧹 Chores
+
+- Support sync streaming callbacks in async contexts for Haystack 2.x/3.x compatibility (#3534)
+
+
 ## [integrations/watsonx-v1.5.0] - 2026-06-04
 
 ### 🚀 Features
