@@ -1,24 +1,14 @@
 import os
-from unittest.mock import AsyncMock, patch
 
 import anthropic
 import pytest
-from anthropic.types import Message
 from haystack.components.generators.utils import print_streaming_chunk
 from haystack.dataclasses import ChatMessage, ChatRole
 
 from haystack_integrations.components.generators.anthropic import AnthropicFoundryChatGenerator
 
 
-@pytest.fixture
-def chat_messages():
-    return [
-        ChatMessage.from_system("\nYou are a helpful assistant, be super brief in your responses."),
-        ChatMessage.from_user("What's the capital of France?"),
-    ]
-
-
-class TestAnthropicFoundryChatGenerator:
+class TestUnit:
     def test_supported_models(self):
         assert isinstance(AnthropicFoundryChatGenerator.SUPPORTED_MODELS, list)
         assert len(AnthropicFoundryChatGenerator.SUPPORTED_MODELS) > 0
@@ -221,11 +211,21 @@ class TestAnthropicFoundryChatGenerator:
         assert "replies" in response
         assert all(isinstance(reply, ChatMessage) for reply in response["replies"])
 
-    @pytest.mark.skipif(
-        not os.environ.get("ANTHROPIC_FOUNDRY_API_KEY") or not os.environ.get("ANTHROPIC_FOUNDRY_RESOURCE"),
-        reason="Set ANTHROPIC_FOUNDRY_API_KEY and ANTHROPIC_FOUNDRY_RESOURCE env variables to run this test.",
-    )
-    @pytest.mark.integration
+    async def test_run_async_triggers_warm_up(self, mock_anthropic_completion_async, monkeypatch):
+        monkeypatch.setenv("ANTHROPIC_FOUNDRY_API_KEY", "test-key")
+        component = AnthropicFoundryChatGenerator(resource="my-resource")
+        assert not component._is_warmed_up
+        response = await component.run_async([ChatMessage.from_user("hi")])
+        assert component._is_warmed_up
+        assert "replies" in response
+
+
+@pytest.mark.integration
+@pytest.mark.skipif(
+    not os.environ.get("ANTHROPIC_FOUNDRY_API_KEY") or not os.environ.get("ANTHROPIC_FOUNDRY_RESOURCE"),
+    reason="Set ANTHROPIC_FOUNDRY_API_KEY and ANTHROPIC_FOUNDRY_RESOURCE env variables to run this test.",
+)
+class TestIntegration:
     def test_live_run_wrong_model(self, chat_messages):
         component = AnthropicFoundryChatGenerator(
             model="something-obviously-wrong",
@@ -234,11 +234,6 @@ class TestAnthropicFoundryChatGenerator:
         with pytest.raises(anthropic.NotFoundError):
             component.run(chat_messages)
 
-    @pytest.mark.skipif(
-        not os.environ.get("ANTHROPIC_FOUNDRY_API_KEY") or not os.environ.get("ANTHROPIC_FOUNDRY_RESOURCE"),
-        reason="Set ANTHROPIC_FOUNDRY_API_KEY and ANTHROPIC_FOUNDRY_RESOURCE env variables to run this test.",
-    )
-    @pytest.mark.integration
     def test_live_run(self, chat_messages):
         client = AnthropicFoundryChatGenerator(
             resource=os.environ.get("ANTHROPIC_FOUNDRY_RESOURCE"), model="claude-sonnet-4-5"
@@ -257,37 +252,6 @@ class TestAnthropicFoundryChatGenerator:
         assert "paris" in first_reply.text.lower()
         assert first_reply.meta
 
-    # Anthropic messages API is similar for AnthropicFoundry and Anthropic endpoint;
-    # remaining tests are skipped as they are already tested in AnthropicChatGenerator.
-
-
-class TestAnthropicFoundryChatGeneratorAsync:
-    @pytest.mark.asyncio
-    async def test_run_async_triggers_warm_up(self, mock_chat_completion, monkeypatch):
-        monkeypatch.setenv("ANTHROPIC_FOUNDRY_API_KEY", "test-key")
-        component = AnthropicFoundryChatGenerator(resource="my-resource")
-        assert not component._is_warmed_up
-        completion = Message(
-            id="foo",
-            content=[{"type": "text", "text": "Hello!"}],
-            model="claude-sonnet-4-5",
-            role="assistant",
-            type="message",
-            usage={"input_tokens": 10, "output_tokens": 5},
-        )
-        with patch(
-            "anthropic.resources.messages.AsyncMessages.create", new_callable=AsyncMock, return_value=completion
-        ):
-            response = await component.run_async([ChatMessage.from_user("hi")])
-        assert component._is_warmed_up
-        assert "replies" in response
-
-    @pytest.mark.asyncio
-    @pytest.mark.skipif(
-        not os.environ.get("ANTHROPIC_FOUNDRY_API_KEY") or not os.environ.get("ANTHROPIC_FOUNDRY_RESOURCE"),
-        reason="Set ANTHROPIC_FOUNDRY_API_KEY and ANTHROPIC_FOUNDRY_RESOURCE env variables to run this test.",
-    )
-    @pytest.mark.integration
     async def test_live_run_async(self):
         component = AnthropicFoundryChatGenerator(
             resource=os.environ.get("ANTHROPIC_FOUNDRY_RESOURCE"),
@@ -298,6 +262,3 @@ class TestAnthropicFoundryChatGeneratorAsync:
         message: ChatMessage = results["replies"][0]
         assert "Paris" in message.text
         assert message.meta["finish_reason"] == "end_turn"
-
-    # Anthropic messages API is similar for AnthropicFoundry and Anthropic endpoint;
-    # remaining tests are skipped as they are already tested in AnthropicChatGenerator.

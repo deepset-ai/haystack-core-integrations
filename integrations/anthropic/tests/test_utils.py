@@ -62,7 +62,7 @@ CITATION = {
 }
 
 
-class TestUtils:
+class TestConvertChatCompletionToChatMessage:
     def test_convert_chat_completion_to_chat_message(self, mock_chat_completion):
         """
         Test converting Anthropic chat completion to ChatMessage
@@ -70,7 +70,7 @@ class TestUtils:
         chat_completion = mock_chat_completion.return_value
 
         chat_message = _convert_chat_completion_to_chat_message(chat_completion, ignore_tools_thinking_messages=True)
-        assert chat_message.text == "Hello, world!"
+        assert chat_message.text == "Hello! I'm Claude."
         assert chat_message.role == "assistant"
         assert chat_message.meta["model"] == "claude-sonnet-4-5"
         assert "usage" in chat_message.meta
@@ -116,6 +116,72 @@ class TestUtils:
         # only server tools should save raw content
         assert "raw_content_for_server_tools" not in chat_message.meta
 
+    def test_convert_chat_completion_with_server_tools_keeps_raw_content(self):
+        chat_completion = Message(
+            id="msg_01",
+            content=[
+                ServerToolUseBlock(
+                    id="srvtoolu_1", input={"query": "haystack"}, name="web_search", type="server_tool_use"
+                ),
+                WebSearchToolResultBlock(
+                    tool_use_id="srvtoolu_1",
+                    type="web_search_tool_result",
+                    content=[
+                        WebSearchResultBlock(
+                            encrypted_content="ENCRYPTED_PAYLOAD",
+                            title="Haystack",
+                            url="https://haystack.deepset.ai",
+                            type="web_search_result",
+                            page_age=None,
+                        )
+                    ],
+                ),
+                TextBlock(citations=None, text="Haystack is a framework.", type="text"),
+            ],
+            model="claude-sonnet-4-5",
+            role="assistant",
+            stop_reason="end_turn",
+            stop_sequence=None,
+            type="message",
+            usage=Usage(input_tokens=10, output_tokens=5),
+        )
+
+        message = _convert_chat_completion_to_chat_message(chat_completion, ignore_tools_thinking_messages=True)
+
+        assert message.text == "Haystack is a framework."
+        assert message.tool_calls == []
+
+        raw = message.meta["raw_content_for_server_tools"]
+        assert [b["type"] for b in raw] == ["server_tool_use", "web_search_tool_result", "text"]
+        assert raw[1]["content"][0]["encrypted_content"] == "ENCRYPTED_PAYLOAD"
+
+    def test_convert_chat_completion_with_citations(self):
+        chat_completion = Message(
+            id="msg_03",
+            content=[
+                ServerToolUseBlock(id="srvtoolu_1", input={}, name="web_search", type="server_tool_use"),
+                WebSearchToolResultBlock(tool_use_id="srvtoolu_1", type="web_search_tool_result", content=[]),
+                TextBlock(citations=[CITATION], text="Haystack is a framework.", type="text"),
+                # text blocks without citations must not contribute
+                TextBlock(citations=None, text=" It is open source.", type="text"),
+            ],
+            model="claude-sonnet-4-5",
+            role="assistant",
+            stop_reason="end_turn",
+            stop_sequence=None,
+            type="message",
+            usage=Usage(input_tokens=10, output_tokens=5),
+        )
+
+        message = _convert_chat_completion_to_chat_message(chat_completion, ignore_tools_thinking_messages=True)
+        assert message.meta["citations"] == [CITATION]
+
+        # editing them must not corrupt the encrypted_index of the blocks replayed on the next turn
+        message.meta["citations"][0]["encrypted_index"] = "TAMPERED"
+        assert message.meta["raw_content_for_server_tools"][2]["citations"][0]["encrypted_index"] == "ENCRYPTED_INDEX"
+
+
+class TestConvertAnthropicChunkToStreamingChunk:
     def test_convert_anthropic_completion_chunks_with_multiple_tool_calls_and_reasoning_to_streaming_chunks(self):
         """
         Test converting Anthropic stream events with tools to Haystack StreamingChunks
@@ -437,144 +503,6 @@ class TestUtils:
         assert usage["output_tokens"] == 77
         assert usage["server_tool_use"] is None
 
-    def test_has_server_tool_blocks(self):
-        """Result blocks are matched by suffix; a client-side `tool_result` must not match."""
-        assert _has_server_tool_blocks([{"type": "server_tool_use", "name": "web_search"}])
-        assert _has_server_tool_blocks([{"type": "web_search_tool_result"}])
-        assert _has_server_tool_blocks([{"type": "bash_code_execution_tool_result"}])
-        assert _has_server_tool_blocks([{"type": "text"}, {"type": "web_fetch_tool_result"}])
-
-        assert not _has_server_tool_blocks([{"type": "text"}])
-        assert not _has_server_tool_blocks([{"type": "tool_use", "name": "calculator"}])
-        assert not _has_server_tool_blocks([{"type": "tool_result", "tool_use_id": "toolu_1"}])
-        assert not _has_server_tool_blocks([])
-
-    def test_convert_chat_completion_with_server_tools_keeps_raw_content(self):
-        chat_completion = Message(
-            id="msg_01",
-            content=[
-                ServerToolUseBlock(
-                    id="srvtoolu_1", input={"query": "haystack"}, name="web_search", type="server_tool_use"
-                ),
-                WebSearchToolResultBlock(
-                    tool_use_id="srvtoolu_1",
-                    type="web_search_tool_result",
-                    content=[
-                        WebSearchResultBlock(
-                            encrypted_content="ENCRYPTED_PAYLOAD",
-                            title="Haystack",
-                            url="https://haystack.deepset.ai",
-                            type="web_search_result",
-                            page_age=None,
-                        )
-                    ],
-                ),
-                TextBlock(citations=None, text="Haystack is a framework.", type="text"),
-            ],
-            model="claude-sonnet-4-5",
-            role="assistant",
-            stop_reason="end_turn",
-            stop_sequence=None,
-            type="message",
-            usage=Usage(input_tokens=10, output_tokens=5),
-        )
-
-        message = _convert_chat_completion_to_chat_message(chat_completion, ignore_tools_thinking_messages=True)
-
-        assert message.text == "Haystack is a framework."
-        assert message.tool_calls == []
-
-        raw = message.meta["raw_content_for_server_tools"]
-        assert [b["type"] for b in raw] == ["server_tool_use", "web_search_tool_result", "text"]
-        assert raw[1]["content"][0]["encrypted_content"] == "ENCRYPTED_PAYLOAD"
-
-    def test_convert_chat_completion_with_citations(self):
-        chat_completion = Message(
-            id="msg_03",
-            content=[
-                ServerToolUseBlock(id="srvtoolu_1", input={}, name="web_search", type="server_tool_use"),
-                WebSearchToolResultBlock(tool_use_id="srvtoolu_1", type="web_search_tool_result", content=[]),
-                TextBlock(citations=[CITATION], text="Haystack is a framework.", type="text"),
-                # text blocks without citations must not contribute
-                TextBlock(citations=None, text=" It is open source.", type="text"),
-            ],
-            model="claude-sonnet-4-5",
-            role="assistant",
-            stop_reason="end_turn",
-            stop_sequence=None,
-            type="message",
-            usage=Usage(input_tokens=10, output_tokens=5),
-        )
-
-        message = _convert_chat_completion_to_chat_message(chat_completion, ignore_tools_thinking_messages=True)
-        assert message.meta["citations"] == [CITATION]
-
-        # editing them must not corrupt the encrypted_index of the blocks replayed on the next turn
-        message.meta["citations"][0]["encrypted_index"] = "TAMPERED"
-        assert message.meta["raw_content_for_server_tools"][2]["citations"][0]["encrypted_index"] == "ENCRYPTED_INDEX"
-
-    def test_convert_messages_to_anthropic_format_replays_server_tool_content(self):
-        raw_blocks = [
-            {"type": "server_tool_use", "id": "srvtoolu_1", "name": "web_search", "input": {"query": "haystack"}},
-            {
-                "type": "web_search_tool_result",
-                "tool_use_id": "srvtoolu_1",
-                "content": [
-                    {
-                        "type": "web_search_result",
-                        "url": "https://haystack.deepset.ai",
-                        "title": "Haystack",
-                        "encrypted_content": "ENCRYPTED_PAYLOAD",
-                    }
-                ],
-            },
-            {
-                "type": "text",
-                "text": "Haystack is a framework.",
-                "citations": [
-                    {
-                        "type": "web_search_result_location",
-                        "url": "https://haystack.deepset.ai",
-                        "title": "Haystack",
-                        "encrypted_index": "ENCRYPTED_INDEX",
-                        "cited_text": "Haystack is an AI orchestration framework",
-                    }
-                ],
-            },
-        ]
-        assistant = ChatMessage.from_assistant(
-            text="Haystack is a framework.",
-            meta={"raw_content_for_server_tools": raw_blocks},
-        )
-
-        _, non_system = _convert_messages_to_anthropic_format([ChatMessage.from_user("hi"), assistant])
-
-        assert non_system[1]["role"] == "assistant"
-        replayed = non_system[1]["content"]
-        assert replayed == raw_blocks
-
-        # the encrypted fields Anthropic requires back both survive
-        assert replayed[1]["content"][0]["encrypted_content"] == "ENCRYPTED_PAYLOAD"
-        assert replayed[2]["citations"][0]["encrypted_index"] == "ENCRYPTED_INDEX"
-
-    def test_convert_messages_to_anthropic_format_replay_does_not_duplicate_tool_calls(self):
-        """The raw blocks already hold the tool_use block; it must not be appended twice."""
-        raw_blocks = [
-            {"type": "server_tool_use", "id": "srvtoolu_1", "name": "web_search", "input": {}},
-            {"type": "web_search_tool_result", "tool_use_id": "srvtoolu_1", "content": []},
-            {"type": "tool_use", "id": "toolu_1", "name": "calculator", "input": {"x": 1}},
-        ]
-        assistant = ChatMessage.from_assistant(
-            text="",
-            tool_calls=[ToolCall(tool_name="calculator", arguments={"x": 1}, id="toolu_1")],
-            meta={"raw_content_for_server_tools": raw_blocks},
-        )
-
-        _, non_system = _convert_messages_to_anthropic_format([assistant])
-        replayed = non_system[0]["content"]
-
-        assert [b["type"] for b in replayed].count("tool_use") == 1
-
     def test_accumulate_raw_content_blocks_from_stream(self):
         component_info = ComponentInfo(name="test", type="test")
         raw_chunks = [
@@ -724,6 +652,8 @@ class TestUtils:
         # the server tool's streamed query is kept for replay, not surfaced as a tool call
         assert message.meta["raw_content_for_server_tools"][0]["input"] == {"query": "Haystack"}
 
+
+class TestConvertStreamingChunksToChatMessage:
     def test_convert_streaming_chunks_to_chat_message_with_multiple_tool_calls(self):
         """
         Test converting streaming chunks to a chat message with tool calls
@@ -993,33 +923,69 @@ class TestUtils:
         assert message._meta["finish_reason"] == "tool_calls"
         assert message._meta["usage"] == {"output_tokens": 40}
 
-    def test_convert_image_content_to_anthropic_format_with_unsupported_mime_type(self):
-        """Test that an ImageContent with unsupported mime type raises ValueError."""
-        base64_image = (
-            "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg=="
+
+class TestConvertMessagesToAnthropicFormat:
+    def test_convert_messages_to_anthropic_format_replays_server_tool_content(self):
+        raw_blocks = [
+            {"type": "server_tool_use", "id": "srvtoolu_1", "name": "web_search", "input": {"query": "haystack"}},
+            {
+                "type": "web_search_tool_result",
+                "tool_use_id": "srvtoolu_1",
+                "content": [
+                    {
+                        "type": "web_search_result",
+                        "url": "https://haystack.deepset.ai",
+                        "title": "Haystack",
+                        "encrypted_content": "ENCRYPTED_PAYLOAD",
+                    }
+                ],
+            },
+            {
+                "type": "text",
+                "text": "Haystack is a framework.",
+                "citations": [
+                    {
+                        "type": "web_search_result_location",
+                        "url": "https://haystack.deepset.ai",
+                        "title": "Haystack",
+                        "encrypted_index": "ENCRYPTED_INDEX",
+                        "cited_text": "Haystack is an AI orchestration framework",
+                    }
+                ],
+            },
+        ]
+        assistant = ChatMessage.from_assistant(
+            text="Haystack is a framework.",
+            meta={"raw_content_for_server_tools": raw_blocks},
         )
-        image_content = ImageContent(base64_image=base64_image, mime_type="image/bmp")  # Unsupported format
 
-        with pytest.raises(ValueError, match="Unsupported image format: image/bmp"):
-            _convert_image_content_to_anthropic_format(image_content)
+        _, non_system = _convert_messages_to_anthropic_format([ChatMessage.from_user("hi"), assistant])
 
-    def test_convert_image_content_to_anthropic_format_with_none_mime_type(self):
-        """Test that an ImageContent with None mime type raises ValueError."""
-        base64_image = (
-            "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg=="
+        assert non_system[1]["role"] == "assistant"
+        replayed = non_system[1]["content"]
+        assert replayed == raw_blocks
+
+        # the encrypted fields Anthropic requires back both survive
+        assert replayed[1]["content"][0]["encrypted_content"] == "ENCRYPTED_PAYLOAD"
+        assert replayed[2]["citations"][0]["encrypted_index"] == "ENCRYPTED_INDEX"
+
+    def test_convert_messages_to_anthropic_format_replay_does_not_duplicate_tool_calls(self):
+        """The raw blocks already hold the tool_use block; it must not be appended twice."""
+        raw_blocks = [
+            {"type": "server_tool_use", "id": "srvtoolu_1", "name": "web_search", "input": {}},
+            {"type": "web_search_tool_result", "tool_use_id": "srvtoolu_1", "content": []},
+            {"type": "tool_use", "id": "toolu_1", "name": "calculator", "input": {"x": 1}},
+        ]
+        assistant = ChatMessage.from_assistant(
+            text="",
+            tool_calls=[ToolCall(tool_name="calculator", arguments={"x": 1}, id="toolu_1")],
+            meta={"raw_content_for_server_tools": raw_blocks},
         )
-        # validation=False skips the mime_type guessing in __post_init__, keeping it None
-        image_content = ImageContent(base64_image=base64_image, mime_type=None, validation=False)
 
-        with pytest.raises(ValueError, match="Unsupported image format: None"):
-            _convert_image_content_to_anthropic_format(image_content)
+        _, non_system = _convert_messages_to_anthropic_format([assistant])
+        replayed = non_system[0]["content"]
 
-    def test_convert_file_content_to_anthropic_format_with_unsupported_mime_type(self):
-        base64_data = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg=="
-        file_content = FileContent(base64_data=base64_data, mime_type="image/png")
-
-        with pytest.raises(ValueError, match="Unsupported file format: image/png"):
-            _convert_file_content_to_anthropic_format(file_content)
+        assert [b["type"] for b in replayed].count("tool_use") == 1
 
     def test_convert_message_to_anthropic_format_from_system(self):
         messages = [ChatMessage.from_system("You are good assistant")]
@@ -1285,6 +1251,54 @@ class TestUtils:
         with pytest.raises(ValueError, match="File content is only supported for user messages"):
             _convert_messages_to_anthropic_format([message])
 
+
+class TestConvertImageContentToAnthropicFormat:
+    def test_convert_image_content_to_anthropic_format_with_unsupported_mime_type(self):
+        """Test that an ImageContent with unsupported mime type raises ValueError."""
+        base64_image = (
+            "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg=="
+        )
+        image_content = ImageContent(base64_image=base64_image, mime_type="image/bmp")  # Unsupported format
+
+        with pytest.raises(ValueError, match="Unsupported image format: image/bmp"):
+            _convert_image_content_to_anthropic_format(image_content)
+
+    def test_convert_image_content_to_anthropic_format_with_none_mime_type(self):
+        """Test that an ImageContent with None mime type raises ValueError."""
+        base64_image = (
+            "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg=="
+        )
+        # validation=False skips the mime_type guessing in __post_init__, keeping it None
+        image_content = ImageContent(base64_image=base64_image, mime_type=None, validation=False)
+
+        with pytest.raises(ValueError, match="Unsupported image format: None"):
+            _convert_image_content_to_anthropic_format(image_content)
+
+
+class TestConvertFileContentToAnthropicFormat:
+    def test_convert_file_content_to_anthropic_format_with_unsupported_mime_type(self):
+        base64_data = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg=="
+        file_content = FileContent(base64_data=base64_data, mime_type="image/png")
+
+        with pytest.raises(ValueError, match="Unsupported file format: image/png"):
+            _convert_file_content_to_anthropic_format(file_content)
+
+
+class TestHasServerToolBlocks:
+    def test_has_server_tool_blocks(self):
+        """Result blocks are matched by suffix; a client-side `tool_result` must not match."""
+        assert _has_server_tool_blocks([{"type": "server_tool_use", "name": "web_search"}])
+        assert _has_server_tool_blocks([{"type": "web_search_tool_result"}])
+        assert _has_server_tool_blocks([{"type": "bash_code_execution_tool_result"}])
+        assert _has_server_tool_blocks([{"type": "text"}, {"type": "web_fetch_tool_result"}])
+
+        assert not _has_server_tool_blocks([{"type": "text"}])
+        assert not _has_server_tool_blocks([{"type": "tool_use", "name": "calculator"}])
+        assert not _has_server_tool_blocks([{"type": "tool_result", "tool_use_id": "toolu_1"}])
+        assert not _has_server_tool_blocks([])
+
+
+class TestFinalizeReasoningGroup:
     def test_finalize_reasoning_group_with_thinking_text(self):
         """Test that _finalize_reasoning_group appends a reasoning_text entry."""
         formatted: list = []
