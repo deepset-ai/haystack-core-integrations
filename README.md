@@ -9,8 +9,8 @@
 | src/haystack\_integrations/components/retrievers/azure\_ai\_search/hybrid\_retriever.py    |       39 |        0 |        6 |        1 |     98% |   95-\>97 |
 | src/haystack\_integrations/document\_stores/azure\_ai\_search/document\_store.py           |      362 |       27 |      126 |       11 |     92% |68-\>73, 210, 229-231, 239-240, 313-\>exit, 404-405, 419-420, 593-\>598, 599, 606-\>608, 632-640, 649-\>exit, 656-658, 684-686, 732-734 |
 | src/haystack\_integrations/document\_stores/azure\_ai\_search/errors.py                    |        8 |        0 |        0 |        0 |    100% |           |
-| src/haystack\_integrations/document\_stores/azure\_ai\_search/filters.py                   |       71 |        0 |       32 |        0 |    100% |           |
-| **TOTAL**                                                                                  |  **558** |   **27** |  **176** |   **14** | **94%** |           |
+| src/haystack\_integrations/document\_stores/azure\_ai\_search/filters.py                   |       73 |        0 |       32 |        0 |    100% |           |
+| **TOTAL**                                                                                  |  **560** |   **27** |  **176** |   **14** | **94%** |           |
 
 
 ## Setup coverage badge
