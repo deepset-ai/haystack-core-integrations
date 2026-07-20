@@ -23,9 +23,7 @@ classifiers = [
   "Programming Language :: Python :: Implementation :: CPython",
   "Programming Language :: Python :: Implementation :: PyPy",
 ]
-# Direct git pin: the agent pack needs unreleased Haystack features.
-# Revert to a version pin (e.g. "haystack-ai>=X.Y") before releasing to PyPI.
-dependencies = ["haystack-ai @ git+https://github.com/deepset-ai/haystack.git@main"]
+dependencies = ["haystack-ai>=3.0.0"]
 
 [project.urls]
 Documentation = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/agent_pack#readme"
@@ -34,10 +32,6 @@ Source = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/int
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/haystack_integrations"]
-
-# Allow the direct git reference in `dependencies` (haystack-ai @ git+...).
-[tool.hatch.metadata]
-allow-direct-references = true
 
 [tool.hatch.version]
 source = "vcs"
