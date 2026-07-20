@@ -8,14 +8,6 @@ from haystack.dataclasses import ChatMessage, ChatRole
 from haystack_integrations.components.generators.anthropic import AnthropicVertexChatGenerator
 
 
-@pytest.fixture
-def chat_messages():
-    return [
-        ChatMessage.from_system("\\nYou are a helpful assistant, be super brief in your responses."),
-        ChatMessage.from_user("What's the capital of France?"),
-    ]
-
-
 class TestAnthropicVertexChatGenerator:
     def test_supported_models(self):
         """SUPPORTED_MODELS is a non-empty list of strings."""

@@ -10,14 +10,6 @@ from haystack.dataclasses import ChatMessage, ChatRole
 from haystack_integrations.components.generators.anthropic import AnthropicFoundryChatGenerator
 
 
-@pytest.fixture
-def chat_messages():
-    return [
-        ChatMessage.from_system("\nYou are a helpful assistant, be super brief in your responses."),
-        ChatMessage.from_user("What's the capital of France?"),
-    ]
-
-
 class TestAnthropicFoundryChatGenerator:
     def test_supported_models(self):
         assert isinstance(AnthropicFoundryChatGenerator.SUPPORTED_MODELS, list)
