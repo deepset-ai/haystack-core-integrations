@@ -7,7 +7,7 @@
 | src/haystack\_integrations/components/converters/mistral/ocr\_document\_converter.py |       98 |        2 |       22 |        0 |     98% |   428-429 |
 | src/haystack\_integrations/components/embedders/mistral/document\_embedder.py        |       14 |        0 |        0 |        0 |    100% |           |
 | src/haystack\_integrations/components/embedders/mistral/text\_embedder.py            |       14 |        0 |        0 |        0 |    100% |           |
-| src/haystack\_integrations/components/generators/mistral/chat/chat\_generator.py     |      130 |        6 |       60 |        8 |     93% |46-\>45, 48-\>40, 307, 371-\>378, 389-390, 432, 445-\>452, 463-464 |
+| src/haystack\_integrations/components/generators/mistral/chat/chat\_generator.py     |      130 |        6 |       60 |        8 |     93% |46-\>45, 48-\>40, 307, 371-\>378, 389-390, 434, 445-\>452, 463-464 |
 | **TOTAL**                                                                            |  **256** |    **8** |   **82** |    **8** | **95%** |           |
 
 
