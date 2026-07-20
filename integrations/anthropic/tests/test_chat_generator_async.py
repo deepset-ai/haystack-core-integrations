@@ -18,7 +18,6 @@ from haystack_integrations.components.generators.anthropic.chat.chat_generator i
 
 
 class TestUnit:
-    @pytest.mark.asyncio
     async def test_run_async(self, chat_messages, mock_anthropic_completion_async, monkeypatch):
         """
         Test that the async run method of AnthropicChatGenerator works correctly.
@@ -34,7 +33,6 @@ class TestUnit:
         assert len(response["replies"]) == 1
         assert [isinstance(reply, ChatMessage) for reply in response["replies"]]
 
-    @pytest.mark.asyncio
     async def test_run_async_with_string_input(self, mock_anthropic_completion_async):
         """
         Test that the async run method of AnthropicChatGenerator works with string input.
@@ -54,7 +52,6 @@ class TestUnit:
         assert len(result["replies"]) == 1
         assert isinstance(result["replies"][0], ChatMessage)
 
-    @pytest.mark.asyncio
     async def test_run_async_with_params(self, chat_messages, mock_anthropic_completion_async):
         """
         Test that the async run method of AnthropicChatGenerator works with parameters.
@@ -84,7 +81,6 @@ class TestUnit:
 @pytest.mark.integration
 @pytest.mark.skipif(not os.environ.get("ANTHROPIC_API_KEY"), reason="ANTHROPIC_API_KEY not set")
 class TestIntegration:
-    @pytest.mark.asyncio
     async def test_live_run_async(self):
         """
         Integration test that the async run method of AnthropicChatGenerator works with default parameters.
@@ -98,7 +94,6 @@ class TestIntegration:
         assert message.meta["finish_reason"] == "stop"
         assert "completion_tokens" in message.meta["usage"]
 
-    @pytest.mark.asyncio
     async def test_live_run_async_with_streaming(self):
         """
         Test that the async run method of AnthropicChatGenerator works with streaming.
@@ -134,7 +129,6 @@ class TestIntegration:
         assert counter > 1  # Should have received multiple chunks
         assert "paris" in responses.lower()  # Should have received the response in chunks
 
-    @pytest.mark.asyncio
     async def test_live_run_async_with_tools(self, tools):
         """
         Integration test that the async run method works with tools.

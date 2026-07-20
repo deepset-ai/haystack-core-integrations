@@ -26,6 +26,7 @@ def tools():
     )
     return [tool]
 
+
 def _canonical_completion() -> Message:
     return Message(
         id="foo",
@@ -75,6 +76,6 @@ def mock_chat_completion_extended_thinking():
         yield mock_chat_completion_create
 
 
-@pytest.fixture()
+@pytest.fixture
 def test_files_path():
     return Path(__file__).parent / "test_files"
