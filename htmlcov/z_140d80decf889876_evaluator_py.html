@@ -67,7 +67,7 @@
             <a id="nextFileLink" class="nav" href="z_140d80decf889876_utils_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.14.3">coverage.py v7.14.3</a>,
-            created at 2026-07-03 10:44 +0000
+            created at 2026-07-20 07:33 +0000
         </p>
         <aside class="hidden">
             <button type="button" class="button_next_chunk" data-shortcut="j"></button>
@@ -190,7 +190,7 @@
     <p class="run"><span class="n"><a id="t106" href="#t106">106</a></span><span class="t">        <span class="nam">data</span><span class="op">[</span><span class="str">"init_parameters"</span><span class="op">]</span><span class="op">[</span><span class="str">"ragas_metrics"</span><span class="op">]</span> <span class="op">=</span> <span class="op">[</span><span class="nam">_deserialize_metric</span><span class="op">(</span><span class="nam">m</span><span class="op">)</span> <span class="key">for</span> <span class="nam">m</span> <span class="key">in</span> <span class="nam">metrics_data</span><span class="op">]</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t107" href="#t107">107</a></span><span class="t">        <span class="key">return</span> <span class="nam">default_from_dict</span><span class="op">(</span><span class="nam">cls</span><span class="op">,</span> <span class="nam">data</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t108" href="#t108">108</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t109" href="#t109">109</a></span><span class="t">    <span class="op">@</span><span class="nam">component</span><span class="op">.</span><span class="nam">output_types</span><span class="op">(</span><span class="nam">result</span><span class="op">=</span><span class="nam">dict</span><span class="op">[</span><span class="nam">str</span><span class="op">,</span> <span class="nam">dict</span><span class="op">[</span><span class="nam">str</span><span class="op">,</span> <span class="nam">MetricResult</span><span class="op">]</span><span class="op">]</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t109" href="#t109">109</a></span><span class="t">    <span class="op">@</span><span class="nam">component</span><span class="op">.</span><span class="nam">output_types</span><span class="op">(</span><span class="nam">result</span><span class="op">=</span><span class="nam">dict</span><span class="op">[</span><span class="nam">str</span><span class="op">,</span> <span class="nam">MetricResult</span><span class="op">]</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t110" href="#t110">110</a></span><span class="t">    <span class="key">def</span> <span class="nam">run</span><span class="op">(</span>&nbsp;</span><span class="r"></span></p>
     <p class="run run2"><span class="n"><a id="t111" href="#t111">111</a></span><span class="t">        <span class="nam">self</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
     <p class="run run2"><span class="n"><a id="t112" href="#t112">112</a></span><span class="t">        <span class="nam">query</span><span class="op">:</span> <span class="nam">str</span> <span class="op">|</span> <span class="key">None</span> <span class="op">=</span> <span class="key">None</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
@@ -236,7 +236,7 @@
     <p class="pln"><span class="n"><a id="t152" href="#t152">152</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t153" href="#t153">153</a></span><span class="t">        <span class="key">return</span> <span class="op">{</span><span class="str">"result"</span><span class="op">:</span> <span class="nam">results</span><span class="op">}</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t154" href="#t154">154</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t155" href="#t155">155</a></span><span class="t">    <span class="op">@</span><span class="nam">component</span><span class="op">.</span><span class="nam">output_types</span><span class="op">(</span><span class="nam">result</span><span class="op">=</span><span class="nam">dict</span><span class="op">[</span><span class="nam">str</span><span class="op">,</span> <span class="nam">dict</span><span class="op">[</span><span class="nam">str</span><span class="op">,</span> <span class="nam">MetricResult</span><span class="op">]</span><span class="op">]</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t155" href="#t155">155</a></span><span class="t">    <span class="op">@</span><span class="nam">component</span><span class="op">.</span><span class="nam">output_types</span><span class="op">(</span><span class="nam">result</span><span class="op">=</span><span class="nam">dict</span><span class="op">[</span><span class="nam">str</span><span class="op">,</span> <span class="nam">MetricResult</span><span class="op">]</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t156" href="#t156">156</a></span><span class="t">    <span class="key">async</span> <span class="key">def</span> <span class="nam">run_async</span><span class="op">(</span>&nbsp;</span><span class="r"></span></p>
     <p class="run run2"><span class="n"><a id="t157" href="#t157">157</a></span><span class="t">        <span class="nam">self</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
     <p class="run run2"><span class="n"><a id="t158" href="#t158">158</a></span><span class="t">        <span class="nam">query</span><span class="op">:</span> <span class="nam">str</span> <span class="op">|</span> <span class="key">None</span> <span class="op">=</span> <span class="key">None</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
@@ -431,7 +431,7 @@
             <a class="nav" href="z_140d80decf889876_utils_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.14.3">coverage.py v7.14.3</a>,
-            created at 2026-07-03 10:44 +0000
+            created at 2026-07-20 07:33 +0000
         </p>
     </div>
 </footer>
