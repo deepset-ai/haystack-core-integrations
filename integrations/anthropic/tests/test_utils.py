@@ -11,6 +11,7 @@ from anthropic.types import (
     RawContentBlockStartEvent,
     RawMessageDeltaEvent,
     RawMessageStartEvent,
+    ServerToolUseBlock,
     SignatureDelta,
     TextBlock,
     TextDelta,
@@ -18,7 +19,10 @@ from anthropic.types import (
     ThinkingDelta,
     ToolUseBlock,
     Usage,
+    WebSearchResultBlock,
+    WebSearchToolResultBlock,
 )
+from anthropic.types.citations_delta import CitationsDelta
 from anthropic.types.raw_message_delta_event import Delta
 from haystack.components.generators.utils import _convert_streaming_chunks_to_chat_message
 from haystack.dataclasses import (
@@ -39,13 +43,23 @@ from haystack_integrations.components.generators.anthropic.chat.chat_generator i
 )
 from haystack_integrations.components.generators.anthropic.chat.utils import (
     FINISH_REASON_MAPPING,
+    _accumulate_raw_content_blocks,
     _convert_anthropic_chunk_to_streaming_chunk,
     _convert_chat_completion_to_chat_message,
     _convert_file_content_to_anthropic_format,
     _convert_image_content_to_anthropic_format,
     _convert_messages_to_anthropic_format,
     _finalize_reasoning_group,
+    _has_server_tool_blocks,
 )
+
+CITATION = {
+    "type": "web_search_result_location",
+    "url": "https://haystack.deepset.ai",
+    "title": "Haystack",
+    "encrypted_index": "ENCRYPTED_INDEX",
+    "cited_text": "Haystack is an AI orchestration framework",
+}
 
 
 class TestUtils:
@@ -62,6 +76,9 @@ class TestUtils:
         assert "usage" in chat_message.meta
         assert chat_message.meta["usage"]["prompt_tokens"] == 57
         assert chat_message.meta["usage"]["completion_tokens"] == 40
+        # an ordinary response must not gain the server-tool/citation meta keys
+        assert "raw_content_for_server_tools" not in chat_message.meta
+        assert "citations" not in chat_message.meta
 
     def test_convert_chat_completion_to_chat_message_with_reasoning_and_tool_call(self):
         """
@@ -96,6 +113,8 @@ class TestUtils:
         assert "usage" in chat_message.meta
         assert chat_message.meta["usage"]["prompt_tokens"] == 507
         assert chat_message.meta["usage"]["completion_tokens"] == 219
+        # only server tools should save raw content
+        assert "raw_content_for_server_tools" not in chat_message.meta
 
     def test_convert_anthropic_completion_chunks_with_multiple_tool_calls_and_reasoning_to_streaming_chunks(self):
         """
@@ -417,6 +436,293 @@ class TestUtils:
         assert usage["input_tokens"] == 393
         assert usage["output_tokens"] == 77
         assert usage["server_tool_use"] is None
+
+    def test_has_server_tool_blocks(self):
+        """Result blocks are matched by suffix; a client-side `tool_result` must not match."""
+        assert _has_server_tool_blocks([{"type": "server_tool_use", "name": "web_search"}])
+        assert _has_server_tool_blocks([{"type": "web_search_tool_result"}])
+        assert _has_server_tool_blocks([{"type": "bash_code_execution_tool_result"}])
+        assert _has_server_tool_blocks([{"type": "text"}, {"type": "web_fetch_tool_result"}])
+
+        assert not _has_server_tool_blocks([{"type": "text"}])
+        assert not _has_server_tool_blocks([{"type": "tool_use", "name": "calculator"}])
+        assert not _has_server_tool_blocks([{"type": "tool_result", "tool_use_id": "toolu_1"}])
+        assert not _has_server_tool_blocks([])
+
+    def test_convert_chat_completion_with_server_tools_keeps_raw_content(self):
+        chat_completion = Message(
+            id="msg_01",
+            content=[
+                ServerToolUseBlock(
+                    id="srvtoolu_1", input={"query": "haystack"}, name="web_search", type="server_tool_use"
+                ),
+                WebSearchToolResultBlock(
+                    tool_use_id="srvtoolu_1",
+                    type="web_search_tool_result",
+                    content=[
+                        WebSearchResultBlock(
+                            encrypted_content="ENCRYPTED_PAYLOAD",
+                            title="Haystack",
+                            url="https://haystack.deepset.ai",
+                            type="web_search_result",
+                            page_age=None,
+                        )
+                    ],
+                ),
+                TextBlock(citations=None, text="Haystack is a framework.", type="text"),
+            ],
+            model="claude-sonnet-4-5",
+            role="assistant",
+            stop_reason="end_turn",
+            stop_sequence=None,
+            type="message",
+            usage=Usage(input_tokens=10, output_tokens=5),
+        )
+
+        message = _convert_chat_completion_to_chat_message(chat_completion, ignore_tools_thinking_messages=True)
+
+        assert message.text == "Haystack is a framework."
+        assert message.tool_calls == []
+
+        raw = message.meta["raw_content_for_server_tools"]
+        assert [b["type"] for b in raw] == ["server_tool_use", "web_search_tool_result", "text"]
+        assert raw[1]["content"][0]["encrypted_content"] == "ENCRYPTED_PAYLOAD"
+
+    def test_convert_chat_completion_with_citations(self):
+        chat_completion = Message(
+            id="msg_03",
+            content=[
+                ServerToolUseBlock(id="srvtoolu_1", input={}, name="web_search", type="server_tool_use"),
+                WebSearchToolResultBlock(tool_use_id="srvtoolu_1", type="web_search_tool_result", content=[]),
+                TextBlock(citations=[CITATION], text="Haystack is a framework.", type="text"),
+                # text blocks without citations must not contribute
+                TextBlock(citations=None, text=" It is open source.", type="text"),
+            ],
+            model="claude-sonnet-4-5",
+            role="assistant",
+            stop_reason="end_turn",
+            stop_sequence=None,
+            type="message",
+            usage=Usage(input_tokens=10, output_tokens=5),
+        )
+
+        message = _convert_chat_completion_to_chat_message(chat_completion, ignore_tools_thinking_messages=True)
+        assert message.meta["citations"] == [CITATION]
+
+        # editing them must not corrupt the encrypted_index of the blocks replayed on the next turn
+        message.meta["citations"][0]["encrypted_index"] = "TAMPERED"
+        assert message.meta["raw_content_for_server_tools"][2]["citations"][0]["encrypted_index"] == "ENCRYPTED_INDEX"
+
+    def test_convert_messages_to_anthropic_format_replays_server_tool_content(self):
+        raw_blocks = [
+            {"type": "server_tool_use", "id": "srvtoolu_1", "name": "web_search", "input": {"query": "haystack"}},
+            {
+                "type": "web_search_tool_result",
+                "tool_use_id": "srvtoolu_1",
+                "content": [
+                    {
+                        "type": "web_search_result",
+                        "url": "https://haystack.deepset.ai",
+                        "title": "Haystack",
+                        "encrypted_content": "ENCRYPTED_PAYLOAD",
+                    }
+                ],
+            },
+            {
+                "type": "text",
+                "text": "Haystack is a framework.",
+                "citations": [
+                    {
+                        "type": "web_search_result_location",
+                        "url": "https://haystack.deepset.ai",
+                        "title": "Haystack",
+                        "encrypted_index": "ENCRYPTED_INDEX",
+                        "cited_text": "Haystack is an AI orchestration framework",
+                    }
+                ],
+            },
+        ]
+        assistant = ChatMessage.from_assistant(
+            text="Haystack is a framework.",
+            meta={"raw_content_for_server_tools": raw_blocks},
+        )
+
+        _, non_system = _convert_messages_to_anthropic_format([ChatMessage.from_user("hi"), assistant])
+
+        assert non_system[1]["role"] == "assistant"
+        replayed = non_system[1]["content"]
+        assert replayed == raw_blocks
+
+        # the encrypted fields Anthropic requires back both survive
+        assert replayed[1]["content"][0]["encrypted_content"] == "ENCRYPTED_PAYLOAD"
+        assert replayed[2]["citations"][0]["encrypted_index"] == "ENCRYPTED_INDEX"
+
+    def test_convert_messages_to_anthropic_format_replay_does_not_duplicate_tool_calls(self):
+        """The raw blocks already hold the tool_use block; it must not be appended twice."""
+        raw_blocks = [
+            {"type": "server_tool_use", "id": "srvtoolu_1", "name": "web_search", "input": {}},
+            {"type": "web_search_tool_result", "tool_use_id": "srvtoolu_1", "content": []},
+            {"type": "tool_use", "id": "toolu_1", "name": "calculator", "input": {"x": 1}},
+        ]
+        assistant = ChatMessage.from_assistant(
+            text="",
+            tool_calls=[ToolCall(tool_name="calculator", arguments={"x": 1}, id="toolu_1")],
+            meta={"raw_content_for_server_tools": raw_blocks},
+        )
+
+        _, non_system = _convert_messages_to_anthropic_format([assistant])
+        replayed = non_system[0]["content"]
+
+        assert [b["type"] for b in replayed].count("tool_use") == 1
+
+    def test_accumulate_raw_content_blocks_from_stream(self):
+        component_info = ComponentInfo(name="test", type="test")
+        raw_chunks = [
+            RawContentBlockStartEvent(
+                content_block=ServerToolUseBlock(id="srvtoolu_1", input={}, name="web_search", type="server_tool_use"),
+                index=0,
+                type="content_block_start",
+            ),
+            RawContentBlockDeltaEvent(
+                delta=InputJSONDelta(partial_json='{"query": ', type="input_json_delta"),
+                index=0,
+                type="content_block_delta",
+            ),
+            RawContentBlockDeltaEvent(
+                delta=InputJSONDelta(partial_json='"haystack"}', type="input_json_delta"),
+                index=0,
+                type="content_block_delta",
+            ),
+            RawContentBlockStartEvent(
+                content_block=TextBlock(citations=None, text="", type="text"), index=1, type="content_block_start"
+            ),
+            RawContentBlockDeltaEvent(
+                delta=TextDelta(text="Haystack ", type="text_delta"), index=1, type="content_block_delta"
+            ),
+            RawContentBlockDeltaEvent(
+                delta=TextDelta(text="is a framework.", type="text_delta"), index=1, type="content_block_delta"
+            ),
+            RawContentBlockDeltaEvent(
+                delta=CitationsDelta(citation=CITATION, type="citations_delta"),
+                index=1,
+                type="content_block_delta",
+            ),
+        ]
+        chunks = [
+            _convert_anthropic_chunk_to_streaming_chunk(c, component_info=component_info, tool_call_index=-1)
+            for c in raw_chunks
+        ]
+
+        blocks = _accumulate_raw_content_blocks(chunks)
+
+        assert [b["type"] for b in blocks] == ["server_tool_use", "text"]
+        # streamed JSON fragments reassembled and parsed
+        assert blocks[0]["input"] == {"query": "haystack"}
+        assert blocks[1]["text"] == "Haystack is a framework."
+        # citations arrive as deltas onto a block started with `citations: None`
+        assert blocks[1]["citations"] == [CITATION]
+
+    def test_accumulate_raw_content_blocks_tolerates_truncated_json(self):
+        component_info = ComponentInfo(name="test", type="test")
+        raw_chunks = [
+            RawContentBlockStartEvent(
+                content_block=ServerToolUseBlock(id="srvtoolu_1", input={}, name="web_search", type="server_tool_use"),
+                index=0,
+                type="content_block_start",
+            ),
+            RawContentBlockDeltaEvent(
+                delta=InputJSONDelta(partial_json='{"query": "hays', type="input_json_delta"),
+                index=0,
+                type="content_block_delta",
+            ),
+        ]
+        chunks = [
+            _convert_anthropic_chunk_to_streaming_chunk(c, component_info=component_info, tool_call_index=-1)
+            for c in raw_chunks
+        ]
+
+        blocks = _accumulate_raw_content_blocks(chunks)
+        assert [b["type"] for b in blocks] == ["server_tool_use"]
+
+    @pytest.mark.parametrize("is_async", [False, True])
+    async def test_convert_anthropic_completion_chunks_with_server_tool_use_to_streaming_chunks(self, is_async):
+        """
+        Server tools are executed by Anthropic, so their streamed arguments must not become tool calls that
+        Haystack would then try to invoke locally.
+        """
+        generator = AnthropicChatGenerator(
+            api_key=Secret.from_token("test-api-key"),
+            anthropic_server_tools=[{"type": "web_search_20250305", "name": "web_search"}],
+        )
+        component_info = ComponentInfo(name="test", type="test")
+
+        raw_chunks = [
+            RawMessageStartEvent(
+                message=Message(
+                    id="msg_123",
+                    content=[],
+                    model="claude-sonnet-4-5-20250929",
+                    role="assistant",
+                    stop_reason=None,
+                    stop_sequence=None,
+                    type="message",
+                    usage=Usage(input_tokens=100, output_tokens=1),
+                ),
+                type="message_start",
+            ),
+            RawContentBlockStartEvent(
+                content_block=ServerToolUseBlock(
+                    id="srvtoolu_123", input={}, name="web_search", type="server_tool_use"
+                ),
+                index=0,
+                type="content_block_start",
+            ),
+            RawContentBlockDeltaEvent(
+                delta=InputJSONDelta(partial_json='{"query": "Haystack"}', type="input_json_delta"),
+                index=0,
+                type="content_block_delta",
+            ),
+            RawContentBlockStartEvent(
+                content_block=TextBlock(citations=None, text="", type="text"), index=1, type="content_block_start"
+            ),
+            RawContentBlockDeltaEvent(
+                delta=TextDelta(text="Haystack 2.x is the latest.", type="text_delta"),
+                index=1,
+                type="content_block_delta",
+            ),
+            RawMessageDeltaEvent(
+                delta=Delta(stop_reason="end_turn", stop_sequence=None),
+                type="message_delta",
+                usage=MessageDeltaUsage(output_tokens=20),
+            ),
+        ]
+
+        # the server_tool_use block itself yields no tool call...
+        server_tool_chunk = _convert_anthropic_chunk_to_streaming_chunk(
+            raw_chunks[1], component_info=component_info, tool_call_index=-1, in_server_tool_block=True
+        )
+        assert server_tool_chunk.tool_calls is None
+
+        # ...and neither do its argument deltas
+        args_chunk = _convert_anthropic_chunk_to_streaming_chunk(
+            raw_chunks[2], component_info=component_info, tool_call_index=-1, in_server_tool_block=True
+        )
+        assert args_chunk.tool_calls is None
+
+        if is_async:
+
+            async def _astream():
+                for c in raw_chunks:
+                    yield c
+
+            message = (await generator._process_response_async(_astream()))["replies"][0]
+        else:
+            message = generator._process_response(raw_chunks)["replies"][0]
+
+        assert message.tool_calls == []
+        assert message.text == "Haystack 2.x is the latest."
+        # the server tool's streamed query is kept for replay, not surfaced as a tool call
+        assert message.meta["raw_content_for_server_tools"][0]["input"] == {"query": "Haystack"}
 
     def test_convert_streaming_chunks_to_chat_message_with_multiple_tool_calls(self):
         """
