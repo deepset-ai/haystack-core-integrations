@@ -4,7 +4,7 @@
 
 | Name                                                                                |    Stmts |     Miss |   Branch |   BrPart |   Cover |   Missing |
 |------------------------------------------------------------------------------------ | -------: | -------: | -------: | -------: | ------: | --------: |
-| src/haystack\_integrations/components/generators/openrouter/chat/chat\_generator.py |      143 |        3 |       64 |        4 |     97% |60-\>63, 77, 434, 450 |
+| src/haystack\_integrations/components/generators/openrouter/chat/chat\_generator.py |      143 |        3 |       64 |        4 |     97% |60-\>63, 77, 436, 450 |
 | **TOTAL**                                                                           |  **143** |    **3** |   **64** |    **4** | **97%** |           |
 
 
