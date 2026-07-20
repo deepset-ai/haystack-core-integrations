@@ -124,6 +124,11 @@ integration:e2b:
       - any-glob-to-any-file: "integrations/e2b/**/*"
       - any-glob-to-any-file: ".github/workflows/e2b.yml"
 
+integration:edenai:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/edenai/**/*"
+      - any-glob-to-any-file: ".github/workflows/edenai.yml"
+
 integration:elasticsearch:
   - changed-files:
       - any-glob-to-any-file: "integrations/elasticsearch/**/*"
