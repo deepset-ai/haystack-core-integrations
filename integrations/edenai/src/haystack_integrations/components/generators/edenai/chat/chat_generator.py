@@ -8,10 +8,7 @@ from haystack.components.generators.chat import OpenAIChatGenerator
 from haystack.dataclasses import (
     StreamingCallbackT,
 )
-from haystack.tools import (
-    Tool,
-    Toolset,
-)
+from haystack.tools import ToolsType
 from haystack.utils import Secret
 
 
@@ -54,7 +51,7 @@ class EdenAIChatGenerator(OpenAIChatGenerator):
         generation_kwargs: dict[str, Any] | None = None,
         timeout: int | None = None,
         max_retries: int | None = None,
-        tools: list[Tool | Toolset] | Toolset | None = None,
+        tools: ToolsType | None = None,
         tools_strict: bool = False,
         http_client_kwargs: dict[str, Any] | None = None,
     ) -> None:
@@ -88,3 +85,18 @@ class EdenAIChatGenerator(OpenAIChatGenerator):
             tools_strict=tools_strict,
             http_client_kwargs=http_client_kwargs,
         )
+
+    def to_dict(self) -> dict[str, Any]:
+        """
+        Serializes the component to a dictionary.
+
+        :returns:
+            Dictionary with serialized data.
+        """
+        data = super().to_dict()
+        # `api_base_url` is fixed to the Eden AI endpoint and `organization` is unused;
+        # neither is accepted by `EdenAIChatGenerator.__init__`, so we drop them to keep
+        # the serialized data round-trippable through `from_dict`.
+        for key in ("api_base_url", "organization"):
+            data["init_parameters"].pop(key, None)
+        return data

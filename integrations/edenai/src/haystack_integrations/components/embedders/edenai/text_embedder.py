@@ -38,12 +38,12 @@ class EdenAITextEmbedder(OpenAITextEmbedder):
 
     def __init__(
         self,
+        *,
         model: str = "openai/text-embedding-3-small",
         api_key: Secret = Secret.from_env_var("EDENAI_API_KEY"),
         api_base_url: str | None = "https://api.edenai.run/v3",
         prefix: str = "",
         suffix: str = "",
-        *,
         timeout: float | None = None,
         max_retries: int | None = None,
         http_client_kwargs: dict[str, Any] | None = None,
@@ -83,9 +83,6 @@ class EdenAITextEmbedder(OpenAITextEmbedder):
             max_retries=max_retries,
             http_client_kwargs=http_client_kwargs,
         )
-        # We add these since they were only added in Haystack 2.14.0
-        self.timeout = timeout
-        self.max_retries = max_retries
 
     def to_dict(self) -> dict[str, Any]:
         """

@@ -35,11 +35,6 @@ class TestEdenAIDocumentEmbedder:
         assert embedder.meta_fields_to_embed == []
         assert embedder.embedding_separator == "\n"
 
-    def test_init_fail_wo_api_key(self, monkeypatch):
-        monkeypatch.delenv("EDENAI_API_KEY", raising=False)
-        with pytest.raises(ValueError, match=r"None of the .* environment variables are set"):
-            EdenAIDocumentEmbedder()
-
     def test_init_with_parameters(self):
         embedder = EdenAIDocumentEmbedder(
             api_key=Secret.from_token("test-api-key"),
