@@ -183,6 +183,27 @@ def test_normalize_filters(filters, expected):
     assert result == expected
 
 
+def test_or_of_ranges_on_same_field_are_not_merged():
+    # `price < 10 OR price > 100` must stay two separate range clauses under `should`.
+    # Merging them into a single {"lt": 10, "gt": 100} range means price < 10 AND
+    # price > 100, which matches no document.
+    filters = {
+        "operator": "OR",
+        "conditions": [
+            {"field": "meta.price", "operator": "<", "value": 10},
+            {"field": "meta.price", "operator": ">", "value": 100},
+        ],
+    }
+    assert _normalize_filters(filters) == {
+        "bool": {
+            "should": [
+                {"range": {"price": {"lt": 10}}},
+                {"range": {"price": {"gt": 100}}},
+            ]
+        }
+    }
+
+
 def test_normalize_filters_invalid_operator():
     with pytest.raises(FilterError):
         _normalize_filters({"operator": "INVALID", "conditions": []})

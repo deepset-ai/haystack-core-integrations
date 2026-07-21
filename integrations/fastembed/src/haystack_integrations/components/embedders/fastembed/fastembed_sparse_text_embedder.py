@@ -107,13 +107,13 @@ class FastembedSparseTextEmbedder:
 
         :param text: A string to embed.
         :returns: A dictionary with the following keys:
-            - `embedding`: A list of floats representing the embedding of the input text.
+            - `sparse_embedding`: The `SparseEmbedding` of the input text.
         :raises TypeError: If the input is not a string.
         """
         if not isinstance(text, str):
             msg = (
                 "FastembedSparseTextEmbedder expects a string as input. "
-                "In case you want to embed a list of Documents, please use the FastembedDocumentEmbedder."
+                "In case you want to embed a list of Documents, please use the FastembedSparseDocumentEmbedder."
             )
             raise TypeError(msg)
 

@@ -1,5 +1,17 @@
 # Changelog
 
+## [integrations/cohere-v9.3.0] - 2026-07-09
+
+### 🧪 Testing
+
+- Guard ToolInvoker imports so chat-generator tests run under Haystack 3.0 (#3535)
+- Fix cohere, amazon_bedrock, mirage, and ollama tests under Haystack 3.0 (#3566)
+
+### 🧹 Chores
+
+- Support sync streaming callbacks in async contexts for Haystack 2.x/3.x compatibility (#3534)
+
+
 ## [integrations/cohere-v9.2.0] - 2026-06-05
 
 ### 🚀 Features

@@ -1,5 +1,31 @@
 # Changelog
 
+## [integrations/cometapi-v2.1.1] - 2026-07-13
+
+### 🐛 Bug Fixes
+
+- *(cometapi)* Make CometAPIChatGenerator deserializable in pipelines (#3542)
+- Support Haystack 3.0's lazy OpenAI client initialization in OpenAI-inheriting generators (#3536)
+
+### 📚 Documentation
+
+- Simplify pydoc configs (#2855)
+
+### 🧪 Testing
+
+- Test compatible integrations with python 3.14; update pyproject (#3001)
+- Track test coverage for all integrations (#3065)
+- Trust test modules under Haystack 3.0's deserialization allowlist (#3537)
+- Make Tool/Agent serialization assertions version-agnostic for Haystack 2.x/3.x (#3533)
+- Guard ToolInvoker imports so chat-generator tests run under Haystack 3.0 (#3535)
+- Fix tests for integrations that inherit from the OpenAIChatGenerator (#3583)
+
+### 🧹 Chores
+
+- Enable ANN ruff ruleset for cometapi integration (#2984)
+- Enforce ruff docstring rules (D102/D103/D205/D209/D213/D417/D419) in first 10 integrations (#3008)
+
+
 ## [integrations/cometapi-v2.1.0] - 2026-01-28
 
 ### 🧹 Chores

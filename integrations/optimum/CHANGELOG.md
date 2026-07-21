@@ -1,5 +1,31 @@
 # Changelog
 
+## [integrations/optimum-v2.1.0] - 2026-07-03
+
+### 🐛 Bug Fixes
+
+- Adapt optimum, ragas, elasticsearch, opensearch to APIs removed in Haystack 3.0 (#3538)
+
+### 📚 Documentation
+
+- *(optimum)* Remove warm_up from examples (#2822)
+- Simplify pydoc configs (#2855)
+
+### 🧪 Testing
+
+- Track test coverage for all integrations (#3065)
+- Optimum - add unit tests for configs (#3220)
+- Make TestOptimumDocumentEmbedder test_run_on_empty_list not contact HF Hub (#3461)
+
+### 🧹 Chores
+
+- Remove unused allow-direct-references (#2866)
+- Add ANN ruff ruleset to optimum, paddleocr, pgvector, pinecone, pyversity, qdrant, ragas, snowflake (#2992)
+- Increase lower pins for 3.14 support in some integrations + test with 3.14 (#3033)
+- Enforce ruff docstring rules in integrations 31-40 (openrouter, opensearch, optimum, paddleocr, pgvector, pinecone, pyversity, qdrant, ragas, snowflake) (#3011)
+- Optimum - use new import path for SentenceTransformerPoolingLayer (#3137)
+
+
 ## [integrations/optimum-v2.0.0] - 2026-01-13
 
 ### 🧹 Chores
