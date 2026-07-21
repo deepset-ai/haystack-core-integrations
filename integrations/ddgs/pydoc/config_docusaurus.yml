@@ -1,0 +1,13 @@
+loaders:
+  - modules:
+      - haystack_integrations.components.websearch.ddgs.ddgs_websearch
+    search_path: [../src]
+processors:
+  - type: filter
+    documented_only: true
+    skip_empty_modules: true
+renderer:
+  description: ddgs (Dux Distributed Global Search) integration for Haystack
+  id: integrations-ddgs
+  filename: ddgs.md
+  title: ddgs

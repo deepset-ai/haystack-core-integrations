@@ -21,6 +21,7 @@ on:
       - "Test / cohere"
       - "Test / cometapi"
       - "Test / datadog"
+      - "Test / ddgs"
       - "Test / deepeval"
       - "Test / docling_serve"
       - "Test / dspy"
