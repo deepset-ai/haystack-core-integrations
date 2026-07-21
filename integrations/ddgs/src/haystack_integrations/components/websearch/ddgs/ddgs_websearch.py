@@ -5,7 +5,7 @@
 import asyncio
 from typing import Any
 
-from haystack import Document, component, default_from_dict, default_to_dict, logging
+from haystack import Document, component, logging
 
 from ddgs import DDGS
 
@@ -74,34 +74,6 @@ class DDGSWebSearch:
         """
         if self._client is None:
             self._client = DDGS()
-
-    def to_dict(self) -> dict[str, Any]:
-        """
-        Serializes the component to a dictionary.
-
-        :returns:
-            Dictionary with serialized data.
-        """
-        return default_to_dict(
-            self,
-            top_k=self.top_k,
-            backend=self.backend,
-            region=self.region,
-            safesearch=self.safesearch,
-            search_params=self.search_params,
-        )
-
-    @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "DDGSWebSearch":
-        """
-        Deserializes the component from a dictionary.
-
-        :param data:
-            The dictionary to deserialize from.
-        :returns:
-            The deserialized component.
-        """
-        return default_from_dict(cls, data)
 
     def _search(self, query: str) -> dict[str, list[Document] | list[str]]:
         """
