@@ -81,12 +81,20 @@ class LinkupWebSearch:
     def run(
         self,
         query: str,
+        top_k: int | None = None,
+        depth: Literal["fast", "standard", "deep"] | None = None,
         search_params: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         """
         Search the web using Linkup and return results as Documents.
 
         :param query: Search query string.
+        :param top_k:
+            Optional per-run override of the maximum number of results.
+            If not provided, the init-time `top_k` is used.
+        :param depth:
+            Optional per-run override of the search depth.
+            If not provided, the init-time `depth` is used.
         :param search_params:
             Optional per-run override of search parameters.
             If provided, fully replaces the init-time `search_params`.
@@ -100,20 +108,29 @@ class LinkupWebSearch:
             msg = "LinkupWebSearch client failed to initialize."
             raise RuntimeError(msg)
 
-        params = self._build_params(search_params)
-        response = self._client.search(query=query, depth=self.depth, output_type="searchResults", **params)
+        params = self._build_params(search_params, top_k)
+        effective_depth = depth if depth is not None else self.depth
+        response = self._client.search(query=query, depth=effective_depth, output_type="searchResults", **params)
         return self._parse_response(response)
 
     @component.output_types(documents=list[Document], links=list[str])
     async def run_async(
         self,
         query: str,
+        top_k: int | None = None,
+        depth: Literal["fast", "standard", "deep"] | None = None,
         search_params: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         """
         Asynchronously search the web using Linkup and return results as Documents.
 
         :param query: Search query string.
+        :param top_k:
+            Optional per-run override of the maximum number of results.
+            If not provided, the init-time `top_k` is used.
+        :param depth:
+            Optional per-run override of the search depth.
+            If not provided, the init-time `depth` is used.
         :param search_params:
             Optional per-run override of search parameters.
             If provided, fully replaces the init-time `search_params`.
@@ -127,14 +144,18 @@ class LinkupWebSearch:
             msg = "LinkupWebSearch client failed to initialize."
             raise RuntimeError(msg)
 
-        params = self._build_params(search_params)
-        response = await self._client.async_search(query=query, depth=self.depth, output_type="searchResults", **params)
+        params = self._build_params(search_params, top_k)
+        effective_depth = depth if depth is not None else self.depth
+        response = await self._client.async_search(
+            query=query, depth=effective_depth, output_type="searchResults", **params
+        )
         return self._parse_response(response)
 
-    def _build_params(self, search_params: dict[str, Any] | None) -> dict[str, Any]:
+    def _build_params(self, search_params: dict[str, Any] | None, top_k: int | None) -> dict[str, Any]:
         params = (search_params if search_params is not None else self.search_params or {}).copy()
-        if "max_results" not in params and self.top_k is not None:
-            params["max_results"] = self.top_k
+        effective_top_k = top_k if top_k is not None else self.top_k
+        if "max_results" not in params and effective_top_k is not None:
+            params["max_results"] = effective_top_k
         return params
 
     @staticmethod

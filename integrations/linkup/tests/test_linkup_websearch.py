@@ -121,6 +121,27 @@ class TestLinkupWebSearch:
             query="test", depth="standard", output_type="searchResults", include_images=True, max_results=3
         )
 
+    def test_run_overrides_top_k_and_depth_at_runtime(self, mock_client):
+        ws = LinkupWebSearch(api_key=Secret.from_token("test-key"), top_k=10, depth="standard")
+        ws._client = mock_client
+
+        ws.run(query="test", top_k=3, depth="deep")
+
+        mock_client.search.assert_called_once_with(
+            query="test", depth="deep", output_type="searchResults", max_results=3
+        )
+
+    @pytest.mark.asyncio
+    async def test_run_async_overrides_top_k_and_depth_at_runtime(self, mock_client):
+        ws = LinkupWebSearch(api_key=Secret.from_token("test-key"), top_k=10, depth="standard")
+        ws._client = mock_client
+
+        await ws.run_async(query="test", top_k=3, depth="fast")
+
+        mock_client.async_search.assert_awaited_once_with(
+            query="test", depth="fast", output_type="searchResults", max_results=3
+        )
+
     @pytest.mark.asyncio
     async def test_run_async(self, mock_client):
         ws = LinkupWebSearch(api_key=Secret.from_token("test-key"), top_k=10)
