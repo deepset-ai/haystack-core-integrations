@@ -29,13 +29,27 @@ VECTOR_FUNCTION_TO_SQL = {
 CREATE_TABLE_STATEMENT = """
 CREATE TABLE IF NOT EXISTS `{table_name}` (
     id VARCHAR(128) PRIMARY KEY,
-    embedding VECTOR({embedding_dimension}) COMMENT 'MHNSW(M=16)',
+    embedding VECTOR({embedding_dimension}),
     content LONGTEXT,
     blob_data LONGBLOB,
     blob_meta JSON,
     blob_mime_type VARCHAR(255),
     meta JSON,
     FULLTEXT KEY content_ft_idx (content)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+"""
+
+CREATE_TABLE_WITH_VECTOR_INDEX_STATEMENT = """
+CREATE TABLE IF NOT EXISTS `{table_name}` (
+    id VARCHAR(128) PRIMARY KEY,
+    embedding VECTOR({embedding_dimension}) NOT NULL,
+    content LONGTEXT,
+    blob_data LONGBLOB,
+    blob_meta JSON,
+    blob_mime_type VARCHAR(255),
+    meta JSON,
+    FULLTEXT KEY content_ft_idx (content),
+    VECTOR INDEX vec_idx (embedding) COMMENT 'MHNSW(distance={distance})'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
 """
 
@@ -120,6 +134,7 @@ class MariaDBDocumentStore(DocumentStore):
         embedding_dimension: int = 768,
         vector_function: Literal["cosine", "euclidean"] = "cosine",
         recreate_table: bool = False,
+        create_vector_index: bool = False,
     ) -> None:
         """
         Initialize the MariaDBDocumentStore.
@@ -133,6 +148,8 @@ class MariaDBDocumentStore(DocumentStore):
         :param embedding_dimension: Dimension of embedding vectors.
         :param vector_function: Similarity function — `"cosine"` or `"euclidean"`.
         :param recreate_table: Drop and recreate the table on init. **Deletes all data.**
+        :param create_vector_index: If `True`, creates a real MHNSW vector index for fast ANN search.
+            Requires every document to have a non-null embedding. Defaults to `False`.
         """
         self._connection: Any = None
         self._cursor: Any = None
@@ -151,6 +168,7 @@ class MariaDBDocumentStore(DocumentStore):
         self.embedding_dimension = embedding_dimension
         self.vector_function = vector_function
         self.recreate_table = recreate_table
+        self.create_vector_index = create_vector_index
 
     def to_dict(self) -> dict[str, Any]:
         """Serialize the component to a dictionary."""
@@ -165,6 +183,7 @@ class MariaDBDocumentStore(DocumentStore):
             embedding_dimension=self.embedding_dimension,
             vector_function=self.vector_function,
             recreate_table=self.recreate_table,
+            create_vector_index=self.create_vector_index,
         )
 
     @classmethod
@@ -211,10 +230,17 @@ class MariaDBDocumentStore(DocumentStore):
         if self.recreate_table:
             self._drop_table()
 
-        sql = CREATE_TABLE_STATEMENT.format(
-            table_name=self.table_name,
-            embedding_dimension=self.embedding_dimension,
-        )
+        if self.create_vector_index:
+            sql = CREATE_TABLE_WITH_VECTOR_INDEX_STATEMENT.format(
+                table_name=self.table_name,
+                embedding_dimension=self.embedding_dimension,
+                distance=self.vector_function,
+            )
+        else:
+            sql = CREATE_TABLE_STATEMENT.format(
+                table_name=self.table_name,
+                embedding_dimension=self.embedding_dimension,
+            )
         try:
             self._cursor.execute(sql)
             self._table_initialized = True
