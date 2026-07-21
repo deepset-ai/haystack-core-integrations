@@ -314,6 +314,12 @@ class TestDocumentStore(
     FilterableDocsFixtureMixin,
     WriteDocumentsTest,
 ):
+    def test_write_documents(self, document_store):
+        docs = [Document(id="1", content="test")]
+        assert document_store.write_documents(docs) == 1
+        with pytest.raises(DuplicateDocumentError):
+            document_store.write_documents(docs, DuplicatePolicy.FAIL)
+
     def test_embedding_retrieval(self, document_store):
         document_store.embedding_dimension = 4
         docs = [
