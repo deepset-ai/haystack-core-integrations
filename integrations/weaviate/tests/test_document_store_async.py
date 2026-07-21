@@ -6,6 +6,7 @@ import dataclasses
 import logging
 from collections.abc import AsyncGenerator
 from pathlib import Path
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 import pytest_asyncio
@@ -33,6 +34,37 @@ from numpy import float32 as np_float32
 
 from haystack_integrations.document_stores.weaviate import WeaviateDocumentStore
 from haystack_integrations.document_stores.weaviate.document_store import DOCUMENT_COLLECTION_PROPERTIES
+
+
+@pytest.mark.asyncio
+async def test_close_async():
+    document_store = WeaviateDocumentStore()
+    mock_client = AsyncMock()
+    document_store._async_client = mock_client
+    document_store._async_collection = MagicMock()
+
+    await document_store.close_async()
+
+    mock_client.close.assert_awaited_once()
+    assert document_store._async_client is None
+    assert document_store._async_collection is None
+
+    await document_store.close_async()
+    mock_client.close.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_close_async_is_exception_safe():
+    document_store = WeaviateDocumentStore()
+    mock_client = AsyncMock()
+    mock_client.close.side_effect = RuntimeError("boom")
+    document_store._async_client = mock_client
+    document_store._async_collection = MagicMock()
+
+    await document_store.close_async()
+
+    assert document_store._async_client is None
+    assert document_store._async_collection is None
 
 
 @pytest.mark.integration
@@ -146,7 +178,7 @@ class TestWeaviateDocumentStoreAsync(
         assert await document_store.count_documents_async() == 3
 
     @pytest.mark.asyncio
-    async def test_close_async(self, document_store: WeaviateDocumentStore) -> None:
+    async def test_close_async_and_reopen(self, document_store: WeaviateDocumentStore) -> None:
         # Initialise client and collection
         assert await document_store.async_client is not None
         assert await document_store.async_collection is not None
