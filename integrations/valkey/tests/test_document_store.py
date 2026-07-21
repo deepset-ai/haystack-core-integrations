@@ -6,7 +6,7 @@
 
 import struct
 from dataclasses import replace
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from glide_shared.commands.server_modules.ft_options.ft_create_options import DistanceMetricType
@@ -1237,6 +1237,75 @@ def unit_store():
 
 
 class TestValkeyDocumentStoreErrorPaths:
+    @pytest.mark.asyncio
+    async def test_write_documents_async_returns_count_across_multiple_batches(self):
+        store = ValkeyDocumentStore(index_name="async_success", embedding_dim=3, batch_size=2)
+        documents = [Document(id=f"doc-{i}", content=f"document {i}", embedding=[0.1, 0.2, 0.3]) for i in range(5)]
+        seen_keys = []
+
+        async def fake_set(_client, key, _path, _value):
+            seen_keys.append(key)
+            return "OK"
+
+        with (
+            patch.object(store, "_get_connection_async", AsyncMock(return_value=MagicMock())),
+            patch.object(store, "_create_index_async", AsyncMock()),
+            patch.object(ds_module.glide_json, "set", fake_set),
+        ):
+            written_count = await store.write_documents_async(documents)
+
+        assert written_count == len(documents)
+        assert seen_keys == [f"async_success:{doc.id}" for doc in documents]
+
+    @pytest.mark.asyncio
+    async def test_write_documents_async_reports_partial_success_in_failing_batch(self):
+        store = ValkeyDocumentStore(index_name="async_failure", embedding_dim=3, batch_size=2)
+        documents = [Document(id=f"doc-{i}", content=f"document {i}", embedding=[0.1, 0.2, 0.3]) for i in range(6)]
+        seen_keys = []
+        failing_key = f"async_failure:{documents[2].id}"
+
+        async def fake_set(_client, key, _path, _value):
+            seen_keys.append(key)
+            if key == failing_key:
+                msg = "write failed"
+                raise RuntimeError(msg)
+            return "OK"
+
+        with (
+            patch.object(store, "_get_connection_async", AsyncMock(return_value=MagicMock())),
+            patch.object(store, "_create_index_async", AsyncMock()),
+            patch.object(ds_module.glide_json, "set", fake_set),
+            pytest.raises(ValkeyDocumentStoreError) as exc_info,
+        ):
+            await store.write_documents_async(documents)
+
+        assert "3 document(s) were written" in str(exc_info.value)
+        assert documents[2].id in str(exc_info.value)
+        assert seen_keys == [f"async_failure:{doc.id}" for doc in documents[:4]]
+
+    @pytest.mark.asyncio
+    async def test_write_documents_async_reports_successful_sibling_in_first_batch(self):
+        store = ValkeyDocumentStore(index_name="async_first_batch_failure", embedding_dim=3, batch_size=2)
+        documents = [Document(id=f"doc-{i}", content=f"document {i}", embedding=[0.1, 0.2, 0.3]) for i in range(2)]
+        failing_key = f"async_first_batch_failure:{documents[0].id}"
+
+        async def fake_set(_client, key, _path, _value):
+            if key == failing_key:
+                msg = "write failed"
+                raise RuntimeError(msg)
+            return "OK"
+
+        with (
+            patch.object(store, "_get_connection_async", AsyncMock(return_value=MagicMock())),
+            patch.object(store, "_create_index_async", AsyncMock()),
+            patch.object(ds_module.glide_json, "set", fake_set),
+            pytest.raises(ValkeyDocumentStoreError) as exc_info,
+        ):
+            await store.write_documents_async(documents)
+
+        assert "1 document(s) were written" in str(exc_info.value)
+        assert documents[0].id in str(exc_info.value)
+
     @pytest.mark.parametrize("cluster_mode", [False, True])
     def test_get_connection_wraps_create_errors(self, unit_store, cluster_mode):
         unit_store._cluster_mode = cluster_mode

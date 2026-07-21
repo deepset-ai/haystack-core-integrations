@@ -705,12 +705,18 @@ class ValkeyDocumentStore(DocumentStore):
         written_count = 0
         for i in range(0, len(documents), self._batch_size):
             batch = documents[i : i + self._batch_size]
-            try:
-                await asyncio.gather(*[write_single_doc(doc) for doc in batch])
-                written_count += len(batch)
-            except Exception as e:
-                msg = f"Failed to write batch starting at index {i}: {e}"
-                raise ValkeyDocumentStoreError(msg) from e
+            results = await asyncio.gather(*[write_single_doc(doc) for doc in batch], return_exceptions=True)
+            for result in results:
+                if not isinstance(result, BaseException):
+                    written_count += 1
+
+            for doc, result in zip(batch, results, strict=True):
+                if isinstance(result, BaseException):
+                    msg = (
+                        f"Failed to write document {doc.id}: {result}. "
+                        f"{written_count} document(s) were written before this failure."
+                    )
+                    raise ValkeyDocumentStoreError(msg) from result
 
         return written_count
 
