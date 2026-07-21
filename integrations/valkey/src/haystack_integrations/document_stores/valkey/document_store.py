@@ -697,10 +697,10 @@ class ValkeyDocumentStore(DocumentStore):
         client = await self._get_connection_async()
         await self._create_index_async()
 
-        def write_single_doc(doc: Document) -> Any:
+        async def write_single_doc(doc: Document) -> Any:
             doc_dict = self._prepare_document_dict(doc)
             key = f"{self._index_name}:{doc.id}"
-            return glide_json.set(client, key, "$", json.dumps(doc_dict))
+            return await glide_json.set(client, key, "$", json.dumps(doc_dict))
 
         written_count = 0
         for i in range(0, len(documents), self._batch_size):

@@ -1306,6 +1306,33 @@ class TestValkeyDocumentStoreErrorPaths:
         assert "1 document(s) were written" in str(exc_info.value)
         assert documents[0].id in str(exc_info.value)
 
+    @pytest.mark.asyncio
+    async def test_write_documents_async_wraps_document_preparation_errors(self):
+        store = ValkeyDocumentStore(
+            index_name="async_prepare_failure", embedding_dim=3, batch_size=2, metadata_fields={"category": str}
+        )
+        documents = [
+            Document(id="doc-0", content="document 0", embedding=[0.1, 0.2, 0.3], meta={"category": "news"}),
+            Document(id="doc-1", content="document 1", embedding=[0.1, 0.2, 0.3], meta={"category": 123}),
+        ]
+        seen_keys = []
+
+        async def fake_set(_client, key, _path, _value):
+            seen_keys.append(key)
+            return "OK"
+
+        with (
+            patch.object(store, "_get_connection_async", AsyncMock(return_value=MagicMock())),
+            patch.object(store, "_create_index_async", AsyncMock()),
+            patch.object(ds_module.glide_json, "set", fake_set),
+            pytest.raises(ValkeyDocumentStoreError) as exc_info,
+        ):
+            await store.write_documents_async(documents)
+
+        assert "1 document(s) were written" in str(exc_info.value)
+        assert documents[1].id in str(exc_info.value)
+        assert seen_keys == [f"async_prepare_failure:{documents[0].id}"]
+
     @pytest.mark.parametrize("cluster_mode", [False, True])
     def test_get_connection_wraps_create_errors(self, unit_store, cluster_mode):
         unit_store._cluster_mode = cluster_mode
