@@ -158,14 +158,14 @@ class JinaRanker:
 
         return {"documents": ranked_docs, "meta": {"model": resp["model"], "usage": resp["usage"]}}
 
-    @component.output_types(documents=list[Document])
+    @component.output_types(documents=list[Document], meta=dict[str, Any])
     def run(
         self,
         query: str,
         documents: list[Document],
         top_k: int | None = None,
         score_threshold: float | None = None,
-    ) -> dict[str, list[Document]]:
+    ) -> dict[str, Any]:
         """
         Returns a list of Documents ranked by their similarity to the given query.
 
@@ -180,6 +180,7 @@ class JinaRanker:
         :returns:
             A dictionary with the following keys:
             - `documents`: List of Documents most similar to the given query in descending order of similarity.
+            - `meta`: A dictionary with metadata about the request, including the model used and usage information.
 
         :raises ValueError:
             If `top_k` is not > 0.
@@ -195,14 +196,14 @@ class JinaRanker:
 
         return self._parse_response(resp, documents, top_k, score_threshold)
 
-    @component.output_types(documents=list[Document])
+    @component.output_types(documents=list[Document], meta=dict[str, Any])
     async def run_async(
         self,
         query: str,
         documents: list[Document],
         top_k: int | None = None,
         score_threshold: float | None = None,
-    ) -> dict[str, list[Document]]:
+    ) -> dict[str, Any]:
         """
         Asynchronously returns a list of Documents ranked by their similarity to the given query.
 
@@ -220,6 +221,7 @@ class JinaRanker:
         :returns:
             A dictionary with the following keys:
             - `documents`: List of Documents most similar to the given query in descending order of similarity.
+            - `meta`: A dictionary with metadata about the request, including the model used and usage information.
 
         :raises ValueError:
             If `top_k` is not > 0.

@@ -1,4 +1,9 @@
 # Integrations
+integration:agent-pack:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/agent_pack/**/*"
+      - any-glob-to-any-file: ".github/workflows/agent_pack.yml"
+
 integration:alloydb:
   - changed-files:
       - any-glob-to-any-file: "integrations/alloydb/**/*"
@@ -94,6 +99,11 @@ integration:datadog:
       - any-glob-to-any-file: "integrations/datadog/**/*"
       - any-glob-to-any-file: ".github/workflows/datadog.yml"
 
+integration:ddgs:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/ddgs/**/*"
+      - any-glob-to-any-file: ".github/workflows/ddgs.yml"
+
 integration:deepeval:
   - changed-files:
       - any-glob-to-any-file: "integrations/deepeval/**/*"
@@ -118,6 +128,11 @@ integration:e2b:
   - changed-files:
       - any-glob-to-any-file: "integrations/e2b/**/*"
       - any-glob-to-any-file: ".github/workflows/e2b.yml"
+
+integration:edenai:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/edenai/**/*"
+      - any-glob-to-any-file: ".github/workflows/edenai.yml"
 
 integration:elasticsearch:
   - changed-files:
@@ -217,6 +232,11 @@ integration:libreoffice:
   - changed-files:
       - any-glob-to-any-file: "integrations/libreoffice/**/*"
       - any-glob-to-any-file: ".github/workflows/libreoffice.yml"
+
+integration:linkup:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/linkup/**/*"
+      - any-glob-to-any-file: ".github/workflows/linkup.yml"
 
 integration:litellm:
   - changed-files:

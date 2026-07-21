@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/langfuse-v5.2.0] - 2026-07-15
+
+### 🐛 Bug Fixes
+
+- *(langfuse)* Replace noisy ToolInvoker input with focused tool call arguments (#3520)
+
+
 ## [integrations/langfuse-v5.1.0] - 2026-07-08
 
 ### 🐛 Bug Fixes

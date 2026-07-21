@@ -1,5 +1,16 @@
 # Changelog
 
+## [integrations/jina-v1.3.1] - 2026-07-20
+
+### 🐛 Bug Fixes
+
+- JinaRanker - add missing output edge (#3605)
+
+### 🧪 Testing
+
+- Jina - add unit tests (#3214)
+
+
 ## [integrations/jina-v1.3.0] - 2026-04-14
 
 ### 🚀 Features
