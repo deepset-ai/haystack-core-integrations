@@ -2,13 +2,18 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-import os
 from unittest.mock import MagicMock
 
 import pytest
 from haystack.dataclasses import ByteStream, Document
 from haystack.document_stores.errors import DuplicateDocumentError
 from haystack.document_stores.types import DuplicatePolicy
+from haystack.testing.document_store import (
+    CountDocumentsTest,
+    DeleteDocumentsTest,
+    FilterableDocsFixtureMixin,
+    WriteDocumentsTest,
+)
 
 from haystack_integrations.document_stores.mariadb import MariaDBDocumentStore
 from haystack_integrations.document_stores.mariadb.document_store import (
@@ -56,7 +61,7 @@ class TestSerialization:
         params = d["init_parameters"]
         assert params["host"] == "localhost"
         assert params["embedding_dimension"] == 768
-        assert params["vector_function"] == "cosine_similarity"
+        assert params["vector_function"] == "cosine"
 
     def test_from_dict_roundtrip(self, monkeypatch):
         monkeypatch.setenv("MARIADB_USER", "test_user")
@@ -219,30 +224,33 @@ class TestWriteDocuments:
 
     def test_write_single_doc(self):
         store = _mock_store()
+        store._cursor.rowcount = 1
         doc = Document(content="test")
         result = store.write_documents([doc])
         assert result == 1
-        store._cursor.execute.assert_called_once()
+        store._cursor.executemany.assert_called_once()
 
     def test_write_overwrite_uses_upsert(self):
         store = _mock_store()
+        store._cursor.rowcount = 1
         doc = Document(content="test")
         store.write_documents([doc], policy=DuplicatePolicy.OVERWRITE)
-        call_args = store._cursor.execute.call_args[0]
+        call_args = store._cursor.executemany.call_args[0]
         assert "ON DUPLICATE KEY UPDATE" in call_args[0]
 
     def test_write_skip_uses_insert_ignore(self):
         store = _mock_store()
+        store._cursor.rowcount = 1
         doc = Document(content="test")
         store.write_documents([doc], policy=DuplicatePolicy.SKIP)
-        call_args = store._cursor.execute.call_args[0]
+        call_args = store._cursor.executemany.call_args[0]
         assert "INSERT IGNORE" in call_args[0]
 
     def test_write_fail_raises_on_duplicate(self):
         import mariadb  # noqa: PLC0415
 
         store = _mock_store()
-        store._cursor.execute.side_effect = mariadb.IntegrityError("Duplicate entry")
+        store._cursor.executemany.side_effect = mariadb.IntegrityError("Duplicate entry")
         doc = Document(id="dup", content="test")
         with pytest.raises(DuplicateDocumentError):
             store.write_documents([doc], policy=DuplicatePolicy.FAIL)
@@ -295,107 +303,42 @@ class TestFilterDocuments:
 
 
 # ---------------------------------------------------------------------------
-# Integration tests (require real MariaDB)
+# Integration tests (require real MariaDB — fixture in conftest.py)
 # ---------------------------------------------------------------------------
-
-MARIADB_HOST = os.environ.get("MARIADB_HOST", "localhost")
-MARIADB_PORT = int(os.environ.get("MARIADB_PORT", "3306"))
-MARIADB_DB = os.environ.get("MARIADB_DATABASE", "haystack")
-MARIADB_USER = os.environ.get("MARIADB_USER", "root")
-MARIADB_PASSWORD = os.environ.get("MARIADB_PASSWORD", "password")
-
-
-@pytest.fixture
-def integration_store():
-    store = MariaDBDocumentStore(
-        host=MARIADB_HOST,
-        port=MARIADB_PORT,
-        database=MARIADB_DB,
-        user=MARIADB_USER,
-        password=MARIADB_PASSWORD,
-        table_name="test_haystack_docs",
-        embedding_dimension=4,
-        recreate_table=True,
-    )
-    yield store
-    store.delete_documents(store.filter_documents() and [d.id for d in store.filter_documents()])
-    try:
-        store._cursor.execute("DROP TABLE IF EXISTS `test_haystack_docs`")
-    except Exception:  # noqa: S110
-        pass
-    store.close()
 
 
 @pytest.mark.integration
-class TestIntegrationDocumentStore:
-    def test_write_and_count(self, integration_store):
-        docs = [Document(content="Hello"), Document(content="World")]
-        written = integration_store.write_documents(docs)
-        assert written == 2
-        assert integration_store.count_documents() == 2
-
-    def test_filter_by_content_id(self, integration_store):
-        doc = Document(id="fixed-id", content="unique content")
-        integration_store.write_documents([doc])
-        results = integration_store.filter_documents({"field": "id", "operator": "==", "value": "fixed-id"})
-        assert len(results) == 1
-        assert results[0].id == "fixed-id"
-
-    def test_filter_by_meta(self, integration_store):
-        docs = [
-            Document(content="A", meta={"category": "cat"}),
-            Document(content="B", meta={"category": "dog"}),
-        ]
-        integration_store.write_documents(docs)
-        results = integration_store.filter_documents({"field": "meta.category", "operator": "==", "value": "cat"})
-        assert all(d.meta.get("category") == "cat" for d in results)
-
-    def test_delete_documents(self, integration_store):
-        doc = Document(id="to-delete", content="bye")
-        integration_store.write_documents([doc])
-        assert integration_store.count_documents() >= 1
-        integration_store.delete_documents(["to-delete"])
-        results = integration_store.filter_documents({"field": "id", "operator": "==", "value": "to-delete"})
-        assert results == []
-
-    def test_duplicate_fail(self, integration_store):
-        doc = Document(id="dup-test", content="once")
-        integration_store.write_documents([doc])
-        with pytest.raises(DuplicateDocumentError):
-            integration_store.write_documents([doc], policy=DuplicatePolicy.FAIL)
-
-    def test_duplicate_overwrite(self, integration_store):
-        doc = Document(id="ow-test", content="original")
-        integration_store.write_documents([doc])
-        doc2 = Document(id="ow-test", content="updated")
-        integration_store.write_documents([doc2], policy=DuplicatePolicy.OVERWRITE)
-        results = integration_store.filter_documents({"field": "id", "operator": "==", "value": "ow-test"})
-        assert results[0].content == "updated"
-
-    def test_embedding_retrieval(self, integration_store):
+class TestDocumentStore(
+    CountDocumentsTest,
+    DeleteDocumentsTest,
+    FilterableDocsFixtureMixin,
+    WriteDocumentsTest,
+):
+    def test_embedding_retrieval(self, document_store):
+        document_store.embedding_dimension = 4
         docs = [
             Document(content="red apple", embedding=[1.0, 0.0, 0.0, 0.0]),
             Document(content="green tea", embedding=[0.0, 1.0, 0.0, 0.0]),
         ]
-        integration_store.write_documents(docs)
-        results = integration_store._embedding_retrieval(query_embedding=[1.0, 0.0, 0.0, 0.0], top_k=1)
+        document_store.write_documents(docs)
+        results = document_store._embedding_retrieval(query_embedding=[1.0, 0.0, 0.0, 0.0], top_k=1)
         assert len(results) == 1
         assert results[0].content == "red apple"
 
-    def test_keyword_retrieval(self, integration_store):
+    def test_keyword_retrieval(self, document_store):
         docs = [
             Document(content="machine learning algorithms"),
             Document(content="database management systems"),
         ]
-        integration_store.write_documents(docs)
-        results = integration_store._keyword_retrieval(query="machine learning", top_k=5)
+        document_store.write_documents(docs)
+        results = document_store._keyword_retrieval(query="machine learning", top_k=5)
         assert len(results) >= 1
         assert any("machine" in d.content for d in results)
 
-    def test_write_with_blob(self, integration_store):
+    def test_write_with_blob(self, document_store):
         blob = ByteStream(data=b"binary content", meta={"type": "test"}, mime_type="text/plain")
         doc = Document(id="blob-doc", blob=blob)
-        integration_store.write_documents([doc])
-        results = integration_store.filter_documents({"field": "id", "operator": "==", "value": "blob-doc"})
+        document_store.write_documents([doc])
+        results = document_store.filter_documents({"field": "id", "operator": "==", "value": "blob-doc"})
         assert results[0].blob is not None
         assert results[0].blob.data == b"binary content"

@@ -43,12 +43,12 @@ class TestEmbeddingRetrieverInit:
         r = MariaDBEmbeddingRetriever(document_store=store)
         assert r.top_k == 10
         assert r.filter_policy == FilterPolicy.REPLACE
-        assert r.vector_function == "cosine_similarity"
+        assert r.vector_function == "cosine"
 
     def test_custom_vector_function(self):
         store = _make_store()
-        r = MariaDBEmbeddingRetriever(document_store=store, vector_function="l2_distance")
-        assert r.vector_function == "l2_distance"
+        r = MariaDBEmbeddingRetriever(document_store=store, vector_function="euclidean")
+        assert r.vector_function == "euclidean"
 
 
 class TestEmbeddingRetrieverSerialization:
@@ -86,7 +86,8 @@ class TestEmbeddingRetrieverRun:
             query_embedding=[0.1, 0.2],
             filters={},
             top_k=3,
-            vector_function="cosine_similarity",
+            score_threshold=None,
+            vector_function="cosine",
         )
 
     def test_run_with_runtime_top_k(self):
@@ -101,9 +102,9 @@ class TestEmbeddingRetrieverRun:
         store = _make_store()
         store._embedding_retrieval = MagicMock(return_value=[])
         r = MariaDBEmbeddingRetriever(document_store=store)
-        r.run(query_embedding=[0.1], vector_function="l2_distance")
+        r.run(query_embedding=[0.1], vector_function="euclidean")
         call_kwargs = store._embedding_retrieval.call_args[1]
-        assert call_kwargs["vector_function"] == "l2_distance"
+        assert call_kwargs["vector_function"] == "euclidean"
 
     def test_filter_policy_replace(self):
         store = _make_store()
@@ -259,6 +260,6 @@ class TestIntegrationRetrievers:
             Document(content="far origin", embedding=[10.0, 10.0, 10.0, 10.0]),
         ]
         integration_store.write_documents(docs)
-        retriever = MariaDBEmbeddingRetriever(document_store=integration_store, top_k=1, vector_function="l2_distance")
+        retriever = MariaDBEmbeddingRetriever(document_store=integration_store, top_k=1, vector_function="euclidean")
         result = retriever.run(query_embedding=[0.0, 0.0, 0.0, 0.0])
         assert result["documents"][0].content == "near origin"

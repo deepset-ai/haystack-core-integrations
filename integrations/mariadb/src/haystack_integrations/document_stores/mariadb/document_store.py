@@ -19,11 +19,11 @@ from .filters import _convert_filters_to_where_clause_and_params, _validate_filt
 
 logger = logging.getLogger(__name__)
 
-VALID_VECTOR_FUNCTIONS = ["cosine_similarity", "l2_distance"]
+VALID_VECTOR_FUNCTIONS = ["cosine", "euclidean"]
 
 VECTOR_FUNCTION_TO_SQL = {
-    "cosine_similarity": "VEC_DISTANCE_COSINE",
-    "l2_distance": "VEC_DISTANCE_EUCLIDEAN",
+    "cosine": "VEC_DISTANCE_COSINE",
+    "euclidean": "VEC_DISTANCE_EUCLIDEAN",
 }
 
 CREATE_TABLE_STATEMENT = """
@@ -118,7 +118,7 @@ class MariaDBDocumentStore(DocumentStore):
         password: Secret | str = Secret.from_env_var("MARIADB_PASSWORD"),
         table_name: str = "haystack_documents",
         embedding_dimension: int = 768,
-        vector_function: Literal["cosine_similarity", "l2_distance"] = "cosine_similarity",
+        vector_function: Literal["cosine", "euclidean"] = "cosine",
         recreate_table: bool = False,
     ) -> None:
         """
@@ -131,7 +131,7 @@ class MariaDBDocumentStore(DocumentStore):
         :param password: Database password. Reads `MARIADB_PASSWORD` env var by default.
         :param table_name: Table used to store documents.
         :param embedding_dimension: Dimension of embedding vectors.
-        :param vector_function: Similarity function — `"cosine_similarity"` or `"l2_distance"`.
+        :param vector_function: Similarity function — `"cosine"` or `"euclidean"`.
         :param recreate_table: Drop and recreate the table on init. **Deletes all data.**
         """
         self._connection: Any = None
@@ -251,8 +251,10 @@ class MariaDBDocumentStore(DocumentStore):
         """Close the database connection."""
         self._close_connection()
 
-    def __del__(self) -> None:
-        self._close_connection()
+    def delete_table(self) -> None:
+        """Drop the documents table. Useful for test teardown."""
+        self._ensure_connection()
+        self._drop_table()
 
     def count_documents(self) -> int:
         """Return the number of documents in the store."""
@@ -307,16 +309,20 @@ class MariaDBDocumentStore(DocumentStore):
 
         import mariadb  # noqa: PLC0415
 
-        written = 0
-        for doc in documents:
-            row = _document_to_row(doc)
-            try:
-                self._cursor.execute(sql, row)
-                written += 1
-            except mariadb.IntegrityError as e:
-                if policy == DuplicatePolicy.FAIL:
-                    msg = f"Document with id '{doc.id}' already exists"
-                    raise DuplicateDocumentError(msg) from e
+        rows = [_document_to_row(doc) for doc in documents]
+        try:
+            self._connection.begin()
+            self._cursor.executemany(sql, rows)
+            written = self._cursor.rowcount
+            self._connection.commit()
+        except mariadb.IntegrityError as e:
+            self._connection.rollback()
+            msg = "Some documents already exist and policy is FAIL"
+            raise DuplicateDocumentError(msg) from e
+        except mariadb.Error as e:
+            self._connection.rollback()
+            msg = "Failed to write documents"
+            raise DocumentStoreError(msg) from e
 
         return written
 
@@ -347,6 +353,7 @@ class MariaDBDocumentStore(DocumentStore):
         *,
         filters: dict[str, Any] | None = None,
         top_k: int = 10,
+        score_threshold: float | None = None,
         vector_function: str | None = None,
     ) -> list[Document]:
         """
@@ -355,6 +362,7 @@ class MariaDBDocumentStore(DocumentStore):
         :param query_embedding: Query vector.
         :param filters: Optional Haystack filters.
         :param top_k: Maximum results.
+        :param score_threshold: Minimum score to include a document. Documents below this score are excluded.
         :param vector_function: Override the store's vector function for this query.
         :returns: List of Documents ordered by similarity (most similar first).
         """
@@ -391,6 +399,8 @@ class MariaDBDocumentStore(DocumentStore):
             else doc
             for doc, record in zip(docs, records, strict=True)
         ]
+        if score_threshold is not None:
+            docs = [doc for doc in docs if doc.score is not None and doc.score >= score_threshold]
         return docs
 
     def _keyword_retrieval(

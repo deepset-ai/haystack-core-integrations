@@ -2,6 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+import re
 from datetime import datetime
 from typing import Any
 
@@ -83,10 +84,16 @@ def _parse_comparison_condition(condition: dict[str, Any]) -> tuple[str, list[An
     return clause, [val]
 
 
+_SAFE_FIELD_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_.]*$")
+
+
 def _build_field_expr(field: str, value: Any) -> str:
     """Return a safe SQL expression for a document field or meta JSON path."""
     if field.startswith("meta."):
         field_name = field.split(".", 1)[1]
+        if not _SAFE_FIELD_RE.match(field_name):
+            msg = f"Invalid meta field name: '{field_name}'"
+            raise FilterError(msg)
         # JSON_UNQUOTE(JSON_EXTRACT(meta, '$.field')) returns the value as a string.
         # Cast to numeric types when the comparison value is numeric.
         base = f"JSON_UNQUOTE(JSON_EXTRACT(meta, '$.{field_name}'))"
