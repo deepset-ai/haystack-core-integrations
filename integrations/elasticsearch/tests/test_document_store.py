@@ -385,8 +385,9 @@ def test_client_initialization_with_api_key_tuple(_mock_async_es, _mock_es):
 
     document_store = ElasticsearchDocumentStore(hosts="https://localhost:9200", api_key=api_key, api_key_id=api_key_id)
 
-    # Access client to trigger initialization
+    # Access both clients to trigger their initialization
     _ = document_store.client
+    _ = document_store.async_client
 
     # Check that Elasticsearch was called with the correct api_key tuple
     _mock_es.assert_called_once()
@@ -413,8 +414,9 @@ def test_client_initialization_with_api_key_string(_mock_async_es, _mock_es):
 
     document_store = ElasticsearchDocumentStore(hosts="testhost", api_key=api_key)
 
-    # Access client to trigger initialization
+    # Access both clients to trigger their (now independent) initialization
     _ = document_store.client
+    _ = document_store.async_client
 
     # Check that Elasticsearch was called with the correct api_key string
     _mock_es.assert_called_once()
@@ -614,7 +616,7 @@ def test_sparse_vector_retrieval_builds_query_with_filters():
 @pytest.mark.asyncio
 async def test_sparse_vector_retrieval_async_builds_query_without_filters():
     store = ElasticsearchDocumentStore(hosts="some hosts", sparse_vector_field="sparse_vec")
-    store._initialized = True
+    store._async_client = AsyncMock()
     store._search_documents_async = AsyncMock(return_value=[])  # type: ignore[method-assign]
 
     await store._sparse_vector_retrieval_async(
@@ -637,7 +639,7 @@ async def test_sparse_vector_retrieval_async_builds_query_without_filters():
 @pytest.mark.asyncio
 async def test_sparse_vector_retrieval_inference_async_builds_query_without_filters():
     store = ElasticsearchDocumentStore(hosts="some hosts", sparse_vector_field="sparse_vec")
-    store._initialized = True
+    store._async_client = AsyncMock()
     store._search_documents_async = AsyncMock(return_value=[])  # type: ignore[method-assign]
 
     await store._sparse_vector_retrieval_inference_async(
@@ -661,7 +663,7 @@ async def test_sparse_vector_retrieval_inference_async_builds_query_without_filt
 @pytest.mark.asyncio
 async def test_sparse_vector_retrieval_inference_async_builds_query_with_filters():
     store = ElasticsearchDocumentStore(hosts="some hosts", sparse_vector_field="sparse_vec")
-    store._initialized = True
+    store._async_client = AsyncMock()
     store._search_documents_async = AsyncMock(return_value=[])  # type: ignore[method-assign]
 
     await store._sparse_vector_retrieval_inference_async(
@@ -687,7 +689,7 @@ async def test_sparse_vector_retrieval_inference_async_builds_query_with_filters
 @pytest.mark.asyncio
 async def test_sparse_vector_retrieval_async_builds_query_with_filters():
     store = ElasticsearchDocumentStore(hosts="some hosts", sparse_vector_field="sparse_vec")
-    store._initialized = True
+    store._async_client = AsyncMock()
     store._search_documents_async = AsyncMock(return_value=[])  # type: ignore[method-assign]
 
     await store._sparse_vector_retrieval_async(
@@ -1372,7 +1374,7 @@ def test_hybrid_retrieval_inference_raises_on_empty_query():
 @pytest.mark.asyncio
 async def test_hybrid_retrieval_inference_async_builds_body_without_filters():
     store = ElasticsearchDocumentStore(hosts="some hosts", sparse_vector_field="sparse_vec")
-    store._initialized = True
+    store._async_client = AsyncMock()
     store._search_documents_async = AsyncMock(return_value=[])  # type: ignore[method-assign]
 
     await store._hybrid_retrieval_inference_async(query="Find Berlin", inference_id="ELSER", top_k=3)
@@ -1391,7 +1393,7 @@ async def test_hybrid_retrieval_inference_async_builds_body_without_filters():
 @pytest.mark.asyncio
 async def test_hybrid_retrieval_inference_async_builds_body_with_filters():
     store = ElasticsearchDocumentStore(hosts="some hosts", sparse_vector_field="sparse_vec")
-    store._initialized = True
+    store._async_client = AsyncMock()
     store._search_documents_async = AsyncMock(return_value=[])  # type: ignore[method-assign]
 
     await store._hybrid_retrieval_inference_async(
