@@ -39,7 +39,7 @@ async def _gather_tasks_with_cancel(tasks: list[asyncio.Task[T]]) -> list[T]:
     """
     try:
         return await asyncio.gather(*tasks)
-    except Exception:
+    except BaseException:
         for task in tasks:
             task.cancel()
         await asyncio.gather(*tasks, return_exceptions=True)
