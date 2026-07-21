@@ -4,14 +4,16 @@
 
 from typing import Any
 
+from haystack import component, default_to_dict
 from haystack.components.generators.chat import OpenAIChatGenerator
 from haystack.dataclasses import (
     StreamingCallbackT,
 )
-from haystack.tools import ToolsType
-from haystack.utils import Secret
+from haystack.tools import ToolsType, serialize_tools_or_toolset
+from haystack.utils import Secret, serialize_callable
 
 
+@component
 class EdenAIChatGenerator(OpenAIChatGenerator):
     """
     A chat generator that uses Eden AI's OpenAI-compatible API to generate chat responses.
@@ -73,7 +75,8 @@ class EdenAIChatGenerator(OpenAIChatGenerator):
         """
         api_base_url = "https://api.edenai.run/v3"
 
-        super().__init__(
+        # the @component decorator recreates the class, so the zero-argument form of super() cannot be used
+        super(EdenAIChatGenerator, self).__init__(  # noqa: UP008
             api_key=api_key,
             model=model,
             api_base_url=api_base_url,
@@ -93,10 +96,21 @@ class EdenAIChatGenerator(OpenAIChatGenerator):
         :returns:
             Dictionary with serialized data.
         """
-        data = super().to_dict()
-        # `api_base_url` is fixed to the Eden AI endpoint and `organization` is unused;
-        # neither is accepted by `EdenAIChatGenerator.__init__`, so we drop them to keep
-        # the serialized data round-trippable through `from_dict`.
-        for key in ("api_base_url", "organization"):
-            data["init_parameters"].pop(key, None)
-        return data
+        callback_name = serialize_callable(self.streaming_callback) if self.streaming_callback else None
+
+        # We re-implement to_dict (rather than calling super().to_dict()) so only the parameters
+        # accepted by this class's __init__ are serialized. api_base_url is fixed to the Eden AI
+        # endpoint and organization is unused, so neither is emitted, and the data round-trips
+        # through the inherited from_dict even if the OpenAIChatGenerator serialization changes.
+        return default_to_dict(
+            self,
+            api_key=self.api_key.to_dict(),
+            model=self.model,
+            streaming_callback=callback_name,
+            generation_kwargs=self.generation_kwargs,
+            timeout=self.timeout,
+            max_retries=self.max_retries,
+            tools=serialize_tools_or_toolset(self.tools),
+            tools_strict=self.tools_strict,
+            http_client_kwargs=self.http_client_kwargs,
+        )
