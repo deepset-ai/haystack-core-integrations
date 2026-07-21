@@ -313,7 +313,9 @@ class MariaDBDocumentStore(DocumentStore):
         try:
             self._connection.begin()
             self._cursor.executemany(sql, rows)
-            written = self._cursor.rowcount
+            # ON DUPLICATE KEY UPDATE counts updated rows as 2, inserted as 1 in MariaDB.
+            # For OVERWRITE all documents are written regardless, so return len(rows).
+            written = len(rows) if policy == DuplicatePolicy.OVERWRITE else self._cursor.rowcount
             self._connection.commit()
         except mariadb.IntegrityError as e:
             self._connection.rollback()
