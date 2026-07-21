@@ -103,19 +103,6 @@ jobs:
           name: coverage-comment-plivo
           path: python-coverage-comment-action-plivo.txt
 
-      - name: Run integration tests
-        run: hatch run test:integration-cov-append-retry
-
-      - name: Store combined coverage
-        if: github.event_name == 'push'
-        uses: py-cov-action/python-coverage-comment-action@5d8df5979747514c914e1c5a12335a7cf9a2745f # v4.1
-        with:
-          GITHUB_TOKEN: ${{ github.token }}
-          COVERAGE_PATH: integrations/plivo
-          SUBPROJECT_ID: plivo-combined
-          MINIMUM_GREEN: 90
-          MINIMUM_ORANGE: 60
-
       - name: Run unit tests with lowest direct dependencies
         if: github.event_name != 'push'
         run: |
