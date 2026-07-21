@@ -43,6 +43,7 @@ on:
       - "Test / langfuse"
       - "Test / lara"
       - "Test / libreoffice"
+      - "Test / linkup"
       - "Test / llama_cpp"
       - "Test / llama_stack"
       - "Test / markitdown"
