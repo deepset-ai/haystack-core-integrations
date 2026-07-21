@@ -233,6 +233,11 @@ integration:libreoffice:
       - any-glob-to-any-file: "integrations/libreoffice/**/*"
       - any-glob-to-any-file: ".github/workflows/libreoffice.yml"
 
+integration:linkup:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/linkup/**/*"
+      - any-glob-to-any-file: ".github/workflows/linkup.yml"
+
 integration:litellm:
   - changed-files:
       - any-glob-to-any-file: "integrations/litellm/**/*"
