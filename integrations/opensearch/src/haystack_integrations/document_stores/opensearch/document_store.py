@@ -4,6 +4,7 @@
 
 # ruff: noqa: FBT001, FBT002   boolean-type-hint-positional-argument and boolean-default-value-positional-argument
 
+import re
 from collections.abc import Generator, Mapping
 from dataclasses import replace
 from math import exp
@@ -2038,12 +2039,13 @@ class OpenSearchDocumentStore:
         after: dict[str, Any] | None = None,
     ) -> tuple[list[str], dict[str, Any] | None]:
         """
-        Returns unique values for a metadata field, optionally filtered by a search term in the content.
+        Returns unique values for a metadata field, optionally filtered by a search term.
 
         Uses composite aggregations for proper pagination beyond 10k results.
 
         :param metadata_field: The metadata field to get unique values for.
-        :param search_term: Optional search term to filter documents by matching in the content field.
+        :param search_term: Optional case-sensitive substring to filter the returned values by. Only values
+            of `metadata_field` that contain `search_term` are returned.
         :param size: The number of unique values to return per page. Defaults to 10000.
         :param after: Optional pagination key from the previous response. Use None for the first page.
             For subsequent pages, pass the `after_key` from the previous response.
@@ -2056,22 +2058,22 @@ class OpenSearchDocumentStore:
 
         field_name = _normalize_metadata_field_name(metadata_field)
 
-        # filter by search_term if provided
-        query: dict[str, Any] = {"match_all": {}}
-        if search_term:
-            # Use match_phrase for exact phrase matching to avoid tokenization issues
-            query = {"match_phrase": {"content": search_term}}
-
         # Build composite aggregation for proper pagination
+        terms_source: dict[str, Any] = {"field": field_name}
+        if search_term:
+            # Filter aggregation buckets directly on the value of the field being aggregated, using a
+            # regex substring match. Note: this is case-sensitive, since OpenSearch's terms aggregation
+            # `include` regex does not support a case-insensitive flag (unlike the `regexp` query).
+            terms_source["include"] = f".*{re.escape(search_term)}.*"
+
         composite_agg: dict[str, Any] = {
             "size": size,
-            "sources": [{field_name: {"terms": {"field": field_name}}}],
+            "sources": [{field_name: {"terms": terms_source}}],
         }
         if after is not None:
             composite_agg["after"] = after
 
         body = {
-            "query": query,
             "aggs": {
                 "unique_values": {
                     "composite": composite_agg,
@@ -2104,12 +2106,13 @@ class OpenSearchDocumentStore:
         after: dict[str, Any] | None = None,
     ) -> tuple[list[str], dict[str, Any] | None]:
         """
-        Asynchronously returns unique values for a metadata field, optionally filtered by a search term in the content.
+        Asynchronously returns unique values for a metadata field, optionally filtered by a search term.
 
         Uses composite aggregations for proper pagination beyond 10k results.
 
         :param metadata_field: The metadata field to get unique values for.
-        :param search_term: Optional search term to filter documents by matching in the content field.
+        :param search_term: Optional case-sensitive substring to filter the returned values by. Only values
+            of `metadata_field` that contain `search_term` are returned.
         :param size: The number of unique values to return per page. Defaults to 10000.
         :param after: Optional pagination key from the previous response. Use None for the first page.
             For subsequent pages, pass the `after_key` from the previous response.
@@ -2122,22 +2125,22 @@ class OpenSearchDocumentStore:
 
         field_name = _normalize_metadata_field_name(metadata_field)
 
-        # filter by search_term if provided
-        query: dict[str, Any] = {"match_all": {}}
-        if search_term:
-            # Use match_phrase for exact phrase matching to avoid tokenization issues
-            query = {"match_phrase": {"content": search_term}}
-
         # Build composite aggregation for proper pagination
+        terms_source: dict[str, Any] = {"field": field_name}
+        if search_term:
+            # Filter aggregation buckets directly on the value of the field being aggregated, using a
+            # regex substring match. Note: this is case-sensitive, since OpenSearch's terms aggregation
+            # `include` regex does not support a case-insensitive flag (unlike the `regexp` query).
+            terms_source["include"] = f".*{re.escape(search_term)}.*"
+
         composite_agg: dict[str, Any] = {
             "size": size,
-            "sources": [{field_name: {"terms": {"field": field_name}}}],
+            "sources": [{field_name: {"terms": terms_source}}],
         }
         if after is not None:
             composite_agg["after"] = after
 
         body = {
-            "query": query,
             "aggs": {
                 "unique_values": {
                     "composite": composite_agg,
