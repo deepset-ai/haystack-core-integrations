@@ -196,15 +196,34 @@ class TestDocumentStoreUnit:
     @pytest.mark.parametrize(
         "result",
         [
-            {"ids": ["1"], "documents": None, "metadatas": [{"cat": "A"}]},
-            {"ids": ["1"], "documents": ["hello world"], "metadatas": [{"cat": "A"}]},
+            {"ids": ["1"], "metadatas": [{"cat": "A"}]},
+            {"ids": ["1"], "metadatas": [None]},
+            {"ids": ["1"], "metadatas": [{"other": "A"}]},
         ],
-        ids=["documents_none", "no_matches"],
+        ids=["no_match", "metadata_none", "field_missing"],
     )
     def test_compute_field_unique_values_with_search_term_edge_cases(self, result):
         values, total = ChromaDocumentStore._compute_field_unique_values(result, "cat", "absent", 0, 10)
         assert values == []
         assert total == 0
+
+    def test_compute_field_unique_values_search_term_matches_field_value_case_insensitive(self):
+        result = {"ids": ["1", "2"], "metadatas": [{"cat": "Alpha"}, {"cat": "Beta"}]}
+        values, total = ChromaDocumentStore._compute_field_unique_values(result, "cat", "alpha", 0, 10)
+        assert values == ["Alpha"]
+        assert total == 1
+
+    def test_compute_field_unique_values_search_term_ignores_documents(self):
+        """search_term must match the metadata field's value, not the document content,
+        even if a "documents" key happens to be present in the result."""
+        result = {
+            "ids": ["1", "2"],
+            "documents": ["absent in content", "no match here"],
+            "metadatas": [{"cat": "A"}, {"cat": "absent-value"}],
+        }
+        values, total = ChromaDocumentStore._compute_field_unique_values(result, "cat", "absent", 0, 10)
+        assert values == ["absent-value"]
+        assert total == 1
 
     def test_filter_metadata_discards_unsupported_types(self, caplog):
         meta = {"ok": "x", "also_ok": None, "bad": {"nested": 1}, "worse": object()}
@@ -741,12 +760,61 @@ class TestMetadataOperations:
         assert sorted(all_values) == ["A", "B", "C"]
 
     def test_get_metadata_field_unique_values_with_search_term(self, populated_store):
-        """Test getting unique values filtered by search term"""
-        # Search for documents containing "Doc 1"
+        """Test getting unique values filtered by search term.
+
+        The search term is matched against the metadata field's own value, not document
+        content. "Doc 1" is content for one document (category "A"), but it is not a
+        substring of any "category" value, so no values should match.
+        """
         values, total = populated_store.get_metadata_field_unique_values(
             "category", search_term="Doc 1", from_=0, size=10
         )
-        assert values == ["A"]  # Only Doc 1 has category A
+        assert values == []
+        assert total == 0
+
+    def test_get_metadata_field_unique_values_search_term_matches_field_value(self, populated_store):
+        """Search term matches when it's a case-insensitive substring of the field's value."""
+        values, total = populated_store.get_metadata_field_unique_values(
+            "status", search_term="ACT", from_=0, size=10
+        )
+        # "ACT" is a substring of both "active" and "inactive" (case-insensitive)
+        assert sorted(values) == ["active", "inactive"]
+        assert total == 2
+
+        values, total = populated_store.get_metadata_field_unique_values(
+            "status", search_term="ina", from_=0, size=10
+        )
+        assert values == ["inactive"]
+        assert total == 1
+
+    def test_get_metadata_field_unique_values_search_term_excludes_content_only_match(self, document_store):
+        """A search term present only in document content (not in the metadata field value)
+        must not match, proving search_term no longer filters on content."""
+        docs = [
+            Document(content="unique-marker-xyz", meta={"category": "A"}),
+            Document(content="plain content", meta={"category": "B"}),
+        ]
+        document_store.write_documents(docs)
+
+        values, total = document_store.get_metadata_field_unique_values(
+            "category", search_term="unique-marker-xyz", from_=0, size=10
+        )
+        assert values == []
+        assert total == 0
+
+    def test_get_metadata_field_unique_values_search_term_matches_field_value_not_content(self, document_store):
+        """A search term present in the metadata field's value but absent from the content
+        must match, proving search_term filters on the metadata field's value."""
+        docs = [
+            Document(content="Nothing special here", meta={"category": "special-value"}),
+            Document(content="Nothing special here either", meta={"category": "other"}),
+        ]
+        document_store.write_documents(docs)
+
+        values, total = document_store.get_metadata_field_unique_values(
+            "category", search_term="SPECIAL", from_=0, size=10
+        )
+        assert values == ["special-value"]
         assert total == 1
 
     def test_get_metadata_field_unique_values_field_normalization(self, populated_store):
