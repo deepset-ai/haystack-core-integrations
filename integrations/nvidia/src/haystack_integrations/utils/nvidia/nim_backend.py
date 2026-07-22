@@ -42,6 +42,11 @@ class NimBackend:
         self.session.headers.update(headers)
 
         self.api_url = api_url
+        # Hosted ranking models are assigned a per-model endpoint that already includes the
+        # full path (e.g. ".../nv-rerankqa-mistral-4b-v3/reranking"), unlike other hosted
+        # endpoints which only override the host. `rank()` uses this to decide whether it
+        # still needs to append the `/ranking` path itself.
+        self._has_custom_ranking_endpoint = False
         if isinstance(client, str):
             client = Client.from_str(client)
         validated_model: Model | None = None
@@ -64,6 +69,8 @@ class NimBackend:
                 # we override the endpoint to use the custom endpoint
                 self.api_url = validated_model.endpoint
                 self.model_type = validated_model.model_type
+                if validated_model.model_type == "ranking":
+                    self._has_custom_ranking_endpoint = True
 
         self.model = validated_model.id if validated_model else model
         self.model_kwargs = model_kwargs or {}
@@ -179,7 +186,10 @@ class NimBackend:
 
     def rank(self, query_text: str, document_texts: list[str]) -> list[dict[str, Any]]:
         """Rank documents by relevance to a query via the NIM API."""
-        url = self.api_url
+        # Hosted ranking models already carry the full path in their custom endpoint;
+        # everything else (local NIM containers, non-ranking-table models) needs the
+        # `/ranking` suffix appended explicitly, like the other endpoints below do.
+        url = self.api_url if self._has_custom_ranking_endpoint else f"{self.api_url}/ranking"
 
         try:
             res = self.session.post(
