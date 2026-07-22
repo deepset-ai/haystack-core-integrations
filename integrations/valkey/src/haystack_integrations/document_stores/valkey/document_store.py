@@ -696,20 +696,29 @@ class ValkeyDocumentStore(DocumentStore):
         client = await self._get_connection_async()
         await self._create_index_async()
 
-        def write_single_doc(doc: Document) -> Any:
+        async def write_single_doc(doc: Document) -> Any:
             doc_dict = self._prepare_document_dict(doc)
             key = f"{self._index_name}:{doc.id}"
-            return glide_json.set(client, key, "$", json.dumps(doc_dict))
+            return await glide_json.set(client, key, "$", json.dumps(doc_dict))
 
         written_count = 0
         for i in range(0, len(documents), self._batch_size):
             batch = documents[i : i + self._batch_size]
-            try:
-                await asyncio.gather(*[write_single_doc(doc) for doc in batch])
-                written_count += len(batch)
-            except Exception as e:
-                msg = f"Failed to write batch starting at index {i}: {e}"
-                raise ValkeyDocumentStoreError(msg) from e
+            results = await asyncio.gather(*[write_single_doc(doc) for doc in batch], return_exceptions=True)
+            for result in results:
+                if not isinstance(result, BaseException):
+                    written_count += 1
+
+            failures = [
+                (doc, result) for doc, result in zip(batch, results, strict=True) if isinstance(result, BaseException)
+            ]
+            if failures:
+                ids = ", ".join(doc.id for doc, _ in failures)
+                msg = (
+                    f"Failed to write document(s) {ids}: {failures[0][1]}. "
+                    f"{written_count} document(s) were written before this failure."
+                )
+                raise ValkeyDocumentStoreError(msg) from failures[0][1]
 
         return written_count
 
