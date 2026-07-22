@@ -1294,6 +1294,41 @@ class TestValkeyDocumentStoreErrorPaths:
         assert seen_keys == [f"async_failure:{doc.id}" for doc in documents[:4]]
 
     @pytest.mark.asyncio
+    async def test_write_documents_async_reports_multiple_failures_in_same_batch(self):
+        store = ValkeyDocumentStore(index_name="async_multiple_failures", embedding_dim=3, batch_size=3)
+        documents = [Document(id=f"doc-{i}", content=f"document {i}", embedding=[0.1, 0.2, 0.3]) for i in range(7)]
+        seen_keys = []
+        failing_keys = {
+            f"async_multiple_failures:{documents[3].id}",
+            f"async_multiple_failures:{documents[4].id}",
+        }
+        first_failure = RuntimeError("first write failed")
+        second_failure = RuntimeError("write failed")
+
+        async def fake_set(_client, key, _path, _value):
+            seen_keys.append(key)
+            if key == f"async_multiple_failures:{documents[3].id}":
+                raise first_failure
+            if key in failing_keys:
+                raise second_failure
+            return "OK"
+
+        with (
+            patch.object(store, "_get_connection_async", AsyncMock(return_value=MagicMock())),
+            patch.object(store, "_create_index_async", AsyncMock()),
+            patch.object(ds_module.glide_json, "set", fake_set),
+            pytest.raises(ValkeyDocumentStoreError) as exc_info,
+        ):
+            await store.write_documents_async(documents)
+
+        error = exc_info.value
+        assert documents[3].id in str(error)
+        assert documents[4].id in str(error)
+        assert "4 document(s) were written" in str(error)
+        assert error.__cause__ is first_failure
+        assert seen_keys == [f"async_multiple_failures:{doc.id}" for doc in documents[:6]]
+
+    @pytest.mark.asyncio
     async def test_write_documents_async_reports_successful_sibling_in_first_batch(self):
         store = ValkeyDocumentStore(index_name="async_first_batch_failure", embedding_dim=3, batch_size=2)
         documents = [Document(id=f"doc-{i}", content=f"document {i}", embedding=[0.1, 0.2, 0.3]) for i in range(2)]

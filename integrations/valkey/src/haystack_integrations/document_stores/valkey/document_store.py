@@ -709,13 +709,16 @@ class ValkeyDocumentStore(DocumentStore):
                 if not isinstance(result, BaseException):
                     written_count += 1
 
-            for doc, result in zip(batch, results, strict=True):
-                if isinstance(result, BaseException):
-                    msg = (
-                        f"Failed to write document {doc.id}: {result}. "
-                        f"{written_count} document(s) were written before this failure."
-                    )
-                    raise ValkeyDocumentStoreError(msg) from result
+            failures = [
+                (doc, result) for doc, result in zip(batch, results, strict=True) if isinstance(result, BaseException)
+            ]
+            if failures:
+                ids = ", ".join(doc.id for doc, _ in failures)
+                msg = (
+                    f"Failed to write document(s) {ids}: {failures[0][1]}. "
+                    f"{written_count} document(s) were written before this failure."
+                )
+                raise ValkeyDocumentStoreError(msg) from failures[0][1]
 
         return written_count
 
