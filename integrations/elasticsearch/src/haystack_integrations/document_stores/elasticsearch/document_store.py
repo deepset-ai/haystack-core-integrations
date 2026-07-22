@@ -1919,9 +1919,9 @@ class ElasticsearchDocumentStore:
         after: dict[str, Any] | None = None,
     ) -> tuple[list[str], dict[str, Any] | None]:
         """
-        Asynchronously returns unique values for a metadata field, optionally filtered by a substring match on the
-        field's value.
+        Asynchronously returns unique values for a metadata field.
 
+        Optionally filtered by a substring match on the field's own value.
         Uses composite aggregations for proper pagination beyond 10k results.
 
         See: https://www.elastic.co/docs/reference/aggregations/search-aggregations-bucket-composite-aggregation
