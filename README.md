@@ -4,17 +4,17 @@
 
 | Name                                                                                           |    Stmts |     Miss |   Branch |   BrPart |   Cover |   Missing |
 |----------------------------------------------------------------------------------------------- | -------: | -------: | -------: | -------: | ------: | --------: |
-| src/haystack\_integrations/components/retrievers/opensearch/bm25\_retriever.py                 |       70 |        3 |       20 |        4 |     92% |174, 183-\>186, 280, 341 |
-| src/haystack\_integrations/components/retrievers/opensearch/embedding\_retriever.py            |       76 |        6 |       28 |       10 |     85% |250, 252, 253-\>255, 275, 370, 372, 373-\>375, 375-\>377, 377-\>380, 395 |
-| src/haystack\_integrations/components/retrievers/opensearch/metadata\_retriever.py             |       77 |        0 |       12 |        0 |    100% |           |
-| src/haystack\_integrations/components/retrievers/opensearch/open\_search\_hybrid\_retriever.py |       77 |        0 |       14 |        0 |    100% |           |
-| src/haystack\_integrations/components/retrievers/opensearch/sql\_retriever.py                  |       44 |       20 |        6 |        0 |     52% |113-130, 162-179 |
+| src/haystack\_integrations/components/retrievers/opensearch/bm25\_retriever.py                 |       74 |        3 |       20 |        4 |     93% |186, 195-\>198, 292, 353 |
+| src/haystack\_integrations/components/retrievers/opensearch/embedding\_retriever.py            |       80 |        6 |       28 |       10 |     85% |262, 264, 265-\>267, 287, 382, 384, 385-\>387, 387-\>389, 389-\>392, 407 |
+| src/haystack\_integrations/components/retrievers/opensearch/metadata\_retriever.py             |       81 |        0 |       12 |        0 |    100% |           |
+| src/haystack\_integrations/components/retrievers/opensearch/open\_search\_hybrid\_retriever.py |       81 |        0 |       14 |        0 |    100% |           |
+| src/haystack\_integrations/components/retrievers/opensearch/sql\_retriever.py                  |       48 |       20 |        6 |        0 |     56% |125-142, 174-191 |
 | src/haystack\_integrations/components/retrievers/opensearch/utils.py                           |        8 |        0 |        4 |        0 |    100% |           |
 | src/haystack\_integrations/document\_stores/opensearch/auth.py                                 |       63 |        0 |        4 |        0 |    100% |           |
-| src/haystack\_integrations/document\_stores/opensearch/document\_store.py                      |      743 |      395 |      240 |       22 |     45% |205-216, 270-\>273, 288-\>290, 292, 309-322, 335, 362-363, 372-381, 433-436, 442-445, 451-455, 460-470, 492-493, 505-507, 518-519, 521-\>524, 532-\>542, 535, 568-591, 618-\>621, 646-661, 670-676, 750-753, 760, 810-811, 860, 878-895, 908-924, 938-964, 978-1004, 1017-1019, 1052, 1058-\>1061, 1068, 1228-1280, 1307-1314, 1333-1344, 1359-1371, 1436-1476, 1541-1581, 1593-1645, 1668-1678, 1701-1712, 1725, 1729, 1739-1744, 1754-1759, 1772-1776, 1782-1791, 1809-1815, 1829-1855, 1873-1899, 1927-1935, 1961-1969, 1976, 1993-1995, 2005-2013, 2023-2031, 2054-2097, 2120-2163, 2184-\>2191, 2198-2200, 2221-\>2228, 2235-2237 |
+| src/haystack\_integrations/document\_stores/opensearch/document\_store.py                      |      754 |      395 |      244 |       22 |     45% |206-217, 271-\>274, 289-\>291, 293, 310-323, 354, 381-382, 391-400, 452-455, 461-464, 470-474, 479-489, 511-512, 524-526, 537-538, 540-\>543, 551-\>561, 554, 587-610, 637-\>640, 665-680, 689-695, 769-772, 779, 829-830, 879, 897-914, 927-943, 957-983, 997-1023, 1036-1038, 1071, 1077-\>1080, 1087, 1247-1299, 1326-1333, 1352-1363, 1378-1390, 1455-1495, 1560-1600, 1612-1664, 1687-1697, 1720-1731, 1744, 1748, 1758-1763, 1773-1778, 1791-1795, 1801-1810, 1828-1834, 1848-1874, 1892-1918, 1946-1954, 1980-1988, 1995, 2012-2014, 2024-2032, 2042-2050, 2073-2116, 2139-2182, 2203-\>2210, 2217-2219, 2240-\>2247, 2254-2256 |
 | src/haystack\_integrations/document\_stores/opensearch/filters.py                              |      189 |       51 |      112 |       14 |     74% |19-20, 28, 55, 138, 141, 156-165, 169-187, 196, 200-205, 207-208, 218, 222-227, 229-230, 240, 242-249, 251-252, 258-259, 264-267 |
 | src/haystack\_integrations/document\_stores/opensearch/opensearch\_scripts.py                  |        1 |        0 |        0 |        0 |    100% |           |
-| **TOTAL**                                                                                      | **1348** |  **475** |  **440** |   **50** | **62%** |           |
+| **TOTAL**                                                                                      | **1379** |  **475** |  **444** |   **50** | **63%** |           |
 
 
 ## Setup coverage badge
