@@ -372,61 +372,48 @@ def test_api_key_validation_only_api_key_id_raises_error(_mock_elasticsearch_cli
         es.client()
 
 
+_API_KEY_INIT_CASES = [
+    (
+        {"api_key": Secret.from_token("test_api_key"), "api_key_id": Secret.from_token("test_api_key_id")},
+        ("test_api_key_id", "test_api_key"),
+    ),
+    ({"api_key": "test_api_key"}, "test_api_key"),
+]
+
+
+@pytest.mark.parametrize(
+    "api_key_kwargs, expected_api_key", _API_KEY_INIT_CASES, ids=["api_key_and_id", "api_key_only"]
+)
 @patch("haystack_integrations.document_stores.elasticsearch.document_store.Elasticsearch")
 @patch("haystack_integrations.document_stores.elasticsearch.document_store.AsyncElasticsearch")
-def test_client_initialization_with_api_key_tuple(_mock_async_es, _mock_es):
-    api_key = Secret.from_token("test_api_key")
-    api_key_id = Secret.from_token("test_api_key_id")
-
-    # Mock the client.info() call to avoid actual connection
+def test_sync_client_initialization_passes_api_key(_mock_async_es, _mock_es, api_key_kwargs, expected_api_key):
+    # Mock the client.info() call to avoid an actual connection
     mock_client = Mock()
     mock_client.info.return_value = {"version": {"number": "8.0.0"}}
     _mock_es.return_value = mock_client
 
-    document_store = ElasticsearchDocumentStore(hosts="https://localhost:9200", api_key=api_key, api_key_id=api_key_id)
+    _ = ElasticsearchDocumentStore(hosts="https://localhost:9200", **api_key_kwargs).client
 
-    # Access client to trigger initialization
-    _ = document_store.client
-
-    # Check that Elasticsearch was called with the correct api_key tuple
     _mock_es.assert_called_once()
-    call_args = _mock_es.call_args
-    assert call_args[0][0] == "https://localhost:9200"  # hosts
-    assert call_args[1]["api_key"] == ("test_api_key_id", "test_api_key")
-
-    # Check that AsyncElasticsearch was called with the same api_key tuple
-    _mock_async_es.assert_called_once()
-    async_call_args = _mock_async_es.call_args
-    assert async_call_args[0][0] == "https://localhost:9200"  # hosts
-    assert async_call_args[1]["api_key"] == ("test_api_key_id", "test_api_key")
+    assert _mock_es.call_args[0][0] == "https://localhost:9200"  # hosts
+    assert _mock_es.call_args[1]["api_key"] == expected_api_key
+    # Accessing the sync client must not construct the async client
+    _mock_async_es.assert_not_called()
 
 
+@pytest.mark.parametrize(
+    "api_key_kwargs, expected_api_key", _API_KEY_INIT_CASES, ids=["api_key_and_id", "api_key_only"]
+)
 @patch("haystack_integrations.document_stores.elasticsearch.document_store.Elasticsearch")
 @patch("haystack_integrations.document_stores.elasticsearch.document_store.AsyncElasticsearch")
-def test_client_initialization_with_api_key_string(_mock_async_es, _mock_es):
-    api_key = "test_api_key"
+def test_async_client_initialization_passes_api_key(_mock_async_es, _mock_es, api_key_kwargs, expected_api_key):
+    _ = ElasticsearchDocumentStore(hosts="https://localhost:9200", **api_key_kwargs).async_client
 
-    # Mock the client.info() call to avoid actual connection
-    mock_client = Mock()
-    mock_client.info.return_value = {"version": {"number": "8.0.0"}}
-    _mock_es.return_value = mock_client
-
-    document_store = ElasticsearchDocumentStore(hosts="testhost", api_key=api_key)
-
-    # Access client to trigger initialization
-    _ = document_store.client
-
-    # Check that Elasticsearch was called with the correct api_key string
-    _mock_es.assert_called_once()
-    call_args = _mock_es.call_args
-    assert call_args[0][0] == "testhost"  # hosts
-    assert call_args[1]["api_key"] == "test_api_key"
-
-    # Check that AsyncElasticsearch was called with the same api_key string
     _mock_async_es.assert_called_once()
-    async_call_args = _mock_async_es.call_args
-    assert async_call_args[0][0] == "testhost"  # hosts
-    assert async_call_args[1]["api_key"] == "test_api_key"
+    assert _mock_async_es.call_args[0][0] == "https://localhost:9200"  # hosts
+    assert _mock_async_es.call_args[1]["api_key"] == expected_api_key
+    # Accessing the async client must not construct the sync client
+    _mock_es.assert_not_called()
 
 
 @patch("haystack_integrations.document_stores.elasticsearch.document_store.Elasticsearch")
@@ -614,7 +601,7 @@ def test_sparse_vector_retrieval_builds_query_with_filters():
 @pytest.mark.asyncio
 async def test_sparse_vector_retrieval_async_builds_query_without_filters():
     store = ElasticsearchDocumentStore(hosts="some hosts", sparse_vector_field="sparse_vec")
-    store._initialized = True
+    store._async_client = AsyncMock()
     store._search_documents_async = AsyncMock(return_value=[])  # type: ignore[method-assign]
 
     await store._sparse_vector_retrieval_async(
@@ -637,7 +624,7 @@ async def test_sparse_vector_retrieval_async_builds_query_without_filters():
 @pytest.mark.asyncio
 async def test_sparse_vector_retrieval_inference_async_builds_query_without_filters():
     store = ElasticsearchDocumentStore(hosts="some hosts", sparse_vector_field="sparse_vec")
-    store._initialized = True
+    store._async_client = AsyncMock()
     store._search_documents_async = AsyncMock(return_value=[])  # type: ignore[method-assign]
 
     await store._sparse_vector_retrieval_inference_async(
@@ -661,7 +648,7 @@ async def test_sparse_vector_retrieval_inference_async_builds_query_without_filt
 @pytest.mark.asyncio
 async def test_sparse_vector_retrieval_inference_async_builds_query_with_filters():
     store = ElasticsearchDocumentStore(hosts="some hosts", sparse_vector_field="sparse_vec")
-    store._initialized = True
+    store._async_client = AsyncMock()
     store._search_documents_async = AsyncMock(return_value=[])  # type: ignore[method-assign]
 
     await store._sparse_vector_retrieval_inference_async(
@@ -687,7 +674,7 @@ async def test_sparse_vector_retrieval_inference_async_builds_query_with_filters
 @pytest.mark.asyncio
 async def test_sparse_vector_retrieval_async_builds_query_with_filters():
     store = ElasticsearchDocumentStore(hosts="some hosts", sparse_vector_field="sparse_vec")
-    store._initialized = True
+    store._async_client = AsyncMock()
     store._search_documents_async = AsyncMock(return_value=[])  # type: ignore[method-assign]
 
     await store._sparse_vector_retrieval_async(
@@ -1372,7 +1359,7 @@ def test_hybrid_retrieval_inference_raises_on_empty_query():
 @pytest.mark.asyncio
 async def test_hybrid_retrieval_inference_async_builds_body_without_filters():
     store = ElasticsearchDocumentStore(hosts="some hosts", sparse_vector_field="sparse_vec")
-    store._initialized = True
+    store._async_client = AsyncMock()
     store._search_documents_async = AsyncMock(return_value=[])  # type: ignore[method-assign]
 
     await store._hybrid_retrieval_inference_async(query="Find Berlin", inference_id="ELSER", top_k=3)
@@ -1391,7 +1378,7 @@ async def test_hybrid_retrieval_inference_async_builds_body_without_filters():
 @pytest.mark.asyncio
 async def test_hybrid_retrieval_inference_async_builds_body_with_filters():
     store = ElasticsearchDocumentStore(hosts="some hosts", sparse_vector_field="sparse_vec")
-    store._initialized = True
+    store._async_client = AsyncMock()
     store._search_documents_async = AsyncMock(return_value=[])  # type: ignore[method-assign]
 
     await store._hybrid_retrieval_inference_async(
