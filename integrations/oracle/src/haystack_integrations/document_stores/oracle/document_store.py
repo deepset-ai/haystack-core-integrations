@@ -773,7 +773,7 @@ class OracleDocumentStore:
 
         :param metadata_field: Metadata field name. May be prefixed with ``"meta."``
             (e.g. ``"meta.lang"`` or ``"lang"``).
-        :param search_term: Optional substring filter applied to both the document text and the field value.
+        :param search_term: Optional substring filter applied to the metadata field's own value.
         :param from_: Zero-based offset for pagination. Defaults to ``0``.
         :param size: Maximum number of values to return. When ``None`` all values from ``from_`` onward
             are returned.
@@ -786,7 +786,7 @@ class OracleDocumentStore:
         base_sql = f"FROM {self.table_name} WHERE JSON_VALUE(metadata, '$.{field_path}') IS NOT NULL"
         params: dict[str, Any] = {}
         if search_term:
-            base_sql += f" AND (text LIKE :search OR JSON_VALUE(metadata, '$.{field_path}') LIKE :search)"
+            base_sql += f" AND JSON_VALUE(metadata, '$.{field_path}') LIKE :search"
             params["search"] = f"%{search_term}%"
 
         sql_count = f"SELECT COUNT(DISTINCT JSON_VALUE(metadata, '$.{field_path}')) {base_sql}"
@@ -841,7 +841,7 @@ class OracleDocumentStore:
 
         :param metadata_field: Metadata field name. May be prefixed with ``"meta."``
             (e.g. ``"meta.lang"`` or ``"lang"``).
-        :param search_term: Optional substring filter applied to both the document text and the field value.
+        :param search_term: Optional substring filter applied to the metadata field's own value.
         :param from_: Zero-based offset for pagination. Defaults to ``0``.
         :param size: Maximum number of values to return. When ``None`` all values from ``from_`` onward
             are returned.
