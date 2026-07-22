@@ -51,6 +51,7 @@ class STACKITDocumentEmbedder(OpenAIDocumentEmbedder):
         meta_fields_to_embed: list[str] | None = None,
         embedding_separator: str = "\n",
         *,
+        dimensions: int | None = None,
         timeout: float | None = None,
         max_retries: int | None = None,
         http_client_kwargs: dict[str, Any] | None = None,
@@ -78,6 +79,9 @@ class STACKITDocumentEmbedder(OpenAIDocumentEmbedder):
             List of meta fields that should be embedded along with the Document text.
         :param embedding_separator:
             Separator used to concatenate the meta fields to the Document text.
+        :param dimensions:
+            The number of dimensions of the resulting embeddings. Only supported by some models -
+            check the STACKIT model card for the model you are using to see if this parameter is supported.
         :param timeout:
             Timeout for STACKIT client calls. If not set, it defaults to either the `OPENAI_TIMEOUT` environment
             variable, or 30 seconds.
@@ -91,7 +95,7 @@ class STACKITDocumentEmbedder(OpenAIDocumentEmbedder):
         super(STACKITDocumentEmbedder, self).__init__(  # noqa: UP008
             api_key=api_key,
             model=model,
-            dimensions=None,
+            dimensions=dimensions,
             api_base_url=api_base_url,
             organization=None,
             prefix=prefix,
@@ -118,6 +122,7 @@ class STACKITDocumentEmbedder(OpenAIDocumentEmbedder):
         return default_to_dict(
             self,
             model=self.model,
+            dimensions=self.dimensions,
             api_key=self.api_key.to_dict(),
             api_base_url=self.api_base_url,
             prefix=self.prefix,

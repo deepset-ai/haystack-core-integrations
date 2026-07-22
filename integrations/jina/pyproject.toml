@@ -72,7 +72,8 @@ unit-cov-retry = 'pytest --cov=haystack_integrations --reruns 3 --reruns-delay 3
 integration-cov-append-retry = 'pytest --cov=haystack_integrations --cov-append --reruns 3 --reruns-delay 30 -x -m "integration" {args:tests}'
 
 types = """mypy -p haystack_integrations.components.connectors.jina \
--p haystack_integrations.components.embedders.jina {args}"""
+-p haystack_integrations.components.embedders.jina \
+-p haystack_integrations.components.rankers.jina {args}"""
 
 [tool.mypy]
 install_types = true

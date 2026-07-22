@@ -265,6 +265,18 @@ def test_convert_filters_to_where_clause_and_params_handle_null():
     assert params == ("intro",)
 
 
+def test_convert_filters_to_where_clause_and_params_value_equal_to_no_value_sentinel():
+    """A legitimate equality filter whose value is the literal string the internal
+    NO_VALUE sentinel used to be ("no_value") must not be dropped from params --
+    the query still has a placeholder for it."""
+    filters = {"field": "meta.tag", "operator": "==", "value": "no_value"}
+    where_clause, params = _convert_filters_to_where_clause_and_params(filters)
+
+    expected_sql = " WHERE meta->>'tag' = %s"
+    assert _render(where_clause) == expected_sql
+    assert params == ("no_value",)
+
+
 def test_validate_filters():
     filters = {"field": "meta.number", "operator": "==", "value": 100}
     _validate_filters(filters)

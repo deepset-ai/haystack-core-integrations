@@ -39,6 +39,7 @@ class STACKITTextEmbedder(OpenAITextEmbedder):
         prefix: str = "",
         suffix: str = "",
         *,
+        dimensions: int | None = None,
         timeout: float | None = None,
         max_retries: int | None = None,
         http_client_kwargs: dict[str, Any] | None = None,
@@ -57,6 +58,9 @@ class STACKITTextEmbedder(OpenAITextEmbedder):
             A string to add to the beginning of each text.
         :param suffix:
             A string to add to the end of each text.
+        :param dimensions:
+            The number of dimensions of the resulting embeddings. Only supported by some models -
+            check the STACKIT model card for the model you are using to see if this parameter is supported.
         :param timeout:
             Timeout for STACKIT client calls. If not set, it defaults to either the `OPENAI_TIMEOUT` environment
             variable, or 30 seconds.
@@ -70,7 +74,7 @@ class STACKITTextEmbedder(OpenAITextEmbedder):
         super(STACKITTextEmbedder, self).__init__(  # noqa: UP008
             api_key=api_key,
             model=model,
-            dimensions=None,
+            dimensions=dimensions,
             api_base_url=api_base_url,
             organization=None,
             prefix=prefix,
@@ -94,6 +98,7 @@ class STACKITTextEmbedder(OpenAITextEmbedder):
             self,
             api_key=self.api_key.to_dict(),
             model=self.model,
+            dimensions=self.dimensions,
             api_base_url=self.api_base_url,
             prefix=self.prefix,
             suffix=self.suffix,

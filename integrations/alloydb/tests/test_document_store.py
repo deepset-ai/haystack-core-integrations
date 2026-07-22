@@ -43,6 +43,16 @@ class TestDocumentStore(
     GetMetadataFieldMinMaxTest,
     GetMetadataFieldUniqueValuesTest,
 ):
+    def test_close_and_reopen(self, document_store: AlloyDBDocumentStore):
+        assert document_store.count_documents() == 0
+        assert document_store._connection is not None
+
+        document_store.close()
+        assert document_store._connection is None
+
+        assert document_store.count_documents() == 0
+        assert document_store._connection is not None
+
     def test_get_metadata_fields_info_empty_collection(self, document_store: AlloyDBDocumentStore):
         """Returns empty dict when the store has no documents."""
         assert document_store.count_documents() == 0
@@ -229,10 +239,31 @@ def test_normalize_metadata_field_name_rejects_invalid_characters():
         AlloyDBDocumentStore._normalize_metadata_field_name("field; DROP TABLE")
 
 
-def test_close_is_idempotent(mock_store):
-    """Calling close() multiple times should not raise."""
+def test_close(mock_store):
+    mock_connection = Mock(spec=Connection)
+    mock_store._connection = mock_connection
+    mock_store._cursor = Mock(spec=Cursor)
+    mock_store._dict_cursor = Mock(spec=Cursor)
+
     mock_store.close()
+
+    mock_connection.close.assert_called_once()
+    assert mock_store._connection is None
+    assert mock_store._cursor is None
+    assert mock_store._dict_cursor is None
+
     mock_store.close()
+    mock_connection.close.assert_called_once()
+
+
+def test_close_is_exception_safe(mock_store):
+    mock_connection = Mock(spec=Connection)
+    mock_connection.close.side_effect = RuntimeError("boom")
+    mock_store._connection = mock_connection
+
+    mock_store.close()
+
+    assert mock_store._connection is None
 
 
 def test_init_is_lazy(monkeypatch):

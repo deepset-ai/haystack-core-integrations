@@ -1,5 +1,27 @@
 # Changelog
 
+## [integrations/stackit-v2.2.0] - 2026-07-15
+
+### 🚀 Features
+
+- *(stackit)* Add dimensions parameter to text and document embedders (#3594)
+
+### 🐛 Bug Fixes
+
+- (stackit) Update available models list and update tests to use non-deprecated model (#3469)
+- Support Haystack 3.0's lazy OpenAI client initialization in OpenAI-inheriting generators (#3536)
+
+### 🧪 Testing
+
+- Test compatible integrations with python 3.14; update pyproject (#3001)
+- Track test coverage for all integrations (#3065)
+
+### 🧹 Chores
+
+- Add ANN type annotations to stackit, togetherai, unstructured, valkey, watsonx, weave, weaviate (#2994)
+- Enforce ruff docstring rules (D102/D103/D205/D209/D213/D417/D419) in integrations 41-47 (#3012)
+
+
 ## [integrations/stackit-v2.1.0] - 2026-03-16
 
 ### 🚀 Features

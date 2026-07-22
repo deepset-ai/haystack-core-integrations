@@ -1,5 +1,24 @@
 # Changelog
 
+## [integrations/transformers-v0.2.0] - 2026-07-06
+
+### 📚 Documentation
+
+- Replace old haystack core imports with haystack_integrations paths (#3545)
+
+### 🧪 Testing
+
+- Improve del_hf_env_vars fixture (#3428)
+- Trust test modules under Haystack 3.0's deserialization allowlist (#3537)
+- Make Tool/Agent serialization assertions version-agnostic for Haystack 2.x/3.x (#3533)
+- Force Transformers and Sentence Transformers integration tests to run on CPU (#3550)
+
+### 🧹 Chores
+
+- Improve consistency of integrations folder structure (#3430)
+- Support sync streaming callbacks in async contexts for Haystack 2.x/3.x compatibility (#3534)
+
+
 ## [integrations/transformers-v0.1.0] - 2026-06-08
 
 ### 🚀 Features
