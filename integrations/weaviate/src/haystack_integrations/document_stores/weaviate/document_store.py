@@ -644,9 +644,9 @@ class WeaviateDocumentStore:
 
         :param metadata_field: The metadata field name to get unique values for.
             Can be prefixed with 'meta.' (e.g., 'meta.category' or 'category').
-        :param search_term: Optional term to filter documents by content before
-            extracting unique values. If provided, only documents whose content
-            contains this term will be considered.
+        :param search_term: Optional term to filter the metadata field's values by
+            before returning them. If provided, only values of `metadata_field` that
+            contain this term will be considered.
             Note: Uses substring matching (case-sensitive, no stemming).
         :param from_: The starting offset for pagination (0-indexed). Defaults to 0.
         :param size: The maximum number of unique values to return. Defaults to 10000.
@@ -663,7 +663,7 @@ class WeaviateDocumentStore:
 
         weaviate_filter = None
         if search_term:
-            weaviate_filter = convert_filters({"field": "content", "operator": "contains", "value": search_term})
+            weaviate_filter = convert_filters({"field": field_name, "operator": "contains", "value": search_term})
 
         # Weaviate's GroupByAggregate has a default limit of 100 groups.
         # We use the document count as the limit to ensure all unique values are retrieved,
@@ -694,9 +694,9 @@ class WeaviateDocumentStore:
 
         :param metadata_field: The metadata field name to get unique values for.
             Can be prefixed with 'meta.' (e.g., 'meta.category' or 'category').
-        :param search_term: Optional term to filter documents by content before
-            extracting unique values. If provided, only documents whose content
-            contains this term will be considered.
+        :param search_term: Optional term to filter the metadata field's values by
+            before returning them. If provided, only values of `metadata_field` that
+            contain this term will be considered.
             Note: Uses substring matching (case-sensitive, no stemming).
         :param from_: The starting offset for pagination (0-indexed). Defaults to 0.
         :param size: The maximum number of unique values to return. Defaults to 10000.
@@ -714,7 +714,7 @@ class WeaviateDocumentStore:
 
         weaviate_filter = None
         if search_term:
-            weaviate_filter = convert_filters({"field": "content", "operator": "contains", "value": search_term})
+            weaviate_filter = convert_filters({"field": field_name, "operator": "contains", "value": search_term})
 
         # Weaviate's GroupByAggregate has a default limit of 100 groups.
         # We use the document count as the limit to ensure all unique values are retrieved,
