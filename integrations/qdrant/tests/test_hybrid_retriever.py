@@ -1,4 +1,4 @@
-from unittest.mock import Mock
+from unittest.mock import AsyncMock, Mock
 
 import pytest
 from haystack.dataclasses import Document, SparseEmbedding
@@ -15,6 +15,26 @@ class TestQdrantHybridRetriever:
     def test_init_raises_when_document_store_is_not_qdrant(self):
         with pytest.raises(ValueError, match="must be an instance of QdrantDocumentStore"):
             QdrantHybridRetriever(document_store="not a document store")
+
+    def test_close(self):
+        mock_store = Mock(spec=QdrantDocumentStore)
+        retriever = QdrantHybridRetriever(document_store=mock_store)
+
+        retriever.close()
+
+        mock_store.close.assert_called_once_with()
+        assert retriever._document_store is mock_store
+
+    @pytest.mark.asyncio
+    async def test_close_async(self):
+        mock_store = Mock(spec=QdrantDocumentStore)
+        mock_store.close_async = AsyncMock()
+        retriever = QdrantHybridRetriever(document_store=mock_store)
+
+        await retriever.close_async()
+
+        mock_store.close_async.assert_awaited_once_with()
+        assert retriever._document_store is mock_store
 
     def test_init_default(self):
         document_store = QdrantDocumentStore(location=":memory:", index="test", use_sparse_embeddings=True)
