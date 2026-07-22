@@ -241,6 +241,49 @@ def test_count_unique_metadata_by_filter_rejects_empty_fields(mock_store):
         mock_store.count_unique_metadata_by_filter(filters={}, metadata_fields=[])
 
 
+def test_build_unique_values_queries_without_search_term(mock_store):
+    sql_count, sql_query, params = mock_store._build_unique_values_queries("category", None, 0, 10)
+
+    # no search term -> no additional WHERE clause and no params, and crucially no reference
+    # to content/full-text-search at all
+    count_repr = repr(sql_count)
+    query_repr = repr(sql_query)
+    assert "ILIKE" not in count_repr
+    assert "ILIKE" not in query_repr
+    assert "content" not in count_repr
+    assert "content" not in query_repr
+    assert "tsvector" not in count_repr
+    assert "tsvector" not in query_repr
+    assert params == ()
+
+
+def test_build_unique_values_queries_with_search_term_matches_field_value_not_content(mock_store):
+    sql_count, sql_query, params = mock_store._build_unique_values_queries("category", "python", 0, 10)
+
+    count_repr = repr(sql_count)
+    query_repr = repr(sql_query)
+
+    # search_term must be translated into a case-insensitive substring (ILIKE) match against the
+    # metadata field's own value (meta->>'category'), not a full-text search against `content`.
+    assert "ILIKE" in count_repr
+    assert "ILIKE" in query_repr
+    assert "content" not in count_repr
+    assert "content" not in query_repr
+    assert "tsvector" not in count_repr
+    assert "tsvector" not in query_repr
+    assert "plainto_tsquery" not in count_repr
+    assert "plainto_tsquery" not in query_repr
+
+    # the field name must still be passed as a safely-escaped SQL literal (consistent with the
+    # rest of the WHERE clause), never interpolated raw into the query string.
+    assert "Literal('category')" in query_repr
+
+    # the search term itself must be a bound parameter (%s), not interpolated into the SQL text,
+    # and must be wrapped for substring matching.
+    assert "ILIKE %s" in query_repr
+    assert params == ("%python%",)
+
+
 def test_check_and_build_embedding_retrieval_query_rejects_invalid_vector_function(mock_store):
     with pytest.raises(ValueError, match="vector_function must be one of"):
         mock_store._check_and_build_embedding_retrieval_query(
@@ -623,17 +666,32 @@ def test_get_metadata_field_unique_values(document_store: PgvectorDocumentStore)
     # All three pages should be different
     assert len(set(unique_values_single1 + unique_values_single2 + unique_values_single3)) == 3
 
-    # Test with search term - filter by content matching "Python"
+    # Test with search term - case-insensitive substring match against the metadata field's OWN value
+    # (not against document content).
     unique_values_filtered, total_filtered = document_store.get_metadata_field_unique_values(
-        "meta.category", "Python", 0, 10
+        "meta.language", "Python", 0, 10
     )
-    assert set(unique_values_filtered) == {"A"}  # Only category A has documents with "Python" in content
+    assert set(unique_values_filtered) == {"Python"}
     assert total_filtered == 1
 
-    # Test with search term - filter by content matching "Java"
-    unique_values_java, total_java = document_store.get_metadata_field_unique_values("meta.category", "Java", 0, 10)
-    assert set(unique_values_java) == {"B"}  # Only category B has documents with "Java" in content
-    assert total_java == 1
+    # Case-insensitivity: lowercase search term should still match "Python"
+    unique_values_lower, total_lower = document_store.get_metadata_field_unique_values(
+        "meta.language", "python", 0, 10
+    )
+    assert set(unique_values_lower) == {"Python"}
+    assert total_lower == 1
+
+    # Substring matching: "Java" is a substring of both "Java" and "JavaScript"
+    unique_values_java, total_java = document_store.get_metadata_field_unique_values("meta.language", "Java", 0, 10)
+    assert set(unique_values_java) == {"Java", "JavaScript"}
+    assert total_java == 2
+
+    # Substring matching in the middle/end of a value
+    unique_values_script, total_script = document_store.get_metadata_field_unique_values(
+        "meta.language", "Script", 0, 10
+    )
+    assert set(unique_values_script) == {"JavaScript"}
+    assert total_script == 1
 
     # Test pagination with search term
     unique_values_search_page1, total_search = document_store.get_metadata_field_unique_values(
@@ -650,6 +708,22 @@ def test_get_metadata_field_unique_values(document_store: PgvectorDocumentStore)
     assert len(unique_values_search_empty) == 0
     assert total_search_empty == 1
 
+    # Test that search_term matches metadata VALUE, not content: a document whose content contains
+    # the search term but whose target metadata field value does not must be EXCLUDED, while a
+    # document whose metadata field value contains the search term but whose content does not
+    # must be INCLUDED.
+    content_vs_metadata_docs = [
+        Document(content="This document mentions Python explicitly", meta={"topic": "cooking"}),
+        Document(content="Unrelated content about recipes", meta={"topic": "python-tutorial"}),
+    ]
+    document_store.write_documents(content_vs_metadata_docs)
+
+    unique_topics, total_topics = document_store.get_metadata_field_unique_values("meta.topic", "python", 0, 10)
+    # "cooking" doc's content contains "Python" but its topic value doesn't -> excluded
+    # "python-tutorial" doc's topic value contains "python" but its content doesn't -> included
+    assert set(unique_topics) == {"python-tutorial"}
+    assert total_topics == 1
+
     # Test with integer values
     int_docs = [
         Document(content="Doc 1", meta={"priority": 1}),
@@ -662,9 +736,10 @@ def test_get_metadata_field_unique_values(document_store: PgvectorDocumentStore)
     assert set(unique_priorities) == {"1", "2", "3"}
     assert total_priorities == 3
 
-    # Test with search term on integer field
+    # Test with search term on integer field - substring match against the field's own (stringified)
+    # value, e.g. "Doc 1" (content) no longer matches; "1" (the value itself) does.
     unique_priorities_filtered, total_priorities_filtered = document_store.get_metadata_field_unique_values(
-        "meta.priority", "Doc 1", 0, 10
+        "meta.priority", "1", 0, 10
     )
     assert set(unique_priorities_filtered) == {"1"}
     assert total_priorities_filtered == 1
