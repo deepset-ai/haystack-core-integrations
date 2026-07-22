@@ -4,12 +4,12 @@
 
 | Name                                                                             |    Stmts |     Miss |   Branch |   BrPart |   Cover |   Missing |
 |--------------------------------------------------------------------------------- | -------: | -------: | -------: | -------: | ------: | --------: |
-| src/haystack\_integrations/components/retrievers/alloydb/embedding\_retriever.py |       31 |        4 |        4 |        1 |     86% |83-90, 118 |
-| src/haystack\_integrations/components/retrievers/alloydb/keyword\_retriever.py   |       30 |        8 |        4 |        0 |     71% |70-76, 100-104 |
+| src/haystack\_integrations/components/retrievers/alloydb/embedding\_retriever.py |       33 |        4 |        4 |        1 |     86% |83-90, 118 |
+| src/haystack\_integrations/components/retrievers/alloydb/keyword\_retriever.py   |       32 |        8 |        4 |        0 |     72% |70-76, 100-104 |
 | src/haystack\_integrations/document\_stores/alloydb/converters.py                |       42 |        3 |       18 |        4 |     88% |35-\>45, 38, 68, 71 |
-| src/haystack\_integrations/document\_stores/alloydb/document\_store.py           |      466 |      319 |      126 |        9 |     28% |268-269, 275-279, 301-\>exit, 306-\>exit, 346, 355-417, 423-443, 449-487, 496-504, 514-552, 560-589, 597-612, 632-654, 660-671, 690-721, 729-739, 750-757, 771-803, 814-853, 856-864, 874-887, 920-938, 951-953, 973-985, 995-1003, 1013-1028, 1031, 1052-1062, 1070-1086, 1104-1120, 1133-1134, 1136-1140, 1148-1180, 1199-1212, 1222-1233, 1256-1275, 1285-1312 |
+| src/haystack\_integrations/document\_stores/alloydb/document\_store.py           |      461 |      315 |      126 |        9 |     28% |270-272, 288-\>exit, 293-\>exit, 333, 342-404, 410-430, 436-474, 483-491, 501-539, 547-576, 584-599, 619-641, 647-658, 677-708, 716-726, 737-744, 758-790, 801-840, 843-851, 861-874, 907-925, 938-940, 960-972, 982-990, 1000-1015, 1018, 1039-1049, 1057-1073, 1091-1107, 1120-1121, 1123-1127, 1135-1167, 1186-1199, 1209-1220, 1243-1262, 1272-1299 |
 | src/haystack\_integrations/document\_stores/alloydb/filters.py                   |      149 |       79 |       62 |        5 |     43% |34-36, 48, 70-90, 111, 154, 161, 165-177, 181-193, 197-209, 213-225, 229-232, 236-241, 245-248, 252-255 |
-| **TOTAL**                                                                        |  **718** |  **413** |  **214** |   **19** | **39%** |           |
+| **TOTAL**                                                                        |  **717** |  **409** |  **214** |   **19** | **39%** |           |
 
 
 ## Setup coverage badge
