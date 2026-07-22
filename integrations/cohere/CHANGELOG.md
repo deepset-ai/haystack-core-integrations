@@ -1,5 +1,8 @@
 # Changelog
 
+## [unreleased]
+
+
 ## [integrations/cohere-v9.4.0] - 2026-07-22
 
 ### 🐛 Bug Fixes
