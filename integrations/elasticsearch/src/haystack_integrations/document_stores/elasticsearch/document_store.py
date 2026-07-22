@@ -8,6 +8,7 @@ import copy
 # ruff: noqa: B008              function-call-in-default-argument
 # ruff: noqa: S101              disable checks for uses of the assert keyword
 from collections.abc import Mapping
+from contextlib import suppress
 from dataclasses import replace
 from typing import Any, Literal
 
@@ -212,36 +213,10 @@ class ElasticsearchDocumentStore:
         """
         Ensures the synchronous client is initialized and the index exists.
         """
-<<<<<<< HEAD
-        if not self._initialized:
-            # Copy kwargs so headers can be popped without mutating self._kwargs; otherwise the
-            # user-supplied headers would be lost when the store is reinitialized after close().
-            kwargs = dict(self._kwargs)
-            headers = dict(kwargs.pop("headers", {}))
-            headers["user-agent"] = f"haystack-py-ds/{haystack_version}"
-
-            api_key = self._handle_auth()
-
-            # Initialize both sync and async clients
-            self._client = Elasticsearch(
-                self._hosts,
-                api_key=api_key,
-                headers=headers,
-                **kwargs,
-            )
-            self._async_client = AsyncElasticsearch(
-                self._hosts,
-                api_key=api_key,
-                headers=headers,
-                **kwargs,
-            )
-
-=======
         if self._client is None:
             self._client = Elasticsearch(
                 self._hosts, api_key=self._handle_auth(), headers=self._headers, **self._kwargs
             )
->>>>>>> main
             # Check client connection, this will raise if not connected
             self._client.info()
             mappings = self._custom_mapping if self._custom_mapping else self._default_mappings
@@ -325,28 +300,21 @@ class ElasticsearchDocumentStore:
 
     def close(self) -> None:
         """
-        Close the synchronous Elasticsearch client and release its HTTP connection pool.
-
-        Call this when the document store is no longer needed to avoid resource leaks. Has no effect if the
-        client has not been initialized yet. The store is reset so a later operation can lazily reinitialize it.
-        In async contexts, use :meth:`close_async` for the async client.
+        Release the associated synchronous resources.
         """
         if self._client is not None:
-            self._client.close()
+            with suppress(Exception):
+                self._client.close()
             self._client = None
-            self._initialized = False
 
     async def close_async(self) -> None:
         """
-        Asynchronously close the async Elasticsearch client and release its HTTP connection pool.
-
-        Call this when the document store is no longer needed to avoid resource leaks. Has no effect if the
-        client has not been initialized yet. The store is reset so a later operation can lazily reinitialize it.
+        Release the associated asynchronous resources.
         """
         if self._async_client is not None:
-            await self._async_client.close()
+            with suppress(Exception):
+                await self._async_client.close()
             self._async_client = None
-            self._initialized = False
 
     def to_dict(self) -> dict[str, Any]:
         """

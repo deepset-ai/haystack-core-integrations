@@ -696,90 +696,56 @@ async def test_sparse_vector_retrieval_async_builds_query_with_filters():
     )
 
 
-@patch("haystack_integrations.document_stores.elasticsearch.document_store.AsyncElasticsearch")
-@patch("haystack_integrations.document_stores.elasticsearch.document_store.Elasticsearch")
-def test_close_closes_sync_client_and_resets_state(_mock_es, _mock_async_es):
-    """close() must close the sync client, drop the reference, reset the store, and leave the async client alone."""
-    mock_sync = Mock()
-    mock_sync.info.return_value = {}
-    mock_sync.indices.exists.return_value = True
-    _mock_es.return_value = mock_sync
-
-    mock_async = Mock()
-    _mock_async_es.return_value = mock_async
-
+def test_close():
     store = ElasticsearchDocumentStore(hosts="http://testhost:9200")
-    _ = store.client  # trigger initialization
+    mock_client = Mock()
+    store._client = mock_client
 
     store.close()
 
-    mock_sync.close.assert_called_once()
-    mock_async.close.assert_not_called()
+    mock_client.close.assert_called_once()
     assert store._client is None
-    assert store._initialized is False
+
+    store.close()
+    mock_client.close.assert_called_once()
 
 
-@patch("haystack_integrations.document_stores.elasticsearch.document_store.AsyncElasticsearch")
-@patch("haystack_integrations.document_stores.elasticsearch.document_store.Elasticsearch")
-def test_close_before_init_is_safe(_mock_es, _mock_async_es):
-    """close() before any initialization must not raise."""
+def test_close_is_exception_safe():
     store = ElasticsearchDocumentStore(hosts="http://testhost:9200")
-    store.close()  # clients are None, must not raise
+    mock_client = Mock()
+    mock_client.close.side_effect = RuntimeError("boom")
+    store._client = mock_client
+
+    store.close()
+
+    assert store._client is None
 
 
 @pytest.mark.asyncio
-@patch("haystack_integrations.document_stores.elasticsearch.document_store.AsyncElasticsearch")
-@patch("haystack_integrations.document_stores.elasticsearch.document_store.Elasticsearch")
-async def test_close_async_closes_async_client_and_resets_state(_mock_es, _mock_async_es):
-    """close_async() must await the async client close, drop it, reset state, and leave the sync client alone."""
-    mock_sync = Mock()
-    mock_sync.info.return_value = {}
-    mock_sync.indices.exists.return_value = True
-    _mock_es.return_value = mock_sync
-
-    mock_async = AsyncMock()
-    _mock_async_es.return_value = mock_async
-
+async def test_close_async():
     store = ElasticsearchDocumentStore(hosts="http://testhost:9200")
-    _ = store.client  # trigger initialization (creates both sync and async clients)
+    mock_client = AsyncMock()
+    store._async_client = mock_client
 
     await store.close_async()
 
-    mock_async.close.assert_awaited_once()
-    mock_sync.close.assert_not_called()
+    mock_client.close.assert_awaited_once()
     assert store._async_client is None
-    assert store._initialized is False
+
+    await store.close_async()
+    mock_client.close.assert_awaited_once()
 
 
 @pytest.mark.asyncio
-@patch("haystack_integrations.document_stores.elasticsearch.document_store.AsyncElasticsearch")
-@patch("haystack_integrations.document_stores.elasticsearch.document_store.Elasticsearch")
-async def test_close_async_before_init_is_safe(_mock_es, _mock_async_es):
-    """close_async() before any initialization must not raise."""
+async def test_close_async_is_exception_safe():
     store = ElasticsearchDocumentStore(hosts="http://testhost:9200")
-    await store.close_async()  # clients are None, must not raise
+    mock_client = AsyncMock()
+    mock_client.close.side_effect = RuntimeError("boom")
+    store._async_client = mock_client
 
+    await store.close_async()
 
-@patch("haystack_integrations.document_stores.elasticsearch.document_store.AsyncElasticsearch")
-@patch("haystack_integrations.document_stores.elasticsearch.document_store.Elasticsearch")
-def test_reinitializes_after_close(_mock_es, _mock_async_es):
-    """After close(), the next operation must lazily reinitialize the store with a fresh client."""
-    mock_sync = Mock()
-    mock_sync.info.return_value = {}
-    mock_sync.indices.exists.return_value = True
-    _mock_es.return_value = mock_sync
-    _mock_async_es.return_value = Mock()
-
-    store = ElasticsearchDocumentStore(hosts="http://testhost:9200")
-    _ = store.client  # first initialization
-    store.close()
-    assert store._client is None
-
-    _ = store.client  # must reinitialize instead of failing on the None client
-    assert store._client is not None
-    assert store._initialized is True
-    # Elasticsearch was constructed twice: once for each initialization
-    assert _mock_es.call_count == 2
+    assert store._async_client is None
 
 
 @patch("haystack_integrations.document_stores.elasticsearch.document_store.AsyncElasticsearch")
@@ -866,6 +832,16 @@ class TestDocumentStore(
         yield store
         store.client.options(ignore_status=[400, 404]).indices.delete(index=index)
         store.client.close()
+
+    def test_close_and_reopen(self, document_store):
+        assert document_store.count_documents() == 0
+        assert document_store._client is not None
+
+        document_store.close()
+        assert document_store._client is None
+
+        assert document_store.count_documents() == 0
+        assert document_store._client is not None
 
     def assert_documents_are_equal(self, received: list[Document], expected: list[Document]):
         """
