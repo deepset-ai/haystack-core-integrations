@@ -591,3 +591,14 @@ class TestQdrantDocumentStore(
             "category", filters={"field": "meta.status", "operator": "==", "value": "active"}
         )
         assert set(values) == {"A", "B"}
+
+    def test_get_metadata_field_unique_values_with_meta_prefix(self, document_store: QdrantDocumentStore):
+        """Test that a 'meta.'-prefixed field name is normalized before lookup."""
+        docs = [
+            Document(content="Doc 1", meta={"category": "A"}),
+            Document(content="Doc 2", meta={"category": "B"}),
+        ]
+        document_store.write_documents(docs)
+
+        values = document_store.get_metadata_field_unique_values("meta.category")
+        assert set(values) == {"A", "B"}

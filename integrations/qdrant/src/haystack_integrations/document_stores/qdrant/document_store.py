@@ -1283,6 +1283,7 @@ class QdrantDocumentStore:
         self._initialize_client()
         assert self._client is not None
 
+        field_name = _normalize_metadata_field_name(metadata_field)
         qdrant_filter = convert_filters_to_qdrant(filters) if filters else None
         unique_values: list[Any] = []
         unique_values_set: set[Any] = set()
@@ -1299,7 +1300,7 @@ class QdrantDocumentStore:
                     with_vectors=False,
                 )
                 if self._process_records_unique_values(
-                    records, metadata_field, unique_values, unique_values_set, offset, limit
+                    records, field_name, unique_values, unique_values_set, offset, limit
                 ):
                     break
                 if self._check_stop_scrolling(next_offset):
@@ -1329,6 +1330,7 @@ class QdrantDocumentStore:
         await self._initialize_async_client()
         assert self._async_client is not None
 
+        field_name = _normalize_metadata_field_name(metadata_field)
         qdrant_filter = convert_filters_to_qdrant(filters) if filters else None
         unique_values: list[Any] = []
         unique_values_set: set[Any] = set()
@@ -1345,7 +1347,7 @@ class QdrantDocumentStore:
                     with_vectors=False,
                 )
                 if self._process_records_unique_values(
-                    records, metadata_field, unique_values, unique_values_set, offset, limit
+                    records, field_name, unique_values, unique_values_set, offset, limit
                 ):
                     break
                 if self._check_stop_scrolling(next_offset):
