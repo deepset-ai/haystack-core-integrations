@@ -1870,23 +1870,15 @@ class ElasticsearchDocumentStore:
 
         field_name = _normalize_metadata_field_name(metadata_field)
 
-        # Build the terms source for the composite aggregation. When a search_term is provided, use the
-        # composite aggregation's `include` regex to filter bucket keys directly by the metadata field's
-        # own value (case-sensitive substring match; there is no normalizer-based case-insensitivity
-        # infrastructure elsewhere in this document store to hook into).
-        terms_source: dict[str, Any] = {"field": field_name}
-        if search_term:
-            terms_source["include"] = f".*{re.escape(search_term)}.*"
-
         # Build composite aggregation for proper pagination
         composite_agg: dict[str, Any] = {
             "size": size,
-            "sources": [{field_name: {"terms": terms_source}}],
+            "sources": [{field_name: {"terms": {"field": field_name}}}],
         }
         if after is not None:
             composite_agg["after"] = after
 
-        body = {
+        body: dict[str, Any] = {
             "aggs": {
                 "unique_values": {
                     "composite": composite_agg,
@@ -1894,6 +1886,12 @@ class ElasticsearchDocumentStore:
             },
             "size": 0,  # we only need aggregations, not documents
         }
+        if search_term:
+            # Composite aggregation terms sources don't support `include`/`exclude` (that's only valid on
+            # standalone `terms` aggregations), so the substring match on the field's own value is applied
+            # as a query-level filter instead. Case-sensitive: there is no normalizer-based case-insensitivity
+            # infrastructure elsewhere in this document store to hook into.
+            body["query"] = {"regexp": {field_name: f".*{re.escape(search_term)}.*"}}
 
         result = self.client.search(index=self._index, body=body)
         aggregations = result.get("aggregations", {})
@@ -1940,23 +1938,15 @@ class ElasticsearchDocumentStore:
 
         field_name = _normalize_metadata_field_name(metadata_field)
 
-        # Build the terms source for the composite aggregation. When a search_term is provided, use the
-        # composite aggregation's `include` regex to filter bucket keys directly by the metadata field's
-        # own value (case-sensitive substring match; there is no normalizer-based case-insensitivity
-        # infrastructure elsewhere in this document store to hook into).
-        terms_source: dict[str, Any] = {"field": field_name}
-        if search_term:
-            terms_source["include"] = f".*{re.escape(search_term)}.*"
-
         # Build composite aggregation for proper pagination
         composite_agg: dict[str, Any] = {
             "size": size,
-            "sources": [{field_name: {"terms": terms_source}}],
+            "sources": [{field_name: {"terms": {"field": field_name}}}],
         }
         if after is not None:
             composite_agg["after"] = after
 
-        body = {
+        body: dict[str, Any] = {
             "aggs": {
                 "unique_values": {
                     "composite": composite_agg,
@@ -1964,6 +1954,12 @@ class ElasticsearchDocumentStore:
             },
             "size": 0,  # we only need aggregations, not documents
         }
+        if search_term:
+            # Composite aggregation terms sources don't support `include`/`exclude` (that's only valid on
+            # standalone `terms` aggregations), so the substring match on the field's own value is applied
+            # as a query-level filter instead. Case-sensitive: there is no normalizer-based case-insensitivity
+            # infrastructure elsewhere in this document store to hook into.
+            body["query"] = {"regexp": {field_name: f".*{re.escape(search_term)}.*"}}
 
         result = await self.async_client.search(index=self._index, body=body)
         aggregations = result.get("aggregations", {})
