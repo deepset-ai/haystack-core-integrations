@@ -109,6 +109,25 @@ class TestDDGSWebSearch:
         assert kwargs["region"] == "fr-fr"
         assert kwargs["timelimit"] == "d"
 
+    @patch(DDGS_PATH)
+    def test_run_overrides_params_at_runtime(self, mock_ddgs):
+        mock_ddgs.return_value.text.return_value = []
+        ws = DDGSWebSearch(top_k=10, backend="auto", region="us-en", safesearch="moderate")
+        ws.run(
+            query="q",
+            top_k=3,
+            backend="duckduckgo, brave",
+            region="de-de",
+            safesearch="off",
+            search_params={"timelimit": "w"},
+        )
+        _, kwargs = mock_ddgs.return_value.text.call_args
+        assert kwargs["max_results"] == 3
+        assert kwargs["backend"] == "duckduckgo, brave"
+        assert kwargs["region"] == "de-de"
+        assert kwargs["safesearch"] == "off"
+        assert kwargs["timelimit"] == "w"
+
     @pytest.mark.asyncio
     @patch(DDGS_PATH)
     async def test_run_async(self, mock_ddgs):
@@ -116,6 +135,16 @@ class TestDDGSWebSearch:
         result = await DDGSWebSearch(top_k=2).run_async(query="what is haystack?")
         assert len(result["documents"]) == 2
         assert result["links"] == ["https://haystack.deepset.ai", "https://www.deepset.ai"]
+
+    @pytest.mark.asyncio
+    @patch(DDGS_PATH)
+    async def test_run_async_overrides_params_at_runtime(self, mock_ddgs):
+        mock_ddgs.return_value.text.return_value = []
+        ws = DDGSWebSearch(top_k=10, region="us-en")
+        await ws.run_async(query="q", top_k=3, region="de-de")
+        _, kwargs = mock_ddgs.return_value.text.call_args
+        assert kwargs["max_results"] == 3
+        assert kwargs["region"] == "de-de"
 
     @pytest.mark.integration
     def test_web_search_integration(self):

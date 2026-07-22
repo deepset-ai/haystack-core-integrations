@@ -7,6 +7,7 @@ from __future__ import annotations
 import asyncio
 import json
 import struct
+from contextlib import suppress
 from dataclasses import replace
 from typing import Any, ClassVar, Literal
 
@@ -282,24 +283,22 @@ class ValkeyDocumentStore(DocumentStore):
             raise ValkeyDocumentStoreError(msg) from e
 
     def close(self) -> None:
-        """Close the synchronous Valkey client connection."""
-        if self._client:
-            try:
+        """
+        Release the associated synchronous resources.
+        """
+        if self._client is not None:
+            with suppress(Exception):
                 self._client.close()
-            except Exception as e:
-                logger.error("Failed to close Valkey client: {error}", error=e)
-                pass
-        self._client = None
+            self._client = None
 
     async def close_async(self) -> None:
-        """Close the asynchronous Valkey client connection."""
-        if self._async_client:
-            try:
+        """
+        Release the associated asynchronous resources.
+        """
+        if self._async_client is not None:
+            with suppress(Exception):
                 await self._async_client.close()
-            except Exception as e:
-                logger.error("Failed to close Valkey client: {error}", error=e)
-                pass
-        self._async_client = None
+            self._async_client = None
 
     def _has_index(self) -> bool:
         client = self._get_connection()

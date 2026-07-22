@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/ddgs-v1.1.0] - 2026-07-22
+
+### 🚀 Features
+
+- Expose per-run parameter overrides on DDGSWebSearch (#3634)
+
+
 ## [integrations/ddgs-v1.0.0] - 2026-07-21
 
 ### 🚀 Features

@@ -1,5 +1,16 @@
 # Changelog
 
+## [integrations/alloydb-v0.2.0] - 2026-07-22
+
+### 🚜 Refactor
+
+- Align AlloyDB closing methods to standard (#3632)
+
+### 📚 Documentation
+
+- Replace old haystack core imports with haystack_integrations paths (#3545)
+
+
 ## [integrations/alloydb-v0.1.0] - 2026-05-05
 
 ### 🚀 Features

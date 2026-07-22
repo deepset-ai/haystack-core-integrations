@@ -102,6 +102,16 @@ class TestValkeyDocumentStore(
         """Filterable docs with 3-dim embeddings (Valkey store uses embedding_dim=3)."""
         return _filterable_docs_embedding_dim_3()
 
+    def test_close_and_reopen(self, document_store):
+        assert document_store.count_documents() == 0
+        assert document_store._client is not None
+
+        document_store.close()
+        assert document_store._client is None
+
+        assert document_store.count_documents() == 0
+        assert document_store._client is not None
+
     def test_write_documents(self, document_store):
         """Test default write_documents() behavior (OVERWRITE by default)."""
         docs = [Document(id="1", content="test doc 1")]
@@ -1246,12 +1256,21 @@ class TestValkeyDocumentStoreErrorPaths:
             with pytest.raises(ValkeyDocumentStoreError, match="Failed to connect to Valkey"):
                 unit_store._get_connection()
 
-    def test_close_swallows_client_exception(self, unit_store, caplog):
+    def test_close(self, unit_store):
+        mock_client = MagicMock()
+        unit_store._client = mock_client
+        unit_store.close()
+        mock_client.close.assert_called_once()
+        assert unit_store._client is None
+
+        unit_store.close()
+        mock_client.close.assert_called_once()
+
+    def test_close_is_exception_safe(self, unit_store):
         unit_store._client = MagicMock()
         unit_store._client.close.side_effect = RuntimeError("close boom")
         unit_store.close()
         assert unit_store._client is None
-        assert "Failed to close Valkey client" in caplog.text
 
     def test_count_documents_returns_zero_when_no_index(self, unit_store):
         unit_store._client = MagicMock()

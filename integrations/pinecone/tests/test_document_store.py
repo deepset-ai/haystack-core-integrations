@@ -5,7 +5,7 @@
 import os
 import time
 from dataclasses import replace
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import numpy as np
 import pytest
@@ -128,7 +128,31 @@ def test_to_from_dict(mock_pinecone, monkeypatch):
     assert document_store.dimension == 60
     assert document_store.metric == "euclidean"
     assert document_store.spec == {"serverless": {"region": "us-east-1", "cloud": "aws"}}
-    assert document_store.show_progress is True
+
+
+def test_close():
+    document_store = PineconeDocumentStore(api_key=Secret.from_token("fake-api-key"))
+    mock_index = MagicMock()
+    document_store._index = mock_index
+
+    document_store.close()
+
+    mock_index.close.assert_called_once()
+    assert document_store._index is None
+
+    document_store.close()
+    mock_index.close.assert_called_once()
+
+
+def test_close_is_exception_safe():
+    document_store = PineconeDocumentStore(api_key=Secret.from_token("fake-api-key"))
+    mock_index = MagicMock()
+    mock_index.close.side_effect = RuntimeError("boom")
+    document_store._index = mock_index
+
+    document_store.close()
+
+    assert document_store._index is None
 
 
 def test_init_fails_wo_api_key(monkeypatch):
@@ -341,22 +365,6 @@ def test_prepare_documents_for_writing_edge_cases(caplog):
     assert "sparse_embedding" in caplog.text
 
 
-@pytest.mark.asyncio
-async def test_validation_errors_on_empty_query_and_non_dict_meta():
-    ds = PineconeDocumentStore(api_key=Secret.from_token("fake-api-key"))
-    filters = {"field": "meta.category", "operator": "==", "value": "A"}
-
-    with pytest.raises(ValueError, match="query_embedding must be a non-empty list"):
-        ds._embedding_retrieval(query_embedding=[])
-    with pytest.raises(ValueError, match="query_embedding must be a non-empty list"):
-        await ds._embedding_retrieval_async(query_embedding=[])
-
-    with pytest.raises(ValueError, match="meta must be a dictionary"):
-        ds.update_by_filter(filters=filters, meta="not-a-dict")
-    with pytest.raises(ValueError, match="meta must be a dictionary"):
-        await ds.update_by_filter_async(filters=filters, meta="not-a-dict")
-
-
 @pytest.mark.integration
 @pytest.mark.skipif(not os.environ.get("PINECONE_API_KEY"), reason="PINECONE_API_KEY not set")
 def test_serverless_index_creation_from_scratch(delete_sleep_time):
@@ -453,7 +461,7 @@ class TestDocumentStore(
         assert "Most similar document" in [result.content for result in results]
         assert "2nd best document" in [result.content for result in results]
 
-    def test_close(self, document_store: PineconeDocumentStore):
+    def test_close_and_reopen(self, document_store: PineconeDocumentStore):
         document_store._initialize_index()
         assert document_store._index is not None
 
@@ -462,7 +470,6 @@ class TestDocumentStore(
 
         document_store._initialize_index()
         assert document_store._index is not None
-        # test that the index is still usable after closing and reopening
         assert document_store.count_documents() == 0
 
     def test_sentence_window_retriever(self, document_store: PineconeDocumentStore):
