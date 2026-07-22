@@ -1,5 +1,6 @@
 import inspect
 from collections.abc import AsyncGenerator, Generator
+from contextlib import suppress
 from dataclasses import replace
 from itertools import islice
 from typing import Any, ClassVar, cast
@@ -303,18 +304,20 @@ class QdrantDocumentStore:
 
     def close(self) -> None:
         """
-        Close the synchronous Qdrant client connection.
+        Release the associated synchronous resources.
         """
-        if self._client:
-            self._client.close()
+        if self._client is not None:
+            with suppress(Exception):
+                self._client.close()
             self._client = None
 
     async def close_async(self) -> None:
         """
-        Close the asynchronous Qdrant client connection.
+        Release the associated asynchronous resources.
         """
-        if self._async_client:
-            await self._async_client.close()
+        if self._async_client is not None:
+            with suppress(Exception):
+                await self._async_client.close()
             self._async_client = None
 
     def count_documents(self) -> int:

@@ -370,7 +370,7 @@ class TestQdrantDocumentStoreUnit:
         ):
             assert getattr(document_store, method_name)(*args) == expected
 
-    def test_close(self):
+    def test_close_and_reopen(self):
         document_store = QdrantDocumentStore(":memory:", recreate_index=True)
 
         # Initialise the client
@@ -382,6 +382,15 @@ class TestQdrantDocumentStoreUnit:
 
         # The client should be re-initialized lazily and still be usable
         assert document_store.count_documents() == 0
+
+    def test_close_is_exception_safe(self):
+        document_store = QdrantDocumentStore(":memory:", recreate_index=True)
+        document_store._client = MagicMock()
+        document_store._client.close.side_effect = RuntimeError("boom")
+
+        document_store.close()
+
+        assert document_store._client is None
 
     def test_close_before_initialization_is_safe(self):
         document_store = QdrantDocumentStore(":memory:", recreate_index=True)

@@ -1,4 +1,4 @@
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 import pytest_asyncio
@@ -162,7 +162,7 @@ class TestQdrantDocumentStoreAsyncUnit:
         ):
             assert await getattr(document_store, method_name)(*args) == expected
 
-    async def test_close_async(self):
+    async def test_close_async_and_reopen(self):
         document_store = QdrantDocumentStore(":memory:", recreate_index=True)
 
         # Initialise the async client
@@ -174,6 +174,15 @@ class TestQdrantDocumentStoreAsyncUnit:
 
         # The client should be re-initialized lazily and still be usable
         assert await document_store.count_documents_async() == 0
+
+    async def test_close_async_is_exception_safe(self):
+        document_store = QdrantDocumentStore(":memory:", recreate_index=True)
+        document_store._async_client = AsyncMock()
+        document_store._async_client.close.side_effect = RuntimeError("boom")
+
+        await document_store.close_async()
+
+        assert document_store._async_client is None
 
     async def test_close_async_before_initialization_is_safe(self):
         document_store = QdrantDocumentStore(":memory:", recreate_index=True)
