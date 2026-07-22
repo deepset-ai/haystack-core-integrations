@@ -5,6 +5,7 @@
 import base64
 import datetime
 import json
+from contextlib import suppress
 from dataclasses import asdict
 from typing import Any, NoReturn
 
@@ -294,19 +295,21 @@ class WeaviateDocumentStore:
 
     def close(self) -> None:
         """
-        Close the synchronous Weaviate client connection.
+        Release the associated synchronous resources.
         """
-        if self._client:
-            self._client.close()
+        if self._client is not None:
+            with suppress(Exception):
+                self._client.close()
             self._client = None
             self._collection = None
 
     async def close_async(self) -> None:
         """
-        Close the asynchronous Weaviate client connection.
+        Release the associated asynchronous resources.
         """
-        if self._async_client:
-            await self._async_client.close()
+        if self._async_client is not None:
+            with suppress(Exception):
+                await self._async_client.close()
             self._async_client = None
             self._async_collection = None
 
