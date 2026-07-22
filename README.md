@@ -4,7 +4,7 @@
 
 | Name                                                                    |    Stmts |     Miss |   Branch |   BrPart |   Cover |   Missing |
 |------------------------------------------------------------------------ | -------: | -------: | -------: | -------: | ------: | --------: |
-| src/haystack\_integrations/components/websearch/ddgs/ddgs\_websearch.py |       47 |        2 |       10 |        3 |     91% |75-\>exit, 87-\>89, 90-91 |
+| src/haystack\_integrations/components/websearch/ddgs/ddgs\_websearch.py |       47 |        2 |       10 |        3 |     91% |75-\>exit, 95-\>97, 98-99 |
 | **TOTAL**                                                               |   **47** |    **2** |   **10** |    **3** | **91%** |           |
 
 
