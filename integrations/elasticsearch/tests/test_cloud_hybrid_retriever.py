@@ -95,6 +95,28 @@ serialised = {
 # --- Unit tests ---
 
 
+def test_close():
+    mock_store = Mock(spec=ElasticsearchDocumentStore)
+    retriever = ElasticsearchInferenceHybridRetriever(document_store=mock_store, inference_id=".elser_model_2")
+
+    retriever.close()
+
+    mock_store.close.assert_called_once_with()
+    assert retriever._document_store is mock_store
+
+
+@pytest.mark.asyncio
+async def test_close_async():
+    mock_store = Mock(spec=ElasticsearchDocumentStore)
+    mock_store.close_async = AsyncMock()
+    retriever = ElasticsearchInferenceHybridRetriever(document_store=mock_store, inference_id=".elser_model_2")
+
+    await retriever.close_async()
+
+    mock_store.close_async.assert_awaited_once_with()
+    assert retriever._document_store is mock_store
+
+
 @patch("haystack_integrations.document_stores.elasticsearch.document_store.Elasticsearch")
 def test_init_default(_mock_es):
     doc_store = ElasticsearchDocumentStore()

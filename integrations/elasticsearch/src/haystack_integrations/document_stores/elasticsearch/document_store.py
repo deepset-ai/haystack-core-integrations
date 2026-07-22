@@ -8,6 +8,7 @@ import copy
 # ruff: noqa: B008              function-call-in-default-argument
 # ruff: noqa: S101              disable checks for uses of the assert keyword
 from collections.abc import Mapping
+from contextlib import suppress
 from dataclasses import replace
 from typing import Any, Literal
 
@@ -296,6 +297,24 @@ class ElasticsearchDocumentStore:
         if self._async_client is None:
             self._async_client = self._create_async_client()
         return self._async_client
+
+    def close(self) -> None:
+        """
+        Release the associated synchronous resources.
+        """
+        if self._client is not None:
+            with suppress(Exception):
+                self._client.close()
+            self._client = None
+
+    async def close_async(self) -> None:
+        """
+        Release the associated asynchronous resources.
+        """
+        if self._async_client is not None:
+            with suppress(Exception):
+                await self._async_client.close()
+            self._async_client = None
 
     def to_dict(self) -> dict[str, Any]:
         """

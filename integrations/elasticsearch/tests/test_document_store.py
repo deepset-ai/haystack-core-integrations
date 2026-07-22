@@ -696,6 +696,78 @@ async def test_sparse_vector_retrieval_async_builds_query_with_filters():
     )
 
 
+def test_close():
+    store = ElasticsearchDocumentStore(hosts="http://testhost:9200")
+    mock_client = Mock()
+    store._client = mock_client
+
+    store.close()
+
+    mock_client.close.assert_called_once()
+    assert store._client is None
+
+    store.close()
+    mock_client.close.assert_called_once()
+
+
+def test_close_is_exception_safe():
+    store = ElasticsearchDocumentStore(hosts="http://testhost:9200")
+    mock_client = Mock()
+    mock_client.close.side_effect = RuntimeError("boom")
+    store._client = mock_client
+
+    store.close()
+
+    assert store._client is None
+
+
+@pytest.mark.asyncio
+async def test_close_async():
+    store = ElasticsearchDocumentStore(hosts="http://testhost:9200")
+    mock_client = AsyncMock()
+    store._async_client = mock_client
+
+    await store.close_async()
+
+    mock_client.close.assert_awaited_once()
+    assert store._async_client is None
+
+    await store.close_async()
+    mock_client.close.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_close_async_is_exception_safe():
+    store = ElasticsearchDocumentStore(hosts="http://testhost:9200")
+    mock_client = AsyncMock()
+    mock_client.close.side_effect = RuntimeError("boom")
+    store._async_client = mock_client
+
+    await store.close_async()
+
+    assert store._async_client is None
+
+
+@patch("haystack_integrations.document_stores.elasticsearch.document_store.AsyncElasticsearch")
+@patch("haystack_integrations.document_stores.elasticsearch.document_store.Elasticsearch")
+def test_headers_preserved_on_reinitialize(_mock_es, _mock_async_es):
+    """User-supplied headers must survive a close()/reinitialize cycle (they must not be popped off self._kwargs)."""
+    mock_sync = Mock()
+    mock_sync.info.return_value = {}
+    mock_sync.indices.exists.return_value = True
+    _mock_es.return_value = mock_sync
+    _mock_async_es.return_value = Mock()
+
+    store = ElasticsearchDocumentStore(hosts="http://testhost:9200", headers={"X-Custom": "value"})
+    _ = store.client  # first initialization
+    store.close()
+    _ = store.client  # reinitialization
+
+    # both Elasticsearch constructions must have received the custom header
+    for call in _mock_es.call_args_list:
+        assert call.kwargs["headers"]["X-Custom"] == "value"
+
+
 @patch("haystack_integrations.document_stores.elasticsearch.document_store.AsyncElasticsearch")
 @patch("haystack_integrations.document_stores.elasticsearch.document_store.Elasticsearch")
 def test_delete_all_documents_recreate_preserves_settings(_mock_es, _mock_async_es):
@@ -760,6 +832,16 @@ class TestDocumentStore(
         yield store
         store.client.options(ignore_status=[400, 404]).indices.delete(index=index)
         store.client.close()
+
+    def test_close_and_reopen(self, document_store):
+        assert document_store.count_documents() == 0
+        assert document_store._client is not None
+
+        document_store.close()
+        assert document_store._client is None
+
+        assert document_store.count_documents() == 0
+        assert document_store._client is not None
 
     def assert_documents_are_equal(self, received: list[Document], expected: list[Document]):
         """
