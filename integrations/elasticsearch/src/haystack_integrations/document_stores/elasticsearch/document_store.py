@@ -3,6 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import copy
+import re
 
 # ruff: noqa: FBT002, FBT001    boolean-type-hint-positional-argument and boolean-default-value-positional-argument
 # ruff: noqa: B008              function-call-in-default-argument
@@ -1849,14 +1850,15 @@ class ElasticsearchDocumentStore:
         after: dict[str, Any] | None = None,
     ) -> tuple[list[str], dict[str, Any] | None]:
         """
-        Returns unique values for a metadata field, optionally filtered by a search term in the content.
+        Returns unique values for a metadata field, optionally filtered by a substring match on the field's value.
 
         Uses composite aggregations for proper pagination beyond 10k results.
 
         See: https://www.elastic.co/docs/reference/aggregations/search-aggregations-bucket-composite-aggregation
 
         :param metadata_field: The metadata field to get unique values for.
-        :param search_term: Optional search term to filter documents by matching in the content field.
+        :param search_term: Optional term to filter the returned values by, matching as a case-sensitive substring
+            of the metadata field's own value (not the document content).
         :param size: The number of unique values to return per page. Defaults to 10000.
         :param after: Optional pagination key from the previous response. Use None for the first page.
             For subsequent pages, pass the `after_key` from the previous response.
@@ -1868,22 +1870,23 @@ class ElasticsearchDocumentStore:
 
         field_name = _normalize_metadata_field_name(metadata_field)
 
-        # filter by search_term if provided
-        query: dict[str, Any] = {"match_all": {}}
+        # Build the terms source for the composite aggregation. When a search_term is provided, use the
+        # composite aggregation's `include` regex to filter bucket keys directly by the metadata field's
+        # own value (case-sensitive substring match; there is no normalizer-based case-insensitivity
+        # infrastructure elsewhere in this document store to hook into).
+        terms_source: dict[str, Any] = {"field": field_name}
         if search_term:
-            # Use match_phrase for exact phrase matching to avoid tokenization issues
-            query = {"match_phrase": {"content": search_term}}
+            terms_source["include"] = f".*{re.escape(search_term)}.*"
 
         # Build composite aggregation for proper pagination
         composite_agg: dict[str, Any] = {
             "size": size,
-            "sources": [{field_name: {"terms": {"field": field_name}}}],
+            "sources": [{field_name: {"terms": terms_source}}],
         }
         if after is not None:
             composite_agg["after"] = after
 
         body = {
-            "query": query,
             "aggs": {
                 "unique_values": {
                     "composite": composite_agg,
@@ -1916,14 +1919,16 @@ class ElasticsearchDocumentStore:
         after: dict[str, Any] | None = None,
     ) -> tuple[list[str], dict[str, Any] | None]:
         """
-        Asynchronously returns unique values for a metadata field, optionally filtered by a search term in the content.
+        Asynchronously returns unique values for a metadata field, optionally filtered by a substring match on the
+        field's value.
 
         Uses composite aggregations for proper pagination beyond 10k results.
 
         See: https://www.elastic.co/docs/reference/aggregations/search-aggregations-bucket-composite-aggregation
 
         :param metadata_field: The metadata field to get unique values for.
-        :param search_term: Optional search term to filter documents by matching in the content field.
+        :param search_term: Optional term to filter the returned values by, matching as a case-sensitive substring
+            of the metadata field's own value (not the document content).
         :param size: The number of unique values to return per page. Defaults to 10000.
         :param after: Optional pagination key from the previous response. Use None for the first page.
             For subsequent pages, pass the `after_key` from the previous response.
@@ -1935,22 +1940,23 @@ class ElasticsearchDocumentStore:
 
         field_name = _normalize_metadata_field_name(metadata_field)
 
-        # filter by search_term if provided
-        query: dict[str, Any] = {"match_all": {}}
+        # Build the terms source for the composite aggregation. When a search_term is provided, use the
+        # composite aggregation's `include` regex to filter bucket keys directly by the metadata field's
+        # own value (case-sensitive substring match; there is no normalizer-based case-insensitivity
+        # infrastructure elsewhere in this document store to hook into).
+        terms_source: dict[str, Any] = {"field": field_name}
         if search_term:
-            # Use match_phrase for exact phrase matching to avoid tokenization issues
-            query = {"match_phrase": {"content": search_term}}
+            terms_source["include"] = f".*{re.escape(search_term)}.*"
 
         # Build composite aggregation for proper pagination
         composite_agg: dict[str, Any] = {
             "size": size,
-            "sources": [{field_name: {"terms": {"field": field_name}}}],
+            "sources": [{field_name: {"terms": terms_source}}],
         }
         if after is not None:
             composite_agg["after"] = after
 
         body = {
-            "query": query,
             "aggs": {
                 "unique_values": {
                     "composite": composite_agg,
