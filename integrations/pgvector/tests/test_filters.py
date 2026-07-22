@@ -10,6 +10,7 @@ from haystack.testing.document_store import FilterDocumentsTest
 from psycopg.adapt import Transformer
 from psycopg.sql import SQL, Composed
 from psycopg.sql import Literal as SQLLiteral
+from psycopg.types.json import Jsonb
 
 from haystack_integrations.document_stores.pgvector.filters import (
     FilterError,
@@ -17,6 +18,7 @@ from haystack_integrations.document_stores.pgvector.filters import (
     _parse_comparison_condition,
     _parse_logical_condition,
     _treat_meta_field,
+    _treat_meta_field_as_jsonb,
     _validate_filters,
 )
 
@@ -141,6 +143,67 @@ class TestFilters(FilterDocumentsTest):
             ],
         )
 
+    @staticmethod
+    def _docs_with_array_meta():
+        return [
+            Document(content="doc with tag1 and tag2", meta={"tags": ["tag1", "tag2"]}),
+            Document(content="doc with tag1 and tag3", meta={"tags": ["tag1", "tag3"]}),
+            Document(content="doc with tag4", meta={"tags": ["tag4"]}),
+        ]
+
+    def test_array_contains_operator(self, document_store):
+        docs = self._docs_with_array_meta()
+        document_store.write_documents(docs)
+
+        # array_contains requires ALL listed values to be present in the meta array
+        result = document_store.filter_documents(
+            filters={"field": "meta.tags", "operator": "array_contains", "value": ["tag1", "tag2"]}
+        )
+        assert {doc.content for doc in result} == {"doc with tag1 and tag2"}
+
+    def test_array_contains_operator_single_value(self, document_store):
+        docs = self._docs_with_array_meta()
+        document_store.write_documents(docs)
+
+        result = document_store.filter_documents(
+            filters={"field": "meta.tags", "operator": "array_contains", "value": ["tag1"]}
+        )
+        assert {doc.content for doc in result} == {"doc with tag1 and tag2", "doc with tag1 and tag3"}
+
+    def test_array_overlaps_operator(self, document_store):
+        docs = self._docs_with_array_meta()
+        document_store.write_documents(docs)
+
+        # array_overlaps requires AT LEAST ONE listed value to be present in the meta array
+        result = document_store.filter_documents(
+            filters={"field": "meta.tags", "operator": "array_overlaps", "value": ["tag1", "tag3"]}
+        )
+        assert {doc.content for doc in result} == {"doc with tag1 and tag2", "doc with tag1 and tag3"}
+
+    def test_array_overlaps_operator_no_match(self, document_store):
+        docs = self._docs_with_array_meta()
+        document_store.write_documents(docs)
+
+        result = document_store.filter_documents(
+            filters={"field": "meta.tags", "operator": "array_overlaps", "value": ["nonexistent"]}
+        )
+        assert result == []
+
+    def test_array_operators_combined(self, document_store):
+        docs = self._docs_with_array_meta()
+        document_store.write_documents(docs)
+
+        result = document_store.filter_documents(
+            filters={
+                "operator": "AND",
+                "conditions": [
+                    {"field": "meta.tags", "operator": "array_contains", "value": ["tag1"]},
+                    {"field": "meta.tags", "operator": "array_overlaps", "value": ["tag3"]},
+                ],
+            }
+        )
+        assert {doc.content for doc in result} == {"doc with tag1 and tag3"}
+
 
 def test_treat_meta_field():
     cast_integer = SQL("(") + SQL("meta->>") + SQLLiteral("number") + SQL(")::integer")
@@ -163,6 +226,73 @@ def test_treat_meta_field_sql_injection_is_safely_escaped():
     result = _treat_meta_field(field="meta.name' OR 1=1 --", value="x")
     assert isinstance(result, Composed)
     assert result == SQL("meta->>") + SQLLiteral("name' OR 1=1 --")
+
+
+def test_treat_meta_field_as_jsonb():
+    # array operators access the meta value as JSONB (->) without a cast, unlike _treat_meta_field (->>)
+    assert _treat_meta_field_as_jsonb(field="meta.tags") == SQL("meta->") + SQLLiteral("tags")
+
+
+def test_treat_meta_field_as_jsonb_sql_injection_is_safely_escaped():
+    result = _treat_meta_field_as_jsonb(field="meta.tags' OR 1=1 --")
+    assert isinstance(result, Composed)
+    assert result == SQL("meta->") + SQLLiteral("tags' OR 1=1 --")
+
+
+def test_array_contains_condition():
+    condition = {"field": "meta.tags", "operator": "array_contains", "value": ["tag1", "tag2"]}
+    query, values = _parse_comparison_condition(condition)
+
+    assert _render(query) == "meta->'tags' @> %s"
+    # the value is wrapped as a single Jsonb param holding the original list
+    assert len(values) == 1
+    assert isinstance(values[0], Jsonb)
+    assert values[0].obj == ["tag1", "tag2"]
+
+
+def test_array_overlaps_condition():
+    condition = {"field": "meta.tags", "operator": "array_overlaps", "value": ["tag1", "tag2"]}
+    query, values = _parse_comparison_condition(condition)
+
+    assert _render(query) == "meta->'tags' ?| %s"
+    # the list is passed through so psycopg adapts it to a Postgres text[] (same wrapping as 'in')
+    assert values == [[["tag1", "tag2"]]]
+
+
+def test_array_contains_non_list_value_raises():
+    condition = {"field": "meta.tags", "operator": "array_contains", "value": "tag1"}
+    with pytest.raises(FilterError):
+        _parse_comparison_condition(condition)
+
+
+def test_array_overlaps_non_list_value_raises():
+    condition = {"field": "meta.tags", "operator": "array_overlaps", "value": "tag1"}
+    with pytest.raises(FilterError):
+        _parse_comparison_condition(condition)
+
+
+def test_array_overlaps_non_string_elements_raises():
+    condition = {"field": "meta.tags", "operator": "array_overlaps", "value": [1, 2]}
+    with pytest.raises(FilterError):
+        _parse_comparison_condition(condition)
+
+
+def test_convert_filters_array_contains():
+    filters = {"field": "meta.tags", "operator": "array_contains", "value": ["tag1", "tag2"]}
+    where_clause, params = _convert_filters_to_where_clause_and_params(filters)
+
+    assert _render(where_clause) == " WHERE meta->'tags' @> %s"
+    assert len(params) == 1
+    assert isinstance(params[0], Jsonb)
+    assert params[0].obj == ["tag1", "tag2"]
+
+
+def test_convert_filters_array_overlaps():
+    filters = {"field": "meta.tags", "operator": "array_overlaps", "value": ["tag1", "tag2"]}
+    where_clause, params = _convert_filters_to_where_clause_and_params(filters)
+
+    assert _render(where_clause) == " WHERE meta->'tags' ?| %s"
+    assert params == ([["tag1", "tag2"]],)
 
 
 def test_comparison_condition_missing_operator():

@@ -22,6 +22,11 @@ PYTHON_TYPES_TO_PG_TYPES = {
 
 NO_VALUE = object()  # unique sentinel; can never equal a user-supplied filter value
 
+# Operators that match against a JSONB array stored in the meta field.
+# They need the JSONB value (via the `->` accessor) as their left operand,
+# unlike the scalar operators which access meta as text (via `->>`).
+ARRAY_OPERATORS = ("array_contains", "array_overlaps")
+
 
 def _validate_filters(filters: dict[str, Any] | None = None) -> None:
     """
@@ -106,7 +111,10 @@ def _parse_comparison_condition(condition: dict[str, Any]) -> tuple[Composed, li
     value: Any = condition["value"]
 
     if field.startswith("meta."):
-        sql_field: Composable = _treat_meta_field(field, value)
+        # array operators need the JSONB value (->), the other operators access meta as text (->>)
+        sql_field: Composable = (
+            _treat_meta_field_as_jsonb(field) if operator in ARRAY_OPERATORS else _treat_meta_field(field, value)
+        )
     else:
         sql_field = Identifier(field)
 
@@ -147,6 +155,24 @@ def _treat_meta_field(field: str, value: Any) -> Composed:
         composed = SQL("(") + composed + SQL(f")::{type_value}")
 
     return composed
+
+
+def _treat_meta_field_as_jsonb(field: str) -> Composed:
+    """
+    Internal method that returns a psycopg Composed object accessing a meta key as a JSONB value.
+
+    Unlike `_treat_meta_field`, this uses the `->` operator (which returns a JSONB value) instead of
+    `->>` (which returns text) and applies no type cast. The array operators need a JSONB left operand
+    for their JSONB operators (`@>`, `?|`) to work.
+
+    Uses psycopg.sql.Literal to embed the field name, preventing SQL injection via metadata field names.
+
+    Example:
+    >>> _treat_meta_field_as_jsonb(field="meta.tags")
+    Composed([SQL('meta->'), Literal('tags')])
+    """
+    field_name = field.split(".", 1)[-1]
+    return SQL("meta->") + SQLLiteral(field_name)
 
 
 def _equal(field: Composable, value: Any) -> tuple[Composed, Any]:
@@ -255,6 +281,28 @@ def _not_like(field: Composable, value: Any) -> tuple[Composed, Any]:
     return SQL("{} NOT LIKE %s").format(field), value
 
 
+def _array_contains(field: Composable, value: Any) -> tuple[Composed, Jsonb]:
+    if not isinstance(value, list):
+        msg = f"{field}'s value must be a list when using 'array_contains' comparator"
+        raise FilterError(msg)
+    # `jsonb @> jsonb` is true when the left array contains every element of the right array,
+    # so the meta array must contain all of the given values.
+    return SQL("{} @> %s").format(field), Jsonb(value)
+
+
+def _array_overlaps(field: Composable, value: Any) -> tuple[Composed, list]:
+    if not isinstance(value, list):
+        msg = f"{field}'s value must be a list when using 'array_overlaps' comparator"
+        raise FilterError(msg)
+    # `jsonb ?| text[]` is true when any of the given strings exist as top-level elements of the
+    # meta array. The operator only matches string elements, so we reject non-string values to fail
+    # fast instead of silently returning no results.
+    if not all(isinstance(item, str) for item in value):
+        msg = "array_overlaps only supports lists of strings"
+        raise FilterError(msg)
+    return SQL("{} ?| %s").format(field), [value]
+
+
 COMPARISON_OPERATORS = {
     "==": _equal,
     "!=": _not_equal,
@@ -266,4 +314,6 @@ COMPARISON_OPERATORS = {
     "not in": _not_in,
     "like": _like,
     "not like": _not_like,
+    "array_contains": _array_contains,
+    "array_overlaps": _array_overlaps,
 }
