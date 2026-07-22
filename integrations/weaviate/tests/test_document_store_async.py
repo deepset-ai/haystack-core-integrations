@@ -471,9 +471,7 @@ class TestWeaviateDocumentStoreAsync(
         assert set(values) == {"Python Programming", "Python Basics"}
 
     @pytest.mark.asyncio
-    async def test_get_metadata_field_unique_values_async_search_term_excludes_content_only_match(
-        self, document_store
-    ):
+    async def test_get_metadata_field_unique_values_async_search_term_excludes_content_only_match(self, document_store):
         # A document whose content contains the search term but whose target metadata
         # field value does NOT must be excluded from the results.
         docs = [
@@ -488,9 +486,7 @@ class TestWeaviateDocumentStoreAsync(
         assert values == []
 
     @pytest.mark.asyncio
-    async def test_get_metadata_field_unique_values_async_search_term_matches_metadata_value_only(
-        self, document_store
-    ):
+    async def test_get_metadata_field_unique_values_async_search_term_matches_metadata_value_only(self, document_store):
         # A document whose metadata field value contains the search term but whose
         # content does NOT must be included in the results.
         docs = [
