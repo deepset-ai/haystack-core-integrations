@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/docling_serve-v1.1.1] - 2026-06-16
+
+### 🐛 Bug Fixes
+
+- Skip invalid local sources in DoclingServeConverter (#3449)
+
+
 ## [integrations/docling_serve-v1.1.0] - 2026-06-09
 
 ### 🚀 Features

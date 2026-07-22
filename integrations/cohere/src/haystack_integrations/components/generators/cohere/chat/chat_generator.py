@@ -1,3 +1,4 @@
+import inspect
 import json
 from collections.abc import AsyncIterator, Iterator
 from typing import Any, ClassVar, Literal, get_args
@@ -6,7 +7,6 @@ from haystack import component, default_from_dict, default_to_dict, logging
 from haystack.components.generators.utils import _convert_streaming_chunks_to_chat_message, _normalize_messages
 from haystack.dataclasses import ChatMessage, ComponentInfo, ImageContent, TextContent, ToolCall
 from haystack.dataclasses.streaming_chunk import (
-    AsyncStreamingCallbackT,
     FinishReason,
     StreamingCallbackT,
     StreamingChunk,
@@ -275,6 +275,17 @@ def _convert_cohere_chunk_to_streaming_chunk(
             arguments = chunk.delta.message.tool_calls.function.arguments
             tool_calls = [ToolCallDelta(index=global_index, arguments=arguments)]
 
+    elif chunk.type == "citation-start":
+        # Each citation-start chunk carries one Citation object in delta.message.citations.
+        # Collect it here so _parse_streaming_response can aggregate them into the final message
+        # meta, matching the behavior of the non-streaming path which returns citations via
+        # chat_response.message.citations.
+        delta = getattr(chunk, "delta", None)
+        if delta and delta.message:
+            citation = getattr(delta.message, "citations", None)
+            if citation is not None:
+                meta["citations"] = [citation]
+
     elif chunk.type == "message-end":
         finish_reason_raw = getattr(chunk.delta, "finish_reason", None)
         finish_reason = FINISH_REASON_MAPPING.get(finish_reason_raw) if finish_reason_raw else None
@@ -345,13 +356,20 @@ def _parse_streaming_response(
         chunks.append(streaming_chunk)
         streaming_callback(streaming_chunk)
 
-    return _convert_streaming_chunks_to_chat_message(chunks=chunks)
+    message = _convert_streaming_chunks_to_chat_message(chunks=chunks)
+
+    # Aggregate citations collected from citation-start chunks into the message meta,
+    # mirroring the non-streaming path which sets meta["citations"] from chat_response.message.citations.
+    citations = [c for sc in chunks for c in (sc.meta.get("citations") or [])]
+    message.meta["citations"] = citations if citations else None
+
+    return message
 
 
 async def _parse_async_streaming_response(
     response: AsyncIterator[StreamedChatResponseV2],
     model: str,
-    streaming_callback: AsyncStreamingCallbackT,
+    streaming_callback: StreamingCallbackT,
     component_info: ComponentInfo,
 ) -> ChatMessage:
     """
@@ -375,9 +393,17 @@ async def _parse_async_streaming_response(
 
         original_chunks.append(chunk)
         chunks.append(streaming_chunk)
-        await streaming_callback(streaming_chunk)
+        # sync callbacks are allowed in async contexts with Haystack >= 3.0, so only await async ones
+        callback_result = streaming_callback(streaming_chunk)
+        if inspect.isawaitable(callback_result):
+            await callback_result
 
-    return _convert_streaming_chunks_to_chat_message(chunks=chunks)
+    message = _convert_streaming_chunks_to_chat_message(chunks=chunks)
+
+    citations = [c for sc in chunks for c in (sc.meta.get("citations") or [])]
+    message.meta["citations"] = citations if citations else None
+
+    return message
 
 
 @component

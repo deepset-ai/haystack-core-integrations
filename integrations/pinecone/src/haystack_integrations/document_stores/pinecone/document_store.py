@@ -2,6 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+from contextlib import suppress
 from copy import copy
 from dataclasses import replace
 from typing import Any, Literal
@@ -151,18 +152,20 @@ class PineconeDocumentStore:
 
     def close(self) -> None:
         """
-        Close the associated synchronous resources.
+        Release the associated synchronous resources.
         """
-        if self._index:
-            self._index.close()
+        if self._index is not None:
+            with suppress(Exception):
+                self._index.close()
             self._index = None
 
     async def close_async(self) -> None:
         """
-        Close the associated asynchronous resources. To be invoked manually when the Document Store is no longer needed.
+        Release the associated asynchronous resources.
         """
-        if self._async_index:
-            await self._async_index.close()
+        if self._async_index is not None:
+            with suppress(Exception):
+                await self._async_index.close()
             self._async_index = None
 
     @staticmethod

@@ -1,3 +1,4 @@
+import inspect
 from datetime import datetime, timezone
 from typing import Any, ClassVar
 
@@ -5,7 +6,6 @@ from haystack import component, default_from_dict, default_to_dict, logging
 from haystack.components.generators.utils import _convert_streaming_chunks_to_chat_message, _normalize_messages
 from haystack.dataclasses.chat_message import ChatMessage
 from haystack.dataclasses.streaming_chunk import (
-    AsyncStreamingCallbackT,
     ComponentInfo,
     StreamingCallbackT,
     StreamingChunk,
@@ -31,9 +31,12 @@ from anthropic.types import (
 )
 
 from .utils import (
+    _accumulate_raw_content_blocks,
     _convert_anthropic_chunk_to_streaming_chunk,
     _convert_chat_completion_to_chat_message,
     _convert_messages_to_anthropic_format,
+    _extract_citations,
+    _has_server_tool_blocks,
     _process_reasoning_contents,
 )
 
@@ -132,6 +135,7 @@ class AnthropicChatGenerator:
         generation_kwargs: dict[str, Any] | None = None,
         ignore_tools_thinking_messages: bool = True,
         tools: ToolsType | None = None,
+        anthropic_server_tools: list[dict[str, Any]] | None = None,
         *,
         timeout: float | None = None,
         max_retries: int | None = None,
@@ -168,6 +172,11 @@ class AnthropicChatGenerator:
             for more details.
         :param tools: A list of Tool and/or Toolset objects, or a single Toolset, that the model can use.
             Each tool should have a unique name.
+        :param anthropic_server_tools: A list of Anthropic server-side tools passed directly to the API.
+            Use this for native Anthropic tools such as web search (`{"type": "web_search_20250305"}`),
+            code execution tool, or other provider-managed tools. Refer to the
+            [Anthropic documentation](https://docs.anthropic.com/en/docs/agents-and-tools/tool-use/web-search-tool)
+            for the exact dict format each native tool expects.
         :param timeout:
             Timeout for Anthropic client calls. If not set, it defaults to the default set by the Anthropic client.
         :param max_retries:
@@ -197,6 +206,7 @@ class AnthropicChatGenerator:
 
         self.ignore_tools_thinking_messages = ignore_tools_thinking_messages
         self.tools = tools
+        self.anthropic_server_tools = anthropic_server_tools
 
     def _get_telemetry_data(self) -> dict[str, Any]:
         """
@@ -220,6 +230,7 @@ class AnthropicChatGenerator:
             api_key=self.api_key.to_dict(),
             ignore_tools_thinking_messages=self.ignore_tools_thinking_messages,
             tools=serialize_tools_or_toolset(self.tools),
+            anthropic_server_tools=self.anthropic_server_tools,
             timeout=self.timeout,
             max_retries=self.max_retries,
         )
@@ -247,7 +258,7 @@ class AnthropicChatGenerator:
         messages: list[ChatMessage],
         generation_kwargs: dict[str, Any] | None = None,
         tools: ToolsType | None = None,
-    ) -> tuple[list[TextBlockParam], list[MessageParam], dict[str, Any], list[ToolParam]]:
+    ) -> tuple[list[TextBlockParam], list[MessageParam], dict[str, Any], list[Any]]:
         """
         Prepare the parameters for the Anthropic API request.
 
@@ -284,12 +295,21 @@ class AnthropicChatGenerator:
         flattened_tools = flatten_tools_or_toolsets(tools)
         _check_duplicate_tool_names(flattened_tools)
 
-        anthropic_tools: list[ToolParam] = []
+        anthropic_tools: list[Any] = []
         if flattened_tools:
             for tool in flattened_tools:
                 anthropic_tools.append(
                     ToolParam(name=tool.name, description=tool.description, input_schema=tool.parameters)
                 )
+        if self.anthropic_server_tools:
+            server_tool_names = {st["name"] for st in self.anthropic_server_tools if "name" in st}
+            if duplicates := server_tool_names & {tool.name for tool in flattened_tools}:
+                msg = (
+                    f"Duplicate tool names found: {sorted(duplicates)}. "
+                    "`anthropic_server_tools` cannot reuse a name from `tools`."
+                )
+                raise ValueError(msg)
+            anthropic_tools.extend(self.anthropic_server_tools)
 
         return system_messages, non_system_messages, generation_kwargs, anthropic_tools
 
@@ -324,9 +344,12 @@ class AnthropicChatGenerator:
         adaptive_thinking_effort = generation_kwargs.pop("adaptive_thinking_effort", None)
         if adaptive_thinking_effort is not None:
             thinking = generation_kwargs.setdefault("thinking", {})
-            thinking.setdefault("type", "adaptive")
-            output_config = generation_kwargs.setdefault("output_config", {})
-            output_config["effort"] = adaptive_thinking_effort
+            if adaptive_thinking_effort in ("disabled", "none"):
+                thinking.setdefault("type", "disabled")
+            else:
+                thinking.setdefault("type", "adaptive")
+                output_config = generation_kwargs.setdefault("output_config", {})
+                output_config["effort"] = adaptive_thinking_effort
 
         return generation_kwargs
 
@@ -348,6 +371,7 @@ class AnthropicChatGenerator:
             chunks: list[StreamingChunk] = []
             model: str | None = None
             tool_call_index = -1
+            in_server_tool_block = False
             input_tokens = None
             component_info = ComponentInfo.from_component(self)
             for chunk in response:
@@ -358,11 +382,14 @@ class AnthropicChatGenerator:
                         if chunk.message.usage.input_tokens is not None:
                             input_tokens = chunk.message.usage.input_tokens
 
-                    if chunk.type == "content_block_start" and chunk.content_block.type == "tool_use":
-                        tool_call_index += 1
+                    if chunk.type == "content_block_start":
+                        if chunk.content_block.type == "tool_use":
+                            tool_call_index += 1
+                        # server tools are executed by Anthropic: their streamed input must not become a ToolCall
+                        in_server_tool_block = chunk.content_block.type == "server_tool_use"
 
                     streaming_chunk = _convert_anthropic_chunk_to_streaming_chunk(
-                        chunk, component_info, tool_call_index
+                        chunk, component_info, tool_call_index, in_server_tool_block
                     )
                     chunks.append(streaming_chunk)
                     if streaming_callback:
@@ -379,6 +406,14 @@ class AnthropicChatGenerator:
                 if "usage" not in completion.meta:
                     completion.meta["usage"] = {}
                 completion.meta["usage"]["input_tokens"] = input_tokens
+
+            # keep the raw content so server-tool blocks can be replayed on later turns
+            if self.anthropic_server_tools:
+                raw_content = _accumulate_raw_content_blocks(chunks)
+                if _has_server_tool_blocks(raw_content):
+                    completion.meta["raw_content_for_server_tools"] = raw_content
+                if citations := _extract_citations(raw_content):
+                    completion.meta["citations"] = citations
 
             return {
                 "replies": [
@@ -400,7 +435,7 @@ class AnthropicChatGenerator:
     async def _process_response_async(
         self,
         response: Any,
-        streaming_callback: AsyncStreamingCallbackT | None = None,
+        streaming_callback: StreamingCallbackT | None = None,
     ) -> dict[str, list[ChatMessage]]:
         """
         Process the response from the Anthropic API asynchronously.
@@ -416,6 +451,7 @@ class AnthropicChatGenerator:
             chunks: list[StreamingChunk] = []
             model: str | None = None
             tool_call_index = -1
+            in_server_tool_block = False
             input_tokens = None
             component_info = ComponentInfo.from_component(self)
             async for chunk in response:
@@ -431,15 +467,21 @@ class AnthropicChatGenerator:
                         if chunk.message.usage.input_tokens is not None:
                             input_tokens = chunk.message.usage.input_tokens
 
-                    if chunk.type == "content_block_start" and chunk.content_block.type == "tool_use":
-                        tool_call_index += 1
+                    if chunk.type == "content_block_start":
+                        if chunk.content_block.type == "tool_use":
+                            tool_call_index += 1
+                        # server tools are executed by Anthropic: their streamed input must not become a ToolCall
+                        in_server_tool_block = chunk.content_block.type == "server_tool_use"
 
                     streaming_chunk = _convert_anthropic_chunk_to_streaming_chunk(
-                        chunk, component_info, tool_call_index
+                        chunk, component_info, tool_call_index, in_server_tool_block
                     )
                     chunks.append(streaming_chunk)
                     if streaming_callback:
-                        await streaming_callback(streaming_chunk)
+                        # sync callbacks are allowed in async contexts with Haystack >= 3.0, so only await async ones
+                        callback_result = streaming_callback(streaming_chunk)
+                        if inspect.isawaitable(callback_result):
+                            await callback_result
 
             completion = _convert_streaming_chunks_to_chat_message(chunks)
             reasoning = _process_reasoning_contents(chunks)
@@ -452,6 +494,14 @@ class AnthropicChatGenerator:
                 if "usage" not in completion.meta:
                     completion.meta["usage"] = {}
                 completion.meta["usage"]["input_tokens"] = input_tokens
+
+            # keep the raw content so server-tool blocks can be replayed on later turns
+            if self.anthropic_server_tools:
+                raw_content = _accumulate_raw_content_blocks(chunks)
+                if _has_server_tool_blocks(raw_content):
+                    completion.meta["raw_content_for_server_tools"] = raw_content
+                if citations := _extract_citations(raw_content):
+                    completion.meta["citations"] = citations
 
             return {
                 "replies": [

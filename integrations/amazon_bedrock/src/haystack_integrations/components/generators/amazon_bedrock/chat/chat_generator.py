@@ -409,6 +409,18 @@ class AmazonBedrockChatGenerator:
         if stop_words:
             logger.warning(msg)
 
+        system_cachepoint_config_ttl = init_params.pop("system_cachepoint_config_ttl", None)
+        if system_cachepoint_config_ttl is not None:
+            system_cachepoint_config = init_params.setdefault("system_cachepoint_config", {})
+            system_cachepoint_config["ttl"] = system_cachepoint_config_ttl
+            system_cachepoint_config.setdefault("type", "default")
+
+        tools_cachepoint_config_ttl = init_params.pop("tools_cachepoint_config_ttl", None)
+        if tools_cachepoint_config_ttl is not None:
+            tools_cachepoint_config = init_params.setdefault("tools_cachepoint_config", {})
+            tools_cachepoint_config["ttl"] = tools_cachepoint_config_ttl
+            tools_cachepoint_config.setdefault("type", "default")
+
         serialized_callback_handler = init_params.get("streaming_callback")
         if serialized_callback_handler:
             data["init_parameters"]["streaming_callback"] = deserialize_callable(serialized_callback_handler)
@@ -535,21 +547,12 @@ class AmazonBedrockChatGenerator:
         adaptive_thinking_effort = generation_kwargs.pop("adaptive_thinking_effort", None)
         if adaptive_thinking_effort is not None:
             thinking = generation_kwargs.setdefault("thinking", {})
-            thinking.setdefault("type", "adaptive")
-            output_config = generation_kwargs.setdefault("output_config", {})
-            output_config["effort"] = adaptive_thinking_effort
-
-        tools_cachepoint_config_ttl = generation_kwargs.pop("tools_cachepoint_config_ttl", None)
-        if tools_cachepoint_config_ttl is not None:
-            tools_cachepoint_config = generation_kwargs.setdefault("tools_cachepoint_config", {})
-            tools_cachepoint_config["ttl"] = tools_cachepoint_config_ttl
-            tools_cachepoint_config.setdefault("type", "default")
-
-        system_cachepoint_config_ttl = generation_kwargs.pop("system_cachepoint_config_ttl", None)
-        if system_cachepoint_config_ttl is not None:
-            system_cachepoint_config = generation_kwargs.setdefault("system_cachepoint_config", {})
-            system_cachepoint_config["ttl"] = system_cachepoint_config_ttl
-            system_cachepoint_config.setdefault("type", "default")
+            if adaptive_thinking_effort in ("disabled", "none"):
+                thinking.setdefault("type", "disabled")
+            else:
+                thinking.setdefault("type", "adaptive")
+                output_config = generation_kwargs.setdefault("output_config", {})
+                output_config["effort"] = adaptive_thinking_effort
 
         return generation_kwargs
 

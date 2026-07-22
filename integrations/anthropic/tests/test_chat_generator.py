@@ -4,15 +4,10 @@
 
 import json
 import os
-from unittest.mock import AsyncMock, Mock, patch
+from unittest.mock import Mock
 
 import anthropic
 import pytest
-from anthropic.types import (
-    Message,
-    TextBlockParam,
-    Usage,
-)
 from haystack import Pipeline
 from haystack.components.agents import Agent
 from haystack.components.generators.utils import print_streaming_chunk
@@ -33,6 +28,7 @@ from haystack_integrations.components.generators.anthropic.chat.chat_generator i
 )
 from haystack_integrations.components.generators.anthropic.chat.utils import (
     _convert_messages_to_anthropic_format,
+    _has_server_tool_blocks,
 )
 
 
@@ -42,6 +38,20 @@ def hello_world():
 
 def population(city: str) -> str:
     return f"The population of {city} is 2.2 million"
+
+
+class StreamingCollector:
+    """Callable streaming callback that records chunks so live tests can assert on streaming behavior."""
+
+    def __init__(self):
+        self.responses = ""
+        self.counter = 0
+
+    def __call__(self, chunk: StreamingChunk) -> None:
+        self.counter += 1
+        self.responses += chunk.content if chunk.content else ""
+        assert chunk.component_info is not None
+        assert chunk.component_info.type.endswith("chat_generator.AnthropicChatGenerator")
 
 
 @pytest.fixture
@@ -55,42 +65,7 @@ def tool_with_no_parameters():
     return tool
 
 
-@pytest.fixture
-def tools():
-    tool_parameters = {"type": "object", "properties": {"city": {"type": "string"}}, "required": ["city"]}
-    tool = Tool(
-        name="weather",
-        description="useful to determine the weather in a given location",
-        parameters=tool_parameters,
-        function=lambda x: x,
-    )
-    return [tool]
-
-
-@pytest.fixture
-def chat_messages():
-    return [
-        ChatMessage.from_user("What's the capital of France"),
-    ]
-
-
-@pytest.fixture
-def mock_anthropic_completion():
-    with patch("anthropic.resources.messages.Messages.create") as mock_anthropic:
-        completion = Message(
-            id="foo",
-            type="message",
-            model="claude-sonnet-4-5",
-            role="assistant",
-            content=[TextBlockParam(type="text", text="Hello! I'm Claude.")],
-            stop_reason="end_turn",
-            usage={"input_tokens": 10, "output_tokens": 20},
-        )
-        mock_anthropic.return_value = completion
-        yield mock_anthropic
-
-
-class TestAnthropicChatGenerator:
+class TestInit:
     def test_supported_models(self) -> None:
         """SUPPORTED_MODELS is a non-empty list of strings."""
         models = AnthropicChatGenerator.SUPPORTED_MODELS
@@ -110,6 +85,25 @@ class TestAnthropicChatGenerator:
         assert not component.generation_kwargs
         assert component.tools is None
 
+    def test_init_with_parameters(self, monkeypatch):
+        """
+        Test that the AnthropicChatGenerator component initializes with parameters.
+        """
+        tool = Tool(name="name", description="description", parameters={"x": {"type": "string"}}, function=lambda x: x)
+
+        component = AnthropicChatGenerator(
+            api_key=Secret.from_token("test-api-key"),
+            model="claude-sonnet-4-5",
+            streaming_callback=print_streaming_chunk,
+            generation_kwargs={"max_tokens": 10, "some_test_param": "test-params"},
+            tools=[tool],
+        )
+        assert component.client.api_key == "test-api-key"
+        assert component.model == "claude-sonnet-4-5"
+        assert component.streaming_callback is print_streaming_chunk
+        assert component.generation_kwargs == {"max_tokens": 10, "some_test_param": "test-params"}
+        assert component.tools == [tool]
+
     def test_init_fail_wo_api_key(self, monkeypatch):
         """
         Test that the AnthropicChatGenerator component fails to initialize without an API key.
@@ -128,44 +122,16 @@ class TestAnthropicChatGenerator:
         with pytest.raises(ValueError):
             AnthropicChatGenerator(tools=duplicate_tools)
 
-    def test_init_with_parameters(self, monkeypatch):
-        """
-        Test that the AnthropicChatGenerator component initializes with parameters.
-        """
-        tool = Tool(name="name", description="description", parameters={"x": {"type": "string"}}, function=lambda x: x)
-
-        monkeypatch.setenv("OPENAI_TIMEOUT", "100")
-        monkeypatch.setenv("OPENAI_MAX_RETRIES", "10")
+        # a server tool reusing a tool name would otherwise only fail as an opaque API error
         component = AnthropicChatGenerator(
-            api_key=Secret.from_token("test-api-key"),
-            model="claude-sonnet-4-5",
-            streaming_callback=print_streaming_chunk,
-            generation_kwargs={"max_tokens": 10, "some_test_param": "test-params"},
-            tools=[tool],
+            tools=tools,
+            anthropic_server_tools=[{"type": "web_search_20250305", "name": tools[0].name}],
         )
-        assert component.client.api_key == "test-api-key"
-        assert component.model == "claude-sonnet-4-5"
-        assert component.streaming_callback is print_streaming_chunk
-        assert component.generation_kwargs == {"max_tokens": 10, "some_test_param": "test-params"}
-        assert component.tools == [tool]
+        with pytest.raises(ValueError, match="Duplicate tool names"):
+            component._prepare_request_params([ChatMessage.from_user("hi")])
 
-    def test_init_with_parameters_and_env_vars(self, monkeypatch):
-        """
-        Test that the AnthropicChatGenerator component initializes with parameters and env vars.
-        """
-        monkeypatch.setenv("OPENAI_TIMEOUT", "100")
-        monkeypatch.setenv("OPENAI_MAX_RETRIES", "10")
-        component = AnthropicChatGenerator(
-            model="claude-sonnet-4-5",
-            api_key=Secret.from_token("test-api-key"),
-            streaming_callback=print_streaming_chunk,
-            generation_kwargs={"max_tokens": 10, "some_test_param": "test-params"},
-        )
-        assert component.client.api_key == "test-api-key"
-        assert component.model == "claude-sonnet-4-5"
-        assert component.streaming_callback is print_streaming_chunk
-        assert component.generation_kwargs == {"max_tokens": 10, "some_test_param": "test-params"}
 
+class TestSerialization:
     def test_to_dict_default(self, monkeypatch):
         """
         Test that the AnthropicChatGenerator component can be serialized to a dictionary.
@@ -182,6 +148,7 @@ class TestAnthropicChatGenerator:
                 "ignore_tools_thinking_messages": True,
                 "generation_kwargs": {},
                 "tools": None,
+                "anthropic_server_tools": None,
                 "timeout": None,
                 "max_retries": None,
             },
@@ -200,10 +167,16 @@ class TestAnthropicChatGenerator:
             streaming_callback=print_streaming_chunk,
             generation_kwargs={"max_tokens": 10, "some_test_param": "test-params"},
             tools=[tool],
+            anthropic_server_tools=[{"type": "web_search_20250305", "name": "web_search"}],
             timeout=10.0,
             max_retries=1,
         )
         data = component.to_dict()
+
+        # the Tool serialization format is owned by haystack-ai and varies across its versions; the
+        # from_dict round-trip below covers the tools, so exclude them from the pinned-dict comparison
+        tools_entries = data["init_parameters"].pop("tools")
+        assert len(tools_entries) == 1
 
         expected_dict = {
             "type": "haystack_integrations.components.generators.anthropic.chat.chat_generator.AnthropicChatGenerator",
@@ -213,36 +186,17 @@ class TestAnthropicChatGenerator:
                 "streaming_callback": "haystack.components.generators.utils.print_streaming_chunk",
                 "ignore_tools_thinking_messages": True,
                 "generation_kwargs": {"max_tokens": 10, "some_test_param": "test-params"},
-                "tools": [
-                    {
-                        "data": {
-                            "description": "description",
-                            "function": "builtins.print",
-                            "name": "name",
-                            "parameters": {
-                                "x": {
-                                    "type": "string",
-                                },
-                            },
-                        },
-                        "type": "haystack.tools.tool.Tool",
-                    }
-                ],
+                "anthropic_server_tools": [{"type": "web_search_20250305", "name": "web_search"}],
                 "timeout": 10.0,
                 "max_retries": 1,
             },
         }
 
-        # add outputs_to_string, inputs_from_state and outputs_to_state tool parameters for compatibility with
-        # haystack-ai>=2.12.0
-        if hasattr(tool, "outputs_to_string"):
-            expected_dict["init_parameters"]["tools"][0]["data"]["outputs_to_string"] = tool.outputs_to_string
-        if hasattr(tool, "inputs_from_state"):
-            expected_dict["init_parameters"]["tools"][0]["data"]["inputs_from_state"] = tool.inputs_from_state
-        if hasattr(tool, "outputs_to_state"):
-            expected_dict["init_parameters"]["tools"][0]["data"]["outputs_to_state"] = tool.outputs_to_state
-
         assert data == expected_dict
+
+        # deserializing the serialized component must reproduce the original tool
+        loaded = AnthropicChatGenerator.from_dict(component.to_dict())
+        assert loaded.tools == [tool]
 
     def test_from_dict(self, monkeypatch):
         """
@@ -301,34 +255,86 @@ class TestAnthropicChatGenerator:
         with pytest.raises(ValueError):
             AnthropicChatGenerator.from_dict(data)
 
-    def test_run(self, chat_messages, mock_chat_completion):
+    def test_serde_in_pipeline(self):
+        tool = Tool(name="name", description="description", parameters={"x": {"type": "string"}}, function=print)
+
+        generator = AnthropicChatGenerator(
+            api_key=Secret.from_env_var("ANTHROPIC_API_KEY", strict=False),
+            model="claude-sonnet-4-5",
+            generation_kwargs={"temperature": 0.6},
+            tools=[tool],
+        )
+
+        pipeline = Pipeline()
+        pipeline.add_component("generator", generator)
+
+        pipeline_dict = pipeline.to_dict()
+
+        # the Tool serialization format is owned by haystack-ai and varies across its versions; the
+        # dumps/loads round-trip below covers the tools, so exclude them from the pinned-dict comparison
+        tools_entries = pipeline_dict["components"]["generator"]["init_parameters"].pop("tools")
+        assert len(tools_entries) == 1
+        type_ = "haystack_integrations.components.generators.anthropic.chat.chat_generator.AnthropicChatGenerator"
+
+        expected_dict = {
+            "metadata": {},
+            "max_runs_per_component": 100,
+            "connection_type_validation": True,
+            "components": {
+                "generator": {
+                    "type": type_,
+                    "init_parameters": {
+                        "api_key": {"type": "env_var", "env_vars": ["ANTHROPIC_API_KEY"], "strict": False},
+                        "model": "claude-sonnet-4-5",
+                        "generation_kwargs": {"temperature": 0.6},
+                        "ignore_tools_thinking_messages": True,
+                        "streaming_callback": None,
+                        "anthropic_server_tools": None,
+                        "timeout": None,
+                        "max_retries": None,
+                    },
+                }
+            },
+            "connections": [],
+        }
+
+        if not hasattr(pipeline, "_connection_type_validation"):
+            expected_dict.pop("connection_type_validation")
+
+        assert pipeline_dict == expected_dict
+
+        pipeline_yaml = pipeline.dumps()
+
+        new_pipeline = Pipeline.loads(pipeline_yaml)
+        assert new_pipeline == pipeline
+
+
+class TestRun:
+    @pytest.mark.parametrize(
+        "messages",
+        [
+            pytest.param([ChatMessage.from_user("What's the capital of France?")], id="list"),
+            pytest.param("What's the capital of France?", id="string"),
+        ],
+    )
+    def test_run(self, mock_chat_completion, messages):
         component = AnthropicChatGenerator(api_key=Secret.from_token("test-api-key"))
-        response = component.run(chat_messages)
+        result = component.run(messages)
 
-        # check that the component returns the correct ChatMessage response
-        assert isinstance(response, dict)
-        assert "replies" in response
-        assert isinstance(response["replies"], list)
-        assert len(response["replies"]) == 1
-        assert [isinstance(reply, ChatMessage) for reply in response["replies"]]
-
-    def test_run_with_string_input(self, mock_anthropic_completion):
-        component = AnthropicChatGenerator(api_key=Secret.from_token("test-api-key"))
-        result = component.run("What's the capital of France?")
-
-        # Check that the backend received exactly one user message
-        _, kwargs = mock_anthropic_completion.call_args
+        # both a message list and a bare string must reach the backend as a single user message
+        _, kwargs = mock_chat_completion.call_args
         assert len(kwargs["messages"]) == 1
         assert kwargs["messages"][0]["role"] == "user"
         assert kwargs["messages"][0]["content"][0]["type"] == "text"
         assert kwargs["messages"][0]["content"][0]["text"] == "What's the capital of France?"
 
-        # Check that the result contains exactly one ChatMessage
+        # the result contains exactly one ChatMessage reply
+        assert isinstance(result, dict)
         assert isinstance(result["replies"], list)
         assert len(result["replies"]) == 1
         assert isinstance(result["replies"][0], ChatMessage)
 
-    def test_run_with_params(self, chat_messages, mock_anthropic_completion):
+    def test_run_with_params(self, chat_messages, mock_chat_completion):
         """
         Test that the AnthropicChatGenerator component can run with parameters.
         """
@@ -338,7 +344,7 @@ class TestAnthropicChatGenerator:
         response = component.run(chat_messages)
 
         # Check that the component calls the Anthropic API with the correct parameters
-        _, kwargs = mock_anthropic_completion.call_args
+        _, kwargs = mock_chat_completion.call_args
         assert kwargs["max_tokens"] == 10
         assert kwargs["temperature"] == 0.5
 
@@ -352,23 +358,18 @@ class TestAnthropicChatGenerator:
         assert response["replies"][0].meta["model"] == "claude-sonnet-4-5"
         assert response["replies"][0].meta["finish_reason"] == "stop"
 
-    def test_run_with_output_config(self, chat_messages, mock_anthropic_completion):
-        """
-        Test that output_config is passed to the Anthropic API.
-        """
-        output_config = {"effort": "medium"}
-        component = AnthropicChatGenerator(
-            api_key=Secret.from_token("test-api-key"),
-            generation_kwargs={"max_tokens": 10, "output_config": output_config},
-        )
-        component.run(chat_messages)
-
-        _, kwargs = mock_anthropic_completion.call_args
-        assert kwargs["output_config"] == output_config
-
     @pytest.mark.parametrize(
         "generation_kwargs,expected_kwargs",
         [
+            (
+                # a raw output_config is forwarded to the Anthropic API unchanged
+                {
+                    "output_config": {"effort": "medium"},
+                },
+                {
+                    "output_config": {"effort": "medium"},
+                },
+            ),
             (
                 {
                     "parallel_tool_use": False,
@@ -423,10 +424,26 @@ class TestAnthropicChatGenerator:
                     "output_config": {"effort": "max"},
                 },
             ),
+            (
+                {
+                    "adaptive_thinking_effort": "disabled",
+                },
+                {
+                    "thinking": {"type": "disabled"},
+                },
+            ),
+            (
+                {
+                    "adaptive_thinking_effort": "none",
+                },
+                {
+                    "thinking": {"type": "disabled"},
+                },
+            ),
         ],
     )
     def test_run_with_flattened_generation_kwargs(
-        self, chat_messages, mock_anthropic_completion, generation_kwargs, expected_kwargs
+        self, chat_messages, mock_chat_completion, generation_kwargs, expected_kwargs
     ):
         """
         Test that the AnthropicChatGenerator component can run with parameters.
@@ -438,191 +455,53 @@ class TestAnthropicChatGenerator:
         component.run(chat_messages)
 
         # Check that the component calls the Anthropic API with the correct parameters
-        actual_kwargs = mock_anthropic_completion.call_args.kwargs
+        actual_kwargs = mock_chat_completion.call_args.kwargs
         assert actual_kwargs.get("tool_choice") == expected_kwargs.get("tool_choice")
         assert actual_kwargs.get("thinking") == expected_kwargs.get("thinking")
         assert actual_kwargs.get("output_config") == expected_kwargs.get("output_config")
 
-    def test_check_duplicate_tool_names(self, tools):
-        """Test that the AnthropicChatGenerator component fails to initialize with duplicate tool names."""
-        with pytest.raises(ValueError):
-            AnthropicChatGenerator(tools=tools + tools)
 
-    def test_serde_in_pipeline(self):
-        tool = Tool(name="name", description="description", parameters={"x": {"type": "string"}}, function=print)
+class TestAnthropicServerTools:
+    def test_init_with_anthropic_server_tools(self, monkeypatch):
+        monkeypatch.setenv("ANTHROPIC_API_KEY", "test-api-key")
+        server_tools = [{"type": "web_search_20250305"}]
+        component = AnthropicChatGenerator(anthropic_server_tools=server_tools)
+        assert component.anthropic_server_tools == server_tools
 
-        generator = AnthropicChatGenerator(
-            api_key=Secret.from_env_var("ANTHROPIC_API_KEY", strict=False),
-            model="claude-sonnet-4-5",
-            generation_kwargs={"temperature": 0.6},
-            tools=[tool],
-        )
-
-        pipeline = Pipeline()
-        pipeline.add_component("generator", generator)
-
-        pipeline_dict = pipeline.to_dict()
-        type_ = "haystack_integrations.components.generators.anthropic.chat.chat_generator.AnthropicChatGenerator"
-
-        expected_dict = {
-            "metadata": {},
-            "max_runs_per_component": 100,
-            "connection_type_validation": True,
-            "components": {
-                "generator": {
-                    "type": type_,
-                    "init_parameters": {
-                        "api_key": {"type": "env_var", "env_vars": ["ANTHROPIC_API_KEY"], "strict": False},
-                        "model": "claude-sonnet-4-5",
-                        "generation_kwargs": {"temperature": 0.6},
-                        "ignore_tools_thinking_messages": True,
-                        "streaming_callback": None,
-                        "tools": [
-                            {
-                                "type": "haystack.tools.tool.Tool",
-                                "data": {
-                                    "name": "name",
-                                    "description": "description",
-                                    "parameters": {"x": {"type": "string"}},
-                                    "function": "builtins.print",
-                                },
-                            }
-                        ],
-                        "timeout": None,
-                        "max_retries": None,
-                    },
-                }
+    def test_from_dict_with_anthropic_server_tools(self, monkeypatch):
+        monkeypatch.setenv("ANTHROPIC_API_KEY", "test-api-key")
+        data = {
+            "type": "haystack_integrations.components.generators.anthropic.chat.chat_generator.AnthropicChatGenerator",
+            "init_parameters": {
+                "api_key": {"env_vars": ["ANTHROPIC_API_KEY"], "type": "env_var", "strict": True},
+                "model": "claude-sonnet-4-5",
+                "anthropic_server_tools": [{"type": "web_search_20250305"}],
             },
-            "connections": [],
         }
+        component = AnthropicChatGenerator.from_dict(data)
+        assert component.anthropic_server_tools == [{"type": "web_search_20250305"}]
 
-        if not hasattr(pipeline, "_connection_type_validation"):
-            expected_dict.pop("connection_type_validation")
+    def test_run_with_anthropic_server_tools(self, chat_messages, mock_chat_completion):
+        server_tools = [{"type": "web_search_20250305"}]
+        component = AnthropicChatGenerator(
+            api_key=Secret.from_token("test-api-key"), anthropic_server_tools=server_tools
+        )
+        component.run(messages=chat_messages)
+        _, kwargs = mock_chat_completion.call_args
+        assert kwargs["tools"] == server_tools
 
-        # add outputs_to_string, inputs_from_state and outputs_to_state tool parameters for compatibility with
-        # haystack-ai>=2.12.0
-        if hasattr(tool, "outputs_to_string"):
-            expected_dict["components"]["generator"]["init_parameters"]["tools"][0]["data"]["outputs_to_string"] = (
-                tool.outputs_to_string
-            )
-        if hasattr(tool, "inputs_from_state"):
-            expected_dict["components"]["generator"]["init_parameters"]["tools"][0]["data"]["inputs_from_state"] = (
-                tool.inputs_from_state
-            )
-        if hasattr(tool, "outputs_to_state"):
-            expected_dict["components"]["generator"]["init_parameters"]["tools"][0]["data"]["outputs_to_state"] = (
-                tool.outputs_to_state
-            )
+    def test_run_with_tools_and_anthropic_server_tools(self, chat_messages, mock_chat_completion, tools):
+        server_tools = [{"type": "web_search_20250305"}]
+        component = AnthropicChatGenerator(
+            api_key=Secret.from_token("test-api-key"), tools=tools, anthropic_server_tools=server_tools
+        )
+        component.run(messages=chat_messages)
+        _, kwargs = mock_chat_completion.call_args
+        assert len(kwargs["tools"]) == 2
+        assert kwargs["tools"][-1] == {"type": "web_search_20250305"}
 
-        assert pipeline_dict == expected_dict
 
-        pipeline_yaml = pipeline.dumps()
-
-        new_pipeline = Pipeline.loads(pipeline_yaml)
-        assert new_pipeline == pipeline
-
-    @pytest.mark.skipif(
-        not os.environ.get("ANTHROPIC_API_KEY", None),
-        reason="Export an env var called ANTHROPIC_API_KEY containing the Anthropic API key to run this test.",
-    )
-    @pytest.mark.integration
-    def test_live_run(self):
-        """
-        Integration test that the AnthropicChatGenerator component can run with default parameters.
-        """
-        component = AnthropicChatGenerator()
-        results = component.run(messages=[ChatMessage.from_user("What's the capital of France?")])
-        assert len(results["replies"]) == 1
-        message: ChatMessage = results["replies"][0]
-        assert "Paris" in message.text
-        assert "claude-sonnet-4-5" in message.meta["model"]
-        assert message.meta["finish_reason"] == "stop"
-
-    @pytest.mark.skipif(
-        not os.environ.get("ANTHROPIC_API_KEY", None),
-        reason="Export an env var called ANTHROPIC_API_KEY containing the Anthropic API key to run this test.",
-    )
-    @pytest.mark.integration
-    def test_live_run_wrong_model(self, chat_messages):
-        component = AnthropicChatGenerator(model="something-obviously-wrong")
-        with pytest.raises(anthropic.NotFoundError):
-            component.run(chat_messages)
-
-    @pytest.mark.skipif(
-        not os.environ.get("ANTHROPIC_API_KEY", None),
-        reason="Export an env var called ANTHROPIC_API_KEY containing the OpenAI API key to run this test.",
-    )
-    @pytest.mark.integration
-    def test_live_run_streaming(self):
-        """
-        Integration test that the AnthropicChatGenerator component can run with streaming.
-        """
-
-        class Callback:
-            def __init__(self):
-                self.responses = ""
-                self.counter = 0
-
-            def __call__(self, chunk: StreamingChunk) -> None:
-                self.counter += 1
-                self.responses += chunk.content if chunk.content else ""
-                assert chunk.component_info is not None
-                assert chunk.component_info.type.endswith("chat_generator.AnthropicChatGenerator")
-
-        callback = Callback()
-
-        component = AnthropicChatGenerator(streaming_callback=callback, timeout=30.0, max_retries=1)
-        results = component.run([ChatMessage.from_user("What's the capital of France?")])
-        assert len(results["replies"]) == 1
-        message: ChatMessage = results["replies"][0]
-        assert "Paris" in message.text
-
-        assert "claude-sonnet-4-5" in message.meta["model"]
-        assert message.meta["finish_reason"] == "stop"
-        assert callback.counter > 1
-        assert "Paris" in callback.responses
-        assert "input_tokens" in message.meta["usage"]
-        assert "output_tokens" in message.meta["usage"]
-
-    @pytest.mark.skipif(
-        not os.environ.get("ANTHROPIC_API_KEY", None),
-        reason="Export an env var called ANTHROPIC_API_KEY containing the Anthropic API key to run this test.",
-    )
-    @pytest.mark.integration
-    def test_live_run_with_tools(self, tools):
-        """
-        Integration test that the AnthropicChatGenerator component can run with tools.
-        """
-        initial_messages = [ChatMessage.from_user("What's the weather like in Paris?")]
-        component = AnthropicChatGenerator(tools=tools)
-        results = component.run(messages=initial_messages)
-
-        assert len(results["replies"]) == 1
-        message = results["replies"][0]
-
-        assert message.tool_calls
-        tool_call = message.tool_call
-        assert isinstance(tool_call, ToolCall)
-        assert tool_call.id is not None
-        assert tool_call.tool_name == "weather"
-        assert tool_call.arguments == {"city": "Paris"}
-        assert message.meta["finish_reason"] == "tool_calls"
-        assert "completion_tokens" in message.meta["usage"]
-
-        new_messages = [
-            *initial_messages,
-            message,
-            ChatMessage.from_tool(tool_result="22° C", origin=tool_call),
-        ]
-        # the model tends to make tool calls if provided with tools, so we don't pass them here
-        results = component.run(new_messages, generation_kwargs={"max_tokens": 50})
-
-        assert len(results["replies"]) == 1
-        final_message = results["replies"][0]
-        assert not final_message.tool_calls
-        assert len(final_message.text) > 0
-        assert "paris" in final_message.text.lower()
-
+class TestMixedToolsAndToolsets:
     def test_init_with_mixed_tools_and_toolsets(self, monkeypatch):
         """Test initialization with a mixed list of Tools and Toolsets."""
         monkeypatch.setenv("ANTHROPIC_API_KEY", "test-api-key")
@@ -639,6 +518,17 @@ class TestAnthropicChatGenerator:
         assert generator.tools == [tool1, toolset1, tool3]
         assert isinstance(generator.tools, list)
         assert len(generator.tools) == 3
+
+    def test_init_with_duplicate_tools_in_mixed_list(self, monkeypatch):
+        """Test that initialization fails with duplicate tool names in mixed Tools and Toolsets."""
+        monkeypatch.setenv("ANTHROPIC_API_KEY", "test-api-key")
+
+        tool1 = Tool(name="duplicate", description="First", parameters={}, function=lambda: None)
+        tool2 = Tool(name="duplicate", description="Second", parameters={}, function=lambda: None)
+        toolset1 = Toolset([tool2])
+
+        with pytest.raises(ValueError, match="duplicate"):
+            AnthropicChatGenerator(tools=[tool1, toolset1])
 
     def test_serde_with_mixed_tools_and_toolsets(self, monkeypatch):
         """Test serialization/deserialization with mixed Tools and Toolsets."""
@@ -666,7 +556,7 @@ class TestAnthropicChatGenerator:
         assert restored.tools[0].name == "tool1"
         assert next(iter(restored.tools[1])).name == "tool2"
 
-    def test_run_with_mixed_tools_and_toolsets(self, chat_messages, mock_anthropic_completion, monkeypatch):
+    def test_run_with_mixed_tools_and_toolsets(self, chat_messages, mock_chat_completion, monkeypatch):
         """Test that the run method works with mixed Tools and Toolsets."""
         monkeypatch.setenv("ANTHROPIC_API_KEY", "test-api-key")
 
@@ -686,144 +576,194 @@ class TestAnthropicChatGenerator:
         assert len(response["replies"]) == 1
 
         # Check that the component called the Anthropic API with the correct tools
-        _, kwargs = mock_anthropic_completion.call_args
+        _, kwargs = mock_chat_completion.call_args
         assert "tools" in kwargs
         assert len(kwargs["tools"]) == 2
         assert kwargs["tools"][0]["name"] == "tool1"
         assert kwargs["tools"][1]["name"] == "tool2"
 
-    def test_init_with_duplicate_tools_in_mixed_list(self, monkeypatch):
-        """Test that initialization fails with duplicate tool names in mixed Tools and Toolsets."""
+
+class TestPromptCaching:
+    def test_prompt_caching_enabled(self, monkeypatch):
+        """
+        Test that the generation_kwargs extra_headers are correctly passed to the Anthropic API when prompt
+        caching is enabled
+        """
+        monkeypatch.setenv("ANTHROPIC_API_KEY", "test-api-key")
+        component = AnthropicChatGenerator(
+            generation_kwargs={"extra_headers": {"anthropic-beta": "prompt-caching-2024-07-31"}}
+        )
+        assert component.generation_kwargs.get("extra_headers", {}).get("anthropic-beta") == "prompt-caching-2024-07-31"
+
+    def test_to_dict_with_prompt_caching(self, monkeypatch):
+        """
+        Test that the generation_kwargs extra_headers are correctly serialized to a dictionary
+        """
+        monkeypatch.setenv("ANTHROPIC_API_KEY", "test-api-key")
+        component = AnthropicChatGenerator(
+            generation_kwargs={"extra_headers": {"anthropic-beta": "prompt-caching-2024-07-31"}}
+        )
+        data = component.to_dict()
+        assert (
+            data["init_parameters"]["generation_kwargs"]["extra_headers"]["anthropic-beta"]
+            == "prompt-caching-2024-07-31"
+        )
+
+    def test_from_dict_with_prompt_caching(self, monkeypatch):
+        """
+        Test that the generation_kwargs extra_headers are correctly deserialized from a dictionary
+        """
+        monkeypatch.setenv("ANTHROPIC_API_KEY", "test-api-key")
+        data = {
+            "type": "haystack_integrations.components.generators.anthropic.chat.chat_generator.AnthropicChatGenerator",
+            "init_parameters": {
+                "api_key": {"env_vars": ["ANTHROPIC_API_KEY"], "strict": True, "type": "env_var"},
+                "model": "claude-sonnet-4-5",
+                "generation_kwargs": {"extra_headers": {"anthropic-beta": "prompt-caching-2024-07-31"}},
+            },
+        }
+        component = AnthropicChatGenerator.from_dict(data)
+        assert component.generation_kwargs["extra_headers"]["anthropic-beta"] == "prompt-caching-2024-07-31"
+
+    @pytest.mark.parametrize("enable_caching", [True, False])
+    def test_run_with_prompt_caching(self, monkeypatch, mock_chat_completion, enable_caching):
+        """
+        Test that the generation_kwargs extra_headers are correctly passed to the Anthropic API in both cases of
+        prompt caching being enabled or not
+        """
         monkeypatch.setenv("ANTHROPIC_API_KEY", "test-api-key")
 
-        tool1 = Tool(name="duplicate", description="First", parameters={}, function=lambda: None)
-        tool2 = Tool(name="duplicate", description="Second", parameters={}, function=lambda: None)
-        toolset1 = Toolset([tool2])
+        generation_kwargs = {"extra_headers": {"anthropic-beta": "prompt-caching-2024-07-31"}} if enable_caching else {}
+        component = AnthropicChatGenerator(generation_kwargs=generation_kwargs)
 
-        with pytest.raises(ValueError, match="duplicate"):
-            AnthropicChatGenerator(tools=[tool1, toolset1])
+        messages = [ChatMessage.from_system("System message"), ChatMessage.from_user("User message")]
 
-    @pytest.mark.skipif(
-        not os.environ.get("ANTHROPIC_API_KEY", None),
-        reason="Export an env var called ANTHROPIC_API_KEY containing the Anthropic API key to run this test.",
-    )
-    @pytest.mark.integration
-    def test_live_run_with_toolset(self):
-        """
-        Integration test that the AnthropicChatGenerator component can run with a Toolset.
-        """
+        component.run(messages)
 
-        def weather_function(city: str) -> str:
-            """Get weather information for a city."""
-            weather_data = {"Paris": "22°C, sunny", "London": "15°C, rainy", "Tokyo": "18°C, cloudy"}
-            return weather_data.get(city, "Weather data not available")
+        # Check that the Anthropic API was called with the correct headers
+        _, kwargs = mock_chat_completion.call_args
+        headers = kwargs.get("extra_headers", {})
+        if enable_caching:
+            assert "anthropic-beta" in headers
+        else:
+            assert "anthropic-beta" not in headers
 
-        def echo_function(text: str) -> str:
-            """Echo a text."""
-            return text
+    def test_cache_control_forwarded_for_all_block_types(self, monkeypatch, mock_chat_completion):
+        monkeypatch.setenv("ANTHROPIC_API_KEY", "test-api-key")
+        component = AnthropicChatGenerator()
 
-        # Create tools
-        weather_tool = Tool(
-            name="weather",
-            description="Get weather information for a city",
-            parameters={"type": "object", "properties": {"city": {"type": "string"}}, "required": ["city"]},
-            function=weather_function,
+        sys_msg = ChatMessage.from_system("sys")
+        sys_msg._meta["cache_control"] = {"type": "ephemeral"}
+
+        usr_msg = ChatMessage.from_user(
+            "doc chunk",
+            meta={"cache_control": {"type": "ephemeral"}},
         )
 
-        echo_tool = Tool(
-            name="echo",
-            description="Echo a text",
-            parameters={"type": "object", "properties": {"text": {"type": "string"}}, "required": ["text"]},
-            function=echo_function,
+        tool_call = ToolCall(id="123", tool_name="weather", arguments={"city": "Paris"})
+        asst_msg = ChatMessage.from_assistant(
+            tool_calls=[tool_call],
+            meta={"cache_control": {"type": "ephemeral"}},
         )
 
-        # Create Toolset
-        toolset = Toolset([weather_tool, echo_tool])
-
-        # Test with weather query
-        initial_messages = [ChatMessage.from_user("What's the weather like in Tokyo?")]
-        component = AnthropicChatGenerator(tools=toolset)
-        results = component.run(messages=initial_messages)
-
-        assert len(results["replies"]) == 1
-        message = results["replies"][0]
-
-        assert message.tool_calls
-        tool_call = message.tool_call
-        assert isinstance(tool_call, ToolCall)
-        assert tool_call.id is not None
-        assert tool_call.tool_name == "weather"
-        assert tool_call.arguments == {"city": "Tokyo"}
-        assert message.meta["finish_reason"] == "tool_calls"
-
-    @pytest.mark.skipif(
-        not os.environ.get("ANTHROPIC_API_KEY", None),
-        reason="Export an env var called ANTHROPIC_API_KEY containing the Anthropic API key to run this test.",
-    )
-    @pytest.mark.integration
-    def test_live_run_with_tools_streaming(self, tools):
-        """
-        Integration test that the AnthropicChatGenerator component can run with tools and streaming.
-        """
-        initial_messages = [ChatMessage.from_user("What's the weather like in Paris?")]
-        component = AnthropicChatGenerator(
-            tools=tools, streaming_callback=print_streaming_chunk, generation_kwargs={"max_tokens": 11000}
+        tool_res = ChatMessage.from_tool(
+            origin=tool_call,
+            tool_result="sunny",
+            meta={"cache_control": {"type": "ephemeral"}},
         )
-        results = component.run(messages=initial_messages)
 
-        assert len(results["replies"]) == 1
-        message = results["replies"][0]
+        component.run([sys_msg, usr_msg, asst_msg, tool_res])
 
-        # now we have the tool call
-        assert message.tool_calls
-        tool_call = message.tool_call
-        assert isinstance(tool_call, ToolCall)
-        assert tool_call.id is not None
-        assert tool_call.tool_name == "weather"
-        assert tool_call.arguments == {"city": "Paris"}
-        assert message.meta["finish_reason"] == "tool_calls"
-        assert "output_tokens" in message.meta["usage"]
-        assert "input_tokens" in message.meta["usage"]
+        _, kwargs = mock_chat_completion.call_args
 
-        new_messages = [
-            *initial_messages,
-            message,
-            ChatMessage.from_tool(tool_result="22° C", origin=tool_call),
-        ]
-        results = component.run(new_messages)
-        assert len(results["replies"]) == 1
-        final_message = results["replies"][0]
-        assert not final_message.tool_calls
-        assert len(final_message.text) > 0
-        assert "paris" in final_message.text.lower()
+        for blk in kwargs["system"]:
+            assert blk.get("cache_control") == {"type": "ephemeral"}
 
-    @pytest.mark.skipif(
-        not os.environ.get("ANTHROPIC_API_KEY", None),
-        reason="Export an env var called ANTHROPIC_API_KEY containing the Anthropic API key to run this test.",
+        assert all("cache_control" not in msg for msg in kwargs["messages"])
+
+        for msg in kwargs["messages"]:
+            for cblk in msg["content"]:
+                assert cblk.get("cache_control") == {"type": "ephemeral"}
+
+    @pytest.mark.parametrize(
+        "beta_header",
+        [
+            "featureA,extended-cache-ttl-2025-04-11",
+            "featureA , featureB , new-fancy-stuff",
+        ],
     )
-    @pytest.mark.integration
-    def test_live_run_with_tools_streaming_and_reasoning(self, tools):
-        """
-        Integration test that the AnthropicChatGenerator component can run with tools and streaming.
-        """
-        initial_messages = [ChatMessage.from_user("What's the weather like in Paris?")]
-        component = AnthropicChatGenerator(
-            tools=tools,
-            streaming_callback=print_streaming_chunk,
-            generation_kwargs={
-                "thinking": {"type": "enabled", "budget_tokens": 10000},
-                "max_tokens": 11000,
+    def test_extra_headers_pass_through(self, monkeypatch, mock_chat_completion, beta_header):
+        monkeypatch.setenv("ANTHROPIC_API_KEY", "test-api-key")
+
+        component = AnthropicChatGenerator(generation_kwargs={"extra_headers": {"anthropic-beta": beta_header}})
+        component.run([ChatMessage.from_user("ping")])
+
+        _, kwargs = mock_chat_completion.call_args
+        assert kwargs["extra_headers"]["anthropic-beta"] == beta_header
+
+    def test_convert_messages_attaches_cache_control(self):
+        user = ChatMessage.from_user(
+            "hello",
+            meta={
+                "cache_control": {
+                    "type": "ephemeral",
+                }
             },
         )
+        sys = ChatMessage.from_system("hi", meta={"cache_control": {"type": "ephemeral", "example_key": "example_val"}})
+        sys_blocks, non_sys = _convert_messages_to_anthropic_format([sys, user])
+
+        assert sys_blocks[0]["cache_control"] == {"type": "ephemeral", "example_key": "example_val"}
+        assert non_sys[0]["content"][0]["cache_control"]["type"] == "ephemeral"
+
+
+@pytest.mark.integration
+@pytest.mark.skipif(not os.environ.get("ANTHROPIC_API_KEY"), reason="ANTHROPIC_API_KEY not set")
+class TestIntegration:
+    @pytest.mark.parametrize("streaming", [False, True])
+    def test_live_run(self, streaming):
+        """
+        Integration test that the AnthropicChatGenerator component can run with default parameters,
+        with and without streaming.
+        """
+        callback = StreamingCollector() if streaming else None
+        component = AnthropicChatGenerator(streaming_callback=callback, timeout=30.0, max_retries=1)
+        results = component.run(messages=[ChatMessage.from_user("What's the capital of France?")])
+        assert len(results["replies"]) == 1
+        message: ChatMessage = results["replies"][0]
+        assert "Paris" in message.text
+        assert "claude-sonnet-4-5" in message.meta["model"]
+        assert message.meta["finish_reason"] == "stop"
+
+        if streaming:
+            assert callback.counter > 1
+            assert "Paris" in callback.responses
+            assert "input_tokens" in message.meta["usage"]
+            assert "output_tokens" in message.meta["usage"]
+
+    def test_live_run_wrong_model(self, chat_messages):
+        component = AnthropicChatGenerator(model="something-obviously-wrong")
+        with pytest.raises(anthropic.NotFoundError):
+            component.run(chat_messages)
+
+    @pytest.mark.parametrize("tools_as_toolset", [False, True], ids=["list", "toolset"])
+    @pytest.mark.parametrize("streaming", [False, True])
+    def test_live_run_with_tools(self, tools, streaming, tools_as_toolset):
+        """
+        Integration test that the AnthropicChatGenerator component can run with tools passed either as a plain
+        list or wrapped in a Toolset, with and without streaming.
+        """
+        initial_messages = [ChatMessage.from_user("What's the weather like in Paris?")]
+        component = AnthropicChatGenerator(
+            tools=Toolset(tools) if tools_as_toolset else tools,
+            streaming_callback=print_streaming_chunk if streaming else None,
+            generation_kwargs={"max_tokens": 11000} if streaming else {},
+        )
         results = component.run(messages=initial_messages)
 
         assert len(results["replies"]) == 1
         message = results["replies"][0]
 
-        # this is Anthropic thinking message prior to tool call
-        assert message.reasoning.reasoning_text
-
-        # now we have the tool call
         assert message.tool_calls
         tool_call = message.tool_call
         assert isinstance(tool_call, ToolCall)
@@ -831,64 +771,26 @@ class TestAnthropicChatGenerator:
         assert tool_call.tool_name == "weather"
         assert tool_call.arguments == {"city": "Paris"}
         assert message.meta["finish_reason"] == "tool_calls"
-        assert "output_tokens" in message.meta["usage"]
-        assert "input_tokens" in message.meta["usage"]
+        if streaming:
+            assert "output_tokens" in message.meta["usage"]
+            assert "input_tokens" in message.meta["usage"]
+        else:
+            assert "completion_tokens" in message.meta["usage"]
 
         new_messages = [
             *initial_messages,
             message,
             ChatMessage.from_tool(tool_result="22° C", origin=tool_call),
         ]
-        results = component.run(new_messages)
+        # the model tends to make tool calls if provided with tools, so we don't pass them here
+        results = component.run(new_messages, generation_kwargs={"max_tokens": 50})
+
         assert len(results["replies"]) == 1
         final_message = results["replies"][0]
         assert not final_message.tool_calls
         assert len(final_message.text) > 0
         assert "paris" in final_message.text.lower()
 
-    @pytest.mark.skipif(
-        not os.environ.get("ANTHROPIC_API_KEY", None),
-        reason="Export an env var called ANTHROPIC_API_KEY containing the Anthropic API key to run this test.",
-    )
-    @pytest.mark.integration
-    def test_live_run_with_tool_with_no_args_streaming(self, tool_with_no_parameters):
-        """
-        Integration test that the AnthropicChatGenerator component can run with a tool that has no arguments and
-        streaming.
-        """
-        initial_messages = [ChatMessage.from_user("Print Hello World using the print hello world tool.")]
-        component = AnthropicChatGenerator(tools=[tool_with_no_parameters], streaming_callback=print_streaming_chunk)
-        results = component.run(messages=initial_messages)
-
-        assert len(results["replies"]) == 1
-        message = results["replies"][0]
-
-        # now we have the tool call
-        assert message.tool_calls
-        tool_call = message.tool_call
-        assert isinstance(tool_call, ToolCall)
-        assert tool_call.id is not None
-        assert tool_call.tool_name == "hello_world"
-        assert tool_call.arguments == {}
-        assert message.meta["finish_reason"] == "tool_calls"
-
-        new_messages = [
-            *initial_messages,
-            message,
-            ChatMessage.from_tool(tool_result="Hello World!", origin=tool_call),
-        ]
-        results = component.run(new_messages)
-        assert len(results["replies"]) == 1
-        final_message = results["replies"][0]
-        assert not final_message.tool_calls
-        assert len(final_message.text) > 0
-        assert "hello" in final_message.text.lower()
-
-    @pytest.mark.skipif(
-        not os.environ.get("ANTHROPIC_API_KEY", None),
-        reason="Export an env var called ANTHROPIC_API_KEY containing the Anthropic API key to run this test.",
-    )
-    @pytest.mark.integration
     def test_live_run_with_parallel_tools(self, tools):
         """
         Integration test that the AnthropicChatGenerator component can run with parallel tools.
@@ -942,11 +844,39 @@ class TestAnthropicChatGenerator:
         assert "12°" in message.text
         assert message.meta["finish_reason"] == "stop"
 
-    @pytest.mark.skipif(
-        not os.environ.get("ANTHROPIC_API_KEY", None),
-        reason="Export an env var called ANTHROPIC_API_KEY containing the Anthropic API key to run this test.",
-    )
-    @pytest.mark.integration
+    def test_live_run_with_tool_with_no_args_streaming(self, tool_with_no_parameters):
+        """
+        Integration test that the AnthropicChatGenerator component can run with a tool that has no arguments and
+        streaming.
+        """
+        initial_messages = [ChatMessage.from_user("Print Hello World using the print hello world tool.")]
+        component = AnthropicChatGenerator(tools=[tool_with_no_parameters], streaming_callback=print_streaming_chunk)
+        results = component.run(messages=initial_messages)
+
+        assert len(results["replies"]) == 1
+        message = results["replies"][0]
+
+        # now we have the tool call
+        assert message.tool_calls
+        tool_call = message.tool_call
+        assert isinstance(tool_call, ToolCall)
+        assert tool_call.id is not None
+        assert tool_call.tool_name == "hello_world"
+        assert tool_call.arguments == {}
+        assert message.meta["finish_reason"] == "tool_calls"
+
+        new_messages = [
+            *initial_messages,
+            message,
+            ChatMessage.from_tool(tool_result="Hello World!", origin=tool_call),
+        ]
+        results = component.run(new_messages)
+        assert len(results["replies"]) == 1
+        final_message = results["replies"][0]
+        assert not final_message.tool_calls
+        assert len(final_message.text) > 0
+        assert "hello" in final_message.text.lower()
+
     def test_live_run_with_mixed_tools(self):
         """
         Integration test that verifies AnthropicChatGenerator works with mixed Tool and Toolset.
@@ -1042,230 +972,7 @@ class TestAnthropicChatGenerator:
         assert "paris" in final_message.text.lower()
         assert "berlin" in final_message.text.lower()
 
-    def test_prompt_caching_enabled(self, monkeypatch):
-        """
-        Test that the generation_kwargs extra_headers are correctly passed to the Anthropic API when prompt
-        caching is enabled
-        """
-        monkeypatch.setenv("ANTHROPIC_API_KEY", "test-api-key")
-        component = AnthropicChatGenerator(
-            generation_kwargs={"extra_headers": {"anthropic-beta": "prompt-caching-2024-07-31"}}
-        )
-        assert component.generation_kwargs.get("extra_headers", {}).get("anthropic-beta") == "prompt-caching-2024-07-31"
-
-    def test_prompt_caching_cache_control_without_extra_headers(self, monkeypatch, mock_chat_completion, caplog):
-        """
-        Test that the cache_control is removed from the messages when prompt caching is not enabled via extra_headers
-        This is to avoid Anthropic errors when prompt caching is not enabled
-        """
-        monkeypatch.setenv("ANTHROPIC_API_KEY", "test-api-key")
-        component = AnthropicChatGenerator()
-
-        messages = [ChatMessage.from_system("System message"), ChatMessage.from_user("User message")]
-
-        # Add cache_control to messages
-        for msg in messages:
-            msg._meta["cache_control"] = {"type": "ephemeral"}
-
-        # Invoke run with messages
-        component.run(messages)
-
-        # Check caplog for the warning message that should have been logged
-        assert not any("Prompt caching is not enabled" in record.message for record in caplog.records)
-        # Check that the Anthropic API was called without cache_control in messages so that it does not raise an error
-        _, kwargs = mock_chat_completion.call_args
-        for msg in kwargs["messages"]:
-            assert "cache_control" not in msg
-
-    @pytest.mark.parametrize("enable_caching", [True, False])
-    def test_run_with_prompt_caching(self, monkeypatch, mock_chat_completion, enable_caching):
-        """
-        Test that the generation_kwargs extra_headers are correctly passed to the Anthropic API in both cases of
-        prompt caching being enabled or not
-        """
-        monkeypatch.setenv("ANTHROPIC_API_KEY", "test-api-key")
-
-        generation_kwargs = {"extra_headers": {"anthropic-beta": "prompt-caching-2024-07-31"}} if enable_caching else {}
-        component = AnthropicChatGenerator(generation_kwargs=generation_kwargs)
-
-        messages = [ChatMessage.from_system("System message"), ChatMessage.from_user("User message")]
-
-        component.run(messages)
-
-        # Check that the Anthropic API was called with the correct headers
-        _, kwargs = mock_chat_completion.call_args
-        headers = kwargs.get("extra_headers", {})
-        if enable_caching:
-            assert "anthropic-beta" in headers
-        else:
-            assert "anthropic-beta" not in headers
-
-    def test_to_dict_with_prompt_caching(self, monkeypatch):
-        """
-        Test that the generation_kwargs extra_headers are correctly serialized to a dictionary
-        """
-        monkeypatch.setenv("ANTHROPIC_API_KEY", "test-api-key")
-        component = AnthropicChatGenerator(
-            generation_kwargs={"extra_headers": {"anthropic-beta": "prompt-caching-2024-07-31"}}
-        )
-        data = component.to_dict()
-        assert (
-            data["init_parameters"]["generation_kwargs"]["extra_headers"]["anthropic-beta"]
-            == "prompt-caching-2024-07-31"
-        )
-
-    def test_from_dict_with_prompt_caching(self, monkeypatch):
-        """
-        Test that the generation_kwargs extra_headers are correctly deserialized from a dictionary
-        """
-        monkeypatch.setenv("ANTHROPIC_API_KEY", "test-api-key")
-        data = {
-            "type": "haystack_integrations.components.generators.anthropic.chat.chat_generator.AnthropicChatGenerator",
-            "init_parameters": {
-                "api_key": {"env_vars": ["ANTHROPIC_API_KEY"], "strict": True, "type": "env_var"},
-                "model": "claude-sonnet-4-5",
-                "generation_kwargs": {"extra_headers": {"anthropic-beta": "prompt-caching-2024-07-31"}},
-            },
-        }
-        component = AnthropicChatGenerator.from_dict(data)
-        assert component.generation_kwargs["extra_headers"]["anthropic-beta"] == "prompt-caching-2024-07-31"
-
-    def test_cache_control_forwarded_for_all_block_types(self, monkeypatch, mock_chat_completion):
-        monkeypatch.setenv("ANTHROPIC_API_KEY", "test-api-key")
-        component = AnthropicChatGenerator()
-
-        sys_msg = ChatMessage.from_system("sys")
-        sys_msg._meta["cache_control"] = {"type": "ephemeral"}
-
-        usr_msg = ChatMessage.from_user(
-            "doc chunk",
-            meta={"cache_control": {"type": "ephemeral"}},
-        )
-
-        tool_call = ToolCall(id="123", tool_name="weather", arguments={"city": "Paris"})
-        asst_msg = ChatMessage.from_assistant(
-            tool_calls=[tool_call],
-            meta={"cache_control": {"type": "ephemeral"}},
-        )
-
-        tool_res = ChatMessage.from_tool(
-            origin=tool_call,
-            tool_result="sunny",
-            meta={"cache_control": {"type": "ephemeral"}},
-        )
-
-        component.run([sys_msg, usr_msg, asst_msg, tool_res])
-
-        _, kwargs = mock_chat_completion.call_args
-
-        for blk in kwargs["system"]:
-            assert blk.get("cache_control") == {"type": "ephemeral"}
-
-        assert all("cache_control" not in msg for msg in kwargs["messages"])
-
-        for msg in kwargs["messages"]:
-            for cblk in msg["content"]:
-                assert cblk.get("cache_control") == {"type": "ephemeral"}
-
-    @pytest.mark.parametrize(
-        "beta_header",
-        [
-            "featureA,extended-cache-ttl-2025-04-11",
-            "featureA , featureB , new-fancy-stuff",
-        ],
-    )
-    def test_extra_headers_pass_through(self, monkeypatch, mock_chat_completion, beta_header):
-        monkeypatch.setenv("ANTHROPIC_API_KEY", "test-api-key")
-
-        component = AnthropicChatGenerator(generation_kwargs={"extra_headers": {"anthropic-beta": beta_header}})
-        component.run([ChatMessage.from_user("ping")])
-
-        _, kwargs = mock_chat_completion.call_args
-        assert kwargs["extra_headers"]["anthropic-beta"] == beta_header
-
-    def test_convert_messages_attaches_cache_control(self):
-        user = ChatMessage.from_user(
-            "hello",
-            meta={
-                "cache_control": {
-                    "type": "ephemeral",
-                }
-            },
-        )
-        sys = ChatMessage.from_system("hi", meta={"cache_control": {"type": "ephemeral", "example_key": "example_val"}})
-        sys_blocks, non_sys = _convert_messages_to_anthropic_format([sys, user])
-
-        assert sys_blocks[0]["cache_control"] == {"type": "ephemeral", "example_key": "example_val"}
-        assert non_sys[0]["content"][0]["cache_control"]["type"] == "ephemeral"
-
-    @pytest.mark.skipif(not os.environ.get("ANTHROPIC_API_KEY", None), reason="ANTHROPIC_API_KEY not set")
-    @pytest.mark.integration
-    @pytest.mark.parametrize("cache_enabled", [True, False])
-    def test_prompt_caching_live_run(self, cache_enabled):
-        generation_kwargs = {"extra_headers": {"anthropic-beta": "prompt-caching-2024-07-31"}} if cache_enabled else {}
-
-        claude_llm = AnthropicChatGenerator(
-            api_key=Secret.from_env_var("ANTHROPIC_API_KEY"), generation_kwargs=generation_kwargs
-        )
-
-        # see https://docs.anthropic.com/en/docs/build-with-claude/prompt-caching#cache-limitations
-        system_message = ChatMessage.from_system("This is the cached, here we make it at least 1024 tokens long." * 70)
-        if cache_enabled:
-            system_message._meta["cache_control"] = {"type": "ephemeral"}
-
-        messages = [system_message, ChatMessage.from_user("What's in cached content?")]
-        result = claude_llm.run(messages)
-
-        assert "replies" in result
-        assert len(result["replies"]) == 1
-        token_usage = result["replies"][0].meta.get("usage")
-
-        if cache_enabled:
-            # either we created cache or we read it (depends on how you execute this integration test)
-            assert (
-                token_usage.get("cache_creation_input_tokens") > 1024
-                or token_usage.get("cache_read_input_tokens") > 1024
-            )
-        else:
-            assert token_usage["cache_creation_input_tokens"] == 0
-            assert token_usage["cache_read_input_tokens"] == 0
-
-    @pytest.mark.skipif(not os.environ.get("ANTHROPIC_API_KEY"), reason="ANTHROPIC_API_KEY not set")
-    @pytest.mark.integration
-    @pytest.mark.parametrize("cache_enabled", [True, False])
-    def test_prompt_caching_live_run_with_user_message(self, cache_enabled):
-        claude_llm = AnthropicChatGenerator(
-            api_key=Secret.from_env_var("ANTHROPIC_API_KEY"),
-        )
-
-        system_message = ChatMessage.from_system("Hello from system. Just a generic instruction.")
-
-        user_message = ChatMessage.from_user("This is a user message that should be long enough to cache. " * 100)
-        if cache_enabled:
-            user_message._meta["cache_control"] = {"type": "ephemeral"}
-
-        messages = [system_message, user_message]
-        result = claude_llm.run(messages)
-
-        assert "replies" in result
-        assert len(result["replies"]) == 1
-        token_usage = result["replies"][0].meta.get("usage")
-
-        if cache_enabled:
-            assert (
-                token_usage.get("cache_creation_input_tokens", 0) > 1024
-                or token_usage.get("cache_read_input_tokens", 0) > 1024
-            ), f"Unexpected usage stats: {token_usage}"
-        else:
-            assert token_usage.get("cache_creation_input_tokens", 0) == 0
-            assert token_usage.get("cache_read_input_tokens", 0) == 0
-
     @pytest.mark.parametrize("streaming_callback", [None, Mock()])
-    @pytest.mark.skipif(
-        not os.environ.get("ANTHROPIC_API_KEY", None),
-        reason="Export an env var called ANTHROPIC_API_KEY containing the Anthropic API key to run this test.",
-    )
-    @pytest.mark.integration
     def test_live_run_with_reasoning(self, streaming_callback):
         chat_generator = AnthropicChatGenerator(
             model="claude-sonnet-4-5",
@@ -1292,11 +999,91 @@ class TestAnthropicChatGenerator:
         if streaming_callback:
             streaming_callback.assert_called()
 
-    @pytest.mark.integration
-    @pytest.mark.skipif(
-        not os.environ.get("ANTHROPIC_API_KEY", None),
-        reason="Export an env var called ANTHROPIC_API_KEY containing the Anthropic token to run this test.",
-    )
+    def test_live_run_with_tools_streaming_and_reasoning(self, tools):
+        """
+        Integration test that the AnthropicChatGenerator component can run with tools and streaming.
+        """
+        initial_messages = [ChatMessage.from_user("What's the weather like in Paris?")]
+        component = AnthropicChatGenerator(
+            tools=tools,
+            streaming_callback=print_streaming_chunk,
+            generation_kwargs={
+                "thinking": {"type": "enabled", "budget_tokens": 10000},
+                "max_tokens": 11000,
+            },
+        )
+        results = component.run(messages=initial_messages)
+
+        assert len(results["replies"]) == 1
+        message = results["replies"][0]
+
+        # this is Anthropic thinking message prior to tool call
+        assert message.reasoning.reasoning_text
+
+        # now we have the tool call
+        assert message.tool_calls
+        tool_call = message.tool_call
+        assert isinstance(tool_call, ToolCall)
+        assert tool_call.id is not None
+        assert tool_call.tool_name == "weather"
+        assert tool_call.arguments == {"city": "Paris"}
+        assert message.meta["finish_reason"] == "tool_calls"
+        assert "output_tokens" in message.meta["usage"]
+        assert "input_tokens" in message.meta["usage"]
+
+        new_messages = [
+            *initial_messages,
+            message,
+            ChatMessage.from_tool(tool_result="22° C", origin=tool_call),
+        ]
+        results = component.run(new_messages)
+        assert len(results["replies"]) == 1
+        final_message = results["replies"][0]
+        assert not final_message.tool_calls
+        assert len(final_message.text) > 0
+        assert "paris" in final_message.text.lower()
+
+    @pytest.mark.parametrize("cache_enabled", [True, False])
+    @pytest.mark.parametrize("cache_location", ["system", "user"])
+    def test_prompt_caching_live_run(self, cache_enabled, cache_location):
+        """
+        Prompt caching works whether the cache_control marker sits on the system or the user message.
+        """
+        generation_kwargs = {"extra_headers": {"anthropic-beta": "prompt-caching-2024-07-31"}} if cache_enabled else {}
+
+        claude_llm = AnthropicChatGenerator(
+            api_key=Secret.from_env_var("ANTHROPIC_API_KEY"), generation_kwargs=generation_kwargs
+        )
+
+        # see https://docs.anthropic.com/en/docs/build-with-claude/prompt-caching#cache-limitations
+        if cache_location == "system":
+            cached_message = ChatMessage.from_system(
+                "This is the cached, here we make it at least 1024 tokens long." * 70
+            )
+            messages = [cached_message, ChatMessage.from_user("What's in cached content?")]
+        else:
+            cached_message = ChatMessage.from_user("This is a user message that should be long enough to cache. " * 100)
+            messages = [ChatMessage.from_system("Hello from system. Just a generic instruction."), cached_message]
+
+        if cache_enabled:
+            cached_message._meta["cache_control"] = {"type": "ephemeral"}
+
+        result = claude_llm.run(messages)
+
+        assert "replies" in result
+        assert len(result["replies"]) == 1
+        token_usage = result["replies"][0].meta.get("usage")
+
+        if cache_enabled:
+            # either we created cache or we read it (depends on how you execute this integration test)
+            assert (
+                token_usage.get("cache_creation_input_tokens", 0) > 1024
+                or token_usage.get("cache_read_input_tokens", 0) > 1024
+            ), f"Unexpected usage stats: {token_usage}"
+        else:
+            assert token_usage.get("cache_creation_input_tokens", 0) == 0
+            assert token_usage.get("cache_read_input_tokens", 0) == 0
+
     def test_live_run_multimodal(self, test_files_path):
         """Integration test for multimodal functionality with real API."""
         image_path = test_files_path / "apple.jpg"
@@ -1315,11 +1102,6 @@ class TestAnthropicChatGenerator:
         assert len(message.text) > 0
         assert any(word in message.text.lower() for word in ["apple", "fruit", "red"])
 
-    @pytest.mark.integration
-    @pytest.mark.skipif(
-        not os.environ.get("ANTHROPIC_API_KEY", None),
-        reason="Export an env var called ANTHROPIC_API_KEY containing the Anthropic token to run this test.",
-    )
     def test_live_run_with_file_content(self, test_files_path):
         pdf_path = test_files_path / "sample_pdf_3.pdf"
 
@@ -1332,7 +1114,6 @@ class TestAnthropicChatGenerator:
                 content_parts=[file_content, "Is this document a paper about LLMs? Respond with 'yes' or 'no' only."]
             )
         ]
-
         generator = AnthropicChatGenerator(model="claude-haiku-4-5")
         results = generator.run(chat_messages)
 
@@ -1344,11 +1125,6 @@ class TestAnthropicChatGenerator:
         assert message.text
         assert "no" in message.text.lower()
 
-    @pytest.mark.skipif(
-        not os.environ.get("ANTHROPIC_API_KEY", None),
-        reason="Export an env var called ANTHROPIC_API_KEY containing the Anthropic API key to run this test.",
-    )
-    @pytest.mark.integration
     def test_live_run_with_json_structured_output(self):
         """
         Integration test that the AnthropicChatGenerator component returns valid JSON
@@ -1392,11 +1168,33 @@ class TestAnthropicChatGenerator:
         assert "enterprise" in parsed["plan_interest"].lower()
         assert parsed["demo_requested"] is True
 
-    @pytest.mark.integration
-    @pytest.mark.skipif(
-        not os.environ.get("ANTHROPIC_API_KEY", None),
-        reason="Export an env var called ANTHROPIC_API_KEY containing the Anthropic token to run this test.",
-    )
+    @pytest.mark.parametrize("streaming", [False, True])
+    def test_live_run_with_anthropic_server_tools(self, streaming):
+        """The web search runs on Anthropic's side: it must never surface as a tool call to invoke."""
+        component = AnthropicChatGenerator(
+            anthropic_server_tools=[{"type": "web_search_20250305", "name": "web_search", "max_uses": 1}],
+            streaming_callback=print_streaming_chunk if streaming else None,
+        )
+        results = component.run([ChatMessage.from_user("What is the Haystack framework by deepset? Search the web.")])
+
+        message = results["replies"][0]
+        assert "haystack" in message.text.lower()
+        assert message.tool_calls == []
+        assert message.meta["usage"]["server_tool_use"]["web_search_requests"] >= 1
+
+        # raw blocks are kept so they can be replayed on the next turn
+        raw_content = message.meta["raw_content_for_server_tools"]
+        assert _has_server_tool_blocks(raw_content)
+        search_results = next(b for b in raw_content if b["type"] == "web_search_tool_result")
+        assert search_results["content"][0]["encrypted_content"]
+
+        assert message.meta["citations"]
+        assert message.meta["citations"][0]["url"]
+
+        # the replayed turn carries the encrypted fields back unchanged
+        _, non_system = _convert_messages_to_anthropic_format([message])
+        assert non_system[0]["content"] == raw_content
+
     def test_live_run_agent_with_images_in_tool_result(self, test_files_path):
         def retrieve_image():
             return [
@@ -1420,199 +1218,53 @@ class TestAnthropicChatGenerator:
 
         assert "apple" in result["last_message"].text.lower()
 
+    @pytest.mark.parametrize("streaming", [False, True])
+    def test_live_run_agent_with_local_and_anthropic_server_tools(self, streaming):
+        """An Agent must invoke only the client-side tool, while the server tool runs remotely."""
+        invoked = []
 
-class TestAnthropicChatGeneratorAsync:
-    @pytest.fixture
-    async def mock_anthropic_completion_async(self):
-        with patch("anthropic.resources.messages.AsyncMessages.create") as mock_anthropic:
-            completion = Message(
-                id="foo",
-                type="message",
-                model="claude-sonnet-4-5",
-                role="assistant",
-                content=[TextBlockParam(type="text", text="Hello! I'm Claude.")],
-                stop_reason="end_turn",
-                usage=Usage(input_tokens=10, output_tokens=20),
-            )
-            # Make the mock return an awaitable
-            mock_anthropic.return_value = AsyncMock(return_value=completion)()
-            yield mock_anthropic
+        def unit_converter(km: float) -> str:
+            invoked.append(km)
+            return f"{km} km is {km * 0.621371:.2f} miles"
 
-    @pytest.fixture
-    async def mock_anthropic_completion_async_with_tool(self):
-        with patch("anthropic.resources.messages.AsyncMessages.create") as mock_anthropic:
-            completion = Message(
-                id="foo",
-                type="message",
-                model="claude-sonnet-4-5",
-                role="assistant",
-                content=[
-                    TextBlockParam(type="text", text="Let me check the weather for you."),
-                    {"type": "tool_use", "id": "tool_123", "name": "weather", "input": {"city": "Paris"}},
-                ],
-                stop_reason="tool_use",
-                usage=Usage(input_tokens=10, output_tokens=20),
-            )
-            # Make the mock return an awaitable
-            mock_anthropic.return_value = AsyncMock(return_value=completion)()
-            yield mock_anthropic
-
-    @pytest.mark.asyncio
-    async def test_run_async(self, chat_messages, mock_anthropic_completion_async, monkeypatch):
-        """
-        Test that the async run method of AnthropicChatGenerator works correctly.
-        """
-        monkeypatch.setenv("ANTHROPIC_API_KEY", "test-api-key")
-        component = AnthropicChatGenerator()
-        response = await component.run_async(chat_messages)
-
-        # check that the component returns the correct ChatMessage response
-        assert isinstance(response, dict)
-        assert "replies" in response
-        assert isinstance(response["replies"], list)
-        assert len(response["replies"]) == 1
-        assert [isinstance(reply, ChatMessage) for reply in response["replies"]]
-
-    @pytest.mark.asyncio
-    async def test_run_async_with_string_input(self, mock_anthropic_completion_async):
-        """
-        Test that the async run method of AnthropicChatGenerator works with string input.
-        """
-        component = AnthropicChatGenerator(api_key=Secret.from_token("test-api-key"))
-        result = await component.run_async("What's the capital of France?")
-
-        # Check that the backend received exactly one user message
-        _, kwargs = mock_anthropic_completion_async.call_args
-        assert len(kwargs["messages"]) == 1
-        assert kwargs["messages"][0]["role"] == "user"
-        assert kwargs["messages"][0]["content"][0]["type"] == "text"
-        assert kwargs["messages"][0]["content"][0]["text"] == "What's the capital of France?"
-
-        # Check that the result contains exactly one ChatMessage
-        assert isinstance(result["replies"], list)
-        assert len(result["replies"]) == 1
-        assert isinstance(result["replies"][0], ChatMessage)
-
-    @pytest.mark.asyncio
-    async def test_run_async_with_params(self, chat_messages, mock_anthropic_completion_async):
-        """
-        Test that the async run method of AnthropicChatGenerator works with parameters.
-        """
-        component = AnthropicChatGenerator(
-            api_key=Secret.from_token("test-api-key"), generation_kwargs={"max_tokens": 10, "temperature": 0.5}
+        agent = Agent(
+            chat_generator=AnthropicChatGenerator(
+                anthropic_server_tools=[{"type": "web_search_20250305", "name": "web_search", "max_uses": 2}],
+                streaming_callback=print_streaming_chunk if streaming else None,
+            ),
+            tools=[
+                Tool(
+                    name="unit_converter",
+                    description="Convert a distance in kilometers to miles.",
+                    parameters={
+                        "type": "object",
+                        "properties": {"km": {"type": "number", "description": "distance in kilometers"}},
+                        "required": ["km"],
+                    },
+                    function=unit_converter,
+                )
+            ],
+            system_prompt="Research facts with web search. Always use unit_converter for km->miles.",
         )
-        response = await component.run_async(chat_messages)
+        agent.warm_up()
 
-        # Check that the component calls the Anthropic API with the correct parameters
-        _, kwargs = mock_anthropic_completion_async.call_args
-        assert kwargs["max_tokens"] == 10
-        assert kwargs["temperature"] == 0.5
+        result = agent.run(
+            messages=[
+                ChatMessage.from_user(
+                    "Search the web for the distance from Berlin to Rome in kilometers, "
+                    "then use the unit_converter tool to convert it to miles."
+                )
+            ]
+        )
 
-        # Check that the component returns the correct response
-        assert isinstance(response, dict)
-        assert "replies" in response
-        assert isinstance(response["replies"], list)
-        assert len(response["replies"]) == 1
-        assert isinstance(response["replies"][0], ChatMessage)
-        assert "Hello! I'm Claude." in response["replies"][0].text
-        assert response["replies"][0].meta["model"] == "claude-sonnet-4-5"
-        assert response["replies"][0].meta["finish_reason"] == "stop"
-        assert "completion_tokens" in response["replies"][0].meta["usage"]
+        # the client-side tool ran locally...
+        assert invoked
+        # ...and no server tool ever leaked into tool_calls (an empty name would raise in ToolInvoker)
+        called = [tc.tool_name for m in result["messages"] for tc in (m.tool_calls or [])]
+        assert called == ["unit_converter"]
 
-    @pytest.mark.asyncio
-    @pytest.mark.skipif(
-        not os.environ.get("ANTHROPIC_API_KEY", None),
-        reason="Export an env var called ANTHROPIC_API_KEY containing the Anthropic API key to run this test.",
-    )
-    @pytest.mark.integration
-    async def test_live_run_async(self):
-        """
-        Integration test that the async run method of AnthropicChatGenerator works with default parameters.
-        """
-        component = AnthropicChatGenerator()
-        results = await component.run_async(messages=[ChatMessage.from_user("What's the capital of France?")])
-        assert len(results["replies"]) == 1
-        message: ChatMessage = results["replies"][0]
-        assert "Paris" in message.text
-        assert "claude-sonnet-4-5" in message.meta["model"]
-        assert message.meta["finish_reason"] == "stop"
-        assert "completion_tokens" in message.meta["usage"]
-
-    @pytest.mark.asyncio
-    @pytest.mark.skipif(
-        not os.environ.get("ANTHROPIC_API_KEY", None),
-        reason="Export an env var called ANTHROPIC_API_KEY containing the Anthropic API key to run this test.",
-    )
-    @pytest.mark.integration
-    async def test_live_run_async_with_streaming(self):
-        """
-        Test that the async run method of AnthropicChatGenerator works with streaming.
-        """
-        initial_messages = [ChatMessage.from_user("What's the weather like in Paris?")]
-        component = AnthropicChatGenerator()  # No streaming callback during initialization
-
-        counter = 0
-        responses = ""
-
-        # Create a callback that's compatible with async operations
-        async def callback(chunk: StreamingChunk) -> None:
-            nonlocal counter
-            nonlocal responses
-            counter += 1
-            responses += chunk.content if chunk.content else ""
-            assert chunk.component_info is not None
-            assert chunk.component_info.type.endswith("chat_generator.AnthropicChatGenerator")
-
-        # Run the async streaming test
-        results = await component.run_async(messages=initial_messages, streaming_callback=callback)
-
-        # Verify the results
-        assert len(results["replies"]) == 1
-        message = results["replies"][0]
-        assert "paris" in message.text.lower()
-        assert "claude-sonnet-4-5" in message.meta["model"]
-        assert message.meta["finish_reason"] == "stop"
-        assert "input_tokens" in message.meta["usage"]
-        assert "output_tokens" in message.meta["usage"]
-
-        # Verify streaming behavior
-        assert counter > 1  # Should have received multiple chunks
-        assert "paris" in responses.lower()  # Should have received the response in chunks
-
-    @pytest.mark.asyncio
-    @pytest.mark.skipif(
-        not os.environ.get("ANTHROPIC_API_KEY", None),
-        reason="Export an env var called ANTHROPIC_API_KEY containing the Anthropic API key to run this test.",
-    )
-    @pytest.mark.integration
-    async def test_live_run_async_with_tools(self, tools):
-        """
-        Integration test that the async run method works with tools.
-        """
-        initial_messages = [ChatMessage.from_user("What's the weather like in Paris?")]
-        component = AnthropicChatGenerator(tools=tools)
-        results = await component.run_async(messages=initial_messages)
-
-        assert len(results["replies"]) == 1
-        message = results["replies"][0]
-
-        assert message.tool_calls
-        tool_call = message.tool_call
-        assert isinstance(tool_call, ToolCall)
-        assert tool_call.id is not None
-        assert tool_call.tool_name == "weather"
-        assert tool_call.arguments == {"city": "Paris"}
-        assert message.meta["finish_reason"] == "tool_calls"
-
-        new_messages = [
-            *initial_messages,
-            message,
-            ChatMessage.from_tool(tool_result="22° C", origin=tool_call),
-        ]
-        results = await component.run_async(new_messages)
-        assert len(results["replies"]) == 1
-        final_message = results["replies"][0]
-        assert not final_message.tool_calls
-        assert len(final_message.text) > 0
-        assert "paris" in final_message.text.lower()
-        assert "completion_tokens" in final_message.meta["usage"]
+        searched = any(
+            (m.meta.get("usage") or {}).get("server_tool_use", {}).get("web_search_requests")
+            for m in result["messages"]
+        )
+        assert searched

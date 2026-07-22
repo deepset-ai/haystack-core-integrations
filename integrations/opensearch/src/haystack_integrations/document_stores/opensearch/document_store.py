@@ -162,7 +162,6 @@ class OpenSearchDocumentStore:
         # the document store is instantiated.
         self._client: OpenSearch | None = None
         self._async_client: AsyncOpenSearch | None = None
-        self._initialized = False
 
     def _get_default_mappings(self) -> dict[str, Any]:
         default_mappings: dict[str, Any] = {
@@ -303,8 +302,6 @@ class OpenSearchDocumentStore:
                 timeout=self._timeout,
                 **self._kwargs,
             )
-            self._initialized = True
-
             self._ensure_index_exists()
 
     async def _ensure_initialized_async(self) -> None:
@@ -322,7 +319,6 @@ class OpenSearchDocumentStore:
                 connection_class=AsyncHttpConnection,
                 **self._kwargs,
             )
-            self._initialized = True
             await self._ensure_index_exists_async()
 
     @staticmethod

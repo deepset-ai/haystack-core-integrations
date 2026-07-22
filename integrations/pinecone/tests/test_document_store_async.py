@@ -4,6 +4,7 @@
 
 import os
 from dataclasses import replace
+from unittest.mock import AsyncMock
 
 import numpy as np
 import pytest
@@ -25,9 +26,53 @@ from haystack.testing.document_store_async import (
     UpdateByFilterAsyncTest,
     WriteDocumentsAsyncTest,
 )
+from haystack.utils import Secret
 
 from haystack_integrations.components.retrievers.pinecone import PineconeEmbeddingRetriever
 from haystack_integrations.document_stores.pinecone import PineconeDocumentStore
+
+
+@pytest.mark.asyncio
+async def test_close_async():
+    document_store = PineconeDocumentStore(api_key=Secret.from_token("fake-api-key"))
+    mock_index = AsyncMock()
+    document_store._async_index = mock_index
+
+    await document_store.close_async()
+
+    mock_index.close.assert_awaited_once()
+    assert document_store._async_index is None
+
+    await document_store.close_async()
+    mock_index.close.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_close_async_is_exception_safe():
+    document_store = PineconeDocumentStore(api_key=Secret.from_token("fake-api-key"))
+    mock_index = AsyncMock()
+    mock_index.close.side_effect = RuntimeError("boom")
+    document_store._async_index = mock_index
+
+    await document_store.close_async()
+
+    assert document_store._async_index is None
+
+
+@pytest.mark.asyncio
+async def test_validation_errors_on_empty_query_and_non_dict_meta():
+    ds = PineconeDocumentStore(api_key=Secret.from_token("fake-api-key"))
+    filters = {"field": "meta.category", "operator": "==", "value": "A"}
+
+    with pytest.raises(ValueError, match="query_embedding must be a non-empty list"):
+        ds._embedding_retrieval(query_embedding=[])
+    with pytest.raises(ValueError, match="query_embedding must be a non-empty list"):
+        await ds._embedding_retrieval_async(query_embedding=[])
+
+    with pytest.raises(ValueError, match="meta must be a dictionary"):
+        ds.update_by_filter(filters=filters, meta="not-a-dict")
+    with pytest.raises(ValueError, match="meta must be a dictionary"):
+        await ds.update_by_filter_async(filters=filters, meta="not-a-dict")
 
 
 @pytest.mark.integration
@@ -114,7 +159,7 @@ class TestDocumentStoreAsync(
         assert "Most similar document" in [result.content for result in results]
         assert "2nd best document" in [result.content for result in results]
 
-    async def test_close(self, document_store_async: PineconeDocumentStore):
+    async def test_close_async_and_reopen(self, document_store_async: PineconeDocumentStore):
         await document_store_async._initialize_async_index()
         assert document_store_async._async_index is not None
 
@@ -123,7 +168,6 @@ class TestDocumentStoreAsync(
 
         await document_store_async._initialize_async_index()
         assert document_store_async._async_index is not None
-        # test that the index is still usable after closing and reopening
         assert await document_store_async.count_documents_async() == 0
 
     async def test_sentence_window_retriever(self, document_store_async: PineconeDocumentStore):
@@ -137,9 +181,9 @@ class TestDocumentStoreAsync(
 
         for idx, doc in enumerate(docs["documents"]):
             if idx == 2:
-                doc.embedding = [0.1] * 768
+                docs["documents"][idx] = replace(doc, embedding=[0.1] * 768)
                 continue
-            doc.embedding = np.random.rand(768).tolist()
+            docs["documents"][idx] = replace(doc, embedding=np.random.rand(768).tolist())
         await document_store_async.write_documents_async(docs["documents"])
 
         # query

@@ -1,5 +1,33 @@
 # Changelog
 
+## [integrations/tavily-v0.4.0] - 2026-07-15
+
+### 🚀 Features
+
+- Add TavilyWebSearchTool (#3597)
+
+
+## [integrations/tavily-v0.3.0] - 2026-07-14
+
+### 🚀 Features
+
+- *(tavily)* Add TavilyFetcher component using the Extract API (#3561)
+
+### 🌀 Miscellaneous
+
+
+## [integrations/tavily-v0.2.0] - 2026-07-03
+
+### 🚀 Features
+
+- Hardcode client name for Tavily (#3540)
+
+### 🧪 Testing
+
+- Track test coverage for all integrations (#3065)
+- Tavily - add 2 unit tests (#3222)
+
+
 ## [integrations/tavily-v0.1.0] - 2026-03-27
 
 ### 🚀 Features

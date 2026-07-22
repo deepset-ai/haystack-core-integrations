@@ -7,6 +7,7 @@ from __future__ import annotations
 import asyncio
 import json
 import struct
+from contextlib import suppress
 from dataclasses import replace
 from typing import Any, ClassVar, Literal
 
@@ -282,24 +283,22 @@ class ValkeyDocumentStore(DocumentStore):
             raise ValkeyDocumentStoreError(msg) from e
 
     def close(self) -> None:
-        """Close the synchronous Valkey client connection."""
-        if self._client:
-            try:
+        """
+        Release the associated synchronous resources.
+        """
+        if self._client is not None:
+            with suppress(Exception):
                 self._client.close()
-            except Exception as e:
-                logger.error("Failed to close Valkey client: {error}", error=e)
-                pass
-        self._client = None
+            self._client = None
 
     async def close_async(self) -> None:
-        """Close the asynchronous Valkey client connection."""
-        if self._async_client:
-            try:
+        """
+        Release the associated asynchronous resources.
+        """
+        if self._async_client is not None:
+            with suppress(Exception):
                 await self._async_client.close()
-            except Exception as e:
-                logger.error("Failed to close Valkey client: {error}", error=e)
-                pass
-        self._async_client = None
+            self._async_client = None
 
     def _has_index(self) -> bool:
         client = self._get_connection()
@@ -697,20 +696,29 @@ class ValkeyDocumentStore(DocumentStore):
         client = await self._get_connection_async()
         await self._create_index_async()
 
-        def write_single_doc(doc: Document) -> Any:
+        async def write_single_doc(doc: Document) -> Any:
             doc_dict = self._prepare_document_dict(doc)
             key = f"{self._index_name}:{doc.id}"
-            return glide_json.set(client, key, "$", json.dumps(doc_dict))
+            return await glide_json.set(client, key, "$", json.dumps(doc_dict))
 
         written_count = 0
         for i in range(0, len(documents), self._batch_size):
             batch = documents[i : i + self._batch_size]
-            try:
-                await asyncio.gather(*[write_single_doc(doc) for doc in batch])
-                written_count += len(batch)
-            except Exception as e:
-                msg = f"Failed to write batch starting at index {i}: {e}"
-                raise ValkeyDocumentStoreError(msg) from e
+            results = await asyncio.gather(*[write_single_doc(doc) for doc in batch], return_exceptions=True)
+            for result in results:
+                if not isinstance(result, BaseException):
+                    written_count += 1
+
+            failures = [
+                (doc, result) for doc, result in zip(batch, results, strict=True) if isinstance(result, BaseException)
+            ]
+            if failures:
+                ids = ", ".join(doc.id for doc, _ in failures)
+                msg = (
+                    f"Failed to write document(s) {ids}: {failures[0][1]}. "
+                    f"{written_count} document(s) were written before this failure."
+                )
+                raise ValkeyDocumentStoreError(msg) from failures[0][1]
 
         return written_count
 

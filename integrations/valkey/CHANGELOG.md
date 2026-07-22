@@ -1,5 +1,16 @@
 # Changelog
 
+## [integrations/valkey-v0.3.0] - 2026-07-22
+
+### 🚜 Refactor
+
+- Align Valkey closing methods to standard (#3631)
+
+### 📚 Documentation
+
+- Replace old haystack core imports with haystack_integrations paths (#3545)
+
+
 ## [integrations/valkey-v0.2.2] - 2026-06-10
 
 ### 🐛 Bug Fixes

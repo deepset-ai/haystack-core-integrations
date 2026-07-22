@@ -196,6 +196,35 @@ async def test_write_documents_async_with_skip_and_fail_policies():
             await ds.write_documents_async(["not-a-doc"], policy=DuplicatePolicy.FAIL)  # type: ignore[list-item]
 
 
+def test_close():
+    document_store = WeaviateDocumentStore()
+    mock_client = MagicMock()
+    document_store._client = mock_client
+    document_store._collection = MagicMock()
+
+    document_store.close()
+
+    mock_client.close.assert_called_once()
+    assert document_store._client is None
+    assert document_store._collection is None
+
+    document_store.close()
+    mock_client.close.assert_called_once()
+
+
+def test_close_is_exception_safe():
+    document_store = WeaviateDocumentStore()
+    mock_client = MagicMock()
+    mock_client.close.side_effect = RuntimeError("boom")
+    document_store._client = mock_client
+    document_store._collection = MagicMock()
+
+    document_store.close()
+
+    assert document_store._client is None
+    assert document_store._collection is None
+
+
 @pytest.mark.integration
 class TestWeaviateDocumentStore(
     DocumentStoreBaseExtendedTests,
@@ -315,7 +344,7 @@ class TestWeaviateDocumentStore(
             {"class": "My_collection", "properties": DOCUMENT_COLLECTION_PROPERTIES}
         )
 
-    def test_close(self, document_store: WeaviateDocumentStore) -> None:
+    def test_close_and_reopen(self, document_store: WeaviateDocumentStore) -> None:
         # Initialise client and collection
         assert document_store.client is not None
         assert document_store.collection is not None

@@ -25,20 +25,15 @@ def _attribution_header() -> str:
     return f"{_INTEGRATION_SLUG}/{version}"
 
 
-def _perplexity_headers(extra_headers: dict[str, Any] | None = None) -> dict[str, Any]:
-    return {
-        **(extra_headers or {}),
-        "X-Pplx-Integration": _attribution_header(),
-    }
-
-
-def _with_default_headers(client: Any, headers: dict[str, Any]) -> Any:
-    with_options = getattr(client, "with_options", None)
-    if with_options is not None:
-        return with_options(default_headers=headers)
-
-    client._custom_headers = {**getattr(client, "_custom_headers", {}), **headers}
-    return client
+def _http_client_kwargs_with_headers(
+    http_client_kwargs: dict[str, Any] | None,
+    extra_headers: dict[str, Any] | None,
+) -> dict[str, Any]:
+    kwargs = dict(http_client_kwargs or {})
+    headers = {**kwargs.get("headers", {}), **(extra_headers or {})}
+    headers["X-Pplx-Integration"] = _attribution_header()
+    kwargs["headers"] = headers
+    return kwargs
 
 
 @component
@@ -133,12 +128,12 @@ class PerplexityChatGenerator(OpenAIResponsesChatGenerator):
             max_retries=max_retries,
             tools=tools,
             tools_strict=tools_strict,
-            http_client_kwargs=http_client_kwargs,
+            http_client_kwargs=_http_client_kwargs_with_headers(http_client_kwargs, extra_headers),
         )
-
-        default_headers = _perplexity_headers(extra_headers)
-        self.client = _with_default_headers(self.client, default_headers)
-        self.async_client = _with_default_headers(self.async_client, default_headers)
+        # self.http_client_kwargs carries the attribution (and extra) headers so that the parent bakes them into
+        # the httpx client whether it is built eagerly (haystack-ai 2.x) or at warm-up (haystack-ai >= 3.0);
+        # the user-provided value is preserved for serialization
+        self._http_client_kwargs = http_client_kwargs
 
     def to_dict(self) -> dict[str, Any]:
         """
@@ -150,6 +145,8 @@ class PerplexityChatGenerator(OpenAIResponsesChatGenerator):
         data = super(PerplexityChatGenerator, self).to_dict()  # noqa: UP008
         data["type"] = generate_qualified_class_name(type(self))
         data["init_parameters"]["extra_headers"] = self.extra_headers
+        # serialize the user-provided value, not the internal one enriched with attribution headers
+        data["init_parameters"]["http_client_kwargs"] = self._http_client_kwargs
         return data
 
     @classmethod

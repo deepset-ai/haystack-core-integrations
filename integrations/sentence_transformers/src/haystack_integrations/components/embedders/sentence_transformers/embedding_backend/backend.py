@@ -5,10 +5,11 @@
 import json
 from typing import Any, ClassVar, Literal
 
+import numpy as np
 from haystack.utils.auth import Secret
 from PIL.Image import Image
 
-from sentence_transformers import SentenceTransformer
+from sentence_transformers import SentenceTransformer, quantize_embeddings
 
 
 class _SentenceTransformersEmbeddingBackendFactory:
@@ -106,4 +107,10 @@ class _SentenceTransformersEmbeddingBackend:
         )
 
     def embed(self, data: list[str] | list[Image], **kwargs: Any) -> list[list[float]]:
+        quantization_ranges = kwargs.pop("quantization_ranges", None)
+        precision = kwargs.get("precision", "float32")
+        if quantization_ranges is not None and precision in ("int8", "uint8"):
+            kwargs["precision"] = "float32"
+            embeddings = self.model.encode(data, **kwargs)
+            return quantize_embeddings(embeddings, precision=precision, ranges=np.asarray(quantization_ranges)).tolist()
         return self.model.encode(data, **kwargs).tolist()

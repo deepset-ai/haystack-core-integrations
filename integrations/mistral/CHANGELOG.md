@@ -1,5 +1,18 @@
 # Changelog
 
+## [integrations/mistral-v1.5.0] - 2026-07-06
+
+### 🐛 Bug Fixes
+
+- Support Haystack 3.0's lazy OpenAI client initialization in OpenAI-inheriting generators (#3536)
+
+### 🧪 Testing
+
+- Trust test modules under Haystack 3.0's deserialization allowlist (#3537)
+- Make Tool/Agent serialization assertions version-agnostic for Haystack 2.x/3.x (#3533)
+- Guard ToolInvoker imports so chat-generator tests run under Haystack 3.0 (#3535)
+
+
 ## [integrations/mistral-v1.4.0] - 2026-06-05
 
 ### 🚀 Features

@@ -1,4 +1,9 @@
 # Integrations
+integration:agent-pack:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/agent_pack/**/*"
+      - any-glob-to-any-file: ".github/workflows/agent_pack.yml"
+
 integration:alloydb:
   - changed-files:
       - any-glob-to-any-file: "integrations/alloydb/**/*"
@@ -94,6 +99,11 @@ integration:datadog:
       - any-glob-to-any-file: "integrations/datadog/**/*"
       - any-glob-to-any-file: ".github/workflows/datadog.yml"
 
+integration:ddgs:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/ddgs/**/*"
+      - any-glob-to-any-file: ".github/workflows/ddgs.yml"
+
 integration:deepeval:
   - changed-files:
       - any-glob-to-any-file: "integrations/deepeval/**/*"
@@ -118,6 +128,11 @@ integration:e2b:
   - changed-files:
       - any-glob-to-any-file: "integrations/e2b/**/*"
       - any-glob-to-any-file: ".github/workflows/e2b.yml"
+
+integration:edenai:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/edenai/**/*"
+      - any-glob-to-any-file: ".github/workflows/edenai.yml"
 
 integration:elasticsearch:
   - changed-files:
@@ -183,6 +198,11 @@ integration:huggingface-api:
       - any-glob-to-any-file: "integrations/huggingface_api/**/*"
       - any-glob-to-any-file: ".github/workflows/huggingface_api.yml"
 
+integration:ibm-db:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/ibm_db/**/*"
+      - any-glob-to-any-file: ".github/workflows/ibm_db.yml"
+
 integration:jina:
   - changed-files:
       - any-glob-to-any-file: "integrations/jina/**/*"
@@ -212,6 +232,11 @@ integration:libreoffice:
   - changed-files:
       - any-glob-to-any-file: "integrations/libreoffice/**/*"
       - any-glob-to-any-file: ".github/workflows/libreoffice.yml"
+
+integration:linkup:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/linkup/**/*"
+      - any-glob-to-any-file: ".github/workflows/linkup.yml"
 
 integration:litellm:
   - changed-files:
@@ -243,15 +268,15 @@ integration:mem0:
       - any-glob-to-any-file: "integrations/mem0/**/*"
       - any-glob-to-any-file: ".github/workflows/mem0.yml"
 
-integration:meta-llama:
-  - changed-files:
-      - any-glob-to-any-file: "integrations/meta_llama/**/*"
-      - any-glob-to-any-file: ".github/workflows/meta_llama.yml"
-
 integration:microsoft-sharepoint:
   - changed-files:
       - any-glob-to-any-file: "integrations/microsoft_sharepoint/**/*"
       - any-glob-to-any-file: ".github/workflows/microsoft_sharepoint.yml"
+
+integration:mirage:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/mirage/**/*"
+      - any-glob-to-any-file: ".github/workflows/mirage.yml"
 
 integration:mistral:
   - changed-files:
