@@ -58,6 +58,17 @@ class TestElasticsearchDocumentStoreAsync(
 
         await store.async_client.close()
 
+    @pytest.mark.asyncio
+    async def test_close_async_and_reopen(self, document_store):
+        assert await document_store.count_documents_async() == 0
+        assert document_store._async_client is not None
+
+        await document_store.close_async()
+        assert document_store._async_client is None
+
+        assert await document_store.count_documents_async() == 0
+        assert document_store._async_client is not None
+
     def assert_documents_are_equal(self, received: list[Document], expected: list[Document]):
         # filter_documents_async() returns Documents with score populated; strip it before comparing
         received = [dataclasses.replace(doc, score=None) for doc in received]

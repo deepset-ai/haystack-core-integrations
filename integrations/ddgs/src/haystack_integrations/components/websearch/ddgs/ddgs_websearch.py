@@ -48,15 +48,15 @@ class DDGSWebSearch:
         :param top_k:
             Maximum number of results to return.
         :param backend:
-            Comma-separated ddgs backends to query, or ``"auto"`` to let ddgs choose
-            (for example ``"duckduckgo, google, brave"``). See the ddgs docs for the full list.
+            Comma-separated ddgs backends to query, or `"auto"` to let ddgs choose
+            (for example `"duckduckgo, google, brave"`). See the ddgs docs for the full list.
         :param region:
-            Region/locale for the search, for example ``"us-en"``, ``"de-de"``, or ``"wt-wt"`` (no region).
+            Region/locale for the search, for example `"us-en"`, `"de-de"`, or `"wt-wt"` (no region).
         :param safesearch:
-            Safe-search level: ``"on"``, ``"moderate"``, or ``"off"``.
+            Safe-search level: `"on"`, `"moderate"`, or `"off"`.
         :param search_params:
-            Additional keyword arguments forwarded to ``DDGS().text()`` (for example ``page`` or
-            ``timelimit``). Values here override ``backend``, ``region``, ``safesearch``, and ``top_k``
+            Additional keyword arguments forwarded to `DDGS().text()` (for example `page` or
+            `timelimit`). Values here override `backend`, `region`, `safesearch`, and `top_k`
             on conflict.
         """
         self.top_k = top_k
@@ -75,14 +75,22 @@ class DDGSWebSearch:
         if self._client is None:
             self._client = DDGS()
 
-    def _search(self, query: str) -> dict[str, list[Document] | list[str]]:
+    def _search(
+        self,
+        query: str,
+        top_k: int | None = None,
+        backend: str | None = None,
+        region: str | None = None,
+        safesearch: str | None = None,
+        search_params: dict[str, Any] | None = None,
+    ) -> dict[str, list[Document] | list[str]]:
         """
         Run the blocking ddgs search and normalise the results.
 
         :param query:
             Search query.
         :returns:
-            A dictionary with ``documents`` and ``links`` keys.
+            A dictionary with `documents` and `links` keys.
         """
         if self._client is None:
             self.warm_up()
@@ -91,12 +99,12 @@ class DDGSWebSearch:
             raise RuntimeError(msg)
 
         params: dict[str, Any] = {
-            "region": self.region,
-            "safesearch": self.safesearch,
-            "backend": self.backend,
-            "max_results": self.top_k,
+            "region": region if region is not None else self.region,
+            "safesearch": safesearch if safesearch is not None else self.safesearch,
+            "backend": backend if backend is not None else self.backend,
+            "max_results": top_k if top_k is not None else self.top_k,
         }
-        params.update(self.search_params)
+        params.update(search_params if search_params is not None else self.search_params)
 
         results = self._client.text(query, **params)
         documents, links = self._parse_response(results)
@@ -109,21 +117,54 @@ class DDGSWebSearch:
         return {"documents": documents, "links": links}
 
     @component.output_types(documents=list[Document], links=list[str])
-    def run(self, query: str) -> dict[str, list[Document] | list[str]]:
+    def run(
+        self,
+        query: str,
+        top_k: int | None = None,
+        *,
+        backend: str | None = None,
+        region: str | None = None,
+        safesearch: str | None = None,
+        search_params: dict[str, Any] | None = None,
+    ) -> dict[str, list[Document] | list[str]]:
         """
         Use ddgs to search the web.
 
         :param query:
             Search query.
+        :param top_k:
+            Optional per-run override of the maximum number of results. If not provided, the
+            init-time `top_k` is used.
+        :param backend:
+            Optional per-run override of the ddgs backends. If not provided, the init-time
+            `backend` is used.
+        :param region:
+            Optional per-run override of the region/locale. If not provided, the init-time
+            `region` is used.
+        :param safesearch:
+            Optional per-run override of the safe-search level. If not provided, the init-time
+            `safesearch` is used.
+        :param search_params:
+            Optional per-run override of the extra `DDGS().text()` arguments. If provided, fully
+            replaces the init-time `search_params`.
         :returns:
             A dictionary with the following keys:
-            - ``documents``: List of documents returned by the search backends.
-            - ``links``: List of links returned by the search backends.
+            - `documents`: List of documents returned by the search backends.
+            - `links`: List of links returned by the search backends.
         """
-        return self._search(query)
+        return self._search(query, top_k, backend, region, safesearch, search_params)
 
     @component.output_types(documents=list[Document], links=list[str])
-    async def run_async(self, query: str) -> dict[str, list[Document] | list[str]]:
+    async def run_async(
+        self,
+        query: str,
+        top_k: int | None = None,
+        *,
+        backend: str | None = None,
+        region: str | None = None,
+        safesearch: str | None = None,
+        search_params: dict[str, Any] | None = None,
+    ) -> dict[str, list[Document] | list[str]]:
         """
         Asynchronously use ddgs to search the web.
 
@@ -132,10 +173,25 @@ class DDGSWebSearch:
 
         :param query:
             Search query.
+        :param top_k:
+            Optional per-run override of the maximum number of results. If not provided, the
+            init-time `top_k` is used.
+        :param backend:
+            Optional per-run override of the ddgs backends. If not provided, the init-time
+            `backend` is used.
+        :param region:
+            Optional per-run override of the region/locale. If not provided, the init-time
+            `region` is used.
+        :param safesearch:
+            Optional per-run override of the safe-search level. If not provided, the init-time
+            `safesearch` is used.
+        :param search_params:
+            Optional per-run override of the extra `DDGS().text()` arguments. If provided, fully
+            replaces the init-time `search_params`.
         :returns:
-            A dictionary with ``documents`` and ``links`` keys.
+            A dictionary with `documents` and `links` keys.
         """
-        return await asyncio.to_thread(self._search, query)
+        return await asyncio.to_thread(self._search, query, top_k, backend, region, safesearch, search_params)
 
     @staticmethod
     def _parse_response(results: list[dict[str, Any]]) -> tuple[list[Document], list[str]]:
@@ -143,9 +199,9 @@ class DDGSWebSearch:
         Convert ddgs text results into Haystack Documents and links.
 
         :param results:
-            The list of result dictionaries returned by ``DDGS().text()``.
+            The list of result dictionaries returned by `DDGS().text()`.
         :returns:
-            A tuple of ``(documents, links)``.
+            A tuple of `(documents, links)`.
         """
         documents: list[Document] = []
         links: list[str] = []

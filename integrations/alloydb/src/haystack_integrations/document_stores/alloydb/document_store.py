@@ -2,6 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+from contextlib import suppress
 from typing import Any, Literal, overload
 
 from haystack import default_from_dict, default_to_dict, logging
@@ -256,35 +257,21 @@ class AlloyDBDocumentStore(DocumentStore):
 
     def close(self) -> None:
         """
-        Closes the database connection and the AlloyDB connector.
-
-        Call this when you are done using the document store to release resources.
-        For long-lived applications the connector runs a background refresh thread;
-        calling `close()` ensures that thread is stopped cleanly.
+        Release the associated synchronous resources.
         """
         if self._connection is not None:
-            try:
+            with suppress(Exception):
                 self._connection.close()
-            except Exception:  # noqa: S110
-                pass
             self._connection = None
             self._cursor = None
             self._dict_cursor = None
 
         if self._connector is not None:
-            try:
+            with suppress(Exception):
                 self._connector.close()
-            except Exception:  # noqa: S110
-                pass
             self._connector = None
 
         self._table_initialized = False
-
-    def __del__(self) -> None:
-        """
-        Closes the connector when the object is garbage collected.
-        """
-        self.close()
 
     @staticmethod
     def _connection_is_valid(connection: Connection) -> bool:
