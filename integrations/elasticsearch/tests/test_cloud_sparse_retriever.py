@@ -58,7 +58,7 @@
 #     pytest -m integration tests/test_cloud_sparse_retriever.py
 
 import uuid
-from unittest.mock import Mock, patch
+from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 from haystack.dataclasses import Document
@@ -66,6 +66,28 @@ from haystack.document_stores.types import FilterPolicy
 
 from haystack_integrations.components.retrievers.elasticsearch import ElasticsearchInferenceSparseRetriever
 from haystack_integrations.document_stores.elasticsearch import ElasticsearchDocumentStore
+
+
+def test_close():
+    mock_store = Mock(spec=ElasticsearchDocumentStore)
+    retriever = ElasticsearchInferenceSparseRetriever(document_store=mock_store, inference_id="ELSER")
+
+    retriever.close()
+
+    mock_store.close.assert_called_once_with()
+    assert retriever._document_store is mock_store
+
+
+@pytest.mark.asyncio
+async def test_close_async():
+    mock_store = Mock(spec=ElasticsearchDocumentStore)
+    mock_store.close_async = AsyncMock()
+    retriever = ElasticsearchInferenceSparseRetriever(document_store=mock_store, inference_id="ELSER")
+
+    await retriever.close_async()
+
+    mock_store.close_async.assert_awaited_once_with()
+    assert retriever._document_store is mock_store
 
 
 def test_init_default():

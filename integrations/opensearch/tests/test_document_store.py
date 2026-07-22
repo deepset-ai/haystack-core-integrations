@@ -497,7 +497,6 @@ def test_wildcard_nested_fields_detected_on_write(mock_bulk, _mock_opensearch_cl
     mock_bulk.return_value = (2, [])
     store = OpenSearchDocumentStore(hosts="testhost", nested_fields="*")
     store._client = MagicMock()
-    store._initialized = True
 
     docs = [
         Document(
@@ -526,7 +525,6 @@ def test_wildcard_nested_fields_incremental_detection(mock_bulk, _mock_opensearc
     mock_bulk.return_value = (1, [])
     store = OpenSearchDocumentStore(hosts="testhost", nested_fields="*")
     store._client = MagicMock()
-    store._initialized = True
 
     # First batch: detects "refs"
     store.write_documents([Document(content="d1", meta={"refs": [{"law": "bgb"}]})])
@@ -545,7 +543,6 @@ def test_explicit_nested_fields_no_detection_on_write(mock_bulk, _mock_opensearc
     mock_bulk.return_value = (1, [])
     store = OpenSearchDocumentStore(hosts="testhost", nested_fields=["refs"])
     store._client = MagicMock()
-    store._initialized = True
 
     store.write_documents([Document(content="d1", meta={"tags": [{"name": "x"}]})])
 
