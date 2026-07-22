@@ -2,7 +2,6 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-import asyncio
 import copy
 
 # ruff: noqa: FBT002, FBT001    boolean-type-hint-positional-argument and boolean-default-value-positional-argument
@@ -210,7 +209,10 @@ class ElasticsearchDocumentStore:
         Ensures both sync and async clients are initialized and the index exists.
         """
         if not self._initialized:
-            headers = self._kwargs.pop("headers", {})
+            # Copy kwargs so headers can be popped without mutating self._kwargs; otherwise the
+            # user-supplied headers would be lost when the store is reinitialized after close().
+            kwargs = dict(self._kwargs)
+            headers = dict(kwargs.pop("headers", {}))
             headers["user-agent"] = f"haystack-py-ds/{haystack_version}"
 
             api_key = self._handle_auth()
@@ -220,13 +222,13 @@ class ElasticsearchDocumentStore:
                 self._hosts,
                 api_key=api_key,
                 headers=headers,
-                **self._kwargs,
+                **kwargs,
             )
             self._async_client = AsyncElasticsearch(
                 self._hosts,
                 api_key=api_key,
                 headers=headers,
-                **self._kwargs,
+                **kwargs,
             )
 
             # Check client connection, this will raise if not connected
@@ -312,35 +314,25 @@ class ElasticsearchDocumentStore:
         Close the synchronous Elasticsearch client and release its HTTP connection pool.
 
         Call this when the document store is no longer needed to avoid resource leaks. Has no effect if the
-        client has not been initialized yet. In async contexts, use :meth:`aclose` instead.
+        client has not been initialized yet. The store is reset so a later operation can lazily reinitialize it.
+        In async contexts, use :meth:`close_async` for the async client.
         """
         if self._client is not None:
             self._client.close()
+            self._client = None
+            self._initialized = False
 
-    async def aclose(self) -> None:
+    async def close_async(self) -> None:
         """
-        Asynchronously close the Elasticsearch clients and release their HTTP connection pools.
+        Asynchronously close the async Elasticsearch client and release its HTTP connection pool.
 
-        Prefer this over :meth:`close` in async contexts to avoid blocking the event loop.
-        Has no effect if the clients have not been initialized yet.
+        Call this when the document store is no longer needed to avoid resource leaks. Has no effect if the
+        client has not been initialized yet. The store is reset so a later operation can lazily reinitialize it.
         """
-        if self._client is not None:
-            # The sync client's close() does blocking socket I/O, so run it off the event loop.
-            await asyncio.to_thread(self._client.close)
         if self._async_client is not None:
             await self._async_client.close()
-
-    def __enter__(self) -> "ElasticsearchDocumentStore":
-        return self
-
-    def __exit__(self, *args: object) -> None:
-        self.close()
-
-    async def __aenter__(self) -> "ElasticsearchDocumentStore":
-        return self
-
-    async def __aexit__(self, *args: object) -> None:
-        await self.aclose()
+            self._async_client = None
+            self._initialized = False
 
     def to_dict(self) -> dict[str, Any]:
         """

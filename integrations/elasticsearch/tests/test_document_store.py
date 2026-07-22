@@ -711,8 +711,8 @@ async def test_sparse_vector_retrieval_async_builds_query_with_filters():
 
 @patch("haystack_integrations.document_stores.elasticsearch.document_store.AsyncElasticsearch")
 @patch("haystack_integrations.document_stores.elasticsearch.document_store.Elasticsearch")
-def test_close_calls_client_close(_mock_es, _mock_async_es):
-    """close() must call close() on the sync client; async client is closed via aclose()."""
+def test_close_closes_sync_client_and_resets_state(_mock_es, _mock_async_es):
+    """close() must close the sync client, drop the reference, reset the store, and leave the async client alone."""
     mock_sync = Mock()
     mock_sync.info.return_value = {}
     mock_sync.indices.exists.return_value = True
@@ -728,6 +728,8 @@ def test_close_calls_client_close(_mock_es, _mock_async_es):
 
     mock_sync.close.assert_called_once()
     mock_async.close.assert_not_called()
+    assert store._client is None
+    assert store._initialized is False
 
 
 @patch("haystack_integrations.document_stores.elasticsearch.document_store.AsyncElasticsearch")
@@ -735,30 +737,14 @@ def test_close_calls_client_close(_mock_es, _mock_async_es):
 def test_close_before_init_is_safe(_mock_es, _mock_async_es):
     """close() before any initialization must not raise."""
     store = ElasticsearchDocumentStore(hosts="http://testhost:9200")
-    store.close()  # clients are None — must not raise
-
-
-@patch("haystack_integrations.document_stores.elasticsearch.document_store.AsyncElasticsearch")
-@patch("haystack_integrations.document_stores.elasticsearch.document_store.Elasticsearch")
-def test_context_manager_calls_close(_mock_es, _mock_async_es):
-    """Using the store as a sync context manager must call close() on exit."""
-    mock_sync = Mock()
-    mock_sync.info.return_value = {}
-    mock_sync.indices.exists.return_value = True
-    _mock_es.return_value = mock_sync
-    _mock_async_es.return_value = Mock()
-
-    with ElasticsearchDocumentStore(hosts="http://testhost:9200") as store:
-        _ = store.client  # trigger initialization
-
-    mock_sync.close.assert_called_once()
+    store.close()  # clients are None, must not raise
 
 
 @pytest.mark.asyncio
 @patch("haystack_integrations.document_stores.elasticsearch.document_store.AsyncElasticsearch")
 @patch("haystack_integrations.document_stores.elasticsearch.document_store.Elasticsearch")
-async def test_aclose_closes_both_clients_without_blocking(_mock_es, _mock_async_es):
-    """aclose() must close both clients, running the sync client's blocking close() off the event loop."""
+async def test_close_async_closes_async_client_and_resets_state(_mock_es, _mock_async_es):
+    """close_async() must await the async client close, drop it, reset state, and leave the sync client alone."""
     mock_sync = Mock()
     mock_sync.info.return_value = {}
     mock_sync.indices.exists.return_value = True
@@ -770,16 +756,63 @@ async def test_aclose_closes_both_clients_without_blocking(_mock_es, _mock_async
     store = ElasticsearchDocumentStore(hosts="http://testhost:9200")
     _ = store.client  # trigger initialization (creates both sync and async clients)
 
-    with patch(
-        "haystack_integrations.document_stores.elasticsearch.document_store.asyncio.to_thread",
-        new_callable=AsyncMock,
-    ) as mock_to_thread:
-        await store.aclose()
+    await store.close_async()
 
-    # the sync client's blocking close() must be dispatched off the event loop
-    mock_to_thread.assert_awaited_once_with(mock_sync.close)
-    # the async client is awaited directly
     mock_async.close.assert_awaited_once()
+    mock_sync.close.assert_not_called()
+    assert store._async_client is None
+    assert store._initialized is False
+
+
+@pytest.mark.asyncio
+@patch("haystack_integrations.document_stores.elasticsearch.document_store.AsyncElasticsearch")
+@patch("haystack_integrations.document_stores.elasticsearch.document_store.Elasticsearch")
+async def test_close_async_before_init_is_safe(_mock_es, _mock_async_es):
+    """close_async() before any initialization must not raise."""
+    store = ElasticsearchDocumentStore(hosts="http://testhost:9200")
+    await store.close_async()  # clients are None, must not raise
+
+
+@patch("haystack_integrations.document_stores.elasticsearch.document_store.AsyncElasticsearch")
+@patch("haystack_integrations.document_stores.elasticsearch.document_store.Elasticsearch")
+def test_reinitializes_after_close(_mock_es, _mock_async_es):
+    """After close(), the next operation must lazily reinitialize the store with a fresh client."""
+    mock_sync = Mock()
+    mock_sync.info.return_value = {}
+    mock_sync.indices.exists.return_value = True
+    _mock_es.return_value = mock_sync
+    _mock_async_es.return_value = Mock()
+
+    store = ElasticsearchDocumentStore(hosts="http://testhost:9200")
+    _ = store.client  # first initialization
+    store.close()
+    assert store._client is None
+
+    _ = store.client  # must reinitialize instead of failing on the None client
+    assert store._client is not None
+    assert store._initialized is True
+    # Elasticsearch was constructed twice: once for each initialization
+    assert _mock_es.call_count == 2
+
+
+@patch("haystack_integrations.document_stores.elasticsearch.document_store.AsyncElasticsearch")
+@patch("haystack_integrations.document_stores.elasticsearch.document_store.Elasticsearch")
+def test_headers_preserved_on_reinitialize(_mock_es, _mock_async_es):
+    """User-supplied headers must survive a close()/reinitialize cycle (they must not be popped off self._kwargs)."""
+    mock_sync = Mock()
+    mock_sync.info.return_value = {}
+    mock_sync.indices.exists.return_value = True
+    _mock_es.return_value = mock_sync
+    _mock_async_es.return_value = Mock()
+
+    store = ElasticsearchDocumentStore(hosts="http://testhost:9200", headers={"X-Custom": "value"})
+    _ = store.client  # first initialization
+    store.close()
+    _ = store.client  # reinitialization
+
+    # both Elasticsearch constructions must have received the custom header
+    for call in _mock_es.call_args_list:
+        assert call.kwargs["headers"]["X-Custom"] == "value"
 
 
 @patch("haystack_integrations.document_stores.elasticsearch.document_store.AsyncElasticsearch")
