@@ -30,7 +30,7 @@ pip install plivo-haystack
 
 ## Usage
 
-Set your Plivo credentials (find them in the console at <https://cx.plivo.com/>):
+Set your Plivo credentials (find them in the console at [cx.plivo.com](https://cx.plivo.com/?utm_source=github&utm_medium=oss&utm_campaign=haystack)):
 
 ```console
 export PLIVO_AUTH_ID="..."
@@ -67,4 +67,4 @@ tools = [SendSMSTool(client=client), LookupNumberTool(client=client)]
 
 Refer to the general [Contribution Guidelines](https://github.com/deepset-ai/haystack-core-integrations/blob/main/CONTRIBUTING.md).
 
-To run integration tests locally, set `PLIVO_AUTH_ID` and `PLIVO_AUTH_TOKEN` (get them at <https://cx.plivo.com/>).
+To run integration tests locally, set `PLIVO_AUTH_ID` and `PLIVO_AUTH_TOKEN` (get them at [cx.plivo.com](https://cx.plivo.com/?utm_source=github&utm_medium=oss&utm_campaign=haystack)).
