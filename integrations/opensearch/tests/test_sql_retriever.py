@@ -50,6 +50,28 @@ def test_from_dict(_mock_opensearch_client):
     assert retriever_from_dict._raise_on_failure is True
 
 
+def test_close():
+    mock_store = Mock(spec=OpenSearchDocumentStore)
+    retriever = OpenSearchSQLRetriever(document_store=mock_store)
+
+    retriever.close()
+
+    mock_store.close.assert_called_once_with()
+    assert retriever._document_store is mock_store
+
+
+@pytest.mark.asyncio
+async def test_close_async():
+    mock_store = Mock(spec=OpenSearchDocumentStore)
+    mock_store.close_async = AsyncMock()
+    retriever = OpenSearchSQLRetriever(document_store=mock_store)
+
+    await retriever.close_async()
+
+    mock_store.close_async.assert_awaited_once_with()
+    assert retriever._document_store is mock_store
+
+
 @patch("haystack_integrations.document_stores.opensearch.document_store.OpenSearch")
 def test_query_sql_uses_positional_args(_mock_opensearch_class):
     """Verify perform_request is called with positional method/url args (ddtrace compatibility)."""
