@@ -2,6 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+from contextlib import suppress
 from typing import Any, Literal, overload
 
 from haystack import default_from_dict, default_to_dict, logging
@@ -222,6 +223,28 @@ class PgvectorDocumentStore:
         """
         deserialize_secrets_inplace(data["init_parameters"], ["connection_string"])
         return default_from_dict(cls, data)
+
+    def close(self) -> None:
+        """
+        Release the associated synchronous resources.
+        """
+        if self._connection is not None:
+            with suppress(Exception):
+                self._connection.close()
+            self._connection = None
+            self._cursor = None
+            self._dict_cursor = None
+
+    async def close_async(self) -> None:
+        """
+        Release the associated asynchronous resources.
+        """
+        if self._async_connection is not None:
+            with suppress(Exception):
+                await self._async_connection.close()
+            self._async_connection = None
+            self._async_cursor = None
+            self._async_dict_cursor = None
 
     @staticmethod
     def _connection_is_valid(connection: Connection) -> bool:
