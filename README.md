@@ -2,12 +2,13 @@
 
 [Full report](https://htmlpreview.github.io/?https://github.com/deepset-ai/haystack-core-integrations/blob/python-coverage-comment-action-data-arcadedb-combined/htmlcov/index.html)
 
-| Name                                                                    |    Stmts |     Miss |   Branch |   BrPart |   Cover |   Missing |
-|------------------------------------------------------------------------ | -------: | -------: | -------: | -------: | ------: | --------: |
-| src/haystack\_integrations/document\_stores/arcadedb/converters.py      |       14 |        0 |        4 |        0 |    100% |           |
-| src/haystack\_integrations/document\_stores/arcadedb/document\_store.py |      338 |        6 |      130 |        4 |     98% |177-\>185, 185-\>192, 188-189, 201-202, 211-212, 284-\>277, 292-\>275 |
-| src/haystack\_integrations/document\_stores/arcadedb/filters.py         |       89 |        0 |       56 |        0 |    100% |           |
-| **TOTAL**                                                               |  **441** |    **6** |  **190** |    **4** | **98%** |           |
+| Name                                                                              |    Stmts |     Miss |   Branch |   BrPart |   Cover |   Missing |
+|---------------------------------------------------------------------------------- | -------: | -------: | -------: | -------: | ------: | --------: |
+| src/haystack\_integrations/components/retrievers/arcadedb/embedding\_retriever.py |       33 |        2 |        8 |        4 |     85% |94, 96, 142-\>144, 144-\>146 |
+| src/haystack\_integrations/document\_stores/arcadedb/converters.py                |       14 |        0 |        4 |        0 |    100% |           |
+| src/haystack\_integrations/document\_stores/arcadedb/document\_store.py           |      348 |        6 |      134 |        4 |     98% |193-\>201, 201-\>208, 204-205, 217-218, 227-228, 300-\>293, 308-\>291 |
+| src/haystack\_integrations/document\_stores/arcadedb/filters.py                   |       89 |        0 |       56 |        0 |    100% |           |
+| **TOTAL**                                                                         |  **484** |    **8** |  **202** |    **8** | **98%** |           |
 
 
 ## Setup coverage badge
