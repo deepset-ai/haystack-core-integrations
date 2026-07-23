@@ -65,6 +65,7 @@ class TestFastembedTextEmbedder:
                 "progress_bar": True,
                 "parallel": None,
                 "local_files_only": False,
+                "model_kwargs": None,
             },
         }
 
@@ -81,6 +82,7 @@ class TestFastembedTextEmbedder:
             progress_bar=False,
             parallel=1,
             local_files_only=True,
+            model_kwargs={"providers": ["CUDAExecutionProvider"]},
         )
         embedder_dict = embedder.to_dict()
         assert embedder_dict == {
@@ -94,6 +96,7 @@ class TestFastembedTextEmbedder:
                 "progress_bar": False,
                 "parallel": 1,
                 "local_files_only": True,
+                "model_kwargs": {"providers": ["CUDAExecutionProvider"]},
             },
         }
 
@@ -147,6 +150,19 @@ class TestFastembedTextEmbedder:
         assert embedder.progress_bar is False
         assert embedder.parallel == 1
 
+    def test_init_with_model_kwargs_parameters(self):
+        """
+        Test initialization of FastembedTextEmbedder with model_kwargs parameters.
+        """
+        model_kwargs = {"providers": ["CUDAExecutionProvider"]}
+
+        embedder = FastembedTextEmbedder(
+            model="BAAI/bge-small-en-v1.5",
+            model_kwargs=model_kwargs,
+        )
+
+        assert embedder.model_kwargs == model_kwargs
+
     @patch(
         "haystack_integrations.components.embedders.fastembed.fastembed_text_embedder._FastembedEmbeddingBackendFactory"
     )
@@ -158,7 +174,7 @@ class TestFastembedTextEmbedder:
         mocked_factory.get_embedding_backend.assert_not_called()
         embedder.warm_up()
         mocked_factory.get_embedding_backend.assert_called_once_with(
-            model_name="BAAI/bge-small-en-v1.5", cache_dir=None, threads=None, local_files_only=False
+            model_name="BAAI/bge-small-en-v1.5", cache_dir=None, threads=None, local_files_only=False, model_kwargs=None
         )
 
     @patch(

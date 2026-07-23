@@ -80,6 +80,7 @@ class TestFastembedDocumentEmbedder:
                 "local_files_only": False,
                 "embedding_separator": "\n",
                 "meta_fields_to_embed": [],
+                "model_kwargs": None,
             },
         }
 
@@ -99,6 +100,7 @@ class TestFastembedDocumentEmbedder:
             local_files_only=True,
             meta_fields_to_embed=["test_field"],
             embedding_separator=" | ",
+            model_kwargs={"providers": ["CUDAExecutionProvider"]},
         )
         embedder_dict = embedder.to_dict()
         assert embedder_dict == {
@@ -115,6 +117,7 @@ class TestFastembedDocumentEmbedder:
                 "local_files_only": True,
                 "meta_fields_to_embed": ["test_field"],
                 "embedding_separator": " | ",
+                "model_kwargs": {"providers": ["CUDAExecutionProvider"]},
             },
         }
 
@@ -184,6 +187,19 @@ class TestFastembedDocumentEmbedder:
         assert embedder.meta_fields_to_embed == ["test_field"]
         assert embedder.embedding_separator == " | "
 
+    def test_init_with_model_kwargs_parameters(self):
+        """
+        Test initialization of FastembedDocumentEmbedder with model_kwargs parameters.
+        """
+        model_kwargs = {"providers": ["CUDAExecutionProvider"]}
+
+        embedder = FastembedDocumentEmbedder(
+            model="BAAI/bge-small-en-v1.5",
+            model_kwargs=model_kwargs,
+        )
+
+        assert embedder.model_kwargs == model_kwargs
+
     @patch(
         "haystack_integrations.components.embedders.fastembed.fastembed_document_embedder._FastembedEmbeddingBackendFactory"
     )
@@ -195,7 +211,7 @@ class TestFastembedDocumentEmbedder:
         mocked_factory.get_embedding_backend.assert_not_called()
         embedder.warm_up()
         mocked_factory.get_embedding_backend.assert_called_once_with(
-            model_name="BAAI/bge-small-en-v1.5", cache_dir=None, threads=None, local_files_only=False
+            model_name="BAAI/bge-small-en-v1.5", cache_dir=None, threads=None, local_files_only=False, model_kwargs=None
         )
 
     @patch(
