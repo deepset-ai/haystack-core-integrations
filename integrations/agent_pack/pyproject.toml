@@ -25,6 +25,23 @@ classifiers = [
 ]
 dependencies = ["haystack-ai>=3.0.0"]
 
+# `mcp` bundles the MCP SDK plus the deep research agent's runtime dependencies, so
+# `agent-pack-haystack[mcp]` is enough to run the deep research MCP server with nothing else to
+# install. Install it and use the `agent-pack-deep-research-mcp` console script below.
+[project.optional-dependencies]
+mcp = [
+  "mcp>=1.2.0",
+  "tavily-haystack>=0.4.0",
+  "trafilatura",
+  "pypdf",
+  "arrow",
+]
+
+# Console script for the deep research MCP server, so clients can launch it by name
+# (e.g. `uvx --from "agent-pack-haystack[mcp]" agent-pack-deep-research-mcp`).
+[project.scripts]
+agent-pack-deep-research-mcp = "haystack_integrations.agent_pack.mcp.deep_research:main"
+
 [project.urls]
 Documentation = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/agent_pack#readme"
 Issues = "https://github.com/deepset-ai/haystack-core-integrations/issues"
@@ -63,6 +80,8 @@ dependencies = [
     "trafilatura",
     "pypdf",
     "arrow",
+    # mcp server
+    "mcp>=1.2.0",
 ]
 
 [tool.hatch.envs.test.scripts]
@@ -148,6 +167,8 @@ ban-relative-imports = "parents"
 "tests/**/*" = ["PLR2004", "S101", "TID252", "D", "ANN"]
 # Examples are runnable scripts: they may print, and eval ground-truth literals are fine
 "examples/**/*" = ["T201", "PLR2004"]
+# Skills ship standalone CLI scripts: they may print, and defer heavy imports for fast --help
+"skills/**/*" = ["T201", "PLR2004", "PLC0415"]
 
 [tool.coverage.run]
 source = ["haystack_integrations"]
