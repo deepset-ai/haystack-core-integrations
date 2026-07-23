@@ -3,7 +3,6 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import copy
-import re
 
 # ruff: noqa: FBT002, FBT001    boolean-type-hint-positional-argument and boolean-default-value-positional-argument
 # ruff: noqa: B008              function-call-in-default-argument
@@ -1888,10 +1887,21 @@ class ElasticsearchDocumentStore:
         }
         if search_term:
             # Composite aggregation terms sources don't support `include`/`exclude` (that's only valid on
-            # standalone `terms` aggregations), so the substring match on the field's own value is applied
-            # as a query-level filter instead. Case-sensitive: there is no normalizer-based case-insensitivity
-            # infrastructure elsewhere in this document store to hook into.
-            body["query"] = {"regexp": {field_name: f".*{re.escape(search_term)}.*"}}
+            # standalone `terms` aggregations), and a `regexp` query only works on keyword/text fields, not
+            # numeric ones. A doc-value script query works uniformly across field types by stringifying the
+            # field's value, matching the case-sensitive substring semantics documented above.
+            body["query"] = {
+                "script": {
+                    "script": {
+                        "source": (
+                            "def v = doc[params.field]; "
+                            "if (v.size() == 0) { return false; } "
+                            "return v.value.toString().contains(params.term)"
+                        ),
+                        "params": {"field": field_name, "term": search_term},
+                    }
+                }
+            }
 
         result = self.client.search(index=self._index, body=body)
         aggregations = result.get("aggregations", {})
@@ -1956,10 +1966,21 @@ class ElasticsearchDocumentStore:
         }
         if search_term:
             # Composite aggregation terms sources don't support `include`/`exclude` (that's only valid on
-            # standalone `terms` aggregations), so the substring match on the field's own value is applied
-            # as a query-level filter instead. Case-sensitive: there is no normalizer-based case-insensitivity
-            # infrastructure elsewhere in this document store to hook into.
-            body["query"] = {"regexp": {field_name: f".*{re.escape(search_term)}.*"}}
+            # standalone `terms` aggregations), and a `regexp` query only works on keyword/text fields, not
+            # numeric ones. A doc-value script query works uniformly across field types by stringifying the
+            # field's value, matching the case-sensitive substring semantics documented above.
+            body["query"] = {
+                "script": {
+                    "script": {
+                        "source": (
+                            "def v = doc[params.field]; "
+                            "if (v.size() == 0) { return false; } "
+                            "return v.value.toString().contains(params.term)"
+                        ),
+                        "params": {"field": field_name, "term": search_term},
+                    }
+                }
+            }
 
         result = await self.async_client.search(index=self._index, body=body)
         aggregations = result.get("aggregations", {})
