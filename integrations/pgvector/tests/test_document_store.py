@@ -675,9 +675,7 @@ def test_get_metadata_field_unique_values(document_store: PgvectorDocumentStore)
     assert total_filtered == 1
 
     # Case-insensitivity: lowercase search term should still match "Python"
-    unique_values_lower, total_lower = document_store.get_metadata_field_unique_values(
-        "meta.language", "python", 0, 10
-    )
+    unique_values_lower, total_lower = document_store.get_metadata_field_unique_values("meta.language", "python", 0, 10)
     assert set(unique_values_lower) == {"Python"}
     assert total_lower == 1
 
