@@ -774,16 +774,12 @@ class TestMetadataOperations:
 
     def test_get_metadata_field_unique_values_search_term_matches_field_value(self, populated_store):
         """Search term matches when it's a case-insensitive substring of the field's value."""
-        values, total = populated_store.get_metadata_field_unique_values(
-            "status", search_term="ACT", from_=0, size=10
-        )
+        values, total = populated_store.get_metadata_field_unique_values("status", search_term="ACT", from_=0, size=10)
         # "ACT" is a substring of both "active" and "inactive" (case-insensitive)
         assert sorted(values) == ["active", "inactive"]
         assert total == 2
 
-        values, total = populated_store.get_metadata_field_unique_values(
-            "status", search_term="ina", from_=0, size=10
-        )
+        values, total = populated_store.get_metadata_field_unique_values("status", search_term="ina", from_=0, size=10)
         assert values == ["inactive"]
         assert total == 1
 
