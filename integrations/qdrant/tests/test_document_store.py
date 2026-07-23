@@ -591,3 +591,29 @@ class TestQdrantDocumentStore(
             "category", filters={"field": "meta.status", "operator": "==", "value": "active"}
         )
         assert set(values) == {"A", "B"}
+
+    def test_get_metadata_field_unique_values_with_meta_prefix(self, document_store: QdrantDocumentStore):
+        """Test that a 'meta.'-prefixed field name is normalized before lookup."""
+        docs = [
+            Document(content="Doc 1", meta={"category": "A"}),
+            Document(content="Doc 2", meta={"category": "B"}),
+        ]
+        document_store.write_documents(docs)
+
+        values = document_store.get_metadata_field_unique_values("meta.category")
+        assert set(values) == {"A", "B"}
+
+    def test_get_metadata_field_unique_values_with_search_term(self, document_store: QdrantDocumentStore):
+        """Test that search_term filters unique values by a case-insensitive substring match on the field value."""
+        docs = [
+            Document(content="Doc 1", meta={"category": "Apple"}),
+            Document(content="Doc 2", meta={"category": "Banana"}),
+            Document(content="Doc 3", meta={"category": "Apricot"}),
+        ]
+        document_store.write_documents(docs)
+
+        values = document_store.get_metadata_field_unique_values("category", search_term="ap")
+        assert set(values) == {"Apple", "Apricot"}
+
+        values = document_store.get_metadata_field_unique_values("category", search_term="nonexistent")
+        assert values == []
