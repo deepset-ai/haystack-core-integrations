@@ -121,6 +121,8 @@ def _equal(field: str, value: Any) -> tuple[str, Any]:
 
 
 def _not_equal(field: str, value: Any) -> tuple[str, Any]:
+    if value is None:
+        return f"{field} IS NOT NULL", NO_VALUE
     return f"({field} IS NULL OR {field} != ?)", value
 
 

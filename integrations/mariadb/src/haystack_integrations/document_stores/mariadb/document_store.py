@@ -7,12 +7,13 @@ import struct
 from dataclasses import replace
 from typing import Any, Literal
 
-import mariadb
 from haystack import default_from_dict, default_to_dict, logging
 from haystack.dataclasses import ByteStream, Document
 from haystack.document_stores.errors import DocumentStoreError, DuplicateDocumentError
 from haystack.document_stores.types import DocumentStore, DuplicatePolicy
 from haystack.utils.auth import Secret, deserialize_secrets_inplace
+
+import mariadb
 
 from .filters import _convert_filters_to_where_clause_and_params, _validate_filters
 
@@ -186,7 +187,7 @@ class MariaDBDocumentStore(DocumentStore):
         )
 
     @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> MariaDBDocumentStore:
+    def from_dict(cls, data: dict[str, Any]) -> "MariaDBDocumentStore":
         """Deserialize the component from a dictionary."""
         deserialize_secrets_inplace(data["init_parameters"], ["user", "password"])
         return default_from_dict(cls, data)
