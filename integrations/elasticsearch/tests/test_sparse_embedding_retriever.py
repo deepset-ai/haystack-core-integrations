@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from unittest.mock import Mock, patch
+from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 from haystack.dataclasses import Document
@@ -11,6 +11,28 @@ from haystack.document_stores.types import FilterPolicy
 
 from haystack_integrations.components.retrievers.elasticsearch import ElasticsearchSparseEmbeddingRetriever
 from haystack_integrations.document_stores.elasticsearch import ElasticsearchDocumentStore
+
+
+def test_close():
+    mock_store = Mock(spec=ElasticsearchDocumentStore)
+    retriever = ElasticsearchSparseEmbeddingRetriever(document_store=mock_store)
+
+    retriever.close()
+
+    mock_store.close.assert_called_once_with()
+    assert retriever._document_store is mock_store
+
+
+@pytest.mark.asyncio
+async def test_close_async():
+    mock_store = Mock(spec=ElasticsearchDocumentStore)
+    mock_store.close_async = AsyncMock()
+    retriever = ElasticsearchSparseEmbeddingRetriever(document_store=mock_store)
+
+    await retriever.close_async()
+
+    mock_store.close_async.assert_awaited_once_with()
+    assert retriever._document_store is mock_store
 
 
 def test_init_default():

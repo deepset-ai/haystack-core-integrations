@@ -6,6 +6,7 @@ import dataclasses
 import logging
 from collections.abc import AsyncGenerator
 from pathlib import Path
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 import pytest_asyncio
@@ -33,6 +34,37 @@ from numpy import float32 as np_float32
 
 from haystack_integrations.document_stores.weaviate import WeaviateDocumentStore
 from haystack_integrations.document_stores.weaviate.document_store import DOCUMENT_COLLECTION_PROPERTIES
+
+
+@pytest.mark.asyncio
+async def test_close_async():
+    document_store = WeaviateDocumentStore()
+    mock_client = AsyncMock()
+    document_store._async_client = mock_client
+    document_store._async_collection = MagicMock()
+
+    await document_store.close_async()
+
+    mock_client.close.assert_awaited_once()
+    assert document_store._async_client is None
+    assert document_store._async_collection is None
+
+    await document_store.close_async()
+    mock_client.close.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_close_async_is_exception_safe():
+    document_store = WeaviateDocumentStore()
+    mock_client = AsyncMock()
+    mock_client.close.side_effect = RuntimeError("boom")
+    document_store._async_client = mock_client
+    document_store._async_collection = MagicMock()
+
+    await document_store.close_async()
+
+    assert document_store._async_client is None
+    assert document_store._async_collection is None
 
 
 @pytest.mark.integration
@@ -146,7 +178,7 @@ class TestWeaviateDocumentStoreAsync(
         assert await document_store.count_documents_async() == 3
 
     @pytest.mark.asyncio
-    async def test_close_async(self, document_store: WeaviateDocumentStore) -> None:
+    async def test_close_async_and_reopen(self, document_store: WeaviateDocumentStore) -> None:
         # Initialise client and collection
         assert await document_store.async_client is not None
         assert await document_store.async_collection is not None
@@ -422,11 +454,13 @@ class TestWeaviateDocumentStoreAsync(
 
     @pytest.mark.asyncio
     async def test_get_metadata_field_unique_values_async_with_search_term(self, document_store):
+        # search_term must match against the VALUE of the target metadata field,
+        # not the document content.
         docs = [
-            Document(content="Python programming language", meta={"category": "TypeA"}),
-            Document(content="Java programming language", meta={"category": "TypeB"}),
-            Document(content="Python is great", meta={"category": "TypeC"}),
-            Document(content="JavaScript tutorial", meta={"category": "TypeD"}),
+            Document(content="Some article", meta={"category": "Python Programming"}),
+            Document(content="Some article", meta={"category": "Java Programming"}),
+            Document(content="Some article", meta={"category": "Python Basics"}),
+            Document(content="Some article", meta={"category": "JavaScript Tutorial"}),
         ]
         await document_store.write_documents_async(docs)
 
@@ -434,7 +468,37 @@ class TestWeaviateDocumentStoreAsync(
             "category", search_term="Python"
         )
         assert total_count == 2
-        assert set(values) == {"TypeA", "TypeC"}
+        assert set(values) == {"Python Programming", "Python Basics"}
+
+    @pytest.mark.asyncio
+    async def test_get_metadata_field_unique_values_async_search_term_excludes_content_only_match(self, document_store):
+        # A document whose content contains the search term but whose target metadata
+        # field value does NOT must be excluded from the results.
+        docs = [
+            Document(content="Python programming language", meta={"category": "TypeA"}),
+        ]
+        await document_store.write_documents_async(docs)
+
+        values, total_count = await document_store.get_metadata_field_unique_values_async(
+            "category", search_term="Python"
+        )
+        assert total_count == 0
+        assert values == []
+
+    @pytest.mark.asyncio
+    async def test_get_metadata_field_unique_values_async_search_term_matches_metadata_value_only(self, document_store):
+        # A document whose metadata field value contains the search term but whose
+        # content does NOT must be included in the results.
+        docs = [
+            Document(content="Unrelated text about cooking", meta={"category": "Python Basics"}),
+        ]
+        await document_store.write_documents_async(docs)
+
+        values, total_count = await document_store.get_metadata_field_unique_values_async(
+            "category", search_term="Python"
+        )
+        assert total_count == 1
+        assert values == ["Python Basics"]
 
     @pytest.mark.asyncio
     async def test_get_metadata_field_unique_values_async_with_pagination(self, document_store):

@@ -1,5 +1,16 @@
 # Changelog
 
+## [integrations/elasticsearch-v6.3.0] - 2026-07-22
+
+### 🚀 Features
+
+- *(elasticsearch)* Add close() and close_async() to ElasticsearchDocumentStore (#3523)
+
+### 🚜 Refactor
+
+- Elasticsearch - split sync/async paths (#3633)
+
+
 ## [integrations/elasticsearch-v6.2.0] - 2026-07-14
 
 ### 🐛 Bug Fixes

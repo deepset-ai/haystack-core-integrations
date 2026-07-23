@@ -5,6 +5,7 @@
 # ruff: noqa: FBT001, FBT002   boolean-type-hint-positional-argument and boolean-default-value-positional-argument
 
 from collections.abc import Generator, Mapping
+from contextlib import suppress
 from dataclasses import replace
 from math import exp
 from typing import Any, Literal
@@ -162,7 +163,6 @@ class OpenSearchDocumentStore:
         # the document store is instantiated.
         self._client: OpenSearch | None = None
         self._async_client: AsyncOpenSearch | None = None
-        self._initialized = False
 
     def _get_default_mappings(self) -> dict[str, Any]:
         default_mappings: dict[str, Any] = {
@@ -303,8 +303,6 @@ class OpenSearchDocumentStore:
                 timeout=self._timeout,
                 **self._kwargs,
             )
-            self._initialized = True
-
             self._ensure_index_exists()
 
     async def _ensure_initialized_async(self) -> None:
@@ -322,8 +320,25 @@ class OpenSearchDocumentStore:
                 connection_class=AsyncHttpConnection,
                 **self._kwargs,
             )
-            self._initialized = True
             await self._ensure_index_exists_async()
+
+    def close(self) -> None:
+        """
+        Release the associated synchronous resources.
+        """
+        if self._client is not None:
+            with suppress(Exception):
+                self._client.close()
+            self._client = None
+
+    async def close_async(self) -> None:
+        """
+        Release the associated asynchronous resources.
+        """
+        if self._async_client is not None:
+            with suppress(Exception):
+                await self._async_client.close()
+            self._async_client = None
 
     @staticmethod
     def _extract_nested_fields_from_mapping(mapping_properties: dict[str, Any]) -> set[str]:

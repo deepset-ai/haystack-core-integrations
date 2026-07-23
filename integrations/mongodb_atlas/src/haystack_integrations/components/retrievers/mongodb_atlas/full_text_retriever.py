@@ -101,6 +101,18 @@ class MongoDBAtlasFullTextRetriever:
 
         return default_from_dict(cls, data)
 
+    def close(self) -> None:
+        """
+        Release the synchronous resources of the underlying Document Store.
+        """
+        self.document_store.close()
+
+    async def close_async(self) -> None:
+        """
+        Release the asynchronous resources of the underlying Document Store.
+        """
+        await self.document_store.close_async()
+
     @component.output_types(documents=list[Document])
     def run(
         self,

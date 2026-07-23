@@ -2,6 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+from contextlib import suppress
 from copy import copy
 from dataclasses import replace
 from typing import Any, Literal
@@ -151,18 +152,20 @@ class PineconeDocumentStore:
 
     def close(self) -> None:
         """
-        Close the associated synchronous resources.
+        Release the associated synchronous resources.
         """
-        if self._index:
-            self._index.close()
+        if self._index is not None:
+            with suppress(Exception):
+                self._index.close()
             self._index = None
 
     async def close_async(self) -> None:
         """
-        Close the associated asynchronous resources. To be invoked manually when the Document Store is no longer needed.
+        Release the associated asynchronous resources.
         """
-        if self._async_index:
-            await self._async_index.close()
+        if self._async_index is not None:
+            with suppress(Exception):
+                await self._async_index.close()
             self._async_index = None
 
     @staticmethod
@@ -890,10 +893,11 @@ class PineconeDocumentStore:
         documents: list[Document], metadata_field: str, search_term: str | None, from_: int, size: int
     ) -> tuple[list[str], int]:
         """Helper method to get unique values for a metadata field with search and pagination."""
+        field_name = metadata_field.removeprefix("meta.")
         unique_values: set[str] = set()
         for doc in documents:
-            if doc.meta and metadata_field in doc.meta:
-                value = doc.meta[metadata_field]
+            if doc.meta and field_name in doc.meta:
+                value = doc.meta[field_name]
                 # Handle list values
                 if isinstance(value, list):
                     unique_values.update(str(v) for v in value)

@@ -103,6 +103,18 @@ class TestDocumentStore(
             document_store._ensure_db_setup()
         assert "Failed to connect to PostgreSQL database" in str(e)
 
+    def test_close_and_reopen(self, document_store: PgvectorDocumentStore):
+        assert document_store.count_documents() == 0
+        assert document_store._connection is not None
+
+        document_store.close()
+        assert document_store._connection is None
+        assert document_store._cursor is None
+        assert document_store._dict_cursor is None
+
+        assert document_store.count_documents() == 0
+        assert document_store._connection is not None
+
 
 @pytest.mark.usefixtures("patches_for_unit_tests")
 def test_init(monkeypatch):
@@ -351,6 +363,33 @@ def test_process_count_unique_metadata_result_returns_zero_dict_when_result_none
 def test_process_count_unique_metadata_result_uses_zero_for_missing_keys():
     counts = PgvectorDocumentStore._process_count_unique_metadata_result({"category": 5}, ["category", "language"])
     assert counts == {"category": 5, "language": 0}
+
+
+def test_close(mock_store):
+    mock_connection = Mock(spec=Connection)
+    mock_store._connection = mock_connection
+    mock_store._cursor = Mock(spec=Cursor)
+    mock_store._dict_cursor = Mock(spec=Cursor)
+
+    mock_store.close()
+
+    mock_connection.close.assert_called_once()
+    assert mock_store._connection is None
+    assert mock_store._cursor is None
+    assert mock_store._dict_cursor is None
+
+    mock_store.close()
+    mock_connection.close.assert_called_once()
+
+
+def test_close_is_exception_safe(mock_store):
+    mock_connection = Mock(spec=Connection)
+    mock_connection.close.side_effect = RuntimeError("boom")
+    mock_store._connection = mock_connection
+
+    mock_store.close()
+
+    assert mock_store._connection is None
 
 
 @pytest.mark.integration
@@ -623,17 +662,30 @@ def test_get_metadata_field_unique_values(document_store: PgvectorDocumentStore)
     # All three pages should be different
     assert len(set(unique_values_single1 + unique_values_single2 + unique_values_single3)) == 3
 
-    # Test with search term - filter by content matching "Python"
+    # Test with search term - case-insensitive substring match against the metadata field's OWN value
+    # (not against document content).
     unique_values_filtered, total_filtered = document_store.get_metadata_field_unique_values(
-        "meta.category", "Python", 0, 10
+        "meta.language", "Python", 0, 10
     )
-    assert set(unique_values_filtered) == {"A"}  # Only category A has documents with "Python" in content
+    assert set(unique_values_filtered) == {"Python"}
     assert total_filtered == 1
 
-    # Test with search term - filter by content matching "Java"
-    unique_values_java, total_java = document_store.get_metadata_field_unique_values("meta.category", "Java", 0, 10)
-    assert set(unique_values_java) == {"B"}  # Only category B has documents with "Java" in content
-    assert total_java == 1
+    # Case-insensitivity: lowercase search term should still match "Python"
+    unique_values_lower, total_lower = document_store.get_metadata_field_unique_values("meta.language", "python", 0, 10)
+    assert set(unique_values_lower) == {"Python"}
+    assert total_lower == 1
+
+    # Substring matching: "Java" is a substring of both "Java" and "JavaScript"
+    unique_values_java, total_java = document_store.get_metadata_field_unique_values("meta.language", "Java", 0, 10)
+    assert set(unique_values_java) == {"Java", "JavaScript"}
+    assert total_java == 2
+
+    # Substring matching in the middle/end of a value
+    unique_values_script, total_script = document_store.get_metadata_field_unique_values(
+        "meta.language", "Script", 0, 10
+    )
+    assert set(unique_values_script) == {"JavaScript"}
+    assert total_script == 1
 
     # Test pagination with search term
     unique_values_search_page1, total_search = document_store.get_metadata_field_unique_values(
@@ -650,6 +702,17 @@ def test_get_metadata_field_unique_values(document_store: PgvectorDocumentStore)
     assert len(unique_values_search_empty) == 0
     assert total_search_empty == 1
 
+    # Test that search_term matches metadata VALUE, not content
+    content_vs_metadata_docs = [
+        Document(content="This document mentions Python explicitly", meta={"topic": "cooking"}),
+        Document(content="Unrelated content about recipes", meta={"topic": "python-tutorial"}),
+    ]
+    document_store.write_documents(content_vs_metadata_docs)
+
+    unique_topics, total_topics = document_store.get_metadata_field_unique_values("meta.topic", "python", 0, 10)
+    assert set(unique_topics) == {"python-tutorial"}
+    assert total_topics == 1
+
     # Test with integer values
     int_docs = [
         Document(content="Doc 1", meta={"priority": 1}),
@@ -662,9 +725,42 @@ def test_get_metadata_field_unique_values(document_store: PgvectorDocumentStore)
     assert set(unique_priorities) == {"1", "2", "3"}
     assert total_priorities == 3
 
-    # Test with search term on integer field
+    # Test with search term on integer field - substring match against the field's own (stringified)
+    # value, e.g. "Doc 1" (content) no longer matches; "1" (the value itself) does.
     unique_priorities_filtered, total_priorities_filtered = document_store.get_metadata_field_unique_values(
-        "meta.priority", "Doc 1", 0, 10
+        "meta.priority", "1", 0, 10
     )
     assert set(unique_priorities_filtered) == {"1"}
     assert total_priorities_filtered == 1
+
+
+@pytest.mark.integration
+def test_get_metadata_field_unique_values_no_search_term(document_store: PgvectorDocumentStore):
+    docs = [
+        Document(content="mentions tsvector and content in the body", meta={"category": "A"}),
+        Document(content="another document", meta={"category": "B"}),
+    ]
+    document_store.write_documents(docs)
+
+    values, total = document_store.get_metadata_field_unique_values("meta.category")
+
+    assert set(values) == {"A", "B"}
+    assert total == 2
+
+
+@pytest.mark.integration
+def test_get_metadata_field_unique_values_search_term_matches_field_value_not_content(
+    document_store: PgvectorDocumentStore,
+):
+    docs = [
+        # "python" appears in the content but NOT in the category value -> must be EXCLUDED
+        Document(content="Python programming guide", meta={"category": "Backend"}),
+        # "python" appears in the category value but NOT in the content -> must be INCLUDED
+        Document(content="General purpose scripting language", meta={"category": "Python-based"}),
+    ]
+    document_store.write_documents(docs)
+
+    values, total = document_store.get_metadata_field_unique_values("meta.category", search_term="python")
+
+    assert values == ["Python-based"]
+    assert total == 1

@@ -1,5 +1,29 @@
 # Changelog
 
+## [integrations/pgvector-v6.4.1] - 2026-07-23
+
+### 🐛 Bug Fixes
+
+- *(pgvector)* Parenthesize `not in` clause so it does not escape an AND filter (#3586)
+- `PGVectorDocumentStore` match `search_term` against metadata field value, not content (#3648)
+- Fix (pgvector): fix error messages to say pgvector instead of pinecone (#3654)
+
+
+## [integrations/pgvector-v6.4.0] - 2026-07-23
+
+### 🚀 Features
+
+- Pgvector - add closing methods (#3650)
+
+### 🐛 Bug Fixes
+
+- *(pgvector)* NO_VALUE sentinel collides with the literal string 'no_value' (#3593)
+
+### 📚 Documentation
+
+- Replace old haystack core imports with haystack_integrations paths (#3545)
+
+
 ## [integrations/pgvector-v6.3.1] - 2026-06-01
 
 ### 🐛 Bug Fixes

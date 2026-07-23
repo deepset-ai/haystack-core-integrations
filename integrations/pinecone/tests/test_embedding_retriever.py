@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from unittest.mock import Mock, patch
+from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 from haystack.dataclasses import Document
@@ -31,6 +31,28 @@ def test_init_default():
 def test_init_raises_for_non_pinecone_document_store():
     with pytest.raises(ValueError, match="document_store must be an instance of PineconeDocumentStore"):
         PineconeEmbeddingRetriever(document_store="not-a-document-store")
+
+
+def test_close():
+    mock_store = Mock(spec=PineconeDocumentStore)
+    retriever = PineconeEmbeddingRetriever(document_store=mock_store)
+
+    retriever.close()
+
+    mock_store.close.assert_called_once_with()
+    assert retriever.document_store is mock_store
+
+
+@pytest.mark.asyncio
+async def test_close_async():
+    mock_store = Mock(spec=PineconeDocumentStore)
+    mock_store.close_async = AsyncMock()
+    retriever = PineconeEmbeddingRetriever(document_store=mock_store)
+
+    await retriever.close_async()
+
+    mock_store.close_async.assert_awaited_once_with()
+    assert retriever.document_store is mock_store
 
 
 @patch("haystack_integrations.document_stores.pinecone.document_store.Pinecone")

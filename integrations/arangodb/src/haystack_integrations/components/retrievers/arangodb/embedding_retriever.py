@@ -100,3 +100,9 @@ class ArangoEmbeddingRetriever:
             data["init_parameters"]["document_store"]
         )
         return default_from_dict(cls, data)
+
+    def close(self) -> None:
+        """
+        Release the synchronous resources of the underlying Document Store.
+        """
+        self.document_store.close()

@@ -196,6 +196,35 @@ async def test_write_documents_async_with_skip_and_fail_policies():
             await ds.write_documents_async(["not-a-doc"], policy=DuplicatePolicy.FAIL)  # type: ignore[list-item]
 
 
+def test_close():
+    document_store = WeaviateDocumentStore()
+    mock_client = MagicMock()
+    document_store._client = mock_client
+    document_store._collection = MagicMock()
+
+    document_store.close()
+
+    mock_client.close.assert_called_once()
+    assert document_store._client is None
+    assert document_store._collection is None
+
+    document_store.close()
+    mock_client.close.assert_called_once()
+
+
+def test_close_is_exception_safe():
+    document_store = WeaviateDocumentStore()
+    mock_client = MagicMock()
+    mock_client.close.side_effect = RuntimeError("boom")
+    document_store._client = mock_client
+    document_store._collection = MagicMock()
+
+    document_store.close()
+
+    assert document_store._client is None
+    assert document_store._collection is None
+
+
 @pytest.mark.integration
 class TestWeaviateDocumentStore(
     DocumentStoreBaseExtendedTests,
@@ -315,7 +344,7 @@ class TestWeaviateDocumentStore(
             {"class": "My_collection", "properties": DOCUMENT_COLLECTION_PROPERTIES}
         )
 
-    def test_close(self, document_store: WeaviateDocumentStore) -> None:
+    def test_close_and_reopen(self, document_store: WeaviateDocumentStore) -> None:
         # Initialise client and collection
         assert document_store.client is not None
         assert document_store.collection is not None
@@ -1127,17 +1156,54 @@ class TestWeaviateDocumentStore(
         assert set(values) == {"TypeA", "TypeB"}
 
     def test_get_metadata_field_unique_values_with_search_term(self, document_store):
+        # search_term must match against the VALUE of the target metadata field,
+        # not the document content.
         docs = [
-            Document(content="Python programming language", meta={"category": "TypeA"}),
-            Document(content="Java programming language", meta={"category": "TypeB"}),
-            Document(content="Python is great", meta={"category": "TypeC"}),
-            Document(content="JavaScript tutorial", meta={"category": "TypeD"}),
+            Document(content="Some article", meta={"category": "Python Programming"}),
+            Document(content="Some article", meta={"category": "Java Programming"}),
+            Document(content="Some article", meta={"category": "Python Basics"}),
+            Document(content="Some article", meta={"category": "JavaScript Tutorial"}),
         ]
         document_store.write_documents(docs)
 
         values, total_count = document_store.get_metadata_field_unique_values("category", search_term="Python")
         assert total_count == 2
-        assert set(values) == {"TypeA", "TypeC"}
+        assert set(values) == {"Python Programming", "Python Basics"}
+
+    def test_get_metadata_field_unique_values_search_term_excludes_content_only_match(self, document_store):
+        # A document whose content contains the search term but whose target metadata
+        # field value does NOT must be excluded from the results.
+        docs = [
+            Document(content="Python programming language", meta={"category": "TypeA"}),
+        ]
+        document_store.write_documents(docs)
+
+        values, total_count = document_store.get_metadata_field_unique_values("category", search_term="Python")
+        assert total_count == 0
+        assert values == []
+
+    def test_get_metadata_field_unique_values_search_term_matches_metadata_value_only(self, document_store):
+        # A document whose metadata field value contains the search term but whose
+        # content does NOT must be included in the results.
+        docs = [
+            Document(content="Unrelated text about cooking", meta={"category": "Python Basics"}),
+        ]
+        document_store.write_documents(docs)
+
+        values, total_count = document_store.get_metadata_field_unique_values("category", search_term="Python")
+        assert total_count == 1
+        assert values == ["Python Basics"]
+
+    def test_get_metadata_field_unique_values_search_term_case_insensitive(self, document_store):
+        docs = [
+            Document(content="n/a", meta={"category": "Python Basics"}),
+            Document(content="n/a", meta={"category": "Java Basics"}),
+        ]
+        document_store.write_documents(docs)
+
+        values, total_count = document_store.get_metadata_field_unique_values("category", search_term="PYTHON")
+        assert total_count == 1
+        assert values == ["Python Basics"]
 
     def test_get_metadata_field_unique_values_with_pagination(self, document_store):
         docs = [
