@@ -505,8 +505,12 @@ class MongoDBAtlasDocumentStore:
     def _create_unique_values_pipeline(
         self, metadata_field: str, search_term: str | None, from_: int, size: int
     ) -> list[dict[str, Any]]:
+        if metadata_field.startswith("meta."):
+            mongo_field = f"${metadata_field}"
+        else:
+            mongo_field = f"$meta.{metadata_field}"
         pipeline: list[dict[str, Any]] = [
-            {"$group": {"_id": f"$meta.{metadata_field}"}},
+            {"$group": {"_id": mongo_field}},
         ]
 
         if search_term:
