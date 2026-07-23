@@ -1845,7 +1845,7 @@ class ElasticsearchDocumentStore:
         self,
         metadata_field: str,
         search_term: str | None = None,
-        size: int | None = 10000,
+        size: int | None = 10,
         after: dict[str, Any] | None = None,
     ) -> tuple[list[str], dict[str, Any] | None]:
         """
@@ -1858,7 +1858,7 @@ class ElasticsearchDocumentStore:
         :param metadata_field: The metadata field to get unique values for.
         :param search_term: Optional term to filter the returned values by, matching as a case-sensitive substring
             of the metadata field's own value (not the document content).
-        :param size: The number of unique values to return per page. Defaults to 10000.
+        :param size: The number of unique values to return per page. Defaults to 10.
         :param after: Optional pagination key from the previous response. Use None for the first page.
             For subsequent pages, pass the `after_key` from the previous response.
         :returns: A tuple containing (list of unique values, after_key for pagination).
@@ -1923,7 +1923,7 @@ class ElasticsearchDocumentStore:
         self,
         metadata_field: str,
         search_term: str | None = None,
-        size: int | None = 10000,
+        size: int | None = 10,
         after: dict[str, Any] | None = None,
     ) -> tuple[list[str], dict[str, Any] | None]:
         """
@@ -1937,7 +1937,7 @@ class ElasticsearchDocumentStore:
         :param metadata_field: The metadata field to get unique values for.
         :param search_term: Optional term to filter the returned values by, matching as a case-sensitive substring
             of the metadata field's own value (not the document content).
-        :param size: The number of unique values to return per page. Defaults to 10000.
+        :param size: The number of unique values to return per page. Defaults to 10.
         :param after: Optional pagination key from the previous response. Use None for the first page.
             For subsequent pages, pass the `after_key` from the previous response.
         :returns: A tuple containing (list of unique values, after_key for pagination).
