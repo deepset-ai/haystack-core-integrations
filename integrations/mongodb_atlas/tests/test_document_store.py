@@ -45,6 +45,46 @@ class TestMongoDBDocumentStoreInit:
                 full_text_search_index="idx",
             )
 
+    def test_to_dict_and_from_dict(self):
+        store = MongoDBAtlasDocumentStore(
+            mongo_connection_string=Secret.from_env_var("MONGO_CONNECTION_STRING"),
+            database_name="database_name",
+            collection_name="collection_name",
+            vector_search_index="cosine_index",
+            full_text_search_index="full_text_index",
+            embedding_field="custom_embedding",
+            content_field="custom_content",
+            meta_project_mapping={"source": "source_field"},
+        )
+        serialized = store.to_dict()
+        assert serialized == {
+            "type": "haystack_integrations.document_stores.mongodb_atlas.document_store.MongoDBAtlasDocumentStore",
+            "init_parameters": {
+                "mongo_connection_string": {
+                    "env_vars": ["MONGO_CONNECTION_STRING"],
+                    "strict": True,
+                    "type": "env_var",
+                },
+                "database_name": "database_name",
+                "collection_name": "collection_name",
+                "vector_search_index": "cosine_index",
+                "full_text_search_index": "full_text_index",
+                "embedding_field": "custom_embedding",
+                "content_field": "custom_content",
+                "meta_project_mapping": {"source": "source_field"},
+            },
+        }
+
+        deserialized = MongoDBAtlasDocumentStore.from_dict(serialized)
+        assert deserialized.mongo_connection_string == Secret.from_env_var("MONGO_CONNECTION_STRING")
+        assert deserialized.database_name == "database_name"
+        assert deserialized.collection_name == "collection_name"
+        assert deserialized.vector_search_index == "cosine_index"
+        assert deserialized.full_text_search_index == "full_text_index"
+        assert deserialized.embedding_field == "custom_embedding"
+        assert deserialized.content_field == "custom_content"
+        assert deserialized.meta_project_mapping == {"source": "source_field"}
+
     @pytest.mark.parametrize("attr", ["connection", "collection"])
     def test_property_raises_when_not_setup(self, local_store, attr):
         with pytest.raises(DocumentStoreError, match="not established"):
@@ -196,6 +236,242 @@ class TestMongoDBDocumentStoreConversion:
         assert haystack_doc.id == "test_id"
         assert not hasattr(haystack_doc, "_id")
 
+    def test_document_conversion_methods_with_meta_project_mapping(self):
+        custom_store = MongoDBAtlasDocumentStore(
+            mongo_connection_string=Secret.from_token("test"),
+            database_name="test_db",
+            collection_name="test_collection",
+            vector_search_index="test_index",
+            full_text_search_index="test_index",
+            meta_project_mapping={
+                "source": "source",
+                "author": "metadata.author",
+            },
+        )
+
+        # 1. Haystack -> MongoDB conversion
+        haystack_doc = Document(
+            content="test content",
+            meta={"source": "url", "author": "john", "other_meta": "keep_me"},
+        )
+        mongo_doc = custom_store._haystack_doc_to_mongo_doc(haystack_doc)
+
+        assert mongo_doc["source"] == "url"
+        assert mongo_doc["metadata"]["author"] == "john"
+        assert mongo_doc["meta"] == {"other_meta": "keep_me"}
+        assert "content" in mongo_doc
+        assert mongo_doc["embedding"] is None
+
+        # Test when all meta is mapped (meta dict should be removed)
+        haystack_doc_all_mapped = Document(
+            content="test content",
+            meta={"source": "url", "author": "john"},
+        )
+        mongo_doc_all_mapped = custom_store._haystack_doc_to_mongo_doc(haystack_doc_all_mapped)
+        assert "meta" not in mongo_doc_all_mapped
+        assert mongo_doc_all_mapped["source"] == "url"
+        assert mongo_doc_all_mapped["metadata"]["author"] == "john"
+
+        # 2. MongoDB -> Haystack conversion
+        converted_doc = {
+            "id": "test_id",
+            "content": "test content from mongo",
+            "source": "url2",
+            "metadata": {
+                "author": "jane",
+            },
+            "meta": {"other_meta": "keep_me_too"},
+            "_id": "mongodb_internal_id",
+        }
+        haystack_doc = custom_store._mongo_doc_to_haystack_doc(converted_doc)
+
+        assert haystack_doc.content == "test content from mongo"
+        assert haystack_doc.meta == {
+            "other_meta": "keep_me_too",
+            "source": "url2",
+            "author": "jane",
+        }
+        assert haystack_doc.id == "test_id"
+        assert not hasattr(haystack_doc, "_id")
+
+
+class TestMongoDBDocumentStoreHelpers:
+    def test_get_nested_value(self):
+        store = MongoDBAtlasDocumentStore(
+            mongo_connection_string=Secret.from_token("test"),
+            database_name="test_db",
+            collection_name="test_collection",
+            vector_search_index="test_index",
+            full_text_search_index="test_index",
+        )
+        doc = {"a": {"b": {"c": 123}}, "x": "y"}
+        assert store._get_nested_value(doc, "a.b.c") == 123
+        assert store._get_nested_value(doc, "$a.b.c") == 123
+        assert store._get_nested_value(doc, "x") == "y"
+        assert store._get_nested_value(doc, "a.b.d") is None
+        assert store._get_nested_value(doc, "non_existent") is None
+
+    def test_set_nested_value(self):
+        store = MongoDBAtlasDocumentStore(
+            mongo_connection_string=Secret.from_token("test"),
+            database_name="test_db",
+            collection_name="test_collection",
+            vector_search_index="test_index",
+            full_text_search_index="test_index",
+        )
+        doc = {}
+        store._set_nested_value(doc, "a.b.c", 123)
+        assert doc == {"a": {"b": {"c": 123}}}
+
+        store._set_nested_value(doc, "$x", "y")
+        assert doc == {"a": {"b": {"c": 123}}, "x": "y"}
+
+        # overwrite existing value or modify intermediate type
+        store._set_nested_value(doc, "a.b", "new_val")
+        assert doc == {"a": {"b": "new_val"}, "x": "y"}
+
+    def test_pop_nested_value(self):
+        store = MongoDBAtlasDocumentStore(
+            mongo_connection_string=Secret.from_token("test"),
+            database_name="test_db",
+            collection_name="test_collection",
+            vector_search_index="test_index",
+            full_text_search_index="test_index",
+        )
+        doc = {"a": {"b": {"c": 123, "d": 456}}, "x": "y"}
+
+        # Pop sibling leaves
+        val = store._pop_nested_value(doc, "a.b.c")
+        assert val == 123
+        assert doc == {"a": {"b": {"d": 456}}, "x": "y"}
+
+        # Pop remaining sibling, which should recursively delete parent dicts
+        val = store._pop_nested_value(doc, "$a.b.d")
+        assert val == 456
+        assert doc == {"x": "y"}
+
+        # Pop root field
+        val = store._pop_nested_value(doc, "x")
+        assert val == "y"
+        assert doc == {}
+
+    def test_translate_filters(self):
+        store = MongoDBAtlasDocumentStore(
+            mongo_connection_string=Secret.from_token("test"),
+            database_name="test_db",
+            collection_name="test_collection",
+            vector_search_index="test_index",
+            full_text_search_index="test_index",
+            meta_project_mapping={
+                "source": "source",
+                "author": "metadata.author",
+            },
+        )
+
+        # Simple condition
+        filters = {"field": "meta.source", "operator": "==", "value": "url"}
+        translated = store._translate_filters(filters)
+        assert translated == {"field": "source", "operator": "==", "value": "url"}
+
+        # With leading $ in mapping (should be stripped)
+        store.meta_project_mapping = {"source": "$source", "author": "$metadata.author"}
+        translated = store._translate_filters(filters)
+        assert translated == {"field": "source", "operator": "==", "value": "url"}
+
+        # Nested condition
+        filters = {
+            "operator": "AND",
+            "conditions": [
+                {"field": "meta.source", "operator": "==", "value": "url"},
+                {"field": "meta.author", "operator": "==", "value": "john"},
+                {"field": "meta.unmapped", "operator": "==", "value": "val"},
+            ],
+        }
+        translated = store._translate_filters(filters)
+        assert translated == {
+            "operator": "AND",
+            "conditions": [
+                {"field": "source", "operator": "==", "value": "url"},
+                {"field": "metadata.author", "operator": "==", "value": "john"},
+                {"field": "meta.unmapped", "operator": "==", "value": "val"},
+            ],
+        }
+
+        # None / empty filters
+        assert store._translate_filters(None) is None
+        assert store._translate_filters({}) == {}
+
+    def test_metadata_methods_and_filters_with_mapping(self):
+        store = MongoDBAtlasDocumentStore(
+            mongo_connection_string=Secret.from_token("test"),
+            database_name="test_db",
+            collection_name="test_collection",
+            vector_search_index="test_index",
+            full_text_search_index="test_index",
+            meta_project_mapping={
+                "source": "source",
+                "author": "metadata.author",
+            },
+        )
+        # Mock connection and collection
+        mock_collection = MagicMock()
+        store._collection = mock_collection
+        # Mock _ensure_connection_setup to do nothing
+        store._ensure_connection_setup = lambda: None
+
+        # 1. count_documents_by_filter
+        filters = {"field": "meta.source", "operator": "==", "value": "url"}
+        store.count_documents_by_filter(filters)
+        mock_collection.count_documents.assert_called_with({"source": {"$eq": "url"}})
+
+        # 2. delete_by_filter
+        store.delete_by_filter(filters)
+        mock_collection.delete_many.assert_called_with(filter={"source": {"$eq": "url"}})
+
+        # 3. update_by_filter
+        meta_to_update = {"source": "new_url", "author": "john", "unmapped": "val"}
+        store.update_by_filter(filters, meta_to_update)
+        mock_collection.update_many.assert_called_with(
+            filter={"source": {"$eq": "url"}},
+            update={"$set": {"source": "new_url", "metadata.author": "john", "meta.unmapped": "val"}},
+        )
+
+        # 4. get_metadata_field_min_max
+        mock_collection.aggregate.return_value = [{"min": 1, "max": 10}]
+        store.get_metadata_field_min_max("author")
+        # should construct group stage on $metadata.author
+        pipeline = mock_collection.aggregate.call_args[0][0]
+        assert pipeline[0]["$group"]["min"] == {"$min": "$metadata.author"}
+
+        # 5. get_metadata_field_unique_values
+        mock_collection.aggregate.return_value = [{"count": [{"count": 0}], "values": []}]
+        store.get_metadata_field_unique_values("author")
+        pipeline = mock_collection.aggregate.call_args[0][0]
+        assert pipeline[0]["$group"] == {"_id": "$metadata.author"}
+
+        # 6. count_unique_metadata_by_filter
+        mock_collection.aggregate.return_value = [{"source": [{"count": 1}]}]
+        store.count_unique_metadata_by_filter(filters, ["source"])
+        pipeline = mock_collection.aggregate.call_args[0][0]
+        assert pipeline[0] == {"$match": {"source": {"$eq": "url"}}}
+        assert pipeline[1]["$facet"]["source"][0]["$group"] == {"_id": "$source"}
+
+        # 7. get_metadata_fields_info
+        mock_cursor = MagicMock()
+        mock_cursor.sort.return_value = mock_cursor
+        mock_cursor.limit.return_value = [
+            {"source": "url", "metadata": {"author": "john"}, "meta": {"unmapped": "val"}}
+        ]
+        mock_collection.find.return_value = mock_cursor
+
+        info = store.get_metadata_fields_info()
+        # Verify find was called with expected projection
+        mock_collection.find.assert_called_with({}, {"meta": 1, "source": 1, "metadata.author": 1})
+        # Verify computed info contains mapped fields
+        assert info["source"] == {"type": "keyword"}
+        assert info["author"] == {"type": "keyword"}
+        assert info["unmapped"] == {"type": "keyword"}
+
 
 @pytest.mark.skipif(
     not os.environ.get("MONGO_CONNECTION_STRING"),
@@ -250,6 +526,7 @@ class TestDocumentStore(
                 "full_text_search_index": "full_text_index",
                 "embedding_field": "embedding",
                 "content_field": "content",
+                "meta_project_mapping": None,
             },
         }
 
