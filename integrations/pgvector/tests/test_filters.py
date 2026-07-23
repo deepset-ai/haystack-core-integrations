@@ -183,6 +183,14 @@ def test_comparison_condition_unknown_operator():
         _parse_comparison_condition(condition)
 
 
+@pytest.mark.parametrize("operator", ["like", "not like"])
+def test_comparison_condition_like_operator_requires_str_value(operator):
+    # pgvector-specific: LIKE / NOT LIKE require a string operand.
+    condition = {"field": "meta.name", "operator": operator, "value": 123}
+    with pytest.raises(FilterError, match="must be a str when using 'LIKE'"):
+        _parse_comparison_condition(condition)
+
+
 def test_logical_condition_missing_operator():
     condition = {"conditions": []}
     with pytest.raises(FilterError):
