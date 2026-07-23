@@ -119,11 +119,7 @@ class SerperDevWebSearch:
         if isinstance(allowed_domains, str):
             lines = (line.strip() for line in allowed_domains.splitlines())
             return tuple(
-                entry.strip()
-                for line in lines
-                if line
-                for entry in line.removeprefix("-").split(",")
-                if entry.strip()
+                entry.strip() for line in lines if line for entry in line.removeprefix("-").split(",") if entry.strip()
             )
         return allowed_domains
 
