@@ -1,5 +1,20 @@
 # Changelog
 
+## [integrations/pgvector-v6.4.0] - 2026-07-23
+
+### 🚀 Features
+
+- Pgvector - add closing methods (#3650)
+
+### 🐛 Bug Fixes
+
+- *(pgvector)* NO_VALUE sentinel collides with the literal string 'no_value' (#3593)
+
+### 📚 Documentation
+
+- Replace old haystack core imports with haystack_integrations paths (#3545)
+
+
 ## [integrations/pgvector-v6.3.1] - 2026-06-01
 
 ### 🐛 Bug Fixes

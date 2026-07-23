@@ -339,6 +339,18 @@ def test_get_metadata_field_unique_values_impl_pagination_search_and_lists():
     assert values == ["python"]
 
 
+def test_get_metadata_field_unique_values_impl_strips_meta_prefix():
+    docs = [
+        Document(content="a", meta={"category": "news"}),
+        Document(content="b", meta={"category": "sports"}),
+    ]
+    values, total = PineconeDocumentStore._get_metadata_field_unique_values_impl(
+        docs, "meta.category", search_term=None, from_=0, size=10
+    )
+    assert total == 2
+    assert values == ["news", "sports"]
+
+
 def test_prepare_documents_for_writing_edge_cases(caplog):
     ds = PineconeDocumentStore(api_key=Secret.from_token("fake-api-key"))
 
