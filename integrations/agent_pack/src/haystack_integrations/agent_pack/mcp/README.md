@@ -1,6 +1,6 @@
 # Deep Research MCP Server
 
-Serve the Haystack [deep research agent](../deep_research/README.md) over the
+Serve the Haystack [deep research agent](../deep_research/) over the
 [Model Context Protocol](https://modelcontextprotocol.io) so any MCP client — Claude Code,
 Claude Desktop, Codex, and others — can call it. The client sends a question; the **real**
 Haystack agent does the research and returns a cited markdown report. Nothing about the agent is
@@ -83,7 +83,7 @@ tool and present the returned report.
 
 - **Warm agent.** The server builds the agent once and reuses it across calls, so repeated
   queries in a session skip re-construction — the main advantage over the one-shot
-  [`deep-research` skill](../../../../../skills/deep-research/) that runs the agent as a fresh
+  [`deep-research` skill](../../../../skills/deep-research/) that runs the agent as a fresh
   subprocess each time.
 - **Long calls.** A research run takes minutes. The agent runs in a worker thread so the server
   stays responsive and can report progress via the MCP context; some clients enforce their own
