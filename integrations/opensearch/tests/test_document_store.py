@@ -322,15 +322,19 @@ def test_get_metadata_field_unique_values_search_term_filters_on_field_value_not
     store.get_metadata_field_unique_values("category", "needle", 10)
 
     body = store._client.search.call_args.kwargs["body"]
-    # The old content-based match_phrase filter must be gone entirely.
-    assert "query" not in body
+    # Composite aggregation terms sources don't support `include`/`exclude`, so the substring match
+    # against the aggregated field's own value is applied as a query-level doc-value script filter instead.
     terms_source = body["aggs"]["unique_values"]["composite"]["sources"][0]["category"]["terms"]
-    # search_term is turned into a regex substring match against the aggregated field's own value.
-    assert terms_source["include"] == ".*needle.*"
+    assert "include" not in terms_source
+    script = body["query"]["script"]["script"]
+    assert script["params"] == {"field": "category", "term": "needle"}
+    assert "contains(params.term)" in script["source"]
 
 
 @patch("haystack_integrations.document_stores.opensearch.document_store.OpenSearch")
-def test_get_metadata_field_unique_values_search_term_is_regex_escaped(_mock_opensearch_client):
+def test_get_metadata_field_unique_values_search_term_with_regex_metacharacters(_mock_opensearch_client):
+    """search_term is matched as a literal substring (via a doc-value script), so regex metacharacters
+    in the term must be passed through as-is, not treated as a regex pattern."""
     store = OpenSearchDocumentStore(hosts="testhost")
     store._client = MagicMock()
     store._client.search.return_value = {"aggregations": {"unique_values": {"buckets": []}}}
@@ -338,8 +342,7 @@ def test_get_metadata_field_unique_values_search_term_is_regex_escaped(_mock_ope
     store.get_metadata_field_unique_values("category", "a.b*c", 10)
 
     body = store._client.search.call_args.kwargs["body"]
-    terms_source = body["aggs"]["unique_values"]["composite"]["sources"][0]["category"]["terms"]
-    assert terms_source["include"] == r".*a\.b\*c.*"
+    assert body["query"]["script"]["script"]["params"]["term"] == "a.b*c"
 
 
 @pytest.mark.asyncio
@@ -354,9 +357,11 @@ async def test_get_metadata_field_unique_values_async_search_term_filters_on_fie
     await store.get_metadata_field_unique_values_async("category", "needle", 10)
 
     body = store._async_client.search.call_args.kwargs["body"]
-    assert "query" not in body
     terms_source = body["aggs"]["unique_values"]["composite"]["sources"][0]["category"]["terms"]
-    assert terms_source["include"] == ".*needle.*"
+    assert "include" not in terms_source
+    script = body["query"]["script"]["script"]
+    assert script["params"] == {"field": "category", "term": "needle"}
+    assert "contains(params.term)" in script["source"]
 
 
 @pytest.mark.asyncio

@@ -4,7 +4,6 @@
 
 # ruff: noqa: FBT001, FBT002   boolean-type-hint-positional-argument and boolean-default-value-positional-argument
 
-import re
 from collections.abc import Generator, Mapping
 from dataclasses import replace
 from math import exp
@@ -2059,21 +2058,14 @@ class OpenSearchDocumentStore:
         field_name = _normalize_metadata_field_name(metadata_field)
 
         # Build composite aggregation for proper pagination
-        terms_source: dict[str, Any] = {"field": field_name}
-        if search_term:
-            # Filter aggregation buckets directly on the value of the field being aggregated, using a
-            # regex substring match. Note: this is case-sensitive, since OpenSearch's terms aggregation
-            # `include` regex does not support a case-insensitive flag (unlike the `regexp` query).
-            terms_source["include"] = f".*{re.escape(search_term)}.*"
-
         composite_agg: dict[str, Any] = {
             "size": size,
-            "sources": [{field_name: {"terms": terms_source}}],
+            "sources": [{field_name: {"terms": {"field": field_name}}}],
         }
         if after is not None:
             composite_agg["after"] = after
 
-        body = {
+        body: dict[str, Any] = {
             "aggs": {
                 "unique_values": {
                     "composite": composite_agg,
@@ -2081,6 +2073,23 @@ class OpenSearchDocumentStore:
             },
             "size": 0,  # we only need aggregations, not documents
         }
+        if search_term:
+            # Composite aggregation terms sources don't support `include`/`exclude` (that's only valid on
+            # standalone `terms` aggregations), and a `regexp` query only works on keyword/text fields, not
+            # numeric ones. A doc-value script query works uniformly across field types by stringifying the
+            # field's value, matching the case-sensitive substring semantics documented above.
+            body["query"] = {
+                "script": {
+                    "script": {
+                        "source": (
+                            "def v = doc[params.field]; "
+                            "if (v.size() == 0) { return false; } "
+                            "return v.value.toString().contains(params.term)"
+                        ),
+                        "params": {"field": field_name, "term": search_term},
+                    }
+                }
+            }
 
         result = self._client.search(index=self._index, body=body)
         aggregations = result.get("aggregations", {})
@@ -2126,21 +2135,14 @@ class OpenSearchDocumentStore:
         field_name = _normalize_metadata_field_name(metadata_field)
 
         # Build composite aggregation for proper pagination
-        terms_source: dict[str, Any] = {"field": field_name}
-        if search_term:
-            # Filter aggregation buckets directly on the value of the field being aggregated, using a
-            # regex substring match. Note: this is case-sensitive, since OpenSearch's terms aggregation
-            # `include` regex does not support a case-insensitive flag (unlike the `regexp` query).
-            terms_source["include"] = f".*{re.escape(search_term)}.*"
-
         composite_agg: dict[str, Any] = {
             "size": size,
-            "sources": [{field_name: {"terms": terms_source}}],
+            "sources": [{field_name: {"terms": {"field": field_name}}}],
         }
         if after is not None:
             composite_agg["after"] = after
 
-        body = {
+        body: dict[str, Any] = {
             "aggs": {
                 "unique_values": {
                     "composite": composite_agg,
@@ -2148,6 +2150,23 @@ class OpenSearchDocumentStore:
             },
             "size": 0,  # we only need aggregations, not documents
         }
+        if search_term:
+            # Composite aggregation terms sources don't support `include`/`exclude` (that's only valid on
+            # standalone `terms` aggregations), and a `regexp` query only works on keyword/text fields, not
+            # numeric ones. A doc-value script query works uniformly across field types by stringifying the
+            # field's value, matching the case-sensitive substring semantics documented above.
+            body["query"] = {
+                "script": {
+                    "script": {
+                        "source": (
+                            "def v = doc[params.field]; "
+                            "if (v.size() == 0) { return false; } "
+                            "return v.value.toString().contains(params.term)"
+                        ),
+                        "params": {"field": field_name, "term": search_term},
+                    }
+                }
+            }
 
         result = await self._async_client.search(index=self._index, body=body)
         aggregations = result.get("aggregations", {})
