@@ -134,6 +134,17 @@ class TestMongoDBDocumentStoreUnit:
         assert pipeline[1]["$match"] == {"_id": {"$regex": "val", "$options": "i"}}
         assert pipeline[2]["$facet"]["values"][2]["$limit"] == 2
 
+    def test_get_metadata_field_unique_values_with_meta_prefix(self, mocked_store_collection):
+        store, collection = mocked_store_collection
+        collection.aggregate.return_value = [{"count": [{"count": 2}], "values": [{"_id": "val1"}, {"_id": "val2"}]}]
+
+        values, count = store.get_metadata_field_unique_values("meta.category")
+
+        assert values == ["val1", "val2"]
+        assert count == 2
+        pipeline = collection.aggregate.call_args[0][0]
+        assert pipeline[0]["$group"] == {"_id": "$meta.category"}
+
 
 class TestMongoDBDocumentStoreConversion:
     def test_haystack_doc_to_mongo_doc_with_unsupported_fields(self, local_store):
