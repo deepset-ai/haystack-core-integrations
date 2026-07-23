@@ -134,6 +134,22 @@ class TestMongoDBDocumentStoreUnit:
         assert pipeline[1]["$match"] == {"_id": {"$regex": "val", "$options": "i"}}
         assert pipeline[2]["$facet"]["values"][2]["$limit"] == 2
 
+    def test_close(self, local_store):
+        connection = MagicMock()
+        local_store._connection = connection
+        local_store.close()
+        connection.close.assert_called_once()
+        assert local_store._connection is None
+        local_store.close()
+        connection.close.assert_called_once()
+
+    def test_close_is_exception_safe(self, local_store):
+        connection = MagicMock()
+        connection.close.side_effect = RuntimeError("boom")
+        local_store._connection = connection
+        local_store.close()
+        assert local_store._connection is None
+
 
 class TestMongoDBDocumentStoreConversion:
     def test_haystack_doc_to_mongo_doc_with_unsupported_fields(self, local_store):
@@ -371,3 +387,10 @@ class TestDocumentStore(
         new_docs = [Document(id="3", content="third doc")]
         document_store.write_documents(new_docs)
         assert document_store.count_documents() == 1
+
+    def test_close_and_reopen(self, document_store: MongoDBAtlasDocumentStore):
+        document_store.count_documents()
+        assert document_store._connection is not None
+        document_store.close()
+        assert document_store._connection is None
+        assert document_store.count_documents() == 0

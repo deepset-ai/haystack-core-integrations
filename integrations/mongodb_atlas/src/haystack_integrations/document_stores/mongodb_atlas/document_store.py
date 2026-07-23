@@ -3,6 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import re
+from contextlib import suppress
 from typing import Any, Literal
 
 from haystack import default_from_dict, default_to_dict, logging
@@ -110,12 +111,25 @@ class MongoDBAtlasDocumentStore:
         self._collection: Collection | None = None
         self._collection_async: AsyncCollection | None = None
 
-    def __del__(self) -> None:
+    def close(self) -> None:
         """
-        Destructor method to close MongoDB connections when the instance is destroyed.
+        Release the associated synchronous resources.
         """
-        if self._connection:
-            self._connection.close()
+        if self._connection is not None:
+            with suppress(Exception):
+                self._connection.close()
+            self._connection = None
+            self._collection = None
+
+    async def close_async(self) -> None:
+        """
+        Release the associated asynchronous resources.
+        """
+        if self._connection_async is not None:
+            with suppress(Exception):
+                await self._connection_async.close()
+            self._connection_async = None
+            self._collection_async = None
 
     @property
     def connection(self) -> AsyncMongoClient | MongoClient:
