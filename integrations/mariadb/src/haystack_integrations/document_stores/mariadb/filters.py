@@ -59,7 +59,7 @@ def _parse_logical_condition(condition: dict[str, Any]) -> tuple[str, list[Any]]
 
     if operator == "NOT":
         inner = parts[0] if len(parts) == 1 else "(" + " AND ".join(parts) + ")"
-        return f"NOT {inner}", all_params
+        return f"COALESCE(NOT {inner}, TRUE)", all_params
 
     joined = f" {operator} ".join(parts)
     return f"({joined})", all_params
