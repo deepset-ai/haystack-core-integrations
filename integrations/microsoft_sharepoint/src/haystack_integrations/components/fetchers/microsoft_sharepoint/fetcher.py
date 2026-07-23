@@ -18,6 +18,7 @@ from haystack.utils import Secret
 from haystack_integrations.common.microsoft_sharepoint.errors import SharePointConfigError, SharePointRequestError
 from haystack_integrations.common.microsoft_sharepoint.utils import (
     DEFAULT_GRAPH_URL,
+    _gather_tasks_with_cancel,
     build_async_retrying,
     build_retrying,
     resolve_access_token,
@@ -193,7 +194,8 @@ class MSSharePointFetcher:
                 return await self._process_async(client, token, url, hints)
 
         async with httpx.AsyncClient(timeout=self.timeout, follow_redirects=True) as client:
-            results = await asyncio.gather(*(fetch_one(client, url, hints) for url, hints in resolved))
+            tasks = [asyncio.create_task(fetch_one(client, url, hints)) for url, hints in resolved]
+            results = await _gather_tasks_with_cancel(tasks)
 
         return {"streams": [stream for stream in results if stream is not None]}
 
