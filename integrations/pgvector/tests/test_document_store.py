@@ -663,10 +663,7 @@ def test_get_metadata_field_unique_values(document_store: PgvectorDocumentStore)
     assert len(unique_values_search_empty) == 0
     assert total_search_empty == 1
 
-    # Test that search_term matches metadata VALUE, not content: a document whose content contains
-    # the search term but whose target metadata field value does not must be EXCLUDED, while a
-    # document whose metadata field value contains the search term but whose content does not
-    # must be INCLUDED.
+    # Test that search_term matches metadata VALUE, not content
     content_vs_metadata_docs = [
         Document(content="This document mentions Python explicitly", meta={"topic": "cooking"}),
         Document(content="Unrelated content about recipes", meta={"topic": "python-tutorial"}),
@@ -674,8 +671,6 @@ def test_get_metadata_field_unique_values(document_store: PgvectorDocumentStore)
     document_store.write_documents(content_vs_metadata_docs)
 
     unique_topics, total_topics = document_store.get_metadata_field_unique_values("meta.topic", "python", 0, 10)
-    # "cooking" doc's content contains "Python" but its topic value doesn't -> excluded
-    # "python-tutorial" doc's topic value contains "python" but its content doesn't -> included
     assert set(unique_topics) == {"python-tutorial"}
     assert total_topics == 1
 
