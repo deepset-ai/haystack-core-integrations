@@ -2,6 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+import mariadb
 from unittest.mock import MagicMock
 
 import pytest
@@ -11,6 +12,7 @@ from haystack.document_stores.types import DuplicatePolicy
 from haystack.testing.document_store import (
     CountDocumentsTest,
     DeleteDocumentsTest,
+    FilterDocumentsTest,
     FilterableDocsFixtureMixin,
     WriteDocumentsTest,
 )
@@ -247,8 +249,6 @@ class TestWriteDocuments:
         assert "INSERT IGNORE" in call_args[0]
 
     def test_write_fail_raises_on_duplicate(self):
-        import mariadb  # noqa: PLC0415
-
         store = _mock_store()
         store._cursor.executemany.side_effect = mariadb.IntegrityError("Duplicate entry")
         doc = Document(id="dup", content="test")
@@ -311,6 +311,7 @@ class TestFilterDocuments:
 class TestDocumentStore(
     CountDocumentsTest,
     DeleteDocumentsTest,
+    FilterDocumentsTest,
     FilterableDocsFixtureMixin,
     WriteDocumentsTest,
 ):

@@ -9,6 +9,8 @@ import struct
 from dataclasses import replace
 from typing import Any, Literal
 
+import mariadb
+
 from haystack import default_from_dict, default_to_dict, logging
 from haystack.dataclasses import ByteStream, Document
 from haystack.document_stores.errors import DocumentStoreError, DuplicateDocumentError
@@ -201,8 +203,6 @@ class MariaDBDocumentStore(DocumentStore):
             except Exception:
                 self._close_connection()
 
-        import mariadb  # noqa: PLC0415
-
         try:
             self._connection = mariadb.connect(
                 host=self.host,
@@ -225,8 +225,6 @@ class MariaDBDocumentStore(DocumentStore):
             self._initialize_table()
 
     def _initialize_table(self) -> None:
-        import mariadb  # noqa: PLC0415
-
         if self.recreate_table:
             self._drop_table()
 
@@ -249,8 +247,6 @@ class MariaDBDocumentStore(DocumentStore):
             raise DocumentStoreError(msg) from e
 
     def _drop_table(self) -> None:
-        import mariadb  # noqa: PLC0415
-
         try:
             self._cursor.execute(f"DROP TABLE IF EXISTS `{self.table_name}`")
             self._table_initialized = False
@@ -333,8 +329,6 @@ class MariaDBDocumentStore(DocumentStore):
         else:
             sql = INSERT_STATEMENT.format(table_name=self.table_name)
 
-        import mariadb  # noqa: PLC0415
-
         rows = [_document_to_row(doc) for doc in documents]
         try:
             self._connection.begin()
@@ -360,8 +354,6 @@ class MariaDBDocumentStore(DocumentStore):
 
         :param document_ids: IDs to delete.
         """
-        import mariadb  # noqa: PLC0415
-
         if not document_ids:
             return
         self._ensure_connection()

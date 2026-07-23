@@ -65,7 +65,7 @@ dependencies = [
     "pytest-rerunfailures",
     "mypy",
     "pip",
-    "setuptools",
+    "packaging",
 ]
 
 [tool.hatch.envs.test.scripts]
