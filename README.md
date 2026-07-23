@@ -4,11 +4,11 @@
 
 | Name                                                                                     |    Stmts |     Miss |   Branch |   BrPart |   Cover |   Missing |
 |----------------------------------------------------------------------------------------- | -------: | -------: | -------: | -------: | ------: | --------: |
-| src/haystack\_integrations/components/retrievers/mongodb\_atlas/embedding\_retriever.py  |       36 |        0 |        4 |        0 |    100% |           |
-| src/haystack\_integrations/components/retrievers/mongodb\_atlas/full\_text\_retriever.py |       34 |        0 |        2 |        0 |    100% |           |
-| src/haystack\_integrations/document\_stores/mongodb\_atlas/document\_store.py            |      543 |       56 |      142 |       17 |     89% |124, 126, 134, 136, 325, 350-352, 374-376, 387, 408-410, 428-430, 467-469, 487-489, 517, 545-547, 571-573, 620-\>625, 664-\>669, 705, 717, 741-743, 766-768, 795-797, 824-826, 874-876, 926-928, 1019, 1022-\>1027, 1029-1030, 1119-\>1121, 1183, 1189, 1213-\>1215, 1245-\>1254 |
+| src/haystack\_integrations/components/retrievers/mongodb\_atlas/embedding\_retriever.py  |       40 |        0 |        4 |        0 |    100% |           |
+| src/haystack\_integrations/components/retrievers/mongodb\_atlas/full\_text\_retriever.py |       38 |        0 |        2 |        0 |    100% |           |
+| src/haystack\_integrations/document\_stores/mongodb\_atlas/document\_store.py            |      553 |       56 |      144 |       17 |     90% |138, 140, 148, 150, 339, 364-366, 388-390, 401, 422-424, 442-444, 481-483, 501-503, 531, 559-561, 585-587, 634-\>639, 678-\>683, 719, 731, 755-757, 780-782, 809-811, 838-840, 888-890, 940-942, 1033, 1036-\>1041, 1043-1044, 1133-\>1135, 1197, 1203, 1227-\>1229, 1259-\>1268 |
 | src/haystack\_integrations/document\_stores/mongodb\_atlas/filters.py                    |       87 |        0 |       36 |        0 |    100% |           |
-| **TOTAL**                                                                                |  **700** |   **56** |  **184** |   **17** | **92%** |           |
+| **TOTAL**                                                                                |  **718** |   **56** |  **186** |   **17** | **92%** |           |
 
 
 ## Setup coverage badge
