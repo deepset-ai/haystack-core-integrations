@@ -2,6 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+from dataclasses import replace as dc_replace
 from unittest.mock import MagicMock
 
 import mariadb
@@ -313,9 +314,16 @@ class TestDocumentStore(
     FilterDocumentsTest,
     WriteDocumentsTest,
 ):
-    @staticmethod
-    def assert_documents_are_equal(received: list[Document], expected: list[Document]) -> None:
-        assert sorted(received, key=lambda d: d.id) == sorted(expected, key=lambda d: d.id)
+    def assert_documents_are_equal(self, received: list[Document], expected: list[Document]) -> None:
+        assert len(received) == len(expected)
+        received.sort(key=lambda d: d.id)
+        expected.sort(key=lambda d: d.id)
+        for r, e in zip(received, expected, strict=True):
+            if r.embedding is None:
+                assert e.embedding is None
+            else:
+                assert r.embedding == pytest.approx(e.embedding)
+            assert dc_replace(r, embedding=None) == dc_replace(e, embedding=None)
 
     def test_write_documents(self, document_store):
         docs = [Document(id="1", content="test")]
