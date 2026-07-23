@@ -1331,6 +1331,19 @@ class TestDocumentStore(
         unique_values, _ = document_store.get_metadata_field_unique_values("meta.category", "Python", 10)
 
         assert unique_values == ["Python-based"]
+
+    def test_get_metadata_field_unique_values_search_term_case_insensitive(
+        self, document_store: ElasticsearchDocumentStore
+    ):
+        docs = [
+            Document(content="n/a", meta={"category": "Python-based"}),
+            Document(content="n/a", meta={"category": "Java-based"}),
+        ]
+        document_store.write_documents(docs)
+
+        unique_values, _ = document_store.get_metadata_field_unique_values("meta.category", "PYTHON", 10)
+
+        assert unique_values == ["Python-based"]
         assert "Backend" not in unique_values
 
     def test_query_sql(self, document_store: ElasticsearchDocumentStore):

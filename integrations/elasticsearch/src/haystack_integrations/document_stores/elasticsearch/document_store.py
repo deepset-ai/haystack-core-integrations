@@ -1856,7 +1856,7 @@ class ElasticsearchDocumentStore:
         See: https://www.elastic.co/docs/reference/aggregations/search-aggregations-bucket-composite-aggregation
 
         :param metadata_field: The metadata field to get unique values for.
-        :param search_term: Optional term to filter the returned values by, matching as a case-sensitive substring
+        :param search_term: Optional term to filter the returned values by, matching as a case-insensitive substring
             of the metadata field's own value (not the document content).
         :param size: The number of unique values to return per page. Defaults to 10.
         :param after: Optional pagination key from the previous response. Use None for the first page.
@@ -1889,16 +1889,17 @@ class ElasticsearchDocumentStore:
             # Composite aggregation terms sources don't support `include`/`exclude` (that's only valid on
             # standalone `terms` aggregations), and a `regexp` query only works on keyword/text fields, not
             # numeric ones. A doc-value script query works uniformly across field types by stringifying the
-            # field's value, matching the case-sensitive substring semantics documented above.
+            # field's value, matching the case-insensitive substring semantics documented above. The term is
+            # lower-cased once here rather than per-document in the script.
             body["query"] = {
                 "script": {
                     "script": {
                         "source": (
                             "def v = doc[params.field]; "
                             "if (v.size() == 0) { return false; } "
-                            "return v.value.toString().contains(params.term)"
+                            "return v.value.toString().toLowerCase().contains(params.term)"
                         ),
-                        "params": {"field": field_name, "term": search_term},
+                        "params": {"field": field_name, "term": search_term.lower()},
                     }
                 }
             }
@@ -1935,7 +1936,7 @@ class ElasticsearchDocumentStore:
         See: https://www.elastic.co/docs/reference/aggregations/search-aggregations-bucket-composite-aggregation
 
         :param metadata_field: The metadata field to get unique values for.
-        :param search_term: Optional term to filter the returned values by, matching as a case-sensitive substring
+        :param search_term: Optional term to filter the returned values by, matching as a case-insensitive substring
             of the metadata field's own value (not the document content).
         :param size: The number of unique values to return per page. Defaults to 10.
         :param after: Optional pagination key from the previous response. Use None for the first page.
@@ -1968,16 +1969,17 @@ class ElasticsearchDocumentStore:
             # Composite aggregation terms sources don't support `include`/`exclude` (that's only valid on
             # standalone `terms` aggregations), and a `regexp` query only works on keyword/text fields, not
             # numeric ones. A doc-value script query works uniformly across field types by stringifying the
-            # field's value, matching the case-sensitive substring semantics documented above.
+            # field's value, matching the case-insensitive substring semantics documented above. The term is
+            # lower-cased once here rather than per-document in the script.
             body["query"] = {
                 "script": {
                     "script": {
                         "source": (
                             "def v = doc[params.field]; "
                             "if (v.size() == 0) { return false; } "
-                            "return v.value.toString().contains(params.term)"
+                            "return v.value.toString().toLowerCase().contains(params.term)"
                         ),
-                        "params": {"field": field_name, "term": search_term},
+                        "params": {"field": field_name, "term": search_term.lower()},
                     }
                 }
             }
