@@ -13,10 +13,8 @@ from haystack.testing.document_store import (
     CountDocumentsTest,
     DeleteDocumentsTest,
     FilterDocumentsTest,
-    FilterableDocsFixtureMixin,
     WriteDocumentsTest,
 )
-
 
 from haystack_integrations.document_stores.mariadb import MariaDBDocumentStore
 from haystack_integrations.document_stores.mariadb.document_store import (
@@ -315,6 +313,10 @@ class TestDocumentStore(
     FilterDocumentsTest,
     WriteDocumentsTest,
 ):
+    @staticmethod
+    def assert_documents_are_equal(received: list[Document], expected: list[Document]) -> None:
+        assert sorted(received, key=lambda d: d.id) == sorted(expected, key=lambda d: d.id)
+
     def test_write_documents(self, document_store):
         docs = [Document(id="1", content="test")]
         assert document_store.write_documents(docs) == 1
