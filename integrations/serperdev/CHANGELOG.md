@@ -1,5 +1,11 @@
 # Changelog
 
+## [unreleased]
+
+### 🐛 Bug Fixes
+
+- Apply `allowed_domains` as post-retrieval filtering, not a `site:` query prefix, and normalize URL-shaped domain inputs
+
 ## [integrations/serperdev-v1.0.0] - 2026-06-12
 
 ### 🚀 Features

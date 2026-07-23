@@ -2,6 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+from collections.abc import Iterable
 from typing import Any
 from urllib.parse import urlparse
 
@@ -54,7 +55,7 @@ class SerperDevWebSearch:
         self,
         api_key: Secret = Secret.from_env_var("SERPERDEV_API_KEY"),
         top_k: int | None = 10,
-        allowed_domains: list[str] | None = None,
+        allowed_domains: list[str] | str | None = None,
         search_params: dict[str, Any] | None = None,
         *,
         exclude_subdomains: bool = False,
@@ -64,7 +65,8 @@ class SerperDevWebSearch:
 
         :param api_key: API key for the Serper API.
         :param top_k: Number of documents to return.
-        :param allowed_domains: List of domains to limit the search to.
+        :param allowed_domains: Domains used to filter returned results.
+            Values can be bare domains, full URLs, or a YAML-like string list.
         :param exclude_subdomains: Whether to exclude subdomains when filtering by allowed_domains.
             If True, only results from the exact domains in allowed_domains will be returned.
             If False, results from subdomains will also be included. Defaults to False.
@@ -74,7 +76,7 @@ class SerperDevWebSearch:
         """
         self.api_key = api_key
         self.top_k = top_k
-        self.allowed_domains = allowed_domains
+        self.allowed_domains = self._normalize_allowed_domains(allowed_domains)
         self.exclude_subdomains = exclude_subdomains
         self.search_params = search_params or {}
 
@@ -109,6 +111,37 @@ class SerperDevWebSearch:
         """
         deserialize_secrets_inplace(data["init_parameters"], keys=["api_key"])
         return default_from_dict(cls, data)
+
+    @staticmethod
+    def _split_allowed_domains(allowed_domains: list[str] | str | None) -> Iterable[str]:
+        if allowed_domains is None:
+            return ()
+        if isinstance(allowed_domains, str):
+            lines = (line.strip() for line in allowed_domains.splitlines())
+            return tuple(
+                entry.strip()
+                for line in lines
+                if line
+                for entry in line.removeprefix("-").split(",")
+                if entry.strip()
+            )
+        return allowed_domains
+
+    @staticmethod
+    def _normalize_allowed_domains(allowed_domains: list[str] | str | None) -> list[str] | None:
+        normalized_domains: list[str] = []
+
+        for raw_domain in SerperDevWebSearch._split_allowed_domains(allowed_domains):
+            domain = raw_domain.strip()
+            if not domain:
+                continue
+
+            parsed = urlparse(domain if "://" in domain else f"//{domain}")
+            normalized_domain = (parsed.netloc or parsed.path).split("/", 1)[0].lower()
+            if normalized_domain and normalized_domain not in normalized_domains:
+                normalized_domains.append(normalized_domain)
+
+        return normalized_domains or None
 
     def _is_domain_allowed(self, url: str) -> bool:
         """
@@ -218,8 +251,7 @@ class SerperDevWebSearch:
         return {"documents": documents[: self.top_k], "links": links[: self.top_k]}
 
     def _prepare_request(self, query: str) -> tuple[dict[str, Any], dict[str, str]]:
-        query_prepend = "OR ".join(f"site:{domain} " for domain in self.allowed_domains) if self.allowed_domains else ""
-        payload = {"q": query_prepend + query, "gl": "us", "hl": "en", "autocorrect": True, **self.search_params}
+        payload = {"q": query, "gl": "us", "hl": "en", "autocorrect": True, **self.search_params}
         if (api_key := self.api_key.resolve_value()) is None:
             msg = "API key cannot be `None`."
             raise ValueError(msg)

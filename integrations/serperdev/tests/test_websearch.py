@@ -196,6 +196,55 @@ class TestSerperDevSearchAPI:
         assert component.exclude_subdomains is True
         assert component.search_params == {"param": "test"}
 
+    def test_allowed_domains_filter_results_without_rewriting_query(
+        self, mock_serper_dev_search_result: MagicMock
+    ) -> None:
+        ws = SerperDevWebSearch(
+            api_key=Secret.from_token("test-api-key"),
+            allowed_domains=["example.com"],
+        )
+
+        ws.run(query="test query")
+
+        assert mock_serper_dev_search_result.post.call_args.kwargs["json"]["q"] == "test query"
+
+    def test_search_params_can_override_default_locale(self) -> None:
+        ws = SerperDevWebSearch(
+            api_key=Secret.from_token("test-api-key"),
+            search_params={"gl": "at", "hl": "de", "num": 20},
+        )
+
+        payload, headers = ws._prepare_request("test query")
+
+        assert payload == {
+            "q": "test query",
+            "gl": "at",
+            "hl": "de",
+            "autocorrect": True,
+            "num": 20,
+        }
+        assert headers == {"X-API-KEY": "test-api-key"}
+
+    @pytest.mark.parametrize(
+        ("allowed_domains", "expected_domains"),
+        [
+            (["https://example.com/path", "Test.ORG/docs", "example.com"], ["example.com", "test.org"]),
+            ("- https://example.com/path\n- Test.ORG/docs", ["example.com", "test.org"]),
+        ],
+    )
+    def test_allowed_domains_are_normalized(
+        self, allowed_domains: list[str] | str, expected_domains: list[str]
+    ) -> None:
+        ws = SerperDevWebSearch(
+            api_key=Secret.from_token("test-api-key"),
+            allowed_domains=allowed_domains,
+        )
+
+        assert ws.allowed_domains == expected_domains
+        assert ws._is_domain_allowed("https://blog.example.com/post") is True
+        assert ws._is_domain_allowed("https://sub.test.org/post") is True
+        assert ws._is_domain_allowed("https://other.com/post") is False
+
     @pytest.mark.parametrize("top_k", [1, 5, 7])
     @pytest.mark.usefixtures("mock_serper_dev_search_result")
     def test_web_search_top_k(self, top_k: int) -> None:
