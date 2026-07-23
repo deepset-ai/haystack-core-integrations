@@ -752,6 +752,31 @@ async def test_delete_all_documents_async_recreate_works_for_concrete_index(_moc
     mock_client.indices.create.assert_called_once()
 
 
+def test_close():
+    store = OpenSearchDocumentStore(hosts="testhost", http_auth=("a", "b"))
+    mock_client = MagicMock()
+    store._client = mock_client
+
+    store.close()
+
+    mock_client.close.assert_called_once()
+    assert store._client is None
+
+    store.close()
+    mock_client.close.assert_called_once()
+
+
+def test_close_is_exception_safe():
+    store = OpenSearchDocumentStore(hosts="testhost", http_auth=("a", "b"))
+    mock_client = MagicMock()
+    mock_client.close.side_effect = RuntimeError("boom")
+    store._client = mock_client
+
+    store.close()
+
+    assert store._client is None
+
+
 @pytest.mark.integration
 class TestDocumentStore(
     OpenSearchDocumentStoreTestMixin,
@@ -770,6 +795,16 @@ class TestDocumentStore(
     def document_store(self, document_store):
         """Override base class fixture to provide OpenSearch document store."""
         yield document_store
+
+    def test_close_and_reopen(self, document_store: OpenSearchDocumentStore):
+        assert document_store.count_documents() == 0
+        assert document_store._client is not None
+
+        document_store.close()
+        assert document_store._client is None
+
+        assert document_store.count_documents() == 0
+        assert document_store._client is not None
 
     def test_write_documents(self, document_store: OpenSearchDocumentStore):
         docs = [Document(id="1")]
