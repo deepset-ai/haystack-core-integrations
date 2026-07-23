@@ -766,17 +766,17 @@ class OracleDocumentStore:
             return {"min": _try_parse_number(row[0]), "max": _try_parse_number(row[1])}
 
     def get_metadata_field_unique_values(
-        self, metadata_field: str, search_term: str | None = None, from_: int = 0, size: int | None = None
+        self, metadata_field: str, search_term: str | None = None, from_: int = 0, size: int | None = 10
     ) -> tuple[list[str], int]:
         """
         Return a paginated list of distinct values for a metadata field, plus the total distinct count.
 
         :param metadata_field: Metadata field name. May be prefixed with ``"meta."``
             (e.g. ``"meta.lang"`` or ``"lang"``).
-        :param search_term: Optional substring filter applied to the metadata field's own value.
+        :param search_term: Optional case-insensitive substring filter applied to the metadata field's own value.
         :param from_: Zero-based offset for pagination. Defaults to ``0``.
-        :param size: Maximum number of values to return. When ``None`` all values from ``from_`` onward
-            are returned.
+        :param size: Maximum number of values to return. Defaults to ``10``. When ``None`` all values
+            from ``from_`` onward are returned.
         :returns: A tuple ``(values, total)`` where ``values`` is the paginated list of distinct field
             values as strings and ``total`` is the overall distinct count (before pagination).
         :raises ValueError: If ``metadata_field`` contains characters outside ``[A-Za-z0-9_.]``.
@@ -786,7 +786,7 @@ class OracleDocumentStore:
         base_sql = f"FROM {self.table_name} WHERE JSON_VALUE(metadata, '$.{field_path}') IS NOT NULL"
         params: dict[str, Any] = {}
         if search_term:
-            base_sql += f" AND JSON_VALUE(metadata, '$.{field_path}') LIKE :search"
+            base_sql += f" AND UPPER(JSON_VALUE(metadata, '$.{field_path}')) LIKE UPPER(:search)"
             params["search"] = f"%{search_term}%"
 
         sql_count = f"SELECT COUNT(DISTINCT JSON_VALUE(metadata, '$.{field_path}')) {base_sql}"
@@ -834,17 +834,17 @@ class OracleDocumentStore:
         return await asyncio.to_thread(self.get_metadata_field_min_max, metadata_field)
 
     async def get_metadata_field_unique_values_async(
-        self, metadata_field: str, search_term: str | None = None, from_: int = 0, size: int | None = None
+        self, metadata_field: str, search_term: str | None = None, from_: int = 0, size: int | None = 10
     ) -> tuple[list[str], int]:
         """
         Asynchronously returns a paginated list of distinct values for a metadata field, plus the total count.
 
         :param metadata_field: Metadata field name. May be prefixed with ``"meta."``
             (e.g. ``"meta.lang"`` or ``"lang"``).
-        :param search_term: Optional substring filter applied to the metadata field's own value.
+        :param search_term: Optional case-insensitive substring filter applied to the metadata field's own value.
         :param from_: Zero-based offset for pagination. Defaults to ``0``.
-        :param size: Maximum number of values to return. When ``None`` all values from ``from_`` onward
-            are returned.
+        :param size: Maximum number of values to return. Defaults to ``10``. When ``None`` all values
+            from ``from_`` onward are returned.
         :returns: A tuple ``(values, total)`` where ``values`` is the paginated list of distinct field
             values as strings and ``total`` is the overall distinct count (before pagination).
         :raises ValueError: If ``metadata_field`` contains characters outside ``[A-Za-z0-9_.]``.

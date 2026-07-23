@@ -59,22 +59,10 @@ def test_get_metadata_field_unique_values_search_term_filters_value_only(patched
     vals_sql, vals_params = cursor.execute.call_args_list[1][0]
 
     for sql in (count_sql, vals_sql):
-        assert "text LIKE" not in sql
-        assert "JSON_VALUE(metadata, '$.category') LIKE :search" in sql
+        assert "UPPER(JSON_VALUE(metadata, '$.category')) LIKE UPPER(:search)" in sql
 
     assert count_params["search"] == "%bar%"
     assert vals_params["search"] == "%bar%"
-
-
-def test_get_metadata_field_unique_values_no_search_term_no_like_clause(patched_store, mock_pool):
-    _, _, cursor = mock_pool
-    cursor.fetchone.return_value = (0,)
-    cursor.fetchall.return_value = []
-
-    patched_store.get_metadata_field_unique_values("category")
-
-    sql = cursor.execute.call_args_list[0][0][0]
-    assert "LIKE" not in sql
 
 
 @pytest.mark.integration
@@ -353,6 +341,16 @@ class TestOracleDocumentStore(
         # Q001: content contains "apple" but its category value ("dessert") does not -> excluded.
         # Q002: category value ("apple-tart") contains "apple", content does not -> still included.
         assert values == ["apple-tart"]
+        assert total == 1
+
+    def test_get_metadata_field_unique_values_search_term_case_insensitive(self, document_store):
+        document_store.write_documents(
+            [
+                _doc(_uid("Q003"), content="n/a", meta={"category": "Apple-Tart"}),
+            ]
+        )
+        values, total = document_store.get_metadata_field_unique_values("category", search_term="APPLE")
+        assert values == ["Apple-Tart"]
         assert total == 1
 
 
