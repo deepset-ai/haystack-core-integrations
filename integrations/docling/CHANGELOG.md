@@ -1,5 +1,12 @@
 # Changelog
 
+## [Unreleased]
+
+### 🐛 Bug Fixes
+
+- *(docling)* [**breaking**] Store `dl_meta.origin.binary_hash` as a string so values above signed 64-bit range index correctly (#3604)
+
+
 ## [integrations/docling-v1.3.0] - 2026-07-16
 
 ### 🧹 Chores

@@ -23,6 +23,25 @@ from docling.document_converter import DocumentConverter
 logger = logging.getLogger(__name__)
 
 
+def _stringify_binary_hash(value: Any) -> Any:
+    """
+    Convert Docling ``binary_hash`` values to strings.
+
+    ``binary_hash`` is an unsigned 64-bit integer. Document stores that map numeric
+    metadata to signed 64-bit integers (for example OpenSearch ``long``) reject values
+    greater than ``2**63 - 1``. Storing the hash as a string avoids that failure while
+    preserving the full value.
+    """
+    if isinstance(value, dict):
+        return {
+            key: (str(item) if key == "binary_hash" and item is not None else _stringify_binary_hash(item))
+            for key, item in value.items()
+        }
+    if isinstance(value, list):
+        return [_stringify_binary_hash(item) for item in value]
+    return value
+
+
 def _bytestream_to_document_stream(source: ByteStream) -> DocumentStream:
     """
     Build a `DocumentStream` from a Haystack `ByteStream`.
@@ -82,7 +101,7 @@ class MetaExtractor(BaseMetaExtractor):
 
     def extract_chunk_meta(self, chunk: BaseChunk) -> dict[str, Any]:
         """Extract chunk meta."""
-        meta: dict[str, Any] = {"dl_meta": chunk.export_json_dict()}
+        meta: dict[str, Any] = {"dl_meta": _stringify_binary_hash(chunk.export_json_dict())}
         doc_items = getattr(chunk.meta, "doc_items", [])
         page_nos = {prov.page_no for item in doc_items for prov in getattr(item, "prov", [])}
         if page_nos:
@@ -91,7 +110,10 @@ class MetaExtractor(BaseMetaExtractor):
 
     def extract_dl_doc_meta(self, dl_doc: DoclingDocument) -> dict[str, Any]:
         """Extract Docling document meta."""
-        return {"dl_meta": {"origin": dl_doc.origin.model_dump(exclude_none=True)}} if dl_doc.origin else {}
+        if not dl_doc.origin:
+            return {}
+        origin = _stringify_binary_hash(dl_doc.origin.model_dump(exclude_none=True))
+        return {"dl_meta": {"origin": origin}}
 
 
 @component
