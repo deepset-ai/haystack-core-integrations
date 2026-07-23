@@ -10,7 +10,6 @@ from dataclasses import replace
 from typing import Any, Literal
 
 import mariadb
-
 from haystack import default_from_dict, default_to_dict, logging
 from haystack.dataclasses import ByteStream, Document
 from haystack.document_stores.errors import DocumentStoreError, DuplicateDocumentError

@@ -2,9 +2,9 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-import mariadb
 from unittest.mock import MagicMock
 
+import mariadb
 import pytest
 from haystack.dataclasses import ByteStream, Document
 from haystack.document_stores.errors import DuplicateDocumentError
@@ -16,6 +16,7 @@ from haystack.testing.document_store import (
     FilterableDocsFixtureMixin,
     WriteDocumentsTest,
 )
+
 
 from haystack_integrations.document_stores.mariadb import MariaDBDocumentStore
 from haystack_integrations.document_stores.mariadb.document_store import (
@@ -312,7 +313,6 @@ class TestDocumentStore(
     CountDocumentsTest,
     DeleteDocumentsTest,
     FilterDocumentsTest,
-    FilterableDocsFixtureMixin,
     WriteDocumentsTest,
 ):
     def test_write_documents(self, document_store):
