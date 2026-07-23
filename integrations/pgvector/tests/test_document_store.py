@@ -103,6 +103,18 @@ class TestDocumentStore(
             document_store._ensure_db_setup()
         assert "Failed to connect to PostgreSQL database" in str(e)
 
+    def test_close_and_reopen(self, document_store: PgvectorDocumentStore):
+        assert document_store.count_documents() == 0
+        assert document_store._connection is not None
+
+        document_store.close()
+        assert document_store._connection is None
+        assert document_store._cursor is None
+        assert document_store._dict_cursor is None
+
+        assert document_store.count_documents() == 0
+        assert document_store._connection is not None
+
 
 @pytest.mark.usefixtures("patches_for_unit_tests")
 def test_init(monkeypatch):
@@ -351,6 +363,33 @@ def test_process_count_unique_metadata_result_returns_zero_dict_when_result_none
 def test_process_count_unique_metadata_result_uses_zero_for_missing_keys():
     counts = PgvectorDocumentStore._process_count_unique_metadata_result({"category": 5}, ["category", "language"])
     assert counts == {"category": 5, "language": 0}
+
+
+def test_close(mock_store):
+    mock_connection = Mock(spec=Connection)
+    mock_store._connection = mock_connection
+    mock_store._cursor = Mock(spec=Cursor)
+    mock_store._dict_cursor = Mock(spec=Cursor)
+
+    mock_store.close()
+
+    mock_connection.close.assert_called_once()
+    assert mock_store._connection is None
+    assert mock_store._cursor is None
+    assert mock_store._dict_cursor is None
+
+    mock_store.close()
+    mock_connection.close.assert_called_once()
+
+
+def test_close_is_exception_safe(mock_store):
+    mock_connection = Mock(spec=Connection)
+    mock_connection.close.side_effect = RuntimeError("boom")
+    mock_store._connection = mock_connection
+
+    mock_store.close()
+
+    assert mock_store._connection is None
 
 
 @pytest.mark.integration
