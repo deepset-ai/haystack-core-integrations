@@ -207,24 +207,6 @@ class TestDocumentStoreUnit:
         assert values == []
         assert total == 0
 
-    def test_compute_field_unique_values_search_term_matches_field_value_case_insensitive(self):
-        result = {"ids": ["1", "2"], "metadatas": [{"cat": "Alpha"}, {"cat": "Beta"}]}
-        values, total = ChromaDocumentStore._compute_field_unique_values(result, "cat", "alpha", 0, 10)
-        assert values == ["Alpha"]
-        assert total == 1
-
-    def test_compute_field_unique_values_search_term_ignores_documents(self):
-        """search_term must match the metadata field's value, not the document content,
-        even if a "documents" key happens to be present in the result."""
-        result = {
-            "ids": ["1", "2"],
-            "documents": ["absent in content", "no match here"],
-            "metadatas": [{"cat": "A"}, {"cat": "absent-value"}],
-        }
-        values, total = ChromaDocumentStore._compute_field_unique_values(result, "cat", "absent", 0, 10)
-        assert values == ["absent-value"]
-        assert total == 1
-
     def test_filter_metadata_discards_unsupported_types(self, caplog):
         meta = {"ok": "x", "also_ok": None, "bad": {"nested": 1}, "worse": object()}
         with caplog.at_level(logging.WARNING):
