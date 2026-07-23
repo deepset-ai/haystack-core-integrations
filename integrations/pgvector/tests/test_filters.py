@@ -183,6 +183,42 @@ def test_comparison_condition_unknown_operator():
         _parse_comparison_condition(condition)
 
 
+def test_comparison_condition_in_requires_list_value():
+    condition = {"field": "meta.author", "operator": "in", "value": "not-a-list"}
+    with pytest.raises(FilterError, match="'in' comparator in PgVector"):
+        _parse_comparison_condition(condition)
+
+
+def test_comparison_condition_not_in_requires_list_value():
+    condition = {"field": "meta.author", "operator": "not in", "value": "not-a-list"}
+    with pytest.raises(FilterError, match="'not in' comparator in PgVector"):
+        _parse_comparison_condition(condition)
+
+
+@pytest.mark.parametrize("operator", [">", ">=", "<", "<="])
+def test_comparison_condition_range_operator_rejects_non_iso_string(operator):
+    # pgvector-specific: strings are only comparable with range operators if ISO-formatted dates.
+    condition = {"field": "meta.date", "operator": operator, "value": "not-a-date"}
+    with pytest.raises(FilterError, match="Strings are only comparable if they are ISO formatted dates"):
+        _parse_comparison_condition(condition)
+
+
+@pytest.mark.parametrize("operator", [">", ">=", "<", "<="])
+def test_comparison_condition_range_operator_rejects_list_value(operator):
+    # pgvector-specific: list/Jsonb values are not valid operands for range operators.
+    condition = {"field": "meta.number", "operator": operator, "value": [1, 2, 3]}
+    with pytest.raises(FilterError, match="Filter value can't be of type"):
+        _parse_comparison_condition(condition)
+
+
+@pytest.mark.parametrize("operator", ["like", "not like"])
+def test_comparison_condition_like_operator_requires_str_value(operator):
+    # pgvector-specific: LIKE / NOT LIKE require a string operand.
+    condition = {"field": "meta.name", "operator": operator, "value": 123}
+    with pytest.raises(FilterError, match="must be a str when using 'LIKE'"):
+        _parse_comparison_condition(condition)
+
+
 def test_logical_condition_missing_operator():
     condition = {"conditions": []}
     with pytest.raises(FilterError):
