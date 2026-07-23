@@ -332,6 +332,20 @@ def test_get_metadata_field_unique_values_search_term_filters_on_field_value_not
 
 
 @patch("haystack_integrations.document_stores.opensearch.document_store.OpenSearch")
+def test_get_metadata_field_unique_values_search_term_is_lowercased_for_case_insensitivity(_mock_opensearch_client):
+    store = OpenSearchDocumentStore(hosts="testhost")
+    store._client = MagicMock()
+    store._client.search.return_value = {"aggregations": {"unique_values": {"buckets": []}}}
+
+    store.get_metadata_field_unique_values("category", "NeEdLe", 10)
+
+    body = store._client.search.call_args.kwargs["body"]
+    script = body["query"]["script"]["script"]
+    assert script["params"]["term"] == "needle"
+    assert "toLowerCase().contains(params.term)" in script["source"]
+
+
+@patch("haystack_integrations.document_stores.opensearch.document_store.OpenSearch")
 def test_get_metadata_field_unique_values_search_term_with_regex_metacharacters(_mock_opensearch_client):
     """search_term is matched as a literal substring (via a doc-value script), so regex metacharacters
     in the term must be passed through as-is, not treated as a regex pattern."""
@@ -1269,6 +1283,10 @@ class TestDocumentStore(
         # "Java" and "JavaScript" (substring match on the field's own value).
         unique_languages_filtered, _ = document_store.get_metadata_field_unique_values("meta.language", "Java", 10)
         assert set(unique_languages_filtered) == {"Java", "JavaScript"}
+
+        # Case-insensitivity: a lowercase search term must still match the differently-cased values above.
+        unique_languages_lower, _ = document_store.get_metadata_field_unique_values("meta.language", "java", 10)
+        assert set(unique_languages_lower) == {"Java", "JavaScript"}
 
         # Test with integer values
         int_docs = [
