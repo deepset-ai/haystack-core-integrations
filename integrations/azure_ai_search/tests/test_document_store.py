@@ -677,7 +677,7 @@ class TestDocumentStore(
 
     @pytest.mark.parametrize(
         "document_store",
-        [{"metadata_fields": {"category": str, "year": int}}],
+        [{"metadata_fields": {"category": str, "year": int, "status": str}}],
         indirect=True,
     )
     def test_count_unique_metadata_by_filter_with_multiple_filters(self, document_store: AzureAISearchDocumentStore):
