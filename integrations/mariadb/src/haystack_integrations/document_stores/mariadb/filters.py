@@ -44,8 +44,8 @@ def _parse_logical_condition(condition: dict[str, Any]) -> tuple[str, list[Any]]
         raise FilterError(msg)
 
     operator = condition["operator"]
-    if operator not in ("AND", "OR"):
-        msg = f"Unknown logical operator '{operator}'. Valid operators are: 'AND', 'OR'"
+    if operator not in ("AND", "OR", "NOT"):
+        msg = f"Unknown logical operator '{operator}'. Valid operators are: 'AND', 'OR', 'NOT'"
         raise FilterError(msg)
 
     parts, all_params = [], []
@@ -56,6 +56,10 @@ def _parse_logical_condition(condition: dict[str, Any]) -> tuple[str, list[Any]]
             clause, vals = _parse_logical_condition(c)
         parts.append(clause)
         all_params.extend(vals)
+
+    if operator == "NOT":
+        inner = parts[0] if len(parts) == 1 else "(" + " AND ".join(parts) + ")"
+        return f"NOT {inner}", all_params
 
     joined = f" {operator} ".join(parts)
     return f"({joined})", all_params
