@@ -1063,21 +1063,14 @@ class TestChatCompletionChunkConversion:
         assert result.meta["finish_reason"] == "tool_calls"
         assert result.meta["index"] == 0
         assert result.meta["completion_start_time"] is not None
-        assert result.meta["usage"] == {
-            "completion_tokens": 42,
-            "prompt_tokens": 55,
-            "total_tokens": 97,
-            "completion_tokens_details": {
-                "accepted_prediction_tokens": None,
-                "audio_tokens": None,
-                "reasoning_tokens": 0,
-                "rejected_prediction_tokens": None,
-            },
-            "prompt_tokens_details": {
-                "audio_tokens": None,
-                "cached_tokens": 0,
-            },
-        }
+        usage = result.meta["usage"]
+        assert usage["completion_tokens"] == 42
+        assert usage["prompt_tokens"] == 55
+        assert usage["total_tokens"] == 97
+        # `completion_tokens_details` / `prompt_tokens_details` gain extra keys across
+        # openai versions (e.g. `cache_write_tokens`), so only assert the stable subset.
+        assert usage["completion_tokens_details"]["reasoning_tokens"] == 0
+        assert usage["prompt_tokens_details"]["cached_tokens"] == 0
 
 
 class TestReasoningSupport:
