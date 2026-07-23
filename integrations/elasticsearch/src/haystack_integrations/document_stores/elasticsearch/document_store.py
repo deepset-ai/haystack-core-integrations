@@ -1937,7 +1937,7 @@ class ElasticsearchDocumentStore:
 
         :param metadata_field: The metadata field to get unique values for.
         :param search_term: Optional term to filter the returned values by, matching as a case-insensitive substring
-            of the metadata field's own value (not the document content).
+            of the metadata field's own value.
         :param size: The number of unique values to return per page. Defaults to 10.
         :param after: Optional pagination key from the previous response. Use None for the first page.
             For subsequent pages, pass the `after_key` from the previous response.
