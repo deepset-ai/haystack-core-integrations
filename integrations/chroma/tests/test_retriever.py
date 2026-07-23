@@ -106,6 +106,15 @@ class TestChromaQueryTextRetriever:
         assert retriever.top_k == 42
         assert retriever.filter_policy == FilterPolicy.REPLACE  # default even if not specified
 
+    def test_close(self):
+        ds = mock.Mock(spec=ChromaDocumentStore)
+        retriever = ChromaQueryTextRetriever(ds)
+
+        retriever.close()
+
+        ds.close.assert_called_once()
+        assert retriever.document_store is ds
+
     def test_run_delegates_to_document_store_search(self):
         ds = mock.Mock(spec=ChromaDocumentStore)
         expected = [Document(content="hit")]
@@ -214,6 +223,15 @@ class TestChromaEmbeddingRetriever:
         }
         retriever = ChromaEmbeddingRetriever.from_dict(data)
         assert retriever.filter_policy == FilterPolicy.REPLACE
+
+    def test_close(self):
+        ds = mock.Mock(spec=ChromaDocumentStore)
+        retriever = ChromaEmbeddingRetriever(ds)
+
+        retriever.close()
+
+        ds.close.assert_called_once()
+        assert retriever.document_store is ds
 
     def test_run_delegates_to_document_store_search_embeddings(self):
         ds = mock.Mock(spec=ChromaDocumentStore)
