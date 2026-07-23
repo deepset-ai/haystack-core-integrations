@@ -241,49 +241,6 @@ def test_count_unique_metadata_by_filter_rejects_empty_fields(mock_store):
         mock_store.count_unique_metadata_by_filter(filters={}, metadata_fields=[])
 
 
-def test_build_unique_values_queries_without_search_term(mock_store):
-    sql_count, sql_query, params = mock_store._build_unique_values_queries("category", None, 0, 10)
-
-    # no search term -> no additional WHERE clause and no params, and crucially no reference
-    # to content/full-text-search at all
-    count_repr = repr(sql_count)
-    query_repr = repr(sql_query)
-    assert "ILIKE" not in count_repr
-    assert "ILIKE" not in query_repr
-    assert "content" not in count_repr
-    assert "content" not in query_repr
-    assert "tsvector" not in count_repr
-    assert "tsvector" not in query_repr
-    assert params == ()
-
-
-def test_build_unique_values_queries_with_search_term_matches_field_value_not_content(mock_store):
-    sql_count, sql_query, params = mock_store._build_unique_values_queries("category", "python", 0, 10)
-
-    count_repr = repr(sql_count)
-    query_repr = repr(sql_query)
-
-    # search_term must be translated into a case-insensitive substring (ILIKE) match against the
-    # metadata field's own value (meta->>'category'), not a full-text search against `content`.
-    assert "ILIKE" in count_repr
-    assert "ILIKE" in query_repr
-    assert "content" not in count_repr
-    assert "content" not in query_repr
-    assert "tsvector" not in count_repr
-    assert "tsvector" not in query_repr
-    assert "plainto_tsquery" not in count_repr
-    assert "plainto_tsquery" not in query_repr
-
-    # the field name must still be passed as a safely-escaped SQL literal (consistent with the
-    # rest of the WHERE clause), never interpolated raw into the query string.
-    assert "Literal('category')" in query_repr
-
-    # the search term itself must be a bound parameter (%s), not interpolated into the SQL text,
-    # and must be wrapped for substring matching.
-    assert "ILIKE %s" in query_repr
-    assert params == ("%python%",)
-
-
 def test_check_and_build_embedding_retrieval_query_rejects_invalid_vector_function(mock_store):
     with pytest.raises(ValueError, match="vector_function must be one of"):
         mock_store._check_and_build_embedding_retrieval_query(
@@ -741,3 +698,35 @@ def test_get_metadata_field_unique_values(document_store: PgvectorDocumentStore)
     )
     assert set(unique_priorities_filtered) == {"1"}
     assert total_priorities_filtered == 1
+
+
+@pytest.mark.integration
+def test_get_metadata_field_unique_values_no_search_term(document_store: PgvectorDocumentStore):
+    docs = [
+        Document(content="mentions tsvector and content in the body", meta={"category": "A"}),
+        Document(content="another document", meta={"category": "B"}),
+    ]
+    document_store.write_documents(docs)
+
+    values, total = document_store.get_metadata_field_unique_values("meta.category")
+
+    assert set(values) == {"A", "B"}
+    assert total == 2
+
+
+@pytest.mark.integration
+def test_get_metadata_field_unique_values_search_term_matches_field_value_not_content(
+    document_store: PgvectorDocumentStore,
+):
+    docs = [
+        # "python" appears in the content but NOT in the category value -> must be EXCLUDED
+        Document(content="Python programming guide", meta={"category": "Backend"}),
+        # "python" appears in the category value but NOT in the content -> must be INCLUDED
+        Document(content="General purpose scripting language", meta={"category": "Python-based"}),
+    ]
+    document_store.write_documents(docs)
+
+    values, total = document_store.get_metadata_field_unique_values("meta.category", search_term="python")
+
+    assert values == ["Python-based"]
+    assert total == 1
