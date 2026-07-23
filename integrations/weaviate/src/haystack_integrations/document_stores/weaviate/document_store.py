@@ -632,12 +632,41 @@ class WeaviateDocumentStore:
 
         return result
 
+    @staticmethod
+    def _compute_field_unique_values(
+        agg_result: Any, search_term: str | None, from_: int, size: int
+    ) -> tuple[list[str], int]:
+        """
+        Computes paginated unique values from a Weaviate group-by aggregation result.
+
+        Weaviate's `like` filter only supports case-sensitive substring matching, so instead of
+        filtering server-side (which would be case-sensitive), all groups are fetched unconditionally
+        and `search_term` is applied here as a case-insensitive substring match in Python.
+
+        :param agg_result: The group-by aggregation result, with one group per unique field value.
+        :param search_term: Optional term to filter the values by, matched as a case-insensitive
+            substring against each value.
+        :param from_: The starting offset for pagination (0-indexed).
+        :param size: The maximum number of unique values to return.
+        :returns: A tuple of (paginated list of unique values, total count of unique values).
+        """
+        all_values = [str(g.grouped_by.value) for g in agg_result.groups] if agg_result.groups else []
+        if search_term:
+            search_term_lower = search_term.lower()
+            all_values = [value for value in all_values if search_term_lower in value.lower()]
+        all_values.sort()  # Sort for consistent pagination
+        total_count = len(all_values)
+
+        paginated_values = all_values[from_ : from_ + size]
+
+        return paginated_values, total_count
+
     def get_metadata_field_unique_values(
         self,
         metadata_field: str,
         search_term: str | None = None,
         from_: int = 0,
-        size: int = 10000,
+        size: int = 10,
     ) -> tuple[list[str], int]:
         """
         Returns unique values for a metadata field with pagination support.
@@ -647,9 +676,9 @@ class WeaviateDocumentStore:
         :param search_term: Optional term to filter the metadata field's values by
             before returning them. If provided, only values of `metadata_field` that
             contain this term will be considered.
-            Note: Uses substring matching (case-sensitive, no stemming).
+            Note: Uses case-insensitive substring matching (no stemming).
         :param from_: The starting offset for pagination (0-indexed). Defaults to 0.
-        :param size: The maximum number of unique values to return. Defaults to 10000.
+        :param size: The maximum number of unique values to return. Defaults to 10.
         :returns: A tuple of (list of unique values, total count of unique values).
         :raises ValueError: If the field is not found in the collection schema.
         """
@@ -661,33 +690,21 @@ class WeaviateDocumentStore:
             msg = f"Field '{field_name}' not found in collection schema"
             raise ValueError(msg)
 
-        weaviate_filter = None
-        if search_term:
-            weaviate_filter = convert_filters({"field": field_name, "operator": "contains", "value": search_term})
-
         # Weaviate's GroupByAggregate has a default limit of 100 groups.
         # We use the document count as the limit to ensure all unique values are retrieved,
         # since the number of unique values cannot exceed the number of documents.
         doc_count = self.collection.aggregate.over_all(total_count=True).total_count or 0
 
-        agg_result = self.collection.aggregate.over_all(
-            filters=weaviate_filter, group_by=GroupByAggregate(prop=field_name, limit=doc_count)
-        )
+        agg_result = self.collection.aggregate.over_all(group_by=GroupByAggregate(prop=field_name, limit=doc_count))
 
-        all_values = [str(g.grouped_by.value) for g in agg_result.groups] if agg_result.groups else []
-        all_values.sort()  # Sort for consistent pagination
-        total_count = len(all_values)
-
-        paginated_values = all_values[from_ : from_ + size]
-
-        return paginated_values, total_count
+        return self._compute_field_unique_values(agg_result, search_term, from_, size)
 
     async def get_metadata_field_unique_values_async(
         self,
         metadata_field: str,
         search_term: str | None = None,
         from_: int = 0,
-        size: int = 10000,
+        size: int = 10,
     ) -> tuple[list[str], int]:
         """
         Asynchronously returns unique values for a metadata field with pagination support.
@@ -697,9 +714,9 @@ class WeaviateDocumentStore:
         :param search_term: Optional term to filter the metadata field's values by
             before returning them. If provided, only values of `metadata_field` that
             contain this term will be considered.
-            Note: Uses substring matching (case-sensitive, no stemming).
+            Note: Uses case-insensitive substring matching (no stemming).
         :param from_: The starting offset for pagination (0-indexed). Defaults to 0.
-        :param size: The maximum number of unique values to return. Defaults to 10000.
+        :param size: The maximum number of unique values to return. Defaults to 10.
         :returns: A tuple of (list of unique values, total count of unique values).
         :raises ValueError: If the field is not found in the collection schema.
         """
@@ -712,27 +729,15 @@ class WeaviateDocumentStore:
             msg = f"Field '{field_name}' not found in collection schema"
             raise ValueError(msg)
 
-        weaviate_filter = None
-        if search_term:
-            weaviate_filter = convert_filters({"field": field_name, "operator": "contains", "value": search_term})
-
         # Weaviate's GroupByAggregate has a default limit of 100 groups.
         # We use the document count as the limit to ensure all unique values are retrieved,
         # since the number of unique values cannot exceed the number of documents.
         doc_count_result = await collection.aggregate.over_all(total_count=True)
         doc_count = doc_count_result.total_count or 0
 
-        agg_result = await collection.aggregate.over_all(
-            filters=weaviate_filter, group_by=GroupByAggregate(prop=field_name, limit=doc_count)
-        )
+        agg_result = await collection.aggregate.over_all(group_by=GroupByAggregate(prop=field_name, limit=doc_count))
 
-        all_values = [str(g.grouped_by.value) for g in agg_result.groups] if agg_result.groups else []
-        all_values.sort()  # Sort for consistent pagination
-        total_count = len(all_values)
-
-        paginated_values = all_values[from_ : from_ + size]
-
-        return paginated_values, total_count
+        return self._compute_field_unique_values(agg_result, search_term, from_, size)
 
     @staticmethod
     def _to_data_object(document: Document) -> dict[str, Any]:

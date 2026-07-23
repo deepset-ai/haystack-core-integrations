@@ -1194,6 +1194,17 @@ class TestWeaviateDocumentStore(
         assert total_count == 1
         assert values == ["Python Basics"]
 
+    def test_get_metadata_field_unique_values_search_term_case_insensitive(self, document_store):
+        docs = [
+            Document(content="n/a", meta={"category": "Python Basics"}),
+            Document(content="n/a", meta={"category": "Java Basics"}),
+        ]
+        document_store.write_documents(docs)
+
+        values, total_count = document_store.get_metadata_field_unique_values("category", search_term="PYTHON")
+        assert total_count == 1
+        assert values == ["Python Basics"]
+
     def test_get_metadata_field_unique_values_with_pagination(self, document_store):
         docs = [
             Document(content="Doc 1", meta={"category": "TypeA"}),
