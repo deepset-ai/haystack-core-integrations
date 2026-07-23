@@ -296,6 +296,30 @@ class TestArangoDocumentStoreVectorIndex:
         store._col.add_index.assert_not_called()
 
 
+class TestArangoDocumentStoreClose:
+    def test_close(self):
+        store = _make_store()
+        client = MagicMock()
+        store._client = client
+        store._db = MagicMock()
+        store._col = MagicMock()
+        store.close()
+        client.close.assert_called_once()
+        assert store._client is None
+        assert store._db is None
+        assert store._col is None
+        store.close()
+        client.close.assert_called_once()
+
+    def test_close_is_exception_safe(self):
+        store = _make_store()
+        client = MagicMock()
+        client.close.side_effect = RuntimeError("boom")
+        store._client = client
+        store.close()
+        assert store._client is None
+
+
 class TestArangoDocumentStoreEmbeddingRetrieval:
     def test_embedding_retrieval(self):
         store = _make_store()
@@ -376,6 +400,12 @@ class TestArangoDocumentStoreIntegration(DocumentStoreBaseTests):
     def test_write_documents(self, document_store):
         docs = [Document(content="doc1"), Document(content="doc2")]
         assert document_store.write_documents(docs) == 2
+
+    def test_close_and_reopen(self, document_store):
+        assert document_store.count_documents() == 0
+        document_store.close()
+        assert document_store._client is None
+        assert document_store.count_documents() == 0
 
     @pytest.fixture
     def document_store(self, request):
