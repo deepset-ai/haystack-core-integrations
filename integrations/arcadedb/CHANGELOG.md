@@ -1,5 +1,16 @@
 # Changelog
 
+## [integrations/arcadedb-v1.5.0] - 2026-07-23
+
+### 🚀 Features
+
+- Arcadedb - add closing methods (#3653)
+
+### 📚 Documentation
+
+- Replace old haystack core imports with haystack_integrations paths (#3545)
+
+
 ## [integrations/arcadedb-v1.4.1] - 2026-06-16
 
 ### 🐛 Bug Fixes

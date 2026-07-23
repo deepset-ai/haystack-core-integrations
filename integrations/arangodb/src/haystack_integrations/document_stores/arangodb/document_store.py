@@ -3,6 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import dataclasses
+from contextlib import suppress
 from typing import Any, Literal, cast
 
 from arango import ArangoClient
@@ -102,6 +103,7 @@ class ArangoDocumentStore:
         self.embedding_dimension = embedding_dimension
         self.recreate_collection = recreate_collection
         self.similarity_function = similarity_function
+        self._client: ArangoClient | None = None
         self._db: StandardDatabase | None = None
         self._col: StandardCollection | None = None
 
@@ -119,6 +121,7 @@ class ArangoDocumentStore:
             db.delete_collection(self.collection_name)
         if not db.has_collection(self.collection_name):
             db.create_collection(self.collection_name)
+        self._client = client
         self._db = db
         self._col = db.collection(self.collection_name)
 
@@ -348,3 +351,14 @@ class ArangoDocumentStore:
         """
         deserialize_secrets_inplace(data["init_parameters"], ["password", "username"])
         return default_from_dict(cls, data)
+
+    def close(self) -> None:
+        """
+        Release the associated synchronous resources.
+        """
+        if self._client is not None:
+            with suppress(Exception):
+                self._client.close()
+            self._client = None
+            self._db = None
+            self._col = None

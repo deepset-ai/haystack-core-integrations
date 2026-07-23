@@ -108,6 +108,13 @@ class TestArangoEmbeddingRetriever:
         with pytest.raises(ValueError, match="ArangoDocumentStore"):
             ArangoEmbeddingRetriever(document_store=MagicMock())
 
+    def test_close(self):
+        mock_store = MagicMock(spec=ArangoDocumentStore)
+        retriever = ArangoEmbeddingRetriever(document_store=mock_store)
+        retriever.close()
+        mock_store.close.assert_called_once()
+        assert retriever.document_store is mock_store
+
 
 @pytest.mark.integration
 class TestArangoEmbeddingRetrieverIntegration:

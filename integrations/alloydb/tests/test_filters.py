@@ -138,6 +138,33 @@ def test_comparison_condition_unknown_operator():
         _parse_comparison_condition(condition)
 
 
+@pytest.mark.parametrize("operator", ["like", "not like"])
+def test_comparison_condition_like_operator_requires_str_value(operator):
+    # AlloyDB-specific: LIKE / NOT LIKE require a string operand.
+    condition = {"field": "meta.name", "operator": operator, "value": 123}
+    with pytest.raises(FilterError, match="must be a str when using"):
+        _parse_comparison_condition(condition)
+
+
+def test_logical_condition_not_in_is_parenthesized_when_and_combined():
+    # `not in` renders an internal `OR` (`IS NULL OR != ALL`). Without surrounding
+    # parentheses that `OR` escapes an enclosing `AND` (AND binds tighter than OR in
+    # SQL), so an AND-combined `not in` would wrongly match documents.
+    condition = {
+        "operator": "AND",
+        "conditions": [
+            {"field": "meta.number", "operator": "==", "value": 5},
+            {"field": "meta.author", "operator": "not in", "value": ["John", "Jane"]},
+        ],
+    }
+    query, values = _parse_logical_condition(condition)
+    assert isinstance(query, Composed)
+
+    expected_sql = "((meta->>'number')::integer = %s AND (meta->>'author' IS NULL OR meta->>'author' != ALL(%s)))"
+    assert _render(query) == expected_sql
+    assert values == [5, [["John", "Jane"]]]
+
+
 def test_logical_condition_missing_operator():
     condition = {"conditions": []}
     with pytest.raises(FilterError):

@@ -3,6 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import re
+from contextlib import suppress
 from typing import Any, Literal
 
 from haystack import default_from_dict, default_to_dict, logging
@@ -110,12 +111,25 @@ class MongoDBAtlasDocumentStore:
         self._collection: Collection | None = None
         self._collection_async: AsyncCollection | None = None
 
-    def __del__(self) -> None:
+    def close(self) -> None:
         """
-        Destructor method to close MongoDB connections when the instance is destroyed.
+        Release the associated synchronous resources.
         """
-        if self._connection:
-            self._connection.close()
+        if self._connection is not None:
+            with suppress(Exception):
+                self._connection.close()
+            self._connection = None
+            self._collection = None
+
+    async def close_async(self) -> None:
+        """
+        Release the associated asynchronous resources.
+        """
+        if self._connection_async is not None:
+            with suppress(Exception):
+                await self._connection_async.close()
+            self._connection_async = None
+            self._collection_async = None
 
     @property
     def connection(self) -> AsyncMongoClient | MongoClient:
@@ -491,8 +505,12 @@ class MongoDBAtlasDocumentStore:
     def _create_unique_values_pipeline(
         self, metadata_field: str, search_term: str | None, from_: int, size: int
     ) -> list[dict[str, Any]]:
+        if metadata_field.startswith("meta."):
+            mongo_field = f"${metadata_field}"
+        else:
+            mongo_field = f"$meta.{metadata_field}"
         pipeline: list[dict[str, Any]] = [
-            {"$group": {"_id": f"$meta.{metadata_field}"}},
+            {"$group": {"_id": mongo_field}},
         ]
 
         if search_term:
