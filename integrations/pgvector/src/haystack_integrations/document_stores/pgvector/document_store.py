@@ -1958,7 +1958,7 @@ class PgvectorDocumentStore:
         return unique_values, total_count
 
     def get_metadata_field_unique_values(
-        self, metadata_field: str, search_term: str | None, from_: int, size: int
+        self, metadata_field: str, search_term: str | None = None, from_: int = 0, size: int = 10
     ) -> tuple[list[str], int]:
         """
         Returns unique values for a given metadata field, optionally filtered by a search term.
@@ -1996,7 +1996,7 @@ class PgvectorDocumentStore:
         return PgvectorDocumentStore._process_unique_values_result(count_result, records)
 
     async def get_metadata_field_unique_values_async(
-        self, metadata_field: str, search_term: str | None, from_: int, size: int
+        self, metadata_field: str, search_term: str | None = None, from_: int = 0, size: int = 10
     ) -> tuple[list[str], int]:
         """
         Asynchronously returns unique values for a given metadata field, optionally filtered by a search term.
