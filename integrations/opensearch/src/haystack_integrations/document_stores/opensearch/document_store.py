@@ -2062,8 +2062,10 @@ class OpenSearchDocumentStore:
         Uses composite aggregations for proper pagination beyond 10k results.
 
         :param metadata_field: The metadata field to get unique values for.
-        :param search_term: Optional case-insensitive substring to filter the returned values by. Only values
-            of `metadata_field` that contain `search_term` are returned.
+        :param search_term: Optional term to filter the returned values by, matching as a case-insensitive substring
+            of the metadata field's own value (not the document content). NOTE: The matching is done with a server-side
+            script to accomplish the substring matching on the value of the field and this operation is quite expensive
+            for a large corpus.
         :param size: The number of unique values to return per page. Defaults to 10000.
         :param after: Optional pagination key from the previous response. Use None for the first page.
             For subsequent pages, pass the `after_key` from the previous response.
@@ -2140,8 +2142,10 @@ class OpenSearchDocumentStore:
         Uses composite aggregations for proper pagination beyond 10k results.
 
         :param metadata_field: The metadata field to get unique values for.
-        :param search_term: Optional case-insensitive substring to filter the returned values by. Only values
-            of `metadata_field` that contain `search_term` are returned.
+        :param search_term: Optional term to filter the returned values by, matching as a case-insensitive substring
+            of the metadata field's own value (not the document content). NOTE: The matching is done with a server-side
+            script to accomplish the substring matching on the value of the field and this operation is quite expensive
+            for a large corpus.
         :param size: The number of unique values to return per page. Defaults to 10000.
         :param after: Optional pagination key from the previous response. Use None for the first page.
             For subsequent pages, pass the `after_key` from the previous response.
