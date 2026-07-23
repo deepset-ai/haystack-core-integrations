@@ -21,9 +21,9 @@ README for zero-install `uvx` invocation and client config).
 import os
 
 import anyio
-from mcp.server.fastmcp import Context, FastMCP
-
+from haystack.components.agents import Agent
 from haystack.dataclasses import ChatMessage
+from mcp.server.fastmcp import Context, FastMCP
 
 from haystack_integrations.agent_pack import create_deep_research_agent
 
@@ -33,19 +33,23 @@ mcp = FastMCP("agent-pack-deep-research")
 # reusing a single warm instance is the main advantage an MCP server has over the one-shot
 # script: the process stays up, so repeated queries in a session skip re-construction entirely.
 # Keyed by `max_subtopics` so a caller that overrides breadth gets its own cached instance.
-_agents: dict[int | None, object] = {}
+_agents: dict[int | None, Agent] = {}
 
 
-def _get_agent(max_subtopics: int | None):
+def _get_agent(max_subtopics: int | None) -> Agent:
     if max_subtopics not in _agents:
-        kwargs = {} if max_subtopics is None else {"max_subtopics": max_subtopics}
-        _agents[max_subtopics] = create_deep_research_agent(**kwargs)
+        _agents[max_subtopics] = (
+            create_deep_research_agent()
+            if max_subtopics is None
+            else create_deep_research_agent(max_subtopics=max_subtopics)
+        )
     return _agents[max_subtopics]
 
 
 @mcp.tool()
 async def deep_research(question: str, max_subtopics: int | None = None, ctx: Context | None = None) -> str:
-    """Research a question on the web and return a structured, cited markdown report.
+    """
+    Research a question on the web and return a structured, cited markdown report.
 
     The agent splits the question into sub-topics, delegates each to an isolated sub-researcher
     that searches the web and reads pages, then writes a report with inline `[text](url)`

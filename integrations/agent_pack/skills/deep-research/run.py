@@ -18,14 +18,16 @@ import argparse
 import logging
 import os
 import sys
+from typing import NoReturn
 
 
-def _fail(message: str) -> "NoReturn":  # type: ignore[name-defined]
+def _fail(message: str) -> NoReturn:
     print(f"error: {message}", file=sys.stderr)
     raise SystemExit(2)
 
 
 def main() -> None:
+    """Parse arguments, run the deep research agent, and write the report."""
     parser = argparse.ArgumentParser(
         prog="deep-research",
         description="Research a question on the web and write a cited markdown report.",

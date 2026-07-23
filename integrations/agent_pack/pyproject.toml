@@ -80,6 +80,8 @@ dependencies = [
     "trafilatura",
     "pypdf",
     "arrow",
+    # mcp server
+    "mcp>=1.2.0",
 ]
 
 [tool.hatch.envs.test.scripts]
@@ -165,6 +167,8 @@ ban-relative-imports = "parents"
 "tests/**/*" = ["PLR2004", "S101", "TID252", "D", "ANN"]
 # Examples are runnable scripts: they may print, and eval ground-truth literals are fine
 "examples/**/*" = ["T201", "PLR2004"]
+# Skills ship standalone CLI scripts: they may print, and defer heavy imports for fast --help
+"skills/**/*" = ["T201", "PLR2004", "PLC0415"]
 
 [tool.coverage.run]
 source = ["haystack_integrations"]
