@@ -44,7 +44,7 @@ def _uid(suffix: str = "") -> str:
 
 
 def _lob(value: str) -> MagicMock:
-    """Stand-in for an oracledb LOB — an object whose read() returns the stored value."""
+    """Mock for an oracledb Large Object (LOB)"""
     lob = MagicMock()
     lob.read.return_value = value
     return lob
