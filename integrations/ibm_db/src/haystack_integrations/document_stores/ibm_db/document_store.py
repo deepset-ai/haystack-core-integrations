@@ -152,7 +152,7 @@ class IBMDb2DocumentStore:
 
         :return: IBM Db2 connection object
         """
-        if self._connection is None:
+        if self._connection is None or not self._table_initialized:
             with self._connection_lock:
                 if self._connection is None:
                     # Build connection string
@@ -190,9 +190,9 @@ class IBMDb2DocumentStore:
 
                     self._connection = conn
 
-        if not self._table_initialized:
-            self._ensure_table_exists(recreate=self.recreate_table)
-            self._table_initialized = True
+                if not self._table_initialized:
+                    self._ensure_table_exists(recreate=self.recreate_table)
+                    self._table_initialized = True
 
         return self._connection
 
