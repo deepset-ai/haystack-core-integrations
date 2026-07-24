@@ -20,6 +20,7 @@ on:
       - "Test / cognee"
       - "Test / cohere"
       - "Test / cometapi"
+      - "Test / dakera"
       - "Test / datadog"
       - "Test / ddgs"
       - "Test / deepeval"
