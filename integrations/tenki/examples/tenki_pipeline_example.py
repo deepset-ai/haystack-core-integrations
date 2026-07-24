@@ -98,5 +98,5 @@ if __name__ == "__main__":
 
     run_agent(
         restored,
-        "Write a Python one-liner to /tmp/hello.py that prints 'Hello from Tenki!', run it, then show me the output.",
+        "Write a Python one-liner to hello.py that prints 'Hello from Tenki!', run it, then show me the output.",
     )

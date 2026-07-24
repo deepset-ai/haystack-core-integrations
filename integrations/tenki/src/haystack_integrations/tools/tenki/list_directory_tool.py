@@ -57,8 +57,9 @@ class ListDirectoryTool(Tool):
             name="list_directory",
             description=(
                 "List the files and subdirectories inside a directory in the Tenki sandbox "
-                "filesystem. Returns a newline-separated list of names with a trailing '/' "
-                "appended to subdirectory names."
+                "filesystem. Paths are relative to the session working directory; use '.' for "
+                "the workdir root (absolute paths outside the workdir are rejected). Returns a "
+                "newline-separated list of names with a trailing '/' appended to subdirectory names."
             ),
             parameters={
                 "type": "object",

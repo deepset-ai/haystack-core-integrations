@@ -47,8 +47,8 @@ class WriteFileTool(Tool):
             name="write_file",
             description=(
                 "Write text content to a file in the Tenki sandbox filesystem. "
-                "Parent directories are created automatically if they do not exist. "
-                "Existing files are overwritten."
+                "Paths are relative to the session working directory; absolute paths "
+                "outside the workdir (e.g. /tmp) are rejected. Existing files are overwritten."
             ),
             parameters={
                 "type": "object",

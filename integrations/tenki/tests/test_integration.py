@@ -57,28 +57,31 @@ class TestWriteAndReadFileToolIntegration:
         write_tool = WriteFileTool(sandbox=sandbox)
         read_tool = ReadFileTool(sandbox=sandbox)
 
-        write_result = write_tool.invoke(path="/tmp/test_haystack.txt", content="haystack tenki integration")
-        assert "/tmp/test_haystack.txt" in write_result
+        # Paths are relative to the sandbox session working directory. Tenki's fs
+        # API is confined to the workdir, so absolute paths like /tmp are rejected.
+        write_result = write_tool.invoke(path="test_haystack.txt", content="haystack tenki integration")
+        assert "test_haystack.txt" in write_result
 
-        read_result = read_tool.invoke(path="/tmp/test_haystack.txt")
+        read_result = read_tool.invoke(path="test_haystack.txt")
         assert read_result == "haystack tenki integration"
 
 
 @pytest.mark.integration
 class TestListDirectoryToolIntegration:
-    def test_list_tmp(self, sandbox):
+    def test_list_workdir(self, sandbox):
         tool = ListDirectoryTool(sandbox=sandbox)
-        result = tool.invoke(path="/tmp")
-        # /tmp always exists and is listable; result is a newline-separated string or "(empty directory)"
+        result = tool.invoke(path=".")
+        # The session workdir is always listable; result is a newline-separated string
+        # or "(empty directory)".
         assert isinstance(result, str)
 
     def test_lists_written_file(self, sandbox):
         write_tool = WriteFileTool(sandbox=sandbox)
         list_tool = ListDirectoryTool(sandbox=sandbox)
 
-        write_tool.invoke(path="/tmp/tenki_list_test/myfile.txt", content="data")
-        result = list_tool.invoke(path="/tmp/tenki_list_test")
-        assert "myfile.txt" in result
+        write_tool.invoke(path="list_probe.txt", content="data")
+        result = list_tool.invoke(path=".")
+        assert "list_probe.txt" in result
 
 
 @pytest.mark.integration
@@ -100,12 +103,13 @@ class TestTenkiToolsetIntegration:
         read_tool = next(t for t in ts if t.name == "read_file")
         bash_tool = next(t for t in ts if t.name == "run_bash_command")
 
-        # Write via write_file, read back via bash — proves shared sandbox
-        write_tool.invoke(path="/tmp/shared_test.txt", content="shared sandbox state")
-        bash_result = bash_tool.invoke(command="cat /tmp/shared_test.txt")
+        # Write via write_file, read back via bash — proves shared sandbox.
+        # Relative path: bash runs in the same session workdir the fs API is scoped to.
+        write_tool.invoke(path="shared_test.txt", content="shared sandbox state")
+        bash_result = bash_tool.invoke(command="cat shared_test.txt")
         assert "shared sandbox state" in bash_result
 
-        read_result = read_tool.invoke(path="/tmp/shared_test.txt")
+        read_result = read_tool.invoke(path="shared_test.txt")
         assert read_result == "shared sandbox state"
 
         ts.close()

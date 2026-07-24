@@ -37,20 +37,21 @@ from haystack_integrations.tools.tenki import (
 #   2. It executes the script via bash and captures stdout.
 #   3. It reads the output file back (or lists a directory) to verify results.
 # ---------------------------------------------------------------------------
+# File paths are relative to the sandbox session working directory — Tenki's fs
+# API is confined to the workdir, so the queries below use workdir-relative paths.
 EXAMPLE_QUERIES = [
     # Simple: purely bash-based data wrangling
     ("Generate the first 10 Fibonacci numbers using a bash one-liner and show me the results."),
     # Cross-tool: write -> execute -> read
     (
-        "Write a Python script to /tmp/primes.py that prints all prime numbers "
-        "up to 50, run it, and then read the file back so I can see both the "
-        "script and its output."
+        "Write a Python script primes.py that prints all prime numbers up to 50, "
+        "run it, and then read the file back so I can see both the script and its output."
     ),
     # Multi-step: write -> list -> bash
     (
-        "Create a directory /tmp/workspace, write three small text files into it "
-        "with different content, list the directory to confirm they exist, and "
-        "then use bash to count the total number of words across all three files."
+        "Write three small text files with different content in the working directory, "
+        "list the directory to confirm they exist, and then use bash to count the total "
+        "number of words across all three files."
     ),
 ]
 

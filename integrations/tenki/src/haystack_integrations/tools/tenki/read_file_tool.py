@@ -46,7 +46,8 @@ class ReadFileTool(Tool):
             name="read_file",
             description=(
                 "Read the text content of a file from the Tenki sandbox filesystem and return it "
-                "as a string. The file must exist; use list_directory to verify paths first."
+                "as a string. Paths are relative to the session working directory (absolute paths "
+                "outside the workdir are rejected). The file must exist; use list_directory to verify paths first."
             ),
             parameters={
                 "type": "object",
