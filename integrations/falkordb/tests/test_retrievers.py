@@ -102,6 +102,15 @@ class TestFalkorDBEmbeddingRetriever:
         with pytest.raises(KeyError):
             FalkorDBEmbeddingRetriever.from_dict(data)
 
+    def test_close(self):
+        store = MagicMock(spec=FalkorDBDocumentStore)
+        retriever = FalkorDBEmbeddingRetriever(document_store=store)
+
+        retriever.close()
+
+        store.close.assert_called_once()
+        assert retriever.document_store is store
+
 
 class TestFalkorDBCypherRetriever:
     def test_init_invalid_store(self):
@@ -164,6 +173,15 @@ class TestFalkorDBCypherRetriever:
         }
         with pytest.raises(KeyError):
             FalkorDBCypherRetriever.from_dict(data)
+
+    def test_close(self):
+        store = MagicMock(spec=FalkorDBDocumentStore)
+        retriever = FalkorDBCypherRetriever(document_store=store)
+
+        retriever.close()
+
+        store.close.assert_called_once()
+        assert retriever.document_store is store
 
 
 # ---------------------------------------------------------------------------
