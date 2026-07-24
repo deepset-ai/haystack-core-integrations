@@ -66,6 +66,25 @@ class DakeraMemoryWriter:
         logger.debug("DakeraMemoryWriter: stored {count} memories", count=count)
         return {"memories_written": count}
 
+    @component.output_types(memories_written=int)
+    async def run_async(
+        self,
+        messages: list[ChatMessage],
+        *,
+        agent_id: str | None = None,
+        session_id: str | None = None,
+        tags: list[str] | None = None,
+    ) -> dict[str, int]:
+        """Async version of :meth:`run`."""
+        count = await self.memory_store.store_memories_async(
+            messages,
+            agent_id=agent_id,
+            session_id=session_id,
+            tags=tags,
+        )
+        logger.debug("DakeraMemoryWriter: stored {count} memories", count=count)
+        return {"memories_written": count}
+
     def to_dict(self) -> dict[str, Any]:
         return default_to_dict(self, memory_store=self.memory_store.to_dict())
 

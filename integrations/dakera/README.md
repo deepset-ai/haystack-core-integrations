@@ -14,6 +14,10 @@ integrations that share one Dakera server:
   `DocumentStore` over Dakera's vector-namespace API, for embedding-based document retrieval (RAG)
   with metadata filtering. Embeddings are supplied by any Haystack embedder.
 
+Both integrations are fully sync **and** async: every component implements `run` and `run_async`,
+and the stores expose async counterparts (`store_memories_async`, `recall_memories_async`,
+`write_documents_async`, `filter_documents_async`, ...).
+
 ## Installation
 
 ```console

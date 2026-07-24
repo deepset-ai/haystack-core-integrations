@@ -36,9 +36,8 @@ source = "vcs"
 tag-pattern = 'integrations\/dakera-v(?P<version>.*)'
 
 [tool.hatch.version.raw-options]
-version_scheme = "no-guess-dev"
-local_scheme = "no-local-version"
-fallback_version = "0.0.1"
+root = "../.."
+git_describe_command = 'git describe --tags --match="integrations/dakera-v[0-9]*"'
 
 [tool.hatch.envs.default]
 installer = "uv"

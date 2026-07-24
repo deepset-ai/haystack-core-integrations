@@ -100,31 +100,62 @@ class DakeraMemoryStore:
         stored = 0
         with httpx.Client(timeout=self.timeout) as client:
             for message in messages:
-                content = message.text
-                if not content:
+                payload = self._build_store_payload(message, agent_id, session_id, tags, metadata)
+                if payload is None:
                     continue
-                merged_meta = {**(metadata or {}), **(message.meta or {})}
-                payload: dict[str, Any] = {
-                    "content": content,
-                    "agent_id": agent_id or self.default_agent_id,
-                }
-                if session_id:
-                    payload["session_id"] = session_id
-                if tags:
-                    payload["tags"] = tags
-                if merged_meta:
-                    payload["metadata"] = merged_meta
                 try:
-                    resp = client.post(
-                        f"{self.base_url}/v1/memory/store",
-                        headers=self._headers(),
-                        json=payload,
-                    )
+                    resp = client.post(f"{self.base_url}/v1/memory/store", headers=self._headers(), json=payload)
                     resp.raise_for_status()
                     stored += 1
                 except httpx.HTTPError as exc:
                     logger.warning("DakeraMemoryStore: failed to store memory: {error}", error=exc)
         return stored
+
+    async def store_memories_async(
+        self,
+        messages: list[ChatMessage],
+        *,
+        agent_id: str | None = None,
+        session_id: str | None = None,
+        tags: list[str] | None = None,
+        metadata: dict[str, Any] | None = None,
+    ) -> int:
+        """Async version of :meth:`store_memories`."""
+        stored = 0
+        async with httpx.AsyncClient(timeout=self.timeout) as client:
+            for message in messages:
+                payload = self._build_store_payload(message, agent_id, session_id, tags, metadata)
+                if payload is None:
+                    continue
+                try:
+                    resp = await client.post(f"{self.base_url}/v1/memory/store", headers=self._headers(), json=payload)
+                    resp.raise_for_status()
+                    stored += 1
+                except httpx.HTTPError as exc:
+                    logger.warning("DakeraMemoryStore: failed to store memory: {error}", error=exc)
+        return stored
+
+    def _build_store_payload(
+        self,
+        message: ChatMessage,
+        agent_id: str | None,
+        session_id: str | None,
+        tags: list[str] | None,
+        metadata: dict[str, Any] | None,
+    ) -> dict[str, Any] | None:
+        """Build the ``/v1/memory/store`` payload for a message, or ``None`` if it has no text."""
+        content = message.text
+        if not content:
+            return None
+        merged_meta = {**(metadata or {}), **(message.meta or {})}
+        payload: dict[str, Any] = {"content": content, "agent_id": agent_id or self.default_agent_id}
+        if session_id:
+            payload["session_id"] = session_id
+        if tags:
+            payload["tags"] = tags
+        if merged_meta:
+            payload["metadata"] = merged_meta
+        return payload
 
     def recall_memories(
         self,
@@ -152,28 +183,53 @@ class DakeraMemoryStore:
         Returns:
             A list of ``ChatMessage`` objects, most relevant first. Empty on error.
         """
-        payload: dict[str, Any] = {
-            "query": query,
-            "agent_id": agent_id or self.default_agent_id,
-            "top_k": top_k,
-        }
-        if session_id:
-            payload["session_id"] = session_id
-        if tags:
-            payload["tags"] = tags
+        payload = self._build_recall_payload(query, agent_id, session_id, tags, top_k)
         try:
             with httpx.Client(timeout=self.timeout) as client:
-                resp = client.post(
-                    f"{self.base_url}/v1/memory/recall",
-                    headers=self._headers(),
-                    json=payload,
-                )
+                resp = client.post(f"{self.base_url}/v1/memory/recall", headers=self._headers(), json=payload)
                 resp.raise_for_status()
                 data = resp.json()
         except httpx.HTTPError as exc:
             logger.warning("DakeraMemoryStore: recall failed: {error}", error=exc)
             return []
         return [self._to_chat_message(item) for item in data.get("memories", [])]
+
+    async def recall_memories_async(
+        self,
+        query: str,
+        *,
+        agent_id: str | None = None,
+        session_id: str | None = None,
+        tags: list[str] | None = None,
+        top_k: int = 5,
+    ) -> list[ChatMessage]:
+        """Async version of :meth:`recall_memories`."""
+        payload = self._build_recall_payload(query, agent_id, session_id, tags, top_k)
+        try:
+            async with httpx.AsyncClient(timeout=self.timeout) as client:
+                resp = await client.post(f"{self.base_url}/v1/memory/recall", headers=self._headers(), json=payload)
+                resp.raise_for_status()
+                data = resp.json()
+        except httpx.HTTPError as exc:
+            logger.warning("DakeraMemoryStore: recall failed: {error}", error=exc)
+            return []
+        return [self._to_chat_message(item) for item in data.get("memories", [])]
+
+    def _build_recall_payload(
+        self,
+        query: str,
+        agent_id: str | None,
+        session_id: str | None,
+        tags: list[str] | None,
+        top_k: int,
+    ) -> dict[str, Any]:
+        """Build the ``/v1/memory/recall`` request payload."""
+        payload: dict[str, Any] = {"query": query, "agent_id": agent_id or self.default_agent_id, "top_k": top_k}
+        if session_id:
+            payload["session_id"] = session_id
+        if tags:
+            payload["tags"] = tags
+        return payload
 
     @staticmethod
     def _to_chat_message(result: dict[str, Any]) -> ChatMessage:

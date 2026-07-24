@@ -74,6 +74,27 @@ class DakeraMemoryRetriever:
         logger.debug("DakeraMemoryRetriever: retrieved {count} memories", count=len(memories))
         return {"memories": memories}
 
+    @component.output_types(memories=list[ChatMessage])
+    async def run_async(
+        self,
+        query: str,
+        *,
+        agent_id: str | None = None,
+        session_id: str | None = None,
+        tags: list[str] | None = None,
+        top_k: int | None = None,
+    ) -> dict[str, list[ChatMessage]]:
+        """Async version of :meth:`run`."""
+        memories = await self.memory_store.recall_memories_async(
+            query,
+            agent_id=agent_id,
+            session_id=session_id,
+            tags=tags,
+            top_k=top_k if top_k is not None else self.top_k,
+        )
+        logger.debug("DakeraMemoryRetriever: retrieved {count} memories", count=len(memories))
+        return {"memories": memories}
+
     def to_dict(self) -> dict[str, Any]:
         return default_to_dict(self, memory_store=self.memory_store.to_dict(), top_k=self.top_k)
 
