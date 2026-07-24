@@ -54,7 +54,7 @@ class DakeraMemoryStore:
         default_agent_id: str = "haystack",
         timeout: float = 10.0,
     ) -> None:
-        self.base_url = (base_url or os.getenv("DAKERA_API_URL", "http://localhost:3300")).rstrip("/")
+        self.base_url = (base_url or os.getenv("DAKERA_API_URL") or "http://localhost:3300").rstrip("/")
         self.api_key = api_key or Secret.from_env_var("DAKERA_API_KEY", strict=False)
         self.default_agent_id = default_agent_id
         self.timeout = timeout
@@ -98,13 +98,17 @@ class DakeraMemoryStore:
                             "content": msg,
                             "agent_id": agent_id or self.default_agent_id,
                             **({"session_id": session_id} if session_id else {}),
-                            **({"metadata": {**(metadata or {}), **({"user_id": user_id} if user_id else {})}} if user_id or metadata else {}),
+                            **(
+                                {"metadata": {**(metadata or {}), **({"user_id": user_id} if user_id else {})}}
+                                if user_id or metadata
+                                else {}
+                            ),
                         },
                     )
                     resp.raise_for_status()
                     stored += 1
                 except httpx.HTTPError as exc:
-                    logger.warning("DakeraMemoryStore: failed to store memory: %s", exc)
+                    logger.warning("DakeraMemoryStore: failed to store memory: {error}", error=exc)
         return stored
 
     def search_memories(
@@ -144,7 +148,7 @@ class DakeraMemoryStore:
                 resp.raise_for_status()
                 return resp.json().get("results", [])
         except httpx.HTTPError as exc:
-            logger.warning("DakeraMemoryStore: search failed: %s", exc)
+            logger.warning("DakeraMemoryStore: search failed: {error}", error=exc)
             return []
 
     def to_dict(self) -> dict[str, Any]:
@@ -157,7 +161,7 @@ class DakeraMemoryStore:
         )
 
     @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "DakeraMemoryStore":
+    def from_dict(cls, data: dict[str, Any]) -> DakeraMemoryStore:
         if api_key := data.get("init_parameters", {}).get("api_key"):
             data["init_parameters"]["api_key"] = Secret.from_dict(api_key)
         return default_from_dict(cls, data)

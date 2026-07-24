@@ -89,6 +89,11 @@ integration:cometapi:
       - any-glob-to-any-file: "integrations/cometapi/**/*"
       - any-glob-to-any-file: ".github/workflows/cometapi.yml"
 
+integration:dakera:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/dakera/**/*"
+      - any-glob-to-any-file: ".github/workflows/dakera.yml"
+
 integration:datadog:
   - changed-files:
       - any-glob-to-any-file: "integrations/datadog/**/*"

@@ -4,9 +4,10 @@
 
 from __future__ import annotations
 
-from typing import Any, List, Optional
+from typing import Any
 
 from haystack import component, default_from_dict, default_to_dict, logging
+
 from haystack_integrations.memory_stores.dakera import DakeraMemoryStore
 
 logger = logging.getLogger(__name__)
@@ -38,11 +39,11 @@ class DakeraMemoryWriter:
     @component.output_types(memories_written=int)
     def run(
         self,
-        messages: List[str],
+        messages: list[str],
         *,
-        user_id: Optional[str] = None,
-        agent_id: Optional[str] = None,
-        session_id: Optional[str] = None,
+        user_id: str | None = None,
+        agent_id: str | None = None,
+        session_id: str | None = None,
     ) -> dict[str, Any]:
         """Store messages to Dakera.
 
@@ -61,15 +62,13 @@ class DakeraMemoryWriter:
             agent_id=agent_id,
             session_id=session_id,
         )
-        logger.debug("DakeraMemoryWriter: stored %d memories", count)
+        logger.debug("DakeraMemoryWriter: stored {count} memories", count=count)
         return {"memories_written": count}
 
     def to_dict(self) -> dict[str, Any]:
         return default_to_dict(self, memory_store=self.memory_store.to_dict())
 
     @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "DakeraMemoryWriter":
-        data["init_parameters"]["memory_store"] = DakeraMemoryStore.from_dict(
-            data["init_parameters"]["memory_store"]
-        )
+    def from_dict(cls, data: dict[str, Any]) -> DakeraMemoryWriter:
+        data["init_parameters"]["memory_store"] = DakeraMemoryStore.from_dict(data["init_parameters"]["memory_store"])
         return default_from_dict(cls, data)
