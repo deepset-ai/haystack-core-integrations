@@ -133,6 +133,15 @@ class TestIBMDb2EmbeddingRetrieverUnit:
         assert restored.filter_policy == FilterPolicy.REPLACE
         assert restored.document_store is mock_store
 
+    def test_close(self):
+        mock_store = Mock(spec=IBMDb2DocumentStore)
+        retriever = IBMDb2EmbeddingRetriever(document_store=mock_store)
+
+        retriever.close()
+
+        mock_store.close.assert_called_once()
+        assert retriever.document_store is mock_store
+
 
 class TestIBMDb2EmbeddingRetrieverRun:
     """Unit tests for run using a mocked document store (no database)."""

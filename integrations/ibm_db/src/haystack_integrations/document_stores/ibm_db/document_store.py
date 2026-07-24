@@ -7,12 +7,14 @@
 import json
 import logging
 import threading
+from collections.abc import Iterator
+from contextlib import contextmanager, suppress
 from typing import Any, Literal
 
 import ibm_db_dbi  # type: ignore[import-untyped]
 from haystack import default_from_dict, default_to_dict
 from haystack.dataclasses import Document
-from haystack.document_stores.errors import DuplicateDocumentError
+from haystack.document_stores.errors import DocumentStoreError, DuplicateDocumentError
 from haystack.document_stores.types import DuplicatePolicy
 from haystack.utils import Secret, deserialize_secrets_inplace
 
@@ -135,61 +137,95 @@ class IBMDb2DocumentStore:
         self.table_name = table_name
         self.embedding_dim = embedding_dim
         self.distance_metric = distance_metric
+        self.recreate_table = recreate_table
 
-        # Connection pool (lazy initialization)
         self._connection: ibm_db_dbi.Connection | None = None
         self._connection_lock = threading.Lock()
-
-        # Initialize table
-        self._ensure_table_exists(recreate=recreate_table)
+        self._table_initialized = False
 
     def _get_connection(self) -> ibm_db_dbi.Connection:
         """
-        Get or create a persistent database connection.
+        Get or create a persistent database connection and ensure the table exists.
 
         Thread-safe lazy initialization with SSL support.
 
         :return: IBM Db2 connection object
         """
-        if self._connection is None:
-            with self._connection_lock:
-                if self._connection is None:
-                    # Build connection string
-                    dsn = f"DATABASE={self.database};HOSTNAME={self.hostname};PORT={self.port};PROTOCOL={self.protocol}"
+        if self._connection is not None and self._table_initialized:
+            return self._connection
 
-                    # Add SSL configuration if enabled
-                    if self.use_ssl:
-                        dsn += ";SECURITY=SSL"
-                        if self.ssl_certificate:
-                            dsn += f";SSLServerCertificate={self.ssl_certificate}"
+        with self._connection_lock:
+            if self._connection is None:
+                # Build connection string
+                dsn = f"DATABASE={self.database};HOSTNAME={self.hostname};PORT={self.port};PROTOCOL={self.protocol}"
 
-                    # Set connection options (autocommit OFF by default)
-                    conn_options = {ibm_db_dbi.SQL_ATTR_AUTOCOMMIT: ibm_db_dbi.SQL_AUTOCOMMIT_OFF}
-                    if self.connection_options:
-                        conn_options.update(self.connection_options)
+                # Add SSL configuration if enabled
+                if self.use_ssl:
+                    dsn += ";SECURITY=SSL"
+                    if self.ssl_certificate:
+                        dsn += f";SSLServerCertificate={self.ssl_certificate}"
 
-                    # Create persistent connection
-                    conn = ibm_db_dbi.pconnect(
-                        dsn=dsn,
-                        user=self.username.resolve_value() or "",
-                        password=self.password.resolve_value() or "",
-                        conn_options=conn_options,
-                    )
+                # Set connection options (autocommit OFF by default)
+                conn_options = {ibm_db_dbi.SQL_ATTR_AUTOCOMMIT: ibm_db_dbi.SQL_AUTOCOMMIT_OFF}
+                if self.connection_options:
+                    conn_options.update(self.connection_options)
 
-                    # Set schema if specified
-                    if self.schema:
-                        with conn.cursor() as cur:
-                            try:
-                                cur.execute(f"SET SCHEMA {self.schema}")
-                                conn.commit()
-                            except Exception as e:
-                                conn.rollback()
-                                msg = f"Failed to set schema {self.schema}: {e}"
-                                raise RuntimeError(msg) from e
+                # Create persistent connection
+                conn = ibm_db_dbi.pconnect(
+                    dsn=dsn,
+                    user=self.username.resolve_value() or "",
+                    password=self.password.resolve_value() or "",
+                    conn_options=conn_options,
+                )
 
-                    self._connection = conn
+                # Set schema if specified
+                if self.schema:
+                    with conn.cursor() as cur:
+                        try:
+                            cur.execute(f"SET SCHEMA {self.schema}")
+                            conn.commit()
+                        except Exception as e:
+                            conn.rollback()
+                            msg = f"Failed to set schema {self.schema}: {e}"
+                            raise RuntimeError(msg) from e
+
+                self._connection = conn
+
+            if not self._table_initialized:
+                self._ensure_table_exists(recreate=self.recreate_table)
+                self._table_initialized = True
 
         return self._connection
+
+    def close(self) -> None:
+        """
+        Release the associated synchronous resources.
+        """
+        with self._connection_lock:
+            if self._connection is not None:
+                with suppress(Exception):
+                    self._connection.close()
+                self._connection = None
+
+    @contextmanager
+    def _transaction(self, error_msg: str) -> Iterator[Any]:
+        """
+        Yield a cursor for a unit of work, committing on success.
+
+        On any error the transaction is rolled back and the exception is re-raised
+        as a ``DocumentStoreError`` prefixed with ``error_msg``.
+
+        :param error_msg: Human-readable prefix for the wrapped error.
+        """
+        conn = self._get_connection()
+        with conn.cursor() as cur:
+            try:
+                yield cur
+                conn.commit()
+            except Exception as e:
+                conn.rollback()
+                msg = f"{error_msg}: {e}"
+                raise DocumentStoreError(msg) from e
 
     def _ensure_table_exists(self, recreate: bool = False) -> None:
         """
@@ -197,7 +233,8 @@ class IBMDb2DocumentStore:
 
         :param recreate: If True, drop and recreate the table
         """
-        conn = self._get_connection()
+        assert self._connection is not None  # noqa: S101
+        conn = self._connection
 
         with conn.cursor() as cur:
             if recreate:
@@ -279,16 +316,10 @@ class IBMDb2DocumentStore:
 
         :return: Number of documents
         """
-        conn = self._get_connection()
-
-        with conn.cursor() as cur:
-            try:
-                cur.execute(f"SELECT COUNT(*) FROM {self.table_name}")
-                result = cur.fetchone()
-                return result[0] if result else 0
-            except Exception as e:
-                msg = f"Failed to count documents: {e}"
-                raise RuntimeError(msg) from e
+        with self._transaction("Failed to count documents") as cur:
+            cur.execute(f"SELECT COUNT(*) FROM {self.table_name}")
+            result = cur.fetchone()
+            return result[0] if result else 0
 
     def count_documents_by_filter(self, filters: dict[str, Any] | None = None) -> int:
         """
@@ -300,18 +331,13 @@ class IBMDb2DocumentStore:
         if not filters:
             return self.count_documents()
 
-        conn = self._get_connection()
         where_clause, params = self._build_where_clause(filters)
 
-        with conn.cursor() as cur:
-            try:
-                query = f"SELECT COUNT(*) FROM {self.table_name} {where_clause}"
-                cur.execute(query, params)
-                result = cur.fetchone()
-                return result[0] if result else 0
-            except Exception as e:
-                msg = f"Failed to count documents by filter: {e}"
-                raise RuntimeError(msg) from e
+        with self._transaction("Failed to count documents by filter") as cur:
+            query = f"SELECT COUNT(*) FROM {self.table_name} {where_clause}"
+            cur.execute(query, params)
+            result = cur.fetchone()
+            return result[0] if result else 0
 
     def write_documents(
         self,
@@ -348,21 +374,20 @@ class IBMDb2DocumentStore:
                     msg = f"Invalid embedding for document '{doc.id}': {e}"
                     raise type(e)(msg) from e
 
-        conn = self._get_connection()
-
         if policy in (DuplicatePolicy.NONE, DuplicatePolicy.FAIL):
-            return self._insert_documents(conn, documents)
+            return self._insert_documents(documents)
         elif policy == DuplicatePolicy.SKIP:
-            return self._skip_duplicate_documents(conn, documents)
+            return self._skip_duplicate_documents(documents)
         elif policy == DuplicatePolicy.OVERWRITE:
-            return self._upsert_documents(conn, documents)
+            return self._upsert_documents(documents)
         else:
             msg = f"Unsupported duplicate policy: {policy}"
             raise ValueError(msg)
 
-    def _insert_documents(self, conn: ibm_db_dbi.Connection, documents: list[Document]) -> int:
+    def _insert_documents(self, documents: list[Document]) -> int:
         """Insert documents and fail on duplicates via database integrity errors."""
         rows = [self._to_row(doc) for doc in documents]
+        conn = self._get_connection()
         with conn.cursor() as cur:
             sql = (
                 f"INSERT INTO {self.table_name} (id, content, meta, embedding) "
@@ -389,7 +414,7 @@ class IBMDb2DocumentStore:
                 raise
         return len(documents)
 
-    def _skip_duplicate_documents(self, conn: ibm_db_dbi.Connection, documents: list[Document]) -> int:
+    def _skip_duplicate_documents(self, documents: list[Document]) -> int:
         rows = [self._to_row(doc) for doc in documents]
         inserted_count = 0
         merge_sql = (
@@ -402,20 +427,14 @@ class IBMDb2DocumentStore:
             "INSERT (id, content, meta, embedding) "
             "VALUES (s.id, s.content, s.meta, s.embedding)"
         )
-        with conn.cursor() as cur:
-            try:
-                for row in rows:
-                    cur.execute(merge_sql, row)
-                    if cur.rowcount > 0:
-                        inserted_count += 1
-                conn.commit()
-            except Exception as e:
-                conn.rollback()
-                msg = f"Failed to skip duplicate documents: {e}"
-                raise RuntimeError(msg) from e
+        with self._transaction("Failed to skip duplicate documents") as cur:
+            for row in rows:
+                cur.execute(merge_sql, row)
+                if cur.rowcount > 0:
+                    inserted_count += 1
         return inserted_count
 
-    def _upsert_documents(self, conn: ibm_db_dbi.Connection, documents: list[Document]) -> int:
+    def _upsert_documents(self, documents: list[Document]) -> int:
         rows = [self._to_row(doc) for doc in documents]
         merge_sql = (
             f"MERGE INTO {self.table_name} AS t "
@@ -429,15 +448,9 @@ class IBMDb2DocumentStore:
             "INSERT (id, content, meta, embedding) "
             "VALUES (s.id, s.content, s.meta, s.embedding)"
         )
-        with conn.cursor() as cur:
-            try:
-                for row in rows:
-                    cur.execute(merge_sql, row)
-                conn.commit()
-            except Exception as e:
-                conn.rollback()
-                msg = f"Failed to upsert documents: {e}"
-                raise RuntimeError(msg) from e
+        with self._transaction("Failed to upsert documents") as cur:
+            for row in rows:
+                cur.execute(merge_sql, row)
         return len(documents)
 
     def filter_documents(self, filters: dict[str, Any] | None = None) -> list[Document]:
@@ -447,7 +460,6 @@ class IBMDb2DocumentStore:
         :param filters: Optional filter dictionary to constrain the returned documents.
         :return: List of matching documents.
         """
-        conn = self._get_connection()
         sql = f"SELECT id, content, SYSTOOLS.BSON2JSON(meta) AS meta, embedding FROM {self.table_name}"
         params: list[Any] = []
         if filters:
@@ -455,13 +467,9 @@ class IBMDb2DocumentStore:
             sql = f"{sql} {where_clause}"
         # Add ORDER BY to ensure consistent ordering for test reproducibility
         sql = f"{sql} ORDER BY id"
-        with conn.cursor() as cur:
-            try:
-                cur.execute(sql, params)
-                rows = cur.fetchall()
-            except Exception as e:
-                msg = f"Failed to filter documents: {e}"
-                raise RuntimeError(msg) from e
+        with self._transaction("Failed to filter documents") as cur:
+            cur.execute(sql, params)
+            rows = cur.fetchall()
         return [_row_to_document(row) for row in rows]
 
     def _build_where_clause(self, filters: dict[str, Any]) -> tuple[str, list[Any]]:
@@ -488,18 +496,10 @@ class IBMDb2DocumentStore:
         if not document_ids:
             return
 
-        conn = self._get_connection()
-
-        with conn.cursor() as cur:
-            try:
-                placeholders = ", ".join("?" for _ in document_ids)
-                sql = f"DELETE FROM {self.table_name} WHERE id IN ({placeholders})"
-                cur.execute(sql, document_ids)
-                conn.commit()
-            except Exception as e:
-                conn.rollback()
-                msg = f"Failed to delete documents: {e}"
-                raise RuntimeError(msg) from e
+        placeholders = ", ".join("?" for _ in document_ids)
+        sql = f"DELETE FROM {self.table_name} WHERE id IN ({placeholders})"
+        with self._transaction("Failed to delete documents") as cur:
+            cur.execute(sql, document_ids)
 
     def delete_by_filter(self, filters: dict[str, Any] | None = None) -> int:
         """
@@ -511,20 +511,11 @@ class IBMDb2DocumentStore:
         if not filters:
             return 0
 
-        conn = self._get_connection()
         where_clause, params = self._build_where_clause(filters)
 
-        with conn.cursor() as cur:
-            try:
-                sql = f"DELETE FROM {self.table_name} {where_clause}"
-                cur.execute(sql, params)
-                deleted_count = cur.rowcount
-                conn.commit()
-                return deleted_count
-            except Exception as e:
-                conn.rollback()
-                msg = f"Failed to delete documents by filter: {e}"
-                raise RuntimeError(msg) from e
+        with self._transaction("Failed to delete documents by filter") as cur:
+            cur.execute(f"DELETE FROM {self.table_name} {where_clause}", params)
+            return cur.rowcount
 
     def delete_all_documents(self, recreate_index: bool = False) -> int:
         """
@@ -533,29 +524,19 @@ class IBMDb2DocumentStore:
         :param recreate_index: If True, recreate the table after deletion
         :return: Number of documents deleted
         """
-        conn = self._get_connection()
+        with self._transaction("Failed to delete all documents") as cur:
+            # Count documents before deletion
+            cur.execute(f"SELECT COUNT(*) FROM {self.table_name}")
+            deleted_count = cur.fetchone()[0]
 
-        with conn.cursor() as cur:
-            try:
-                # Count documents before deletion
-                count_sql = f"SELECT COUNT(*) FROM {self.table_name}"
-                cur.execute(count_sql)
-                deleted_count = cur.fetchone()[0]
+            if recreate_index:
+                # Drop and recreate the table
+                self._ensure_table_exists(recreate=True)
+            else:
+                # Just delete all rows
+                cur.execute(f"DELETE FROM {self.table_name}")
 
-                if recreate_index:
-                    # Drop and recreate the table
-                    self._ensure_table_exists(recreate=True)
-                else:
-                    # Just delete all rows
-                    delete_sql = f"DELETE FROM {self.table_name}"
-                    cur.execute(delete_sql)
-                    conn.commit()
-
-                return deleted_count
-            except Exception as e:
-                conn.rollback()
-                msg = f"Failed to delete all documents: {e}"
-                raise RuntimeError(msg) from e
+            return deleted_count
 
     def update_by_filter(self, filters: dict[str, Any] | None = None, meta: dict[str, Any] | None = None) -> int:
         """
@@ -572,38 +553,31 @@ class IBMDb2DocumentStore:
         if not filters:
             return 0
 
-        conn = self._get_connection()
         where_clause, params = self._build_where_clause(filters)
 
-        with conn.cursor() as cur:
-            try:
-                # Db2 doesn't have a simple JSON merge operator like PostgreSQL's ||
-                # We need to read, merge, and update
-                # First, get the documents that match the filter
-                select_sql = f"SELECT id, SYSTOOLS.BSON2JSON(meta) AS meta FROM {self.table_name} {where_clause}"
-                cur.execute(select_sql, params)
-                rows = cur.fetchall()
+        with self._transaction("Failed to update documents by filter") as cur:
+            # Db2 doesn't have a simple JSON merge operator like PostgreSQL's ||
+            # We need to read, merge, and update
+            # First, get the documents that match the filter
+            select_sql = f"SELECT id, SYSTOOLS.BSON2JSON(meta) AS meta FROM {self.table_name} {where_clause}"
+            cur.execute(select_sql, params)
+            rows = cur.fetchall()
 
-                updated_count = 0
-                # Update each document
-                for row in rows:
-                    doc_id, meta_json = row
-                    existing_meta = json.loads(meta_json) if meta_json else {}
-                    # Merge the metadata
-                    existing_meta.update(meta)
-                    merged_meta_json = json.dumps(existing_meta)
+            updated_count = 0
+            # Update each document
+            for row in rows:
+                doc_id, meta_json = row
+                existing_meta = json.loads(meta_json) if meta_json else {}
+                # Merge the metadata
+                existing_meta.update(meta)
+                merged_meta_json = json.dumps(existing_meta)
 
-                    # Update the document
-                    update_sql = f"UPDATE {self.table_name} SET meta = SYSTOOLS.JSON2BSON(?) WHERE id = ?"
-                    cur.execute(update_sql, (merged_meta_json, doc_id))
-                    updated_count += 1
+                # Update the document
+                update_sql = f"UPDATE {self.table_name} SET meta = SYSTOOLS.JSON2BSON(?) WHERE id = ?"
+                cur.execute(update_sql, (merged_meta_json, doc_id))
+                updated_count += 1
 
-                conn.commit()
-                return updated_count
-            except Exception as e:
-                conn.rollback()
-                msg = f"Failed to update documents by filter: {e}"
-                raise RuntimeError(msg) from e
+            return updated_count
 
     def get_metadata_field_unique_values(self, field: str) -> list[Any]:
         """
@@ -615,24 +589,18 @@ class IBMDb2DocumentStore:
         # Strip 'meta.' prefix if present
         field_name = field.removeprefix("meta.")
 
-        conn = self._get_connection()
-
         # Extract values from the JSON metadata field
         # Db2 has issues with DISTINCT/GROUP BY on JSON_VALUE results (SQL0134N error)
         # So we fetch all values and deduplicate in Python
         # Use RETURNING VARCHAR to explicitly specify the return type
-        with conn.cursor() as cur:
-            try:
-                sql = (
-                    f"SELECT JSON_VALUE(SYSTOOLS.BSON2JSON(meta), '$.{field_name}' RETURNING VARCHAR(1000)) "
-                    f"FROM {self.table_name} "
-                    f"WHERE JSON_VALUE(SYSTOOLS.BSON2JSON(meta), '$.{field_name}' RETURNING VARCHAR(1000)) IS NOT NULL"
-                )
-                cur.execute(sql)
-                rows = cur.fetchall()
-            except Exception as e:
-                msg = f"Failed to get unique values for field '{field}': {e}"
-                raise RuntimeError(msg) from e
+        sql = (
+            f"SELECT JSON_VALUE(SYSTOOLS.BSON2JSON(meta), '$.{field_name}' RETURNING VARCHAR(1000)) "
+            f"FROM {self.table_name} "
+            f"WHERE JSON_VALUE(SYSTOOLS.BSON2JSON(meta), '$.{field_name}' RETURNING VARCHAR(1000)) IS NOT NULL"
+        )
+        with self._transaction(f"Failed to get unique values for field '{field}'") as cur:
+            cur.execute(sql)
+            rows = cur.fetchall()
 
         # Parse and deduplicate the values
         seen = set()
@@ -699,7 +667,7 @@ class IBMDb2DocumentStore:
                         return {"min": row[0], "max": row[1]}
                 except Exception as e:
                     msg = f"Failed to get min/max for field '{field}': {e}"
-                    raise RuntimeError(msg) from e
+                    raise DocumentStoreError(msg) from e
 
         return {"min": None, "max": None}
 
@@ -709,17 +677,11 @@ class IBMDb2DocumentStore:
 
         :return: Dictionary mapping field names to their type information
         """
-        conn = self._get_connection()
-
-        with conn.cursor() as cur:
-            try:
-                # Get all metadata from documents
-                sql = f"SELECT SYSTOOLS.BSON2JSON(meta) AS meta FROM {self.table_name} WHERE meta IS NOT NULL"
-                cur.execute(sql)
-                rows = cur.fetchall()
-            except Exception as e:
-                msg = f"Failed to get metadata fields info: {e}"
-                raise RuntimeError(msg) from e
+        # Get all metadata from documents
+        sql = f"SELECT SYSTOOLS.BSON2JSON(meta) AS meta FROM {self.table_name} WHERE meta IS NOT NULL"
+        with self._transaction("Failed to get metadata fields info") as cur:
+            cur.execute(sql)
+            rows = cur.fetchall()
 
         # Analyze the metadata to infer field types
         fields_info: dict[str, dict[str, Any]] = {}
@@ -759,7 +721,6 @@ class IBMDb2DocumentStore:
         if not metadata_fields:
             return {}
 
-        conn = self._get_connection()
         where_clause, params = self._build_where_clause(filters) if filters else ("", [])
 
         result = {}
@@ -769,23 +730,19 @@ class IBMDb2DocumentStore:
 
             # Count distinct values for this field
             # We need to fetch all values and deduplicate in Python due to Db2's JSON handling
-            with conn.cursor() as cur:
-                try:
-                    sql = (
-                        f"SELECT JSON_VALUE(SYSTOOLS.BSON2JSON(meta), '$.{field_name}' RETURNING VARCHAR(1000)) "
-                        f"FROM {self.table_name} "
-                    )
-                    if where_clause:
-                        sql += where_clause + " AND "
-                    else:
-                        sql += "WHERE "
-                    sql += f"JSON_VALUE(SYSTOOLS.BSON2JSON(meta), '$.{field_name}' RETURNING VARCHAR(1000)) IS NOT NULL"
+            sql = (
+                f"SELECT JSON_VALUE(SYSTOOLS.BSON2JSON(meta), '$.{field_name}' RETURNING VARCHAR(1000)) "
+                f"FROM {self.table_name} "
+            )
+            if where_clause:
+                sql += where_clause + " AND "
+            else:
+                sql += "WHERE "
+            sql += f"JSON_VALUE(SYSTOOLS.BSON2JSON(meta), '$.{field_name}' RETURNING VARCHAR(1000)) IS NOT NULL"
 
-                    cur.execute(sql, params)
-                    rows = cur.fetchall()
-                except Exception as e:
-                    msg = f"Failed to count unique metadata for field '{field}': {e}"
-                    raise RuntimeError(msg) from e
+            with self._transaction(f"Failed to count unique metadata for field '{field}'") as cur:
+                cur.execute(sql, params)
+                rows = cur.fetchall()
 
             # Deduplicate values
             unique_values = set()
@@ -845,6 +802,7 @@ class IBMDb2DocumentStore:
             table_name=self.table_name,
             embedding_dim=self.embedding_dim,
             distance_metric=self.distance_metric,
+            recreate_table=self.recreate_table,
         )
 
     @classmethod
