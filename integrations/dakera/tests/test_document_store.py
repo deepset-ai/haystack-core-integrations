@@ -141,8 +141,8 @@ def test_write_documents_upserts_vectors(mock_client):
     first_batch = mock_client.return_value.upsert.call_args_list[0].kwargs["vectors"]
     assert first_batch[0].id == "a"
     assert first_batch[0].values == [0.1, 0.2, 0.3]
-    # Content is stored as metadata alongside the document meta.
-    assert first_batch[0].metadata == {"category": "x", "content": "alpha"}
+    # Content is stored under a reserved key alongside the document meta.
+    assert first_batch[0].metadata == {"category": "x", "_dakera_content": "alpha"}
 
 
 @patch(CLIENT_PATH)
@@ -183,15 +183,31 @@ def test_convert_documents_to_vectors_handles_missing_embedding_and_blob():
     vectors = store._convert_documents_to_vectors([doc])
     # A missing embedding falls back to the dummy vector; blob is ignored but content kept.
     assert vectors[0].values == store._dummy_vector
-    assert vectors[0].metadata == {"content": "alpha"}
+    assert vectors[0].metadata == {"_dakera_content": "alpha"}
+
+
+def test_user_metadata_named_content_is_not_clobbered():
+    # A user's own `content` metadata field must survive the round trip: the Document's
+    # content is stored under the reserved `_dakera_content` key, not `content`.
+    store = DakeraDocumentStore(api_key=Secret.from_token("dk-fake"), dimension=3)
+    doc = Document(id="a", content="real content", meta={"content": "user value"})
+    vectors = store._convert_documents_to_vectors([doc])
+    assert vectors[0].metadata == {"content": "user value", "_dakera_content": "real content"}
+
+    result = SimpleNamespace(
+        results=[SimpleNamespace(id="a", score=0.5, values=[0.1, 0.2, 0.3], metadata=vectors[0].metadata)]
+    )
+    docs = store._convert_query_result_to_documents(result)
+    assert docs[0].content == "real content"
+    assert docs[0].meta == {"content": "user value"}
 
 
 def test_convert_query_result_drops_dummy_embedding():
     store = DakeraDocumentStore(api_key=Secret.from_token("dk-fake"), dimension=3)
     result = SimpleNamespace(
         results=[
-            SimpleNamespace(id="a", score=0.9, values=store._dummy_vector, metadata={"content": "alpha"}),
-            SimpleNamespace(id="b", score=0.8, values=[0.1, 0.2, 0.3], metadata={"content": "beta", "k": "v"}),
+            SimpleNamespace(id="a", score=0.9, values=store._dummy_vector, metadata={"_dakera_content": "alpha"}),
+            SimpleNamespace(id="b", score=0.8, values=[0.1, 0.2, 0.3], metadata={"_dakera_content": "beta", "k": "v"}),
         ]
     )
     docs = store._convert_query_result_to_documents(result)

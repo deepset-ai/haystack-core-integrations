@@ -25,6 +25,11 @@ TOP_K_LIMIT = 1_000
 # ``list[str]`` is supported and checked separately.
 METADATA_SUPPORTED_TYPES = str, int, bool, float
 
+# Reserved metadata key under which a Document's ``content`` is stored inside the Dakera
+# vector's metadata. The ``_dakera_`` prefix avoids clobbering a user's own metadata
+# (e.g. a ``content`` field) on write, or dropping it on read.
+CONTENT_METADATA_KEY = "_dakera_content"
+
 # Distance metric aliases accepted in the constructor, mapped to the SDK enum.
 _METRIC_MAP: dict[str, DistanceMetric] = {
     "cosine": DistanceMetric.COSINE,
@@ -371,7 +376,7 @@ class DakeraDocumentStore:
         documents = []
         for match in result.results:
             metadata = dict(match.metadata or {})
-            content = metadata.pop("content", None)
+            content = metadata.pop(CONTENT_METADATA_KEY, None)
 
             # We always store a vector when writing, but we don't want to surface the dummy
             # placeholder used for documents that had no embedding.
@@ -445,7 +450,7 @@ class DakeraDocumentStore:
 
             metadata = dict(self._discard_invalid_meta(document).meta or {})
             if document.content is not None:
-                metadata["content"] = document.content
+                metadata[CONTENT_METADATA_KEY] = document.content
             if document.blob is not None:
                 logger.warning(
                     "Document {id} has a `blob` field, but storing ByteStream objects in Dakera is not "
