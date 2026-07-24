@@ -1,95 +1,144 @@
 # dakera-haystack
 
-[Haystack](https://haystack.deepset.ai/) integration for [Dakera](https://dakera.ai) — self-hosted, decay-weighted vector memory for AI pipelines.
+[![PyPI - Version](https://img.shields.io/pypi/v/dakera-haystack.svg)](https://pypi.org/project/dakera-haystack)
+[![PyPI - Python Version](https://img.shields.io/pypi/pyversions/dakera-haystack.svg)](https://pypi.org/project/dakera-haystack)
 
-## What is Dakera?
+[Haystack](https://haystack.deepset.ai/) integration for [Dakera](https://dakera.ai), a self-hosted
+memory server with persistent, decay-weighted vector recall. This package exposes two complementary
+integrations that share one Dakera server:
 
-Dakera is a persistent memory server you run on your own infrastructure. It scores memories by recency and access frequency so the most relevant context always surfaces first. Unlike stateless RAG pipelines, agents using Dakera remember what happened across sessions without any external cloud dependency.
+- **Memory** — `DakeraMemoryStore`, `DakeraMemoryRetriever`, `DakeraMemoryWriter`: conversational,
+  decay-weighted memory over Dakera's memory API. Works with `ChatMessage` objects; the server
+  handles embedding and importance scoring.
+- **Document store** — `DakeraDocumentStore`, `DakeraEmbeddingRetriever`: a standard Haystack
+  `DocumentStore` over Dakera's vector-namespace API, for embedding-based document retrieval (RAG)
+  with metadata filtering. Embeddings are supplied by any Haystack embedder.
 
 ## Installation
 
-```bash
+```console
 pip install dakera-haystack
 ```
 
-## Prerequisites
+## Running Dakera
 
-Run a Dakera server (see [dakera-deploy](https://github.com/dakera-ai/dakera-deploy) for Docker Compose / Kubernetes / Helm). The REST API listens on port **3000** by default:
+Dakera is self-hosted. The canonical way to run it is the
+[`dakera-deploy`](https://github.com/dakera-ai/dakera-deploy) docker-compose stack, which starts the
+Dakera server (default REST port `3000`) together with the MinIO object store it depends on:
 
-```bash
-docker run -d -p 3000:3000 -e DAKERA_ROOT_API_KEY=demo ghcr.io/dakera-ai/dakera:latest
-export DAKERA_API_KEY=demo   # the key the Haystack client sends as X-API-Key
+```console
+git clone https://github.com/dakera-ai/dakera-deploy
+cd dakera-deploy
+docker compose up -d
 ```
 
-`DAKERA_ROOT_API_KEY` is the server's bootstrap key; the Haystack client authenticates with the same value via the `X-API-Key` header.
+The Haystack client authenticates with the `DAKERA_API_KEY` environment variable.
 
-## Usage
+## Memory usage
 
-The writer stores `ChatMessage` objects and the retriever returns recalled memories as `ChatMessage` objects, so both connect directly to Haystack chat components.
+Store conversation turns and recall decay-weighted context as `ChatMessage` objects:
 
 ```python
-from haystack import Pipeline
 from haystack.dataclasses import ChatMessage
 from haystack.utils import Secret
 from haystack_integrations.memory_stores.dakera import DakeraMemoryStore
 from haystack_integrations.components.retrievers.dakera import DakeraMemoryRetriever
 from haystack_integrations.components.writers.dakera import DakeraMemoryWriter
 
-store = DakeraMemoryStore(
-    base_url="http://localhost:3000",
-    api_key=Secret.from_env_var("DAKERA_API_KEY"),
-)
+store = DakeraMemoryStore(base_url="http://localhost:3000", api_key=Secret.from_env_var("DAKERA_API_KEY"))
 
 # Persist a memory
 writer = DakeraMemoryWriter(memory_store=store)
 writer.run(messages=[ChatMessage.from_user("The user prefers concise answers.")], session_id="session-1")
 
-# Recall relevant memories (returns a list of ChatMessage)
+# Recall relevant memories (list[ChatMessage])
 retriever = DakeraMemoryRetriever(memory_store=store, top_k=5)
 result = retriever.run(query="How should I format responses?", session_id="session-1")
 for message in result["memories"]:
     print(message.text, "→", message.meta["score"])
 ```
 
-Both components are `@component`-decorated and can be wired into a `Pipeline` — e.g. connect the retriever's `memories` output to a `ChatPromptBuilder` to inject persistent context before generation.
+## Document-store usage
+
+Index embedded documents and retrieve them by dense similarity:
+
+```python
+import os
+
+from haystack import Document, Pipeline
+from haystack.components.embedders import (
+    SentenceTransformersDocumentEmbedder,
+    SentenceTransformersTextEmbedder,
+)
+from haystack.document_stores.types import DuplicatePolicy
+
+from haystack_integrations.components.retrievers.dakera import DakeraEmbeddingRetriever
+from haystack_integrations.document_stores.dakera import DakeraDocumentStore
+
+os.environ["DAKERA_API_KEY"] = "dk-..."
+
+document_store = DakeraDocumentStore(url="http://localhost:3000", namespace="my-docs", dimension=768)
+
+# Index some documents
+documents = [
+    Document(content="There are over 7,000 languages spoken around the world today."),
+    Document(content="Elephants have been observed to behave in a way that indicates self-awareness."),
+]
+document_embedder = SentenceTransformersDocumentEmbedder()
+document_embedder.warm_up()
+documents_with_embeddings = document_embedder.run(documents)["documents"]
+document_store.write_documents(documents_with_embeddings, policy=DuplicatePolicy.OVERWRITE)
+
+# Query
+query_pipeline = Pipeline()
+query_pipeline.add_component("text_embedder", SentenceTransformersTextEmbedder())
+query_pipeline.add_component("retriever", DakeraEmbeddingRetriever(document_store=document_store))
+query_pipeline.connect("text_embedder.embedding", "retriever.query_embedding")
+
+result = query_pipeline.run({"text_embedder": {"text": "How many languages are there?"}})
+print(result["retriever"]["documents"][0].content)
+```
 
 ## Components
 
-| Class | Type | Description |
+| Class | Kind | Description |
 |-------|------|-------------|
-| `DakeraMemoryStore` | Client | REST client for the Dakera API (`X-API-Key` auth) |
-| `DakeraMemoryRetriever` | `@component` | Decay-weighted semantic recall via `POST /v1/memory/recall`; outputs `memories: list[ChatMessage]` |
-| `DakeraMemoryWriter` | `@component` | Persists `ChatMessage` text via `POST /v1/memory/store`; outputs `memories_written: int` |
+| `DakeraMemoryStore` | Client | Memory API client (`POST /v1/memory/store`, `POST /v1/memory/recall`); `X-API-Key` auth |
+| `DakeraMemoryWriter` | `@component` | Persists `ChatMessage` text as memories |
+| `DakeraMemoryRetriever` | `@component` | Decay-weighted recall; outputs `memories: list[ChatMessage]` |
+| `DakeraDocumentStore` | `DocumentStore` | Vector-namespace document store backed by the `dakera` SDK |
+| `DakeraEmbeddingRetriever` | `@component` | Dense document retrieval with metadata filtering |
 
 ## Configuration
 
-`DakeraMemoryStore` constructor parameters:
+`DakeraMemoryStore`:
 
 | Parameter | Default | Description |
 |-----------|---------|-------------|
-| `base_url` | `http://localhost:3000` | Dakera server URL (falls back to the `DAKERA_API_URL` env var) |
-| `api_key` | `Secret.from_env_var("DAKERA_API_KEY", strict=False)` | API key as a Haystack `Secret`, sent as `X-API-Key` |
-| `default_agent_id` | `"haystack"` | Agent namespace used to isolate memories (Dakera requires an `agent_id` on every call) |
+| `base_url` | `http://localhost:3000` | Dakera server URL (or the `DAKERA_API_URL` env var) |
+| `api_key` | `DAKERA_API_KEY` env var | API key as a Haystack `Secret`, sent as `X-API-Key` |
+| `default_agent_id` | `"haystack"` | Agent namespace used to isolate memories |
 | `timeout` | `10.0` | HTTP request timeout in seconds |
 
-`DakeraMemoryWriter.run()` and `DakeraMemoryRetriever.run()` accept `agent_id`, `session_id`, and `tags` to scope reads and writes; the retriever also accepts a per-call `top_k` (default `5` at construction time).
+`DakeraDocumentStore`:
+
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| `api_key` | `DAKERA_API_KEY` env var | The Dakera API key (a `dk-...` token) |
+| `url` | `http://localhost:3000` | Base URL of the Dakera server |
+| `namespace` | `default` | Namespace documents are written to and read from |
+| `dimension` | `768` | Embedding dimension. Only used when the namespace is created |
+| `metric` | `cosine` | Distance metric (`cosine`, `euclidean`, `dot_product`) at creation time |
+| `batch_size` | `100` | Number of documents per upsert request |
 
 ## Contributing
 
 Refer to the general [Contribution Guidelines](https://github.com/deepset-ai/haystack-core-integrations/blob/main/CONTRIBUTING.md).
 
-Run the unit tests (no live server needed):
-
 ```bash
 cd integrations/dakera
-hatch run test:unit
-```
-
-Integration tests run against a live Dakera server — set `DAKERA_API_URL` (and `DAKERA_API_KEY`) first:
-
-```bash
-export DAKERA_API_URL=http://localhost:3000 DAKERA_API_KEY=demo
-hatch run test:integration
+hatch run test:unit          # mocked, runs in CI
+hatch run test:integration   # requires a live Dakera server (set DAKERA_API_URL / DAKERA_URL)
 ```
 
 ## License

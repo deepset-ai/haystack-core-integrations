@@ -30,7 +30,7 @@ env:
   PYTHONUNBUFFERED: "1"
   FORCE_COLOR: "1"
   TEST_MATRIX_OS: '["ubuntu-latest", "windows-latest", "macos-latest"]'
-  TEST_MATRIX_PYTHON: '["3.10", "3.14"]'
+  TEST_MATRIX_PYTHON: '["3.10", "3.13"]'
 
 jobs:
   compute-test-matrix:
