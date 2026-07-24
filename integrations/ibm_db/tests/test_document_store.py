@@ -161,57 +161,6 @@ class TestDocumentStore(
         with pytest.raises(DuplicateDocumentError):
             document_store.write_documents([doc])
 
-    @staticmethod
-    def _serializable_store(monkeypatch) -> IBMDb2DocumentStore:
-        """
-        Build a store whose credentials are env-var Secrets so it can be serialized.
-
-        The live ``document_store`` fixture uses ``Secret.from_token(...)``, which cannot
-        be serialized, so serialization tests build their own env-var-backed store.
-        """
-        monkeypatch.setenv("DB2_USERNAME", "db2inst1")
-        monkeypatch.setenv("DB2_PASSWORD", "Passw0rd123!")
-        return IBMDb2DocumentStore(
-            database="testdb",
-            hostname="localhost",
-            username=Secret.from_env_var("DB2_USERNAME"),
-            password=Secret.from_env_var("DB2_PASSWORD"),
-            embedding_dim=768,
-            distance_metric="COSINE",
-        )
-
-    def test_to_dict(self, monkeypatch):
-        """Test serializing document store to dictionary without exposing credentials."""
-        store = self._serializable_store(monkeypatch)
-        data = store.to_dict()
-
-        assert "type" in data
-        assert data["type"] == "haystack_integrations.document_stores.ibm_db.document_store.IBMDb2DocumentStore"
-        assert "init_parameters" in data
-
-        init_params = data["init_parameters"]
-        assert init_params["database"] == store.database
-        assert init_params["hostname"] == store.hostname
-        assert init_params["embedding_dim"] == 768
-        assert init_params["distance_metric"] == "COSINE"
-        assert init_params["recreate_table"] == store.recreate_table
-        # Credentials are serialized as env-var references, never as plaintext.
-        assert init_params["password"] == {"type": "env_var", "env_vars": ["DB2_PASSWORD"], "strict": True}
-
-    def test_from_dict(self, monkeypatch):
-        """Test deserializing document store from dictionary."""
-        store = self._serializable_store(monkeypatch)
-        data = store.to_dict()
-
-        new_store = IBMDb2DocumentStore.from_dict(data)
-
-        assert new_store.embedding_dim == store.embedding_dim
-        assert new_store.distance_metric == store.distance_metric
-        assert new_store.database == store.database
-        assert new_store.hostname == store.hostname
-        assert isinstance(new_store.username, Secret)
-        assert isinstance(new_store.password, Secret)
-
     def test_connection_reuse(self, document_store: IBMDb2DocumentStore):
         """Test that connection is reused across operations."""
         docs = [Document(id="1", content="test", embedding=[0.1] * 768)]
@@ -338,84 +287,118 @@ class TestIBMDb2DocumentStoreUtilMethods:
         assert IBMDb2DocumentStore._infer_field_type(value) == expected
 
 
+@pytest.fixture
+def unit_store(monkeypatch) -> IBMDb2DocumentStore:
+    monkeypatch.setenv("DB2_USERNAME", "db2inst1")
+    monkeypatch.setenv("DB2_PASSWORD", "Passw0rd123!")
+    return IBMDb2DocumentStore(
+        database="testdb",
+        hostname="localhost",
+        username=Secret.from_env_var("DB2_USERNAME"),
+        password=Secret.from_env_var("DB2_PASSWORD"),
+        embedding_dim=768,
+        distance_metric="COSINE",
+    )
+
+
 class TestIBMDb2DocumentStoreUnit:
     """Unit tests for IBMDb2DocumentStore that don't require a database."""
 
-    @staticmethod
-    def _unit_store() -> IBMDb2DocumentStore:
-        return IBMDb2DocumentStore(
-            database="testdb",
-            hostname="localhost",
-            username=Secret.from_token("db2inst1"),
-            password=Secret.from_token("Passw0rd123!"),
-        )
+    def test_init_is_lazy_and_does_not_connect(self, unit_store):
+        assert unit_store._connection is None
+        assert unit_store._table_initialized is False
 
-    def test_init_is_lazy_and_does_not_connect(self):
-        store = self._unit_store()
-        assert store._connection is None
-        assert store._table_initialized is False
+    def test_to_dict(self, unit_store):
+        """Test serializing document store to dictionary without exposing credentials."""
+        data = unit_store.to_dict()
 
-    def test_close(self):
-        store = self._unit_store()
+        assert "type" in data
+        assert data["type"] == "haystack_integrations.document_stores.ibm_db.document_store.IBMDb2DocumentStore"
+        assert "init_parameters" in data
+
+        init_params = data["init_parameters"]
+        assert init_params["database"] == unit_store.database
+        assert init_params["hostname"] == unit_store.hostname
+        assert init_params["embedding_dim"] == 768
+        assert init_params["distance_metric"] == "COSINE"
+        assert init_params["recreate_table"] == unit_store.recreate_table
+        # Credentials are serialized as env-var references, never as plaintext.
+        assert init_params["password"] == {"type": "env_var", "env_vars": ["DB2_PASSWORD"], "strict": True}
+
+    def test_from_dict(self, unit_store):
+        """Test deserializing document store from dictionary."""
+        data = unit_store.to_dict()
+
+        new_store = IBMDb2DocumentStore.from_dict(data)
+
+        assert new_store.embedding_dim == unit_store.embedding_dim
+        assert new_store.distance_metric == unit_store.distance_metric
+        assert new_store.database == unit_store.database
+        assert new_store.hostname == unit_store.hostname
+        assert isinstance(new_store.username, Secret)
+        assert isinstance(new_store.password, Secret)
+
+    def test_close(self, unit_store):
         mock_conn = Mock()
-        store._connection = mock_conn
+        unit_store._connection = mock_conn
 
-        store.close()
+        unit_store.close()
 
         mock_conn.close.assert_called_once()
-        assert store._connection is None
+        assert unit_store._connection is None
 
-        store.close()
+        unit_store.close()
         mock_conn.close.assert_called_once()
 
-    def test_close_is_exception_safe(self):
-        store = self._unit_store()
+    def test_close_is_exception_safe(self, unit_store):
         mock_conn = Mock()
         mock_conn.close.side_effect = RuntimeError("boom")
-        store._connection = mock_conn
+        unit_store._connection = mock_conn
 
-        store.close()
+        unit_store.close()
 
-        assert store._connection is None
+        assert unit_store._connection is None
 
-    def test_to_row_with_none_metadata(self, document_store):
+    def test_to_row_with_none_metadata(self, unit_store):
         """Test _to_row with None metadata."""
         doc = Document(id="1", content="test", meta=None, embedding=[0.1] * 768)
-        row = document_store._to_row(doc)
+        row = unit_store._to_row(doc)
 
         assert row[0] == "1"  # id
         assert row[1] == "test"  # content
         assert row[2] == "{}"  # meta should be empty JSON object
         assert row[3] is not None  # embedding
 
-    def test_to_row_with_none_embedding(self, document_store):
+    def test_to_row_with_none_embedding(self, unit_store):
         """Test _to_row with None embedding."""
         doc = Document(id="1", content="test", meta={"key": "value"}, embedding=None)
-        row = document_store._to_row(doc)
+        row = unit_store._to_row(doc)
 
         assert row[0] == "1"  # id
         assert row[1] == "test"  # content
         assert '"key"' in row[2]  # meta JSON
         assert row[3] is None  # embedding should be None
 
-    def test_build_where_clause_empty_filters(self, document_store):
+    def test_build_where_clause_empty_filters(self, unit_store):
         """Test _build_where_clause with empty filters."""
-        where_clause, params = document_store._build_where_clause({})
+        where_clause, params = unit_store._build_where_clause({})
         assert where_clause == ""
         assert params == []
 
-    def test_write_documents_invalid_type(self, document_store):
+    def test_write_documents_invalid_type(self, unit_store):
         """Test write_documents with invalid type."""
         with pytest.raises(ValueError, match="Expected a list of Document objects"):
-            document_store.write_documents("not a list")
+            unit_store.write_documents("not a list")
 
-    def test_write_documents_invalid_document_type(self, document_store):
+    def test_write_documents_invalid_document_type(self, unit_store):
         """Test write_documents with invalid document type in list."""
         with pytest.raises(ValueError, match="Expected Document objects"):
-            document_store.write_documents([{"id": "1", "content": "test"}])
+            unit_store.write_documents([{"id": "1", "content": "test"}])
 
-    def test_write_documents_unsupported_policy(self, document_store):
+    def test_write_documents_unsupported_policy(self, unit_store):
         """Test write_documents with unsupported duplicate policy."""
+        unit_store._connection = Mock()
+        unit_store._table_initialized = True
         doc = Document(id="1", content="test", embedding=[0.1] * 768)
 
         # Create a mock unsupported policy
@@ -423,7 +406,7 @@ class TestIBMDb2DocumentStoreUnit:
             pass
 
         with pytest.raises(ValueError, match="Unsupported duplicate policy"):
-            document_store.write_documents([doc], policy=UnsupportedPolicy())
+            unit_store.write_documents([doc], policy=UnsupportedPolicy())
 
     def test_row_to_document_with_none_values(self):
         """Test _row_to_document with None values."""
