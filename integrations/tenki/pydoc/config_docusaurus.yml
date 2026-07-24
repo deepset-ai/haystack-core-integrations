@@ -1,0 +1,18 @@
+loaders:
+  - modules:
+      - haystack_integrations.tools.tenki.bash_tool
+      - haystack_integrations.tools.tenki.list_directory_tool
+      - haystack_integrations.tools.tenki.read_file_tool
+      - haystack_integrations.tools.tenki.sandbox_toolset
+      - haystack_integrations.tools.tenki.tenki_sandbox
+      - haystack_integrations.tools.tenki.write_file_tool
+    search_path: [../src]
+processors:
+  - type: filter
+    documented_only: true
+    skip_empty_modules: true
+renderer:
+  description: Tenki integration for Haystack
+  id: integrations-tenki
+  filename: tenki.md
+  title: Tenki
