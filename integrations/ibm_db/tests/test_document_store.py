@@ -168,7 +168,6 @@ class TestDocumentStore(
 
         The live ``document_store`` fixture uses ``Secret.from_token(...)``, which cannot
         be serialized, so serialization tests build their own env-var-backed store.
-        Construction is connection-free (setup is lazy), so no DB is needed.
         """
         monkeypatch.setenv("DB2_USERNAME", "db2inst1")
         monkeypatch.setenv("DB2_PASSWORD", "Passw0rd123!")
@@ -343,7 +342,7 @@ class TestIBMDb2DocumentStoreUnit:
     """Unit tests for IBMDb2DocumentStore that don't require a database."""
 
     @staticmethod
-    def _disconnected_store() -> IBMDb2DocumentStore:
+    def _unit_store() -> IBMDb2DocumentStore:
         return IBMDb2DocumentStore(
             database="testdb",
             hostname="localhost",
@@ -352,12 +351,12 @@ class TestIBMDb2DocumentStoreUnit:
         )
 
     def test_init_is_lazy_and_does_not_connect(self):
-        store = self._disconnected_store()
+        store = self._unit_store()
         assert store._connection is None
         assert store._table_initialized is False
 
     def test_close(self):
-        store = self._disconnected_store()
+        store = self._unit_store()
         mock_conn = Mock()
         store._connection = mock_conn
 
@@ -370,7 +369,7 @@ class TestIBMDb2DocumentStoreUnit:
         mock_conn.close.assert_called_once()
 
     def test_close_is_exception_safe(self):
-        store = self._disconnected_store()
+        store = self._unit_store()
         mock_conn = Mock()
         mock_conn.close.side_effect = RuntimeError("boom")
         store._connection = mock_conn

@@ -146,52 +146,53 @@ class IBMDb2DocumentStore:
         """
         Get or create a persistent database connection and ensure the table exists.
 
-        Thread-safe lazy initialization with SSL support. The table is created (or
-        recreated, if ``recreate_table`` was set) once, on the first call.
+        Thread-safe lazy initialization with SSL support.
 
         :return: IBM Db2 connection object
         """
-        if self._connection is None or not self._table_initialized:
-            with self._connection_lock:
-                if self._connection is None:
-                    # Build connection string
-                    dsn = f"DATABASE={self.database};HOSTNAME={self.hostname};PORT={self.port};PROTOCOL={self.protocol}"
+        if self._connection is not None and self._table_initialized:
+            return self._connection
 
-                    # Add SSL configuration if enabled
-                    if self.use_ssl:
-                        dsn += ";SECURITY=SSL"
-                        if self.ssl_certificate:
-                            dsn += f";SSLServerCertificate={self.ssl_certificate}"
+        with self._connection_lock:
+            if self._connection is None:
+                # Build connection string
+                dsn = f"DATABASE={self.database};HOSTNAME={self.hostname};PORT={self.port};PROTOCOL={self.protocol}"
 
-                    # Set connection options (autocommit OFF by default)
-                    conn_options = {ibm_db_dbi.SQL_ATTR_AUTOCOMMIT: ibm_db_dbi.SQL_AUTOCOMMIT_OFF}
-                    if self.connection_options:
-                        conn_options.update(self.connection_options)
+                # Add SSL configuration if enabled
+                if self.use_ssl:
+                    dsn += ";SECURITY=SSL"
+                    if self.ssl_certificate:
+                        dsn += f";SSLServerCertificate={self.ssl_certificate}"
 
-                    # Create persistent connection
-                    conn = ibm_db_dbi.pconnect(
-                        dsn=dsn,
-                        user=self.username.resolve_value() or "",
-                        password=self.password.resolve_value() or "",
-                        conn_options=conn_options,
-                    )
+                # Set connection options (autocommit OFF by default)
+                conn_options = {ibm_db_dbi.SQL_ATTR_AUTOCOMMIT: ibm_db_dbi.SQL_AUTOCOMMIT_OFF}
+                if self.connection_options:
+                    conn_options.update(self.connection_options)
 
-                    # Set schema if specified
-                    if self.schema:
-                        with conn.cursor() as cur:
-                            try:
-                                cur.execute(f"SET SCHEMA {self.schema}")
-                                conn.commit()
-                            except Exception as e:
-                                conn.rollback()
-                                msg = f"Failed to set schema {self.schema}: {e}"
-                                raise RuntimeError(msg) from e
+                # Create persistent connection
+                conn = ibm_db_dbi.pconnect(
+                    dsn=dsn,
+                    user=self.username.resolve_value() or "",
+                    password=self.password.resolve_value() or "",
+                    conn_options=conn_options,
+                )
 
-                    self._connection = conn
+                # Set schema if specified
+                if self.schema:
+                    with conn.cursor() as cur:
+                        try:
+                            cur.execute(f"SET SCHEMA {self.schema}")
+                            conn.commit()
+                        except Exception as e:
+                            conn.rollback()
+                            msg = f"Failed to set schema {self.schema}: {e}"
+                            raise RuntimeError(msg) from e
 
-                if not self._table_initialized:
-                    self._ensure_table_exists(recreate=self.recreate_table)
-                    self._table_initialized = True
+                self._connection = conn
+
+            if not self._table_initialized:
+                self._ensure_table_exists(recreate=self.recreate_table)
+                self._table_initialized = True
 
         return self._connection
 
@@ -209,12 +210,9 @@ class IBMDb2DocumentStore:
         """
         Ensure the document table exists in the database.
 
-        Assumes a live connection is already available (``self._connection``); it is
-        invoked from ``_get_connection`` right after the connection is established.
-
         :param recreate: If True, drop and recreate the table
         """
-        assert self._connection is not None  # noqa: S101  # established by _get_connection before this call
+        assert self._connection is not None  # noqa: S101
         conn = self._connection
 
         with conn.cursor() as cur:
