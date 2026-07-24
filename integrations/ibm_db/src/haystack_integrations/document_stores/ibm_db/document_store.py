@@ -7,6 +7,7 @@
 import json
 import logging
 import threading
+from contextlib import suppress
 from typing import Any, Literal
 
 import ibm_db_dbi  # type: ignore[import-untyped]
@@ -135,19 +136,19 @@ class IBMDb2DocumentStore:
         self.table_name = table_name
         self.embedding_dim = embedding_dim
         self.distance_metric = distance_metric
+        self.recreate_table = recreate_table
 
-        # Connection pool (lazy initialization)
+        # Connection and table are set up lazily on first use (see _get_connection)
         self._connection: ibm_db_dbi.Connection | None = None
         self._connection_lock = threading.Lock()
-
-        # Initialize table
-        self._ensure_table_exists(recreate=recreate_table)
+        self._table_initialized = False
 
     def _get_connection(self) -> ibm_db_dbi.Connection:
         """
-        Get or create a persistent database connection.
+        Get or create a persistent database connection and ensure the table exists.
 
-        Thread-safe lazy initialization with SSL support.
+        Thread-safe lazy initialization with SSL support. The table is created (or
+        recreated, if ``recreate_table`` was set) once, on the first call.
 
         :return: IBM Db2 connection object
         """
@@ -189,15 +190,33 @@ class IBMDb2DocumentStore:
 
                     self._connection = conn
 
+        if not self._table_initialized:
+            self._ensure_table_exists(recreate=self.recreate_table)
+            self._table_initialized = True
+
         return self._connection
+
+    def close(self) -> None:
+        """
+        Release the associated synchronous resources.
+        """
+        with self._connection_lock:
+            if self._connection is not None:
+                with suppress(Exception):
+                    self._connection.close()
+                self._connection = None
 
     def _ensure_table_exists(self, recreate: bool = False) -> None:
         """
         Ensure the document table exists in the database.
 
+        Assumes a live connection is already available (``self._connection``); it is
+        invoked from ``_get_connection`` right after the connection is established.
+
         :param recreate: If True, drop and recreate the table
         """
-        conn = self._get_connection()
+        assert self._connection is not None  # noqa: S101  # established by _get_connection before this call
+        conn = self._connection
 
         with conn.cursor() as cur:
             if recreate:
@@ -845,6 +864,7 @@ class IBMDb2DocumentStore:
             table_name=self.table_name,
             embedding_dim=self.embedding_dim,
             distance_metric=self.distance_metric,
+            recreate_table=self.recreate_table,
         )
 
     @classmethod

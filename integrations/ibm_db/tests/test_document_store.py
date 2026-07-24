@@ -6,7 +6,7 @@
 
 import math
 from datetime import datetime, timedelta, timezone
-from unittest.mock import patch
+from unittest.mock import Mock
 
 import pytest
 from haystack.dataclasses import Document
@@ -167,20 +167,19 @@ class TestDocumentStore(
         Build a store whose credentials are env-var Secrets so it can be serialized.
 
         The live ``document_store`` fixture uses ``Secret.from_token(...)``, which cannot
-        be serialized, so serialization tests build their own env-var-backed store (no DB
-        connection needed).
+        be serialized, so serialization tests build their own env-var-backed store.
+        Construction is connection-free (setup is lazy), so no DB is needed.
         """
         monkeypatch.setenv("DB2_USERNAME", "db2inst1")
         monkeypatch.setenv("DB2_PASSWORD", "Passw0rd123!")
-        with patch.object(IBMDb2DocumentStore, "_ensure_table_exists", return_value=None):
-            return IBMDb2DocumentStore(
-                database="testdb",
-                hostname="localhost",
-                username=Secret.from_env_var("DB2_USERNAME"),
-                password=Secret.from_env_var("DB2_PASSWORD"),
-                embedding_dim=768,
-                distance_metric="COSINE",
-            )
+        return IBMDb2DocumentStore(
+            database="testdb",
+            hostname="localhost",
+            username=Secret.from_env_var("DB2_USERNAME"),
+            password=Secret.from_env_var("DB2_PASSWORD"),
+            embedding_dim=768,
+            distance_metric="COSINE",
+        )
 
     def test_to_dict(self, monkeypatch):
         """Test serializing document store to dictionary without exposing credentials."""
@@ -196,6 +195,7 @@ class TestDocumentStore(
         assert init_params["hostname"] == store.hostname
         assert init_params["embedding_dim"] == 768
         assert init_params["distance_metric"] == "COSINE"
+        assert init_params["recreate_table"] == store.recreate_table
         # Credentials are serialized as env-var references, never as plaintext.
         assert init_params["password"] == {"type": "env_var", "env_vars": ["DB2_PASSWORD"], "strict": True}
 
@@ -204,9 +204,7 @@ class TestDocumentStore(
         store = self._serializable_store(monkeypatch)
         data = store.to_dict()
 
-        # Create new instance from dict
-        with patch.object(IBMDb2DocumentStore, "_ensure_table_exists", return_value=None):
-            new_store = IBMDb2DocumentStore.from_dict(data)
+        new_store = IBMDb2DocumentStore.from_dict(data)
 
         assert new_store.embedding_dim == store.embedding_dim
         assert new_store.distance_metric == store.distance_metric
@@ -250,6 +248,15 @@ class TestDocumentStore(
         retrieved = document_store.filter_documents({"operator": "==", "field": "id", "value": "no_content"})
         assert len(retrieved) == 1
         assert retrieved[0].content is None
+
+    def test_close_and_reopen(self, document_store: IBMDb2DocumentStore):
+        document_store.write_documents([Document(id="1", content="test", embedding=[0.1] * 768)])
+        assert document_store.count_documents() == 1
+
+        document_store.close()
+        assert document_store._connection is None
+
+        assert document_store.count_documents() == 1
 
     def test_complex_metadata(self, document_store: IBMDb2DocumentStore):
         """Test storing document with complex nested metadata."""
@@ -334,6 +341,43 @@ class TestIBMDb2DocumentStoreUtilMethods:
 
 class TestIBMDb2DocumentStoreUnit:
     """Unit tests for IBMDb2DocumentStore that don't require a database."""
+
+    @staticmethod
+    def _disconnected_store() -> IBMDb2DocumentStore:
+        return IBMDb2DocumentStore(
+            database="testdb",
+            hostname="localhost",
+            username=Secret.from_token("db2inst1"),
+            password=Secret.from_token("Passw0rd123!"),
+        )
+
+    def test_init_is_lazy_and_does_not_connect(self):
+        store = self._disconnected_store()
+        assert store._connection is None
+        assert store._table_initialized is False
+
+    def test_close(self):
+        store = self._disconnected_store()
+        mock_conn = Mock()
+        store._connection = mock_conn
+
+        store.close()
+
+        mock_conn.close.assert_called_once()
+        assert store._connection is None
+
+        store.close()
+        mock_conn.close.assert_called_once()
+
+    def test_close_is_exception_safe(self):
+        store = self._disconnected_store()
+        mock_conn = Mock()
+        mock_conn.close.side_effect = RuntimeError("boom")
+        store._connection = mock_conn
+
+        store.close()
+
+        assert store._connection is None
 
     def test_to_row_with_none_metadata(self, document_store):
         """Test _to_row with None metadata."""
