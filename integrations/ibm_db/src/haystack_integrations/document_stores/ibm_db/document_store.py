@@ -138,7 +138,6 @@ class IBMDb2DocumentStore:
         self.distance_metric = distance_metric
         self.recreate_table = recreate_table
 
-        # Connection and table are set up lazily on first use (see _get_connection)
         self._connection: ibm_db_dbi.Connection | None = None
         self._connection_lock = threading.Lock()
         self._table_initialized = False
