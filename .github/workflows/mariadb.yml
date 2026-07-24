@@ -1,0 +1,149 @@
+name: Test / mariadb
+
+on:
+  schedule:
+    - cron: "0 0 * * *"
+  pull_request:
+    paths:
+      - "integrations/mariadb/**"
+      - "!integrations/mariadb/*.md"
+      - ".github/workflows/mariadb.yml"
+  push:
+    branches:
+      - main
+    paths:
+      - "integrations/mariadb/**"
+      - "!integrations/mariadb/*.md"
+      - ".github/workflows/mariadb.yml"
+
+concurrency:
+  group: mariadb-${{ github.head_ref || github.sha }}
+  cancel-in-progress: true
+
+env:
+  PYTHONUNBUFFERED: "1"
+  FORCE_COLOR: "1"
+  TEST_MATRIX_OS: '["ubuntu-latest"]'
+  TEST_MATRIX_PYTHON: '["3.10", "3.14"]'
+  MARIADB_HOST: "127.0.0.1"
+  MARIADB_PORT: "3306"
+  MARIADB_DATABASE: "haystack"
+  MARIADB_USER: "root"
+  MARIADB_PASSWORD: "password"
+
+defaults:
+  run:
+    working-directory: integrations/mariadb
+
+jobs:
+  compute-test-matrix:
+    runs-on: ubuntu-slim
+    defaults:
+      run:
+        working-directory: .
+    outputs:
+      os: ${{ steps.set.outputs.os }}
+      python-version: ${{ steps.set.outputs.python-version }}
+    steps:
+      - id: set
+        run: |
+          echo 'os=${{ github.event_name == 'push' && '["ubuntu-latest"]' || env.TEST_MATRIX_OS }}' >> "$GITHUB_OUTPUT"
+          echo 'python-version=${{ github.event_name == 'push' && '["3.10"]' || env.TEST_MATRIX_PYTHON }}' >> "$GITHUB_OUTPUT"
+
+  run:
+    name: Python ${{ matrix.python-version }} on ${{ startsWith(matrix.os, 'macos-') && 'macOS' || startsWith(matrix.os, 'windows-') && 'Windows' || 'Linux' }}
+    needs: compute-test-matrix
+    permissions:
+      contents: write
+      pull-requests: write
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: ${{ fromJSON(needs.compute-test-matrix.outputs.os) }}
+        python-version: ${{ fromJSON(needs.compute-test-matrix.outputs.python-version) }}
+    services:
+      mariadb:
+        image: mariadb:11.7
+        env:
+          MARIADB_ROOT_PASSWORD: password
+          MARIADB_DATABASE: haystack
+        ports:
+          - 3306:3306
+
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install MariaDB Connector/C
+        run: sudo apt-get install -y libmariadb-dev
+
+      - name: Install Hatch
+        run: |
+          python -m pip install --upgrade pip
+          pip install hatch --uploaded-prior-to=P1D
+
+      - name: Lint
+        if: matrix.python-version == '3.10' && runner.os == 'Linux'
+        run: hatch run fmt-check && hatch run test:types
+
+      - name: Run unit tests
+        run: hatch run test:unit-cov-retry
+
+      - name: Store unit tests coverage
+        id: coverage_comment
+        if: matrix.python-version == '3.10' && runner.os == 'Linux' && github.event_name != 'schedule'
+        uses: py-cov-action/python-coverage-comment-action@5d8df5979747514c914e1c5a12335a7cf9a2745f # v4.1
+        with:
+          GITHUB_TOKEN: ${{ github.token }}
+          COVERAGE_PATH: integrations/mariadb
+          SUBPROJECT_ID: mariadb
+          MINIMUM_GREEN: 90
+          MINIMUM_ORANGE: 60
+
+      - name: Upload coverage comment to be posted
+        if: matrix.python-version == '3.10' && runner.os == 'Linux' && github.event_name == 'pull_request' && steps.coverage_comment.outputs.COMMENT_FILE_WRITTEN == 'true'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: coverage-comment-mariadb
+          path: python-coverage-comment-action-mariadb.txt
+
+      - name: Run integration tests
+        run: hatch run test:integration-cov-append-retry
+
+      - name: Store combined coverage
+        if: github.event_name == 'push'
+        uses: py-cov-action/python-coverage-comment-action@5d8df5979747514c914e1c5a12335a7cf9a2745f # v4.1
+        with:
+          GITHUB_TOKEN: ${{ github.token }}
+          COVERAGE_PATH: integrations/mariadb
+          SUBPROJECT_ID: mariadb-combined
+          MINIMUM_GREEN: 90
+          MINIMUM_ORANGE: 60
+
+      - name: Run unit tests with lowest direct dependencies
+        if: github.event_name != 'push'
+        run: |
+          hatch run uv pip compile pyproject.toml --resolution lowest-direct --output-file requirements_lowest_direct.txt
+          hatch -e test env run -- uv pip install -r requirements_lowest_direct.txt
+          hatch run test:unit
+
+      - name: Nightly - run unit tests with Haystack main branch
+        if: github.event_name == 'schedule'
+        run: |
+          hatch env prune
+          hatch -e test env run -- uv pip install git+https://github.com/deepset-ai/haystack.git@main
+          hatch run test:unit
+
+  notify-slack-on-failure:
+    needs: run
+    if: failure() && github.event_name == 'schedule'
+    runs-on: ubuntu-slim
+    steps:
+      - uses: deepset-ai/notify-slack-action@a65def0c8bf91d6520286ab34280151c76a5a008 # v1.1.0
+        with:
+          slack-webhook-url: ${{ secrets.SLACK_WEBHOOK_URL_NOTIFICATIONS }}
