@@ -104,6 +104,11 @@ jobs:
           name: coverage-comment-dakera
           path: python-coverage-comment-action-dakera.txt
 
+      # Integration tests are skipped unless DAKERA_API_URL points at a live server,
+      # so this is a no-op in CI but runs the suite when a Dakera instance is available.
+      - name: Run integration tests
+        run: hatch run test:integration-cov-append-retry
+
       - name: Run unit tests with lowest direct dependencies
         if: github.event_name != 'push'
         run: |

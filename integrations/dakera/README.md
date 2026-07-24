@@ -14,50 +14,52 @@ pip install dakera-haystack
 
 ## Prerequisites
 
-Start a Dakera server and export the API key the client will send:
+Run a Dakera server (see [dakera-deploy](https://github.com/dakera-ai/dakera-deploy) for Docker Compose / Kubernetes / Helm). The REST API listens on port **3000** by default:
 
 ```bash
-docker run -d -p 3300:3300 -e DAKERA_API_KEY=demo ghcr.io/dakera-ai/dakera:latest
-export DAKERA_API_KEY=demo
+docker run -d -p 3000:3000 -e DAKERA_ROOT_API_KEY=demo ghcr.io/dakera-ai/dakera:latest
+export DAKERA_API_KEY=demo   # the key the Haystack client sends as X-API-Key
 ```
+
+`DAKERA_ROOT_API_KEY` is the server's bootstrap key; the Haystack client authenticates with the same value via the `X-API-Key` header.
 
 ## Usage
 
+The writer stores `ChatMessage` objects and the retriever returns recalled memories as `ChatMessage` objects, so both connect directly to Haystack chat components.
+
 ```python
 from haystack import Pipeline
+from haystack.dataclasses import ChatMessage
 from haystack.utils import Secret
 from haystack_integrations.memory_stores.dakera import DakeraMemoryStore
 from haystack_integrations.components.retrievers.dakera import DakeraMemoryRetriever
 from haystack_integrations.components.writers.dakera import DakeraMemoryWriter
 
 store = DakeraMemoryStore(
-    base_url="http://localhost:3300",
+    base_url="http://localhost:3000",
     api_key=Secret.from_env_var("DAKERA_API_KEY"),
 )
 
-# Write pipeline — persist memories
-write_pipeline = Pipeline()
-write_pipeline.add_component("writer", DakeraMemoryWriter(memory_store=store))
+# Persist a memory
+writer = DakeraMemoryWriter(memory_store=store)
+writer.run(messages=[ChatMessage.from_user("The user prefers concise answers.")], session_id="session-1")
 
-# Retrieval pipeline — recall relevant memories
-retrieval_pipeline = Pipeline()
-retrieval_pipeline.add_component("retriever", DakeraMemoryRetriever(memory_store=store, top_k=5))
-
-# Store a memory
-write_pipeline.run({"writer": {"messages": ["The user prefers concise answers."], "user_id": "alice"}})
-
-# Recall relevant memories
-result = retrieval_pipeline.run({"retriever": {"query": "How should I format responses?", "user_id": "alice"}})
-print(result["retriever"]["memories"])
+# Recall relevant memories (returns a list of ChatMessage)
+retriever = DakeraMemoryRetriever(memory_store=store, top_k=5)
+result = retriever.run(query="How should I format responses?", session_id="session-1")
+for message in result["memories"]:
+    print(message.text, "→", message.meta["score"])
 ```
+
+Both components are `@component`-decorated and can be wired into a `Pipeline` — e.g. connect the retriever's `memories` output to a `ChatPromptBuilder` to inject persistent context before generation.
 
 ## Components
 
 | Class | Type | Description |
 |-------|------|-------------|
-| `DakeraMemoryStore` | Client | REST client for the Dakera API |
-| `DakeraMemoryRetriever` | `@component` | Semantic recall via `POST /v1/memories/search` |
-| `DakeraMemoryWriter` | `@component` | Stores memories via `POST /v1/memories` |
+| `DakeraMemoryStore` | Client | REST client for the Dakera API (`X-API-Key` auth) |
+| `DakeraMemoryRetriever` | `@component` | Decay-weighted semantic recall via `POST /v1/memory/recall`; outputs `memories: list[ChatMessage]` |
+| `DakeraMemoryWriter` | `@component` | Persists `ChatMessage` text via `POST /v1/memory/store`; outputs `memories_written: int` |
 
 ## Configuration
 
@@ -65,24 +67,29 @@ print(result["retriever"]["memories"])
 
 | Parameter | Default | Description |
 |-----------|---------|-------------|
-| `base_url` | `http://localhost:3300` | Dakera server URL (falls back to the `DAKERA_API_URL` env var) |
-| `api_key` | `Secret.from_env_var("DAKERA_API_KEY", strict=False)` | API key as a Haystack `Secret` |
-| `default_agent_id` | `"haystack"` | Agent/namespace used to isolate memories |
+| `base_url` | `http://localhost:3000` | Dakera server URL (falls back to the `DAKERA_API_URL` env var) |
+| `api_key` | `Secret.from_env_var("DAKERA_API_KEY", strict=False)` | API key as a Haystack `Secret`, sent as `X-API-Key` |
+| `default_agent_id` | `"haystack"` | Agent namespace used to isolate memories (Dakera requires an `agent_id` on every call) |
 | `timeout` | `10.0` | HTTP request timeout in seconds |
 
-Per-call arguments accepted by both `DakeraMemoryWriter.run()` and `DakeraMemoryRetriever.run()`
-(`user_id`, `agent_id`, `session_id`) scope reads and writes; `DakeraMemoryRetriever` additionally
-takes `top_k` (default `5`) at construction time.
+`DakeraMemoryWriter.run()` and `DakeraMemoryRetriever.run()` accept `agent_id`, `session_id`, and `tags` to scope reads and writes; the retriever also accepts a per-call `top_k` (default `5` at construction time).
 
 ## Contributing
 
 Refer to the general [Contribution Guidelines](https://github.com/deepset-ai/haystack-core-integrations/blob/main/CONTRIBUTING.md).
 
-To run the tests locally:
+Run the unit tests (no live server needed):
 
 ```bash
 cd integrations/dakera
 hatch run test:unit
+```
+
+Integration tests run against a live Dakera server — set `DAKERA_API_URL` (and `DAKERA_API_KEY`) first:
+
+```bash
+export DAKERA_API_URL=http://localhost:3000 DAKERA_API_KEY=demo
+hatch run test:integration
 ```
 
 ## License
