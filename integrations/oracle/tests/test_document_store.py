@@ -3,6 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import uuid
+from unittest.mock import MagicMock
 
 import oracledb as _oracledb
 import pytest
@@ -27,13 +28,8 @@ from haystack.testing.document_store_async import (
     FilterableDocsFixtureMixin,
     UpdateByFilterAsyncTest,
 )
-from haystack.utils import Secret
 
-from haystack_integrations.document_stores.oracle import OracleConnectionConfig, OracleDocumentStore
-
-_USER = "haystack"
-_PASSWORD = "haystack"
-_DSN = "localhost:1521/freepdb1"
+from haystack_integrations.document_stores.oracle import OracleDocumentStore
 
 
 def _doc(doc_id: str, content: str = "hello", meta: dict | None = None, embedding: list[float] | None = None):
@@ -65,6 +61,50 @@ def test_get_metadata_field_unique_values_search_term_filters_value_only(patched
     assert vals_params["search"] == "%bar%"
 
 
+def test_close(patched_store):
+    pool = MagicMock()
+    patched_store._pool = pool
+    patched_store.close()
+    pool.close.assert_called_once()
+    assert patched_store._pool is None
+    patched_store.close()
+    pool.close.assert_called_once()
+
+
+def test_close_is_exception_safe(patched_store):
+    pool = MagicMock()
+    pool.close.side_effect = RuntimeError("boom")
+    patched_store._pool = pool
+    patched_store.close()
+    assert patched_store._pool is None
+
+
+def test_init_opens_no_connection(make_store, mock_pool):  # noqa: ARG001
+    store = make_store("lazy_docs")
+    assert store._pool is None
+    assert store._setup_done is False
+
+
+def test_setup_is_deferred_and_runs_once(make_store, mock_pool):
+    store = make_store("lazy_docs")
+    store.count_documents()
+    store.count_documents()
+    assert store._pool is not None
+    assert store._setup_done is True
+    _, _, cursor = mock_pool
+    create_calls = [c for c in cursor.execute.call_args_list if "CREATE TABLE IF NOT EXISTS" in c[0][0]]
+    assert len(create_calls) == 1
+
+
+def test_setup_failure_resets_flag(make_store, mock_pool):
+    _, _, cursor = mock_pool
+    cursor.execute.side_effect = RuntimeError("boom")
+    store = make_store("lazy_docs")
+    with pytest.raises(RuntimeError):
+        store.count_documents()
+    assert store._setup_done is False
+
+
 @pytest.mark.integration
 class TestOracleDocumentStore(
     DocumentStoreBaseTests,
@@ -84,20 +124,10 @@ class TestOracleDocumentStore(
         return Document(id=doc_id, content=content, meta={"k": "v"}, embedding=embedding)
 
     @pytest.fixture
-    def document_store(self):
+    def document_store(self, make_store):
         """768-dim store — overrides the mixin's NotImplementedError stub."""
         table = f"hs_sync_{uuid.uuid4().hex[:8]}"
-        s = OracleDocumentStore(
-            connection_config=OracleConnectionConfig(
-                user=Secret.from_token(_USER),
-                password=Secret.from_token(_PASSWORD),
-                dsn=Secret.from_token(_DSN),
-            ),
-            table_name=table,
-            embedding_dim=768,
-            distance_metric="COSINE",
-            create_table_if_not_exists=True,
-        )
+        s = make_store(table, 768)
         yield s
         with s._get_connection() as conn, conn.cursor() as cur:
             cur.execute(f"DROP TABLE {table} PURGE")
@@ -328,6 +358,14 @@ class TestOracleDocumentStore(
     def test_create_table_idempotent(self, document_store):
         """Calling _ensure_table() a second time must not raise."""
         document_store._ensure_table()
+
+    def test_close_and_reopen(self, document_store):
+        document_store.count_documents()
+        assert document_store._pool is not None
+        document_store.close()
+        assert document_store._pool is None
+        assert document_store.count_documents() == 0
+        assert document_store._pool is not None
 
     def test_get_metadata_field_unique_values_search_term_matches_value_not_content(self, document_store):
         """search_term filters on the metadata field's own value; document content is not considered."""
