@@ -97,6 +97,16 @@ def test_from_dict():
     assert retriever._filter_policy == FilterPolicy.REPLACE
 
 
+def test_close():
+    mock_store = Mock(spec=AzureAISearchDocumentStore)
+    retriever = AzureAISearchBM25Retriever(document_store=mock_store)
+
+    retriever.close()
+
+    mock_store.close.assert_called_once()
+    assert retriever._document_store is mock_store
+
+
 def test_run():
     mock_store = Mock(spec=AzureAISearchDocumentStore)
     mock_store._bm25_retrieval.return_value = [Document(content="Test doc")]
