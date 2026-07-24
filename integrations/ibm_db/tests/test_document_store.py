@@ -6,11 +6,11 @@
 
 import math
 from datetime import datetime, timedelta, timezone
-from unittest.mock import Mock
+from unittest.mock import MagicMock, Mock
 
 import pytest
 from haystack.dataclasses import Document
-from haystack.document_stores.errors import DuplicateDocumentError
+from haystack.document_stores.errors import DocumentStoreError, DuplicateDocumentError
 from haystack.testing.document_store import (
     CountDocumentsByFilterTest,
     CountDocumentsTest,
@@ -225,6 +225,20 @@ class TestDocumentStore(
         assert retrieved[0].meta["nested"]["level1"]["level2"]["level3"] == "deep"
         assert retrieved[0].meta["list"] == [1, 2, 3, "four"]
 
+    def test_embedding_retrieval(self, document_store: IBMDb2DocumentStore):
+        document_store.write_documents(
+            [
+                Document(id="a", content="alpha", embedding=[1.0, 0.0] + [0.0] * 766),
+                Document(id="b", content="beta", embedding=[0.0, 1.0] + [0.0] * 766),
+                Document(id="c", content="gamma", embedding=[0.9, 0.1] + [0.0] * 766),
+            ]
+        )
+
+        results = document_store._embedding_retrieval([1.0, 0.0] + [0.0] * 766, top_k=2)
+
+        assert [doc.id for doc in results] == ["a", "c"]
+        assert all(doc.score is not None for doc in results)
+
 
 class TestIBMDb2DocumentStoreUtilMethods:
     """Unit tests for pure utility methods: _parse_embedding, _validate_embedding, _infer_field_type."""
@@ -301,12 +315,119 @@ def unit_store(monkeypatch) -> IBMDb2DocumentStore:
     )
 
 
+@pytest.fixture
+def mocked_store(unit_store) -> tuple:
+    conn = MagicMock()
+    cursor_cm = conn.cursor.return_value
+    cursor_cm.__exit__.return_value = False
+    cur = cursor_cm.__enter__.return_value
+    unit_store._connection = conn
+    unit_store._table_initialized = True
+    return unit_store, conn, cur
+
+
+_FILTER = {"operator": "==", "field": "meta.k", "value": "v"}
+
+
 class TestIBMDb2DocumentStoreUnit:
     """Unit tests for IBMDb2DocumentStore that don't require a database."""
 
     def test_init_is_lazy_and_does_not_connect(self, unit_store):
         assert unit_store._connection is None
         assert unit_store._table_initialized is False
+
+    def test_get_connection_applies_ssl_options_and_schema(self, monkeypatch):
+        fake_conn = MagicMock()
+        fake_conn.cursor.return_value.__exit__.return_value = False
+        pconnect = Mock(return_value=fake_conn)
+        monkeypatch.setattr(
+            "haystack_integrations.document_stores.ibm_db.document_store.ibm_db_dbi.pconnect",
+            pconnect,
+        )
+        store = IBMDb2DocumentStore(
+            database="db",
+            hostname="h",
+            username=Secret.from_token("u"),
+            password=Secret.from_token("p"),
+            use_ssl=True,
+            ssl_certificate="certs/db2.arm",
+            connection_options={"foo": "bar"},
+            schema="myschema",
+        )
+        store._table_initialized = True
+
+        conn = store._get_connection()
+
+        assert conn is fake_conn
+        dsn = pconnect.call_args.kwargs["dsn"]
+        assert "SECURITY=SSL" in dsn
+        assert "SSLServerCertificate=certs/db2.arm" in dsn
+        assert pconnect.call_args.kwargs["conn_options"]["foo"] == "bar"
+        schema_cur = fake_conn.cursor.return_value.__enter__.return_value
+        executed = [c.args[0] for c in schema_cur.execute.call_args_list]
+        assert any("SET SCHEMA myschema" in s for s in executed)
+
+    def test_ensure_table_exists_drops_and_creates_when_recreate(self, mocked_store):
+        store, _, cur = mocked_store
+        cur.execute.side_effect = [None, Exception("table not found"), None]
+
+        store._ensure_table_exists(recreate=True)
+
+        executed = [call.args[0] for call in cur.execute.call_args_list]
+        assert any("DROP TABLE" in sql for sql in executed)
+        assert any("CREATE TABLE" in sql for sql in executed)
+
+    def test_ensure_table_exists_reraises_on_create_error(self, mocked_store):
+        store, conn, cur = mocked_store
+        cur.execute.side_effect = [Exception("table not found"), Exception("create failed")]
+
+        with pytest.raises(Exception, match="create failed"):
+            store._ensure_table_exists(recreate=False)
+
+        conn.rollback.assert_called()
+
+    def test_close(self, unit_store):
+        mock_conn = Mock()
+        unit_store._connection = mock_conn
+
+        unit_store.close()
+
+        mock_conn.close.assert_called_once()
+        assert unit_store._connection is None
+
+        unit_store.close()
+        mock_conn.close.assert_called_once()
+
+    def test_close_is_exception_safe(self, unit_store):
+        mock_conn = Mock()
+        mock_conn.close.side_effect = RuntimeError("boom")
+        unit_store._connection = mock_conn
+
+        unit_store.close()
+
+        assert unit_store._connection is None
+
+    def test_transaction_commits_on_success(self, mocked_store):
+        store, conn, cur = mocked_store
+
+        with store._transaction("unused on success") as transaction_cursor:
+            assert transaction_cursor is cur
+
+        conn.commit.assert_called_once()
+        conn.rollback.assert_not_called()
+
+    def test_transaction_rolls_back_and_wraps_error(self, mocked_store):
+        store, conn, _ = mocked_store
+        db_error = "unique constraint violated"
+
+        with (
+            pytest.raises(DocumentStoreError, match=f"delete failed: {db_error}"),
+            store._transaction("delete failed"),
+        ):
+            raise ValueError(db_error)
+
+        conn.rollback.assert_called_once()
+        conn.commit.assert_not_called()
 
     def test_to_dict(self, unit_store):
         """Test serializing document store to dictionary without exposing credentials."""
@@ -338,27 +459,6 @@ class TestIBMDb2DocumentStoreUnit:
         assert isinstance(new_store.username, Secret)
         assert isinstance(new_store.password, Secret)
 
-    def test_close(self, unit_store):
-        mock_conn = Mock()
-        unit_store._connection = mock_conn
-
-        unit_store.close()
-
-        mock_conn.close.assert_called_once()
-        assert unit_store._connection is None
-
-        unit_store.close()
-        mock_conn.close.assert_called_once()
-
-    def test_close_is_exception_safe(self, unit_store):
-        mock_conn = Mock()
-        mock_conn.close.side_effect = RuntimeError("boom")
-        unit_store._connection = mock_conn
-
-        unit_store.close()
-
-        assert unit_store._connection is None
-
     def test_to_row_with_none_metadata(self, unit_store):
         """Test _to_row with None metadata."""
         doc = Document(id="1", content="test", meta=None, embedding=[0.1] * 768)
@@ -378,6 +478,29 @@ class TestIBMDb2DocumentStoreUnit:
         assert row[1] == "test"  # content
         assert '"key"' in row[2]  # meta JSON
         assert row[3] is None  # embedding should be None
+
+    def test_row_to_document_with_none_values(self):
+        """Test _row_to_document with None values."""
+        # Test with None content and meta
+        row = ("doc_id", None, None, None)
+        doc = _row_to_document(row)
+
+        assert doc.id == "doc_id"
+        assert doc.content is None
+        assert doc.meta == {}
+        assert doc.embedding is None
+
+    def test_row_to_document_with_valid_embedding(self):
+        """Test _row_to_document with valid embedding."""
+        # Test with valid embedding (as tuple/list)
+        embedding_data = [0.1, 0.2, 0.3]
+        row = ("doc_id", "content", '{"key": "value"}', embedding_data)
+        doc = _row_to_document(row)
+
+        assert doc.id == "doc_id"
+        assert doc.content == "content"
+        assert doc.meta == {"key": "value"}
+        assert doc.embedding == [0.1, 0.2, 0.3]
 
     def test_build_where_clause_empty_filters(self, unit_store):
         """Test _build_where_clause with empty filters."""
@@ -408,25 +531,47 @@ class TestIBMDb2DocumentStoreUnit:
         with pytest.raises(ValueError, match="Unsupported duplicate policy"):
             unit_store.write_documents([doc], policy=UnsupportedPolicy())
 
-    def test_row_to_document_with_none_values(self):
-        """Test _row_to_document with None values."""
-        # Test with None content and meta
-        row = ("doc_id", None, None, None)
-        doc = _row_to_document(row)
+    def test_embedding_retrieval_returns_documents_with_scores(self, mocked_store):
+        store, _, cur = mocked_store
+        cur.fetchall.return_value = [
+            ("d1", "content one", '{"k": "v"}', [0.1, 0.2, 0.3, 0.4], 0.05),
+            ("d2", "content two", None, None, 0.2),
+        ]
 
-        assert doc.id == "doc_id"
-        assert doc.content is None
-        assert doc.meta == {}
-        assert doc.embedding is None
+        docs = store._embedding_retrieval([0.1, 0.2, 0.3, 0.4], top_k=2)
 
-    def test_row_to_document_with_valid_embedding(self):
-        """Test _row_to_document with valid embedding."""
-        # Test with valid embedding (as tuple/list)
-        embedding_data = [0.1, 0.2, 0.3]
-        row = ("doc_id", "content", '{"key": "value"}', embedding_data)
-        doc = _row_to_document(row)
+        assert [d.id for d in docs] == ["d1", "d2"]
+        assert docs[0].meta == {"k": "v"}
+        assert docs[0].embedding == [0.1, 0.2, 0.3, 0.4]
+        assert docs[0].score == 0.05
+        assert docs[1].meta == {}
+        assert docs[1].embedding is None
 
-        assert doc.id == "doc_id"
-        assert doc.content == "content"
-        assert doc.meta == {"key": "value"}
-        assert doc.embedding == [0.1, 0.2, 0.3]
+    def test_embedding_retrieval_appends_filter_and_null_check(self, mocked_store):
+        store, _, cur = mocked_store
+        cur.fetchall.return_value = []
+
+        store._embedding_retrieval([0.1, 0.2], filters=_FILTER, top_k=5)
+
+        executed_sql = cur.execute.call_args.args[0]
+        assert "AND embedding IS NOT NULL" in executed_sql
+
+    @pytest.mark.parametrize(
+        "fetch_error",
+        [
+            Exception("SQL0801N division by zero"),
+            Exception("Division by zero"),
+        ],
+    )
+    def test_embedding_retrieval_returns_empty_on_zero_vector_error(self, mocked_store, fetch_error):
+        store, _, cur = mocked_store
+        cur.fetchall.side_effect = fetch_error
+
+        assert store._embedding_retrieval([0.1, 0.2], top_k=1) == []
+
+    def test_embedding_retrieval_reraises_unexpected_fetch_error(self, mocked_store):
+        store, _, cur = mocked_store
+        cur.fetchall.side_effect = RuntimeError("connection reset")
+
+        with pytest.raises(RuntimeError, match="connection reset"):
+            store._embedding_retrieval([0.1, 0.2], top_k=1)
