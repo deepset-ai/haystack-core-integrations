@@ -122,6 +122,12 @@ class ArcadeDBEmbeddingRetriever:
             filter_policy=self._filter_policy.value,
         )
 
+    def close(self) -> None:
+        """
+        Release the synchronous resources of the underlying Document Store.
+        """
+        self._document_store.close()
+
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "ArcadeDBEmbeddingRetriever":
         """

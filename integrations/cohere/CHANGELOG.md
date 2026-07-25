@@ -1,5 +1,15 @@
 # Changelog
 
+## [unreleased]
+
+
+## [integrations/cohere-v9.4.0] - 2026-07-22
+
+### 🐛 Bug Fixes
+
+- *(cohere)* Include citations in streaming ChatMessage meta (#3580)
+
+
 ## [integrations/cohere-v9.3.0] - 2026-07-09
 
 ### 🧪 Testing

@@ -1,5 +1,20 @@
 # Changelog
 
+## [integrations/pinecone-v6.3.0] - 2026-07-22
+
+### 🐛 Bug Fixes
+
+- Replace in-place dataclass mutations in anthropic, llama_cpp, olama, pinecone tests (#3551)
+
+### 🚜 Refactor
+
+- Align Pinecone closing methods to standard (#3629)
+
+### 📚 Documentation
+
+- Replace old haystack core imports with haystack_integrations paths (#3545)
+
+
 ## [integrations/pinecone-v6.2.0] - 2026-05-08
 
 ### 🐛 Bug Fixes
