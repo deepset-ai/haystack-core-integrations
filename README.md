@@ -4,11 +4,11 @@
 
 | Name                                                                            |    Stmts |     Miss |   Branch |   BrPart |   Cover |   Missing |
 |-------------------------------------------------------------------------------- | -------: | -------: | -------: | -------: | ------: | --------: |
-| src/haystack\_integrations/components/retrievers/oracle/embedding\_retriever.py |       36 |        0 |        6 |        2 |     95% |113-\>117, 117-\>119 |
-| src/haystack\_integrations/components/retrievers/oracle/keyword\_retriever.py   |       36 |        0 |        6 |        2 |     95% |111-\>113, 113-\>115 |
-| src/haystack\_integrations/document\_stores/oracle/document\_store.py           |      414 |       82 |       80 |       17 |     79% |37, 42-43, 158-162, 164-165, 184, 191, 205-207, 221-222, 242, 249, 262, 290, 320-321, 504-528, 539, 559, 596, 614, 630-631, 670-671, 719, 758-759, 766, 803-804, 819, 834, 852, 878-884, 905-937, 942, 955, 959-962, 1005-\>1007 |
+| src/haystack\_integrations/components/retrievers/oracle/embedding\_retriever.py |       38 |        0 |        6 |        2 |     95% |119-\>123, 123-\>125 |
+| src/haystack\_integrations/components/retrievers/oracle/keyword\_retriever.py   |       38 |        0 |        6 |        2 |     95% |117-\>119, 119-\>121 |
+| src/haystack\_integrations/document\_stores/oracle/document\_store.py           |      424 |       37 |       82 |       15 |     90% |38, 43-44, 188, 202-204, 226, 258, 278, 306, 336-337, 533, 537-543, 555, 575, 612, 630, 646-647, 686-687, 735, 774-775, 782, 819-820, 835, 850, 868, 923, 958, 1021-\>1023 |
 | src/haystack\_integrations/document\_stores/oracle/filters.py                   |       89 |        2 |       42 |        1 |     98% |     81-82 |
-| **TOTAL**                                                                       |  **575** |   **84** |  **134** |   **22** | **84%** |           |
+| **TOTAL**                                                                       |  **589** |   **39** |  **136** |   **20** | **92%** |           |
 
 
 ## Setup coverage badge
