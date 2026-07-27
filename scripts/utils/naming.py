@@ -36,22 +36,35 @@ def folder_to_label(folder_name: str) -> str:
     return "integration:" + folder_name.replace("_", "-")
 
 
+# Component types that live directly under the `haystack_integrations` namespace
+# instead of under `haystack_integrations.components`.
+TOP_LEVEL_TYPES = frozenset(
+    {
+        "document_stores",
+        "memory_stores",
+        "tools",
+        "tracing",
+    }
+)
+
+# Types whose module name is not derived by simply stripping a trailing "s".
 _SINGULAR_OVERRIDES: dict[str, str] = {
-    "tracing": "tracing",
+    "tracing": "tracer",
 }
 
 
 def singularize_type(component_type: str) -> str:
     """Return the singular form of a component type for use in module names.
 
-    Falls back to stripping the trailing character, which works for regular
-    plural forms (e.g. ``connectors`` -> ``connector``).
+    Strips a trailing "s", which works for the regular plural forms
+    (e.g. `connectors` -> `connector`) and leaves the already-singular
+    types untouched (e.g. `websearch`, `audio`).
     """
-    return _SINGULAR_OVERRIDES.get(component_type, component_type[:-1])
+    return _SINGULAR_OVERRIDES.get(component_type, component_type.removesuffix("s"))
 
 
 def get_module_path(folder_name: str, component_type: str) -> str:
     """Return the dotted import path for a given folder name and component type."""
-    if component_type == "document_stores":
+    if component_type in TOP_LEVEL_TYPES:
         return f"haystack_integrations.{component_type}.{folder_name}"
     return f"haystack_integrations.components.{component_type}.{folder_name}"
