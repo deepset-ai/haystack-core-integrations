@@ -213,7 +213,7 @@ class IBMDb2DocumentStore:
         Yield a cursor for a unit of work, committing on success.
 
         On any error the transaction is rolled back and the exception is re-raised
-        as a ``DocumentStoreError`` prefixed with ``error_msg``.
+        as a `DocumentStoreError` prefixed with `error_msg`.
 
         :param error_msg: Human-readable prefix for the wrapped error.
         """
