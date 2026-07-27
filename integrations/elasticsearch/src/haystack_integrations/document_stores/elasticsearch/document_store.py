@@ -1841,7 +1841,7 @@ class ElasticsearchDocumentStore:
 
         return self._extract_min_max_from_stats(stats)
 
-    def get_metadata_field_unique_values(
+    def get_metadata_field_unique_values_old(
         self,
         metadata_field: str,
         search_term: str | None = None,
@@ -1849,6 +1849,10 @@ class ElasticsearchDocumentStore:
         after: dict[str, Any] | None = None,
     ) -> tuple[list[str], dict[str, Any] | None]:
         """
+        Legacy cursor-based implementation, kept for callers relying on cheap sequential pagination via `after`.
+
+        Prefer `get_metadata_field_unique_values` for a signature consistent with other document stores.
+
         Returns unique values for a metadata field, optionally filtered by a search term in the content.
 
         Uses composite aggregations for proper pagination beyond 10k results.
@@ -1908,7 +1912,7 @@ class ElasticsearchDocumentStore:
 
         return unique_values, after_key
 
-    async def get_metadata_field_unique_values_async(
+    async def get_metadata_field_unique_values_async_old(
         self,
         metadata_field: str,
         search_term: str | None = None,
@@ -1916,6 +1920,10 @@ class ElasticsearchDocumentStore:
         after: dict[str, Any] | None = None,
     ) -> tuple[list[str], dict[str, Any] | None]:
         """
+        Legacy cursor-based implementation, kept for callers relying on cheap sequential pagination via `after`.
+
+        Prefer `get_metadata_field_unique_values_async` for a signature consistent with other document stores.
+
         Asynchronously returns unique values for a metadata field, optionally filtered by a search term in the content.
 
         Uses composite aggregations for proper pagination beyond 10k results.
@@ -1974,6 +1982,174 @@ class ElasticsearchDocumentStore:
             after_key = None
 
         return unique_values, after_key
+
+    @staticmethod
+    def _build_unique_values_field_query(field_name: str, search_term: str | None) -> dict[str, Any]:
+        """
+        Builds a query matching documents whose metadata field's own value contains `search_term`.
+
+        Matching is a case-insensitive substring match (not against the document content).
+        """
+        if not search_term:
+            return {"match_all": {}}
+        return {
+            "script": {
+                "script": {
+                    "source": (
+                        "def v = doc[params.field]; "
+                        "if (v.size() == 0) { return false; } "
+                        "return v.value.toString().toLowerCase().contains(params.term)"
+                    ),
+                    "params": {"field": field_name, "term": search_term.lower()},
+                }
+            }
+        }
+
+    @staticmethod
+    def _build_composite_agg_body(
+        field_name: str,
+        query: dict[str, Any],
+        size: int,
+        after: dict[str, Any] | None,
+        *,
+        with_count: bool,
+    ) -> dict[str, Any]:
+        composite_agg: dict[str, Any] = {
+            "size": size,
+            "sources": [{field_name: {"terms": {"field": field_name}}}],
+        }
+        if after is not None:
+            composite_agg["after"] = after
+
+        aggs: dict[str, Any] = {"unique_values": {"composite": composite_agg}}
+        if with_count:
+            # cardinality is a single-pass, approximate distinct count - computed alongside the
+            # page fetch at no extra round trip, unlike walking the composite agg to exhaustion.
+            aggs["unique_values_count"] = {"cardinality": {"field": field_name}}
+
+        return {"query": query, "aggs": aggs, "size": 0}
+
+    @staticmethod
+    def _extract_unique_values_and_count(result: dict[str, Any], field_name: str) -> tuple[list[str], int]:
+        aggregations = result.get("aggregations", {})
+        buckets = aggregations.get("unique_values", {}).get("buckets", [])
+        unique_values = [str(bucket["key"][field_name]) for bucket in buckets]
+        total_count = int(aggregations.get("unique_values_count", {}).get("value", 0))
+        return unique_values, total_count
+
+    def _skip_unique_values(
+        self, field_name: str, query: dict[str, Any], offset: int, batch_size: int = 10000
+    ) -> dict[str, Any] | None:
+        """
+        Walks composite aggregation pages to reach `offset`, discarding buckets along the way.
+
+        Composite aggregations only support cursor-based iteration (no native offset), so this
+        replay is the only way to honor an arbitrary `from_` - cost scales with `offset`, not `size`.
+        """
+        after_key = None
+        remaining = offset
+        while remaining > 0:
+            step = min(batch_size, remaining)
+            body = self._build_composite_agg_body(field_name, query, step, after_key, with_count=False)
+            result = self.client.search(index=self._index, body=body)
+            buckets = result.get("aggregations", {}).get("unique_values", {}).get("buckets", [])
+            if not buckets:
+                return after_key
+            after_key = result["aggregations"]["unique_values"].get("after_key")
+            remaining -= len(buckets)
+            if len(buckets) < step:
+                return after_key
+        return after_key
+
+    async def _skip_unique_values_async(
+        self, field_name: str, query: dict[str, Any], offset: int, batch_size: int = 10000
+    ) -> dict[str, Any] | None:
+        """
+        Async counterpart of `_skip_unique_values`. See that method for the cost trade-off explanation.
+        """
+        after_key = None
+        remaining = offset
+        while remaining > 0:
+            step = min(batch_size, remaining)
+            body = self._build_composite_agg_body(field_name, query, step, after_key, with_count=False)
+            result = await self.async_client.search(index=self._index, body=body)
+            buckets = result.get("aggregations", {}).get("unique_values", {}).get("buckets", [])
+            if not buckets:
+                return after_key
+            after_key = result["aggregations"]["unique_values"].get("after_key")
+            remaining -= len(buckets)
+            if len(buckets) < step:
+                return after_key
+        return after_key
+
+    def get_metadata_field_unique_values(
+        self,
+        metadata_field: str,
+        search_term: str | None = None,
+        from_: int = 0,
+        size: int = 10,
+    ) -> tuple[list[str], int]:
+        """
+        Returns unique values for a metadata field, optionally filtered by a search term.
+
+        Signature consistent with other Haystack document stores (`from_`/`size` -> `(values, total_count)`).
+        Internally still backed by composite aggregations, which only support cursor-based iteration.
+        Reaching offset `from_` therefore requires walking and discarding the first `from_` buckets -
+        cost scales with `from_`, not `size`. For cheap sequential pagination via a cursor, use
+        `get_metadata_field_unique_values_old` instead.
+
+        :param metadata_field: The metadata field to get unique values for. Can include or omit the
+            "meta." prefix.
+        :param search_term: Optional case-insensitive substring to filter the returned values by, matched
+            against the metadata field's own value (not the document content).
+        :param from_: Offset to start returning values from. Defaults to 0.
+        :param size: The number of unique values to return per page. Defaults to 10.
+        :returns: A tuple of (list of unique values, total count of distinct values for the field
+            matching `search_term`).
+        """
+        self._ensure_initialized()
+
+        field_name = _normalize_metadata_field_name(metadata_field)
+        query = self._build_unique_values_field_query(field_name, search_term)
+
+        after_key = self._skip_unique_values(field_name, query, from_) if from_ > 0 else None
+
+        body = self._build_composite_agg_body(field_name, query, size, after_key, with_count=True)
+        result = self.client.search(index=self._index, body=body)
+        return self._extract_unique_values_and_count(result, field_name)
+
+    async def get_metadata_field_unique_values_async(
+        self,
+        metadata_field: str,
+        search_term: str | None = None,
+        from_: int = 0,
+        size: int = 10,
+    ) -> tuple[list[str], int]:
+        """
+        Asynchronous counterpart of `get_metadata_field_unique_values`.
+
+        See that method for the `from_` cost trade-off and the cheap-cursor alternative
+        (`get_metadata_field_unique_values_async_old`).
+
+        :param metadata_field: The metadata field to get unique values for. Can include or omit the
+            "meta." prefix.
+        :param search_term: Optional case-insensitive substring to filter the returned values by, matched
+            against the metadata field's own value (not the document content).
+        :param from_: Offset to start returning values from. Defaults to 0.
+        :param size: The number of unique values to return per page. Defaults to 10.
+        :returns: A tuple of (list of unique values, total count of distinct values for the field
+            matching `search_term`).
+        """
+        await self._ensure_initialized_async()
+
+        field_name = _normalize_metadata_field_name(metadata_field)
+        query = self._build_unique_values_field_query(field_name, search_term)
+
+        after_key = await self._skip_unique_values_async(field_name, query, from_) if from_ > 0 else None
+
+        body = self._build_composite_agg_body(field_name, query, size, after_key, with_count=True)
+        result = await self.async_client.search(index=self._index, body=body)
+        return self._extract_unique_values_and_count(result, field_name)
 
     def _query_sql(self, query: str, fetch_size: int | None = None) -> dict[str, Any]:
         """

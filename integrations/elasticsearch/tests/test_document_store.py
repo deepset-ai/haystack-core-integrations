@@ -1253,7 +1253,7 @@ class TestDocumentStore(
         assert fields_info["status"]["type"] == "keyword"
         assert fields_info["priority"]["type"] == "long"
 
-    def test_get_metadata_field_unique_values(self, document_store: ElasticsearchDocumentStore):
+    def test_get_metadata_field_unique_values_old(self, document_store: ElasticsearchDocumentStore):
         docs = [
             Document(content="Python programming", meta={"category": "A", "language": "Python"}),
             Document(content="Java programming", meta={"category": "B", "language": "Java"}),
@@ -1265,24 +1265,26 @@ class TestDocumentStore(
         document_store.write_documents(docs)
 
         # test getting all unique values without search term
-        unique_values, after_key = document_store.get_metadata_field_unique_values("meta.category", None, 10)
+        unique_values, after_key = document_store.get_metadata_field_unique_values_old("meta.category", None, 10)
         assert set(unique_values) == {"A", "B", "C"}
         # after_key should be None when all results are returned
         assert after_key is None
 
         # Test with "meta." prefix
-        unique_languages, _ = document_store.get_metadata_field_unique_values("meta.language", None, 10)
+        unique_languages, _ = document_store.get_metadata_field_unique_values_old("meta.language", None, 10)
         assert set(unique_languages) == {"Python", "Java", "JavaScript"}
 
         # Test pagination - first page
-        unique_values_page1, after_key_page1 = document_store.get_metadata_field_unique_values("meta.category", None, 2)
+        unique_values_page1, after_key_page1 = document_store.get_metadata_field_unique_values_old(
+            "meta.category", None, 2
+        )
         assert len(unique_values_page1) == 2
         assert all(val in ["A", "B", "C"] for val in unique_values_page1)
         # Should have an after_key for pagination
         assert after_key_page1 is not None
 
         # Test pagination - second page using after_key
-        unique_values_page2, after_key_page2 = document_store.get_metadata_field_unique_values(
+        unique_values_page2, after_key_page2 = document_store.get_metadata_field_unique_values_old(
             "meta.category", None, 2, after=after_key_page1
         )
         assert len(unique_values_page2) == 1
@@ -1291,11 +1293,11 @@ class TestDocumentStore(
         assert after_key_page2 is None
 
         # Test with search term - filter by content matching "Python"
-        unique_values_filtered, _ = document_store.get_metadata_field_unique_values("meta.category", "Python", 10)
+        unique_values_filtered, _ = document_store.get_metadata_field_unique_values_old("meta.category", "Python", 10)
         assert set(unique_values_filtered) == {"A"}  # Only category A has documents with "Python" in content
 
         # Test with search term - filter by content matching "Java"
-        unique_values_java, _ = document_store.get_metadata_field_unique_values("meta.category", "Java", 10)
+        unique_values_java, _ = document_store.get_metadata_field_unique_values_old("meta.category", "Java", 10)
         assert set(unique_values_java) == {"B"}  # Only category B has documents with "Java" in content
 
         # Test with integer values
@@ -1306,12 +1308,149 @@ class TestDocumentStore(
             Document(content="Doc 4", meta={"priority": 3}),
         ]
         document_store.write_documents(int_docs)
-        unique_priorities, _ = document_store.get_metadata_field_unique_values("meta.priority", None, 10)
+        unique_priorities, _ = document_store.get_metadata_field_unique_values_old("meta.priority", None, 10)
         assert set(unique_priorities) == {"1", "2", "3"}
 
         # Test with search term on integer field
-        unique_priorities_filtered, _ = document_store.get_metadata_field_unique_values("meta.priority", "Doc 1", 10)
+        unique_priorities_filtered, _ = document_store.get_metadata_field_unique_values_old(
+            "meta.priority", "Doc 1", 10
+        )
         assert set(unique_priorities_filtered) == {"1"}
+
+    def test_get_metadata_field_unique_values(self, document_store: ElasticsearchDocumentStore):
+        docs = [
+            Document(content="Python programming", meta={"category": "A", "language": "Python"}),
+            Document(content="Java programming", meta={"category": "B", "language": "Java"}),
+            Document(content="Python scripting", meta={"category": "A", "language": "Python"}),
+            Document(content="JavaScript development", meta={"category": "C", "language": "JavaScript"}),
+            Document(content="Python data science", meta={"category": "A", "language": "Python"}),
+            Document(content="Java backend", meta={"category": "B", "language": "Java"}),
+        ]
+        document_store.write_documents(docs)
+
+        # Test getting all unique values without search term
+        unique_values, total_count = document_store.get_metadata_field_unique_values("meta.category", None, 0, 10)
+        assert set(unique_values) == {"A", "B", "C"}
+        assert total_count == 3
+
+        # Test with "meta." prefix
+        unique_languages, total_languages = document_store.get_metadata_field_unique_values(
+            "meta.language", None, 0, 10
+        )
+        assert set(unique_languages) == {"Python", "Java", "JavaScript"}
+        assert total_languages == 3
+
+        # Test pagination - first page
+        unique_values_page1, total_count_page1 = document_store.get_metadata_field_unique_values(
+            "meta.category", None, 0, 2
+        )
+        assert len(unique_values_page1) == 2
+        assert all(val in ["A", "B", "C"] for val in unique_values_page1)
+        assert total_count_page1 == 3
+
+        # Test pagination - second page, via from_ (triggers the offset-walk internally)
+        unique_values_page2, total_count_page2 = document_store.get_metadata_field_unique_values(
+            "meta.category", None, 2, 2
+        )
+        assert len(unique_values_page2) == 1
+        assert unique_values_page2[0] in ["A", "B", "C"]
+        assert total_count_page2 == 3
+
+        # Pages don't overlap and together cover all values
+        assert not set(unique_values_page1).intersection(set(unique_values_page2))
+        assert set(unique_values_page1) | set(unique_values_page2) == {"A", "B", "C"}
+
+        # Test pagination - from_ beyond total count (should return empty, but a valid total_count)
+        unique_values_beyond, total_beyond = document_store.get_metadata_field_unique_values(
+            "meta.category", None, 10, 10
+        )
+        assert len(unique_values_beyond) == 0
+        assert total_beyond == 3
+
+        # Test with search term - matches the metadata field's own value, not document content
+        unique_values_filtered, total_filtered = document_store.get_metadata_field_unique_values(
+            "meta.language", "Python", 0, 10
+        )
+        assert set(unique_values_filtered) == {"Python"}
+        assert total_filtered == 1
+
+        # Case-insensitivity
+        unique_values_lower, total_lower = document_store.get_metadata_field_unique_values(
+            "meta.language", "python", 0, 10
+        )
+        assert set(unique_values_lower) == {"Python"}
+        assert total_lower == 1
+
+        # Substring matching - "Java" matches both "Java" and "JavaScript"
+        unique_values_java, total_java = document_store.get_metadata_field_unique_values("meta.language", "Java", 0, 10)
+        assert set(unique_values_java) == {"Java", "JavaScript"}
+        assert total_java == 2
+
+        # Test that search_term matches metadata VALUE, not content
+        content_vs_metadata_docs = [
+            Document(content="This document mentions Python explicitly", meta={"topic": "cooking"}),
+            Document(content="Unrelated content about recipes", meta={"topic": "python-tutorial"}),
+        ]
+        document_store.write_documents(content_vs_metadata_docs)
+
+        unique_topics, total_topics = document_store.get_metadata_field_unique_values("meta.topic", "python", 0, 10)
+        assert set(unique_topics) == {"python-tutorial"}
+        assert total_topics == 1
+
+        # Test with integer values
+        int_docs = [
+            Document(content="Doc 1", meta={"priority": 1}),
+            Document(content="Doc 2", meta={"priority": 2}),
+            Document(content="Doc 3", meta={"priority": 1}),
+            Document(content="Doc 4", meta={"priority": 3}),
+        ]
+        document_store.write_documents(int_docs)
+        unique_priorities, total_priorities = document_store.get_metadata_field_unique_values(
+            "meta.priority", None, 0, 10
+        )
+        assert set(unique_priorities) == {"1", "2", "3"}
+        assert total_priorities == 3
+
+        # Test with search term on integer field - substring match against the field's own
+        # (stringified) value, e.g. "Doc 1" (content) no longer matches; "1" (the value itself) does.
+        unique_priorities_filtered, total_priorities_filtered = document_store.get_metadata_field_unique_values(
+            "meta.priority", "1", 0, 10
+        )
+        assert set(unique_priorities_filtered) == {"1"}
+        assert total_priorities_filtered == 1
+
+    @pytest.mark.asyncio
+    async def test_get_metadata_field_unique_values_async(self, document_store: ElasticsearchDocumentStore):
+        docs = [
+            Document(content="Python programming", meta={"category": "A", "language": "Python"}),
+            Document(content="Java programming", meta={"category": "B", "language": "Java"}),
+            Document(content="Python scripting", meta={"category": "A", "language": "Python"}),
+        ]
+        document_store.write_documents(docs)
+
+        unique_values, total_count = await document_store.get_metadata_field_unique_values_async(
+            "meta.category", None, 0, 10
+        )
+        assert set(unique_values) == {"A", "B"}
+        assert total_count == 2
+
+        unique_values_page1, total_count_page1 = await document_store.get_metadata_field_unique_values_async(
+            "meta.category", None, 0, 1
+        )
+        unique_values_page2, total_count_page2 = await document_store.get_metadata_field_unique_values_async(
+            "meta.category", None, 1, 1
+        )
+        assert len(unique_values_page1) == 1
+        assert len(unique_values_page2) == 1
+        assert set(unique_values_page1) | set(unique_values_page2) == {"A", "B"}
+        assert total_count_page1 == 2
+        assert total_count_page2 == 2
+
+        unique_values_filtered, total_filtered = await document_store.get_metadata_field_unique_values_async(
+            "meta.language", "Python", 0, 10
+        )
+        assert set(unique_values_filtered) == {"Python"}
+        assert total_filtered == 1
 
     def test_query_sql(self, document_store: ElasticsearchDocumentStore):
         docs = [
