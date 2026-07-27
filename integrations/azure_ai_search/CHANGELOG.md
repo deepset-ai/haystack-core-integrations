@@ -1,5 +1,16 @@
 # Changelog
 
+## [integrations/azure_ai_search-v4.1.0] - 2026-07-27
+
+### 🚀 Features
+
+- Azure AI Search - add closing methods (#3662)
+
+### 🧪 Testing
+
+- Azure AI Search - fix test_count_unique_metadata_by_filter_with_multiple_filters for 3.0 changes (#3659)
+
+
 ## [integrations/azure_ai_search-v4.0.1] - 2026-07-20
 
 ### 🐛 Bug Fixes
