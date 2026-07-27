@@ -1029,6 +1029,10 @@ class TestChatCompletionChunkConversion:
         assert result.meta["finish_reason"] == "tool_calls"
         assert result.meta["index"] == 0
         assert result.meta["completion_start_time"] is not None
+
+        # Normalize usage details since cache_write_tokens is not always present in the response
+        result.meta["usage"]["prompt_tokens_details"].setdefault("cache_write_tokens", None)
+
         assert result.meta["usage"] == {
             "completion_tokens": 42,
             "prompt_tokens": 55,
@@ -1041,6 +1045,7 @@ class TestChatCompletionChunkConversion:
             },
             "prompt_tokens_details": {
                 "audio_tokens": None,
+                "cache_write_tokens": None,
                 "cached_tokens": 0,
             },
         }

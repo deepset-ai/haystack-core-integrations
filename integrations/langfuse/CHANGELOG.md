@@ -1,5 +1,31 @@
 # Changelog
 
+## [integrations/langfuse-v5.2.0] - 2026-07-15
+
+### 🐛 Bug Fixes
+
+- *(langfuse)* Replace noisy ToolInvoker input with focused tool call arguments (#3520)
+
+
+## [integrations/langfuse-v5.1.0] - 2026-07-08
+
+### 🐛 Bug Fixes
+
+- *(langfuse)* Stop relying on `haystack.utils.base_serialization` helpers (#3563)
+
+### 📚 Documentation
+
+- Replace old haystack core imports with haystack_integrations paths (#3545)
+
+### 🧪 Testing
+
+- Trust test modules under Haystack 3.0's deserialization allowlist (#3537)
+
+### 🧹 Chores
+
+- Improve consistency of integrations folder structure (#3430)
+
+
 ## [integrations/langfuse-v5.0.2] - 2026-06-01
 
 ### 🐛 Bug Fixes

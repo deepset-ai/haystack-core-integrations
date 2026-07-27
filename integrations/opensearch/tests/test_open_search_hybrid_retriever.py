@@ -4,7 +4,7 @@
 
 from copy import deepcopy
 from typing import Any
-from unittest.mock import Mock
+from unittest.mock import AsyncMock, Mock
 
 import pytest
 from haystack import Document, Pipeline
@@ -139,6 +139,26 @@ class TestOpenSearchHybridRetriever:
         del data["init_parameters"]["join_mode"]
         hybrid = OpenSearchHybridRetriever.from_dict(data)
         assert isinstance(hybrid, OpenSearchHybridRetriever)
+
+    def test_close(self, mock_embedder):
+        mock_store = Mock(spec=OpenSearchDocumentStore)
+        retriever = OpenSearchHybridRetriever(document_store=mock_store, embedder=mock_embedder)
+
+        retriever.close()
+
+        mock_store.close.assert_called_once_with()
+        assert retriever.document_store is mock_store
+
+    @pytest.mark.asyncio
+    async def test_close_async(self, mock_embedder):
+        mock_store = Mock(spec=OpenSearchDocumentStore)
+        mock_store.close_async = AsyncMock()
+        retriever = OpenSearchHybridRetriever(document_store=mock_store, embedder=mock_embedder)
+
+        await retriever.close_async()
+
+        mock_store.close_async.assert_awaited_once_with()
+        assert retriever.document_store is mock_store
 
     def test_run(self, mock_embedder):
         # mocked document store

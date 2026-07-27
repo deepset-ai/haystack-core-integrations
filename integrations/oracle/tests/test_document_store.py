@@ -47,6 +47,24 @@ def _uid(suffix: str = "") -> str:
     return f"{base}{suffix.upper():>4}"[:32]
 
 
+def test_get_metadata_field_unique_values_search_term_filters_value_only(patched_store, mock_pool):
+    """search_term must filter on the metadata field's own JSON value, not on document text."""
+    _, _, cursor = mock_pool
+    cursor.fetchone.return_value = (1,)
+    cursor.fetchall.return_value = [("bar",)]
+
+    patched_store.get_metadata_field_unique_values("category", search_term="bar")
+
+    count_sql, count_params = cursor.execute.call_args_list[0][0]
+    vals_sql, vals_params = cursor.execute.call_args_list[1][0]
+
+    for sql in (count_sql, vals_sql):
+        assert "UPPER(JSON_VALUE(metadata, '$.category')) LIKE UPPER(:search)" in sql
+
+    assert count_params["search"] == "%bar%"
+    assert vals_params["search"] == "%bar%"
+
+
 @pytest.mark.integration
 class TestOracleDocumentStore(
     DocumentStoreBaseTests,
@@ -310,6 +328,30 @@ class TestOracleDocumentStore(
     def test_create_table_idempotent(self, document_store):
         """Calling _ensure_table() a second time must not raise."""
         document_store._ensure_table()
+
+    def test_get_metadata_field_unique_values_search_term_matches_value_not_content(self, document_store):
+        """search_term filters on the metadata field's own value; document content is not considered."""
+        document_store.write_documents(
+            [
+                _doc(_uid("Q001"), content="this text mentions apple", meta={"category": "dessert"}),
+                _doc(_uid("Q002"), content="unrelated content", meta={"category": "apple-tart"}),
+            ]
+        )
+        values, total = document_store.get_metadata_field_unique_values("category", search_term="apple")
+        # Q001: content contains "apple" but its category value ("dessert") does not -> excluded.
+        # Q002: category value ("apple-tart") contains "apple", content does not -> still included.
+        assert values == ["apple-tart"]
+        assert total == 1
+
+    def test_get_metadata_field_unique_values_search_term_case_insensitive(self, document_store):
+        document_store.write_documents(
+            [
+                _doc(_uid("Q003"), content="n/a", meta={"category": "Apple-Tart"}),
+            ]
+        )
+        values, total = document_store.get_metadata_field_unique_values("category", search_term="APPLE")
+        assert values == ["Apple-Tart"]
+        assert total == 1
 
 
 @pytest.mark.integration

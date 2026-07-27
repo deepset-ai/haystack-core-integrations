@@ -1,5 +1,16 @@
 # Changelog
 
+## [integrations/azure_ai_search-v4.0.1] - 2026-07-20
+
+### 🐛 Bug Fixes
+
+- *(azure_ai_search)* Escape single quotes in OData string literals (#3590)
+
+### 📚 Documentation
+
+- Replace old haystack core imports with haystack_integrations paths (#3545)
+
+
 ## [integrations/azure_ai_search-v4.0.0] - 2026-05-04
 
 ### 🧪 Testing

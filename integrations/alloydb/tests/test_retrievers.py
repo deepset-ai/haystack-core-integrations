@@ -2,6 +2,8 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+from unittest.mock import Mock
+
 import pytest
 from haystack.dataclasses import Document
 from haystack.utils.auth import EnvVarSecret
@@ -33,6 +35,15 @@ class TestEmbeddingRetriever:
     def test_init_raises_with_wrong_store(self):
         with pytest.raises(ValueError, match="document_store must be an instance of AlloyDBDocumentStore"):
             AlloyDBEmbeddingRetriever(document_store="not_a_store")
+
+    def test_close(self):
+        mock_store = Mock(spec=AlloyDBDocumentStore)
+        retriever = AlloyDBEmbeddingRetriever(document_store=mock_store)
+
+        retriever.close()
+
+        mock_store.close.assert_called_once_with()
+        assert retriever.document_store is mock_store
 
     def test_to_dict(self, mock_store):
         retriever = AlloyDBEmbeddingRetriever(
@@ -132,6 +143,15 @@ class TestKeywordRetriever:
         assert retriever.document_store == mock_store
         assert retriever.filters == {}
         assert retriever.top_k == 10
+
+    def test_close(self):
+        mock_store = Mock(spec=AlloyDBDocumentStore)
+        retriever = AlloyDBKeywordRetriever(document_store=mock_store)
+
+        retriever.close()
+
+        mock_store.close.assert_called_once_with()
+        assert retriever.document_store is mock_store
 
     def test_init(self, mock_store):
         retriever = AlloyDBKeywordRetriever(

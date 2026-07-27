@@ -30,6 +30,7 @@ class TestSentenceTransformersTextEmbedder:
         assert embedder.local_files_only is False
         assert embedder.truncate_dim is None
         assert embedder.precision == "float32"
+        assert embedder.quantization_ranges is None
 
     def test_init_with_parameters(self):
         embedder = SentenceTransformersTextEmbedder(
@@ -46,6 +47,7 @@ class TestSentenceTransformersTextEmbedder:
             local_files_only=True,
             truncate_dim=256,
             precision="int8",
+            quantization_ranges=[[-1.0, -1.0], [1.0, 1.0]],
         )
         assert embedder.model == "model"
         assert embedder.device == ComponentDevice.from_str("cuda:0")
@@ -60,6 +62,12 @@ class TestSentenceTransformersTextEmbedder:
         assert embedder.local_files_only is True
         assert embedder.truncate_dim == 256
         assert embedder.precision == "int8"
+        assert embedder.quantization_ranges == [[-1.0, -1.0], [1.0, 1.0]]
+
+    def test_init_quantized_precision_without_ranges_warns(self, caplog):
+        with caplog.at_level("WARNING"):
+            SentenceTransformersTextEmbedder(model="model", precision="int8")
+        assert "quantization_ranges" in caplog.text
 
     def test_to_dict(self):
         component = SentenceTransformersTextEmbedder(model="model", device=ComponentDevice.from_str("cpu"))
@@ -85,6 +93,7 @@ class TestSentenceTransformersTextEmbedder:
                 "config_kwargs": None,
                 "precision": "float32",
                 "backend": "torch",
+                "quantization_ranges": None,
             },
         }
 
@@ -129,6 +138,7 @@ class TestSentenceTransformersTextEmbedder:
                 "precision": "int8",
                 "encode_kwargs": {"task": "clustering"},
                 "backend": "torch",
+                "quantization_ranges": None,
             },
         }
 
@@ -300,7 +310,23 @@ class TestSentenceTransformersTextEmbedder:
             show_progress_bar=True,
             normalize_embeddings=False,
             precision="float32",
+            quantization_ranges=None,
             task="retrieval.query",
+        )
+
+    def test_run_with_quantization_ranges(self):
+        ranges = [[-1.0, -1.0], [1.0, 1.0]]
+        embedder = SentenceTransformersTextEmbedder(model="model", precision="int8", quantization_ranges=ranges)
+        embedder.embedding_backend = MagicMock()
+        text = "a nice text to embed"
+        embedder.run(text=text)
+        embedder.embedding_backend.embed.assert_called_once_with(
+            [text],
+            batch_size=32,
+            show_progress_bar=True,
+            normalize_embeddings=False,
+            precision="int8",
+            quantization_ranges=ranges,
         )
 
     @patch(
@@ -423,3 +449,22 @@ class TestSentenceTransformersTextEmbedder:
 
         assert len(embedding_def) == 128
         assert all(isinstance(el, int) for el in embedding_def)
+
+    @pytest.mark.integration
+    def test_run_quantization_with_ranges(self, del_hf_env_vars_if_empty):
+        """
+        sentence-transformers-testing/stsb-bert-tiny-safetensors maps sentences & paragraphs to a 128 dimensional dense
+        vector space
+        """
+        checkpoint = "sentence-transformers-testing/stsb-bert-tiny-safetensors"
+        text = "a nice text to embed"
+        ranges = [[-1.0] * 128, [1.0] * 128]
+
+        embedder = SentenceTransformersTextEmbedder(model=checkpoint, precision="int8", quantization_ranges=ranges)
+        result = embedder.run(text=text)
+        embedding = result["embedding"]
+
+        assert len(embedding) == 128
+        assert all(isinstance(el, int) for el in embedding)
+        # without explicit ranges, a single text produces a degenerate all-equal embedding
+        assert len(set(embedding)) > 1

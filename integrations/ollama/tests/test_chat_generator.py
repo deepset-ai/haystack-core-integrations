@@ -817,6 +817,11 @@ class TestOllamaChatGeneratorInitSerializeDeserialize:
         )
         data = component.to_dict()
 
+        # the Tool serialization format is owned by haystack-ai and varies across its versions; the
+        # from_dict round-trip below covers the tools, so exclude them from the pinned-dict comparison
+        tools_entries = data["init_parameters"].pop("tools")
+        assert len(tools_entries) == 1
+
         expected_dict = {
             "type": "haystack_integrations.components.generators.ollama.chat.chat_generator.OllamaChatGenerator",
             "init_parameters": {
@@ -830,24 +835,6 @@ class TestOllamaChatGeneratorInitSerializeDeserialize:
                     "max_tokens": 10,
                     "some_test_param": "test-params",
                 },
-                "tools": [
-                    {
-                        "type": "haystack.tools.tool.Tool",
-                        "data": {
-                            "description": "description",
-                            "function": "builtins.print",
-                            "name": "name",
-                            "parameters": {
-                                "x": {
-                                    "type": "string",
-                                },
-                            },
-                            "outputs_to_string": None,
-                            "inputs_from_state": None,
-                            "outputs_to_state": None,
-                        },
-                    },
-                ],
                 "response_format": {
                     "type": "object",
                     "properties": {"name": {"type": "string"}, "age": {"type": "number"}},
@@ -857,6 +844,10 @@ class TestOllamaChatGeneratorInitSerializeDeserialize:
         }
 
         assert data == expected_dict
+
+        # deserializing the serialized component must reproduce the original tool
+        loaded = OllamaChatGenerator.from_dict(component.to_dict())
+        assert loaded.tools == [tool]
 
     def test_to_dict_and_from_dict_preserves_think(self):
         """`think` enables a model's reasoning output and must survive a

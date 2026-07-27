@@ -71,7 +71,7 @@ class FastembedSparseDocumentEmbedder:
         model_kwargs: dict[str, Any] | None = None,
     ) -> None:
         """
-        Create an FastembedDocumentEmbedder component.
+        Create a FastembedSparseDocumentEmbedder component.
 
         :param model: Local path or name of the model in Hugging Face's model hub,
             such as `prithivida/Splade_PP_en_v1`.
@@ -162,7 +162,7 @@ class FastembedSparseDocumentEmbedder:
         if not isinstance(documents, list) or (documents and not isinstance(documents[0], Document)):
             msg = (
                 "FastembedSparseDocumentEmbedder expects a list of Documents as input. "
-                "In case you want to embed a list of strings, please use the FastembedTextEmbedder."
+                "In case you want to embed a list of strings, please use the FastembedSparseTextEmbedder."
             )
             raise TypeError(msg)
 

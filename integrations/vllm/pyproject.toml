@@ -23,8 +23,7 @@ classifiers = [
   "Programming Language :: Python :: Implementation :: CPython",
   "Programming Language :: Python :: Implementation :: PyPy",
 ]
-# fastapi temporarily pinned due to https://github.com/vllm-project/vllm/issues/45596
-dependencies = ["haystack-ai>=2.30.0", "openai", "more_itertools>=9.0.0", "tqdm>=4.48.0", "fastapi<0.137"]
+dependencies = ["haystack-ai>=2.30.0", "openai", "more_itertools>=9.0.0", "tqdm>=4.48.0"]
 
 [project.urls]
 Documentation = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/vllm#readme"

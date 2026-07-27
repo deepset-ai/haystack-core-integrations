@@ -106,7 +106,7 @@ class RagasEvaluator:
         data["init_parameters"]["ragas_metrics"] = [_deserialize_metric(m) for m in metrics_data]
         return default_from_dict(cls, data)
 
-    @component.output_types(result=dict[str, dict[str, MetricResult]])
+    @component.output_types(result=dict[str, MetricResult])
     def run(
         self,
         query: str | None = None,
@@ -152,7 +152,7 @@ class RagasEvaluator:
 
         return {"result": results}
 
-    @component.output_types(result=dict[str, dict[str, MetricResult]])
+    @component.output_types(result=dict[str, MetricResult])
     async def run_async(
         self,
         query: str | None = None,

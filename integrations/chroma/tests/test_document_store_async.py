@@ -215,3 +215,37 @@ class TestDocumentStoreAsync(
         )
         assert values == []
         assert total == 0
+
+    async def test_get_metadata_field_unique_values_async_search_term_excludes_content_only_match(
+        self, document_store: ChromaDocumentStore
+    ):
+        """A search term present only in document content (not in the metadata field value)
+        must not match, proving search_term no longer filters on content."""
+        docs = [
+            Document(content="unique-marker-xyz", meta={"category": "A"}),
+            Document(content="plain content", meta={"category": "B"}),
+        ]
+        await document_store.write_documents_async(docs)
+
+        values, total = await document_store.get_metadata_field_unique_values_async(
+            "category", search_term="unique-marker-xyz", from_=0, size=10
+        )
+        assert values == []
+        assert total == 0
+
+    async def test_get_metadata_field_unique_values_async_search_term_matches_field_value(
+        self, document_store: ChromaDocumentStore
+    ):
+        """A search term present in the metadata field's value but absent from the content
+        must match, proving search_term filters on the metadata field's value (case-insensitively)."""
+        docs = [
+            Document(content="Nothing special here", meta={"category": "special-value"}),
+            Document(content="Nothing special here either", meta={"category": "other"}),
+        ]
+        await document_store.write_documents_async(docs)
+
+        values, total = await document_store.get_metadata_field_unique_values_async(
+            "category", search_term="SPECIAL", from_=0, size=10
+        )
+        assert values == ["special-value"]
+        assert total == 1

@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import logging
 import re
+from contextlib import suppress
 from dataclasses import replace
 from datetime import datetime
 from typing import Any, Literal
@@ -166,6 +167,17 @@ class FalkorDBDocumentStore(DocumentStore):
         """
         deserialize_secrets_inplace(data["init_parameters"], keys=["password"])
         return default_from_dict(cls, data)
+
+    def close(self) -> None:
+        """
+        Release the associated synchronous resources.
+        """
+        if self.client is not None:
+            with suppress(Exception):
+                self.client.close()
+            self.client = None
+            self.graph = None
+            self.initialized = False
 
     # ------------------------------------------------------------------
     # Internal connection helpers

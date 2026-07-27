@@ -1,5 +1,28 @@
 # Changelog
 
+## [integrations/qdrant-v10.3.1] - 2026-07-06
+
+### 🐛 Bug Fixes
+
+- Replace in-place dataclass mutations in document stores (#3114)
+
+### 📚 Documentation
+
+- Replace old haystack core imports with haystack_integrations paths (#3545)
+
+### 🧪 Testing
+
+- Track test coverage for all integrations (#3065)
+- Mark some tests as integration in Faiss and Qdrant (#3076)
+- Qdrant - add unit tests (#3183)
+- Qdrant - add more unit tests (#3221)
+- *(qdrant)* Use async DocumentStore mixin tests (#3093)
+
+### 🧹 Chores
+
+- Enforce ruff docstring rules in integrations 31-40 (openrouter, opensearch, optimum, paddleocr, pgvector, pinecone, pyversity, qdrant, ragas, snowflake) (#3011)
+
+
 ## [integrations/qdrant-v10.3.0] - 2026-03-23
 
 ### 📚 Documentation
