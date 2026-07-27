@@ -8,6 +8,7 @@ import json
 import logging
 import re
 import threading
+from contextlib import suppress
 from dataclasses import dataclass
 from typing import Any, Literal
 
@@ -177,11 +178,7 @@ class OracleDocumentStore:
 
         self._pool: oracledb.ConnectionPool | None = None
         self._pool_lock = threading.Lock()
-
-        if create_table_if_not_exists:
-            self._ensure_table()
-        if create_index:
-            self.create_hnsw_index()
+        self._setup_done = False
 
     def _get_pool(self) -> oracledb.ConnectionPool:
         if self._pool is not None:
@@ -212,14 +209,33 @@ class OracleDocumentStore:
         return self._pool
 
     def _get_connection(self) -> oracledb.Connection:
+        self._ensure_setup()
         return self._get_pool().acquire()
 
-    def __del__(self) -> None:
+    def _ensure_setup(self) -> None:
+        """
+        Create the backing table and optional HNSW index once, on first use if needed.
+        """
+        if self._setup_done:
+            return
+        self._setup_done = True
+        try:
+            if self.create_table_if_not_exists:
+                self._ensure_table()
+            if self.create_index:
+                self.create_hnsw_index()
+        except Exception:
+            self._setup_done = False
+            raise
+
+    def close(self) -> None:
+        """
+        Release the associated synchronous resources.
+        """
         if self._pool is not None:
-            try:
+            with suppress(Exception):
                 self._pool.close()
-            except Exception:
-                logger.warning("Failed to close Oracle connection pool during cleanup.", exc_info=True)
+            self._pool = None
 
     def _ensure_table(self) -> None:
         sql = f"""
