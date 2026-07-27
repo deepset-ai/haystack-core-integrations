@@ -143,6 +143,7 @@ ignore = [
   "PLR0912",
   "PLR0913",
   "PLR0915",
+  "PLR0917",
   # Ignore assertions
   "S101",
 ]

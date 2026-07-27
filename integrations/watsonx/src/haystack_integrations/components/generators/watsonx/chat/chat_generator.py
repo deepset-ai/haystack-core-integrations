@@ -352,7 +352,7 @@ class WatsonxChatGenerator:
         merged_kwargs = {**self.generation_kwargs, **(generation_kwargs or {})}
 
         watsonx_messages = []
-        content: str | None | dict[str, Any] | list[dict[str, Any]]
+        content: str | dict[str, Any] | list[dict[str, Any]] | None
 
         flattened_tools = flatten_tools_or_toolsets(tools or self.tools)
         _check_duplicate_tool_names(flattened_tools)
