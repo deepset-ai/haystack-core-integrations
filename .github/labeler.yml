@@ -69,6 +69,11 @@ integration:azure-form-recognizer:
       - any-glob-to-any-file: "integrations/azure_form_recognizer/**/*"
       - any-glob-to-any-file: ".github/workflows/azure_form_recognizer.yml"
 
+integration:celeris:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/celeris/**/*"
+      - any-glob-to-any-file: ".github/workflows/celeris.yml"
+
 integration:chonkie:
   - changed-files:
       - any-glob-to-any-file: "integrations/chonkie/**/*"
