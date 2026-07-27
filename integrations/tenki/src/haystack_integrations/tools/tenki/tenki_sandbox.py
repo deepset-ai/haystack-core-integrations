@@ -191,7 +191,8 @@ class TenkiSandbox:
         """Best-effort teardown used on the creation-failure/cancellation path."""
         try:
             sandbox.close_if_open()
-        except Exception as e:  # noqa: BLE001 - cleanup path must not mask the original error
+        except Exception as e:
+            # Cleanup path: log but don't mask the original error that triggered teardown.
             logger.warning("Failed to tear down Tenki sandbox during cleanup: {error}", error=e)
 
     # ------------------------------------------------------------------
