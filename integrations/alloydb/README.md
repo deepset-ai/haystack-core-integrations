@@ -54,10 +54,12 @@ store = AlloyDBDocumentStore(
     recreate_table=True,
 )
 
-store.write_documents([
-    Document(content="Paris is the capital of France", embedding=[0.1] * 768),
-    Document(content="Berlin is the capital of Germany", embedding=[0.2] * 768),
-])
+store.write_documents(
+    [
+        Document(content="Paris is the capital of France", embedding=[0.1] * 768),
+        Document(content="Berlin is the capital of Germany", embedding=[0.2] * 768),
+    ]
+)
 
 print(store.count_documents())  # 2
 ```

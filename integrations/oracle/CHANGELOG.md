@@ -1,6 +1,15 @@
 # Changelog
 
-## [unreleased]
+## [integrations/oracle-v0.4.0] - 2026-07-27
+
+### 🚀 Features
+
+- Oracle - make connection lazy, add closing methods and refactor tests (#3665)
+
+### 🐛 Bug Fixes
+
+- `Oracle` match `search_term` against metadata field value only, drop content match (#3645)
+- Fix new issues raised by ruff 0.16.0 (#3670)
 
 ### 🧹 Chores
 

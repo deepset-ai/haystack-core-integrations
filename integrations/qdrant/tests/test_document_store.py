@@ -370,6 +370,29 @@ class TestQdrantDocumentStoreUnit:
         ):
             assert getattr(document_store, method_name)(*args) == expected
 
+    def test_close(self):
+        document_store = QdrantDocumentStore(location=":memory:")
+        mock_client = MagicMock()
+        document_store._client = mock_client
+
+        document_store.close()
+
+        mock_client.close.assert_called_once()
+        assert document_store._client is None
+
+        document_store.close()
+        mock_client.close.assert_called_once()
+
+    def test_close_is_exception_safe(self):
+        document_store = QdrantDocumentStore(location=":memory:")
+        mock_client = MagicMock()
+        mock_client.close.side_effect = RuntimeError("boom")
+        document_store._client = mock_client
+
+        document_store.close()
+
+        assert document_store._client is None
+
 
 @pytest.mark.integration
 class TestQdrantDocumentStore(
@@ -408,6 +431,16 @@ class TestQdrantDocumentStore(
 
         # Check that the sets are equal, meaning the content and IDs match regardless of order
         assert {doc.id for doc in received} == {doc.id for doc in expected}
+
+    def test_close_and_reopen(self, document_store: QdrantDocumentStore):
+        assert document_store.count_documents() == 0
+        assert document_store._client is not None
+
+        document_store.close()
+
+        assert document_store._client is None
+        assert document_store.count_documents() == 0
+        assert document_store._client is not None
 
     def test_prepare_client_params_no_mutability(self):
         metadata = {"key": "value"}
