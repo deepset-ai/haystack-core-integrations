@@ -20,7 +20,7 @@ PYTHON_TYPES_TO_PG_TYPES = {
     bool: "boolean",
 }
 
-NO_VALUE = "no_value"
+NO_VALUE = object()  # unique sentinel; can never equal a user-supplied filter value
 
 
 def _validate_filters(filters: dict[str, Any] | None = None) -> None:
@@ -48,7 +48,7 @@ def _convert_filters_to_where_clause_and_params(
         query, values = _parse_logical_condition(filters)
 
     where_clause = SQL(f" {operator} ") + query
-    params = tuple(value for value in values if value != NO_VALUE)
+    params = tuple(value for value in values if value is not NO_VALUE)
 
     return where_clause, params
 
@@ -227,14 +227,14 @@ def _less_than_equal(field: Composable, value: Any) -> tuple[Composed, Any]:
 
 def _not_in(field: Composable, value: Any) -> tuple[Composed, list]:
     if not isinstance(value, list):
-        msg = f"{field}'s value must be a list when using 'not in' comparator in Pinecone"
+        msg = f"{field}'s value must be a list when using 'not in' comparator in PgVector"
         raise FilterError(msg)
-    return SQL("{} IS NULL OR {} != ALL(%s)").format(field, field), [value]
+    return SQL("({} IS NULL OR {} != ALL(%s))").format(field, field), [value]
 
 
 def _in(field: Composable, value: Any) -> tuple[Composed, list]:
     if not isinstance(value, list):
-        msg = f"{field}'s value must be a list when using 'in' comparator in Pinecone"
+        msg = f"{field}'s value must be a list when using 'in' comparator in PgVector"
         raise FilterError(msg)
 
     # see https://www.psycopg.org/psycopg3/docs/basic/adapt.html#lists-adaptation

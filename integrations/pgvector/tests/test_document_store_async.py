@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from unittest.mock import Mock, patch
+from unittest.mock import AsyncMock, Mock, patch
 
 import psycopg
 import pytest
@@ -130,6 +130,18 @@ class TestDocumentStoreAsync(
         without triggering errors due to an uninitialized state.
         """
         await document_store.delete_table_async()  # if throw error, test fails
+
+    async def test_close_async_and_reopen(self, document_store: PgvectorDocumentStore):
+        assert await document_store.count_documents_async() == 0
+        assert document_store._async_connection is not None
+
+        await document_store.close_async()
+        assert document_store._async_connection is None
+        assert document_store._async_cursor is None
+        assert document_store._async_dict_cursor is None
+
+        assert await document_store.count_documents_async() == 0
+        assert document_store._async_connection is not None
 
 
 @pytest.mark.integration
@@ -302,3 +314,33 @@ async def test_write_documents_async_rejects_non_document_items(mock_store):
 async def test_count_unique_metadata_by_filter_async_rejects_empty_fields(mock_store):
     with pytest.raises(ValueError, match="metadata_fields must be a non-empty list"):
         await mock_store.count_unique_metadata_by_filter_async(filters={}, metadata_fields=[])
+
+
+@pytest.mark.asyncio
+async def test_close_async(mock_store):
+    mock_connection = Mock(spec=AsyncConnection)
+    mock_connection.close = AsyncMock()
+    mock_store._async_connection = mock_connection
+    mock_store._async_cursor = Mock(spec=AsyncCursor)
+    mock_store._async_dict_cursor = Mock(spec=AsyncCursor)
+
+    await mock_store.close_async()
+
+    mock_connection.close.assert_awaited_once()
+    assert mock_store._async_connection is None
+    assert mock_store._async_cursor is None
+    assert mock_store._async_dict_cursor is None
+
+    await mock_store.close_async()
+    mock_connection.close.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_close_async_is_exception_safe(mock_store):
+    mock_connection = Mock(spec=AsyncConnection)
+    mock_connection.close = AsyncMock(side_effect=RuntimeError("boom"))
+    mock_store._async_connection = mock_connection
+
+    await mock_store.close_async()
+
+    assert mock_store._async_connection is None

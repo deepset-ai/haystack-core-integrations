@@ -5,6 +5,7 @@
 # ruff: noqa: S110
 
 import uuid
+from unittest.mock import AsyncMock
 
 import pytest
 import pytest_asyncio
@@ -23,6 +24,33 @@ from haystack.testing.document_store_async import (
 )
 
 from haystack_integrations.document_stores.valkey import ValkeyDocumentStore
+
+
+@pytest.mark.asyncio
+async def test_close_async():
+    store = ValkeyDocumentStore(index_name="unit_test", embedding_dim=3, metadata_fields={"category": str})
+    mock_client = AsyncMock()
+    store._async_client = mock_client
+
+    await store.close_async()
+
+    mock_client.close.assert_awaited_once()
+    assert store._async_client is None
+
+    await store.close_async()
+    mock_client.close.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_close_async_is_exception_safe():
+    store = ValkeyDocumentStore(index_name="unit_test", embedding_dim=3, metadata_fields={"category": str})
+    mock_client = AsyncMock()
+    mock_client.close.side_effect = RuntimeError("close boom")
+    store._async_client = mock_client
+
+    await store.close_async()
+
+    assert store._async_client is None
 
 
 @pytest.mark.integration
@@ -67,6 +95,17 @@ class TestValkeyDocumentStoreAsync(
             await document_store._async_client.flushdb()
         except Exception:
             pass
+
+    @pytest.mark.asyncio
+    async def test_close_async_and_reopen(self, document_store):
+        assert await document_store.count_documents_async() == 0
+        assert document_store._async_client is not None
+
+        await document_store.close_async()
+        assert document_store._async_client is None
+
+        assert await document_store.count_documents_async() == 0
+        assert document_store._async_client is not None
 
     # --- Override for mixin bug: test_count_not_empty_async is missing `self` in DeleteByFilterAsyncTest ---
 

@@ -4,7 +4,7 @@
 
 from copy import deepcopy
 from typing import Any
-from unittest.mock import Mock, patch
+from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 from haystack import Document, Pipeline
@@ -84,6 +84,26 @@ class TestElasticsearchHybridRetriever:
     @pytest.fixture
     def mock_embedder(self):
         return MockedTextEmbedder()
+
+    def test_close(self, mock_embedder):
+        mock_store = Mock(spec=ElasticsearchDocumentStore)
+        retriever = ElasticsearchHybridRetriever(document_store=mock_store, embedder=mock_embedder)
+
+        retriever.close()
+
+        mock_store.close.assert_called_once_with()
+        assert retriever.document_store is mock_store
+
+    @pytest.mark.asyncio
+    async def test_close_async(self, mock_embedder):
+        mock_store = Mock(spec=ElasticsearchDocumentStore)
+        mock_store.close_async = AsyncMock()
+        retriever = ElasticsearchHybridRetriever(document_store=mock_store, embedder=mock_embedder)
+
+        await retriever.close_async()
+
+        mock_store.close_async.assert_awaited_once_with()
+        assert retriever.document_store is mock_store
 
     @patch("haystack_integrations.document_stores.elasticsearch.document_store.Elasticsearch")
     def test_to_dict(self, _mock_elasticsearch_client, serialised) -> None:

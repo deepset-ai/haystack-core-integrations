@@ -8,6 +8,7 @@ import copy
 # ruff: noqa: B008              function-call-in-default-argument
 # ruff: noqa: S101              disable checks for uses of the assert keyword
 from collections.abc import Mapping
+from contextlib import suppress
 from dataclasses import replace
 from typing import Any, Literal
 
@@ -164,7 +165,8 @@ class ElasticsearchDocumentStore:
             self._ingest_pipeline = None
         self._custom_mapping = custom_mapping
         self._kwargs = kwargs
-        self._initialized = False
+        self._headers = self._kwargs.pop("headers", {})
+        self._headers["user-agent"] = f"haystack-py-ds/{haystack_version}"
 
         if self._sparse_vector_field and self._sparse_vector_field in SPECIAL_FIELDS:
             msg = f"sparse_vector_field '{self._sparse_vector_field}' conflicts with a reserved field name."
@@ -204,44 +206,34 @@ class ElasticsearchDocumentStore:
             if self._sparse_vector_field:
                 self._default_mappings["properties"][self._sparse_vector_field] = {"type": "sparse_vector"}
 
+    def _create_async_client(self) -> AsyncElasticsearch:
+        return AsyncElasticsearch(self._hosts, api_key=self._handle_auth(), headers=self._headers, **self._kwargs)
+
     def _ensure_initialized(self) -> None:
         """
-        Ensures both sync and async clients are initialized and the index exists.
+        Ensures the synchronous client is initialized and the index exists.
         """
-        if not self._initialized:
-            headers = self._kwargs.pop("headers", {})
-            headers["user-agent"] = f"haystack-py-ds/{haystack_version}"
-
-            api_key = self._handle_auth()
-
-            # Initialize both sync and async clients
+        if self._client is None:
             self._client = Elasticsearch(
-                self._hosts,
-                api_key=api_key,
-                headers=headers,
-                **self._kwargs,
+                self._hosts, api_key=self._handle_auth(), headers=self._headers, **self._kwargs
             )
-            self._async_client = AsyncElasticsearch(
-                self._hosts,
-                api_key=api_key,
-                headers=headers,
-                **self._kwargs,
-            )
-
             # Check client connection, this will raise if not connected
             self._client.info()
-
-            if self._custom_mapping:
-                mappings = self._custom_mapping
-            else:
-                # Configure mapping for the embedding field if none is provided
-                mappings = self._default_mappings
-
-            # Create the index if it doesn't exist
+            mappings = self._custom_mapping if self._custom_mapping else self._default_mappings
             if not self._client.indices.exists(index=self._index):
                 self._client.indices.create(index=self._index, mappings=mappings)
 
-            self._initialized = True
+    async def _ensure_initialized_async(self) -> None:
+        """
+        Ensures the asynchronous client is initialized and the index exists.
+        """
+        if self._async_client is None:
+            self._async_client = self._create_async_client()
+            # Check client connection, this will raise if not connected
+            await self._async_client.info()
+            mappings = self._custom_mapping if self._custom_mapping else self._default_mappings
+            if not await self._async_client.indices.exists(index=self._index):
+                await self._async_client.indices.create(index=self._index, mappings=mappings)
 
     def _handle_auth(self) -> str | tuple[str, str] | None:
         """
@@ -300,11 +292,29 @@ class ElasticsearchDocumentStore:
     @property
     def async_client(self) -> AsyncElasticsearch:
         """
-        Returns the asynchronous Elasticsearch client, initializing it if necessary.
+        Returns the asynchronous Elasticsearch client, constructing it if necessary.
         """
-        self._ensure_initialized()
-        assert self._async_client is not None
+        if self._async_client is None:
+            self._async_client = self._create_async_client()
         return self._async_client
+
+    def close(self) -> None:
+        """
+        Release the associated synchronous resources.
+        """
+        if self._client is not None:
+            with suppress(Exception):
+                self._client.close()
+            self._client = None
+
+    async def close_async(self) -> None:
+        """
+        Release the associated asynchronous resources.
+        """
+        if self._async_client is not None:
+            with suppress(Exception):
+                await self._async_client.close()
+            self._async_client = None
 
     def to_dict(self) -> dict[str, Any]:
         """
@@ -361,7 +371,7 @@ class ElasticsearchDocumentStore:
 
         :returns: Number of documents in the document store.
         """
-        self._ensure_initialized()
+        await self._ensure_initialized_async()
         result = await self._async_client.count(index=self._index)  # type: ignore
         return result["count"]
 
@@ -468,7 +478,7 @@ class ElasticsearchDocumentStore:
             msg = "Invalid filter syntax. See https://docs.haystack.deepset.ai/docs/metadata-filtering for details."
             raise ValueError(msg)
 
-        self._ensure_initialized()
+        await self._ensure_initialized_async()
         query = {"bool": {"filter": _normalize_filters(filters)}} if filters else None
         documents = await self._search_documents_async(query=query)
         return documents
@@ -765,7 +775,7 @@ class ElasticsearchDocumentStore:
         :raises DocumentStoreError: If an error occurs while writing the documents to the document store.
         :returns: Number of documents written to the document store.
         """
-        self._ensure_initialized()
+        await self._ensure_initialized_async()
 
         if len(documents) > 0:
             if not isinstance(documents[0], Document):
@@ -873,7 +883,7 @@ class ElasticsearchDocumentStore:
             - `"wait_for"`: Wait for the next refresh cycle (default, ensures read-your-writes consistency).
             For more details, see the [Elasticsearch refresh documentation](https://www.elastic.co/docs/reference/elasticsearch/rest-apis/refresh-parameter).
         """
-        self._ensure_initialized()
+        await self._ensure_initialized_async()
 
         await helpers.async_bulk(
             client=self.async_client,
@@ -931,7 +941,7 @@ class ElasticsearchDocumentStore:
             completes. If False, no refresh is performed. For more details, see the
             [Elasticsearch delete_by_query refresh documentation](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-delete-by-query#operation-delete-by-query-refresh).
         """
-        self._ensure_initialized()  # ensures _async_client is not None
+        await self._ensure_initialized_async()  # ensures _async_client is not None
 
         try:
             if recreate_index:
@@ -1008,7 +1018,7 @@ class ElasticsearchDocumentStore:
             [Elasticsearch refresh documentation](https://www.elastic.co/docs/reference/elasticsearch/rest-apis/refresh-parameter).
         :returns: The number of documents deleted.
         """
-        self._ensure_initialized()
+        await self._ensure_initialized_async()
 
         try:
             normalized_filters = _normalize_filters(filters)
@@ -1072,7 +1082,7 @@ class ElasticsearchDocumentStore:
             [Elasticsearch update_by_query refresh documentation](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-update-by-query#operation-update-by-query-refresh).
         :returns: The number of documents updated.
         """
-        self._ensure_initialized()
+        await self._ensure_initialized_async()
 
         try:
             normalized_filters = _normalize_filters(filters)
@@ -1172,7 +1182,7 @@ class ElasticsearchDocumentStore:
         :returns: List of Documents that match the query
         :raises ValueError: If query_embedding is empty
         """
-        self._ensure_initialized()
+        await self._ensure_initialized_async()
 
         if not query:
             msg = "query must be a non empty string"
@@ -1270,7 +1280,7 @@ class ElasticsearchDocumentStore:
         :returns: List of Documents most similar to query_embedding
         :raises ValueError: If query_embedding is empty
         """
-        self._ensure_initialized()
+        await self._ensure_initialized_async()
 
         if not query_embedding:
             msg = "query_embedding must be a non-empty list of floats"
@@ -1334,7 +1344,7 @@ class ElasticsearchDocumentStore:
         :returns: List of Documents most similar to query_sparse_embedding.
         :raises ValueError: If sparse retrieval is not configured or the query sparse embedding is empty.
         """
-        self._ensure_initialized()
+        await self._ensure_initialized_async()
         search_body = self._create_sparse_retrieval_body(
             query_sparse_embedding=query_sparse_embedding,
             filters=filters,
@@ -1384,7 +1394,7 @@ class ElasticsearchDocumentStore:
         :param top_k: Maximum number of documents to return.
         :returns: List of Documents most similar to the inference query.
         """
-        self._ensure_initialized()
+        await self._ensure_initialized_async()
         search_body = self._create_sparse_retrieval_inference_body(
             query=query,
             inference_id=inference_id,
@@ -1527,7 +1537,7 @@ class ElasticsearchDocumentStore:
         :param rank_constant: RRF rank constant.
         :returns: List of Documents ranked by RRF score.
         """
-        self._ensure_initialized()
+        await self._ensure_initialized_async()
         body = self._create_hybrid_retrieval_inference_body(
             query=query,
             inference_id=inference_id,
@@ -1561,7 +1571,7 @@ class ElasticsearchDocumentStore:
             For filter syntax, see [Haystack metadata filtering](https://docs.haystack.deepset.ai/docs/metadata-filtering)
         :returns: The number of documents that match the filters.
         """
-        self._ensure_initialized()
+        await self._ensure_initialized_async()
 
         normalized_filters = _normalize_filters(filters)
         body = {"query": {"bool": {"filter": normalized_filters}}}
@@ -1679,7 +1689,7 @@ class ElasticsearchDocumentStore:
                   documents.
         :raises ValueError: If any of the requested fields don't exist in the index mapping.
         """
-        self._ensure_initialized()
+        await self._ensure_initialized_async()
 
         # use index mapping to get all fields
         mapping = await self.async_client.indices.get_mapping(index=self._index)
@@ -1763,7 +1773,7 @@ class ElasticsearchDocumentStore:
 
         :returns: The information about the fields in the index.
         """
-        self._ensure_initialized()
+        await self._ensure_initialized_async()
 
         mapping = await self.async_client.indices.get_mapping(index=self._index)
         index_mapping = mapping[self._index]["mappings"]["properties"]
@@ -1822,7 +1832,7 @@ class ElasticsearchDocumentStore:
         :returns: A dictionary with the keys "min" and "max", where each value is the minimum or maximum value of the
                   metadata field across all documents.
         """
-        self._ensure_initialized()
+        await self._ensure_initialized_async()
 
         field_name = _normalize_metadata_field_name(metadata_field)
         body = self._build_min_max_query_body(field_name)
@@ -1835,19 +1845,22 @@ class ElasticsearchDocumentStore:
         self,
         metadata_field: str,
         search_term: str | None = None,
-        size: int | None = 10000,
+        size: int | None = 10,
         after: dict[str, Any] | None = None,
     ) -> tuple[list[str], dict[str, Any] | None]:
         """
-        Returns unique values for a metadata field, optionally filtered by a search term in the content.
+        Returns unique values for a metadata field, optionally filtered by a substring match on the field's value.
 
         Uses composite aggregations for proper pagination beyond 10k results.
 
         See: https://www.elastic.co/docs/reference/aggregations/search-aggregations-bucket-composite-aggregation
 
         :param metadata_field: The metadata field to get unique values for.
-        :param search_term: Optional search term to filter documents by matching in the content field.
-        :param size: The number of unique values to return per page. Defaults to 10000.
+        :param search_term: Optional term to filter the returned values by, matching as a case-insensitive substring
+            of the metadata field's own value (not the document content). NOTE: The matching is done with a server-side
+            script to accomplish the substring matching on the value of the field and this operation is quite expensive
+            for a large corpus.
+        :param size: The number of unique values to return per page. Defaults to 10.
         :param after: Optional pagination key from the previous response. Use None for the first page.
             For subsequent pages, pass the `after_key` from the previous response.
         :returns: A tuple containing (list of unique values, after_key for pagination).
@@ -1858,12 +1871,6 @@ class ElasticsearchDocumentStore:
 
         field_name = _normalize_metadata_field_name(metadata_field)
 
-        # filter by search_term if provided
-        query: dict[str, Any] = {"match_all": {}}
-        if search_term:
-            # Use match_phrase for exact phrase matching to avoid tokenization issues
-            query = {"match_phrase": {"content": search_term}}
-
         # Build composite aggregation for proper pagination
         composite_agg: dict[str, Any] = {
             "size": size,
@@ -1872,8 +1879,7 @@ class ElasticsearchDocumentStore:
         if after is not None:
             composite_agg["after"] = after
 
-        body = {
-            "query": query,
+        body: dict[str, Any] = {
             "aggs": {
                 "unique_values": {
                     "composite": composite_agg,
@@ -1881,6 +1887,24 @@ class ElasticsearchDocumentStore:
             },
             "size": 0,  # we only need aggregations, not documents
         }
+        if search_term:
+            # Composite aggregation terms sources don't support `include`/`exclude` (that's only valid on
+            # standalone `terms` aggregations), and a `regexp` query only works on keyword/text fields, not
+            # numeric ones. A doc-value script query works uniformly across field types by stringifying the
+            # field's value, matching the case-insensitive substring semantics documented above. The term is
+            # lower-cased once here rather than per-document in the script.
+            body["query"] = {
+                "script": {
+                    "script": {
+                        "source": (
+                            "def v = doc[params.field]; "
+                            "if (v.size() == 0) { return false; } "
+                            "return v.value.toString().toLowerCase().contains(params.term)"
+                        ),
+                        "params": {"field": field_name, "term": search_term.lower()},
+                    }
+                }
+            }
 
         result = self.client.search(index=self._index, body=body)
         aggregations = result.get("aggregations", {})
@@ -1902,34 +1926,32 @@ class ElasticsearchDocumentStore:
         self,
         metadata_field: str,
         search_term: str | None = None,
-        size: int | None = 10000,
+        size: int | None = 10,
         after: dict[str, Any] | None = None,
     ) -> tuple[list[str], dict[str, Any] | None]:
         """
-        Asynchronously returns unique values for a metadata field, optionally filtered by a search term in the content.
+        Asynchronously returns unique values for a metadata field.
 
+        Optionally filtered by a substring match on the field's own value.
         Uses composite aggregations for proper pagination beyond 10k results.
 
         See: https://www.elastic.co/docs/reference/aggregations/search-aggregations-bucket-composite-aggregation
 
         :param metadata_field: The metadata field to get unique values for.
-        :param search_term: Optional search term to filter documents by matching in the content field.
-        :param size: The number of unique values to return per page. Defaults to 10000.
+        :param search_term: Optional term to filter the returned values by, matching as a case-insensitive substring
+            of the metadata field's own value (not the document content). NOTE: The matching is done with a server-side
+            script to accomplish the substring matching on the value of the field and this operation is quite expensive
+            for a large corpus.
+        :param size: The number of unique values to return per page. Defaults to 10.
         :param after: Optional pagination key from the previous response. Use None for the first page.
             For subsequent pages, pass the `after_key` from the previous response.
         :returns: A tuple containing (list of unique values, after_key for pagination).
             The after_key is None when there are no more results. Use it in the `after` parameter
             for the next page.
         """
-        self._ensure_initialized()
+        await self._ensure_initialized_async()
 
         field_name = _normalize_metadata_field_name(metadata_field)
-
-        # filter by search_term if provided
-        query: dict[str, Any] = {"match_all": {}}
-        if search_term:
-            # Use match_phrase for exact phrase matching to avoid tokenization issues
-            query = {"match_phrase": {"content": search_term}}
 
         # Build composite aggregation for proper pagination
         composite_agg: dict[str, Any] = {
@@ -1939,8 +1961,7 @@ class ElasticsearchDocumentStore:
         if after is not None:
             composite_agg["after"] = after
 
-        body = {
-            "query": query,
+        body: dict[str, Any] = {
             "aggs": {
                 "unique_values": {
                     "composite": composite_agg,
@@ -1948,6 +1969,24 @@ class ElasticsearchDocumentStore:
             },
             "size": 0,  # we only need aggregations, not documents
         }
+        if search_term:
+            # Composite aggregation terms sources don't support `include`/`exclude` (that's only valid on
+            # standalone `terms` aggregations), and a `regexp` query only works on keyword/text fields, not
+            # numeric ones. A doc-value script query works uniformly across field types by stringifying the
+            # field's value, matching the case-insensitive substring semantics documented above. The term is
+            # lower-cased once here rather than per-document in the script.
+            body["query"] = {
+                "script": {
+                    "script": {
+                        "source": (
+                            "def v = doc[params.field]; "
+                            "if (v.size() == 0) { return false; } "
+                            "return v.value.toString().toLowerCase().contains(params.term)"
+                        ),
+                        "params": {"field": field_name, "term": search_term.lower()},
+                    }
+                }
+            }
 
         result = await self.async_client.search(index=self._index, body=body)
         aggregations = result.get("aggregations", {})
@@ -2008,7 +2047,7 @@ class ElasticsearchDocumentStore:
         :param fetch_size: Optional number of results to fetch per page.
         :returns: The raw JSON response from Elasticsearch SQL API.
         """
-        self._ensure_initialized()
+        await self._ensure_initialized_async()
         assert self._async_client is not None
 
         try:

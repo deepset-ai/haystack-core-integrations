@@ -17,6 +17,13 @@ def test_id_filter_with_empty_value_raises():
         _convert_filters({"field": "id", "operator": "==", "value": ""})
 
 
+def test_id_filter_with_non_eq_operator_raises():
+    # A non-'==' operator produces e.g. {"$in": [...]} (no "$eq" key), which must
+    # surface the friendly ChromaDocumentStoreFilterError, not a raw KeyError('$eq').
+    with pytest.raises(ChromaDocumentStoreFilterError, match="id filter only supports"):
+        _convert_filters({"field": "id", "operator": "in", "value": ["1", "2"]})
+
+
 @pytest.mark.parametrize(
     ("condition", "match"),
     [

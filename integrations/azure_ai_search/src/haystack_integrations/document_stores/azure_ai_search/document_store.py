@@ -4,6 +4,7 @@
 
 import logging as python_logging
 from collections.abc import Mapping, Sequence
+from contextlib import suppress
 from datetime import datetime
 from typing import Any
 
@@ -386,6 +387,19 @@ class AzureAISearchDocumentStore:
         if (vector_search_configuration := data["init_parameters"].get("vector_search_configuration")) is not None:
             data["init_parameters"]["vector_search_configuration"] = VectorSearch(vector_search_configuration)
         return default_from_dict(cls, data)
+
+    def close(self) -> None:
+        """
+        Release the associated synchronous resources.
+        """
+        if self._client is not None:
+            with suppress(Exception):
+                self._client.close()
+            self._client = None
+        if self._index_client is not None:
+            with suppress(Exception):
+                self._index_client.close()
+            self._index_client = None
 
     def count_documents(self) -> int:
         """
