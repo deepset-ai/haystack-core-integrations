@@ -212,7 +212,7 @@ class TestFAISSDocumentStore(
         assert set(values) == {"needle-in-haystack"}
 
     def test_get_metadata_field_unique_values_pagination(self, document_store):
-        docs = [Document(content=f"Doc {i}", meta={"category": chr(ord('A') + i)}) for i in range(5)]
+        docs = [Document(content=f"Doc {i}", meta={"category": chr(ord("A") + i)}) for i in range(5)]
         document_store.write_documents(docs)
 
         page1, total_count = document_store.get_metadata_field_unique_values("meta.category", from_=0, size=2)
