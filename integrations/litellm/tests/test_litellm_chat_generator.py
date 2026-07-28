@@ -236,6 +236,64 @@ class TestRun:
             assert meta["usage"]["prompt_tokens"] == 10
             assert meta["usage"]["completion_tokens"] == 5
 
+    def test_anthropic_cache_tokens_in_meta(self):
+        gen = LiteLLMChatGenerator(model="anthropic/claude-sonnet-4-20250514")
+        mock_resp = _make_mock_response(model="anthropic/claude-sonnet-4-20250514")
+        # Anthropic prompt-caching fields that litellm surfaces on Usage
+        mock_resp.usage.cache_creation_input_tokens = 1200
+        mock_resp.usage.cache_read_input_tokens = 800
+
+        fake_litellm = types.ModuleType("litellm")
+        fake_litellm.completion = MagicMock(return_value=mock_resp)
+
+        with mock.patch.dict(sys.modules, {"litellm": fake_litellm}):
+            result = gen.run(messages=[ChatMessage.from_user("hi")])
+            usage = result["replies"][0].meta["usage"]
+            assert usage["cache_creation_input_tokens"] == 1200
+            assert usage["cache_read_input_tokens"] == 800
+            assert usage["prompt_tokens"] == 10
+
+    def test_openai_cached_tokens_in_meta(self):
+        gen = LiteLLMChatGenerator(model="openai/gpt-4o")
+        mock_resp = _make_mock_response()
+        # OpenAI cached token details that litellm surfaces via prompt_tokens_details
+        prompt_details = SimpleNamespace(cached_tokens=500)
+        mock_resp.usage.prompt_tokens_details = prompt_details
+
+        fake_litellm = types.ModuleType("litellm")
+        fake_litellm.completion = MagicMock(return_value=mock_resp)
+
+        with mock.patch.dict(sys.modules, {"litellm": fake_litellm}):
+            result = gen.run(messages=[ChatMessage.from_user("hi")])
+            usage = result["replies"][0].meta["usage"]
+            assert usage["cached_tokens"] == 500
+            assert usage["prompt_tokens"] == 10
+
+    def test_streaming_anthropic_cache_tokens_in_meta(self):
+        gen = LiteLLMChatGenerator(model="anthropic/claude-sonnet-4-20250514")
+        # Anthropic sends cache token counts in the final usage-only chunk
+        usage = SimpleNamespace(
+            prompt_tokens=10,
+            completion_tokens=5,
+            total_tokens=15,
+            cache_creation_input_tokens=1200,
+            cache_read_input_tokens=800,
+        )
+        chunks = _make_mock_stream_chunks("Hi!", usage=usage)
+
+        fake_litellm = types.ModuleType("litellm")
+        fake_litellm.completion = MagicMock(return_value=iter(chunks))
+
+        with mock.patch.dict(sys.modules, {"litellm": fake_litellm}):
+            result = gen.run(
+                messages=[ChatMessage.from_user("hi")],
+                streaming_callback=lambda _c: None,
+            )
+            reply_usage = result["replies"][0].meta["usage"]
+            assert reply_usage["cache_creation_input_tokens"] == 1200
+            assert reply_usage["cache_read_input_tokens"] == 800
+            assert reply_usage["total_tokens"] == 15
+
     def test_tool_calls_parsed(self):
         tc = MagicMock()
         tc.id = "call_123"

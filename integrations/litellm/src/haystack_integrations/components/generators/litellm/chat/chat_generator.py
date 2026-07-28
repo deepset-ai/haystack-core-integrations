@@ -266,16 +266,31 @@ _FINISH_REASON_MAPPING: dict[str, FinishReason] = {
 }
 
 
-def _extract_usage(obj: Any) -> dict[str, int]:
+def _extract_usage(obj: Any) -> dict[str, Any]:
     """Pull token usage off a litellm response or chunk, tolerating its absence."""
     usage = getattr(obj, "usage", None)
     if not usage:
         return {}
-    return {
+    result: dict[str, Any] = {
         "prompt_tokens": getattr(usage, "prompt_tokens", 0),
         "completion_tokens": getattr(usage, "completion_tokens", 0),
         "total_tokens": getattr(usage, "total_tokens", 0),
     }
+    # Anthropic prompt-caching fields (present when using anthropic/* or bedrock/anthropic.* models
+    # with cache_control blocks in the request)
+    cache_creation = getattr(usage, "cache_creation_input_tokens", None)
+    if cache_creation:
+        result["cache_creation_input_tokens"] = cache_creation
+    cache_read = getattr(usage, "cache_read_input_tokens", None)
+    if cache_read:
+        result["cache_read_input_tokens"] = cache_read
+    # OpenAI cached prompt tokens (present when the prompt was served from OpenAI's KV cache)
+    prompt_details = getattr(usage, "prompt_tokens_details", None)
+    if prompt_details:
+        cached = getattr(prompt_details, "cached_tokens", None)
+        if cached:
+            result["cached_tokens"] = cached
+    return result
 
 
 def _build_chat_message(response: Any, choice: Any) -> ChatMessage:
