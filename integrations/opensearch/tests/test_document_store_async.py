@@ -809,10 +809,95 @@ class TestDocumentStoreAsync(
                 await alias_store._async_client.close()
 
     @pytest.mark.asyncio
-    async def test_get_metadata_field_unique_values_async_search_term_filters_on_field_value_not_content(
-        self, document_store: OpenSearchDocumentStore
-    ):
-        """search_term filters against the metadata field's own value, not the document content (async)."""
+    async def test_get_metadata_field_unique_values_async(self, document_store: OpenSearchDocumentStore):
+        # Test with string values
+        docs = [
+            Document(content="Python programming", meta={"category": "A", "language": "Python"}),
+            Document(content="Java programming", meta={"category": "B", "language": "Java"}),
+            Document(content="Python scripting", meta={"category": "A", "language": "Python"}),
+            Document(content="JavaScript development", meta={"category": "C", "language": "JavaScript"}),
+            Document(content="Python data science", meta={"category": "A", "language": "Python"}),
+            Document(content="Java backend", meta={"category": "B", "language": "Java"}),
+        ]
+        await document_store.write_documents_async(docs)
+
+        # Test getting all unique values without search term
+        unique_values, after_key = await document_store.get_metadata_field_unique_values_async(
+            "meta.category", None, 10
+        )
+        assert set(unique_values) == {"A", "B", "C"}
+        # after_key should be None when all results are returned
+        assert after_key is None
+
+        # Test with "meta." prefix
+        unique_languages, _ = await document_store.get_metadata_field_unique_values_async("meta.language", None, 10)
+        assert set(unique_languages) == {"Python", "Java", "JavaScript"}
+
+        # Test pagination - first page
+        unique_values_page1, after_key_page1 = await document_store.get_metadata_field_unique_values_async(
+            "meta.category", None, 2
+        )
+        assert len(unique_values_page1) == 2
+        assert all(val in ["A", "B", "C"] for val in unique_values_page1)
+        # Should have an after_key for pagination
+        assert after_key_page1 is not None
+
+        # Test pagination - second page using after_key
+        unique_values_page2, after_key_page2 = await document_store.get_metadata_field_unique_values_async(
+            "meta.category", None, 2, after=after_key_page1
+        )
+        assert len(unique_values_page2) == 1
+        assert unique_values_page2[0] in ["A", "B", "C"]
+        # Should have no more results
+        assert after_key_page2 is None
+
+        # Test with search term - filter by the metadata field's own VALUE matching "Python"
+        # ("language" values are "Python"/"Java"/"JavaScript", so searching "Python" against
+        # the "category" field's values ("A"/"B"/"C") should match nothing)
+        unique_values_filtered, _ = await document_store.get_metadata_field_unique_values_async(
+            "meta.category", "Python", 10
+        )
+        assert set(unique_values_filtered) == set()
+
+        # Searching "language" values themselves for the substring "Java" must match both
+        # "Java" and "JavaScript" (substring match on the field's own value).
+        unique_languages_filtered, _ = await document_store.get_metadata_field_unique_values_async(
+            "meta.language", "Java", 10
+        )
+        assert set(unique_languages_filtered) == {"Java", "JavaScript"}
+
+        # Case-insensitivity: a lowercase search term must still match the differently-cased values above.
+        unique_languages_lower, _ = await document_store.get_metadata_field_unique_values_async(
+            "meta.language", "java", 10
+        )
+        assert set(unique_languages_lower) == {"Java", "JavaScript"}
+
+        # Test with integer values
+        int_docs = [
+            Document(content="Doc 1", meta={"priority": 1}),
+            Document(content="Doc 2", meta={"priority": 2}),
+            Document(content="Doc 3", meta={"priority": 1}),
+            Document(content="Doc 4", meta={"priority": 3}),
+        ]
+        await document_store.write_documents_async(int_docs)
+        unique_priorities, _ = await document_store.get_metadata_field_unique_values_async("meta.priority", None, 10)
+        assert set(unique_priorities) == {"1", "2", "3"}
+
+        # search_term now matches against the field's own value, not the content, so searching
+        # for content text ("Doc 1") against the "priority" field's values ("1"/"2"/"3") matches nothing.
+        unique_priorities_filtered, _ = await document_store.get_metadata_field_unique_values_async(
+            "meta.priority", "Doc 1", 10
+        )
+        assert set(unique_priorities_filtered) == set()
+
+        # search_term matching the field's own value (e.g. "1") does match.
+        unique_priorities_by_value, _ = await document_store.get_metadata_field_unique_values_async(
+            "meta.priority", "1", 10
+        )
+        assert set(unique_priorities_by_value) == {"1"}
+
+        # Prove the semantic change explicitly with a document whose CONTENT contains the search
+        # term but whose target metadata field value does NOT: it must now be EXCLUDED.
         content_match_docs = [
             Document(content="This mentions needle in the text", meta={"topic": "unrelated"}),
         ]
@@ -822,6 +907,8 @@ class TestDocumentStoreAsync(
         )
         assert set(unique_topics_content_only) == set()
 
+        # And a document whose metadata field VALUE contains the search term but whose content does
+        # NOT: it must now be INCLUDED.
         value_match_docs = [
             Document(content="Nothing special here", meta={"topic": "needle-in-haystack"}),
         ]
