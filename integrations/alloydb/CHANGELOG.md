@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/alloydb-v0.2.1] - 2026-07-23
+
+### 🐛 Bug Fixes
+
+- *(alloydb)* Parenthesize `not in` clause so it does not escape an AND filter (#3655)
+
+
 ## [integrations/alloydb-v0.2.0] - 2026-07-22
 
 ### 🚜 Refactor

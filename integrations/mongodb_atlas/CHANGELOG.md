@@ -1,5 +1,20 @@
 # Changelog
 
+## [integrations/mongodb_atlas-v4.3.0] - 2026-07-23
+
+### 🚀 Features
+
+- Mongodb - add closing methods (#3651)
+
+### 🐛 Bug Fixes
+
+- `MongoDB` normalisation of `.meta` usage in `get_metadata_field_unique_values()` (#3639)
+
+### 📚 Documentation
+
+- Replace old haystack core imports with haystack_integrations paths (#3545)
+
+
 ## [integrations/mongodb_atlas-v4.2.0] - 2026-06-18
 
 ### 🚀 Features

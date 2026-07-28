@@ -3,6 +3,8 @@
 # SPDX-License-Identifier: Apache-2.0
 
 
+from unittest.mock import AsyncMock
+
 import pytest
 from haystack.dataclasses import Document
 from haystack.document_stores.errors import DocumentStoreError, DuplicateDocumentError
@@ -26,6 +28,33 @@ from haystack_integrations.document_stores.opensearch.document_store import Open
 from tests.test_document_store_common import OpenSearchDocumentStoreTestMixin
 
 
+@pytest.mark.asyncio
+async def test_close_async():
+    store = OpenSearchDocumentStore(hosts="testhost", http_auth=("a", "b"))
+    mock_client = AsyncMock()
+    store._async_client = mock_client
+
+    await store.close_async()
+
+    mock_client.close.assert_awaited_once()
+    assert store._async_client is None
+
+    await store.close_async()
+    mock_client.close.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_close_async_is_exception_safe():
+    store = OpenSearchDocumentStore(hosts="testhost", http_auth=("a", "b"))
+    mock_client = AsyncMock()
+    mock_client.close.side_effect = RuntimeError("boom")
+    store._async_client = mock_client
+
+    await store.close_async()
+
+    assert store._async_client is None
+
+
 @pytest.mark.integration
 class TestDocumentStoreAsync(
     OpenSearchDocumentStoreTestMixin,
@@ -42,6 +71,17 @@ class TestDocumentStoreAsync(
     GetMetadataFieldMinMaxAsyncTest,
     GetMetadataFieldUniqueValuesAsyncTest,
 ):
+    @pytest.mark.asyncio
+    async def test_close_async_and_reopen(self, document_store: OpenSearchDocumentStore):
+        assert await document_store.count_documents_async() == 0
+        assert document_store._async_client is not None
+
+        await document_store.close_async()
+        assert document_store._async_client is None
+
+        assert await document_store.count_documents_async() == 0
+        assert document_store._async_client is not None
+
     @pytest.mark.asyncio
     async def test_write_documents_async(self, document_store: OpenSearchDocumentStore):
         docs = [Document(id="1")]

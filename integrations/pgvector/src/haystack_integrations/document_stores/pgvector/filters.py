@@ -227,14 +227,14 @@ def _less_than_equal(field: Composable, value: Any) -> tuple[Composed, Any]:
 
 def _not_in(field: Composable, value: Any) -> tuple[Composed, list]:
     if not isinstance(value, list):
-        msg = f"{field}'s value must be a list when using 'not in' comparator in Pinecone"
+        msg = f"{field}'s value must be a list when using 'not in' comparator in PgVector"
         raise FilterError(msg)
-    return SQL("{} IS NULL OR {} != ALL(%s)").format(field, field), [value]
+    return SQL("({} IS NULL OR {} != ALL(%s))").format(field, field), [value]
 
 
 def _in(field: Composable, value: Any) -> tuple[Composed, list]:
     if not isinstance(value, list):
-        msg = f"{field}'s value must be a list when using 'in' comparator in Pinecone"
+        msg = f"{field}'s value must be a list when using 'in' comparator in PgVector"
         raise FilterError(msg)
 
     # see https://www.psycopg.org/psycopg3/docs/basic/adapt.html#lists-adaptation

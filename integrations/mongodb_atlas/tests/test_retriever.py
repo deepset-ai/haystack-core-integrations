@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: 2023-present deepset GmbH <info@deepset.ai>
 #
 # SPDX-License-Identifier: Apache-2.0
-from unittest.mock import Mock
+from unittest.mock import AsyncMock, Mock
 
 import pytest
 from haystack.dataclasses import Document
@@ -145,6 +145,19 @@ class TestRetriever:
         assert retriever.filters == {"field": "value"}
         assert retriever.top_k == 5
         assert retriever.filter_policy == FilterPolicy.REPLACE
+
+    def test_close(self, case, mock_store):
+        retriever = case["retriever_cls"](document_store=mock_store)
+        retriever.close()
+        mock_store.close.assert_called_once()
+        assert retriever.document_store is mock_store
+
+    async def test_close_async(self, case, mock_store):
+        mock_store.close_async = AsyncMock()
+        retriever = case["retriever_cls"](document_store=mock_store)
+        await retriever.close_async()
+        mock_store.close_async.assert_awaited_once()
+        assert retriever.document_store is mock_store
 
     def test_run(self, case, mock_store):
         getattr(mock_store, case["sync_method"]).return_value = [case["doc"]]
