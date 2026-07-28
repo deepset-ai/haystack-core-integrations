@@ -1,4 +1,5 @@
 import pytest
+from haystack.core.errors import DeserializationError
 from openai import AsyncOpenAI
 from ragas.embeddings.base import embedding_factory
 from ragas.llms import llm_factory
@@ -72,6 +73,14 @@ class TestDeserializeMetric:
         }
 
         with pytest.raises(ValueError, match="only supports the 'openai' provider"):
+            _deserialize_metric(data)
+
+    def test_raises_for_untrusted_metric_module(self):
+        data = {"type": "some.untrusted.Metric", "name": "some_metric"}
+
+        # haystack-ai 2.x fails to import the unknown module; haystack-ai >= 3.0 refuses it upfront
+        # because it is not on the trusted-module allowlist
+        with pytest.raises((ImportError, DeserializationError)):
             _deserialize_metric(data)
 
     def test_round_trip(self):

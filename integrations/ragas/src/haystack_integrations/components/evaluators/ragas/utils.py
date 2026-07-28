@@ -1,9 +1,9 @@
 # SPDX-FileCopyrightText: 2026-present deepset GmbH <info@deepset.ai>
 #
 # SPDX-License-Identifier: Apache-2.0
-import importlib
 from typing import Any
 
+from haystack.core.serialization import import_class_by_name
 from openai import AsyncOpenAI
 
 from ragas.embeddings.base import embedding_factory
@@ -44,13 +44,21 @@ def _deserialize_metric(data: dict[str, Any]) -> SimpleBaseMetric:
     provider is supported for automatic reconstruction; the API key is read from
     the `OPENAI_API_KEY` environment variable at deserialization time.
 
+    The metric class is imported through Haystack's gated `import_class_by_name`, so with
+    `haystack-ai` >= 3.0 the module it lives in must be on the deserialization allowlist. Metrics
+    from `ragas` itself or from your own package therefore need to be trusted explicitly, e.g. via
+    `Pipeline.load(..., allowed_modules=["ragas.*"])`, `allow_deserialization_module("ragas.*")` or
+    the `HAYSTACK_DESERIALIZATION_ALLOWLIST` environment variable.
+
     :param data: Dict produced by `_serialize_metric`.
     :returns: A fully constructed `SimpleBaseMetric` instance.
     :raises ValueError: If a non-`openai` provider is encountered.
+    :raises DeserializationError: If the metric class is not on the deserialization allowlist.
     """
     type_path = data["type"]
-    module_path, class_name = type_path.rsplit(".", 1)
-    metric_cls = getattr(importlib.import_module(module_path), class_name)
+    # `import_class_by_name` returns `type[object]`; annotate as `Any` so that calling it with the
+    # metric's own keyword arguments below type-checks.
+    metric_cls: Any = import_class_by_name(type_path)
 
     kwargs: dict[str, Any] = {}
 
