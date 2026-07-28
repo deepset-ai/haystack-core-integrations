@@ -1,8 +1,8 @@
-import importlib
 from typing import Any
 
 import dspy
 from haystack import component, default_from_dict, default_to_dict
+from haystack.core.serialization import import_class_by_name
 from haystack.dataclasses import ChatMessage, ChatRole
 
 VALID_MODULE_TYPES = {"Predict", "ChainOfThought", "ReAct"}
@@ -188,6 +188,12 @@ class DSPySignatureChatGenerator:
 
         Accepts `{"type": "str", "value": "question -> answer"}` or
         `{"type": "class", "value": "mymodule.QASignature"}`.
+
+        Signature classes are imported through Haystack's gated `import_class_by_name`, so with
+        `haystack-ai` >= 3.0 the module they live in must be on the deserialization allowlist. A
+        signature class defined in your own package therefore needs to be trusted explicitly, e.g.
+        via `Pipeline.load(..., allowed_modules=["mymodule.*"])`, `allow_deserialization_module`
+        or the `HAYSTACK_DESERIALIZATION_ALLOWLIST` environment variable.
         """
         signature_type = data["type"]
         value = data["value"]
@@ -196,9 +202,10 @@ class DSPySignatureChatGenerator:
             return value
 
         if signature_type == "class":
-            module_path, class_name = value.rsplit(".", 1)
-            module = importlib.import_module(module_path)
-            return getattr(module, class_name)
+            # `import_class_by_name` returns `type[object]`; annotate as `Any` so that returning it
+            # as a `dspy.Signature` subclass type-checks.
+            signature_cls: Any = import_class_by_name(value)
+            return signature_cls
 
         msg = f"Unknown signature type '{signature_type}'. Must be 'str' or 'class'."
         raise ValueError(msg)
@@ -219,7 +226,14 @@ class DSPySignatureChatGenerator:
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "DSPySignatureChatGenerator":
-        """Deserialize a component from a dictionary."""
+        """
+        Deserialize a component from a dictionary.
+
+        With `haystack-ai` >= 3.0, a serialized signature class is only imported if its module is on
+        the deserialization allowlist; see `_deserialize_signature`.
+
+        :raises DeserializationError: If the signature class is not on the deserialization allowlist.
+        """
         init_params = data.get("init_parameters", {})
 
         signature = init_params.get("signature")

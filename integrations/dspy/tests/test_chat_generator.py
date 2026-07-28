@@ -3,6 +3,7 @@ from unittest.mock import MagicMock, patch
 
 import dspy
 import pytest
+from haystack.core.errors import DeserializationError
 from haystack.dataclasses import ChatMessage
 
 from haystack_integrations.components.generators.dspy.chat.chat_generator import (
@@ -295,6 +296,25 @@ class TestDSPySignatureChatGenerator:
         }
         component = DSPySignatureChatGenerator.from_dict(data)
         assert component.signature is dspy.Signature
+
+    def test_from_dict_raises_for_untrusted_signature_module(self, mock_dspy_module):
+        """Test that a signature class from an untrusted module is not imported."""
+        data = {
+            "type": "haystack_integrations.components.generators.dspy.chat.chat_generator.DSPySignatureChatGenerator",
+            "init_parameters": {
+                "signature": {"type": "class", "value": "some.untrusted.Signature"},
+                "model": "openai/gpt-5-mini",
+                "module_type": "Predict",
+                "output_field": "answer",
+                "generation_kwargs": {},
+                "module_kwargs": {},
+                "input_mapping": None,
+            },
+        }
+        # haystack-ai 2.x fails to import the unknown module; haystack-ai >= 3.0 refuses it upfront
+        # because it is not on the trusted-module allowlist
+        with pytest.raises((ImportError, DeserializationError)):
+            DSPySignatureChatGenerator.from_dict(data)
 
     def test_from_dict_with_unknown_signature_type(self, mock_dspy_module):
         """Test that from_dict raises an error for unknown signature types."""
