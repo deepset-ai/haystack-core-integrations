@@ -300,6 +300,8 @@ def test_bm25_retrieval_reraises_other_transport_errors(_mock_opensearch_client)
 
 @patch("haystack_integrations.document_stores.opensearch.document_store.OpenSearch")
 def test_get_metadata_field_unique_values_no_search_term_builds_query_without_include(_mock_opensearch_client):
+    """Composite aggregation terms sources don't support `include`/`exclude`, so with no search_term
+    the request body must have neither a `query` filter nor an `include` clause on the terms source."""
     store = OpenSearchDocumentStore(hosts="testhost")
     store._client = MagicMock()
     store._client.search.return_value = {"aggregations": {"unique_values": {"buckets": []}}}
