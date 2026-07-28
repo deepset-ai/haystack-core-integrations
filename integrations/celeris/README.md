@@ -7,9 +7,10 @@
 
 ---
 
-[Celeris](https://celeris.ai) serves diffusion-based language models over an OpenAI-compatible API, optimized for
-low latency on short responses. This integration provides `CelerisChatGenerator`, which is a good fit for
-classification, extraction, judging, query rewriting, and other short structured responses.
+[Celeris](https://celeris.ai) serves general-purpose diffusion-based language models over an OpenAI-compatible
+API. Rather than generating one token at a time, they produce tokens in parallel blocks, which makes them
+substantially faster than autoregressive models of comparable quality. This integration provides
+`CelerisChatGenerator`; the speed advantage is most visible in latency-sensitive work.
 
 ## Installation
 

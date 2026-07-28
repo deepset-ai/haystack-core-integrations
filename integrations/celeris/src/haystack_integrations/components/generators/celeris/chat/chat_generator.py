@@ -64,9 +64,10 @@ class CelerisChatGenerator(OpenAIChatGenerator):
     """
     Enables text generation using Celeris.
 
-    Celeris serves diffusion-based language models over an OpenAI-compatible API, optimized for low latency on
-    short responses. That makes it a good fit for classification, extraction, judging, query rewriting, and other
-    short structured responses.
+    Celeris serves general-purpose diffusion-based language models over an OpenAI-compatible API. Rather than
+    generating one token at a time, they produce tokens in parallel blocks, which makes them substantially faster
+    than autoregressive models of comparable quality. The speed advantage is most visible in latency-sensitive
+    work.
 
     The component talks to the Celeris chat completions endpoint and uses the ChatMessage format for both input
     and output; see the [Haystack docs](https://docs.haystack.deepset.ai/docs/chatmessage) for details.
