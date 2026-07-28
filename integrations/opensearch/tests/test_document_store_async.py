@@ -807,3 +807,26 @@ class TestDocumentStoreAsync(
             client.indices.delete_alias(index=document_store._index, name=alias_name)
             if alias_store._async_client:
                 await alias_store._async_client.close()
+
+    @pytest.mark.asyncio
+    async def test_get_metadata_field_unique_values_async_search_term_filters_on_field_value_not_content(
+        self, document_store: OpenSearchDocumentStore
+    ):
+        """search_term filters against the metadata field's own value, not the document content (async)."""
+        content_match_docs = [
+            Document(content="This mentions needle in the text", meta={"topic": "unrelated"}),
+        ]
+        await document_store.write_documents_async(content_match_docs)
+        unique_topics_content_only, _ = await document_store.get_metadata_field_unique_values_async(
+            "meta.topic", "needle", 10
+        )
+        assert set(unique_topics_content_only) == set()
+
+        value_match_docs = [
+            Document(content="Nothing special here", meta={"topic": "needle-in-haystack"}),
+        ]
+        await document_store.write_documents_async(value_match_docs)
+        unique_topics_value_only, _ = await document_store.get_metadata_field_unique_values_async(
+            "meta.topic", "needle", 10
+        )
+        assert set(unique_topics_value_only) == {"needle-in-haystack"}
