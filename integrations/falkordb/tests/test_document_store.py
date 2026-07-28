@@ -383,15 +383,6 @@ class TestFalkorDBDocumentStoreUnit:
         assert values == ["A", "B"]
         assert cursor == {"offset": 2}
 
-    def test_get_metadata_field_unique_values_search_term_case_insensitive(self, mock_falkordb):
-        _, _, graph = mock_falkordb
-        graph.query.side_effect = [_result([]), _result([]), _result([["Apple"]])]
-        values, _ = FalkorDBDocumentStore().get_metadata_field_unique_values("category", search_term="APP")
-        assert values == ["Apple"]
-        cypher, params = graph.query.call_args[0]
-        assert "toLower(toString(d.category)) CONTAINS toLower($search_term)" in cypher
-        assert params == {"search_term": "APP"}
-
     def test_close(self):
         store = FalkorDBDocumentStore()
         client = MagicMock()

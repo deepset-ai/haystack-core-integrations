@@ -607,15 +607,14 @@ SET d.{self.embedding_field} = vecf32(doc.emb)
         self,
         metadata_field: str,
         search_term: str | None = None,
-        size: int | None = 10,
+        size: int | None = 10000,
         after: dict[str, Any] | None = None,
     ) -> tuple[list[Any], dict[str, Any] | None]:
         """
         Return distinct values for the given metadata field with optional filtering and pagination.
 
         :param metadata_field: Metadata field name. May include or omit the `meta.` prefix.
-        :param search_term: Optional case-insensitive substring filter applied to the metadata
-            field's own value.
+        :param search_term: Optional substring filter applied to string field values.
         :param size: Maximum number of values to return per page. Defaults to 10 000.
         :param after: Pagination cursor returned by a previous call. Pass `None` for the first page.
         :returns: Tuple of `(values, next_cursor)`. `next_cursor` is `None` on the last page.
@@ -628,7 +627,7 @@ SET d.{self.embedding_field} = vecf32(doc.emb)
         query_params: dict[str, Any] = {}
         where_parts = [f"d.{field} IS NOT NULL"]
         if search_term:
-            where_parts.append(f"toLower(toString(d.{field})) CONTAINS toLower($search_term)")
+            where_parts.append(f"toString(d.{field}) CONTAINS $search_term")
             query_params["search_term"] = search_term
 
         where = " AND ".join(where_parts)
