@@ -97,9 +97,10 @@ class RagasEvaluator:
         deserialization; the API key is read from the `OPENAI_API_KEY` environment
         variable at load time.
 
-        With `haystack-ai` >= 3.0, the module a metric class lives in must be on the
-        deserialization allowlist, so metrics from `ragas` itself or from your own package have to be
-        trusted explicitly, e.g. via `Pipeline.load(..., allowed_modules=["ragas.*"])`.
+        With `haystack-ai` >= 3.0, the module a metric class lives in must be on the deserialization
+        allowlist. Metrics shipped by ragas are trusted automatically; a custom metric class from
+        your own package has to be trusted explicitly, e.g. via
+        `Pipeline.load(..., allowed_modules=["mypackage.*"])`.
 
         :param data:
             Dictionary to deserialize from.

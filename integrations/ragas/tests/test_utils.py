@@ -4,6 +4,7 @@ from openai import AsyncOpenAI
 from ragas.embeddings.base import embedding_factory
 from ragas.llms import llm_factory
 from ragas.metrics.base import SimpleBaseMetric
+from ragas.metrics.collections import Faithfulness
 from ragas.metrics.result import MetricResult
 
 from haystack_integrations.components.evaluators.ragas.utils import _deserialize_metric, _serialize_metric
@@ -82,6 +83,16 @@ class TestDeserializeMetric:
         # because it is not on the trusted-module allowlist
         with pytest.raises((ImportError, DeserializationError)):
             _deserialize_metric(data)
+
+    def test_ragas_own_metrics_need_no_allowlisting(self, monkeypatch):
+        """Metrics shipped by ragas deserialize without the caller extending the allowlist."""
+        monkeypatch.delenv("HAYSTACK_DESERIALIZATION_ALLOWLIST", raising=False)
+        monkeypatch.setenv("OPENAI_API_KEY", "test")
+        metric = Faithfulness(llm=llm_factory("gpt-4o-mini", client=AsyncOpenAI()))
+
+        result = _deserialize_metric(_serialize_metric(metric))
+
+        assert isinstance(result, Faithfulness)
 
     def test_round_trip(self):
         metric = ConcreteMetric(name="round_trip")
