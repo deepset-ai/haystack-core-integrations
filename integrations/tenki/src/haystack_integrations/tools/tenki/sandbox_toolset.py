@@ -49,6 +49,7 @@ class TenkiToolset(Toolset):
         max_duration: float | None = None,
         idle_timeout_minutes: int | None = None,
         environment_vars: dict[str, str] | None = None,
+        instance_id: str | None = None,
     ) -> None:
         """
         Create a TenkiToolset.
@@ -64,6 +65,10 @@ class TenkiToolset(Toolset):
         :param idle_timeout_minutes: Minutes of inactivity before Tenki pauses the sandbox.
             ``None`` uses the Tenki default.
         :param environment_vars: Optional environment variables to inject into the sandbox.
+        :param instance_id: Stable identifier for the underlying :class:`TenkiSandbox`, preserved
+            across ``to_dict``/``from_dict``. When omitted, a fresh id is generated. Propagating
+            it is what lets a restored toolset rejoin the tools that shared its sandbox before
+            serialization.
         """
         self.sandbox = TenkiSandbox(
             auth_token=auth_token,
@@ -74,6 +79,7 @@ class TenkiToolset(Toolset):
             max_duration=max_duration,
             idle_timeout_minutes=idle_timeout_minutes,
             environment_vars=environment_vars,
+            instance_id=instance_id,
         )
         super().__init__(
             tools=[
@@ -113,4 +119,5 @@ class TenkiToolset(Toolset):
             max_duration=inner.get("max_duration"),
             idle_timeout_minutes=inner.get("idle_timeout_minutes"),
             environment_vars=inner.get("environment_vars", {}),
+            instance_id=inner.get("instance_id"),
         )
