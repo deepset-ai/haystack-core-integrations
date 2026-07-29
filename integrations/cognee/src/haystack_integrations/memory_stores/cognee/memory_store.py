@@ -82,7 +82,7 @@ def _render(item: Any) -> str | None:
 
 class CogneeMemoryStore:
     """
-    Memory backend backed by Cognee, implementing the haystack-experimental `MemoryStore` protocol.
+    Memory backend backed by Cognee.
 
     Wraps cognee's V2 memory API: `add_memories` -> `cognee.remember`,
     `search_memories` -> `cognee.recall`, `improve` -> `cognee.improve`,

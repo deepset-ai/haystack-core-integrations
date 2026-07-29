@@ -3,9 +3,11 @@
 # SPDX-License-Identifier: Apache-2.0
 
 from collections.abc import Sequence
+from contextlib import suppress
 from typing import Any, Literal, cast
 
 import chromadb
+from chromadb.api import ClientAPI
 from chromadb.api.models.AsyncCollection import AsyncCollection
 from chromadb.api.types import GetResult, Metadata, OneOrMany, QueryResult
 from chromadb.config import Settings
@@ -101,6 +103,7 @@ class ChromaDocumentStore:
         self._host = host
         self._port = port
 
+        self._client: ClientAPI | None = None
         self._collection: chromadb.Collection | None = None
         self._async_collection: AsyncCollection | None = None
 
@@ -138,7 +141,7 @@ class ChromaDocumentStore:
                 # Local persistent storage
                 client = chromadb.PersistentClient(path=self._persist_path, **client_kwargs)
 
-            self._client = client  # store client for potential future use
+            self._client = client
 
             # Build the collection metadata locally so `self._metadata` stays exactly as the user passed it.
             # This keeps `to_dict()` deterministic and avoids mutating a user-supplied dict in place.
@@ -212,6 +215,15 @@ class ChromaDocumentStore:
                     metadata=collection_metadata,
                     embedding_function=self._embedding_func,
                 )
+
+    def close(self) -> None:
+        """Release the associated synchronous resources."""
+        if self._client is not None:
+            with suppress(Exception):
+                # `close` is not declared on the `ClientAPI` interface, but the concrete Chroma clients implement it
+                self._client.close()  # type: ignore[attr-defined]
+            self._client = None
+            self._collection = None
 
     @staticmethod
     def _prepare_get_kwargs(filters: dict[str, Any] | None = None) -> dict[str, Any]:
@@ -904,6 +916,7 @@ class ChromaDocumentStore:
         """
         self._ensure_initialized()  # _ensure_initialized ensures _client is not None and a collection exists
         assert self._collection is not None
+        assert self._client is not None
 
         try:
             if recreate_index:

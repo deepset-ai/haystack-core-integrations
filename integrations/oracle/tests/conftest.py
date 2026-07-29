@@ -16,25 +16,30 @@ _PASSWORD = "haystack"
 _DSN = "localhost:1521/freepdb1"
 
 
-def _make_store(table: str, embedding_dim: int) -> OracleDocumentStore:
-    return OracleDocumentStore(
-        connection_config=OracleConnectionConfig(
-            user=Secret.from_token(_USER),
-            password=Secret.from_token(_PASSWORD),
-            dsn=Secret.from_token(_DSN),
-        ),
-        table_name=table,
-        embedding_dim=embedding_dim,
-        distance_metric="COSINE",
-        create_table_if_not_exists=True,
-    )
+@pytest.fixture
+def make_store():
+    """Factory for a real OracleDocumentStore. Uses token secrets, so instances are not serialization-safe."""
+
+    def _make(table: str, embedding_dim: int = 4, *, create_table_if_not_exists: bool = True) -> OracleDocumentStore:
+        return OracleDocumentStore(
+            connection_config=OracleConnectionConfig(
+                user=Secret.from_token(_USER),
+                password=Secret.from_token(_PASSWORD),
+                dsn=Secret.from_token(_DSN),
+            ),
+            table_name=table,
+            embedding_dim=embedding_dim,
+            create_table_if_not_exists=create_table_if_not_exists,
+        )
+
+    return _make
 
 
 @pytest.fixture
-def document_store():
+def document_store(make_store):
     """768-dim store required by the mixin's filterable_docs fixture."""
     table = f"hs_sync_{uuid.uuid4().hex[:8]}"
-    s = _make_store(table, embedding_dim=768)
+    s = make_store(table, 768)
     yield s
     with s._get_connection() as conn, conn.cursor() as cur:
         cur.execute(f"DROP TABLE {table} PURGE")
@@ -42,10 +47,10 @@ def document_store():
 
 
 @pytest.fixture
-def embedding_store():
+def embedding_store(make_store):
     """4-dim store for embedding-retrieval, HNSW, and async tests."""
     table = f"hs_emb_{uuid.uuid4().hex[:8]}"
-    s = _make_store(table, embedding_dim=4)
+    s = make_store(table)
     yield s
     with s._get_connection() as conn, conn.cursor() as cur:
         cur.execute(f"DROP TABLE {table} PURGE")

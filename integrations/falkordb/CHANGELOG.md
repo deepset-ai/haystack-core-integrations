@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/falkordb-v1.3.0] - 2026-07-24
+
+### 🚀 Features
+
+- FalkorDB - add closing methods (#3663)
+
+
 ## [integrations/falkordb-v1.2.0] - 2026-07-06
 
 ### 🌀 Miscellaneous
