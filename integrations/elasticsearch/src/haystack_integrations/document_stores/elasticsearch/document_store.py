@@ -1841,148 +1841,6 @@ class ElasticsearchDocumentStore:
 
         return self._extract_min_max_from_stats(stats)
 
-    def get_metadata_field_unique_values_old(
-        self,
-        metadata_field: str,
-        search_term: str | None = None,
-        size: int | None = 10000,
-        after: dict[str, Any] | None = None,
-    ) -> tuple[list[str], dict[str, Any] | None]:
-        """
-        Legacy cursor-based implementation, kept for callers relying on cheap sequential pagination via `after`.
-
-        Prefer `get_metadata_field_unique_values` for a signature consistent with other document stores.
-
-        Returns unique values for a metadata field, optionally filtered by a search term in the content.
-
-        Uses composite aggregations for proper pagination beyond 10k results.
-
-        See: https://www.elastic.co/docs/reference/aggregations/search-aggregations-bucket-composite-aggregation
-
-        :param metadata_field: The metadata field to get unique values for.
-        :param search_term: Optional search term to filter documents by matching in the content field.
-        :param size: The number of unique values to return per page. Defaults to 10000.
-        :param after: Optional pagination key from the previous response. Use None for the first page.
-            For subsequent pages, pass the `after_key` from the previous response.
-        :returns: A tuple containing (list of unique values, after_key for pagination).
-            The after_key is None when there are no more results. Use it in the `after` parameter
-            for the next page.
-        """
-        self._ensure_initialized()
-
-        field_name = _normalize_metadata_field_name(metadata_field)
-
-        # filter by search_term if provided
-        query: dict[str, Any] = {"match_all": {}}
-        if search_term:
-            # Use match_phrase for exact phrase matching to avoid tokenization issues
-            query = {"match_phrase": {"content": search_term}}
-
-        # Build composite aggregation for proper pagination
-        composite_agg: dict[str, Any] = {
-            "size": size,
-            "sources": [{field_name: {"terms": {"field": field_name}}}],
-        }
-        if after is not None:
-            composite_agg["after"] = after
-
-        body = {
-            "query": query,
-            "aggs": {
-                "unique_values": {
-                    "composite": composite_agg,
-                }
-            },
-            "size": 0,  # we only need aggregations, not documents
-        }
-
-        result = self.client.search(index=self._index, body=body)
-        aggregations = result.get("aggregations", {})
-
-        # Extract unique values from composite aggregation buckets
-        unique_values_agg = aggregations.get("unique_values", {})
-        unique_values_buckets = unique_values_agg.get("buckets", [])
-        unique_values = [str(bucket["key"][field_name]) for bucket in unique_values_buckets]
-
-        # Extract after_key for pagination
-        # If we got fewer results than requested, we've reached the end
-        after_key = unique_values_agg.get("after_key")
-        if after_key is not None and size is not None and len(unique_values_buckets) < size:
-            after_key = None
-
-        return unique_values, after_key
-
-    async def get_metadata_field_unique_values_async_old(
-        self,
-        metadata_field: str,
-        search_term: str | None = None,
-        size: int | None = 10000,
-        after: dict[str, Any] | None = None,
-    ) -> tuple[list[str], dict[str, Any] | None]:
-        """
-        Legacy cursor-based implementation, kept for callers relying on cheap sequential pagination via `after`.
-
-        Prefer `get_metadata_field_unique_values_async` for a signature consistent with other document stores.
-
-        Asynchronously returns unique values for a metadata field, optionally filtered by a search term in the content.
-
-        Uses composite aggregations for proper pagination beyond 10k results.
-
-        See: https://www.elastic.co/docs/reference/aggregations/search-aggregations-bucket-composite-aggregation
-
-        :param metadata_field: The metadata field to get unique values for.
-        :param search_term: Optional search term to filter documents by matching in the content field.
-        :param size: The number of unique values to return per page. Defaults to 10000.
-        :param after: Optional pagination key from the previous response. Use None for the first page.
-            For subsequent pages, pass the `after_key` from the previous response.
-        :returns: A tuple containing (list of unique values, after_key for pagination).
-            The after_key is None when there are no more results. Use it in the `after` parameter
-            for the next page.
-        """
-        await self._ensure_initialized_async()
-
-        field_name = _normalize_metadata_field_name(metadata_field)
-
-        # filter by search_term if provided
-        query: dict[str, Any] = {"match_all": {}}
-        if search_term:
-            # Use match_phrase for exact phrase matching to avoid tokenization issues
-            query = {"match_phrase": {"content": search_term}}
-
-        # Build composite aggregation for proper pagination
-        composite_agg: dict[str, Any] = {
-            "size": size,
-            "sources": [{field_name: {"terms": {"field": field_name}}}],
-        }
-        if after is not None:
-            composite_agg["after"] = after
-
-        body = {
-            "query": query,
-            "aggs": {
-                "unique_values": {
-                    "composite": composite_agg,
-                }
-            },
-            "size": 0,  # we only need aggregations, not documents
-        }
-
-        result = await self.async_client.search(index=self._index, body=body)
-        aggregations = result.get("aggregations", {})
-
-        # Extract unique values from composite aggregation buckets
-        unique_values_agg = aggregations.get("unique_values", {})
-        unique_values_buckets = unique_values_agg.get("buckets", [])
-        unique_values = [str(bucket["key"][field_name]) for bucket in unique_values_buckets]
-
-        # Extract after_key for pagination
-        # If we got fewer results than requested, we've reached the end
-        after_key = unique_values_agg.get("after_key")
-        if after_key is not None and size is not None and len(unique_values_buckets) < size:
-            after_key = None
-
-        return unique_values, after_key
-
     @staticmethod
     def _build_unique_values_field_query(field_name: str, search_term: str | None) -> dict[str, Any]:
         """
@@ -2092,11 +1950,9 @@ class ElasticsearchDocumentStore:
         """
         Returns unique values for a metadata field, optionally filtered by a search term.
 
-        Signature consistent with other Haystack document stores (`from_`/`size` -> `(values, total_count)`).
         Internally still backed by composite aggregations, which only support cursor-based iteration.
         Reaching offset `from_` therefore requires walking and discarding the first `from_` buckets -
-        cost scales with `from_`, not `size`. For cheap sequential pagination via a cursor, use
-        `get_metadata_field_unique_values_old` instead.
+        cost scales with `from_`, not `size`.
 
         :param metadata_field: The metadata field to get unique values for. Can include or omit the
             "meta." prefix.
@@ -2127,9 +1983,6 @@ class ElasticsearchDocumentStore:
     ) -> tuple[list[str], int]:
         """
         Asynchronous counterpart of `get_metadata_field_unique_values`.
-
-        See that method for the `from_` cost trade-off and the cheap-cursor alternative
-        (`get_metadata_field_unique_values_async_old`).
 
         :param metadata_field: The metadata field to get unique values for. Can include or omit the
             "meta." prefix.
