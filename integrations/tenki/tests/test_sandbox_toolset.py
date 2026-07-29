@@ -2,6 +2,8 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+import threading
+import time
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -108,7 +110,7 @@ class TestTenkiSandboxWarmUp:
         sb.warm_up()
 
         # Only set values are passed; None kwargs are dropped so the SDK applies defaults.
-        mock_sandbox_create.assert_called_once_with(name="haystack", auth_token="test-auth-token")
+        mock_sandbox_create.assert_called_once_with(wait=False, name="haystack", auth_token="test-auth-token")
         assert sb._sandbox is mock_instance
 
     @patch("haystack_integrations.tools.tenki.tenki_sandbox.tenki_import")
@@ -130,6 +132,7 @@ class TestTenkiSandboxWarmUp:
 
         _, kwargs = mock_sandbox_create.call_args
         assert kwargs == {
+            "wait": False,
             "name": "box",
             "auth_token": "test-auth-token",
             "base_url": "https://api.example.com",
@@ -183,6 +186,65 @@ class TestTenkiSandboxWarmUp:
         mock_instance.close_if_open.assert_called_once()
         assert sb._sandbox is None
 
+    @patch("haystack_integrations.tools.tenki.tenki_sandbox.tenki_import")
+    @patch("haystack_integrations.tools.tenki.tenki_sandbox.Sandbox.create")
+    def test_warm_up_awaits_readiness_with_a_handle(self, mock_sandbox_create, mock_tenki_import):
+        """The VM is created with wait=False so readiness is awaited with a handle in hand."""
+        mock_tenki_import.check.return_value = None
+        mock_instance = _make_sandbox_mock()
+        mock_sandbox_create.return_value = mock_instance
+
+        sb = _make_sandbox()
+        sb.warm_up()
+
+        assert mock_sandbox_create.call_args.kwargs["wait"] is False
+        mock_instance.wait_ready.assert_called_once()
+        assert sb._sandbox is mock_instance
+
+    @patch("haystack_integrations.tools.tenki.tenki_sandbox.tenki_import")
+    @patch("haystack_integrations.tools.tenki.tenki_sandbox.Sandbox.create")
+    def test_warm_up_terminates_vm_when_readiness_fails(self, mock_sandbox_create, mock_tenki_import):
+        """A readiness failure must tear down the already-provisioned microVM."""
+        mock_tenki_import.check.return_value = None
+        mock_instance = _make_sandbox_mock()
+        mock_instance.wait_ready.side_effect = Exception("never became ready")
+        mock_sandbox_create.return_value = mock_instance
+
+        sb = _make_sandbox()
+        with pytest.raises(RuntimeError, match="Failed to start Tenki sandbox"):
+            sb.warm_up()
+
+        mock_instance.close_if_open.assert_called_once()
+        assert sb._sandbox is None
+
+    @patch("haystack_integrations.tools.tenki.tenki_sandbox.tenki_import")
+    @patch("haystack_integrations.tools.tenki.tenki_sandbox.Sandbox.create")
+    def test_concurrent_warm_up_creates_a_single_vm(self, mock_sandbox_create, mock_tenki_import):
+        """Racing callers must not each provision a VM and overwrite the handle."""
+        mock_tenki_import.check.return_value = None
+        callers = 8
+        at_the_gate = threading.Barrier(callers)
+
+        def _slow_create(**_kwargs):
+            time.sleep(0.05)
+            return _make_sandbox_mock()
+
+        mock_sandbox_create.side_effect = _slow_create
+        sb = _make_sandbox()
+
+        def _warm_up():
+            at_the_gate.wait(timeout=5)
+            sb.warm_up()
+
+        threads = [threading.Thread(target=_warm_up) for _ in range(callers)]
+        for thread in threads:
+            thread.start()
+        for thread in threads:
+            thread.join(timeout=10)
+
+        assert mock_sandbox_create.call_count == 1
+        assert sb._sandbox is not None
+
 
 # ---------------------------------------------------------------------------
 # TenkiSandbox -- close
@@ -209,6 +271,39 @@ class TestTenkiSandboxClose:
         with pytest.raises(Exception, match="terminate failed"):
             sb.close()
         assert sb._sandbox is mock  # handle retained for retry
+
+
+# ---------------------------------------------------------------------------
+# TenkiSandbox -- handle validity
+# ---------------------------------------------------------------------------
+
+
+class TestTenkiSandboxRequireSandbox:
+    def test_running_sandbox_is_returned_as_is(self):
+        sb, mock = _sandbox_with_mock()
+        mock.state = "running"
+
+        assert sb._require_sandbox() is mock
+        mock.refresh.assert_called_once()
+        mock.resume.assert_not_called()
+
+    def test_paused_sandbox_is_resumed_before_use(self):
+        """An idle timeout can pause the VM while the handle stays non-None."""
+        sb, mock = _sandbox_with_mock()
+        mock.state = "paused"
+
+        assert sb._require_sandbox() is mock
+        mock.refresh.assert_called_once()
+        mock.resume.assert_called_once()
+        mock.wait_ready.assert_called_once()
+
+    def test_resume_failure_surfaces_as_runtime_error(self):
+        sb, mock = _sandbox_with_mock()
+        mock.state = "paused"
+        mock.resume.side_effect = Exception("resume rejected")
+
+        with pytest.raises(RuntimeError, match="Failed to resume paused Tenki sandbox"):
+            sb._require_sandbox()
 
 
 # ---------------------------------------------------------------------------
@@ -409,6 +504,13 @@ class TestToolClasses:
         bash_tool.invoke(command="echo ok")
 
         mock.exec.assert_called_once()
+
+    def test_tenki_toolset_round_trip_preserves_instance_id(self):
+        """Without the id, a restored toolset cannot rejoin the tools that shared its sandbox."""
+        ts = TenkiToolset(auth_token=Secret.from_env_var("TENKI_AUTH_TOKEN"))
+        restored = TenkiToolset.from_dict(ts.to_dict())
+
+        assert restored.sandbox.instance_id == ts.sandbox.instance_id
 
     def test_tenki_toolset_default_auth_token(self):
         """TenkiToolset uses the env-var secret when auth_token is omitted."""
