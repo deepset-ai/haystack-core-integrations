@@ -1344,6 +1344,15 @@ class TestDocumentStore(
         )
         assert set(unique_topics) == {"python-tutorial"}
         assert total_topics == 1
+=======
+        # Test with search term - substring match against the target field's own value (not the content)
+        # "Java" is a substring of both "Java" and "JavaScript"
+        unique_languages_filtered, _ = document_store.get_metadata_field_unique_values("meta.language", "Java", 10)
+        assert set(unique_languages_filtered) == {"Java", "JavaScript"}
+
+        unique_languages_python, _ = document_store.get_metadata_field_unique_values("meta.language", "Python", 10)
+        assert set(unique_languages_python) == {"Python"}
+>>>>>>> main
 
         # Test with integer values
         int_docs = [
@@ -1359,11 +1368,16 @@ class TestDocumentStore(
         assert set(unique_priorities) == {"1", "2", "3"}
         assert total_priorities == 3
 
+<<<<<<< HEAD
         # Test with search term on integer field - substring match against the field's own
         # (stringified) value, e.g. "Doc 1" (content) no longer matches; "1" (the value itself) does.
         unique_priorities_filtered, total_priorities_filtered = document_store.get_metadata_field_unique_values(
             metadata_field="meta.priority", search_term="1", from_=0, size=10
         )
+=======
+        # Test with search term on integer field - substring match against the field's own (stringified) value
+        unique_priorities_filtered, _ = document_store.get_metadata_field_unique_values("meta.priority", "1", 10)
+>>>>>>> main
         assert set(unique_priorities_filtered) == {"1"}
         assert total_priorities_filtered == 1
 
@@ -1406,6 +1420,39 @@ class TestDocumentStore(
         )
         assert set(unique_values_filtered) == {"Python"}
         assert total_filtered == 1
+
+    def test_get_metadata_field_unique_values_search_term_matches_field_value_not_content(
+        self, document_store: ElasticsearchDocumentStore
+    ):
+        """
+        `search_term` must filter by substring match on the metadata field's own value, not by matching
+        against the document's `content`.
+        """
+        docs = [
+            # "Python" appears in the content but NOT in the category value -> must be EXCLUDED
+            Document(content="Python programming guide", meta={"category": "Backend"}),
+            # "Python" appears in the category value but NOT in the content -> must be INCLUDED
+            Document(content="General purpose scripting language", meta={"category": "Python-based"}),
+        ]
+        document_store.write_documents(docs)
+
+        unique_values, _ = document_store.get_metadata_field_unique_values("meta.category", "Python", 10)
+
+        assert unique_values == ["Python-based"]
+
+    def test_get_metadata_field_unique_values_search_term_case_insensitive(
+        self, document_store: ElasticsearchDocumentStore
+    ):
+        docs = [
+            Document(content="n/a", meta={"category": "Python-based"}),
+            Document(content="n/a", meta={"category": "Java-based"}),
+        ]
+        document_store.write_documents(docs)
+
+        unique_values, _ = document_store.get_metadata_field_unique_values("meta.category", "PYTHON", 10)
+
+        assert unique_values == ["Python-based"]
+        assert "Backend" not in unique_values
 
     def test_query_sql(self, document_store: ElasticsearchDocumentStore):
         docs = [

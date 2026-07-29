@@ -1,5 +1,20 @@
 # Changelog
 
+## [integrations/ibm_db-v0.2.0] - 2026-07-27
+
+### 🚀 Features
+
+- IBM Db2 - lazy connection + closing methods (#3664)
+
+### 🐛 Bug Fixes
+
+- Fix new issues raised by ruff 0.16.0 (#3670)
+
+### 📚 Documentation
+
+- Update DB2 to Db2 in README (#3575)
+
+
 ## [integrations/ibm_db-v0.1.1] - 2026-07-10
 
 ### 📚 Documentation

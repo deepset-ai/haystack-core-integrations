@@ -522,7 +522,9 @@ class TestMCPToolset:
         """Test lazy connection with Pipeline.warm_up() - replicates time_pipeline.py."""
 
         # Replicate time_pipeline.py using calculator instead of time server
-        server_info = StdioServerInfo(command="uvx", args=["mcp-server-time", "--local-timezone=Europe/Berlin"])
+        server_info = StdioServerInfo(
+            command="uvx", args=["--with", "mcp<2.0.0", "mcp-server-time", "--local-timezone=Europe/Berlin"]
+        )
 
         # Create toolset with lazy connection (default behavior)
         toolset = MCPToolset(server_info=server_info)
