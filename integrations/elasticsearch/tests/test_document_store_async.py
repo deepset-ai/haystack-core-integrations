@@ -381,7 +381,9 @@ class TestElasticsearchDocumentStoreAsync(
         ]
         await document_store.write_documents_async(docs)
 
-        unique_values, _ = await document_store.get_metadata_field_unique_values_async("meta.category", "Python", 10)
+        unique_values, _ = await document_store.get_metadata_field_unique_values_async(
+            metadata_field="meta.category", search_term="Python", from_=0, size=10
+        )
 
         assert unique_values == ["Python-based"]
         assert "Backend" not in unique_values

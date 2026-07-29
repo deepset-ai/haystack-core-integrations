@@ -1344,15 +1344,6 @@ class TestDocumentStore(
         )
         assert set(unique_topics) == {"python-tutorial"}
         assert total_topics == 1
-=======
-        # Test with search term - substring match against the target field's own value (not the content)
-        # "Java" is a substring of both "Java" and "JavaScript"
-        unique_languages_filtered, _ = document_store.get_metadata_field_unique_values("meta.language", "Java", 10)
-        assert set(unique_languages_filtered) == {"Java", "JavaScript"}
-
-        unique_languages_python, _ = document_store.get_metadata_field_unique_values("meta.language", "Python", 10)
-        assert set(unique_languages_python) == {"Python"}
->>>>>>> main
 
         # Test with integer values
         int_docs = [
@@ -1368,16 +1359,11 @@ class TestDocumentStore(
         assert set(unique_priorities) == {"1", "2", "3"}
         assert total_priorities == 3
 
-<<<<<<< HEAD
         # Test with search term on integer field - substring match against the field's own
         # (stringified) value, e.g. "Doc 1" (content) no longer matches; "1" (the value itself) does.
         unique_priorities_filtered, total_priorities_filtered = document_store.get_metadata_field_unique_values(
             metadata_field="meta.priority", search_term="1", from_=0, size=10
         )
-=======
-        # Test with search term on integer field - substring match against the field's own (stringified) value
-        unique_priorities_filtered, _ = document_store.get_metadata_field_unique_values("meta.priority", "1", 10)
->>>>>>> main
         assert set(unique_priorities_filtered) == {"1"}
         assert total_priorities_filtered == 1
 
