@@ -128,9 +128,6 @@ class TestDocumentStore(
         unprefixed = document_store.get_metadata_field_unique_values("category")
         assert prefixed == unprefixed == (["A", "B"], 2)
 
-        assert not set(page1).intersection(page2)
-        assert set(page1) | set(page2) == {"A", "B", "C"}
-
 
 @pytest.mark.usefixtures("patches_for_unit_tests")
 def test_init(monkeypatch):
