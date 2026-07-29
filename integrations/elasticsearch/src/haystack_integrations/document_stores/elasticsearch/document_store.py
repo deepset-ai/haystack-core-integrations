@@ -2116,7 +2116,7 @@ class ElasticsearchDocumentStore:
 
         body = self._build_composite_agg_body(field_name, query, size, after_key, with_count=True)
         result = self.client.search(index=self._index, body=body)
-        return self._extract_unique_values_and_count(result, field_name)
+        return self._extract_unique_values_and_count(dict(result), field_name)
 
     async def get_metadata_field_unique_values_async(
         self,
@@ -2149,7 +2149,7 @@ class ElasticsearchDocumentStore:
 
         body = self._build_composite_agg_body(field_name, query, size, after_key, with_count=True)
         result = await self.async_client.search(index=self._index, body=body)
-        return self._extract_unique_values_and_count(result, field_name)
+        return self._extract_unique_values_and_count(dict(result), field_name)
 
     def _query_sql(self, query: str, fetch_size: int | None = None) -> dict[str, Any]:
         """
