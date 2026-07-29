@@ -1422,7 +1422,9 @@ class TestDocumentStore(
         ]
         document_store.write_documents(docs)
 
-        unique_values, _ = document_store.get_metadata_field_unique_values("meta.category", "Python", 10)
+        unique_values, _ = document_store.get_metadata_field_unique_values(
+            metadata_field="meta.category", search_term="Python", from_=0, size=10
+        )
 
         assert unique_values == ["Python-based"]
 
@@ -1435,7 +1437,9 @@ class TestDocumentStore(
         ]
         document_store.write_documents(docs)
 
-        unique_values, _ = document_store.get_metadata_field_unique_values("meta.category", "PYTHON", 10)
+        unique_values, _ = document_store.get_metadata_field_unique_values(
+            metadata_field="meta.category", search_term="PYTHON", from_=0, size=10
+        )
 
         assert unique_values == ["Python-based"]
         assert "Backend" not in unique_values
