@@ -1,0 +1,15 @@
+loaders:
+  - modules:
+      - haystack_integrations.document_stores.upstash.document_store
+      - haystack_integrations.components.retrievers.upstash.embedding_retriever
+      - haystack_integrations.components.retrievers.upstash.hybrid_retriever
+    search_path: [../src]
+processors:
+  - type: filter
+    documented_only: true
+    skip_empty_modules: true
+renderer:
+  description: Upstash integration for Haystack
+  id: integrations-upstash
+  filename: upstash.md
+  title: Upstash

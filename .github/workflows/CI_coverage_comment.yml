@@ -86,6 +86,7 @@ on:
       - "Test / transformers"
       - "Test / twelvelabs"
       - "Test / unstructured"
+      - "Test / upstash"
       - "Test / valkey"
       - "Test / vespa"
       - "Test / vllm"

@@ -443,6 +443,11 @@ integration:unstructured-fileconverter:
       - any-glob-to-any-file: "integrations/unstructured/**/*"
       - any-glob-to-any-file: ".github/workflows/unstructured.yml"
 
+integration:upstash:
+  - changed-files:
+      - any-glob-to-any-file: "integrations/upstash/**/*"
+      - any-glob-to-any-file: ".github/workflows/upstash.yml"
+
 integration:valkey:
   - changed-files:
       - any-glob-to-any-file: "integrations/valkey/**/*"
