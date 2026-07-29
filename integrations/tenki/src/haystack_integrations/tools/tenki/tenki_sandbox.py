@@ -12,8 +12,8 @@ from haystack.core.serialization import generate_qualified_class_name
 from haystack.lazy_imports import LazyImport
 from haystack.utils import Secret, deserialize_secrets_inplace
 
-with LazyImport(message="Run 'pip install tenki-sandbox'") as tenki_import:
-    from tenki_sandbox import Sandbox
+with LazyImport(message="Run 'pip install tenki'") as tenki_import:
+    from tenki import Sandbox
 
 logger = logging.getLogger(__name__)
 

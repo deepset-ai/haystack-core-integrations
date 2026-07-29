@@ -81,6 +81,7 @@ on:
       - "Test / stackit"
       - "Test / supabase"
       - "Test / tavily"
+      - "Test / tenki"
       - "Test / tika"
       - "Test / togetherai"
       - "Test / transformers"
