@@ -371,26 +371,26 @@ class TestFalkorDBDocumentStoreUnit:
 
     def test_get_metadata_field_unique_values(self, mock_falkordb):
         _, _, graph = mock_falkordb
-        graph.query.side_effect = [_result([]), _result([]), _result([["A"], ["B"], ["C"]])]
-        values, cursor = FalkorDBDocumentStore().get_metadata_field_unique_values("category", size=10)
+        graph.query.side_effect = [_result([]), _result([]), _result([[["A", "B", "C"], 3]])]
+        values, total = FalkorDBDocumentStore().get_metadata_field_unique_values("category", size=10)
         assert values == ["A", "B", "C"]
-        assert cursor is None
+        assert total == 3
 
     def test_get_metadata_field_unique_values_pagination(self, mock_falkordb):
         _, _, graph = mock_falkordb
-        graph.query.side_effect = [_result([]), _result([]), _result([["A"], ["B"], ["C"]])]
-        values, cursor = FalkorDBDocumentStore().get_metadata_field_unique_values("category", size=2)
+        graph.query.side_effect = [_result([]), _result([]), _result([[["A", "B"], 3]])]
+        values, total = FalkorDBDocumentStore().get_metadata_field_unique_values("category", size=2)
         assert values == ["A", "B"]
-        assert cursor == {"offset": 2}
+        assert total == 3
 
     def test_get_metadata_field_unique_values_search_term_case_insensitive(self, mock_falkordb):
         _, _, graph = mock_falkordb
-        graph.query.side_effect = [_result([]), _result([]), _result([["Apple"]])]
+        graph.query.side_effect = [_result([]), _result([]), _result([[["Apple"], 1]])]
         values, _ = FalkorDBDocumentStore().get_metadata_field_unique_values("category", search_term="APP")
         assert values == ["Apple"]
         cypher, params = graph.query.call_args[0]
         assert "toLower(toString(d.category)) CONTAINS toLower($search_term)" in cypher
-        assert params == {"search_term": "APP"}
+        assert params == {"from_": 0, "size": 10, "search_term": "APP"}
 
     def test_close(self):
         store = FalkorDBDocumentStore()
