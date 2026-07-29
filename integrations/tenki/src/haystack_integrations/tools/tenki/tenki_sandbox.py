@@ -2,6 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+import threading
 import uuid
 import weakref
 from typing import Any, ClassVar
@@ -15,6 +16,10 @@ with LazyImport(message="Run 'pip install tenki-sandbox'") as tenki_import:
     from tenki_sandbox import Sandbox
 
 logger = logging.getLogger(__name__)
+
+# Sandbox states that cannot serve a tool call until the VM is resumed. Tenki pauses
+# a sandbox after `idle_timeout_minutes` of inactivity.
+_PAUSED_STATES = frozenset({"paused", "pausing", "suspended", "idle", "stopped"})
 
 
 class TenkiSandbox:
@@ -53,14 +58,21 @@ class TenkiSandbox:
     )
     ```
 
-    Lifecycle is handled automatically by the Agent's pipeline. If you use the
-    tools standalone, call :meth:`warm_up` before the first tool invocation:
+    Lifecycle is explicit: neither the Agent nor the Pipeline starts or stops the
+    sandbox for you. Call :meth:`warm_up` before the first tool invocation and
+    :meth:`close` when you are done -- from a ``finally`` block, so a failure
+    cannot leave a billed sandbox running:
 
     ```python
     sandbox.warm_up()
-    # ... use tools ...
-    sandbox.close()
+    try:
+        ...  # run the agent / use the tools
+    finally:
+        sandbox.close()
     ```
+
+    :class:`~haystack_integrations.tools.tenki.TenkiToolset` exposes the same
+    ``warm_up``/``close`` pair for the sandbox it owns.
     """
 
     # Process-wide cache used during deserialization to keep tools that
@@ -116,6 +128,8 @@ class TenkiSandbox:
         self.environment_vars = environment_vars or {}
         self.instance_id = instance_id or uuid.uuid4().hex
         self._sandbox: Any = None
+        # Serializes warm_up so concurrent callers cannot each provision a VM.
+        self._lock = threading.Lock()
 
     # ------------------------------------------------------------------
     # Lifecycle
@@ -125,51 +139,67 @@ class TenkiSandbox:
         """
         Create and start the Tenki sandbox.
 
-        Idempotent -- calling it multiple times has no effect if the sandbox is
-        already running.
+        Idempotent and thread-safe -- concurrent callers are serialized, so only one
+        microVM is ever created and calling it again while the sandbox is running has
+        no effect.
 
         The creation is failure-atomic and cancellation-safe: if anything goes
         wrong after the microVM is provisioned (including ``CancelledError`` or
         ``KeyboardInterrupt``), the sandbox is torn down so a RUNNING VM is never
-        leaked.
+        leaked. The VM is created with ``wait=False`` and awaited through
+        ``wait_ready()`` inside the guarded block: with the SDK default
+        ``wait=True``, a readiness failure raises before a handle is returned and
+        the provisioned VM would leak past this cleanup path.
 
         :raises RuntimeError: If the Tenki sandbox cannot be created.
         """
         if self._sandbox is not None:
             return
 
-        tenki_import.check()
-        resolved_token = self.auth_token.resolve_value()
+        with self._lock:
+            # Re-check under the lock: another caller may have created the sandbox
+            # while we were waiting for it.
+            if self._sandbox is not None:
+                return
 
-        create_kwargs: dict[str, Any] = {
-            "name": self.name,
-            "auth_token": resolved_token,
-            "cpu_cores": self.cpu_cores,
-            "memory_mb": self.memory_mb,
-            "max_duration": self.max_duration,
-            "idle_timeout_minutes": self.idle_timeout_minutes,
-            "env": self.environment_vars or None,
-            "base_url": self.base_url,
-        }
-        # Drop unset values so the Tenki SDK applies its own defaults.
-        create_kwargs = {k: v for k, v in create_kwargs.items() if v is not None}
+            tenki_import.check()
+            resolved_token = self.auth_token.resolve_value()
 
-        logger.info("Starting Tenki sandbox (name={name})", name=self.name)
-        try:
-            sandbox = Sandbox.create(**create_kwargs)
-        except Exception as e:
-            msg = f"Failed to start Tenki sandbox: {e}"
-            raise RuntimeError(msg) from e
+            create_kwargs: dict[str, Any] = {
+                "name": self.name,
+                "auth_token": resolved_token,
+                "cpu_cores": self.cpu_cores,
+                "memory_mb": self.memory_mb,
+                "max_duration": self.max_duration,
+                "idle_timeout_minutes": self.idle_timeout_minutes,
+                "env": self.environment_vars or None,
+                "base_url": self.base_url,
+            }
+            # Drop unset values so the Tenki SDK applies its own defaults.
+            create_kwargs = {k: v for k, v in create_kwargs.items() if v is not None}
 
-        # The VM now exists. Guard the (tiny) window between creation and
-        # committing the handle: any failure here must tear the VM down.
-        try:
-            self._sandbox = sandbox
-            logger.info("Tenki sandbox started (id={sandbox_id})", sandbox_id=sandbox.id)
-        except BaseException:
-            self._safe_terminate(sandbox)
-            self._sandbox = None
-            raise
+            logger.info("Starting Tenki sandbox (name={name})", name=self.name)
+            try:
+                # Returns as soon as the VM is registered, so readiness is awaited below
+                # with a handle already in hand.
+                sandbox = Sandbox.create(wait=False, **create_kwargs)
+            except Exception as e:
+                msg = f"Failed to start Tenki sandbox: {e}"
+                raise RuntimeError(msg) from e
+
+            # The VM now exists. Guard everything up to committing the handle: any
+            # failure here -- including the readiness wait -- must tear the VM down.
+            try:
+                sandbox.wait_ready()
+                self._sandbox = sandbox
+                logger.info("Tenki sandbox started (id={sandbox_id})", sandbox_id=sandbox.id)
+            except BaseException as e:
+                self._safe_terminate(sandbox)
+                self._sandbox = None
+                if isinstance(e, Exception):
+                    msg = f"Failed to start Tenki sandbox: {e}"
+                    raise RuntimeError(msg) from e
+                raise
 
     def close(self) -> None:
         """
@@ -293,7 +323,60 @@ class TenkiSandbox:
     # ------------------------------------------------------------------
 
     def _require_sandbox(self) -> "Sandbox":
-        """Return the active sandbox or raise a helpful error."""
+        """
+        Return a usable sandbox handle, resuming it first when Tenki has paused it.
+
+        A non-``None`` handle is not sufficient on its own: after
+        ``idle_timeout_minutes`` of inactivity Tenki pauses the microVM, so a handle
+        that served the previous tool call can point at a paused sandbox. The
+        server-side state is refreshed and the VM resumed before it is handed out.
+
+        :raises RuntimeError: If the sandbox cannot be created or resumed.
+        """
         if self._sandbox is None:
             self.warm_up()
-        return self._sandbox
+
+        sandbox = self._sandbox
+        if sandbox is None:  # pragma: no cover - warm_up raises instead of returning
+            msg = "Tenki sandbox is not running. Call warm_up() first."
+            raise RuntimeError(msg)
+
+        return self._ensure_running(sandbox)
+
+    @staticmethod
+    def _ensure_running(sandbox: Any) -> "Sandbox":
+        """
+        Refresh the sandbox state and resume the VM when Tenki has paused it.
+
+        Capabilities are looked up defensively so SDK versions that do not expose
+        ``refresh``/``resume`` keep the previous behaviour instead of failing here.
+        """
+        refresh = getattr(sandbox, "refresh", None)
+        if callable(refresh):
+            try:
+                refresh()
+            except Exception as e:
+                msg = f"Failed to refresh Tenki sandbox state: {e}"
+                raise RuntimeError(msg) from e
+
+        state = str(getattr(sandbox, "state", "") or "").lower()
+        if state not in _PAUSED_STATES:
+            return sandbox
+
+        resume = getattr(sandbox, "resume", None)
+        if not callable(resume):
+            msg = f"Tenki sandbox is {state} and this SDK version cannot resume it."
+            raise RuntimeError(msg)
+
+        sandbox_id = getattr(sandbox, "id", None)
+        logger.info("Resuming paused Tenki sandbox (id={sandbox_id})", sandbox_id=sandbox_id)
+        try:
+            resume()
+            wait_ready = getattr(sandbox, "wait_ready", None)
+            if callable(wait_ready):
+                wait_ready()
+        except Exception as e:
+            msg = f"Failed to resume paused Tenki sandbox: {e}"
+            raise RuntimeError(msg) from e
+
+        return sandbox
