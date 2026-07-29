@@ -1,5 +1,37 @@
 # Changelog
 
+## [integrations/aimlapi-v2.1.0] - 2026-07-13
+
+### 🚀 Features
+
+- Improve type annotations, fix duplicate code in aimlapi integration (#2969)
+
+### 🐛 Bug Fixes
+
+- Support Haystack 3.0's lazy OpenAI client initialization in OpenAI-inheriting generators (#3536)
+
+### 📚 Documentation
+
+- Simplify pydoc configs (#2855)
+
+### 🧪 Testing
+
+- Relax AIMLAPI tests (#2815)
+- Test compatible integrations with python 3.14; update pyproject (#3001)
+- Track test coverage for all integrations (#3065)
+- Aimlapi - add unit tests (#3184)
+- Trust test modules under Haystack 3.0's deserialization allowlist (#3537)
+- Make Tool/Agent serialization assertions version-agnostic for Haystack 2.x/3.x (#3533)
+- Guard ToolInvoker imports so chat-generator tests run under Haystack 3.0 (#3535)
+- Fix tests for integrations that inherit from the OpenAIChatGenerator (#3583)
+
+### 🧹 Chores
+
+- Standardize author mentions (#2897)
+- Enforce ruff docstring rules (D102/D103/D205/D209/D213/D417/D419) in first 10 integrations (#3008)
+- Update aimlapi (#3290)
+
+
 ## [integrations/aimlapi-v2.0.0] - 2026-01-09
 
 ### 🚀 Features

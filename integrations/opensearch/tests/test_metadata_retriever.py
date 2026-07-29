@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from unittest.mock import Mock, patch
+from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 from haystack.dataclasses import Document
@@ -117,6 +117,28 @@ def test_from_dict(_mock_opensearch_client):
     assert retriever_from_dict._prefix_length == 1
     assert retriever_from_dict._max_expansions == 50
     assert retriever_from_dict._jaccard_n == 5
+
+
+def test_close():
+    mock_store = Mock(spec=OpenSearchDocumentStore)
+    retriever = OpenSearchMetadataRetriever(document_store=mock_store, metadata_fields=["category"])
+
+    retriever.close()
+
+    mock_store.close.assert_called_once_with()
+    assert retriever._document_store is mock_store
+
+
+@pytest.mark.asyncio
+async def test_close_async():
+    mock_store = Mock(spec=OpenSearchDocumentStore)
+    mock_store.close_async = AsyncMock()
+    retriever = OpenSearchMetadataRetriever(document_store=mock_store, metadata_fields=["category"])
+
+    await retriever.close_async()
+
+    mock_store.close_async.assert_awaited_once_with()
+    assert retriever._document_store is mock_store
 
 
 def test_run_with_runtime_document_store():

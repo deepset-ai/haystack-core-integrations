@@ -298,83 +298,67 @@ def test_bm25_retrieval_reraises_other_transport_errors(_mock_opensearch_client)
     assert store._client.search.call_count == 1
 
 
-@pytest.mark.asyncio
-@patch("haystack_integrations.document_stores.opensearch.document_store.AsyncOpenSearch")
 @patch("haystack_integrations.document_stores.opensearch.document_store.OpenSearch")
-async def test_bm25_retrieval_async_retries_with_fuzziness_zero_on_too_many_clauses(
-    _mock_opensearch_client, _mock_async_client, caplog
-):
+def test_get_metadata_field_unique_values_no_search_term_builds_query_without_include(_mock_opensearch_client):
+    """Composite aggregation terms sources don't support `include`/`exclude`, so with no search_term
+    the request body must have neither a `query` filter nor an `include` clause on the terms source."""
     store = OpenSearchDocumentStore(hosts="testhost")
-    store._async_client = AsyncMock()
+    store._client = MagicMock()
+    store._client.search.return_value = {"aggregations": {"unique_values": {"buckets": []}}}
 
-    too_many_clauses_error = TransportError(
-        500, "search_phase_execution_exception", "too_many_clauses: maxClauseCount is set to 1024"
-    )
-    store._async_client.search.side_effect = [
-        too_many_clauses_error,
-        {"hits": {"hits": []}},
-    ]
+    store.get_metadata_field_unique_values("category", None, 10)
 
-    results = await store._bm25_retrieval_async("a very long query", fuzziness="AUTO")
-
-    assert results == []
-    assert store._async_client.search.call_count == 2
-    second_call_body = store._async_client.search.call_args_list[1].kwargs["body"]
-    assert second_call_body["query"]["bool"]["must"][0]["multi_match"]["fuzziness"] == 0
-    assert "Retrying with fuzziness=0" in caplog.text
+    body = store._client.search.call_args.kwargs["body"]
+    assert "query" not in body
+    terms_source = body["aggs"]["unique_values"]["composite"]["sources"][0]["category"]["terms"]
+    assert "include" not in terms_source
+    assert terms_source["field"] == "category"
 
 
-@pytest.mark.asyncio
-@patch("haystack_integrations.document_stores.opensearch.document_store.AsyncOpenSearch")
 @patch("haystack_integrations.document_stores.opensearch.document_store.OpenSearch")
-async def test_bm25_retrieval_async_no_retry_when_fuzziness_already_zero(_mock_opensearch_client, _mock_async_client):
+def test_get_metadata_field_unique_values_search_term_filters_on_field_value_not_content(_mock_opensearch_client):
     store = OpenSearchDocumentStore(hosts="testhost")
-    store._async_client = AsyncMock()
+    store._client = MagicMock()
+    store._client.search.return_value = {"aggregations": {"unique_values": {"buckets": []}}}
 
-    too_many_clauses_error = TransportError(
-        500, "search_phase_execution_exception", "too_many_clauses: maxClauseCount is set to 1024"
-    )
-    store._async_client.search.side_effect = too_many_clauses_error
+    store.get_metadata_field_unique_values("category", "needle", 10)
 
-    with pytest.raises(TransportError):
-        await store._bm25_retrieval_async("a very long query", fuzziness=0)
+    body = store._client.search.call_args.kwargs["body"]
+    # Composite aggregation terms sources don't support `include`/`exclude`, so the substring match
+    # against the aggregated field's own value is applied as a query-level doc-value script filter instead.
+    terms_source = body["aggs"]["unique_values"]["composite"]["sources"][0]["category"]["terms"]
+    assert "include" not in terms_source
+    script = body["query"]["script"]["script"]
+    assert script["params"] == {"field": "category", "term": "needle"}
+    assert "contains(params.term)" in script["source"]
 
-    assert store._async_client.search.call_count == 1
 
-
-@pytest.mark.asyncio
-@patch("haystack_integrations.document_stores.opensearch.document_store.AsyncOpenSearch")
 @patch("haystack_integrations.document_stores.opensearch.document_store.OpenSearch")
-async def test_bm25_retrieval_async_no_retry_with_custom_query(_mock_opensearch_client, _mock_async_client):
+def test_get_metadata_field_unique_values_search_term_is_lowercased_for_case_insensitivity(_mock_opensearch_client):
     store = OpenSearchDocumentStore(hosts="testhost")
-    store._async_client = AsyncMock()
+    store._client = MagicMock()
+    store._client.search.return_value = {"aggregations": {"unique_values": {"buckets": []}}}
 
-    too_many_clauses_error = TransportError(
-        500, "search_phase_execution_exception", "too_many_clauses: maxClauseCount is set to 1024"
-    )
-    store._async_client.search.side_effect = too_many_clauses_error
+    store.get_metadata_field_unique_values("category", "NeEdLe", 10)
 
-    custom_query = {"query": {"match": {"content": "$query"}}}
-    with pytest.raises(TransportError):
-        await store._bm25_retrieval_async("a very long query", fuzziness="AUTO", custom_query=custom_query)
-
-    assert store._async_client.search.call_count == 1
+    body = store._client.search.call_args.kwargs["body"]
+    script = body["query"]["script"]["script"]
+    assert script["params"]["term"] == "needle"
+    assert "toLowerCase().contains(params.term)" in script["source"]
 
 
-@pytest.mark.asyncio
-@patch("haystack_integrations.document_stores.opensearch.document_store.AsyncOpenSearch")
 @patch("haystack_integrations.document_stores.opensearch.document_store.OpenSearch")
-async def test_bm25_retrieval_async_reraises_other_transport_errors(_mock_opensearch_client, _mock_async_client):
+def test_get_metadata_field_unique_values_search_term_with_regex_metacharacters(_mock_opensearch_client):
+    """search_term is matched as a literal substring (via a doc-value script), so regex metacharacters
+    in the term must be passed through as-is, not treated as a regex pattern."""
     store = OpenSearchDocumentStore(hosts="testhost")
-    store._async_client = AsyncMock()
+    store._client = MagicMock()
+    store._client.search.return_value = {"aggregations": {"unique_values": {"buckets": []}}}
 
-    other_error = TransportError(500, "parsing_exception", {"error": {"reason": "some other error"}})
-    store._async_client.search.side_effect = other_error
+    store.get_metadata_field_unique_values("category", "a.b*c", 10)
 
-    with pytest.raises(TransportError):
-        await store._bm25_retrieval_async("some query", fuzziness="AUTO")
-
-    assert store._async_client.search.call_count == 1
+    body = store._client.search.call_args.kwargs["body"]
+    assert body["query"]["script"]["script"]["params"]["term"] == "a.b*c"
 
 
 @patch("haystack_integrations.document_stores.opensearch.document_store.OpenSearch")
@@ -497,7 +481,6 @@ def test_wildcard_nested_fields_detected_on_write(mock_bulk, _mock_opensearch_cl
     mock_bulk.return_value = (2, [])
     store = OpenSearchDocumentStore(hosts="testhost", nested_fields="*")
     store._client = MagicMock()
-    store._initialized = True
 
     docs = [
         Document(
@@ -526,7 +509,6 @@ def test_wildcard_nested_fields_incremental_detection(mock_bulk, _mock_opensearc
     mock_bulk.return_value = (1, [])
     store = OpenSearchDocumentStore(hosts="testhost", nested_fields="*")
     store._client = MagicMock()
-    store._initialized = True
 
     # First batch: detects "refs"
     store.write_documents([Document(content="d1", meta={"refs": [{"law": "bgb"}]})])
@@ -545,7 +527,6 @@ def test_explicit_nested_fields_no_detection_on_write(mock_bulk, _mock_opensearc
     mock_bulk.return_value = (1, [])
     store = OpenSearchDocumentStore(hosts="testhost", nested_fields=["refs"])
     store._client = MagicMock()
-    store._initialized = True
 
     store.write_documents([Document(content="d1", meta={"tags": [{"name": "x"}]})])
 
@@ -755,6 +736,31 @@ async def test_delete_all_documents_async_recreate_works_for_concrete_index(_moc
     mock_client.indices.create.assert_called_once()
 
 
+def test_close():
+    store = OpenSearchDocumentStore(hosts="testhost", http_auth=("a", "b"))
+    mock_client = MagicMock()
+    store._client = mock_client
+
+    store.close()
+
+    mock_client.close.assert_called_once()
+    assert store._client is None
+
+    store.close()
+    mock_client.close.assert_called_once()
+
+
+def test_close_is_exception_safe():
+    store = OpenSearchDocumentStore(hosts="testhost", http_auth=("a", "b"))
+    mock_client = MagicMock()
+    mock_client.close.side_effect = RuntimeError("boom")
+    store._client = mock_client
+
+    store.close()
+
+    assert store._client is None
+
+
 @pytest.mark.integration
 class TestDocumentStore(
     OpenSearchDocumentStoreTestMixin,
@@ -773,6 +779,16 @@ class TestDocumentStore(
     def document_store(self, document_store):
         """Override base class fixture to provide OpenSearch document store."""
         yield document_store
+
+    def test_close_and_reopen(self, document_store: OpenSearchDocumentStore):
+        assert document_store.count_documents() == 0
+        assert document_store._client is not None
+
+        document_store.close()
+        assert document_store._client is None
+
+        assert document_store.count_documents() == 0
+        assert document_store._client is not None
 
     def test_write_documents(self, document_store: OpenSearchDocumentStore):
         docs = [Document(id="1")]
@@ -1196,13 +1212,20 @@ class TestDocumentStore(
         # Should have no more results
         assert after_key_page2 is None
 
-        # Test with search term - filter by content matching "Python"
+        # Test with search term - filter by the metadata field's own VALUE matching "Python"
+        # ("language" values are "Python"/"Java"/"JavaScript", so searching "Python" against
+        # the "category" field's values ("A"/"B"/"C") should match nothing)
         unique_values_filtered, _ = document_store.get_metadata_field_unique_values("meta.category", "Python", 10)
-        assert set(unique_values_filtered) == {"A"}  # Only category A has documents with "Python" in content
+        assert set(unique_values_filtered) == set()
 
-        # Test with search term - filter by content matching "Java"
-        unique_values_java, _ = document_store.get_metadata_field_unique_values("meta.category", "Java", 10)
-        assert set(unique_values_java) == {"B"}  # Only category B has documents with "Java" in content
+        # Searching "language" values themselves for the substring "Java" must match both
+        # "Java" and "JavaScript" (substring match on the field's own value).
+        unique_languages_filtered, _ = document_store.get_metadata_field_unique_values("meta.language", "Java", 10)
+        assert set(unique_languages_filtered) == {"Java", "JavaScript"}
+
+        # Case-insensitivity: a lowercase search term must still match the differently-cased values above.
+        unique_languages_lower, _ = document_store.get_metadata_field_unique_values("meta.language", "java", 10)
+        assert set(unique_languages_lower) == {"Java", "JavaScript"}
 
         # Test with integer values
         int_docs = [
@@ -1215,9 +1238,32 @@ class TestDocumentStore(
         unique_priorities, _ = document_store.get_metadata_field_unique_values("meta.priority", None, 10)
         assert set(unique_priorities) == {"1", "2", "3"}
 
-        # Test with search term on integer field
+        # search_term now matches against the field's own value, not the content, so searching
+        # for content text ("Doc 1") against the "priority" field's values ("1"/"2"/"3") matches nothing.
         unique_priorities_filtered, _ = document_store.get_metadata_field_unique_values("meta.priority", "Doc 1", 10)
-        assert set(unique_priorities_filtered) == {"1"}
+        assert set(unique_priorities_filtered) == set()
+
+        # search_term matching the field's own value (e.g. "1") does match.
+        unique_priorities_by_value, _ = document_store.get_metadata_field_unique_values("meta.priority", "1", 10)
+        assert set(unique_priorities_by_value) == {"1"}
+
+        # Prove the semantic change explicitly with a document whose CONTENT contains the search
+        # term but whose target metadata field value does NOT: it must now be EXCLUDED.
+        content_match_docs = [
+            Document(content="This mentions needle in the text", meta={"topic": "unrelated"}),
+        ]
+        document_store.write_documents(content_match_docs)
+        unique_topics_content_only, _ = document_store.get_metadata_field_unique_values("meta.topic", "needle", 10)
+        assert set(unique_topics_content_only) == set()
+
+        # And a document whose metadata field VALUE contains the search term but whose content does
+        # NOT: it must now be INCLUDED.
+        value_match_docs = [
+            Document(content="Nothing special here", meta={"topic": "needle-in-haystack"}),
+        ]
+        document_store.write_documents(value_match_docs)
+        unique_topics_value_only, _ = document_store.get_metadata_field_unique_values("meta.topic", "needle", 10)
+        assert set(unique_topics_value_only) == {"needle-in-haystack"}
 
     def test_write_with_routing(self, document_store: OpenSearchDocumentStore):
         """Test writing documents with routing metadata"""

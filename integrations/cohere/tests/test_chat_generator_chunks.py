@@ -358,6 +358,7 @@ class TestCohereChunkConversion:
                 "finish_reason": "tool_calls",
                 "index": 0,
                 "usage": {"prompt_tokens": 60.0, "completion_tokens": 41.0},
+                "citations": None,
             },
         )
 
@@ -406,3 +407,64 @@ class TestCohereChunkConversion:
         result = _convert_cohere_chunk_to_streaming_chunk(chunk=mock_chunk, model="command-r-08-2024")
 
         assert result.meta["usage"] == {"completion_tokens": 0.0, "prompt_tokens": 0.0}
+
+    def test_convert_citation_start_chunk(self):
+        citation = MagicMock()
+        citation.start = 0
+        citation.end = 10
+        citation.text = "Hello world"
+
+        delta_message = MagicMock()
+        delta_message.citations = citation
+
+        delta = MagicMock()
+        delta.message = delta_message
+
+        mock_chunk = MagicMock()
+        mock_chunk.type = "citation-start"
+        mock_chunk.delta = delta
+
+        result = _convert_cohere_chunk_to_streaming_chunk(chunk=mock_chunk, model="command-r-08-2024")
+
+        assert result.content == ""
+        assert result.start is False
+        assert result.tool_calls is None
+        assert result.finish_reason is None
+        assert result.meta["citations"] == [citation]
+
+    def test_parse_streaming_response_with_citations(self):
+        citation = MagicMock()
+        citation.start = 0
+        citation.end = 5
+        citation.text = "Hello"
+
+        delta_message = MagicMock()
+        delta_message.citations = citation
+
+        delta = MagicMock()
+        delta.message = delta_message
+
+        citation_chunk = MagicMock()
+        citation_chunk.type = "citation-start"
+        citation_chunk.delta = delta
+
+        msg_end_chunk = MsgEndStream(
+            type="message-end",
+            delta=MsgEndDelta(
+                finish_reason="COMPLETE",
+                usage=Usage(
+                    billed_units=BilledUnits(input_tokens=5.0, output_tokens=5.0),
+                    tokens=UsageTokens(input_tokens=50.0, output_tokens=20.0),
+                ),
+            ),
+        )
+
+        stream = iter([citation_chunk, msg_end_chunk])
+        chat_message = _parse_streaming_response(
+            stream,
+            model="command-r-08-2024",
+            streaming_callback=lambda _: None,
+            component_info=ComponentInfo(type="type"),
+        )
+
+        assert chat_message.meta["citations"] == [citation]

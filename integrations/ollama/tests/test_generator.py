@@ -49,8 +49,8 @@ class TestOllamaGenerator:
         assert component.streaming_callback is None
 
     def test_init(self):
-        def callback(x: StreamingChunk):
-            x.content = ""
+        def callback(x: StreamingChunk) -> None:
+            pass
 
         component = OllamaGenerator(
             model="llama2",

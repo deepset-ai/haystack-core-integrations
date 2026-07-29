@@ -146,6 +146,26 @@ class TestQdrantRetriever:
         retriever = QdrantEmbeddingRetriever.from_dict(data)
         assert retriever._filter_policy == FilterPolicy.REPLACE  # defaults to REPLACE
 
+    def test_close(self):
+        mock_store = Mock(spec=QdrantDocumentStore)
+        retriever = QdrantEmbeddingRetriever(document_store=mock_store)
+
+        retriever.close()
+
+        mock_store.close.assert_called_once_with()
+        assert retriever._document_store is mock_store
+
+    @pytest.mark.asyncio
+    async def test_close_async(self):
+        mock_store = Mock(spec=QdrantDocumentStore)
+        mock_store.close_async = AsyncMock()
+        retriever = QdrantEmbeddingRetriever(document_store=mock_store)
+
+        await retriever.close_async()
+
+        mock_store.close_async.assert_awaited_once_with()
+        assert retriever._document_store is mock_store
+
     def test_run(self):
         mock_store = Mock(spec=QdrantDocumentStore)
         mock_store._query_by_embedding.return_value = [Document(content="doc", embedding=[0.1, 0.2])]

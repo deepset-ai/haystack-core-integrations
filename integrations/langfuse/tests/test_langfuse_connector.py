@@ -104,10 +104,7 @@ class TestLangfuseConnector:
                 },
                 "span_handler": {
                     "type": "tests.test_langfuse_connector.CustomSpanHandler",
-                    "data": {
-                        "type": "tests.test_langfuse_connector.CustomSpanHandler",
-                        "init_parameters": {},
-                    },
+                    "init_parameters": {},
                 },
                 "host": "https://example.com",
                 "langfuse_client_kwargs": {"timeout": 30.0},
@@ -199,10 +196,7 @@ class TestLangfuseConnector:
                 },
                 "span_handler": {
                     "type": "tests.test_langfuse_connector.CustomSpanHandler",
-                    "data": {
-                        "type": "tests.test_langfuse_connector.CustomSpanHandler",
-                        "init_parameters": {},
-                    },
+                    "init_parameters": {},
                 },
                 "host": "https://example.com",
                 "langfuse_client_kwargs": {"timeout": 30.0},
@@ -217,6 +211,41 @@ class TestLangfuseConnector:
         assert isinstance(langfuse_connector.span_handler, CustomSpanHandler)
         assert langfuse_connector.host == "https://example.com"
         assert langfuse_connector.langfuse_client_kwargs == {"timeout": 30.0}
+
+    def test_from_dict_with_legacy_span_handler_format(self, monkeypatch):
+        # Pipelines serialized before this fix wrap span_handler as {"type": ..., "data": {...}}
+        monkeypatch.setenv("LANGFUSE_SECRET_KEY", "secret")
+        monkeypatch.setenv("LANGFUSE_PUBLIC_KEY", "public")
+
+        data = {
+            "type": "haystack_integrations.components.connectors.langfuse.langfuse_connector.LangfuseConnector",
+            "init_parameters": {
+                "name": "Chat example - OpenAI",
+                "public": True,
+                "secret_key": {
+                    "type": "env_var",
+                    "env_vars": ["LANGFUSE_SECRET_KEY"],
+                    "strict": True,
+                },
+                "public_key": {
+                    "type": "env_var",
+                    "env_vars": ["LANGFUSE_PUBLIC_KEY"],
+                    "strict": True,
+                },
+                "span_handler": {
+                    "type": "tests.test_langfuse_connector.CustomSpanHandler",
+                    "data": {
+                        "type": "tests.test_langfuse_connector.CustomSpanHandler",
+                        "init_parameters": {},
+                    },
+                },
+                "host": "https://example.com",
+                "langfuse_client_kwargs": {"timeout": 30.0},
+            },
+        }
+
+        langfuse_connector = LangfuseConnector.from_dict(data)
+        assert isinstance(langfuse_connector.span_handler, CustomSpanHandler)
 
     def test_pipeline_serialization(self, monkeypatch):
         # Set test env vars

@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/arangodb-v1.1.0] - 2026-07-23
+
+### 🚀 Features
+
+- Arangodb - add closing methods (#3652)
+
+
 ## [integrations/arangodb-v1.0.0] - 2026-06-08
 
 ### 🚀 Features

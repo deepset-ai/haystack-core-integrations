@@ -27,15 +27,15 @@ class FirecrawlCrawler:
     ### Usage example
 
     ```python
-    from haystack_integrations.components.fetchers.firecrawl import FirecrawlFetcher
+    from haystack_integrations.components.fetchers.firecrawl import FirecrawlCrawler
 
-    fetcher = FirecrawlFetcher(
+    crawler = FirecrawlCrawler(
         api_key=Secret.from_env_var("FIRECRAWL_API_KEY"),
         params={"limit": 5},
     )
-    fetcher.warm_up()
+    crawler.warm_up()
 
-    result = fetcher.run(urls=["https://docs.haystack.deepset.ai/docs/intro"])
+    result = crawler.run(urls=["https://docs.haystack.deepset.ai/docs/intro"])
     documents = result["documents"]
     ```
     """
@@ -46,7 +46,7 @@ class FirecrawlCrawler:
         params: dict[str, Any] | None = None,
     ) -> None:
         """
-        Initialize the FirecrawlFetcher.
+        Initialize the FirecrawlCrawler.
 
         :param api_key:
             API key for Firecrawl.

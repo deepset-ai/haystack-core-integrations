@@ -68,6 +68,26 @@ class TestValkeyEmbeddingRetrieverUnit:
         with pytest.raises(ValueError, match="document_store must be an instance of ValkeyDocumentStore"):
             ValkeyEmbeddingRetriever(document_store="not_a_store")
 
+    def test_close(self):
+        mock_store = Mock(spec=ValkeyDocumentStore)
+        retriever = ValkeyEmbeddingRetriever(document_store=mock_store)
+
+        retriever.close()
+
+        mock_store.close.assert_called_once_with()
+        assert retriever.document_store is mock_store
+
+    @pytest.mark.asyncio
+    async def test_close_async(self):
+        mock_store = Mock(spec=ValkeyDocumentStore)
+        mock_store.close_async = AsyncMock()
+        retriever = ValkeyEmbeddingRetriever(document_store=mock_store)
+
+        await retriever.close_async()
+
+        mock_store.close_async.assert_awaited_once_with()
+        assert retriever.document_store is mock_store
+
     def test_to_dict(self, mock_store):
         retriever = ValkeyEmbeddingRetriever(
             document_store=mock_store,

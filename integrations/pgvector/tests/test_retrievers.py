@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: 2023-present deepset GmbH <info@deepset.ai>
 #
 # SPDX-License-Identifier: Apache-2.0
-from unittest.mock import Mock
+from unittest.mock import AsyncMock, Mock
 
 import pytest
 from haystack.dataclasses import Document
@@ -125,6 +125,26 @@ class TestEmbeddingRetriever:
         assert retriever.top_k == 5
         assert retriever.filter_policy == FilterPolicy.REPLACE
         assert retriever.vector_function == "l2_distance"
+
+    def test_close(self):
+        mock_store = Mock(spec=PgvectorDocumentStore)
+        retriever = PgvectorEmbeddingRetriever(document_store=mock_store, vector_function="l2_distance")
+
+        retriever.close()
+
+        mock_store.close.assert_called_once()
+        assert retriever.document_store is mock_store
+
+    @pytest.mark.asyncio
+    async def test_close_async(self):
+        mock_store = Mock(spec=PgvectorDocumentStore)
+        mock_store.close_async = AsyncMock()
+        retriever = PgvectorEmbeddingRetriever(document_store=mock_store, vector_function="l2_distance")
+
+        await retriever.close_async()
+
+        mock_store.close_async.assert_awaited_once()
+        assert retriever.document_store is mock_store
 
     def test_run(self):
         mock_store = Mock(spec=PgvectorDocumentStore)
@@ -314,6 +334,26 @@ class TestKeywordRetriever:
         assert retriever.filters == {"field": "value"}
         assert retriever.filter_policy == FilterPolicy.REPLACE  # defaults to REPLACE
         assert retriever.top_k == 5
+
+    def test_close(self):
+        mock_store = Mock(spec=PgvectorDocumentStore)
+        retriever = PgvectorKeywordRetriever(document_store=mock_store)
+
+        retriever.close()
+
+        mock_store.close.assert_called_once()
+        assert retriever.document_store is mock_store
+
+    @pytest.mark.asyncio
+    async def test_close_async(self):
+        mock_store = Mock(spec=PgvectorDocumentStore)
+        mock_store.close_async = AsyncMock()
+        retriever = PgvectorKeywordRetriever(document_store=mock_store)
+
+        await retriever.close_async()
+
+        mock_store.close_async.assert_awaited_once()
+        assert retriever.document_store is mock_store
 
     def test_run(self):
         mock_store = Mock(spec=PgvectorDocumentStore)

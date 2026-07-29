@@ -1,5 +1,12 @@
 # Changelog
 
+## [integrations/weaviate-v7.7.0] - 2026-07-22
+
+### 🚜 Refactor
+
+- Align Weaviate closing methods to standard (#3630)
+
+
 ## [integrations/weaviate-v7.6.0] - 2026-06-22
 
 ### 🐛 Bug Fixes
