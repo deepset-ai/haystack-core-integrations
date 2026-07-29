@@ -579,50 +579,82 @@ class IBMDb2DocumentStore:
 
             return updated_count
 
-    def get_metadata_field_unique_values(self, field: str) -> list[Any]:
+    @staticmethod
+    def _normalize_metadata_field_name(field_name: str) -> str:
         """
-        Get all unique values for a given metadata field.
+        Normalize a metadata field name and validate its characters.
 
-        :param field: The metadata field name (can include 'meta.' prefix)
-        :return: List of unique values for the field
+        Removes the 'meta.' prefix, if present, and validates the remaining characters to prevent
+        SQL/JSONPath injection when the name is embedded in a SQL string literal.
+
+        :param field_name: The field name to normalize.
+        :return: The normalized field name.
+        :raises ValueError: If the field name contains characters other than alphanumerics, underscores,
+            or hyphens.
         """
-        # Strip 'meta.' prefix if present
-        field_name = field.removeprefix("meta.")
+        field_name = field_name.removeprefix("meta.")
 
-        # Extract values from the JSON metadata field
-        # Db2 has issues with DISTINCT/GROUP BY on JSON_VALUE results (SQL0134N error)
-        # So we fetch all values and deduplicate in Python
-        # Use RETURNING VARCHAR to explicitly specify the return type
-        sql = (
-            f"SELECT JSON_VALUE(SYSTOOLS.BSON2JSON(meta), '$.{field_name}' RETURNING VARCHAR(1000)) "
-            f"FROM {self.table_name} "
-            f"WHERE JSON_VALUE(SYSTOOLS.BSON2JSON(meta), '$.{field_name}' RETURNING VARCHAR(1000)) IS NOT NULL"
+        if not all(c.isalnum() or c in ("_", "-") for c in field_name):
+            msg = (
+                f"Invalid metadata field name: '{field_name}'. Field names can only contain alphanumeric "
+                f"characters, underscores, and hyphens."
+            )
+            raise ValueError(msg)
+
+        return field_name
+
+    def get_metadata_field_unique_values(
+        self,
+        metadata_field: str,
+        search_term: str | None = None,
+        from_: int = 0,
+        size: int = 10,
+    ) -> tuple[list[str], int]:
+        """
+        Get unique values for a given metadata field, optionally filtered by a search term.
+
+        :param metadata_field: The metadata field name (can include or omit the 'meta.' prefix).
+        :param search_term: Optional term to filter the returned values by, matching as a case-insensitive
+            substring of the metadata field's own value (not the document content). If None, all values
+            are considered.
+        :param from_: The offset for pagination (0-based).
+        :param size: The number of unique values to return.
+        :return: A tuple containing (list of unique values as strings, total count of unique values
+            matching `search_term`).
+        """
+        field_name = self._normalize_metadata_field_name(metadata_field)
+
+        # Db2 raises SQL0134N ("a LOB column can't be used with DISTINCT/GROUP BY") when DISTINCT is
+        # applied directly to a JSON_VALUE(...) expression derived from the BLOB `meta` column. Wrapping
+        # the extraction in a derived table materializes it as a plain VARCHAR column first, so DISTINCT
+        # and ORDER BY in the outer query operate on that column instead of the LOB-derived expression.
+        value_subquery = (
+            f"SELECT JSON_VALUE(SYSTOOLS.BSON2JSON(meta), '$.{field_name}' RETURNING VARCHAR(1000)) AS value "
+            f"FROM {self.table_name}"
         )
-        with self._transaction(f"Failed to get unique values for field '{field}'") as cur:
-            cur.execute(sql)
+
+        params: list[Any] = []
+        search_clause = ""
+        if search_term:
+            search_clause = " AND UPPER(value) LIKE UPPER(?)"
+            params.append(f"%{search_term}%")
+
+        count_sql = f"SELECT COUNT(DISTINCT value) FROM ({value_subquery}) AS t WHERE value IS NOT NULL{search_clause}"
+        select_sql = (
+            f"SELECT DISTINCT value FROM ({value_subquery}) AS t WHERE value IS NOT NULL{search_clause} "
+            f"ORDER BY value OFFSET ? ROWS FETCH FIRST ? ROWS ONLY"
+        )
+
+        with self._transaction(f"Failed to get unique values for field '{metadata_field}'") as cur:
+            cur.execute(count_sql, params)
+            count_row = cur.fetchone()
+            total_count = count_row[0] if count_row and count_row[0] is not None else 0
+
+            cur.execute(select_sql, [*params, from_, size])
             rows = cur.fetchall()
 
-        # Parse and deduplicate the values
-        seen = set()
-        values = []
-        for row in rows:
-            value = row[0]
-            if value is not None:
-                # Try to parse as JSON to get the actual type
-                try:
-                    parsed_value = json.loads(value)
-                    # Use JSON string for deduplication to handle unhashable types
-                    value_key = json.dumps(parsed_value, sort_keys=True)
-                    if value_key not in seen:
-                        seen.add(value_key)
-                        values.append(parsed_value)
-                except (json.JSONDecodeError, TypeError):
-                    # If it's not valid JSON, use the string value
-                    if value not in seen:
-                        seen.add(value)
-                        values.append(value)
-
-        return values
+        unique_values = [row[0] for row in rows if row[0] is not None]
+        return unique_values, total_count
 
     def get_metadata_field_min_max(self, field: str) -> dict[str, Any]:
         """

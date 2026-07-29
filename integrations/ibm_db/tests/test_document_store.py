@@ -239,6 +239,80 @@ class TestDocumentStore(
         assert [doc.id for doc in results] == ["a", "c"]
         assert all(doc.score is not None for doc in results)
 
+    def test_get_metadata_field_unique_values_basic_and_prefix(self, document_store: IBMDb2DocumentStore):
+        docs = [
+            Document(content="Python programming", meta={"category": "A", "language": "Python"}),
+            Document(content="Java programming", meta={"category": "B", "language": "Java"}),
+            Document(content="Python scripting", meta={"category": "A", "language": "Python"}),
+            Document(content="JavaScript development", meta={"category": "C", "language": "JavaScript"}),
+        ]
+        document_store.write_documents(docs)
+
+        values, total_count = document_store.get_metadata_field_unique_values("category")
+        assert set(values) == {"A", "B", "C"}
+        assert total_count == 3
+
+        # "meta." prefix is optional
+        values_prefixed, total_prefixed = document_store.get_metadata_field_unique_values("meta.category")
+        assert set(values_prefixed) == {"A", "B", "C"}
+        assert total_prefixed == 3
+
+    def test_get_metadata_field_unique_values_pagination(self, document_store: IBMDb2DocumentStore):
+        docs = [
+            Document(content=f"doc {i}", meta={"category": c}) for i, c in enumerate(["A", "B", "A", "C", "B", "A"])
+        ]
+        document_store.write_documents(docs)
+
+        page1, total1 = document_store.get_metadata_field_unique_values("category", from_=0, size=2)
+        page2, total2 = document_store.get_metadata_field_unique_values("category", from_=2, size=2)
+
+        assert len(page1) == 2
+        assert len(page2) == 1
+        assert total1 == total2 == 3
+        assert not set(page1).intersection(page2)
+        assert set(page1) | set(page2) == {"A", "B", "C"}
+
+        all_values, total = document_store.get_metadata_field_unique_values("category", from_=0, size=100)
+        assert set(all_values) == {"A", "B", "C"}
+        assert total == 3
+
+        beyond, total_beyond = document_store.get_metadata_field_unique_values("category", from_=10, size=10)
+        assert beyond == []
+        assert total_beyond == 3
+
+    def test_get_metadata_field_unique_values_search_term(self, document_store: IBMDb2DocumentStore):
+        docs = [
+            Document(content="mentions python in the body", meta={"category": "Backend"}),
+            Document(content="unrelated content", meta={"category": "Python-based"}),
+            Document(content="another one", meta={"category": "Java"}),
+        ]
+        document_store.write_documents(docs)
+
+        # Case-insensitive substring match against the field's own value, not document content.
+        values, total = document_store.get_metadata_field_unique_values("category", search_term="python")
+        assert values == ["Python-based"]
+        assert total == 1
+
+        values_upper, total_upper = document_store.get_metadata_field_unique_values("category", search_term="PYTHON")
+        assert values_upper == ["Python-based"]
+        assert total_upper == 1
+
+    def test_get_metadata_field_unique_values_stringifies_non_string_values(self, document_store: IBMDb2DocumentStore):
+        docs = [
+            Document(content="one", meta={"priority": 1}),
+            Document(content="two", meta={"priority": 2}),
+            Document(content="three", meta={"priority": 1}),
+        ]
+        document_store.write_documents(docs)
+
+        values, total = document_store.get_metadata_field_unique_values("priority")
+        assert set(values) == {"1", "2"}
+        assert total == 2
+
+    def test_get_metadata_field_unique_values_invalid_field_name(self, document_store: IBMDb2DocumentStore):
+        with pytest.raises(ValueError, match="Invalid metadata field name"):
+            document_store.get_metadata_field_unique_values("field' OR '1'='1")
+
 
 class TestIBMDb2DocumentStoreUtilMethods:
     """Unit tests for pure utility methods: _parse_embedding, _validate_embedding, _infer_field_type."""
@@ -299,6 +373,32 @@ class TestIBMDb2DocumentStoreUtilMethods:
     )
     def test_infer_field_type(self, value, expected):
         assert IBMDb2DocumentStore._infer_field_type(value) == expected
+
+    # _normalize_metadata_field_name
+    def test_normalize_metadata_field_name_strips_meta_prefix(self):
+        assert IBMDb2DocumentStore._normalize_metadata_field_name("meta.category") == "category"
+
+    def test_normalize_metadata_field_name_without_prefix_unchanged(self):
+        assert IBMDb2DocumentStore._normalize_metadata_field_name("category") == "category"
+
+    def test_normalize_metadata_field_name_allows_underscore_and_hyphen(self):
+        assert IBMDb2DocumentStore._normalize_metadata_field_name("meta.some_field-name") == "some_field-name"
+
+    @pytest.mark.parametrize(
+        "bad_field",
+        [
+            "field@invalid",
+            "field with spaces",
+            "field;drop",
+            "meta.field!",
+            "field' OR '1'='1",
+            "../etc/passwd",
+            "field/* comment */",
+        ],
+    )
+    def test_normalize_metadata_field_name_rejects_invalid_chars(self, bad_field):
+        with pytest.raises(ValueError, match="Invalid metadata field name"):
+            IBMDb2DocumentStore._normalize_metadata_field_name(bad_field)
 
 
 @pytest.fixture
@@ -575,3 +675,55 @@ class TestIBMDb2DocumentStoreUnit:
 
         with pytest.raises(RuntimeError, match="connection reset"):
             store._embedding_retrieval([0.1, 0.2], top_k=1)
+
+    def test_get_metadata_field_unique_values_builds_paginated_sql(self, mocked_store):
+        store, _, cur = mocked_store
+        cur.fetchone.return_value = (2,)
+        cur.fetchall.return_value = [("A",), ("B",)]
+
+        values, total_count = store.get_metadata_field_unique_values("meta.category", from_=5, size=10)
+
+        assert values == ["A", "B"]
+        assert total_count == 2
+
+        count_sql, count_params = cur.execute.call_args_list[0].args
+        select_sql, select_params = cur.execute.call_args_list[1].args
+
+        assert "COUNT(DISTINCT value)" in count_sql
+        assert "$.category" in count_sql
+        assert count_params == []
+
+        assert "SELECT DISTINCT value" in select_sql
+        assert "ORDER BY value OFFSET ? ROWS FETCH FIRST ? ROWS ONLY" in select_sql
+        assert select_params == [5, 10]
+
+    def test_get_metadata_field_unique_values_applies_search_term(self, mocked_store):
+        store, _, cur = mocked_store
+        cur.fetchone.return_value = (1,)
+        cur.fetchall.return_value = [("Python-based",)]
+
+        store.get_metadata_field_unique_values("meta.category", search_term="python")
+
+        count_sql, count_params = cur.execute.call_args_list[0].args
+        select_sql, select_params = cur.execute.call_args_list[1].args
+
+        assert "UPPER(value) LIKE UPPER(?)" in count_sql
+        assert count_params == ["%python%"]
+        assert "UPPER(value) LIKE UPPER(?)" in select_sql
+        assert select_params == ["%python%", 0, 10]
+
+    def test_get_metadata_field_unique_values_rejects_invalid_field_name(self, mocked_store):
+        store, _, _ = mocked_store
+
+        with pytest.raises(ValueError, match="Invalid metadata field name"):
+            store.get_metadata_field_unique_values("field' OR '1'='1")
+
+    def test_get_metadata_field_unique_values_handles_no_rows(self, mocked_store):
+        store, _, cur = mocked_store
+        cur.fetchone.return_value = None
+        cur.fetchall.return_value = []
+
+        values, total_count = store.get_metadata_field_unique_values("meta.category")
+
+        assert values == []
+        assert total_count == 0
