@@ -96,7 +96,14 @@ if __name__ == "__main__":
     restored = roundtrip_yaml(pipeline)
     verify_roundtrip(pipeline, restored)
 
-    run_agent(
-        restored,
-        "Write a Python one-liner to hello.py that prints 'Hello from Tenki!', run it, then show me the output.",
-    )
+    # The restored toolset owns a live, billed sandbox as soon as the agent runs,
+    # and nothing closes it for us -- so tear it down on every exit path, not just
+    # on failure.
+    restored_toolset: TenkiToolset = restored.get_component("agent").tools
+    try:
+        run_agent(
+            restored,
+            "Write a Python one-liner to hello.py that prints 'Hello from Tenki!', run it, then show me the output.",
+        )
+    finally:
+        restored_toolset.close()
