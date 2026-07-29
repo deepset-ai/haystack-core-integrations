@@ -26,8 +26,21 @@ def sandbox():
     """Shared sandbox for the module — spun up once, torn down after all tests."""
     sb = TenkiSandbox()
     sb.warm_up()
-    yield sb
-    sb.close()
+    try:
+        yield sb
+    finally:
+        sb.close()
+
+
+@pytest.fixture
+def toolset():
+    """Fresh toolset per test -- always closed, so a live sandbox cannot leak."""
+    ts = TenkiToolset()
+    ts.warm_up()
+    try:
+        yield ts
+    finally:
+        ts.close()
 
 
 @pytest.mark.integration
@@ -86,24 +99,18 @@ class TestListDirectoryToolIntegration:
 
 @pytest.mark.integration
 class TestTenkiToolsetIntegration:
-    def test_toolset_warm_up_and_close(self):
-        ts = TenkiToolset()
-        ts.warm_up()
-        # Verify sandbox is live by running a command through the bash tool
-        bash_tool = next(t for t in ts if t.name == "run_bash_command")
+    def test_toolset_runs_command_in_live_sandbox(self, toolset):
+        # Teardown lives in the fixture, so a failure below cannot leak the sandbox.
+        bash_tool = next(t for t in toolset if t.name == "run_bash_command")
         result = bash_tool.invoke(command="echo 'toolset ok'")
         assert "toolset ok" in result
-        ts.close()
 
-    def test_all_tools_share_sandbox(self):
-        ts = TenkiToolset()
-        ts.warm_up()
+    def test_all_tools_share_sandbox(self, toolset):
+        write_tool = next(t for t in toolset if t.name == "write_file")
+        read_tool = next(t for t in toolset if t.name == "read_file")
+        bash_tool = next(t for t in toolset if t.name == "run_bash_command")
 
-        write_tool = next(t for t in ts if t.name == "write_file")
-        read_tool = next(t for t in ts if t.name == "read_file")
-        bash_tool = next(t for t in ts if t.name == "run_bash_command")
-
-        # Write via write_file, read back via bash — proves shared sandbox.
+        # Write via write_file, read back via bash -- proves the shared sandbox.
         # Relative path: bash runs in the same session workdir the fs API is scoped to.
         write_tool.invoke(path="shared_test.txt", content="shared sandbox state")
         bash_result = bash_tool.invoke(command="cat shared_test.txt")
@@ -111,5 +118,3 @@ class TestTenkiToolsetIntegration:
 
         read_result = read_tool.invoke(path="shared_test.txt")
         assert read_result == "shared sandbox state"
-
-        ts.close()
