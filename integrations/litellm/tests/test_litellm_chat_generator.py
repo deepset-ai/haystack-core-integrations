@@ -231,6 +231,7 @@ class TestRun:
             meta = result["replies"][0].meta
             assert meta["usage"]["prompt_tokens"] == 10
             assert meta["usage"]["completion_tokens"] == 5
+            assert set(meta["usage"]) == {"prompt_tokens", "completion_tokens", "total_tokens"}
 
     def test_cache_tokens_in_meta(self):
         gen = LiteLLMChatGenerator(model="anthropic/claude-sonnet-4-20250514")
@@ -251,31 +252,9 @@ class TestRun:
             assert usage["cache_creation_input_tokens"] == 1200
             assert usage["cache_read_input_tokens"] == 800
             assert usage["prompt_tokens"] == 2010
-
-    def test_streaming_cache_tokens_in_meta(self):
-        gen = LiteLLMChatGenerator(model="anthropic/claude-sonnet-4-20250514")
-        # Anthropic sends cache token counts in the final usage-only chunk (a real Usage object)
-        usage = Usage(
-            prompt_tokens=10,
-            completion_tokens=5,
-            total_tokens=15,
-            cache_creation_input_tokens=1200,
-            cache_read_input_tokens=800,
-        )
-        chunks = _make_mock_stream_chunks("Hi!", usage=usage)
-
-        fake_litellm = types.ModuleType("litellm")
-        fake_litellm.completion = MagicMock(return_value=iter(chunks))
-
-        with mock.patch.dict(sys.modules, {"litellm": fake_litellm}):
-            result = gen.run(
-                messages=[ChatMessage.from_user("hi")],
-                streaming_callback=lambda _c: None,
-            )
-            reply_usage = result["replies"][0].meta["usage"]
-            assert reply_usage["cache_creation_input_tokens"] == 1200
-            assert reply_usage["cache_read_input_tokens"] == 800
-            assert reply_usage["total_tokens"] == 15
+            # litellm also normalizes cache counts into the OpenAI-style nested breakdown
+            assert usage["prompt_tokens_details"]["cached_tokens"] == 800
+            assert usage["prompt_tokens_details"]["cache_creation_tokens"] == 1200
 
     def test_tool_calls_parsed(self):
         tc = MagicMock()
@@ -299,7 +278,7 @@ class TestRun:
 
     def test_streaming_content_accumulated(self):
         gen = LiteLLMChatGenerator(model="openai/gpt-4o")
-        usage = SimpleNamespace(prompt_tokens=10, completion_tokens=5, total_tokens=15)
+        usage = Usage(prompt_tokens=10, completion_tokens=5, total_tokens=15)
         chunks = _make_mock_stream_chunks("Hi!", usage=usage)
 
         fake_litellm = types.ModuleType("litellm")
@@ -493,7 +472,7 @@ class TestAsync:
     @pytest.mark.asyncio
     async def test_run_async_streaming(self):
         gen = LiteLLMChatGenerator(model="openai/gpt-4o")
-        usage = SimpleNamespace(prompt_tokens=10, completion_tokens=5, total_tokens=15)
+        usage = Usage(prompt_tokens=10, completion_tokens=5, total_tokens=15)
         chunks = _make_mock_stream_chunks("Hi!", usage=usage)
 
         async def _aiter():

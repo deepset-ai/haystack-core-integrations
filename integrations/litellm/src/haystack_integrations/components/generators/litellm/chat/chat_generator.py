@@ -269,9 +269,7 @@ _FINISH_REASON_MAPPING: dict[str, FinishReason] = {
 def _extract_usage(obj: Any) -> dict[str, Any]:
     """Pull token usage off a litellm response or chunk, tolerating its absence."""
     usage = getattr(obj, "usage", None)
-    if not usage:
-        return {}
-    if hasattr(usage, "model_dump"):
+    if usage is not None and hasattr(usage, "model_dump"):
         return usage.model_dump(exclude_none=True)
     return {}
 
