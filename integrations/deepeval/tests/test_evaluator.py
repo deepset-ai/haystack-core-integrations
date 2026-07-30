@@ -86,6 +86,16 @@ class MockBackend:
         return EvaluationResult(test_results=out, confident_link=None, test_run_id=None)
 
 
+class MockAsyncBackend:
+    """Async wrapper around ``MockBackend`` for ``run_async`` tests."""
+
+    def __init__(self, metric: DeepEvalMetric) -> None:
+        self._backend = MockBackend(metric)
+
+    async def eval(self, test_cases, metric) -> EvaluationResult:
+        return self._backend.eval(test_cases, metric)
+
+
 def test_evaluator_metric_init_params(monkeypatch):
     monkeypatch.setenv("OPENAI_API_KEY", "test-api-key")
 
@@ -272,6 +282,75 @@ def test_evaluator_outputs(metric, inputs, expected_outputs, metric_params, monk
     evaluator = DeepEvalEvaluator(**init_params)
     evaluator._backend_callable = lambda testcases, metrics: MockBackend(metric).eval(testcases, metrics)
     results = evaluator.run(**inputs)["results"]
+
+    assert isinstance(results, type(expected_outputs))
+    assert len(results) == len(expected_outputs)
+
+    for r, o in zip(results, expected_outputs, strict=True):
+        assert len(r) == len(o)
+
+        expected = {(name if name is not None else str(metric), score, exp) for name, score, exp in o}
+        got = {(x["name"], x["score"], x["explanation"]) for x in r}
+        assert got == expected
+
+
+@pytest.mark.parametrize(
+    "metric, inputs, expected_outputs, metric_params",
+    [
+        (
+            DeepEvalMetric.ANSWER_RELEVANCY,
+            {"questions": DEFAULT_QUESTIONS, "contexts": DEFAULT_CONTEXTS, "responses": DEFAULT_RESPONSES},
+            [[(None, 0.5, "1")]] * 2,
+            {"model": "gpt-4o"},
+        ),
+        (
+            DeepEvalMetric.FAITHFULNESS,
+            {"questions": DEFAULT_QUESTIONS, "contexts": DEFAULT_CONTEXTS, "responses": DEFAULT_RESPONSES},
+            [[(None, 0.1, "2")]] * 2,
+            {"model": "gpt-4o"},
+        ),
+        (
+            DeepEvalMetric.CONTEXTUAL_PRECISION,
+            {
+                "questions": DEFAULT_QUESTIONS,
+                "contexts": DEFAULT_CONTEXTS,
+                "responses": DEFAULT_RESPONSES,
+                "ground_truths": DEFAULT_GROUND_TRUTHS,
+            },
+            [[(None, 0.2, "3")]] * 2,
+            {"model": "gpt-4o"},
+        ),
+        (
+            DeepEvalMetric.CONTEXTUAL_RECALL,
+            {
+                "questions": DEFAULT_QUESTIONS,
+                "contexts": DEFAULT_CONTEXTS,
+                "responses": DEFAULT_RESPONSES,
+                "ground_truths": DEFAULT_GROUND_TRUTHS,
+            },
+            [[(None, 35, "4")]] * 2,
+            {"model": "gpt-4o"},
+        ),
+        (
+            DeepEvalMetric.CONTEXTUAL_RELEVANCE,
+            {"questions": DEFAULT_QUESTIONS, "contexts": DEFAULT_CONTEXTS, "responses": DEFAULT_RESPONSES},
+            [[(None, 1.5, "5")]] * 2,
+            {"model": "gpt-4o"},
+        ),
+    ],
+)
+@pytest.mark.asyncio
+async def test_evaluator_outputs_async(metric, inputs, expected_outputs, metric_params, monkeypatch):
+    monkeypatch.setenv("OPENAI_API_KEY", "test-api-key")
+
+    init_params = {
+        "metric": metric,
+        "metric_params": metric_params,
+    }
+    evaluator = DeepEvalEvaluator(**init_params)
+    backend = MockAsyncBackend(metric)
+    evaluator._backend_callable_async = backend.eval
+    results = (await evaluator.run_async(**inputs))["results"]
 
     assert isinstance(results, type(expected_outputs))
     assert len(results) == len(expected_outputs)
