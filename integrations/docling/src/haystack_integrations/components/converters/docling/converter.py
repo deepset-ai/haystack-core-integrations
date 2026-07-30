@@ -77,12 +77,23 @@ class BaseMetaExtractor(ABC):
         return default_from_dict(cls, data)
 
 
+def _stringify_binary_hash(obj: Any) -> Any:
+    if isinstance(obj, dict):
+        return {
+            k: (str(v) if k == "binary_hash" and isinstance(v, int) else _stringify_binary_hash(v))
+            for k, v in obj.items()
+        }
+    if isinstance(obj, list):
+        return [_stringify_binary_hash(item) for item in obj]
+    return obj
+
+
 class MetaExtractor(BaseMetaExtractor):
     """MetaExtractor."""
 
     def extract_chunk_meta(self, chunk: BaseChunk) -> dict[str, Any]:
         """Extract chunk meta."""
-        meta: dict[str, Any] = {"dl_meta": chunk.export_json_dict()}
+        meta: dict[str, Any] = {"dl_meta": _stringify_binary_hash(chunk.export_json_dict())}
         doc_items = getattr(chunk.meta, "doc_items", [])
         page_nos = {prov.page_no for item in doc_items for prov in getattr(item, "prov", [])}
         if page_nos:
@@ -91,7 +102,9 @@ class MetaExtractor(BaseMetaExtractor):
 
     def extract_dl_doc_meta(self, dl_doc: DoclingDocument) -> dict[str, Any]:
         """Extract Docling document meta."""
-        return {"dl_meta": {"origin": dl_doc.origin.model_dump(exclude_none=True)}} if dl_doc.origin else {}
+        if not dl_doc.origin:
+            return {}
+        return {"dl_meta": {"origin": _stringify_binary_hash(dl_doc.origin.model_dump(exclude_none=True))}}
 
 
 @component

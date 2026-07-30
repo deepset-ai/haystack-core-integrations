@@ -565,6 +565,35 @@ class TestMetaExtractor:
 
         assert result == {}
 
+    def test_extract_dl_doc_meta_stringifies_binary_hash(self) -> None:
+        dl_doc = MagicMock()
+        oversized = 9768961288489567249  # > 2**63-1
+        dl_doc.origin.model_dump.return_value = {"filename": "foo.pdf", "binary_hash": oversized}
+
+        result = MetaExtractor().extract_dl_doc_meta(dl_doc=dl_doc)
+
+        assert result["dl_meta"]["origin"]["binary_hash"] == str(oversized)
+        assert isinstance(result["dl_meta"]["origin"]["binary_hash"], str)
+
+    def test_extract_chunk_meta_stringifies_binary_hash(self) -> None:
+        oversized = 9768961288489567249
+        chunk = MagicMock()
+        chunk.export_json_dict.return_value = {"origin": {"binary_hash": oversized}}
+        chunk.meta.doc_items = []
+
+        result = MetaExtractor().extract_chunk_meta(chunk=chunk)
+
+        assert result["dl_meta"]["origin"]["binary_hash"] == str(oversized)
+        assert isinstance(result["dl_meta"]["origin"]["binary_hash"], str)
+
+    def test_stringify_binary_hash_leaves_small_int_as_str(self) -> None:
+        dl_doc = MagicMock()
+        dl_doc.origin.model_dump.return_value = {"filename": "foo.pdf", "binary_hash": 42}
+
+        result = MetaExtractor().extract_dl_doc_meta(dl_doc=dl_doc)
+
+        assert result["dl_meta"]["origin"]["binary_hash"] == "42"
+
 
 def test_run_without_sources_or_paths_raises_value_error() -> None:
     converter = DoclingConverter(converter=MagicMock(), meta_extractor=MagicMock())
