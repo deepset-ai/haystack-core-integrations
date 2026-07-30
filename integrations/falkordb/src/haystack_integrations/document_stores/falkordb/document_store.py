@@ -609,7 +609,7 @@ SET d.{self.embedding_field} = vecf32(doc.emb)
         search_term: str | None = None,
         from_: int = 0,
         size: int = 10,
-    ) -> tuple[list[Any], int]:
+    ) -> tuple[list[str], int]:
         """
         Return distinct values for the given metadata field with optional filtering and pagination.
 
