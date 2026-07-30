@@ -1284,10 +1284,10 @@ class QdrantDocumentStore:
     def get_metadata_field_unique_values(
         self,
         metadata_field: str,
-        filters: dict[str, Any] | None = None,
         search_term: str | None = None,
         from_: int = 0,
         size: int = 10,
+        filters: dict[str, Any] | None = None,
     ) -> tuple[list[str], int]:
         """
         Returns unique values for a metadata field, with optional filters, search term and pagination.
@@ -1295,11 +1295,11 @@ class QdrantDocumentStore:
         Unique values are ordered by first occurrence during scroll.
 
         :param metadata_field: The metadata field key (inside ``meta``) to get unique values for.
-        :param filters: Optional filters to restrict the documents considered.
-            For filter syntax, see [Haystack metadata filtering](https://docs.haystack.deepset.ai/docs/metadata-filtering)
         :param search_term: Optional case-insensitive substring filter applied to the metadata field's own value.
         :param from_: The offset for pagination (0-based). Defaults to 0.
         :param size: The maximum number of unique values to return. Defaults to 10.
+        :param filters: Optional filters to restrict the documents considered.
+            For filter syntax, see [Haystack metadata filtering](https://docs.haystack.deepset.ai/docs/metadata-filtering)
 
         :returns: A tuple containing (list of unique values, total count of unique matching values).
         """
@@ -1335,10 +1335,10 @@ class QdrantDocumentStore:
     async def get_metadata_field_unique_values_async(
         self,
         metadata_field: str,
-        filters: dict[str, Any] | None = None,
         search_term: str | None = None,
         from_: int = 0,
         size: int = 10,
+        filters: dict[str, Any] | None = None,
     ) -> tuple[list[str], int]:
         """
         Asynchronously returns unique values for a metadata field, with optional filters, search term and pagination.
@@ -1346,11 +1346,11 @@ class QdrantDocumentStore:
         Unique values are ordered by first occurrence during scroll.
 
         :param metadata_field: The metadata field key (inside ``meta``) to get unique values for.
-        :param filters: Optional filters to restrict the documents considered.
-            For filter syntax, see [Haystack metadata filtering](https://docs.haystack.deepset.ai/docs/metadata-filtering)
         :param search_term: Optional case-insensitive substring filter applied to the metadata field's own value.
         :param from_: The offset for pagination (0-based). Defaults to 0.
         :param size: The maximum number of unique values to return. Defaults to 10.
+        :param filters: Optional filters to restrict the documents considered.
+            For filter syntax, see [Haystack metadata filtering](https://docs.haystack.deepset.ai/docs/metadata-filtering)
 
         :returns: A tuple containing (list of unique values, total count of unique matching values).
         """
