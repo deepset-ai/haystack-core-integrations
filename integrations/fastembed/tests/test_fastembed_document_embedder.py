@@ -172,6 +172,7 @@ class TestFastembedDocumentEmbedder:
                 "local_files_only": True,
                 "meta_fields_to_embed": ["test_field"],
                 "embedding_separator": " | ",
+                "model_kwargs": {"providers": ["CUDAExecutionProvider"]},
             },
         }
         embedder = default_from_dict(FastembedDocumentEmbedder, embedder_dict)
@@ -186,6 +187,7 @@ class TestFastembedDocumentEmbedder:
         assert embedder.local_files_only
         assert embedder.meta_fields_to_embed == ["test_field"]
         assert embedder.embedding_separator == " | "
+        assert embedder.model_kwargs == {"providers": ["CUDAExecutionProvider"]}
 
     def test_init_with_model_kwargs_parameters(self):
         """
@@ -310,6 +312,28 @@ class TestFastembedDocumentEmbedder:
             embedder.run(documents=[Document(content="test document")])
 
         mock_warm_up.assert_called_once()
+
+    @pytest.mark.integration
+    def test_run_with_model_kwargs(self):
+        """
+        Integration test to check the embedding with model_kwargs parameters.
+        """
+        model_kwargs = {"providers": ["CPUExecutionProvider"], "lazy_load": True}
+
+        embedder = FastembedDocumentEmbedder(
+            model="BAAI/bge-small-en-v1.5",
+            model_kwargs=model_kwargs,
+        )
+        embedder.warm_up()
+
+        doc = Document(content="Parton energy loss in QCD matter")
+
+        result = embedder.run(documents=[doc])
+        embedding = result["documents"][0].embedding
+
+        assert isinstance(embedding, list)
+        assert len(embedding) == 384
+        assert all(isinstance(emb, float) for emb in embedding)
 
     @pytest.mark.integration
     def test_run(self):

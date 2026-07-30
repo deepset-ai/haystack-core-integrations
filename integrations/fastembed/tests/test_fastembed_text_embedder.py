@@ -139,6 +139,7 @@ class TestFastembedTextEmbedder:
                 "suffix": "suffix",
                 "progress_bar": False,
                 "parallel": 1,
+                "model_kwargs": {"providers": ["CUDAExecutionProvider"]},
             },
         }
         embedder = default_from_dict(FastembedTextEmbedder, embedder_dict)
@@ -149,6 +150,7 @@ class TestFastembedTextEmbedder:
         assert embedder.suffix == "suffix"
         assert embedder.progress_bar is False
         assert embedder.parallel == 1
+        assert embedder.model_kwargs == {"providers": ["CUDAExecutionProvider"]}
 
     def test_init_with_model_kwargs_parameters(self):
         """
@@ -231,6 +233,28 @@ class TestFastembedTextEmbedder:
             embedder.run(text="test text")
 
         mock_warm_up.assert_called_once()
+
+    @pytest.mark.integration
+    def test_run_with_model_kwargs(self):
+        """
+        Integration test to check the embedding with model_kwargs parameters.
+        """
+        model_kwargs = {"providers": ["CPUExecutionProvider"], "lazy_load": True}
+
+        embedder = FastembedTextEmbedder(
+            model="BAAI/bge-small-en-v1.5",
+            model_kwargs=model_kwargs,
+        )
+        embedder.warm_up()
+
+        text = "Parton energy loss in QCD matter"
+
+        result = embedder.run(text=text)
+        embedding = result["embedding"]
+
+        assert isinstance(embedding, list)
+        assert len(embedding) == 384
+        assert all(isinstance(emb, float) for emb in embedding)
 
     @pytest.mark.integration
     def test_run(self):
