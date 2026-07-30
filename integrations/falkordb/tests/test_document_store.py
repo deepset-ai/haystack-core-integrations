@@ -378,10 +378,23 @@ class TestFalkorDBDocumentStoreUnit:
 
     def test_get_metadata_field_unique_values_pagination(self, mock_falkordb):
         _, _, graph = mock_falkordb
-        graph.query.side_effect = [_result([]), _result([]), _result([[["A", "B"], 3]])]
-        values, total = FalkorDBDocumentStore().get_metadata_field_unique_values("category", size=2)
-        assert values == ["A", "B"]
-        assert total == 3
+        all_values = ["A", "B", "C", "D", "E"]
+        total = len(all_values)
+        pages = [all_values[i : i + 2] for i in range(0, total, 2)]
+        graph.query.side_effect = [_result([]), _result([]), *(_result([[page, total]]) for page in pages)]
+        store = FalkorDBDocumentStore()
+
+        for page_index, expected_page in enumerate(pages):
+            from_ = page_index * 2
+            values, returned_total = store.get_metadata_field_unique_values("category", from_=from_, size=2)
+            assert values == expected_page
+            assert returned_total == total
+            _, params = graph.query.call_args[0]
+            assert params["from_"] == from_
+            assert params["size"] == 2
+
+        # last page is a partial page, smaller than the requested size
+        assert len(pages[-1]) == 1
 
     def test_get_metadata_field_unique_values_search_term_case_insensitive(self, mock_falkordb):
         _, _, graph = mock_falkordb
