@@ -1327,26 +1327,26 @@ class AlloyDBDocumentStore(DocumentStore):
 
     def get_metadata_field_unique_values(
         self,
-        field: str,
-        filters: dict[str, Any] | None = None,
+        metadata_field: str,
         search_term: str | None = None,
         from_: int = 0,
         size: int = 10,
+        filters: dict[str, Any] | None = None,
     ) -> tuple[list[str], int]:
         """
         Returns unique values for a given metadata field, optionally restricted by filters and/or a search term.
 
-        :param field: The metadata field name (with or without the "meta." prefix).
-        :param filters: Optional filters to restrict the documents considered.
+        :param metadata_field: The metadata field name (with or without the "meta." prefix).
         :param search_term: Optional search term to filter unique values by a case-insensitive substring
             match against the metadata field's own value. If None, all values are considered.
         :param from_: The offset for pagination (0-based).
         :param size: The number of unique values to return.
+        :param filters: Optional filters to restrict the documents considered.
         :returns: A tuple containing:
             - A list of unique values (as strings)
             - The total count of unique values
         """
-        normalized_field = self._normalize_metadata_field_name(field)
+        normalized_field = self._normalize_metadata_field_name(metadata_field)
         sql_count, sql_query, params = self._build_unique_values_queries(
             normalized_field, filters, search_term, from_, size
         )
@@ -1358,14 +1358,14 @@ class AlloyDBDocumentStore(DocumentStore):
             cursor=self._dict_cursor,
             sql_query=sql_count,
             params=params,
-            error_msg=f"Could not count unique values for field '{field}' from AlloyDBDocumentStore",
+            error_msg=f"Could not count unique values for field '{metadata_field}' from AlloyDBDocumentStore",
         ).fetchone()
 
         result = self._execute_sql(
             cursor=self._dict_cursor,
             sql_query=sql_query,
             params=params,
-            error_msg=f"Could not get unique values for field '{field}' from AlloyDBDocumentStore",
+            error_msg=f"Could not get unique values for field '{metadata_field}' from AlloyDBDocumentStore",
         )
 
         records = result.fetchall()

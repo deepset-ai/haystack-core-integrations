@@ -128,6 +128,19 @@ class TestDocumentStore(
         unprefixed = document_store.get_metadata_field_unique_values("category")
         assert prefixed == unprefixed == (["A", "B"], 2)
 
+    def test_get_metadata_field_unique_values_with_filters(self, document_store: AlloyDBDocumentStore):
+        docs = [
+            Document(content="Doc 1", meta={"category": "A", "language": "Python"}),
+            Document(content="Doc 2", meta={"category": "B", "language": "Java"}),
+            Document(content="Doc 3", meta={"category": "C", "language": "Python"}),
+        ]
+        document_store.write_documents(docs)
+
+        filters = {"field": "meta.language", "operator": "==", "value": "Python"}
+        values, total = document_store.get_metadata_field_unique_values("meta.category", filters=filters)
+        assert set(values) == {"A", "C"}
+        assert total == 2
+
 
 @pytest.mark.usefixtures("patches_for_unit_tests")
 def test_init(monkeypatch):
