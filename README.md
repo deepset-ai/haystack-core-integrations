@@ -5,8 +5,8 @@
 | Name                                                                            |    Stmts |     Miss |   Branch |   BrPart |   Cover |   Missing |
 |-------------------------------------------------------------------------------- | -------: | -------: | -------: | -------: | ------: | --------: |
 | src/haystack\_integrations/components/generators/amazon\_sagemaker/errors.py    |        4 |        0 |        0 |        0 |    100% |           |
-| src/haystack\_integrations/components/generators/amazon\_sagemaker/sagemaker.py |       72 |        1 |       10 |        0 |     99% |       123 |
-| **TOTAL**                                                                       |   **76** |    **1** |   **10** |    **0** | **99%** |           |
+| src/haystack\_integrations/components/generators/amazon\_sagemaker/sagemaker.py |       75 |        3 |       12 |        1 |     95% |123, 251-252 |
+| **TOTAL**                                                                       |   **79** |    **3** |   **12** |    **1** | **96%** |           |
 
 
 ## Setup coverage badge
