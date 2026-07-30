@@ -190,10 +190,7 @@ class DSPySignatureChatGenerator:
         `{"type": "class", "value": "mymodule.QASignature"}`.
 
         Signature classes are imported through Haystack's gated `import_class_by_name`, so with
-        `haystack-ai` >= 3.0 the module they live in must be on the deserialization allowlist. A
-        signature class defined in your own package therefore needs to be trusted explicitly, e.g.
-        via `Pipeline.load(..., allowed_modules=["mymodule.*"])`, `allow_deserialization_module`
-        or the `HAYSTACK_DESERIALIZATION_ALLOWLIST` environment variable.
+        `haystack-ai` >= 3.0 the module they live in must be on the deserialization allowlist.
         """
         signature_type = data["type"]
         value = data["value"]
@@ -229,10 +226,20 @@ class DSPySignatureChatGenerator:
         """
         Deserialize a component from a dictionary.
 
-        With `haystack-ai` >= 3.0, a serialized signature class is only imported if its module is on
-        the deserialization allowlist; see `_deserialize_signature`.
+        A signature serialized as a `dspy.Signature` subclass is imported by its fully qualified class
+        path. With `haystack-ai` >= 3.0 that import is gated: the module holding the class must be on
+        the deserialization allowlist, which by default covers only Haystack's own packages. To load a
+        component whose signature class lives in your own package, trust that package explicitly with
+        one of:
 
-        :raises DeserializationError: If the signature class is not on the deserialization allowlist.
+        - `Pipeline.loads(..., allowed_modules=["mymodule"])` for a single call,
+        - `haystack.core.serialization.allow_deserialization_module("mymodule")` for the whole process,
+        - the `HAYSTACK_DESERIALIZATION_ALLOWLIST=mymodule` environment variable.
+
+        :param data: Dictionary to deserialize from.
+        :returns: Deserialized component.
+        :raises DeserializationError:
+            If the module holding the serialized signature class is not on the deserialization allowlist.
         """
         init_params = data.get("init_parameters", {})
 

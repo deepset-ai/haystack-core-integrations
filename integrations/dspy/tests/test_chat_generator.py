@@ -1,4 +1,5 @@
 import os
+from importlib import metadata
 from unittest.mock import MagicMock, patch
 
 import dspy
@@ -12,6 +13,17 @@ from haystack_integrations.components.generators.dspy.chat.chat_generator import
     _create_dspy_lm,
     _get_dspy_module_class,
 )
+
+# haystack-ai >= 3.0 gates class imports during deserialization behind a trusted-module allowlist.
+# 2.x has no allowlist and imports any resolvable class path, so allowlist tests do not apply there.
+HAYSTACK_GATES_DESERIALIZATION = int(metadata.version("haystack-ai").split(".")[0]) >= 3
+
+
+class UntrustedQASignature(dspy.Signature):
+    """A signature class living in this test module, which is not on the default allowlist."""
+
+    question: str = dspy.InputField()
+    answer: str = dspy.OutputField()
 
 
 @pytest.fixture
@@ -297,12 +309,19 @@ class TestDSPySignatureChatGenerator:
         component = DSPySignatureChatGenerator.from_dict(data)
         assert component.signature is dspy.Signature
 
-    def test_from_dict_raises_for_untrusted_signature_module(self, mock_dspy_module):
-        """Test that a signature class from an untrusted module is not imported."""
+    @pytest.mark.skipif(
+        not HAYSTACK_GATES_DESERIALIZATION,
+        reason="The deserialization allowlist was introduced in haystack-ai 3.0",
+    )
+    def test_from_dict_refuses_signature_class_from_untrusted_module(self, mock_dspy_module, monkeypatch):
+        """Test that from_dict refuses a signature class whose module is not on the allowlist."""
+        # Drop the allowlist that tests/conftest.py installs, so this test module becomes untrusted.
+        # The signature class itself is importable, so an allowlist refusal is the only way this fails.
+        monkeypatch.delenv("HAYSTACK_DESERIALIZATION_ALLOWLIST", raising=False)
         data = {
             "type": "haystack_integrations.components.generators.dspy.chat.chat_generator.DSPySignatureChatGenerator",
             "init_parameters": {
-                "signature": {"type": "class", "value": "some.untrusted.Signature"},
+                "signature": {"type": "class", "value": f"{__name__}.UntrustedQASignature"},
                 "model": "openai/gpt-5-mini",
                 "module_type": "Predict",
                 "output_field": "answer",
@@ -311,9 +330,7 @@ class TestDSPySignatureChatGenerator:
                 "input_mapping": None,
             },
         }
-        # haystack-ai 2.x fails to import the unknown module; haystack-ai >= 3.0 refuses it upfront
-        # because it is not on the trusted-module allowlist
-        with pytest.raises((ImportError, DeserializationError)):
+        with pytest.raises(DeserializationError, match="not on the trusted-module allowlist"):
             DSPySignatureChatGenerator.from_dict(data)
 
     def test_from_dict_with_unknown_signature_type(self, mock_dspy_module):
