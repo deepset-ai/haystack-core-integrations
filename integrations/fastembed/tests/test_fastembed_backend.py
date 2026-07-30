@@ -40,6 +40,23 @@ def test_model_initialization(mock_instructor):
 
 
 @patch("haystack_integrations.components.embedders.fastembed.embedding_backend.fastembed_backend.TextEmbedding")
+def test_dense_model_kwargs_initialization(mock_instructor):
+    model_kwargs = {"providers": ["CUDAExecutionProvider"]}
+
+    _FastembedEmbeddingBackendFactory.get_embedding_backend(
+        model_name="BAAI/bge-small-en-v1.5",
+        model_kwargs=model_kwargs,
+    )
+
+    mock_instructor.assert_called_once_with(
+        model_name="BAAI/bge-small-en-v1.5", cache_dir=None, threads=None, local_files_only=False, **model_kwargs
+    )
+
+    # restore the factory state
+    _FastembedEmbeddingBackendFactory._instances = {}
+
+
+@patch("haystack_integrations.components.embedders.fastembed.embedding_backend.fastembed_backend.TextEmbedding")
 def test_embedding_function_with_kwargs(mock_instructor):  # noqa: ARG001
     embedding_backend = _FastembedEmbeddingBackendFactory.get_embedding_backend(model_name="BAAI/bge-small-en-v1.5")
 
