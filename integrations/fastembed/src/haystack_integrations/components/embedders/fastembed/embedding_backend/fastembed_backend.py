@@ -20,14 +20,19 @@ class _FastembedEmbeddingBackendFactory:
         cache_dir: str | None = None,
         threads: int | None = None,
         local_files_only: bool = False,
+        model_kwargs: dict[str, Any] | None = None,
     ) -> "_FastembedEmbeddingBackend":
-        embedding_backend_id = f"{model_name}{cache_dir}{threads}"
+        embedding_backend_id = f"{model_name}{cache_dir}{threads}{local_files_only}{model_kwargs}"
 
         if embedding_backend_id in _FastembedEmbeddingBackendFactory._instances:
             return _FastembedEmbeddingBackendFactory._instances[embedding_backend_id]
 
         embedding_backend = _FastembedEmbeddingBackend(
-            model_name=model_name, cache_dir=cache_dir, threads=threads, local_files_only=local_files_only
+            model_name=model_name,
+            cache_dir=cache_dir,
+            threads=threads,
+            local_files_only=local_files_only,
+            model_kwargs=model_kwargs,
         )
         _FastembedEmbeddingBackendFactory._instances[embedding_backend_id] = embedding_backend
         return embedding_backend
@@ -44,9 +49,16 @@ class _FastembedEmbeddingBackend:
         cache_dir: str | None = None,
         threads: int | None = None,
         local_files_only: bool = False,
+        model_kwargs: dict[str, Any] | None = None,
     ) -> None:
+        model_kwargs = model_kwargs or {}
+
         self.model = TextEmbedding(
-            model_name=model_name, cache_dir=cache_dir, threads=threads, local_files_only=local_files_only
+            model_name=model_name,
+            cache_dir=cache_dir,
+            threads=threads,
+            local_files_only=local_files_only,
+            **model_kwargs,
         )
 
     def embed(self, data: list[str], progress_bar: bool = True, **kwargs: Any) -> list[list[float]]:
