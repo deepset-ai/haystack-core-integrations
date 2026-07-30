@@ -4,8 +4,8 @@
 
 | Name                                                                          |    Stmts |     Miss |   Branch |   BrPart |   Cover |   Missing |
 |------------------------------------------------------------------------------ | -------: | -------: | -------: | -------: | ------: | --------: |
-| src/haystack\_integrations/components/generators/dspy/chat/chat\_generator.py |      121 |        5 |       40 |        3 |     94% |146-147, 226-\>229, 291-293 |
-| **TOTAL**                                                                     |  **121** |    **5** |   **40** |    **3** | **94%** |           |
+| src/haystack\_integrations/components/generators/dspy/chat/chat\_generator.py |      120 |        5 |       40 |        3 |     94% |146-147, 247-\>250, 312-314 |
+| **TOTAL**                                                                     |  **120** |    **5** |   **40** |    **3** | **94%** |           |
 
 
 ## Setup coverage badge
