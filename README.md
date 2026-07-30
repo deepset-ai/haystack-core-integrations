@@ -4,14 +4,14 @@
 
 | Name                                                                                               |    Stmts |     Miss |   Branch |   BrPart |   Cover |   Missing |
 |--------------------------------------------------------------------------------------------------- | -------: | -------: | -------: | -------: | ------: | --------: |
-| src/haystack\_integrations/components/embedders/fastembed/embedding\_backend/fastembed\_backend.py |       44 |        0 |        8 |        0 |    100% |           |
-| src/haystack\_integrations/components/embedders/fastembed/fastembed\_document\_embedder.py         |       44 |        0 |       10 |        0 |    100% |           |
+| src/haystack\_integrations/components/embedders/fastembed/embedding\_backend/fastembed\_backend.py |       45 |        0 |        8 |        0 |    100% |           |
+| src/haystack\_integrations/components/embedders/fastembed/fastembed\_document\_embedder.py         |       45 |        0 |       10 |        0 |    100% |           |
 | src/haystack\_integrations/components/embedders/fastembed/fastembed\_sparse\_document\_embedder.py |       43 |        0 |       10 |        0 |    100% |           |
 | src/haystack\_integrations/components/embedders/fastembed/fastembed\_sparse\_text\_embedder.py     |       29 |        0 |        6 |        0 |    100% |           |
-| src/haystack\_integrations/components/embedders/fastembed/fastembed\_text\_embedder.py             |       30 |        0 |        6 |        0 |    100% |           |
+| src/haystack\_integrations/components/embedders/fastembed/fastembed\_text\_embedder.py             |       31 |        0 |        6 |        0 |    100% |           |
 | src/haystack\_integrations/components/rankers/fastembed/late\_interaction\_ranker.py               |       76 |        3 |       20 |        1 |     96% |126, 162, 228 |
 | src/haystack\_integrations/components/rankers/fastembed/ranker.py                                  |       62 |        1 |       18 |        1 |     98% |122, 128-\>exit |
-| **TOTAL**                                                                                          |  **328** |    **4** |   **78** |    **2** | **99%** |           |
+| **TOTAL**                                                                                          |  **331** |    **4** |   **78** |    **2** | **99%** |           |
 
 
 ## Setup coverage badge
