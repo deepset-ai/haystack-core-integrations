@@ -297,7 +297,7 @@ class TestDocumentStore(
         assert values_upper == ["Python-based"]
         assert total_upper == 1
 
-    def test_get_metadata_field_unique_values_stringifies_non_string_values(self, document_store: IBMDb2DocumentStore):
+    def test_get_metadata_field_unique_values_preserves_non_string_types(self, document_store: IBMDb2DocumentStore):
         docs = [
             Document(content="one", meta={"priority": 1}),
             Document(content="two", meta={"priority": 2}),
@@ -306,7 +306,7 @@ class TestDocumentStore(
         document_store.write_documents(docs)
 
         values, total = document_store.get_metadata_field_unique_values("priority")
-        assert set(values) == {"1", "2"}
+        assert set(values) == {1, 2}
         assert total == 2
 
     def test_get_metadata_field_unique_values_invalid_field_name(self, document_store: IBMDb2DocumentStore):

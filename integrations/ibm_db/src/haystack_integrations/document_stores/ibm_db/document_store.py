@@ -609,7 +609,7 @@ class IBMDb2DocumentStore:
         search_term: str | None = None,
         from_: int = 0,
         size: int = 10,
-    ) -> tuple[list[str], int]:
+    ) -> tuple[list[Any], int]:
         """
         Get unique values for a given metadata field, optionally filtered by a search term.
 
@@ -619,8 +619,8 @@ class IBMDb2DocumentStore:
             are considered.
         :param from_: The offset for pagination (0-based).
         :param size: The number of unique values to return.
-        :return: A tuple containing (list of unique values as strings, total count of unique values
-            matching `search_term`).
+        :return: A tuple containing (list of unique values in their original JSON type, total count of
+            unique values matching `search_term`).
         """
         field_name = self._normalize_metadata_field_name(metadata_field)
 
@@ -653,7 +653,15 @@ class IBMDb2DocumentStore:
             cur.execute(select_sql, [*params, from_, size])
             rows = cur.fetchall()
 
-        unique_values = [row[0] for row in rows if row[0] is not None]
+        unique_values: list[Any] = []
+        for row in rows:
+            if row[0] is None:
+                continue
+            try:
+                unique_values.append(json.loads(row[0]))
+            except (json.JSONDecodeError, TypeError):
+                unique_values.append(row[0])
+
         return unique_values, total_count
 
     def get_metadata_field_min_max(self, field: str) -> dict[str, Any]:
