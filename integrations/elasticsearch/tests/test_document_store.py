@@ -1356,15 +1356,16 @@ class TestDocumentStore(
         unique_priorities, total_priorities = document_store.get_metadata_field_unique_values(
             metadata_field="meta.priority", search_term=None, from_=0, size=10
         )
-        assert set(unique_priorities) == {"1", "2", "3"}
+        assert set(unique_priorities) == {1, 2, 3}
         assert total_priorities == 3
 
         # Test with search term on integer field - substring match against the field's own
         # (stringified) value, e.g. "Doc 1" (content) no longer matches; "1" (the value itself) does.
+        # The returned values themselves keep their original type (int here), only the match is textual.
         unique_priorities_filtered, total_priorities_filtered = document_store.get_metadata_field_unique_values(
             metadata_field="meta.priority", search_term="1", from_=0, size=10
         )
-        assert set(unique_priorities_filtered) == {"1"}
+        assert set(unique_priorities_filtered) == {1}
         assert total_priorities_filtered == 1
 
     @pytest.mark.asyncio
