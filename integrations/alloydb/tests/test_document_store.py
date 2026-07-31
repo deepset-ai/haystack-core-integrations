@@ -82,6 +82,65 @@ class TestDocumentStore(
         retrieved_docs = document_store.filter_documents()
         assert retrieved_docs == docs
 
+    def test_get_metadata_field_unique_values_search_term(self, document_store: AlloyDBDocumentStore):
+        docs = [
+            Document(content="This document mentions Python explicitly", meta={"language": "Python"}),
+            Document(content="Unrelated content about recipes", meta={"language": "Java"}),
+            Document(content="Another one", meta={"language": "JavaScript"}),
+        ]
+        document_store.write_documents(docs)
+
+        # case-insensitive substring match against the metadata field's OWN value, not content
+        values, total = document_store.get_metadata_field_unique_values("meta.language", search_term="python")
+        assert set(values) == {"Python"}
+        assert total == 1
+
+        # substring match: "Java" is a substring of both "Java" and "JavaScript"
+        values, total = document_store.get_metadata_field_unique_values("meta.language", search_term="Java")
+        assert set(values) == {"Java", "JavaScript"}
+        assert total == 2
+
+        # search_term must not match against document content
+        values, total = document_store.get_metadata_field_unique_values("meta.language", search_term="recipes")
+        assert values == []
+        assert total == 0
+
+    def test_get_metadata_field_unique_values_pagination(self, document_store: AlloyDBDocumentStore):
+        docs = [Document(content=f"Doc {i}", meta={"category": c}) for i, c in enumerate(["A", "B", "C"])]
+        document_store.write_documents(docs)
+
+        page1, total = document_store.get_metadata_field_unique_values("meta.category", from_=0, size=2)
+        assert len(page1) == 2
+        assert total == 3
+
+        page2, total = document_store.get_metadata_field_unique_values("meta.category", from_=2, size=2)
+        assert len(page2) == 1
+        assert total == 3
+
+    def test_get_metadata_field_unique_values_with_and_without_meta_prefix(self, document_store: AlloyDBDocumentStore):
+        docs = [
+            Document(content="Doc 1", meta={"category": "A"}),
+            Document(content="Doc 2", meta={"category": "B"}),
+        ]
+        document_store.write_documents(docs)
+
+        prefixed = document_store.get_metadata_field_unique_values("meta.category")
+        unprefixed = document_store.get_metadata_field_unique_values("category")
+        assert prefixed == unprefixed == (["A", "B"], 2)
+
+    def test_get_metadata_field_unique_values_with_filters(self, document_store: AlloyDBDocumentStore):
+        docs = [
+            Document(content="Doc 1", meta={"category": "A", "language": "Python"}),
+            Document(content="Doc 2", meta={"category": "B", "language": "Java"}),
+            Document(content="Doc 3", meta={"category": "C", "language": "Python"}),
+        ]
+        document_store.write_documents(docs)
+
+        filters = {"field": "meta.language", "operator": "==", "value": "Python"}
+        values, total = document_store.get_metadata_field_unique_values("meta.category", filters=filters)
+        assert set(values) == {"A", "C"}
+        assert total == 2
+
 
 @pytest.mark.usefixtures("patches_for_unit_tests")
 def test_init(monkeypatch):
