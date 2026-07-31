@@ -1,10 +1,16 @@
 # Changelog
 
-## [integrations/litellm-v1.1.2] - 2026-07-15
+## [integrations/litellm-v1.2.0] - 2026-07-30
 
-### 🧹 Chores
+### 🚀 Features
 
-- Cap litellm below 1.92.0
+- *(litellm)* Include provider cache tokens in usage metadata (#3678)
+
+### 🐛 Bug Fixes
+
+- Cap litellm dependency below 1.92.0 (#3601)
+
+### 🌀 Miscellaneous
 
 
 ## [integrations/litellm-v1.1.1] - 2026-07-15

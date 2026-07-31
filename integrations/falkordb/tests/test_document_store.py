@@ -371,26 +371,39 @@ class TestFalkorDBDocumentStoreUnit:
 
     def test_get_metadata_field_unique_values(self, mock_falkordb):
         _, _, graph = mock_falkordb
-        graph.query.side_effect = [_result([]), _result([]), _result([["A"], ["B"], ["C"]])]
-        values, cursor = FalkorDBDocumentStore().get_metadata_field_unique_values("category", size=10)
+        graph.query.side_effect = [_result([]), _result([]), _result([[["A", "B", "C"], 3]])]
+        values, total = FalkorDBDocumentStore().get_metadata_field_unique_values("category", size=10)
         assert values == ["A", "B", "C"]
-        assert cursor is None
+        assert total == 3
 
     def test_get_metadata_field_unique_values_pagination(self, mock_falkordb):
         _, _, graph = mock_falkordb
-        graph.query.side_effect = [_result([]), _result([]), _result([["A"], ["B"], ["C"]])]
-        values, cursor = FalkorDBDocumentStore().get_metadata_field_unique_values("category", size=2)
-        assert values == ["A", "B"]
-        assert cursor == {"offset": 2}
+        all_values = ["A", "B", "C", "D", "E"]
+        total = len(all_values)
+        pages = [all_values[i : i + 2] for i in range(0, total, 2)]
+        graph.query.side_effect = [_result([]), _result([]), *(_result([[page, total]]) for page in pages)]
+        store = FalkorDBDocumentStore()
+
+        for page_index, expected_page in enumerate(pages):
+            from_ = page_index * 2
+            values, returned_total = store.get_metadata_field_unique_values("category", from_=from_, size=2)
+            assert values == expected_page
+            assert returned_total == total
+            _, params = graph.query.call_args[0]
+            assert params["from_"] == from_
+            assert params["size"] == 2
+
+        # last page is a partial page, smaller than the requested size
+        assert len(pages[-1]) == 1
 
     def test_get_metadata_field_unique_values_search_term_case_insensitive(self, mock_falkordb):
         _, _, graph = mock_falkordb
-        graph.query.side_effect = [_result([]), _result([]), _result([["Apple"]])]
+        graph.query.side_effect = [_result([]), _result([]), _result([[["Apple"], 1]])]
         values, _ = FalkorDBDocumentStore().get_metadata_field_unique_values("category", search_term="APP")
         assert values == ["Apple"]
         cypher, params = graph.query.call_args[0]
         assert "toLower(toString(d.category)) CONTAINS toLower($search_term)" in cypher
-        assert params == {"search_term": "APP"}
+        assert params == {"from_": 0, "size": 10, "search_term": "APP"}
 
     def test_close(self):
         store = FalkorDBDocumentStore()
