@@ -328,13 +328,13 @@ class AstraDocumentStore:
         return next(iter(inferred_types))
 
     @staticmethod
-    def _normalize_distinct_values(values: list[Any]) -> list[str]:
-        normalized_values: set[str] = set()
+    def _normalize_distinct_values(values: list[Any]) -> list[Any]:
+        normalized_values: set[Any] = set()
         for value in values:
             if isinstance(value, list):
-                normalized_values.update(str(item) for item in value)
+                normalized_values.update(item for item in value if item is not None)
             elif value is not None:
-                normalized_values.add(str(value))
+                normalized_values.add(value)
         return sorted(normalized_values)
 
     def _get_metadata_projection_documents(self) -> list[dict[str, Any]]:
@@ -613,7 +613,7 @@ class AstraDocumentStore:
 
     def get_metadata_field_unique_values(
         self, metadata_field: str, search_term: str | None = None, from_: int = 0, size: int = 10
-    ) -> tuple[list[str], int]:
+    ) -> tuple[list[Any], int]:
         """
         Retrieves unique values for a field matching a search term or all possible values if no search term is given.
 
@@ -621,13 +621,13 @@ class AstraDocumentStore:
         :param search_term: Optional case-insensitive substring search term.
         :param from_: The starting index for pagination.
         :param size: The number of values to return.
-        :returns: A tuple containing the paginated values and the total count.
+        :returns: A tuple containing the paginated values (in their original type) and the total count.
         """
         field = metadata_field.removeprefix("meta.")
         values = AstraDocumentStore._normalize_distinct_values(self.index.distinct(f"meta.{field}"))
         if search_term:
             search_term_lower = search_term.lower()
-            values = [value for value in values if search_term_lower in value.lower()]
+            values = [value for value in values if search_term_lower in str(value).lower()]
 
         total_count = len(values)
         return values[from_ : from_ + size], total_count
