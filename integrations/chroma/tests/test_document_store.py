@@ -866,3 +866,9 @@ class TestMetadataOperations:
         values, total = populated_store.get_metadata_field_unique_values("category", from_=10, size=10)
         assert values == []  # No values beyond offset
         assert total == 3  # Total count is still 3
+
+    def test_get_metadata_field_unique_values_preserves_non_string_types(self, populated_store):
+        """Non-string metadata values (e.g. ints) are returned in their original type, not stringified."""
+        values, total = populated_store.get_metadata_field_unique_values("priority", from_=0, size=10)
+        assert set(values) == {1, 2, 3}
+        assert total == 3
