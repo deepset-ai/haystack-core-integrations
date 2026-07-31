@@ -1954,6 +1954,13 @@ class ElasticsearchDocumentStore:
         Reaching offset `from_` therefore requires walking and discarding the first `from_` buckets -
         cost scales with `from_`, not `size`.
 
+        **Note**: To keep this signature uniform across document stores, offset-based pagination is
+        emulated on top of the cursor by re-fetching and discarding every bucket before `from_` on each
+        call, requiring additional search round-trips proportional to `from_`.
+
+        **Note**: `total_count` is computed via an approximate cardinality aggregation; for fields with
+        very high cardinality it may not be exact.
+
         :param metadata_field: The metadata field to get unique values for. Can include or omit the
             "meta." prefix.
         :param search_term: Optional case-insensitive substring to filter the returned values by, matched
