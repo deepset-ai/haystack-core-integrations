@@ -28,6 +28,8 @@ class TestQdrantHybridRetriever:
         assert retriever._score_threshold is None
         assert retriever._group_by is None
         assert retriever._group_size is None
+        assert retriever._rrf_k is None
+        assert retriever._rrf_weights is None
 
         retriever = QdrantHybridRetriever(document_store=document_store, filter_policy="replace")
         assert retriever._filter_policy == FilterPolicy.REPLACE
@@ -88,8 +90,17 @@ class TestQdrantHybridRetriever:
                 "score_threshold": None,
                 "group_by": None,
                 "group_size": None,
+                "rrf_k": None,
+                "rrf_weights": None,
             },
         }
+
+    def test_to_dict_with_rrf_params(self):
+        document_store = QdrantDocumentStore(location=":memory:", index="test")
+        retriever = QdrantHybridRetriever(document_store=document_store, rrf_k=20, rrf_weights=[2.0, 1.0])
+        res = retriever.to_dict()
+        assert res["init_parameters"]["rrf_k"] == 20
+        assert res["init_parameters"]["rrf_weights"] == [2.0, 1.0]
 
     def test_from_dict(self):
         data = {
@@ -168,6 +179,36 @@ class TestQdrantHybridRetriever:
         assert res["documents"][0].content == "Test doc"
         assert res["documents"][0].embedding == [0.1, 0.2]
         assert res["documents"][0].sparse_embedding == sparse_embedding
+
+    def test_run_passes_rrf_params(self):
+        mock_store = Mock(spec=QdrantDocumentStore)
+        mock_store._query_hybrid.return_value = []
+
+        retriever = QdrantHybridRetriever(document_store=mock_store, rrf_k=20, rrf_weights=[2.0, 1.0])
+        retriever.run(
+            query_embedding=[0.5, 0.7],
+            query_sparse_embedding=SparseEmbedding(indices=[0, 5], values=[0.1, 0.7]),
+        )
+
+        call_args = mock_store._query_hybrid.call_args
+        assert call_args[1]["rrf_k"] == 20
+        assert call_args[1]["rrf_weights"] == [2.0, 1.0]
+
+    def test_run_runtime_rrf_params_override_init(self):
+        mock_store = Mock(spec=QdrantDocumentStore)
+        mock_store._query_hybrid.return_value = []
+
+        retriever = QdrantHybridRetriever(document_store=mock_store, rrf_k=20, rrf_weights=[2.0, 1.0])
+        retriever.run(
+            query_embedding=[0.5, 0.7],
+            query_sparse_embedding=SparseEmbedding(indices=[0, 5], values=[0.1, 0.7]),
+            rrf_k=100,
+            rrf_weights=[3.0, 1.0],
+        )
+
+        call_args = mock_store._query_hybrid.call_args
+        assert call_args[1]["rrf_k"] == 100
+        assert call_args[1]["rrf_weights"] == [3.0, 1.0]
 
     def test_run_with_group_by(self):
         mock_store = Mock(spec=QdrantDocumentStore)

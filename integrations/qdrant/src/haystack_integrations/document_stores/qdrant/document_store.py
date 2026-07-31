@@ -53,6 +53,16 @@ def get_batches_from_generator(iterable: list, n: int) -> Generator:
         x = tuple(islice(it, n))
 
 
+def _build_rrf_query(
+    rrf_k: int | None = None,
+    rrf_weights: list[float] | None = None,
+) -> rest.RrfQuery | rest.FusionQuery:
+    """Build a Qdrant RRF query object, using custom params when provided."""
+    if rrf_k is not None or rrf_weights is not None:
+        return rest.RrfQuery(rrf=rest.Rrf(k=rrf_k, weights=rrf_weights))
+    return rest.FusionQuery(fusion=rest.Fusion.RRF)
+
+
 class QdrantDocumentStore:
     """
     A QdrantDocumentStore implementation that you can use with any Qdrant instance.
@@ -1675,6 +1685,8 @@ class QdrantDocumentStore:
         score_threshold: float | None = None,
         group_by: str | None = None,
         group_size: int | None = None,
+        rrf_k: int | None = None,
+        rrf_weights: list[float] | None = None,
     ) -> list[Document]:
         """
         Retrieves documents based on dense and sparse embeddings and fuses the results using Reciprocal Rank Fusion.
@@ -1695,6 +1707,10 @@ class QdrantDocumentStore:
         :param group_by: Payload field to group by, must be a string or number field. If the field contains more than 1
              value, all values will be used for grouping. One point can be in multiple groups.
         :param group_size: Maximum amount of points to return per group. Default is 3.
+        :param rrf_k: The `k` constant for Reciprocal Rank Fusion. Controls the ranking formula smoothing.
+            Requires Qdrant server >= 1.16.0.
+        :param rrf_weights: Per-prefetch weights for RRF fusion. Must have 2 elements: [sparse_weight, dense_weight].
+            Requires Qdrant server >= 1.17.0.
 
         :returns: List of Document that are most similar to `query_embedding` and `query_sparse_embedding`.
 
@@ -1716,6 +1732,7 @@ class QdrantDocumentStore:
             raise QdrantStoreError(message)
 
         qdrant_filters = convert_filters_to_qdrant(filters)
+        rrf_query = _build_rrf_query(rrf_k=rrf_k, rrf_weights=rrf_weights)
 
         try:
             if group_by:
@@ -1736,7 +1753,7 @@ class QdrantDocumentStore:
                             filter=qdrant_filters,
                         ),
                     ],
-                    query=rest.FusionQuery(fusion=rest.Fusion.RRF),
+                    query=rrf_query,
                     limit=top_k,
                     group_by=group_by,
                     group_size=group_size or DEFAULT_GROUP_SIZE,
@@ -1762,7 +1779,7 @@ class QdrantDocumentStore:
                             filter=qdrant_filters,
                         ),
                     ],
-                    query=rest.FusionQuery(fusion=rest.Fusion.RRF),
+                    query=rrf_query,
                     limit=top_k,
                     score_threshold=score_threshold,
                     with_payload=True,
@@ -1929,6 +1946,8 @@ class QdrantDocumentStore:
         score_threshold: float | None = None,
         group_by: str | None = None,
         group_size: int | None = None,
+        rrf_k: int | None = None,
+        rrf_weights: list[float] | None = None,
     ) -> list[Document]:
         """
         Asynchronously retrieves documents based on dense and sparse embeddings.
@@ -1951,6 +1970,8 @@ class QdrantDocumentStore:
         :param group_by: Payload field to group by, must be a string or number field. If the field contains more than 1
              value, all values will be used for grouping. One point can be in multiple groups.
         :param group_size: Maximum amount of points to return per group. Default is 3.
+        :param rrf_k: The `k` constant for Reciprocal Rank Fusion. Requires Qdrant server >= 1.16.0.
+        :param rrf_weights: Per-prefetch weights for RRF fusion. Requires Qdrant server >= 1.17.0.
 
         :returns: List of Document that are most similar to `query_embedding` and `query_sparse_embedding`.
 
@@ -1969,6 +1990,7 @@ class QdrantDocumentStore:
             raise QdrantStoreError(message)
 
         qdrant_filters = convert_filters_to_qdrant(filters)
+        rrf_query = _build_rrf_query(rrf_k=rrf_k, rrf_weights=rrf_weights)
 
         try:
             if group_by:
@@ -1989,7 +2011,7 @@ class QdrantDocumentStore:
                             filter=qdrant_filters,
                         ),
                     ],
-                    query=rest.FusionQuery(fusion=rest.Fusion.RRF),
+                    query=rrf_query,
                     limit=top_k,
                     group_by=group_by,
                     group_size=group_size or DEFAULT_GROUP_SIZE,
@@ -2016,7 +2038,7 @@ class QdrantDocumentStore:
                             filter=qdrant_filters,
                         ),
                     ],
-                    query=rest.FusionQuery(fusion=rest.Fusion.RRF),
+                    query=rrf_query,
                     limit=top_k,
                     score_threshold=score_threshold,
                     with_payload=True,
