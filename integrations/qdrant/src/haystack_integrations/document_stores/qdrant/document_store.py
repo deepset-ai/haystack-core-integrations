@@ -56,7 +56,7 @@ def get_batches_from_generator(iterable: list, n: int) -> Generator:
 def _build_rrf_query(
     rrf_k: int | None = None,
     rrf_weights: list[float] | None = None,
-) -> rest.RrfQuery | rest.FusionQuery:
+) -> Any:
     """Build a Qdrant RRF query object, using custom params when provided."""
     if rrf_k is not None or rrf_weights is not None:
         return rest.RrfQuery(rrf=rest.Rrf(k=rrf_k, weights=rrf_weights))

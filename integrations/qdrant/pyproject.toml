@@ -29,7 +29,7 @@ classifiers = [
 ]
 dependencies = [
   "haystack-ai>=2.29.0",
-  "qdrant-client>=1.14.2"
+  "qdrant-client>=1.16.0"
 ]
 
 [project.urls]
