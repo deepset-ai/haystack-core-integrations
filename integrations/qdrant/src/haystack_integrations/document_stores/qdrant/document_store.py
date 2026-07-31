@@ -1288,11 +1288,14 @@ class QdrantDocumentStore:
         from_: int = 0,
         size: int = 10,
         filters: dict[str, Any] | None = None,
-    ) -> tuple[list[str], int]:
+    ) -> tuple[list[Any], int]:
         """
         Returns unique values for a metadata field, with optional filters, search term and pagination.
 
         Unique values are ordered by first occurrence during scroll.
+
+        **Note**: This operation can be expensive for metadata fields with many unique values, since all
+        matching documents must be scrolled through to compute the total count.
 
         :param metadata_field: The metadata field key (inside ``meta``) to get unique values for.
         :param search_term: Optional case-insensitive substring filter applied to the metadata field's own value.
@@ -1339,11 +1342,14 @@ class QdrantDocumentStore:
         from_: int = 0,
         size: int = 10,
         filters: dict[str, Any] | None = None,
-    ) -> tuple[list[str], int]:
+    ) -> tuple[list[Any], int]:
         """
         Asynchronously returns unique values for a metadata field, with optional filters, search term and pagination.
 
         Unique values are ordered by first occurrence during scroll.
+
+        **Note**: This operation can be expensive for metadata fields with many unique values, since all
+        matching documents must be scrolled through to compute the total count.
 
         :param metadata_field: The metadata field key (inside ``meta``) to get unique values for.
         :param search_term: Optional case-insensitive substring filter applied to the metadata field's own value.
