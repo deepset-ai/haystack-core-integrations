@@ -141,6 +141,7 @@ ignore = [
     "PLR0912",
     "PLR0913",
     "PLR0915",
+    "PLR0917",
 ]
 
 [tool.ruff.lint.flake8-tidy-imports]

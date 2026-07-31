@@ -168,9 +168,4 @@ This is a mono-repo maintained by the deepset-Team that contains integrations fo
 Typically, an integration consists of one or more components. Some integrations only contain document stores.
 Each integration is a standalone pypi-package but you can find all of them in the core integrations repo.
 
-
-3. "deepset-ai/haystack-experimental"
-
-Contains experimental features for the Haystack framework.
-
 """

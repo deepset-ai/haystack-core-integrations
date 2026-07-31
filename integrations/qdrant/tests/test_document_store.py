@@ -370,6 +370,29 @@ class TestQdrantDocumentStoreUnit:
         ):
             assert getattr(document_store, method_name)(*args) == expected
 
+    def test_close(self):
+        document_store = QdrantDocumentStore(location=":memory:")
+        mock_client = MagicMock()
+        document_store._client = mock_client
+
+        document_store.close()
+
+        mock_client.close.assert_called_once()
+        assert document_store._client is None
+
+        document_store.close()
+        mock_client.close.assert_called_once()
+
+    def test_close_is_exception_safe(self):
+        document_store = QdrantDocumentStore(location=":memory:")
+        mock_client = MagicMock()
+        mock_client.close.side_effect = RuntimeError("boom")
+        document_store._client = mock_client
+
+        document_store.close()
+
+        assert document_store._client is None
+
 
 @pytest.mark.integration
 class TestQdrantDocumentStore(
@@ -408,6 +431,16 @@ class TestQdrantDocumentStore(
 
         # Check that the sets are equal, meaning the content and IDs match regardless of order
         assert {doc.id for doc in received} == {doc.id for doc in expected}
+
+    def test_close_and_reopen(self, document_store: QdrantDocumentStore):
+        assert document_store.count_documents() == 0
+        assert document_store._client is not None
+
+        document_store.close()
+
+        assert document_store._client is None
+        assert document_store.count_documents() == 0
+        assert document_store._client is not None
 
     def test_prepare_client_params_no_mutability(self):
         metadata = {"key": "value"}
@@ -591,3 +624,29 @@ class TestQdrantDocumentStore(
             "category", filters={"field": "meta.status", "operator": "==", "value": "active"}
         )
         assert set(values) == {"A", "B"}
+
+    def test_get_metadata_field_unique_values_with_meta_prefix(self, document_store: QdrantDocumentStore):
+        """Test that a 'meta.'-prefixed field name is normalized before lookup."""
+        docs = [
+            Document(content="Doc 1", meta={"category": "A"}),
+            Document(content="Doc 2", meta={"category": "B"}),
+        ]
+        document_store.write_documents(docs)
+
+        values = document_store.get_metadata_field_unique_values("meta.category")
+        assert set(values) == {"A", "B"}
+
+    def test_get_metadata_field_unique_values_with_search_term(self, document_store: QdrantDocumentStore):
+        """Test that search_term filters unique values by a case-insensitive substring match on the field value."""
+        docs = [
+            Document(content="Doc 1", meta={"category": "Apple"}),
+            Document(content="Doc 2", meta={"category": "Banana"}),
+            Document(content="Doc 3", meta={"category": "Apricot"}),
+        ]
+        document_store.write_documents(docs)
+
+        values = document_store.get_metadata_field_unique_values("category", search_term="ap")
+        assert set(values) == {"Apple", "Apricot"}
+
+        values = document_store.get_metadata_field_unique_values("category", search_term="nonexistent")
+        assert values == []

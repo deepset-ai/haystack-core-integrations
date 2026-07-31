@@ -1,4 +1,4 @@
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 import pytest_asyncio
@@ -162,6 +162,29 @@ class TestQdrantDocumentStoreAsyncUnit:
         ):
             assert await getattr(document_store, method_name)(*args) == expected
 
+    async def test_close_async(self):
+        document_store = QdrantDocumentStore(location=":memory:")
+        mock_client = AsyncMock()
+        document_store._async_client = mock_client
+
+        await document_store.close_async()
+
+        mock_client.close.assert_awaited_once()
+        assert document_store._async_client is None
+
+        await document_store.close_async()
+        mock_client.close.assert_awaited_once()
+
+    async def test_close_async_is_exception_safe(self):
+        document_store = QdrantDocumentStore(location=":memory:")
+        mock_client = AsyncMock()
+        mock_client.close.side_effect = RuntimeError("boom")
+        document_store._async_client = mock_client
+
+        await document_store.close_async()
+
+        assert document_store._async_client is None
+
 
 @pytest.mark.integration
 @pytest.mark.asyncio
@@ -194,6 +217,16 @@ class TestQdrantDocumentStoreAsync(
     def assert_documents_are_equal(self, received: list[Document], expected: list[Document]):
         assert len(received) == len(expected)
         assert {doc.id for doc in received} == {doc.id for doc in expected}
+
+    async def test_close_async_and_reopen(self, document_store: QdrantDocumentStore):
+        assert await document_store.count_documents_async() == 0
+        assert document_store._async_client is not None
+
+        await document_store.close_async()
+
+        assert document_store._async_client is None
+        assert await document_store.count_documents_async() == 0
+        assert document_store._async_client is not None
 
     @pytest.mark.asyncio
     async def test_write_documents_async(self, document_store: QdrantDocumentStore):
@@ -309,3 +342,29 @@ class TestQdrantDocumentStoreAsync(
         assert len(updated_docs) == 1
         assert updated_docs[0].embedding is not None
         assert len(updated_docs[0].embedding) == 768
+
+    async def test_get_metadata_field_unique_values_with_meta_prefix_async(self, document_store: QdrantDocumentStore):
+        """Test that a 'meta.'-prefixed field name is normalized before lookup."""
+        docs = [
+            Document(content="Doc 1", meta={"category": "A"}),
+            Document(content="Doc 2", meta={"category": "B"}),
+        ]
+        await document_store.write_documents_async(docs)
+
+        values = await document_store.get_metadata_field_unique_values_async("meta.category")
+        assert set(values) == {"A", "B"}
+
+    async def test_get_metadata_field_unique_values_with_search_term_async(self, document_store: QdrantDocumentStore):
+        """Test that search_term filters unique values by a case-insensitive substring match on the field value."""
+        docs = [
+            Document(content="Doc 1", meta={"category": "Apple"}),
+            Document(content="Doc 2", meta={"category": "Banana"}),
+            Document(content="Doc 3", meta={"category": "Apricot"}),
+        ]
+        await document_store.write_documents_async(docs)
+
+        values = await document_store.get_metadata_field_unique_values_async("category", search_term="ap")
+        assert set(values) == {"Apple", "Apricot"}
+
+        values = await document_store.get_metadata_field_unique_values_async("category", search_term="nonexistent")
+        assert values == []
