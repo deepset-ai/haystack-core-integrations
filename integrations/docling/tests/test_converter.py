@@ -527,11 +527,17 @@ class TestMetaExtractor:
 
     def test_extract_dl_doc_meta_with_origin(self) -> None:
         dl_doc = MagicMock()
-        dl_doc.origin.model_dump.return_value = {"filename": "foo.pdf", "mimetype": "application/pdf"}
+        dl_doc.origin.model_dump.return_value = {
+            "filename": "foo.pdf",
+            "mimetype": "application/pdf",
+            "binary_hash": 42,
+        }
 
         result = MetaExtractor().extract_dl_doc_meta(dl_doc=dl_doc)
 
-        assert result == {"dl_meta": {"origin": {"filename": "foo.pdf", "mimetype": "application/pdf"}}}
+        assert result == {
+            "dl_meta": {"origin": {"filename": "foo.pdf", "mimetype": "application/pdf", "binary_hash": "42"}}
+        }
         dl_doc.origin.model_dump.assert_called_once_with(exclude_none=True)
 
     def test_extract_dl_doc_meta_without_origin(self) -> None:

@@ -83,8 +83,7 @@ class MetaExtractor(BaseMetaExtractor):
     def extract_chunk_meta(self, chunk: BaseChunk) -> dict[str, Any]:
         """Extract chunk meta."""
         dl_meta = chunk.export_json_dict()
-        origin = dl_meta.get("meta", {}).get("origin") if isinstance(dl_meta.get("meta"), dict) else None
-        if isinstance(origin, dict) and isinstance(origin.get("binary_hash"), int):
+        if origin := dl_meta.get("meta", {}).get("origin"):
             origin["binary_hash"] = str(origin["binary_hash"])
         meta: dict[str, Any] = {"dl_meta": dl_meta}
         doc_items = getattr(chunk.meta, "doc_items", [])
@@ -98,8 +97,7 @@ class MetaExtractor(BaseMetaExtractor):
         if not dl_doc.origin:
             return {}
         origin = dl_doc.origin.model_dump(exclude_none=True)
-        if isinstance(origin.get("binary_hash"), int):
-            origin["binary_hash"] = str(origin["binary_hash"])
+        origin["binary_hash"] = str(origin["binary_hash"])
         return {"dl_meta": {"origin": origin}}
 
 
