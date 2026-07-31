@@ -77,23 +77,16 @@ class BaseMetaExtractor(ABC):
         return cls()
 
 
-def _stringify_binary_hash(obj: Any) -> Any:
-    if isinstance(obj, dict):
-        return {
-            k: (str(v) if k == "binary_hash" and isinstance(v, int) else _stringify_binary_hash(v))
-            for k, v in obj.items()
-        }
-    if isinstance(obj, list):
-        return [_stringify_binary_hash(item) for item in obj]
-    return obj
-
-
 class MetaExtractor(BaseMetaExtractor):
     """MetaExtractor."""
 
     def extract_chunk_meta(self, chunk: BaseChunk) -> dict[str, Any]:
         """Extract chunk meta."""
-        meta: dict[str, Any] = {"dl_meta": _stringify_binary_hash(chunk.export_json_dict())}
+        dl_meta = chunk.export_json_dict()
+        origin = dl_meta.get("meta", {}).get("origin") if isinstance(dl_meta.get("meta"), dict) else None
+        if isinstance(origin, dict) and isinstance(origin.get("binary_hash"), int):
+            origin["binary_hash"] = str(origin["binary_hash"])
+        meta: dict[str, Any] = {"dl_meta": dl_meta}
         doc_items = getattr(chunk.meta, "doc_items", [])
         page_nos = {prov.page_no for item in doc_items for prov in getattr(item, "prov", [])}
         if page_nos:
@@ -104,7 +97,10 @@ class MetaExtractor(BaseMetaExtractor):
         """Extract Docling document meta."""
         if not dl_doc.origin:
             return {}
-        return {"dl_meta": {"origin": _stringify_binary_hash(dl_doc.origin.model_dump(exclude_none=True))}}
+        origin = dl_doc.origin.model_dump(exclude_none=True)
+        if isinstance(origin.get("binary_hash"), int):
+            origin["binary_hash"] = str(origin["binary_hash"])
+        return {"dl_meta": {"origin": origin}}
 
 
 @component
