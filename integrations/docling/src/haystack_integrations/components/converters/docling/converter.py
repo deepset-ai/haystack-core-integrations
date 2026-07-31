@@ -82,7 +82,10 @@ class MetaExtractor(BaseMetaExtractor):
 
     def extract_chunk_meta(self, chunk: BaseChunk) -> dict[str, Any]:
         """Extract chunk meta."""
-        meta: dict[str, Any] = {"dl_meta": chunk.export_json_dict()}
+        dl_meta = chunk.export_json_dict()
+        if origin := dl_meta.get("meta", {}).get("origin"):
+            origin["binary_hash"] = str(origin["binary_hash"])
+        meta: dict[str, Any] = {"dl_meta": dl_meta}
         doc_items = getattr(chunk.meta, "doc_items", [])
         page_nos = {prov.page_no for item in doc_items for prov in getattr(item, "prov", [])}
         if page_nos:
@@ -91,7 +94,11 @@ class MetaExtractor(BaseMetaExtractor):
 
     def extract_dl_doc_meta(self, dl_doc: DoclingDocument) -> dict[str, Any]:
         """Extract Docling document meta."""
-        return {"dl_meta": {"origin": dl_doc.origin.model_dump(exclude_none=True)}} if dl_doc.origin else {}
+        if not dl_doc.origin:
+            return {}
+        origin = dl_doc.origin.model_dump(exclude_none=True)
+        origin["binary_hash"] = str(origin["binary_hash"])
+        return {"dl_meta": {"origin": origin}}
 
 
 @component
