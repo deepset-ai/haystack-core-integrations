@@ -903,7 +903,7 @@ class TestDocumentStoreAsync(
         unique_priorities, total_priorities = await document_store.get_metadata_field_unique_values_async(
             metadata_field="meta.priority", search_term=None, from_=0, size=10
         )
-        assert set(unique_priorities) == {"1", "2", "3"}
+        assert set(unique_priorities) == {1, 2, 3}
         assert total_priorities == 3
 
         # search_term now matches against the field's own value, not the content, so searching
@@ -915,12 +915,13 @@ class TestDocumentStoreAsync(
         assert set(unique_priorities_filtered) == set()
         assert total_priorities_filtered == 0
 
-        # search_term matching the field's own value (e.g. "1") does match.
+        # search_term matching the field's own (stringified) value (e.g. "1") does match, but the
+        # returned value itself keeps its original type (int here).
         priorities_by_value = await document_store.get_metadata_field_unique_values_async(
             metadata_field="meta.priority", search_term="1", from_=0, size=10
         )
         unique_priorities_by_value, total_priorities_by_value = priorities_by_value
-        assert set(unique_priorities_by_value) == {"1"}
+        assert set(unique_priorities_by_value) == {1}
         assert total_priorities_by_value == 1
 
         # Prove the semantic change explicitly with a document whose CONTENT contains the search

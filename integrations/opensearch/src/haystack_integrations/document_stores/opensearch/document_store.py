@@ -2101,10 +2101,10 @@ class OpenSearchDocumentStore:
         return {"query": query, "aggs": aggs, "size": 0}
 
     @staticmethod
-    def _extract_unique_values_and_count(result: dict[str, Any], field_name: str) -> tuple[list[str], int]:
+    def _extract_unique_values_and_count(result: dict[str, Any], field_name: str) -> tuple[list[Any], int]:
         aggregations = result.get("aggregations", {})
         buckets = aggregations.get("unique_values", {}).get("buckets", [])
-        unique_values = [str(bucket["key"][field_name]) for bucket in buckets]
+        unique_values = [bucket["key"][field_name] for bucket in buckets]
         total_count = int(aggregations.get("unique_values_count", {}).get("value", 0))
         return unique_values, total_count
 
@@ -2161,7 +2161,7 @@ class OpenSearchDocumentStore:
         search_term: str | None = None,
         from_: int = 0,
         size: int = 10,
-    ) -> tuple[list[str], int]:
+    ) -> tuple[list[Any], int]:
         """
         Returns unique values for a metadata field, optionally filtered by a search term.
 
@@ -2183,8 +2183,8 @@ class OpenSearchDocumentStore:
             with a server-side script and is quite expensive for a large corpus.
         :param from_: Offset to start returning values from. Defaults to 0.
         :param size: The number of unique values to return per page. Defaults to 10.
-        :returns: A tuple of (list of unique values, total count of distinct values for the field
-            matching `search_term`).
+        :returns: A tuple of (list of unique values in their original type, total count of distinct values
+            for the field matching `search_term`).
         """
         self._ensure_initialized()
         assert self._client is not None
@@ -2204,7 +2204,7 @@ class OpenSearchDocumentStore:
         search_term: str | None = None,
         from_: int = 0,
         size: int = 10,
-    ) -> tuple[list[str], int]:
+    ) -> tuple[list[Any], int]:
         """
         Asynchronous counterpart of `get_metadata_field_unique_values`.
 
@@ -2215,8 +2215,8 @@ class OpenSearchDocumentStore:
             with a server-side script and is quite expensive for a large corpus.
         :param from_: Offset to start returning values from. Defaults to 0.
         :param size: The number of unique values to return per page. Defaults to 10.
-        :returns: A tuple of (list of unique values, total count of distinct values for the field
-            matching `search_term`).
+        :returns: A tuple of (list of unique values in their original type, total count of distinct values
+            for the field matching `search_term`).
         """
         await self._ensure_initialized_async()
         assert self._async_client is not None
