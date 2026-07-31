@@ -824,6 +824,9 @@ class TestChatCompletionChunkConversion:
         if not isinstance(usage["prompt_tokens_details"], dict):
             usage["prompt_tokens_details"] = asdict(usage["prompt_tokens_details"])
 
+        # Normalize usage details since cache_write_tokens is not always present in the response
+        usage["prompt_tokens_details"].setdefault("cache_write_tokens", None)
+
         assert usage == {
             "completion_tokens": 42,
             "prompt_tokens": 55,
@@ -836,6 +839,7 @@ class TestChatCompletionChunkConversion:
             },
             "prompt_tokens_details": {
                 "audio_tokens": None,
+                "cache_write_tokens": None,
                 "cached_tokens": 0,
             },
         }

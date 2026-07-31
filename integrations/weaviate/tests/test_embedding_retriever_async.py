@@ -11,6 +11,18 @@ from haystack_integrations.document_stores.weaviate import WeaviateDocumentStore
 
 
 @pytest.mark.asyncio
+async def test_close_async():
+    mock_document_store = Mock(spec=WeaviateDocumentStore)
+    mock_document_store.close_async = AsyncMock()
+    retriever = WeaviateEmbeddingRetriever(document_store=mock_document_store)
+
+    await retriever.close_async()
+
+    mock_document_store.close_async.assert_awaited_once_with()
+    assert retriever._document_store is mock_document_store
+
+
+@pytest.mark.asyncio
 async def test_run_async_calls_async_retrieval():
     mock_document_store = Mock(spec=WeaviateDocumentStore)
     mock_document_store._embedding_retrieval_async = AsyncMock(return_value=[])

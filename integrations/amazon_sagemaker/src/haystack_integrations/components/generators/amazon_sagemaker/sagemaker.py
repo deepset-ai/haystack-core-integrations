@@ -247,6 +247,10 @@ class SagemakerGenerator:
 
         except requests.HTTPError as err:
             res = err.response
+            if res is None:
+                msg = "SageMaker Inference returned an error, but no response was attached to the exception."
+                raise SagemakerInferenceError(msg) from err
+
             if res.status_code == MODEL_NOT_READY_STATUS_CODE:
                 msg = f"Sagemaker model not ready: {res.text}"
                 raise SagemakerNotReadyError(msg) from err

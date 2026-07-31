@@ -31,7 +31,10 @@ def _parse_logical_condition(condition: dict[str, Any]) -> dict[str, Any]:
 
     operator = condition["operator"]
     conditions = [_parse_comparison_condition(c) for c in condition["conditions"]]
-    if len(conditions) > 1:
+    # Range merging is only valid when the conditions are AND-combined (AND, and the
+    # inner `must` of NOT). Merging same-field ranges under OR would collapse e.g.
+    # `price < 10 OR price > 100` into a single impossible range, matching nothing.
+    if len(conditions) > 1 and operator != "OR":
         conditions = _normalize_ranges(conditions)
     if operator == "AND":
         return {"bool": {"must": conditions}}

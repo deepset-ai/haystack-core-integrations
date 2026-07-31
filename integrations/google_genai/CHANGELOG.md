@@ -1,5 +1,17 @@
 # Changelog
 
+## [integrations/google_genai-v4.5.0] - 2026-07-03
+
+### 🧪 Testing
+
+- Trust test modules under Haystack 3.0's deserialization allowlist (#3537)
+
+### 🧹 Chores
+
+- Improve consistency of integrations folder structure (#3430)
+- Support sync streaming callbacks in async contexts for Haystack 2.x/3.x compatibility (#3534)
+
+
 ## [integrations/google_genai-v4.4.1] - 2026-06-08
 
 ### 🐛 Bug Fixes

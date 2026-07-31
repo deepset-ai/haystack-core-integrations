@@ -20,37 +20,51 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 INTEGRATIONS_DIR = REPO_ROOT / "integrations"
 
 COMPONENT_TYPES = [
+    "audio",
+    "classifiers",
     "connectors",
     "converters",
     "document_stores",
     "downloaders",
     "embedders",
     "evaluators",
+    "extractors",
     "fetchers",
     "generators",
     "preprocessors",
     "rankers",
+    "readers",
     "retrievers",
+    "routers",
     "tools",
     "tracing",
     "translators",
+    "websearch",
+    "writers",
 ]
 
 TYPE_LABELS = {
+    "audio": "Audio",
+    "classifiers": "Classifier",
     "connectors": "Connector",
     "converters": "Converter",
     "document_stores": "Document Store",
     "downloaders": "Downloader",
     "embedders": "Embedder",
     "evaluators": "Evaluator",
+    "extractors": "Extractor",
     "fetchers": "Fetcher",
     "generators": "Generator",
     "preprocessors": "Preprocessor",
     "rankers": "Ranker",
+    "readers": "Reader",
     "retrievers": "Retriever",
+    "routers": "Router",
     "tools": "Tool",
     "tracing": "Tracer",
     "translators": "Translator",
+    "websearch": "Websearch",
+    "writers": "Writer",
 }
 
 LICENSE_HEADER = """\

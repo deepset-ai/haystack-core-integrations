@@ -1,3 +1,5 @@
+import json
+from copy import deepcopy
 from typing import Any, Literal, TypeAlias, cast, get_args
 
 from haystack.dataclasses.chat_message import (
@@ -43,6 +45,70 @@ FINISH_REASON_MAPPING: dict[str, FinishReason] = {
     "pause_turn": "stop",
     "tool_use": "tool_calls",
 }
+
+
+_NON_CACHEABLE_BLOCK_TYPES = ("thinking", "redacted_thinking")
+
+
+def _has_server_tool_blocks(content_blocks: list[dict[str, Any]]) -> bool:
+    """Whether Anthropic ran a server-side tool while producing these content blocks."""
+    return any(
+        str(block.get("type", "")) == "server_tool_use" or str(block.get("type", "")).endswith("_tool_result")
+        for block in content_blocks
+    )
+
+
+def _extract_citations(content_blocks: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Collect the citations Anthropic attached to text blocks."""
+    return [
+        dict(citation)
+        for block in content_blocks
+        if block.get("type") == "text"
+        for citation in (block.get("citations") or [])
+    ]
+
+
+def _accumulate_raw_content_blocks(chunks: list[StreamingChunk]) -> list[dict[str, Any]]:
+    """Rebuild Anthropic's content blocks from the raw stream events stored in each chunk's `meta`."""
+    blocks: dict[int, dict[str, Any]] = {}
+    partial_json: dict[int, str] = {}
+
+    for chunk in chunks:
+        meta = chunk.meta or {}
+        index = meta.get("index")
+        if index is None:
+            continue
+
+        if meta.get("type") == "content_block_start":
+            blocks[index] = deepcopy(meta.get("content_block") or {})
+            partial_json[index] = ""
+
+        elif meta.get("type") == "content_block_delta" and index in blocks:
+            block = blocks[index]
+            delta = meta.get("delta") or {}
+            delta_type = delta.get("type")
+            if delta_type == "text_delta":
+                block["text"] = block.get("text", "") + delta.get("text", "")
+            elif delta_type == "thinking_delta":
+                block["thinking"] = block.get("thinking", "") + delta.get("thinking", "")
+            elif delta_type == "signature_delta":
+                block["signature"] = delta.get("signature", "")
+            elif delta_type == "citations_delta":
+                block["citations"] = (block.get("citations") or []) + [delta.get("citation")]
+            elif delta_type == "input_json_delta":
+                partial_json[index] += delta.get("partial_json", "")
+
+    for index, buffer in partial_json.items():
+        if not buffer:
+            continue
+        try:
+            blocks[index]["input"] = json.loads(buffer)
+        except json.JSONDecodeError:
+            # a truncated stream must not fail the whole response
+            pass
+
+    return [blocks[index] for index in sorted(blocks)]
+
 
 AnthropicContentBlocks: TypeAlias = list[
     ImageBlockParam
@@ -189,6 +255,21 @@ def _convert_messages_to_anthropic_format(
             continue
 
         content: AnthropicContentBlocks = []
+
+        # server-tool blocks carry encrypted_content/encrypted_index that Anthropic requires back unchanged
+        raw_content = message.meta.get("raw_content_for_server_tools") if message.is_from(ChatRole.ASSISTANT) else None
+        if raw_content:
+            content = deepcopy(raw_content)
+            if cache_control:
+                # only the last cacheable block: a request allows at most 4 breakpoints
+                for blk in reversed(content):
+                    if blk.get("type") not in _NON_CACHEABLE_BLOCK_TYPES:
+                        # ignore: blk is an untyped block dict, not a TypedDict declaring cache_control
+                        blk["cache_control"] = cache_control  # type: ignore[typeddict-unknown-key]
+                        break
+            anthropic_non_system_messages.append(MessageParam(role="assistant", content=content))
+            i += 1
+            continue
 
         # Handle multimodal content (text and images) preserving order
         for part in message._content:
@@ -341,11 +422,22 @@ def _convert_chat_completion_to_chat_message(
             "usage": usage,
         }
     )
+
+    # keep raw content so server-tool blocks can be replayed on later turns
+    content_blocks = response_dict.get("content") or []
+    if _has_server_tool_blocks(content_blocks):
+        message._meta["raw_content_for_server_tools"] = content_blocks
+    if citations := _extract_citations(content_blocks):
+        message._meta["citations"] = citations
+
     return message
 
 
 def _convert_anthropic_chunk_to_streaming_chunk(
-    chunk: RawMessageStreamEvent, component_info: ComponentInfo, tool_call_index: int
+    chunk: RawMessageStreamEvent,
+    component_info: ComponentInfo,
+    tool_call_index: int,
+    in_server_tool_block: bool = False,
 ) -> StreamingChunk:
     """
     Converts an Anthropic StreamEvent to a StreamingChunk.
@@ -353,6 +445,7 @@ def _convert_anthropic_chunk_to_streaming_chunk(
     :param chunk: The Anthropic StreamEvent to convert.
     :param component_info: The component info.
     :param tool_call_index: The index of the tool call among the tool calls in the message.
+    :param in_server_tool_block: Whether the chunk belongs to a server-side tool block.
     :returns: The StreamingChunk.
     """
     content = ""
@@ -388,7 +481,8 @@ def _convert_anthropic_chunk_to_streaming_chunk(
     elif chunk.type == "content_block_delta":
         if chunk.delta.type == "text_delta":
             content = chunk.delta.text
-        elif chunk.delta.type == "input_json_delta":
+        # server tools are executed by Anthropic, so their arguments must not be surfaced as tool calls to invoke
+        elif chunk.delta.type == "input_json_delta" and not in_server_tool_block:
             tool_calls.append(ToolCallDelta(index=tool_call_index, arguments=chunk.delta.partial_json))
         elif chunk.delta.type == "thinking_delta":
             reasoning = ReasoningContent(reasoning_text=chunk.delta.thinking)

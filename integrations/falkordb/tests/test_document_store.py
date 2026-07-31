@@ -383,6 +383,40 @@ class TestFalkorDBDocumentStoreUnit:
         assert values == ["A", "B"]
         assert cursor == {"offset": 2}
 
+    def test_get_metadata_field_unique_values_search_term_case_insensitive(self, mock_falkordb):
+        _, _, graph = mock_falkordb
+        graph.query.side_effect = [_result([]), _result([]), _result([["Apple"]])]
+        values, _ = FalkorDBDocumentStore().get_metadata_field_unique_values("category", search_term="APP")
+        assert values == ["Apple"]
+        cypher, params = graph.query.call_args[0]
+        assert "toLower(toString(d.category)) CONTAINS toLower($search_term)" in cypher
+        assert params == {"search_term": "APP"}
+
+    def test_close(self):
+        store = FalkorDBDocumentStore()
+        client = MagicMock()
+        store.client = client
+        store.initialized = True
+
+        store.close()
+
+        client.close.assert_called_once()
+        assert store.client is None
+
+        store.close()
+        client.close.assert_called_once()
+
+    def test_close_is_exception_safe(self):
+        store = FalkorDBDocumentStore()
+        client = MagicMock()
+        client.close.side_effect = RuntimeError("boom")
+        store.client = client
+        store.initialized = True
+
+        store.close()
+
+        assert store.client is None
+
 
 @pytest.mark.integration
 class TestDocumentStore(
@@ -445,6 +479,12 @@ class TestDocumentStore(
         doc = Document(content="test doc")
         assert document_store.write_documents([doc]) == 1
         self.assert_documents_are_equal(document_store.filter_documents(), [doc])
+
+    def test_close_and_reopen(self, document_store):
+        assert document_store.count_documents() == 0
+        document_store.close()
+        assert document_store.client is None
+        assert document_store.count_documents() == 0
 
     @pytest.fixture
     def embedding_store(self):

@@ -1,5 +1,20 @@
 # Changelog
 
+## [integrations/fastembed-v2.4.0] - 2026-07-30
+
+### 🚀 Features
+
+- *(fastembed)* Allow passing model_kwargs to dense embedders (#3558)
+
+### 🐛 Bug Fixes
+
+- Fix new issues raised by ruff 0.16.0 (#3670)
+
+### 📚 Documentation
+
+- Fix wrong class references in Fastembed sparse embedder messages and docstrings (#3610)
+
+
 ## [integrations/fastembed-v2.3.0] - 2026-04-30
 
 ### 🚀 Features

@@ -97,16 +97,23 @@ class RagasEvaluator:
         deserialization; the API key is read from the `OPENAI_API_KEY` environment
         variable at load time.
 
+        With `haystack-ai` >= 3.0, the module a metric class lives in must be on the deserialization
+        allowlist. Metrics shipped by ragas are trusted automatically; a custom metric class from
+        your own package has to be trusted explicitly, e.g. via
+        `Pipeline.load(..., allowed_modules=["mypackage.*"])`.
+
         :param data:
             Dictionary to deserialize from.
         :returns:
             Deserialized component.
+        :raises DeserializationError:
+            If a metric class is not on the deserialization allowlist.
         """
         metrics_data = data.get("init_parameters", {}).get("ragas_metrics", [])
         data["init_parameters"]["ragas_metrics"] = [_deserialize_metric(m) for m in metrics_data]
         return default_from_dict(cls, data)
 
-    @component.output_types(result=dict[str, dict[str, MetricResult]])
+    @component.output_types(result=dict[str, MetricResult])
     def run(
         self,
         query: str | None = None,
@@ -152,7 +159,7 @@ class RagasEvaluator:
 
         return {"result": results}
 
-    @component.output_types(result=dict[str, dict[str, MetricResult]])
+    @component.output_types(result=dict[str, MetricResult])
     async def run_async(
         self,
         query: str | None = None,

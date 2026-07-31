@@ -58,6 +58,17 @@ class TestElasticsearchDocumentStoreAsync(
 
         await store.async_client.close()
 
+    @pytest.mark.asyncio
+    async def test_close_async_and_reopen(self, document_store):
+        assert await document_store.count_documents_async() == 0
+        assert document_store._async_client is not None
+
+        await document_store.close_async()
+        assert document_store._async_client is None
+
+        assert await document_store.count_documents_async() == 0
+        assert document_store._async_client is not None
+
     def assert_documents_are_equal(self, received: list[Document], expected: list[Document]):
         # filter_documents_async() returns Documents with score populated; strip it before comparing
         received = [dataclasses.replace(doc, score=None) for doc in received]
@@ -353,3 +364,24 @@ class TestElasticsearchDocumentStoreAsync(
         invalid_query = "SELECT * FROM non_existent_index"
         with pytest.raises(DocumentStoreError, match="Failed to execute SQL query"):
             await document_store._query_sql_async(invalid_query)
+
+    @pytest.mark.asyncio
+    async def test_get_metadata_field_unique_values_async_search_term_matches_field_value_not_content(
+        self, document_store: ElasticsearchDocumentStore
+    ):
+        """
+        `search_term` must filter by substring match on the metadata field's own value, not by matching
+        against the document's `content`.
+        """
+        docs = [
+            # "Python" appears in the content but NOT in the category value -> must be EXCLUDED
+            Document(content="Python programming guide", meta={"category": "Backend"}),
+            # "Python" appears in the category value but NOT in the content -> must be INCLUDED
+            Document(content="General purpose scripting language", meta={"category": "Python-based"}),
+        ]
+        await document_store.write_documents_async(docs)
+
+        unique_values, _ = await document_store.get_metadata_field_unique_values_async("meta.category", "Python", 10)
+
+        assert unique_values == ["Python-based"]
+        assert "Backend" not in unique_values

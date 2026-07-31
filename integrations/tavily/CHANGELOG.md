@@ -1,6 +1,19 @@
 # Changelog
 
-## [unreleased]
+## [integrations/tavily-v0.4.0] - 2026-07-15
+
+### 🚀 Features
+
+- Add TavilyWebSearchTool (#3597)
+
+
+## [integrations/tavily-v0.3.0] - 2026-07-14
+
+### 🚀 Features
+
+- *(tavily)* Add TavilyFetcher component using the Extract API (#3561)
+
+### 🌀 Miscellaneous
 
 
 ## [integrations/tavily-v0.2.0] - 2026-07-03
