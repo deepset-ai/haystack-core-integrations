@@ -6,9 +6,9 @@
 |--------------------------------------------------------------------------------- | -------: | -------: | -------: | -------: | ------: | --------: |
 | src/haystack\_integrations/components/converters/twelvelabs/video\_converter.py  |       86 |        7 |       18 |        3 |     90% |81, 184-185, 196-197, 199-200 |
 | src/haystack\_integrations/components/embedders/twelvelabs/\_embed.py            |       19 |        2 |        4 |        2 |     83% |     16-17 |
-| src/haystack\_integrations/components/embedders/twelvelabs/document\_embedder.py |       63 |        1 |       10 |        0 |     99% |        77 |
+| src/haystack\_integrations/components/embedders/twelvelabs/document\_embedder.py |       66 |        1 |       14 |        0 |     99% |        77 |
 | src/haystack\_integrations/components/embedders/twelvelabs/text\_embedder.py     |       36 |        1 |        4 |        0 |     98% |        61 |
-| **TOTAL**                                                                        |  **204** |   **11** |   **36** |    **5** | **93%** |           |
+| **TOTAL**                                                                        |  **207** |   **11** |   **40** |    **5** | **94%** |           |
 
 
 ## Setup coverage badge
