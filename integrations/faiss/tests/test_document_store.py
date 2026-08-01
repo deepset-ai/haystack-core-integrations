@@ -168,3 +168,72 @@ class TestFAISSDocumentStore(
         document_store.write_documents([Document(content="test", meta={"category": "A"})])
         with pytest.raises(FilterError, match="NOT operator expects at least one condition"):
             document_store.filter_documents(filters={"operator": "NOT", "conditions": []})
+
+    def test_get_metadata_field_unique_values_with_search_term(self, document_store):
+        docs = [
+            Document(content="Doc 1", meta={"category": "Apple"}),
+            Document(content="Doc 2", meta={"category": "Banana"}),
+            Document(content="Doc 3", meta={"category": "Apricot"}),
+        ]
+        document_store.write_documents(docs)
+
+        values, total_count = document_store.get_metadata_field_unique_values("meta.category", search_term="ap")
+        assert set(values) == {"Apple", "Apricot"}
+        assert total_count == 2
+
+        values, total_count = document_store.get_metadata_field_unique_values(
+            "meta.category", search_term="nonexistent"
+        )
+        assert values == []
+        assert total_count == 0
+
+    def test_get_metadata_field_unique_values_search_term_is_case_insensitive(self, document_store):
+        docs = [
+            Document(content="Doc 1", meta={"language": "Python"}),
+            Document(content="Doc 2", meta={"language": "Java"}),
+            Document(content="Doc 3", meta={"language": "JavaScript"}),
+        ]
+        document_store.write_documents(docs)
+
+        values, _ = document_store.get_metadata_field_unique_values("meta.language", search_term="java")
+        assert set(values) == {"Java", "JavaScript"}
+
+        values, _ = document_store.get_metadata_field_unique_values("meta.language", search_term="JAVA")
+        assert set(values) == {"Java", "JavaScript"}
+
+    def test_get_metadata_field_unique_values_search_term_matches_value_not_content(self, document_store):
+        docs = [
+            Document(content="This mentions needle in the text", meta={"topic": "unrelated"}),
+            Document(content="Nothing special here", meta={"topic": "needle-in-haystack"}),
+        ]
+        document_store.write_documents(docs)
+
+        values, _ = document_store.get_metadata_field_unique_values("meta.topic", search_term="needle")
+        assert set(values) == {"needle-in-haystack"}
+
+    def test_get_metadata_field_unique_values_pagination(self, document_store):
+        docs = [Document(content=f"Doc {i}", meta={"category": chr(ord("A") + i)}) for i in range(5)]
+        document_store.write_documents(docs)
+
+        page1, total_count = document_store.get_metadata_field_unique_values("meta.category", from_=0, size=2)
+        assert page1 == ["A", "B"]
+        assert total_count == 5
+
+        page2, total_count = document_store.get_metadata_field_unique_values("meta.category", from_=2, size=2)
+        assert page2 == ["C", "D"]
+        assert total_count == 5
+
+        page3, total_count = document_store.get_metadata_field_unique_values("meta.category", from_=4, size=2)
+        assert page3 == ["E"]
+        assert total_count == 5
+
+    def test_get_metadata_field_unique_values_with_and_without_meta_prefix(self, document_store):
+        docs = [
+            Document(content="Doc 1", meta={"category": "A"}),
+            Document(content="Doc 2", meta={"category": "B"}),
+        ]
+        document_store.write_documents(docs)
+
+        prefixed = document_store.get_metadata_field_unique_values("meta.category")
+        unprefixed = document_store.get_metadata_field_unique_values("category")
+        assert prefixed == unprefixed == (["A", "B"], 2)

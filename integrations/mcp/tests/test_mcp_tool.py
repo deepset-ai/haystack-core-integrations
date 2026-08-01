@@ -512,7 +512,9 @@ class TestMCPTool:
         """Test lazy connection with Pipeline.warm_up() - replicates time_pipeline.py."""
 
         # Replicate time_pipeline.py using MCPTool instead of MCPToolset
-        server_info = StdioServerInfo(command="uvx", args=["mcp-server-time", "--local-timezone=Europe/Berlin"])
+        server_info = StdioServerInfo(
+            command="uvx", args=["--with", "mcp<2.0.0", "mcp-server-time", "--local-timezone=Europe/Berlin"]
+        )
 
         # Create tool with lazy connection (default behavior)
         tool = MCPTool(name="get_current_time", server_info=server_info)
@@ -535,7 +537,9 @@ class TestMCPTool:
         """Test Agent with MCPTool using state-mapping to inject location from state."""
 
         # Create MCPTool with state-mapping that injects home_city from state as timezone parameter
-        server_info = StdioServerInfo(command="uvx", args=["mcp-server-time", "--local-timezone=Europe/Berlin"])
+        server_info = StdioServerInfo(
+            command="uvx", args=["--with", "mcp<2.0.0", "mcp-server-time", "--local-timezone=Europe/Berlin"]
+        )
         tool = MCPTool(
             name="get_current_time",
             server_info=server_info,

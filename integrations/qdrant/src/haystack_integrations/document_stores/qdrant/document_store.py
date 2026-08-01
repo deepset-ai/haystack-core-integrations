@@ -728,6 +728,7 @@ class QdrantDocumentStore:
         unique_values_set: set[Any],
         offset: int,
         limit: int,
+        search_term: str | None = None,
     ) -> bool:
         """Collect unique values from a batch of records. Returns True when len(unique_values) >= offset + limit."""
         for record in records:
@@ -736,6 +737,8 @@ class QdrantDocumentStore:
                 if metadata_field in meta:
                     value = meta[metadata_field]
                     if value is not None:
+                        if search_term is not None and search_term.lower() not in str(value).lower():
+                            continue
                         hashable_value = str(value) if isinstance(value, (list, dict)) else value
                         if hashable_value not in unique_values_set:
                             unique_values_set.add(hashable_value)
@@ -1284,7 +1287,12 @@ class QdrantDocumentStore:
             return dict.fromkeys(metadata_fields, 0)
 
     def get_metadata_field_unique_values(
-        self, metadata_field: str, filters: dict[str, Any] | None = None, limit: int = 100, offset: int = 0
+        self,
+        metadata_field: str,
+        filters: dict[str, Any] | None = None,
+        search_term: str | None = None,
+        limit: int = 100,
+        offset: int = 0,
     ) -> list[Any]:
         """
         Returns unique values for a metadata field, with optional filters and offset/limit pagination.
@@ -1294,6 +1302,7 @@ class QdrantDocumentStore:
         :param metadata_field: The metadata field key (inside ``meta``) to get unique values for.
         :param filters: Optional filters to restrict the documents considered.
             For filter syntax, see [Haystack metadata filtering](https://docs.haystack.deepset.ai/docs/metadata-filtering)
+        :param search_term: Optional case-insensitive substring filter applied to the metadata field's own value.
         :param limit: Maximum number of unique values to return per page. Defaults to 100.
         :param offset: Number of unique values to skip (for pagination). Defaults to 0.
 
@@ -1302,6 +1311,7 @@ class QdrantDocumentStore:
         self._initialize_client()
         assert self._client is not None
 
+        field_name = _normalize_metadata_field_name(metadata_field)
         qdrant_filter = convert_filters_to_qdrant(filters) if filters else None
         unique_values: list[Any] = []
         unique_values_set: set[Any] = set()
@@ -1318,7 +1328,7 @@ class QdrantDocumentStore:
                     with_vectors=False,
                 )
                 if self._process_records_unique_values(
-                    records, metadata_field, unique_values, unique_values_set, offset, limit
+                    records, field_name, unique_values, unique_values_set, offset, limit, search_term
                 ):
                     break
                 if self._check_stop_scrolling(next_offset):
@@ -1330,7 +1340,12 @@ class QdrantDocumentStore:
             return []
 
     async def get_metadata_field_unique_values_async(
-        self, metadata_field: str, filters: dict[str, Any] | None = None, limit: int = 100, offset: int = 0
+        self,
+        metadata_field: str,
+        filters: dict[str, Any] | None = None,
+        search_term: str | None = None,
+        limit: int = 100,
+        offset: int = 0,
     ) -> list[Any]:
         """
         Asynchronously returns unique values for a metadata field, with optional filters and offset/limit pagination.
@@ -1340,6 +1355,7 @@ class QdrantDocumentStore:
         :param metadata_field: The metadata field key (inside ``meta``) to get unique values for.
         :param filters: Optional filters to restrict the documents considered.
             For filter syntax, see [Haystack metadata filtering](https://docs.haystack.deepset.ai/docs/metadata-filtering)
+        :param search_term: Optional case-insensitive substring filter applied to the metadata field's own value.
         :param limit: Maximum number of unique values to return per page. Defaults to 100.
         :param offset: Number of unique values to skip (for pagination). Defaults to 0.
 
@@ -1348,6 +1364,7 @@ class QdrantDocumentStore:
         await self._initialize_async_client()
         assert self._async_client is not None
 
+        field_name = _normalize_metadata_field_name(metadata_field)
         qdrant_filter = convert_filters_to_qdrant(filters) if filters else None
         unique_values: list[Any] = []
         unique_values_set: set[Any] = set()
@@ -1364,7 +1381,7 @@ class QdrantDocumentStore:
                     with_vectors=False,
                 )
                 if self._process_records_unique_values(
-                    records, metadata_field, unique_values, unique_values_set, offset, limit
+                    records, field_name, unique_values, unique_values_set, offset, limit, search_term
                 ):
                     break
                 if self._check_stop_scrolling(next_offset):

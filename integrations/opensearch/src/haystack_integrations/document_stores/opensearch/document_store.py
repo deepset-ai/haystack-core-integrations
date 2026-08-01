@@ -2053,16 +2053,19 @@ class OpenSearchDocumentStore:
         self,
         metadata_field: str,
         search_term: str | None = None,
-        size: int | None = 10000,
+        size: int | None = 10,
         after: dict[str, Any] | None = None,
     ) -> tuple[list[str], dict[str, Any] | None]:
         """
-        Returns unique values for a metadata field, optionally filtered by a search term in the content.
+        Returns unique values for a metadata field, optionally filtered by a search term.
 
         Uses composite aggregations for proper pagination beyond 10k results.
 
         :param metadata_field: The metadata field to get unique values for.
-        :param search_term: Optional search term to filter documents by matching in the content field.
+        :param search_term: Optional term to filter the returned values by, matching as a case-insensitive substring
+            of the metadata field's own value (not the document content). NOTE: The matching is done with a server-side
+            script to accomplish the substring matching on the value of the field and this operation is quite expensive
+            for a large corpus.
         :param size: The number of unique values to return per page. Defaults to 10000.
         :param after: Optional pagination key from the previous response. Use None for the first page.
             For subsequent pages, pass the `after_key` from the previous response.
@@ -2075,12 +2078,6 @@ class OpenSearchDocumentStore:
 
         field_name = _normalize_metadata_field_name(metadata_field)
 
-        # filter by search_term if provided
-        query: dict[str, Any] = {"match_all": {}}
-        if search_term:
-            # Use match_phrase for exact phrase matching to avoid tokenization issues
-            query = {"match_phrase": {"content": search_term}}
-
         # Build composite aggregation for proper pagination
         composite_agg: dict[str, Any] = {
             "size": size,
@@ -2089,8 +2086,7 @@ class OpenSearchDocumentStore:
         if after is not None:
             composite_agg["after"] = after
 
-        body = {
-            "query": query,
+        body: dict[str, Any] = {
             "aggs": {
                 "unique_values": {
                     "composite": composite_agg,
@@ -2098,6 +2094,24 @@ class OpenSearchDocumentStore:
             },
             "size": 0,  # we only need aggregations, not documents
         }
+        if search_term:
+            # Composite aggregation terms sources don't support `include`/`exclude` (that's only valid on
+            # standalone `terms` aggregations), and a `regexp` query only works on keyword/text fields, not
+            # numeric ones. A doc-value script query works uniformly across field types by stringifying the
+            # field's value, matching the case-insensitive substring semantics documented above. The term is
+            # lower-cased once here rather than per-document in the script.
+            body["query"] = {
+                "script": {
+                    "script": {
+                        "source": (
+                            "def v = doc[params.field]; "
+                            "if (v.size() == 0) { return false; } "
+                            "return v.value.toString().toLowerCase().contains(params.term)"
+                        ),
+                        "params": {"field": field_name, "term": search_term.lower()},
+                    }
+                }
+            }
 
         result = self._client.search(index=self._index, body=body)
         aggregations = result.get("aggregations", {})
@@ -2123,12 +2137,15 @@ class OpenSearchDocumentStore:
         after: dict[str, Any] | None = None,
     ) -> tuple[list[str], dict[str, Any] | None]:
         """
-        Asynchronously returns unique values for a metadata field, optionally filtered by a search term in the content.
+        Asynchronously returns unique values for a metadata field, optionally filtered by a search term.
 
         Uses composite aggregations for proper pagination beyond 10k results.
 
         :param metadata_field: The metadata field to get unique values for.
-        :param search_term: Optional search term to filter documents by matching in the content field.
+        :param search_term: Optional term to filter the returned values by, matching as a case-insensitive substring
+            of the metadata field's own value (not the document content). NOTE: The matching is done with a server-side
+            script to accomplish the substring matching on the value of the field and this operation is quite expensive
+            for a large corpus.
         :param size: The number of unique values to return per page. Defaults to 10000.
         :param after: Optional pagination key from the previous response. Use None for the first page.
             For subsequent pages, pass the `after_key` from the previous response.
@@ -2141,12 +2158,6 @@ class OpenSearchDocumentStore:
 
         field_name = _normalize_metadata_field_name(metadata_field)
 
-        # filter by search_term if provided
-        query: dict[str, Any] = {"match_all": {}}
-        if search_term:
-            # Use match_phrase for exact phrase matching to avoid tokenization issues
-            query = {"match_phrase": {"content": search_term}}
-
         # Build composite aggregation for proper pagination
         composite_agg: dict[str, Any] = {
             "size": size,
@@ -2155,8 +2166,7 @@ class OpenSearchDocumentStore:
         if after is not None:
             composite_agg["after"] = after
 
-        body = {
-            "query": query,
+        body: dict[str, Any] = {
             "aggs": {
                 "unique_values": {
                     "composite": composite_agg,
@@ -2164,6 +2174,24 @@ class OpenSearchDocumentStore:
             },
             "size": 0,  # we only need aggregations, not documents
         }
+        if search_term:
+            # Composite aggregation terms sources don't support `include`/`exclude` (that's only valid on
+            # standalone `terms` aggregations), and a `regexp` query only works on keyword/text fields, not
+            # numeric ones. A doc-value script query works uniformly across field types by stringifying the
+            # field's value, matching the case-insensitive substring semantics documented above. The term is
+            # lower-cased once here rather than per-document in the script.
+            body["query"] = {
+                "script": {
+                    "script": {
+                        "source": (
+                            "def v = doc[params.field]; "
+                            "if (v.size() == 0) { return false; } "
+                            "return v.value.toString().toLowerCase().contains(params.term)"
+                        ),
+                        "params": {"field": field_name, "term": search_term.lower()},
+                    }
+                }
+            }
 
         result = await self._async_client.search(index=self._index, body=body)
         aggregations = result.get("aggregations", {})
