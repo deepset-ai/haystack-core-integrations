@@ -360,11 +360,29 @@ def _convert_messages_to_anthropic_format(
 def _get_openai_compatible_usage(response_dict: dict) -> dict:
     """
     Converts Anthropic usage metadata to OpenAI compatible format.
+
+    OpenAI's `prompt_tokens` INCLUDES tokens served from the prompt cache, with the cached
+    portion reported separately in `prompt_tokens_details.cached_tokens`. Anthropic's
+    `input_tokens` is the opposite: it is net of the cache, and the cached tokens live in
+    `cache_read_input_tokens` and `cache_creation_input_tokens`.
+
+    Renaming `input_tokens` to `prompt_tokens` therefore claimed OpenAI semantics for a
+    number that did not have them. All three are billed, so anything downstream reading
+    `prompt_tokens` as an OpenAI-compatible total under-counted by the whole cached portion,
+    which on a warm cache is most of the prompt.
+
+    The Anthropic-native keys are left in place so nothing that already reads them breaks.
     """
     usage = response_dict.get("usage", {})
     if usage:
         if "input_tokens" in usage:
-            usage["prompt_tokens"] = usage.pop("input_tokens")
+            input_tokens = usage.pop("input_tokens") or 0
+            # Fold the cached tokens in so `prompt_tokens` means what OpenAI means by it.
+            cached = sum(
+                usage.get(key) or 0
+                for key in ("cache_read_input_tokens", "cache_creation_input_tokens")
+            )
+            usage["prompt_tokens"] = input_tokens + cached
         if "output_tokens" in usage:
             usage["completion_tokens"] = usage.pop("output_tokens")
 
