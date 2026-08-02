@@ -19,6 +19,11 @@ logger = logging.getLogger(__name__)
 REQUEST_TIMEOUT = 60.0
 
 
+def _error_text(error: requests.HTTPError) -> str:
+    """Return the response body of a failed request, falling back to the error itself if there is no response."""
+    return error.response.text if error.response is not None else str(error)
+
+
 class NimBackend:
     def __init__(
         self,
@@ -89,8 +94,9 @@ class NimBackend:
             )
             res.raise_for_status()
         except requests.HTTPError as e:
-            logger.error("Error when calling NIM embedding endpoint: Error - {error}", error=e.response.text)
-            msg = f"Failed to query embedding endpoint: Error - {e.response.text}"
+            error_text = _error_text(e)
+            logger.error("Error when calling NIM embedding endpoint: Error - {error}", error=error_text)
+            msg = f"Failed to query embedding endpoint: Error - {error_text}"
             raise ValueError(msg) from e
 
         data = res.json()
@@ -123,8 +129,9 @@ class NimBackend:
             )
             res.raise_for_status()
         except requests.HTTPError as e:
-            logger.error("Error when calling NIM chat completion endpoint: Error - {error}", error=e.response.text)
-            msg = f"Failed to query chat completion endpoint: Error - {e.response.text}"
+            error_text = _error_text(e)
+            logger.error("Error when calling NIM chat completion endpoint: Error - {error}", error=error_text)
+            msg = f"Failed to query chat completion endpoint: Error - {error_text}"
             raise ValueError(msg) from e
 
         completions = res.json()
@@ -194,8 +201,9 @@ class NimBackend:
             )
             res.raise_for_status()
         except requests.HTTPError as e:
-            logger.error("Error when calling NIM ranking endpoint: Error - {error}", error=e.response.text)
-            msg = f"Failed to rank endpoint: Error - {e.response.text}"
+            error_text = _error_text(e)
+            logger.error("Error when calling NIM ranking endpoint: Error - {error}", error=error_text)
+            msg = f"Failed to rank endpoint: Error - {error_text}"
             raise ValueError(msg) from e
 
         data = res.json()
