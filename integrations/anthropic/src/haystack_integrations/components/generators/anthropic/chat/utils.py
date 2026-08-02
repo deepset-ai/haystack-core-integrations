@@ -378,10 +378,7 @@ def _get_openai_compatible_usage(response_dict: dict) -> dict:
         if "input_tokens" in usage:
             input_tokens = usage.pop("input_tokens") or 0
             # Fold the cached tokens in so `prompt_tokens` means what OpenAI means by it.
-            cached = sum(
-                usage.get(key) or 0
-                for key in ("cache_read_input_tokens", "cache_creation_input_tokens")
-            )
+            cached = sum(usage.get(key) or 0 for key in ("cache_read_input_tokens", "cache_creation_input_tokens"))
             usage["prompt_tokens"] = input_tokens + cached
         if "output_tokens" in usage:
             usage["completion_tokens"] = usage.pop("output_tokens")

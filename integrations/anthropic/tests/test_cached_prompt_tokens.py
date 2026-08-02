@@ -106,9 +106,7 @@ class TestOpenAICompatibleUsage:
 
     def test_uncached_call_is_unchanged(self):
         """With no cache in play the previous arithmetic was already right."""
-        usage = _get_openai_compatible_usage(
-            {"usage": {"input_tokens": 100, "output_tokens": 50}}
-        )
+        usage = _get_openai_compatible_usage({"usage": {"input_tokens": 100, "output_tokens": 50}})
         assert usage["prompt_tokens"] == 100
         assert usage["completion_tokens"] == 50
 
