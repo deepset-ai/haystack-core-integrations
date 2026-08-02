@@ -23,7 +23,7 @@ classifiers = [
   "Programming Language :: Python :: Implementation :: CPython",
   "Programming Language :: Python :: Implementation :: PyPy",
 ]
-dependencies = ["haystack-ai"]
+dependencies = ["haystack-ai", "opendataloader-pdf>=2.1.0",]
 
 [project.urls]
 Documentation = "https://github.com/deepset-ai/haystack-core-integrations/tree/main/integrations/opendataloader_pdf#readme"
@@ -61,6 +61,7 @@ dependencies = [
 ]
 
 [tool.hatch.envs.test.scripts]
+
 unit = 'pytest -m "not integration" {args:tests}'
 integration = 'pytest -m "integration" {args:tests}'
 all = 'pytest {args:tests}'
