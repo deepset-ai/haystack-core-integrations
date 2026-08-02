@@ -29,8 +29,6 @@ concurrency:
 env:
   PYTHONUNBUFFERED: "1"
   FORCE_COLOR: "1"
-  BRAVE_API_KEY: ${{ secrets.BRAVE_API_KEY }}
-  OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
   TEST_MATRIX_OS: '["ubuntu-latest", "macos-latest", "windows-latest"]'
   TEST_MATRIX_PYTHON: '["3.10", "3.14"]'
 
@@ -123,6 +121,9 @@ jobs:
 
       - name: Run integration tests
         run: hatch run test:integration-cov-append-retry
+        env:
+          BRAVE_API_KEY: ${{ secrets.BRAVE_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
 
       - name: Store combined coverage
         if: github.event_name == 'push'
