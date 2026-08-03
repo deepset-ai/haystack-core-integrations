@@ -254,19 +254,19 @@ class ArcadeDBDocumentStore:
         return 0
 
     @staticmethod
-    def _extract_distinct_values(rows: list[dict[str, Any]]) -> set[str]:
+    def _extract_distinct_values(rows: list[dict[str, Any]]) -> set[Any]:
         """
-        Extracts and flattens unique non-None strings from 'val' column result rows.
+        Extracts and flattens unique non-None values from 'val' column result rows.
         :param rows: Raw result rows from ``_command``.
-        :returns: A set of unique string values.
+        :returns: A set of unique values, preserving their original type.
         """
-        result: set[str] = set()
+        result: set[Any] = set()
         for row in rows:
             val = row.get("val")
             if isinstance(val, list):
-                result.update(str(item) for item in val if item is not None)
+                result.update(item for item in val if item is not None)
             elif val is not None:
-                result.add(str(val))
+                result.add(val)
         return result
 
     def _get_metadata_projection_documents(self) -> list[dict[str, Any]]:
@@ -576,7 +576,7 @@ class ArcadeDBDocumentStore:
 
     def get_metadata_field_unique_values(
         self, metadata_field: str, search_term: str | None = None, from_: int = 0, size: int = 10
-    ) -> tuple[list[str], int]:
+    ) -> tuple[list[Any], int]:
         """
         Retrieves unique values for a field matching a search term or all possible values
         if no search term is given.
@@ -584,7 +584,7 @@ class ArcadeDBDocumentStore:
         :param search_term: Optional case-insensitive substring search term.
         :param from_: The starting index for pagination.
         :param size: The number of values to return.
-        :returns: A tuple containing the paginated values and the total count.
+        :returns: A tuple containing the paginated values (in their original type) and the total count.
         """
         self._ensure_initialized()
 
