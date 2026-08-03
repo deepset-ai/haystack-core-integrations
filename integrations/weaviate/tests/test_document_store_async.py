@@ -533,6 +533,20 @@ class TestWeaviateDocumentStoreAsync(
         assert values == []
 
     @pytest.mark.asyncio
+    async def test_get_metadata_field_unique_values_async_preserves_non_string_types(self, document_store):
+        """Non-string metadata values (e.g. ints) are returned in their original type, not stringified."""
+        docs = [
+            Document(content="Doc 1", meta={"priority": 1}),
+            Document(content="Doc 2", meta={"priority": 2}),
+            Document(content="Doc 3", meta={"priority": 1}),
+        ]
+        await document_store.write_documents_async(docs)
+
+        values, total_count = await document_store.get_metadata_field_unique_values_async("priority")
+        assert total_count == 2
+        assert set(values) == {1, 2}
+
+    @pytest.mark.asyncio
     async def test_delete_all_documents_excessive_batch_size_async(
         self, document_store: WeaviateDocumentStore, caplog: pytest.LogCaptureFixture
     ) -> None:

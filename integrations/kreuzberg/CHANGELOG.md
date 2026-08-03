@@ -1,5 +1,16 @@
 # Changelog
 
+## [integrations/kreuzberg-v1.0.1] - 2026-07-29
+
+### 🚀 Features
+
+- Update kreuzberg pin to only block non-MIT licenses (#3690)
+
+### 🐛 Bug Fixes
+
+- Fix new issues raised by ruff 0.16.0 (#3670)
+
+
 ## [integrations/kreuzberg-v1.0.0] - 2026-04-21
 
 ### 🧹 Chores
