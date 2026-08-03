@@ -624,3 +624,16 @@ class TestValkeyDocumentStoreAsync(
         )
         assert total == 2
         assert set(values) == {"apple_pie", "apple_jam"}
+
+    async def test_get_metadata_field_unique_values_async_preserves_non_string_types(self, document_store):
+        """Non-string metadata values (e.g. ints) are returned in their original type, not stringified."""
+        test_id = str(uuid.uuid4())[:8]
+        docs = [
+            Document(id=f"gmvt1_{test_id}", content="doc 1", embedding=[0.1, 0.2, 0.3], meta={"priority": 1}),
+            Document(id=f"gmvt2_{test_id}", content="doc 2", embedding=[0.2, 0.3, 0.4], meta={"priority": 2}),
+            Document(id=f"gmvt3_{test_id}", content="doc 3", embedding=[0.3, 0.4, 0.5], meta={"priority": 1}),
+        ]
+        await document_store.write_documents_async(docs)
+        values, total = await document_store.get_metadata_field_unique_values_async("priority")
+        assert total == 2
+        assert set(values) == {1, 2}

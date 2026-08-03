@@ -92,7 +92,7 @@ class TestStaticHelpers:
             ([], set()),
             ([{"val": "a"}, {"val": "b"}], {"a", "b"}),
             ([{"val": None}], set()),
-            ([{"val": [1, 2, None, 3]}], {"1", "2", "3"}),
+            ([{"val": [1, 2, None, 3]}], {1, 2, 3}),
             ([{"val": "x"}, {"val": None}, {"val": ["a", "b"]}], {"x", "a", "b"}),
         ],
     )
@@ -521,6 +521,20 @@ class TestArcadeDBDocumentStore(
 
         assert values == []
         assert total == 0
+
+    def test_get_metadata_field_unique_values_preserves_non_string_types(self, document_store: ArcadeDBDocumentStore):
+        """Non-string metadata values (e.g. ints) are returned in their original type, not stringified."""
+        docs = [
+            Document(id="1", content="Doc 1", meta={"priority": 1}),
+            Document(id="2", content="Doc 2", meta={"priority": 2}),
+            Document(id="3", content="Doc 3", meta={"priority": 1}),
+        ]
+        document_store.write_documents(docs)
+
+        values, total = document_store.get_metadata_field_unique_values("priority")
+
+        assert set(values) == {1, 2}
+        assert total == 2
 
     def test_write_documents_none_embedding_is_zero_padded(self, document_store: ArcadeDBDocumentStore):
         """Documents written without an embedding get a zero vector of the correct dimension."""

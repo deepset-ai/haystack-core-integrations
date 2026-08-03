@@ -1025,12 +1025,12 @@ class ValkeyDocumentStore(DocumentStore):
         search_term: str | None = None,
         from_: int = 0,
         size: int = 10,
-    ) -> tuple[list[str], int]:
+    ) -> tuple[list[Any], int]:
         """
         Return unique values for a metadata field with optional search and pagination.
 
-        Values are stringified. For tag fields the distinct values are returned; for numeric fields
-        the string representation of each distinct value is returned.
+        Values are returned in their original type (e.g. int, bool). The `search_term` filter, when
+        provided, matches against the string representation of each value.
 
         :param metadata_field: Metadata field name (e.g. "category" or "meta.category").
         :param search_term: Optional case-insensitive substring filter on the value.
@@ -1056,9 +1056,12 @@ class ValkeyDocumentStore(DocumentStore):
         search_term: str | None = None,
         from_: int = 0,
         size: int = 10,
-    ) -> tuple[list[str], int]:
+    ) -> tuple[list[Any], int]:
         """
         Asynchronously return unique values for a metadata field with optional search and pagination.
+
+        Values are returned in their original type (e.g. int, bool). The `search_term` filter, when
+        provided, matches against the string representation of each value.
 
         :param metadata_field: Metadata field name (e.g. "category" or "meta.category").
         :param search_term: Optional case-insensitive substring filter on the value.
@@ -1481,9 +1484,9 @@ class ValkeyDocumentStore(DocumentStore):
         search_term: str | None = None,
         from_: int = 0,
         size: int = 10,
-    ) -> tuple[list[str], int]:
+    ) -> tuple[list[Any], int]:
         """Extract unique values for a metadata field with optional search and pagination."""
-        unique_vals: list[str] = []
+        unique_vals: list[Any] = []
         seen: set[str] = set()
         for doc in documents:
             val = (doc.meta or {}).get(ValkeyDocumentStore._metadata_field_to_doc_meta_key(metadata_field))
@@ -1495,8 +1498,8 @@ class ValkeyDocumentStore(DocumentStore):
             if search_term is not None and search_term.lower() not in str_val.lower():
                 continue
             seen.add(str_val)
-            unique_vals.append(str_val)
-        unique_vals.sort()
+            unique_vals.append(val)
+        unique_vals.sort(key=str)
         total = len(unique_vals)
         page = unique_vals[from_ : from_ + size]
         return page, total

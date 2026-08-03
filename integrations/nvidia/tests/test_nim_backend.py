@@ -298,7 +298,7 @@ class TestNimBackend:
             backend = NimBackend(
                 model="nvidia/llama-3.2-nv-rerankqa-1b-v2", api_url=DEFAULT_API_URL, client="NvidiaRanker"
             )
-            with pytest.raises(ValueError, match="Failed to rank endpoint"):
+            with pytest.raises(ValueError, match="Failed to query ranking endpoint"):
                 backend.rank(query_text="q", document_texts=["a"])
 
     def test_rank_raises_when_rankings_missing(self, monkeypatch):

@@ -161,6 +161,15 @@ class TestMongoDBDocumentStoreUnit:
         pipeline = collection.aggregate.call_args[0][0]
         assert pipeline[0]["$group"] == {"_id": "$meta.category"}
 
+    def test_get_metadata_field_unique_values_preserves_non_string_types(self, mocked_store_collection):
+        store, collection = mocked_store_collection
+        collection.aggregate.return_value = [{"count": [{"count": 2}], "values": [{"_id": 1}, {"_id": 2}]}]
+
+        values, count = store.get_metadata_field_unique_values("priority")
+
+        assert values == [1, 2]
+        assert count == 2
+
 
 class TestMongoDBDocumentStoreConversion:
     def test_haystack_doc_to_mongo_doc_with_unsupported_fields(self, local_store):

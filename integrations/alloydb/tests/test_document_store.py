@@ -28,6 +28,21 @@ from psycopg.sql import SQL
 from haystack_integrations.document_stores.alloydb import AlloyDBDocumentStore
 
 
+def test_process_unique_values_result_preserves_non_string_types():
+    """Non-string metadata values (e.g. ints) are returned in their original type, not stringified.
+
+    Unit test (no live AlloyDB instance needed) since `_process_unique_values_result` is a pure
+    static method operating on already-fetched rows.
+    """
+    count_result = {"total": 2}
+    records = [{"value": 1}, {"value": 2}]
+
+    values, total = AlloyDBDocumentStore._process_unique_values_result(count_result, records)
+
+    assert set(values) == {1, 2}
+    assert total == 2
+
+
 @pytest.mark.integration
 class TestDocumentStore(
     CountDocumentsTest,
@@ -139,6 +154,19 @@ class TestDocumentStore(
         filters = {"field": "meta.language", "operator": "==", "value": "Python"}
         values, total = document_store.get_metadata_field_unique_values("meta.category", filters=filters)
         assert set(values) == {"A", "C"}
+        assert total == 2
+
+    def test_get_metadata_field_unique_values_preserves_non_string_types(self, document_store: AlloyDBDocumentStore):
+        """Non-string metadata values (e.g. ints) are returned in their original type, not stringified."""
+        docs = [
+            Document(content="Doc 1", meta={"priority": 1}),
+            Document(content="Doc 2", meta={"priority": 2}),
+            Document(content="Doc 3", meta={"priority": 1}),
+        ]
+        document_store.write_documents(docs)
+
+        values, total = document_store.get_metadata_field_unique_values("meta.priority")
+        assert set(values) == {1, 2}
         assert total == 2
 
 

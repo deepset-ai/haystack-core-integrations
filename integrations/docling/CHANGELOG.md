@@ -1,5 +1,13 @@
 # Changelog
 
+## [integrations/docling-v2.0.0] - 2026-07-31
+
+### 🐛 Bug Fixes
+
+- Fix new issues raised by ruff 0.16.0 (#3670)
+- *(docling)* [**breaking**] Store binary_hash as a string to avoid 64-bit overflow (#3699)
+
+
 ## [integrations/docling-v1.3.0] - 2026-07-16
 
 ### 🧹 Chores

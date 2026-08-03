@@ -176,6 +176,11 @@ class TwelveLabsDocumentEmbedder:
             desc="Calculating embeddings",
         ):
             batch = texts_to_embed[i : i + self.batch_size]
-            batch_embeddings = await asyncio.gather(*(embed_text_async(text, self.model, key) for text in batch))
-            embeddings.extend(batch_embeddings)
+            batch_embeddings = await asyncio.gather(
+                *(embed_text_async(text, self.model, key) for text in batch), return_exceptions=True
+            )
+            for embedding in batch_embeddings:
+                if isinstance(embedding, BaseException):
+                    raise embedding
+            embeddings.extend(batch_embeddings)  # type: ignore[arg-type]
         return self._build_result(documents, embeddings, self.model)
