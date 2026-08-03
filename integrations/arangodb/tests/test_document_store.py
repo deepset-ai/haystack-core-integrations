@@ -14,6 +14,7 @@ from haystack.testing.document_store import DocumentStoreBaseTests
 from haystack.utils import Secret
 
 from haystack_integrations.document_stores.arangodb import ArangoDocumentStore
+from haystack_integrations.document_stores.arangodb.filters import _convert_filters
 
 _MODULE = "haystack_integrations.document_stores.arangodb.document_store"
 
@@ -286,6 +287,65 @@ class TestArangoDocumentStoreFilterDocuments:
         mock_db.aql.execute.assert_called_once()
         call_args = mock_db.aql.execute.call_args
         assert "FILTER" in call_args[0][0]
+
+
+class TestFilterFieldNameBinding:
+    """Field names come from caller-supplied filters, so they must never reach the AQL as text."""
+
+    def test_meta_field_name_is_bound(self):
+        expr, bind_vars = _convert_filters({"field": "meta.topic", "operator": "==", "value": "ai"})
+        assert expr == "doc.meta[@fk0] == @fv1"
+        assert bind_vars == {"fk0": "topic", "fv1": "ai"}
+
+    def test_top_level_field_name_is_bound(self):
+        expr, bind_vars = _convert_filters({"field": "topic", "operator": "==", "value": "ai"})
+        assert expr == "doc[@fk0] == @fv1"
+        assert bind_vars == {"fk0": "topic", "fv1": "ai"}
+
+    @pytest.mark.parametrize(
+        "field",
+        [
+            pytest.param("meta.a` == 1 OR true //", id="backtick_breakout"),
+            pytest.param("meta.a`], doc.secret, doc[`b", id="bracket_breakout"),
+            pytest.param('meta.a" OR true //', id="double_quote"),
+            pytest.param("meta.a\nOR true", id="newline"),
+        ],
+    )
+    def test_injected_field_name_stays_a_bind_value(self, field):
+        expr, bind_vars = _convert_filters({"field": field, "operator": "==", "value": "x"})
+
+        # The name appears only as a bind value, never in the query text.
+        assert expr == "doc.meta[@fk0] == @fv1"
+        assert bind_vars["fk0"] == field.removeprefix("meta.")
+        assert "true" not in expr
+        assert "`" not in expr
+
+    def test_reserved_fields_are_not_bound(self):
+        for field, ref in (("id", "doc._key"), ("content", "doc.content"), ("embedding", "doc.embedding")):
+            expr, bind_vars = _convert_filters({"field": field, "operator": "==", "value": "x"})
+            assert expr == f"{ref} == @fv0"
+            assert "fk0" not in bind_vars
+
+    @pytest.mark.parametrize("op", [">", ">=", "<", "<="])
+    def test_range_comparison_against_none_binds_nothing(self, op):
+        # The expression references no field, so binding its name would leave an unused bind
+        # parameter and ArangoDB would reject the query with ERR 1552.
+        expr, bind_vars = _convert_filters({"field": "meta.a", "operator": op, "value": None})
+        assert expr == "false"
+        assert bind_vars == {}
+
+    def test_bind_var_names_stay_unique_across_conditions(self):
+        expr, bind_vars = _convert_filters(
+            {
+                "operator": "AND",
+                "conditions": [
+                    {"field": "meta.a", "operator": "==", "value": 1},
+                    {"field": "meta.b", "operator": "==", "value": 2},
+                ],
+            }
+        )
+        assert expr == "(doc.meta[@fk0] == @fv1 AND doc.meta[@fk2] == @fv3)"
+        assert bind_vars == {"fk0": "a", "fv1": 1, "fk2": "b", "fv3": 2}
 
 
 class TestArangoDocumentStoreVectorIndex:
