@@ -1414,8 +1414,6 @@ class TestOpenAICompatibleUsage:
         assert result["cache_read_input_tokens"] == 20000
         assert result["cache_creation_input_tokens"] == 1500
 
-    @pytest.mark.parametrize(
-        "response_dict", [{}, {"usage": {}}], ids=["no_usage_key", "empty_usage"]
-    )
+    @pytest.mark.parametrize("response_dict", [{}, {"usage": {}}], ids=["no_usage_key", "empty_usage"])
     def test_empty_usage_is_unchanged(self, response_dict):
         assert _get_openai_compatible_usage(response_dict) == {}
