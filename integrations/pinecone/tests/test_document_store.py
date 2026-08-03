@@ -339,6 +339,20 @@ def test_get_metadata_field_unique_values_impl_pagination_search_and_lists():
     assert values == ["python"]
 
 
+def test_get_metadata_field_unique_values_impl_preserves_non_string_types():
+    docs = [
+        Document(content="a", meta={"priority": 1}),
+        Document(content="b", meta={"priority": 2}),
+        Document(content="c", meta={"priority": 1}),
+    ]
+
+    values, total = PineconeDocumentStore._get_metadata_field_unique_values_impl(
+        docs, "priority", search_term=None, from_=0, size=10
+    )
+    assert total == 2
+    assert set(values) == {1, 2}
+
+
 def test_get_metadata_field_unique_values_impl_strips_meta_prefix():
     docs = [
         Document(content="a", meta={"category": "news"}),
