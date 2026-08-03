@@ -269,20 +269,18 @@ class TestQdrantDocumentStoreUnit:
         assert unique["category"] == {"A", "B"}
         assert unique["tags"] == {"['x']", "['y']"}
 
-    def test_process_records_unique_values_stops_when_filled(self):
+    def test_process_records_unique_values_collects_all(self):
         records = [SimpleNamespace(payload={"meta": {"v": i}}) for i in range(10)]
         values: list = []
         values_set: set = set()
-        done = QdrantDocumentStore._process_records_unique_values(records, "v", values, values_set, offset=0, limit=3)
-        assert done is True
-        assert values[:3] == [0, 1, 2]
+        QdrantDocumentStore._process_records_unique_values(records, "v", values, values_set)
+        assert values == list(range(10))
 
-    def test_process_records_unique_values_not_done(self):
+    def test_process_records_unique_values_skips_missing_payload(self):
         records = [SimpleNamespace(payload={"meta": {"v": 1}}), SimpleNamespace(payload=None)]
         values: list = []
         values_set: set = set()
-        done = QdrantDocumentStore._process_records_unique_values(records, "v", values, values_set, offset=0, limit=5)
-        assert done is False
+        QdrantDocumentStore._process_records_unique_values(records, "v", values, values_set)
         assert values == [1]
 
     def test_create_updated_point_from_record_adds_missing_meta(self):
@@ -356,7 +354,7 @@ class TestQdrantDocumentStoreUnit:
             ("get_metadata_fields_info", (), {}),
             ("get_metadata_field_min_max", ("score",), {}),
             ("count_unique_metadata_by_filter", ({}, ["category"]), {"category": 0}),
-            ("get_metadata_field_unique_values", ("category",), []),
+            ("get_metadata_field_unique_values", ("category",), ([], 0)),
         ],
     )
     def test_metadata_methods_swallow_client_errors(self, method_name, args, expected):
@@ -596,17 +594,19 @@ class TestQdrantDocumentStore(
         assert len(updated_docs[0].embedding) == 768
 
     def test_get_metadata_field_unique_values_pagination(self, document_store: QdrantDocumentStore):
-        """Test getting unique metadata field values with pagination."""
+        """Test getting unique metadata field values with pagination, total reflects the full unpaginated count."""
         docs = [Document(content=f"Doc {i}", meta={"value": i % 5}) for i in range(10)]
         document_store.write_documents(docs)
 
         # Get first 2 unique values
-        values_page_1 = document_store.get_metadata_field_unique_values("value", limit=2, offset=0)
+        values_page_1, total_1 = document_store.get_metadata_field_unique_values("value", from_=0, size=2)
         assert len(values_page_1) == 2
+        assert total_1 == 5
 
         # Get next 2 unique values
-        values_page_2 = document_store.get_metadata_field_unique_values("value", limit=2, offset=2)
+        values_page_2, total_2 = document_store.get_metadata_field_unique_values("value", from_=2, size=2)
         assert len(values_page_2) == 2
+        assert total_2 == 5
 
         # Values should not overlap
         assert set(values_page_1) != set(values_page_2)
@@ -620,10 +620,11 @@ class TestQdrantDocumentStore(
         ]
         document_store.write_documents(docs)
 
-        values = document_store.get_metadata_field_unique_values(
+        values, total = document_store.get_metadata_field_unique_values(
             "category", filters={"field": "meta.status", "operator": "==", "value": "active"}
         )
         assert set(values) == {"A", "B"}
+        assert total == 2
 
     def test_get_metadata_field_unique_values_with_meta_prefix(self, document_store: QdrantDocumentStore):
         """Test that a 'meta.'-prefixed field name is normalized before lookup."""
@@ -633,8 +634,9 @@ class TestQdrantDocumentStore(
         ]
         document_store.write_documents(docs)
 
-        values = document_store.get_metadata_field_unique_values("meta.category")
+        values, total = document_store.get_metadata_field_unique_values("meta.category")
         assert set(values) == {"A", "B"}
+        assert total == 2
 
     def test_get_metadata_field_unique_values_with_search_term(self, document_store: QdrantDocumentStore):
         """Test that search_term filters unique values by a case-insensitive substring match on the field value."""
@@ -645,8 +647,10 @@ class TestQdrantDocumentStore(
         ]
         document_store.write_documents(docs)
 
-        values = document_store.get_metadata_field_unique_values("category", search_term="ap")
+        values, total = document_store.get_metadata_field_unique_values("category", search_term="ap")
         assert set(values) == {"Apple", "Apricot"}
+        assert total == 2
 
-        values = document_store.get_metadata_field_unique_values("category", search_term="nonexistent")
+        values, total = document_store.get_metadata_field_unique_values("category", search_term="nonexistent")
         assert values == []
+        assert total == 0
