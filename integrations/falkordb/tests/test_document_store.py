@@ -405,6 +405,14 @@ class TestFalkorDBDocumentStoreUnit:
         assert "toLower(toString(d.category)) CONTAINS toLower($search_term)" in cypher
         assert params == {"from_": 0, "size": 10, "search_term": "APP"}
 
+    def test_get_metadata_field_unique_values_preserves_non_string_types(self, mock_falkordb):
+        """Non-string metadata values (e.g. ints) are returned in their original type, not stringified."""
+        _, _, graph = mock_falkordb
+        graph.query.side_effect = [_result([]), _result([]), _result([[[1, 2, 3], 3]])]
+        values, total = FalkorDBDocumentStore().get_metadata_field_unique_values("priority", size=10)
+        assert values == [1, 2, 3]
+        assert total == 3
+
     def test_close(self):
         store = FalkorDBDocumentStore()
         client = MagicMock()
