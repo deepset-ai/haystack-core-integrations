@@ -42,6 +42,14 @@ def _make_store_named(collection_name: str) -> ArangoDocumentStore:
     )
 
 
+def _require_live_arango() -> tuple[str, str]:
+    host = os.environ.get("ARANGO_HOST")
+    password = os.environ.get("ARANGO_PASSWORD")
+    if not host or not password:
+        pytest.skip("Set ARANGO_HOST and ARANGO_PASSWORD to run integration tests.")
+    return host, password
+
+
 def _mock_db(store: ArangoDocumentStore, collection_docs: list[dict] | None = None) -> MagicMock:
     mock_col = MagicMock()
     mock_col.count.return_value = len(collection_docs or [])
@@ -80,45 +88,64 @@ class TestArangoDocumentStoreInit:
         assert store.similarity_function == "dot_product"
 
 
-class TestArangoDocumentStoreCollectionNameValidation:
-    """`collection_name` is interpolated into AQL, so it must be validated up front."""
+# Names outside ArangoDB's "traditional" rules — extended names the server accepts, plus payloads
+# that would be dangerous if the name were interpolated into AQL instead of bound.
+_COLLECTION_NAMES = [
+    pytest.param("docs", id="traditional"),
+    pytest.param("docs.v2", id="extended_dot"),
+    pytest.param("möbius", id="extended_unicode"),
+    pytest.param("docs` FOR s IN secrets RETURN s //", id="aql_injection"),
+    pytest.param("docs\nsecrets", id="newline"),
+    pytest.param("d" * 257, id="over_traditional_length"),
+]
 
-    @pytest.mark.parametrize(
-        "collection_name",
-        [
-            pytest.param("docs` FOR d IN secrets RETURN d //", id="aql_injection"),
-            pytest.param("docs secrets", id="whitespace"),
-            pytest.param("docs;drop", id="semicolon"),
-            pytest.param("docs`backtick", id="backtick"),
-            pytest.param('docs"quote', id="double_quote"),
-            pytest.param("docs\nsecrets", id="newline"),
-            pytest.param("docs\n", id="trailing_newline"),
-            pytest.param("d" * 256 + "\n", id="too_long_trailing_newline"),
-            pytest.param("1docs", id="leading_digit"),
-            pytest.param("_docs", id="leading_underscore"),
-            pytest.param("-docs", id="leading_dash"),
-            pytest.param("", id="empty"),
-            pytest.param("d" * 257, id="too_long"),
-        ],
-    )
-    def test_init_rejects_invalid_collection_name(self, collection_name):
-        with pytest.raises(ValueError, match="Invalid collection_name"):
-            _make_store_named(collection_name)
 
-    @pytest.mark.parametrize(
-        "collection_name",
-        [
-            pytest.param("docs", id="lowercase"),
-            pytest.param("Docs", id="uppercase"),
-            pytest.param("test_docs", id="underscore"),
-            pytest.param("test-docs", id="dash"),
-            pytest.param("docs123", id="digits"),
-            pytest.param("d", id="single_char"),
-            pytest.param("d" * 256, id="max_length"),
-        ],
-    )
-    def test_init_accepts_valid_collection_name(self, collection_name):
+class TestCollectionNameBinding:
+    """`collection_name` is a collection bind parameter, so it never reaches the AQL as text."""
+
+    @pytest.mark.parametrize("collection_name", _COLLECTION_NAMES)
+    def test_init_accepts_any_name(self, collection_name):
+        # ArangoDB itself is the authority on which names are valid; binding means we need no
+        # allowlist of our own, so no name that the server accepts is rejected here.
         assert _make_store_named(collection_name).collection_name == collection_name
+
+    @pytest.mark.parametrize("collection_name", _COLLECTION_NAMES)
+    def test_filter_documents_binds_collection_name(self, collection_name):
+        store = _make_store_named(collection_name)
+        mock_db = _mock_db(store)
+        store.filter_documents()
+
+        aql, bind_vars = mock_db.aql.execute.call_args[0][0], mock_db.aql.execute.call_args[1]["bind_vars"]
+        assert aql == "FOR doc IN @@collection RETURN doc"
+        assert bind_vars == {"@collection": collection_name}
+        assert collection_name not in aql
+
+    @pytest.mark.parametrize("collection_name", _COLLECTION_NAMES)
+    def test_embedding_retrieval_binds_collection_name(self, collection_name):
+        store = _make_store_named(collection_name)
+        mock_db = _mock_db(store, [{"_key": "1", "content": "x", "meta": {}}])
+        store._embedding_retrieval(query_embedding=[0.1, 0.2, 0.3], top_k=2)
+
+        aql, bind_vars = mock_db.aql.execute.call_args[0][0], mock_db.aql.execute.call_args[1]["bind_vars"]
+        assert "FOR doc IN @@collection" in aql
+        assert bind_vars["@collection"] == collection_name
+        assert collection_name not in aql
+
+    def test_filtered_embedding_retrieval_keeps_collection_and_filter_bind_vars(self):
+        store = _make_store_named("docs.v2")
+        mock_db = _mock_db(store, [{"_key": "1", "content": "x", "meta": {"topic": "ai"}}])
+        store._embedding_retrieval(
+            query_embedding=[0.1, 0.2, 0.3],
+            top_k=2,
+            filters={"field": "meta.topic", "operator": "==", "value": "ai"},
+        )
+
+        aql, bind_vars = mock_db.aql.execute.call_args[0][0], mock_db.aql.execute.call_args[1]["bind_vars"]
+        assert "FOR d IN @@collection" in aql
+        assert bind_vars["@collection"] == "docs.v2"
+        # The filter's own bind vars survive alongside the collection one.
+        assert bind_vars["fk0"] == "topic"
+        assert bind_vars["fv1"] == "ai"
 
 
 class TestArangoDocumentStoreSerialization:
@@ -519,12 +546,50 @@ class TestArangoDocumentStoreIntegration(DocumentStoreBaseTests):
         assert document_store._client is None
         assert document_store.count_documents() == 0
 
+    def test_extended_collection_name(self):
+        # ArangoDB 3.12 accepts collection names containing dots and non-ASCII characters. They
+        # work here because the name is a collection bind parameter rather than query text — an
+        # allowlist of "traditional" names would reject them and break existing deployments.
+        host, _ = _require_live_arango()
+        store = ArangoDocumentStore(
+            host=host,
+            database="haystack_test",
+            username=Secret.from_env_var("ARANGO_USERNAME", strict=False),
+            password=Secret.from_env_var("ARANGO_PASSWORD"),
+            collection_name="test_docs.v2-möbius",
+            embedding_dimension=3,
+            recreate_collection=True,
+        )
+        try:
+            docs = [
+                Document(id="1", content="hello", meta={"topic": "ai"}, embedding=[0.1, 0.2, 0.3]),
+                Document(id="2", content="world", meta={"topic": "db"}, embedding=[0.9, 0.8, 0.7]),
+            ]
+            assert store.write_documents(docs) == 2
+            assert store.count_documents() == 2
+
+            filtered = store.filter_documents({"field": "meta.topic", "operator": "==", "value": "ai"})
+            assert [d.id for d in filtered] == ["1"]
+
+            hits = store._embedding_retrieval(query_embedding=[0.1, 0.2, 0.3], top_k=1)
+            assert [d.id for d in hits] == ["1"]
+
+            hits = store._embedding_retrieval(
+                query_embedding=[0.1, 0.2, 0.3],
+                top_k=2,
+                filters={"field": "meta.topic", "operator": "==", "value": "db"},
+            )
+            assert [d.id for d in hits] == ["2"]
+        finally:
+            with contextlib.suppress(Exception):
+                store._ensure_connected()
+                if store._db and store._db.has_collection(store.collection_name):
+                    store._db.delete_collection(store.collection_name)
+            store.close()
+
     @pytest.fixture
     def document_store(self, request):
-        host = os.environ.get("ARANGO_HOST")
-        password = os.environ.get("ARANGO_PASSWORD")
-        if not host or not password:
-            pytest.skip("Set ARANGO_HOST and ARANGO_PASSWORD to run integration tests.")
+        host, _ = _require_live_arango()
         store = ArangoDocumentStore(
             host=host,
             database="haystack_test",
