@@ -783,7 +783,7 @@ class OracleDocumentStore:
 
     def get_metadata_field_unique_values(
         self, metadata_field: str, search_term: str | None = None, from_: int = 0, size: int | None = 10
-    ) -> tuple[list[str], int]:
+    ) -> tuple[list[Any], int]:
         """
         Return a paginated list of distinct values for a metadata field, plus the total distinct count.
 
@@ -794,7 +794,7 @@ class OracleDocumentStore:
         :param size: Maximum number of values to return. Defaults to ``10``. When ``None`` all values
             from ``from_`` onward are returned.
         :returns: A tuple ``(values, total)`` where ``values`` is the paginated list of distinct field
-            values as strings and ``total`` is the overall distinct count (before pagination).
+            values in their original type and ``total`` is the overall distinct count (before pagination).
         :raises ValueError: If ``metadata_field`` contains characters outside ``[A-Za-z0-9_.]``.
         """
         field_path = metadata_field[5:] if metadata_field.startswith("meta.") else metadata_field
@@ -820,7 +820,13 @@ class OracleDocumentStore:
                 params["row_offset"] = from_
             cur.execute(sql_vals, params)
             rows = cur.fetchall()
-            return [str(r[0]) for r in rows], total
+            values: list[Any] = []
+            for r in rows:
+                try:
+                    values.append(json.loads(r[0]))
+                except (json.JSONDecodeError, TypeError):
+                    values.append(r[0])
+            return values, total
 
     async def get_metadata_fields_info_async(self) -> dict[str, dict[str, str]]:
         """
@@ -851,7 +857,7 @@ class OracleDocumentStore:
 
     async def get_metadata_field_unique_values_async(
         self, metadata_field: str, search_term: str | None = None, from_: int = 0, size: int | None = 10
-    ) -> tuple[list[str], int]:
+    ) -> tuple[list[Any], int]:
         """
         Asynchronously returns a paginated list of distinct values for a metadata field, plus the total count.
 
@@ -862,7 +868,7 @@ class OracleDocumentStore:
         :param size: Maximum number of values to return. Defaults to ``10``. When ``None`` all values
             from ``from_`` onward are returned.
         :returns: A tuple ``(values, total)`` where ``values`` is the paginated list of distinct field
-            values as strings and ``total`` is the overall distinct count (before pagination).
+            values in their original type and ``total`` is the overall distinct count (before pagination).
         :raises ValueError: If ``metadata_field`` contains characters outside ``[A-Za-z0-9_.]``.
         """
         return await asyncio.to_thread(self.get_metadata_field_unique_values, metadata_field, search_term, from_, size)

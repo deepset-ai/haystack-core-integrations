@@ -635,7 +635,7 @@ class WeaviateDocumentStore:
     @staticmethod
     def _compute_field_unique_values(
         agg_result: Any, search_term: str | None, from_: int, size: int
-    ) -> tuple[list[str], int]:
+    ) -> tuple[list[Any], int]:
         """
         Computes paginated unique values from a Weaviate group-by aggregation result.
 
@@ -648,13 +648,14 @@ class WeaviateDocumentStore:
             substring against each value.
         :param from_: The starting offset for pagination (0-indexed).
         :param size: The maximum number of unique values to return.
-        :returns: A tuple of (paginated list of unique values, total count of unique values).
+        :returns: A tuple of (paginated list of unique values in their original type, total count of
+            unique values).
         """
-        all_values = [str(g.grouped_by.value) for g in agg_result.groups] if agg_result.groups else []
+        all_values = [g.grouped_by.value for g in agg_result.groups] if agg_result.groups else []
         if search_term:
             search_term_lower = search_term.lower()
-            all_values = [value for value in all_values if search_term_lower in value.lower()]
-        all_values.sort()  # Sort for consistent pagination
+            all_values = [value for value in all_values if search_term_lower in str(value).lower()]
+        all_values.sort(key=str)  # Sort for consistent pagination
         total_count = len(all_values)
 
         paginated_values = all_values[from_ : from_ + size]
@@ -667,7 +668,7 @@ class WeaviateDocumentStore:
         search_term: str | None = None,
         from_: int = 0,
         size: int = 10,
-    ) -> tuple[list[str], int]:
+    ) -> tuple[list[Any], int]:
         """
         Returns unique values for a metadata field with pagination support.
 
@@ -679,7 +680,7 @@ class WeaviateDocumentStore:
             Note: Uses case-insensitive substring matching (no stemming).
         :param from_: The starting offset for pagination (0-indexed). Defaults to 0.
         :param size: The maximum number of unique values to return. Defaults to 10.
-        :returns: A tuple of (list of unique values, total count of unique values).
+        :returns: A tuple of (list of unique values in their original type, total count of unique values).
         :raises ValueError: If the field is not found in the collection schema.
         """
         field_name = _normalize_metadata_field_name(metadata_field)
@@ -705,7 +706,7 @@ class WeaviateDocumentStore:
         search_term: str | None = None,
         from_: int = 0,
         size: int = 10,
-    ) -> tuple[list[str], int]:
+    ) -> tuple[list[Any], int]:
         """
         Asynchronously returns unique values for a metadata field with pagination support.
 
@@ -717,7 +718,7 @@ class WeaviateDocumentStore:
             Note: Uses case-insensitive substring matching (no stemming).
         :param from_: The starting offset for pagination (0-indexed). Defaults to 0.
         :param size: The maximum number of unique values to return. Defaults to 10.
-        :returns: A tuple of (list of unique values, total count of unique values).
+        :returns: A tuple of (list of unique values in their original type, total count of unique values).
         :raises ValueError: If the field is not found in the collection schema.
         """
         field_name = _normalize_metadata_field_name(metadata_field)
