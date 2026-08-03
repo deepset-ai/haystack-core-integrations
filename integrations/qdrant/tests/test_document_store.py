@@ -29,6 +29,7 @@ from haystack_integrations.document_stores.qdrant.document_store import (
     SPARSE_VECTORS_NAME,
     QdrantDocumentStore,
     QdrantStoreError,
+    _build_rrf_query,
     get_batches_from_generator,
 )
 
@@ -339,6 +340,24 @@ class TestQdrantDocumentStoreUnit:
         batches = list(get_batches_from_generator([1, 2, 3, 4, 5], 2))
         assert batches == [(1, 2), (3, 4), (5,)]
         assert list(get_batches_from_generator([], 2)) == []
+
+    @pytest.mark.parametrize(
+        ("rrf_k", "rrf_weights", "expected_type"),
+        [
+            (None, None, rest.FusionQuery),
+            (20, None, rest.RrfQuery),
+            (None, [2.0, 1.0], rest.RrfQuery),
+            (20, [2.0, 1.0], rest.RrfQuery),
+        ],
+    )
+    def test_build_rrf_query(self, rrf_k, rrf_weights, expected_type):
+        query = _build_rrf_query(rrf_k=rrf_k, rrf_weights=rrf_weights)
+        assert isinstance(query, expected_type)
+        if expected_type is rest.RrfQuery:
+            if rrf_k is not None:
+                assert query.rrf.k == rrf_k
+            if rrf_weights is not None:
+                assert query.rrf.weights == rrf_weights
 
     def test_query_by_sparse_raises_when_sparse_disabled(self):
         document_store = QdrantDocumentStore(location=":memory:", use_sparse_embeddings=False)
