@@ -313,6 +313,35 @@ class TestDocumentStore(
         with pytest.raises(ValueError, match="Invalid metadata field name"):
             document_store.get_metadata_field_unique_values("field' OR '1'='1")
 
+    def test_get_metadata_field_unique_values_hyphenated_field_name(self, document_store: IBMDb2DocumentStore):
+        docs = [
+            Document(content="one", meta={"some-field": "A"}),
+            Document(content="two", meta={"some-field": "B"}),
+            Document(content="three", meta={"some-field": "A"}),
+        ]
+        document_store.write_documents(docs)
+
+        values, total_count = document_store.get_metadata_field_unique_values("some-field")
+        assert set(values) == {"A", "B"}
+        assert total_count == 2
+
+    def test_case_insensitive_and_special_characters_are_allowed(self, document_store: IBMDb2DocumentStore):
+        docs = [
+            Document(meta={"category": "100% complete"}),
+            Document(meta={"category": "plain"}),
+            Document(meta={"category": "under_score"}),
+            Document(meta={"category": "underXscore"}),
+        ]
+        document_store.write_documents(docs)
+
+        values, total = document_store.get_metadata_field_unique_values("category", search_term="%")
+        assert values == ["100% complete"]
+        assert total == 1
+
+        values, total = document_store.get_metadata_field_unique_values("category", search_term="_")
+        assert values == ["under_score"]
+        assert total == 1
+
 
 class TestIBMDb2DocumentStoreUtilMethods:
     """Unit tests for pure utility methods: _parse_embedding, _validate_embedding, _infer_field_type."""
@@ -707,10 +736,10 @@ class TestIBMDb2DocumentStoreUnit:
         count_sql, count_params = cur.execute.call_args_list[0].args
         select_sql, select_params = cur.execute.call_args_list[1].args
 
-        assert "UPPER(value) LIKE UPPER(?)" in count_sql
-        assert count_params == ["%python%"]
-        assert "UPPER(value) LIKE UPPER(?)" in select_sql
-        assert select_params == ["%python%", 0, 10]
+        assert "LOCATE(UPPER(?), UPPER(value)) > 0" in count_sql
+        assert count_params == ["python"]
+        assert "LOCATE(UPPER(?), UPPER(value)) > 0" in select_sql
+        assert select_params == ["python", 0, 10]
 
     def test_get_metadata_field_unique_values_rejects_invalid_field_name(self, mocked_store):
         store, _, _ = mocked_store
