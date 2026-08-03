@@ -76,6 +76,7 @@ class MSSharePointRetriever:
         top_k: int = 10,
         fields: list[str] | None = None,
         query_template: str | None = None,
+        region: str | None = None,
         graph_url: str = DEFAULT_GRAPH_URL,
         timeout: float = 30.0,
         max_retries: int = 3,
@@ -96,6 +97,10 @@ class MSSharePointRetriever:
             `'{searchTerms} path:"https://contoso.sharepoint.com/sites/Team"'`. The literal `{searchTerms}`
             placeholder is replaced by the run-time query. The template uses
             [Keyword Query Language (KQL)](https://learn.microsoft.com/en-us/sharepoint/dev/general-development/keyword-query-language-kql-syntax-reference).
+        :param region: The region code for the Microsoft Search index, for example `"US"`, `"EU"`, or `"APAC"`.
+            Required when using application permissions (app-only / client-credentials auth); omit for delegated
+            (on-behalf-of) tokens. See the `region` property of the
+            [searchRequest resource](https://learn.microsoft.com/en-us/graph/api/resources/searchrequest).
         :param graph_url: The Microsoft Graph base URL. Defaults to `https://graph.microsoft.com/v1.0`.
             Override for sovereign clouds.
         :param timeout: The HTTP timeout in seconds for each request to Microsoft Graph.
@@ -121,6 +126,7 @@ class MSSharePointRetriever:
         self.top_k = top_k
         self.fields = fields
         self.query_template = query_template
+        self.region = region
         self.graph_url = graph_url.rstrip("/")
         self.timeout = timeout
         self.max_retries = max_retries
@@ -215,6 +221,8 @@ class MSSharePointRetriever:
         }
         if self.fields:
             request["fields"] = self.fields
+        if self.region:
+            request["region"] = self.region
 
         return {"requests": [request]}
 
@@ -328,6 +336,7 @@ class MSSharePointRetriever:
             top_k=self.top_k,
             fields=self.fields,
             query_template=self.query_template,
+            region=self.region,
             graph_url=self.graph_url,
             timeout=self.timeout,
             max_retries=self.max_retries,
