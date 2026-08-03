@@ -635,9 +635,9 @@ class IBMDb2DocumentStore:
 
         params: list[Any] = []
         search_clause = ""
-        if search_term:
-            search_clause = " AND UPPER(value) LIKE UPPER(?)"
-            params.append(f"%{search_term}%")
+        if search_term is not None:
+            search_clause = " AND LOCATE(UPPER(?), UPPER(value)) > 0"
+            params.append(search_term)
 
         count_sql = f"SELECT COUNT(DISTINCT value) FROM ({value_subquery}) AS t WHERE value IS NOT NULL{search_clause}"
         select_sql = (
