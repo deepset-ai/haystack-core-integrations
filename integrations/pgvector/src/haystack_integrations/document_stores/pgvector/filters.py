@@ -115,6 +115,14 @@ def _parse_comparison_condition(condition: dict[str, Any]) -> tuple[Composed, li
         sql_field: Composable = (
             _treat_meta_field_as_jsonb(field) if operator in ARRAY_OPERATORS else _treat_meta_field(field, value)
         )
+    elif operator in ARRAY_OPERATORS:
+        # top-level columns are never JSONB arrays, so these operators would render SQL that the
+        # database rejects with an opaque UndefinedFunction error. Fail with a FilterError instead.
+        msg = (
+            f"Operator '{operator}' is only supported on meta fields, but got field '{field}'. "
+            f"Prefix the field name with 'meta.' to filter on an array stored in a document's metadata."
+        )
+        raise FilterError(msg)
     else:
         sql_field = Identifier(field)
 
@@ -281,26 +289,38 @@ def _not_like(field: Composable, value: Any) -> tuple[Composed, Any]:
     return SQL("{} NOT LIKE %s").format(field), value
 
 
-def _array_contains(field: Composable, value: Any) -> tuple[Composed, Jsonb]:
+def _validate_array_operator_value(field: Composable, value: Any, operator: str) -> None:
     if not isinstance(value, list):
-        msg = f"{field}'s value must be a list when using 'array_contains' comparator"
+        msg = f"{field}'s value must be a list when using '{operator}' comparator in PgVector"
         raise FilterError(msg)
+    # an empty list has no useful match semantics: `@> '[]'` matches every array and `?| '{}'` matches
+    # nothing, so the same empty filter would mean "everything" for one operator and "nothing" for the
+    # other. Callers building the list dynamically should omit the condition instead.
+    if not value:
+        msg = f"{field}'s value must be a non-empty list when using '{operator}' comparator in PgVector"
+        raise FilterError(msg)
+
+
+def _array_contains(field: Composable, value: Any) -> tuple[Composed, Jsonb]:
+    _validate_array_operator_value(field, value, "array_contains")
     # `jsonb @> jsonb` is true when the left array contains every element of the right array,
-    # so the meta array must contain all of the given values.
+    # so the meta array must contain all of the given values. Containment compares elements by value,
+    # so a non-array meta value (a bare string, an object) never matches a list of values.
     return SQL("{} @> %s").format(field), Jsonb(value)
 
 
 def _array_overlaps(field: Composable, value: Any) -> tuple[Composed, list]:
-    if not isinstance(value, list):
-        msg = f"{field}'s value must be a list when using 'array_overlaps' comparator"
-        raise FilterError(msg)
-    # `jsonb ?| text[]` is true when any of the given strings exist as top-level elements of the
-    # meta array. The operator only matches string elements, so we reject non-string values to fail
-    # fast instead of silently returning no results.
+    _validate_array_operator_value(field, value, "array_overlaps")
+    # `jsonb ?| text[]` only matches string elements, so we reject non-string values to fail fast
+    # instead of silently returning no results.
     if not all(isinstance(item, str) for item in value):
-        msg = "array_overlaps only supports lists of strings"
+        msg = f"{field}'s value must be a list of strings when using 'array_overlaps' comparator in PgVector"
         raise FilterError(msg)
-    return SQL("{} ?| %s").format(field), [value]
+    # `?|` is true when a given string exists as a top-level key OR array element, so on its own it
+    # also matches objects (by key) and bare strings. Restricting it to arrays with jsonb_typeof keeps
+    # it in agreement with array_contains. The parentheses stop this AND from being split by an
+    # enclosing OR (see _not_in for the same reason).
+    return SQL("(jsonb_typeof({}) = 'array' AND {} ?| %s)").format(field, field), [value]
 
 
 COMPARISON_OPERATORS = {

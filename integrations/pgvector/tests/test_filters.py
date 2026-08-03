@@ -204,6 +204,25 @@ class TestFilters(FilterDocumentsTest):
         )
         assert {doc.content for doc in result} == {"doc with tag1 and tag3"}
 
+    @pytest.mark.parametrize("operator", ["array_contains", "array_overlaps"])
+    def test_array_operators_ignore_non_array_meta(self, document_store, operator):
+        # meta shapes vary across sources, so the same key can hold an array in one document and a
+        # bare string or an object in another. `?|` matches a top-level key or array element, so
+        # without the jsonb_typeof guard the object and the string below would both match.
+        document_store.write_documents(
+            [
+                Document(content="array meta", meta={"tags": ["tag1", "tag2"]}),
+                Document(content="string meta", meta={"tags": "tag1"}),
+                Document(content="object meta", meta={"tags": {"tag1": "value"}}),
+                Document(content="missing key", meta={"other": "tag1"}),
+            ]
+        )
+
+        result = document_store.filter_documents(
+            filters={"field": "meta.tags", "operator": operator, "value": ["tag1"]}
+        )
+        assert {doc.content for doc in result} == {"array meta"}
+
 
 def test_treat_meta_field():
     cast_integer = SQL("(") + SQL("meta->>") + SQLLiteral("number") + SQL(")::integer")
@@ -254,8 +273,10 @@ def test_array_overlaps_condition():
     condition = {"field": "meta.tags", "operator": "array_overlaps", "value": ["tag1", "tag2"]}
     query, values = _parse_comparison_condition(condition)
 
-    assert _render(query) == "meta->'tags' ?| %s"
-    # the list is passed through so psycopg adapts it to a Postgres text[] (same wrapping as 'in')
+    # the jsonb_typeof guard keeps `?|` from matching objects (by key) or bare strings
+    assert _render(query) == "(jsonb_typeof(meta->'tags') = 'array' AND meta->'tags' ?| %s)"
+    # the list is wrapped twice (once here, once by _parse_comparison_condition), exactly like 'in',
+    # so psycopg adapts it to a nested Postgres text[]; `?|` deconstructs it to the same elements
     assert values == [[["tag1", "tag2"]]]
 
 
@@ -277,6 +298,23 @@ def test_array_overlaps_non_string_elements_raises():
         _parse_comparison_condition(condition)
 
 
+@pytest.mark.parametrize("operator", ["array_contains", "array_overlaps"])
+def test_array_operators_empty_list_raises(operator):
+    # `@> '[]'` matches every array and `?| '{}'` matches nothing, so an empty list would mean
+    # "everything" for one operator and "nothing" for the other. Reject it instead.
+    condition = {"field": "meta.tags", "operator": operator, "value": []}
+    with pytest.raises(FilterError, match="non-empty list"):
+        _parse_comparison_condition(condition)
+
+
+@pytest.mark.parametrize("operator", ["array_contains", "array_overlaps"])
+def test_array_operators_on_non_meta_field_raises(operator):
+    # top-level columns are never JSONB arrays, so this must fail before reaching the database
+    condition = {"field": "content", "operator": operator, "value": ["tag1"]}
+    with pytest.raises(FilterError, match="only supported on meta fields"):
+        _parse_comparison_condition(condition)
+
+
 def test_convert_filters_array_contains():
     filters = {"field": "meta.tags", "operator": "array_contains", "value": ["tag1", "tag2"]}
     where_clause, params = _convert_filters_to_where_clause_and_params(filters)
@@ -291,7 +329,7 @@ def test_convert_filters_array_overlaps():
     filters = {"field": "meta.tags", "operator": "array_overlaps", "value": ["tag1", "tag2"]}
     where_clause, params = _convert_filters_to_where_clause_and_params(filters)
 
-    assert _render(where_clause) == " WHERE meta->'tags' ?| %s"
+    assert _render(where_clause) == " WHERE (jsonb_typeof(meta->'tags') = 'array' AND meta->'tags' ?| %s)"
     assert params == ([["tag1", "tag2"]],)
 
 
