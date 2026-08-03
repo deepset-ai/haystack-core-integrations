@@ -60,12 +60,6 @@ jobs:
         os: ${{ fromJSON(needs.compute-test-matrix.outputs.os) }}
         python-version: ${{ fromJSON(needs.compute-test-matrix.outputs.python-version) }}
 
-    # Scoped to this job (not the workflow-level env) so the secret is not exposed to other
-    # jobs, while remaining available to the "Run integration tests" step's `if:` condition
-    # (a step's own step-level env is not in scope for that same step's `if`).
-    env:
-      E2B_API_KEY: ${{ secrets.E2B_API_KEY }}
-
     steps:
       - name: Support longpaths
         if: matrix.os == 'windows-latest'
@@ -108,7 +102,8 @@ jobs:
           path: python-coverage-comment-action-e2b.txt
 
       - name: Run integration tests
-        if: env.E2B_API_KEY != ''
+        env:
+          E2B_API_KEY: ${{ secrets.E2B_API_KEY }}
         run: hatch run test:integration-cov-append-retry
 
       - name: Store combined coverage
