@@ -30,6 +30,17 @@ def _make_store(**kwargs) -> ArangoDocumentStore:
     )
 
 
+def _make_store_named(collection_name: str) -> ArangoDocumentStore:
+    return ArangoDocumentStore(
+        host="http://localhost:8529",
+        database="haystack",
+        username=Secret.from_token("root"),
+        password=Secret.from_token("test-password"),
+        collection_name=collection_name,
+        embedding_dimension=3,
+    )
+
+
 def _mock_db(store: ArangoDocumentStore, collection_docs: list[dict] | None = None) -> MagicMock:
     mock_col = MagicMock()
     mock_col.count.return_value = len(collection_docs or [])
@@ -66,6 +77,47 @@ class TestArangoDocumentStoreInit:
         assert store.recreate_collection is True
         assert store.embedding_dimension == 3
         assert store.similarity_function == "dot_product"
+
+
+class TestArangoDocumentStoreCollectionNameValidation:
+    """`collection_name` is interpolated into AQL, so it must be validated up front."""
+
+    @pytest.mark.parametrize(
+        "collection_name",
+        [
+            pytest.param("docs` FOR d IN secrets RETURN d //", id="aql_injection"),
+            pytest.param("docs secrets", id="whitespace"),
+            pytest.param("docs;drop", id="semicolon"),
+            pytest.param("docs`backtick", id="backtick"),
+            pytest.param('docs"quote', id="double_quote"),
+            pytest.param("docs\nsecrets", id="newline"),
+            pytest.param("docs\n", id="trailing_newline"),
+            pytest.param("d" * 256 + "\n", id="too_long_trailing_newline"),
+            pytest.param("1docs", id="leading_digit"),
+            pytest.param("_docs", id="leading_underscore"),
+            pytest.param("-docs", id="leading_dash"),
+            pytest.param("", id="empty"),
+            pytest.param("d" * 257, id="too_long"),
+        ],
+    )
+    def test_init_rejects_invalid_collection_name(self, collection_name):
+        with pytest.raises(ValueError, match="Invalid collection_name"):
+            _make_store_named(collection_name)
+
+    @pytest.mark.parametrize(
+        "collection_name",
+        [
+            pytest.param("docs", id="lowercase"),
+            pytest.param("Docs", id="uppercase"),
+            pytest.param("test_docs", id="underscore"),
+            pytest.param("test-docs", id="dash"),
+            pytest.param("docs123", id="digits"),
+            pytest.param("d", id="single_char"),
+            pytest.param("d" * 256, id="max_length"),
+        ],
+    )
+    def test_init_accepts_valid_collection_name(self, collection_name):
+        assert _make_store_named(collection_name).collection_name == collection_name
 
 
 class TestArangoDocumentStoreSerialization:
