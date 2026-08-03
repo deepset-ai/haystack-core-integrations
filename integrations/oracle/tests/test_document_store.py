@@ -202,6 +202,18 @@ class TestOracleDocumentStoreUnit:
         assert count_params["search"] == "%bar%"
         assert vals_params["search"] == "%bar%"
 
+    def test_get_metadata_field_unique_values_parses_json_scalar_types(self, patched_store, mock_pool):
+        """Numeric/boolean JSON_VALUE results (returned by Oracle as text) are parsed back to their
+        original type; plain strings (not valid JSON when unquoted) are left as-is."""
+        _, _, cursor = mock_pool
+        cursor.fetchone.return_value = (3,)
+        cursor.fetchall.return_value = [("1",), ("true",), ("bar",)]
+
+        values, total = patched_store.get_metadata_field_unique_values("priority")
+
+        assert values == [1, True, "bar"]
+        assert total == 3
+
     def test_delete_table_executes_drop_and_index_sql(self, patched_store, mock_pool):
         _, _, cursor = mock_pool
         patched_store.delete_table()
@@ -449,6 +461,19 @@ class TestOracleDocumentStore(
         values, total = document_store.get_metadata_field_unique_values("category", search_term="APPLE")
         assert values == ["Apple-Tart"]
         assert total == 1
+
+    def test_get_metadata_field_unique_values_preserves_non_string_types(self, document_store):
+        """Non-string metadata values (e.g. ints) are returned in their original type, not stringified."""
+        document_store.write_documents(
+            [
+                _doc(_uid("P001"), content="one", meta={"priority": 1}),
+                _doc(_uid("P002"), content="two", meta={"priority": 2}),
+                _doc(_uid("P003"), content="three", meta={"priority": 1}),
+            ]
+        )
+        values, total = document_store.get_metadata_field_unique_values("priority")
+        assert set(values) == {1, 2}
+        assert total == 2
 
 
 @pytest.mark.integration
