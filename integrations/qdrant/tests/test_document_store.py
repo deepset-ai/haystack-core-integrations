@@ -24,8 +24,6 @@ from haystack.testing.document_store import (
 from haystack.utils import Secret
 from qdrant_client.http import models as rest
 
-from qdrant_client.http import models as rest
-
 from haystack_integrations.document_stores.qdrant.document_store import (
     DENSE_VECTORS_NAME,
     SPARSE_VECTORS_NAME,
