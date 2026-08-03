@@ -59,6 +59,7 @@ on:
       - "Test / oauth"
       - "Test / ollama"
       - "Test / openapi"
+      - "Test / opendataloader"
       - "Test / openrouter"
       - "Test / opensearch"
       - "Test / opentelemetry"

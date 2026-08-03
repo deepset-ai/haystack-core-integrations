@@ -1,0 +1,13 @@
+loaders:
+  - modules:
+      - haystack_integrations.components.converters.opendataloader.converter
+    search_path: [../src]
+processors:
+  - type: filter
+    documented_only: true
+    skip_empty_modules: true
+renderer:
+  description: Opendataloader integration for Haystack
+  id: integrations-opendataloader
+  filename: opendataloader.md
+  title: Opendataloader
