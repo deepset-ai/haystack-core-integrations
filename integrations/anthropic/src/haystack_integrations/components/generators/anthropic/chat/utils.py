@@ -364,12 +364,8 @@ def _get_openai_compatible_usage(response_dict: dict) -> dict:
     OpenAI's `prompt_tokens` INCLUDES tokens served from the prompt cache, with the cached
     portion reported separately in `prompt_tokens_details.cached_tokens`. Anthropic's
     `input_tokens` is the opposite: it is net of the cache, and the cached tokens live in
-    `cache_read_input_tokens` and `cache_creation_input_tokens`.
-
-    Renaming `input_tokens` to `prompt_tokens` therefore claimed OpenAI semantics for a
-    number that did not have them. All three are billed, so anything downstream reading
-    `prompt_tokens` as an OpenAI-compatible total under-counted by the whole cached portion,
-    which on a warm cache is most of the prompt.
+    `cache_read_input_tokens` and `cache_creation_input_tokens`. All three are billed, so
+    they are summed here to give `prompt_tokens` the meaning OpenAI gives it.
 
     The Anthropic-native keys are left in place so nothing that already reads them breaks.
     """
