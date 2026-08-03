@@ -361,6 +361,25 @@ def test_get_metadata_field_unique_values():
     assert total_count == 1
 
 
+def test_get_metadata_field_unique_values_preserves_non_string_types():
+    index_fields = [
+        SimpleField(name="id", type=SearchFieldDataType.String, key=True, filterable=True),
+        SearchableField(name="content", type=SearchFieldDataType.String),
+        SimpleField(name="priority", type=SearchFieldDataType.Int32, filterable=True),
+    ]
+    document_store, search_client, _ = _build_mock_document_store_with_schema(index_fields)
+    search_client.search.return_value = [
+        {"priority": 1},
+        {"priority": 2},
+        {"priority": 1},
+    ]
+
+    values, total_count = document_store.get_metadata_field_unique_values(metadata_field="meta.priority")
+
+    assert values == [1, 2]
+    assert total_count == 2
+
+
 def test_query_sql_raises_not_implemented():
     document_store = AzureAISearchDocumentStore(
         api_key=Secret.from_token("fake-api-key"),

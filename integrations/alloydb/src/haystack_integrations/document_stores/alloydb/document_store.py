@@ -1261,39 +1261,112 @@ class AlloyDBDocumentStore(DocumentStore):
             return {"min": None, "max": None}
         return {"min": result.get("min_value"), "max": result.get("max_value")}
 
-    def get_metadata_field_unique_values(self, field: str, filters: dict[str, Any] | None = None) -> list[Any]:
+    def _build_unique_values_queries(
+        self,
+        normalized_field: str,
+        filters: dict[str, Any] | None,
+        search_term: str | None,
+        from_: int,
+        size: int,
+    ) -> tuple[Composed, Composed, tuple]:
         """
-        Returns a list of unique values for a metadata field.
+        Builds SQL queries for getting unique metadata field values.
 
-        :param field: The metadata field name (with or without the "meta." prefix).
+        :param normalized_field: The normalized metadata field name.
         :param filters: Optional filters to restrict the documents considered.
-        :returns: A list of unique values for the given field.
+        :param search_term: Optional search term to filter unique values by a case-insensitive substring match
+            against the metadata field's own value.
+        :param from_: The offset for pagination (0-based).
+        :param size: The number of unique values to return.
+        :returns: A tuple containing (count_query, select_query, params).
         """
-        normalized_field = self._normalize_metadata_field_name(field)
         field_literal = SQLLiteral(normalized_field)
 
-        sql_query = SQL(
-            "SELECT DISTINCT meta->>{field} AS value FROM {schema_name}.{table_name} WHERE meta->>{field} IS NOT NULL"
-        ).format(
-            field=field_literal,
-            schema_name=Identifier(self.schema_name),
-            table_name=Identifier(self.table_name),
+        sql_select = SQL("SELECT DISTINCT meta->>{} AS value").format(field_literal)
+        sql_from = SQL(" FROM {schema_name}.{table_name}").format(
+            schema_name=Identifier(self.schema_name), table_name=Identifier(self.table_name)
         )
+        sql_where = SQL(" WHERE meta->>{} IS NOT NULL").format(field_literal)
 
         params: tuple = ()
         if filters:
             _validate_filters(filters)
-            sql_where_clause, params = _convert_filters_to_where_clause_and_params(filters, operator="AND")
-            sql_query += sql_where_clause
+            filters_where_clause, filters_params = _convert_filters_to_where_clause_and_params(filters, operator="AND")
+            sql_where += filters_where_clause
+            params += filters_params
+
+        if search_term:
+            # Case-insensitive substring match against the metadata field's own value.
+            sql_where += SQL(" AND meta->>{} ILIKE %s").format(field_literal)
+            params += (f"%{search_term}%",)
+
+        sql_count = SQL("SELECT COUNT(DISTINCT meta->>{} ) AS total").format(field_literal)
+        sql_count += sql_from + sql_where
+
+        sql_query = sql_select + sql_from + sql_where
+        sql_query += SQL(" ORDER BY value LIMIT {size} OFFSET {from_}").format(
+            size=SQLLiteral(size), from_=SQLLiteral(from_)
+        )
+
+        return sql_count, sql_query, params
+
+    @staticmethod
+    def _process_unique_values_result(
+        count_result: dict[str, Any] | None, records: list[dict[str, Any]]
+    ) -> tuple[list[str], int]:
+        """
+        Processes the results from unique values queries.
+
+        :param count_result: The count query result row, or None if no results.
+        :param records: The list of records from the select query.
+        :returns: A tuple containing (unique_values, total_count).
+        """
+        total_count = count_result.get("total", 0) if count_result else 0
+        unique_values = [str(record.get("value", "")) for record in records if record.get("value") is not None]
+        return unique_values, total_count
+
+    def get_metadata_field_unique_values(
+        self,
+        metadata_field: str,
+        search_term: str | None = None,
+        from_: int = 0,
+        size: int = 10,
+        filters: dict[str, Any] | None = None,
+    ) -> tuple[list[str], int]:
+        """
+        Returns unique values for a given metadata field, optionally restricted by filters and/or a search term.
+
+        :param metadata_field: The metadata field name (with or without the "meta." prefix).
+        :param search_term: Optional search term to filter unique values by a case-insensitive substring
+            match against the metadata field's own value. If None, all values are considered.
+        :param from_: The offset for pagination (0-based).
+        :param size: The number of unique values to return.
+        :param filters: Optional filters to restrict the documents considered.
+        :returns: A tuple containing:
+            - A list of unique values (as strings)
+            - The total count of unique values
+        """
+        normalized_field = self._normalize_metadata_field_name(metadata_field)
+        sql_count, sql_query, params = self._build_unique_values_queries(
+            normalized_field, filters, search_term, from_, size
+        )
 
         self._ensure_db_setup()
         assert self._dict_cursor is not None
+
+        count_result = self._execute_sql(
+            cursor=self._dict_cursor,
+            sql_query=sql_count,
+            params=params,
+            error_msg=f"Could not count unique values for field '{metadata_field}' from AlloyDBDocumentStore",
+        ).fetchone()
+
         result = self._execute_sql(
             cursor=self._dict_cursor,
             sql_query=sql_query,
             params=params,
-            error_msg=f"Could not get unique values for field '{field}' from AlloyDBDocumentStore",
+            error_msg=f"Could not get unique values for field '{metadata_field}' from AlloyDBDocumentStore",
         )
 
         records = result.fetchall()
-        return [r["value"] for r in records]
+        return AlloyDBDocumentStore._process_unique_values_result(count_result, records)

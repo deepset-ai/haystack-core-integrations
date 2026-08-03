@@ -266,16 +266,12 @@ _FINISH_REASON_MAPPING: dict[str, FinishReason] = {
 }
 
 
-def _extract_usage(obj: Any) -> dict[str, int]:
+def _extract_usage(obj: Any) -> dict[str, Any]:
     """Pull token usage off a litellm response or chunk, tolerating its absence."""
     usage = getattr(obj, "usage", None)
-    if not usage:
-        return {}
-    return {
-        "prompt_tokens": getattr(usage, "prompt_tokens", 0),
-        "completion_tokens": getattr(usage, "completion_tokens", 0),
-        "total_tokens": getattr(usage, "total_tokens", 0),
-    }
+    if usage is not None and hasattr(usage, "model_dump"):
+        return usage.model_dump(exclude_none=True)
+    return {}
 
 
 def _build_chat_message(response: Any, choice: Any) -> ChatMessage:
