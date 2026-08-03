@@ -543,8 +543,10 @@ class QdrantHybridRetriever:
              value, all values will be used for grouping. One point can be in multiple groups.
         :param group_size: Maximum amount of points to return per group. Default is 3.
         :param rrf_k: The `k` constant for Reciprocal Rank Fusion. Controls ranking formula smoothing.
+            See https://qdrant.tech/documentation/search/hybrid-queries/#setting-rrf-constant-k.
             Requires Qdrant server >= 1.16.0.
         :param rrf_weights: Per-prefetch weights for RRF fusion — `[sparse_weight, dense_weight]`.
+            See https://qdrant.tech/documentation/search/hybrid-queries/#setting-rrf-weights.
             Requires Qdrant server >= 1.17.0.
 
         :raises ValueError: If 'document_store' is not an instance of QdrantDocumentStore.
@@ -638,8 +640,12 @@ class QdrantHybridRetriever:
         :param group_by: Payload field to group by, must be a string or number field. If the field contains more than 1
              value, all values will be used for grouping. One point can be in multiple groups.
         :param group_size: Maximum amount of points to return per group. Default is 3.
-        :param rrf_k: Override the init-time `rrf_k` for this run. Requires Qdrant server >= 1.16.0.
-        :param rrf_weights: Override the init-time `rrf_weights` for this run. Requires Qdrant server >= 1.17.0.
+        :param rrf_k: Override the init-time `rrf_k` for this run.
+            See https://qdrant.tech/documentation/search/hybrid-queries/#setting-rrf-constant-k.
+            Requires Qdrant server >= 1.16.0.
+        :param rrf_weights: Override the init-time `rrf_weights` for this run.
+            See https://qdrant.tech/documentation/search/hybrid-queries/#setting-rrf-weights.
+            Requires Qdrant server >= 1.17.0.
         :returns:
             The retrieved documents.
 
@@ -704,8 +710,12 @@ class QdrantHybridRetriever:
         :param group_by: Payload field to group by, must be a string or number field. If the field contains more than 1
              value, all values will be used for grouping. One point can be in multiple groups.
         :param group_size: Maximum amount of points to return per group. Default is 3.
-        :param rrf_k: Override the init-time `rrf_k` for this run. Requires Qdrant server >= 1.16.0.
-        :param rrf_weights: Override the init-time `rrf_weights` for this run. Requires Qdrant server >= 1.17.0.
+        :param rrf_k: Override the init-time `rrf_k` for this run.
+            See https://qdrant.tech/documentation/search/hybrid-queries/#setting-rrf-constant-k.
+            Requires Qdrant server >= 1.16.0.
+        :param rrf_weights: Override the init-time `rrf_weights` for this run.
+            See https://qdrant.tech/documentation/search/hybrid-queries/#setting-rrf-weights.
+            Requires Qdrant server >= 1.17.0.
         :returns:
             The retrieved documents.
 

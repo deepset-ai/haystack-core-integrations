@@ -59,7 +59,12 @@ def _build_rrf_query(
 ) -> Any:
     """Build a Qdrant RRF query object, using custom params when provided."""
     if rrf_k is not None or rrf_weights is not None:
-        return rest.RrfQuery(rrf=rest.Rrf(k=rrf_k, weights=rrf_weights))
+        rrf_kwargs: dict[str, Any] = {}
+        if rrf_k is not None:
+            rrf_kwargs["k"] = rrf_k
+        if rrf_weights is not None:
+            rrf_kwargs["weights"] = rrf_weights
+        return rest.RrfQuery(rrf=rest.Rrf(**rrf_kwargs))
     return rest.FusionQuery(fusion=rest.Fusion.RRF)
 
 

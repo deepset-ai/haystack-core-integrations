@@ -175,21 +175,20 @@ class TestQdrantHybridRetriever:
         assert call_args[1]["query_sparse_embedding"].values == [0.1, 0.7]
         assert call_args[1]["top_k"] == 10
         assert call_args[1]["return_embedding"] is False
+        assert call_args[1]["rrf_k"] is None
+        assert call_args[1]["rrf_weights"] is None
 
         assert res["documents"][0].content == "Test doc"
         assert res["documents"][0].embedding == [0.1, 0.2]
         assert res["documents"][0].sparse_embedding == sparse_embedding
 
-    def test_run_passes_rrf_params(self):
-        mock_store = Mock(spec=QdrantDocumentStore)
+        # rrf params are forwarded when set at init
         mock_store._query_hybrid.return_value = []
-
-        retriever = QdrantHybridRetriever(document_store=mock_store, rrf_k=20, rrf_weights=[2.0, 1.0])
-        retriever.run(
+        retriever_rrf = QdrantHybridRetriever(document_store=mock_store, rrf_k=20, rrf_weights=[2.0, 1.0])
+        retriever_rrf.run(
             query_embedding=[0.5, 0.7],
             query_sparse_embedding=SparseEmbedding(indices=[0, 5], values=[0.1, 0.7]),
         )
-
         call_args = mock_store._query_hybrid.call_args
         assert call_args[1]["rrf_k"] == 20
         assert call_args[1]["rrf_weights"] == [2.0, 1.0]
