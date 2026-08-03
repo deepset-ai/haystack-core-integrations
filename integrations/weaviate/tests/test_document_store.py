@@ -1234,6 +1234,19 @@ class TestWeaviateDocumentStore(
         assert total_count == 0
         assert values == []
 
+    def test_get_metadata_field_unique_values_preserves_non_string_types(self, document_store):
+        """Non-string metadata values (e.g. ints) are returned in their original type, not stringified."""
+        docs = [
+            Document(content="Doc 1", meta={"number": 1}),
+            Document(content="Doc 2", meta={"number": 2}),
+            Document(content="Doc 3", meta={"number": 1}),
+        ]
+        document_store.write_documents(docs)
+
+        values, total_count = document_store.get_metadata_field_unique_values("number")
+        assert total_count == 2
+        assert set(values) == {1, 2}
+
     # --- Overrides of mixin tests to account for Weaviate-specific behaviour ---
 
     def test_count_documents_by_filter_simple(self, document_store):
