@@ -29,8 +29,6 @@ concurrency:
 env:
   PYTHONUNBUFFERED: "1"
   FORCE_COLOR: "1"
-  WATSONX_API_KEY: ${{ secrets.WATSONX_API_KEY }}
-  WATSONX_PROJECT_ID: ${{ secrets.WATSONX_PROJECT_ID }}
   TEST_MATRIX_OS: '["ubuntu-latest", "windows-latest", "macos-latest"]'
   TEST_MATRIX_PYTHON: '["3.10", "3.13"]'
 
@@ -107,6 +105,9 @@ jobs:
           path: python-coverage-comment-action-watsonx.txt
 
       - name: Run integration tests
+        env:
+          WATSONX_API_KEY: ${{ secrets.WATSONX_API_KEY }}
+          WATSONX_PROJECT_ID: ${{ secrets.WATSONX_PROJECT_ID }}
         run: hatch run test:integration-cov-append-retry
 
       - name: Store combined coverage
