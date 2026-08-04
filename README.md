@@ -5,9 +5,9 @@
 | Name                                                                              |    Stmts |     Miss |   Branch |   BrPart |   Cover |   Missing |
 |---------------------------------------------------------------------------------- | -------: | -------: | -------: | -------: | ------: | --------: |
 | src/haystack\_integrations/components/retrievers/arangodb/embedding\_retriever.py |       27 |        0 |        2 |        0 |    100% |           |
-| src/haystack\_integrations/document\_stores/arangodb/document\_store.py           |      152 |        0 |       42 |        1 |     99% | 122-\>124 |
-| src/haystack\_integrations/document\_stores/arangodb/filters.py                   |       96 |        8 |       36 |        6 |     89% |22, 24, 26, 30, 60-61, 127-128 |
-| **TOTAL**                                                                         |  **275** |    **8** |   **80** |    **7** | **96%** |           |
+| src/haystack\_integrations/document\_stores/arangodb/document\_store.py           |      153 |        0 |       42 |        1 |     99% | 131-\>133 |
+| src/haystack\_integrations/document\_stores/arangodb/filters.py                   |      100 |        4 |       36 |        2 |     96% |73-74, 145-146 |
+| **TOTAL**                                                                         |  **280** |    **4** |   **80** |    **3** | **98%** |           |
 
 
 ## Setup coverage badge
