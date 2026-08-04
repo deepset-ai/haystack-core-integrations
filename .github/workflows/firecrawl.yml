@@ -100,6 +100,7 @@ jobs:
           path: python-coverage-comment-action-firecrawl.txt
 
       - name: Run integration tests
+        if: matrix.python-version == '3.10' && runner.os == 'Linux'
         env:
           FIRECRAWL_API_KEY: ${{ secrets.FIRECRAWL_API_KEY }}
         run: hatch run test:integration-cov-append-retry
