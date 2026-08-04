@@ -150,9 +150,9 @@ class TestSerialization:
         }
 
     def test_to_dict_with_region(self):
-        retriever = MSSharePointRetriever(region="US")
+        retriever = MSSharePointRetriever(region="NAM")
         data = retriever.to_dict()
-        assert data["init_parameters"]["region"] == "US"
+        assert data["init_parameters"]["region"] == "NAM"
 
     def test_from_dict_round_trip(self):
         retriever = MSSharePointRetriever(entity_types=["site"], top_k=7, query_template="{searchTerms}")
@@ -250,11 +250,11 @@ class TestRun:
         assert "fields" not in mock_post.call_args.kwargs["json"]["requests"][0]
 
     def test_region_included_in_request_body_when_set(self):
-        retriever = MSSharePointRetriever(region="US")
+        retriever = MSSharePointRetriever(region="NAM")
         with patch.object(httpx.Client, "post", return_value=_make_response(json_body=EMPTY_RESPONSE)) as mock_post:
             retriever.run(query="q", access_token="tok")
         request = mock_post.call_args.kwargs["json"]["requests"][0]
-        assert request["region"] == "US"
+        assert request["region"] == "NAM"
 
     def test_region_omitted_from_request_body_when_none(self):
         retriever = MSSharePointRetriever()
