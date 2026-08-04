@@ -120,11 +120,17 @@ jobs:
           python -m pip install --upgrade pip
           pip install -q uv --uploaded-prior-to=P1D
 
-          # Install the starter distro's deps into the uv environment
-          uv run --with llama-stack bash -lc 'llama stack list-deps starter | xargs -L1 uv pip install'
+          # mcp 2.0.0 breaks llama-stack
+          echo 'mcp<2' > mcp-constraints.txt
+          export UV_CONSTRAINT="$PWD/mcp-constraints.txt"
 
-          # Start Llama Stack (no more --image-type flag)
-          uv run --with llama-stack llama stack run starter > server.log 2>&1 &
+          # Install llama-stack and the starter distro's deps into a dedicated venv
+          uv venv stack-env
+          uv pip install --python stack-env/bin/python llama-stack
+          stack-env/bin/llama stack list-deps starter | xargs -L1 uv pip install --python stack-env/bin/python
+
+          # Start Llama Stack
+          stack-env/bin/llama stack run starter > server.log 2>&1 &
           SERVER_PID=$!
 
           # Wait up to ~120s for health; fail fast if process dies
