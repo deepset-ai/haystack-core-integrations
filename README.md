@@ -13,9 +13,9 @@
 | src/haystack\_integrations/components/rankers/nvidia/truncate.py                |        9 |        0 |        0 |        0 |    100% |           |
 | src/haystack\_integrations/utils/nvidia/client.py                               |       16 |        0 |        2 |        0 |    100% |           |
 | src/haystack\_integrations/utils/nvidia/models.py                               |       29 |        0 |        4 |        0 |    100% |           |
-| src/haystack\_integrations/utils/nvidia/nim\_backend.py                         |      115 |        0 |       30 |        3 |     98% |157-\>159, 159-\>162, 180-\>182 |
+| src/haystack\_integrations/utils/nvidia/nim\_backend.py                         |      118 |        0 |       32 |        4 |     97% |72-\>75, 164-\>166, 166-\>169, 187-\>189 |
 | src/haystack\_integrations/utils/nvidia/utils.py                                |       46 |        0 |       24 |        0 |    100% |           |
-| **TOTAL**                                                                       |  **575** |   **15** |  **168** |   **15** | **96%** |           |
+| **TOTAL**                                                                       |  **578** |   **15** |  **170** |   **16** | **96%** |           |
 
 
 ## Setup coverage badge
