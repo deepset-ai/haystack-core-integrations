@@ -134,8 +134,8 @@ class BedrockKnowledgeBaseRetriever:
         if self.use_agentic_retrieval:
             try:
                 response = client.agentic_retrieve_stream(
-                    knowledgeBaseId=self.knowledge_base_id,
                     messages=[{"content": {"text": query}, "role": "user"}],
+                    generateResponse=False,
                     retrievers=[
                         {
                             "configuration": {
@@ -157,7 +157,7 @@ class BedrockKnowledgeBaseRetriever:
                         for result in event["result"]["results"]:
                             content = result.get("content", {}).get("text", "")
                             source = _get_source_uri(result)
-                            score = result.get("score", 0.0)
+                            score = result.get("score")
                             doc = Document(
                                 content=content,
                                 meta={
