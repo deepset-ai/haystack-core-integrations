@@ -12,6 +12,7 @@ from haystack.dataclasses import ByteStream, Document
 from haystack.document_stores.errors import DocumentStoreError, DuplicateDocumentError
 from haystack.document_stores.types import DuplicatePolicy
 from haystack.utils.auth import Secret, deserialize_secrets_inplace
+
 import mariadb
 
 from .filters import _convert_filters_to_where_clause_and_params, _validate_filters
