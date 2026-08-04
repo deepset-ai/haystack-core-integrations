@@ -29,11 +29,6 @@ concurrency:
 env:
   PYTHONUNBUFFERED: "1"
   FORCE_COLOR: "1"
-  LANGFUSE_SECRET_KEY: ${{ secrets.LANGFUSE_SECRET_KEY }}
-  LANGFUSE_PUBLIC_KEY: ${{ secrets.LANGFUSE_PUBLIC_KEY }}
-  OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-  ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-  COHERE_API_KEY: ${{ secrets.COHERE_API_KEY }}
   TEST_MATRIX_OS: '["ubuntu-latest", "windows-latest", "macos-latest"]'
   TEST_MATRIX_PYTHON: '["3.10", "3.13"]'
 
@@ -110,6 +105,12 @@ jobs:
           path: python-coverage-comment-action-langfuse.txt
 
       - name: Run integration tests
+        env:
+          LANGFUSE_SECRET_KEY: ${{ secrets.LANGFUSE_SECRET_KEY }}
+          LANGFUSE_PUBLIC_KEY: ${{ secrets.LANGFUSE_PUBLIC_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          COHERE_API_KEY: ${{ secrets.COHERE_API_KEY }}
         run: hatch run test:integration-cov-append-retry
 
       - name: Store combined coverage

@@ -120,6 +120,36 @@ class TestNvidiaRanker:
         assert response[0].content == documents[1].content
         assert response[0].score == 4.2
 
+    @pytest.mark.parametrize(
+        ("model", "api_url", "expected_url"),
+        [
+            (
+                _DEFAULT_MODEL,
+                None,
+                "https://ai.api.nvidia.com/v1/retrieval/nvidia/nv-rerankqa-mistral-4b-v3/reranking",
+            ),
+            ("custom-rerank-model", "http://localhost:8000/v1", "http://localhost:8000/v1/ranking"),
+        ],
+        ids=["hosted", "local-nim"],
+    )
+    def test_ranking_url(self, requests_mock, monkeypatch, model, api_url, expected_url) -> None:
+        # Hosted models are assigned a per-model endpoint that already includes the full path,
+        # while local/self-hosted NIM deployments get no such override and need `/ranking`
+        # appended to the base URL. Registering only the exact expected URL means any other
+        # URL raises NoMockAddress instead of silently passing.
+        monkeypatch.setenv("NVIDIA_API_KEY", "fake-api-key")
+        requests_mock.post(expected_url, json={"rankings": [{"index": 0, "logit": 1.0}]}, complete_qs=True)
+
+        api_url_param = {} if api_url is None else {"api_url": api_url}
+        client = NvidiaRanker(model=model, top_k=1, **api_url_param)
+        client.warm_up()
+
+        response = client.run(query="q", documents=[Document(content="doc")])["documents"]
+
+        assert len(response) == 1
+        assert requests_mock.last_request is not None
+        assert requests_mock.last_request.url == expected_url
+
     @pytest.mark.parametrize("truncate", [True, False, 1, 0, 1.0, "START", "BOGUS"])
     def test_truncate_invalid(self, truncate: Any) -> None:
         with pytest.raises(ValueError) as e:
@@ -181,6 +211,7 @@ class TestNvidiaRanker:
         client = NvidiaRanker(
             model=os.environ["NVIDIA_NIM_RANKER_MODEL"],
             api_url=os.environ["NVIDIA_NIM_RANKER_ENDPOINT_URL"],
+            api_key=None,
             top_k=2,
         )
         client.warm_up()
