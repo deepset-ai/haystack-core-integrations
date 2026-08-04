@@ -105,6 +105,7 @@ jobs:
           path: python-coverage-comment-action-mistral.txt
 
       - name: Run integration tests
+        if: matrix.python-version == '3.10' && runner.os == 'Linux'
         run: hatch run test:integration-cov-append-retry
         env:
           MISTRAL_API_KEY: ${{ secrets.MISTRAL_API_KEY }}

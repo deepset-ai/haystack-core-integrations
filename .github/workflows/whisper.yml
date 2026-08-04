@@ -114,6 +114,7 @@ jobs:
         run: brew install ffmpeg
 
       - name: Run integration tests
+        if: matrix.python-version == '3.10' && runner.os == 'Linux'
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         run: hatch run test:integration-cov-append-retry

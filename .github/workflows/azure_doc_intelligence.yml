@@ -101,6 +101,7 @@ jobs:
           path: python-coverage-comment-action-azure_doc_intelligence.txt
 
       - name: Run integration tests
+        if: matrix.python-version == '3.10' && runner.os == 'Linux'
         env:
           AZURE_DI_ENDPOINT: ${{ secrets.AZURE_DI_ENDPOINT }}
           AZURE_AI_API_KEY: ${{ secrets.AZURE_AI_API_KEY }}

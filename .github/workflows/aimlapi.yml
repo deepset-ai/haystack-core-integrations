@@ -105,6 +105,7 @@ jobs:
           path: python-coverage-comment-action-aimlapi.txt
 
       - name: Run integration tests
+        if: matrix.python-version == '3.10' && runner.os == 'Linux'
         env:
           AIMLAPI_API_KEY: ${{ secrets.AIMLAPI_API_KEY }}
         run: hatch run test:integration-cov-append-retry
