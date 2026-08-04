@@ -5,6 +5,7 @@
 """ArcadeDB DocumentStore for Haystack 2.x — document storage + vector search via HTTP/JSON API."""
 
 import logging
+from contextlib import suppress
 from http import HTTPStatus
 from typing import Any, ClassVar
 
@@ -95,7 +96,7 @@ class ArcadeDBDocumentStore:
         self._recreate_type = recreate_type
         self._create_database = create_database
 
-        self._session = requests.Session()
+        self._session: requests.Session | None = None
         self._initialized = False
 
     def to_dict(self) -> dict[str, Any]:
@@ -134,9 +135,24 @@ class ArcadeDBDocumentStore:
                 init_params[key] = Secret.from_dict(init_params[key])
         return default_from_dict(cls, data)
 
+    def close(self) -> None:
+        """
+        Release the associated synchronous resources.
+        """
+        if self._session is not None:
+            with suppress(Exception):
+                self._session.close()
+            self._session = None
+
     # ------------------------------------------------------------------
     # HTTP helpers
     # ------------------------------------------------------------------
+
+    def _ensure_session(self) -> requests.Session:
+        """Lazily create the HTTP session"""
+        if self._session is None:
+            self._session = requests.Session()
+        return self._session
 
     def _auth(self) -> tuple[str, str] | None:
         user = self._username.resolve_value() if self._username else None
@@ -152,7 +168,7 @@ class ArcadeDBDocumentStore:
         if positional_params:
             payload["params"] = positional_params
 
-        resp = self._session.post(url, json=payload, auth=self._auth())
+        resp = self._ensure_session().post(url, json=payload, auth=self._auth())
         if resp.status_code >= HTTPStatus.BAD_REQUEST:
             msg = f"ArcadeDB command failed ({resp.status_code}): {resp.text}"
             raise RuntimeError(msg)
@@ -163,7 +179,7 @@ class ArcadeDBDocumentStore:
     def _server_command(self, command: str) -> dict[str, Any]:
         """Execute a server-level command (e.g. CREATE DATABASE)."""
         url = f"{self._url}/api/v1/server"
-        resp = self._session.post(url, json={"command": command}, auth=self._auth())
+        resp = self._ensure_session().post(url, json={"command": command}, auth=self._auth())
         if resp.status_code >= HTTPStatus.BAD_REQUEST:
             msg = f"ArcadeDB server command failed ({resp.status_code}): {resp.text}"
             raise RuntimeError(msg)
@@ -238,19 +254,19 @@ class ArcadeDBDocumentStore:
         return 0
 
     @staticmethod
-    def _extract_distinct_values(rows: list[dict[str, Any]]) -> set[str]:
+    def _extract_distinct_values(rows: list[dict[str, Any]]) -> set[Any]:
         """
-        Extracts and flattens unique non-None strings from 'val' column result rows.
+        Extracts and flattens unique non-None values from 'val' column result rows.
         :param rows: Raw result rows from ``_command``.
-        :returns: A set of unique string values.
+        :returns: A set of unique values, preserving their original type.
         """
-        result: set[str] = set()
+        result: set[Any] = set()
         for row in rows:
             val = row.get("val")
             if isinstance(val, list):
-                result.update(str(item) for item in val if item is not None)
+                result.update(item for item in val if item is not None)
             elif val is not None:
-                result.add(str(val))
+                result.add(val)
         return result
 
     def _get_metadata_projection_documents(self) -> list[dict[str, Any]]:
@@ -560,7 +576,7 @@ class ArcadeDBDocumentStore:
 
     def get_metadata_field_unique_values(
         self, metadata_field: str, search_term: str | None = None, from_: int = 0, size: int = 10
-    ) -> tuple[list[str], int]:
+    ) -> tuple[list[Any], int]:
         """
         Retrieves unique values for a field matching a search term or all possible values
         if no search term is given.
@@ -568,7 +584,7 @@ class ArcadeDBDocumentStore:
         :param search_term: Optional case-insensitive substring search term.
         :param from_: The starting index for pagination.
         :param size: The number of values to return.
-        :returns: A tuple containing the paginated values and the total count.
+        :returns: A tuple containing the paginated values (in their original type) and the total count.
         """
         self._ensure_initialized()
 

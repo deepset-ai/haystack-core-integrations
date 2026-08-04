@@ -143,7 +143,7 @@ class TestTavilyWebSearch:
             mock_cls.return_value.search.return_value = search_response
             ws = TavilyWebSearch(api_key=Secret.from_token("test-key"))
             ws.run(query="test")
-            mock_cls.assert_called_once_with(api_key="test-key")
+            mock_cls.assert_called_once_with(api_key="test-key", client_name="haystack")
 
     @pytest.mark.asyncio
     async def test_run_async_triggers_warm_up(self, search_response):
@@ -154,7 +154,7 @@ class TestTavilyWebSearch:
             mock_cls.return_value.search = AsyncMock(return_value=search_response)
             ws = TavilyWebSearch(api_key=Secret.from_token("test-key"))
             await ws.run_async(query="test")
-            mock_cls.assert_called_once_with(api_key="test-key")
+            mock_cls.assert_called_once_with(api_key="test-key", client_name="haystack")
 
     def test_run_empty_results(self, mock_client):
         mock_client.search.return_value = {"results": []}

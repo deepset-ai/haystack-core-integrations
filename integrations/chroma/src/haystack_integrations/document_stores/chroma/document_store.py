@@ -3,9 +3,11 @@
 # SPDX-License-Identifier: Apache-2.0
 
 from collections.abc import Sequence
+from contextlib import suppress
 from typing import Any, Literal, cast
 
 import chromadb
+from chromadb.api import ClientAPI
 from chromadb.api.models.AsyncCollection import AsyncCollection
 from chromadb.api.types import GetResult, Metadata, OneOrMany, QueryResult
 from chromadb.config import Settings
@@ -101,6 +103,7 @@ class ChromaDocumentStore:
         self._host = host
         self._port = port
 
+        self._client: ClientAPI | None = None
         self._collection: chromadb.Collection | None = None
         self._async_collection: AsyncCollection | None = None
 
@@ -138,7 +141,7 @@ class ChromaDocumentStore:
                 # Local persistent storage
                 client = chromadb.PersistentClient(path=self._persist_path, **client_kwargs)
 
-            self._client = client  # store client for potential future use
+            self._client = client
 
             # Build the collection metadata locally so `self._metadata` stays exactly as the user passed it.
             # This keeps `to_dict()` deterministic and avoids mutating a user-supplied dict in place.
@@ -212,6 +215,15 @@ class ChromaDocumentStore:
                     metadata=collection_metadata,
                     embedding_function=self._embedding_func,
                 )
+
+    def close(self) -> None:
+        """Release the associated synchronous resources."""
+        if self._client is not None:
+            with suppress(Exception):
+                # `close` is not declared on the `ClientAPI` interface, but the concrete Chroma clients implement it
+                self._client.close()  # type: ignore[attr-defined]
+            self._client = None
+            self._collection = None
 
     @staticmethod
     def _prepare_get_kwargs(filters: dict[str, Any] | None = None) -> dict[str, Any]:
@@ -350,16 +362,17 @@ class ChromaDocumentStore:
         search_term: str | None,
         from_: int,
         size: int,
-    ) -> tuple[list[str], int]:
+    ) -> tuple[list[Any], int]:
         """
         Computes paginated unique values for a metadata field from a Chroma get result.
 
         :param result: The full GetResult from a Chroma collection get operation.
         :param field_name: The metadata field name to collect unique values for.
-        :param search_term: Optional search term to filter documents by content.
+        :param search_term: Optional search term to filter by, matched as a case-insensitive
+            substring against the value of `field_name`.
         :param from_: The offset to start returning values from.
         :param size: The maximum number of unique values to return.
-        :returns: A tuple of the paginated unique values list and the total count.
+        :returns: A tuple of the paginated unique values (in their original type) list and the total count.
         """
         metadatas = result.get("metadatas", [])
 
@@ -367,24 +380,26 @@ class ChromaDocumentStore:
             return [], 0
 
         if search_term:
-            documents = result.get("documents")
-            if documents is None:
-                documents = []
-            filtered_metadatas = [
-                metadatas[i] for i in range(len(documents)) if documents[i] and search_term in documents[i]
+            search_term_lower = search_term.lower()
+            metadatas = [
+                meta
+                for meta in metadatas
+                if meta
+                and field_name in meta
+                and meta.get(field_name) is not None
+                and search_term_lower in str(meta.get(field_name)).lower()
             ]
-            metadatas = filtered_metadatas
 
         if not metadatas:
             return [], 0
 
         unique_values = {
-            str(meta.get(field_name))
+            meta.get(field_name)
             for meta in metadatas
             if meta and field_name in meta and meta.get(field_name) is not None
         }
 
-        sorted_values = sorted(unique_values)
+        sorted_values = sorted(unique_values, key=str)
         total_count = len(sorted_values)
         end = from_ + size
         paginated_values = sorted_values[from_:end]
@@ -901,6 +916,7 @@ class ChromaDocumentStore:
         """
         self._ensure_initialized()  # _ensure_initialized ensures _client is not None and a collection exists
         assert self._collection is not None
+        assert self._client is not None
 
         try:
             if recreate_index:
@@ -1292,28 +1308,24 @@ class ChromaDocumentStore:
         search_term: str | None = None,
         from_: int = 0,
         size: int = 10,
-    ) -> tuple[list[str], int]:
+    ) -> tuple[list[Any], int]:
         """
-        Return unique metadata field values, optionally filtered by a content search term, with pagination.
+        Return unique metadata field values, optionally filtered by a search term, with pagination.
 
         :param metadata_field: The metadata field to get unique values for.
             Can include or omit the "meta." prefix.
-        :param search_term: Optional search term to filter documents by matching
-            in the content field.
+        :param search_term: Optional search term to filter values, matched as a
+            case-insensitive substring against the metadata field's value.
         :param from_: The offset to start returning values from (for pagination).
         :param size: The maximum number of unique values to return.
-        :returns: A tuple containing list of unique values and total count of unique values.
+        :returns: A tuple containing list of unique values (in their original type) and total count of unique values.
         """
         self._ensure_initialized()
         assert self._collection is not None
 
         field_name = _normalize_metadata_field_name(metadata_field)
 
-        kwargs: dict[str, Any] = {"include": ["metadatas"]}
-        if search_term:
-            kwargs["include"] = ["metadatas", "documents"]
-
-        result = self._collection.get(**kwargs)
+        result = self._collection.get(include=["metadatas"])
         return self._compute_field_unique_values(result, field_name, search_term, from_, size)
 
     async def get_metadata_field_unique_values_async(
@@ -1322,30 +1334,26 @@ class ChromaDocumentStore:
         search_term: str | None = None,
         from_: int = 0,
         size: int = 10,
-    ) -> tuple[list[str], int]:
+    ) -> tuple[list[Any], int]:
         """
-        Asynchronously return unique metadata field values, optionally filtered by content, with pagination.
+        Asynchronously return unique metadata field values, optionally filtered by a search term, with pagination.
 
         Asynchronous methods are only supported for HTTP connections.
 
         :param metadata_field: The metadata field to get unique values for.
             Can include or omit the "meta." prefix.
-        :param search_term: Optional search term to filter documents by matching
-            in the content field.
+        :param search_term: Optional search term to filter values, matched as a
+            case-insensitive substring against the metadata field's value.
         :param from_: The offset to start returning values from (for pagination).
         :param size: The maximum number of unique values to return.
-        :returns: A tuple containing list of unique values and total count of unique values.
+        :returns: A tuple containing list of unique values (in their original type) and total count of unique values.
         """
         await self._ensure_initialized_async()
         assert self._async_collection is not None
 
         field_name = _normalize_metadata_field_name(metadata_field)
 
-        kwargs: dict[str, Any] = {"include": ["metadatas"]}
-        if search_term:
-            kwargs["include"] = ["metadatas", "documents"]
-
-        result = await self._async_collection.get(**kwargs)
+        result = await self._async_collection.get(include=["metadatas"])
         return self._compute_field_unique_values(result, field_name, search_term, from_, size)
 
     @classmethod

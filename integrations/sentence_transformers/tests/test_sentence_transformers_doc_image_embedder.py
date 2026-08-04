@@ -321,7 +321,9 @@ class TestSentenceTransformersDocumentImageEmbedder:
         ),
     )
     def test_live_run(self, test_files_path, del_hf_env_vars_if_empty):
-        embedder = SentenceTransformersDocumentImageEmbedder(model="sentence-transformers/clip-ViT-B-32")
+        embedder = SentenceTransformersDocumentImageEmbedder(
+            model="sentence-transformers/clip-ViT-B-32", device=ComponentDevice.from_str("cpu")
+        )
 
         documents = [
             Document(

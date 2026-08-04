@@ -173,7 +173,9 @@ class TestTransformersTextRouter:
 
     @pytest.mark.integration
     def test_run(self, del_hf_env_vars_if_empty):
-        router = TransformersTextRouter(model="papluca/xlm-roberta-base-language-detection")
+        router = TransformersTextRouter(
+            model="papluca/xlm-roberta-base-language-detection", device=ComponentDevice.from_str("cpu")
+        )
         out = router.run("What is the color of the sky?")
         assert set(router.labels) == {
             "ar",
@@ -202,6 +204,10 @@ class TestTransformersTextRouter:
 
     @pytest.mark.integration
     def test_wrong_labels(self, del_hf_env_vars_if_empty):
-        router = TransformersTextRouter(model="papluca/xlm-roberta-base-language-detection", labels=["en", "de"])
+        router = TransformersTextRouter(
+            model="papluca/xlm-roberta-base-language-detection",
+            labels=["en", "de"],
+            device=ComponentDevice.from_str("cpu"),
+        )
         with pytest.raises(ValueError):
             router.warm_up()

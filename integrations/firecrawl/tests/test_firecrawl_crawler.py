@@ -61,7 +61,7 @@ class TestFirecrawlCrawler:
             api_key=Secret.from_env_var("FIRECRAWL_API_KEY"),
             params={"limit": 5},
         )
-        data = component_to_dict(fetcher, "FirecrawlFetcher")
+        data = component_to_dict(fetcher, "FirecrawlCrawler")
         assert data["type"] == "haystack_integrations.components.fetchers.firecrawl.firecrawl_crawler.FirecrawlCrawler"
         assert data["init_parameters"]["params"] == {"limit": 5}
         assert "api_key" in data["init_parameters"]
@@ -75,7 +75,7 @@ class TestFirecrawlCrawler:
                 "api_key": {"env_vars": ["FIRECRAWL_API_KEY"], "strict": True, "type": "env_var"},
             },
         }
-        fetcher = component_from_dict(FirecrawlCrawler, data, "FirecrawlFetcher")
+        fetcher = component_from_dict(FirecrawlCrawler, data, "FirecrawlCrawler")
         assert fetcher.params == {"limit": 3}
         assert fetcher.api_key.resolve_value() == "test-key"
 

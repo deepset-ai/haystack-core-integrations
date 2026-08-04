@@ -4,11 +4,12 @@
 
 import asyncio
 import copy
+import inspect
 from typing import Any
 
 import torch
 from haystack import logging
-from haystack.dataclasses import AsyncStreamingCallbackT, ComponentInfo, StreamingChunk, SyncStreamingCallbackT
+from haystack.dataclasses import ComponentInfo, StreamingCallbackT, StreamingChunk, SyncStreamingCallbackT
 from haystack.utils.auth import Secret
 from haystack.utils.device import ComponentDevice
 from huggingface_hub import model_info
@@ -198,7 +199,7 @@ class _AsyncHFTokenStreamingHandler(TextStreamer):
     Async streaming handler for TransformersChatGenerator.
 
     Note: This is a helper class for TransformersChatGenerator enabling
-    async streaming of generated text via Haystack Callable[StreamingChunk, Awaitable[None]] callbacks.
+    async streaming of generated text via Haystack StreamingCallbackT callbacks.
 
     Do not use this class directly.
     """
@@ -206,7 +207,7 @@ class _AsyncHFTokenStreamingHandler(TextStreamer):
     def __init__(
         self,
         tokenizer: PreTrainedTokenizerBase,
-        stream_handler: AsyncStreamingCallbackT,
+        stream_handler: StreamingCallbackT,
         stop_words: list[str] | None = None,
         component_info: ComponentInfo | None = None,
     ) -> None:
@@ -228,7 +229,10 @@ class _AsyncHFTokenStreamingHandler(TextStreamer):
         while True:
             try:
                 chunk = await self._queue.get()
-                await self.token_handler(chunk)
+                # sync callbacks are allowed in async contexts with Haystack >= 3.0, so only await async ones
+                callback_result = self.token_handler(chunk)
+                if inspect.isawaitable(callback_result):
+                    await callback_result
                 self._queue.task_done()
             except asyncio.CancelledError:
                 break

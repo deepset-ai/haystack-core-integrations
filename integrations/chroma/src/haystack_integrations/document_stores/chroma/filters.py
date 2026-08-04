@@ -68,7 +68,7 @@ def _convert_filters(filters: dict[str, Any]) -> ChromaFilter:
             continue
         # if field is "id", it'll be passed to Chroma's ids filter
         elif field == "id":
-            if not value["$eq"]:
+            if "$eq" not in value or not value["$eq"]:
                 msg = f"id filter only supports '==' operator, got {value}"
                 raise ChromaDocumentStoreFilterError(msg)
             ids.append(value["$eq"])

@@ -12,9 +12,9 @@ from typing import Any
 from docling_core.types.io import DocumentStream
 from haystack import Document, component, logging
 from haystack.components.converters.utils import normalize_metadata
-from haystack.core.serialization import default_from_dict, default_to_dict
+from haystack.core.serialization import component_to_dict, default_from_dict, default_to_dict
 from haystack.dataclasses import ByteStream
-from haystack.utils.base_serialization import deserialize_class_instance, serialize_class_instance
+from haystack.utils import deserialize_chatgenerator_inplace
 
 from docling.chunking import BaseChunk, BaseChunker, HybridChunker
 from docling.datamodel.document import DoclingDocument
@@ -69,12 +69,12 @@ class BaseMetaExtractor(ABC):
 
     def to_dict(self) -> dict[str, Any]:
         """Serialize to a dictionary."""
-        return {}
+        return default_to_dict(self)
 
     @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "BaseMetaExtractor":  # noqa: ARG003
+    def from_dict(cls, data: dict[str, Any]) -> "BaseMetaExtractor":
         """Deserialize from a dictionary."""
-        return cls()
+        return default_from_dict(cls, data)
 
 
 class MetaExtractor(BaseMetaExtractor):
@@ -82,7 +82,10 @@ class MetaExtractor(BaseMetaExtractor):
 
     def extract_chunk_meta(self, chunk: BaseChunk) -> dict[str, Any]:
         """Extract chunk meta."""
-        meta: dict[str, Any] = {"dl_meta": chunk.export_json_dict()}
+        dl_meta = chunk.export_json_dict()
+        if origin := dl_meta.get("meta", {}).get("origin"):
+            origin["binary_hash"] = str(origin["binary_hash"])
+        meta: dict[str, Any] = {"dl_meta": dl_meta}
         doc_items = getattr(chunk.meta, "doc_items", [])
         page_nos = {prov.page_no for item in doc_items for prov in getattr(item, "prov", [])}
         if page_nos:
@@ -91,7 +94,11 @@ class MetaExtractor(BaseMetaExtractor):
 
     def extract_dl_doc_meta(self, dl_doc: DoclingDocument) -> dict[str, Any]:
         """Extract Docling document meta."""
-        return {"dl_meta": {"origin": dl_doc.origin.model_dump(exclude_none=True)}} if dl_doc.origin else {}
+        if not dl_doc.origin:
+            return {}
+        origin = dl_doc.origin.model_dump(exclude_none=True)
+        origin["binary_hash"] = str(origin["binary_hash"])
+        return {"dl_meta": {"origin": origin}}
 
 
 @component
@@ -169,7 +176,7 @@ class DoclingConverter:
 
         meta_extractor_data = None
         if self.meta_extractor is not None:
-            meta_extractor_data = serialize_class_instance(self.meta_extractor)
+            meta_extractor_data = component_to_dict(self.meta_extractor, "meta_extractor")
 
         return default_to_dict(
             self,
@@ -197,7 +204,12 @@ class DoclingConverter:
 
         meta_extractor_data = init_params.get("meta_extractor")
         if meta_extractor_data is not None:
-            init_params["meta_extractor"] = deserialize_class_instance(meta_extractor_data)
+            if "data" in meta_extractor_data:
+                # Pipelines serialized before this fix wrap the meta extractor as
+                # {"type": ..., "data": {"type": ..., "init_parameters": ...}}; unwrap it here so older
+                # serialized pipelines keep working.
+                init_params["meta_extractor"] = meta_extractor_data["data"]
+            deserialize_chatgenerator_inplace(init_params, key="meta_extractor")
 
         return default_from_dict(cls, data)
 

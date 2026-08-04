@@ -179,7 +179,7 @@ def test_component_to_dict_custom_params() -> None:
             "chunker": None,
             "meta_extractor": {
                 "type": "haystack_integrations.components.converters.docling.converter.MetaExtractor",
-                "data": {},
+                "init_parameters": {},
             },
         },
     }
@@ -219,7 +219,7 @@ def test_component_from_dict_custom_params() -> None:
             "chunker": None,
             "meta_extractor": {
                 "type": "haystack_integrations.components.converters.docling.converter.MetaExtractor",
-                "data": {},
+                "init_parameters": {},
             },
         },
     }
@@ -230,6 +230,29 @@ def test_component_from_dict_custom_params() -> None:
     assert restored.export_type == ExportType.JSON
     assert restored.md_export_kwargs == {"image_placeholder": "[img]"}
     assert restored.chunker is None
+    assert isinstance(restored.meta_extractor, MetaExtractor)
+
+
+def test_component_from_dict_with_legacy_meta_extractor_format() -> None:
+    # Pipelines serialized before this fix wrap meta_extractor as {"type": ..., "data": {...}}
+    data = {
+        "type": "haystack_integrations.components.converters.docling.converter.DoclingConverter",
+        "init_parameters": {
+            "converter": None,
+            "convert_kwargs": {},
+            "export_type": "markdown",
+            "md_export_kwargs": {"image_placeholder": ""},
+            "chunker": None,
+            "meta_extractor": {
+                "type": "haystack_integrations.components.converters.docling.converter.MetaExtractor",
+                "data": {
+                    "type": "haystack_integrations.components.converters.docling.converter.MetaExtractor",
+                    "init_parameters": {},
+                },
+            },
+        },
+    }
+    restored = DoclingConverter.from_dict(data)
     assert isinstance(restored.meta_extractor, MetaExtractor)
 
 
@@ -527,11 +550,17 @@ class TestMetaExtractor:
 
     def test_extract_dl_doc_meta_with_origin(self) -> None:
         dl_doc = MagicMock()
-        dl_doc.origin.model_dump.return_value = {"filename": "foo.pdf", "mimetype": "application/pdf"}
+        dl_doc.origin.model_dump.return_value = {
+            "filename": "foo.pdf",
+            "mimetype": "application/pdf",
+            "binary_hash": 42,
+        }
 
         result = MetaExtractor().extract_dl_doc_meta(dl_doc=dl_doc)
 
-        assert result == {"dl_meta": {"origin": {"filename": "foo.pdf", "mimetype": "application/pdf"}}}
+        assert result == {
+            "dl_meta": {"origin": {"filename": "foo.pdf", "mimetype": "application/pdf", "binary_hash": "42"}}
+        }
         dl_doc.origin.model_dump.assert_called_once_with(exclude_none=True)
 
     def test_extract_dl_doc_meta_without_origin(self) -> None:
@@ -541,6 +570,27 @@ class TestMetaExtractor:
         result = MetaExtractor().extract_dl_doc_meta(dl_doc=dl_doc)
 
         assert result == {}
+
+    @pytest.mark.parametrize("hash_val", [9768961288489567249, 42])
+    def test_extract_dl_doc_meta_stringifies_binary_hash(self, hash_val: int) -> None:
+        dl_doc = MagicMock()
+        dl_doc.origin.model_dump.return_value = {"filename": "foo.pdf", "binary_hash": hash_val}
+
+        result = MetaExtractor().extract_dl_doc_meta(dl_doc=dl_doc)
+
+        assert result["dl_meta"]["origin"]["binary_hash"] == str(hash_val)
+        assert isinstance(result["dl_meta"]["origin"]["binary_hash"], str)
+
+    def test_extract_chunk_meta_stringifies_binary_hash(self) -> None:
+        oversized = 9768961288489567249
+        chunk = MagicMock()
+        chunk.export_json_dict.return_value = {"meta": {"origin": {"binary_hash": oversized}}}
+        chunk.meta.doc_items = []
+
+        result = MetaExtractor().extract_chunk_meta(chunk=chunk)
+
+        assert result["dl_meta"]["meta"]["origin"]["binary_hash"] == str(oversized)
+        assert isinstance(result["dl_meta"]["meta"]["origin"]["binary_hash"], str)
 
 
 def test_run_without_sources_or_paths_raises_value_error() -> None:

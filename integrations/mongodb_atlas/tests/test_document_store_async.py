@@ -97,6 +97,33 @@ class TestMongoDBDocumentStoreAsyncUnit:
         assert pipeline[1]["$match"] == {"_id": {"$regex": "val", "$options": "i"}}
         assert pipeline[2]["$facet"]["values"][2]["$limit"] == 2
 
+    async def test_get_metadata_field_unique_values_preserves_non_string_types(self, mocked_store_collection_async):
+        store, collection = mocked_store_collection_async
+        cursor = MagicMock()
+        cursor.to_list = AsyncMock(return_value=[{"count": [{"count": 2}], "values": [{"_id": 1}, {"_id": 2}]}])
+        collection.aggregate = AsyncMock(return_value=cursor)
+
+        values, count = await store.get_metadata_field_unique_values_async("priority")
+
+        assert values == [1, 2]
+        assert count == 2
+
+    async def test_close_async(self, local_store):
+        connection = AsyncMock()
+        local_store._connection_async = connection
+        await local_store.close_async()
+        connection.close.assert_awaited_once()
+        assert local_store._connection_async is None
+        await local_store.close_async()
+        connection.close.assert_awaited_once()
+
+    async def test_close_async_is_exception_safe(self, local_store):
+        connection = AsyncMock()
+        connection.close.side_effect = RuntimeError("boom")
+        local_store._connection_async = connection
+        await local_store.close_async()
+        assert local_store._connection_async is None
+
 
 @pytest.mark.skipif(not os.environ.get("MONGO_CONNECTION_STRING"), reason="No MongoDBAtlas connection string provided")
 @pytest.mark.integration
@@ -161,3 +188,10 @@ class TestDocumentStoreAsync(
         new_docs = [Document(id="3", content="third doc")]
         await document_store.write_documents_async(new_docs)
         assert await document_store.count_documents_async() == 1
+
+    async def test_close_async_and_reopen(self, document_store: MongoDBAtlasDocumentStore):
+        await document_store.count_documents_async()
+        assert document_store._connection_async is not None
+        await document_store.close_async()
+        assert document_store._connection_async is None
+        assert await document_store.count_documents_async() == 0

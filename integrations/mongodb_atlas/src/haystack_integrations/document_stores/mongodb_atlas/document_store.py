@@ -3,6 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import re
+from contextlib import suppress
 from typing import Any, Literal
 
 from haystack import default_from_dict, default_to_dict, logging
@@ -110,12 +111,25 @@ class MongoDBAtlasDocumentStore:
         self._collection: Collection | None = None
         self._collection_async: AsyncCollection | None = None
 
-    def __del__(self) -> None:
+    def close(self) -> None:
         """
-        Destructor method to close MongoDB connections when the instance is destroyed.
+        Release the associated synchronous resources.
         """
-        if self._connection:
-            self._connection.close()
+        if self._connection is not None:
+            with suppress(Exception):
+                self._connection.close()
+            self._connection = None
+            self._collection = None
+
+    async def close_async(self) -> None:
+        """
+        Release the associated asynchronous resources.
+        """
+        if self._connection_async is not None:
+            with suppress(Exception):
+                await self._connection_async.close()
+            self._connection_async = None
+            self._collection_async = None
 
     @property
     def connection(self) -> AsyncMongoClient | MongoClient:
@@ -491,8 +505,12 @@ class MongoDBAtlasDocumentStore:
     def _create_unique_values_pipeline(
         self, metadata_field: str, search_term: str | None, from_: int, size: int
     ) -> list[dict[str, Any]]:
+        if metadata_field.startswith("meta."):
+            mongo_field = f"${metadata_field}"
+        else:
+            mongo_field = f"$meta.{metadata_field}"
         pipeline: list[dict[str, Any]] = [
-            {"$group": {"_id": f"$meta.{metadata_field}"}},
+            {"$group": {"_id": mongo_field}},
         ]
 
         if search_term:
@@ -508,7 +526,7 @@ class MongoDBAtlasDocumentStore:
         )
         return pipeline
 
-    def _process_unique_values_result(self, result: list[Any]) -> tuple[list[str], int]:
+    def _process_unique_values_result(self, result: list[Any]) -> tuple[list[Any], int]:
         if not result or not result[0]["values"]:
             return [], 0
 
@@ -519,7 +537,7 @@ class MongoDBAtlasDocumentStore:
 
     def get_metadata_field_unique_values(
         self, metadata_field: str, search_term: str | None = None, from_: int = 0, size: int = 10
-    ) -> tuple[list[str], int]:
+    ) -> tuple[list[Any], int]:
         """
         Retrieves unique values for a field matching a search_term or all possible values if no search term is given.
 
@@ -527,8 +545,8 @@ class MongoDBAtlasDocumentStore:
         :param search_term: The search term to filter values. Matches as a case-insensitive substring.
         :param from_: The starting index for pagination.
         :param size: The number of values to return.
-        :returns: A tuple containing a list of unique values and the total count of unique values matching the
-        search term.
+        :returns: A tuple containing a list of unique values (in their original type) and the total count
+            of unique values matching the search term.
         """
         self._ensure_connection_setup()
         assert self._collection is not None
@@ -544,7 +562,7 @@ class MongoDBAtlasDocumentStore:
 
     async def get_metadata_field_unique_values_async(
         self, metadata_field: str, search_term: str | None = None, from_: int = 0, size: int = 10
-    ) -> tuple[list[str], int]:
+    ) -> tuple[list[Any], int]:
         """
         Asynchronously retrieves unique values for a metadata field, optionally filtered by a search term.
 
@@ -552,8 +570,8 @@ class MongoDBAtlasDocumentStore:
         :param search_term: The search term to filter values. Matches as a case-insensitive substring.
         :param from_: The starting index for pagination.
         :param size: The number of values to return.
-        :returns: A tuple containing a list of unique values and the total count of unique values matching the
-        search term.
+        :returns: A tuple containing a list of unique values (in their original type) and the total count
+            of unique values matching the search term.
         """
         await self._ensure_connection_setup_async()
         assert self._collection_async is not None

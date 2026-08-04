@@ -2,6 +2,9 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+import asyncio
+from typing import TypeVar
+
 import httpx
 from haystack import logging
 from haystack.utils import Secret
@@ -18,10 +21,29 @@ from .errors import GoogleDriveConfigError, GoogleDriveRequestError
 
 logger = logging.getLogger(__name__)
 
+T = TypeVar("T")
+
 DEFAULT_API_BASE_URL = "https://www.googleapis.com/drive/v3"
 _RETRYABLE_STATUS = frozenset({429, 500, 502, 503, 504})
 # Fallback backoff when a throttled response carries no `Retry-After` header: 1s, 2s, 4s, ...
 _EXPONENTIAL_BACKOFF = wait_exponential()
+
+
+async def _gather_tasks_with_cancel(tasks: list[asyncio.Task[T]]) -> list[T]:
+    """
+    Wait for all tasks, cancelling and draining unfinished siblings if one fails.
+
+    :param tasks: Tasks to wait for.
+    :returns:
+        The task results in input order.
+    """
+    try:
+        return await asyncio.gather(*tasks)
+    except BaseException:
+        for task in tasks:
+            task.cancel()
+        await asyncio.gather(*tasks, return_exceptions=True)
+        raise
 
 
 def resolve_access_token(access_token: str | Secret) -> str:

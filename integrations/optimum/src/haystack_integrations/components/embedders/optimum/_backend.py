@@ -11,8 +11,9 @@ from typing import Any, overload
 import numpy as np
 import torch
 from haystack.utils import Secret, deserialize_secrets_inplace
-from haystack.utils.hf import HFModelType, check_valid_model, deserialize_hf_model_kwargs, serialize_hf_model_kwargs
-from huggingface_hub import hf_hub_download
+from haystack.utils.hf import deserialize_hf_model_kwargs, serialize_hf_model_kwargs
+from huggingface_hub import HfApi, hf_hub_download
+from huggingface_hub.utils import RepositoryNotFoundError
 from tqdm import tqdm
 from transformers import AutoTokenizer
 from transformers.modeling_outputs import BaseModelOutput
@@ -35,6 +36,28 @@ except ImportError:
     from sentence_transformers.models import (  # type: ignore[import-not-found, no-redef]
         Pooling as SentenceTransformerPoolingLayer,
     )
+
+
+# check_valid_model was removed from haystack.utils.hf in Haystack 3.0, so an embedding-only
+# version of it is vendored here.
+def check_valid_model(model_id: str, token: Secret | None) -> None:
+    """
+    Check if the provided model ID corresponds to a valid embedding model on HuggingFace Hub.
+
+    :param model_id: A string representing the HuggingFace model ID.
+    :param token: The optional authentication token.
+    :raises ValueError: If the model is not found or is not an embedding model.
+    """
+    api = HfApi()
+    try:
+        model_info = api.model_info(model_id, token=token.resolve_value() if token else None)
+    except RepositoryNotFoundError as e:
+        msg = f"Model {model_id} not found on HuggingFace Hub. Please provide a valid HuggingFace model_id."
+        raise ValueError(msg) from e
+
+    if model_info.pipeline_tag not in ["sentence-similarity", "feature-extraction"]:
+        msg = f"Model {model_id} is not an embedding model. Please provide an embedding model."
+        raise ValueError(msg)
 
 
 @dataclass
@@ -92,7 +115,7 @@ class _EmbedderParams:
 
 class _EmbedderBackend:
     def __init__(self, params: _EmbedderParams) -> None:
-        check_valid_model(params.model, HFModelType.EMBEDDING, params.token)
+        check_valid_model(params.model, params.token)
         resolved_token = params.token.resolve_value() if params.token else None
 
         if isinstance(params.pooling_mode, str):

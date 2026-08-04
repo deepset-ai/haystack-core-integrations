@@ -1,8 +1,8 @@
-import importlib
 from typing import Any
 
 import dspy
 from haystack import component, default_from_dict, default_to_dict
+from haystack.core.serialization import import_class_by_name
 from haystack.dataclasses import ChatMessage, ChatRole
 
 VALID_MODULE_TYPES = {"Predict", "ChainOfThought", "ReAct"}
@@ -188,6 +188,9 @@ class DSPySignatureChatGenerator:
 
         Accepts `{"type": "str", "value": "question -> answer"}` or
         `{"type": "class", "value": "mymodule.QASignature"}`.
+
+        Signature classes are imported through Haystack's gated `import_class_by_name`, so with
+        `haystack-ai` >= 3.0 the module they live in must be on the deserialization allowlist.
         """
         signature_type = data["type"]
         value = data["value"]
@@ -196,9 +199,10 @@ class DSPySignatureChatGenerator:
             return value
 
         if signature_type == "class":
-            module_path, class_name = value.rsplit(".", 1)
-            module = importlib.import_module(module_path)
-            return getattr(module, class_name)
+            # `import_class_by_name` returns `type[object]`; annotate as `Any` so that returning it
+            # as a `dspy.Signature` subclass type-checks.
+            signature_cls: Any = import_class_by_name(value)
+            return signature_cls
 
         msg = f"Unknown signature type '{signature_type}'. Must be 'str' or 'class'."
         raise ValueError(msg)
@@ -219,7 +223,24 @@ class DSPySignatureChatGenerator:
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "DSPySignatureChatGenerator":
-        """Deserialize a component from a dictionary."""
+        """
+        Deserialize a component from a dictionary.
+
+        A signature serialized as a `dspy.Signature` subclass is imported by its fully qualified class
+        path. With `haystack-ai` >= 3.0 that import is gated: the module holding the class must be on
+        the deserialization allowlist, which by default covers only Haystack's own packages. To load a
+        component whose signature class lives in your own package, trust that package explicitly with
+        one of:
+
+        - `Pipeline.loads(..., allowed_modules=["mymodule"])` for a single call,
+        - `haystack.core.serialization.allow_deserialization_module("mymodule")` for the whole process,
+        - the `HAYSTACK_DESERIALIZATION_ALLOWLIST=mymodule` environment variable.
+
+        :param data: Dictionary to deserialize from.
+        :returns: Deserialized component.
+        :raises DeserializationError:
+            If the module holding the serialized signature class is not on the deserialization allowlist.
+        """
         init_params = data.get("init_parameters", {})
 
         signature = init_params.get("signature")

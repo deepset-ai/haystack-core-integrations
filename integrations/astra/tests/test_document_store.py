@@ -126,6 +126,17 @@ def test_get_metadata_field_unique_values(mocked_store):
     mock_index.distinct.assert_called_once_with("meta.category")
 
 
+def test_get_metadata_field_unique_values_preserves_non_string_types(mocked_store):
+    store, mock_index = mocked_store
+    mock_index.distinct.return_value = [1, 2, 1, 3]
+
+    values, total_count = store.get_metadata_field_unique_values("priority")
+
+    assert values == [1, 2, 3]
+    assert total_count == 3
+    mock_index.distinct.assert_called_once_with("meta.priority")
+
+
 @pytest.mark.parametrize(
     "api_endpoint,token,match",
     [

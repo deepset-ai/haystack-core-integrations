@@ -11,6 +11,16 @@ from haystack_integrations.components.retrievers.weaviate import WeaviateBM25Ret
 from haystack_integrations.document_stores.weaviate import WeaviateDocumentStore
 
 
+def test_close():
+    mock_document_store = Mock(spec=WeaviateDocumentStore)
+    retriever = WeaviateBM25Retriever(document_store=mock_document_store)
+
+    retriever.close()
+
+    mock_document_store.close.assert_called_once_with()
+    assert retriever._document_store is mock_document_store
+
+
 def test_init_default():
     mock_document_store = Mock(spec=WeaviateDocumentStore)
     retriever = WeaviateBM25Retriever(document_store=mock_document_store)

@@ -5,6 +5,8 @@
 from __future__ import annotations
 
 import logging
+import re
+from contextlib import suppress
 from dataclasses import replace
 from datetime import datetime
 from typing import Any, Literal
@@ -20,6 +22,8 @@ from redis.exceptions import ResponseError
 import falkordb  # type: ignore[import-untyped,import-not-found]
 
 logger = logging.getLogger(__name__)
+
+_CYPHER_IDENTIFIER_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 
 # Haystack filter operators → Cypher comparison operators.
 _COMPARISON_OPS: dict[str, str] = {
@@ -163,6 +167,17 @@ class FalkorDBDocumentStore(DocumentStore):
         """
         deserialize_secrets_inplace(data["init_parameters"], keys=["password"])
         return default_from_dict(cls, data)
+
+    def close(self) -> None:
+        """
+        Release the associated synchronous resources.
+        """
+        if self.client is not None:
+            with suppress(Exception):
+                self.client.close()
+            self.client = None
+            self.graph = None
+            self.initialized = False
 
     # ------------------------------------------------------------------
     # Internal connection helpers
@@ -592,41 +607,43 @@ SET d.{self.embedding_field} = vecf32(doc.emb)
         self,
         metadata_field: str,
         search_term: str | None = None,
-        size: int | None = 10000,
-        after: dict[str, Any] | None = None,
-    ) -> tuple[list[Any], dict[str, Any] | None]:
+        from_: int = 0,
+        size: int = 10,
+    ) -> tuple[list[Any], int]:
         """
         Return distinct values for the given metadata field with optional filtering and pagination.
 
         :param metadata_field: Metadata field name. May include or omit the `meta.` prefix.
-        :param search_term: Optional substring filter applied to string field values.
-        :param size: Maximum number of values to return per page. Defaults to 10 000.
-        :param after: Pagination cursor returned by a previous call. Pass `None` for the first page.
-        :returns: Tuple of `(values, next_cursor)`. `next_cursor` is `None` on the last page.
+        :param search_term: Optional case-insensitive substring filter applied to the metadata
+            field's own value.
+        :param from_: The offset for pagination (0-based).
+        :param size: Maximum number of values to return per page. Defaults to 10.
+        :returns: Tuple of `(values, total_count)`. Values are returned in their original type.
+            `total_count` is the number of distinct values matching the filter, independent of
+            pagination.
         """
         self._ensure_connected()
         field = metadata_field[5:] if metadata_field.startswith("meta.") else metadata_field
-        offset = after.get("offset", 0) if after else 0
-        limit = size if size is not None else 10000
 
-        query_params: dict[str, Any] = {}
+        query_params: dict[str, Any] = {"from_": from_, "size": size}
         where_parts = [f"d.{field} IS NOT NULL"]
         if search_term:
-            where_parts.append(f"toString(d.{field}) CONTAINS $search_term")
+            where_parts.append(f"toLower(toString(d.{field})) CONTAINS toLower($search_term)")
             query_params["search_term"] = search_term
 
         where = " AND ".join(where_parts)
         cypher = (
             f"MATCH (d:{self.node_label}) WHERE {where} "
-            f"RETURN DISTINCT d.{field} AS val "
+            f"WITH DISTINCT d.{field} AS val "
             f"ORDER BY val "
-            f"SKIP {offset} LIMIT {limit + 1}"
+            f"WITH collect(val) AS vals "
+            f"RETURN vals[$from_..$from_ + $size] AS page, size(vals) AS total"
         )
         result = self.graph.query(cypher, query_params)
-        rows = result.result_set
-        values = [row[0] for row in rows[:limit]]
-        next_cursor: dict[str, Any] | None = {"offset": offset + limit} if len(rows) > limit else None
-        return values, next_cursor
+        if not result.result_set:
+            return [], 0
+        page, total = result.result_set[0]
+        return list(page), total
 
     # ------------------------------------------------------------------
     # Internal retrieval helpers (called by retriever components)
@@ -857,6 +874,9 @@ def _build_clause(node: dict[str, Any], params: dict[str, Any], counter: list[in
     # Because meta fields are stored flat (no prefix), all fields map to d.<field>.
     # We strip 'meta.' from the field name if Haystack adds it.
     actual_field = field[5:] if field.startswith("meta.") else field
+    if not _CYPHER_IDENTIFIER_RE.fullmatch(actual_field):
+        msg = f"Invalid filter field name: {actual_field!r}"
+        raise FilterError(msg)
     cypher_field = f"d.{actual_field}"
 
     param_name = f"p{counter[0]}"

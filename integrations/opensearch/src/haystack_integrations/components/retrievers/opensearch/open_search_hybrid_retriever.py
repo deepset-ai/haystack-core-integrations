@@ -37,7 +37,9 @@ class OpenSearchHybridRetriever:
 
     ```python
     from haystack import Document
-    from haystack.components.embedders import SentenceTransformersTextEmbedder, SentenceTransformersDocumentEmbedder
+    # Requires: pip install sentence-transformers-haystack
+    from haystack_integrations.components.embedders.sentence_transformers import SentenceTransformersTextEmbedder
+    from haystack_integrations.components.embedders.sentence_transformers import SentenceTransformersDocumentEmbedder
     from haystack_integrations.components.retrievers.opensearch import OpenSearchHybridRetriever
     from haystack_integrations.document_stores.opensearch import OpenSearchDocumentStore
 
@@ -59,7 +61,6 @@ class OpenSearchHybridRetriever:
 
     # Embed the documents and add them to the document store
     doc_embedder = SentenceTransformersDocumentEmbedder(model="sentence-transformers/all-MiniLM-L6-v2")
-    doc_embedder.warm_up()
     docs = doc_embedder.run(docs)
     doc_store.write_documents(docs['documents'])
 
@@ -356,3 +357,15 @@ class OpenSearchHybridRetriever:
             data["init_parameters"]["join_mode"] = join_mode
 
         return default_from_dict(cls, data)
+
+    def close(self) -> None:
+        """
+        Release the synchronous resources of the underlying Document Store.
+        """
+        self.document_store.close()
+
+    async def close_async(self) -> None:
+        """
+        Release the asynchronous resources of the underlying Document Store.
+        """
+        await self.document_store.close_async()

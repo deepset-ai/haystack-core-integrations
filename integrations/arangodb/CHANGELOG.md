@@ -1,5 +1,20 @@
 # Changelog
 
+## [integrations/arangodb-v1.1.1] - 2026-08-04
+
+### 🐛 Bug Fixes
+
+- Fix new issues raised by ruff 0.16.0 (#3670)
+- Prevent AQL injection via collection and filter field names in the arangodb document store (#3720)
+
+
+## [integrations/arangodb-v1.1.0] - 2026-07-23
+
+### 🚀 Features
+
+- Arangodb - add closing methods (#3652)
+
+
 ## [integrations/arangodb-v1.0.0] - 2026-06-08
 
 ### 🚀 Features

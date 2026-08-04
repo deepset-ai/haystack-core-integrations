@@ -67,6 +67,13 @@ def test_to_dict_from_dict_roundtrip(mock_store):
     assert restored.document_store.embedding_dim == 4
 
 
+def test_close(mock_store):
+    retriever = OracleKeywordRetriever(document_store=mock_store)
+    retriever.close()
+    mock_store.close.assert_called_once()
+    assert retriever.document_store is mock_store
+
+
 def test_invalid_document_store_raises_type_error():
     with pytest.raises(TypeError, match="must be an instance of OracleDocumentStore"):
         OracleKeywordRetriever(document_store="not_a_store")

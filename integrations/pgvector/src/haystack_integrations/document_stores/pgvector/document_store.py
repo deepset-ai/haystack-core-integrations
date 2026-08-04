@@ -2,6 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+from contextlib import suppress
 from typing import Any, Literal
 
 from haystack import default_from_dict, default_to_dict, logging
@@ -177,6 +178,28 @@ class PgvectorDocumentStore(PostgreSQLDocumentStore):
         """
         deserialize_secrets_inplace(data["init_parameters"], ["connection_string"])
         return default_from_dict(cls, data)
+
+    def close(self) -> None:
+        """
+        Release the associated synchronous resources.
+        """
+        if self._connection is not None:
+            with suppress(Exception):
+                self._connection.close()
+            self._connection = None
+            self._cursor = None
+            self._dict_cursor = None
+
+    async def close_async(self) -> None:
+        """
+        Release the associated asynchronous resources.
+        """
+        if self._async_connection is not None:
+            with suppress(Exception):
+                await self._async_connection.close()
+            self._async_connection = None
+            self._async_cursor = None
+            self._async_dict_cursor = None
 
     def _ensure_db_setup(self) -> None:
         """
@@ -1739,7 +1762,8 @@ class PgvectorDocumentStore(PostgreSQLDocumentStore):
         Builds SQL queries for getting unique metadata field values.
 
         :param normalized_field: The normalized metadata field name.
-        :param search_term: Optional search term to filter documents by content.
+        :param search_term: Optional search term to filter unique values by a case-insensitive substring match
+            against the metadata field's own value.
         :param from_: The offset for pagination (0-based).
         :param size: The number of unique values to return.
         :returns: A tuple containing (count_query, select_query, params).
@@ -1747,7 +1771,10 @@ class PgvectorDocumentStore(PostgreSQLDocumentStore):
         field_literal = SQLLiteral(normalized_field)
 
         # base query components
-        sql_select = SQL("SELECT DISTINCT meta->>{} AS value").format(field_literal)
+        # Use the `->` (jsonb) operator rather than `->>` (text) so DISTINCT/ORDER BY operate on the
+        # value's original JSON type (numbers sort numerically, not lexicographically) and psycopg
+        # decodes the result to its native Python type instead of a string.
+        sql_select = SQL("SELECT DISTINCT meta->{} AS value").format(field_literal)
         sql_from = SQL(" FROM {schema_name}.{table_name}").format(
             schema_name=Identifier(self.schema_name), table_name=Identifier(self.table_name)
         )
@@ -1755,14 +1782,12 @@ class PgvectorDocumentStore(PostgreSQLDocumentStore):
 
         params: tuple = ()
         if search_term:
-            # Use full-text search with word boundaries (similar to keyword retrieval)
-            sql_where += SQL(" AND to_tsvector({language}, content) @@ plainto_tsquery({language}, %s)").format(
-                language=SQLLiteral(self.language)
-            )
-            params = (search_term,)
+            # Case-insensitive substring match against the metadata field's own (text) value.
+            sql_where += SQL(" AND meta->>{} ILIKE %s").format(field_literal)
+            params = (f"%{search_term}%",)
 
         # count query
-        sql_count = SQL("SELECT COUNT(DISTINCT meta->>{} ) AS total").format(field_literal)
+        sql_count = SQL("SELECT COUNT(DISTINCT meta->{} ) AS total").format(field_literal)
         sql_count += sql_from + sql_where
 
         # paginated select query
@@ -1776,7 +1801,7 @@ class PgvectorDocumentStore(PostgreSQLDocumentStore):
     @staticmethod
     def _process_unique_values_result(
         count_result: dict[str, Any] | None, records: list[dict[str, Any]]
-    ) -> tuple[list[str], int]:
+    ) -> tuple[list[Any], int]:
         """
         Processes the results from unique values queries.
 
@@ -1785,22 +1810,22 @@ class PgvectorDocumentStore(PostgreSQLDocumentStore):
         :returns: A tuple containing (unique_values, total_count).
         """
         total_count = count_result.get("total", 0) if count_result else 0
-        unique_values = [str(record.get("value", "")) for record in records if record.get("value") is not None]
+        unique_values = [record.get("value") for record in records if record.get("value") is not None]
         return unique_values, total_count
 
     def get_metadata_field_unique_values(
-        self, metadata_field: str, search_term: str | None, from_: int, size: int
-    ) -> tuple[list[str], int]:
+        self, metadata_field: str, search_term: str | None = None, from_: int = 0, size: int = 10
+    ) -> tuple[list[Any], int]:
         """
         Returns unique values for a given metadata field, optionally filtered by a search term.
 
         :param metadata_field: The name of the metadata field. Can include or omit the "meta." prefix.
-        :param search_term: Optional search term to filter documents by content before extracting unique values.
-            If None, all documents are considered.
+        :param search_term: Optional search term to filter unique values by a case-insensitive substring
+            match against the metadata field's own value. If None, all values are considered.
         :param from_: The offset for pagination (0-based).
         :param size: The number of unique values to return.
         :returns: A tuple containing:
-            - A list of unique values (as strings)
+            - A list of unique values in their original type
             - The total count of unique values
         """
         normalized_field = PgvectorDocumentStore._normalize_metadata_field_name(metadata_field)
@@ -1827,18 +1852,18 @@ class PgvectorDocumentStore(PostgreSQLDocumentStore):
         return PgvectorDocumentStore._process_unique_values_result(count_result, records)
 
     async def get_metadata_field_unique_values_async(
-        self, metadata_field: str, search_term: str | None, from_: int, size: int
-    ) -> tuple[list[str], int]:
+        self, metadata_field: str, search_term: str | None = None, from_: int = 0, size: int = 10
+    ) -> tuple[list[Any], int]:
         """
         Asynchronously returns unique values for a given metadata field, optionally filtered by a search term.
 
         :param metadata_field: The name of the metadata field. Can include or omit the "meta." prefix.
-        :param search_term: Optional search term to filter documents by content before extracting unique values.
-            If None, all documents are considered.
+        :param search_term: Optional search term to filter unique values by a case-insensitive substring
+            match against the metadata field's own value. If None, all values are considered.
         :param from_: The offset for pagination (0-based).
         :param size: The number of unique values to return.
         :returns: A tuple containing:
-            - A list of unique values (as strings)
+            - A list of unique values in their original type
             - The total count of unique values
         """
         normalized_field = PgvectorDocumentStore._normalize_metadata_field_name(metadata_field)

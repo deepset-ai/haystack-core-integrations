@@ -1,6 +1,9 @@
 from haystack import Document, Pipeline
-from haystack.components.embedders import SentenceTransformersDocumentEmbedder, SentenceTransformersTextEmbedder
 from haystack.components.writers import DocumentWriter
+from haystack_integrations.components.embedders.sentence_transformers import (
+    SentenceTransformersDocumentEmbedder,
+    SentenceTransformersTextEmbedder,
+)
 
 from haystack_integrations.components.retrievers.azure_ai_search import AzureAISearchEmbeddingRetriever
 from haystack_integrations.document_stores.azure_ai_search import AzureAISearchDocumentStore
@@ -32,7 +35,6 @@ documents = [
 ]
 
 document_embedder = SentenceTransformersDocumentEmbedder(model=model)
-document_embedder.warm_up()
 
 # Indexing Pipeline
 indexing_pipeline = Pipeline()

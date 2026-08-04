@@ -107,6 +107,13 @@ class TestFalkorDBDocumentStoreUnit:
                 "coalesce(d.year = $p0, false)",
                 {"p0": 2024},
             ),
+            # underscore-prefixed identifiers are valid Cypher and must be accepted
+            ({"field": "_id", "operator": "==", "value": "x"}, "coalesce(d._id = $p0, false)", {"p0": "x"}),
+            (
+                {"field": "meta._private", "operator": "==", "value": "y"},
+                "coalesce(d._private = $p0, false)",
+                {"p0": "y"},
+            ),
             (
                 {
                     "operator": "OR",
@@ -137,6 +144,21 @@ class TestFalkorDBDocumentStoreUnit:
             ({"field": "x", "operator": "in", "value": "scalar"}, "requires a list value"),
             ({"field": "x", "operator": "not in", "value": "scalar"}, "requires a list value"),
             ({"field": "x", "operator": "regex", "value": "."}, "Unsupported filter operator"),
+            # Cypher injection via field identifier (CVE: unsanitized interpolation)
+            (
+                {"field": "tenant = $p0, false) OR true RETURN d //", "operator": "==", "value": "alice"},
+                "Invalid filter field name",
+            ),
+            ({"field": "x; DROP DATABASE", "operator": "==", "value": 1}, "Invalid filter field name"),
+            ({"field": "x.y", "operator": "==", "value": 1}, "Invalid filter field name"),
+            ({"field": "meta.x.y", "operator": "==", "value": 1}, "Invalid filter field name"),
+            # empty identifier after meta. stripping
+            ({"field": "meta.", "operator": "==", "value": 1}, "Invalid filter field name"),
+            # digit-leading identifier
+            ({"field": "2fast", "operator": "==", "value": 1}, "Invalid filter field name"),
+            # hyphen in field name (common meta key, but not a valid Cypher identifier)
+            ({"field": "created-by", "operator": "==", "value": "alice"}, "Invalid filter field name"),
+            ({"field": "meta.created-by", "operator": "==", "value": "alice"}, "Invalid filter field name"),
         ],
     )
     def test_convert_filters_errors(self, filter_node, match):
@@ -349,17 +371,72 @@ class TestFalkorDBDocumentStoreUnit:
 
     def test_get_metadata_field_unique_values(self, mock_falkordb):
         _, _, graph = mock_falkordb
-        graph.query.side_effect = [_result([]), _result([]), _result([["A"], ["B"], ["C"]])]
-        values, cursor = FalkorDBDocumentStore().get_metadata_field_unique_values("category", size=10)
+        graph.query.side_effect = [_result([]), _result([]), _result([[["A", "B", "C"], 3]])]
+        values, total = FalkorDBDocumentStore().get_metadata_field_unique_values("category", size=10)
         assert values == ["A", "B", "C"]
-        assert cursor is None
+        assert total == 3
 
     def test_get_metadata_field_unique_values_pagination(self, mock_falkordb):
         _, _, graph = mock_falkordb
-        graph.query.side_effect = [_result([]), _result([]), _result([["A"], ["B"], ["C"]])]
-        values, cursor = FalkorDBDocumentStore().get_metadata_field_unique_values("category", size=2)
-        assert values == ["A", "B"]
-        assert cursor == {"offset": 2}
+        all_values = ["A", "B", "C", "D", "E"]
+        total = len(all_values)
+        pages = [all_values[i : i + 2] for i in range(0, total, 2)]
+        graph.query.side_effect = [_result([]), _result([]), *(_result([[page, total]]) for page in pages)]
+        store = FalkorDBDocumentStore()
+
+        for page_index, expected_page in enumerate(pages):
+            from_ = page_index * 2
+            values, returned_total = store.get_metadata_field_unique_values("category", from_=from_, size=2)
+            assert values == expected_page
+            assert returned_total == total
+            _, params = graph.query.call_args[0]
+            assert params["from_"] == from_
+            assert params["size"] == 2
+
+        # last page is a partial page, smaller than the requested size
+        assert len(pages[-1]) == 1
+
+    def test_get_metadata_field_unique_values_search_term_case_insensitive(self, mock_falkordb):
+        _, _, graph = mock_falkordb
+        graph.query.side_effect = [_result([]), _result([]), _result([[["Apple"], 1]])]
+        values, _ = FalkorDBDocumentStore().get_metadata_field_unique_values("category", search_term="APP")
+        assert values == ["Apple"]
+        cypher, params = graph.query.call_args[0]
+        assert "toLower(toString(d.category)) CONTAINS toLower($search_term)" in cypher
+        assert params == {"from_": 0, "size": 10, "search_term": "APP"}
+
+    def test_get_metadata_field_unique_values_preserves_non_string_types(self, mock_falkordb):
+        """Non-string metadata values (e.g. ints) are returned in their original type, not stringified."""
+        _, _, graph = mock_falkordb
+        graph.query.side_effect = [_result([]), _result([]), _result([[[1, 2, 3], 3]])]
+        values, total = FalkorDBDocumentStore().get_metadata_field_unique_values("priority", size=10)
+        assert values == [1, 2, 3]
+        assert total == 3
+
+    def test_close(self):
+        store = FalkorDBDocumentStore()
+        client = MagicMock()
+        store.client = client
+        store.initialized = True
+
+        store.close()
+
+        client.close.assert_called_once()
+        assert store.client is None
+
+        store.close()
+        client.close.assert_called_once()
+
+    def test_close_is_exception_safe(self):
+        store = FalkorDBDocumentStore()
+        client = MagicMock()
+        client.close.side_effect = RuntimeError("boom")
+        store.client = client
+        store.initialized = True
+
+        store.close()
+
+        assert store.client is None
 
 
 @pytest.mark.integration
@@ -423,6 +500,12 @@ class TestDocumentStore(
         doc = Document(content="test doc")
         assert document_store.write_documents([doc]) == 1
         self.assert_documents_are_equal(document_store.filter_documents(), [doc])
+
+    def test_close_and_reopen(self, document_store):
+        assert document_store.count_documents() == 0
+        document_store.close()
+        assert document_store.client is None
+        assert document_store.count_documents() == 0
 
     @pytest.fixture
     def embedding_store(self):

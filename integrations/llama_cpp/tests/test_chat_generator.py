@@ -160,9 +160,8 @@ def test_convert_message_to_llamacpp_format_with_unsupported_mime_type():
 def test_convert_message_to_llamacpp_format_with_none_mime_type():
     """Test that a ChatMessage with None mime type raises ValueError."""
     base64_image = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg=="
-    image_content = ImageContent(base64_image=base64_image, mime_type="image/png")
-    # Manually set mime_type to None to test the validation
-    image_content.mime_type = None
+    # validation=False skips the mime_type guessing in __post_init__, keeping it None
+    image_content = ImageContent(base64_image=base64_image, mime_type=None, validation=False)
     message = ChatMessage.from_user(content_parts=["What's in this image?", image_content])
 
     with pytest.raises(ValueError, match="Unsupported image format: None"):

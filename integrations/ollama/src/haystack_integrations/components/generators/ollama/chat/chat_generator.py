@@ -1,3 +1,4 @@
+import inspect
 import json
 from collections.abc import AsyncIterator, Callable, Iterator
 from dataclasses import replace
@@ -6,7 +7,6 @@ from typing import Any, Literal
 from haystack import component, default_from_dict, default_to_dict
 from haystack.components.generators.utils import _normalize_messages
 from haystack.dataclasses import (
-    AsyncStreamingCallbackT,
     ChatMessage,
     StreamingCallbackT,
     SyncStreamingCallbackT,
@@ -445,7 +445,7 @@ class OllamaChatGenerator:
     async def _handle_streaming_response_async(
         self,
         response_iter: AsyncIterator[ChatResponse],
-        callback: AsyncStreamingCallbackT | None,
+        callback: StreamingCallbackT | None,
     ) -> dict[str, list[ChatMessage]]:
         """
         Merge an Ollama async streaming response into a single ChatMessage, preserving tool calls.
@@ -497,7 +497,10 @@ class OllamaChatGenerator:
                     arg_by_index[key] = args
 
             if callback is not None:
-                await callback(chunk)
+                # sync callbacks are allowed in async contexts with Haystack >= 3.0, so only await async ones
+                callback_result = callback(chunk)
+                if inspect.isawaitable(callback_result):
+                    await callback_result
 
             index += 1
 
