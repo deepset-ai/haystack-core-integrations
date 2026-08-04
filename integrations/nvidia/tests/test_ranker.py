@@ -211,6 +211,7 @@ class TestNvidiaRanker:
         client = NvidiaRanker(
             model=os.environ["NVIDIA_NIM_RANKER_MODEL"],
             api_url=os.environ["NVIDIA_NIM_RANKER_ENDPOINT_URL"],
+            api_key=None,
             top_k=2,
         )
         client.warm_up()
