@@ -446,7 +446,7 @@ class TestLiveAppOnly:
         MS_GRAPH_TENANT_ID     — Azure AD tenant ID
         MS_GRAPH_CLIENT_ID     — App registration client ID
         MS_GRAPH_CLIENT_SECRET — App registration client secret
-        MS_GRAPH_REGION        — Search region, e.g. "NAM" (default: "NAM")
+        MS_GRAPH_REGION        — Search region, e.g. "NAM" (default: "DEU")
 
     Run with:
         hatch run test:integration
