@@ -472,7 +472,7 @@ class TestLiveAppOnly:
 
     def test_app_only_search_with_region_succeeds(self):
         token = self._get_app_token()
-        region = os.environ.get("MS_GRAPH_REGION", "NAM")
+        region = os.environ.get("MS_GRAPH_REGION", "DEU")
 
         # With region, the request should succeed.
         retriever = MSSharePointRetriever(top_k=3, region=region, max_retries=0)
