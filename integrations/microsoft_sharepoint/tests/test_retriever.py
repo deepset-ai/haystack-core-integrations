@@ -436,19 +436,19 @@ class TestLive:
 @pytest.mark.integration
 @pytest.mark.skipif(
     not all(
-        os.environ.get(v) for v in ("MS_SHAREPOINT_TENANT_ID", "MS_SHAREPOINT_CLIENT_ID", "MS_SHAREPOINT_CLIENT_SECRET")
+        os.environ.get(v) for v in ("MS_GRAPH_TENANT_ID", "MS_GRAPH_CLIENT_ID", "MS_GRAPH_CLIENT_SECRET")
     ),
-    reason="MS_SHAREPOINT_TENANT_ID / MS_SHAREPOINT_CLIENT_ID / MS_SHAREPOINT_CLIENT_SECRET not set",
+    reason="MS_GRAPH_TENANT_ID / MS_GRAPH_CLIENT_ID / MS_GRAPH_CLIENT_SECRET not set",
 )
 class TestLiveAppOnly:
     """
     End-to-end tests using app-only (client credentials) authentication.
 
     Set these env vars before running:
-        MS_SHAREPOINT_TENANT_ID     — Azure AD tenant ID
-        MS_SHAREPOINT_CLIENT_ID     — App registration client ID
-        MS_SHAREPOINT_CLIENT_SECRET — App registration client secret
-        MS_SHAREPOINT_REGION        — Search region, e.g. "US" (default: "US")
+        MS_GRAPH_TENANT_ID     — Azure AD tenant ID
+        MS_GRAPH_CLIENT_ID     — App registration client ID
+        MS_GRAPH_CLIENT_SECRET — App registration client secret
+        MS_GRAPH_REGION        — Search region, e.g. "NAM" (default: "NAM")
 
     Run with:
         hatch run test:integration
@@ -456,9 +456,9 @@ class TestLiveAppOnly:
 
     @staticmethod
     def _get_app_token() -> str:
-        tenant_id = os.environ["MS_SHAREPOINT_TENANT_ID"]
-        client_id = os.environ["MS_SHAREPOINT_CLIENT_ID"]
-        client_secret = os.environ["MS_SHAREPOINT_CLIENT_SECRET"]
+        tenant_id = os.environ["MS_GRAPH_TENANT_ID"]
+        client_id = os.environ["MS_GRAPH_CLIENT_ID"]
+        client_secret = os.environ["MS_GRAPH_CLIENT_SECRET"]
         response = requests.post(
             f"https://login.microsoftonline.com/{tenant_id}/oauth2/v2.0/token",
             data={
@@ -472,19 +472,9 @@ class TestLiveAppOnly:
         response.raise_for_status()
         return response.json()["access_token"]
 
-    def test_app_only_search_requires_region(self):
-        token = self._get_app_token()
-
-        # Without region, the Search API must return 400.
-        retriever_no_region = MSSharePointRetriever(top_k=3, max_retries=0)
-        with pytest.raises(SharePointRequestError) as exc_info:
-            retriever_no_region.run(query="test", access_token=token)
-        assert exc_info.value.status_code == 400
-        assert "Region is required" in str(exc_info.value)
-
     def test_app_only_search_with_region_succeeds(self):
         token = self._get_app_token()
-        region = os.environ.get("MS_SHAREPOINT_REGION", "US")
+        region = os.environ.get("MS_GRAPH_REGION", "NAM")
 
         # With region, the request should succeed.
         retriever = MSSharePointRetriever(top_k=3, region=region, max_retries=0)

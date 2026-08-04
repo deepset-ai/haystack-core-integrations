@@ -97,7 +97,7 @@ class MSSharePointRetriever:
             `'{searchTerms} path:"https://contoso.sharepoint.com/sites/Team"'`. The literal `{searchTerms}`
             placeholder is replaced by the run-time query. The template uses
             [Keyword Query Language (KQL)](https://learn.microsoft.com/en-us/sharepoint/dev/general-development/keyword-query-language-kql-syntax-reference).
-        :param region: The region code for the Microsoft Search index, for example `"US"`, `"EU"`, or `"APAC"`.
+        :param region: The region code for the Microsoft Search index, for example `"NAM"`, `"EUR"`, or `"APC"`.
             Required when using application permissions (app-only / client-credentials auth); omit for delegated
             (on-behalf-of) tokens. See the `region` property of the
             [searchRequest resource](https://learn.microsoft.com/en-us/graph/api/resources/searchrequest).
@@ -140,9 +140,9 @@ class MSSharePointRetriever:
             operators directly in the query, for example `filetype:docx`, `author:"Jane Doe"`, or
             `path:"https://contoso.sharepoint.com/sites/Team"`. See the
             [KQL syntax reference](https://learn.microsoft.com/en-us/sharepoint/dev/general-development/keyword-query-language-kql-syntax-reference).
-        :param access_token: A delegated Microsoft Graph bearer token for the user whose content is searched,
-            typically wired from an upstream `OAuthResolver` (which emits a plain `str`). A `Secret` is also
-            accepted and resolved internally.
+        :param access_token: A Microsoft Graph bearer token. For delegated auth, pass a per-user token wired from
+            an upstream `OAuthResolver`. For app-only (client-credentials) auth, pass an application token and set
+            `region` at init time. A `Secret` is also accepted and resolved internally.
         :param top_k: Overrides the `top_k` configured at initialization for this run.
         :returns: A dictionary with a `documents` key holding the list of retrieved `Document` objects.
         :raises SharePointConfigError: If `access_token` is a `Secret` that does not resolve to a string.
@@ -177,9 +177,9 @@ class MSSharePointRetriever:
             operators directly in the query, for example `filetype:docx`, `author:"Jane Doe"`, or
             `path:"https://contoso.sharepoint.com/sites/Team"`. See the
             [KQL syntax reference](https://learn.microsoft.com/en-us/sharepoint/dev/general-development/keyword-query-language-kql-syntax-reference).
-        :param access_token: A delegated Microsoft Graph bearer token for the user whose content is searched,
-            typically wired from an upstream `OAuthResolver` (which emits a plain `str`). A `Secret` is also
-            accepted and resolved internally.
+        :param access_token: A Microsoft Graph bearer token. For delegated auth, pass a per-user token wired from
+            an upstream `OAuthResolver`. For app-only (client-credentials) auth, pass an application token and set
+            `region` at init time. A `Secret` is also accepted and resolved internally.
         :param top_k: Overrides the `top_k` configured at initialization for this run.
         :returns: A dictionary with a `documents` key holding the list of retrieved `Document` objects.
         :raises SharePointConfigError: If `access_token` is a `Secret` that does not resolve to a string.
