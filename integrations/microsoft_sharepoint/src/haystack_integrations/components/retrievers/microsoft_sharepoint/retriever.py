@@ -44,10 +44,10 @@ class MSSharePointRetriever:
     download or convert the underlying files. Compose a downstream fetcher/converter (such as
     `MSSharePointFetcher`) when full content is needed.
 
-    The retriever takes a per-user `access_token` as a run input, typically wired
-    from an upstream `OAuthResolver`. The token must carry delegated Microsoft Graph permissions
-    (for example `Files.Read.All` and, for site/list scoping, `Sites.Read.All`). The Search API supports
-    delegated permissions only.
+    The retriever takes an `access_token` as a run input. For delegated (on-behalf-of) auth, pass a
+    per-user token wired from an upstream `OAuthResolver`; the token must carry delegated Microsoft Graph
+    permissions (for example `Files.Read.All` and, for site/list scoping, `Sites.Read.All`). For app-only
+    (client-credentials) auth, pass an application token and set the `region` parameter at init time.
 
     ### Usage example
     ```python

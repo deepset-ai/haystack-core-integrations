@@ -435,9 +435,7 @@ class TestLive:
 
 @pytest.mark.integration
 @pytest.mark.skipif(
-    not all(
-        os.environ.get(v) for v in ("MS_GRAPH_TENANT_ID", "MS_GRAPH_CLIENT_ID", "MS_GRAPH_CLIENT_SECRET")
-    ),
+    not all(os.environ.get(v) for v in ("MS_GRAPH_TENANT_ID", "MS_GRAPH_CLIENT_ID", "MS_GRAPH_CLIENT_SECRET")),
     reason="MS_GRAPH_TENANT_ID / MS_GRAPH_CLIENT_ID / MS_GRAPH_CLIENT_SECRET not set",
 )
 class TestLiveAppOnly:
